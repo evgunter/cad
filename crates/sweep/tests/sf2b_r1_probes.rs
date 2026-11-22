@@ -252,15 +252,22 @@ fn r1p3_the_cone_mint_is_nappe_blind_and_the_door_corrects_it() {
     let alpha = tan_a.atan();
     let apex_y = r0 / tan_a;
     let cone: Surface<f64> = Surface::Cone {
-        apex: geom_core::Point3::new(0.0, apex_y, 0.0),
-        axis: geom_core::Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            geom_core::Point3::new(0.0, apex_y, 0.0),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: alpha,
-        u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
     };
     let moved = geom_brep::offset_surface(&cone, -T, band).expect("the cone offsets");
-    let Surface::Cone { apex, .. } = moved else {
+    let Surface::Cone {
+        frame: carrier_frame,
+        ..
+    } = moved
+    else {
         panic!("a cone's offset is a cone");
     };
+    let apex = carrier_frame.origin();
     // The raw mint slides the apex UP for d = −t, so the radius at any
     // station below it GROWS: the mint answered the OPPOSITE nappe.
     let grown = (apex.y - 0.0) * tan_a;
@@ -282,9 +289,14 @@ fn r1p3_the_cone_mint_is_nappe_blind_and_the_door_corrects_it() {
         "the mirror nappe's turn is a negation"
     );
     let corrected = geom_brep::offset_surface(&cone, turned, band).expect("the cone offsets");
-    let Surface::Cone { apex: apex_c, .. } = corrected else {
+    let Surface::Cone {
+        frame: carrier_frame,
+        ..
+    } = corrected
+    else {
         panic!("a cone's offset is a cone");
     };
+    let apex_c = carrier_frame.origin();
     let shrunk = apex_c.y * tan_a;
     println!("[r1p3] corrected sign: base radius {r0} -> {shrunk}");
     assert!(

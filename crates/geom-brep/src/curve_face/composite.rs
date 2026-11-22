@@ -378,17 +378,16 @@ pub(crate) fn framed_form<T: geom_core::Certifies>(
             )
         }
         Surface::Cone { half_angle, .. } => {
-            let (sin, cos) = cross(half_angle).sin_cos();
+            let (sin, cos) = crate::implicit::cone_sin_cos(half_angle, cross);
             (
                 CanonicalSurface::Cone {
                     cos2: cos.powi(2),
                     sin2: sin.powi(2),
                 },
-                // The divisor is the double cone's and reads no nappe.
                 Meters::Cone {
                     sin,
                     cos,
-                    nappe: crate::offset::Nappe::Opening,
+                    locus: crate::pcurve_cache::projected::Locus::Carrier,
                 },
             )
         }

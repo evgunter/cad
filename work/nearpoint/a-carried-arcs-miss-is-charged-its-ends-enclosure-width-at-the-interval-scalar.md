@@ -25,29 +25,41 @@ arcs. These are the pins citing this row in
 
 | wall | arcs a rim | margin |
 |---|---|---|
-| cylinder r 50 | 6 / 40 / 200 | `[0, 3.96e-12]` / `3.84e-11` / `2.05e-10` |
-| cylinder r 213 | 6 / 40 / 200 | `[0, 1.62e-11]` / `1.10e-10` / `5.51e-10` |
-| cylinder r 410 | 1 / 6 | `[0, 3.21e-12]` / `3.15e-11` |
-| torus major 100 (minor 2.5) | 6 / 40 / 200 | `[0, 1.02e-11]` / `7.56e-11` / `3.83e-10` |
-| torus major 300 | 1 | `[0, 1.70e-12]` |
+| cylinder r 50 | 6 / 40 / 200 | `[0, 1.15e-12]` / `2.08e-11` / `1.14e-10` |
+| cylinder r 213 | 6 / 40 / 200 | `[0, 8.70e-12]` / `6.28e-11` / `3.14e-10` |
+| cylinder r 410 | 1 / 6 / 40 / 200 | `[0, 1.05e-12]` / `1.86e-11` / `1.16e-10` / `5.70e-10` |
+| torus major 100 (minor 2.5) | 6 / 40 / 200 | `[0, 4.57e-12]` / `4.12e-11` / `2.11e-10` |
+| torus major 300 | 1 / 6 | `[0, 3.13e-12]` / `1.43e-11` |
+
+These are the margins with the fixture's frame squared once at `f64`
+and lifted to `Interval` as the enclosure of its rotation (PR 7131).
+Before that, with the stated columns lifted as points, the cylinder
+rows read about 1.5 to 3.5 times wider and the torus major 300 rows
+narrower: r 50 `3.96e-12` / `3.84e-11` / `2.05e-10`, r 213
+`1.62e-11` / `1.10e-10` / `5.51e-10`, r 410 `3.21e-12` / `3.15e-11`,
+torus major 100 `1.02e-11` / `7.56e-11` / `3.83e-10`, torus major 300
+at 1 arc `1.70e-12`. The cylinder r 410 walls of 40 and 200 arcs and
+the torus major 300 wall of 6 arcs then escalated on the junction
+closure first
+(`a-far-walls-junctions-and-ruling-incidence-escalate-at-the-interval-scalar`);
+their junctions now close, and they reach this read.
 
 At ε = 1e-9 and 1e-6 every one of them measures.
 
-**Through a door.** The tilted hollow tube
+**Through a door: resolved by PR 7131.** The tilted hollow tube
 (`sweep::tube_along_arc_hollow`, axis (1, 1, 1)/√3 through the origin,
-outer 2.5, wall 0.001, full period) builds through major 750 at
-ε = 1e-12. It refuses from 800 on:
-
-| major | margin |
-|---|---|
-| 800 | `[0, 1.08e-12]` |
-| 850 | `[0, 1.14e-12]` |
-| 900 | `[0, 1.22e-12]` |
-| 990 | `[0, 1.36e-12]` |
-| 1100 | `[0, 1.88e-12]` |
-
-The 990 and 1100 arms are pinned in
-`crates/sweep/tests/far_walls_read_their_whole_turns.rs`.
+outer 2.5, wall 0.001, full period) is built at `f64` and measured at
+`Interval`. When this row was filed it built through major 750 at ε =
+1e-12 and refused past it (800 `[0, 1.08e-12]` up to 1100
+`[0, 1.88e-12]`; main pinned 990 and 1100). What widened that miss
+was not the carried arc's own arithmetic but the mass properties'
+translation (`topo` `props::quad_lane::translated_surface`)
+re-squaring every frame it moved, at `Interval` a Gram–Schmidt over
+the frame's enclosure. PR 7131 carries the frame there, and the tube
+measures at every major from 300 to 1100 at every ε
+(`crates/sweep/tests/far_walls_read_their_whole_turns.rs`, red with
+the translation re-squared). The walls below are not through that
+door, and stay open.
 
 **What it is made of.** A carried arc's miss is the principal angle
 from its start, turned by its own turn, to its end, read about its

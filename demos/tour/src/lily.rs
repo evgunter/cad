@@ -1883,14 +1883,14 @@ fn cone_station_circles<S: Scalar>(
     let mut out = Vec::new();
     for (k, _) in body.faces() {
         let Some(&pncad::geom::Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
             ..
         }) = body.face_surface(k)
         else {
             continue;
         };
+        let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
         // Read back at `f64` once, where the narration starts.
         let a = apex.map(S::f);
         let d = axis.map(S::f);
@@ -1932,13 +1932,13 @@ struct TorusCarrier {
 fn torus_carrier<S: Scalar>(body: &Body<S>) -> TorusCarrier {
     for (fk, _) in body.faces() {
         if let Some(&pncad::geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         }) = body.face_surface(fk)
         {
+            let (center, axis) = (frame.origin(), frame.axis());
             return TorusCarrier {
                 centre: center.map(S::f),
                 axis: axis.map(S::f),
@@ -2145,7 +2145,10 @@ pub fn seamed_lantern(lantern: Body<f64>, tol: Tol) -> Result<Body<f64>, Boolean
     let (zc, axis) = lantern
         .faces()
         .find_map(|(fk, _)| match lantern.face_surface(fk) {
-            Some(&pncad::topo::Surface::Sphere { center, axis, .. }) => Some((center, axis)),
+            Some(&pncad::topo::Surface::Sphere { frame, .. }) => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                Some((center, axis))
+            }
             _ => None,
         })
         .expect("the lantern's zone sphere");
@@ -2481,10 +2484,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             let (lower, _) = lower_stem();
             let lower_tube = |f| match stem.face_surface(f) {
                 Some(pncad::topo::Surface::Torus {
-                    center,
+                    frame,
                     major_radius,
                     ..
                 }) => {
+                    let center = frame.origin();
                     let c = Point3::new(center.x.f(), center.y.f(), center.z.f());
                     (c - lower.center).norm() < 1e-9 && (major_radius.f() - lower.ring).abs() < 1e-9
                 }

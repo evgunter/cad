@@ -48,10 +48,17 @@
 //!
 //! The trimmed lane additionally reads the surface's fields (an
 //! `Approx` face through its fit, which is the geometry the lane
-//! meshes), each edge's chord PARAMETERS (it evaluates pcurves on that
-//! schedule) and each half-edge's image where the face's domain places it
+//! meshes), the face's `sense` (its polygon's orientation check,
+//! `trimmed::trim_orientation`, and its outward normal), each edge's
+//! chord PARAMETERS (it evaluates pcurves on that
+//! schedule), each half-edge's image where the face's domain places it
 //! (`topo::Body::face_lift`: the loop's lift, and a ring's moved into its
-//! outer loop's sheet).
+//! outer loop's sheet), and the face across each edge (the chord pass's
+//! `ChordPass::holders`, which the shared-side rule reads in
+//! `trimmed::faces_across` to tell which two boundary points one
+//! neighbour holds both of) — the last folded as a relabeling numbered by
+//! first appearance along the walk, since a face key is an arena key,
+//! with a seam (an edge the face holds both halves of) folded as none.
 //!
 //! # The entry identity a consumer can cache against
 //!
@@ -707,6 +714,12 @@ pub(crate) struct EdgeInputs {
     /// lineage does not resolve. Folded as a relabeling, never as the
     /// key it is.
     pub(crate) lineage: Option<u32>,
+    /// The face across the edge ([`ChordPass::across`]), as an identity
+    /// numbered by first appearance along the face's walk: `None` where
+    /// the face holds both halves (a seam). The trimmed lane's
+    /// shared-side rule reads it (`trimmed::faces_across`), and the face
+    /// across is an arena key, so it is folded as a relabeling.
+    pub(crate) across: Option<u32>,
 }
 
 /// Everything a face's lane reads — the memo key, as a value. The
@@ -753,6 +766,8 @@ impl FaceInputs {
         // Split-lineage roots relabeled by first occurrence over the
         // whole face, the way the chord ids are.
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
+        // The faces across the edges, relabeled the same way.
+        let mut neighbours: HashMap<FaceKey, u32> = HashMap::new();
         // Each half-edge's image where the trimmed lane reads it: the
         // face's domain (`trimmed::face_domain`), the one value the lane
         // reads, every loop. A moved ring's image is read afresh from its
@@ -797,6 +812,11 @@ impl FaceInputs {
                 #[allow(clippy::cast_possible_truncation)]
                 let next = roots.len() as u32;
                 let lineage = root.map(|r| *roots.entry(r).or_insert(next));
+                #[allow(clippy::cast_possible_truncation)]
+                let next = neighbours.len() as u32;
+                let across = chords
+                    .across(ek, fk)?
+                    .map(|f| *neighbours.entry(f).or_insert(next));
                 edges.push(EdgeInputs {
                     forward,
                     carrier: curve.carrier().clone(),
@@ -806,6 +826,7 @@ impl FaceInputs {
                     chord_params,
                     pcurve: lifted.remove(&hek),
                     lineage,
+                    across,
                 });
             }
             loops.push(edges);
@@ -875,7 +896,10 @@ impl FaceInputs {
         if curved || trimmed {
             w.surface(&self.surface);
         }
-        if curved {
+        // The curved lane reads the sense for its pole band's azimuth;
+        // the trimmed lane for its polygon's orientation check
+        // (`trimmed::trim_orientation`) and its outward normal.
+        if curved || trimmed {
             w.bool(self.sense);
         }
         // The identity relabeling over the whole face's sequence.
@@ -920,6 +944,13 @@ impl FaceInputs {
                             Some(p) => {
                                 w.u8(1);
                                 w.pcurve(p);
+                            }
+                        }
+                        match e.across {
+                            None => w.u8(0),
+                            Some(f) => {
+                                w.u8(1);
+                                w.u32(f);
                             }
                         }
                     }
@@ -1330,6 +1361,7 @@ mod tests {
                 ends: None,
             }),
             lineage: Some(ids[0]),
+            across: Some(ids[0]),
         }
     }
 
@@ -1340,10 +1372,12 @@ mod tests {
             eps: 1e-9,
             k: 10.0,
             surface: Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
             loops: vec![vec![edge(1.0, [10, 11, 12]), edge(2.0, [12, 13, 10])]],
@@ -1372,9 +1406,7 @@ mod tests {
             (
                 "spiric",
                 Curve3::Spiric {
-                    center: frame.0,
-                    axis: frame.1,
-                    u_ref: frame.2,
+                    frame: geom::Frame::new(frame.0, frame.1, frame.2),
                     major_radius: 1.2,
                     minor_radius: 0.225,
                     offset: 0.05,
@@ -1408,10 +1440,12 @@ mod tests {
             "the surface's kind",
             |f| {
                 f.surface = Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(
+                        Point3::origin(),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     radius: 1.0,
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 }
             },
             [true, true, true],
@@ -1428,7 +1462,7 @@ mod tests {
         (
             "the face's sense",
             |f| f.sense = !f.sense,
-            [false, true, false],
+            [false, true, true],
         ),
         (
             "an edge's direction",
@@ -1496,6 +1530,16 @@ mod tests {
             "a carrier lineage that stops resolving",
             |f| f.loops[0][1].lineage = None,
             [false, true, false],
+        ),
+        (
+            "the faces across' identity structure",
+            |f| f.loops[0][1].across = f.loops[0][0].across,
+            [false, false, true],
+        ),
+        (
+            "an edge that becomes a seam",
+            |f| f.loops[0][1].across = None,
+            [false, false, true],
         ),
     ];
 
@@ -1679,10 +1723,8 @@ mod tests {
             Vec3::new(c, 0.0, -s),
         );
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
         let image = |start, end| {
@@ -1732,11 +1774,25 @@ mod tests {
                 .into_iter()
                 .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
                 .collect();
+            // A frame is squared where it is stated, so its datums read
+            // the squared axes; every other datum reads its scalars as
+            // given.
             assert_eq!(
-                walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
-                base[..kind.scalars],
-                "{at_rest:?}: the walk yields the builder's scalars, in its order"
+                walked.len(),
+                kind.scalars,
+                "{at_rest:?}: the walk reads every scalar"
             );
+            for (i, &(datum, x)) in walked.iter().enumerate() {
+                assert!(
+                    matches!(
+                        datum,
+                        geom::SurfaceDatum::Normal
+                            | geom::SurfaceDatum::Axis
+                            | geom::SurfaceDatum::URef
+                    ) || x == base[i],
+                    "{at_rest:?}: the walk yields the builder's scalar {i}, in its order"
+                );
+            }
             for (i, &(datum, _)) in walked.iter().enumerate() {
                 let mut moved = base.clone();
                 moved[i] += 0.5;
@@ -1769,11 +1825,21 @@ mod tests {
                 .into_iter()
                 .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
                 .collect();
+            // A frame is squared where it is stated, so its datums read
+            // the squared axes; every other datum reads its scalars as
+            // given.
             assert_eq!(
-                walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
-                base[..kind.scalars],
-                "{at_rest:?}: the walk yields the builder's scalars, in its order"
+                walked.len(),
+                kind.scalars,
+                "{at_rest:?}: the walk reads every scalar"
             );
+            for (i, &(datum, x)) in walked.iter().enumerate() {
+                assert!(
+                    matches!(datum, geom::CurveDatum::Axis | geom::CurveDatum::URef)
+                        || x == base[i],
+                    "{at_rest:?}: the walk yields the builder's scalar {i}, in its order"
+                );
+            }
             for (i, &(datum, _)) in walked.iter().enumerate() {
                 let mut moved = base.clone();
                 moved[i] += 0.5;

@@ -10,22 +10,28 @@
 //!   side is an arc of radius [`R`], extruded `0.7`, measures
 //!   `0.7·(1 + segment)` at every ε.
 //! - **A tilted hollow tube** (axis `(1, 1, 1)/√3`, outer radius `2.5`,
-//!   wall `1 mm`, a full period) measures its shell at majors 300 and 600
-//!   at every ε, and at majors 990 and 1100 above ε = 1e-12. There it
-//!   still escalates `props_chart_loop_whole`: a carried arc is charged
-//!   its ends' enclosure width, which grows with their distance from the
-//!   origin
-//!   (`work/nearpoint/a-carried-arcs-miss-is-charged-its-ends-enclosure-width-at-the-interval-scalar.md`).
-//!   That arm is pinned, typed, and turns red when that row lands.
+//!   wall `1 mm`, a full period) measures its shell at every major and
+//!   every ε. On main the majors past 900 escalate
+//!   `props_chart_loop_whole` at ε 1e-12, a carried arc charged its
+//!   ends' enclosure width
+//!   (`work/nearpoint/a-carried-arcs-miss-is-charged-its-ends-enclosure-width-at-the-interval-scalar.md`);
+//!   here they build.
+//!
+//! Both rows refused at ε 1e-12 while the mass properties' translation
+//! (`topo` `props::quad_lane::translated_surface`) re-squared each frame
+//! it moved, at `Interval` a Gram–Schmidt over the stored frame's
+//! enclosure, on top of its polar read (PR 7131). The translation now
+//! carries the frame (`Frame::with_origin`), and both rows go red with
+//! it re-squared through `Frame::new`, and with that
+//! re-squaring at `Interval` alone.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
-use geom_brep::props::PropsError;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, test_support::bulge_loop};
 use sweep::test_support::{sketch_from_axes, tube_frame};
-use sweep::{ExtrudeSide, Extrusion, RevolveError, TubeError, TubeWindow, tube_along_arc_hollow};
+use sweep::{ExtrudeSide, Extrusion, TubeWindow, tube_along_arc_hollow};
 
 /// The block's arc radius.
 const R: f64 = 213.083_862_394_847_5;
@@ -68,8 +74,8 @@ fn an_arc_topped_block_on_a_tilted_sketch_measures() {
             side: ExtrudeSide::Along,
         },
         tol,
-    )
-    .unwrap_or_else(|e| panic!("the block refused: {e:?}"));
+    );
+    let e = e.unwrap_or_else(|e| panic!("the block refused: {e:?}"));
     let got = topo::test_support::pinned_volume("the block", &e.body, tol).volume;
     let want = 0.7 * (1.0 + 0.5 * R * R * (theta - theta.sin()));
     assert!(
@@ -92,32 +98,6 @@ fn a_tilted_hollow_tube_measures() {
             tol,
         );
         let got = tube_along_arc_hollow::<f64>(frame, major, TubeWindow::Full, outer, wall, tol);
-        if major > 900.0 && tol.eps() <= 1e-12 {
-            let pinned = match &got {
-                Err(TubeError::Revolve(RevolveError::NotFinished { findings })) => {
-                    !findings.as_slice().is_empty()
-                        && findings.as_slice().iter().all(|f| {
-                            matches!(
-                                f,
-                                topo::ValidationError::VolumeUncomputable {
-                                    source: topo::MassPropsError::Face {
-                                        source: PropsError::Escalated { cause, .. },
-                                        ..
-                                    },
-                                    ..
-                                } if cause.predicate == Some("props_chart_loop_whole")
-                            )
-                        })
-                }
-                _ => false,
-            };
-            assert!(
-                pinned,
-                "major {major}: pinned to escalate props_chart_loop_whole at ε 1e-12; \
-                 if it built, the carried-arc row landed and this arm lifts: {got:?}"
-            );
-            continue;
-        }
         let t = got.unwrap_or_else(|e| panic!("major {major}: {e:?}"));
         let got = topo::test_support::pinned_volume("the tube", &t.body, tol).volume;
         let want = 2.0 * PI * PI * major * (outer * outer - inner * inner);

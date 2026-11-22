@@ -60,15 +60,17 @@
 //!   image of every parameter in the input enclosure — the containment
 //!   form of periodicity (evaluate over `θ + k·Real::tau()` at interval
 //!   type and the true periodic image is enclosed).
-//! - **Unit-vector and orthogonality fields are conventional data,
-//!   unchecked here.** `dir`, `axis`, `normal`, `u_ref` are unit by
-//!   convention, `u_ref ⊥ axis` (⊥ `normal`) by convention.
-//!   Constructors do not renormalize (a hidden normalize would
-//!   silently reparameterize; D6's meters-per-parameter contract is the
-//!   caller's to establish) and evaluators consume the fields as given;
-//!   violating them yields well-defined garbage (a non-arc-length
-//!   parameterization, an elliptical "circle"), not poison and not a
-//!   panic. **At rest, `topo`'s tier-3 check 1 certifies what moves a
+//! - **A carrier's frame is a rigid motion; a line's direction is
+//!   conventional data.** The `axis`/`u_ref` frame of every analytic
+//!   kind but the line (a plane's `normal`/`u_ref` among them) is a
+//!   [`Frame`], which holds a [`geom_core::RigidMotion`]: unit and square
+//!   as a property of the type. A construction mints its frame, or
+//!   states one and squares it with no decision ([`Frame::new`]), where
+//!   a degenerate statement is poison. A line's `dir` is unit by
+//!   convention, unchecked: a line is also an affine chord whose
+//!   parameter is scaled by `|dir|`, and a non-unit `dir` yields a
+//!   non-arc-length parameterization, not poison and not a panic.
+//!   **At rest, `topo`'s tier-3 check 1 certifies what moves a
 //!   locus a datum can lever**: no direction may be the zero vector,
 //!   and the `axis`/`u_ref` frame of a cylinder, sphere, torus, circle,
 //!   ellipse or spiric must be unit and orthogonal to within the run's
