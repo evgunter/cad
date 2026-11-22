@@ -201,9 +201,7 @@ pub(crate) enum Outline {
 
 /// **The faces a profile traces**, each a `(body, name)` read as a
 /// `Face` selection of that body.
-pub(crate) fn traced_faces(
-    faces: Vec<(super::doc::BodyArg, String)>,
-) -> PyResult<Vec<d::Operand>> {
+pub(crate) fn traced_faces(faces: Vec<(super::doc::BodyArg, String)>) -> PyResult<Vec<d::Operand>> {
     faces
         .into_iter()
         .map(|(body, name)| {

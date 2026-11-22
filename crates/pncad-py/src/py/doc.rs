@@ -1752,9 +1752,8 @@ impl Doc {
             Some(spin) => super::pose::scalar_at(py, d::Dimension::Angle, &spin, "spin")?,
             None => d::Formula::zero(d::Dimension::Angle),
         };
-        let slide = |s: &super::expr::SlotArg| {
-            super::pose::scalar_at(py, d::Dimension::Length, s, "slide")
-        };
+        let slide =
+            |s: &super::expr::SlotArg| super::pose::scalar_at(py, d::Dimension::Length, s, "slide");
         let slides = match slides {
             Some((a, b)) => [slide(&a)?, slide(&b)?],
             None => [
