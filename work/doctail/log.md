@@ -423,3 +423,19 @@ body has the reasons):
   (P2 H, a design question for Ev, separate from 7353). The traced-
   carriage row is re-parked on 7353.
 - 2026-11-22 — **From OFFER:** OFFER's unit `the-certified-range-refines-away-from-the-current-value` (Ev's decision on #7340) replaces `editor_core::range`'s single drive with a resumable directed search, which takes the session's part resolver. `drive.rs` is unchanged. The unit's PR names the changed signatures. (OFFER orchestrator)
+- 2026-11-22 05:25 — **7150 merged** (`1d14b92`): the runwall P0. The
+  strand report compares the generic partition (DM7, #7082). The fix
+  pass, read by the orchestrator:
+  - circle stations continue, with a two-way arc oracle, plus a
+    lone-arc `tangent_arc_to` closer read as one circle by construction
+    (the door's output is unchanged);
+  - `MaintenanceNet::finish(start, end)`;
+  - a targeted continuation floor;
+  - one `Locators` walk;
+  - `Took: Ord`;
+  - the sweep README's "Walls" sentence aligned with DM7 (a contradiction
+    within ratified #7082, told to Ev).
+
+  Filed by the lane:
+  `an-axis-edge-or-pole-a-reshaping-takes-is-reported-nowhere-end-to-end`
+  (P3). Worktree and target removed.
