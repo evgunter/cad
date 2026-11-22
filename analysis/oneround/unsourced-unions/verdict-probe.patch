@@ -1,0 +1,23 @@
+diff --git a/crates/geom-core/src/k_stats.rs b/crates/geom-core/src/k_stats.rs
+index 6cdcb7bbe..bdafcbd85 100644
+--- a/crates/geom-core/src/k_stats.rs
++++ b/crates/geom-core/src/k_stats.rs
+@@ -488,6 +488,18 @@ fn classify<T: Decide, A: MarginTerms>(
+         }),
+         o => o,
+     };
++    if let Ok(path) = std::env::var("PNCAD_VPROBE") {
++        const WATCH: &[&str] = &["curve_pair_pose_tilt","bool_overlap_senses","rim_circle_axis_parallel","split_ring_path_spline_across","split_ring_path_spline_piece","chart_region_cyl_tilt","chart_region_cyl_axis_sense","offset_axial_corner","offset_axial_cap_pair","offset_together_corner","curve_pair_pose_offset","curve_pair_pose_parallel"];
++        if WATCH.contains(&name) {
++            use std::io::Write as _;
++            let t = std::thread::current();
++            let s = match &outcome { Ok(d) => format!("{:?}", d.sign), Err(_) => "ESC".to_string() };
++            let m = match &outcome { Ok(d) => format!("{:?}", d.margin), Err(e) => format!("{:?}", e.margin) };
++            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).create(true).open(&path) {
++                let line = format!("{}\t{}\t{}\t{}\n", t.name().unwrap_or("?"), name, s, m.replace('\t', " ").replace('\n', " ")); let _ = f.write_all(line.as_bytes());
++            }
++        }
++    }
+     // Both channels of the innermost open bracket: a definite sign as
+     // a verdict, an indeterminate outcome as an escalation.
+     match &outcome {
