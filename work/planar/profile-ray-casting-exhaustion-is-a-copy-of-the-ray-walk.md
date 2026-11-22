@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P3
 cost: M
+parent: both-planar-ray-walks-share-one-driver-beside-the-reader
 ---
 
 
@@ -43,3 +44,9 @@ outcome.
 Moved from `work/paths/` to PROFILEREST (`work/profilerest/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
 
 Moved from PROFILEREST to PROFILE on 2026-11-20, by `git mv`, when PROFILEREST merged into PROFILE: PROFILEREST held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one PROFILE carries.
+
+## Claimed by PLANAR (2026-11-22)
+
+Moved from PROFILE by `git mv` when PROFILE cut Ev's plane ruling (PR 7290)
+into PLANAR's units (`work/planar/plan.md`). Its fix is part of
+`both-planar-ray-walks-share-one-driver-beside-the-reader` (`parent:`), which closes it; build nothing for it on its own.
