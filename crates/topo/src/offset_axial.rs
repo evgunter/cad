@@ -1225,12 +1225,17 @@ fn classify<T: Decide>(
 /// The arm of every edge ending at a vertex — the lengths this door's
 /// conditioning is levered by.
 ///
-/// A line reads its chord ([`geom_brep::edge_extent_inf`], whose two
-/// bounds are equal on a line), as in the planar door; so does every
-/// carrier but a circle. A circle reads its arc length: a full revolve's
-/// rim arc runs half a turn and a chart with ONE seam closes on itself,
-/// whose chord is exactly zero, and a zero arm makes every meter read
-/// `Zero` and calls a transversal corner degenerate.
+/// A line reads its chord ([`geom_brep::edge_extent_inf`]), as in the
+/// planar door, where the extent's bounds from below and from above
+/// agree. An ellipse, a spiric or a spline reads its extent from below
+/// (the chord, its fold and its sampled pairs), though the verdicts
+/// levered here act on every sign, which asks for both bounds.
+///
+/// A circle reads its arc length. A full revolve's rim arc runs half a
+/// turn and a chart with ONE seam closes on itself, whose chord is
+/// exactly zero — and a zero arm makes every meter read `Zero` and calls
+/// a perfectly transversal corner degenerate. Measured on the revolved
+/// TUBE, which refused that way before the arc length.
 fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
