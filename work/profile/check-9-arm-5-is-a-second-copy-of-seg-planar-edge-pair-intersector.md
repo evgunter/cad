@@ -7,7 +7,6 @@ opened: 2026-09-25
 priority: P1
 cost: H
 refs: [3217]
-design: true
 ---
 
 

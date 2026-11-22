@@ -38,38 +38,30 @@ pub(super) fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
 pub(super) fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
     let normal = normal.normalize();
     Surface::Plane {
-        origin,
-        normal,
-        u_ref: normal.orthonormal_basis().0,
+        frame: geom::Frame::new(origin, normal, normal.orthonormal_basis().0),
     }
 }
 
 pub(super) fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
     let axis = axis.normalize();
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, axis.orthonormal_basis().0),
         radius,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 
 pub(super) fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
 pub(super) fn torus(center: Point3<f64>, major: f64, minor: f64) -> Surface<f64> {
     Surface::Torus {
-        center,
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         major_radius: major,
         minor_radius: minor,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -372,11 +364,13 @@ fn a_general_torus_pose_is_read_from_its_march() {
         0.15,
     );
     let tilted = |center| Surface::Torus {
-        center,
-        axis: v(0.0, (0.5f64).sin(), (0.5f64).cos()),
+        frame: geom::Frame::new(
+            center,
+            v(0.0, (0.5f64).sin(), (0.5f64).cos()),
+            Vec3::unit_x(),
+        ),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_x(),
     };
     for (what, partner, count) in [
         ("the tilted rod", rod.clone(), 2),
@@ -453,22 +447,18 @@ fn a_general_torus_pose_is_read_from_its_march() {
 /// The distance in metres of `q` from a cylinder or a torus.
 fn metric_distance(s: &Surface<f64>, q: Point3<f64>) -> f64 {
     match *s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let w = q - origin;
             ((w - axis * w.dot(axis)).norm() - radius).abs()
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let w = q - center;
             let z = w.dot(axis);
             (((w - axis * z).norm() - major_radius).hypot(z) - minor_radius).abs()
@@ -522,10 +512,8 @@ fn a_marched_witness_is_placed_padded() {
 #[test]
 fn intractable_poses_refuse_on_reach() {
     let cone = Surface::Cone {
-        apex: p(0.0, 0.0, 3.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(p(0.0, 0.0, 3.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: 0.4,
-        u_ref: Vec3::unit_x(),
     };
     for (what, partner) in [
         ("a non-coaxial torus", torus(p(1.0, 0.0, 0.0), 2.0, 0.5)),
@@ -778,15 +766,29 @@ fn a_tangent_ruling_reads_as_an_unbounded_component() {
     }
 }
 
-/// A plane section of a wall is essential or unbounded on the wall, and
-/// its count is never certified single (two rulings or one ellipse).
+/// **A plane cuts a wall in one loop essential on the wall, certified
+/// single, or in two rulings the region cuts, each unbounded.**
 #[test]
-fn a_wall_and_a_plane_are_essential_on_the_wall_and_never_single() {
+fn a_plane_cuts_a_wall_in_one_essential_loop_or_unbounded_rulings() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
-    for n in [v(0.2, 0.1, 1.0), v(1.0, 0.0, 0.0)] {
-        let s = classify(&a, &plane(p(0.0, 0.0, 0.5), n));
-        assert_eq!(shape(&s), (1, false, vec![true], vec![false], vec![false]));
-    }
+    let s = classify(&a, &plane(p(0.0, 0.0, 0.5), v(0.2, 0.1, 1.0)));
+    assert_eq!(
+        shape(&s),
+        (1, true, vec![true], vec![false], vec![false]),
+        "the tilted ellipse: {s:?}"
+    );
+    let s = classify(&a, &plane(p(0.0, 0.0, 0.5), v(1.0, 0.0, 0.0)));
+    assert_eq!(
+        shape(&s),
+        (
+            2,
+            false,
+            vec![false, false],
+            vec![false, false],
+            vec![true, true]
+        ),
+        "the rulings: {s:?}"
+    );
 }
 
 // -------------------------------------------------------------------
@@ -940,17 +942,13 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
     let origin = p(0.0, 0.0, 0.0);
     let ball = sphere(origin, 1.0);
     // Sphere × plane.
-    let t = touch_both_ways(&ball, &plane(origin + k, k), "section_sphere_plane_reach");
+    let t = touch_both_ways(&ball, &plane(origin + k, k), "ps_center_gap");
     assert!(
         (t.at - (origin + k)).norm() < 1e-12,
         "tangent at {:?}",
         t.at
     );
-    let t = touch_both_ways(
-        &ball,
-        &plane(origin + k * (1.0 - push), k),
-        "section_sphere_plane_reach",
-    );
+    let t = touch_both_ways(&ball, &plane(origin + k * (1.0 - push), k), "ps_center_gap");
     let rad = (1.0 - (1.0 - push).powi(2)).sqrt();
     centres(
         "sphere × plane",
@@ -960,8 +958,8 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
     // Sphere × sphere, outside and inside, the ball as F and as the
     // larger or the smaller.
     for (label, r2, d, name) in [
-        ("outside", 0.3, 1.3, "section_sphere_pair_reach"),
-        ("inside", 0.4, 0.6, "section_sphere_pair_nest"),
+        ("outside", 0.3, 1.3, "ss_carrier_external"),
+        ("inside", 0.4, 0.6, "ss_carrier_internal"),
     ] {
         let t = touch_both_ways(&ball, &sphere(origin + k * d, r2), name);
         assert!(
@@ -969,7 +967,7 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
             "{label}: tangent at {:?}",
             t.at
         );
-        let d = if name.ends_with("reach") {
+        let d = if name.ends_with("external") {
             d - push
         } else {
             d + push
@@ -1029,7 +1027,7 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
 fn pinches_and_undecided_tangencies_are_not_touches() {
     let ball = sphere(p(0.0, 0.0, 0.0), 1.0);
     let pl = plane(p(0.0, 0.0, 1.0 - in_sliver()), Vec3::unit_z());
-    assert_eq!(tangent(&classify(&ball, &pl)), "section_sphere_plane_reach");
+    assert_eq!(tangent(&classify(&ball, &pl)), "ps_center_gap");
     let girdle = cylinder(p(0.5, 0.0, -2.0), Vec3::unit_z(), 0.5);
     assert_eq!(tangent(&classify(&ball, &girdle)), "cs_far_reach");
     let fat = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
@@ -1048,7 +1046,7 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     );
     assert_eq!(
         tangent(&classify(&ball, &sphere(p(off, 0.0, 0.0), 1.0 - off))),
-        "section_sphere_pair_nest"
+        "pair_section_coincident"
     );
 }
 
@@ -1248,11 +1246,11 @@ fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
 #[test]
 fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     let s = Section::Touch(Touch {
-        name: "section_sphere_plane_reach",
+        name: "ps_center_gap",
         at: p(0.0, 0.0, 1.0),
         apex: false,
     });
-    let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
+    let tan = Err(Refusal::Tangent("ps_center_gap"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
         certify_section_pair(&s, evented, band(), |_| Sheet::Not, |_, _| place)
     };
@@ -1498,6 +1496,18 @@ fn seamless_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     (body, seed.face)
 }
 
+/// **A table that holds no pair, over a region holding the rows'
+/// bodies**: the region a pair with no bounded side (a plane and a
+/// cylinder) is read over, as the glue door's table hands it.
+fn regioned() -> crate::boolean::section_table::SectionTable<f64> {
+    crate::boolean::section_table::SectionTable::reader(
+        None,
+        Some(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), LEVER)),
+        band(),
+    )
+    .finish()
+}
+
 /// The verdict of every pair of `a`'s `face` against `b`'s faces on the
 /// crossings path, with no events.
 pub(super) fn scan(
@@ -1508,7 +1518,7 @@ pub(super) fn scan(
     ops::section_pairs(
         a,
         b,
-        &crate::boolean::section_table::SectionTable::default(),
+        &regioned(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,
@@ -1706,7 +1716,7 @@ pub(super) fn scan_b(
     ops::section_pairs(
         a,
         b,
-        &crate::boolean::section_table::SectionTable::default(),
+        &regioned(),
         band(),
         ops::SectionPath::Crossings,
         ops::Exempt::Nothing,
@@ -1988,10 +1998,8 @@ fn a_glued_pair_exempts_itself_only() {
 /// rim at `z = 1` has radius 1.
 pub(super) fn unit_cone() -> Surface<f64> {
     Surface::Cone {
-        apex: p(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(p(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: PI / 4.0,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -2435,11 +2443,7 @@ fn torus_iso(
             selector: geom_brep::CurveSelector::Witness(torus_at((major, minor), mid)),
         },
         carrier: Curve3::Circle(geom::Circle::new(
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            geom::Frame::new(center, axis, u_ref),
             radius,
         )),
         param_start: 0.0,
@@ -3047,11 +3051,9 @@ impl Tor {
 
     fn surface(&self) -> Surface<f64> {
         Surface::Torus {
-            center: self.c,
-            axis: self.a,
+            frame: geom::Frame::new(self.c, self.a, self.e1),
             major_radius: self.big_r,
             minor_radius: self.r,
-            u_ref: self.e1,
         }
     }
 }

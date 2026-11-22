@@ -101,14 +101,17 @@ fn ring_hosts<T: Decide + Bounds>(body: &Body<T>) -> Vec<(Point3<f64>, usize)> {
     body.faces()
         .filter(|(_, fd)| !fd.rings.is_empty())
         .map(|(f, fd)| match body.face_surface(f) {
-            Some(Surface::Plane { normal, .. }) => (
-                Point3::new(
-                    mid(normal.x).abs(),
-                    mid(normal.y).abs(),
-                    mid(normal.z).abs(),
-                ),
-                fd.rings.len(),
-            ),
+            Some(Surface::Plane { frame, .. }) => {
+                let normal = frame.axis();
+                (
+                    Point3::new(
+                        mid(normal.x).abs(),
+                        mid(normal.y).abs(),
+                        mid(normal.z).abs(),
+                    ),
+                    fd.rings.len(),
+                )
+            }
             other => panic!("a ring lies on a face that is not a plane: {other:?}"),
         })
         .collect()

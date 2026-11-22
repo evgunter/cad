@@ -2,10 +2,12 @@
 id: a-projected-split-is-unreachable-from-the-viewport
 kind: issue
 title: After one projection of a pattern, its other copies are reachable only from the tree: a viewport click seats the projection, not the source
-status: open
+status: closed
 opened: 2026-09-24
 priority: P1
 cost: D
+closed: 2026-11-22
+refs: [the-split-mirror-and-pattern-seats-read-a-picked-members-whole-family, the-projection-tool-writes-a-member-read-a-pick-already-seats]
 ---
 
 
@@ -58,3 +60,29 @@ split or pattern again. That is true, and it is the only route.
   picture. A display rule, and a bigger one.
 
 **Measured** (AUTH-4 lane): box split at half height, lower half projected, ray straight down at the centre → the pick seats node 5 (the projection) in the split seat, and `half_op` commits to the refusal "node 5 is not a split in this document".
+
+## Closed (2026-11-22): the premise is gone
+
+Two designers weighed the row independently, and both found that the
+document model it describes has been retired. There is no `Node::Part`
+and no pattern node. A pattern is a family over an index
+(`[repetition]`), and the projection tool writes a placement of one
+member read, `xs[k]`, that consumes nothing. `world::Picture::of` draws
+the family less the members read alone (`Covers::AllBut`), so after
+one copy is projected, every other copy is still drawn, and a viewport
+pick on one of them seats the pattern in the projection tool
+(`lands_unplaced::a_projected_member_is_drawn_once`). The panel
+sentence the row cites is gone; `PROJECTION_IS_PLACED` now states the
+opposite. A click on the projected copy itself seats the copy, which is
+Ev's ruling on PR 6353. So neither of the row's two shapes has anything
+left to fix.
+
+What the row was evidence of is tracked elsewhere. The split, mirror
+and pattern seats read a picked member as the whole family
+(`work/doors/the-split-mirror-and-pattern-seats-read-a-picked-members-whole-family.md`),
+and once they read the member, the projection tool is a detour that
+can go (`work/chrome/the-projection-tool-writes-a-member-read-a-pick-already-seats.md`).
+The DOORS row should land first. The part tool's prompt still says
+"pick a pattern in the tree" (`pane/create.rs`, `ToolKind::Part.says`),
+which undersells the viewport pick; it goes with the tool's deletion
+on CHROME's row.

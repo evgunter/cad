@@ -165,9 +165,10 @@ fn a_peg_in_one_segment_of_a_bore_moves_only_its_wall_in_both_orders() {
         let left = walls(&u);
         assert!(!left.is_empty(), "{order}: the bore's wall survives");
         for f in left {
-            let Some(geom::Surface::Cylinder { axis, .. }) = u.face_surface(f) else {
+            let Some(geom::Surface::Cylinder { frame, .. }) = u.face_surface(f) else {
                 unreachable!("a wall face is a cylinder");
             };
+            let axis = frame.axis();
             assert_eq!(
                 (axis.x, axis.z),
                 (0.0, 0.0),
