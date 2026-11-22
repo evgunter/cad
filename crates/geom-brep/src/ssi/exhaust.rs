@@ -1035,7 +1035,9 @@ fn sweep_r3(
         if !e1.is_certified() || !e2.is_certified() {
             // Both kinds are in the roster (above), so a refused
             // enclosure is a degenerate operand, behind the doors' own
-            // radius and ring-convention decisions.
+            // radius and ring-convention decisions. A cone with
+            // certified data is never one: off its gate the sign
+            // enclosure is its quadric, which divides by nothing.
             return Err(SsiError::UnsupportedCertificate {
                 what: "a degenerate operand — a sphere, cylinder or torus tube of \
                        zero radius, or a torus whose |q|² + R² − r² reaches zero (a \
@@ -1467,47 +1469,83 @@ mod tests {
         }
     }
 
-    /// **Exhaustion over a cone terminates across the apex's plane.** A
-    /// plane `z = 1` cuts the 45° cone about `z` in the circle `ρ = 1`;
-    /// the root box holds the apex and both nappes. Every cell the
-    /// elevation's gate refuses (the apex's plane, the axis) is decided
-    /// by the quadric's sign or the plane's, so seeding ends on seeds
-    /// along the circle alone. Red with the cone off the roster
-    /// (`WrongLane`), or with exclusion reading the gated elevation:
-    /// its first cell straddles the apex's plane and refuses.
+    /// **Exhaustion over a cone terminates across the apex's plane, and
+    /// excludes no cell that holds the section.** Two planes against the
+    /// 45° cone about `z`, over a root box holding the apex and both
+    /// nappes: `z = 1`, which cuts the circle `ρ = 1`, and `x = 0`, which
+    /// holds the axis and cuts the rulings `y = ±z` through the apex.
+    /// Every cell the elevation's gate refuses (the apex's plane, the
+    /// axis) is decided by the quadric's sign or the plane's, so seeding
+    /// ends; the seeds lie on the section and reach every part of it:
+    /// each eighth of the circle, each of the four rays, and the apex,
+    /// whose cells only the quadric reads. Red with the cone off the
+    /// roster (`WrongLane`), with exclusion reading the gated elevation
+    /// (its first cell straddles the apex's plane and refuses), or with a
+    /// quadric that excludes a cell of the section.
     #[test]
     fn a_cone_sweep_ends_across_its_apex_plane() {
-        use geom_core::Point3;
+        use geom_core::{Point3, Vec3};
         let cone = crate::ssi::enclose::tests::cone(
             [0.0; 3],
             [0.0, 0.0, 1.0],
             core::f64::consts::FRAC_PI_4,
         );
-        let cut = geom::Surface::Plane {
-            frame: geom::Frame::new(
-                Point3::new(0.0, 0.0, 1.0),
-                geom_core::Vec3::new(0.0, 0.0, 1.0),
-                geom_core::Vec3::new(1.0, 0.0, 0.0),
-            ),
+        let plane = |o: [f64; 3], n: Vec3<f64>, x: Vec3<f64>| geom::Surface::Plane {
+            frame: geom::Frame::new(Point3::new(o[0], o[1], o[2]), n, x),
         };
-        let floor = SweepFloor::r3(
-            Box3::around(Point3::new(0.0, 0.0, 0.0), 1.25),
-            5e-2,
-            FloorKind::Seeding,
-        )
-        .unwrap();
-        let seeds = match super::seed_r3(&cone, &cut, floor) {
-            Ok(seeds) => seeds,
-            Err(e) => panic!("the sweep ends, not {e:?}"),
+        let seeds = |cut: &geom::Surface<f64>| {
+            let floor = SweepFloor::r3(
+                Box3::around(Point3::new(0.0, 0.0, 0.0), 1.25),
+                5e-2,
+                FloorKind::Seeding,
+            )
+            .unwrap();
+            match super::seed_r3(&cone, cut, floor) {
+                Ok(seeds) => seeds,
+                Err(e) => panic!("the sweep ends, not {e:?}"),
+            }
         };
-        assert!(!seeds.is_empty(), "the circle is seeded");
-        for p in &seeds {
+        let circle = seeds(&plane(
+            [0.0, 0.0, 1.0],
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ));
+        let mut eighths = [false; 8];
+        for p in &circle {
             let rho = p.x.hypot(p.y);
             assert!(
                 (rho - 1.0).abs() < 0.1 && (p.z - 1.0).abs() < 0.1,
                 "a seed off the circle: {p:?}"
             );
+            let turn = p.y.atan2(p.x).rem_euclid(core::f64::consts::TAU);
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let k = ((turn / core::f64::consts::TAU * 8.0) as usize).min(7);
+            eighths[k] = true;
         }
+        assert!(
+            eighths.iter().all(|&e| e),
+            "an eighth of the circle is unseeded: {eighths:?}"
+        );
+        let rulings = seeds(&plane(
+            [0.0; 3],
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ));
+        let mut rays = [false; 4];
+        let mut apex = false;
+        for p in &rulings {
+            assert!(
+                p.x.abs() < 0.1 && (p.y.abs() - p.z.abs()).abs() < 0.15,
+                "a seed off the rulings: {p:?}"
+            );
+            if p.y.abs().max(p.z.abs()) < 0.1 {
+                apex = true;
+            } else if p.y.abs().max(p.z.abs()) > 0.5 {
+                rays[usize::from(p.y > 0.0) + 2 * usize::from(p.z > 0.0)] = true;
+            }
+        }
+        assert!(apex, "the apex is unseeded: {rulings:?}");
+        assert!(rays.iter().all(|&r| r), "a ray is unseeded: {rays:?}");
     }
 
     fn unit_square() -> UvRect {

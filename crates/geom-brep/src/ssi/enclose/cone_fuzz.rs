@@ -8,17 +8,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 test_utils::gated_to![
+    "crates/geom-brep/src/ssi/enclose.rs",
     "crates/geom-brep/src/implicit.rs",
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/interval/",
 ];
 
-use geom_core::{Bounds, Point3, Vec3};
+use geom_core::{Point3, Vec3};
 use test_utils::fuzz;
 
-use super::tests::cone;
-use super::{Box3, implicit_enclosure, implicit_gradient_enclosure, implicit_sign_enclosure};
-use crate::implicit::{implicit_gradient, implicit_residual};
+use super::tests::{cone, cone_box_reads};
 
 fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
     loop {
@@ -39,11 +38,9 @@ fn unit(rng: &mut fuzz::Rng) -> Vec3<f64> {
 /// a slant distance log-uniform from `10⁻⁴` to `10` (so boxes reach the
 /// apex and the axis), a box about it of a log-uniform size relative to
 /// that distance, and sixteen points of the box (its corners and eight
-/// interior points). Where `g`'s enclosure is certified it holds the
-/// `f64` residual at each, within that residual's own rounding; so does
-/// each component of `∇g`'s; where the sign enclosure excludes zero
-/// each point lies on its side of the cone; and a box holding the apex
-/// encloses neither `g` nor `∇g`.
+/// interior points), each read by [`cone_box_reads`]. How many boxes
+/// certify is no part of this search: the static witness
+/// `the_cone_enclosures_certify_and_hold_on_fixed_boxes` is the floor.
 #[test]
 fn the_cone_enclosures_hold_every_sampled_point_of_their_box() {
     let mut rng = fuzz::start("enclose::cone_arm");
@@ -65,61 +62,14 @@ fn the_cone_enclosures_hold_every_sampled_point_of_their_box() {
         let on = apex + axis * (sigma * slant * alpha.cos()) + out * (slant * alpha.sin());
         let r = slant * rng.log_uniform(1e-4, 2.0);
         let centre = on + unit(&mut rng) * rng.range(0.0, r);
-        let b = Box3::around(centre, r);
-        let (g, grad, sign) = (
-            implicit_enclosure(&c, b),
-            implicit_gradient_enclosure(&c, b),
-            implicit_sign_enclosure(&c, b),
+        let interior: Vec<Vec3<f64>> = (0..8)
+            .map(|_| Vec3::new(rng.range(-r, r), rng.range(-r, r), rng.range(-r, r)))
+            .collect();
+        let case = format!(
+            "cone apex {apex:?} axis {axis:?} α {alpha}, box about {centre:?} of half-width \
+             {r} (nappe {sigma}, slant {slant}) — {}",
+            fuzz::replay()
         );
-        let case = || {
-            format!(
-                "cone apex {apex:?} axis {axis:?} α {alpha}, box about {centre:?} of half-width \
-                 {r} (nappe {sigma}, slant {slant}) — {}",
-                fuzz::replay()
-            )
-        };
-        let reach = (centre - apex).norm() + r + 1.0;
-        let tol = 64.0 * f64::EPSILON * reach;
-        let corner = |k: usize, s: usize| if (k >> s) & 1 == 0 { -r } else { r };
-        let points: Vec<Point3<f64>> =
-            (0..8)
-                .map(|k| centre + Vec3::new(corner(k, 0), corner(k, 1), corner(k, 2)))
-                .chain((0..8).map(|_| {
-                    centre + Vec3::new(rng.range(-r, r), rng.range(-r, r), rng.range(-r, r))
-                }))
-                .collect();
-        for p in points {
-            let at = implicit_residual(&c, p);
-            if g.is_certified() {
-                assert!(
-                    g.lo() - tol <= at && at <= g.hi() + tol,
-                    "g {g:?} misses {at} at {p:?}: {}",
-                    case()
-                );
-            }
-            if grad.iter().all(|e| e.is_certified()) {
-                let n = implicit_gradient(&c, p);
-                for (e, v) in grad.iter().zip([n.x, n.y, n.z]) {
-                    assert!(
-                        e.lo() - tol <= v && v <= e.hi() + tol,
-                        "∇g {grad:?} misses {n:?} at {p:?}: {}",
-                        case()
-                    );
-                }
-            }
-            if sign.is_certified() && sign.lo() > 0.0 {
-                assert!(at > -tol, "sign {sign:?} but g = {at} at {p:?}: {}", case());
-            }
-            if sign.is_certified() && sign.hi() < 0.0 {
-                assert!(at < tol, "sign {sign:?} but g = {at} at {p:?}: {}", case());
-            }
-        }
-        if Box3::between(apex, apex).contained_in(b) {
-            assert!(
-                !g.is_certified() && grad.iter().all(|e| !e.is_certified()),
-                "a box holding the apex is enclosed: {}",
-                case()
-            );
-        }
+        cone_box_reads(&c, apex, (centre, r), &interior, &case);
     }
 }

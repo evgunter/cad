@@ -1139,8 +1139,8 @@ impl<T: Real> ReplaceFaceError<T> {
             Self::TogetherConicArc { conic, .. } => write!(
                 f,
                 "an edge of the body would follow the offset along {}, where the moved flat \
-                 face cuts the cone off its axis, and the section states no bound that \
-                 certifies that arc there. {NOT_YET_ENDING}",
+                 face cuts the cone off its axis, and neither the section's bounds nor the \
+                 uniqueness tube certify that arc there. {NOT_YET_ENDING}",
                 conic.named()
             ),
             Self::DegenerateTorus { refusal, .. } => write!(f, "{}", read_at(refusal, at)),

@@ -4465,8 +4465,8 @@ mod tests {
     /// off the cone's gate at every rung, so the ladder answers nothing
     /// (`TubeProbeSilent`, every rung offered), where reading each
     /// refusal as a zero margin reported a straddle at the narrowest
-    /// rung. Red if the ℝ³ chain gains a node end that reads the apex
-    /// as an arc's end.
+    /// rung. Red if a refused box is read as a zero margin, or if the
+    /// cone arm encloses a box holding its apex.
     #[test]
     #[allow(clippy::unwrap_used)]
     fn a_tube_whose_enclosures_are_refused_answers_no_rung() {

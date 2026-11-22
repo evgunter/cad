@@ -6,7 +6,11 @@
 //! [`Interval`]: outward-rounded, always compiled, no feature gate,
 //! no LGPL. Nothing in this module evaluates at a `Real` scalar and
 //! nothing in it decides — it produces enclosures which the named
-//! trileans upstairs classify.
+//! trileans upstairs classify. The one exception is the cone's angle:
+//! its stored half-angle's sine and cosine are taken on the interval
+//! lane outside this file (`implicit::cone_sin_cos`) and crossed in,
+//! until the cone stores its slope
+//! (`work/sectcone/the-cone-stores-its-slope.md`).
 //!
 //! # What lives here
 //!
@@ -14,6 +18,9 @@
 //!   cell and the uniqueness tube's link.
 //! - [`implicit_enclosure`] — `f(B)` for an analytic surface over a
 //!   box: **exclusion** when the enclosure excludes 0.
+//! - [`implicit_sign_enclosure`] — an enclosure of a function with
+//!   `f`'s sign over a box, which exclusion reads: `f(B)` itself, or on
+//!   a cone box off its gate the double cone's quadric.
 //! - [`implicit_gradient_enclosure`] — `∇f(B)`, the input to the
 //!   transversality/graph enclosure.
 //! - [`graph_margin`] — `(∇f₁ × ∇f₂)·e` over a box. This number carries
@@ -41,9 +48,12 @@
 //! (unsupported kind, malformed net, zero-touching divisor) yields
 //! [`Interval::refused`], which fails every downstream test. An
 //! enclosure is narrowed only by meeting it with another enclosure of
-//! the same quantity (the torus arm's mean-value and direct forms of
-//! one `g`), and a branch on a value only ever refuses (the torus's
-//! `A` not shown positive).
+//! the same quantity (the torus's and the cone's mean-value and direct
+//! forms of one `g`). A branch on a value refuses (the torus's `A` not
+//! shown positive, a cone box off its gate) or picks between spellings
+//! of one function on a decided sign: the cone's `|h|` as `σh` where
+//! `h`'s enclosure excludes zero, and the quadric for the elevation
+//! where only the sign is read.
 //!
 //! # The M6-2 seam: generic scalars in, enclosures out
 //!
@@ -325,14 +335,13 @@ fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [Interval; 3] {
 /// quartic `F = A² − 4R²ρ²` over `4r` times `A = |q|² + R² − r²`, which
 /// shares the meters residual's zero set and sign and agrees with it to
 /// first order at the surface. Its box enclosure is the mean-value form
-/// about the box's centre, met with the direct one: the direct form
-/// treats `A²` and `4R²ρ²` as independent and is about `2R/r` wider.
-/// Refused where `A`'s enclosure is not positive (a spindle or horn
-/// torus near its axis). On the cone it is the double cone's elevation
-/// `g = ρ cos α − |h| sin α` ([`Elevation`]), limb 1's own residual,
-/// enclosed the torus's way and refused off [`Elevation`]'s gate (a box
-/// reaching the axis or the apex's plane). [`Surface::Nurbs`] has no
-/// implicit form at all.
+/// ([`mean_value_met`]): the direct form treats `A²` and `4R²ρ²` as
+/// independent and is about `2R/r` wider. Refused where `A`'s enclosure
+/// is not positive (a spindle or horn torus near its axis). On the cone
+/// it is the double cone's elevation `g = ρ cos α − |h| sin α`
+/// ([`Elevation`]), limb 1's own residual, enclosed the torus's way and
+/// refused off [`Elevation`]'s gate (a box reaching the axis or the
+/// apex's plane). [`Surface::Nurbs`] has no implicit form at all.
 pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Box3) -> Interval {
     let two = Interval::point(2.0);
     match *surface {
@@ -350,7 +359,7 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
             (norm_sq(&subp(b, center)) - r.sqr()) / (two * r)
         }
         Surface::Cylinder { frame, radius, .. } => {
-            let (_, w) = axial_radial(b, frame.origin(), frame.axis());
+            let (_, w) = axial_split(&subp(b, frame.origin()), &constv(frame.axis()));
             let r = Interval::from_certified(radius);
             (norm_sq(&w) - r.sqr()) / (two * r)
         }
@@ -362,26 +371,13 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
         } => {
             let (center, axis) = (frame.origin(), frame.axis());
             let at = |b: Box3| Quartic::over(b, center, axis, major_radius, minor_radius);
-            let c = b.center();
-            let mid = Box3::between(c, c);
-            let over = at(b);
-            let grad = over.gradient();
-            let d = [b.x - mid.x, b.y - mid.y, b.z - mid.z];
-            (at(mid).residual() + dot(&grad, &d)).meet(over.residual())
+            mean_value_met(b, &at(b), |mid| Some(at(mid)))
         }
         Surface::Cone {
             frame, half_angle, ..
-        } => {
-            let angle = crate::implicit::cone_sin_cos_enclosure(half_angle);
-            let at = |b: Box3| Elevation::over(b, frame.origin(), frame.axis(), angle);
-            let c = b.center();
-            let mid = Box3::between(c, c);
-            let (Some(over), Some(centre)) = (at(b), at(mid)) else {
-                return Interval::refused();
-            };
-            let d = [b.x - mid.x, b.y - mid.y, b.z - mid.z];
-            (centre.residual() + dot(&over.gradient(), &d)).meet(over.residual())
-        }
+        } => ConeReading::over(b, frame.origin(), frame.axis(), half_angle)
+            .elevation()
+            .unwrap_or_else(Interval::refused),
         // `Approx` with the no-enclosure group: the implicit forms this
         // module encloses do not exist for a spline stand-in.
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Interval::refused(),
@@ -389,33 +385,33 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
 }
 
 /// An enclosure over `b` of a function with the sign of `surface`'s
-/// implicit form at every point: [`implicit_enclosure`]'s own where it
-/// is certified, and on a cone box off [`Elevation`]'s gate the
-/// quadric `Q = cos²α·ρ² − sin²α·h²`, whose sign is the double cone's
-/// exactly (`Q = g·(ρ cos α + |h| sin α)`, the second factor positive
-/// off the apex, where both vanish). A reader of the sign alone, an
-/// exclusion, reads this one: refused on a box straddling the apex's
-/// plane, the elevation would hold a cell far from the cone unexcluded
-/// at every depth.
+/// implicit form at every point: [`implicit_enclosure`]'s own, and on a
+/// cone box off [`Elevation`]'s gate the quadric
+/// `Q = cos²α·ρ² − sin²α·h²`, whose sign is the double cone's exactly
+/// (`Q = g·(ρ cos α + |h| sin α)`, the second factor positive off the
+/// apex, where both vanish). A reader of the sign alone, an exclusion,
+/// reads this one: refused on a box straddling the apex's plane, the
+/// elevation would hold a cell far from the cone unexcluded at every
+/// depth.
 pub(crate) fn implicit_sign_enclosure<T: CertifiedBounds>(
     surface: &Surface<T>,
     b: Box3,
 ) -> Interval {
-    let g = implicit_enclosure(surface, b);
     match *surface {
         Surface::Cone {
             frame, half_angle, ..
-        } if !g.is_certified() => {
-            let (sin, cos) = crate::implicit::cone_sin_cos_enclosure(half_angle);
-            let (h, w) = axial_radial(b, frame.origin(), frame.axis());
-            cos.sqr() * norm_sq(&w) - sin.sqr() * h.sqr()
-        }
-        _ => g,
+        } => match ConeReading::over(b, frame.origin(), frame.axis(), half_angle) {
+            ConeReading::Gated(g) => g,
+            ConeReading::Off(parts) => parts.quadric(),
+        },
+        _ => implicit_enclosure(surface, b),
     }
 }
 
-/// `h = q·â` and the radial vector `w = q − âh` of `q = p − origin`
-/// over `b`.
+/// `h = q·â` and the radial vector `w = q − âh` of an enclosed `q`
+/// about an enclosed axis: the box twin of
+/// [`crate::implicit::axial_radial`], in the same order, though in
+/// certification arithmetic rather than bit-identical to it.
 ///
 /// `|w|²` is read from the radial vector itself, never as
 /// `|q|² − (q·â)²`: that identity is exact in ℝ and catastrophic in
@@ -427,15 +423,30 @@ pub(crate) fn implicit_sign_enclosure<T: CertifiedBounds>(
 /// exhaustiveness subdivision then refines the entire slab to the
 /// floor. Forming `w` first keeps the cancellation inside one
 /// expression, and for an axis-aligned surface it is exact.
-fn axial_radial<T: CertifiedBounds>(
-    b: Box3,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-) -> (Interval, [Interval; 3]) {
-    let q = subp(b, origin);
-    let a = constv(axis);
-    let h = dot(&q, &a);
+fn axial_split(q: &[Interval; 3], a: &[Interval; 3]) -> (Interval, [Interval; 3]) {
+    let h = dot(q, a);
     (h, [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h])
+}
+
+/// A form's value and gradient over a box, as [`mean_value_met`] reads
+/// them.
+trait MeanValue {
+    fn residual(&self) -> Interval;
+    fn gradient(&self) -> [Interval; 3];
+}
+
+/// `f(b)` by the mean-value form about `b`'s centre, met with the
+/// direct form: `f(c) + ∇f(b)·(b − c)`, with `over` the form over `b`
+/// and `at` the form over the centre's point box. Sound where `f` is
+/// C¹ over `b`, which each form's own refusals secure.
+fn mean_value_met<F: MeanValue>(b: Box3, over: &F, at: impl FnOnce(Box3) -> Option<F>) -> Interval {
+    let c = b.center();
+    let mid = Box3::between(c, c);
+    let Some(centre) = at(mid) else {
+        return Interval::refused();
+    };
+    let d = [b.x - mid.x, b.y - mid.y, b.z - mid.z];
+    (centre.residual() + dot(&over.gradient(), &d)).meet(over.residual())
 }
 
 /// The enclosure over `b` of the gradient of [`implicit_enclosure`]'s
@@ -490,86 +501,162 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
         Surface::Cone {
             frame, half_angle, ..
         } => {
-            let angle = crate::implicit::cone_sin_cos_enclosure(half_angle);
-            Elevation::over(b, frame.origin(), frame.axis(), angle)
-                .map_or(refused, |e| e.gradient())
+            let angle = cone_angle(half_angle);
+            let parts = ConeParts::over(b, frame.origin(), frame.axis(), angle);
+            Elevation::gate(parts).map_or(refused, |e| e.gradient())
         }
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => refused,
     }
 }
 
-/// The double cone's elevation over a box, with the parts its gradient
-/// reads: `q = p − apex`, `h = q·â`, the radial vector `w = q − âh`
-/// ([`axial_radial`]) and `ρ = |w|`.
-///
-/// **The gate.** It exists only where `h`'s enclosure and `|w|`'s
-/// exclude zero. Over such a box `g = ρ cos α − σh sin α` with the one
-/// sign `σ` of `h`, a smooth function whose zero set is the double
-/// cone's part in the box: only the nappe `σ` names meets it. Without
-/// the gate a box near the apex holds points of both nappes without
-/// reaching the axis, and a proof of one solution of one nappe's
-/// system would stand where the other nappe passes through the box.
-/// Off it `|h|` and `ρ` have no derivative (the apex's plane, the
-/// axis), and the apex itself, where `∇g` vanishes, is C5's node.
-struct Elevation {
+/// A cone's `(sin α, cos α)` in certification arithmetic: the stored
+/// angle crossed first, then taken on the interval lane
+/// ([`crate::implicit::cone_sin_cos`]), so each brackets the stored
+/// cone's value. No row can tell this order from the other at `f64`:
+/// the two differ by under an ulp of `sin α`, below every enclosure's
+/// own width, so it is held by its spelling, not by a test.
+fn cone_angle<T: CertifiedBounds>(half_angle: T) -> (Interval, Interval) {
+    crate::implicit::cone_sin_cos(half_angle, Interval::from_certified)
+}
+
+/// A cone's parts over a box: `h = q·â` and `w = q − âh` of
+/// `q = p − apex` ([`axial_split`]), the axis, and the angle's
+/// `(sin α, cos α)` ([`cone_angle`]).
+#[derive(Clone, Copy)]
+struct ConeParts {
     h: Interval,
     w: [Interval; 3],
     axis: [Interval; 3],
-    rho: Interval,
-    /// `σ`, the sign of `h`.
-    nappe: Interval,
     sin: Interval,
     cos: Interval,
 }
 
-impl Elevation {
+impl ConeParts {
     fn over<T: CertifiedBounds>(
         b: Box3,
         apex: Point3<T>,
         axis: Vec3<T>,
         (sin, cos): (Interval, Interval),
-    ) -> Option<Self> {
-        let (h, w) = axial_radial(b, apex, axis);
-        let rho_sq = norm_sq(&w);
-        let nappe = match (h.is_certified(), h.lo() > 0.0, h.hi() < 0.0) {
-            (true, true, _) => 1.0,
-            (true, _, true) => -1.0,
-            _ => return None,
+    ) -> Self {
+        let axis = constv(axis);
+        let (h, w) = axial_split(&subp(b, apex), &axis);
+        Self {
+            h,
+            w,
+            axis,
+            sin,
+            cos,
+        }
+    }
+
+    /// `Q = cos²α·|w|² − sin²α·h²`, the double cone's quadric, which
+    /// certifies over every box of a cone whose data certify: it divides
+    /// by nothing.
+    fn quadric(&self) -> Interval {
+        self.cos.sqr() * norm_sq(&self.w) - self.sin.sqr() * self.h.sqr()
+    }
+}
+
+/// What a cone box reads: its elevation's enclosure where the box is on
+/// [`Elevation`]'s gate, else the parts the quadric reads.
+enum ConeReading {
+    Gated(Interval),
+    Off(ConeParts),
+}
+
+impl ConeReading {
+    /// The cone at `apex` along `axis` over `b`, its angle taken once
+    /// for the box and its centre.
+    fn over<T: CertifiedBounds>(b: Box3, apex: Point3<T>, axis: Vec3<T>, half_angle: T) -> Self {
+        let angle = cone_angle(half_angle);
+        let parts = ConeParts::over(b, apex, axis, angle);
+        match Elevation::gate(parts) {
+            Some(over) => Self::Gated(mean_value_met(b, &over, |mid| {
+                Elevation::gate(ConeParts::over(mid, apex, axis, angle))
+            })),
+            None => Self::Off(parts),
+        }
+    }
+
+    fn elevation(self) -> Option<Interval> {
+        match self {
+            Self::Gated(g) => Some(g),
+            Self::Off(_) => None,
+        }
+    }
+}
+
+/// The double cone's elevation over a box on its gate.
+///
+/// **The gate.** It exists only where `h`'s enclosure and `|w|`'s
+/// exclude zero. Over such a box `g = ρ cos α − σh sin α` with the one
+/// sign `σ` of `h`, a smooth function whose zero set is the double
+/// cone's part in the box: only the nappe `σ` names meets it. Without
+/// the gate on `h` a box near the apex holds points of both nappes
+/// without reaching the axis, and a proof of one solution of one
+/// nappe's system would stand where the other nappe passes through the
+/// box. The gate on `|w|` names the axis, where `ρ` has no derivative;
+/// it refuses no box the division by `ρ` would not refuse anyway, and
+/// stands as that refusal's explicit spelling. The apex itself, where
+/// `∇g` vanishes, is C5's node.
+struct Elevation {
+    parts: ConeParts,
+    rho: Interval,
+    /// `σ`, the sign of `h`.
+    sigma: f64,
+}
+
+impl Elevation {
+    fn gate(parts: ConeParts) -> Option<Self> {
+        let h = parts.h;
+        if !h.is_certified() {
+            return None;
+        }
+        let sigma = if h.lo() > 0.0 {
+            1.0
+        } else if h.hi() < 0.0 {
+            -1.0
+        } else {
+            return None;
         };
+        let rho_sq = norm_sq(&parts.w);
         if !(rho_sq.is_certified() && rho_sq.lo() > 0.0) {
             return None;
         }
         Some(Self {
-            h,
-            w,
-            axis: constv(axis),
+            parts,
             rho: rho_sq.sqrt(),
-            nappe: Interval::point(nappe),
-            sin,
-            cos,
+            sigma,
         })
     }
+}
 
+impl MeanValue for Elevation {
     /// `g = ρ cos α − σh sin α`.
     fn residual(&self) -> Interval {
-        self.rho * self.cos - self.nappe * self.h * self.sin
+        let p = &self.parts;
+        self.rho * p.cos - Interval::point(self.sigma) * p.h * p.sin
     }
 
     /// `∇g = cos α·∇ρ − σ sin α·â`, with `∇ρ = (w − â·h(1 − |â|²))/ρ`
     /// exact for an `f64` axis that is not exactly unit (the cylinder
     /// arm's reason), grouped by the radial vector and the axis as one
-    /// scalar enclosure times one vector each.
+    /// scalar enclosure times one vector each. No row can see the
+    /// `|â|²` term: for an axis normalized in `f64` it is a few ulps of
+    /// `h`, and the `f64` oracle (`implicit_gradient`) reads the axis as
+    /// unit, so it is held by its derivation, not by a test.
     fn gradient(&self) -> [Interval; 3] {
-        let k = self.cos / self.rho;
-        let along =
-            -(k * self.h * (Interval::point(1.0) - norm_sq(&self.axis))) - self.nappe * self.sin;
-        [0, 1, 2].map(|i| k * self.w[i] + self.axis[i] * along)
+        let p = &self.parts;
+        let k = p.cos / self.rho;
+        let along = -(k * p.h * (Interval::point(1.0) - norm_sq(&p.axis)))
+            - Interval::point(self.sigma) * p.sin;
+        [0, 1, 2].map(|i| k * p.w[i] + p.axis[i] * along)
     }
 }
 
 /// The torus's quartic over a box, with the parts its gradient reads:
 /// `q = p − c`, `h = q·â`, the radial vector `w = q − âh`
-/// ([`axial_radial`]), `A = |q|² + R² − r²` and
+/// ([`axial_split`]), `A = |q|² + R² − r²` and
 /// `F = A² − 4R²|w|²`.
 ///
 /// `ρ² = |q − âh|²` reads the stored `f64` axis as unit, as limb 1's
@@ -601,8 +688,8 @@ impl Quartic {
         minor: T,
     ) -> Self {
         let q = subp(b, center);
-        let (h, w) = axial_radial(b, center, axis);
         let axis = constv(axis);
+        let (h, w) = axial_split(&q, &axis);
         let big_sq = Interval::from_certified(major).sqr();
         let small = Interval::from_certified(minor);
         let a = norm_sq(&q) + (big_sq - small.sqr());
@@ -627,7 +714,9 @@ impl Quartic {
             Interval::refused()
         }
     }
+}
 
+impl MeanValue for Quartic {
     /// `g = F/(4rA)`.
     fn residual(&self) -> Interval {
         self.f / (Interval::point(4.0) * self.small * self.a_positive())
@@ -655,7 +744,9 @@ impl Quartic {
 /// Whether [`implicit_enclosure`] and [`implicit_gradient_enclosure`]
 /// have an arm for `kind`. Off it both refuse every box, so a tube over
 /// such an operand reads a refused margin in every box at every rung:
-/// no verdict on the pair, whatever the carrier.
+/// no verdict on the pair, whatever the carrier. On it a kind may still
+/// refuse some boxes: a torus's where `A` is not shown positive, a
+/// cone's off its gate (the axis and the apex's plane).
 pub(crate) const fn has_implicit_enclosure(kind: geom::SurfaceKind) -> bool {
     use geom::SurfaceKind as K;
     matches!(
@@ -667,7 +758,9 @@ pub(crate) const fn has_implicit_enclosure(kind: geom::SurfaceKind) -> bool {
 /// Whether the tube can enclose `surface` at all: its kind is in
 /// [`has_implicit_enclosure`]'s roster and, for a torus, it is shown
 /// inside its ring convention, since a spindle or horn torus's `A`
-/// reaches zero and both enclosures refuse there.
+/// reaches zero and both enclosures refuse there. A cone needs no such
+/// test: its gate refuses only the boxes at its axis and its apex's
+/// plane, which every cone has.
 pub(crate) fn tube_encloses<T: geom_core::Decide>(
     surface: &Surface<T>,
     band: geom_core::Band,
@@ -3525,6 +3618,100 @@ pub(super) mod tests {
         }
     }
 
+    /// **What a cone box's three enclosures claim, checked at its
+    /// points**: the box about `centre` of half-width `r`, read at its
+    /// eight corners and at `centre + interior[i]`. Where `g`'s
+    /// enclosure is certified it holds the `f64` residual at each, within
+    /// that residual's own rounding; so does each component of `∇g`'s;
+    /// where the sign enclosure excludes zero each point lies on its side
+    /// of the cone; and a box holding the apex encloses neither. Answers
+    /// whether `g` and `∇g` both certified.
+    pub(in crate::ssi) fn cone_box_reads(
+        c: &Surface<f64>,
+        apex: Point3<f64>,
+        (centre, r): (Point3<f64>, f64),
+        interior: &[Vec3<f64>],
+        case: &str,
+    ) -> bool {
+        let b = Box3::around(centre, r);
+        let (g, grad, sign) = (
+            implicit_enclosure(c, b),
+            implicit_gradient_enclosure(c, b),
+            implicit_sign_enclosure(c, b),
+        );
+        let reach = (centre - apex).norm() + r + 1.0;
+        let tol = 64.0 * f64::EPSILON * reach;
+        let corner = |k: usize, s: usize| if (k >> s) & 1 == 0 { -r } else { r };
+        let points = (0..8)
+            .map(|k| centre + Vec3::new(corner(k, 0), corner(k, 1), corner(k, 2)))
+            .chain(interior.iter().map(|&d| centre + d));
+        for p in points {
+            let at = implicit_residual(c, p);
+            if g.is_certified() {
+                assert!(
+                    g.lo() - tol <= at && at <= g.hi() + tol,
+                    "g {g:?} misses {at} at {p:?}: {case}"
+                );
+            }
+            if grad.iter().all(|e| e.is_certified()) {
+                let n = implicit_gradient(c, p);
+                for (e, v) in grad.iter().zip([n.x, n.y, n.z]) {
+                    assert!(
+                        e.lo() - tol <= v && v <= e.hi() + tol,
+                        "∇g {grad:?} misses {n:?} at {p:?}: {case}"
+                    );
+                }
+            }
+            if sign.is_certified() && sign.lo() > 0.0 {
+                assert!(at > -tol, "sign {sign:?} but g = {at} at {p:?}: {case}");
+            }
+            if sign.is_certified() && sign.hi() < 0.0 {
+                assert!(at < tol, "sign {sign:?} but g = {at} at {p:?}: {case}");
+            }
+        }
+        if Box3::between(apex, apex).contained_in(b) {
+            assert!(
+                !g.is_certified() && grad.iter().all(|e| !e.is_certified()),
+                "a box holding the apex is enclosed: {case}"
+            );
+        }
+        g.is_certified() && grad.iter().all(|e| e.is_certified())
+    }
+
+    /// **The cone enclosures certify, and hold, on boxes clear of the
+    /// gate**: the fuzz's floor, as a static witness. A tilted cone, each
+    /// nappe, from beside the apex (a slant of `10⁻³`) to ten metres out,
+    /// a narrow and a wide angle, each box a tenth of its slant: every one
+    /// certifies `g` and `∇g`, and holds at its points. Red under an arm
+    /// that refuses every box, which the fuzz alone would pass.
+    #[test]
+    fn the_cone_enclosures_certify_and_hold_on_fixed_boxes() {
+        let axis = Vec3::new(0.3, -0.5, 0.81).normalize();
+        let apex = Point3::new(1.5, -2.0, 0.7);
+        let out = axis.cross(Vec3::new(1.0, 0.0, 0.0)).normalize();
+        let interior = [
+            Vec3::new(0.3, -0.2, 0.1),
+            Vec3::new(-0.4, 0.5, -0.3),
+            Vec3::new(0.0, 0.0, 0.45),
+        ];
+        for alpha in [0.1, 1.3] {
+            let c = cone([apex.x, apex.y, apex.z], [axis.x, axis.y, axis.z], alpha);
+            for sigma in [1.0, -1.0] {
+                for slant in [1e-3, 1.0, 10.0] {
+                    let on =
+                        apex + axis * (sigma * slant * alpha.cos()) + out * (slant * alpha.sin());
+                    let r = 0.1 * slant * alpha.sin().min(alpha.cos());
+                    let interior = interior.map(|d| d * r);
+                    let case = format!("α {alpha}, nappe {sigma}, slant {slant}");
+                    assert!(
+                        cone_box_reads(&c, apex, (on, r), &interior, &case),
+                        "{case}: a box clear of the gate does not certify"
+                    );
+                }
+            }
+        }
+    }
+
     /// **The cone arm encloses either nappe and feeds the graph
     /// criterion.** The planes `z = ±1` cut the 45° cone about `z` in
     /// the circle `ρ = 1` on each nappe. A box about `(1, 0, ±1)`
@@ -3573,7 +3760,9 @@ pub(super) mod tests {
     /// holding both points stays clear of the axis by `0.9 d`, so only
     /// `h`'s straddle refuses it; on each slice `y = const` it holds two
     /// of the system's solutions, and a uniqueness proof over it would
-    /// be false. Red if the gate on `h` is dropped, or on `|w|`.
+    /// be false. Red if the gate on `h` is dropped. The gate on `|w|`
+    /// has no red here: a box reaching the axis refuses at the division
+    /// by `ρ` without it (`cos α/ρ` over an enclosure holding zero).
     #[test]
     fn a_cone_box_holding_both_nappes_refuses_both_enclosures() {
         let c = cone([0.0; 3], [0.0, 0.0, 1.0], core::f64::consts::FRAC_PI_4);

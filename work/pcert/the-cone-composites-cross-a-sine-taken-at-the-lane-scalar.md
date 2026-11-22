@@ -47,8 +47,8 @@ In both arms, take `cross(half_angle).sin_cos()` (or call
 `Meters::over` arm is generic over the crossed scalar `S`, so it needs
 `S`'s own `sin_cos` on the crossed angle.
 
-If `[ev]` PR 7326 has the cone store its slope, the question goes away:
-`cos α = 1/√(1+k²)` needs no transcendental.
-
-`sectcone/one-limb-two-reader` is editing `pcurve_cache` concurrently
-and may take this up.
+PR 7350 (`sectcone/one-limb-two-reader`) fixes exactly these sites,
+through one helper (`implicit::cone_sin_cos`, which PR 7358's tube arm
+also reads), and closes this row. Once the cone stores its slope
+(`work/sectcone/the-cone-stores-its-slope.md`) the question goes away
+altogether: `cos α = 1/√(1+k²)` needs no transcendental.

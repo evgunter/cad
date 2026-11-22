@@ -1468,10 +1468,13 @@ pub fn serves(kind: SurfaceKind) -> bool {
 /// side enters the section through its implicit residual where the ℝ³
 /// tube and exhaustion enclose it
 /// ([`crate::ssi::enclose::has_implicit_enclosure`]: a plane, a
-/// cylinder, a sphere, a cone, a torus), else through its chart, so the
-/// pair is traced in ℝ³ where both sides are enclosed. Only such a pair
-/// is read over the operation's region; a chart side's knot rectangle
-/// bounds the pair, and the region never cuts it.
+/// cylinder, a sphere, a cone, a torus), else through its chart. So
+/// "traced in ℝ³" means exactly that both sides have a residual
+/// enclosure, and the roster is read from there rather than kept here:
+/// a kind gains the region the day it gains its enclosure, and not
+/// before (a spindle sheet, enclosed by neither, is traced by neither).
+/// Only such a pair is read over the operation's region; a chart side's
+/// knot rectangle bounds the pair, and the region never cuts it.
 #[must_use]
 pub fn traced_in_r3(a: SurfaceKind, b: SurfaceKind) -> bool {
     use crate::ssi::enclose::has_implicit_enclosure;
