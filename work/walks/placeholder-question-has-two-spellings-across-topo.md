@@ -2,10 +2,12 @@
 id: placeholder-question-has-two-spellings-across-topo
 kind: issue
 title: The placeholder question is asked through two doors across topo: NetState::Placeholder and is_placeholder()
-status: open
+status: review
 opened: 2026-09-14
 priority: P1
 cost: E
+pr: 0
+branch: walks/curve-placeholder
 ---
 
 
@@ -66,3 +68,18 @@ Sweep: `is_placeholder()` and `NetState::Placeholder` over `crates/`,
 which cannot match a site composing `net::is_placeholder` or
 `net::any_poison` directly (`geom`'s own `net.rs`, the implementation,
 is excluded).
+
+- 2026-11-22 — `walks/curve-placeholder` takes the curve half: the
+  curve has no placeholder any more. `NurbsCurve3::placeholder`,
+  `NurbsCurve3::is_placeholder` and `Curve3::nurbs_placeholder` are
+  deleted with every reader arm (`topo::transform`'s `map_curve`,
+  `step-export`'s carrier gate); nothing outside tests produced one.
+  The surface half — whether `NurbsSurface::is_placeholder` stays
+  beside `net_state()` — is still open and goes to Ev; this row stays
+  open for it.
+
+## Decided
+
+The curve has no "no description yet" state: a `Curve3::Nurbs` net
+is described, and a poisoned one reaches each consumer's one arm. The
+surface question above is not decided here.
