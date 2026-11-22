@@ -2,11 +2,12 @@
 id: unsourced-levers-with-no-door-that-names-them
 kind: issue
 title: Ten unsourced references are no lever and have no door that names them: a sine against the band's ratio, a count, a scaled stand-off, a rounding against a share of the band
-status: open
+status: parked
 opened: 2026-11-22
 design: true
 priority: P1
 cost: H
+blocked_on: [7410]
 ---
 
 
@@ -31,3 +32,13 @@ Found by `oneround/unsourced-stand-ins` (PR 7268, a cut of `unsourced-levers-awa
 ## Options
 
 Open; none chosen. The question is whether a door family is added to `geom-core` for some of these kinds (and which), or whether each is restated through the doors that exist; the answer binds the next sites of each kind.
+
+## With the owner (2026-11-22, ONEROUND orchestrator)
+
+The designers weighed this row; it is with Ev as PR 7410 (`oneround/ev-readings-not-levers`, `docs/DESIGN-FORK-LOG.md` row 303), and the row waits on that answer. Both designers found the four kinds above the wrong cut. What both sign per site, pending the owner's answer (nothing built):
+
+- `dihedral::wedge_reads_zero_at_the_arm` and `_offer`: the real wedge decided at its real arm in the band a refusal offers (a new `Indeterminate::offered_band`).
+- `fate::tip_wraps`: through the existing `Period::decide`.
+- `join::off_conic_slack`: the swing of the existing `k_stats::decide_across`. `travel` deciding the reading and the slack one at a time for a tie is a defect that conversion fixes.
+- `intersect`'s two apex reaches enter `Margin::of` through one function; `pair_bound`'s three are plain arithmetic.
+- `validate::resolved_as`: read in the band one K-step finer, until its re-posing row.
