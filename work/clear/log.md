@@ -430,5 +430,5 @@ Signed: (CARVE orchestrator)
   - `a_starved_cell_budget_refuses_typed` and `a_starved_cell_depth_refuses_on_its_own_axis` ask `≥ 0.5`, the gap itself (`≥ 0.45` holds in one cell);
   - `the_answer_is_deterministic_across_repeats` repeats `≥ 0.5` to a budget of 4,096 pairs (`≥ 0.3` was 978 cells and is one). `the-clearance-determinism-row-runs-under-a-thousand-cells-since-6902` asked for thousands of cells: the row has them, as a budget refusal and not a `Holds`;
   - `the_cost_curve_is_measured_at_both_ends`: a held bound costs one cell at any slack down to eight escalation widths under the gap (`≥ 0.2` was refined), and the frontier no budget settles is `≥ 0.5` (`≥ 0.499` refused on the budget and now holds);
-  - `a_band_costs_its_costlier_bound` asks `≥ 0.5 − 2·escalate` and `≤ 0.5 − escalate` at a depth dial of six (`≥ 0.1` and `≤ 0.4` now answer with no split, so neither was the costlier).
+  - `a_band_costs_the_larger_of_its_bounds_not_their_sum` asks `≥ 0.5 − 2·escalate` and `≤ 0.5 − escalate` at a depth dial of six (`≥ 0.1` and `≤ 0.4` now answer with no split, so neither was the costlier).
   A change to what a face proposes or to the pad (`boxes::sweep_pad`) now changes the assertion's answers. (EMBED, lane nested-tori)

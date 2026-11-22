@@ -150,10 +150,14 @@ merged in:
 - Every bound asks the depth gap, at its own site
   (`clearance_depth_gap`); a margin of zero and a gap that does not
   certify part nothing, each pinned.
-- Main now reads a side through a motion (`Side::windows_at`). The
-  depth gap reads each face's cover in its body's own frame, so a
-  placed window is not asked
-  (`a-side-read-through-a-motion-is-not-asked-its-depths`).
+- A window main reads through a motion:
+  `a-side-read-through-a-motion-is-not-asked-its-depths`.
+- `editor-core`'s `m10_5_clearance_interval` no longer has a row that
+  shows the engine's limit on a bound that is true with room: its
+  tube's walls answer at their root. A pair with no depth site would
+  show one (two spline walls, or the coaxial cone walls of
+  `coaxial-cone-walls-a-thin-gap-apart-have-no-depth-that-parts-them`);
+  neither is a fixture that file can build today.
 - Re-measured on the merged tree, and identical to the section above
   body for body and row for row: the tour walk (82 of 85 hold; 6,929
   candidates, 311,721 discharged, 305,017 splits), the cavity rows

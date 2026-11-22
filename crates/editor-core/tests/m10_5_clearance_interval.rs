@@ -1234,6 +1234,12 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
 ///   leaves cell pairs whose enclosures straddle it at every depth, and
 ///   those refuse.
 ///
+/// No row here shows the engine's limit on a bound that is true with
+/// room: every such bound on these fixtures is answered at the root,
+/// and the frontier below is a bound at the separation itself
+/// (`work/embed/nested-tori-a-thin-gap-apart-spend-the-pair-budget-on-box-distance.md`
+/// says what fixture would show one).
+///
 /// Nothing here is a baseline to preserve: the counts are a fact about
 /// these fixtures. What is asserted is the shape — and each assertion
 /// can go red on the claim above it, which the previous row's
@@ -1494,7 +1500,7 @@ fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
 /// band, the sweep splits as often as either bound alone, not as often
 /// as both together.
 #[test]
-fn a_band_costs_its_costlier_bound() {
+fn a_band_costs_the_larger_of_its_bounds_not_their_sum() {
     let (doc, minted, _) = tube();
     let (outer, inner) = tube_walls(&doc, minted);
     let leaf = box_of(&doc, "place");

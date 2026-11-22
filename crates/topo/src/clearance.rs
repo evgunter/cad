@@ -4307,9 +4307,9 @@ fn separated_by_support<T: Real>(
 /// taken as the census takes it and not derived again for this reader.
 /// `lift` crosses a gap to the bracket it is compared in; a gap that
 /// does not certify clears nothing, since the funnel refuses its
-/// margin. The covers are each body's own, so a window read through a
-/// motion (`own`) is not asked: both faces are then read by their
-/// cells.
+/// margin. It is the caller's, which holds the certification bound
+/// this function does not name, and the unit row passes one that
+/// refuses.
 fn parted_in_depth<T: Decide>(
     x: &Window<'_, T>,
     y: &Window<'_, T>,
@@ -4317,9 +4317,10 @@ fn parted_in_depth<T: Decide>(
     band: Band,
     lift: impl Fn(T) -> Interval,
 ) -> bool {
-    // A side read through a motion has its faces' covers in another
-    // frame than the question's, and the depths of two frames part
-    // nothing.
+    // [`depth_gap::gaps_in_depth`]'s precondition: a side read through
+    // a motion has its faces' covers in another frame than the
+    // question's, so it is not asked, and its pairs are read by their
+    // cells.
     if x.own.is_some() || y.own.is_some() {
         return false;
     }

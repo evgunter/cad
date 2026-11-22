@@ -1,10 +1,10 @@
 ---
 id: a-side-read-through-a-motion-is-not-asked-its-depths
 kind: issue
-title: A clearance side read through a motion is not asked the depth gap, so two placed instances a thin gap apart are still parted cell by cell
+title: A clearance side read through a motion is not asked the depth gap, so a placed pair and the same pair built in place can read different verdicts, a budget refusal against a Holds at the root
 status: open
 opened: 2026-11-21
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -24,9 +24,16 @@ apart in their own frames cross when one is shifted 0.5, and would
 still read 0.001 apart.
 
 So `parted_in_depth` answers `false` where either window is placed
-(`clearance::depth_rows::walls_read_through_a_motion_are_not_parted_in_depth`).
-A placed pair is then decided by its cells, as every pair was before
-PR 7119: sound, and as dear as it was.
+(`clearance::depth_rows::walls_read_through_a_motion_are_not_parted_in_depth`),
+and a placed pair is decided by its cells.
+
+**That is a difference of verdict, not only of cost.** The same two
+faces built in place are parted at their root and hold; read through a
+motion they are refined, and a pair the cells cannot part within the
+budget refuses: the nested tori 0.025 apart spend 65,536 pairs and
+refuse `Budget(Pairs)` where the in-place pair holds in none. Both
+answers are sound; one geometry reads two of them by how it was
+posed. P1 for that: one case handled two ways.
 
 ## What is needed
 

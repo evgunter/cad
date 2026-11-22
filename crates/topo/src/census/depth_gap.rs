@@ -215,7 +215,7 @@ fn gap<T: Decide>(hi: T, lo: T, band: Band) -> T {
 
 /// Whether a gap is definitely positive.
 fn clears<T: Decide>(gap: T, band: Band) -> bool {
-    matches!(decide(DEPTH_GAP, Margin::of(gap), band), Ok(Sign::Positive))
+    crate::validate::definitely_positive(DEPTH_GAP, gap, band)
 }
 
 /// An upper bound on `proposed`'s depth over the face read as `read`.
@@ -241,7 +241,16 @@ fn least_on<T: Decide>(
 }
 
 /// **Each gap in depth between two faces**, read as `ra`, `rb`
-/// ([`face_read`]), each in its own body: for each depth either
+/// ([`face_read`]), each in its own body.
+///
+/// **Precondition: the two bodies' coordinates are one frame.** A
+/// read is a face's cover in its body's coordinates and carries no
+/// placement, so two bodies posed apart read as if they were not, and
+/// a gap between them is no bound. A caller that holds either face
+/// through a motion must not ask. Nothing here can check it: neither
+/// a read nor a body says what frame it is in.
+///
+/// For each depth either
 /// proposes and each order of the two, one face's least depth less the
 /// other's greatest, less both faces' pads, where both are read. A gap
 /// that is positive bounds the faces' separation from below; any other
