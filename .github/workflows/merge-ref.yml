@@ -1,0 +1,62 @@
+# A PR THAT CONFLICTS WITH ITS BASE GETS A RED, NOT A SILENCE. GitHub builds
+# `refs/pull/N/merge` for every `pull_request` run, and while a PR conflicts
+# with its base (`mergeable: false`, `mergeable_state: dirty`) there is no
+# such ref, so a push creates no ci.yml run at all: no red, no `gate ok`,
+# nothing to poll. `pull_request_target` runs in the base's context and needs
+# no merge ref, so this one job fires on every push and reads the PR's
+# mergeability from the API: a conflict fails the `merge ref` check, anything
+# else passes. It is not in `gate ok`'s needs; it is one job of seconds.
+#
+# `pull_request_target` carries a token that can write to the base repository,
+# so this workflow never checks out or runs anything from the PR, reads only
+# the PR number, head sha and base ref from the event (through `env:`, never
+# interpolated into the script), and holds `pull-requests: read` alone.
+name: merge ref
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  pull-requests: read
+concurrency:
+  group: merge-ref-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  merge-ref:
+    name: merge ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      # GitHub computes mergeability lazily after a push, so `mergeable` reads
+      # null for a while. `true` counts only once the test merge is built on
+      # this head; `false` is a conflict at this head. Still unknown after a
+      # minute passes, since an unknown is not a conflict.
+      - name: does the PR merge with its base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 12); do
+            info="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" \
+              --jq '[.head.sha, (.mergeable | tostring), .mergeable_state, (.merge_commit_sha // "-")] | join(" ")')"
+            read -r head mergeable state merge <<<"$info"
+            if [ "$head" != "$HEAD_SHA" ]; then
+              echo "PR #$PR moved on to $head; the run for that push answers for it"
+              exit 0
+            fi
+            case "$mergeable" in
+              false)
+                echo "::error title=no merge ref: merge the PR's base branch into it::PR #$PR conflicts with its base '$BASE_REF' (mergeable_state: $state), so GitHub has no merge ref for $HEAD_SHA and CI created NO run for this push: no gate ok will appear. A push with no run is a conflict with the PR's own base, not a queue. Merge origin/$BASE_REF into the branch and push."
+                exit 1 ;;
+              true)
+                if [ "$merge" != "-" ] &&
+                   [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$merge" --jq '.parents[1].sha')" = "$HEAD_SHA" ]; then
+                  echo "PR #$PR merges cleanly with '$BASE_REF' at $HEAD_SHA (mergeable_state: $state)"
+                  exit 0
+                fi ;;
+            esac
+            sleep 5
+          done
+          echo "::notice title=mergeability unknown::GitHub had not computed PR #$PR's mergeability at $HEAD_SHA after a minute; not a conflict as far as anyone knows. If no CI run appears for this push, read mergeable_state."
