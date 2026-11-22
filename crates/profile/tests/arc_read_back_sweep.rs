@@ -280,10 +280,13 @@ fn programs(arc: &Drawn, rng: &mut Rng) -> Vec<(&'static str, Vec<Step<f64>>)> {
 /// kernel-defect refusal, `Some(false)` for the scene-resolution sibling
 /// or an escalation of one of its reads.
 fn read_back(kind: &ReplayErrorKind<f64>) -> Option<bool> {
-    match kind {
-        ReplayErrorKind::Path(PathError::ArcMissesAuthoredPoint { .. }) => Some(true),
-        ReplayErrorKind::Path(PathError::ArcMissBelowSceneResolution { .. }) => Some(false),
-        ReplayErrorKind::Path(PathError::Escalated { source, .. })
+    let ReplayErrorKind::Path(source) = kind else {
+        return None;
+    };
+    match source.refusal() {
+        PathError::ArcMissesAuthoredPoint { .. } => Some(true),
+        PathError::ArcMissBelowSceneResolution { .. } => Some(false),
+        PathError::Escalated { source, .. }
             if source.predicate.is_some_and(|p| {
                 [
                     "path_arc_start_on_carrier",

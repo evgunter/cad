@@ -57,6 +57,20 @@ Each compares the offer the text quotes (`test_utils::offer::offered_below`) wit
 
 One unit for this row and `work/green/main-red-three-source-censuses-red-since-the-told-quantity-type.md`. Difficulty letter **M**; review tier **single, FULL**: the census repairs are mechanical, but what the offer rows should pin under the told rule is a judgement a second reader should check.
 
-## 2026-11-21: closed (SCALAR)
+## Evidence: sweep's sphere offer row (ONEROUND, 2026-11-22)
 
-The rows were wrong, not the text. Every quoted offer is the told rule's offered bound (four figures, on the side that works) of the kernel's own margin, `Band::offer_deciding`; the rows held it to the raw `|m|/K` (1e-4, 1e-6), a spelling the rule no longer makes. The two spellings in one message: the row's `want` was `offer_deciding` of the row's model margin (2.99999999999986e-10, told 2.999e-11), the sentence's was of the measured margin (3.0000000000031634e-10, told 3e-11), on either side of a grid point. Now each row holds the quoted number to the told offer of a margin within the precision its pose's margin is known to (`topo::test_support::offers_a_margin_within`), or, where the measured margin is in hand, equal to `offer_deciding` of it; `the_corners_offer_executes` runs just below the quoted number. `sweep`'s `every_sphere_offer_passes_just_below_it` held the same shape and takes the same check.
+`sweep offer_rows::every_sphere_offer_passes_just_below_it` (slow set) is red on main the same way, on both sides of PR 7227's differential and in its review. `nested_off_axis_in_the_zero_band_union` and `…_subtract` each quote `None` and offer `Some(4.999e-11)` where the computed margin is `5e-10`: the offer is the margin over the band's ratio rendered at four significant figures, just below it, as in the three topo rows above. Read as the same cause, not bisected. Reproduce: `cargo nextest run -p sweep -E 'test(=offer_rows::every_sphere_offer_passes_just_below_it)'`.
+
+## 2026-11-22: closed (SCALAR, PR 7267)
+
+The rows were wrong, not the text. Every quoted offer is the told rule's offered bound of the kernel's own margin: four figures, cut to the side that works. The rows held the quote to the raw `|m|/K` at 1e-4 or 1e-6, a spelling the rule no longer makes.
+
+The two spellings in one message come from two margins, either side of a grid point. The row's `want` was `offer_deciding` of the row's model margin (2.9999999999998656e-10, told 2.999e-11). The sentence's was of the measured margin (3.0000000000031634e-10, told 3e-11). The 5.499e-10 quotes are the same straddle: a measured margin at least a float below the case's `D = 5.5e-9`.
+
+Each row now holds the quote with `geom_core::test_support::is_offer_of_a_margin_within`, which has a row of its own. It checks the quote two ways that answer independently:
+- against the margin itself: at most `(|m| + slack)/K`, and within the grid's step of `(|m| − slack)/K`;
+- against the rule's answer at the window's ends.
+
+The corner row with the measured margin in hand also checks `is_told_offer_of`. `the_corners_offer_executes` runs just below the quoted number.
+
+Sweep's `every_sphere_offer_passes_just_below_it` (the evidence above) takes the same check. It passes on PR 7267's head `2189e77282`, CI run 45073869052, slow-set step, beside the topo rows.
