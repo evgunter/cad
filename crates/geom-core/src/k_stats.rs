@@ -279,10 +279,11 @@ thread_local! {
 /// one predicate is a choice where a reader builds from its sign and a
 /// check where a validator reads it off a body already built
 /// (`geom_brep::DIHEDRAL_SIGN` is both).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Role {
     /// Another sign can change what the node builds or names. The
     /// default: a decision is a choice unless its caller says otherwise.
+    #[default]
     Choice,
     /// Another sign can only make the node refuse: a reading taken off a
     /// body already built (the at-rest doors), or an instrument whose
@@ -389,14 +390,14 @@ pub fn answered(name: &'static str, sign: Sign) {
 /// after queries that handed on different candidates are not on one
 /// path, and the marks are what shows it (`editor_core::resolve`'s first
 /// turn reads them). Nothing where no frame is open.
-pub fn mark_candidates(name: &'static str, items: impl IntoIterator<Item = usize>) {
+pub fn mark_candidates(site: QuerySite, items: impl IntoIterator<Item = usize>) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             let role = current_role();
             let before = top.recorded.verdicts.len();
             let mark = |item| Mark {
                 before,
-                site: name,
+                site: site.0,
                 item,
                 role,
             };
@@ -418,13 +419,13 @@ pub fn mark_candidates(name: &'static str, items: impl IntoIterator<Item = usize
 /// `true` means is the site's, as a predicate's sign is), so two runs
 /// whose tests answered differently part there ([`mark_candidates`] for
 /// a query that hands on a list). Nothing where no frame is open.
-pub fn mark_outcome(name: &'static str, outcome: bool) -> bool {
+pub fn mark_outcome(site: TestSite, outcome: bool) -> bool {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             let before = top.recorded.verdicts.len();
             top.recorded.marks.push(Mark {
                 before,
-                site: name,
+                site: site.0,
                 item: MarkItem::Outcome(outcome),
                 role: current_role(),
             });
@@ -1341,12 +1342,84 @@ pub struct Mark {
     /// How many verdicts its frame held when it was recorded: it stands
     /// before the verdict at that index.
     pub before: usize,
-    /// The enumeration that examined it (a static name, as a predicate's).
-    pub site: &'static str,
+    /// The query or test that wrote it ([`Site`]).
+    pub site: Site,
     /// What it records ([`MarkItem`]).
     pub item: MarkItem,
     /// The role of the decisions the candidate feeds ([`checking`]).
     pub role: Role,
+}
+
+/// **Where a mark is written**: one query or one test, at the one call
+/// that asks it, so two callers of one door are two sites. `name` is
+/// routing, as a predicate's static name is; `words` say what is asked,
+/// for a sentence. Built through [`QuerySite`] or [`TestSite`], which
+/// set `kind` and are what the two mark doors take, so no mark is
+/// written without words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Site {
+    /// The static name (routing).
+    pub name: &'static str,
+    /// What the site asks: for a query, a noun phrase naming what it
+    /// searches for ("the faces whose boxes overlap the edge's box");
+    /// for a test, the clause it answers ("a cell is surely clear of
+    /// the band").
+    pub words: &'static str,
+    /// Which door writes it.
+    pub kind: SiteKind,
+}
+
+/// The door a [`Site`] writes through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SiteKind {
+    /// A query that hands on a list ([`mark_candidates`]).
+    Query,
+    /// A test that answers yes or no ([`mark_outcome`]).
+    Test,
+}
+
+/// **A query's [`Site`]**, the argument [`mark_candidates`] takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuerySite(Site);
+
+impl QuerySite {
+    /// The site `name`, searching for `words` (a noun phrase).
+    #[must_use]
+    pub const fn new(name: &'static str, words: &'static str) -> Self {
+        Self(Site {
+            name,
+            words,
+            kind: SiteKind::Query,
+        })
+    }
+
+    /// The site.
+    #[must_use]
+    pub const fn site(self) -> Site {
+        self.0
+    }
+}
+
+/// **A test's [`Site`]**, the argument [`mark_outcome`] takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TestSite(Site);
+
+impl TestSite {
+    /// The site `name`, answering whether `words` (a clause).
+    #[must_use]
+    pub const fn new(name: &'static str, words: &'static str) -> Self {
+        Self(Site {
+            name,
+            words,
+            kind: SiteKind::Test,
+        })
+    }
+
+    /// The site.
+    #[must_use]
+    pub const fn site(self) -> Site {
+        self.0
+    }
 }
 
 /// **What one [`Mark`] records**, by the kind of door that wrote it.
@@ -1649,12 +1722,73 @@ pub fn splice_superseded(recording: Detached) {
 /// The caller owes that knowledge at its own site, held by a row that
 /// runs the pass and compares the two logs. No margin is measured, so
 /// no sample reaches the sink.
+///
+/// **A certificate read by its support** is one such caller: it relogs,
+/// in place of the one derivation it stands for, that derivation's
+/// record as [`Replayable::here`] states it in this scope. That is not
+/// the double splice [`Detached`] guards against, which would move one
+/// recording onto a frame twice; a read relogs once, exactly where
+/// deriving would have recorded. The recording scalar (`Probe`) reads no
+/// certificate, so a read never stands for a derivation that would have
+/// sampled. Its row is geom-brep's `a_read_records_what_a_derivation_records`.
 pub fn relog(recorded: &Recorded) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             top.recorded.extend(recorded);
         }
     });
+}
+
+/// **A derivation's record, held with the role it was taken in**, for a
+/// certificate that stands for that derivation and replays it in its
+/// place ([`relog`]). A verdict's and a mark's role is the scope's it
+/// was taken in ([`checking`]), not the derivation's own, so a record is
+/// a derivation's in another scope only where the roles agree.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Replayable {
+    recorded: Recorded,
+    taken_as: Role,
+}
+
+/// `work`, run under its own frame, its record spliced where this
+/// thread's decisions go, and handed back with the role it was taken in
+/// for a certificate to keep and [`relog`] in place of deriving again.
+pub fn run_replayable<R>(work: impl FnOnce() -> R) -> (R, Replayable) {
+    let taken_as = current_role();
+    let (out, recording) = detached(work);
+    let record = Replayable {
+        recorded: recording.recorded().clone(),
+        taken_as,
+    };
+    splice(recording);
+    (out, record)
+}
+
+impl Replayable {
+    /// **This record as the derivation it stands for would record it
+    /// here, where that is exact**: verbatim in the role it was taken
+    /// in, and every verdict and mark a [`Role::Check`] inside a check
+    /// scope, which records every decision taken in it as a check.
+    /// `None` in a choice scope for a record taken in a check scope,
+    /// whose own checks a choice scope would not record as checks: a
+    /// reader there derives again.
+    #[must_use]
+    pub fn here(&self) -> Option<Recorded> {
+        match (current_role(), self.taken_as) {
+            (now, then) if now == then => Some(self.recorded.clone()),
+            (Role::Check, Role::Choice) => {
+                let mut checks = self.recorded.clone();
+                for v in &mut checks.verdicts {
+                    v.role = Role::Check;
+                }
+                for m in &mut checks.marks {
+                    m.role = Role::Check;
+                }
+                Some(checks)
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The one body behind [`splice`] and [`splice_superseded`]: they differ
@@ -1972,6 +2106,14 @@ impl core::ops::Neg for Probe {
 
 #[cfg(feature = "probe")]
 impl Real for Probe {
+    /// **Never the same**: the recording scalar's K samples are its
+    /// purpose, so no certificate is read by its support here; each is
+    /// derived where it is asked, and records its margins.
+    fn same_value(self, other: Self) -> bool {
+        let _ = (self, other);
+        false
+    }
+
     /// **INEXACT**, `f64`'s verbatim: the recording scalar's value
     /// channel IS an `f64` and every comparison it makes is that
     /// `f64`'s.

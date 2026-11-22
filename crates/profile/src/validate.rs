@@ -182,7 +182,7 @@ use core::fmt;
 use crate::gate::{Escalation, Gate, decide, prove};
 use geom_core::{
     Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    Margin, MarginDiag, Point2, Real, Sign, Tol, Told, Vec2,
+    Margin, MarginDiag, Point2, Real, Sign, Tell, Tol, Told, Vec2,
 };
 
 /// The recourse of [`ProfileError::ArcBelowSceneResolution`], and of
@@ -227,15 +227,6 @@ const RADIAL_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the orig
 pub(crate) const ARC_READ_BACK_UNDECIDED_RECOURSE: &str = "move the profile nearer the origin; \
      where the scene resolves this size, an arc the path built should not miss by it, so report \
      it as a possible kernel defect";
-
-/// The lever at a junction whose turn is undecided, and at one that is
-/// definitely tangent ([`crate::PathError::JunctionTangent`]):
-/// declare the tangency, or spell the continuation, or move the
-/// geometry.
-pub(crate) const JUNCTION_TANGENT_LEVER: &str = "for tangency onto a new carrier use .tangent() \
-     (.tangent().tangent_arc_to(p) for an arc; the tangent-arc or seam-fillet close at the \
-     seam); for a straight continuation spell it line(len) off the directed point; otherwise \
-     move the geometry";
 
 use crate::seg::{
     self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_loop_seg,
@@ -476,6 +467,12 @@ pub enum FilletLegCarrier {
 
 impl fmt::Display for FilletLegCarrier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.tell(geom_core::Notation::CANONICAL, f)
+    }
+}
+
+impl geom_core::Tell for FilletLegCarrier {
+    fn tell(&self, notation: geom_core::Notation, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Line => f.write_str("straight"),
             Self::Arc {
@@ -483,7 +480,9 @@ impl fmt::Display for FilletLegCarrier {
                 angular_margin,
             } => write!(
                 f,
-                "circular (carrier radius {radius}, angular margin {angular_margin})"
+                "circular (carrier radius {}, angular margin {})",
+                radius.told_in(notation),
+                angular_margin.told_in(notation)
             ),
         }
     }

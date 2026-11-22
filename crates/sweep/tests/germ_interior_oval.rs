@@ -751,8 +751,8 @@ fn nurbs_bump() -> Body<f64> {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if origin.z.abs() < 1e-12 && normal.z.abs() > 0.5
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.origin().z.abs() < 1e-12 && frame.axis().z.abs() > 0.5
             )
         })
         .map(|(k, _)| k)

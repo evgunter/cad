@@ -301,7 +301,7 @@ fn bullet(tol: Tol) -> Body<f64> {
             .line_to(Point2::new(r, TOP), tol)
             .expect("wall")
             // The tangency is DECLARED, not stumbled into: the
-            // lattice refuses an implicit G1 junction (`JunctionTangent`)
+            // lattice refuses an implicit G1 junction (`JunctionTurnWithinTolerance`)
             // and names this door, so the dome meets the wall tangentially
             // by construction rather than to within a margin.
             .tangent()
@@ -565,9 +565,9 @@ fn the_opened_rim_is_right_on_a_box() {
         .faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
-                        && (origin.z - 0.25).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. })
+                    if frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9
+                        && (frame.origin().z - 0.25).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();

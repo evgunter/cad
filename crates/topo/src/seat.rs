@@ -37,16 +37,20 @@ impl<'b, T: geom_core::Real> Seat<'b, T> {
     /// `body` read in its own frame.
     #[must_use]
     pub fn own(body: &'b Body<T>) -> Self {
-        Self { body, at: None }
+        Self::from_motion(body, None)
     }
 
     /// `body` read through `motion` into its reader's frame.
     #[must_use]
     pub fn at(body: &'b Body<T>, motion: RigidMotion<T>) -> Self {
-        Self {
-            body,
-            at: Some(motion),
-        }
+        Self::from_motion(body, Some(motion))
+    }
+
+    /// `body` read through `motion` into its reader's frame, `None` where
+    /// the two are one frame.
+    #[must_use]
+    pub fn from_motion(body: &'b Body<T>, motion: Option<RigidMotion<T>>) -> Self {
+        Self { body, at: motion }
     }
 
     /// The body, in its own coordinates.

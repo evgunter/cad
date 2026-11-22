@@ -31,7 +31,7 @@ pub struct RepresentabilityMargin<T, D = SurfaceDatum> {
 }
 
 /// **A stored frame squared** ([`crate::Frame::square`]): the unit axis
-/// along a stored `axis` of any length, and the unit seam square to it
+/// along a stored `axis`, and the unit seam square to it
 /// toward a stored `u_ref`.
 /// The one home for a reader that needs the orthonormal frame a datum
 /// is only by convention (nothing margins a cone's frame at rest).
@@ -52,9 +52,10 @@ pub struct RepresentabilityMargin<T, D = SurfaceDatum> {
 /// down to `u`).
 ///
 /// `width` is `‖u_ref × a‖/‖u_ref‖`, the sine of the stored seam's
-/// angle off the axis. At zero the seam runs along the axis and
-/// `u_ref` here is NaN: a caller decides `width` before it reads the
-/// seam.
+/// angle off the axis. A carrier's frame is a `RigidMotion`, whose seam
+/// is square to its axis by its mint, so on a stored carrier `width` is
+/// one to rounding and the bounds above hold with room; the squaring
+/// stays because it is the arithmetic the readers' pins were taken on.
 #[derive(Clone, Copy, Debug)]
 pub struct SquareFrame<T: Real> {
     /// The unit axis.

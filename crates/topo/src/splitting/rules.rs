@@ -181,7 +181,7 @@ use crate::validate::decide;
 /// edge, refused here ([`SplitReduceError::KnifeEdge`]).
 ///
 /// A wall's rows read its face extent off its cover, as the split's
-/// chords through the same wall do (`chord_join::wall_face_section`).
+/// chords through the same wall do (`chord_join::section_reach`).
 pub(super) fn apply_rule_a<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,

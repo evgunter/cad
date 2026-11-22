@@ -77,7 +77,7 @@ use super::boundary::{
 use super::certify::ChartWindow;
 use super::enclose::{
     Box3, ChartPhi, NurbsBoxes, UvWindow, implicit_enclosure, implicit_gradient_enclosure,
-    refused_box,
+    implicit_sign_enclosure, refused_box,
 };
 use super::exhaust::UvRect;
 use super::section::{SectionReader, sign};
@@ -979,7 +979,9 @@ fn face_walk<T: CertifiedBounds>(
 ) -> Option<()> {
     let (i, j) = ((k + 1) % 3, (k + 2) % 3);
     let walked = bisect_within([(x, 0u32)], pieces, |(x, depth)| {
-        if sign(implicit_enclosure(s1, x)).is_some() || sign(implicit_enclosure(s2, x)).is_some() {
+        if sign(implicit_sign_enclosure(s1, x)).is_some()
+            || sign(implicit_sign_enclosure(s2, x)).is_some()
+        {
             return Step::Settled;
         }
         match krawczyk(s1, s2, x, (i, j)) {
@@ -1260,9 +1262,11 @@ mod tests {
     /// The plane `z = 0`, by its form.
     fn ground() -> super::super::residual::ImplicitForm {
         super::super::residual::ImplicitForm::of(&geom::Surface::Plane {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
         })
         .expect("a plane has a form")
     }
@@ -1589,9 +1593,7 @@ mod tests {
         };
         let u = (u - normal * u.dot(normal)) / (u - normal * u.dot(normal)).norm();
         Surface::Plane {
-            origin,
-            normal,
-            u_ref: u,
+            frame: geom::Frame::new(origin, normal, u),
         }
     }
 
@@ -1603,10 +1605,12 @@ mod tests {
     #[test]
     fn a_face_graze_resolves_no_count() {
         let sphere = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let ground = plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let graze = bx((0.5, 1.0), (-0.3, 0.3), (-0.1, 0.1));
@@ -1643,16 +1647,20 @@ mod tests {
     #[test]
     fn two_boxes_on_two_arcs_do_not_link() {
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let sphere = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 3.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let z0 = 8.0f64.sqrt();
         let slab = bx(

@@ -24,9 +24,9 @@ fn plane_face(body: &Body<f64>, axis: usize, at: f64, among: &[FaceKey]) -> Face
             among.contains(k)
                 && matches!(
                     body.face_surface(*k),
-                    Some(Surface::Plane { origin, normal, .. })
-                        if [normal.x, normal.y, normal.z][axis].abs() == 1.0
-                            && [origin.x, origin.y, origin.z][axis] == at
+                    Some(Surface::Plane { frame, .. })
+                        if [frame.axis().x, frame.axis().y, frame.axis().z][axis].abs() == 1.0
+                            && [frame.origin().x, frame.origin().y, frame.origin().z][axis] == at
                 )
         })
         .map(|(k, _)| k)

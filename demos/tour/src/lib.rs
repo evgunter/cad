@@ -487,15 +487,9 @@ fn continued<T: Gated>(
 
 /// The scalars a body is gated and measured at: the tour's `f64`, and
 /// the K sweep's recording `Probe` (`probe.rs`).
-trait Gated:
-    pncad::geom_core::Decide + pncad::geom_core::CertifiedBounds + pncad::topo::AtRestPolicy
-{
-}
+trait Gated: pncad::geom_core::CertifiedBounds + pncad::topo::CertifiedPolicy {}
 
-impl<T> Gated for T where
-    T: pncad::geom_core::Decide + pncad::geom_core::CertifiedBounds + pncad::topo::AtRestPolicy
-{
-}
+impl<T> Gated for T where T: pncad::geom_core::CertifiedBounds + pncad::topo::CertifiedPolicy {}
 
 /// The tier-3 or tier-3′ gate a body that is not at rest passes — 3′
 /// with the op's contact records for a boolean result, plain tier 3
