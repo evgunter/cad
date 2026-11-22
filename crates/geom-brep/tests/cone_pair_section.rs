@@ -381,7 +381,10 @@ fn checked(
             let first = listed[set.arcs[0]].witness.unwrap();
             clusters.push(trace.cluster_at(first, link)[0]);
             // Each arc of the set on its own stretch of the trace, the
-            // nodes cut out: an arc read on another's points goes red.
+            // nodes cut out. A witness within `radius + link` of a node
+            // is skipped, so a wrong-arc witness close by a node passes
+            // here; the seam row's ray-toward-witness test pins that case
+            // (work/sectcone/checked-is-blind-to-a-wrong-arc-witness-by-a-node.md).
             let nodes: Vec<Point3<f64>> = section.nodes().iter().map(|n| n.point).collect();
             let witnesses: Vec<Point3<f64>> = set
                 .arcs
