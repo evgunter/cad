@@ -174,22 +174,156 @@ leans are a rounding wide. A mutant reading the run at the band's
 
 ## Owed
 
-- **The straight corner off the axes** (32 census tests, and every
-  turned body). Reading it needs a decision at a scale: the lean
-  decided `Zero` at `SELF_INTERSECTION_CORNER`. That would present a
-  half-plane whose line is within the band of the two edges and not on
-  them, drop the face's points between, and list edges under a
-  separator that holds them only within the band. It changes what `On`
-  promises (membership, exact) and adds a reader of a band-scale drop,
-  so it is a design question, with the sliver's and the margin's.
-- **The reflex corner** (78 of the 179 still-refusing tests have their
-  only two-line lean exits there, both leans negative, at
-  `present_plane`'s lean gate, which is unchanged: a lean decided
-  `Negative` meets the same gate and the same `Unpresented::Local` as
-  before). It is `embed/iso-end`'s, on a plane and on a curved chart as
-  one reading. That lane argues no reading of the reflex face closes
-  these pairs and that the partner's presentation does; this lane did
-  not check which of the 78 have a partner the straight run now
-  presents. Not built here: a ray into the face from the vertex splits
-  any two-line corner into two convex sectors, each the image of a
-  rectangle under `Map::Affine`.
+**Design: a two-line corner read as two convex pieces**
+(`embed/corner-pieces`, 2026-11-22; a design, nothing built). It
+replaces the exact run above and takes the corner straight only to
+rounding, the reflex corner and every turned body as one reading. The
+band-scale reading considered before it (a lean decided `Zero` at
+`SELF_INTERSECTION_CORNER`, a line held within ε, edges listed under a
+separator that holds them within ε) is not needed and is not taken.
+
+### The reading
+
+A plane face's part of a cell that holds exactly two line edges `e₁`,
+`e₂` at one vertex `V` is presented as two pieces. With `a`, `b` the
+edges' directions from `V` and `n₁`, `n₂` their toward-face normals in
+the chart, the ray is `m = n₁/|n₁| + n₂/|n₂|`: the bisector into the
+face for a convex and a reflex corner alike, the common normal for a
+straight one. The pieces are the cones of `(a, m)` and of `(b, m)`,
+each the image of a rectangle `[0, x̄] × [0, ȳ]` under `Map::Affine`
+with origin `V`'s chart point. Each piece has its own zero: `Side` on
+its edge where the pair shares that edge, else `Point` at `V` where the
+pair shares `V`, else `None`. The side along `m` is never a zero.
+
+### Why it is sound, premise by premise
+
+1. **The two pieces cover the face's part of the cell.** The face near
+   `V` is the sector from `a` round to `b` on the face's side. A ray
+   strictly inside that sector cuts it into the sectors `(a, m)` and
+   `(m, b)`, whatever the corner's angle short of a full turn. Guard:
+   `m` strictly inside on both sides, which is two strict signs, the
+   chart determinants `a × m` and `m × b` on the face's orientation,
+   decided `Positive` or the cell refuses `Local`. They are levered as
+   the lean is today (a length times a sine, metres, at
+   `SELF_INTERSECTION_CORNER`: the same site and scale, a strict sign
+   where today's gate also asks one; no `Zero` is read). At a spike
+   (0° or 360° within the band) `m` vanishes or lies along an edge and
+   the cell refuses.
+2. **Nothing else bounds the face in the cell.** Guards, all existing:
+   the cell's local edges are exactly `e₁` and `e₂`, both lines with one
+   use each; its local vertices are `V` or none; the cell's reach along
+   each edge stays inside the edge's far end (`SELF_INTERSECTION_SPAN`).
+   A third edge in reach (a cap across a thin face, a hole's edge, the
+   loop passing `V` twice) is not this arm: it refuses, or is
+   `embed/strip`'s capped reading, which must not reach the pieces'
+   exits. No bound is asked along `m`: with those guards the plane's
+   disk in the ball meets the boundary only in `e₁ ∪ e₂`.
+3. **A piece is `Vacuous` only after 1 and 2 hold**, and only by a
+   certified coordinate: the cell lies wholly off the piece's cone
+   (`x̄ ≤ 0` or `ȳ ≤ 0` with the piece's determinant decided). The FACE
+   is `Vacuous`, which `departure` turns into `Certified`, only where
+   both pieces are. One vacuous piece only drops its piece pairs. This
+   is the order `embed/strip`'s review found broken there: the exit
+   comes after the reading has said what bounds the face in the cell.
+4. **A piece pair is certified as a corner is today.** Each piece is a
+   convex corner to every reader: under a separator `ψ` it is strictly
+   one-signed off its zero (a side: the derivative across; a point: the
+   two derivatives along its axes, one common sign), and the partner's
+   piece the other sign, so the two pieces meet only on their zeros,
+   which lie on the shared cell.
+5. **The face pair is certified only where every piece pair is** (those
+   not dropped by 3). A coincidence of the two faces in the cell pair
+   is a coincidence of some piece of one with some piece of the other,
+   by 1.
+6. **What is conceded** is what `Zero::Point` concedes today: the
+   stored vertex against the edges' own ends. No lean is read at the
+   band, no line is held within ε, and `On` lists only cells a
+   separator holds by construction.
+
+Completeness, not soundness: two closed pointed cones with no common
+ray are strictly separable through the apex (Gordan), and
+`parting_normal` (PR 7318) finds such a plane. A piece is a pointed
+cone, so a piece pair refuses only where the pieces share a ray, which
+is a real overlap of the faces, or where the margin is in the band.
+
+### What each reader becomes
+
+| reader | today | after | why nothing new is certified wrongly |
+|---|---|---|---|
+| `Presentation` | `Vacuous`, or one `Presented` | `Vacuous`, or one or two `Presented` | a type change; one-piece readings are unchanged |
+| `present_plane`, two lines | the lean gate, then a quadrant; the exact run | the two pieces; the lean gate, the quadrant, the run go | premises 1 to 3 |
+| `departure` | the carrier arm, `planes_through`, `graph_of`, `cusp`, once per face pair | the same ladder once per piece pair; certified iff every piece pair is; any piece pair's cusp is the pair's | premise 5; each rung reads one piece as it reads a corner today |
+| the carrier arm | the other face's one presentation against this carrier | each of the other face's pieces against it | a piece is a subset of the face |
+| `opposite` | two `sign_on` calls | unchanged, per piece pair | |
+| `planes_through` | built from `near` and two presentations | built from the PIECE pair's near: the shared edges that piece pair holds, else the vertex | a plane through `e₁`'s line is not strict on the piece off `e₁` at a straight corner (`n·b = 0`), so one plane per face pair cannot serve; each plane still lists only what it holds |
+| `anchor`, `heading`, `wedges_apart` | per presentation | per piece | they choose a direction and decide nothing |
+| `corner` | either presentation's | any piece's | a flag |
+| `cusp` | the two shared normals | the pieces that hold the shared edge | the others have no shared side |
+| `stuck` | `Structural`, or a past curve | unchanged | a plane piece is neither |
+| `past_read` | the partner's zero is on the shared cell | unchanged; its plane producer (the run's `Zero::Past`) goes | |
+| `sign_on` | one arm per zero | no new arm; `Zero::Through` and `through_read` go | fewer readings |
+| `arm_of` (PR 7329) | per face pair, by `near` | per piece pair, by that piece pair's near | below |
+
+### The margin (PR 7329, read at `origin/embed/remeter`)
+
+There a derivative is decided as a sine, levered at `arm_of`: the
+faces' reach over a shared edge, or from a shared vertex. A piece pair
+that shares only `V` inside a face pair that shares `e₁` takes the
+vertex arm, the faces' reach from `V`. A piece is not a face, but the
+arm is the faces': the displacement an angle error causes is over the
+face, not over the piece. A thin or oblique piece loses nothing under
+that metering: the sine is free of the rectangle's extent, and for a
+convex corner a piece pair's best sine is at least the face pair's,
+since each piece's cone lies in its face's. For a straight or a reflex
+corner there is no face-pair sine to lose. Under main's present
+metering (a derivative times the rectangle's span) a piece is metered
+as a corner's quadrant is today.
+
+### Pinned and measured
+
+`embed/corner-pieces-measure`, on PR 7318's separator. Each piece is
+built as a convex corner whose second edge is the ray, so today's
+`departure` reads a piece pair with no new code:
+
+- `probe_pieces_sharing_the_vertex_alone`: a face exactly straight,
+  convex and reflex by 1e-13, reflex at 207° and at 260°, against a
+  straight partner and a reflex one: four of four piece pairs certified
+  in every row, asked either way. Against a partner lying along the
+  face, exactly the two piece pairs that share a ray are refused. On
+  main's heading plane the two reflex rows read two of four.
+- `probe_pieces_sharing_an_edge_of_the_corner`: a split shared edge,
+  both faces straight: the pieces on edge 1 and on edge 2 certify
+  across their edge, and the two cross pairs, which share `V` only,
+  certify under a plane through `V`. A partner folded onto the face is
+  refused (a cusp).
+
+**Cost.** Counted on `embed/straight-corner-measure` (the exact run
+built, the gate asking), over the census's 215 plane/plane departure
+tests: 9,698,180 `departure` calls, of which 33.6% have a face that
+would be two pieces; asked per piece pair they would be 13,845,880,
+1.43 times as many (per test: median 1.37, worst 2.49). That is an
+upper bound on asks of the ladder per call, taken under a build where
+the corners the pieces would certify still split to the depth floor, so
+the calls themselves should fall; that was not measured. A piece pair
+is not a cell pair: the receipt's pairs and `Budget(Pairs)` do not
+move by it.
+
+### What goes, and its pins
+
+- The lean gate and the convex quadrant: its rows
+  (`a_planes_reflex_corner_of_two_lines_is_not_its_wedge` and the
+  convex-corner rows) are re-pinned on the pieces: a convex corner
+  presents two pieces whose union is its quadrant, a reflex one two
+  pieces that cover its three quadrants, never the wedge.
+- The run, `Zero::Through`, `through_read`, the two run arms of
+  `planes_through` and its second-piece parameter (all PR 7338's): its
+  four unit rows go; the band's-edge row becomes "a spike within the
+  band refuses"; the flush-union body row stays; the turned row flips
+  from `Budget(Depth)` to holding and is the acceptance test; the flap
+  row must stay `Violated`.
+
+### Not covered
+
+- A curved chart's reflex corner (`embed/iso-end`).
+- A cell holding a third edge (a cap, a hole, a pinch): `embed/strip`.
+- A line meeting a curve (`embed/tangent-corner`).
