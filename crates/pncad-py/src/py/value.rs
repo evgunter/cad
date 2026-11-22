@@ -1968,7 +1968,6 @@ impl Evaluation {
                         pncad::document::sentence!(
                             pncad::document::Speaker::TAG.mention(&self.doc.spoken(node.0))
                         )
-                        .to_string()
                     )));
                 }
             },

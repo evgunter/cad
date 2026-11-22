@@ -297,7 +297,11 @@ impl Say for IdAnswer {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for IdAnswer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -391,7 +395,11 @@ impl Say for Disagreement {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for Disagreement {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -422,7 +430,9 @@ fn cursor_notice(news: &impl Say, landed: (&Doc<ProfileProgram>, &Evaluation<f64
     let (doc, evaluation) = landed;
     Message::new(
         Subject::Cursor,
-        Said(news, Speaker::of(doc).within(evaluation)).sentence().to_string(),
+        Said(news, Speaker::of(doc).within(evaluation))
+            .sentence()
+            .to_string(),
         Retold::Again,
     )
 }
@@ -473,7 +483,11 @@ impl Say for IdNews {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for IdNews {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 

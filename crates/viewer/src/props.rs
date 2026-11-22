@@ -705,11 +705,7 @@ impl MemberValues {
 
     /// The indices, as a sentence names them.
     fn indices(&self) -> String {
-        let names: Vec<String> = self
-            .over
-            .iter()
-            .map(crate::tree::spelled_var)
-            .collect();
+        let names: Vec<String> = self.over.iter().map(crate::tree::spelled_var).collect();
         names.join(", ")
     }
 
@@ -720,10 +716,7 @@ impl MemberValues {
             .iter()
             .zip(at)
             .map(|(index, value)| {
-                format!(
-                    "{index} = {value}",
-                    index = crate::tree::spelled_var(&index)
-                )
+                format!("{index} = {value}", index = crate::tree::spelled_var(index))
             })
             .collect();
         at.join(", ")
@@ -2034,7 +2027,7 @@ impl core::fmt::Display for SlotUnitFault {
                     f,
                     "{node} carries no expression in its {} slot",
                     slot.label(),
-                    node = crate::tree::spelled(&node)
+                    node = crate::tree::spelled(node)
                 )
             }
             Self::NotALiteral { node, slot } => write!(
@@ -2042,7 +2035,7 @@ impl core::fmt::Display for SlotUnitFault {
                 "the {} slot on {node} is computed, so it has no written unit to change — set \
                  an expression to change what it says",
                 slot.label(),
-                node = crate::tree::spelled(&node)
+                node = crate::tree::spelled(node)
             ),
             Self::Dimension { slot, source } => {
                 write!(

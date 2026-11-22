@@ -1236,10 +1236,10 @@ impl crate::Say for SplitError {
             Self::UnknownCutNode { id } => say!(
                 f,
                 "split: the cut names ",
-                by.mention(&id),
+                by.mention(id),
                 sentence!(
                     ", which is not live. ",
-                    Recourse(&sentence!("leave ", by.mention(&id), " out of the cut"))
+                    Recourse(&sentence!("leave ", by.mention(id), " out of the cut"))
                 )
             ),
             Self::CutsTheWorld => write!(
@@ -1250,7 +1250,7 @@ impl crate::Say for SplitError {
             Self::NoMaterial { node } => say!(
                 f,
                 "split: the cut places nothing in the world (it begins at ",
-                by.mention(&node),
+                by.mention(node),
                 format_args!(
                     "), and a part \
                  delivers only its world, so the instance the split leaves behind would \
@@ -1280,10 +1280,10 @@ impl crate::Say for SplitError {
                 say!(
                     f,
                     "split: the cut severs the edge from ",
-                    by.mention(&consumer),
+                    by.mention(consumer),
                     sentence!(
                         format_args!("{reads} to its input "),
-                        by.mention(&input),
+                        by.mention(input),
                         sentence!(
                             format_args!(
                                 ". The \
@@ -1292,8 +1292,8 @@ impl crate::Say for SplitError {
                             ),
                             Recourse(&sentence!(
                                 "add ",
-                                by.mention(&kept),
-                                sentence!(" to the cut, or leave ", by.mention(&cut), " out of it")
+                                by.mention(kept),
+                                sentence!(" to the cut, or leave ", by.mention(cut), " out of it")
                             ))
                         )
                     )
@@ -1302,12 +1302,12 @@ impl crate::Say for SplitError {
             Self::RemainderReadUncarried { reader, why } => say!(
                 f,
                 "split: ",
-                by.mention(&reader),
+                by.mention(reader),
                 sentence!(
                     format_args!(" stays and reads cut material, and {why}. "),
                     Recourse(&sentence!(
                         "cut ",
-                        by.mention(&reader),
+                        by.mention(reader),
                         " too, or place what it reads by one world placement at the \
                      identity in the cut"
                     ))
@@ -1317,7 +1317,7 @@ impl crate::Say for SplitError {
                 say!(
                     f,
                     "split: the product reads ",
-                    by.mention(&input),
+                    by.mention(input),
                     ", which is cut, and "
                 )?;
                 match why {
@@ -1329,7 +1329,7 @@ impl crate::Say for SplitError {
                     ". ",
                     Recourse(&sentence!(
                         "leave ",
-                        by.mention(&input),
+                        by.mention(input),
                         " out of the cut, or set the product to a world copy the \
                          cut places"
                     ))
@@ -1338,7 +1338,7 @@ impl crate::Say for SplitError {
             Self::NamedReadUncarried { var, why } => say!(
                 f,
                 "split: ",
-                by.var(&var),
+                by.var(var),
                 sentence!(
                     format_args!(
                         " stays, since a reader the remainder keeps reads it or nothing \
@@ -1346,7 +1346,7 @@ impl crate::Say for SplitError {
                     ),
                     Recourse(&sentence!(
                         "cut every node that reads ",
-                        by.var(&var),
+                        by.var(var),
                         ", so it goes with them, or delete it"
                     ))
                 )
@@ -1358,21 +1358,21 @@ impl crate::Say for SplitError {
             } => say!(
                 f,
                 "split: ",
-                by.var(&var),
+                by.var(var),
                 " is read by ",
-                by.mention(&cut_node),
+                by.mention(cut_node),
                 sentence!(
                     ", which is cut, and by ",
-                    by.mention(&kept_node),
+                    by.mention(kept_node),
                     sentence!(
                         ", which \
                  is kept, and one variable cannot become two documents'. ",
                         Recourse(&sentence!(
                             "put ",
-                            by.mention(&cut_node),
+                            by.mention(cut_node),
                             sentence!(
                                 " and ",
-                                by.mention(&kept_node),
+                                by.mention(kept_node),
                                 " on one side of the cut, or give one of \
                      them a variable of its own (DeclareVar, SetParam)"
                             )
@@ -1387,19 +1387,19 @@ impl crate::Say for SplitError {
             } => say!(
                 f,
                 "split: ",
-                by.mention(&cut_node),
+                by.mention(cut_node),
                 sentence!(
                     ", which is cut, and ",
-                    by.mention(&kept_node),
+                    by.mention(kept_node),
                     sentence!(
                         ", which is kept, are both \
                  placed into ",
-                        by.mention(&space),
+                        by.mention(space),
                         sentence!(
                             ", and one space cannot go with both documents. ",
                             Recourse(&sentence!(
                                 "cut ",
-                                by.mention(&kept_node),
+                                by.mention(kept_node),
                                 " too, or re-target one of them into a new_space() of its \
                      own"
                             ))
@@ -1415,20 +1415,20 @@ impl crate::Say for SplitError {
             } => say!(
                 f,
                 "split: no node reads ",
-                by.var(&var),
+                by.var(var),
                 sentence!(
                     ", and definitions tie it both to ",
-                    by.var(&moving),
+                    by.var(moving),
                     sentence!(
                         ", which \
                  moves with the cut, and to ",
-                        by.var(&staying),
+                        by.var(staying),
                         sentence!(
                             ", which stays, so it can go with neither \
                  document. ",
                             Recourse(&sentence!(
                                 "define ",
-                                by.var(&var),
+                                by.var(var),
                                 " over variables of one side (DefineVar), or delete it \
                      (DeleteVar), then split"
                             ))
@@ -1444,32 +1444,32 @@ impl crate::Say for SplitError {
             } => say!(
                 f,
                 "split: no node reads ",
-                by.var(&var),
+                by.var(var),
                 ", and definitions tie it both to ",
-                by.var(&moving),
+                by.var(moving),
                 ", which moves with the cut, and to ",
-                by.var(&staying),
+                by.var(staying),
                 ", which this document no longer holds, so the part has no variable to read. ",
                 Recourse(sentence!(
                     "redefine ",
-                    by.var(&var),
+                    by.var(var),
                     " without ",
-                    by.var(&staying),
+                    by.var(staying),
                     " (DefineVar), or delete it (DeleteVar), then split"
                 ))
             ),
             Self::UnresolvedVarCrossesCut { var, node } => say!(
                 f,
                 "split: ",
-                by.mention(&node),
+                by.mention(node),
                 ", which is cut, reads ",
-                by.var(&var),
+                by.var(var),
                 sentence!(
                     ", which this document no longer \
                  holds, so the part has no variable to read. ",
                     Recourse(&sentence!(
                         "repoint ",
-                        by.mention(&node),
+                        by.mention(node),
                         "'s reader at a variable this document holds, or remove the \
                      reader, then split"
                     ))
@@ -1482,18 +1482,18 @@ impl crate::Say for SplitError {
             } => say!(
                 f,
                 "split: ",
-                by.mention(&node),
+                by.mention(node),
                 " is cut, but its reference (",
                 Said(&name, by),
                 sentence!(
                     ") derives from ",
-                    by.mention(&missing),
+                    by.mention(missing),
                     sentence!(
                         ", \
                  which is outside the cut, so the new document could not express it. ",
                         Recourse(&sentence!(
                             "add ",
-                            by.mention(&missing),
+                            by.mention(missing),
                             " to the cut, or rebind that name to an entity inside the cut \
                      (Rebind)"
                         ))
@@ -1511,7 +1511,7 @@ impl crate::Say for SplitError {
                 // The rewrite stopped at ONE node, which for a nested
                 // name is not the name's own mint.
                 if let Some(id) = missing {
-                    say!(f, ", and the rewrite stopped at ", by.mention(&id))?;
+                    say!(f, ", and the rewrite stopped at ", by.mention(id))?;
                 }
                 write!(
                     f,
@@ -1687,13 +1687,13 @@ impl crate::Say for Uncarried {
             ),
             Self::Posed { placement } => say!(
                 f,
-                by.mention(&placement),
+                by.mention(placement),
                 " places it at a pose of its own, so what stands where it did is a \
                  copy moved"
             ),
             Self::OtherSpace { placement } => say!(
                 f,
-                by.mention(&placement),
+                by.mention(placement),
                 "'s copy is in a space other than the world, and a part delivers only \
                  its world"
             ),
@@ -1872,7 +1872,7 @@ impl crate::Say for InlineError {
             Self::UnknownNode { id } => say!(
                 f,
                 "inline: ",
-                by.mention(&id),
+                by.mention(id),
                 format_args!(
                     " is not live. {}",
                     Recourse("name a live instance of a part")
@@ -1881,7 +1881,7 @@ impl crate::Say for InlineError {
             Self::NotAnInstance { node } => say!(
                 f,
                 "inline: ",
-                by.mention(&node),
+                by.mention(node),
                 format_args!(
                     " does not instantiate a part. {}",
                     Recourse("name an instance of a part")
@@ -1890,13 +1890,13 @@ impl crate::Say for InlineError {
             Self::UnplaceablePart { instance } => say!(
                 f,
                 "inline: ",
-                by.mention(&instance),
+                by.mention(instance),
                 sentence!(
                     "'s part has no product to place: its slot reads nothing, a \
                  body that is gone, or a piece or a source rather than an operation's output. ",
                     Recourse(&sentence!(
                         "point ",
-                        by.mention(&instance),
+                        by.mention(instance),
                         " (UpdateReference) at a version whose product slot reads \
                      a body"
                     ))
@@ -1944,13 +1944,13 @@ impl crate::Say for InlineError {
             Self::UnreadPose { var } => say!(
                 f,
                 "inline: the referenced document holds the pose ",
-                by.var(&var),
+                by.var(var),
                 sentence!(
                     ", which nothing in it \
                  reads, and a pose crosses only with a reader. ",
                     Recourse(&sentence!(
                         "in the referenced document, read ",
-                        by.var(&var),
+                        by.var(var),
                         " or delete it (DeleteVar), point this \
                      instance at that version (UpdateReference), then inline"
                     ))
@@ -1959,15 +1959,15 @@ impl crate::Say for InlineError {
             Self::UnresolvedVarCrossesCut { var, node } => say!(
                 f,
                 "inline: ",
-                by.mention(&node),
+                by.mention(node),
                 " in the referenced document reads ",
-                by.var(&var),
+                by.var(var),
                 sentence!(
                     ", which that document \
                  no longer holds, so this document has no variable to point the reader at. ",
                     Recourse(&sentence!(
                         "in the referenced document, repoint ",
-                        by.mention(&node),
+                        by.mention(node),
                         "'s reader at a variable it holds \
                      or remove the reader, point this instance at that version \
                      (UpdateReference), then inline"
@@ -1977,14 +1977,14 @@ impl crate::Say for InlineError {
             Self::SelectionSpansMembers { reader } => say!(
                 f,
                 "inline: ",
-                by.mention(&reader),
+                by.mention(reader),
                 sentence!(
                     " selects entities of the instance's copy that lie in two \
                  members of the family it copies, and spliced, that family is no one body \
                  to select them in. ",
                     Recourse(&sentence!(
                         "split ",
-                        by.mention(&reader),
+                        by.mention(reader),
                         "'s selection into one per member, then inline"
                     ))
                 )
@@ -2027,7 +2027,7 @@ impl crate::Say for InlineError {
                 "inline: ",
                 Said(&name, by),
                 " derives from ",
-                by.mention(&missing),
+                by.mention(missing),
                 format_args!(
                     ", which the referenced document no \
                  longer has. {}",
@@ -2039,7 +2039,7 @@ impl crate::Say for InlineError {
                 "inline: ",
                 Said(&name, by),
                 " is carried in through ",
-                by.var(&read),
+                by.var(read),
                 format_args!(
                     ", which no operation of the \
                  referenced document defines any longer. {}",
@@ -5381,13 +5381,13 @@ impl crate::Say for FlattenError {
             Self::UnknownNode { id } => say!(
                 f,
                 "flatten: ",
-                by.mention(&id),
+                by.mention(id),
                 format_args!(" is not live. {}", Recourse("name a live placement"))
             ),
             Self::NotAPlacement { node } => say!(
                 f,
                 "flatten: ",
-                by.mention(&node),
+                by.mention(node),
                 format_args!(
                     " is no placement. {}",
                     Recourse("name a placement whose bundle is the identity")
@@ -5396,13 +5396,13 @@ impl crate::Say for FlattenError {
             Self::NotTheIdentity { placement } => say!(
                 f,
                 "flatten: ",
-                by.mention(&placement),
+                by.mention(placement),
                 sentence!(
                     "'s bundle is not the identity as written, so its copy \
                  is not its source where the source stands. ",
                     Recourse(&sentence!(
                         "write ",
-                        by.mention(&placement),
+                        by.mention(placement),
                         "'s bundle as the identity first"
                     ))
                 )
@@ -5410,7 +5410,7 @@ impl crate::Say for FlattenError {
             Self::NotANewSpace { placement } => say!(
                 f,
                 "flatten: ",
-                by.mention(&placement),
+                by.mention(placement),
                 format_args!(
                     "'s source is not in one new_space(), and only such a \
                  space is flattened into its target. {}",
@@ -5420,16 +5420,16 @@ impl crate::Say for FlattenError {
             Self::SpaceShared { placement, other } => say!(
                 f,
                 "flatten: ",
-                by.mention(&other),
+                by.mention(other),
                 sentence!(
                     " also copies a source out of ",
-                    by.mention(&placement),
+                    by.mention(placement),
                     sentence!(
                         "'s source's space, \
                  and would read the target's coordinates once it is flattened. ",
                         Recourse(&sentence!(
                             "delete or re-point ",
-                            by.mention(&other),
+                            by.mention(other),
                             " first"
                         ))
                     )
@@ -5438,13 +5438,13 @@ impl crate::Say for FlattenError {
             Self::ReadUncarried { reader } => say!(
                 f,
                 "flatten: ",
-                by.mention(&reader),
+                by.mention(reader),
                 sentence!(
                     " reads the copy whole or by a name of no one shape it \
                  copies. ",
                     Recourse(&sentence!(
                         "re-point ",
-                        by.mention(&reader),
+                        by.mention(reader),
                         " at one copy (SetParam), then flatten"
                     ))
                 )
@@ -5452,14 +5452,14 @@ impl crate::Say for FlattenError {
             Self::SelectionSpansMembers { reader } => say!(
                 f,
                 "flatten: ",
-                by.mention(&reader),
+                by.mention(reader),
                 sentence!(
                     " selects entities of the copy that lie in two members of \
                  the family it groups, and unwrapped, that family is no one body to select \
                  them in. ",
                     Recourse(&sentence!(
                         "split ",
-                        by.mention(&reader),
+                        by.mention(reader),
                         "'s selection into one per member, then flatten"
                     ))
                 )

@@ -1333,14 +1333,14 @@ fn a_witness_that_does_not_build_refuses_up_front() {
         "spoken from the driven document"
     );
     assert!(
-        editor_core::test_support::node_text(&node).contains("\"slab\""),
+        editor_core::test_support::node_text(node).contains("\"slab\""),
         "{node}",
-        node = editor_core::test_support::node_text(&node)
+        node = editor_core::test_support::node_text(node)
     );
     assert!(
         err.to_string().starts_with(&format!(
             "the witness build refuses at {node}: {cause} — ",
-            node = editor_core::test_support::node_text(&node)
+            node = editor_core::test_support::node_text(node)
         )),
         "{err}"
     );

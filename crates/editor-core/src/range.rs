@@ -510,31 +510,31 @@ impl crate::Say for RangeRefusal {
             ),
             Self::NotAContinuousParam { param } => say!(
                 f,
-                by.var(&param),
+                by.var(param),
                 " is not a continuous parameter of this document — there is no axis to \
                  certify over"
             ),
             Self::UnknownNode { node } => {
-                say!(f, "this document has no ", by.mention(&node))
+                say!(f, "this document has no ", by.mention(node))
             }
             Self::UnknownSlot { node, slot } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(" carries no {} slot", slot.label())
                 )
             }
             Self::StructuralSlot { node, slot } => say!(
                 f,
                 format_args!("the {} slot of ", slot.label()),
-                by.mention(&node),
+                by.mention(node),
                 " is structural (Count) — a structural slot selects \
                  between shapes and has no interval to certify over"
             ),
             Self::SlotIsDefined { node, slot } => say!(
                 f,
                 format_args!("the {} slot of ", slot.label()),
-                by.mention(&node),
+                by.mention(node),
                 format_args!(
                     " reads a variable defined by a formula, which has no \
                  interval of its own. {}",

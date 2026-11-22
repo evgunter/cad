@@ -764,7 +764,7 @@ impl Say for PlaneEvent {
             Self::DefinedLost { role, var } => say!(
                 f,
                 format_args!("the {} pick (", role.name()),
-                by.var(&var),
+                by.var(var),
                 ") is no longer in the document; the tool dropped it"
             ),
         }
@@ -781,7 +781,11 @@ impl core::fmt::Display for PlaneEvent {
                 "{}",
                 pncad::document::Said(self, Speaker::held(plane.said())).sentence()
             ),
-            Self::DefinedLost { .. } => write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence()),
+            Self::DefinedLost { .. } => write!(
+                f,
+                "{}",
+                pncad::document::Said(self, Speaker::TAG).sentence()
+            ),
         }
     }
 }
@@ -1616,25 +1620,25 @@ impl StepClearFault {
                 f,
                 "{input}'s value is several bodies; a step clears ONE — project the one you \
                  mean first",
-                input = crate::tree::spelled(&input)
+                input = crate::tree::spelled(input)
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,
                 "{input}'s {} half holds no material: its plane misses the body on that side",
                 half.name(),
-                input = crate::tree::spelled(&input)
+                input = crate::tree::spelled(input)
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
                 "{input}'s body could not be measured for the copy's step: {}",
                 pncad::geom_brep::recourse::read_at(error, at),
-                input = crate::tree::spelled(&input)
+                input = crate::tree::spelled(input)
             ),
             Self::NoExtent { input } => {
                 write!(
                     f,
                     "{input}'s body has no width to step a copy by",
-                    input = crate::tree::spelled(&input)
+                    input = crate::tree::spelled(input)
                 )
             }
         }

@@ -679,7 +679,7 @@ impl crate::Say for SeedError {
             Self::UnknownVar { var } => say!(
                 f,
                 "the seed names ",
-                by.var(&var),
+                by.var(var),
                 format_args!(
                     ", which is not a variable of this document. {}",
                     Recourse("seed a free length, angle or scalar variable the document holds")
@@ -688,7 +688,7 @@ impl crate::Say for SeedError {
             Self::CountVar { var } => say!(
                 f,
                 "the seed names ",
-                by.var(&var),
+                by.var(var),
                 format_args!(
                     ", a Count parameter — structural parameters are fixed \
                  under any error analysis and carry no derivative axis. {}",
@@ -698,14 +698,14 @@ impl crate::Say for SeedError {
             Self::SeedOnNonFreeVar { var } => say!(
                 f,
                 "the seed names ",
-                by.var(&var),
+                by.var(var),
                 sentence!(
                     ", which is not a free variable and so is no axis of its \
                  own: a defined variable's derivative is its inputs' pushforward, and an \
                  operation's output is a value its operation gives. ",
                     Recourse(sentence!(
                         "seed a free variable ",
-                        by.var(&var),
+                        by.var(var),
                         " is a function of"
                     ))
                 )
@@ -713,7 +713,7 @@ impl crate::Say for SeedError {
             Self::TangentUnrepresentable { var } => say!(
                 f,
                 "parameter ",
-                by.var(&var),
+                by.var(var),
                 format_args!(
                     " is seeded and this evaluation scalar carries no tangent \
                  channel. {}",
@@ -895,14 +895,14 @@ impl crate::Say for ParamBoxError {
             Self::UnknownParam { param } => say!(
                 f,
                 "the parameter box names ",
-                by.var(&param),
+                by.var(param),
                 ", which is not a free continuous variable of \
                  this document"
             ),
             Self::AxisUnrepresentable { param, lo, hi } => say!(
                 f,
                 "parameter ",
-                by.var(&param),
+                by.var(param),
                 format_args!(
                     " spans offsets [{lo}, {hi}] and this evaluation scalar carries \
                  no such value — a widened box needs an enclosing scalar"
@@ -1352,7 +1352,7 @@ impl crate::Say for MeasureUnavailable {
             Self::BandHasNoMeasure { param } => say!(
                 f,
                 "parameter ",
-                by.var(&param),
+                by.var(param),
                 " carries a band: worst-case limits with no shape, so it \
                  prices nothing — state a distribution to ask for mass"
             ),

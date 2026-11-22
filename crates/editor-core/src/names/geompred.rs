@@ -63,7 +63,6 @@
 //! public API is far more expensive than a follow-up unit.
 
 use crate::say;
-use crate::sentence;
 use geom_core::{Band, BandError, Decide, Sign};
 use topo::query;
 

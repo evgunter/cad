@@ -2525,17 +2525,17 @@ impl crate::Say for DefinitionCycleSentence<'_> {
         let var = self.var;
         say!(
             f,
-            sentence!("the definition of ", by.var(&var), " reads "),
-            by.var(&var),
+            sentence!("the definition of ", by.var(var), " reads "),
+            by.var(var),
             " back, through "
         )?;
         for (i, held) in self.through.iter().enumerate() {
             if i > 0 {
                 f.write_str(" → ")?;
             }
-            say!(f, by.var(&held))?;
+            say!(f, by.var(held))?;
         }
-        say!(f, " → ", by.var(&var))
+        say!(f, " → ", by.var(var))
     }
 }
 
@@ -2550,7 +2550,7 @@ impl crate::Say for DefinitionTooLargeSentence<'_> {
     fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         say!(
             f,
-            by.var(&self.var),
+            by.var(self.var),
             format_args!(
                 " expands, through the definitions it reads, to {} expression nodes, past the \
              bound of {DEFINITION_NODE_BOUND}",
@@ -2573,10 +2573,10 @@ impl crate::Say for DefinitionVarKindSentence<'_> {
     fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         say!(
             f,
-            by.var(&self.read),
+            by.var(self.read),
             sentence!(
                 format_args!(" is declared {} but the definition of ", self.declared),
-                by.var(&self.var),
+                by.var(self.var),
                 format_args!(" reads it as {}", self.referenced)
             )
         )
@@ -4187,18 +4187,18 @@ impl EditError {
     fn render(&self, f: &mut Sentence, by: Speaker<'_>, tail: Tail) -> core::fmt::Result {
         match self {
             Self::UnknownNode { id } => {
-                say!(f, by.mention(&id), " is not live")?;
+                say!(f, by.mention(id), " is not live")?;
                 tail.recourse(f, format_args!("aim the edit at {HELD_NODE}"))
             }
             Self::ProfileProgramRefused { node, refusal } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!("'s sketch refused: {refusal}")
                 )
             }
             Self::UnresolvedInput { input } => {
-                say!(f, "the input ", by.mention(&input), " is not a live node")?;
+                say!(f, "the input ", by.mention(input), " is not a live node")?;
                 tail.recourse(f, format_args!("take the input from {HELD_NODE}"))
             }
             // Only `SetMembers` can close a loop: an insert's inputs are
@@ -4207,7 +4207,7 @@ impl EditError {
                 say!(
                     f,
                     "the recipe graph would cycle (through ",
-                    by.mention(&at),
+                    by.mention(at),
                     ")"
                 )?;
                 tail.recourse(
@@ -4221,7 +4221,7 @@ impl EditError {
             Self::LoftSectionsSpelled { node } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     " is a loft, whose sections are spelled one read each"
                 )?;
                 tail.recourse(f, format_args!("list the sections the loft passes through"))
@@ -4233,7 +4233,7 @@ impl EditError {
             } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(
                         " is a loft of {sections} sections, each after the first at its own \
                      station, and {given} were handed"
@@ -4250,7 +4250,7 @@ impl EditError {
             Self::SetLoftSectionsOnNonLoft { node } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     " is not a loft, so it has no sections to write"
                 )?;
                 tail.recourse(
@@ -4268,7 +4268,7 @@ impl EditError {
             Self::SetMembersOnNonList { node } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     " carries no list input, so it has no members to set"
                 )?;
                 tail.recourse(
@@ -4284,7 +4284,7 @@ impl EditError {
             Self::SetProgramOnNonProfile { node } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     " holds no profile program, so it has no program to set"
                 )?;
                 tail.recourse(f, format_args!("aim the edit at a profile node"))
@@ -4296,7 +4296,7 @@ impl EditError {
             Self::StepIdsRefused { node, fault } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!("'s program cannot take the step ids given: {fault}")
                 )?;
                 step_ids_recourse(f, tail, fault)
@@ -4304,7 +4304,7 @@ impl EditError {
             Self::SectionIdsRefused { node, fault } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(" cannot take the section ids given: {fault}")
                 )?;
                 section_ids_recourse(f, tail, fault)
@@ -4312,7 +4312,7 @@ impl EditError {
             Self::IndexedRead { node, fault } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(" cannot read that member: {fault}")
                 )?;
                 tail.recourse(
@@ -4346,14 +4346,14 @@ impl EditError {
                     SlotId::Operand(seat) => match seat.selection_entry(*at) {
                         Some(entry) => say!(
                             f,
-                            by.mention(&node),
+                            by.mention(node),
                             format_args!("'s {entry} names "),
                             Said(&name, by)
                         )?,
                         None => say!(
                             f,
                             format_args!("name {at} of "),
-                            by.mention(&node),
+                            by.mention(node),
                             format_args!("'s {slot} is "),
                             Said(&name, by)
                         )?,
@@ -4361,7 +4361,7 @@ impl EditError {
                     _ => say!(
                         f,
                         format_args!("name {at} of "),
-                        by.mention(&node),
+                        by.mention(node),
                         format_args!("'s {slot} is "),
                         Said(&name, by)
                     )?,
@@ -4386,7 +4386,7 @@ impl EditError {
             Self::PickPath { node, slot, at } => {
                 say!(
                     f,
-                    PicksNoPiece(sentence!(by.mention(&node), format_args!("'s {slot}")), *at)
+                    PicksNoPiece(sentence!(by.mention(node), format_args!("'s {slot}")), *at)
                 )?;
                 tail.recourse(
                     f,
@@ -4399,7 +4399,7 @@ impl EditError {
             Self::SelectionShape { node, slot, fault } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!("'s {slot} is not a selection a document stores: {fault}")
                 )?;
                 match fault.count_bound() {
@@ -4420,7 +4420,7 @@ impl EditError {
             Self::OperandUnresolved { node, slot, read } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(
                         "'s {slot} reads {read}, which is not a variable of this document"
                     )
@@ -4433,7 +4433,7 @@ impl EditError {
             Self::AmbiguousOutput { input, slot, ports } => {
                 say!(
                     f,
-                    by.mention(&input),
+                    by.mention(input),
                     format_args!(
                         " defines {} outputs ({}), so naming it alone does not say which its \
                      {slot} reads",
@@ -4446,7 +4446,7 @@ impl EditError {
             Self::DefinesNothing { input, slot } => {
                 say!(
                     f,
-                    by.mention(&input),
+                    by.mention(input),
                     format_args!(" defines nothing a {slot} could read")
                 )?;
                 tail.recourse(f, format_args!("read an operation that defines a value"))
@@ -4454,7 +4454,7 @@ impl EditError {
             Self::UnknownSlot { id, slot } => {
                 say!(
                     f,
-                    by.mention(&id),
+                    by.mention(id),
                     format_args!(" has no slot {}", slot.label())
                 )?;
                 tail.recourse(f, format_args!("edit a slot this node has"))
@@ -4502,7 +4502,7 @@ impl EditError {
                 say!(
                     f,
                     format_args!("no variable is named {name} (read by "),
-                    by.mention(&node),
+                    by.mention(node),
                     "'s payload expression)"
                 )?;
                 tail.recourse(f, format_args!("{DECLARE_THE_NAME}{OR_A_DECLARED_PARAM}"))
@@ -4515,9 +4515,9 @@ impl EditError {
             } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     format_args!(" is declared {declared} but "),
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(
                         "'s payload expression reads it as \
                      {referenced}"
@@ -4528,9 +4528,9 @@ impl EditError {
             Self::PayloadUnresolvedVar { var, node } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     " is not a variable of this document (read by ",
-                    by.mention(&node),
+                    by.mention(node),
                     "'s payload \
                      expression)"
                 )?;
@@ -4543,7 +4543,7 @@ impl EditError {
             } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(
                         " bounds {} {measured} value with {} {bound} expression — an assertion \
                      compares like with like or not at all",
@@ -4559,9 +4559,9 @@ impl EditError {
             Self::ConstructionReadsObserved { node, slot, var } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!("'s slot {} reads ", slot.label()),
-                    by.var(&var),
+                    by.var(var),
                     ", a measured value — only an assertion reads a \
                      measured value; a construction reads what was written"
                 )?;
@@ -4577,7 +4577,7 @@ impl EditError {
                 say!(
                     f,
                     format_args!("no variable is named {name} (read by "),
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(", slot {})", slot.label())
                 )?;
                 tail.recourse(f, format_args!("{DECLARE_THE_NAME}{OR_A_DECLARED_PARAM}"))
@@ -4592,9 +4592,9 @@ impl EditError {
                 crate::SlotKind::Is(kind) if let Some(referenced) = kind.dimension() => {
                     say!(
                         f,
-                        by.var(&var),
+                        by.var(var),
                         format_args!(" is declared {found} but "),
-                        by.mention(&node),
+                        by.mention(node),
                         format_args!(" (slot {}) reads it as {referenced}", slot.label())
                     )?;
                     tail.recourse(f, format_args!("{}", ParamDimensionRecourse(referenced)))
@@ -4602,9 +4602,9 @@ impl EditError {
                 _ => {
                     say!(
                         f,
-                        by.mention(&node),
+                        by.mention(node),
                         format_args!("'s {} reads ", slot.label()),
-                        by.var(&var),
+                        by.var(var),
                         format_args!(
                             ", which is {} {found}, where it takes {expected}",
                             crate::sentence::article(&found.to_string())
@@ -4616,9 +4616,9 @@ impl EditError {
             Self::SlotUnresolvedVar { var, node, slot } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     " is not a variable of this document (read by ",
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(", slot {})", slot.label())
                 )?;
                 tail.recourse(f, format_args!("{READ_A_HELD_VAR}"))
@@ -4626,7 +4626,7 @@ impl EditError {
             Self::ContinuousVarCannotBeCount { var } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     " is continuous, and a continuous variable cannot be a count"
                 )?;
                 tail.recourse(
@@ -4648,17 +4648,17 @@ impl EditError {
             Self::VarIsAnOutput { var, node, door } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     " is an output of ",
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(", which defines it, so {door} cannot reach it")
                 )?;
-                tail.recourse(f, sentence!("edit or delete ", by.mention(&node)))
+                tail.recourse(f, sentence!("edit or delete ", by.mention(node)))
             }
             Self::NotAFreeVar { var, door } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     format_args!(
                         " is defined by an expression, so {door} has no value, notation or \
                      distribution of its own to write"
@@ -4668,7 +4668,7 @@ impl EditError {
                     f,
                     sentence!(
                         "edit a free variable its definition reads, or redefine ",
-                        by.var(&var),
+                        by.var(var),
                         " as a \
                          free variable"
                     ),
@@ -4680,7 +4680,7 @@ impl EditError {
                     f,
                     sentence!(
                         "define ",
-                        by.var(&var),
+                        by.var(var),
                         " without reading any variable on that cycle"
                     ),
                 )
@@ -4694,7 +4694,7 @@ impl EditError {
                     f,
                     sentence!(
                         "define ",
-                        by.var(&var),
+                        by.var(var),
                         " over fewer nested definitions, or make one of them free"
                     ),
                 )
@@ -4703,7 +4703,7 @@ impl EditError {
                 say!(
                     f,
                     format_args!("no variable is named {name} (read by the definition of "),
-                    by.var(&var),
+                    by.var(var),
                     ")"
                 )?;
                 tail.recourse(f, format_args!("{DECLARE_THE_NAME}{OR_A_DECLARED_PARAM}"))
@@ -4711,11 +4711,11 @@ impl EditError {
             Self::DefinitionUnresolvedVar { var, read } => {
                 say!(
                     f,
-                    by.var(&read),
+                    by.var(read),
                     sentence!(
                         " is not a variable of this document (read by the definition of \
                      ",
-                        by.var(&var),
+                        by.var(var),
                         ")"
                     )
                 )?;
@@ -4756,7 +4756,7 @@ impl EditError {
             Self::VarNameUnchanged { var } => {
                 match var.name() {
                     Some(name) => write!(f, "{} is already named {name}", var.id())?,
-                    None => say!(f, by.var(&var), " already has no name")?,
+                    None => say!(f, by.var(var), " already has no name")?,
                 }
                 tail.recourse(f, format_args!("offer a different name"))
             }
@@ -4764,7 +4764,7 @@ impl EditError {
                 say!(
                     f,
                     "nothing reads ",
-                    by.var(&var),
+                    by.var(var),
                     ", and a variable with no name is one something reads"
                 )?;
                 tail.recourse(
@@ -4776,7 +4776,7 @@ impl EditError {
                 say!(
                     f,
                     "this edit leaves ",
-                    by.var(&var),
+                    by.var(var),
                     " with no name and more than one reader, and a \
                      variable with no name has exactly one"
                 )?;
@@ -4788,7 +4788,7 @@ impl EditError {
             Self::DeleteAnonymousVar { var } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     " has no name, and a variable with no name goes with the one \
                      expression reading it"
                 )?;
@@ -4837,12 +4837,12 @@ impl EditError {
             Self::IndicesUnrelated { node, a, b } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     " reads the indices ",
-                    by.var(&a),
+                    by.var(a),
                     sentence!(
                         " and ",
-                        by.var(&b),
+                        by.var(b),
                         ", and neither is within the other, so \
                      they meet in no reader"
                     )
@@ -4856,7 +4856,7 @@ impl EditError {
                 match fault {
                     IndexFault::CountNotCount { found } => say!(
                         f,
-                        by.var(&var),
+                        by.var(var),
                         format_args!(
                             " is an index, and its count is {} {found}: an index ranges over \
                          a whole number of values",
@@ -4865,7 +4865,7 @@ impl EditError {
                     )?,
                     IndexFault::WithinNoIndex => say!(
                         f,
-                        by.var(&var),
+                        by.var(var),
                         " is declared within a variable that is no index, and an index \
                          is within another index or nothing"
                     )?,
@@ -4882,20 +4882,20 @@ impl EditError {
                 match fault {
                     SourceFault::Unresolved { read } => say!(
                         f,
-                        by.var(&var),
+                        by.var(var),
                         format_args!(
                             " is a source reading {read}, which the document does not hold"
                         )
                     )?,
                     SourceFault::WrittenInPlace => say!(
                         f,
-                        by.var(&var),
+                        by.var(var),
                         " is a source whose read is written in place, which only a seat \
                          writes"
                     )?,
                     SourceFault::Kind { found } => say!(
                         f,
-                        by.var(&var),
+                        by.var(var),
                         format_args!(
                             " is a source reading {} {found}, and a source reads one body",
                             crate::sentence::article(&found.to_string())
@@ -4903,7 +4903,7 @@ impl EditError {
                     )?,
                     SourceFault::IndexRank { found, rank } => say!(
                         f,
-                        by.var(&var),
+                        by.var(var),
                         format_args!(
                             " is a source reading a member by {found} {}, where its \
                          family has {rank}, and a member is read at its family's rank",
@@ -4912,7 +4912,7 @@ impl EditError {
                     )?,
                     SourceFault::IndexNotCount { k, found } => say!(
                         f,
-                        by.var(&var),
+                        by.var(var),
                         format_args!(
                             " is a source reading a member at index {} that is {} {found}, \
                          and an index is a count",
@@ -4922,7 +4922,7 @@ impl EditError {
                     )?,
                     SourceFault::Fresh => say!(
                         f,
-                        by.var(&var),
+                        by.var(var),
                         " is a source in an edit's fresh table, and a fresh entry is a \
                          scalar a formula reads"
                     )?,
@@ -4935,9 +4935,9 @@ impl EditError {
             Self::PlacementReadsNoSource { node, read } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     " reads ",
-                    by.var(&read),
+                    by.var(read),
                     " as its source directly, and a placement reads its body \
                      through a source"
                 )?;
@@ -4949,7 +4949,7 @@ impl EditError {
             Self::VarKindFixed { var, kind, offered } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     format_args!(
                         " is of kind {kind} and the definition offered is of kind {offered}, \
                      and a variable's kind is fixed when it is declared"
@@ -4966,7 +4966,7 @@ impl EditError {
             Self::VarCountHasNoUnit { var } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     " is a count, and a count is an integer rather than a \
                      quantity, so it has no display unit to change"
                 )?;
@@ -4978,7 +4978,7 @@ impl EditError {
             Self::VarCountHasNoDistribution { var } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     " is a count, and a count is a structural parameter that \
                      is fixed under any error analysis, so it has no distribution to change"
                 )?;
@@ -4994,7 +4994,7 @@ impl EditError {
             } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     format_args!(
                         " is declared {declared} but the display unit offered \
                      measures {unit}"
@@ -5009,7 +5009,7 @@ impl EditError {
             } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     format_args!(
                         " is declared {declared} but the value edit offered a \
                      {offered}, and a variable's kind is fixed when it is declared"
@@ -5028,7 +5028,7 @@ impl EditError {
                 say!(
                     f,
                     format_args!("the expression path [{}] in ", steps.join(", ")),
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!("'s {} slot runs off the tree", slot.label())
                 )?;
                 tail.recourse(
@@ -5070,7 +5070,7 @@ impl EditError {
                 say!(
                     f,
                     "the reference is read at ",
-                    by.mention(&at),
+                    by.mention(at),
                     ", which is not live"
                 )?;
                 tail.recourse(f, format_args!("read it at {HELD_NODE}"))
@@ -5078,7 +5078,7 @@ impl EditError {
             Self::NonFiniteVar { var, field } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     format_args!(
                         "'s {field} is not finite — the value and every \
                      distribution offset must be a number"
@@ -5091,7 +5091,7 @@ impl EditError {
             Self::InvalidDistribution { var, fault } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     format_args!(" has an invalid distribution: {fault}")
                 )?;
                 match fault {
@@ -5158,27 +5158,23 @@ impl EditError {
             Self::WitnessOnNonSketch { node } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     " is not sketch-bearing, so it has nothing to re-witness"
                 )?;
                 tail.recourse(f, format_args!("re-witness a sketch-bearing node"))
             }
             Self::DuplicateWitnessEntry { node } => {
-                say!(
-                    f,
-                    by.mention(&node),
-                    " appears twice in the re-witness bulk"
-                )?;
+                say!(f, by.mention(node), " appears twice in the re-witness bulk")?;
                 tail.recourse(f, format_args!("list each node once"))
             }
             Self::TakeOverRepeatsCopy { node } => {
-                say!(f, by.mention(&node), " is given twice to the takeover")?;
+                say!(f, by.mention(node), " is given twice to the takeover")?;
                 tail.recourse(f, format_args!("give each copy once"))
             }
             Self::TakeOverNotASource { var } => {
                 say!(
                     f,
-                    by.var(&var),
+                    by.var(var),
                     " is no source, and a takeover redefines the sources placements read"
                 )?;
                 tail.recourse(f, format_args!("hand it the source a placement reads"))
@@ -5190,29 +5186,25 @@ impl EditError {
             } => {
                 say!(
                     f,
-                    by.mention(&copy),
+                    by.mention(copy),
                     " reads its body through ",
-                    by.var(&source),
+                    by.var(source),
                     sentence!(
                         sentence!(
                             ", which ",
-                            by.mention(&other),
+                            by.mention(other),
                             " reads too, so \
                      redefining it would re-point "
                         ),
-                        by.mention(&other),
+                        by.mention(other),
                         " unasked"
                     )
                 )?;
                 tail.recourse(
                     f,
                     sentence!(
-                        sentence!(
-                            "name every copy reading ",
-                            by.var(&source),
-                            ", or redefine "
-                        ),
-                        by.var(&source),
+                        sentence!("name every copy reading ", by.var(source), ", or redefine "),
+                        by.var(source),
                         " itself"
                     ),
                 )
@@ -5221,7 +5213,7 @@ impl EditError {
                 say!(
                     f,
                     "redefining ",
-                    by.var(&source),
+                    by.var(source),
                     format_args!(
                         " so would leave what reads it holding what no \
                      document holds: {reader}"
@@ -5231,7 +5223,7 @@ impl EditError {
                     f,
                     sentence!(
                         "redefine ",
-                        by.var(&source),
+                        by.var(source),
                         " as a read of what its readers read, or change \
                          the readers first"
                     ),
@@ -5294,7 +5286,7 @@ impl EditError {
                     "the appearance target (",
                     Said(&name, by),
                     ") is read in ",
-                    by.var(&body),
+                    by.var(body),
                     ", which no live operation \
                      defines as an output"
                 )?;
@@ -5364,7 +5356,7 @@ impl EditError {
             Self::WorldIsUndeletable { node } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     " is the world, which every document holds from its creation"
                 )?;
                 tail.recourse(
@@ -5379,7 +5371,7 @@ impl EditError {
             Self::SpaceMismatch { node, a, b } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     " would read ",
                     Said(&a, by),
                     sentence!(
@@ -5399,7 +5391,7 @@ impl EditError {
             Self::ConstraintOnNonPlacement { node } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     " is no placement, so it holds no constraint"
                 )?;
                 tail.recourse(
@@ -5410,7 +5402,7 @@ impl EditError {
             Self::UnknownConstraint { node, constraint } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(" holds no constraint {constraint}")
                 )?;
                 tail.recourse(f, format_args!("name a constraint the placement holds"))
@@ -5438,14 +5430,14 @@ impl EditError {
                     say!(
                         f,
                         "the constraint is refused at ",
-                        by.mention(&node),
+                        by.mention(node),
                         "'s door: ",
                         said
                     )
                 } else {
                     say!(
                         f,
-                        by.mention(&node),
+                        by.mention(node),
                         " is refused by the solve on its own datum: ",
                         said
                     )
@@ -5454,7 +5446,7 @@ impl EditError {
             Self::UpdateOnNonInstance { node } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     " does not instantiate a part, so it has no pinned version to update"
                 )?;
                 tail.recourse(
@@ -5465,7 +5457,7 @@ impl EditError {
             Self::PinUnchanged { node, pin } => {
                 say!(
                     f,
-                    by.mention(&node),
+                    by.mention(node),
                     format_args!(
                         " already pins {pin}, so this update would record no version move"
                     )
@@ -5477,8 +5469,8 @@ impl EditError {
             }
             Self::LabelUnchanged { node } => {
                 match node.label() {
-                    Some(_) => say!(f, by.mention(&node), " already has that label")?,
-                    None => say!(f, by.mention(&node), " has no label to clear")?,
+                    Some(_) => say!(f, by.mention(node), " already has that label")?,
+                    None => say!(f, by.mention(node), " has no label to clear")?,
                 }
                 tail.recourse(f, format_args!("offer a label other than the one it has"))
             }
@@ -5796,7 +5788,7 @@ impl crate::Say for ValuesDropped<'_> {
         };
         say!(
             f,
-            by.mention(&placement),
+            by.mention(placement),
             format_args!("'s placement was written again without the {values} on its ")
         )?;
         joined(f, &coords)?;
@@ -5844,7 +5836,7 @@ impl Took {
                         say!(
                             f,
                             "deleted ",
-                            by.mention(&self.1.minter()),
+                            by.mention(self.1.minter()),
                             ", which minted the name"
                         )
                     }
@@ -5855,7 +5847,7 @@ impl Took {
                     Took::Reach => say!(
                         f,
                         "re-pointed a read past ",
-                        by.mention(&self.1.minter()),
+                        by.mention(self.1.minter()),
                         ", which minted the name"
                     ),
                     Took::Body => {
@@ -5877,7 +5869,7 @@ impl crate::Say for Maintenance {
             // and the name is exactly what survives.
             Self::Strand { node, name, took } => say!(
                 f,
-                by.mention(&node),
+                by.mention(node),
                 " carries a name for ",
                 Said(&name, by),
                 sentence!(
@@ -5894,11 +5886,11 @@ impl crate::Say for Maintenance {
             // entity `SpokenName`'s Display says.
             Self::StrandedRead { node, slot, var } => say!(
                 f,
-                sentence!(by.mention(&node), format_args!("'s {slot} reads ")),
-                by.var(&var),
+                sentence!(by.mention(node), format_args!("'s {slot} reads ")),
+                by.var(var),
                 ", which this edit deleted with its operation, so \
                  ",
-                by.mention(&node),
+                by.mention(node),
                 format_args!(" refuses until the {slot} reads a live value")
             ),
             Self::StrandedSelection {
@@ -5909,23 +5901,23 @@ impl crate::Say for Maintenance {
             } => match (var.name(), readers.as_slice()) {
                 (None, [reader]) => say!(
                     f,
-                    sentence!(by.mention(&reader), " selects "),
+                    sentence!(by.mention(reader), " selects "),
                     Said(&name, by),
                     sentence!("; this edit ", Said(&took.said(name), by), ", so "),
-                    by.mention(&reader),
+                    by.mention(reader),
                     " refuses until the name \
                      is rebound"
                 ),
                 _ => say!(
                     f,
-                    sentence!(by.var(&var), " selects "),
+                    sentence!(by.var(var), " selects "),
                     Said(&name, by),
                     sentence!(
                         "; this edit ",
                         Said(&took.said(name), by),
                         ", so every reader of "
                     ),
-                    by.var(&var),
+                    by.var(var),
                     " refuses until \
                      the name is rebound"
                 ),
@@ -5935,7 +5927,7 @@ impl crate::Say for Maintenance {
                 "the appearance store holds an attachment under a name for ",
                 Said(&name, by),
                 " read in ",
-                by.var(&body),
+                by.var(body),
                 sentence!(
                     "; this \
                  edit ",
@@ -5946,21 +5938,21 @@ impl crate::Say for Maintenance {
             ),
             Self::StrandedSpace { node, a, b } => say!(
                 f,
-                sentence!(by.mention(&node), " reads "),
+                sentence!(by.mention(node), " reads "),
                 Said(&a, by),
                 sentence!(
                     " and ",
                     Said(&b, by),
                     ", which this edit left in two spaces, so "
                 ),
-                by.mention(&node),
+                by.mention(node),
                 " \
                  refuses until its reads are in one space"
             ),
             Self::ProductOutsideWorld { read, space } => say!(
                 f,
                 "the product reads ",
-                by.var(&read),
+                by.var(read),
                 ", which this edit moved into ",
                 Said(&space, by),
                 ", so the product \
@@ -5972,9 +5964,9 @@ impl crate::Say for Maintenance {
                 by: read,
             } => say!(
                 f,
-                by.mention(&placement),
+                by.mention(placement),
                 format_args!("'s {} read ", coord.name()),
-                by.var(&read),
+                by.var(read),
                 "; the bundle written whole does not leave that \
                  freedom, so this edit dropped the value"
             ),
@@ -5982,7 +5974,7 @@ impl crate::Say for Maintenance {
                 say!(
                     f,
                     "the edit left nothing reading ",
-                    by.var(&var),
+                    by.var(var),
                     ", which had no name, so it went with \
                      its reader"
                 )?;

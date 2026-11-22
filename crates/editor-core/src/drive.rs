@@ -1194,7 +1194,7 @@ impl crate::Say for DriveRefusal {
             Self::WitnessDoesNotBuild { node, cause } => say!(
                 f,
                 "the witness build refuses at ",
-                by.mention(&node),
+                by.mention(node),
                 format_args!(
                     ": {cause} — there is no branch to certify \
                  leaves against until the nominal document builds"

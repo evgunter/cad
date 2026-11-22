@@ -1792,7 +1792,7 @@ fn slot_notes(
                 for var in variables {
                     if crate::widgets::message_link(
                         ui,
-                        format!("edit {var}", var = crate::tree::spelled_var(&var)),
+                        format!("edit {var}", var = crate::tree::spelled_var(var)),
                     )
                     .clicked()
                     {
@@ -2074,7 +2074,7 @@ mod layout_tests {
         for var in &variables {
             let door = find(
                 &painted,
-                &format!("edit {var}", var = crate::tree::spelled_var(&var)),
+                &format!("edit {var}", var = crate::tree::spelled_var(var)),
             );
             assert_inside(region, door);
             assert_under(affordance, door);

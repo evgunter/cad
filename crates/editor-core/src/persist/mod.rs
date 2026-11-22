@@ -478,10 +478,10 @@ impl PersistError {
         match self {
             Self::NonFinite { site } => write!(f, "non-finite float at {site}"),
             Self::ProfileProgram { node, refusal } => {
-                say!(f, by.mention(&node), format_args!("'s program: {refusal}"))
+                say!(f, by.mention(node), format_args!("'s program: {refusal}"))
             }
             Self::Distribution { var, fault } => {
-                say!(f, by.var(&var), format_args!(": {fault}"))
+                say!(f, by.var(var), format_args!(": {fault}"))
             }
             Self::DisplayUnit {
                 var,
@@ -489,7 +489,7 @@ impl PersistError {
                 declared,
             } => say!(
                 f,
-                by.var(&var),
+                by.var(var),
                 format_args!(
                     " is declared {declared} but its display \
                  unit measures {unit}"

@@ -1074,11 +1074,11 @@ fn a_definition_reading_a_deleted_variable_says_it_is_gone() {
     for words in [
         format!(
             "to {staying}, which this document no longer holds",
-            staying = editor_core::test_support::var_text(&staying)
+            staying = editor_core::test_support::var_text(staying)
         ),
         format!(
             "redefine k without {staying} (DefineVar)",
-            staying = editor_core::test_support::var_text(&staying)
+            staying = editor_core::test_support::var_text(staying)
         ),
     ] {
         assert!(said.contains(&words), "{words:?} not in {said:?}");

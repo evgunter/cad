@@ -337,7 +337,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             word(crate::tags::distribution_fault_tag(fault)),
             none(),
             none(),
-            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(&&p)).to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(p)).to_string()),
             none(),
             none(),
             none(),
@@ -357,7 +357,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(&&p)).to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(p)).to_string()),
             dim(*measures),
             dim(*was),
             none(),
@@ -650,7 +650,6 @@ fn profile_of<'d>(doc: &'d d::ProfileDoc, node: &NodeId) -> PyResult<&'d d::Prof
         _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
             "{} is not a profile",
             pncad::document::sentence!(pncad::document::Speaker::TAG.mention(&doc.spoken(node.0)))
-                .to_string()
         ))),
     }
 }
@@ -1089,8 +1088,7 @@ impl Doc {
                         "{} is an operation's output of kind {}, which no expression reads",
                         pncad::document::sentence!(
                             pncad::document::Speaker::TAG.var(&self.inner.spoken_var(var))
-                        )
-                        .to_string(),
+                        ),
                         held.kind()
                     )));
                 }
@@ -1354,7 +1352,6 @@ impl Doc {
                 pncad::document::sentence!(
                     pncad::document::Speaker::TAG.mention(&self.inner.spoken(loft.0))
                 )
-                .to_string()
             ))),
         }
     }
@@ -1430,7 +1427,6 @@ impl Doc {
                     pncad::document::sentence!(
                         pncad::document::Speaker::TAG.mention(&self.inner.spoken(profile.0))
                     )
-                    .to_string()
                 ))
             })?;
         pieces
@@ -2233,8 +2229,7 @@ impl Doc {
                 "{} defines {} port(s), so it has no port {port}",
                 pncad::document::sentence!(
                     pncad::document::Speaker::TAG.mention(&self.inner.spoken(node.0))
-                )
-                .to_string(),
+                ),
                 signature.len()
             ))),
         }

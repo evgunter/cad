@@ -377,7 +377,6 @@ impl SpokenNode {
     /// This node where the sentence knows what it is, mentioned in
     /// `document`: as it was spoken, or `<noun> <tag>` when its
     /// document did not hold it ([`Speaker::node_as`]'s spelling).
-    #[must_use]
     pub fn as_noun(&self, noun: &'static str, document: Option<DocumentId>) -> SaidNode {
         SaidNode::of(noun, Some(self.clone()), document)
     }
@@ -486,7 +485,7 @@ impl HoldsNodes for SpokenNameParts {
     }
 
     fn document(&self) -> Option<DocumentId> {
-        self.held.document
+        self.held.document()
     }
 }
 
@@ -872,8 +871,9 @@ impl fmt::Display for StepAt {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HeldNodes {
     /// The document they were held from, whose ids these are; `None`
-    /// for none (an empty hold).
-    document: Option<DocumentId>,
+    /// for none (an empty hold). Boxed, so that a refusal carrying a
+    /// hold stays under clippy's 128-byte large-`Err` line.
+    document: Option<Box<DocumentId>>,
     nodes: Box<[SpokenNode]>,
     vars: Box<[SpokenVar]>,
     /// What the words read beyond a node's name — where a profile step
@@ -982,7 +982,7 @@ impl HeldNodes {
             }
         }
         Self {
-            document: document.into(),
+            document: document.into().map(Box::new),
             nodes: held.into_boxed_slice(),
             vars: Box::default(),
             facts: Box::default(),
@@ -992,7 +992,7 @@ impl HeldNodes {
     /// The document these were held from, `None` for an empty hold.
     #[must_use]
     pub fn document(&self) -> Option<DocumentId> {
-        self.document
+        self.document.as_deref().copied()
     }
 
     /// Keeps `fact`, once per key.
@@ -1014,7 +1014,7 @@ impl HeldNodes {
     #[must_use]
     pub fn respoken<P: ProfilePayload>(&self, doc: &Doc<P>) -> Self {
         Self {
-            document: self.document,
+            document: self.document.clone(),
             nodes: self.nodes.iter().map(|node| node.respoken(doc)).collect(),
             vars: self.vars.iter().map(|var| var.respoken(doc)).collect(),
             facts: self
@@ -1042,7 +1042,7 @@ impl HoldsNodes for HeldNodes {
     }
 
     fn document(&self) -> Option<DocumentId> {
-        self.document
+        HeldNodes::document(self)
     }
 
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
@@ -1099,7 +1099,7 @@ struct Recording<'d, P> {
 impl<P> Recording<'_, P> {
     fn held(self) -> HeldNodes {
         HeldNodes {
-            document: Some(self.doc.id()),
+            document: Some(Box::new(self.doc.id())),
             ..self.said.into_inner()
         }
     }
@@ -1305,17 +1305,15 @@ impl<'a> Speaker<'a> {
     pub fn document(self) -> Option<DocumentId> {
         self.doc
             .and_then(|doc| doc.document())
-            .or_else(|| self.kept.and_then(|kept| kept.document))
+            .or_else(|| self.kept.and_then(HeldNodes::document))
     }
 
     /// `node`, as it was spoken, mentioned in this speaker's document.
-    #[must_use]
     pub fn mention(self, node: &SpokenNode) -> SaidNode {
         SaidNode::of("node", Some(node.clone()), self.document())
     }
 
     /// `var`, as it was spoken, mentioned in this speaker's document.
-    #[must_use]
     pub fn var(self, var: &SpokenVar) -> SaidVar {
         SaidVar(Mention {
             of: Mentioned::Var(var.clone()),
@@ -1372,7 +1370,6 @@ impl<'a> Speaker<'a> {
 
     /// The node `id`, said: `this node` when it is the node the
     /// enclosing sentence is about ([`Speaker::about`]).
-    #[must_use]
     pub fn node(self, id: RecipeNodeId) -> SaidNode {
         SaidNode::of(
             "node",
@@ -1491,7 +1488,6 @@ impl<'a> Speaker<'a> {
     /// Extrude e548, cut in at Subtract 1669`, written by
     /// [`Sentence::name`]. The one spelling of a name in a sentence,
     /// article-led; [`StableName`]'s own `Display` is this, said by tag.
-    #[must_use]
     pub fn name<'n>(self, name: &'n StableName) -> SaidName<'n>
     where
         'a: 'n,
@@ -1538,7 +1534,6 @@ impl<'a> Speaker<'a> {
     /// <tag>` by its tag, or for a node the document does not hold;
     /// as the document holds it otherwise; `this <noun>` when it is
     /// the node the enclosing sentence is about ([`Speaker::about`]).
-    #[must_use]
     pub fn node_as(self, id: RecipeNodeId, noun: &'static str) -> SaidNode {
         let said = (self.subject != Some(id)).then(|| self.spoken(id));
         SaidNode::of(noun, said, self.document())
@@ -1868,38 +1863,54 @@ impl From<Sentence> for String {
     }
 }
 
+impl Sentence {
+    /// Whether it reads `text`, compared as it is spelled, run by run.
+    fn reads(&self, text: &str) -> bool {
+        struct Against<'t>(&'t str);
+        impl fmt::Write for Against<'_> {
+            fn write_str(&mut self, s: &str) -> fmt::Result {
+                let rest = self.0.strip_prefix(s).ok_or(fmt::Error)?;
+                self.0 = rest;
+                Ok(())
+            }
+        }
+        let mut against = Against(text);
+        fmt::write(&mut against, format_args!("{self}")).is_ok() && against.0.is_empty()
+    }
+}
+
 /// A sentence equals the text it reads.
 impl PartialEq<str> for Sentence {
     fn eq(&self, text: &str) -> bool {
-        self.to_string() == text
+        self.reads(text)
     }
 }
 
 /// A sentence equals the text it reads.
 impl PartialEq<&str> for Sentence {
     fn eq(&self, text: &&str) -> bool {
-        self.to_string() == *text
+        self.reads(text)
     }
 }
 
 /// A sentence equals the text it reads.
 impl PartialEq<String> for Sentence {
     fn eq(&self, text: &String) -> bool {
-        self.to_string() == *text
+        self.reads(text)
     }
 }
 
 /// A sentence equals the text it reads.
 impl PartialEq<Sentence> for String {
     fn eq(&self, sentence: &Sentence) -> bool {
-        *self == sentence.to_string()
+        sentence.reads(self)
     }
 }
 
 /// A sentence equals the text it reads.
 impl PartialEq<Sentence> for &str {
     fn eq(&self, sentence: &Sentence) -> bool {
-        *self == sentence.to_string()
+        sentence.reads(self)
     }
 }
 

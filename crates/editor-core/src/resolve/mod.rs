@@ -898,8 +898,9 @@ impl Diagnosis {
 /// `no wall`.
 struct Walls<'a>(&'a [StableName], Speaker<'a>);
 
+/// Said by its own speaker, the one it was made with.
 impl crate::Say for Walls<'_> {
-    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, _: crate::Speaker<'_>) -> core::fmt::Result {
         match self.0 {
             [] => write!(f, "no wall"),
             [one] => say!(f, self.1.name(one)),

@@ -85,7 +85,7 @@ use crate::names::role::{
 };
 use crate::node::RecipeNodeId;
 use crate::spoken::Carry;
-use crate::spoken::{Said, Say, Speaker};
+use crate::spoken::{Say, Speaker};
 use profile::PieceRole;
 
 /// **A name in words** ([module docs](self)): `the end cap of Extrude

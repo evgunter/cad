@@ -1409,7 +1409,12 @@ fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
         escalations: std::sync::Arc::new(Vec::new()),
     };
     core::iter::once(error.to_string())
-        .chain(error.kind.carried_chain().map(|level| level.line().to_string()))
+        .chain(
+            error
+                .kind
+                .carried_chain()
+                .map(|level| level.line().to_string()),
+        )
         .collect()
 }
 

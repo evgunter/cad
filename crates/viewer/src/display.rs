@@ -276,14 +276,14 @@ impl core::fmt::Display for AdmissionFault {
                 write!(
                     f,
                     "{node} is not in the document",
-                    node = crate::tree::spelled(&node)
+                    node = crate::tree::spelled(node)
                 )
             }
             Self::NotABody { node } => {
                 write!(
                     f,
                     "{node} builds no body, so the picture draws nothing of it",
-                    node = crate::tree::spelled(&node)
+                    node = crate::tree::spelled(node)
                 )
             }
             Self::NotASpace { space } => {
@@ -297,31 +297,31 @@ impl core::fmt::Display for AdmissionFault {
                 f,
                 "{node} is not drawn: an operation reads it as a body, so it has no picture of \
                  its own to move",
-                node = crate::tree::spelled(&node)
+                node = crate::tree::spelled(node)
             ),
             Self::InTheWorld { node } => write!(
                 f,
                 "{node} is in the world, the product's space, so the free-move probe \
                  refuses. Free-move moves another shown space",
-                node = crate::tree::spelled(&node)
+                node = crate::tree::spelled(node)
             ),
             Self::NotEvaluated { node } => write!(
                 f,
                 "{node} has no picture yet: no evaluation of the current document has \
                  landed",
-                node = crate::tree::spelled(&node)
+                node = crate::tree::spelled(node)
             ),
             Self::NoSpace { node } => write!(
                 f,
                 "{node} has no picture: it did not evaluate, so there is nothing of it to \
                  move",
-                node = crate::tree::spelled(&node)
+                node = crate::tree::spelled(node)
             ),
             Self::MovedSpace { node, into } => write!(
                 f,
                 "{node} is now in {into}, not the space the free-move was drawn for, so \
                  that free-move is gone. A free-move of {node} moves the space it is in now",
-                node = crate::tree::spelled(&node),
+                node = crate::tree::spelled(node),
                 into = pncad::document::Said(&into, pncad::document::Speaker::TAG).sentence()
             ),
             Self::NoSuchSpace { node, space } => write!(
@@ -329,14 +329,14 @@ impl core::fmt::Display for AdmissionFault {
                 "{node} was free-moved in {space}, which is not in the document, so that \
                  free-move is gone",
                 space = pncad::document::Said(&space, pncad::document::Speaker::TAG).sentence(),
-                node = crate::tree::spelled(&node)
+                node = crate::tree::spelled(node)
             ),
             Self::NotShown { node, space } => write!(
                 f,
                 "{node}'s free-move moves {space}, which is not shown — every body in it is \
                  read by an operation and drawn there — so there is no picture of it to move",
                 space = pncad::document::Said(&space, pncad::document::Speaker::TAG).sentence(),
-                node = crate::tree::spelled(&node)
+                node = crate::tree::spelled(node)
             ),
         }
     }

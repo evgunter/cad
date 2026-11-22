@@ -367,7 +367,7 @@ impl crate::Say for BindingViolation {
             Self::Binding { var } => say!(
                 f,
                 "the f64 build of record bound ",
-                by.var(&var),
+                by.var(var),
                 " to other bits than the \
                  sensitivity passes did"
             ),
@@ -479,7 +479,7 @@ impl DivergedAt {
 impl crate::Say for DivergedAt {
     fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Replayed(node) => say!(f, by.mention(&node)),
+            Self::Replayed(node) => say!(f, by.mention(node)),
             Self::Recorded(id) => write!(f, "the drive record's node {id}"),
         }
     }
@@ -497,7 +497,7 @@ impl crate::Say for SensitivityRefusal {
         match self {
             Self::NotAScalar { var } => say!(
                 f,
-                by.var(&var),
+                by.var(var),
                 " is not a scalar variable of this document: a stackup is over a value, \
                  typically a measure's output or a definition over measures' outputs"
             ),
@@ -517,7 +517,7 @@ impl crate::Say for SensitivityRefusal {
             Self::MeasuredValueDrift { param, pass, base } => say!(
                 f,
                 "the sensitivity pass for ",
-                by.var(&param),
+                by.var(param),
                 format_args!(
                     " measured {pass:e} where {base} — the \
                  dual's value channel is not the f64 build's (a D9 break)"
@@ -1268,7 +1268,7 @@ impl crate::Say for Unavailable {
             Self::TangentDegraded { var } => say!(
                 f,
                 "parameter ",
-                by.var(&var),
+                by.var(var),
                 "'s tangent degraded at the nominal (E9: forfeits its \
                  advisory uses, refuses nothing)"
             ),
@@ -1281,11 +1281,11 @@ impl crate::Say for Unavailable {
                 say!(
                     f,
                     "parameter ",
-                    by.var(&var),
+                    by.var(var),
                     "'s pass could not read the measure"
                 )?;
                 if let Some(node) = node {
-                    say!(f, " at ", by.mention(&node))?;
+                    say!(f, " at ", by.mention(node))?;
                 }
                 write!(f, ": {cause}")?;
                 match record {
@@ -1301,13 +1301,13 @@ impl crate::Say for Unavailable {
             Self::Unliftable { var } => say!(
                 f,
                 "parameter ",
-                by.var(&var),
+                by.var(var),
                 "'s seed could not reach the measure: the lift refused typed"
             ),
             Self::BandHasNoMeasure { var } => say!(
                 f,
                 "parameter ",
-                by.var(&var),
+                by.var(var),
                 " carries a band: worst-case limits with no shape have \
                  no σ, and a partial RSS is still a lie"
             ),
@@ -1554,7 +1554,6 @@ impl Stackup {
         doc: &Doc<P>,
         analyzed: &crate::analysis::AnalyzedBox,
     ) -> String {
-        use core::fmt::Write as _;
         crate::spoken::assert_taken_of("this stackup", self.document, doc);
         let by = crate::Speaker::of(doc);
         let mut s = crate::Sentence::new();

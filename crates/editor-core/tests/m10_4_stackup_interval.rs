@@ -1557,7 +1557,7 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
             assert!(
                 refusal.to_string().contains(&format!(
                     "a different content key at {spoken} — ",
-                    spoken = editor_core::test_support::node_text(&spoken)
+                    spoken = editor_core::test_support::node_text(spoken)
                 )),
                 "{refusal}"
             );

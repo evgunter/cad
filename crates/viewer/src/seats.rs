@@ -302,7 +302,7 @@ impl core::fmt::Display for SeatEvent {
                 f,
                 "the {} pick ({node}) is no longer in the document; the tool dropped it",
                 seat.name(),
-                node = crate::tree::spelled(&node),
+                node = crate::tree::spelled(node),
             ),
         }
     }

@@ -1523,7 +1523,7 @@ pub fn interrogation_as_drawn(
 pub fn downstream_wording(through: &SpokenNode) -> String {
     format!(
         "upstream failure at {through} — that rcrate::tree::spelled(&ow carrie)s the cause",
-        through = crate::tree::spelled(&through)
+        through = crate::tree::spelled(through)
     )
 }
 
@@ -1531,7 +1531,7 @@ pub fn downstream_wording(through: &SpokenNode) -> String {
 /// and nothing about why — the why is drawn elsewhere, so this names
 /// only WHERE to go.
 pub fn link_wording(at: &SpokenNode) -> String {
-    format!("see {at}", at = crate::tree::spelled(&at))
+    format!("see {at}", at = crate::tree::spelled(at))
 }
 
 /// Anothecrate::tree::spelled(&r no)de whose own slot refused, when a `Failed` row's error

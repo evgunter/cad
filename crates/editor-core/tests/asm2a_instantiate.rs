@@ -1463,7 +1463,13 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
     let ev = run(&asm, &with_resolver(store));
     let levels: Vec<_> = failure(&ev, instance)
         .carried_chain()
-        .map(|level| (level.document.doc_ref(), level.node, level.line().to_string()))
+        .map(|level| {
+            (
+                level.document.doc_ref(),
+                level.node,
+                level.line().to_string(),
+            )
+        })
         .collect();
     assert_eq!(
         levels
@@ -1524,7 +1530,13 @@ fn a_poisoned_piece_carries_the_failure_that_poisoned_it() {
     );
     let levels: Vec<_> = failure(&ev, ids[0])
         .carried_chain()
-        .map(|level| (level.document.doc_ref(), level.node, level.line().to_string()))
+        .map(|level| {
+            (
+                level.document.doc_ref(),
+                level.node,
+                level.line().to_string(),
+            )
+        })
         .collect();
     assert_eq!(
         levels,
@@ -1618,7 +1630,13 @@ fn a_poisoned_piece_two_documents_down_chains_to_the_failing_node() {
     let bracket_line = own_line(&bracket, inner, &opts);
     let levels: Vec<_> = failure(&ev, ids[0])
         .carried_chain()
-        .map(|level| (level.document.doc_ref(), level.node, level.line().to_string()))
+        .map(|level| {
+            (
+                level.document.doc_ref(),
+                level.node,
+                level.line().to_string(),
+            )
+        })
         .collect();
     assert_eq!(
         levels,

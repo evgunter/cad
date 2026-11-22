@@ -2449,9 +2449,14 @@ fn coincidence_cells(
                     .filter(|_| matches!(name.kind, EntityKind::Face | EntityKind::Edge));
                 let Some(on) = on else {
                     let node = landed.operation_of(*input)?;
-                    return Some((pncad::document::sentence!(by.name(name)).to_string(), Selection::Node(node)));
+                    return Some((
+                        pncad::document::sentence!(by.name(name)).to_string(),
+                        Selection::Node(node),
+                    ));
                 };
-                let label = Said(&crate::tree::PickedName::new(name, on), by).sentence().to_string();
+                let label = Said(&crate::tree::PickedName::new(name, on), by)
+                    .sentence()
+                    .to_string();
                 let (node, body, name) = (on.node(), on.body(), name.clone());
                 Some(match name.kind {
                     EntityKind::Face => {
@@ -2467,12 +2472,10 @@ fn coincidence_cells(
                     Selection::Node(node),
                 ))
             }
-            NamedCell::Piece { profile, .. } => {
-                Some((
-                    pncad::document::sentence!(by.node(*profile)).to_string(),
-                    Selection::Node(*profile),
-                ))
-            }
+            NamedCell::Piece { profile, .. } => Some((
+                pncad::document::sentence!(by.node(*profile)).to_string(),
+                Selection::Node(*profile),
+            )),
         })
         .collect()
 }
@@ -2698,9 +2701,10 @@ fn repointed(
             }
         }
         None => {
-            let copy = placements
-                .first()
-                .map_or_else(|| by.read(source).sentence(), |&copy| sentence!(by.node(copy)));
+            let copy = placements.first().map_or_else(
+                || by.read(source).sentence(),
+                |&copy| sentence!(by.node(copy)),
+            );
             let named = sentence!("the copy ", copy).to_string();
             Repointed {
                 counted: named.clone(),

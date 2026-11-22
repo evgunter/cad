@@ -904,7 +904,7 @@ impl core::fmt::Display for HeldRefusal {
             Self::NotAProfile { node } => write!(
                 f,
                 "{node} is not a profile",
-                node = crate::tree::spelled(&node)
+                node = crate::tree::spelled(node)
             ),
             Self::Unwritten { node, slots } => {
                 let labels: Vec<String> = slots.iter().map(|slot| slot.label()).collect();
@@ -912,7 +912,7 @@ impl core::fmt::Display for HeldRefusal {
                     f,
                     "{node} lists {} and carries no expression for it",
                     labels.join(", "),
-                    node = crate::tree::spelled(&node)
+                    node = crate::tree::spelled(node)
                 )
             }
         }

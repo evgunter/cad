@@ -479,7 +479,11 @@ impl core::fmt::Display for PanelRefusal {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for ToolNotice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -489,7 +493,9 @@ impl ToolNotice {
     /// name within its table in that document's evaluation
     /// ([`Speaker::within`]); by its tag, in full, with nothing landed.
     pub fn said(&self, landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>) -> String {
-        Said(self, crate::frame::landed_speaker(landed)).sentence().to_string()
+        Said(self, crate::frame::landed_speaker(landed))
+            .sentence()
+            .to_string()
     }
 }
 

@@ -1043,19 +1043,19 @@ impl core::fmt::Display for MateToolError {
                 f,
                 "the {} pick is on {node}, which the document no longer holds",
                 side.name(),
-                node = crate::tree::spelled(&node)
+                node = crate::tree::spelled(node)
             ),
             Self::MemberUnread { side, node } => write!(
                 f,
                 "the {} pick is on {node}, a family, and a side reads one body: pick on one \
                  drawn member of it, once the document has landed",
                 side.name(),
-                node = crate::tree::spelled(&node)
+                node = crate::tree::spelled(node)
             ),
             Self::NotAPlacement { node } => write!(
                 f,
                 "{node} is no placement",
-                node = crate::tree::spelled(&node)
+                node = crate::tree::spelled(node)
             ),
             Self::NotAMate { mate } => write!(
                 f,
@@ -1205,32 +1205,32 @@ impl Say for MateToolEvent {
             }
             Self::Reloaded { placement } => say!(
                 f,
-                by.mention(&placement),
+                by.mention(placement),
                 " changed under the editor; it loaded the bundle again"
             ),
             Self::PlacementGone { placement } => {
                 say!(
                     f,
-                    by.mention(&placement),
+                    by.mention(placement),
                     " is gone; the editor holds nothing"
                 )
             }
             Self::NotPlaceable { node } => say!(
                 f,
                 "the pick is on ",
-                by.mention(&node),
+                by.mention(node),
                 ", which is no copy and no body to place"
             ),
             Self::HalfUnchosen { split } => {
                 say!(
                     f,
-                    by.mention(&split),
+                    by.mention(split),
                     " is two bodies; choose the half to move"
                 )
             }
             Self::PatternFamily { family } => say!(
                 f,
-                by.mention(&family),
+                by.mention(family),
                 " is a pattern's members, which its rule moves; edit the pattern"
             ),
         }
@@ -1249,7 +1249,11 @@ impl core::fmt::Display for MateToolEvent {
             | Self::PlacementGone { .. }
             | Self::NotPlaceable { .. }
             | Self::HalfUnchosen { .. }
-            | Self::PatternFamily { .. } => write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence()),
+            | Self::PatternFamily { .. } => write!(
+                f,
+                "{}",
+                pncad::document::Said(self, Speaker::TAG).sentence()
+            ),
         }
     }
 }

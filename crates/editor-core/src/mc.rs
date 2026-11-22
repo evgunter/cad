@@ -137,7 +137,7 @@ impl crate::Say for McRefusal {
             Self::NominalDoesNotBuild { node, cause } => say!(
                 f,
                 "the document does not build at its nominal (",
-                by.mention(&node),
+                by.mention(node),
                 format_args!(
                     "), so there is nothing \
                  to replay: {cause}"

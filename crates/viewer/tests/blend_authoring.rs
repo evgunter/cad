@@ -591,7 +591,7 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
         node.kind(),
         Some("Extrude"),
         "the lost body is said as the document held it when it was picked: {node}",
-        node = viewer::tree::spelled(&node)
+        node = viewer::tree::spelled(node)
     );
     assert_eq!(*edges, BOX_EDGES);
     assert_eq!(blend(&tools).count(), 0);
