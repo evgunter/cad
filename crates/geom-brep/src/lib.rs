@@ -308,3 +308,10 @@ pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
 };
 pub use torus_convention::{TorusConvention, TorusRefusal, TorusStanding};
+
+/// Reviewer switch (review branch only): which re-posed reader to revert.
+#[doc(hidden)]
+pub fn review_mut() -> &'static str {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("REVIEW_MUT").unwrap_or_default())
+}

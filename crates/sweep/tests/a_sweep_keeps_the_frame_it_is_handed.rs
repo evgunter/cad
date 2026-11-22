@@ -1086,3 +1086,13 @@ fn a_disc_on_a_turned_plane_refuses_at_check_3_over_the_box() {
         );
     });
 }
+
+/// Reviewer probe: both washers' counts under the active `REVIEW_MUT`.
+#[test]
+fn review_washer_counts_both() {
+    eprintln!(
+        "PROBE washer full {:?} partial {:?}",
+        washer_counts(true),
+        washer_counts(false)
+    );
+}

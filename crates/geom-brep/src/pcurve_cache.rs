@@ -6963,6 +6963,15 @@ fn wall_distance<T: Real>(radius: T, w: Vec3<T>) -> T {
     if mutants::distance_raw_norm() {
         return (w.norm() - radius).abs();
     }
+    match crate::review_mut() {
+        "wall-raw" | "pcurve-raw" => return (w.norm() - radius).abs(),
+        "wall-rsq" => return geom_core::radius_gap(w.dot(w), w.norm(), radius * radius).abs(),
+        "wall-num-abs" => return (w.dot(w) - radius * radius).abs() / (w.norm() + radius),
+        "wall-num-only" => return (w.dot(w) - radius * radius).abs(),
+        "wall-2r" => return ((w.dot(w) - radius * radius) / (radius + radius)).abs(),
+        "wall-absden" => return ((w.dot(w) - radius * radius) / (w.norm() + radius.abs())).abs(),
+        _ => {}
+    }
     geom_core::radius_gap(w.dot(w), w.norm(), radius).abs()
 }
 
@@ -6975,6 +6984,12 @@ fn ruling_direction<T: Real>(w_r: Vec3<T>, radius: T, cv: Vec3<T>, u_ref: Vec3<T
     #[cfg(test)]
     if mutants::ruling_azimuth_unscaled() {
         return Azimuth::of(w_r.dot(cv), w_r.dot(u_ref));
+    }
+    match crate::review_mut() {
+        "ruling-raw" | "pcurve-raw" => return Azimuth::of(w_r.dot(cv), w_r.dot(u_ref)),
+        "ruling-one" => return Azimuth::of(w_r.dot(cv) / radius, w_r.dot(u_ref)),
+        "ruling-norm" => return Azimuth::of(w_r.dot(cv) / w_r.norm(), w_r.dot(u_ref) / w_r.norm()),
+        _ => {}
     }
     Azimuth::of(w_r.dot(cv) / radius, w_r.dot(u_ref) / radius)
 }
@@ -14173,6 +14188,9 @@ mod radial_pair_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod radial_reader_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_radial_probes;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod ruling_reading_rows;

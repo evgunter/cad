@@ -597,7 +597,16 @@ impl<T: Real> IsoChart<T> {
             let h = w.dot(axis);
             (w - axis * h, h)
         };
-        let wall = |w: Vec3<T>, radius: T| geom_core::radius_gap(w.dot(w), w.norm(), radius).abs();
+        let wall = |w: Vec3<T>, radius: T| {
+            match crate::review_mut() {
+                "iso-raw" | "props-raw" => return (w.norm() - radius).abs(),
+                "iso-rsq" => return geom_core::radius_gap(w.dot(w), w.norm(), radius * radius).abs(),
+                "iso-num-only" => return (w.dot(w) - radius * radius).abs(),
+                "iso-2r" => return ((w.dot(w) - radius * radius) / (radius + radius)).abs(),
+                _ => {}
+            }
+            geom_core::radius_gap(w.dot(w), w.norm(), radius).abs()
+        };
         match self {
             Self::Cylinder {
                 origin,
@@ -2155,7 +2164,16 @@ pub fn closed_surface<T: Real>(
 /// ([`geom_core::radius_gap`], zero forms for ends built on the wall),
 /// and how far the segment sags inside between them ([`radial_sag`]).
 fn segment_off_cylinder<T: Real>(q0: Vec3<T>, q1: Vec3<T>, radius: T) -> T {
-    let residual = |q: Vec3<T>| geom_core::radius_gap(q.dot(q), q.norm(), radius);
+    let residual = |q: Vec3<T>| {
+        match crate::review_mut() {
+            "seg-raw" | "props-raw" => return q.norm() - radius,
+            "seg-rsq" => return geom_core::radius_gap(q.dot(q), q.norm(), radius * radius),
+            "seg-num-only" => return q.dot(q) - radius * radius,
+            "seg-2r" => return (q.dot(q) - radius * radius) / (radius + radius),
+            _ => {}
+        }
+        geom_core::radius_gap(q.dot(q), q.norm(), radius)
+    };
     let (f0, f1) = (residual(q0), residual(q1));
     f0.abs().max(f1.abs()).max(radial_sag(q0, q1) - f0.min(f1))
 }
