@@ -1467,6 +1467,46 @@ mod tests {
         }
     }
 
+    /// **Exhaustion over a cone terminates across the apex's plane.** A
+    /// plane `z = 1` cuts the 45° cone about `z` in the circle `ρ = 1`;
+    /// the root box holds the apex and both nappes. Every cell the
+    /// elevation's gate refuses (the apex's plane, the axis) is decided
+    /// by the quadric's sign or the plane's, so seeding ends on seeds
+    /// along the circle alone. Red with the cone off the roster
+    /// (`WrongLane`), or with exclusion reading the gated elevation:
+    /// its first cell straddles the apex's plane and refuses.
+    #[test]
+    fn a_cone_sweep_ends_across_its_apex_plane() {
+        use geom_core::Point3;
+        let cone = crate::ssi::enclose::tests::cone(
+            [0.0; 3],
+            [0.0, 0.0, 1.0],
+            core::f64::consts::FRAC_PI_4,
+        );
+        let cut = geom::Surface::Plane {
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
+        };
+        let floor = SweepFloor::r3(
+            Box3::around(Point3::new(0.0, 0.0, 0.0), 1.25),
+            5e-2,
+            FloorKind::Seeding,
+        )
+        .unwrap();
+        let seeds = super::seed_r3(&cone, &cut, floor).expect("the sweep ends");
+        assert!(!seeds.is_empty(), "the circle is seeded");
+        for p in &seeds {
+            let rho = (p.x * p.x + p.y * p.y).sqrt();
+            assert!(
+                (rho - 1.0).abs() < 0.1 && (p.z - 1.0).abs() < 0.1,
+                "a seed off the circle: {p:?}"
+            );
+        }
+    }
+
     fn unit_square() -> UvRect {
         UvRect {
             u: (0.0, 1.0),

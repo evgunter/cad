@@ -3496,6 +3496,148 @@ pub(super) mod tests {
         );
     }
 
+    /// A cone with its apex at `apex`, opening along `axis`.
+    pub(in crate::ssi) fn cone(apex: [f64; 3], axis: [f64; 3], half_angle: f64) -> Surface<f64> {
+        let axis = Vec3::new(axis[0], axis[1], axis[2]);
+        let x_ref = if axis.x.abs() < 0.9 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        };
+        Surface::Cone {
+            frame: geom::Frame::new(Point3::new(apex[0], apex[1], apex[2]), axis, x_ref),
+            half_angle,
+        }
+    }
+
+    fn plane(origin: [f64; 3], normal: [f64; 3]) -> Surface<f64> {
+        let n = Vec3::new(normal[0], normal[1], normal[2]);
+        let x_ref = if n.x.abs() < 0.9 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        };
+        Surface::Plane {
+            frame: geom::Frame::new(Point3::new(origin[0], origin[1], origin[2]), n, x_ref),
+        }
+    }
+
+    /// **The cone arm encloses either nappe and feeds the graph
+    /// criterion.** The planes `z = ±1` cut the 45° cone about `z` in
+    /// the circle `ρ = 1` on each nappe. A box about `(1, 0, ±1)`
+    /// encloses `g` about zero and `∇g` about `(x̂ ∓ ẑ)/√2`, the mirror
+    /// nappe's gradient leaning the other way along the axis, and the
+    /// graph margin against the plane along `ŷ`, the circle's tangent
+    /// there, excludes zero. Red if a nappe's sign is read the other's
+    /// way, or if the arm refuses a box clear of its gate.
+    #[test]
+    fn the_cone_arm_encloses_either_nappe_and_reads_a_graph_margin() {
+        let c = cone([0.0; 3], [0.0, 0.0, 1.0], core::f64::consts::FRAC_PI_4);
+        let half = core::f64::consts::FRAC_1_SQRT_2;
+        for sigma in [1.0, -1.0] {
+            let b = Box3::around(Point3::new(1.0, 0.0, sigma), 1e-3);
+            let g = implicit_enclosure(&c, b);
+            assert!(
+                g.is_certified() && g.lo() < 0.0 && g.hi() > 0.0 && g.hi() - g.lo() < 1e-2,
+                "nappe {sigma}: g over a box on the circle {g:?}"
+            );
+            let grad = implicit_gradient_enclosure(&c, b);
+            for (i, want) in [half, 0.0, -sigma * half].into_iter().enumerate() {
+                assert!(
+                    grad[i].is_certified() && grad[i].lo() <= want && want <= grad[i].hi(),
+                    "nappe {sigma}: ∂{i}g {:?} misses {want}",
+                    grad[i]
+                );
+                assert!(
+                    grad[i].hi() - grad[i].lo() < 1e-2,
+                    "nappe {sigma}: ∂{i}g {:?}",
+                    grad[i]
+                );
+            }
+            let cut = plane([0.0, 0.0, sigma], [0.0, 0.0, 1.0]);
+            let m = graph_margin(&c, &cut, b, Vec3::new(0.0, 1.0, 0.0));
+            assert!(
+                tube_margin(m).is_some_and(|m| (m - half).abs() < 1e-2),
+                "nappe {sigma}: the graph margin {m:?}, against |sin α| = {half}"
+            );
+        }
+    }
+
+    /// **The gate: a box holding both nappes refuses both enclosures**,
+    /// and so does one at the apex or on the axis. The plane `x = d`
+    /// cuts the 45° cone about `z` in a hyperbola with one branch on
+    /// each nappe, through `(d, 0, ±d)`. A box about the apex's plane
+    /// holding both points stays clear of the axis by `0.9 d`, so only
+    /// `h`'s straddle refuses it; on each slice `y = const` it holds two
+    /// of the system's solutions, and a uniqueness proof over it would
+    /// be false. Red if the gate on `h` is dropped, or on `|w|`.
+    #[test]
+    fn a_cone_box_holding_both_nappes_refuses_both_enclosures() {
+        let c = cone([0.0; 3], [0.0, 0.0, 1.0], core::f64::consts::FRAC_PI_4);
+        let d = 0.01;
+        let both = Box3 {
+            x: Interval::from_bounds(0.9 * d, 1.1 * d),
+            y: Interval::from_bounds(-0.1 * d, 0.1 * d),
+            z: Interval::from_bounds(-2.0 * d, 2.0 * d),
+        };
+        for sigma in [1.0, -1.0] {
+            let p = Point3::new(d, 0.0, sigma * d);
+            let on = Box3::between(p, p);
+            assert!(
+                on.contained_in(both) && implicit_residual(&c, p).abs() < 1e-15,
+                "fixture: ({d}, 0, {}) is on the cone and in the box",
+                sigma * d
+            );
+        }
+        let wall = plane([d, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        let axis_far = Box3::around(Point3::new(0.0, 0.0, 1.0), 0.01);
+        let apex = Box3::around(Point3::new(0.0, 0.0, 0.0), 0.01);
+        for (name, b) in [
+            ("both nappes", both),
+            ("the axis", axis_far),
+            ("the apex", apex),
+        ] {
+            assert!(
+                !implicit_enclosure(&c, b).is_certified(),
+                "{name}: g is enclosed off the gate"
+            );
+            assert!(
+                implicit_gradient_enclosure(&c, b)
+                    .iter()
+                    .all(|g| !g.is_certified()),
+                "{name}: ∇g is enclosed off the gate"
+            );
+            assert!(
+                tube_margin(graph_margin(&c, &wall, b, Vec3::new(0.0, 1.0, 0.0))).is_none(),
+                "{name}: the graph margin measured a box off the gate"
+            );
+        }
+    }
+
+    /// **Off the gate, exclusion reads the quadric's sign.** A cell
+    /// straddling the apex's plane far out from the axis, and one
+    /// straddling the axis far along it, are refused the elevation but
+    /// excluded by [`implicit_sign_enclosure`], outside the double cone
+    /// and inside it; a cell at the apex is not excluded, since the apex
+    /// lies on the cone. Red if the sign enclosure falls back to the
+    /// refused elevation, or reads the quadric with a sign flipped.
+    #[test]
+    fn the_cone_sign_enclosure_excludes_far_cells_off_the_gate() {
+        let c = cone([0.0; 3], [0.0, 0.0, 1.0], 0.4);
+        let out = Box3::around(Point3::new(2.0, 0.5, 0.0), 0.1);
+        let inside = Box3::around(Point3::new(0.0, 0.0, -2.0), 0.1);
+        let apex = Box3::around(Point3::new(0.0, 0.0, 0.0), 0.1);
+        for b in [out, inside, apex] {
+            assert!(!implicit_enclosure(&c, b).is_certified(), "{b:?}");
+        }
+        let s = implicit_sign_enclosure(&c, out);
+        assert!(s.is_certified() && s.lo() > 0.0, "outside: {s:?}");
+        let s = implicit_sign_enclosure(&c, inside);
+        assert!(s.is_certified() && s.hi() < 0.0, "inside: {s:?}");
+        let s = implicit_sign_enclosure(&c, apex);
+        assert!(s.lo() <= 0.0 && s.hi() >= 0.0, "the apex: {s:?}");
+    }
+
     /// **[`super::has_implicit_enclosure`] answers what the enclosures
     /// do**, kind by kind, on a box clear of every operand's degenerate
     /// set. It asks both: the tube's one-arc proof (`one_arc_r3`)
@@ -3761,3 +3903,6 @@ pub(super) mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod cone_fuzz;
