@@ -571,9 +571,18 @@ pub struct MateSideDraft {
     first: Option<HeldPick<MatePick>>,
     /// A frame's point pick.
     point: Option<HeldPick<MatePick>>,
+    /// A datum picked whole: the side reads its frame through the role
+    /// of the row's kind ([`datum_side`]).
+    datum: Option<RecipeNodeId>,
 }
 
 impl MateSideDraft {
+    /// The datum the side reads, where a datum was picked whole.
+    #[must_use]
+    pub fn datum(&self) -> Option<RecipeNodeId> {
+        self.datum
+    }
+
     /// The pick a seat holds.
     #[must_use]
     pub fn pick(&self, seat: MateSeat) -> Option<&HeldPick<MatePick>> {
@@ -887,6 +896,8 @@ impl PartialEq for Held {
 #[derive(Debug, Clone, PartialEq)]
 enum Change {
     Pick(MatePick),
+    /// A datum picked whole: the active row's far side.
+    PickDatum(RecipeNodeId),
     AddMate(VarKind),
     AddWritten(Mate<Formula>),
     ChooseKind(usize, VarKind),
@@ -2270,6 +2281,20 @@ impl MateTool {
         None
     }
 
+    /// **A datum picked whole** (D10 `[placement.datums]`, in the tree or
+    /// on its drawing): the open draft's active row reads it on its far
+    /// side, through the role of the row's kind — its xy plane for a
+    /// plane mate, its z axis for an axis, its origin for a point, its
+    /// frame for a frame. With no draft open it opens nothing: a datum
+    /// is placed by its own editor. The datum being edited is no far
+    /// side of its own.
+    pub fn pick_datum(&mut self, doc: &Doc<ProfileProgram>, datum: RecipeNodeId) {
+        if self.draft.is_none() || !matches!(doc.node(datum), Some(Node::Datum { .. })) {
+            return;
+        }
+        self.make(Some(doc), Change::PickDatum(datum));
+    }
+
     /// Whether `pick` is on the draft's copy. A datum has no copy: its
     /// `on` is its own frame, so every pick is a far side.
     fn is_on_copy(&self, doc: &Doc<ProfileProgram>, pick: &MatePick) -> bool {
@@ -2373,7 +2398,22 @@ impl MateTool {
                 let held = HeldPick::new(doc, pick);
                 let drafted = row.side_mut(side);
                 drafted.written = None;
+                drafted.datum = None;
                 *drafted.seat_mut(seat) = Some(held);
+            }
+            Change::PickDatum(datum) => {
+                if draft.door.placement == datum {
+                    return false;
+                }
+                if draft.rows.is_empty() {
+                    draft.rows.push(MateRow::fresh(kind, draft.datum));
+                    draft.active = 0;
+                }
+                let drafted = draft.rows[draft.active].side_mut(MateSide::To);
+                *drafted = MateSideDraft {
+                    datum: Some(datum),
+                    ..MateSideDraft::default()
+                };
             }
             Change::AddMate(kind) => {
                 draft.rows.push(MateRow::fresh(kind, draft.datum));
@@ -2399,6 +2439,7 @@ impl MateTool {
                         let seat = MateSeat::filled_by(kind, pick.pick().entity());
                         *fresh.side_mut(side).seat_mut(seat) = Some(pick.clone());
                     }
+                    fresh.side_mut(side).datum = row.side(side).datum;
                 }
                 fresh.loaded = row.loaded;
                 fresh.struck = row.struck;
@@ -2950,6 +2991,16 @@ impl MateTool {
                         toggled_read(written.clone())
                     }
                     _ => written.clone(),
+                };
+                return Ok((read, Vec::new()));
+            }
+            if let Some(datum) = drafted.datum {
+                let read =
+                    datum_side(datum, row.kind).ok_or(MateToolError::DatumKind { row: at })?;
+                let read = if side == MateSide::To && row.flip {
+                    toggled_read(read)
+                } else {
+                    read
                 };
                 return Ok((read, Vec::new()));
             }

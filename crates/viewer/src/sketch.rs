@@ -1947,7 +1947,8 @@ pub struct CommittedProfile {
     pub plane: SketchPlane<f64>,
     /// One closed polyline per loop, in the value's canonical order
     /// (outer first). Every one ends `LoopEnd::Closed`: a validated profile
-    /// has no open chain.
+    /// has no open chain. A datum's square closes and its two axes do
+    /// not ([`DATUM_HALF`]).
     pub loops: Vec<PreviewLoop>,
 }
 
@@ -1996,6 +1997,10 @@ pub fn committed(
         if Some(node) == except {
             continue;
         }
+        if let Some(drawn) = datum_drawing(doc, evaluation, node) {
+            out.drawn.push(drawn);
+            continue;
+        }
         match drawing(doc, evaluation, chord, node) {
             Some(Ok(drawn)) => out.drawn.push(drawn),
             Some(Err(())) => out.undrawn.push(node),
@@ -2003,6 +2008,49 @@ pub fn committed(
         }
     }
     out
+}
+
+/// **Half the side of the square a datum is drawn as**, metres: a
+/// display aid's size, not the document's.
+pub const DATUM_HALF: f64 = 0.01;
+
+/// **A datum's picture** (D10 `[placement.datums]`), a display aid in
+/// its space: its xy plane as a square about its origin, its x and y
+/// axes across it, drawn on the plane its frame is, so the pick index
+/// measures a cursor against the same outline. `None` for a node that
+/// is no datum or has no value.
+fn datum_drawing(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    node: RecipeNodeId,
+) -> Option<CommittedProfile> {
+    if !matches!(doc.node(node), Some(pncad::document::Node::Datum { .. })) {
+        return None;
+    }
+    let value = evaluation.value(node)?;
+    let frame = value
+        .motion
+        .unwrap_or_else(pncad::geom_core::RigidMotion::identity);
+    let h = DATUM_HALF;
+    let open = |points: Vec<[f64; 2]>| PreviewLoop {
+        vertices: (0..points.len()).collect(),
+        points,
+        end: LoopEnd::Unfinished(None),
+    };
+    let square = PreviewLoop {
+        points: vec![[-h, -h], [h, -h], [h, h], [-h, h]],
+        vertices: vec![0, 1, 2, 3],
+        end: LoopEnd::Closed,
+    };
+    Some(CommittedProfile {
+        node,
+        plane: SketchPlane::from_frame(frame),
+        loops: vec![
+            square,
+            open(vec![[0.0, 0.0], [h, 0.0]]),
+            open(vec![[0.0, 0.0], [0.0, h]]),
+        ],
+    })
 }
 
 /// `node`'s drawing: `None` for a node that is no profile or has no

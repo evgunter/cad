@@ -79,3 +79,111 @@ fn a_new_plane_is_a_datum_its_editor_mates_flush_on_a_picked_face() {
         "the datum is mated on the face"
     );
 }
+
+/// **A datum is drawn as a display aid in its space**: its xy plane's
+/// square about its origin, which the pick index measures a cursor
+/// against as it measures a committed profile's outline, so a pick on it
+/// selects the datum.
+#[test]
+fn a_datum_is_drawn_as_a_square_on_its_xy_plane() {
+    let tol = Tol::witness();
+    let (doc, _, _) = viewer::test_support::boss_on_block("datum-drawn", tol);
+    let mut session = DocSession::inline(doc, tol);
+    let datum = session
+        .perform(SessionOp::AddDatum {
+            space: pncad::document::VarId::WORLD,
+            kind: VarKind::Axis,
+        })
+        .made
+        .expect("the op makes the datum");
+    session.pump();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let drawn = viewer::sketch::committed(doc, ev, 1e-4, None);
+    let datum_drawn = drawn
+        .drawn
+        .iter()
+        .find(|d| d.node == datum)
+        .expect("the datum is drawn");
+    let h = viewer::sketch::DATUM_HALF;
+    let square = datum_drawn.loops[0].drawn_on(&datum_drawn.plane);
+    let corners: Vec<[f64; 3]> = square.iter().map(|p| [p.x, p.y, p.z]).collect();
+    assert_eq!(
+        corners,
+        vec![
+            [-h, -h, 0.0],
+            [h, -h, 0.0],
+            [h, h, 0.0],
+            [-h, h, 0.0],
+            [-h, -h, 0.0]
+        ],
+        "a datum at the world's origin is drawn on the world's xy plane"
+    );
+}
+
+/// **A copy rests on a datum picked whole**: the placement editor on the
+/// block's world copy, its bottom cap picked on the copy and a world
+/// datum picked whole, mates the cap's plane to the datum's xy plane,
+/// turned to face it, even with the datum at all-zero values.
+#[test]
+fn a_datum_picked_whole_is_a_mates_far_side_through_its_role() {
+    let tol = Tol::witness();
+    let (doc, block, _) = viewer::test_support::boss_on_block("datum-far-side", tol);
+    let mut session = DocSession::inline(doc, tol);
+    let datum = session
+        .perform(SessionOp::AddDatum {
+            space: pncad::document::VarId::WORLD,
+            kind: VarKind::Plane,
+        })
+        .made
+        .expect("the op makes the datum");
+    session.pump();
+    let doc = session.doc();
+    let copy = doc
+        .placements()
+        .into_iter()
+        .find(|&p| {
+            doc.copied_read(p)
+                .is_some_and(|read| doc.operation_of(doc.through_sources(read).read) == Some(block))
+        })
+        .expect("the block's copy");
+    let mut tool = MateTool::moving(doc, copy, None).expect("the editor opens on the copy");
+    tool.add_mate(VarKind::Plane);
+    let bottom = FaceSelection {
+        name: StableName {
+            kind: EntityKind::Face,
+            node: block,
+            path: vec![RoleSeg::Cap(CapEnd::Start)],
+        },
+        node: copy,
+        body: 0,
+    };
+    assert!(tool.pick(doc, bottom).is_none(), "the cap is taken");
+    tool.pick_datum(doc, datum);
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, ev, tol)
+        .expect("the copy's bundle proposes");
+    let [mate] = &proposal.mates[..] else {
+        panic!("one mate: {:?}", proposal.mates)
+    };
+    let own = RoleRead::through(
+        Operand::Output {
+            node: datum,
+            port: 0,
+        },
+        PoseRole::Xy,
+    );
+    assert!(
+        matches!(
+            &mate.mate.to.read,
+            Operand::Pose(def) if matches!(
+                &**def,
+                pncad::document::pose::PoseDef::Flip { pose } if *pose == own
+            )
+        ),
+        "the far side is the datum's xy plane, turned to face the cap: {:?}",
+        mate.mate.to
+    );
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+}

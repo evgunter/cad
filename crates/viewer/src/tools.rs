@@ -951,7 +951,12 @@ impl Tools {
                         Selection::Face(face) => tool.pick(doc, face.clone()),
                         Selection::Edge(edge) => tool.pick(doc, edge.clone()),
                         Selection::Vertex(vertex) => tool.pick(doc, vertex.clone()),
-                        Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
+                        // A datum picked whole is a far side.
+                        Selection::Node(node) => {
+                            tool.pick_datum(doc, *node);
+                            None
+                        }
+                        Selection::None | Selection::Variable(_) => None,
                     };
                     notices.extend(event.map(ToolNotice::Mate));
                 }

@@ -299,6 +299,18 @@ pub(crate) fn push_committed(
         for polyline in &profile.loops {
             push_loop(lane, &profile.plane, polyline);
         }
+        // A datum's z axis stands off its plane, so it is no loop on it.
+        if matches!(
+            doc.node(profile.node),
+            Some(pncad::document::Node::Datum { .. })
+        ) {
+            let frame = profile.plane.frame();
+            let origin = frame.origin();
+            lane.leg(
+                origin,
+                origin + frame.w().get() * (2.0 * sketch::DATUM_HALF),
+            );
+        }
     }
     committed.undrawn.len()
 }
