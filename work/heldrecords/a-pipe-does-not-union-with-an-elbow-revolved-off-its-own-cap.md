@@ -272,3 +272,26 @@ upstream and unchanged.
 - An end whose `c_2` is put in band, refusing typed on the end's order.
 - An uncovered kind pair refusing `JunctionEndUnread`.
 - The inward poses still refusing typed, as filed.
+
+## 2026-11-22 — Traced: the four edges left on a stand-in (PR 3's subject)
+
+This was measured with the crossing layer's half of
+`probes/heldrecords-elbow/probe-hacks.patch` applied on top of the
+junction glue door. It shows the outward poses' finish refusal,
+`ValidationError::ScaffoldAtRest` ×4.
+
+The four edges are the two rims, each in two halves split at x = ±r:
+the outer rim (r = 1) and the inner (r = 0.6). Each bounds the
+pipe's Cylinder and the elbow's Torus. Each still carries
+`EdgeDescription::Scaffold(MappedCurve { source: RevolvedPoint { … },
+… })`, a point on the rim revolved by π about the pipe's axis. That
+is a construction's stand-in, which nothing re-described once the two
+coplanar caps merged away and the edge came to bound the two walls.
+
+So the result's seam edge is never given a two-surface description at
+all. The question the ruling names comes behind this: the plain
+circle where a station is not jet-determinate, `TangentIntersection`
+where it is (`must_carry_over_edge`). Not yet traced: which stage owns
+the re-description of a rim edge whose faces change under the zip,
+and why the edge reaches the result with the stand-in rather than the
+operand's at-rest description.
