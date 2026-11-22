@@ -2,9 +2,10 @@
 id: main-red-three-editor-core-rows-red-at-1e-12-since-before-11-19
 kind: issue
 title: Main red (ε = 1e-12): editor-core's e2e_channel_slider_over_an_epsilon_box and two revalue_corpus apart rows, red since before 2026-11-19
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P1
+cost: M
 ---
 
 

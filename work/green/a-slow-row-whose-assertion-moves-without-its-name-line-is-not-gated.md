@@ -2,10 +2,13 @@
 id: a-slow-row-whose-assertion-moves-without-its-name-line-is-not-gated
 kind: issue
 title: A slow-set row whose assertion or doc moves without an added line spelling its name is not selected on the PR, so a PR that moves a pinned count in a slow row is never gated on it
-status: open
+status: closed
 opened: 2026-11-17
 priority: P1
-cost: C
+cost: M
+closed: 2026-11-22
+pr: 7359
+branch: green/slow-row-selection
 ---
 
 
@@ -45,3 +48,7 @@ re-blessed on main by GREEN, `8c9a5622a8`). The PR body had claimed the
 census ran. The shape is the same as above, except that this hunk is in
 a data table, not inside the test's `fn`. Reading a hunk's enclosing
 `fn` would not have caught it: the table is a `const` the test reads.
+
+## Closed (2026-11-22, PR 7359)
+
+The PR gate now also selects a slow row whose file the diff edits: every `fn` defined in an edited `.rs` file and the module that file stands for, plus any `.rs` file whose string literals name an edited non-Rust file. Both instances above select their row on replay. The expression is compacted soundly to stay under the argv string limit. What it still cannot see is in the PR body's blind-spot list, and is held on `a-diff-to-a-shared-fixture-list-skips-the-slow-rows-that-iterate-it` and `a-slow-row-reaching-its-data-file-by-a-built-name-is-not-gated`.
