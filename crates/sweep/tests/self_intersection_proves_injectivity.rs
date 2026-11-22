@@ -1623,7 +1623,7 @@ fn a_filleted_drum_certifies_across_its_fillet() {
             .filter(|(_, e)| {
                 matches!(
                     drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
-                    Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. })) if (mid(center.z) - 2.0).abs() < 1e-9
+                    Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if (mid(frame.origin().z) - 2.0).abs() < 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -1650,9 +1650,10 @@ fn a_filleted_drum_certifies_across_its_fillet() {
     for (k, _) in body.faces() {
         if matches!(kind(body, k), "cylinder")
             || (kind(body, k) == "plane" && {
-                let Surface::Plane { origin, normal, .. } = surface(body, k) else {
+                let Surface::Plane { frame, .. } = surface(body, k) else {
                     unreachable!()
                 };
+                let (origin, normal) = (frame.origin(), frame.axis());
                 (origin.z - 2.0).abs() < 1e-9 || normal.z.abs() < 1e-9
             })
         {
@@ -1876,7 +1877,11 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
 /// **The drum the cavity above is cut from refuses, out of depth**: its
 /// half-annulus cells a rounding off the disc's half-circle are read by no
 /// presentation (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
-/// Red when the drum holds, and that row's reading has landed.
+/// Red when the drum holds, and that row's reading has landed. The
+/// refused cells are 210: the drum's stored frames read at `Interval` by
+/// their polar enclosure summed exactly, about an ulp of each entry
+/// (282 with the enclosure's sums in interval arithmetic, and 282 read as
+/// points, as at the base).
 #[test]
 fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
     use crate::common::latitude_seam::collinear_cap_drum;
@@ -1891,7 +1896,7 @@ fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
         report.verdict,
         report.receipt
     );
-    assert_eq!(report.receipt.refused, 282, "{:?}", report.receipt);
+    assert_eq!(report.receipt.refused, 210, "{:?}", report.receipt);
 }
 
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
@@ -2130,7 +2135,7 @@ fn the_corpus_pot_holds_at_both_scalars() {
 
 /// The faces of `body` shelled to `t` on its cavity's shell, with the
 /// shelled body: the clone the cavity gate asks.
-fn cavity_of<T: Scalar>(body: Body<T>, t: f64) -> (Body<T>, Vec<FaceKey>) {
+fn cavity_of<T: Scalar + topo::CertifiedPolicy>(body: Body<T>, t: f64) -> (Body<T>, Vec<FaceKey>) {
     let hollow = topo::shell(
         &sweep::test_support::finished("the operand", body, tol()),
         T::from_f64(t),
@@ -2198,7 +2203,7 @@ fn klein_elbow<T: Scalar>() -> Body<T> {
 #[test]
 fn the_klein_elbows_cavity_holds_across_its_spiric_caps() {
     holds_at_both("the klein elbow", klein_elbow(), klein_elbow());
-    fn cavity_at<T: Scalar>() -> BoundReport<Witness> {
+    fn cavity_at<T: Scalar + topo::CertifiedPolicy>() -> BoundReport<Witness> {
         let (hollow, faces) = cavity_of(klein_elbow::<T>(), 0.05);
         let spiric: Vec<(FaceKey, FaceKey)> = spiric_pairs(&hollow)
             .into_iter()
@@ -2491,7 +2496,7 @@ fn a_cone_frustum_and_its_cavity_hold_at_both_scalars() {
             within(what, report);
         }
     }
-    fn cavity_at<T: Scalar>(what: &str) -> BoundReport<Witness> {
+    fn cavity_at<T: Scalar + topo::CertifiedPolicy>(what: &str) -> BoundReport<Witness> {
         let (hollow, faces) = cavity_of(frustum::<T>(2.0 / 64.0), 1.0 / 128.0);
         let report = injective(&hollow, Some(faces), BUDGET);
         println!("[selfx] {what}: {:?} {:?}", report.verdict, report.receipt);
@@ -3204,11 +3209,12 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         .get_curve_geom(curve)
         .and_then(|g| g.certified())
         .map(|c| c.carrier().clone());
-    let Some(geom::Curve3::Circle(geom::Circle { frame, radius })) = carrier else {
+    let Some(geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. })) = carrier else {
         panic!("the refusing edge is a meridian circle: {carrier:?}");
     };
+    let radius = conic_k.radius();
     assert!(
-        (mid(radius) - 0.8).abs() < 1e-9 && frame.origin.y.lo() < frame.origin.y.hi(),
+        (mid(radius) - 0.8).abs() < 1e-9 && frame.origin().y.lo() < frame.origin().y.hi(),
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }

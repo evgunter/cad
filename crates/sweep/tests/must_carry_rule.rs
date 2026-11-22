@@ -280,7 +280,7 @@ fn is_strut(c: &Curve3<f64>) -> bool {
 /// The bored ring's smooth latitude join: the one circle at the bore
 /// radius. Every other latitude circle of the fixture is wider.
 fn is_bore_circle(r_bore: f64) -> impl Fn(&Curve3<f64>) -> bool {
-    move |c| matches!(c, Curve3::Circle(geom::Circle { radius, .. }) if (radius - r_bore).abs() < r_bore * 1e-9)
+    move |c| matches!(c, Curve3::Circle(circle) if (circle.radius() - r_bore).abs() < r_bore * 1e-9)
 }
 
 /// The typed escalation an in-band row must carry: the predicate name
@@ -328,7 +328,7 @@ fn an_extrude_strut_with_a_definite_positive_margin_stores_the_intrinsic_tangenc
 /// no smooth strut, and NO edge stores the intrinsic tangency or the
 /// conventional pair. The extrude twin of the under-determined join is
 /// the revolve row's; the extrude strut's own pair arm has no row
-/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/hone/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn an_extrude_strut_with_a_definite_zero_margin_is_one_wall() {
     let body = tangent_strut_prism(free_length_for(definite_zero_margin()));
@@ -347,7 +347,7 @@ fn an_extrude_strut_with_a_definite_zero_margin_is_one_wall() {
 /// In-band: the profile door reads the same separation in band and
 /// escalates at the line–arc pair, before any strut exists; the
 /// extrude strut's own in-band arm has no row
-/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/hone/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn an_extrude_strut_with_an_in_band_margin_refuses_at_the_profile() {
     let segment = |segment_index| SegmentRef {
@@ -491,19 +491,19 @@ fn a_transverse_out_of_lane_pair_reads_transverse_in_both_orders() {
 fn out_of_lane_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let half = core::f64::consts::FRAC_PI_4;
     let cone = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: half,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     // The ruling in the x = z half-plane, and the plane containing it
     // and the cone's tangent plane's other direction (ŷ).
     let dir = Vec3::new(half.sin(), 0.0, half.cos());
     let normal = Vec3::new(half.cos(), 0.0, -half.sin());
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), normal, Vec3::new(0.0, 1.0, 0.0)),
     };
     let carrier = Curve3::line(Point3::new(dir.x, 0.0, dir.z), dir);
     (plane, cone, carrier)
@@ -516,9 +516,11 @@ fn out_of_lane_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
 fn out_of_lane_crossing() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let (_, cone, carrier) = out_of_lane_triple();
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     (plane, cone, carrier)
 }
@@ -547,15 +549,19 @@ fn both_orders(
 /// through the origin, and that ruling as the carrier.
 fn resting_cylinder() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let cylinder = Surface::Cylinder {
-        origin: Point3::new(0.0, MERIDIAN_R, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, MERIDIAN_R, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: MERIDIAN_R,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let ruling = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
     (plane, cylinder, ruling)
@@ -587,15 +593,19 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
     // carrier on a plane/cylinder pair is inside the lane, so this pair
     // reaches the stations rather than the lane gate.
     let cap = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let band_wall = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: MERIDIAN_R,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let arc = Curve3::circle(
         Point3::new(0.0, 0.0, 0.0),
@@ -626,14 +636,18 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
     let sin_theta = in_band_margin() / extent;
     let cos_theta = (1.0 - sin_theta * sin_theta).sqrt();
     let flat = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let tilted = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(-sin_theta, cos_theta, 0.0),
-        u_ref: Vec3::new(cos_theta, sin_theta, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(-sin_theta, cos_theta, 0.0),
+            Vec3::new(cos_theta, sin_theta, 0.0),
+        ),
     };
     let axis_line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
     let (a, b) = both_orders(&flat, &tilted, &axis_line, extent, extent);
@@ -803,15 +817,19 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
     // also the carrier: in the lane, and definitely separated.
     let pr = |x: f64| Probe(x);
     let cylinder = Surface::Cylinder {
-        origin: Point3::new(pr(0.0), pr(MERIDIAN_R), pr(0.0)),
-        axis: Vec3::new(pr(0.0), pr(0.0), pr(1.0)),
+        frame: geom::Frame::new(
+            Point3::new(pr(0.0), pr(MERIDIAN_R), pr(0.0)),
+            Vec3::new(pr(0.0), pr(0.0), pr(1.0)),
+            Vec3::new(pr(1.0), pr(0.0), pr(0.0)),
+        ),
         radius: pr(MERIDIAN_R),
-        u_ref: Vec3::new(pr(1.0), pr(0.0), pr(0.0)),
     };
     let plane = Surface::Plane {
-        origin: Point3::new(pr(0.0), pr(0.0), pr(0.0)),
-        normal: Vec3::new(pr(0.0), pr(1.0), pr(0.0)),
-        u_ref: Vec3::new(pr(1.0), pr(0.0), pr(0.0)),
+        frame: geom::Frame::new(
+            Point3::new(pr(0.0), pr(0.0), pr(0.0)),
+            Vec3::new(pr(0.0), pr(1.0), pr(0.0)),
+            Vec3::new(pr(1.0), pr(0.0), pr(0.0)),
+        ),
     };
     let ruling = Curve3::line(
         Point3::new(pr(0.0), pr(0.0), pr(0.0)),
@@ -994,25 +1012,31 @@ fn probe_surface(s: &Surface<f64>) -> Surface<geom_core::k_stats::Probe> {
     use geom_core::k_stats::Probe;
     match *s {
         Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => Surface::Plane {
-            origin: origin.map(Probe),
-            normal: normal.map(Probe),
-            u_ref: u_ref.map(Probe),
-        },
+            frame: carrier_frame,
+        } => {
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Plane {
+                frame: geom::Frame::new(origin.map(Probe), normal.map(Probe), u_ref.map(Probe)),
+            }
+        }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
-        } => Surface::Cone {
-            apex: apex.map(Probe),
-            axis: axis.map(Probe),
-            half_angle: Probe(half_angle),
-            u_ref: u_ref.map(Probe),
-        },
+        } => {
+            let (apex, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cone {
+                frame: geom::Frame::new(apex.map(Probe), axis.map(Probe), u_ref.map(Probe)),
+                half_angle: Probe(half_angle),
+            }
+        }
         _ => panic!("only the out-of-lane triple's kinds are lifted here"),
     }
 }

@@ -214,10 +214,8 @@ fn an_equatorial_rim_is_not_a_meridian_and_is_admitted() {
 
 fn cone<T: Real>() -> Surface<T> {
     Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         half_angle: T::from_f64(core::f64::consts::FRAC_PI_4),
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
@@ -365,10 +363,8 @@ fn an_apex_the_band_cannot_place_escalates_at_the_branch_door() {
 #[test]
 fn a_cylinder_has_no_chart_singularity_for_an_arc_to_cross() {
     let cyl = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: 1.0,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim_at = |z: f64, t0: f64, t1: f64, a, b| {
         edge(
@@ -407,11 +403,9 @@ fn a_cylinder_has_no_chart_singularity_for_an_arc_to_cross() {
 #[test]
 fn a_torus_minor_circle_arc_stays_on_one_meridian_at_any_span() {
     let tor = Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         major_radius: 1.0,
         minor_radius: 0.25,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let minor = |u: f64, t0: f64, t1: f64, a, b| {
         edge(
@@ -439,9 +433,7 @@ fn a_torus_minor_circle_arc_stays_on_one_meridian_at_any_span() {
 #[test]
 fn a_plane_is_refused_typed_rather_than_answered() {
     let plane: Surface<f64> = Surface::Plane {
-        origin: p3(0.0, 0.0, 0.0),
-        normal: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
     };
     assert!(matches!(
         require_one_chart_branch(&plane, &[], band()),

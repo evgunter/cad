@@ -18,8 +18,8 @@ use editor_core::{
     RoleSeg, RunCtx, StableName, evaluate,
 };
 use fixture::{insert, len, minted};
-use geom_core::Tol;
 use geom_core::k_stats::Verdict;
+use geom_core::{Sign, Tol};
 
 // ---------------------------------------------------------------
 // The document: a bar crossing a plate's end cap, so the cap
@@ -175,13 +175,14 @@ fn vanished(res: &Resolution) -> &Diagnosis {
 // ---------------------------------------------------------------
 
 #[test]
-fn a_vanished_rim_piece_is_diagnosed_by_its_cutters_flip_over_its_group_resizing() {
+fn a_vanished_rim_piece_whose_cut_parts_at_its_candidates_is_diagnosed_group_resized() {
     // The corpus's own flip-vanish row: the rim piece's group goes
-    // from two to one as the slab that cut it slides clear, and the
-    // slab's wall, a cutter its seam vertex names, flips from inside
-    // `a` to outside. The flip is on the name's path, so it outranks
-    // the group-size rung (`resolve_group_membership` holds that rung
-    // on real documents). The undivided rim edge rides in the offers.
+    // from two to one as the slab that cut it slides clear. The
+    // union's two runs part where its box queries hand on other
+    // candidates, before any choice turns, so no flip is on the record
+    // (the slab's wall is still classified against `a`, but after the
+    // runs parted), and the group-size rung answers. The undivided rim
+    // edge rides in the offers.
     let rows = fixture::pr4::diagnosis_corpus::<f64>();
     let (_, res) = rows
         .iter()
@@ -198,16 +199,13 @@ fn a_vanished_rim_piece_is_diagnosed_by_its_cutters_flip_over_its_group_resizing
         ),
         "the row is about a piece named by its ends: {name:?}"
     );
-    let Diagnosis::PredicateFlip {
-        predicate,
-        from,
-        to,
-    } = vanished(res)
-    else {
-        panic!("expected the cutter's flip: {res:?}");
-    };
-    assert_eq!(*predicate, "bool_point_in_solid_plane", "{res:?}");
-    assert_ne!(from, to);
+    assert!(
+        matches!(
+            vanished(res),
+            Diagnosis::GroupResized { was: 2, now: 1, .. }
+        ),
+        "expected the group-size rung: {res:?}"
+    );
     assert!(f.offers.contains(&base_of(name)), "{:?}", f.offers);
 }
 
@@ -323,13 +321,14 @@ fn hand() -> Hand {
 }
 
 #[test]
-fn a_withdrawn_bar_is_answered_by_the_recorded_flip() {
+fn a_withdrawn_bar_names_no_flip_and_is_answered_by_its_group_size() {
     // The bar moves away along x and no longer meets the plate. Both
-    // pieces vanish, and the cut records a containment flip: a flip
-    // names a predicate, where the group-size rung (which this edit
-    // also satisfies: two pieces became one) names only the effect, so
-    // the recorded flip wins. This row goes red if either lower rung is
-    // ever raised above the recorded flips.
+    // pieces vanish. The cut's two runs part at the candidates its box
+    // queries hand on (the withdrawn bar's faces meet none of the
+    // plate's), before any choice turns: the containment readings that
+    // follow are about other pairs, so no flip is recorded, and the
+    // group-size rung (two pieces became one) answers.
+    // `a_recorded_turn_outranks_the_group_size_rung` holds the order.
     let s = slot();
     let ev1 = run(&s.doc, None);
     let frags = border_pieces(&ev1, s.cut);
@@ -350,12 +349,9 @@ fn a_withdrawn_bar_is_answered_by_the_recorded_flip() {
     assert!(
         matches!(
             vanished(&res),
-            Diagnosis::PredicateFlip {
-                predicate: "bool_point_in_solid_plane",
-                ..
-            }
+            Diagnosis::GroupResized { was: 2, now: 1, .. }
         ),
-        "the recorded flip outranks the group-size rung: {:?}",
+        "no turn on the record, so the group-size rung: {:?}",
         vanished(&res)
     );
 }
@@ -515,8 +511,18 @@ type Run = (Vec<(StableName, usize)>, Vec<(StableName, usize)>);
 fn group_diagnosis(
     h: &Hand,
     name: &StableName,
-    (prior, prior_groups): Run,
-    (now, now_groups): Run,
+    prior: Run,
+    now: Run,
+) -> editor_core::ResolutionFailure {
+    logged_group_diagnosis(h, name, (prior, vec![]), (now, vec![]))
+}
+
+/// [`group_diagnosis`] with each run's verdict log at the node.
+fn logged_group_diagnosis(
+    h: &Hand,
+    name: &StableName,
+    ((prior, prior_groups), prior_log): (Run, Vec<Verdict>),
+    ((now, now_groups), now_log): (Run, Vec<Verdict>),
 ) -> editor_core::ResolutionFailure {
     let record = FragmentGroups::from_sizes;
     let table = |rows: Vec<(StableName, usize)>| {
@@ -553,10 +559,10 @@ fn group_diagnosis(
         h.doc.id(),
         h.node,
         table(prior),
-        vec![],
+        prior_log,
         record(prior_groups),
     );
-    let new_ev = one_node_eval(h.doc.id(), h.node, table(now), vec![], record(now_groups));
+    let new_ev = one_node_eval(h.doc.id(), h.node, table(now), now_log, record(now_groups));
     let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &h.doc,
@@ -612,6 +618,44 @@ fn a_group_that_stops_being_divided_is_resized_to_one_and_offers_the_base() {
         }
     );
     assert_eq!(f.offers, vec![h.base.clone()]);
+}
+
+/// **A recorded turn outranks the group-size rung**: the node's group
+/// stops being divided AND its choices turn on one predicate, so the
+/// flip, which names a decision, answers ahead of the group size, which
+/// names only the effect. This row goes red if either lower rung is
+/// ever raised above the recorded flips.
+#[test]
+fn a_recorded_turn_outranks_the_group_size_rung() {
+    let h = hand();
+    let turn = |sign| Verdict {
+        predicate: "bool_point_in_solid_plane",
+        sign,
+        role: geom_core::k_stats::Role::Choice,
+    };
+    let f = logged_group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            (
+                vec![(h.frag.clone(), 1), (sibling(&h, &[1]), 1)],
+                one_group(&h, 2),
+            ),
+            vec![turn(Sign::Negative)],
+        ),
+        (
+            (vec![(h.base.clone(), 1)], one_group(&h, 1)),
+            vec![turn(Sign::Positive)],
+        ),
+    );
+    assert_eq!(
+        diag(&f),
+        &Diagnosis::PredicateFlip {
+            predicate: "bool_point_in_solid_plane",
+            from: Sign::Negative,
+            to: Sign::Positive,
+        }
+    );
 }
 
 #[test]

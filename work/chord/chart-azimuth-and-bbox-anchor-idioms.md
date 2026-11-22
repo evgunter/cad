@@ -30,3 +30,7 @@ S-MESH: both idioms live in `crates/mesh/*` (S-MESH's territory glob), the issue
 ## Re-homed at S-MESH's exit (2026-09-16)
 
 Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Three cited `walk.rs` sites are gone (TESSLIE lift-turns, PR 7303, 2026-11-21)
+
+`mesh::walk`'s pole-to-pole band reads its columns off the loop's stored lift now, so the band's area-vector read is deleted with its helpers: the second chart-frame azimuth spelling above (the `Vec3` one in the band arm), the `band_mid_az` test helper, and `loop_area`, which was the walk's bbox-centre conditioning anchor and the fourth sense of "anchor". What remains of the idioms here is `Chart::azimuth`, `step-import/src/chart.rs`, the sweep test candidate and the two other bbox-anchor spellings (`mesh/src/validate.rs`, `sweep/tests/revolve_common/mod.rs`).

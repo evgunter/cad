@@ -1102,7 +1102,7 @@ impl<T: crate::props::AtRestPolicy> Shelled<T> {
         &self,
         records: &crate::boolean::ContactRecords,
         band: Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
         records.carried_through(0, &self.lineage(), &self.body, band, region)
     }
@@ -1580,7 +1580,7 @@ pub fn shell<F: crate::FinishedBody>(
     tol: Tol,
 ) -> Result<Shelled<F::Scalar>, ShellError<F::Scalar>>
 where
-    F::Scalar: geom_core::CertifiedBounds,
+    F::Scalar: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
 {
     shell_open(body, thickness, &[], tol)
 }
@@ -1613,14 +1613,14 @@ pub fn shell_open<F: crate::FinishedBody>(
     tol: Tol,
 ) -> Result<Shelled<F::Scalar>, ShellError<F::Scalar>>
 where
-    F::Scalar: geom_core::CertifiedBounds,
+    F::Scalar: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
 {
     shell_open_at(body, thickness, open_faces, tol)
 }
 
 /// [`shell_open`] at its scalar: the body of the door
 /// ([`crate::ShellDoor`] holds it).
-pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     body: &T::Finished,
     thickness: T,
     open_faces: &[FaceKey],
@@ -3755,11 +3755,13 @@ mod cavity_torus_endings {
     fn wall(major: f64, minor: f64, band: Band) -> EngineRefusal {
         let p = |x: f64| Interval::from_bounds(x, x);
         let torus = geom::Surface::Torus {
-            center: Point3::new(p(0.0), p(0.0), p(0.0)),
-            axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
+            frame: geom::Frame::new(
+                Point3::new(p(0.0), p(0.0), p(0.0)),
+                Vec3::new(p(0.0), p(0.0), p(1.0)),
+                Vec3::new(p(1.0), p(0.0), p(0.0)),
+            ),
             major_radius: p(major),
             minor_radius: p(minor),
-            u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
         };
         match crate::injective::by_kind(crate::FaceKey::default(), &torus, band) {
             Err(refusal @ EngineRefusal::TorusNotRing { .. }) => refusal,
@@ -4589,7 +4591,7 @@ fn wall_clearance<T: Decide>(
 /// did not certify. It asks where [`CavityGate::at`] says it does. Faces
 /// of different solids are read too: their cavities are eroded apart,
 /// so a pair of them is never touching and is decided by distance.
-fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+fn cavity_embedded<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     cavity: &Body<T>,
     band: Band,
 ) -> Result<(), ShellError<T>> {
@@ -4694,18 +4696,21 @@ fn planar_faces<T: Decide>(
     for view in body.face_views() {
         let face = view.key();
         let geom::Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } = view.surface()
         else {
             continue;
         };
-        let normal = plane_outward_normal(view.record(), *normal).vec();
+        let (origin, normal, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
+        let normal = plane_outward_normal(view.record(), normal).vec();
         let frame = InPlane {
-            origin: *origin,
-            u: *u_ref,
-            v: normal.cross(*u_ref),
+            origin,
+            u: u_ref,
+            v: normal.cross(u_ref),
             n: normal,
         };
         let Some((box_u, box_v)) = footprint(body, face, &frame) else {
@@ -4720,7 +4725,7 @@ fn planar_faces<T: Decide>(
                      tier-1-valid body every face is in a shell a solid owns"
                 )
             }),
-            origin: *origin,
+            origin,
             normal,
             u_ref: frame.u,
             v_ref: frame.v,
@@ -5255,7 +5260,7 @@ impl<T: Decide> MovedWall<T> {
                 // once exactly when its two ends' sides differ, at the
                 // root of its own half-turn.
                 let (a, b) = conic.along(m);
-                let sc = (conic.frame().origin - line.origin).dot(m);
+                let sc = (conic.frame().origin() - line.origin).dot(m);
                 let phi = b.atan2(a);
                 let root = (-sc / (a.powi(2) + b.powi(2)).sqrt())
                     .max(-T::one())
@@ -5397,10 +5402,11 @@ fn moved_walls<T: Decide>(
     let mut out = Vec::new();
     for view in cavity.face_views() {
         let face = view.key();
-        let geom::Surface::Plane { origin, normal, .. } = view.surface() else {
+        let geom::Surface::Plane { frame, .. } = view.surface() else {
             continue;
         };
-        let (origin, normal) = (*origin, *normal);
+        let (origin, normal) = (frame.origin(), frame.axis());
+        let (origin, normal) = (origin, normal);
         let mut edges = Vec::new();
         let mut vertices = Vec::new();
         let mut points = Vec::new();
@@ -6539,9 +6545,11 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let (big, small, d) = (2.0_f64, 1.0_f64, 0.5_f64);
         let oval = geom::Curve3::Spiric {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: big,
             minor_radius: small,
             offset: d,
@@ -6596,10 +6604,12 @@ mod tests {
     fn nesting_on_a_cylinder_is_read_in_its_chart() {
         let band = Band::linear(Tol::witness()).unwrap();
         let cylinder = geom::Surface::Cylinder {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
         let window = |u0: f64, u1: f64, z0: f64, z1: f64| -> Vec<geom_core::Point3<f64>> {
             let at = |u: f64, z: f64| geom_core::Point3::new(u.cos(), u.sin(), z);
@@ -6700,9 +6710,11 @@ mod tests {
         );
         let face = body.faces().nth(2).unwrap().0;
         let dead = body.add_surface(geom::Surface::Plane {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
         });
         body.surfaces.remove(dead);
         body.get_face_mut(face).unwrap().surface = dead;

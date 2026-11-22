@@ -247,14 +247,12 @@ impl<T: Decide> CylinderCylinderPose<T> {
     ) -> Option<Result<Self, SectionError>> {
         let (
             &Surface::Cylinder {
-                origin: o1,
-                axis: a1,
+                frame: f1,
                 radius: r1,
                 ..
             },
             &Surface::Cylinder {
-                origin: o2,
-                axis: a2,
+                frame: f2,
                 radius: r2,
                 ..
             },
@@ -262,14 +260,16 @@ impl<T: Decide> CylinderCylinderPose<T> {
         else {
             return None;
         };
+        let o1 = f1.origin();
+        let o2 = f2.origin();
         let lines = [
             geom::Line {
                 origin: o1,
-                dir: a1,
+                dir: f1.axis(),
             },
             geom::Line {
                 origin: o2,
-                dir: a2,
+                dir: f2.axis(),
             },
         ];
         let region = reach.ball();
@@ -480,6 +480,8 @@ impl<T: Decide> CylinderCylinderPose<T> {
             gap: pick(gap, T::zero() - gap),
             cos: axis.dot(partner),
             beta: partner.dot(v),
+            lever: crate::uniform_curvature_arm(&self.first)
+                .min(crate::uniform_curvature_arm(&self.second)),
         })
     }
 
@@ -590,7 +592,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
         else {
             return None;
         };
-        let (normals, _) = bisector_normals((self.lines[0].dir, self.lines[1].dir));
+        let (normals, _) = bisector_normals(((self.lines[0].dir), (self.lines[1].dir)));
         Some((foot, normals))
     }
 
@@ -737,7 +739,7 @@ fn bisector_nodes<T: Decide>(
     band: Band,
 ) -> (Vec<SectionNode<T>>, [NodeEnds; 4]) {
     let u = |e: &Curve3<T>| match e {
-        Curve3::Ellipse(e) => e.frame.u_ref,
+        Curve3::Ellipse(e) => e.frame.u_ref(),
         _ => unreachable!("the bisector pose's sections are ellipses"),
     };
     let (u1, u2) = (u(e1), u(e2));
@@ -847,7 +849,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
     pose: CylinderCylinderPose<T>,
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
-    let [r1, r2] = pose.radii;
+    let [r1, _] = pose.radii;
     let axis = pose.lines[0].dir;
     let mut decided = Vec::new();
     let component = SectionComponent::closed_form;
@@ -935,7 +937,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                             margin,
                         });
                     }
-                    let [e1, e2] = bisector_ellipses(foot, (axis, pose.lines[1].dir), r1, band)?;
+                    let [e1, e2] = bisector_ellipses(foot, (axis, (pose.lines[1].dir)), r1, band)?;
                     let (bisector, ends) =
                         bisector_nodes(&pose, normal, [&e1, &e2], &against, band);
                     nodes = bisector;
@@ -1054,7 +1056,8 @@ pub(super) fn cylinder_cylinder<T: Decide>(
         Components::Marched | Components::Reaching(_) => Vec::new(),
     };
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(r1).min(geom_core::Lever::curvature_radius(r2)),
+        lever: crate::uniform_curvature_arm(&pose.first)
+            .min(crate::uniform_curvature_arm(&pose.second)),
         nodes,
         node_sets,
         pose: PairPose::CylinderCylinder(pose),

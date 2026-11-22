@@ -159,22 +159,28 @@ fn die_pip_subtract_is_green() {
         let Some(curve) = cut.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let &Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            radius,
-        }) = curve.carrier()
+        let &Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame: carrier_frame,
+                ..
+            },
+        ) = curve.carrier()
         else {
             continue;
         };
+        let center = carrier_frame.origin();
+        let radius = conic_k.radius();
         if (radius - rho).abs() < slack() && (center.z - 1.0).abs() < slack() {
             seam_arcs += 1;
             // Certified pcurve on the seam circle: the plane-side
             // chart image certifies through the ordinary PR 6 gate.
             let (t0, t1) = curve.params();
             let plane = Surface::Plane {
-                origin: geom_core::Point3::new(0.0, 0.0, 1.0),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    geom_core::Point3::new(0.0, 0.0, 1.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
             };
             let p = geom_brep::chart_pcurve(curve.carrier(), &plane, band)
                 .unwrap_or_else(|e| panic!("seam pcurve on the plane chart: {e:?}"));

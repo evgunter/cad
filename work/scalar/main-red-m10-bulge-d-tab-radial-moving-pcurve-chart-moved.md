@@ -2,9 +2,10 @@
 id: main-red-m10-bulge-d-tab-radial-moving-pcurve-chart-moved
 kind: issue
 title: main red (slow set): both m10_bulge d_tab rows read pcurve_chart_radial_moving [22, 20] -> [18, 24] at the nominal, since 11-03..11-07
-status: open
+status: closed
 opened: 2026-11-09
 priority: P0
+closed: 2026-11-19
 ---
 
 Nightly run 42567046151 (sha `836426e07e`), both slow-set rows: `crates/editor-core/tests/m10_bulge_interval.rs` `m10_bulge_the_d_tabs_literal_split_at_the_nominal` and `…_parameter_split_at_the_nominal` (through `m10_8_harness.rs`): `these moved at the nominal (symbolic/numeric); if a rule took them, re-pin and say which: ["pcurve_chart_radial_moving [22, 20] -> [18, 24]"]`.
@@ -20,3 +21,17 @@ Both rows move at PR 6504 (`pcert/one-ruling-reading`, merge `143d99ec29`, 2026-
 ## Under ONEHOME stage 1 (PR 6717, 2026-11-10)
 
 PR 6717 removes the seven `transform_rigid_*` rows (`[1, 0]` each) from both d_tab tables and the boss's: the placement's rigidity is decided at the `f64` it was written in (`RigidMotion::check_rigid`), and those rows log nothing at the box scalar. `pcurve_chart_radial_moving` is left at its pinned `[22, 20]`, so both d_tab rows stay red with this row's reading and no other.
+
+## Closed (2026-11-19, SCALAR orchestrator)
+
+The red is gone from main. Both rows
+(`m10_bulge_the_d_tabs_literal_split_at_the_nominal`,
+`…_parameter_split_at_the_nominal`) pass in the 2026-11-17 nightly
+(run 44023697569, main `cdee746161`), which ran the slow set at the
+default ε, 1e-6 and 1e-12. The table was re-pinned with measured causes
+by the lanes whose changes moved it (`002d9f03a5`, the least-turn mint;
+`f28df8506e` and `29c5c4a009`, PR 7088's session box), so the
+`[22, 20] -> [18, 24]` reading this row names no longer exists to
+re-pin. The nightlies of 11-18 and 11-19 did not run the suite (the
+`full suite, build once` job died before it), so 11-17 is the latest
+read of the slow set.

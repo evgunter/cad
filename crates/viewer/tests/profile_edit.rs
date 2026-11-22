@@ -20,8 +20,8 @@ use crate::common;
 use common::{session_insert, shape};
 use pncad::document::{Dimension, Doc, FreeVar, VarName};
 use pncad::document::{
-    DocEdit, EditError, Formula, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
-    RecipeNodeId, SlotId, StepArg, StepId, apply,
+    DocEdit, Formula, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
+    SlotId, StepArg, StepId, apply,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{ArcData, ArcMode, Step, Target, TargetKind, Verb};
@@ -715,14 +715,28 @@ fn a_step_running_to_a_written_coordinate_opens_and_its_neighbours_edit() {
     );
 }
 
-/// **A program that does not validate refuses as a whole, in the
-/// edit door's words.** A bow-tie is not a profile; the door says so
-/// about the program, and nothing lands.
+/// Whether `node` refuses at evaluation in `doc`.
+fn refuses_at_evaluation(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    pncad::document::evaluate::<f64>(
+        doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        Tol::witness(),
+    )
+    .node_error(node)
+    .is_some()
+}
+
+/// **A program that does not validate lands, and refuses as itself at
+/// evaluation** (`[recipe.doors]`: the door judges the document, never
+/// one evaluation of it). A bow-tie is not a profile; the edit is the
+/// one whole-program edit it is, and the profile node's evaluation
+/// says what is wrong.
 #[test]
-fn an_invalid_program_refuses_as_itself() {
+fn an_invalid_program_lands_and_refuses_at_evaluation() {
     let loops = [square(0.0, 0.01)];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
-    let before = session.committed_doc().clone();
     let mut held = held(&session, profile);
     // Swap the two far corners: the loop crosses itself.
     let canonical = Notation::CANONICAL;
@@ -739,14 +753,11 @@ fn an_invalid_program_refuses_as_itself() {
         canonical,
     );
     let out = session.perform(edit_of(&session, profile, lowered(&held)));
-    match out.refusal {
-        Some(Refusal::Edit(error)) => assert!(
-            matches!(&*error, EditError::ProfileProgramRefused { node, .. } if node.id() == profile),
-            "{error:?}"
-        ),
-        other => panic!("{other:?}"),
-    }
-    assert!(session.committed_doc().bit_eq(&before));
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    assert!(
+        refuses_at_evaluation(session.committed_doc(), profile),
+        "the crossed loop refuses at evaluation"
+    );
 }
 
 /// **Numbers that are valid together land together, even where one
@@ -759,7 +770,7 @@ fn a_move_whose_first_argument_alone_crosses_still_lands() {
     let loops = [square(0.0, 0.01)];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     // The premise, checked rather than assumed: the first corner's
-    // write alone is refused by the door.
+    // write alone is admitted and refuses at evaluation.
     let first = DocEdit::SetParam {
         node: profile,
         slot: SlotId::Profile {
@@ -770,11 +781,9 @@ fn a_move_whose_first_argument_alone_crosses_still_lands() {
         value: common::len(0.02).into(),
         fresh: Vec::new(),
     };
+    let alone = apply(session.committed_doc(), &first, tol).expect("the door reads no value");
     assert!(
-        matches!(
-            apply(session.committed_doc(), &first, tol),
-            Err(EditError::ProfileProgramRefused { .. })
-        ),
+        refuses_at_evaluation(&alone.doc, profile),
         "the premise: the first corner alone makes a crossed loop"
     );
     let moved = square(0.02, 0.01);

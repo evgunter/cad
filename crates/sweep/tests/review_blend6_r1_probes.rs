@@ -91,7 +91,7 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::ConvexitySignFlip {
             edge: EdgeKey::default(),
-            margin: decided("fillet3_convexity_sign", -1e-3, Sign::Negative),
+            margin: decided("dihedral_sign", -1e-3, Sign::Negative),
             chain: Convexity::Convex,
         },
         BlendError::UnbuiltEnd(UnbuiltEnd::Valence {

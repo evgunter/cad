@@ -6,7 +6,6 @@ status: closed
 opened: 2026-11-03
 closed: 2026-11-09
 priority: P2
-refs: [a-conic-arcs-span-reach-passes-its-whole-turn-lever]
 ---
 
 Found by RESTREAD's 6422 verifier, red at merge base `82938e9734` too.

@@ -31,7 +31,7 @@ specified in `docs/PATHS-DESIGN.md` and is not restated here.
 | Structure record for guided replay (V2, V3) | `crates/profile/src/structure.rs` |
 | Validation ladder, canonical form (V6) | `crates/profile/src/validate.rs`, `seg.rs` |
 | The v1-form → program lift tool (V5) | `crates/profile/src/lift.rs` |
-| Expr-bearing program, slots, authoring-time check (V2, V4) | `crates/editor-core/src/program.rs`, `node.rs` |
+| Expr-bearing program, slots, the value-free door check (V2, V4) | `crates/editor-core/src/program.rs`, `node.rs` |
 | Persisted form (V4) | `crates/editor-core/src/program.rs` (serde derives), `crates/editor-core/src/persist/wire.rs` (`plane_ref`) |
 | Evaluation: resolve, replay, validate, naming anchor (V2, V3) | `crates/editor-core/src/eval/mod.rs`, `eval/wire.rs`, `eval/anchor.rs` |
 
@@ -127,8 +127,9 @@ The first pass reads the traces off the nominal f64 evaluation, and
 every lane re-reads them at its own scalar.
 
 The edit door and the load door ask a program only its lattice of
-verbs (`ProgramRefusal::Transition`), which no binding moves.
-`ProfileProgram::check`'s resolve + replay + validate
+verbs (`ProgramRefusal::Transition`), which no binding moves: the walk
+`chain_shape` takes over the steps with their values erased
+(`ProfileProgram::lattice`). Resolve + replay + validate
 (`ProgramRefusal::{Resolve, Geometry, Validate}`) run at evaluation, per
 binding: each member of a family, each analysis sample, the nominal.
 

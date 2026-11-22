@@ -14,7 +14,7 @@
 
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use crate::solid_contain::line_torus_roots;
+use geom_brep::curve_face::line_quadric::line_torus_roots;
 use geom_brep::quartic::QuarticRoots;
 use geom_brep::roots::{RootRefusal, Unsettled};
 
@@ -235,14 +235,12 @@ fn r2_lattice_certified_counts_agree_with_the_independent_counter() {
 /// (cbrt) branch; certified roots must still match the counter.
 #[test]
 fn r2_extreme_radii_ratios_keep_the_certified_roots_honest() {
+    use geom_brep::curve_face::line_quadric::fixtures::{THIN_TUBE, oblique_through_the_tube};
     let band = Band::linear(Tol::witness()).unwrap();
     let axis = Vec3::new(0.0, 1.0, 0.0);
     let c = Point3::new(0.0, 0.0, 0.0);
-    for (rr, rm) in [(1.0, 1e-4), (1.0, 0.49), (100.0, 1e-2)] {
-        // A generic oblique ray through the tube near azimuth 0 with a
-        // nonzero q̂ (e ≠ 0, n ≠ 0): the cbrt branch.
-        let q = Point3::new(rr + 3.0 * rm, 2.0 * rm, -0.7 * rm);
-        let d = Vec3::new(-0.8, -0.33, 0.31).normalize();
+    for (rr, rm) in [THIN_TUBE, (1.0, 0.49), (100.0, 1e-2)] {
+        let geom::Line { origin: q, dir: d } = oblique_through_the_tube(rr, rm);
         let got = line_torus_roots(
             geom::Line { origin: q, dir: d },
             geom::Line {
@@ -324,11 +322,11 @@ fn r2_extreme_radii_ratios_keep_the_certified_roots_honest() {
                 // decline from the trim or the frame, which would mean
                 // something other than the count was in doubt.
                 let certifying = [
-                    "bool_ray_torus_disc",
-                    "bool_ray_torus_shape",
-                    "bool_ray_torus_depth",
-                    "bool_ray_torus_split",
-                    "bool_ray_torus_split_lead",
+                    "line_quadric_torus_disc",
+                    "line_quadric_torus_shape",
+                    "line_quadric_torus_depth",
+                    "line_quadric_torus_split",
+                    "line_quadric_torus_split_lead",
                 ];
                 assert!(
                     diag.predicate.is_some_and(|p| certifying.contains(&p)),

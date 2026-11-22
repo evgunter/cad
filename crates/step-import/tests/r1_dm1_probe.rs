@@ -106,9 +106,8 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
         }
         // **The arc rims mint** (a tripwire, not a cell): wall `#382`
         // states its circle as four rational spans at end weights 1 and
-        // 2, split at its C⁰ knots into one-span sub-patches, and each
-        // sub-patch's row holds its quarter of the rim through the
-        // image's Möbius parameter; the l-bracket witness below imports.
+        // 2, an exact cylinder that stage-1 recognition promotes whole;
+        // the l-bracket witness below imports.
         Err(StepImportError::Pcurves { source, .. }) => {
             panic!(
                 "the l-bracket's arc rims mint on their rows: {}",
@@ -121,6 +120,10 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
         // gate finds those contacts unrecorded. The gate reads the
         // whole assembly, so it names no one `MANIFOLD_SOLID_BREP`
         // (`work/importgate/dm1s-touching-instances-refuse-at-the-aggregate-gate-unrecorded.md`).
+        // The contacts are a vertex of one instance on an EDGE of
+        // another: the bracket's two walls are exact cylinders that
+        // promote whole, so no C⁰-knot split mints vertices along their
+        // rims for a bolt's vertex to land on.
         Err(StepImportError::TierInvalid { solid, errors }) => {
             assert!(
                 solid.is_none() && !errors.is_empty(),
@@ -130,11 +133,12 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 errors.iter().any(|v| matches!(
                     v,
                     topo::ValidationError::UnrecordedContact {
-                        contact: topo::CensusContact::VertexVertex { .. },
+                        contact: topo::CensusContact::VertexOnEdge { .. },
                         ..
                     }
                 )),
-                "the aggregate gate reads two instances' shared vertex as unrecorded: {errors:?}"
+                "the aggregate gate reads one instance's vertex on another's edge as \
+                 unrecorded: {errors:?}"
             );
             let shown = StepImportError::TierInvalid { solid, errors }.render();
             assert!(
@@ -295,12 +299,12 @@ fn l_bracket_only(text: &str) -> String {
 /// l-bracket alone gets PAST every polyline edge: `#389`'s degree-1
 /// slit carrier promotes to `Curve3::Line`, and — its control order
 /// being REVERSED against its wall's boundary column, the one such
-/// reversal in the file — it adopts through the column candidate run
-/// backwards. Wall `#382` states its circle as four rational spans at
-/// end weights 1 and 2, which the import splits at its C⁰ knots into
-/// one-span sub-patches; each sub-patch's row holds its quarter of the
-/// rim, and the component imports whole, its certified volume holding
-/// its mesh's. At the merge base of #388
+/// reversal in the file. Both walls (`#382` states its circle as four
+/// rational spans at end weights 1 and 2, its twin as three) are exact
+/// cylinders, which stage-1 recognition promotes whole, so the slit
+/// adopts on a cylinder rather than through the reversed column
+/// candidate, and the component imports with the file's own census,
+/// its certified volume holding its mesh's. At the merge base of #388
 /// this same pruned text refused `Adoption { id: 389, attempts: [] }`.
 #[test]
 fn the_l_bracket_alone_adopts_its_reversed_slit() {
@@ -316,9 +320,9 @@ fn the_l_bracket_alone_adopts_its_reversed_slit() {
                     b.edges().count(),
                     b.vertices().count()
                 ),
-                (1, 1, 10, 21, 14),
-                "the l-bracket's census (solids, shells, faces, edges, vertices), its \
-                 cylinder wall split into four sub-patches"
+                (1, 1, 5, 6, 4),
+                "the l-bracket's census (solids, shells, faces, edges, vertices): the \
+                 file's own, its two cylinder walls promoted whole"
             );
             // The certified volume against an independent one, the
             // mesh's: its chords stand off the faces by at most δ, so the

@@ -2,12 +2,12 @@
 id: a-reshapings-values-strand-what-a-value-edit-would-not
 kind: issue
 title: A SetProgram reports a piece its new VALUES leave undrawn (a Zero-fit run), where the same values through SetParam report nothing
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: E
 design: true
-blocked_on: [7075]
+closed: 2026-11-18
 ---
 
 
@@ -71,3 +71,13 @@ Waits on `select-defines-face-and-edge-variables`, not on the whole program: it 
 ## Re-homed at RECIPE's close (2026-10-11)
 
 Moved to DOCTAIL. Its trigger (`select-defines-face-and-edge-variables`, PR 4523) has closed, so it can be dispatched: the designer pair first (`design: true`), then an `[ev]` PR if the fork is Ev's. `maintenance-net-keeps-an-undrawn-piece-strand-a-later-edit-redrew` is parked on it, because that row's survival test depends on which strands this row keeps.
+
+## Closed
+
+2026-11-18, by a third option Ev ruled on #7075 (REFERENCES.md DM7): the
+report compares what each program's structure can draw, values erased.
+The one authority is `profile::chain_shape` (`crates/profile/src/path/shape.rs`),
+read through `ProfileProgram::drawable_pieces`. So the radius case
+reports nothing through either door, and the count case still reports
+`Piece(3)`, since the count is structure:
+`edit_set_program::a_reshapings_values_strand_nothing_and_its_count_strands_its_pieces`.

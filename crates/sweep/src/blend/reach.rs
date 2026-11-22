@@ -68,7 +68,7 @@
 //! overrun arm (c) reads the far band's whole sliver on the near band's
 //! support, a bound larger than the overrun, so a chamfer's also
 //! refuses some features the overrun clears
-//! (`work/bandmeter/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
+//! (`work/band/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
 //! A face at another link's end bounds nothing here and is metered like
 //! any other; a circular link's window has no ends. A support of
 //! another chain of the request is metered by what survives that
@@ -121,12 +121,55 @@ const CELL_BUDGET: usize = 4096;
 /// decides only how readily a crossing is told from a bound.
 pub(in crate::blend) const EDGE_SAMPLES: u32 = 9;
 
-/// Whether a reading is certainly positive, by `escalate`: what makes a
-/// point a witness of a three-way reading. A reading that is never
-/// reported is not classified.
+/// **Whether a reading is certainly positive, by `escalate`**: the one
+/// home of that threshold in the blend. Two kinds of reader take it:
+///
+/// - the reach's metering, where a cell surely clear is not subdivided
+///   and a face surely clear is not read again in the sheet
+///   ([`metered`]), so its clearance readings are never taken;
+/// - the three-way witness readings (the reach's and the surgery's
+///   value classifiers), where it makes a point a witness: certainly
+///   inside or outside, so which arm the reading takes and which
+///   decisions follow.
+///
+/// A reading that is never reported is not classified, so the threshold
+/// is no logged decision. Every outcome steers what is decided next, so
+/// each is marked ([`geom_core::k_stats::mark_outcome`]): two runs whose
+/// readings answered differently part there, and the first-turn reading
+/// names no flip read off other cells or other witnesses. Marking every
+/// call, the classifiers included, is the safe side of the trade: an
+/// unmarked outcome that steers is an unlogged branch the first turn
+/// cannot see, and a marked one that turned out not to steer costs only
+/// a step on the path.
 pub(in crate::blend) fn sure<T: Bounds>(x: T, band: Band) -> bool {
-    x.lo() >= band.escalate()
+    geom_core::k_stats::mark_outcome(SURE, x.lo() >= band.escalate())
 }
+
+/// **Whether a reading is certainly below `-escalate`**: [`sure`]'s other
+/// side, strict, for a depth certainly inside by the band (a face's
+/// boundary vertex inside a band's material, whose clearance is then
+/// read). Marked as [`sure`] is.
+fn sure_below<T: Bounds>(x: T, band: Band) -> bool {
+    geom_core::k_stats::mark_outcome(SURE_BELOW, x.hi() < -band.escalate())
+}
+
+/// **Whether a cell, a sheet rectangle or an edge piece is too fine to
+/// halve usefully**, by `escalate`: its size `width` (an upper bound)
+/// at most the band's threshold. It stops a subdivision, so which
+/// readings follow, and is marked as [`sure`] is.
+fn fine(width: f64, band: Band) -> bool {
+    geom_core::k_stats::mark_outcome(FINE, width <= band.escalate())
+}
+
+/// The names [`sure`]'s, [`sure_below`]'s and [`fine`]'s outcomes are
+/// marked under.
+const SURE: &str = "blend_reach_sure";
+/// [`sure_below`]'s.
+const SURE_BELOW: &str = "blend_reach_sure_below";
+/// [`fine`]'s.
+const FINE: &str = "blend_reach_fine";
+/// The edge refinement's settled-piece test's.
+const SETTLED: &str = "blend_reach_edge_settled";
 
 /// A rectangle of a meridian sheet: `[ρ_lo, ρ_hi, z_lo, z_hi]`.
 type Rect<T> = [T; 4];
@@ -506,9 +549,15 @@ impl<T: Real> Bound<T> {
 /// lemon near its apexes.
 fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
     match s {
-        Surface::Plane { origin, normal, .. } => Some((x - *origin).dot(normal.normalize())),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some((x - origin).dot(normal.normalize()))
+        }
         Surface::Cylinder { radius, .. } => Some(sheet_of(s.axis_line()?.unit(), x).0 - *radius),
-        Surface::Sphere { center, radius, .. } => Some((x - *center).norm() - *radius),
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            Some((x - center).norm() - *radius)
+        }
         Surface::Cone { half_angle, .. } => {
             let (rho, z) = sheet_of(s.axis_line()?.unit(), x);
             Some(rho * half_angle.cos() - z.abs() * half_angle.sin())
@@ -533,15 +582,19 @@ fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
 /// this meter replays at every `T`.
 fn surface_range<T: Real>(s: &Surface<T>, cell: &Cell<T>) -> Option<(T, T)> {
     Some(match s {
-        Surface::Plane { normal, .. } => {
+        Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
             let f = surface_distance(s, cell.c)?;
             let w = cell.spread(normal.normalize());
             (f - w, f + w)
         }
-        Surface::Sphere { center, radius, .. } => (
-            nearest(*center, cell) - *radius,
-            corner_max(cell.lo, cell.hi, |x| (x - *center).norm()) - *radius,
-        ),
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            (
+                nearest(center, cell) - *radius,
+                corner_max(cell.lo, cell.hi, |x| (x - center).norm()) - *radius,
+            )
+        }
         _ => {
             let (f, axis) = sheet_fn_own(s)?;
             f.range(sheet_box(axis, cell))
@@ -602,7 +655,11 @@ fn sheet_fn<T: Decide + Bounds>(
     let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
     let centre = lo.mid(hi);
     Some(match s {
-        Surface::Plane { normal, .. } => {
+        Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } => {
+            let normal = carrier_frame.axis();
             let n = normal.normalize();
             let foot = s.frame()?.foot(centre);
             // Either sign encloses, the slack being the chord to it, so a
@@ -618,7 +675,8 @@ fn sheet_fn<T: Decide + Bounds>(
                 (n - a * sg).norm() * lever(foot),
             )
         }
-        Surface::Cylinder { axis, radius, .. } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let axis = frame.axis();
             let foot = s.axis_line()?.foot(centre);
             (
                 SheetFn::Line {
@@ -626,11 +684,12 @@ fn sheet_fn<T: Decide + Bounds>(
                     beta: T::zero(),
                     gamma: -*radius,
                 },
-                off_axis(foot).0 + tilt(*axis) * lever(foot),
+                off_axis(foot).0 + tilt(axis) * lever(foot),
             )
         }
-        Surface::Sphere { center, radius, .. } => {
-            let (rho, z) = off_axis(*center);
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            let (rho, z) = off_axis(center);
             (
                 SheetFn::Circle {
                     p: T::zero(),
@@ -642,12 +701,10 @@ fn sheet_fn<T: Decide + Bounds>(
             )
         }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
-            let (rho, z) = off_axis(*apex);
+            let (apex, axis) = (frame.origin(), frame.axis());
+            let (rho, z) = off_axis(apex);
             (
                 SheetFn::Cone {
                     q: z,
@@ -655,17 +712,17 @@ fn sheet_fn<T: Decide + Bounds>(
                     sin: half_angle.sin(),
                     sigma: one,
                 },
-                rho + T::from_f64(1.5) * tilt(*axis) * lever(*apex),
+                rho + T::from_f64(1.5) * tilt(axis) * lever(apex),
             )
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
-            let (rho, z) = off_axis(*center);
+            let (center, axis) = (frame.origin(), frame.axis());
+            let (rho, z) = off_axis(center);
             (
                 SheetFn::Circle {
                     p: *major_radius,
@@ -673,7 +730,7 @@ fn sheet_fn<T: Decide + Bounds>(
                     r: *minor_radius,
                     sigma: one,
                 },
-                rho + tilt(*axis) * *major_radius,
+                rho + tilt(axis) * *major_radius,
             )
         }
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
@@ -712,7 +769,7 @@ struct Stretch<T: Real> {
     /// extent, and on the trimline's side of it where the face comes back
     /// across — that is the support's strip where [`screened`] reads
     /// no other vertex of the face there, a reading of vertices and not
-    /// edges (`work/bandreach/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`); for a
+    /// edges (`work/band/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`); for a
     /// circular link, the disk of that chord about the edge in the
     /// meridian sheet; for a uniform corner patch, its bounds but the
     /// supports' sides, and for a mixed one its bounds but that
@@ -815,11 +872,12 @@ fn side<T: Decide + Bounds>(s: &Surface<T>, q: Point3<T>) -> Option<Bound<T>> {
     let fq = surface_distance(s, q)?;
     let w = -sign(fq);
     Some(match s {
-        Surface::Plane { origin, normal, .. } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
             let n = normal.normalize() * w;
             Bound::Affine {
                 n,
-                d: (*origin - Point3::origin()).dot(n),
+                d: (origin - Point3::origin()).dot(n),
             }
         }
         _ => Bound::Side { s: s.clone(), w },
@@ -860,7 +918,7 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
 /// the request's possibly inside it. That is a reading of the face's
 /// vertices, not its edges: a curved edge can cross `region` with both
 /// its ends outside
-/// (`work/bandreach/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`).
+/// (`work/band/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`).
 #[must_use = "the vacancy decides whether a straight strip keeps both sides"]
 fn screened<T: Decide + Bounds>(
     body: &Body<T>,
@@ -898,7 +956,7 @@ fn screened<T: Decide + Bounds>(
             };
             vacant &= depth.lo() >= 0.0;
             let depth = across.map_or(depth, |b| depth.max(b.at(p)));
-            if depth.hi() < -band.escalate() {
+            if sure_below(depth, band) {
                 face_clearance_margin(face, depth, gap(p), false, band)?;
             }
         }
@@ -938,12 +996,10 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
             .axis_line()
             .map(|axis| (axis.foot(p), radius)),
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
-        } => foot_on(&Curve3::circle(center, axis, major_radius, u_ref), p)
+        } => foot_on(&Curve3::Circle(geom::Circle::new(frame, major_radius)), p)
             .map(|c| (c, minor_radius)),
         _ => None,
     };
@@ -1183,9 +1239,10 @@ fn straight_reach<T: Decide + Bounds>(
         let Some(i) = cross.iter().position(|(role, _)| *role == Role::Side(f)) else {
             continue;
         };
-        let Surface::Plane { normal, .. } = surface_of(body, f)? else {
+        let Surface::Plane { frame, .. } = surface_of(body, f)? else {
             continue;
         };
+        let normal = frame.axis();
         let normal = normal.normalize();
         let mut bounds = core.clone();
         bounds.remove(i);
@@ -1429,7 +1486,7 @@ fn circular_reach<T: Decide + Bounds>(
     if sections.contains(&link.start) && sections.contains(&link.end) {
         let (c, t0, t1) = carrier_of(body, link.edge)?;
         if let (Some(circle), Some(pieces)) = (c.as_circle(), super::surgery::arc_pieces(t0, t1)) {
-            let o = circle.frame.origin;
+            let o = circle.frame.origin();
             for (ta, tb) in pieces {
                 let mid = c.eval(geom::mid_param(ta, tb));
                 wedges.push(vec![
@@ -1688,9 +1745,14 @@ fn corner_reach<T: Decide + Bounds>(
             }
             let feet = [feet[0], feet[1], feet[2]];
             let patch = chamfer_corner_patch(feet, normals[0] + normals[1] + normals[2]);
-            let Surface::Plane { origin, normal, .. } = patch else {
+            let Surface::Plane {
+                frame: carrier_frame,
+                ..
+            } = patch
+            else {
                 return Ok(None);
             };
+            let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
             bounds.push((Role::Band, half_space(origin, normal, pv)));
             // The patch is the triangle of the feet: each strip meets it
             // along the segment between the two feet on its supports.
@@ -1699,7 +1761,8 @@ fn corner_reach<T: Decide + Bounds>(
                 links
                     .iter()
                     .filter_map(|l| match l.blend.surface {
-                        Surface::Plane { origin, normal, .. } => {
+                        Surface::Plane { frame, .. } => {
+                            let (origin, normal) = (frame.origin(), frame.axis());
                             Some(half_space(origin, normal, mid))
                         }
                         _ => None,
@@ -2007,7 +2070,7 @@ impl<T: Bounds> Least<T> {
     /// when the cell is to be halved.
     fn read(&mut self, inner: T, off: Option<T>, small: bool, band: Band) -> bool {
         let m = off.map_or(inner, |off| inner.max(off));
-        if m.lo() >= band.escalate() {
+        if sure(m, band) {
             self.fold(m);
             return false;
         }
@@ -2047,7 +2110,7 @@ fn face_bound<T: Decide + Bounds>(
             .map(|(_, b)| b.low(&cell))
             .reduce(|m, g| m.max(g))
             .unwrap_or_else(T::zero);
-        let small = cell.lever.hi() <= band.escalate();
+        let small = fine(cell.lever.hi(), band);
         let off = match (off_surface(surface, &cell), extra(&cell)) {
             (Some(a), Some(b)) => Some(a.max(b)),
             (a, b) => a.or(b),
@@ -2104,7 +2167,7 @@ fn inside_bound<T: Bounds>(
             continue;
         }
         spent += 1;
-        if spent >= CELL_BUDGET || cell.lever.hi() <= band.escalate() {
+        if spent >= CELL_BUDGET || fine(cell.lever.hi(), band) {
             return None;
         }
         queue.extend(halves(lo, hi));
@@ -2184,7 +2247,7 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
         let off = flo.max(-fhi) - slack;
         let off = extra(rect).map_or(off, |e| off.max(e));
         let diag = ((r1 - r0).powi(2) + (z1 - z0).powi(2)).sqrt();
-        let small = diag.hi() <= band.escalate();
+        let small = fine(diag.hi(), band);
         if least.read(inner.unwrap_or_else(T::zero), Some(off), small, band) {
             let two = T::from_f64(2.0);
             if (r1 - r0).hi() >= (z1 - z0).hi() {
@@ -2334,7 +2397,7 @@ fn curve_in_core<T: Bounds>(
             continue;
         }
         spent += 1;
-        if spent >= EDGE_PIECES || r <= band.escalate() {
+        if spent >= EDGE_PIECES || fine(r, band) {
             return None;
         }
         let mid = (a + b) * half;
@@ -2348,7 +2411,11 @@ fn curve_in_core<T: Bounds>(
         else {
             break;
         };
-        if r <= band.escalate() || 8.0 * r <= -Bounds::hi(inner) {
+        // A piece settles once it is fine or its reading is well clear
+        // of its size: either stops the refinement, so which readings
+        // follow, and both are marked.
+        if fine(r, band) || geom_core::k_stats::mark_outcome(SETTLED, 8.0 * r <= -Bounds::hi(inner))
+        {
             break;
         }
         spent += 1;
@@ -2435,11 +2502,17 @@ fn prism_inside<T: Decide>(
     // The ruling's stray, or `None` for a plane read by its boundary: a
     // plane is ruled along its direction nearest `τ`, or nearest `ν`.
     let ruled = match surface {
-        Surface::Cylinder { axis, .. } => Some(stray(*axis)),
-        Surface::Plane { normal, .. } => (!by_boundary).then(|| {
-            let n = normal.normalize();
-            charge(n.dot(tau).abs(), &|nu| n.dot(nu).abs())
-        }),
+        Surface::Cylinder { frame, .. } => {
+            let axis = frame.axis();
+            Some(stray(axis))
+        }
+        Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            (!by_boundary).then(|| {
+                let n = normal.normalize();
+                charge(n.dot(tau).abs(), &|nu| n.dot(nu).abs())
+            })
+        }
         _ => return Ok(None),
     };
     let mut edges = BTreeMap::new();
@@ -2451,9 +2524,10 @@ fn prism_inside<T: Decide>(
         };
         match (r.on, strip) {
             (RingOn::Cap { .. }, None) => {
-                let Surface::Plane { normal, .. } = surface_of(body, r.face)? else {
+                let Surface::Plane { frame, .. } = surface_of(body, r.face)? else {
                     return Ok(None);
                 };
+                let normal = frame.axis();
                 let deep = (T::zero() - r.depth) * normal.normalize().dot(tau).abs();
                 least = Some(least.map_or(deep, |l| l.min(deep)));
                 for (_, start, edge) in walk {
@@ -3024,7 +3098,10 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 };
                 let in_core = |c: &Curve3<T>, span| depth_in(&reach.core, c, span);
                 let by_boundary = match &surface {
-                    Surface::Plane { normal, .. } => sure(normal.normalize().dot(tau).abs(), band),
+                    Surface::Plane { frame, .. } => {
+                        let normal = frame.axis();
+                        sure(normal.normalize().dot(tau).abs(), band)
+                    }
                     _ => false,
                 };
                 let mut readings = vec![prism_inside(
@@ -3216,7 +3293,7 @@ fn metered<T: Decide + Bounds>(
 ) -> T {
     let sheet = || face_bound_in_sheet(body, face, reach, surface, bounds, extra_in_sheet, band);
     let space = || face_bound(reach, surface, bounds, extra, band);
-    let certified = |m: T| m.lo() >= band.escalate();
+    let certified = |m: T| sure(m, band);
     let coaxial = reach
         .sheet
         .and_then(|axis| sheet_fn(surface, axis, (reach.lo, reach.hi)))
@@ -3405,20 +3482,12 @@ mod tests {
     /// The rod's wall stored with its origin `along` metres up its axis.
     #[allow(clippy::expect_used, clippy::panic)]
     fn stored_at<T: geom_core::Real>(s: &geom::Surface<T>, along: f64) -> geom::Surface<T> {
-        let geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } = s.clone()
-        else {
+        let geom::Surface::Cylinder { frame, radius } = s.clone() else {
             panic!("the rod's wall is a cylinder")
         };
         geom::Surface::Cylinder {
-            origin: origin + axis * T::from_f64(along),
-            axis,
+            frame: frame.with_origin(frame.origin() + frame.axis() * T::from_f64(along)),
             radius,
-            u_ref,
         }
     }
 
@@ -3721,7 +3790,8 @@ mod tests {
                     out.extend((0..=4).map(|j| Point3::new(p.x, p.y, f64::from(j) / 4.0)));
                 }
             }
-            geom::Surface::Plane { origin, .. } => {
+            geom::Surface::Plane { frame, .. } => {
+                let origin = frame.origin();
                 let pi = core::f64::consts::PI;
                 for i in 0..=40 {
                     for j in 0..=40 {
@@ -3995,9 +4065,11 @@ mod tests {
         let axis = leaning::<f64>(0.5 * band.zero());
         let reach = (Point3::new(-2.0, -2.0, -2.0), Point3::new(2.0, 2.0, 2.0));
         let plane_at = |x: f64| geom::Surface::Plane {
-            origin: Point3::new(x, 0.0, 1.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(x, 0.0, 1.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         for (what, at) in [
             (
@@ -4058,27 +4130,28 @@ mod tests {
                 let in_plane = b.cross(Vec3::new(1.0, 0.2, 0.0));
                 for along in [0.0, -3.0, 1e3, 1e5] {
                     let cylinder = geom::Surface::Cylinder {
-                        origin: Point3::new(0.3, -0.1, 0.0) + b * along,
-                        axis: b * 3.0,
+                        frame: geom::Frame::new(
+                            Point3::new(0.3, -0.1, 0.0) + b * along,
+                            b * 3.0,
+                            b.cross(Vec3::new(0.3, 1.0, 0.1)).normalize(),
+                        ),
                         radius: 0.5,
-                        u_ref: b.cross(Vec3::new(0.3, 1.0, 0.1)).normalize(),
                     };
                     let plane = geom::Surface::Plane {
-                        origin: Point3::new(0.0, 0.0, 1.0) + in_plane * along,
-                        normal: b,
-                        u_ref: in_plane.normalize(),
+                        frame: geom::Frame::new(
+                            Point3::new(0.0, 0.0, 1.0) + in_plane * along,
+                            b,
+                            in_plane.normalize(),
+                        ),
                     };
                     let distance = |s: &geom::Surface<f64>, x: Point3<f64>| match *s {
-                        geom::Surface::Cylinder {
-                            origin,
-                            axis,
-                            radius,
-                            ..
-                        } => {
+                        geom::Surface::Cylinder { frame, radius, .. } => {
+                            let (origin, axis) = (frame.origin(), frame.axis());
                             let (v, n) = (x - origin, axis.normalize());
                             (v - n * v.dot(n)).norm() - radius
                         }
-                        geom::Surface::Plane { origin, normal, .. } => {
+                        geom::Surface::Plane { frame, .. } => {
+                            let (origin, normal) = (frame.origin(), frame.axis());
                             (x - origin).dot(normal.normalize())
                         }
                         _ => f64::NAN,

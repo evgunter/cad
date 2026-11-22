@@ -255,8 +255,6 @@ mod merge_skip;
 mod mesh12_parse_vs_certification;
 #[path = "mesh12_rim_row_reach.rs"]
 mod mesh12_rim_row_reach;
-#[path = "mesh8_coherence.rs"]
-mod mesh8_coherence;
 #[path = "missed_ray_side.rs"]
 mod missed_ray_side;
 #[path = "narrow_needle_containment.rs"]
@@ -514,6 +512,10 @@ mod tangent_touch_charges_both_sags;
 mod the_at_rest_gate_asks_the_certificate;
 #[path = "the_fin_crown_winds_as_a_solid.rs"]
 mod the_fin_crown_winds_as_a_solid;
+#[path = "the_offset_door_sections_a_cone_with_a_coaxial_sphere_or_torus.rs"]
+mod the_offset_door_sections_a_cone_with_a_coaxial_sphere_or_torus;
+#[path = "the_placed_boolean_door_is_the_pair_door.rs"]
+mod the_placed_boolean_door_is_the_pair_door;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;
 #[path = "two_copies_filling_one_volume.rs"]

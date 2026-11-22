@@ -606,8 +606,8 @@ fn profile_payloads_are_matchable(
             radius,
             angular_margin,
         } => {
-            named::<f64>(radius);
-            named::<f64>(angular_margin);
+            named::<pncad::geom_core::Told>(radius);
+            named::<pncad::geom_core::Told>(angular_margin);
             "arc"
         }
     };
@@ -772,8 +772,11 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             ),
             FilletLeg::Outgoing,
             FilletLegCarrier::Arc {
-                radius: 2.0,
-                angular_margin: -0.5,
+                radius: pncad::geom_core::Told::computed(&2.0, pncad::geom_core::Dimension::Length),
+                angular_margin: pncad::geom_core::Told::computed(
+                    &-0.5,
+                    pncad::geom_core::Dimension::Angle,
+                ),
             },
             NoCornerReason::OffsetCarriersDisjoint,
         ),
@@ -1373,10 +1376,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
         None
     );
 
-    let options = ImportOptions {
-        eps_in: Some(1e-7),
-        examine_chart_coherence: true,
-    };
+    let options = ImportOptions { eps_in: Some(1e-7) };
     assert!(matches!(
         import_step("not a step file", &options, Tol::witness()),
         Err(StepImportError::Syntax { .. })
@@ -1386,7 +1386,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
 /// Which analytic kind's estimator declined, read off the arm that
 /// reports it — `None` on every other refusal.
 ///
-/// The kinds are matched EXHAUSTIVELY, so a third one recognised
+/// The kinds are matched EXHAUSTIVELY, so a new one recognised
 /// kernel-side stops this compiling rather than arriving under an
 /// existing word. Their recourses differ, which is why the
 /// discriminant is worth a curated name: a plane that will not
@@ -1397,6 +1397,9 @@ fn recognition_ambiguity_is_matchable(err: &StepImportError) -> Option<&'static 
         StepImportError::RecognitionAmbiguous { kind, .. } => Some(match kind {
             PromotedKind::Plane => "plane",
             PromotedKind::Cylinder => "cylinder",
+            PromotedKind::Cone => "cone",
+            PromotedKind::Sphere => "sphere",
+            PromotedKind::Torus => "torus",
         }),
         _ => None,
     }
@@ -1434,7 +1437,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         eps_in,
         normalizations,
         instances,
-        coherence,
         contacts,
         coincidences,
     } = imported
@@ -1452,13 +1454,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
     named::<Vec<PlacedInstance>>(instances.clone());
-    // The chart-coherence channel, spelled from the prelude down to
-    // the vocabulary a consumer matches on. The import above asked
-    // for no examination, so the field is `None` — which is the
-    // CONFIGURATION half of this channel's distinction and not an
-    // empty report; `topo`'s own door draws the same line about the
-    // two lists inside a report it did produce.
-    named::<Option<CoherenceReport>>(coherence.clone());
     // The touches between instances the gate recorded, and the rows
     // they cite: none, since one box touches nothing.
     named::<ContactRecords>(contacts.clone());
@@ -1467,19 +1462,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         contacts.is_empty() && coincidences.is_empty(),
         "one box records no contact"
     );
-    assert!(
-        coherence.is_none(),
-        "the default import asked for no chart-coherence examination"
-    );
-    // The report's own two lists, spelled from here too, because a
-    // consumer that holds the answer reads them. No `assert_ne!`
-    // against `Some(empty)`: the assertion above is the whole runtime
-    // claim, and the fold it would guard against — an unasked import
-    // rendering as an empty report — is unrepresentable in
-    // `Option<CoherenceReport>` and would fail `is_none` first.
-    let empty = CoherenceReport::default();
-    named::<&Vec<CoherenceFinding>>(&empty.findings);
-    named::<&Vec<Unexamined>>(&empty.unexamined);
 
     // "Not a second computation", as an equality rather than a claim.
     let again = mass_properties(&body, Tol::witness(), pinned_resolution(Tol::witness()))
@@ -1562,6 +1544,9 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             match to {
                 PromotedKind::Plane => "surface_promotion_plane",
                 PromotedKind::Cylinder => "surface_promotion_cylinder",
+                PromotedKind::Cone => "surface_promotion_cone",
+                PromotedKind::Sphere => "surface_promotion_sphere",
+                PromotedKind::Torus => "surface_promotion_torus",
             }
         }
         NormalizationKind::OneRecord {
@@ -1573,6 +1558,27 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             named::<&u64>(joined);
             named::<&f64>(moved_by);
             "one_record"
+        }
+        NormalizationKind::Snapped {
+            surface,
+            relation,
+            moved_by,
+        } => {
+            named::<&u64>(surface);
+            named::<&f64>(moved_by);
+            match relation {
+                SnapRelation::Coaxial => "snapped_coaxial",
+                SnapRelation::Tangent => "snapped_tangent",
+                SnapRelation::AxisNormal => "snapped_axis_normal",
+            }
+        }
+        NormalizationKind::VertexBuilt { moved_by } => {
+            named::<&f64>(moved_by);
+            "vertex_built"
+        }
+        NormalizationKind::CarrierBuilt { moved_by } => {
+            named::<&f64>(moved_by);
+            "carrier_built"
         }
         NormalizationKind::CurvePromoted { kind, residual } => {
             named::<&f64>(residual);
@@ -2169,7 +2175,6 @@ fn lib_doors_vocabulary_is_nameable() {
     named::<Option<pncad::document::EvalOutcome>>(None);
     named::<Option<pncad::document::PersistError>>(None);
     named::<Option<pncad::document::NonFiniteSite>>(None);
-    named::<Option<pncad::document::ProgramFault>>(None);
     named::<Option<pncad::document::SnapshotError>>(None);
     named::<Option<pncad::document::DimensionError>>(None);
     named::<Option<pncad::export::ExportError>>(None);
@@ -4925,7 +4930,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
 ///   `Diagnosis`, `UpstreamCause`, `GroupCutters`, `Implicated`,
-///   `PredicateDivergence`, `DocDiff`, `NodeChange`, `diff_*`,
+///   `DocDiff`, `NodeChange`, `diff_*`, `first_turn`,
 ///   `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
@@ -5171,7 +5176,6 @@ const NOT_CARRIED: [&str; 101] = [
     "NodeVerdictDelta",
     "NodeVerdicts",
     "ParamValue",
-    "PredicateDivergence",
     "ProfileLane",
     "ProfilePayload",
     "Qualifier",
@@ -5187,9 +5191,9 @@ const NOT_CARRIED: [&str; 101] = [
     "SlotPayload",
     "StructureFlip",
     "SummaryDelta",
+    "SummaryDiff",
     "SummaryDivergence",
-    "SummaryFlip",
-    "SummaryFlipSet",
+    "SummaryShift",
     "TieWitness",
     "Tombstone",
     "UpstreamCause",
@@ -5212,6 +5216,7 @@ const NOT_CARRIED: [&str; 101] = [
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
+    "first_turn",
     "from_value",
     "var_env_over",
     // The analysis's axis rule (VR8), which `analyzed_box` and the
@@ -7391,18 +7396,18 @@ fn standing(value: &pncad::document::Framed<f64>) -> pncad::topo::Body<f64> {
     )
 }
 
-/// **A body far out builds and refuses to be read out** (INTENT stage 3
-/// E, R2's far-from-origin note): a block's copy turned and stood
-/// `1e17 ε` out (at least 1e7) builds, sharing its source's body under its frame, so nothing in
-/// the model maps it. The façade's read-out composes it into the world
-/// and re-certifies every edge there, which refuses at that distance:
-/// `body_in_space` answers `compose_refused`'s refusal, and so does a
-/// STEP export of the node. The viewer's picture, which moves the copy's
-/// tessellation on the CPU and certifies nothing, draws it
-/// (`work/intent/a-far-body-the-read-out-refuses-the-picture-draws.md`).
+/// **A copy stood far out refuses at its placement, and exports
+/// nothing** (INTENT stage 3 E, R2's far-from-origin note;
+/// `[placement.frame]`, the door that places a copy asks where it
+/// stands). A block's copy turned and stood `1e17 ε` out (at least 1e7)
+/// is past the 1 km session box, so its placement refuses with the box's
+/// finding alone, and the node's STEP export refuses on the node's
+/// standing. No copy that builds stands where composing it into the
+/// world would round past ε, so the read-out never meets one it cannot
+/// compose (`work/vgeom/a-far-body-the-read-out-refuses-the-picture-draws.md`).
 #[test]
-fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
-    use pncad::document::{Coord, Dimension, Formula, TargetAxis, ValuePayload};
+fn a_far_turned_copy_refuses_at_its_placement_and_exports_nothing() {
+    use pncad::document::{Coord, Dimension, Formula, TargetAxis};
     let (doc, _, _) = box_doc("e-far-read-out");
     let placement = doc
         .product()
@@ -7410,8 +7415,8 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
         .expect("the copy is the product");
     let mut far = pncad::document::stand();
     let turn = |r: f64| Formula::literal(r, Dimension::Angle).unwrap();
-    // Far enough that the composition's rounding outgrows the run's ε:
-    // the distance scales with it.
+    // Far past the session box, as far as the composition's rounding
+    // would outgrow the run's ε.
     let d = (1.0e17 * Tol::witness().eps()).max(1.0e7);
     far.values = vec![
         (Coord::slide(TargetAxis::X), len(d + 0.3)),
@@ -7432,16 +7437,15 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
         &pncad::document::EvalOptions::default(),
         Tol::witness(),
     );
-    let Some(ValuePayload::Body(copy)) = ev.value(placement).map(|v| &v.payload) else {
-        panic!(
-            "the far copy builds: {:?}",
-            ev.node_error(placement).map(|e| &e.kind)
-        );
-    };
-    let read = pncad::export::body_in_space::<f64>(copy, Tol::witness());
+    let refused = ev.node_error(placement).expect("the far copy refuses");
     assert!(
-        read.is_err(),
-        "the read-out composes it into the world and re-certifies there, which refuses this far out"
+        matches!(
+            &refused.kind,
+            pncad::document::NodeErrorKind::NotFinished { findings }
+                if matches!(&findings[..], [pncad::topo::ValidationError::OutsideSessionBox { .. }])
+        ),
+        "at its placement, with the session box's finding alone: {:?}",
+        refused.kind
     );
     let step = pncad::export::step_for_node(
         &ev,
@@ -7450,8 +7454,8 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
         Tol::witness(),
     );
     assert!(
-        matches!(step, Err(pncad::export::ExportError::Compose(_))),
-        "and so does the node's STEP export: {:?}",
+        matches!(step, Err(pncad::export::ExportError::Standing(_))),
+        "and the node's STEP export refuses on its standing: {:?}",
         step.as_ref().map(|_| ())
     );
 }

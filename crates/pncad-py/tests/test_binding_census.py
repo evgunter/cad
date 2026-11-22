@@ -726,23 +726,6 @@ BOUND_AS = {
     "Constraint": "Doc.bundle",
     "ConstraintKind": "Doc.bundle",
     # An instance's value: its copies' bodies are `Value.bodies`.
-    # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
-    # `StepImport::Solid::coherence` hands a Rust caller the kernel's
-    # report whole and its discriminants are closed enums meant to be
-    # matched. Python receives the same facts through the OTHER
-    # consumer of the same kernel door — `CheckId::ChartCoherence`,
-    # whose evidence rows publish them — so each of the three below is
-    # the `NodeErrorKind` row's shape again, a curated type flattened
-    # onto its carrier's attributes.
-    #
-    # `CoherenceCondition` and `Unexaminable` share `chart_variant`
-    # because the tag alphabets are disjoint by construction and
-    # `tags.rs` says so; `CoherenceFinding`'s four numbers are four
-    # attributes of the same evidence row and `metres` is the one the
-    # claim is about.
-    "CoherenceCondition": "CheckEvidence.chart_variant",
-    "Unexaminable": "CheckEvidence.chart_variant",
-    "CoherenceFinding": "CheckEvidence.metres",
     "UnevaluatedReason": "Verdict.reason",
     "PI": "pi_rad",
     # `DistributionField` names WHICH offset of a distribution a fault
@@ -871,12 +854,12 @@ BOUND_AS = {
     # arrives BESIDE it rather than in place of it, `None` on every
     # other arm.
     #
-    # Two values, and they are two different next moves: `plane`
-    # declining is a flatness question at the file's tolerance,
+    # One word per promotable kind, and the kinds lead different places:
+    # `plane` declining is a flatness question at the file's tolerance,
     # `cylinder` declining is an ill-conditioned axis and wants more
-    # of the patch. The match that mints them is exhaustive, so a
-    # third promotable kind stops the bindings compiling instead of
-    # joining one of these.
+    # of the patch. The match that mints them is exhaustive, so a new
+    # promotable kind stops the bindings compiling instead of joining
+    # one of these.
     #
     # No Python test row: firing the arm needs a file with a
     # multi-bound curved face on an ill-conditioned NURBS surface,
@@ -923,7 +906,7 @@ BOUND_AS = {
     # value side's spelling: the carrier projects every field as an
     # attribute, so its discriminant is one of those fields — a word at
     # `kind`, with the one arm's payload beside it at `promoted_to`
-    # (which analytic kind certified, `PromotedKind`'s own two words)
+    # (which analytic kind certified, `PromotedKind`'s own words)
     # and `residual`, `None` on the other four arms. The word does NOT
     # fold the kind in: a caller reading "a patch was promoted" reads
     # `surface_promotion` whichever kind it was, and branches on the
@@ -936,6 +919,11 @@ BOUND_AS = {
     # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
     # other arm), the way `promoted_to` carries `surface_promotion`'s.
     "SingularityFound": "StructureNormalization.singularity",
+    # `NormalizationKind::Snapped`'s payload, at the same spelling: which
+    # catalogue construction moved the surface, as `relation` beside the
+    # `kind` word (`coaxial`, `tangent`, `axis_normal`; `None` on every
+    # other arm).
+    "SnapRelation": "StructureNormalization.relation",
     # `CurvePromotion::kind`, the same rule one row over. Two words
     # (`circle`, `line` — the degree-1 follow-up, #388) and a map
     # rather than a literal because the recognizer's remaining named
@@ -1074,7 +1062,8 @@ BOUND_AS = {
     # `different-shape`, and that reading was true when written: the
     # persistence door carried one attribute, so there was no Python
     # shape to point at. There is one now. `SnapshotError`'s arms and
-    # `ProgramFault`'s two mint a word apiece from an exhaustive match,
+    # the profile door's `ProgramRefusal` (whose own mapping is the edit
+    # door's) mint a word apiece from an exhaustive match,
     # so a kernel arm added without one stops the bindings compiling,
     # and the word rides `inner_variant` beside
     # the stage's own. `NonFiniteSite` is the one that does NOT cross
@@ -1087,7 +1076,6 @@ BOUND_AS = {
     # snapshot refusal's node ids and counts are the snapshot door's
     # surface, not the persistence door's. A mapping here claims the
     # discriminant crosses, and nothing more.
-    "ProgramFault": "PersistError.inner_variant",
     "SnapshotError": "PersistError.inner_variant",
     "NonFiniteSite": "PersistError.site",
     # THE STL DOOR'S TWO OPTION REFUSALS. Both were `different-shape`
@@ -1875,8 +1863,7 @@ FAMILIES: dict[str, str] = {
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
 #: `Filleted`, `AtRestBody`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
-#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `CurveSelector`, `Structural`,
-#: `ChartCoherenceLane`):
+#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `CurveSelector`, `Structural`):
 #: the document layer consumes them and Python receives a `Value`. The
 #: profile ladder's rungs (`Profile`, `ProfileLoop`,
 #: `ValidatedLoop`, `ValidatedProfile`, `SegmentKind`,
@@ -2352,17 +2339,6 @@ NOT_BOUND = {
     "BinaryOptions": SHAPE,
     "BlendRefusal": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
-    # The two CONTAINERS of the chart-coherence vocabulary whose three
-    # discriminants sit in `BOUND_AS` above. Python never holds
-    # either: the registry resident flattens the report into one
-    # `CheckFinding` per finding and one per unexamined loop, so the
-    # facts cross as rows of `ChecksReport.findings` rather than as a
-    # report object, and `Unexamined`'s face and loop are arena keys,
-    # which do not cross at all. The import door's own channel is
-    # unbound on the Python side for the reason `surface_census.rs`
-    # records against `examine_chart_coherence`.
-    "CoherenceReport": SHAPE,
-    "Unexamined": SHAPE,
     "CurveKindSet": SHAPE,
     "Dimension": SHAPE,
     # The sealed trait over the slot forms (`Formula`, `Expr`): a
@@ -2743,15 +2719,6 @@ NOT_BOUND = {
     "Reached": INTERIOR,
     "MemberEnv": INTERIOR,
     "Chamfered": INTERIOR,
-    # A lane trait, one registry over: a trait naming
-    # WHICH decision lanes carry a chart-coherence examination, written
-    # as a bound on the two registry doors. Python's `run_checks` is
-    # monomorphic at the `f64` lane, so a Python caller never chooses
-    # one and never needs to name the trait; what it does see is the
-    # lane's ANSWER, as the `chart_coherence` / `chart_coherence_
-    # unexamined` / `chart_coherence_unavailable` words on
-    # `CheckEvidence.variant`.
-    "ChartCoherenceLane": INTERIOR,
     "ContactRecords": INTERIOR,
     # What a contact record cites (D1 (ii)): its `ContactRecords`
     # carrier is interior, so the citation rides behind the same door.
@@ -3011,6 +2978,16 @@ NOT_BOUND = {
     "ArcShape": INTERIOR,
     "StepShape": INTERIOR,
     "TargetShape": INTERIOR,
+    # The same shape's readings, and the value-free pen-order judgement
+    # the doors and the editor ask over it: a Python caller meets their
+    # answer as a door's refusal (`EditError`/`PersistError`'s `trace`
+    # word), never the shape itself.
+    "PenRun": INTERIOR,
+    "PenStep": INTERIOR,
+    "pen_fault": INTERIOR,
+    "pen_run": INTERIOR,
+    "shape_of_recorded": INTERIOR,
+    "step_kernel": INTERIOR,
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
     # The loop the lattice constructed, carrying that provenance into
@@ -3410,6 +3387,9 @@ NOT_BOUND = {
     "draw_on_face": f"{GAP}: B-DRAW-ON-FACE the drawn-on-face door",
     "DrawnOnFace": f"{GAP}: B-DRAW-ON-FACE the door's outcome",
     "OnFace": f"{GAP}: B-DRAW-ON-FACE where the profile stands on the face",
+    "chart_on_face": f"{GAP}: B-DRAW-ON-FACE the chart the door draws on, read before drawing",
+    "FaceUnread": f"{GAP}: B-DRAW-ON-FACE why no orientation reads off a face",
+    "nearest_to_face": f"{GAP}: B-DRAW-ON-FACE the orientation the door writes",
     # --- gap: assorted single doors -------------------------------
     # B-CANCEL IS GONE FROM THIS ROSTER, closed at LIB-B-CANCEL, and
     # the id is gone from `FAMILIES` with it. `CancelToken` is a
@@ -3643,9 +3623,6 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::Unsupported": "CheckEvidence.variant",
     "CheckEvidence::NotAtRest": "CheckEvidence.variant",
     "CheckEvidence::StaleExpectation": "CheckEvidence.variant",
-    "CheckEvidence::ChartCoherence": "CheckEvidence.variant",
-    "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
-    "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
     "CheckEvidence::UnprovenCoincidence": "CheckEvidence.variant",
     "CheckEvidence::Unused": "CheckEvidence.variant",
     "ChecksError::Placement": "ChecksError.variant",
@@ -3975,7 +3952,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Topology": "StepImportError.variant",
     "StepImportError::Assembly": "StepImportError.variant",
     "StepImportError::Adoption": "StepImportError.variant",
-    "StepImportError::RimOffWallBoundary": "StepImportError.variant",
     "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
@@ -3987,6 +3963,8 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
     "StepImportError::C0KnotUnsplit": "StepImportError.variant",
+    "StepImportError::NotYetSupported": "StepImportError.variant",
+    "StepImportError::BuildEscalated": "StepImportError.variant",
     "StepImportError::TierInvalid": "StepImportError.variant",
     "StlError::DegenerateTriangle": "StlError.variant",
     "StlError::IndexOutOfRange": "StlError.variant",
@@ -4007,6 +3985,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::PinchWedge": "TessellateError.variant",
+    "TessellateError::BoundaryBoundsNoRegion": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedDomain": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedShape": "TessellateError.variant",
     "TessellateError::MeridianFreeCurvedFace": "TessellateError.variant",
@@ -4015,8 +3994,11 @@ MEMBERS_BOUND_AS = {
     "TessellateError::TrimLoopOrientation": "TessellateError.variant",
     "TessellateError::FoldedTriangle": "TessellateError.variant",
     "TessellateError::UnresolvedWinding": "TessellateError.variant",
-    "TessellateError::BoundaryEar": "TessellateError.variant",
+    "TessellateError::UnclearedSharedSide": "TessellateError.variant",
+    "TessellateError::OverusedSide": "TessellateError.variant",
     "TessellateError::SphereTrimShape": "TessellateError.variant",
+    "TessellateError::WrapStripTurn": "TessellateError.variant",
+    "TessellateError::LiftedColumnOff": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
     "UpdateError::AlreadyPinned": "UpdateError.variant",
     # The one door that reports MANY faults at once, so the word rides

@@ -52,11 +52,12 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     ));
     let slant = t.walls()[0][1].expect("slant wall");
     let Some(&Surface::Cone {
-        apex, half_angle, ..
+        frame, half_angle, ..
     }) = t.body.face_surface(slant)
     else {
         panic!("slant wall is a cone");
     };
+    let apex = frame.origin();
     assert!(apex.distance(geom_core::Point3::new(0.0, 1.0, 0.0)) < 1e-12);
     assert!((half_angle - FRAC_PI_4).abs() < 1e-12);
     assert_eq!(t.walls()[0][2], None);
