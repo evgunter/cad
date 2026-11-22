@@ -1,0 +1,3 @@
+# EMBEDGATE — log
+
+- 2026-11-22 — **Opened by EMBED's seam cut** (`work/README.md`, Track size), after Ev asked in chat whether a chunk of EMBED could be split off and worked in parallel. The seam: EMBED answers the embedding question (the readings), EMBEDWALK walks it, and this track is where it is asked and what a finished body carries. Seven rows moved by `git mv`, ids and bodies unchanged. Nobody holds the track. The gate lane (`session_018u3gVH8SNTMN3JcG6kETSc`) is idle and stays watched by EMBED's orchestrator until an orchestrator takes this track; PR 7124 (records) stays with EMBED's orchestrator through its dual review and merge. (EMBED orchestrator)

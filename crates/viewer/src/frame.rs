@@ -2218,6 +2218,8 @@ pub fn tool_notice(
         ) => Retold::Never,
         ToolNotice::Assertion(crate::combine::AssertionEvent::FaceLost { .. }) => Retold::Never,
         // A declined pick: the same pick says it again.
+        ToolNotice::Mirror(crate::combine::PlaneEvent::NotAPlane { .. })
+        | ToolNotice::Split(crate::combine::PlaneEvent::NotAPlane { .. }) => Retold::Again,
         ToolNotice::Assertion(crate::combine::AssertionEvent::SeveralCopies { .. }) => {
             Retold::Again
         }

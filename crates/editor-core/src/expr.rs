@@ -112,6 +112,25 @@ impl Dimension {
     /// one home for that rule.
     pub const ALL: [Self; 4] = [Self::Length, Self::Angle, Self::Count, Self::Scalar];
 
+    /// **The quantity of the unit table a value of this dimension is
+    /// written in** — `None` for a `Count`, which is an integer and
+    /// names no notation.
+    ///
+    /// The one home of the dimension/quantity relation, read in both
+    /// directions: [`UnitSym::measures`] is it read backwards, and
+    /// [`UnitSym::canonical_for`] is it read through the canonical
+    /// notation. A downstream crate that needs to know which units
+    /// write a dimension, or which unit a notation gives it, asks here
+    /// rather than laddering over `Dimension` itself.
+    pub const fn quantity(self) -> Option<quantity::UnitQuantity> {
+        match self {
+            Self::Length => Some(quantity::UnitQuantity::Length),
+            Self::Angle => Some(quantity::UnitQuantity::Angle),
+            Self::Scalar => Some(quantity::UnitQuantity::Scalar),
+            Self::Count => None,
+        }
+    }
+
     /// The indefinite article agreeing with the `Display` noun, for
     /// the sentence positions that need one. **The value decides it**
     /// — a sentence that hard-codes "a" is wrong for every value whose
@@ -829,17 +848,22 @@ impl UnitSym {
     /// same thing from the same unit to check the two against each
     /// other.
     ///
-    /// Total: the table's quantity column has three rows and
-    /// [`Dimension`] has a variant for each. `Count` is not among them
-    /// — a count is an integer and names no notation — which is why a
-    /// `Count` parameter has no unit door rather than a unit that
-    /// measures counts.
+    /// [`Dimension::quantity`] read backwards. Total: the table's
+    /// quantity column has three rows and [`Dimension`] has a variant
+    /// for each. `Count` is not among them — a count is an integer and
+    /// names no notation — which is why a `Count` parameter has no unit
+    /// door rather than a unit that measures counts.
     pub fn measures(self) -> Dimension {
-        match self.def().quantity() {
-            quantity::UnitQuantity::Length => Dimension::Length,
-            quantity::UnitQuantity::Angle => Dimension::Angle,
-            quantity::UnitQuantity::Scalar => Dimension::Scalar,
-        }
+        let measured = self.def().quantity();
+        Dimension::ALL
+            .into_iter()
+            .find(|dim| dim.quantity() == Some(measured))
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "no dimension is written in {measured:?}, yet `Dimension::quantity` \
+                     names every quantity of the unit table"
+                )
+            })
     }
 
     /// The unit a value of `dim` is written in when nothing else was
@@ -860,11 +884,9 @@ impl UnitSym {
     /// nothing ever renders it (a count is an integer), and the
     /// refusal still happens where it always did.
     pub fn canonical_for(dim: Dimension) -> Self {
-        let row = match dim {
-            Dimension::Length => quantity::M.def(),
-            Dimension::Angle => quantity::RAD.def(),
-            Dimension::Scalar | Dimension::Count => quantity::ONE.def(),
-        };
+        let row = dim.quantity().map_or(quantity::ONE.def(), |measured| {
+            quantity::Notation::CANONICAL.unit_of(measured)
+        });
         Self::from_def(&row)
     }
 
