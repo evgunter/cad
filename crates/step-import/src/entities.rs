@@ -2826,7 +2826,7 @@ struct ContentRoots {
 }
 
 /// The scales and uncertainty one file states.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct UnitContext {
     /// Meters per file length unit.
     pub(crate) length_scale: Scale,
