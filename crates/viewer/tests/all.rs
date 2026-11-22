@@ -68,6 +68,8 @@ mod assembly_display;
 mod assembly_walk;
 #[path = "assertion_tool.rs"]
 mod assertion_tool;
+#[path = "review_assertion_probe.rs"]
+mod review_assertion_probe;
 #[path = "blend_authoring.rs"]
 mod blend_authoring;
 #[path = "bundle_editor.rs"]
