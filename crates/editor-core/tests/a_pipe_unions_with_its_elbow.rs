@@ -414,3 +414,26 @@ fn zz_probe_outcomes() {
         outcome(&join(true, CapEnd::End, off), closed_form(true, off))
     );
 }
+
+/// Review probe (R1): the base's second heading, 1e3 ε, and a scan of
+/// headings off the neutral alignment: where does each stop?
+#[test]
+fn review_probe_headings_off_the_neutral_alignment() {
+    let mut bad = Vec::new();
+    for k in [2.0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7] {
+        let off = OffCap::Elbow {
+            axis_x: BEND,
+            heading: -FRAC_PI_2 + k * Tol::witness().eps(),
+            angle: -FRAC_PI_2,
+        };
+        let j = join(true, CapEnd::End, off);
+        let e = refusal(&j, "probe");
+        let said = format!("{e:?}");
+        let short: String = said.chars().take(160).collect();
+        eprintln!("PROBE k={k:e}: {short}");
+        if !(matches!(e, topo::BooleanError::ResultInvalid { .. }) && said.contains("ScaffoldAtRest")) {
+            bad.push(k);
+        }
+    }
+    assert!(bad.is_empty(), "headings not past the crossing layer: {bad:?}");
+}
