@@ -344,8 +344,8 @@ impl<T: Decide> ConeRuledPose<T> {
             origin: o + d * d.dot(cone.apex - o),
             dir: d,
         };
-        let slack = T::from_f64(4.0)
-            * geom_core::rounding_charge((o - Point3::origin()).norm() + (cone.apex - o).norm());
+        let slack =
+            geom_core::rounding_charge((o - Point3::origin()).norm() + (cone.apex - o).norm());
         let ruled = ruled(cone, Form::cylinder(axis, radius).with_slack(slack), region);
         let apex = read(
             ConeDecision::ApexOnPartner,

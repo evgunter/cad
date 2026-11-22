@@ -1124,7 +1124,7 @@ impl<T: Real> RuledCone<T> {
         // The quadratic and its slopes as the sweep reads them, at the
         // angle; its curvatures, which nothing else reads, here.
         let q = self.quadratic(&cell);
-        let at_angle = |i: Iv<T>| (i.lo + i.hi) * T::from_f64(0.5);
+        let at_angle = |i: Iv<T>| geom::mid_param(i.lo, i.hi);
         let (p2, p1, dp2, dp1) = (
             at_angle(q.p2),
             at_angle(q.p1),
@@ -1978,7 +1978,9 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
     /// (`backward`: against the angle), a pass through each crossing the
     /// leaves reach placed before the first leaf past its angle.
     fn walk(&self, leaves: Vec<Leaf<T>>, sheet: Sheet, backward: bool) -> Vec<Event<T>> {
-        use core::f64::consts::{PI, TAU};
+        // The ruling angle's period, and half of it.
+        let turn = geom_core::period::Period::<f64>::angle().length();
+        let half = 0.5 * turn;
         // The leaves' angles unwrapped in the walk's own order: an arc read
         // across the turn's seam ([`arcs`]) steps back a turn there, and
         // the walk reads its angles on from its start.
@@ -1989,10 +1991,10 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             .map(|l| {
                 let c = l.cell();
                 if let Some(last) = last {
-                    if !backward && c.lo + offset < last - PI {
-                        offset += TAU;
-                    } else if backward && c.hi + offset > last + PI {
-                        offset -= TAU;
+                    if !backward && c.lo + offset < last - half {
+                        offset += turn;
+                    } else if backward && c.hi + offset > last + half {
+                        offset -= turn;
                     }
                 }
                 last = Some(if backward {
@@ -2015,7 +2017,7 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             .flat_map(|&phi| {
                 [-2.0, -1.0, 0.0, 1.0, 2.0]
                     .into_iter()
-                    .map(move |k| (phi, phi + k * TAU))
+                    .map(move |k| (phi, phi + k * turn))
             })
             .filter(|&(_, at)| lo < at && at < hi)
             .collect();
