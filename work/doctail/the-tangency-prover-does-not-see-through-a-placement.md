@@ -29,3 +29,9 @@ Found by the fix pass of `a-face-charts-turn-is-levered-over-none-of-what-it-car
 
 The replay sees the wall's axis along the sketch's `z` as a polynomial identity through a placement by values, as it does through a frame. Both rows above are pinned to the current `Unproven` (`test_utils::pinned_red::row`, citing this row). When this lands the pins go red, and the rows return to `by_its_heading`.
 
+Two more rows pass now for the wrong reason, and the fix re-examines them. While the replay answers `ReadTheAxis` for every placed cylinder, their `asks_for_the_axis` assert cannot go red for the reason it states:
+
+- `intent_s6_e_traced_on_a_face::a_hole_parallel_to_the_face_by_value_only_asks_for_the_axis`: at `a = 0` the wall's axis leaves the sketch's `z` by `sin a`, which should be what asks for the axis, rather than the placement's map.
+- The first half of `intent_s6_e_traced_on_a_face::a_frame_turned_in_radians_asks_for_the_axis_read_off_the_face`: the float `π/2` turn's rounding, rather than the map.
+
+Once the prover sees through a placement, check that each row still asks for the axis, and for its stated reason: the residual names the angle or the rounding, not the `World` map.

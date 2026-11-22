@@ -860,6 +860,68 @@ fn lens(chord: f64, bulge: f64) -> (LoopProgram<Formula>, f64) {
     (program, centre + radius)
 }
 
+/// **Whether a loop drawn on the near-pole cap agrees with its placed
+/// twin at `tilt`**, the cap `height` from the origin: `program` drawn on
+/// the chart under the backwards orientation, and the same loop extruded
+/// `depth` free and mated onto the face. They agree where both chart, or
+/// both refuse, the profile backwards. Whether the profile charts.
+fn agrees_with_twin(
+    row: &str,
+    tilt: f64,
+    height: f64,
+    program: LoopProgram<Formula>,
+    depth: f64,
+) -> bool {
+    let (doc, copy, top, backwards) = near_the_pole(tilt, height);
+    let at = on(Some(backwards), 0.0, [0.0, 0.0]);
+    let (drawn_doc, profile) = drawn_loop(&doc, copy, top.clone(), at, program.clone());
+    let drawn = chart(&drawn_doc, profile);
+    let outline = editor_core::ProfileProgram {
+        loops: vec![program],
+        ids: Vec::new(),
+        on: None,
+    };
+    let twin = placed_twin(
+        doc,
+        (copy, top),
+        backwards,
+        (ang(0.0), [0.0, 0.0]),
+        (outline, depth),
+    );
+    assert!(
+        drawn.is_ok() == twin.is_ok()
+            && (drawn.is_ok()
+                || drawn
+                    .as_ref()
+                    .is_err_and(|e| refuses_backwards(e, backwards))
+                    && matches!(twin, Err(MateFault::Backwards { .. }))),
+        "{row}: the loop and its placed twin agree at tilt {tilt}, backwards where they refuse: {:?} / {twin:?}",
+        drawn.as_ref().err()
+    );
+    drawn.is_ok()
+}
+
+/// A loop through `corners` in order, each step to the next corner (the
+/// last back to the first) a line where its bulge is `None`, an arc of
+/// that bulge where it is one.
+fn outline(corners: &[([f64; 2], Option<f64>)]) -> LoopProgram<Formula> {
+    use editor_core::{ProgramArcData, ProgramStep, ProgramTarget};
+    let mut steps = vec![ProgramStep::At(fixture::len2(corners[0].0))];
+    for (i, (_, bulge)) in corners.iter().enumerate() {
+        let target = corners.get(i + 1).map_or(ProgramTarget::Start, |(p, _)| {
+            ProgramTarget::Point(fixture::len2(*p))
+        });
+        steps.push(match bulge {
+            None => ProgramStep::LineTo(target),
+            Some(b) => ProgramStep::ArcTo(ProgramArcData::Bulge {
+                target,
+                b: fixture::scl(*b),
+            }),
+        });
+    }
+    LoopProgram::Chain(steps)
+}
+
 /// **A lens is carried over the reach of its arc, not its carrier
 /// circle's** (`[placement]`: its own reach, as a placement's copy is):
 /// a shallow arc's circle stands far past the lens, and the band has two
@@ -878,36 +940,8 @@ fn a_lens_is_carried_over_its_arcs_reach_on_both_edges() {
     let edge = |arm| geom_core::test_support::least_turn_band_edge(tol, arm);
     let pole = |arm| tol.k() * tol.eps() / arm;
     let band = |arm: f64| edge(arm).max(pole(arm));
-    // The lens drawn on the chart, and its placed twin: the same lens
-    // extruded a hundredth of its chord free and mated onto the face.
     let agree = |row: &str, tilt, height, chord: f64, (program, _): (LoopProgram<Formula>, f64)| {
-        let (doc, copy, top, backwards) = near_the_pole(tilt, height);
-        let at = on(Some(backwards), 0.0, [0.0, 0.0]);
-        let (drawn_doc, profile) = drawn_loop(&doc, copy, top.clone(), at, program.clone());
-        let drawn = chart(&drawn_doc, profile);
-        let outline = editor_core::ProfileProgram {
-            loops: vec![program],
-            ids: Vec::new(),
-            on: None,
-        };
-        let twin = placed_twin(
-            doc,
-            (copy, top),
-            backwards,
-            (ang(0.0), [0.0, 0.0]),
-            (outline, chord / 100.0),
-        );
-        assert!(
-            drawn.is_ok() == twin.is_ok()
-                && (drawn.is_ok()
-                    || drawn
-                        .as_ref()
-                        .is_err_and(|e| refuses_backwards(e, backwards))
-                        && matches!(twin, Err(MateFault::Backwards { .. }))),
-            "{row}: the lens and its placed twin agree at tilt {tilt}, backwards where they refuse: {:?} / {twin:?}",
-            drawn.as_ref().err()
-        );
-        drawn.is_ok()
+        agrees_with_twin(row, tilt, height, program, chord / 100.0)
     };
 
     let meet = (tol.k() * tol.eps() * tol.rounding_reach() / 2.0).sqrt();
@@ -935,6 +969,97 @@ fn a_lens_is_carried_over_its_arcs_reach_on_both_edges() {
     assert!(
         !agree("narrow edge", tilt, chord, chord, narrow),
         "narrow edge: the lens refuses at tilt {tilt}, where its carrier circle's arm would chart"
+    );
+}
+
+/// **An arc is measured over its own window, in the loop's canonical
+/// order** (`[placement]`: what stands in a face's chart is carried over
+/// its own reach). Each row's arc is the loop's farthest part, or
+/// misreading it would make it so. The tilt sits between the bands of the
+/// true reach and the misread one, on the wide edge, where the band grows
+/// with the arm.
+///
+/// - **A large-sweep arc**: a keyhole, a short chord near the origin
+///   closed by an arc of sweep `2π − 0.6` about `(r, 0)`. Its reach is the
+///   arc's far side, `2r`. Its chord alone stands `0.3r` off, so an arc
+///   measured by its chord would chart where the keyhole refuses.
+/// - **A clockwise arc**: a square with a concave semicircular bite out of
+///   its right side, the bite a clockwise arc. Its reach is the square's
+///   far corners, `√2·h`. Read turning the other way from its start, the
+///   bite would bulge out to `1.9h` and refuse where the square charts.
+/// - **A loop reversed into canonical order**: the same bitten square
+///   drawn clockwise, its bite then a counter-clockwise arc. It is
+///   measured as the canonical loop is.
+#[test]
+fn an_arc_is_measured_over_its_own_window_in_canonical_order() {
+    let tol = Tol::witness();
+    let edge = |arm| geom_core::test_support::least_turn_band_edge(tol, arm);
+    let pole = |arm| tol.k() * tol.eps() / arm;
+    let band = |arm: f64| edge(arm).max(pole(arm));
+    let meet = (tol.k() * tol.eps() * tol.rounding_reach() / 2.0).sqrt();
+    let height = meet;
+    // The tilt between the true arm's band and the misread one's, with
+    // the margin to each.
+    let between = |row: &str, true_arm: f64, misread: f64| {
+        let tilt = (band(true_arm) * band(misread)).sqrt();
+        let (lo, hi) = (
+            band(true_arm).min(band(misread)),
+            band(true_arm).max(band(misread)),
+        );
+        assert!(
+            pole(true_arm.min(misread)) < 0.5 * edge(true_arm.min(misread))
+                && 1.1 * lo < tilt
+                && tilt < hi / 1.1,
+            "FIXTURE {row}: the tilt {tilt} stands clear of both bands on the wide edge ({lo}, {hi})"
+        );
+        tilt
+    };
+
+    let r = 10.0 * meet;
+    let alpha: f64 = 0.3;
+    let (gx, gy) = (r - r * alpha.cos(), r * alpha.sin());
+    let keyhole = outline(&[
+        ([gx, gy], None),
+        ([gx, -gy], Some(1.0 / (alpha / 2.0).tan())),
+    ]);
+    let tilt = between("large sweep", 2.0 * r + height, gx.hypot(gy) + height);
+    assert!(
+        !agrees_with_twin("a large-sweep arc", tilt, height, keyhole, r / 100.0),
+        "a large-sweep arc: the keyhole refuses at tilt {tilt}, where its chord's arm would chart"
+    );
+
+    let h = 10.0 * meet;
+    let (w, rho) = (h, 0.9 * h);
+    let tilt = between("clockwise", w.hypot(h) + height, w + rho + height);
+    let bitten = outline(&[
+        ([0.0, -h], None),
+        ([w, -h], None),
+        ([w, -rho], Some(-1.0)),
+        ([w, rho], None),
+        ([w, h], None),
+        ([0.0, h], None),
+    ]);
+    assert!(
+        agrees_with_twin("a clockwise arc", tilt, height, bitten, h / 100.0),
+        "a clockwise arc: the bitten square charts at tilt {tilt}, where its bite read the other way would refuse"
+    );
+    let reversed = outline(&[
+        ([0.0, -h], None),
+        ([0.0, h], None),
+        ([w, h], None),
+        ([w, rho], Some(1.0)),
+        ([w, -rho], None),
+        ([w, -h], None),
+    ]);
+    assert!(
+        agrees_with_twin(
+            "a loop reversed into canonical order",
+            tilt,
+            height,
+            reversed,
+            h / 100.0
+        ),
+        "a loop reversed into canonical order: the bitten square drawn clockwise charts at tilt {tilt}"
     );
 }
 
@@ -1030,6 +1155,94 @@ fn a_traced_profile_is_decided_as_its_placed_twin_is() {
             "{row}: refused in the twin's band, charted past it"
         );
     }
+}
+
+/// **A profile that takes a traced crossing is decided as its placed
+/// twin is** (`[placement]`: a trace uses the turn only at the crossing a
+/// piece takes). On the near-pole top cap of the block's copy, a 2 × 1
+/// rectangle whose right side is where its bottom edge, run along the
+/// chart's `x`, leaves the copy's side face at local `x = 2`: the traced
+/// crossing. Its placed twin is the same rectangle written out, drawn
+/// free and mated onto the cap. At a tilt in the twin's band and one past
+/// it, the profile reads the crossing, and refuses backwards or charts
+/// where its twin does.
+#[test]
+fn a_profile_taking_a_traced_crossing_is_decided_as_its_placed_twin_is() {
+    use editor_core::{ProgramStep, ProgramTarget, TraceCrossing, TracePassage};
+    let tol = Tol::witness();
+    let edge = |arm| geom_core::test_support::least_turn_band_edge(tol, arm);
+    let pole = |arm| tol.k() * tol.eps() / arm;
+    let band = |arm: f64| edge(arm).max(pole(arm));
+    let height = 100.0;
+    let (y0, y1) = (-0.5, -1.5);
+    let arm = 2f64.hypot(y1) + height;
+    let mut outcomes = Vec::new();
+    for tilt in [0.5 * band(arm), 2.0 * band(arm)] {
+        let (doc, copy, top, backwards) = near_the_pole(tilt, height);
+        let ev = eval(&doc);
+        let side = editor_core::all_faces(&ev, copy)
+            .into_iter()
+            .find(|name| {
+                editor_core::face_frame(&ev, copy, name)
+                    .is_ok_and(|pose| pose.axis.x > 0.5 && (pose.origin.x - 2.0).abs() < 1e-9)
+            })
+            .expect("the copy's side at x = 2");
+        let mut at = on(Some(backwards), 0.0, [0.0, 0.0]);
+        at.traced = vec![Operand::select(
+            BodyRead::plain(Operand::from(copy)),
+            vec![side],
+        )];
+        let steps = LoopProgram::Chain(vec![
+            ProgramStep::At(fixture::len2([0.0, y0])),
+            ProgramStep::Toward {
+                dx: fixture::scl(1.0),
+                dy: fixture::scl(0.0),
+            },
+            ProgramStep::LineTo(ProgramTarget::OnTrace {
+                face: 0,
+                crossing: TraceCrossing::first(TracePassage::Leave),
+            }),
+            ProgramStep::LineTo(ProgramTarget::Point(fixture::len2([2.0, y1]))),
+            ProgramStep::LineTo(ProgramTarget::Point(fixture::len2([0.0, y1]))),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]);
+        let (drawn_doc, profile) = drawn_loop(&doc, copy, top.clone(), at, steps);
+        let mut drawn_ev = eval(&drawn_doc);
+        let drawn = chart_in(&mut drawn_ev, profile);
+        let outline = editor_core::ProfileProgram {
+            loops: vec![outline(&[
+                ([0.0, y0], None),
+                ([2.0, y0], None),
+                ([2.0, y1], None),
+                ([0.0, y1], None),
+            ])],
+            ids: Vec::new(),
+            on: None,
+        };
+        let twin = placed_twin(
+            doc,
+            (copy, top),
+            backwards,
+            (ang(0.0), [0.0, 0.0]),
+            (outline, 0.01),
+        );
+        assert!(
+            drawn.is_ok() == twin.is_ok()
+                && (drawn.is_ok()
+                    || drawn
+                        .as_ref()
+                        .is_err_and(|e| refuses_backwards(e, backwards))
+                        && matches!(twin, Err(MateFault::Backwards { .. }))),
+            "the traced profile and its placed twin agree at tilt {tilt}: {:?} / {twin:?}",
+            drawn.as_ref().err()
+        );
+        outcomes.push(drawn.is_ok());
+    }
+    assert_eq!(
+        outcomes,
+        [false, true],
+        "refused in the twin's band, charted past it"
+    );
 }
 
 /// **A face's chart moved in a profile's frame seat refuses typed**: a

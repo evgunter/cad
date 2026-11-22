@@ -201,8 +201,11 @@ fn meetings<T: Decide>(
         Pose::Tangent(_) if found.meetings.iter().any(|m| touches(&m)) => {
             return Err(TraceFault::Grazing);
         }
-        Pose::Tangent(_) => return Ok(Vec::new()),
-        Pose::Apart | Pose::Isolated(_) => {}
+        // A `Tangent` holds its one touch and no other meeting (C5's
+        // curve × face pose, `curve_face::cross::Crossings`): a touch at an
+        // end the read skips, which the filter below drops, and anything
+        // else the reading held is kept, not dropped here.
+        Pose::Tangent(_) | Pose::Apart | Pose::Isolated(_) => {}
     }
     let (t0, t1) = span.params();
     Ok(found
@@ -273,6 +276,21 @@ const TAKEN_HALVINGS: u32 = 64;
 /// the run drawn plus that gap. Where it takes none, the whole run's
 /// crossings, for their count.
 ///
+/// Two known limits; neither moves the crossing a piece takes:
+///
+/// - **The halving assumes the readable prefixes are nested**: that a
+///   prefix reads wherever a longer one does. A short prefix whose stop
+///   end falls in band of a crossing can refuse where a longer one reads,
+///   and the halving then settles on a shorter prefix than the longest,
+///   or none, and refuses the whole run's fault where a longer prefix
+///   held the crossing taken.
+/// - **The separating read skips its stop end**, as every prefix read
+///   does: a crossing exactly at the midpoint between the taken one and
+///   the next is not a meeting of that read. The two reads place their
+///   crossings on the same carrier with the same method, so the midpoint
+///   stands half a decided gap from each; a crossing there would be one
+///   the whole read did not place between them.
+///
 /// # Errors
 ///
 /// The whole run's refusal, where no prefix holds the crossing the piece
@@ -330,9 +348,14 @@ pub fn ray_crossings_to<T: Decide>(
     let dir = ray.line().dir;
     let carrier = Curve3::Line(ray.line());
     let read = |run: T, whole: bool| {
-        // Unsourced lever: the run the piece reads, a length along the
-        // piece rather than geometry the extent home reads.
-        let arm = geom_core::Lever::unsourced(run);
+        // The run read as the segment it covers, levered from the ray's
+        // start: the run itself, the extent the crossings are decided
+        // over.
+        let arm = geom_brep::ExtentBall::of_covered(
+            geom::cover::Cover::segment(ray.start_point(), ray.start_point() + dir * run)
+                .as_ref(),
+        )
+        .lever_from(ray.start_point());
         let span = Span::new(&carrier, (ray.start(), ray.from_start(run)));
         let skip: &[SpanEnd] = if whole {
             &[SpanEnd::Start]
