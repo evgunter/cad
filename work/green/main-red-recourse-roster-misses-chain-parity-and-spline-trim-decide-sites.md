@@ -25,3 +25,7 @@ Each new site needs a roster line with its disposition, or the decide call
 has to move back under the name the roster lists. The gating gap that lets
 such a change past its PR is
 `green/a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
+
+## Seen by `oneround/unsourced-unions` (PR 7294), 2026-11-21
+
+Confirmed on that branch's final tree (debug build, default ε): `recourse_roster::every_decided_name_has_its_door_and_every_site_is_read` fails with `an indirect site not listed: chain_parity.rs: decide: name` and `… spline_trim.rs: decide: name`. Neither file is in that branch's diff.

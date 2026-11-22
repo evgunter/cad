@@ -626,8 +626,8 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
 
     // (2) the corner's turn: its sign is the side both carriers offset
     // toward, so the offset construction never searches.
-    // Unsourced lever: the shorter leg's arm at the corner, a length of the consumed legs with
-    // no extent home in `profile`.
+    // Unsourced lever: the shorter leg's arm at the corner, a record's stored length with no
+    // 2D extent door (`work/oneround/stored-reach-scalars-a-union-cannot-be-read-from.md`).
     let turn = Margin::levered(
         leg_in.dir.perp_dot(leg_out.dir),
         geom_core::Lever::unsourced(arm),

@@ -22,3 +22,7 @@ The row admits `NodeUnbuilt`, `GermFrameUnsupported` and `FallbackExtentUnsuppor
 **Owed.** Name the merge. Then decide: either the section builds at 1e-12, or the refusal is a frontier the row should admit by name, with the reason the residual's floor sits at 1.1e-12 for this pair. `ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall` is the cost side of the same march.
 
 **Pinned** (`green/eps-1e-6`): the row is under `test_utils::pinned_red::row` at ε 1e-12 on this refusal (and at 1e-6 on another stop, `work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`). Take the pin off with the fix.
+
+## Seen by `oneround/unsourced-unions` (PR 7294), 2026-11-21
+
+At 1e-12 (release build, the branch's base: PR 7227 with main at `b80352cd`), `verbs_cylcyl_r1_review_probes::every_reachable_crossing_pose_refuses_typed_or_answers_correctly` was red in both modes of a differential (each site under test on its old read, and on its new one), with identical payloads. It stopped somewhere the pinned row does not name: `skew axes, crossing walls/intersect: ERR Euler(RebasedCarrier { edge: EdgeKey(17v1), error: PeriodicView(Span { asked: (-0.9887583186488748, 0.01124168…` (`crates/sweep/tests/verbs_cylcyl_r1_review_probes.rs:236`), not at the tall thin pair's limb 2. The row's pin names only that stop.
