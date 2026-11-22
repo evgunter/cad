@@ -16,7 +16,7 @@ use crate::common::{axis_y, validated};
 use crate::reach_probes::{Got, geometry_but_the_volume, geometry_enclosing, got_enclosing, tol};
 
 /// The profile `pts` revolved about `y` through `turn`.
-fn turned(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
+pub(super) fn turned(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
     let lp = ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)));
     revolve(&validated(vec![lp]), axis_y(), turn, tol())
         .unwrap()
@@ -25,7 +25,7 @@ fn turned(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
 }
 
 /// The body's line edges, in arena order.
-fn rulings(body: &Body<f64>) -> Vec<topo::EdgeKey> {
+pub(super) fn rulings(body: &Body<f64>) -> Vec<topo::EdgeKey> {
     body.edges()
         .filter(|(_, e)| {
             matches!(
@@ -42,7 +42,11 @@ fn rulings(body: &Body<f64>) -> Vec<topo::EdgeKey> {
 /// `body` with each of `edges` split at `fracs` of its parameter range,
 /// placed by an oblique rigid map (an axis-aligned one keeps the pieces'
 /// azimuths bitwise equal).
-fn split_and_placed(body: &Body<f64>, edges: &[topo::EdgeKey], fracs: &[f64]) -> Body<f64> {
+pub(super) fn split_and_placed(
+    body: &Body<f64>,
+    edges: &[topo::EdgeKey],
+    fracs: &[f64],
+) -> Body<f64> {
     let mut b = body.clone();
     for &ek in edges {
         let (t0, t1) = b
@@ -1281,7 +1285,7 @@ fn a_one_chord_face_through_the_apex_with_both_sides_split_meshes() {
 /// an arc back, `h = √(1.05² − 1)`, its bulge `sign · tan(θ/4)`,
 /// `θ = 2·atan2(h, 1)`: a torus face round the bore for one sign, a
 /// sphere face for the other. Either holds both of the bore's rims.
-fn bored_ball(sign: f64) -> Body<f64> {
+pub(super) fn bored_ball(sign: f64) -> Body<f64> {
     use profile::test_support::bulge_loop;
     let r: f64 = 1.05;
     let h = (r * r - 1.0).sqrt();

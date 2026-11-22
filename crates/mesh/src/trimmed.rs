@@ -449,7 +449,9 @@ pub(crate) fn face_target(surface: &Surface<f64>, lane: Lane, delta: f64) -> f64
 /// the other nappe is neither (no body built here makes one), and one
 /// whose apex the band cannot decide is not answered: both keep the
 /// lattice and the CDT (`Trim::Structural`), which refuse them typed. The
-/// apex is read where the lane reads it ([`AnalyticRow::is_singular`]).
+/// apex is read as the lane reads it (`chart_table::at_a_pole`, the
+/// decision [`AnalyticRow::is_singular`] makes), with no row minted for a
+/// window the route has not read.
 pub(crate) fn walkable(
     body: &Body<f64>,
     fk: FaceKey,
@@ -459,7 +461,6 @@ pub(crate) fn walkable(
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    let row = AnalyticRow::new(surface, f64::NAN)?;
     let (mut line, mut apexes) = (Vec::new(), 0usize);
     for (hek, ek, _) in crate::walk::loop_half_edges(body, face.outer, fk)? {
         match edge_carrier(body, ek)? {
@@ -474,7 +475,12 @@ pub(crate) fn walkable(
             .ok_or(TessellateError::MissingEntity {
                 what: "vertex position",
             })?;
-        match row.is_singular(*start, band) {
+        let at_apex = crate::chart_table::at_a_pole(surface, *start, band).ok_or(
+            TessellateError::MissingEntity {
+                what: "an analytic surface's chart",
+            },
+        )?;
+        match at_apex {
             Ok(true) => apexes += 1,
             Ok(false) => {}
             Err(_) => return Ok(false),
@@ -2373,10 +2379,7 @@ fn developed_runs(
 /// Whether edge `ek` is carried by a line, which on a cone is a ruling:
 /// what [`developed_runs`] reads of the polygon side an edge carries.
 fn carried_by_a_line(body: &Body<f64>, ek: EdgeKey) -> bool {
-    body.get_edge(ek)
-        .and_then(|edge| body.get_curve_geom(edge.curve))
-        .and_then(|geom| geom.certified())
-        .is_some_and(|curve| matches!(curve.carrier(), geom::Curve3::Line(..)))
+    edge_carrier(body, ek).is_ok_and(|carrier| matches!(carrier, geom::Curve3::Line(..)))
 }
 
 /// The [`Run`] that `group`, every polygon point at one CDT point, is;
@@ -3575,28 +3578,31 @@ fn may_make(
 }
 
 /// **A walked face's patch** (`crate::ruled_walk`): the walk of its two
-/// rows, a triangle a neighbouring face may also make a side of split at a
-/// point of the surface inside it, then each triangle read as every
-/// triangle of this lane is: its winding resolved and outward, its
-/// certificate within δ.
+/// rows, each side a neighbouring face may also make cut at a point of the
+/// surface between its ends, then each triangle read as every triangle of
+/// this lane is: its winding resolved and outward, its certificate within
+/// δ.
 ///
-/// **The shared side**, the cone arm's rule read from the same fact
-/// ([`faces_across`]): a triangle with a side joining two polygon points
-/// that are not neighbours on the polygon and that one neighbouring face
-/// holds both of is a side that face's own triangulation may make too, an
-/// edge of four triangles. A neighbour holding both of this face's rims
-/// (a sphere or a torus face round a bore, at a δ past the shell's
-/// thickness) makes rim-to-rim edges exactly as the walk does. Such a
-/// triangle is replaced by the three joining its sides to the surface
-/// point at its chart centroid, the apex's `u` left out: that point lies
-/// between the same rulings, so the three keep the walk's bound, and each
-/// adds two triangles to the face's count.
+/// **The shared side**, the polygon's one test
+/// ([`TrimPolygon::faces_holding_side`], which the CDT arms read too): a
+/// side joining two polygon points that are not neighbours on their loop
+/// and that one face across the loop's edges holds both of is a side that
+/// face's own triangulation may make, an edge of four triangles. A
+/// neighbour holding both of this face's rims (a sphere or a torus face
+/// round a bore, at a δ past the shell's thickness) makes rim-to-rim sides
+/// exactly as the walk does. The walk has no triangulation to rebuild
+/// round an inserted point, as the CDT arms do: it cuts the side, where
+/// the face across may reach it ([`may_make`]), at the surface point at
+/// its chart midpoint (the apex's `u` left out), and each triangle on it
+/// becomes two. That point lies between the same two rulings, so the two
+/// keep the walk's bound, and each cut adds two triangles to the face's
+/// count.
 ///
 /// # Errors
 ///
-/// [`TessellateError::MissingEntity`] where the polygon does not read as
-/// the two rows the route found in the loop ([`walkable`]); and the lane's per-triangle
-/// refusals: [`TessellateError::UnresolvedWinding`],
+/// [`TessellateError::RouterDefect`] where the polygon does not read as
+/// the two rows the route found in the loop ([`walkable`]); and the lane's
+/// per-triangle refusals: [`TessellateError::UnresolvedWinding`],
 /// [`TessellateError::FoldedTriangle`],
 /// [`TessellateError::CertificateExceeded`],
 /// [`TessellateError::RoundingUnresolved`].
@@ -3736,6 +3742,12 @@ fn walk_face(
         {
             return Err(TessellateError::FoldedTriangle { face: fk });
         }
+        // Which corners are the apex: an apex corner's chart `u` is a copy's
+        // (the polygon places the apex at the `u` of each ruling meeting
+        // it), and the certificate reads such a corner as the apex itself,
+        // a point at every `u`, not as `S(u, v)` at that copy's `u`
+        // (`cert::cert_cone`'s `pole`), as the CDT arms read theirs. A cut
+        // point is never the apex.
         let (bound, scale) = row.cert(tri, c.map(|c| c.1), c.map(|c| c.2));
         match cert::verdict(bound, tol.delta, scale, tol.eps) {
             cert::Verdict::Certified => {}

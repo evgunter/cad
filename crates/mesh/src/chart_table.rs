@@ -552,15 +552,7 @@ impl<'a> AnalyticRow<'a> {
     /// `trimmed`'s `singular_vertices` refuses the face typed instead
     /// (`SphereTrimCause::SingularUndecided`).
     pub(crate) fn is_singular(&self, p: Point3<f64>, band: Band) -> Result<bool, Indeterminate> {
-        let mut undecided = None;
-        for s in &self.singular {
-            match geom_brep::chart_singularity::vertex_at_singular_point(p, s.point, band) {
-                Ok(true) => return Ok(true),
-                Ok(false) => {}
-                Err(e) => undecided = Some(e),
-            }
-        }
-        undecided.map_or(Ok(false), Err)
+        at_a_singular_point(self.singular.iter().map(|s| s.point), p, band)
     }
 
     /// The face's outward normal at the foot of `p` on its chart, from the
@@ -621,6 +613,46 @@ impl<'a> AnalyticRow<'a> {
             | Analytic::Spindle { .. } => None,
         }
     }
+}
+
+/// **Whether `p` is one of the singular `points`** at `band`, decided in
+/// their order: `true` where one is decided zero distance from `p`,
+/// `false` where every one is decided clear, the escalation where none
+/// is decided zero and one is in the band. The one read of a vertex on a
+/// singular point, which [`AnalyticRow::is_singular`] and
+/// [`at_a_pole`] both make.
+fn at_a_singular_point(
+    points: impl Iterator<Item = Point3<f64>>,
+    p: Point3<f64>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut undecided = None;
+    for point in points {
+        match geom_brep::chart_singularity::vertex_at_singular_point(p, point, band) {
+            Ok(true) => return Ok(true),
+            Ok(false) => {}
+            Err(e) => undecided = Some(e),
+        }
+    }
+    undecided.map_or(Ok(false), Err)
+}
+
+/// **Whether `p` is a singular point of `surface`'s chart** (a cone's
+/// apex, a sphere's poles: `topo::chart::Chart::poles`), read as the lane
+/// reads it ([`AnalyticRow::is_singular`]) without a row: a reader with no
+/// face window at hand (the route's `trimmed::walkable`) asks this.
+/// `None` where the surface has no analytic chart.
+pub(crate) fn at_a_pole(
+    surface: &Surface<f64>,
+    p: Point3<f64>,
+    band: Band,
+) -> Option<Result<bool, Indeterminate>> {
+    let poles = topo::chart::Chart::of(surface)?.poles();
+    Some(at_a_singular_point(
+        poles.into_iter().map(|(point, _)| point),
+        p,
+        band,
+    ))
 }
 
 #[cfg(test)]
