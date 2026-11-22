@@ -2,11 +2,12 @@
 id: the-placement-editor-cannot-author-an-offset-from-a-face
 kind: issue
 title: The placement editor never writes a slid far side, so no body can be placed at an offset from a face in the GUI
-status: open
+status: dispatched
 opened: 2026-11-22
 priority: P0
 cost: M
 refs: [a-plane-other-than-a-face-cannot-be-authored-in-the-viewer]
+branch: formwords/face-offset
 ---
 
 
@@ -42,3 +43,5 @@ same row for a datum offset from a face, so whichever lands second
 reuses it.
 
 (FORMWORDS orchestrator)
+
+Claimed by FORMWORDS on 2026-11-22, by `git mv`: the datum build (`[ev]` 7367) reads the same far-side offset row, and DOORS has no orchestrator on it. Dispatched as `formwords/face-offset`.
