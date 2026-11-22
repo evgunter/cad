@@ -84,7 +84,8 @@ by θ = ε/r", levered at the faces' extent, read at stations along the
 edge), not a second answer to the same question.
 `Presentation::Vacuous` means only that the cell lies off the face.
 The sliver's funnel site, its entry in the module's "ε concessions" and
-the rows that assert `Vacuous` through it go.
+the rows that assert `Vacuous` through it go. Landed by `embed/remeter`
+("Landed" below).
 
 **The unit.**
 1. The margin is metered at the faces' reach, by the lever
@@ -94,7 +95,11 @@ the rows that assert `Vacuous` through it go.
    pairs. `a_rod_less_a_tilted_slab_holds_across_its_curved_corners`
    pins a count that moves (14 corner certificates to 18). The banded
    form itself was not measured; the designers put its margins on
-   these bodies at 0.1 to 0.4 m against 1e-8 m.
+   these bodies at 0.1 to 0.4 m against 1e-8 m. **Both proxy figures
+   are the exact sign's, not the banded form's** (measured by the
+   unit, "Landed" below): under the band the rod's count stays 14 and
+   four tour bodies take fewer pairs, since most of what the proxy
+   newly passed were rates signed only at rounding size.
 2. All three slivers go with it (`present_line_corner`,
    `present_plane_corner`, `present_chart`). `chute`, the stepped ring
    and `tiltedcut_above` hold without them, each pair by the carrier
@@ -648,3 +653,59 @@ So no cell was built where the old rectangle certifies wrongly. The
 measurement lane also found this reader's sliver decides `Zero` in no
 sweep. If the fork keeps the sliver, read this reader over the
 plane corner's `R`, which needs no extra argument.
+
+## Landed: the departure is a sine levered at the faces' reach, and the sliver is gone (EMBED, lane `embed/remeter`, 2026-11-22)
+
+Main at `0cae9969f`. Default ε unless a row says otherwise.
+
+**What the code reads now.**
+- `sign_on` decides how a face leaves a separator as
+  `Margin::levered(sine, arm)` at `SELF_INTERSECTION_DEPARTURE`: the
+  sine is `∇ψ·Φ_a / (|∇ψ|·|Φ_a|)` over the presentation rectangle, the
+  arm `arm_of`'s. The rectangle's own span is out of the margin.
+- `arm_of` reads the arm off the pair: near shared edges, each one's
+  reach by `wedge_reach::reach_over`, the recipe `edge_wedge_reach`
+  hands check 4, at the engine's lifted scalar (the least of them);
+  near shared vertices alone, the two faces' reach from each
+  (`reach_from_vertex`, new). A null edge gives no arm, and no arm
+  decides nothing.
+- At a pole or an apex (`Zero::Corner` with one side collapsed, read by
+  key through `Along::collapsed`) the sine is read by its limit,
+  `n·Φ_xy / (|n|·|Φ_xy|)`. Two regular sides answer nothing.
+- The three sliver sites, `SELF_INTERSECTION_SLIVER`, its entry in the
+  module's ε concessions and its audit row are gone. A strip beside a
+  shared line is presented however thin, and `Vacuous` is returned
+  only where a cell lies off the face.
+
+**The arm is the reach alone**, not check 4's fold with the faces'
+curvature arms: with the fold a cone that owns its apex refuses
+(`the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms`).
+The two readings are one lever source and one number at first order
+from two call sites, not yet one reading
+(`work/restfront/check-4-reads-an-edges-wedge-at-stations-where-the-embedding-question-reads-the-same-margin-over-the-whole-edge.md`).
+
+**Measured, before and after.**
+
+| what | main | this unit |
+|---|---|---|
+| the suite file, the `injective::` unit set, the cavity rows and `clearance` at default ε, 1e-6 and 1e-12 | 249 of 249 at each | 255 of 255 at each (six rows added) |
+| tour walk, 85 stops (main's own at `0cae9969f`) | 78 hold, 4 refused, 3 cross | the same verdict at every stop |
+| tour, leaves discharged | 499,153 | 499,036: `bracket` 1,389 to 1,379, `tiltedcut_above` 1,826 to 1,773, `cutaway_above` 2,996 to 2,967, `cutaway_below` 6,815 to 6,790 |
+| the filleted drum's `Interval` half | holds (567 pairs, 16 sliver decisions) | refuses `Uncertified`, the top plane against the band across their circle, arm `Departure`; pinned so, red the day it holds |
+
+- The four refusals on main's walk are `diepips`, `diecomposed`,
+  `diechamfer` and `lily_lantern`; this row's first measurement read 82
+  holding on the main of 2026-11-17. They refuse alike before and after.
+- `chute` holds with no sliver, 1,794 leaves for 1,794; the stepped
+  ring holds at both scalars, 386 leaves for 386, as built, turned 0.7
+  about `(1, 2, 3)` and placed a hundred units off.
+- **Why the pairs barely move where the proxy saw a tenth fewer.** Over
+  the suite file's 91,315 departure reads (traced on the prototype,
+  `embed/remeter-measure` at `d1ed935d9`): 14,785 decide as before; 484
+  decide now that the rectangle's span left in the band; **5,472 have a
+  rate signed only at rounding size** (a lower bound near 1e-17), which
+  an exact sign passes and the band refuses; the rest straddle zero.
+- On the stepped ring 58 of 198 reads are on rectangles 0 to 1.3e-15 m
+  across. All 58 decide, each by the cap's carrier with the annulus's
+  thin rectangle read: sine 1, arm 2.50 to 2.66 m.
+
