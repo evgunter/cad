@@ -1474,9 +1474,9 @@ impl ViewerBehavior<'_> {
         self.tool_commit_row(ui, ToolKind::Split, None, formed(tool.op()));
     }
 
-    /// The mirror tool's panel: the body and the face it is reflected
+    /// The mirror tool's panel: the body and the plane it is reflected
     /// across, held as picks ([`crate::combine::MirrorTool`]), and the
-    /// one committed edit.
+    /// one committed edit, withheld while a pick is missing.
     pub(crate) fn mirror_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.mirror().cloned() else {
             return self.tool_door(ui, ToolKind::Mirror);

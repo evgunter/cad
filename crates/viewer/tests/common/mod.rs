@@ -653,13 +653,13 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
 /// up from the start cap of the extrude `body` is built from, which is
 /// the plane square to `z` at `by` in that extrude's coordinates. A
 /// plane read as a caller writes one
-/// ([`viewer::session::SplitPlane::Read`]): the cap's plane slid into
+/// ([`viewer::session::ToolPlane::Read`]): the cap's plane slid into
 /// the body along its normal ([`plane_inside`]).
 pub fn cut_across(
     session: &DocSession,
     body: impl Into<pncad::document::Operand>,
     by: f64,
-) -> viewer::session::SplitPlane {
+) -> viewer::session::ToolPlane {
     use pncad::document::{Node, Operand};
     let mut on = body.into();
     let doc = session.committed_doc();
@@ -701,14 +701,14 @@ pub fn cut_across(
 /// **The plane `depth` metres inside the plane face `face`**, facing
 /// into the body: the face's plane turned over, so its normal points
 /// inward and a split's `above` side is the body's, then slid along it.
-pub fn plane_inside(face: pncad::document::Operand, depth: f64) -> viewer::session::SplitPlane {
+pub fn plane_inside(face: pncad::document::Operand, depth: f64) -> viewer::session::ToolPlane {
     use pncad::document::Operand;
     use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
     let plane = Operand::Pose(Box::new(PoseDef::Plane { face }));
     let inward = Operand::Pose(Box::new(PoseDef::Flip {
         pose: RoleRead::plain(plane),
     }));
-    viewer::session::SplitPlane::Read(RoleRead::plain(Operand::Pose(Box::new(PoseDef::Slide {
+    viewer::session::ToolPlane::Read(RoleRead::plain(Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::plain(inward.clone()),
         along: RoleRead::through(inward, PoseRole::Normal),
         by: len(depth),

@@ -90,3 +90,54 @@ far side. Filed as P0 on DOORS:
 `the-placement-editor-cannot-author-an-offset-from-a-face`.
 
 - 2026-11-22 — (FORMWORDS orchestrator) PR 7374 (seat-vocab) merged after a style review with correctness claims and a fix pass. It closes `a-fifth-spelling-of-this-seat-is-empty`, `four-pick-state-vocabularies-in-one-create-module` and the ride-along `a-per-kind-sentence-lives-in-the-widget-not-on-the-choice`. Merged on the fix pass's green CI and the orchestrator's read, without a delta review.
+## 2026-11-22 — mirror-plane reviewed
+
+(FORMWORDS orchestrator) PR 7373's review found it mergeable. It
+raised two MINORs: a variable picked before a face was silently
+dropped, and a hover sentence pointed at a pick the GUI cannot make. A
+fix pass is running on both. A class to watch: seats that decline a
+pick **silently** although `Tools::feed`'s doc promises a notice. The
+fix pass closes it for the plane seats; a datum or seat unit that adds
+a pick route checks its own seats against that doc.
+
+## 2026-11-22 — friction: disk and runners
+
+(FORMWORDS orchestrator)
+- **Disk.** Eight concurrent viewer lanes, each with its own target,
+  filled this container's ~60 GB allowance twice. Two lanes lost a
+  build to it and deleted their own targets. The rule applied since:
+  `CARGO_INCREMENTAL=0`, `-p <crate>` only, and the orchestrator
+  reclaims a review lane's clone and target the moment its report is
+  in. More than five or six concurrent lanes belong in their own cloud
+  sessions (`memories/orchestration-model.md`).
+- **Runners.** A docs-only PR waited about 17 minutes for its first
+  job, and one lane's `gate ok` sat queued for over an hour after its
+  jobs were green. The time queued is a finding of its own; nothing in
+  this track's diffs causes it.
+- **Review tiers dispatched:** held-pick full, seat-vocab style with
+  correctness claims (its commit-withholding is a behaviour change),
+  and refused-entry, denotes-body and mirror-plane full.
+
+## 2026-11-22 — reviews in; two P0s found
+
+(FORMWORDS orchestrator)
+- **PR 7379 (denotes-body)** was not mergeable: its merged head did
+  not compile, and its review found an evaluator panic.
+  `split_port` hits `unreachable!` on a split of a family that a
+  placement reads, which an ordinary split gesture reaches. Claimed
+  `a-split-of-a-family-has-no-halves-a-read-reaches` from REFS at P0
+  and dispatched `formwords/split-of-family` (dual review). The same
+  review found that the subtract tool seat cuts once per member when
+  handed a pattern whole (N plates, one hole each). Filed
+  `a-subtract-tool-seat-takes-a-whole-family-and-cuts-once-per-member`
+  (P0, design), and two designers are weighing it.
+- **PRs 7376, 7374 and 7378** are mergeable, each with a fix pass
+  running.
+- **Class: the slow-set rule is judged at CI speed.** Lanes timed rows
+  locally at opt-0 and over-applied the 0.5 s bar. CI's
+  `check-fast-set-times` is the instrument, and briefs now say so.
+- **Class: a test whose premise excludes the failing mode.** Two
+  reviews (7374, 7379) found rows that a mutation of the very gate
+  they name leaves green. Each review's mutations were the instrument
+  that caught it; future briefs ask reviewers for one mutation per new
+  gate row.
