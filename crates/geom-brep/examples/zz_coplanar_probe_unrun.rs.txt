@@ -1,0 +1,75 @@
+//! Scratch probe (designer lane, not for merging): does `curve_pair::meet`
+//! read two COPLANAR transversal crossings as meetings at scale, at f64
+//! and Interval?
+#![allow(clippy::unwrap_used, clippy::panic)]
+
+use geom::Curve3;
+use geom_brep::curve_pair::{Hit, Span, meet};
+use geom_core::{Band, Decide, Interval, Point3, Real, Tol, Vec3};
+
+fn frame<T: Real>() -> (Vec3<T>, Vec3<T>, Vec3<T>) {
+    let f = T::from_f64;
+    let n = Vec3::new(f(1.0), f(2.0), f(3.0)).normalize();
+    let e1 = n.cross(Vec3::new(f(0.0), f(0.0), f(1.0))).normalize();
+    let e2 = n.cross(e1);
+    (n, e1, e2)
+}
+
+fn report<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>, band: Band) -> String {
+    match meet(a, b, band) {
+        Ok(m) => {
+            let inner = m
+                .points
+                .iter()
+                .filter(|p| matches!((p.on_a, p.on_b), (Hit::On { .. }, Hit::On { .. })))
+                .count();
+            format!("ok interior={inner} total={} shared={:?}", m.points.len(), m.shared.is_some())
+        }
+        Err(r) => format!("ERR {:?} found={}", r.fault, r.found.len()),
+    }
+}
+
+fn cases<T: Decide>(x: f64, r: f64, skew: bool, band: Band, eps: f64) -> (String, String, String) {
+    let f = T::from_f64;
+    let (n, e1, e2) = if skew {
+        frame::<T>()
+    } else {
+        (
+            Vec3::new(f(0.0), f(0.0), f(1.0)),
+            Vec3::new(f(1.0), f(0.0), f(0.0)),
+            Vec3::new(f(0.0), f(1.0), f(0.0)),
+        )
+    };
+    let o = Point3::new(f(x), f(0.7 * x), f(-0.3 * x));
+    let rr = f(r);
+    // Line through the circle, off its centre by 0.3 r.
+    let line = Curve3::line(o + e2 * (f(0.3) * rr), e1);
+    let circ = Curve3::circle(o, n, rr, e1);
+    let circ2 = Curve3::circle(o + e1 * rr, n, rr, e1);
+    let ls = Span::new(&line, (f(-2.0 * r), f(2.0 * r)));
+    let cs = Span::new(&circ, (f(-2.5), f(2.5)));
+    let cs2 = Span::new(&circ2, (f(0.5), f(5.8)));
+    // Near-tangent line (clearance 0.3 eps, in band) whose span lies far
+    // from the tangent point: seg's segment_clear_of_circle certifies apart.
+    let tl = Curve3::line(o + e2 * (rr + f(0.3 * eps)), e1);
+    let tls = Span::new(&tl, (f(3.0 * r), f(5.0 * r)));
+    (report(&ls, &cs, band), report(&cs, &cs2, band), report(&tls, &cs, band))
+}
+
+#[test]
+fn coplanar_crossings_at_scale() {
+    for eps in [1e-9, 1e-12] {
+        let band = Band::linear_at(Tol::witness(), eps).unwrap();
+        for skew in [false, true] {
+            for r in [1.0, 100.0] {
+                for x in [0.0, 1e2, 1e3, 1e4, 1e6] {
+                    let (lf, cf, tf) = cases::<f64>(x, r, skew, band, eps);
+                    let (li, ci, ti) = cases::<Interval>(x, r, skew, band, eps);
+                    println!(
+                        "eps={eps:e} skew={skew} r={r} x={x:e}\n  f64 line×arc {lf}\n  f64 arc×arc  {cf}\n  Int line×arc {li}\n  Int arc×arc  {ci}\n  f64 near-tan far {tf}\n  Int near-tan far {ti}"
+                    );
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,72 @@
+with-build-slot: waiting for a slot (0s; holding: slot-1: pid 639597 since 20:45:09 (@1795236309): shared [held 24m59s] [not a slot this express request polls — not what blocks it]; express: pid 719400 since 21:09:48 (@1795237788): express(600s) [held 0m20s])
+with-build-slot: waiting for a slot (60s; holding: slot-1: pid 639597 since 20:45:09 (@1795236309): shared [held 26m0s] [not a slot this express request polls — not what blocks it]; express: pid 719400 since 21:09:48 (@1795237788): express(600s) [held 1m21s])
+with-build-slot: waiting for a slot (120s; holding: slot-1: pid 639597 since 20:45:09 (@1795236309): shared [held 27m2s] [not a slot this express request polls — not what blocks it]; express: pid 719400 since 21:09:48 (@1795237788): express(600s) [held 2m23s])
+with-build-slot: waiting for a slot (180s; holding: slot-1: pid 639597 since 20:45:09 (@1795236309): shared [held 28m2s] [not a slot this express request polls — not what blocks it]; express: pid 740151 since 21:12:58 (@1795237978): express(590s) [held 0m13s])
+with-build-slot: waiting for a slot (240s; holding: slot-1: pid 639597 since 20:45:09 (@1795236309): shared [held 29m3s] [not a slot this express request polls — not what blocks it]; express: pid 740151 since 21:12:58 (@1795237978): express(590s) [held 1m15s])
+with-build-slot: waiting for a slot (300s; holding: slot-1: pid 639597 since 20:45:09 (@1795236309): shared [held 30m5s] [not a slot this express request polls — not what blocks it]; express: pid 740151 since 21:12:58 (@1795237978): express(590s) [held 2m16s])
+with-build-slot: waiting for a slot (360s; holding: slot-1: pid 639597 since 20:45:09 (@1795236309): shared [held 31m6s] [not a slot this express request polls — not what blocks it]; express: pid 740151 since 21:12:58 (@1795237978): express(590s) [held 3m17s])
+with-build-slot: waiting for a slot (420s; holding: slot-1: pid 639597 since 20:45:09 (@1795236309): shared [held 32m7s] [not a slot this express request polls — not what blocks it]; express: pid 745345 since 21:16:58 (@1795238218): express(600s) [held 0m18s])
+with-build-slot: waiting for a slot (480s; holding: slot-1: pid 639597 since 20:45:09 (@1795236309): shared [held 33m8s] [not a slot this express request polls — not what blocks it]; express: pid 745345 since 21:16:58 (@1795238218): express(600s) [held 1m19s])
+   Compiling geom-brep v0.0.0 (/home/evan/.local/share/cad-work/profile-dz-planar-12797/cad/crates/geom-brep)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2m 36s
+     Running `../target/debug/examples/planar_probe`
+PROBE 1 tangent joint line->arc ab f64: OK shared=None points=1 [End(Stop) / End(Start)]
+PROBE 1 tangent joint line->arc ba f64: OK shared=None points=1 [End(Start) / End(Stop)]
+PROBE 1b corner joint line->line ab f64: OK shared=None points=1 [End(Stop) / End(Start)]
+PROBE 1b corner joint line->line ba f64: OK shared=None points=1 [End(Start) / End(Stop)]
+PROBE 1c tangent joint arc->arc (S) ab f64: OK shared=None points=1 [End(Stop) / End(Stop)]
+PROBE 1c tangent joint arc->arc (S) ba f64: OK shared=None points=1 [End(Stop) / End(Stop)]
+PROBE 2 line under arc, clearance in gap ab f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(5.500000010982831e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 2 line under arc, clearance in gap ba f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(5.500000010982831e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 2b line under arc, clearance zero-band ab f64: OK shared=None points=1 [On / On]
+PROBE 2b line under arc, clearance zero-band ba f64: OK shared=None points=1 [On / On]
+PROBE 3 line ends 1 short of in-gap graze ab f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(5.500000010982831e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 3 line ends 1 short of in-gap graze ba f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(5.500000010982831e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 3b line under carrier, arc is far half ab f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(5.500000010982831e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 3b line under carrier, arc is far half ba f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(5.500000010982831e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 4 arcs away from in-gap external tangency ab f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(5.500000010982831e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 4 arcs away from in-gap external tangency ba f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(5.500000010982831e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 4b arcs away from in-gap internal tangency ab f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(-5.500000010982831e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 4b arcs away from in-gap internal tangency ba f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(5.500000010982831e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 5 near one circle (gap), spans far apart ab f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(5.500003552713688e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_one_curve") }) found=0 
+PROBE 5 near one circle (gap), spans far apart ba f64: REFUSED Escalated(Indeterminate { margin: MarginDiag(Value(5.500003552713688e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_one_curve") }) found=0 
+PROBE 5b same circle, spans far apart ab f64: OK shared=Some(Same) points=0 
+PROBE 5b same circle, spans far apart ba f64: OK shared=Some(Same) points=0 
+PROBE 6 clean crossing at 1e3, eps 1e-12 ab f64: OK shared=None points=1 [On / On]
+PROBE 6 clean crossing at 1e3, eps 1e-12 ba f64: OK shared=None points=1 [On / On]
+PROBE 6b clean line crossing at 1e3, eps 1e-12 ab f64: OK shared=None points=1 [On / On]
+PROBE 6b clean line crossing at 1e3, eps 1e-12 ba f64: OK shared=None points=1 [On / On]
+PROBE 6c clean arc crossing at 1e3, eps 1e-12 ab f64: OK shared=None points=1 [On / On]
+PROBE 6c clean arc crossing at 1e3, eps 1e-12 ba f64: OK shared=None points=1 [On / On]
+PROBE 6d clean crossing at origin, eps 1e-12 ab f64: OK shared=None points=1 [On / On]
+PROBE 6d clean crossing at origin, eps 1e-12 ba f64: OK shared=None points=1 [On / On]
+PROBE 1 tangent joint line->arc ab geom_core::interval::Interval: OK shared=None points=1 [End(Stop) / End(Start)]
+PROBE 1 tangent joint line->arc ba geom_core::interval::Interval: OK shared=None points=1 [End(Start) / End(Stop)]
+PROBE 1b corner joint line->line ab geom_core::interval::Interval: OK shared=None points=1 [End(Stop) / End(Start)]
+PROBE 1b corner joint line->line ba geom_core::interval::Interval: OK shared=None points=1 [End(Start) / End(Stop)]
+PROBE 1c tangent joint arc->arc (S) ab geom_core::interval::Interval: OK shared=None points=1 [End(Stop) / End(Stop)]
+PROBE 1c tangent joint arc->arc (S) ba geom_core::interval::Interval: OK shared=None points=1 [End(Stop) / End(Stop)]
+PROBE 2 line under arc, clearance in gap ab geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 5.500000010982831e-9, hi: 5.500000010982831e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 2 line under arc, clearance in gap ba geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 5.500000010982831e-9, hi: 5.500000010982831e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 2b line under arc, clearance zero-band ab geom_core::interval::Interval: OK shared=None points=1 [On / On]
+PROBE 2b line under arc, clearance zero-band ba geom_core::interval::Interval: OK shared=None points=1 [On / On]
+PROBE 3 line ends 1 short of in-gap graze ab geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 5.500000010982831e-9, hi: 5.500000010982831e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 3 line ends 1 short of in-gap graze ba geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 5.500000010982831e-9, hi: 5.500000010982831e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 3b line under carrier, arc is far half ab geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 5.500000010982831e-9, hi: 5.500000010982831e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 3b line under carrier, arc is far half ba geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 5.500000010982831e-9, hi: 5.500000010982831e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 4 arcs away from in-gap external tangency ab geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 5.499999122804411e-9, hi: 5.5000004550720405e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 4 arcs away from in-gap external tangency ba geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 5.499999122804411e-9, hi: 5.5000004550720405e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 4b arcs away from in-gap internal tangency ab geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: -5.5000002330274356e-9, hi: -5.499999899960528e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 4b arcs away from in-gap internal tangency ba geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 5.499999788938226e-9, hi: 5.5000002330274356e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_extreme") }) found=0 
+PROBE 5 near one circle (gap), spans far apart ab geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 5.500003552713687e-9, hi: 5.500003552713691e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_one_curve") }) found=0 
+PROBE 5 near one circle (gap), spans far apart ba geom_core::interval::Interval: REFUSED Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 5.500003552713687e-9, hi: 5.500003552713691e-9, tag: None, zero: ZeroWord(0) }), terminal_sliver: true, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_pair_pose_one_curve") }) found=0 
+PROBE 5b same circle, spans far apart ab geom_core::interval::Interval: OK shared=Some(Same) points=0 
+PROBE 5b same circle, spans far apart ba geom_core::interval::Interval: OK shared=Some(Same) points=0 
+PROBE 6 clean crossing at 1e3, eps 1e-12 ab geom_core::interval::Interval: OK shared=None points=1 [On / On]
+PROBE 6 clean crossing at 1e3, eps 1e-12 ba geom_core::interval::Interval: OK shared=None points=1 [On / On]
+PROBE 6b clean line crossing at 1e3, eps 1e-12 ab geom_core::interval::Interval: OK shared=None points=1 [On / On]
+PROBE 6b clean line crossing at 1e3, eps 1e-12 ba geom_core::interval::Interval: OK shared=None points=1 [On / On]
+PROBE 6c clean arc crossing at 1e3, eps 1e-12 ab geom_core::interval::Interval: OK shared=None points=1 [On / On]
+PROBE 6c clean arc crossing at 1e3, eps 1e-12 ba geom_core::interval::Interval: OK shared=None points=1 [On / On]
+PROBE 6d clean crossing at origin, eps 1e-12 ab geom_core::interval::Interval: OK shared=None points=1 [On / On]
+PROBE 6d clean crossing at origin, eps 1e-12 ba geom_core::interval::Interval: OK shared=None points=1 [On / On]
