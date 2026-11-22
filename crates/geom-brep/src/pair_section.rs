@@ -1787,9 +1787,9 @@ impl<T: Decide> PairSection<T> {
     }
 
     /// **The nodes the value lists** (C5, [`SectionNode`]): points where
-    /// branches of the section cross and the surfaces are tangent, each
-    /// decided on the pose as a `Zero` tangency whose section still has
-    /// carriers, listed where the domain holds it. An open component
+    /// branches of the section cross, each decided on the pose as a `Zero`
+    /// tangency whose section still has carriers, or a cone's apex on the
+    /// other surface, listed where the domain holds it. An open component
     /// names the ones it ends at ([`ComponentEnds::nodes`]).
     pub fn nodes(&self) -> &[SectionNode<T>] {
         &self.nodes

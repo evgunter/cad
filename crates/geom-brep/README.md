@@ -1184,8 +1184,19 @@ torus pose has no closed-form count of its components, and its
 components are the march's (`Components::Marched`), which the general
 rung's door (`ssi::cylinder_torus_ssi`, `ssi::torus_torus_ssi`) marches
 past a transverse gap. `implemented` covers the whole operation.
-Every other pair refuses: the cone pairs blocked on the cone's metres
-conversion (C2 limb 2).
+A cone against a cylinder or a cone (`ConeRuledPose`) is classified
+on the sweep along the cone's rulings over the region, both nappes at
+once: a ruling along an asymptotic direction of the partner reads its
+sheet by the root form that stays finite, the other sheet leaving the
+region as an open component with cut ends; a double root of the
+discriminant is a tangency only where the rulings' clearance ceiling
+over it is decided `Zero`, the sweep's margin being a floor on that
+clearance; and an apex on the partner is divided out of the rulings'
+quadratic, its node's arcs ending at it. Two cones through one apex,
+and two on parallel axes of one aperture, are not built here. Its
+components are the general rung's, and carrying them refuses typed:
+the march needs the cone's ℝ³ enclosures (C2), which are not built.
+Every other pair refuses: the cone against a sphere or a torus.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the

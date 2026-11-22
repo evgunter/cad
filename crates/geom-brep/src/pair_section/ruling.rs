@@ -2279,7 +2279,7 @@ pub(crate) const COVERAGE_DEPTH: u32 = 30;
 /// The cells [`coverage`] reads before it gives up.
 pub(crate) const COVERAGE_CELLS: usize = 1 << 18;
 
-/// **The ruling angle's coverage of a pair with a ruled cylinder**, a
+/// **The ruling angle's coverage of a pair with a ruled cylinder or cone**, a
 /// second reading of the count the sweep closed exhaustiveness on (C3):
 /// every cell of `ruled`'s ruling angle has its rulings' meetings with
 /// `partner` outside `ball` (the ball the march ends at), or inside one of
@@ -2290,7 +2290,12 @@ pub(crate) const COVERAGE_CELLS: usize = 1 << 18;
 /// against a cylinder's axis `(o′, a′)` of radius `r`, with `w = p − o′`,
 /// `A = |a × a′|²`, `B = (w × a′)·(a × a′)`, `C = |w × a′|² − r²`; against
 /// a sphere about `c` of radius `R`, with `w = p − c`, `A = a·a`,
-/// `B = w·a`, `C = w·w − R²`. Neither the sweep's frame nor its closed
+/// `B = w·a`, `C = w·w − R²`; against a cone from `k` about `d` of
+/// half-angle `α`, with `w = p − k`, `A = (d·a)² − cos²α|a|²`,
+/// `B = (d·w)(d·a) − cos²α w·a`, `C = (d·w)² − cos²α|w|²`. A cone's
+/// rulings run from its apex along its generators, `t` over both nappes,
+/// and a root whose divisor reaches zero is read by the other form, or
+/// past the ball by its floor. Neither the sweep's frame nor its closed
 /// form enters it, so a defect in either does not hide itself here: it
 /// is independent of the sweep in its algebra. It is not independent in
 /// its enclosure arithmetic, which it shares with the sweep
@@ -2311,45 +2316,62 @@ pub(crate) fn coverage(
     use crate::ssi::enclose::Box3;
     use geom_core::{Bounds as _, Interval, SpanLocate as _};
     let unread = [0.0, core::f64::consts::TAU];
-    let &geom::Surface::Cylinder {
-        frame: carrier_frame,
-        radius: rho,
-    } = ruled
-    else {
-        return Err(unread);
-    };
-    let (o, a) = (carrier_frame.origin(), carrier_frame.axis());
     let lift = Interval::from_computed;
     let p3 = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
     let v3 = |v: Vec3<f64>| Vec3::new(lift(v.x), lift(v.y), lift(v.z));
-    // The ruled wall's own frame, squared from its seam reference.
-    let Some(frame) = ruled.frame().map(|f| f.square()) else {
-        return Err(unread);
-    };
-    let (u, v) = (frame.u_ref, frame.axis.cross(frame.u_ref));
-    let (o, a, u, v) = (p3(o), v3(a), v3(u), v3(v));
-    let rho = lift(rho);
     let along = |k: Vec3<Interval>| V3::along(k, Iv::point(Interval::one()));
-    // `(A, B, C)` of the rulings through the enclosure `p`.
-    type Quadratic = Box<dyn Fn(V3<Interval>) -> (Interval, Iv<Interval>, Iv<Interval>)>;
+    // The rulings over a cell, `p + t·a`: a cylinder's round its wall
+    // along its axis, from its own frame squared from its seam
+    // reference; a cone's from its apex along its generators, which turn.
+    type Rulings = Box<dyn Fn(&Cell<Interval>) -> (V3<Interval>, V3<Interval>)>;
+    let rulings: Rulings = match *ruled {
+        geom::Surface::Cylinder {
+            frame: carrier_frame,
+            radius: rho,
+        } => {
+            let Some(frame) = ruled.frame().map(|f| f.square()) else {
+                return Err(unread);
+            };
+            let (u, v) = (frame.u_ref, frame.axis.cross(frame.u_ref));
+            let (o, a, u, v) = (
+                p3(carrier_frame.origin()),
+                v3(carrier_frame.axis()),
+                v3(u),
+                v3(v),
+            );
+            let rho = lift(rho);
+            Box::new(move |cell| {
+                let p = V3::at(o)
+                    .plus(V3::along(u, cell.cos.scale(rho)))
+                    .plus(V3::along(v, cell.sin.scale(rho)));
+                (p, along(a))
+            })
+        }
+        geom::Surface::Cone { frame, half_angle } => {
+            let axis = frame.axis();
+            let (n, m) = axis.orthonormal_basis();
+            let (apex, axis, n, m) = (p3(frame.origin()), v3(axis), v3(n), v3(m));
+            let (s, c) = lift(half_angle).sin_cos();
+            Box::new(move |cell| {
+                let a = along(axis * c)
+                    .plus(V3::along(n, cell.cos.scale(s)))
+                    .plus(V3::along(m, cell.sin.scale(s)));
+                (V3::at(apex), a)
+            })
+        }
+        _ => return Err(unread),
+    };
+    // `(A, B, C)` of the rulings through the enclosure `p` along `a`.
+    type Quadratic = Box<dyn Fn(V3<Interval>, V3<Interval>) -> [Iv<Interval>; 3]>;
     let quadratic: Quadratic = match *partner {
         geom::Surface::Cylinder {
             frame, radius: r, ..
         } => {
-            let (q, b) = (frame.origin(), frame.axis());
-            let (q, b, r) = (p3(q), v3(b), lift(r));
-            let ab = a.cross(b);
-            // `w × a′` for the enclosure `w`.
-            let cross = move |w: V3<Interval>| V3 {
-                x: w.y.scale(b.z).plus(w.z.scale(Interval::zero() - b.y)),
-                y: w.z.scale(b.x).plus(w.x.scale(Interval::zero() - b.z)),
-                z: w.x.scale(b.y).plus(w.y.scale(Interval::zero() - b.x)),
-            };
-            Box::new(move |p| {
-                let wb = cross(p.less(q));
-                let qb = wb.dot(along(ab));
+            let (q, b, r) = (p3(frame.origin()), v3(frame.axis()), lift(r));
+            Box::new(move |p, a| {
+                let (wb, ab) = (p.less(q).cross(b), a.cross(b));
                 let qc = wb.dot(wb).shift(Interval::zero() - r.powi(2));
-                (ab.dot(ab), qb, qc)
+                [ab.dot(ab), wb.dot(ab), qc]
             })
         }
         geom::Surface::Sphere {
@@ -2357,13 +2379,28 @@ pub(crate) fn coverage(
             radius: big_r,
             ..
         } => {
-            let c = frame.origin();
-            let (c, big_r) = (p3(c), lift(big_r));
-            Box::new(move |p| {
+            let (c, big_r) = (p3(frame.origin()), lift(big_r));
+            Box::new(move |p, a| {
                 let w = p.less(c);
-                let qb = w.dot(along(a));
                 let qc = w.dot(w).shift(Interval::zero() - big_r.powi(2));
-                (a.dot(a), qb, qc)
+                [a.dot(a), w.dot(a), qc]
+            })
+        }
+        // `q = (d·w)² − cos²α|w|²`.
+        geom::Surface::Cone { frame, half_angle } => {
+            let (k, d) = (p3(frame.origin()), v3(frame.axis()));
+            let c2 = lift(half_angle).cos().powi(2);
+            Box::new(move |p, a| {
+                let w = p.less(k);
+                let (dw, da) = (w.toward(d), a.toward(d));
+                let form = |x: Iv<Interval>, y: Iv<Interval>, xy: Iv<Interval>| {
+                    x.times(y).plus(xy.scale(Interval::zero() - c2))
+                };
+                [
+                    form(da, da, a.dot(a)),
+                    form(dw, da, w.dot(a)),
+                    form(dw, dw, w.dot(w)),
+                ]
             })
         }
         _ => return Err(unread),
@@ -2404,21 +2441,37 @@ pub(crate) fn coverage(
         read.cells += 1;
         read.depth = read.depth.max(depth);
         let cell = Cell::<Interval>::new(lo, hi);
-        let p = V3::at(o)
-            .plus(V3::along(u, cell.cos.scale(rho)))
-            .plus(V3::along(v, cell.sin.scale(rho)));
-        let (big_a, qb, qc) = quadratic(p);
-        let disc = qb.square().plus(qc.scale(Interval::zero() - big_a));
+        let (p, a) = rulings(&cell);
+        let [big_a, qb, qc] = quadratic(p, a);
+        let disc = qb.square().plus(qc.times(big_a).neg());
+        // Off zero: the enclosure is certified and excludes it.
+        let apart = |i: Iv<Interval>| {
+            let h = hull(i);
+            h.is_certified() && (h.lo() > 0.0 || h.hi() < 0.0)
+        };
         let covered = hull(disc).is_certified() && hull(disc).hi() < 0.0
             || [Interval::one(), Interval::zero() - Interval::one()]
                 .into_iter()
                 .all(|sign| {
-                    let t = disc
-                        .sqrt()
-                        .scale(sign)
-                        .plus(qb.scale(Interval::zero() - Interval::one()))
-                        .scale(Interval::one() / big_a);
-                    let x = p.plus(V3::along(a, t));
+                    // Each root by the form whose divisor stands off zero:
+                    // `(−B + σ√D)/A`, or `C/(−B − σ√D)` where `A` reaches
+                    // zero (a ruling along an asymptotic direction). Where
+                    // neither does, the root stands at least
+                    // `|−B + σ√D|/|A|` along the ruling, and is clear where
+                    // that puts it past the ball.
+                    let root = disc.sqrt().scale(sign);
+                    let (wide, narrow) = (qb.neg().plus(root), qb.neg().plus(root.neg()));
+                    let t = if apart(big_a) {
+                        wide.quotient(big_a)
+                    } else if apart(narrow) {
+                        qc.quotient(narrow)
+                    } else {
+                        let (n, d) = (hull(wide.abs()).lo(), hull(big_a.abs()).hi());
+                        let reach = hull(p.less(ball.center().map(lift)).norm()).hi();
+                        let speed = hull(a.norm()).lo();
+                        return n / d * speed * (1.0 - 1e-12) > (reach + radius) * (1.0 + 1e-12);
+                    };
+                    let x = p.plus(a.times(t));
                     let bx = Box3 {
                         x: hull(x.x),
                         y: hull(x.y),
