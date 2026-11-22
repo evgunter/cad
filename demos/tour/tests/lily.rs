@@ -479,7 +479,7 @@ mod review_probes {
     /// shoulder, apex at the truncation plane's pole in the sphere.
     /// The authoring algebra will not take it: a leg whose departure
     /// is spelled in COORDINATES and lands within ε of the incoming
-    /// tangent is `PathError::JunctionTangent`, and the refusal names
+    /// tangent is `PathError::JunctionTurnWithinTolerance`, and the refusal names
     /// its one recourse — say the tangency STRUCTURALLY, with the
     /// `.tangent()` verb, which makes it exact by construction rather
     /// than by arithmetic that happens to agree.
@@ -515,11 +515,14 @@ mod review_probes {
             .expect_err("a tangent belly departure is refused");
         println!("the tangent-cone neck answers {refusal:?}");
         assert!(
-            matches!(refusal, pncad::profile::PathError::JunctionTangent { .. }),
-            "the tangent neck must refuse as JunctionTangent: {refusal:?}"
+            matches!(
+                refusal,
+                pncad::profile::PathError::JunctionTurnWithinTolerance { .. }
+            ),
+            "the tangent neck must refuse as JunctionTurnWithinTolerance: {refusal:?}"
         );
-        // A vanishing turn margin on a real lever arm, as the refusal
-        // tells them.
+        // A vanishing turn on a real lever arm, as the refusal tells
+        // them.
         let said = refusal.to_string();
         let told = |before: &str, after: &str| -> f64 {
             said.split_once(before)
@@ -527,8 +530,11 @@ mod review_probes {
                 .and_then(|(number, _)| number.parse().ok())
                 .unwrap_or_else(|| panic!("no number between {before:?} and {after:?}: {said}"))
         };
-        let (margin, arm) = (told("turn margin ", " m on a "), told(" m on a ", " m arm"));
-        assert!(margin.abs() < 1e-15 && arm > 0.1, "{said}");
+        let (sin_turn, arm) = (
+            told("sin φ = ", " (cos φ"),
+            told("over the shorter leg's arm of ", " m,"),
+        );
+        assert!(sin_turn.abs() < 1e-15 && arm > 0.1, "{said}");
     }
 
     /// The re-authored lantern's CENSUS and its exact mass, against
