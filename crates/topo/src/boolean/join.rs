@@ -1939,13 +1939,51 @@ struct PartnerDistance<T: geom_core::Real> {
 
 /// **How far a partner's foot is along the germ's component**, in the
 /// direction the germ leaves ([`along_facing`]): the carrier's parameter
-/// travelled, the carrier's speed at the partner's foot, and the
-/// partner's site.
+/// travelled; the partner foot's parameter reached that way from the
+/// germ's, unwrapped past a closed component's seam; the component's
+/// speed; and the partner's site.
 #[derive(Clone, Copy)]
 struct Along<T: geom_core::Real> {
     travel: T,
-    speed: T,
+    at: T,
+    speed: FootSpeed<T>,
     site: Point3<T>,
+}
+
+/// **A carried component's speed, as a partner's reading keeps it**: the
+/// carrier itself where a window's speed floor reads the window's
+/// parameters (a line, a circle, an ellipse), and otherwise the floor
+/// over its span, which is what a window reads on any other carrier
+/// ([`geom::carrier_speed::window_speed`]).
+#[derive(Clone, Copy)]
+enum FootSpeed<T: geom_core::Real> {
+    Line(geom::Line<T>),
+    Circle(geom::Circle<T>),
+    Ellipse(geom::Ellipse<T>),
+    Floor(geom_core::InfSpeed<T>),
+}
+
+impl<T: Decide> FootSpeed<T> {
+    fn of(carrier: &geom::Curve3<T>, (lo, hi): (T, T)) -> Self {
+        match *carrier {
+            geom::Curve3::Line(l) => Self::Line(l),
+            geom::Curve3::Circle(c) => Self::Circle(c),
+            geom::Curve3::Ellipse(e) => Self::Ellipse(e),
+            _ => Self::Floor(geom::carrier_speed::speed_between(carrier, lo, hi).0),
+        }
+    }
+
+    /// **A floor on the carrier's speed over every parameter between `a`
+    /// and `b`** ([`geom::carrier_speed::speed_between`]).
+    fn between(self, a: T, b: T) -> geom_core::InfSpeed<T> {
+        let floor = |carrier: geom::Curve3<T>| geom::carrier_speed::speed_between(&carrier, a, b).0;
+        match self {
+            Self::Line(l) => floor(geom::Curve3::Line(l)),
+            Self::Circle(c) => floor(geom::Curve3::Circle(c)),
+            Self::Ellipse(e) => floor(geom::Curve3::Ellipse(e)),
+            Self::Floor(f) => f,
+        }
+    }
 }
 
 /// A conic germ line as its germ turns along it.
@@ -2051,17 +2089,32 @@ fn join_escalate(diag: geom_core::Indeterminate) -> BooleanError {
 }
 
 /// **Is `cand` nearer than `best` along ONE germ's line?** Both are
-/// read from the same germ. The half-turn decides where the two differ.
-/// Within one half-turn a conic orders them by the turn between them
-/// ([`travel`] under `bool_join_arc_travel`, from `best`'s site): the
-/// angle travelled about a centred conic's axis is monotone along it,
-/// where the chord is not — on an ellipse of aspect √2 or more it peaks
-/// inside the half-turn. Two sites in one half-turn are less than a
-/// half-turn apart, so the side of `best`'s axis plane `cand` lies on
-/// is the order. Near `best`'s site the margin reads the arc between
-/// them (between there and the half-turn it keeps only the plane's
-/// sign), so a tie is two sites within the band of each other along the
-/// conic. A straight line, and two records at one site, take the chord.
+/// read from the same germ.
+///
+/// **On a carried section** (both read [`Along`], [`along_facing`]) the
+/// order is the partners' foot parameters' travel from the germ's foot
+/// along their component, the way the germ leaves:
+/// `bool_join_foot_travel` reads the difference of the two travels,
+/// metered at a floor on the carrier's speed over the window between
+/// the two feet ([`FootSpeed::between`]), so its margin is a lower bound
+/// on the arc between them. A foot is orthogonal, so a site moved across
+/// the component keeps its foot and the order reads no along-section
+/// slack. Two sites within the band of each other are one site, read by
+/// the chord; two distinct sites the travel ties are partners decided
+/// equally near ([`BooleanError::JoinPartnersTied`]), never a pick.
+///
+/// **On a frame's conic** (both read a [`Turn`]) the half-turn decides
+/// where the two differ. Within one half-turn a conic orders them by the
+/// turn between them ([`travel`] under `bool_join_arc_travel`, from
+/// `best`'s site): the angle travelled about a centred conic's axis is
+/// monotone along it, where the chord is not — on an ellipse of aspect
+/// √2 or more it peaks inside the half-turn. Two sites in one half-turn
+/// are less than a half-turn apart, so the side of `best`'s axis plane
+/// `cand` lies on is the order. Near `best`'s site the margin reads the
+/// arc between them (between there and the half-turn it keeps only the
+/// plane's sign), so a tie is two sites within the band of each other
+/// along the conic. A straight line, and two records at one site, take
+/// the chord.
 fn along_sign<T: Decide>(
     cand: PartnerDistance<T>,
     best: PartnerDistance<T>,
@@ -2072,15 +2125,12 @@ fn along_sign<T: Decide>(
             .map_err(join_escalate)?
             == Sign::Zero;
         if !one_site {
-            // The two partners' feet bound the arc between them, so it is
-            // metered at the slower foot's speed, not the germ's: on an
-            // ellipse the speed changes along the carrier by its aspect.
-            let speed = c.speed.min(b.speed);
-            let ahead = Margin::metered(c.travel - b.travel, geom_core::InfSpeed::new(speed));
-            match decide("bool_join_foot_travel", ahead, band).map_err(join_escalate)? {
-                Sign::Zero => {}
-                sign => return Ok(sign),
-            }
+            let floor = c.speed.between(b.at, c.at);
+            let ahead = Margin::metered(c.travel - b.travel, floor);
+            return match decide("bool_join_foot_travel", ahead, band).map_err(join_escalate)? {
+                Sign::Zero => Err(BooleanError::JoinPartnersTied),
+                sign => Ok(sign),
+            };
         }
     }
     if let (true, Some(c), Some(b)) = (cand.arm == best.arm, cand.turn, best.turn) {
@@ -4478,9 +4528,9 @@ fn along_facing<T: crate::props::AtRestPolicy>(
     }
     let component = &section.components()[f1.component];
     let (lo, hi) = component.span;
-    let speed = f1.tangent.norm();
+    let speed = FootSpeed::of(&component.carrier, component.span);
     let forward = if up1 { f2.t - f1.t } else { f1.t - f2.t };
-    let ahead = Margin::metered(forward, geom_core::InfSpeed::new(speed));
+    let ahead = Margin::metered(forward, speed.between(f1.t, f2.t));
     let travel = match decide("bool_join_foot_ahead", ahead, band).map_err(join_escalate)? {
         Sign::Positive => forward,
         Sign::Negative if component.closed() => forward + (hi - lo),
@@ -4489,7 +4539,8 @@ fn along_facing<T: crate::props::AtRestPolicy>(
     };
     Ok(Faced::Along(Along {
         travel,
-        speed: f2.tangent.norm(),
+        at: if up1 { f1.t + travel } else { f1.t - travel },
+        speed,
         site: p2,
     }))
 }
