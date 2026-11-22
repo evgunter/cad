@@ -1499,7 +1499,7 @@ mod tests {
         let seeds = super::seed_r3(&cone, &cut, floor).expect("the sweep ends");
         assert!(!seeds.is_empty(), "the circle is seeded");
         for p in &seeds {
-            let rho = (p.x * p.x + p.y * p.y).sqrt();
+            let rho = p.x.hypot(p.y);
             assert!(
                 (rho - 1.0).abs() < 0.1 && (p.z - 1.0).abs() < 0.1,
                 "a seed off the circle: {p:?}"

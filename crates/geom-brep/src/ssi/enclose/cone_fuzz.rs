@@ -80,7 +80,7 @@ fn the_cone_enclosures_hold_every_sampled_point_of_their_box() {
         };
         let reach = (centre - apex).norm() + r + 1.0;
         let tol = 64.0 * f64::EPSILON * reach;
-        let corner = |k: usize, s: usize| if k >> s & 1 == 0 { -r } else { r };
+        let corner = |k: usize, s: usize| if (k >> s) & 1 == 0 { -r } else { r };
         let points: Vec<Point3<f64>> =
             (0..8)
                 .map(|k| centre + Vec3::new(corner(k, 0), corner(k, 1), corner(k, 2)))
