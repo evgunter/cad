@@ -173,3 +173,8 @@ found at `f64` at every one; at the refusing pairs it parts neither
 face at the band, as the heading plane does not. Each of the 11
 refuses at the same ask and on the same shape before and after.
 
+
+**The tour walk**, all 85 stops, main `a29fd3695` against this branch:
+78 of 85 hold on both, every verdict alike. Three stops certify in
+fewer splits: `snowman_lens` 417 → 345, `snowman_bitten` 481 → 449,
+`lily_lantern` 20,297 → 20,293 (still refused on the same edge).
