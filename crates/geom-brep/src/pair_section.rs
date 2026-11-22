@@ -442,7 +442,7 @@ impl<T: Decide> CylinderSpherePose<T> {
 
     /// The sphere's own ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        covered_ball(&self.sphere)
+        side_ball(&self.sphere)
     }
 
     /// **The ball the ruling sweep reads the section against**: the
@@ -1312,29 +1312,17 @@ impl PairPose<f64> {
     }
 }
 
-/// **The ball of a whole carrier's cover**: a bounded side's own ball (a
-/// sphere's), which holds every section it is a side of, or a closed-form
-/// component's, the whole curve it lists, read against the region.
-pub(crate) fn covered_ball<T: Decide>(whole: impl Whole<T>) -> ExtentBall<T> {
-    ExtentBall::of_covered(whole.covered().as_ref().ok())
+/// **The ball of a whole carrier's cover**, where it has one: a bounded
+/// side's own ball (a sphere's, [`side_ball`]), which holds every section
+/// it is a side of, or a closed-form component's, the whole curve it
+/// lists, read against the region.
+pub(crate) fn covered_ball<T: Decide>(whole: &geom::cover::Covered<T>) -> ExtentBall<T> {
+    ExtentBall::of_covered(whole.as_ref().ok())
 }
 
-/// A carrier whose whole cover a section reads ([`covered_ball`]).
-pub(crate) trait Whole<T: Decide> {
-    /// The whole carrier's cover.
-    fn covered(self) -> geom::cover::Covered<T>;
-}
-
-impl<T: Decide> Whole<T> for &Surface<T> {
-    fn covered(self) -> geom::cover::Covered<T> {
-        self.cover()
-    }
-}
-
-impl<T: Decide> Whole<T> for &Curve3<T> {
-    fn covered(self) -> geom::cover::Covered<T> {
-        self.cover()
-    }
+/// [`covered_ball`] of a bounded side.
+pub(crate) fn side_ball<T: Decide>(surface: &Surface<T>) -> ExtentBall<T> {
+    covered_ball(&surface.cover())
 }
 
 /// **A march's domain**: the cube of half-width `half_extent` about

@@ -117,7 +117,7 @@ impl<T: Decide> PlaneSpherePose<T> {
 
     /// The sphere's ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        super::covered_ball(&self.sphere)
+        super::side_ball(&self.sphere)
     }
 
     /// The section as the door classified it.
@@ -169,7 +169,7 @@ impl<T: Decide> SphereSpherePose<T> {
     /// The first sphere's ball, which holds the section, as the second's
     /// does.
     pub fn ball(&self) -> ExtentBall<T> {
-        super::covered_ball(&self.first)
+        super::side_ball(&self.first)
     }
 
     /// The section as the door classified it.
@@ -309,7 +309,8 @@ pub(super) fn plane_cylinder<T: Decide>(pose: PlaneCylinderPose<T>, band: Band) 
     let spanned = |curve, span| ClassCarrier::Span { curve, span };
     let tangent = |_, _| ClassCarrier::Unminted(NoCarrier::Tangent);
     let loop_of = |c: &Curve3<T>| {
-        (placement(super::covered_ball(c), pose.region, band) != RegionPlacement::Outside)
+        (placement(super::cylinders::closed_form_ball(c), pose.region, band)
+            != RegionPlacement::Outside)
             .then(|| ring(c.clone(), ordered(pose.plane_first, [false, true]), false))
     };
     let components = match &pose.section {
