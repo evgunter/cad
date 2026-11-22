@@ -18,3 +18,12 @@ Two test oracles each spell the polar factor of a stored frame in double-double,
 Production reads the same rotation as an enclosure, `crates/geom-core/src/interval.rs:684` `enclose_rotation`. That is one truth, written twice for tests. Give the double-double polar factor one test-support home (geom-core's, beside `enclose_rotation`), and have both oracles read it.
 
 Filed from the second delta review of PR 7131.
+
+## 2026-11-22, PR 7323
+
+The home this row asks for now exists:
+`geom_core::test_support::polar_distance`. It reads a stored frame's
+exact distance from its polar factor, by series on the exact Gram
+defect, and the frame-rounding rows read it. The two oracles above
+still spell the factor itself in double-double. Folding them is what
+remains.

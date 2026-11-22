@@ -259,8 +259,9 @@ impl<T: Real> Frame<T> {
     }
 
     /// **How far this frame's stored axes may be from the rotation they
-    /// hold**, at this scalar: `(axis, seam)`, bounds on `‖axis − n̂‖` and
-    /// `‖u_ref − ê₁‖`, `n̂` and `ê₁` the rotation's own axes
+    /// hold**, at this scalar: `(axis, seam)`, bounds on `‖axis − Rẑ‖` and
+    /// `‖u_ref − Rx̂‖`. `R` is the polar factor of the stored axes, the
+    /// rotation a frame means at every scalar
     /// ([`RigidMotion::rounding`], whose doc carries the argument: zero
     /// at an enclosure scalar, measured at a point scalar). A reader that
     /// levers a frame charges these in place of reading the frame's
@@ -396,13 +397,17 @@ mod tests {
             "the frame a motion places derives the motion's own v"
         );
     }
-    /// **A frame's `f64` rounding covers its true defect at every depth of
-    /// composition** ([`Frame::rounding`]): random turns composed to depth
-    /// 64, each frame's measured `(axis, seam)` at least the invariants
-    /// read on its entries in double-double arithmetic. Composition adds rounding at
-    /// every step, so no constant bounds it; the measure follows it. Red
-    /// where the invariants are read in plain `f64` with no running bound,
-    /// as `frame_defect` read them before.
+    /// **A frame's `f64` rounding covers its distance from its polar factor
+    /// at every depth of composition, and is tight** ([`Frame::rounding`]):
+    /// 16 chains of random turns composed to depth 64. Each frame's
+    /// measured `(axis, seam)` is at least its exact distance from the
+    /// polar factor of its stored axes
+    /// ([`geom_core::test_support::polar_distance`], read independently of
+    /// the bound), and the median ratio of the two is at most `1.5`.
+    /// Composition adds rounding at every step, so no constant bounds it;
+    /// the measure follows it. Red, below, where the invariants are read
+    /// in plain `f64` with no charge, as `frame_defect` read them on main;
+    /// red, above, where the distance is read as `|A − 1|` and not halved.
     #[test]
     fn a_frames_rounding_covers_its_defect_through_a_chain_of_turns() {
         let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
@@ -417,6 +422,8 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let mut worst = (0.0f64, 0.0f64);
         let mut ratios: Vec<(f64, f64)> = Vec::new();
+        // The oracle's own error: a few ulps of its size.
+        let under = |bound: f64, truth: f64| bound < truth * (1.0 - 8.0 * f64::EPSILON);
         for chain in 0..16 {
             let mut frame = tilted();
             for depth in 0..64 {
@@ -425,14 +432,18 @@ mod tests {
                 let turn = RigidMotion::rotation(axis, 6.0 * next()).unwrap();
                 frame = frame.moved(&turn);
                 let (d_axis, d_seam) = frame.rounding();
-                let (t_axis, t_seam) = geom_core::test_support::rotation_distance(&frame.motion());
+                let (t_axis, t_seam) = geom_core::test_support::polar_distance(&frame.motion());
                 worst = (worst.0.max(t_axis), worst.1.max(t_seam));
-                let slop = 1e-30;
-                ratios.push(((d_axis / t_axis.max(1e-300)), (d_seam / t_seam.max(1e-300))));
+                if t_axis > 0.0 {
+                    ratios.push((d_axis / t_axis, f64::NAN));
+                }
+                if t_seam > 0.0 {
+                    ratios.push((f64::NAN, d_seam / t_seam));
+                }
                 assert!(
-                    d_axis >= t_axis - slop && d_seam >= t_seam - slop,
+                    !under(d_axis, t_axis) && !under(d_seam, t_seam),
                     "chain {chain}, depth {depth}: rounding ({d_axis:e}, {d_seam:e}) under the \
-                     defect ({t_axis:e}, {t_seam:e})"
+                     polar distance ({t_axis:e}, {t_seam:e})"
                 );
             }
         }
@@ -445,10 +456,14 @@ mod tests {
             v.sort_by(f64::total_cmp);
             v[v.len() / 2]
         };
-        println!(
-            "rounding over distance: axis median {:.2}, seam median {:.2}",
+        let (axis, seam) = (
             median(ratios.iter().map(|r| r.0).collect()),
-            median(ratios.iter().map(|r| r.1).collect())
+            median(ratios.iter().map(|r| r.1).collect()),
+        );
+        println!("rounding over polar distance: axis median {axis:.3}, seam median {seam:.3}");
+        assert!(
+            axis <= 1.5 && seam <= 1.5,
+            "the measure is tight: median ratios ({axis:.3}, {seam:.3}) past 1.5"
         );
     }
 
@@ -459,7 +474,9 @@ mod tests {
     /// a bracket product chosen among its four end products by their
     /// values, which a tie within `10⁻³⁰` cannot turn). A necessary
     /// condition: a box holding a rotation passes it, and a box of points
-    /// that are a rotation's `f64` rounding fails it.
+    /// that are a rotation's `f64` rounding fails it. It does not catch a
+    /// widened box: a wider box still holds the rotation, so widening is
+    /// a question of width, not of soundness, and not this check's.
     fn can_hold_a_rotation(f: &Frame<geom_core::Interval>) -> bool {
         use geom_core::Bounds;
         use geom_core::exact::Expansion;

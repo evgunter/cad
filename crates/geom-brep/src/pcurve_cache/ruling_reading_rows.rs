@@ -431,16 +431,12 @@ fn a_shifted_ruling_takes_the_general_lane() {
 /// At ε 1e-12 the long span `(0.5, 40)` certifies at `f64` and its
 /// `Interval` certificate escalates `pcurve_envelope`, margin in
 /// `(1.0e-12, 1.1e-12]` (measured 1.053e-12 to 1.090e-12 over the four
-/// generators; 1.121e-12 to 1.158e-12 while check 4 also charged the
-/// frame's bracket width as its distance from the rotation, which is
-/// zero at an enclosure scalar, `geom::Frame::rounding`). Cause: both
-/// jointly: a stored frame read as its polar enclosure (decision 1,
-/// #7131) and frames built at Interval from bracket inputs, a
-/// rigid-motion claim (fork 274), each widening the evaluation itself;
-/// either alone stays under the band, so mutant A alone (certifying at
-/// 8.9e-13 to 9.1e-13) and mutant F1X alone (6.2e-13 to 6.7e-13) each
-/// certify it and turn this pin red; both are levered by the span's
-/// 40 m. Every span certifies at ε 1e-9 and 1e-6.
+/// generators). Cause: both jointly: a stored frame read as its polar
+/// enclosure (decision 1, #7131) and frames built at Interval from
+/// bracket inputs, a rigid-motion claim (fork 274), each widening the
+/// evaluation. Either alone stays under the band, so mutant A alone and
+/// mutant F1X alone each certify it and turn this pin red; both are
+/// levered by the span's 40 m. Every span certifies at ε 1e-9 and 1e-6.
 #[test]
 fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
     let surface = cone();

@@ -2062,8 +2062,9 @@ pub enum EnvelopeTerm {
     /// reads the first; a free (length) channel carries no placement
     /// term.
     FidelityV,
-    /// The chart's frame rounding: its stored axes' distance from the
-    /// rotation they hold ([`geom::Frame::rounding`]), over the stored
+    /// The chart's frame rounding: its stored axes' distance from their
+    /// Gram–Schmidt twin, bounded from their distance to the rotation
+    /// they hold ([`geom::Frame::rounding`]), over the stored
     /// image, levered by the radius and by the image's actual axial reach
     /// (the lemma's premise, metered rather than assumed). Zero at an
     /// enclosure scalar, whose frame encloses that rotation.
@@ -3198,8 +3199,8 @@ pub enum EnvelopeStatement {
     /// `ê₂ = n̂ × ê₁`), and adds **frame**: `sup |S − Ŝ|` over the
     /// stored image's chart box. The two maps share every scalar, so
     /// the radial direction differs by at most `√(‖u_ref − ê₁‖² +
-    /// ‖v_ref − ê₂‖²)` and the axis by `‖axis − n̂‖`, the two distances
-    /// [`geom::Frame::rounding`] bounds, each levered by what
+    /// ‖v_ref − ê₂‖²)` and the axis by `‖axis − n̂‖`, both bounded from
+    /// [`geom::Frame::rounding`] (`frame_defect`), each levered by what
     /// multiplies it in the map: the radius, the torus's `R + r` and
     /// `r`, and on a cylinder's axis and both of a cone's channels the
     /// image's own `sup |v|`. On the sphere and the torus's tube the
@@ -6786,24 +6787,35 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
 /// slant `v` on a cylinder's axis and a cone's two channels — the
 /// actual axial reach, not the radius.
 ///
-/// The two distances are the frame's own rounding
-/// ([`geom::Frame::rounding`]): zero at an enclosure scalar, whose frame
-/// encloses the rotation it holds (fork 274 decision 1, the frame held
-/// as the claim it is, never read back off its brackets), and at a point
-/// scalar measured in the frame's invariants with their rounding
-/// charged. The seam's third reading follows from them:
+/// The two distances follow from the frame's own rounding
+/// ([`geom::Frame::rounding`]): `d_w` and `d_u`, the stored axis's and
+/// seam's distances from `R`, the polar factor of the stored axes. That
+/// is zero at an enclosure scalar, whose frame encloses the rotation it
+/// holds (fork 274 decision 1, the frame held as the claim it is, never
+/// read back off its brackets). At a point scalar it is measured with
+/// its rounding charged. The twin is Gram–Schmidt's, not `R`, and its
+/// distances are bounded by `R`'s:
+/// - `‖axis − n̂‖ = |‖axis‖ − 1| ≤ ‖axis − Rẑ‖ = d_w`, `Rẑ` being unit;
+/// - `‖u_ref − ê₁‖ ≤ d_u + 2·d_w`. `ê₁` is the unit vector square to `n̂`
+///   nearest `u_ref`, so it is no farther than `x`, `Rx̂` turned by the
+///   least rotation taking `Rẑ` onto `n̂`. That rotation moves a unit
+///   vector by at most the chord `‖n̂ − Rẑ‖ ≤ ‖n̂ − axis‖ + d_w ≤ 2·d_w`.
+///
+/// The seam's third reading follows from them:
 /// `‖axis × u_ref − n̂ × ê₁‖ ≤ ‖axis − n̂‖·√U + ‖u_ref − ê₁‖`,
 /// `U = u_ref·u_ref`.
 ///
 /// On a literal unit frame every one is the zero form.
 fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
-    // `‖axis − n̂‖` and `‖u_ref − ê₁‖` ([`geom::Frame::rounding`]): zero at
-    // an enclosure scalar, measured at a point scalar.
+    // `‖axis − n̂‖ ≤ d_w` and `‖u_ref − ê₁‖ ≤ d_u + 2·d_w`, from the polar
+    // distances ([`geom::Frame::rounding`]): zero at an enclosure scalar,
+    // measured at a point scalar.
     // The radial direction's miss is `cos u·Δu + sin u·Δv`, at most
     // `√(|Δu|² + |Δv|²)` (Cauchy–Schwarz on the unit pair `(cos u, sin u)`),
     // `Δv` bounded by `‖axis − n̂‖·√U + ‖u_ref − ê₁‖`.
     let defect = |frame: &geom::Frame<T>| {
-        let (d_axis, d_u) = frame.rounding();
+        let (d_w, d_seam) = frame.rounding();
+        let (d_axis, d_u) = (d_w, d_seam + d_w + d_w);
         let u2 = frame.u_ref().dot(frame.u_ref());
         let d_v = d_u + d_axis * u2.sqrt();
         (d_axis, harmonic_sup_scalar(d_u, d_v))

@@ -129,8 +129,10 @@ fn exact_distance(
 /// `EnvelopeTerm::Frame`, read off [`geom::Frame::rounding`]). Composition
 /// adds rounding at every turn, so a cylinder whose frame is 256 random
 /// turns composed stores axes a measurable distance `d` off the rotation
-/// they hold ([`geom_core::test_support::rotation_distance`]). At a radius that levers it to a
-/// tenth of the band's zero, the rim drawn on the frame's squared twin
+/// they hold, their polar factor
+/// ([`geom_core::test_support::polar_distance`]). At a radius that levers
+/// it to a tenth of the band's zero, the rim drawn on the frame's squared
+/// twin
 /// images on the chart, and check 4's envelope covers the residual,
 /// measured exactly but for `f64` trigonometry (each `cos` and `sin`
 /// within an ulp, `2u·R` a point; [`SLACK_ULPS`] of the radius covers
@@ -160,7 +162,7 @@ fn a_composed_frames_rounding_is_charged_at_a_large_radius() {
         motion = turn.compose(motion).unwrap();
     }
     let frame = geom::Frame::of_motion(&motion);
-    let (to_axis, to_seam) = geom_core::test_support::rotation_distance(&motion);
+    let (to_axis, to_seam) = geom_core::test_support::polar_distance(&motion);
     let defect = to_axis.max(to_seam);
     assert!(
         defect > 2e-15,
