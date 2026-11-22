@@ -6570,8 +6570,6 @@ class Quieting:
         spelled for `doc` as it stands. A refusal of the insert door
         raises `EditError`."""
 
-    def __eq__(self, other: object) -> bool: ...
-
 class CarriedCoincidence:
     """A coincidence a document BELOW this one leaves unproven, with the
     route it arrived by: an `unproven_coincidence` finding's

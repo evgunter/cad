@@ -842,10 +842,6 @@ impl Quieting {
         self.0.said(d::Speaker::of(&*self.1))
     }
 
-    fn __eq__(&self, other: &Self) -> bool {
-        self.0 == other.0 && self.1.id() == other.1.id()
-    }
-
     fn __repr__(&self) -> String {
         format!("Quieting({})", self.0.said(d::Speaker::TAG))
     }
