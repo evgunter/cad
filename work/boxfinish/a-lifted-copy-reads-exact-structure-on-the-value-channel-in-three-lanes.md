@@ -48,3 +48,64 @@ now are), which the first admits most plainly.
 `polygon_face_about` decide nothing; `cut_face_rounds`' decisions exist
 only in the lane; `cell_region`'s gap decisions have no twin at the
 body's scalar and keep the cell where undecided.
+
+## More of the class, from a sweep by type (the review of PR 7344, 2026-11-22)
+
+The first sweep grepped for the lift by name. A sweep for the READ (a
+raw test of an interval for point-ness, exact zero, or a whole number,
+on data that came from the body's scalar) finds these beside the three
+above. **Read in code, none measured.**
+
+Exact structure asked of a lifted value, where a value exact only as a
+form reads as inexact (the shape of `clearance.rs`'s `iso_of`):
+
+- `crates/geom-brep/src/props/quad/rotational.rs` `HarmChan::is_flat`:
+  `exact_point(x) == Some(0.0)` on the harmonic coefficients
+  `quad_lane::chan` lifted. A channel flat only as a form takes the
+  harmonic rule instead of the flat one: wider, not wrong.
+- `crates/geom-brep/src/props/rational_rim.rs` `rational_edge_q_split`:
+  the carrier interval's ends and the held knots must be point
+  brackets (`bracket::exact_point`), else `QuadratureUnsupported`
+  ("carrier interval ends are not exact parameters"). A span end that is
+  a boxed parameter refuses the face.
+- `crates/topo/src/clearance.rs` `iso_bounded_domain`: a free-form
+  face's knot domain must be point brackets ("knot domain is not exact
+  structure").
+- `crates/topo/src/injective.rs` `iso_params`: a harmonic's moving
+  channel must have no cosine or sine term, read as
+  `exactly(h.pa[moving], 0.0) && exactly(h.pb[moving], 0.0)`; `None`
+  otherwise, and its caller takes the wider reading. `Trig::of` in the
+  same file is arithmetic on what it is handed and decides nothing.
+
+A whole number read off an enclosure on the value channel, which over
+a wide box is no longer isolated (not a re-ask: nothing at the body's
+scalar reads it):
+
+- `crates/geom-brep/src/props/quad/rotational.rs` `branch_turns`: the
+  turn less the ends' difference must lie within a quarter turn of one
+  whole number.
+- `crates/geom-brep/src/props/quad/projected_edge.rs` `turns_name`
+  (through `latitude_name`): within `1e-12·(1 + |k|)` turns of a whole
+  number.
+- `crates/geom-brep/src/props/closure.rs` `interval_loop_turns`: each
+  junction's gap as an enclosure, decided through
+  `require_junction_closed` at the lane's scalar on a margin read off
+  that enclosure. This is the reading
+  `work/nearpoint/a-cones-chart-junction-gap-is-wide-over-a-box-on-its-axial-position.md`
+  measured refusing at the walk's own scalar through the closed form's
+  twin.
+
+A lift handed in as a closure, so no lift name appears at the read:
+
+- `crates/geom-brep/src/curve_face/composite.rs` `crossings`
+  (`cross: impl Fn(T) -> Interval`): the span's ends crossed and a
+  divisor collapsed to its upper end after a raw
+  `is_certified && hi > 0` test, an interval-only premise
+  (`FaceDegenerate`); no twin at the body's scalar found.
+- `crates/geom-brep/src/curve_face/spline_face.rs`: takes the same
+  closure; what it decides on the crossed data was not read to the end.
+
+**What this second pattern still cannot find:** a read of exact
+structure spelled without `exact_point` / `exactly` / `lo() == hi()`
+(a `width()` compared with zero, a `to_bits` compare, a `match` on a
+decoration), and every crate outside `geom-brep` and `topo`.
