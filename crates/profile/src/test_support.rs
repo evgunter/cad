@@ -182,10 +182,7 @@ pub fn arc_verb_loop<T: crate::ArcCarrierScalar>(
     let l = T::from_f64;
     let p = |x: f64, y: f64| Point2::new(l(x), l(y));
     match verb {
-        "circle" => crate::circle(p(0.3, 0.2), q, t)
-            .unwrap()
-            .loop_
-            .into_loop(),
+        "circle" => crate::circle(p(0.3, 0.2), q, t).unwrap().loop_.into_loop(),
         "split circle" => crate::circle_split(p(1.0, 0.5), q, 3, l(0.25), t)
             .unwrap()
             .loop_
@@ -228,7 +225,8 @@ pub fn arc_verb_loop<T: crate::ArcCarrierScalar>(
             .into_loop(),
         "tangent" | "tangent cw" => {
             let far = if verb == "tangent" { 2.0 } else { -2.0 };
-            crate::Open.at(p(0.0, 0.0))
+            crate::Open
+                .at(p(0.0, 0.0))
                 .line_to(p(2.0, 0.0), t)
                 .unwrap()
                 .tangent()
@@ -263,7 +261,8 @@ pub fn arc_verb_loop<T: crate::ArcCarrierScalar>(
             } else {
                 crate::ArcSide::Right
             };
-            crate::Open.at(p(0.0, 0.0))
+            crate::Open
+                .at(p(0.0, 0.0))
                 .angle(l(0.0), t)
                 .unwrap()
                 .arc_to(
@@ -285,7 +284,8 @@ pub fn arc_verb_loop<T: crate::ArcCarrierScalar>(
         "fillet" => {
             let (east, north) = (0.0_f64, core::f64::consts::FRAC_PI_2);
             let (west, south) = (core::f64::consts::PI, -north);
-            crate::Open.at(p(0.0, -1.0))
+            crate::Open
+                .at(p(0.0, -1.0))
                 .angle(l(east), t)
                 .unwrap()
                 .fillet(q, t)

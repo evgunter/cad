@@ -1127,15 +1127,39 @@ const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
     ("circle", ["finished", ""], ["finish", "VolumeUncomputable"]),
     ("split circle", ["finished", ""], ["door", "MappedSource"]),
     ("bulge", ["finished", ""], ["validation", "gate: ArcSpan"]),
-    ("bulge cw", ["door", "MappedSource"], ["validation", "gate: ArcSpan"]),
+    (
+        "bulge cw",
+        ["door", "MappedSource"],
+        ["validation", "gate: ArcSpan"],
+    ),
     ("via", ["finished", ""], ["validation", "gate: ArcSpan"]),
     ("via cw", ["finished", ""], ["validation", "gate: ArcSpan"]),
-    ("tangent", ["finished", ""], ["validation", "gate: LineSpan"]),
-    ("tangent cw", ["finished", ""], ["validation", "gate: LineSpan"]),
-    ("onto", ["finished", ""], ["validation", "gate: SegmentDirection"]),
+    (
+        "tangent",
+        ["finished", ""],
+        ["validation", "gate: LineSpan"],
+    ),
+    (
+        "tangent cw",
+        ["finished", ""],
+        ["validation", "gate: LineSpan"],
+    ),
+    (
+        "onto",
+        ["finished", ""],
+        ["validation", "gate: SegmentDirection"],
+    ),
     ("sweep", ["finished", ""], ["validation", "gate: LineSpan"]),
-    ("sweep cw", ["finished", ""], ["validation", "gate: LineSpan"]),
-    ("fillet", ["validation", "gate: CanonicalOrderX"], ["validation", "gate: LineSpan"]),
+    (
+        "sweep cw",
+        ["finished", ""],
+        ["validation", "gate: LineSpan"],
+    ),
+    (
+        "fillet",
+        ["validation", "gate: CanonicalOrderX"],
+        ["validation", "gate: LineSpan"],
+    ),
 ];
 
 /// **Each arc verb's slab over a box on the quantity that fixes its
@@ -1219,7 +1243,9 @@ fn each_arc_verbs_slab_over_a_box_reaches_its_pinned_stage() {
             let short: String = got.chars().take(200).collect();
             println!("{verb} ±{half:e}: {short}");
             if !(got.starts_with(stage) && got.contains(word)) {
-                moved.push(format!("{verb} ±{half:e}: pinned {stage} {word:?}, got {short}"));
+                moved.push(format!(
+                    "{verb} ±{half:e}: pinned {stage} {word:?}, got {short}"
+                ));
             }
         }
     }

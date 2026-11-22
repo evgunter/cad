@@ -168,10 +168,12 @@ fn shapes() -> Vec<Shape> {
             build: |r, tol| {
                 let circle = profile::circle(Point2::new(c(0.0), c(0.0)), r, tol)
                     .map_err(|e| format!("{e:?}"))?;
-                let profile =
-                    profile::ConstructedProfile::new(SketchPlane::<Boxed>::xy(), vec![circle.into()])
-                        .validate(tol)
-                        .map_err(|e| format!("{e:?}"))?;
+                let profile = profile::ConstructedProfile::new(
+                    SketchPlane::<Boxed>::xy(),
+                    vec![circle.into()],
+                )
+                .validate(tol)
+                .map_err(|e| format!("{e:?}"))?;
                 let extrusion = Extrusion::Distance {
                     depth: c(1.0),
                     side: ExtrudeSide::Along,
@@ -731,7 +733,10 @@ fn the_circle_verbs_disc_of_boxed_radius_is_admitted_and_read() {
         })
         .unwrap_or_else(|refusal| panic!("±{half:e}: the door refuses the disc: {refusal}"));
         let kinds: Vec<&str> = readings.iter().map(|r| kind(r)).collect();
-        assert!(!kinds.contains(&"IN"), "±{half:e}: a wrong side: {readings:?}");
+        assert!(
+            !kinds.contains(&"IN"),
+            "±{half:e}: a wrong side: {readings:?}"
+        );
         println!("±{half:e}: {}", tally(&readings));
         assert!(
             half > 1e-3 || kinds.contains(&"out"),
