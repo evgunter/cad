@@ -54,3 +54,9 @@ a strip crossing at a tube circle's top: R 10.682974235606407, r 3.0268414277892
 tilt 0.00000000000000641608758379722: R-tan at Degeneracy { tangent: 0.0557253697477349,
 top: 8.348044200356952e-10 }: Tangent("section_torus_square_wall_fold_half")
 ```
+
+And a third, seed `0xe6f724928c971c91`, on PR 7395's next run: three
+mismatches of the same shape, `top` 3.28e-9 and 3.38e-9, read
+`Tangent("section_torus_square_wall_fold_half")`. The fuzzer is red on
+main's nightly too (`work/green/nightly-1115-residue-the-reds-no-lane-holds.md`,
+seed `0x96ec838c8a0d073e` at 1e-12).
