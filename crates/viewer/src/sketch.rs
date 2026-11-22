@@ -502,19 +502,12 @@ impl HeldStep {
         Ok(step)
     }
 
-    /// **`step` written over this step** — what a row's fields and its
-    /// controls write back. Every argument at a role this step also has
-    /// keeps its formula where the view did not move it, a literal whose
-    /// value is `step`'s, and every expression keeps its formula
-    /// whatever the view says: a driven field does not drag, and the
-    /// one write over an expression is an entry typed into its field
-    /// (`ProfileEdit::write_entry`), so a control that re-makes the step
-    /// (an arc re-moded fresh) never writes over what an expression
-    /// drives. The view is a function of the formula, so a number it
-    /// did not move IS the argument as written. Every other argument is
-    /// a literal of `step`'s number, in the unit its field showed it
-    /// in: the unit the literal it replaces is written in, else the one
-    /// `noted` names for its role, else `notation`'s.
+    /// **`step` written over this step** — what a row's fields and
+    /// controls write back. An expression is always kept (only an entry
+    /// typed into its field writes over one), and so is a literal `step`
+    /// did not move; every other argument is a literal of `step`'s
+    /// number, in the unit the literal it replaces is written in, else
+    /// the one `noted` names for its role, else `notation`'s.
     ///
     /// # Errors
     ///

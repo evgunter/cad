@@ -1600,16 +1600,20 @@ impl ViewerApp {
         // refusal does not cost it, and — for an unknown variable
         // name — prefill the add-variable affordance with the name it
         // offers to create (dimension deliberately left unpicked). Any
-        // other entry at a field — a number or a text, landed or refused
-        // for any reason but its parse — releases the field back to the
-        // document, which now says what became of what the user asked
-        // for.
+        // other entry at the field holding the text — a number or a
+        // text, landed or refused for any reason but its parse —
+        // releases it back to the document, which now says what became
+        // of what the user asked for. An entry at another field leaves
+        // it standing.
         match frame::retype_draft(&performed, refusal.as_ref()) {
             Some((node, slot, text)) => {
                 self.drafts.expr_target = Some((node, slot));
                 self.drafts.expr_text = text;
             }
-            None if performed.iter().any(|op| op.field_entry().is_some()) => {
+            None if self.drafts.expr_target.is_some_and(|target| {
+                performed.iter().any(|op| op.field_entry() == Some(target))
+            }) =>
+            {
                 self.drafts.expr_target = None;
                 self.drafts.expr_text.clear();
             }
@@ -11836,6 +11840,35 @@ mod properties_pane_tests {
             assert_eq!(reads(&row), Some(0.02), "reads the number: {status:?}");
         }
 
+        /// **A drag over a driven held field is refused in the slot
+        /// row's words**: the press says the driven affordance, naming
+        /// `w`, and the drag moves neither the draft nor the document.
+        #[test]
+        fn a_drag_over_a_driven_held_field_says_the_affordance() {
+            let mut driven = with_w();
+            type_into_x(&mut driven, 0, "w/7");
+            let committed = driven.app.session.committed_doc().clone();
+            let held = edit(&mut driven).programs().expect("lowers");
+            let painted = driven.quiet();
+            let marker = format!("{} ", crate::props::DRIVEN);
+            let at = nth(&painted, |run| run.starts_with(&marker), 0);
+            drag(&mut driven, at, 6, |_| {});
+            driven.settle();
+            let (row, _, pending, status) = left(&mut driven);
+            assert!(
+                status.contains("driven by an expression over w"),
+                "the drag is refused with the affordance: {status:?}"
+            );
+            assert!(row.driver.is_driven(), "still driven by w/7");
+            assert_eq!(pending, None, "nothing pending");
+            assert_eq!(
+                edit(&mut driven).programs().expect("lowers"),
+                held,
+                "the draft holds what it held"
+            );
+            assert!(driven.app.session.committed_doc().bit_eq(&committed));
+        }
+
         // ---- review rows (formwords-review-refused-entry) ----
 
         /// **A drag over a driven held field, then a typed number**:
@@ -12080,6 +12113,35 @@ mod properties_pane_tests {
             assert_eq!(standing, None, "nothing stands: {status:?}");
             assert_eq!(reads(&row), Some(0.02), "reads the number: {status:?}");
             assert!(!row.driver.is_driven(), "a literal: {row:?}");
+        }
+
+        /// **An entry at another field leaves the refused text
+        /// standing**: a number landed at the profile's anchor does not
+        /// release the depth's `zz`, and the depth's own number does.
+        #[test]
+        fn an_entry_at_another_field_leaves_the_refused_text_standing() {
+            let mut driven = with_w();
+            type_depth(&mut driven, "zz");
+            driven.app.perform_batch(vec![SessionOp::SetSlot {
+                node: super::startup_node(0),
+                slot: SlotId::Profile {
+                    loop_: 0,
+                    step: 0,
+                    arg: pncad::document::StepArg::PointX,
+                },
+                value: crate::props::SlotValue::Continuous(0.001),
+            }]);
+            driven.quiet();
+            let (_, standing, status) = left(&driven);
+            assert_eq!(
+                standing.as_deref(),
+                Some("zz"),
+                "another field's entry leaves it: {status:?}"
+            );
+            type_depth(&mut driven, "0.02");
+            let (row, standing, status) = left(&driven);
+            assert_eq!(standing, None, "its own field's entry releases it");
+            assert_eq!(reads(&row), Some(0.02), "{status:?}");
         }
 
         /// **A plain number after a bad first entry over a literal**:

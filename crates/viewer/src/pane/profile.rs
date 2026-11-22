@@ -163,6 +163,8 @@ pub(crate) trait SlotDoors {
 /// ([`held_field`]).
 #[derive(Clone, Debug)]
 enum HeldAct {
+    /// A drag's press: judged by the driven-slot rule.
+    Begin,
     /// A drag: the held number moves to this canonical value.
     Hold(f64),
     /// A number typed into the field.
@@ -183,7 +185,9 @@ enum HeldAct {
 ///   written in; a drag writes `held` every frame it moves, which is
 ///   what makes the draft's preview follow the drag.
 /// - **An argument an expression drives does not drag**: the field
-///   shows the expression's reading, and a drag moves nothing.
+///   shows the expression's reading, a drag moves nothing, and its
+///   press is refused as the slot row's is
+///   ([`crate::session::driven_refusal`]), onto `notices`.
 /// - **An entry is answered for the draft to write**
 ///   ([`ProfileEdit::write_entry`]), over a literal or an expression
 ///   alike, as the slot row's entry is: text for it to parse, a number
@@ -192,7 +196,7 @@ enum HeldAct {
 ///   field's own until the draft moves.
 fn held_field(
     ui: &mut egui::Ui,
-    notation: Notation,
+    (node, notation): (RecipeNodeId, Notation),
     (row, name): (&SlotRow, &str),
     held: &mut f64,
     refused: Option<&str>,
@@ -204,12 +208,18 @@ fn held_field(
     if !driven {
         showing.number = props::shown_value(showing.writing.unit, *held);
     }
-    let (slot, unit) = (row.slot, showing.writing.unit);
+    // The unit the field showed, as the slot row's door reads it
+    // (`DocSession`'s `set_slot`): written, else the working notation's.
+    let (slot, unit) = (
+        row.slot,
+        props::rendering_unit(row.dimension, row.unit, notation),
+    );
     let mut acts = Vec::new();
     value_field_ops(
         ui,
         showing,
         GestureVocabulary::held(
+            HeldAct::Begin,
             move |value| {
                 if driven {
                     HeldAct::Rest
@@ -229,6 +239,13 @@ fn held_field(
     let mut typed = None;
     for act in acts {
         match act {
+            // The slot row's drag is refused at the session's door by
+            // this same rule (`guard_driven`), in the same words.
+            HeldAct::Begin => {
+                if let Err(refusal) = crate::session::driven_refusal(node, row, notation) {
+                    notices.push(frame::refusal_message(&refusal));
+                }
+            }
             HeldAct::Hold(value) => *held = value,
             HeldAct::Number(value) => match props::typed_formula(slot, value, unit) {
                 Ok(literal) => typed = Some(HeldEntry::Literal(literal)),
@@ -251,6 +268,7 @@ fn held_field(
 /// into the draft.
 struct HeldArgs<'d, 'o> {
     slots: Option<&'d mut (dyn SlotDoors + 'o)>,
+    node: RecipeNodeId,
     notation: Notation,
     theme: Theme,
     /// Per held row, each argument's row as the draft holds it.
@@ -290,7 +308,7 @@ impl ArgDoors for HeldArgs<'_, '_> {
             .map(|(_, _, text, _)| text.as_str());
         if let Some(entry) = held_field(
             ui,
-            self.notation,
+            (self.node, self.notation),
             (&held, name),
             value,
             refused,
@@ -479,6 +497,7 @@ pub(crate) fn edit_door_ui(
         });
         let mut args = HeldArgs {
             slots: slots.as_deref_mut(),
+            node,
             notation,
             theme,
             rows: held_rows,

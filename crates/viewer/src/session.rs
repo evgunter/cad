@@ -268,8 +268,9 @@ fn guard_driven(
 
 /// **A drag or a range probe over `row`, where an expression drives
 /// it**, refused with the affordance: the driven-slot rule, for a slot
-/// the document holds ([`guard_driven`]) and for the control that asks
-/// it ahead of the click.
+/// the document holds ([`guard_driven`]), for an argument a profile
+/// editor's draft holds as a formula (its held field's drag), and for
+/// the control that asks it ahead of the click.
 pub(crate) fn driven_refusal(
     node: RecipeNodeId,
     row: &SlotRow,
@@ -2629,10 +2630,16 @@ impl DocSession {
     /// whatever it read before. A number over an expression replaces the
     /// expression, as the same number typed with its unit as text does
     /// ([`Self::set_slot_expression`]); only a drag over one is refused
-    /// ([`Self::begin_gesture`]). The literal is written in the unit the
-    /// slot is written in, the one its field showed the number in.
+    /// ([`Self::begin_gesture`]). The literal is written in the unit its
+    /// field showed the number in: the one the slot is written in, else
+    /// the working notation's ([`props::rendering_unit`], as a held
+    /// field's number is).
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
-        let unit = props::slot_unit(self.committed_doc(), node, slot);
+        let unit = props::rendering_unit(
+            slot.expr_dimension(),
+            props::slot_unit(self.committed_doc(), node, slot),
+            self.notation,
+        );
         match props::slot_typed_edit(node, slot, value, unit) {
             Ok(edit) => {
                 let outcome = self.commit_written(edit);
@@ -2733,12 +2740,12 @@ impl DocSession {
     /// adds is the driven-slot guard, the document and evaluation the
     /// search is taken against, and the store.
     fn probe_bounds(&mut self, target: BoundsTarget) -> OpOutcome {
-        // A driven slot is not a field the user can put a number into,
-        // so a range of numbers for it is not an answer to any question
-        // they can act on: the probe refuses it with the same
-        // affordance the write and the drag do, which names the
-        // variables to probe instead. A variable has no driver and
-        // reaches this door unguarded.
+        // A driven slot's number moves only when its variables do, so a
+        // range of numbers for the slot itself answers no question the
+        // user can act on: the probe refuses it with the same
+        // affordance the drag does, which names the variables to probe
+        // instead. A variable has no driver and reaches this door
+        // unguarded.
         if let BoundsTarget::Slot { node, slot } = target
             && let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation)
         {
@@ -2764,10 +2771,10 @@ impl DocSession {
     /// Rewrite a slot literal's display unit — the value stays put.
     ///
     /// No `guard_driven` here, and deliberately: the driven refusal
-    /// protects a computed slot from being overwritten with a NUMBER,
-    /// and this op writes no number. What a driven slot refuses is the
-    /// narrower `SlotUnitFault::NotALiteral` the panel model raises —
-    /// an expression has no authored notation to change.
+    /// is a drag's and a probe's, and this op is neither. What a driven
+    /// slot refuses is the narrower `SlotUnitFault::NotALiteral` the
+    /// panel model raises — an expression has no authored notation to
+    /// change.
     fn set_slot_unit(&mut self, node: RecipeNodeId, slot: SlotId, unit: UnitDef) -> OpOutcome {
         match props::slot_unit_edit(self.committed_doc(), node, slot, unit) {
             Ok(edit) => self.commit(edit),
@@ -2814,9 +2821,9 @@ impl DocSession {
             Ok(expr) => expr,
             Err(refusal) => return OpOutcome::refused(refusal.into()),
         };
-        // An expression edit is available on a driven slot AND on a
-        // literal one — the refusal is about writing a number over a
-        // computation, not about the slot being off limits.
+        // An entry is taken on a driven slot AND on a literal one, as
+        // the number door's is: only a drag over a computation is
+        // refused.
         let edit = if slot.is_structural() {
             DocEdit::SetStructuralParam {
                 node,

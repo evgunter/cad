@@ -10,8 +10,7 @@
 //! a taken name, `SetVariable` refuses an absent variable — both in the
 //! edit door's words),
 //! expressions driving slots (`SetSlotExpression`) and the
-//! refuse-with-affordance on a numeric write to a driven slot (G4
-//! rules it for a drag; the write follows the same rule), display
+//! refuse-with-affordance on a drag over a driven slot (G4), display
 //! units as a separate door from values (`SetSlotUnit`), slider
 //! gestures over a slot and over a variable (previews against
 //! scratch, exactly one undo step, a cancel leaving no trace), a

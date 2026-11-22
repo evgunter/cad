@@ -116,10 +116,10 @@ pub enum SessionOp {
     /// every candidate is applied to a scratch copy that is dropped.
     ///
     /// A slot driven by an expression is refused, exactly as
-    /// [`SessionOp::SetSlot`] and [`SessionOp::BeginGesture`] refuse
-    /// it: the range would be a range of numbers for a field that
-    /// takes no number. The affordance names the driving variables,
-    /// which are the fields to probe instead.
+    /// [`SessionOp::BeginGesture`] refuses it: the range would be how far
+    /// a number can move a slot whose number nothing moves until an
+    /// entry replaces the expression. The affordance names the driving
+    /// variables, which are the fields to probe instead.
     ProbeBounds {
         /// The field to probe.
         target: BoundsTarget,

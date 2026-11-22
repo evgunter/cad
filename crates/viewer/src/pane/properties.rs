@@ -2284,7 +2284,7 @@ mod tests {
         // home; this line does not.
         assert_eq!(
             rendered,
-            "driven by an expression over thickness (currently 4 mm) — edit the expression?"
+            "driven by an expression over thickness (currently 4 mm) — edit the expression, or type a number over it"
         );
     }
 
