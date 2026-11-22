@@ -131,10 +131,16 @@ fn decide_3_no_predicate_loses_a_decision() {
             // `carrier_matches_mapped_source` freeze at the coefficient
             // budget and go back to `numeric` (`[164, 16] -> [160, 20]`),
             // so rule G's trade on this row no longer shows at the
-            // nominal. The `carrier_on_surface_*` slots hold.
+            // nominal. With every arc verb's radius the literal its
+            // construction decided and the rim read as the rationalized
+            // gap, the `carrier_on_surface_*` slots read alike on both
+            // sides too (`[96, 12] -> [98, 10]`, `[100, 8] -> [98, 10]`):
+            // the two the canonical root took are theorems of the plain
+            // form with it shut, and two it took on the `abs` spelling
+            // are numeric with it on.
             let pinned: Option<([u64; 2], [u64; 2])> = match (*name, *p) {
                 ("r2_link", "carrier_on_surface_1" | "carrier_on_surface_2") => {
-                    Some(([96, 12], [100, 8]))
+                    Some(([98, 10], [98, 10]))
                 }
                 ("r2_link", "carrier_matches_mapped_source") => Some(([160, 20], [160, 20])),
                 // **The one decision rule G trades, against rule H**: on
@@ -149,12 +155,31 @@ fn decide_3_no_predicate_loses_a_decision() {
                 // ONEHOME's moved copy, not re-certified after its
                 // transform, takes 18 back on both sides, the trade
                 // holding: `[345, 6] -> [327, 6]`, `[341, 10] -> [323, 10]`.
+                // The fillet arcs storing their carrier's radius as
+                // decided: two fewer on both sides, the trade holding,
+                // `[327, 6] -> [325, 8]`, `[323, 10] -> [321, 12]` (which
+                // two, and whether they freeze at the coefficient budget
+                // as the link's do, is not isolated).
                 ("r2_filleted_bracket", "carrier_matches_mapped_source") => {
-                    Some(([327, 6], [323, 10]))
+                    Some(([325, 8], [321, 12]))
                 }
+                // **A second trade on the bracket**, one decision: with
+                // the fillet arcs' radius stored as decided, one
+                // `carrier_on_surface_1` margin is a theorem with rule G
+                // and the decision read shut and numeric with them on
+                // (`work/sym/the-canonical-root-trades-one-of-the-brackets-wall-margins.md`;
+                // which dial, and which margin, is not isolated).
+                // The `_2` slot holds.
+                ("r2_filleted_bracket", "carrier_on_surface_1") => Some(([242, 1], [241, 2])),
                 _ => None,
             };
-            let traded = (*name, *p) == ("r2_filleted_bracket", "carrier_matches_mapped_source");
+            let traded = matches!(
+                (*name, *p),
+                (
+                    "r2_filleted_bracket",
+                    "carrier_matches_mapped_source" | "carrier_on_surface_1"
+                )
+            );
             if let Some(expected) = pinned {
                 assert_eq!(
                     (*b, a),

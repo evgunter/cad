@@ -534,10 +534,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             // PCERT E1c (every mint reads incidence first, PR 5889):
             // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
             // and [28, 6] -> [20, 4].
-            ("pcurve_cylinder_chart_incident", [8, 4]),
+            ("pcurve_cylinder_chart_incident", [12, 0]),
             ("pcurve_envelope", [12, 0]),
             ("pcurve_interval_forward", [0, 12]),
-            ("pcurve_line_chart_incident", [10, 4]),
+            ("pcurve_line_chart_incident", [14, 0]),
             ("pcurve_loop_branch", [0, 25]),
             ("pcurve_map_residual", [18, 0]),
             // Validation's mint reads its one straight side's chord

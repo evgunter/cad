@@ -281,6 +281,16 @@ pub(crate) struct Study {
 /// (`topo::session_box_at`) and no measure asks it of an image, door
 /// shut: the bracket, two placements where one measure asked,
 /// (1290, 1611) -> (1290, 1612); the pad, one for one, unmoved.
+/// Then every arc verb stored its radius as the literal its construction
+/// decided, the readers of a point against a radius read the
+/// rationalized gap, and nothing registers the rim: symbolic the link
+/// 786 -> 794, the bracket 1361 -> 1370 and the pad 1483 -> 1499, the
+/// plate and the annulus unmoved; door shut the link (696, 843),
+/// stalled against the cylinder, -> (790, 939), certifying whole, the
+/// bracket (1290, 1612) -> (1291, 1611) and the pad (1483, 1709) ->
+/// (1499, 1693). The link's ceiling rose from `3.048e2·ε` to
+/// `4.395e2·ε` (door shut, from `1.080e2·ε` to the same), and the plate
+/// certifies whole at `1.6e3·ε`, door open or shut, where it refused.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -289,10 +299,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refuses_at: None,
             refused_by: None,
             // The circles store their authored carrier, the radius as
-            // `|r|`, so the rim at a vertex folds onto it in the tier's
-            // own algebra: every rim decision is a THEOREM, none reaches
-            // the door, and the plate refuses nowhere the bisection
-            // reaches.
+            // authored, and each vertex is `centre + radius·radial`, so a
+            // vertex's gap from its rim is a quotient whose numerator is
+            // the zero polynomial: every rim decision is a THEOREM, none
+            // reaches the door, and the plate refuses nowhere the
+            // bisection reaches.
             without_the_registry: None,
             symbolic: [979, 979, 979],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
@@ -317,26 +328,16 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // zero and X reads `2w / |2w|`, a sign the tier does not
             // hold. The rim identity the arc registers sits inside a
             // frozen compound, the mapped-source residual is read
-            // numerically, and it leaves the band first at 3.030e2·ε.
+            // numerically (`carrier_matches_mapped_source`), and it leaves
+            // the band first at 4.395e2·ε, door open or shut; the bracket's
+            // certifying end measures 4.393e2.
             certifies_at: 3.029e2,
-            refuses_at: Some(3.030e2),
+            refuses_at: Some(4.395e2),
             refused_by: None,
-            // Door shut, the extrude's rim (half-edge 24v1) refuses at
-            // check 4. The refusal decides the terms in order up to the
-            // first one over the band alone, `Radius` (the class
-            // circle's radius and orientation read as one pair), so it
-            // decides 3 of the envelope's 9 terms on each of its two
-            // reads.
-            //
-            // reads. Under INTENT stage 3 D's placement it decides two
-            // fewer numeric comparisons on the way (712 -> 710).
-            // Pinned at what main measures since PR 5728 (limb 2 for every
-            // carrier; at 1e-9 its first parent reads (722, 704) refusing
-            // at the pcurve's certification, its merge (709, 585)): shut, the door now refuses earlier,
-            // at limb 2's stall against the cylinder rather than at
-            // `pcurve_envelope`, after (709, 585), where it read (722, 702).
-            without_the_registry: Some(((696, 843), Some("Stalled { operand: Cylinder"))),
-            symbolic: [786, 786, 786],
+            // Door shut the link certifies whole: four decisions the
+            // registry discharges are numeric, inside the band.
+            without_the_registry: Some(((790, 939), None)),
+            symbolic: [794, 794, 794],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -373,13 +374,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +2 numeric: each of its two placements asks the session box
             // of where its copy stands (`topo::session_box_at`).
             // −2 numeric: its two identity charts owe no pole verdict.
-            without_the_registry: Some(((1290, 1612), None)),
+            without_the_registry: Some(((1291, 1611), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/sym/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1361, 1361, 1361],
+            symbolic: [1370, 1370, 1370],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -406,7 +407,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +1 numeric: its placement asks the session box of where its
             // copy stands (`topo::session_box_at`).
             // −1 numeric: its identity chart owes no pole verdict.
-            without_the_registry: Some(((1483, 1709), None)),
+            without_the_registry: Some(((1499, 1693), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -421,7 +422,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // extension's run became its own segment (Ev, PR 6542; PR
             // 6682, "the same added-vertex move as sym_9"): each corner
             // after a straight leg keeps the leg's end as a vertex.
-            symbolic: [1483, 1483, 1483],
+            symbolic: [1499, 1499, 1499],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -544,22 +545,20 @@ fn m10_9_the_door_is_inert_on_straight_geometry() {
     );
 }
 
-/// **THE MECHANISM, in the receipt.** A replay of the plate past its
-/// ceiling with the door SHUT registers nothing; the same replay with
-/// the door OPEN discharges through the registry — BOTH endpoint
-/// pinnings (the rim identity `‖q − c‖ = r` and the span identity
-/// `carrier.eval(param_end) = q_to`, the arc carrier's two same-object
-/// identities).
+/// **THE MECHANISM, in the receipt.** A replay of the plate at
+/// `1.6e3 · ε` with the door SHUT registers nothing; the same replay
+/// with the door OPEN discharges through the registry: the arc
+/// carrier's endpoint pinnings (`carrier.eval(0) = q_from`,
+/// `carrier.eval(param_end) = q_to`) and its radial facts. The rim
+/// identity `‖q − c‖ = r` is not among them: nothing registers it, and
+/// a vertex's gap from its rim is a theorem with the door shut.
 ///
-/// The name the drive stops on is deliberately NOT read: past the
-/// ceiling several predicates are over the band at once and the name
-/// is evaluation order.
+/// Both replays certify whole, so both decide the same population and
+/// the door's whole effect is decisions moved out of `numeric`.
 #[test]
 fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    // Past the measured ceiling (`[7.811e2, 7.814e2] · ε`,
-    // `measured_studies`).
     let doc = crate::m10_7_plate::plate(5.0e-5 * 1.6e3 * eps, 1.0e-5 * 1.6e3 * eps, tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
@@ -569,23 +568,19 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
         "   door shut {shut:?} -> {shut_refusal:?}\n   door open {open:?} -> {open_refusal:?}"
     );
     assert!(
+        shut_refusal.is_none() && open_refusal.is_none(),
+        "the plate certifies whole at 1.6e3·ε with the door shut and open alike: \
+         {shut_refusal:?}, {open_refusal:?}"
+    );
+    assert!(
         open.symbolic > shut.symbolic,
-        "the rim registrant discharges on the plate: {open:?} vs {shut:?}"
+        "the registrants discharge on the plate: {open:?} vs {shut:?}"
     );
-    // NOT "and `numeric` shrank": a REFUSING replay stops at its first
-    // refusal, so the two runs do not decide the same population — the
-    // door lets this one get further, and the decisions past the old
-    // refusal are decisions the shut run never reached. The
-    // out-of-`numeric`-and-nothing-else claim is pinned where every
-    // site decides: at the scalar
-    // (`geom_core::sym`'s `a_registered_identity_decides_zero`).
-    assert!(
-        open.decisions() >= shut.decisions(),
-        "the door can only carry a replay further, never less far: {open:?} vs {shut:?}"
-    );
-    assert!(
-        shut_refusal.is_some() && open_refusal.is_some(),
-        "past its ceiling the plate refuses with the door shut and open alike"
+    assert_eq!(
+        (open.decisions(), open.symbolic - shut.symbolic),
+        (shut.decisions(), shut.numeric - open.numeric),
+        "neither replay refuses, so both decide the same sites and each decision the door \
+         discharges leaves `numeric`: {open:?} vs {shut:?}"
     );
 }
 
@@ -970,7 +965,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // frames as rigid motions, minted from the sketch frame and read as
     // stored: 2773 -> 1967 frozen, the decisions holding
     // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`).
-    assert_eq!(got[0], (1483, 1709, 1967), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1499, 1693, 3387), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

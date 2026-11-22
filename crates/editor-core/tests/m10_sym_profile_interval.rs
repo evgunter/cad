@@ -766,15 +766,15 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|n| n.parse::<u64>().ok())
     };
     let sets: [(&str, SymRules, Option<u64>); 4] = [
-        // The two sets without the canonical root render the blocked
-        // residuals of the certificate's reads; the shipped sets none.
-        // ONEHOME's moved copy (`Held::moved`): the holes are not
-        // re-certified in the plate's frame, so 94 -> 64 of them.
+        // No set renders a blocked residual: the certificate's reads that
+        // blocked without the canonical root were rim gaps, and a vertex
+        // is its centre plus its stored radius along its radial, so each
+        // gap's numerator is the zero polynomial under every dial set.
         ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(64),
+            None,
         ),
         ("without_the_reads", SymRules::without_the_reads(), None),
         (
@@ -783,7 +783,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(64),
+            None,
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;

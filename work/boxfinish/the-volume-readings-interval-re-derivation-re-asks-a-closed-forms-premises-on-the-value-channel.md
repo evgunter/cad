@@ -61,3 +61,14 @@ other premises behave the same on a cone, sphere and torus wall.
   band finishes its volume role walk at `Sym<Interval>`, and the volume
   it reads contains every member's.
 - At `f64` and plain `Interval` nothing moves, or each move is listed.
+
+**Evidence (boxfinish/signed-radius, 2026-11-22).** With every arc verb
+storing its radius as the literal its construction decided and the
+readers of a point against a radius reading the rationalized gap, this
+row is the one finding left on the tour's cut plate over its study box:
+the blank, both hole extrudes and their placed copies build, and the
+first `Subtract`'s operand refuses on `props_rim_fit` alone, read at
+plain `Interval` as `[-6e-5, 6e-5]` (the radius box's width), with no
+`u_ref`, endpoint or orientation finding beside it. Pinned by
+`demos/tour/tests/tolerance.rs`'s
+`the_cut_plates_first_subtract_stops_at_the_volume_readings_rim_premise`.

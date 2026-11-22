@@ -148,9 +148,9 @@ fn a_circles_radials_are_exactly_plus_and_minus_x_over_a_box() {
                 [(ex, ex), (ey, ey)],
                 "boxed segment {k}'s end radial"
             );
-            // Certified against the vertices by the registered radial
-            // facts: the centre plus the radius along each radial IS the
-            // vertex through the tier, though `|r| − r` is no polynomial.
+            // The centre plus the stored radius along each radial IS the
+            // vertex through the tier: the radius is stored as authored,
+            // so the difference is the zero polynomial.
             let profile::SegmentKind::Arc { arc, .. } = segs[k].kind else {
                 panic!("a circle's segments are arcs");
             };

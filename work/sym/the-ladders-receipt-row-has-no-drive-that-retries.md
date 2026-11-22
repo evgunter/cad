@@ -16,3 +16,11 @@ Found by BOXFINISH's `boxfinish/sweep-frames`, which re-baselined the row.
 So no row pins the column when it is written: a regression in how a nonzero `retried` is serialized or rendered would pass. The kept-atom row (`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`) still measures a recovery of 6 on the filleted bracket, but at a nominal replay; the bracket's one-leaf drive at scale 1 does not certify (measured: `certified 0`), so it is not a drop-in.
 
 **Repair shape.** Find or build a one-leaf drive the ladder still retries on, and pin its receipt line and human form there.
+
+**Evidence (boxfinish/signed-radius, 2026-11-22).** With the arc verbs'
+radii stored as the literal their construction decided, the pad's
+one-leaf drive retries again: the shipped receipt reads
+`[1419, 1772, 22]` against the bare drive's `[1397, 1794, 0]`, and
+`sym_9_the_drive_writes_the_ladders_receipt` pins ` retried=22` on the
+goldening line and "22 of those discharges reached only by a second
+attempt" in the human form, which is this row's repair shape.

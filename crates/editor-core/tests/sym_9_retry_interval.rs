@@ -951,11 +951,13 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // With nothing retried the receipt writes no ladder column, as the
     // bare drive's does below; no fixture here retries in a one-leaf
     // drive now (`work/sym/the-ladders-receipt-row-has-no-drive-that-retries.md`).
+    // The ladder retries on this leaf, so the receipt writes its column
+    // and the human form its sentence.
+    assert!(line.contains(" retried=22"), "the ladder's column: {line}");
     assert!(
-        !line.contains("retried="),
-        "nothing retried, no column: {line}"
+        human.contains("22 of those discharges reached only by a second attempt"),
+        "{human}"
     );
-    assert!(!human.contains("second attempt"), "{human}");
     let b = bare.decisions();
     // Pinned with the shipped receipt above: [1387, 1420, 0] ->
     // [1429, 1414, 0] -> [1427, 1416, 0], the last move rule H's
@@ -974,8 +976,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // Then the sweeps' frames: the ladder retries nothing on this leaf,
     // and the bare drive reads the shipped receipt, [1390, 1802, 0]. Then
     // the least-turn mint's identity chart, as the shipped receipt's:
-    // [1390, 1802, 0] -> [1390, 1801, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1390, 1801, 0]);
+    // [1390, 1802, 0] -> [1390, 1801, 0]. Then the arcs' signed radii:
+    // [1390, 1801, 0] -> [1397, 1794, 0], seven decisions out of
+    // `numeric` on the first attempt; the other twenty-two the shipped
+    // receipt proves are the ladder's.
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1397, 1794, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

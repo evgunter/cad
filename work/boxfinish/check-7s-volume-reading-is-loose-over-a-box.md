@@ -112,3 +112,12 @@ cancelled terms, what `tilt_slack` is for over a box (it covers a loop
 off its plane; over a box it is charged for a width that is not a
 tilt), and whether the reading may use the symbolic channel, where the
 slab's volume is its depth.
+
+**Evidence (boxfinish/signed-radius, 2026-11-22).** On a cylinder wall
+the volume reading stops before its width matters: the tour's cut plate
+over its study box refuses its first `Subtract` at the closed form's
+rim premise `props_rim_fit`, re-asked at plain `Interval` and read as
+wide as the radius box (`[-6e-5, 6e-5]`). That is
+`the-volume-readings-interval-re-derivation-re-asks-a-closed-forms-premises-on-the-value-channel`,
+not this row's width; with the arcs' radii signed it is the only
+finding on that node.

@@ -118,17 +118,22 @@ use crate::m10_9_pins_interval::measured_studies;
 /// the stored radius sign-free (`geom_core::radius_gap`,
 /// `pcurve_cache`'s `ruling_direction`). The plate and the annulus,
 /// circles alone: frozen only, `36 → 8`, the rim's `sqrt` forms gone
-/// from what the reads build. The link: `[786, 943, 2600] → [794, 935,
-/// 2314]`, the readers' re-posing taking sixteen decisions out of
-/// `numeric` and the tangent arcs' rational radius putting eight back
-/// (its forms reach the coefficient budget where the `abs` atom did
-/// not). The bracket and the pad do not move here.
+/// from what the reads build. The link, where it replayed, `3.030e2·ε`:
+/// `[786, 943, 2600] → [794, 935, 2314]`, the readers' re-posing taking
+/// sixteen decisions out of `numeric` and the tangent arcs' rational
+/// radius putting eight back (its forms reach the coefficient budget
+/// where the `abs` atom did not); it certifies whole there, its ceiling
+/// having risen to `4.395e2·ε`, so the row replays it at that refusing
+/// end and reads the truncated replay's `[313, 323, 128]`. The bracket:
+/// `[1367, 1546, 57] → [1376, 1537, 28]`, nine decisions out of
+/// `numeric`. The pad: `[1483, 1709, 1967] → [1499, 1693, 3387]`,
+/// sixteen out of `numeric`, and more of what it builds frozen.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [979, 1047, 8]),
     ("r1_annulus", [511, 548, 8]),
-    ("r2_link", [794, 935, 2314]),
-    ("r2_filleted_bracket", [1367, 1546, 57]),
-    ("r2_rounded_pad", [1483, 1709, 1967]),
+    ("r2_link", [313, 323, 128]),
+    ("r2_filleted_bracket", [1376, 1537, 28]),
+    ("r2_rounded_pad", [1499, 1693, 3387]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
