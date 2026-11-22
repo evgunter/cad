@@ -191,7 +191,7 @@ Ev (2026-11-16): "re 'f64, Interval and Dual hold no expression and
 always answer no', is it possible to just make it sym only and a type
 error for these ones?" Each of the three designers, asked alone and
 reading current main, said yes; after three short rounds they
-recommend one shape (DESIGN `[scalars]` and E12 carry it).
+recommend one shape (E12 carries it).
 
 - **Each scalar declares the expression it carries**
   (`Real::Expression`): `Sym` its node; every numeric scalar a type
@@ -243,4 +243,25 @@ wall against a `s/|s|` quotient on its partner loses identities that
 cancelled when both were quotients (five ring-seat rows; the row that
 carries it is the sweep doors' reading row). The mint's unit owes that
 measurement before any door reads its record on a line.
+
+## Ev's answer (2026-11-22): the design stands; DESIGN.md is not touched
+
+Ev on PR 6993: "this sounds good, but the additions to DESIGN.md are
+much too detailed and may not be needed at all, since the stuff about
+making sure that everything that's allowed for all generics actually
+makes sense for all of them is already in there."
+
+So the PR changes no line of `docs/DESIGN.md`. `[unrepresentable]`
+("a signature is a claim", PR 7189) already says a numeric scalar is
+excluded from what has no meaning there, and `[scalars]` already says
+a lane scalar's choice is the same across the box, at a `Sym` over the
+unknowns' whole range. What is ratified here is ERROR-DESIGN E12's
+structural-question bullet and one clause of the profile's README. The
+mechanism (`Real::Expression`, a type with no values at a numeric
+scalar; the question a method of the expression; a bound for code
+whose whole meaning is symbolic) is written beside the code when the
+unit builds it, in `crates/geom-core/README.md`, as DL5.3 is.
+
+The earlier sections above that quote text for `[scalars]` and
+`[verdicts.consumers]` record what was weighed; none of it landed.
 

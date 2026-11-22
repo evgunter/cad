@@ -579,7 +579,8 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   that has the direction holds it exactly, and a hop between two
   points is given its director by the one mint, which that hop's
   junction checks read too (the axis where a component of the chord is
-  identically zero, DESIGN [scalars]'s structural question, signed by a
+  identically zero by the symbolic tier's structural question
+  (ERROR-DESIGN E12), signed by a
   reading of the other component; the chord over its length
   otherwise). A table's are minted the same way, once at validate. A
   door that needs a direction reads it here, and the mint is the one

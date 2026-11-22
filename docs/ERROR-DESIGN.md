@@ -584,7 +584,8 @@ mass has no valid build" — is not sayable about any macroscopic box.
   whether a value is zero as a function of the document's variables,
   to choose between two spellings of one real value: the exact axis
   `(0, ±1)` for a hop `(W, 0) → (W, H)` where the general form is the
-  chord over its length (DESIGN [scalars]). The answer is not a
+  chord over its length, and for nothing else: a branch that changes
+  what is built is a decision. The answer is not a
   decision: no count, no record, nothing deferred, and the same in an
   eager and in a deferring session. It is the normal form and the
   retry ladder with every rule that reads a value switched off (the
@@ -596,9 +597,11 @@ mass has no valid build" — is not sayable about any macroscopic box.
   and in every symbolic lane, and the zero it proves holds at every
   parameter value at which the build takes the decisions this replay
   took. A numeric scalar carries no expression, so the question cannot
-  be put to it (`Real::Expression`, DESIGN [scalars]), and the general
-  spelling is taken. A sign reading cannot
-  stand in for it: a decision
+  be put to it: the question is a method of the expression, and a
+  numeric scalar's `Real::Expression` is a type with no values (DESIGN
+  [unrepresentable], a signature is a claim). There the general
+  spelling is taken. A sign reading cannot stand in for the question:
+  a decision
   reads the value first and asks the tier only where the value reads
   no definite sign, so `(x + w) − w − x` is asked about where it
   rounds to 0 and not where it rounds to `2.8e-17`. A `Sym<T>` run's
