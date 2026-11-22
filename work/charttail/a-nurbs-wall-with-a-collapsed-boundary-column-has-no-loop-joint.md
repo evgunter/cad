@@ -62,3 +62,41 @@ reads every control row by an exact compare, so a corner the door
 decides pinned only up to rounding would count as moving and set the
 parameters by that rounding's ratios. While the door refuses every
 pinned corner before the skin, no such row reaches it.
+
+## Built (2026-11-22, on Ev's ruling on PR 7287)
+
+The row's "What" no longer holds as written. There is no
+`JointElement::Reset`: an element at a singular point is an ordinary
+deck element. `singular_points` was keyed on a `ChartInverse`, which
+excludes `Nurbs` by type. Five readers already read a collapsed side,
+and they disagreed. What the branch makes true:
+
+- **One home.** `geom_brep::chart_singularity::singular_points(&Surface)`
+  is exhaustive over kinds. A spline net's side is
+  `Singularity::Side(ChartSide)` where its control points are all one
+  stored point (`collapsed_sides`, exact, ±0 one value). Its readers
+  ask it: tier 3's singularity-as-vertex check and wrap tips,
+  `euler_ring` (a side's joint stands at either sense), `topo::chart`,
+  step-import's normalization and `recognize.rs` (its bitwise
+  `collapsed_side` folded in), `pcurves` `singular_at`, `edge_join`
+  `singular_at`, and `cell_region` `clear_of_singular`.
+  `spline_collapsed_row` reads the same exact rule: it is no longer
+  banded, and it no longer folds undecided into collapsed.
+- **The joint.** A vertex decided on a collapsed side frees the channel
+  along it. The other channel is checked at its lever, with the
+  identity on an open net (`AzimuthRule::OnCollapsedSide`). A side along
+  a channel the net closes (a NURBS cone's apex) refuses
+  `SingularMiss::ClosedSide`. Closure itself is
+  `a-spline-charts-closure-is-read-at-a-band-and-folds-in-band-to-open`.
+- **Exact constructors.** The loft door returns its classes. The skin
+  writes a pinned corner as its first section's point (`pin_strips`).
+  A row of one stored point abstains from the parameters and passes
+  through the solve unsolved, and the knot algebra keeps a blend of one
+  point with itself as that point.
+- **Class 1 builds.** There is no strut at a pinned corner, a flat
+  segment has no wall, and a cap–cap hinge rests as its wedge demands.
+  `stacking_door`'s step 4 now refuses a full turn's one vertex only.
+  The rectangle quadrature lane reads a collapsed side as a side of its
+  rectangle.
+- **Import heals** a side read one point at ε_in, and reports it
+  (`NormalizationKind::CollapsedSideMadeOne`).
