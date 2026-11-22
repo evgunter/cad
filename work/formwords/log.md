@@ -98,3 +98,21 @@ fix pass is running on both. A class to watch: seats that decline a
 pick **silently** although `Tools::feed`'s doc promises a notice. The
 fix pass closes it for the plane seats; a datum or seat unit that adds
 a pick route checks its own seats against that doc.
+
+## 2026-11-22 — friction: disk and runners
+
+(FORMWORDS orchestrator)
+- **Disk.** Eight concurrent viewer lanes, each with its own target,
+  filled this container's ~60 GB allowance twice. Two lanes lost a
+  build to it and deleted their own targets. The rule applied since:
+  `CARGO_INCREMENTAL=0`, `-p <crate>` only, and the orchestrator
+  reclaims a review lane's clone and target the moment its report is
+  in. More than five or six concurrent lanes belong in their own cloud
+  sessions (`memories/orchestration-model.md`).
+- **Runners.** A docs-only PR waited about 17 minutes for its first
+  job, and one lane's `gate ok` sat queued for over an hour after its
+  jobs were green. The time queued is a finding of its own; nothing in
+  this track's diffs causes it.
+- **Review tiers dispatched:** held-pick full, seat-vocab style with
+  correctness claims (its commit-withholding is a behaviour change),
+  and refused-entry, denotes-body and mirror-plane full.
