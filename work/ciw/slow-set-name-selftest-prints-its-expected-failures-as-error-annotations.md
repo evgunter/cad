@@ -4,7 +4,7 @@ kind: issue
 title: check-slow-set-names.py --selftest prints its expected failures as ::error annotations on a green lint job
 status: open
 opened: 2026-11-20
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -24,3 +24,7 @@ there, and a real dead entry reads like one more of them.
 The repair is for `check` to return (or take a sink for) its findings,
 with the caller printing the workflow commands, so the self-test asserts
 on the findings silently.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** - Still true. `scripts/check-slow-set-names.py:91-95` prints `::error`
+from `check`, which `selftest` (line 113) calls on failing fixtures.
+- This is annotation hygiene, not latency.
