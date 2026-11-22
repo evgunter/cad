@@ -51,3 +51,23 @@ Read from each scheduled nightly's `full-suite-junit-default` artifact:
 So it went red between `cdee746161` and `8039ba062e`: 172 first-parent
 commits, 49 merges touching some `crates/*/src/`. The test file itself
 last changed in PR 6864 (11-12), so a kernel merge moved it.
+
+## 2026-11-22: bisected to PR 7052 (U2)
+
+PR 7052 (`sectarms/periodic-loop-carrier`, merge `6c2430e888`, a closed
+fitted section loop carried as a periodic cubic) turns the row red. Each
+side was run on hosted CI by a throwaway branch (the commit plus a
+comment line naming the row, so the gate's slow-set step selects it),
+default ε, the gate's own opt-level:
+
+- `fa4e9ba921` (7052's first parent): PASS, 13.9 s (run 44997693000);
+- `6c2430e888` (7052's merge): FAIL, 14.0 s, at the stop above,
+  `EdgeInFace { edge: EdgeKey(16v1), face: FaceKey(4v5), gap: CarrierUnread }`
+  (run 44997688528).
+
+The two 1e-6 siblings red from the same window
+(`a_ball_across_a_cylinder_wall_wider_than_the_wall`'s `TubeStraddles`,
+`every_segment_joins_neighbouring_sites_along_its_loop`) are the lost
+pose PR 7052's body names and files
+(`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`);
+another lane holds them.
