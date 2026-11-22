@@ -1955,8 +1955,14 @@ pub enum AssertedSeat {
     Body(Operand),
     /// A face, read on the body it was picked on.
     Face(FaceSelection),
-    /// A read written as given: a cell's selection, or a pose
-    /// (`Operand::Pose`), as a check's finding names it.
+    /// **An operand as the measure reads it**, written as given: a
+    /// selection of one name in the body read plainly, a pose defined
+    /// off such a selection, or a variable — what the measure's insert
+    /// mints its references from. A check's finding names its cells
+    /// keyed by the `⊔` that gathered them, which is not this: a seat
+    /// built from a finding's raw name is admitted and then fails to
+    /// resolve. A finding's quieting assertion is converted to seats by
+    /// the kernel's own reading of the row.
     Read(Operand),
 }
 
@@ -1966,37 +1972,31 @@ pub enum AssertedSeat {
 pub enum AssertedClaim {
     /// `clearance(a, b)` within the bounds, each a length.
     Clearance(pncad::document::ClearanceBounds<Formula>),
-    /// The measure's output related to the bound
+    /// The output of the measure `measure` names, over the two seats in
+    /// order (a `Gap`'s outer then inner), related to the bound
     /// (`pncad::document::Claim::Value`).
     Value {
         /// The measure.
-        measure: ValueMeasure,
+        measure: pncad::document::MeasureVerb,
         /// How the output must relate to the bound.
         relation: pncad::document::AssertionRelation,
-        /// The bound, a length.
+        /// The bound, in the output's dimension.
         bound: Formula,
     },
 }
 
-/// **A measure an assertion relates to its bound**: the two
-/// `pncad::document::MeasurePrimitive`s `[assertions.quiet]` reads.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ValueMeasure {
-    /// The signed `Gap(outer, inner)`.
-    Gap,
-    /// The `Distance(a, b)`.
-    Distance,
-}
-
-impl ValueMeasure {
-    /// The primitive over `a` and `b`, in seat order.
-    #[must_use]
-    pub fn primitive(self, a: Operand, b: Operand) -> pncad::document::MeasurePrimitive<Operand> {
-        use pncad::document::MeasurePrimitive as M;
-        match self {
-            Self::Gap => M::Gap { outer: a, inner: b },
-            Self::Distance => M::Distance { a, b },
-        }
+/// **The primitive `verb` names over `a` and `b`**, in seat order.
+#[must_use]
+pub fn measured(
+    verb: pncad::document::MeasureVerb,
+    a: Operand,
+    b: Operand,
+) -> pncad::document::MeasurePrimitive<Operand> {
+    use pncad::document::{MeasurePrimitive as M, MeasureVerb as V};
+    match verb {
+        V::Gap => M::Gap { outer: a, inner: b },
+        V::Distance => M::Distance { a, b },
+        V::Angle => M::Angle { a, b },
     }
 }
 

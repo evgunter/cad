@@ -12,13 +12,11 @@
 #![allow(clippy::panic)]
 
 use pncad::document::{
-    AssertionRelation, CheckEvidence, CheckId, ClearanceBounds, Doc, Node, Operand, ProfileProgram,
-    RecipeNodeId,
+    AssertionRelation, CheckEvidence, CheckId, Claim, ClearanceBounds, Dimension, Doc, Formula,
+    MeasureVerb, Node, Operand, ProfileProgram, RecipeNodeId,
 };
 use pncad::geom_core::Tol;
-use viewer::session::{
-    AssertedClaim, AssertedSeat, DocSession, FaceSelection, Refusal, SessionOp, ValueMeasure,
-};
+use viewer::session::{AssertedClaim, AssertedSeat, DocSession, FaceSelection, Refusal, SessionOp};
 use viewer::test_support::{CLEARANCE_SIDE as SIDE, inserted, len, placed, rectangle};
 
 /// **Two blocks touching along `x`**, each placed into the world once:
@@ -73,7 +71,7 @@ fn walls(session: &DocSession, copies: [RecipeNodeId; 2]) -> [AssertedSeat; 2] {
 }
 
 /// `value relation 0` over `measure`.
-fn valued(measure: ValueMeasure, relation: AssertionRelation) -> AssertedClaim {
+fn valued(measure: MeasureVerb, relation: AssertionRelation) -> AssertedClaim {
     AssertedClaim::Value {
         measure,
         relation,
@@ -121,40 +119,51 @@ fn add(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     made
 }
 
-/// **A `Gap = 0` between the two touching walls quiets their contact,
-/// naming the assertion; a clearance between the same picks does not.**
-/// The `Gap` is the measure and the assertion over its output, which is
-/// what `[assertions.quiet]` reads; a clearance claim is no value, so
-/// no row is quiet under it, whatever its bound.
+/// **Through the tool, a `Gap = 0` between the two touching walls
+/// quiets their contact, naming the assertion; a clearance between the
+/// same picks does not.** The `Gap` is the measure and the assertion
+/// over its output, which is what `[assertions.quiet]` reads; a
+/// clearance claim is no value, so no row is quiet under it, whatever
+/// its bound. The tool writes the relation its bound choice names, and
+/// offers no `Gap` claim for a band; a `Gap ≥ 0`, a `Gap ≤ 0` and a
+/// `Distance = 0` between the walls leave the contact loud.
 ///
 /// The same `Gap`, its seats read as given ([`AssertedSeat::Read`])
 /// rather than picked, quiets it too.
 ///
-/// Red if the op writes a `Gap` claim in any other vocabulary than the
-/// one the quieting rule reads, the clearance arm writes a value, or a
-/// read seat is written as anything but the read it was given.
+/// Red if the tool writes a `Gap` claim in any other vocabulary than
+/// the one the quieting rule reads, writes another relation than the
+/// one chosen, the clearance arm writes a value, or a read seat is
+/// written as anything but the read it was given.
 #[test]
 fn a_gap_of_zero_between_touching_walls_quiets_their_contact_and_a_clearance_does_not() {
+    use viewer::combine::{AssertionMeasure, AssertionTool, BoundChoice};
     let tol = Tol::witness();
     let (mut session, copies) = touching(tol);
     assert!(
         contact(&session).quiet.is_none(),
         "the premise: nothing asserted, the contact is loud"
     );
+    let mut tool = AssertionTool::new();
+    for copy in copies {
+        let face = wall(&session, copy);
+        tool.seat_face(session.committed_doc(), face);
+    }
+    let tool_op = |measure: AssertionMeasure, bound: BoundChoice| {
+        let claim = measure
+            .claim(bound, len(0.0))
+            .unwrap_or_else(|| panic!("{measure:?} {bound:?} is a claim"));
+        tool.op(claim).expect("both seats are held")
+    };
 
-    let [a, b] = walls(&session, copies);
     let clearance = add(
         &mut session,
-        SessionOp::AddAssertion {
-            a: a.clone(),
-            b: b.clone(),
-            claim: AssertedClaim::Clearance(ClearanceBounds::Equal(len(0.0))),
-        },
+        tool_op(AssertionMeasure::Clearance, BoundChoice::Equal),
     );
     assert!(
         matches!(
             session.committed_doc().node(clearance),
-            Some(Node::Assertion(pncad::document::Claim::Clearance { .. }))
+            Some(Node::Assertion(Claim::Clearance { .. }))
         ),
         "the clearance arm writes a clearance claim"
     );
@@ -164,13 +173,45 @@ fn a_gap_of_zero_between_touching_walls_quiets_their_contact_and_a_clearance_doe
         "a clearance claim quiets no coincidence"
     );
 
+    assert_eq!(
+        AssertionMeasure::Gap.claim(BoundChoice::Between, len(0.0)),
+        None,
+        "a band bounds no value"
+    );
+    for bound in [BoundChoice::AtLeast, BoundChoice::AtMost] {
+        let outcome = session.perform(tool_op(AssertionMeasure::Gap, bound));
+        assert!(
+            outcome.refusal.is_none(),
+            "{bound:?}: {:?}",
+            outcome.refusal
+        );
+        let made = outcome.made.expect("an assertion is a node");
+        assert!(
+            matches!(
+                session.committed_doc().node(made),
+                Some(Node::Assertion(Claim::Value { relation, .. }))
+                    if Some(*relation) == bound.relation()
+            ),
+            "{bound:?}: the relation chosen"
+        );
+        session.pump();
+        assert_eq!(contact(&session).quiet, None, "{bound:?} 0 quiets nothing");
+        let undone = session.perform(SessionOp::Undo);
+        assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    }
+    let distance = session.perform(tool_op(AssertionMeasure::Distance, BoundChoice::Equal));
+    assert!(distance.refusal.is_none(), "{:?}", distance.refusal);
+    session.pump();
+    assert_eq!(
+        contact(&session).quiet,
+        None,
+        "a Distance = 0 between two faces says no rest of them"
+    );
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
     let gap = add(
         &mut session,
-        SessionOp::AddAssertion {
-            a,
-            b,
-            claim: valued(ValueMeasure::Gap, AssertionRelation::Equal),
-        },
+        tool_op(AssertionMeasure::Gap, BoundChoice::Equal),
     );
     assert_eq!(
         contact(&session).quiet,
@@ -179,23 +220,18 @@ fn a_gap_of_zero_between_touching_walls_quiets_their_contact_and_a_clearance_doe
     );
 
     // Filled from values rather than the tool: each seat the selection
-    // of the wall's name in the copy that draws it, read as given — the
-    // shape a caller already holding the claim, a check's finding,
-    // fills.
+    // of the wall's name in the copy that draws it, read as given.
     let undone = session.perform(SessionOp::Undo);
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
     session.pump();
     assert_eq!(contact(&session).quiet, None, "undone, the contact is loud");
-    let [a, b] = copies.map(|copy| {
-        let face = wall(&session, copy);
-        AssertedSeat::Read(Operand::select(copy, vec![face.name]))
-    });
+    let (a, b) = (as_read(&session, copies[0]), as_read(&session, copies[1]));
     let read = add(
         &mut session,
         SessionOp::AddAssertion {
-            a,
-            b,
-            claim: valued(ValueMeasure::Gap, AssertionRelation::Equal),
+            a: AssertedSeat::Read(a),
+            b: AssertedSeat::Read(b),
+            claim: valued(MeasureVerb::Gap, AssertionRelation::Equal),
         },
     );
     assert_eq!(
@@ -205,9 +241,113 @@ fn a_gap_of_zero_between_touching_walls_quiets_their_contact_and_a_clearance_doe
     );
 }
 
+/// The wall of the block `copy` draws, as the measure reads it: the
+/// selection of its name in the copy.
+fn as_read(session: &DocSession, copy: RecipeNodeId) -> Operand {
+    Operand::select(copy, vec![wall(session, copy).name])
+}
+
+/// **A value claim is the kernel's measure and assertion pair**, bit
+/// for bit: for `Gap` and `Distance` under `=`, `≥` and `≤` at a 3 mm
+/// bound, the op over two read seats writes the document the kernel's
+/// `measure` door and an assertion over its output write — the pair the
+/// Python binding writes. Over two picks, the measure's first reference
+/// is the first seat's face.
+///
+/// Red if the op writes another measure, relation or bound, swaps the
+/// seats, or reads the output at another dimension.
+#[test]
+fn a_value_claim_is_the_kernels_measure_and_assertion_pair_in_seat_order() {
+    let tol = Tol::witness();
+    let (mut session, copies) = touching(tol);
+    let (a, b) = (as_read(&session, copies[0]), as_read(&session, copies[1]));
+    for measure in [MeasureVerb::Gap, MeasureVerb::Distance] {
+        for relation in [
+            AssertionRelation::Equal,
+            AssertionRelation::AtLeast,
+            AssertionRelation::AtMost,
+        ] {
+            let why = format!("{measure:?} {relation:?}");
+            let before = session.committed_doc().clone();
+            let outcome = session.perform(SessionOp::AddAssertion {
+                a: AssertedSeat::Read(a.clone()),
+                b: AssertedSeat::Read(b.clone()),
+                claim: AssertedClaim::Value {
+                    measure,
+                    relation,
+                    bound: len(0.003),
+                },
+            });
+            assert!(outcome.refusal.is_none(), "{why}: {:?}", outcome.refusal);
+            let measured = pncad::document::measure(
+                &before,
+                &[match measure {
+                    MeasureVerb::Gap => pncad::document::MeasurePrimitive::Gap {
+                        outer: a.clone(),
+                        inner: b.clone(),
+                    },
+                    _ => pncad::document::MeasurePrimitive::Distance {
+                        a: a.clone(),
+                        b: b.clone(),
+                    },
+                }],
+                tol,
+            )
+            .unwrap_or_else(|e| panic!("{why}: the kernel measures: {e}"));
+            let [output] = measured.measured.outputs[..] else {
+                panic!("{why}: one output");
+            };
+            let (kernel, _) = inserted(
+                &measured.doc,
+                Node::Assertion(Claim::Value {
+                    value: Formula::var(output, Dimension::Length),
+                    bound: len(0.003),
+                    relation,
+                }),
+                tol,
+            );
+            assert!(
+                session.committed_doc().bit_eq(&kernel),
+                "{why}: the kernel's pair"
+            );
+            let undone = session.perform(SessionOp::Undo);
+            assert!(undone.refusal.is_none(), "{why}: {:?}", undone.refusal);
+        }
+    }
+
+    let [first, second] = walls(&session, copies);
+    let outcome = session.perform(SessionOp::AddAssertion {
+        a: first,
+        b: second,
+        claim: valued(MeasureVerb::Gap, AssertionRelation::Equal),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let doc = session.committed_doc();
+    let Some(Node::Assertion(Claim::Value { value, .. })) =
+        outcome.made.and_then(|made| doc.node(made))
+    else {
+        panic!("a value claim");
+    };
+    let Some(Node::Measure {
+        primitive: pncad::document::MeasurePrimitive::Gap { outer, .. },
+    }) = doc
+        .var(*value)
+        .and_then(|var| var.def().output())
+        .and_then(|(measure, _)| doc.node(measure))
+    else {
+        panic!("a Gap's output");
+    };
+    assert_eq!(
+        doc.selection(*outer).map(|s| s.names.clone()),
+        Some(vec![wall(&session, copies[0]).name]),
+        "the Gap's outer is the first seat's face"
+    );
+}
+
 /// **Every claim, undone, leaves no trace**: a clearance, a `Gap` and a
 /// `Distance`, each one action, and its undo the document it started
-/// from, bit for bit — the measure a value claim writes goes with it.
+/// from, bit for bit — the measure a value claim writes goes with it;
+/// its redo is the document it made.
 ///
 /// Red if a value claim's measure and assertion are two actions, or the
 /// undo leaves the measure behind.
@@ -221,11 +361,8 @@ fn every_claim_undone_leaves_no_trace() {
             AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.0))),
             1,
         ),
-        (valued(ValueMeasure::Gap, AssertionRelation::Equal), 2),
-        (
-            valued(ValueMeasure::Distance, AssertionRelation::AtLeast),
-            2,
-        ),
+        (valued(MeasureVerb::Gap, AssertionRelation::Equal), 2),
+        (valued(MeasureVerb::Distance, AssertionRelation::AtLeast), 2),
     ] {
         let before = session.committed_doc().clone();
         let outcome = session.perform(SessionOp::AddAssertion {
@@ -243,6 +380,7 @@ fn every_claim_undone_leaves_no_trace() {
             before.ids().len() + nodes,
             "{claim:?}: its nodes"
         );
+        let after = session.committed_doc().clone();
         session.pump();
         let undone = session.perform(SessionOp::Undo);
         assert!(undone.refusal.is_none(), "{claim:?}: {:?}", undone.refusal);
@@ -250,44 +388,82 @@ fn every_claim_undone_leaves_no_trace() {
             session.committed_doc().bit_eq(&before),
             "{claim:?}: the undo is the document before"
         );
+        let redone = session.perform(SessionOp::Redo);
+        assert!(redone.refusal.is_none(), "{claim:?}: {:?}", redone.refusal);
+        assert!(
+            session.committed_doc().bit_eq(&after),
+            "{claim:?}: the redo is the document after"
+        );
+        let undone = session.perform(SessionOp::Undo);
+        assert!(undone.refusal.is_none(), "{claim:?}: {:?}", undone.refusal);
     }
 }
 
 /// **A seat the measure cannot read is refused in the kernel's words**:
-/// a `Gap` over a body reads no face, an edge or a vertex, so the
-/// insert door refuses it, and the op says the door's own refusal — the
-/// one the kernel's measure door answers the same primitive with —
-/// leaving the document as it was.
+/// a `Gap` or a `Distance` over a body reads no face, an edge or a
+/// vertex, so the insert door refuses it, and the op says the door's
+/// own refusal — the one the kernel's measure door answers the same
+/// primitive with — leaving the document as it was. A clearance over
+/// the same seats is written.
 ///
 /// Red if the op checks the seat itself, or drops the door's refusal.
 #[test]
 fn a_seat_the_measure_cannot_read_is_refused_in_the_kernels_words() {
+    use pncad::document::MeasurePrimitive as M;
     let tol = Tol::witness();
     let (mut session, copies) = touching(tol);
-    let [_, b] = walls(&session, copies);
+    let face = wall(&session, copies[1]);
     let before = session.committed_doc().clone();
-    let outcome = session.perform(SessionOp::AddAssertion {
+    let body = Operand::Node(copies[0]);
+    let picked = Operand::select(face.node, vec![face.name.clone()]);
+    for (measure, primitive) in [
+        (
+            MeasureVerb::Gap,
+            M::Gap {
+                outer: body.clone(),
+                inner: picked.clone(),
+            },
+        ),
+        (
+            MeasureVerb::Distance,
+            M::Distance {
+                a: body.clone(),
+                b: picked.clone(),
+            },
+        ),
+    ] {
+        let outcome = session.perform(SessionOp::AddAssertion {
+            a: AssertedSeat::Body(copies[0].into()),
+            b: AssertedSeat::Face(face.clone()),
+            claim: valued(measure, AssertionRelation::Equal),
+        });
+        let Some(Refusal::Edit(said)) = &outcome.refusal else {
+            panic!(
+                "{measure:?}: the insert door refuses: {:?}",
+                outcome.refusal
+            );
+        };
+        let Err(kernel) = pncad::document::measure(&before, &[primitive], tol) else {
+            panic!("{measure:?}: the kernel's door refuses the same primitive");
+        };
+        assert_eq!(
+            said.to_string(),
+            kernel.to_string(),
+            "{measure:?}: the kernel's words"
+        );
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "{measure:?}: a refusal writes nothing"
+        );
+    }
+    let clearance = session.perform(SessionOp::AddAssertion {
         a: AssertedSeat::Body(copies[0].into()),
-        b,
-        claim: valued(ValueMeasure::Gap, AssertionRelation::Equal),
+        b: AssertedSeat::Face(face),
+        claim: AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.0))),
     });
-    let Some(Refusal::Edit(said)) = &outcome.refusal else {
-        panic!("the insert door refuses: {:?}", outcome.refusal);
-    };
-    let wall = wall(&session, copies[1]);
-    let Err(kernel) = pncad::document::measure(
-        &before,
-        &[pncad::document::MeasurePrimitive::Gap {
-            outer: Operand::Node(copies[0]),
-            inner: Operand::select(wall.node, vec![wall.name]),
-        }],
-        tol,
-    ) else {
-        panic!("the kernel's door refuses the same primitive");
-    };
-    assert_eq!(said.to_string(), kernel.to_string(), "the kernel's words");
     assert!(
-        session.committed_doc().bit_eq(&before),
-        "a refusal writes nothing"
+        clearance.refusal.is_none(),
+        "a clearance reads a body: {:?}",
+        clearance.refusal
     );
 }

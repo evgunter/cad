@@ -99,7 +99,7 @@ pub use author::{BooleanSpec, PartSelectSpec, PatternDirection, PatternRuleSpec}
 pub use delete::DeleteAffordance;
 pub use op::{
     AssertedClaim, AssertedSeat, CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome,
-    PlaceTarget, PlacementBase, SessionOp, SplitPlane, ValueGestureName, ValueMeasure,
+    PlaceTarget, PlacementBase, SessionOp, SplitPlane, ValueGestureName, measured,
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
@@ -3881,14 +3881,21 @@ impl DocSession {
                 relation,
                 bound,
             } => {
-                let primitive = measure.primitive(a, b);
+                let primitive = measured(measure, a, b);
                 creating(move |run| {
                     let measured = run.measure(std::slice::from_ref(&primitive))?;
                     let [output] = measured.outputs[..] else {
                         unreachable!("one primitive measured defines one output")
                     };
+                    // The output read at its own kind's dimension, so a
+                    // bound of another is the door's `assertion_dimension`.
+                    let dim = run
+                        .doc()
+                        .var(output)
+                        .and_then(|var| var.kind().dimension())
+                        .unwrap_or_else(|| bound.dim());
                     run.insert(Node::Assertion(pncad::document::Claim::Value {
-                        value: Formula::var(output, pncad::document::Dimension::Length),
+                        value: Formula::var(output, dim),
                         bound,
                         relation,
                     }))

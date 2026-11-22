@@ -536,27 +536,23 @@ fn the_witness_is_offered_only_for_the_shown_documents_run() {
 /// Red if a choice writes another shape, or the band's ends swap.
 #[test]
 fn the_assertion_tool_writes_each_shape_of_clearance_bound() {
-    use viewer::combine::{
-        AssertionMeasureChoice, AssertionTool, ClearanceBoundChoice, RelationChoice,
-    };
+    use viewer::combine::{AssertionMeasure, AssertionTool, BoundChoice};
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
     let wall = facing_wall(&session, left);
     let mut tool = AssertionTool::new();
     tool.seat_face(session.committed_doc(), wall.clone());
     assert!(tool.seat_body(session.committed_doc(), right).is_none());
-    for (choice, _) in ClearanceBoundChoice::ALL {
+    for (choice, _) in BoundChoice::ALL {
         let op = tool
-            .op(AssertionMeasureChoice::Clearance.claim(
-                choice,
-                RelationChoice::default(),
-                len(0.005),
-            ))
+            .op(AssertionMeasure::Clearance
+                .claim(choice, len(0.005))
+                .expect("every shape bounds a clearance"))
             .expect("both seats are held");
         let id = add(&mut session, op);
         // A band's upper end moved apart at its own row, so ends that
         // swapped would read back swapped.
-        if choice == ClearanceBoundChoice::Between {
+        if choice == BoundChoice::Between {
             let moved = session.perform(SessionOp::SetSlotExpression {
                 node: id,
                 slot: pncad::document::SlotId::ClearanceBound(pncad::document::BoundEnd::High),
@@ -578,10 +574,10 @@ fn the_assertion_tool_writes_each_shape_of_clearance_bound() {
             .try_map(|&var| Ok::<_, ()>(value(var)))
             .expect("lengths");
         let want = match choice {
-            ClearanceBoundChoice::AtLeast => ClearanceBounds::AtLeast(0.005),
-            ClearanceBoundChoice::AtMost => ClearanceBounds::AtMost(0.005),
-            ClearanceBoundChoice::Equal => ClearanceBounds::Equal(0.005),
-            ClearanceBoundChoice::Between => ClearanceBounds::Within {
+            BoundChoice::AtLeast => ClearanceBounds::AtLeast(0.005),
+            BoundChoice::AtMost => ClearanceBounds::AtMost(0.005),
+            BoundChoice::Equal => ClearanceBounds::Equal(0.005),
+            BoundChoice::Between => ClearanceBounds::Within {
                 lo: 0.005,
                 hi: 0.02,
             },
@@ -611,7 +607,7 @@ fn the_assertion_tool_writes_each_shape_of_clearance_bound() {
 #[test]
 fn a_clearances_bounds_are_rows_that_take_a_formula_and_round_trip() {
     use pncad::document::{BoundEnd, SlotId};
-    use viewer::combine::ClearanceBoundChoice;
+    use viewer::combine::BoundChoice;
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
     let slots = |session: &DocSession, id| {
@@ -625,10 +621,10 @@ fn a_clearances_bounds_are_rows_that_take_a_formula_and_round_trip() {
         SlotId::ClearanceBound(BoundEnd::High),
     );
     for (choice, want) in [
-        (ClearanceBoundChoice::AtLeast, vec![low]),
-        (ClearanceBoundChoice::AtMost, vec![high]),
-        (ClearanceBoundChoice::Equal, vec![low]),
-        (ClearanceBoundChoice::Between, vec![low, high]),
+        (BoundChoice::AtLeast, vec![low]),
+        (BoundChoice::AtMost, vec![high]),
+        (BoundChoice::Equal, vec![low]),
+        (BoundChoice::Between, vec![low, high]),
     ] {
         let id = add(
             &mut session,
@@ -639,7 +635,7 @@ fn a_clearances_bounds_are_rows_that_take_a_formula_and_round_trip() {
 
     let id = add(
         &mut session,
-        requirement(left, right, ClearanceBoundChoice::AtLeast.bounds(len(0.0))),
+        requirement(left, right, BoundChoice::AtLeast.bounds(len(0.0))),
     );
     session.pump();
     assert_eq!(cleared(&session, id).state(), "Holds", "contact holds");
@@ -1043,12 +1039,12 @@ fn two_pattern_members_faces_are_witnessed_where_each_stands() {
 #[test]
 fn a_variable_a_clearance_bound_reads_focuses_nothing() {
     use pncad::document::{BoundEnd, SlotId};
-    use viewer::combine::ClearanceBoundChoice;
+    use viewer::combine::BoundChoice;
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
     let id = add(
         &mut session,
-        requirement(left, right, ClearanceBoundChoice::AtLeast.bounds(len(0.0))),
+        requirement(left, right, BoundChoice::AtLeast.bounds(len(0.0))),
     );
     let declared = session.perform(SessionOp::DeclareVar {
         name: pncad::document::VarName::new("gap").expect("a name"),
@@ -1087,14 +1083,14 @@ fn a_variable_a_clearance_bound_reads_focuses_nothing() {
 #[test]
 fn a_bound_that_does_not_evaluate_names_its_own_end() {
     use pncad::document::{BoundEnd, NodeErrorKind, SlotId};
-    use viewer::combine::ClearanceBoundChoice;
+    use viewer::combine::BoundChoice;
     let tol = Tol::witness();
     for (choice, end) in [
-        (ClearanceBoundChoice::AtLeast, BoundEnd::Low),
-        (ClearanceBoundChoice::AtMost, BoundEnd::High),
-        (ClearanceBoundChoice::Equal, BoundEnd::Low),
-        (ClearanceBoundChoice::Between, BoundEnd::Low),
-        (ClearanceBoundChoice::Between, BoundEnd::High),
+        (BoundChoice::AtLeast, BoundEnd::Low),
+        (BoundChoice::AtMost, BoundEnd::High),
+        (BoundChoice::Equal, BoundEnd::Low),
+        (BoundChoice::Between, BoundEnd::Low),
+        (BoundChoice::Between, BoundEnd::High),
     ] {
         let (mut session, left, right) = scene(tol, None);
         let id = add(

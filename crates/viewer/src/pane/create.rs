@@ -13,9 +13,7 @@ use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendKindChoice, FREEZE_NOTE};
-use crate::combine::{
-    AssertionMeasureChoice, BooleanTool, ClearanceBoundChoice, PatternOutputChoice, RelationChoice,
-};
+use crate::combine::{AssertionMeasure, BooleanTool, BoundChoice, PatternOutputChoice};
 use crate::drafts::{CommitFault, Drafts};
 use crate::forms::{COUNT_DRAG_SPEED, PatternLayoutChoice, boolean_op_label, split_half_label};
 use crate::frame::{self, Tone};
@@ -69,29 +67,28 @@ pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mu
 }
 
 /// **The assertion form's claim rows**: which measure it bounds, then
-/// a clearance's shape or a value's relation. Its bounds are inserted at
-/// contact and edited on the assertion's own rows.
+/// how. Its bounds are inserted at contact and edited on the
+/// assertion's own rows.
 pub(crate) fn assertion_claim_rows(ui: &mut egui::Ui, drafts: &mut Drafts) {
     ui.horizontal(|ui| {
         ui.label("measure");
-        for (choice, label) in AssertionMeasureChoice::ALL {
-            ui.radio_value(&mut drafts.assertion_measure, choice, label);
+        for choice in AssertionMeasure::ALL {
+            ui.radio_value(&mut drafts.assertion_measure, choice, choice.label());
         }
     });
-    ui.horizontal(|ui| match drafts.assertion_measure {
-        AssertionMeasureChoice::Clearance => {
-            ui.label("clearance");
-            for (choice, label) in ClearanceBoundChoice::ALL {
-                ui.radio_value(&mut drafts.clearance_bound, choice, label);
-            }
-        }
-        AssertionMeasureChoice::Gap | AssertionMeasureChoice::Distance => {
-            ui.label("value");
-            for (choice, label) in RelationChoice::ALL {
-                ui.radio_value(&mut drafts.assertion_relation, choice, label);
-            }
+    ui.horizontal(|ui| {
+        ui.label(drafts.assertion_measure.label());
+        for (choice, label) in BoundChoice::ALL {
+            ui.radio_value(&mut drafts.assertion_bound, choice, label);
         }
     });
+}
+
+/// Why the assertion form's commit is withheld, if it is: a band
+/// bounds a clearance and no measure's value.
+pub(crate) fn assertion_blocked(drafts: &Drafts) -> Option<&'static str> {
+    (drafts.assertion_measure.verb().is_some() && drafts.assertion_bound.relation().is_none())
+        .then_some("a band bounds a clearance; bound a value from one side, or at one value")
 }
 
 /// **A seated tool's held picks, drawn**: [`seat_line`] over the
@@ -617,12 +614,15 @@ impl ViewerBehavior<'_> {
         let Some(tool) = self.tools.assertion().cloned() else {
             return self.tool_door(ui, ToolKind::Assertion);
         };
-        crate::widgets::message(
-            ui,
-            ToolKind::Assertion.says(
-                &"add an assertion: pick a face in the picture, or a body in the tree, for each of its two seats",
-            ),
-        );
+        // A measure's value reads faces, edges and vertices, never a
+        // body; only a clearance takes a body picked in the tree.
+        let prompt = match self.drafts.assertion_measure.verb() {
+            None => {
+                "add an assertion: pick a face in the picture, or a body in the tree, for each of its two seats"
+            }
+            Some(_) => "add an assertion: pick a face in the picture for each of its two seats",
+        };
+        crate::widgets::message(ui, ToolKind::Assertion.says(&prompt));
         crate::widgets::message_toned(
             ui,
             tool.line(frame::landed_speaker(self.session.landed_pair())),
@@ -630,13 +630,15 @@ impl ViewerBehavior<'_> {
             Tone::Advisory,
         );
         assertion_claim_rows(ui, self.drafts);
-        self.tool_commit_row(ui, ToolKind::Assertion, None, |drafts, notation| {
+        let blocked = assertion_blocked(self.drafts);
+        self.tool_commit_row(ui, ToolKind::Assertion, blocked, |drafts, notation| {
             let contact = notation.length_literal(0.0)?;
-            let claim = drafts.assertion_measure.claim(
-                drafts.clearance_bound,
-                drafts.assertion_relation,
-                contact,
-            );
+            let Some(claim) = drafts
+                .assertion_measure
+                .claim(drafts.assertion_bound, contact)
+            else {
+                unreachable!("the commit is withheld for a band over a value")
+            };
             Ok(tool.op(claim)?)
         });
     }

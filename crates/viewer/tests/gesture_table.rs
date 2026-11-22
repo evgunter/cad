@@ -402,12 +402,16 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 body: 0,
             },
         },
+        // A value claim, the op's two-node arm: the measure and the
+        // assertion over its output.
         SessionOp::AddAssertion {
             a: viewer::session::AssertedSeat::Body(node.into()),
             b: viewer::session::AssertedSeat::Body(node.into()),
-            claim: viewer::session::AssertedClaim::Clearance(
-                pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
-            ),
+            claim: viewer::session::AssertedClaim::Value {
+                measure: pncad::document::MeasureVerb::Gap,
+                relation: pncad::document::AssertionRelation::Equal,
+                bound: Formula::zero(Dimension::Length),
+            },
         },
     ]
 }

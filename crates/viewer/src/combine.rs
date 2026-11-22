@@ -36,7 +36,7 @@ use crate::seats::{
 };
 use crate::session::{
     AssertedClaim, AssertedSeat, BooleanSpec, FaceSelection, PartSelectSpec, PatternDirection,
-    PatternRuleSpec, SessionOp, SplitPlane, ValueMeasure,
+    PatternRuleSpec, SessionOp, SplitPlane,
 };
 use crate::tree::HeldPick;
 use crate::vocab::vocabulary;
@@ -781,20 +781,20 @@ impl core::fmt::Display for PlaneEvent {
 }
 
 vocabulary! {
-    /// **Which side a clearance requirement bounds** — the assertion
-    /// form's choice for a clearance, and which of [`ClearanceBounds`]'
-    /// shapes its commit writes: from below, from above, both at one value, or a
-    /// band.
+    /// **How an assertion bounds its measure** — the assertion form's
+    /// one bound choice, for every measure: from below, from above, at
+    /// one value, or a band, which only a clearance's
+    /// [`ClearanceBounds`] has a shape for.
     ///
     /// [`ClearanceBounds`]: pncad::document::ClearanceBounds
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-    pub enum ClearanceBoundChoice {
-        /// `clearance(a, b) ≥ c`.
+    pub enum BoundChoice {
+        /// `m ≥ c`.
         #[default]
         AtLeast = "at least",
-        /// `clearance(a, b) ≤ c`.
+        /// `m ≤ c`.
         AtMost = "at most",
-        /// `clearance(a, b) = c`.
+        /// `m = c`.
         Equal = "exactly",
         /// `lo ≤ clearance(a, b) ≤ hi`.
         Between = "between",
@@ -804,10 +804,10 @@ vocabulary! {
     pub const ALL;
 }
 
-impl ClearanceBoundChoice {
-    /// **The bounds this choice writes**: its shape, with every end at
-    /// `at`. The insert writes contact (`0`); each end is then a slot
-    /// row of the requirement (`SlotId::ClearanceBound`).
+impl BoundChoice {
+    /// **The clearance bounds this choice writes**: its shape, with
+    /// every end at `at`. The insert writes contact (`0`); each end is
+    /// then a slot row of the requirement (`SlotId::ClearanceBound`).
     pub fn bounds<S: Clone>(self, at: S) -> pncad::document::ClearanceBounds<S> {
         use pncad::document::ClearanceBounds as B;
         match self {
@@ -820,77 +820,71 @@ impl ClearanceBoundChoice {
             },
         }
     }
+
+    /// **The relation this choice holds a value to**, `None` for a
+    /// band, which bounds no value.
+    pub fn relation(self) -> Option<pncad::document::AssertionRelation> {
+        use pncad::document::AssertionRelation as R;
+        match self {
+            Self::AtLeast => Some(R::AtLeast),
+            Self::AtMost => Some(R::AtMost),
+            Self::Equal => Some(R::Equal),
+            Self::Between => None,
+        }
+    }
 }
 
 vocabulary! {
     /// **What an assertion measures** — the assertion form's choice of
-    /// claim: a clearance, or a `Gap`'s or a `Distance`'s value.
+    /// claim, in the form's order: a clearance, or the value of one of
+    /// the kernel's measures ([`Self::verb`]).
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-    pub enum AssertionMeasureChoice {
-        /// `clearance(a, b)`, bounded by a [`ClearanceBoundChoice`].
+    pub enum AssertionMeasure {
+        /// `clearance(a, b)`.
         #[default]
-        Clearance = "clearance",
+        Clearance,
         /// The signed `Gap(a, b)`.
-        Gap = "gap",
+        Gap,
         /// The `Distance(a, b)`.
-        Distance = "distance",
+        Distance,
     }
 
-    /// Every choice with its button label — the form's radio row.
+    /// Every choice — the form's radio row.
     pub const ALL;
 }
 
-vocabulary! {
-    /// **How a measured value relates to its bound** — the assertion
-    /// form's choice for a `Gap` or a `Distance`.
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-    pub enum RelationChoice {
-        /// `value = bound`.
-        #[default]
-        Equal = "exactly",
-        /// `value ≥ bound`.
-        AtLeast = "at least",
-        /// `value ≤ bound`.
-        AtMost = "at most",
-    }
-
-    /// Every choice with its button label — the form's radio row.
-    pub const ALL;
-}
-
-impl RelationChoice {
-    /// The kernel's relation.
-    pub fn relation(self) -> pncad::document::AssertionRelation {
-        use pncad::document::AssertionRelation as R;
+impl AssertionMeasure {
+    /// **The kernel's measure this choice names**, `None` for a
+    /// clearance, which is a claim of its own and no measure's value.
+    pub fn verb(self) -> Option<pncad::document::MeasureVerb> {
+        use pncad::document::MeasureVerb as V;
         match self {
-            Self::Equal => R::Equal,
-            Self::AtLeast => R::AtLeast,
-            Self::AtMost => R::AtMost,
+            Self::Clearance => None,
+            Self::Gap => Some(V::Gap),
+            Self::Distance => Some(V::Distance),
         }
     }
-}
 
-impl AssertionMeasureChoice {
+    /// The choice's word: the kernel's name for its measure.
+    pub fn label(self) -> &'static str {
+        self.verb()
+            .map_or("clearance", pncad::document::MeasureVerb::verb)
+    }
+
     /// **The claim this choice writes**, every bound at `at`: a
-    /// clearance in the shape `bounds` chooses, or the measure related
-    /// to `at` by `relation`. The insert writes contact (`0`); each
-    /// bound is then a slot row of the assertion.
-    pub fn claim(
-        self,
-        bounds: ClearanceBoundChoice,
-        relation: RelationChoice,
-        at: Formula,
-    ) -> AssertedClaim {
-        let value = |measure| AssertedClaim::Value {
-            measure,
-            relation: relation.relation(),
-            bound: at.clone(),
-        };
-        match self {
-            Self::Clearance => AssertedClaim::Clearance(bounds.bounds(at.clone())),
-            Self::Gap => value(ValueMeasure::Gap),
-            Self::Distance => value(ValueMeasure::Distance),
-        }
+    /// clearance in the shape `bound` chooses, or the measure related
+    /// to `at` as `bound` relates; `None` for a band over a measure's
+    /// value. The insert writes contact (`0`); each bound is then a
+    /// slot row of the assertion.
+    pub fn claim(self, bound: BoundChoice, at: Formula) -> Option<AssertedClaim> {
+        Some(match self.verb() {
+            None => AssertedClaim::Clearance(bound.bounds(at)),
+            Some(measure) => AssertedClaim::Value {
+                measure,
+                relation: bound.relation()?,
+                bound: at,
+            },
+        })
     }
 }
 
