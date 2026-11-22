@@ -2,12 +2,14 @@
 id: a-refusing-ask-runs-on-to-its-whole-budget-looking-for-a-verified-crossing
 kind: issue
 title: An injectivity ask that has met a refusal keeps walking to the end of its budget for a verified crossing, so refusals are 45% of the gate's measured price and the dearest asks in the suites are refusals on 4 to 7 face bodies
-status: open
+status: dispatched
 opened: 2026-11-18
 priority: P1
 cost: M
 design: true
 refs: [the-at-rest-gate-certifies-embedding]
+pr: 7319
+branch: embed/first-finding
 ---
 
 

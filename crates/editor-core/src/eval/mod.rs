@@ -3795,6 +3795,36 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
     program: &ProfileProgram,
     tol: Tol,
 ) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
+    traced_faces_in(doc, ev, program, None, tol)
+}
+
+/// **The faces the profile node `profile` traces, read through the frame
+/// its own carriage decided** ([`ProfileValue::drawn_frame`]): what a
+/// reader after the profile reads, never selecting the frame again.
+/// `None` where the profile has no value.
+pub(crate) fn traced_faces_of<T: EvalScalar + crate::mate::SolveScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<T>,
+    profile: RecipeNodeId,
+    tol: Tol,
+) -> Option<Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind>> {
+    let crate::Node::Profile(program) = doc.node(profile)? else {
+        return None;
+    };
+    let ValuePayload::Profile(value) = &ev.value(profile)?.payload else {
+        return None;
+    };
+    Some(traced_faces_in(doc, ev, program, value.frame.as_ref(), tol))
+}
+
+/// [`traced_faces`], through `decided` where it is in hand.
+fn traced_faces_in<T: EvalScalar + crate::mate::SolveScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<T>,
+    program: &ProfileProgram,
+    decided: Option<&wire::trace::DrawnFrame<T>>,
+    tol: Tol,
+) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
     // `doc` may be `ev`'s document with a probe lowered into it, whose
     // member reads mint their indices as counts `ev` never bound, and
     // whose values (a face's chart's spin and slides) are definitions it
@@ -3831,7 +3861,10 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
             std::borrow::Cow::Owned(env)
         }
     };
-    Ok(wire::trace::drawn(doc, &ev.nodes, program, &env, tol)?.map_or_else(Vec::new, |d| d.faces))
+    Ok(
+        wire::trace::drawn_in(doc, &ev.nodes, program, decided, &env, tol)?
+            .map_or_else(Vec::new, |d| d.faces),
+    )
 }
 
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box
@@ -5394,7 +5427,7 @@ where
                 resolved,
                 pre: Box::new(pre),
                 form,
-                frame: drawn.map(|d| d.frame),
+                frame: drawn.map(|d| d.on),
             }
         }
         // AN ASSERTION'S EXPRESSIONS (E10): a value claim's value and
