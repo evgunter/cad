@@ -123,7 +123,15 @@ fn assert_corner_crossing(
         test_utils::offer::offered_below(&text),
     ) {
         (Some(want), Some(offer)) => {
-            assert_eq!(offer, want, "{label}: offers the arm's tilt over K: {text}")
+            assert!(
+                geom_core::test_support::is_told_offer_of(offer, band.tolerance_deciding(m)),
+                "{label}: offers {offer:e}, not the measured tilt over K, {:e}, told: {text}",
+                band.tolerance_deciding(m)
+            );
+            assert_eq!(
+                offer, want,
+                "{label}: offers the rule's telling of the tilt over K: {text}"
+            );
         }
         (None, None) => assert!(
             text.contains("no tolerance a run admits decides this rise"),
@@ -264,9 +272,14 @@ fn the_corners_offer_executes() {
         );
         let quoted = test_utils::offer::offered_below(text).expect("an offer");
         assert!(
-            topo::test_support::offers_a_margin_within(band, quoted, margin, 1e-6 * margin),
-            "{row}: offers {:?} for the arm's tilt, quoted {quoted:e}",
-            band.offer_deciding(margin)
+            geom_core::test_support::is_offer_of_a_margin_within(
+                band,
+                quoted,
+                margin,
+                1e-6 * margin
+            ),
+            "{row}: quotes {quoted:e}, not the told offer of a tilt within 1e-6 of {margin:e} \
+             over K: {text}"
         );
         let below = test_utils::offer::BELOW * quoted;
         let got = run(&format!("{module}::{row}"), below);
