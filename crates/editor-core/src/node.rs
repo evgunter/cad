@@ -1912,8 +1912,9 @@ pub enum Node<P, S: Slot = crate::VarId> {
     Subtract {
         /// The body cut.
         from: crate::BodyRead<S>,
-        /// The bodies cut away, read as a union's members are
-        /// ([`crate::Seats::CUTS`]'s seats).
+        /// The bodies cut away, read as a union's members are, each at
+        /// a [`crate::OperandSlot::Cut`] seat, or a family read whole at
+        /// [`crate::OperandSlot::Cuts`].
         tool: crate::Bodies<crate::BodyRead<S>>,
     },
     /// **The assemble** (`⊔`, D10 `[operations.operators]`): its
