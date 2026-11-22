@@ -571,6 +571,26 @@ fn carrier_fault(fault: TraceFault) -> TraceStepFault {
     }
 }
 
+/// Where the written crossing stands among `crossings`, where it is
+/// among them: what a piece takes ([`kernel::ray_crossings_to`]).
+fn taken<T: geom_core::Real>(
+    crossing: TraceCrossing,
+) -> impl Fn(&[kernel::Crossing<T>]) -> Option<usize> {
+    let passage = match crossing.passage {
+        TracePassage::Enter => Passage::Enter,
+        TracePassage::Leave => Passage::Leave,
+    };
+    move |crossings: &[kernel::Crossing<T>]| {
+        let nth = (crossing.nth as usize).checked_sub(1)?;
+        crossings
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.passage == passage)
+            .nth(nth)
+            .map(|(at, _)| at)
+    }
+}
+
 /// The written crossing among `crossings`, or how many there were.
 fn pick<T: geom_core::Real>(
     crossings: Vec<kernel::Crossing<T>>,
@@ -605,12 +625,13 @@ fn ray_to<T: Decide>(
     let surface = traced(face, band)?;
     let origin = face.sketch_to_body.transform_point(lift(pen));
     let dir = face.sketch_to_body.transform_vec(lift_vec(heading));
-    let crossings = kernel::ray_crossings(
+    let crossings = kernel::ray_crossings_to(
         surface,
         face.sense,
         &geom::Ray::new(origin, dir),
         reach_of(face, origin).map_err(TraceStepFault::Uncovered)?,
         band,
+        taken(crossing),
     )
     .map_err(carrier_fault)?;
     pick(crossings, crossing)
@@ -640,8 +661,8 @@ fn arc_to<T: Decide>(
         radius,
         map.transform_vec(lift_vec(radial_hat)),
     );
-    let crossings =
-        kernel::circle_crossings(surface, face.sense, circle, band).map_err(carrier_fault)?;
+    let crossings = kernel::circle_crossings_to(surface, face.sense, circle, band, taken(crossing))
+        .map_err(carrier_fault)?;
     let hit = pick(crossings, crossing)?;
     let at = face.body_to_sketch.transform_point(hit.point);
     Ok((Point2::new(at.x, at.y), hit.outward))

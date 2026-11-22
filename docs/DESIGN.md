@@ -421,11 +421,15 @@ curve pairs.
   branches on it; keys are *body-lineage-scoped* (key identity across
   same-history builds is what lets an interval replay share topology
   with the f64 build). The certified-lane pattern is **f64 structure +
-  `T` payload**: candidate generation (`ssi::jet`/`march`/`system`, the
-  analytic composite's implicit form) is `f64`-only and untrusted, and
-  the certificate is derived and carried at `T` (`SsiCertificate<T>`,
-  `FittedLane`) — so a WIDENED analytic operand refuses typed
-  rather than picking a representative surface out of the family.
+  `T` payload**: candidate generation (`ssi::jet`/`march`/`system`)
+  is `f64`-only and untrusted, and the certificate is derived and
+  carried at `T` (`SsiCertificate<T>`, `FittedLane`). The analytic
+  composite's coefficients are enclosures built at the lane scalar, so
+  a WIDENED analytic operand is certified as the family it is rather
+  than represented by a surface picked out of it. The one reading that
+  still holds an analytic operand as `f64` structure is the chart
+  tube's partner form (`ssi::certify::chart_partner_form`), which
+  refuses a widened partner typed (`CHART_TUBE_PARTNER_INEXACT`).
 - **What a lane scalar takes from `f64` is a choice, never a claim,
   and the same across the box.** This holds of every scalar that is
   not `f64`, a `Dual` and a `Sym` as much as an `Interval`: at a

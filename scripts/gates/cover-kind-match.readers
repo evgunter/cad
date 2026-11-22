@@ -11,7 +11,7 @@
 # of one door for another in a fn, lands by adding its line; a reader that
 # goes drops its line.
 crates/editor-core/src/eval/measure.rs	reach_of	face_cover	1	two-sided	a face's farthest distance from a part origin is the lever of a parallelism tilt: the measure grants parallel only on Zero and refuses on nonzero, but the mate solve, the at-rest check and the wire pose read it too and grant a non-parallel verdict on nonzero, so a bigger cover reads in-band tilts as decided there; a smaller one certifies a parallelism that does not hold.
-crates/editor-core/src/eval/wire/trace.rs	drawn	face_cover	1	refuses	a traced face carries its cover for the plane-miss read: a bigger cover is shown to miss less often and hands off to the exact crossing, never a wrong miss
+crates/editor-core/src/eval/wire/trace.rs	drawn_in	face_cover	1	refuses	a traced face carries its cover for the plane-miss read: a bigger cover is shown to miss less often and hands off to the exact crossing, never a wrong miss
 crates/editor-core/src/names/emit_union.rs	Flush::of	edge_cover	1	namesake	the token is Flush::edge_cover, the flush record's own method over its incidence table, which reads no cover of topo's: a namesake, so no direction applies
 crates/sweep/src/blend/reach.rs	sheet_clip	face_cover	1	refuses	a revolve face's cover and nearest distance in the sheet frame bound where the blend band can reach: a bigger cover meters more cells and refuses as uncertified sooner, never prunes a reachable face
 crates/sweep/src/blend/reach.rs	sheet_clip	face_nearest	1	refuses	a revolve face's cover and nearest distance in the sheet frame bound where the blend band can reach: a bigger cover meters more cells and refuses as uncertified sooner, never prunes a reachable face

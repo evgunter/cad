@@ -121,14 +121,14 @@ its distance from the world origin,
 and on the cone a part the lever does not decide positive (one reaching
 the apex) reads `√|f|` instead: `f` is the product of the distances
 from the meridian half-plane's two generator lines, both on the implicit
-cone. The search's limbs convert the torus per span of the carrier
-too, bounding the residual its limb 1 reads,
-`m = F/(2r·(A + 2Rρ))` for the quartic `F = A² − 4R²ρ²` with
-`A = |q|² + R² − r²`, by `sup|F∘C|` over `2r` times
-`inf A∘C + √(inf A∘C² − sup F∘C)`, `A∘C` its own composite over the
-same spans and floored by `R² − r²` (`ssi::certify`); the cone has no
-such conversion at the search, which is why its rung-3 arms are
-unretired. At a
+cone. The search reads limb 2 through the same reader, against the
+surface's whole carrier rather than a face's
+(`pcurve_cache::Limb2Locus::Carrier`): a pair's section is a section of
+carriers (C5), so it reads a cone as the double cone, whose lever is
+`ρ cos α + |z| sin α`, taking the lesser of that reading and `√|f|`.
+The coefficients are enclosures built at the lane scalar, a cone's
+sine and cosine taken of its angle crossed in first, so a widened
+operand is read as the family it is. At a
 parameter-family scalar the limb is decided by the scalar like any
 margin (E12): its symbolic identity is the residual of the carrier's own
 description against the operand, per span, with the carrier's parameter
@@ -518,11 +518,15 @@ step; it is the point decisions' clamp, the region decisions' lever,
 the seeding floor and the tube
 ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
-the bounded domain is *excluded* (an implicit residual bounded away from
-zero by enclosure, the boundary pass's mean-value enclosure of a strip
-or corner cell the plane misses included), *accounted* (contained in a found branch's tube,
-or in a boundary contact's certified region), or refined to the named
-floor, where the op refuses
+the bounded domain is *excluded*, *accounted* or refined. A cell is
+excluded where an implicit residual is bounded away from zero by
+enclosure; the boundary pass's mean-value enclosure of a strip or
+corner cell the plane misses counts too. On a cone cell that reaches
+the axis or the apex's plane the quadric `cos²α·ρ² − sin²α·h²` is read
+instead of the residual, since it has the double cone's sign. A cell
+is *accounted* where it is contained in a found branch's tube or in a
+boundary contact's certified region. Any other cell is refined down to
+the named floor, where the op refuses
 `SsiError::ExhaustivenessInconclusive`. Where the pose counts the
 section's components (C5), exhaustiveness closes by that count: the
 march, seeded at the counted witnesses (an open arc's lies between its
@@ -891,7 +895,8 @@ pose has one, and otherwise the pair's **critical gap**, a certified
 sweep of a one-parameter distance between the two surfaces' spines,
 never a root formula; in band, it escalates. A pair of a NURBS face and a
 surface with an implicit residual `f` (plane, cylinder, sphere, torus;
-the cone once its residual is enclosed) decides its tangency and
+the cone once that pair has a cone partner form, which its ℝ³ tube
+enclosure does not give it) decides its tangency and
 coincidence once, in its classification, on the composite `φ = f∘S`
 over the NURBS face's knot rectangle, before any march, and every
 reader reads that verdict: the hull of `φ` decides apart and
