@@ -247,6 +247,7 @@ fn r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges() {
         let side = topo::clearance::Side {
             body: &hollow,
             faces: hollow.faces().map(|(k, _)| k).collect(),
+            excluded: topo::clearance::FacePairs::none(),
         };
         if let Err(e) = side.windows(topo::clearance::Which::First) {
             panic!("conical wedge {what}: every face has a window, got {e:?}");
