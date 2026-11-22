@@ -335,3 +335,21 @@ body has the reasons):
 - 2026-11-20 — (tracker sweep) **WIREREFUSE merged in.** It held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size). Its 7 live rows moved here by `git mv`, ids and bodies unchanged, each with a dated Moved note; its charter and plan are the `## From WIREREFUSE` sections of `program.md` and `plan.md` (`docs/doc-ledger/wirerefuse-wirecost-and-wirehold-merge-into-doctail.md`). (tracker sweep)
 - 2026-11-20 — (tracker sweep) **WIRECOST merged in.** It held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size). Its 4 live rows moved here by `git mv`, ids and bodies unchanged, each with a dated Moved note; its charter and plan are the `## From WIRECOST` sections of `program.md` and `plan.md` (`docs/doc-ledger/wirerefuse-wirecost-and-wirehold-merge-into-doctail.md`). (tracker sweep)
 - 2026-11-20 — (tracker sweep) **WIREHOLD merged in.** It held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size). Its 9 live rows moved here by `git mv`, ids and bodies unchanged, each with a dated Moved note; its charter and plan are the `## From WIREHOLD` sections of `program.md` and `plan.md` (`docs/doc-ledger/wirerefuse-wirecost-and-wirehold-merge-into-doctail.md`). (tracker sweep)
+- 2026-11-22 03:05 — **Resumed after the weekly limit**, which stopped
+  every lane on 2026-11-20 at about 04:00.
+  - **Merged and landed while paused:** 7148 (the probe re-pin, merged
+    `1360b9e` on the orchestrator's read: the assertion is kept and only
+    moved to evaluation).
+  - **Tracker:** main merged WIREREFUSE, WIRECOST and WIREHOLD into
+    DOCTAIL (`docs/doc-ledger/wirerefuse-wirecost-and-wirehold-merge-into-doctail.md`),
+    and CHARTTAIL filed
+    `main-red-bounds-census-misses-reach-rs-crossing-and-sure-below`
+    (P1 E). Per EXCH's bisect, only `sure_below` is 7114's. It was
+    dispatched to cloud session session_013QoYWYg8qyNrXqjqYv32XW.
+  - **The three PRs** were green, with reviews dispatched (all three
+    FULL, cloud):
+    - 7150, runwall: session_013QoYWYGubkML2amC4dN5Zv;
+    - 7149, Parted: session_013QoYWYMb8f9c4z55jPTvxL;
+    - 7151, lever: session_013QoYWVRvFYKyod85TtCfsz.
+  - **The runwall lane** resumed to merge main into 7150, which
+    conflicts. Its 21 GB target was deleted when disk hit 5.7 GB free.
