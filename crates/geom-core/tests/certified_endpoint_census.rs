@@ -552,11 +552,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        28,
+        23,
         4,
         "the 4 that ask are the chart tube's span-hull window (`chart_tube_windows` refuses \
          either window hull by name before padding it — a refused hull is NaI, and its NaN ends \
-         name no window). The other 24 are `T: Bounds` reads on the evaluation scalar and not \
+         name no window). The other 19 are `T: Bounds` reads on the evaluation scalar and not \
          certification endpoints at all — blind spot 1: `nurbs_limbs`' 5 are its projection \
          seeds, limb 1's at each sample and the image-miss tell's at a refusing break, a \
          parameter the foot search starts from (structure; the carried distance stays honest \
@@ -566,19 +566,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          at each end, which selects the axis the end's slice is cut across (structure), \
          `probe_tube_pair`'s 8 are its reads of the two pcurves, their tangents (a direction the \
          probe refuses unless positive finite) and their end states (where an end's slice is \
-         cut, structure), `exact`'s 2 and `analytic_limbs`' 1 are the same kind of \
-         evaluation read, `brackets`' 2 read a frame component for `frame_direction`, a NaN \
-         end or a width past rounding answering no direction (a refused bracket's NaN ends \
-         fail its width test, so it names none), and `FrameCharge::over`'s 1 is the upper end \
-         of its turn times reach read on the interval scalar from point brackets of `f64` \
-         payloads, finite or NaN, so it certifies or answers NaN, which no band admits",
+         cut, structure), and `analytic_limbs`' 1 is the same kind of evaluation read (limb 1's \
+         refused residual, steering refinement)",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        39,
-        38,
+        35,
+        34,
         "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all \
-         refuse by name, and so do the mignitude (`zero_free_lower_bound`, 4) and `a_positive`. \
+         refuse by name, and so do the mignitude (`zero_free_lower_bound`, 4), `a_positive` \
+         and the cone's gate (`Elevation::gate`, 3: `h`'s sign and `ρ²`'s floor, each read \
+         only after its enclosure is certified, a box it cannot decide refused). \
          The remainder is `chart_transverse_margin`'s upper end of the stretch times the \
          gradient's supremum, two finite positive points (each refused otherwise above it), so \
          the product certifies, and the margin over it rounds down: a lower bound",
