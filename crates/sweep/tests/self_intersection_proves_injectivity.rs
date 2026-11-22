@@ -3193,6 +3193,38 @@ fn apex_frames() -> [(&'static str, SketchPlane<f64>); 3] {
     ]
 }
 
+/// Whether a revolve refused at the certification limit a wedge reaches
+/// at ε = 1e-12 with coordinates of a hundred and more: the analytic
+/// rung 3's kernel limit on its cone, the mapped source's check
+/// escalating, or a pcurve's envelope term escalating
+/// (`work/select/an-interval-revolve-of-a-cone-wedge-a-thousand-units-out-refuses-its-cones-rung-3-at-1e-12.md`).
+/// Any other refusal is not.
+fn at_the_build_limit(e: &sweep::RevolveError) -> bool {
+    use geom_brep::{
+        AnalyticRung3Refusal, CertCheck, CertifyError, PcurveCertifyError, PcurveCheck,
+    };
+    match e {
+        sweep::RevolveError::Op {
+            source: topo::EulerOpError::Certification { error },
+        } => matches!(
+            error,
+            CertifyError::AnalyticRung3(AnalyticRung3Refusal::KernelLimit { .. })
+                | CertifyError::Escalated {
+                    check: CertCheck::MappedSource,
+                    ..
+                }
+        ),
+        sweep::RevolveError::Pcurve(topo::PcurveMintError::Certify { error, .. }) => matches!(
+            error,
+            PcurveCertifyError::Escalated {
+                check: PcurveCheck::EnvelopeTerm(_),
+                ..
+            }
+        ),
+        _ => false,
+    }
+}
+
 /// **A cone wedge past a half turn is embedded at its apex**: a
 /// triangle with a leg on the axis, revolved by `θ` about `y`. Each
 /// wedge plane holds the axis, so its carrier holds a second ruling of
@@ -3216,7 +3248,7 @@ fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
         place: &SketchPlane<f64>,
         legs: (f64, f64),
         theta: f64,
-    ) -> Result<Body<T>, String> {
+    ) -> Result<Body<T>, sweep::RevolveError> {
         let (r, h) = legs;
         let profile = Profile::new(
             plane_at::<T>(place),
@@ -3233,7 +3265,6 @@ fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
             tol(),
         )
         .map(|b| b.body.into_body())
-        .map_err(|e| format!("{e:?}"))
     }
     let far = SketchPlane::from_frame(geom_core::test_support::rigid(
         &Affine3::from_parts(Mat3::identity(), Vec3::new(640.0, -570.0, 520.0)),
@@ -3257,23 +3288,22 @@ fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
                 // At ε = 1e-12 the two poses at coordinates of a hundred and
                 // more refuse their certification at the build:
                 // work/select/an-interval-revolve-of-a-cone-wedge-a-thousand-units-out-refuses-its-cones-rung-3-at-1e-12.md.
-                let built =
-                    |r: Result<topo::clearance::EmbeddingReport, String>, scalar: &str| match r {
-                        Ok(report) => Some(report),
-                        Err(e)
-                            if matches!(*name, "moved a thousand" | "a hundred times")
-                                && tol().eps() < 1e-11
-                                && (e.starts_with("Op { source: Certification {")
-                                    || e.starts_with("Pcurve(Certify {")) =>
-                        {
-                            println!(
-                                "SKIPPED (ε = {:e}): {what} at {scalar} does not build: {e}",
-                                tol().eps()
-                            );
-                            None
-                        }
-                        Err(e) => panic!("{what} builds at {scalar}: {e}"),
-                    };
+                let built = |r: Result<topo::clearance::EmbeddingReport, sweep::RevolveError>,
+                             scalar: &str| match r {
+                    Ok(report) => Some(report),
+                    Err(e)
+                        if matches!(*name, "moved a thousand" | "a hundred times")
+                            && tol().eps() < 1e-11
+                            && at_the_build_limit(&e) =>
+                    {
+                        println!(
+                            "SKIPPED (ε = {:e}): {what} at {scalar} does not build: {e}",
+                            tol().eps()
+                        );
+                        None
+                    }
+                    Err(e) => panic!("{what} builds at {scalar}: {e}"),
+                };
                 let float = built(
                     wedge::<f64>(place, *legs, turn).map(|b| embedding(&b)),
                     "f64",

@@ -5906,7 +5906,10 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     // presentations against `v`.
     //
     // **Why it is sound.** Each presentation against `{v}` is a superset
-    // of the face's part of its cell, as any presentation is, and `apart`
+    // of the face's part of its cell up to the module's ε concessions:
+    // the sliver cannot fire against `{v}` (it reads a side on shared
+    // edges), but the touch, the cover and the sheet's overlap can drop
+    // points within their few ulps, as they do in any presentation. `apart`
     // accepts only where the plane is strictly of one sign on each off its
     // zero set and the two signs are opposite. Against `{v}` the zero sets
     // lie at `v`: a zero carrying an edge reads nothing under a plane that
@@ -12927,5 +12930,170 @@ mod presentation_rows {
             Some(Sign::Positive),
             "the plane through the apex signs the face's nappe"
         );
+    }
+
+    /// [`wedge_at_the_apex`] in a true mirror (`y → −y`), on a re-charted
+    /// cone (axis `−z`: `u' = π − u`, `v' = −v`) and a re-charted plane
+    /// (normal `−y`), the plane's far edge at `(1, far.1)`, the cone's
+    /// cell about `u = π` widened by `du` and reaching `dv` along the
+    /// ruling: [`certify_pair`]'s outcome.
+    fn mirrored_wedge(
+        far: (f64, f64),
+        mirror: bool,
+        recone: bool,
+        replane: bool,
+        du: (f64, f64),
+        dv: f64,
+    ) -> Outcome {
+        let s2 = core::f64::consts::FRAC_1_SQRT_2;
+        let pi = core::f64::consts::PI;
+        let m = if mirror { -1.0 } else { 1.0 };
+        let p3 = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(m * y), iv0(z));
+        let line = |a: Point3<Interval>, b: Point3<Interval>| {
+            Some((Curve3::line(a, b - a), (iv0(0.0), iv0(1.0))))
+        };
+        let apex = origin();
+        let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
+        let q = p3(far.1, 0.0, far.0);
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(if recone { -1.0 } else { 1.0 })),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        };
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(if replane { -1.0 } else { 1.0 }), iv0(0.0)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            ),
+        };
+        // Chart of a cone point at original (u, v): mirror u -> -u (shift by 2π
+        // to stay in [π/2, 2π]); recone (u, v) -> (π − u, −v).
+        let ch = |u: f64, v: f64| -> (f64, f64) {
+            let u = if mirror {
+                if u <= 0.0 { -u } else { 2.0 * pi - u }
+            } else {
+                u
+            };
+            if recone { (pi - u, -v) } else { (u, v) }
+        };
+        let (u_sh, u_far) = (ch(0.0, 0.0).0, ch(1.5 * pi, 0.0).0);
+        let vr = if recone { -1.0 } else { 1.0 };
+        let mut c = Boundary {
+            sense: !mirror,
+            edges: vec![
+                rim(1, [1, 2], Axis::U, u_sh, (u_sh, 0.0), (u_sh, vr)),
+                rim(2, [1, 3], Axis::U, u_far, (u_far, 0.0), (u_far, vr)),
+                rim(3, [2, 3], Axis::V, vr, (u_sh, vr), (u_far, vr)),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(3), p1)]),
+            extent: Some([
+                (u_sh.min(u_far), u_sh.max(u_far)),
+                (vr.min(0.0), vr.max(0.0)),
+            ]),
+        };
+        c.edges[0].arc = line(apex, p0);
+        c.edges[0].uses[0].plus = false;
+        c.edges[1].arc = line(apex, p1);
+        c.edges[2].arc = Some((
+            Curve3::circle(
+                p3(0.0, 0.0, s2),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(m)),
+                iv0(s2),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            (iv0(0.0), iv0(1.5 * pi)),
+        ));
+        c.edges[2].uses[0].plus = false;
+        let unread = |n: u64, ends: [u64; 2], arc, plus| Rim {
+            key: edge(n),
+            arc,
+            stated: None,
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let w = Boundary {
+            sense: !(mirror ^ replane),
+            edges: vec![
+                unread(1, [1, 2], line(apex, p0), false),
+                unread(4, [1, 4], line(apex, q), true),
+                unread(5, [4, 2], line(q, p0), true),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(4), q)]),
+            extent: None,
+        };
+        let lw = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let lc = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: vec![vertex(1)],
+        };
+        let piece = |face: FaceKey, surface, boundary, u, v, local| Piece {
+            face,
+            surface,
+            whole: false,
+            boundary,
+            u,
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        // The plane's chart is (z, ±x): x flips with replane.
+        let a = piece(face(1), &plane, &w, (0.0, 1e-3), (-1e-3, 1e-3), &lw);
+        let uc = ch(pi, 0.0).0;
+        let cv = if recone { (-dv, 0.0) } else { (0.0, dv) };
+        let b = piece(face(2), &cone, &c, (uc + du.0, uc + du.1), cv, &lc);
+        certify_pair(&a, &b, &near, band())
+    }
+
+    /// **A wedge plane holding the cone's second ruling is never parted
+    /// from it, in any mirror or chart** ([`mirrored_wedge`]): over both
+    /// mirrors, both cone charts, both plane charts, eight far edges
+    /// (those with `far.1 < −1` hold the ruling at `u = π`, so the faces
+    /// meet along it), five cone cells and three reaches, 960 pairs, none
+    /// holding the ruling certifies. Red if the plane through the one
+    /// shared vertex certifies where it signs one face only.
+    #[test]
+    fn mirrored_and_recharted_wedges_never_certify_a_meeting() {
+        let mut bad = Vec::new();
+        for mirror in [false, true] {
+            for recone in [false, true] {
+                for replane in [false, true] {
+                    for t in [0.9, 0.0, -0.5, -0.99, -1.01, -1.5, -2.0, -5.0] {
+                        for du in [
+                            (-3e-3, 3e-3),
+                            (-1e-4, 2e-3),
+                            (-2e-3, 1e-5),
+                            (-0.3, 0.3),
+                            (-1e-6, 1e-6),
+                        ] {
+                            for dv in [1e-3, 1e-6, 0.1] {
+                                let got = mirrored_wedge((1.0, t), mirror, recone, replane, du, dv);
+                                let cert = matches!(got, Outcome::Certified { .. });
+                                if t < -1.0 && cert {
+                                    bad.push(format!("mirror {mirror} recone {recone} replane {replane} far.1 {t} du {du:?} dv {dv}: {got:?}"));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(bad.is_empty(), "false certificates: {bad:#?}");
     }
 }
