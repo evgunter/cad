@@ -36,11 +36,11 @@ fn circle(
 ) -> LoopEdge<f64> {
     LoopEdge::hand_built(
         Curve3::Circle(geom::Circle::new(
-            geom::Frame {
-                origin: Point3::new(0.0, 0.0, -depth),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, -depth),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
         )),
         span.0,
@@ -78,10 +78,8 @@ fn a_loop_through_the_apex_reads_alike_from_every_start() {
     let axis = Vec3::new(0.0, 0.0, 1.0);
     let mut sweeps = Vec::new();
     let cone = geom::Surface::Cone {
-        apex,
-        axis,
+        frame: geom::Frame::new(apex, axis, Vec3::unit_x()),
         half_angle: 30f64.to_radians(),
-        u_ref: Vec3::unit_x(),
     };
     for start in 0..edges.len() {
         let turned: Vec<_> = edges[start..]

@@ -19,21 +19,25 @@ fn band(k: f64) -> Band {
 fn unit_sphere<T: Decide>() -> Surface<T> {
     let f = T::from_f64;
     Surface::Sphere {
-        center: Point3::new(f(0.0), f(0.0), f(0.0)),
+        frame: geom::Frame::new(
+            Point3::new(f(0.0), f(0.0), f(0.0)),
+            Vec3::new(f(0.0), f(0.0), f(1.0)),
+            Vec3::new(f(1.0), f(0.0), f(0.0)),
+        ),
         radius: f(1.0),
-        axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
-        u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
     }
 }
 
 fn torus<T: Decide>() -> Surface<T> {
     let f = T::from_f64;
     Surface::Torus {
-        center: Point3::new(f(0.0), f(0.0), f(0.0)),
-        axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
+        frame: geom::Frame::new(
+            Point3::new(f(0.0), f(0.0), f(0.0)),
+            Vec3::new(f(0.0), f(0.0), f(1.0)),
+            Vec3::new(f(1.0), f(0.0), f(0.0)),
+        ),
         major_radius: f(2.0),
         minor_radius: f(1.0),
-        u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
     }
 }
 

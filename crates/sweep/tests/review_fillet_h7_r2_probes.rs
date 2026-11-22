@@ -169,18 +169,18 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
         .clone();
     let Curve3::Circle(
         conic_k @ geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame: carrier_frame_10,
             ..
         },
     ) = *c.carrier()
     else {
         panic!("a cut-off arc is a circle");
     };
+    let (center, axis, u_ref) = (
+        carrier_frame_10.origin(),
+        carrier_frame_10.axis(),
+        carrier_frame_10.u_ref(),
+    );
     let radius = conic_k.radius();
     let EdgeDescription::Intersection {
         pair,

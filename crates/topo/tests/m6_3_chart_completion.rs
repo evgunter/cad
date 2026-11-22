@@ -38,10 +38,12 @@ use topo::construction::Construct;
 /// The chart sphere: unit-ish radius, polar axis +z.
 fn sphere<T: Real>() -> Surface<T> {
     Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(T::zero(), T::zero(), T::one()),
+            Vec3::new(T::one(), T::zero(), T::zero()),
+        ),
         radius: T::from_f64(1.0),
-        axis: Vec3::new(T::zero(), T::zero(), T::one()),
-        u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
     }
 }
 
@@ -50,9 +52,11 @@ fn sphere<T: Real>() -> Surface<T> {
 fn tilted_plane<T: Real>() -> Surface<T> {
     let tilt = 0.6_f64;
     Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(T::from_f64(tilt.sin()), T::zero(), T::from_f64(tilt.cos())),
-        u_ref: Vec3::new(T::from_f64(tilt.cos()), T::zero(), T::from_f64(-tilt.sin())),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(T::from_f64(tilt.sin()), T::zero(), T::from_f64(tilt.cos())),
+            Vec3::new(T::from_f64(tilt.cos()), T::zero(), T::from_f64(-tilt.sin())),
+        ),
     }
 }
 
@@ -210,9 +214,7 @@ fn pole_circle<T: Real>(delta: f64) -> (Curve3<T>, Surface<T>) {
     };
     let (normal, u_ref) = (v(s, 0.0, c), v(c, 0.0, -s));
     let plane = Surface::Plane {
-        origin: Point3::origin() + v(0.0, 0.0, 1.0),
-        normal,
-        u_ref,
+        frame: geom::Frame::new(Point3::origin() + v(0.0, 0.0, 1.0), normal, u_ref),
     };
     let circle = Curve3::circle(
         Point3::origin() + v(s * c, 0.0, c * c),

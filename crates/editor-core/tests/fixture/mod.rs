@@ -706,8 +706,7 @@ pub fn at_rest<T>(
 where
     T: topo::CertifiedPolicy
         + editor_core::checks::at_rest::LocalizeLane
-        + geom_core::CertifiedBounds
-        + editor_core::ChartCoherenceLane,
+        + geom_core::CertifiedBounds,
 {
     let cfg = editor_core::ChecksConfig {
         connectedness: editor_core::Severity::Off,
@@ -4260,4 +4259,18 @@ pub fn clearance(
         tol,
     )
     .expect("each selection is a seat a clearance admits")
+}
+
+/// `ev` with every node's decision log emptied, its verdicts and its
+/// candidate marks: the flip lanes and the parting rung then have
+/// nothing to read, and a row reads the rungs below them.
+#[must_use]
+pub fn silent(mut ev: editor_core::Evaluation<f64>) -> editor_core::Evaluation<f64> {
+    for result in ev.nodes.values_mut() {
+        if let editor_core::NodeResult::Ok(v) = result {
+            v.verdicts = std::sync::Arc::new(Vec::new());
+            v.marks = std::sync::Arc::new(Vec::new());
+        }
+    }
+    ev
 }
