@@ -2596,13 +2596,8 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             } => {
                 let (l, r) = self.split(&cell, |_| true);
                 let (a, b) = if backward { (r, l) } else { (l, r) };
-                walk.splice(
-                    i..=i,
-                    [
-                        Piece::sheet(a, sheet, backward),
-                        Piece::sheet(b, sheet, backward),
-                    ],
-                );
+                walk[i] = Piece::sheet(a, sheet, backward);
+                walk.insert(i + 1, Piece::sheet(b, sheet, backward));
             }
             Piece::Branch { rising, .. } => {
                 let cut = off_a_zero(cell.mid(), cell.width()).find_map(|at| {
