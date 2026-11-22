@@ -2506,7 +2506,10 @@ fn posed_extent(
     }
     // A lift that does not close winds round the axis, from a longitude
     // to a whole number of turns past it, so its pieces span a turn or
-    // more: under a turn wide, the lift closes on one sheet.
+    // more: under a turn wide, the lift closes on one sheet. The reader
+    // would refuse such a hull too ([`face_extent`] reads an extent a
+    // turn wide as wrapping, which gives no sheet), so this says here
+    // what the extent's premise is rather than leaving it to that reading.
     if hull[0].1 - hull[0].0 >= TURN {
         return None;
     }
@@ -14505,18 +14508,12 @@ mod posed_rows {
         assert_eq!(holding(&b, on_sphere([1.0, 1.0, 0.5])), vec![None, None]);
     }
 
-    /// **A face with its pose's pole on its boundary is granted no
-    /// extent** ([`posed_extent`]): the half cap `x ≥ A`, `z ≥ 0`, its
-    /// equator arc running through the pose's pole `(1, 0, 0)` mid-edge.
-    /// The piece holding the pole is placed at no azimuth
-    /// ([`posed_cell`]), and either side of it the lift is half a turn
-    /// apart, so the lift is not read closing. Red if the pose grants it
-    /// an extent.
-    #[test]
-    fn a_face_with_its_poses_pole_on_its_boundary_is_granted_no_extent() {
+    /// The half cap `x ≥ A`, `z ≥ 0`: the circle `x = A` over `z ≥ 0` and
+    /// the equator arc through the pose's pole `(1, 0, 0)`.
+    fn half_cap() -> Boundary {
         let s = across(A);
         let e = s.atan2(A);
-        let b = Boundary {
+        Boundary {
             sense: true,
             edges: vec![
                 circle_rim(
@@ -14544,8 +14541,19 @@ mod posed_rows {
             vertices: BTreeMap::from([(vertex(1), pt(A, s, 0.0)), (vertex(2), pt(A, -s, 0.0))]),
             extent: None,
             outer: Some(vec![(0, true), (1, true)]),
-        };
-        assert_eq!(holding(&b, on_sphere([1.0, 0.0, 0.5])), vec![None]);
+        }
+    }
+
+    /// **A face with its pose's pole on its boundary is granted no
+    /// extent** ([`posed_extent`]): the half cap `x ≥ A`, `z ≥ 0`, its
+    /// equator arc running through the pose's pole `(1, 0, 0)` mid-edge.
+    /// The piece holding the pole is placed at no azimuth
+    /// ([`posed_cell`]), and either side of it the lift is half a turn
+    /// apart, so the lift is not read closing. Red if the pose grants it
+    /// an extent.
+    #[test]
+    fn a_face_with_its_poses_pole_on_its_boundary_is_granted_no_extent() {
+        assert_eq!(holding(&half_cap(), on_sphere([1.0, 0.0, 0.5])), vec![None]);
     }
 
     /// **A pose's reach is its own rectangle's** ([`poses_of`]): a short

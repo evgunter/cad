@@ -815,11 +815,10 @@ against the sphere's side; the sphere pair under the equator's plane.
 snowman refuses at its waist vertices, where each ball's half-band
 meridian (a coordinate line of the stored chart) meets the waist circle
 (a parallel only of its own pose). No chart reads both as lines, so the
-refusal is the row's next remainder; pinned by
-`a_snowman_with_its_head_off_the_axis_refuses_at_its_waist`.
-(Corrected in the fix pass below: with the mint's lift the walk reads
-the waist's cells in the pose and refuses after about 2,000 splits, not
-at once; the row pins a bound of 4,096.)
+refusal is the row's next remainder. (Corrected in the second fix pass
+below: it refuses at once again, as on main, and is pinned among
+`off_axis_sphere_bodies_cost_what_mains_walk_costs`; the first fix pass
+had it refusing after about 2,000 splits.)
 The leftovers of the gate's 47 sphere/sphere refusals were not re-run
 here (the gate is not on main); its named bodies on the tour
 (`budfillet`, `lily`) do not move.
@@ -868,9 +867,52 @@ row.
 - the cavity switch over the 12 modules: 13 of 166 fail, the same as the
   first pass. The suite is green at three ε (61 each). The tour walk
   holds 82 of 85, identical stop by stop to main;
-- the off-axis snowman now refuses after about 2,000 splits, not at
-  once (the mint's lift reads the waist's cells). Its row pins a bound
-  of 4,096.
+- the off-axis snowman refused after about 2,000 splits, not at once.
+  (Corrected in the second fix pass below: that cost is gone.)
+
+
+### Second fix pass: what a pose costs (EMBED, lane lune, 2026-11-22)
+
+The re-review of `704ed655` found the pose costing what main does not:
+off-axis sphere unions splitting about 2,000 times to refuse what main
+refuses at once, and bodies read alike costing 5 to 10 times per split.
+
+**Traced** on the off-axis snowman and the three-ball chain (local
+trace, uncommitted). The cells that kept splitting were the ball's own
+halves and the ball against the head. Their stored reading failed at
+the waist, a circle the stored chart does not read (`curved_walls`),
+and a pose then answered for them. But the same cells held the ball's
+meridian seam, a coordinate line on a face whose extent the stored
+chart does not know, so "no place at any depth" (`placed`'s
+`Sheet::Unknown`). That reason masked the waist's; it is the face's
+fact, which no smaller cell changes, and main refuses on it at once.
+The refusals the walk reached after 2,000 splits were that reason, in
+cells beyond the waist's reach.
+
+**What landed:**
+- `unplaced_line`: a cell holding such a line keeps the stored chart's
+  answer, and no pose is tried. The five unions read as main does
+  (0, 253, 0, 259 and 275 splits), the triangle at 537 against main's
+  536, and the lune and its rows are unchanged.
+- **A face's poses are built once per ask** (`FacePoses`, kept in the
+  walk's `Window` beside the face's boundary), not per cell. The lens
+  went from 1.26 s to 0.30 s (main 0.30 s) and the triangle from 1.83 s
+  to 0.92 s (main 0.89 s). It is pinned by the build count per face.
+- **The posed extent** reads the loop from the body's walk
+  (`Boundary::outer`, kept by the lift), not from vertex starts, and is
+  granted only where every row is a circle of this sphere as stored
+  (`on_sphere`). The first-meets-last check is gone: a lift that does
+  not close spans a turn, which the hull's width refuses.
+- **A lens of two spheres** is read in its poses at both scalars, the
+  first body here that reaches a pose at `Interval`.
+
+**Measured** (head `2d8509046`, which merges main `f3702f870`):
+- the cavity switch's 13 of 166 fail, the same set;
+- the suite at three ε is 63 of 63 each;
+- the tour walk holds 78 of 85, identical stop by stop to main's own
+  `embed_walk` at `f3702f870`. Four stops main also refuses
+  (`diepips`, `diecomposed`, `diechamfer`, `lily_lantern`) are new on
+  main since the first pass.
 
 ## Census: 49 cylinder-bucket tests at the at-rest gate (EMBED, lane embed/trace-cylinder, 2026-11-21)
 
