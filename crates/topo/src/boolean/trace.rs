@@ -243,6 +243,141 @@ pub fn ray_crossings<T: Decide>(
         .collect()
 }
 
+/// The halvings of a run a piece's taken crossing is searched past a
+/// refusal over ([`taken_over`]): enough to close a run of the session
+/// box to well under the band.
+const TAKEN_HALVINGS: u32 = 64;
+
+/// **The crossings a piece reads up to the one it takes, and no
+/// further** (DESIGN `[placement]`: a trace decides nothing past the
+/// crossing a piece takes): `read(run, whole)` reads the piece's
+/// crossings over its first `run`, `whole` where that is all of it, and
+/// `taken` names the one the piece takes among them.
+///
+/// The run is read whole first, for where the crossings are. Where it
+/// refuses, the longest prefix of it found to read is: a refusal past the
+/// crossing the piece takes refuses nothing. Where the piece takes one,
+/// the answer is the read over the run to halfway to the next crossing
+/// (or to the run's end): every decision it makes is one the piece takes,
+/// plus the one order decision separating it from the next, levered over
+/// the run drawn plus that gap. Where it takes none, the whole run's
+/// crossings, for their count.
+///
+/// # Errors
+///
+/// The whole run's refusal, where no prefix holds the crossing the piece
+/// takes; the final read's own.
+fn taken_over<T: Decide>(
+    run: T,
+    read: impl Fn(T, bool) -> Result<Vec<Crossing<T>>, TraceFault>,
+    taken: impl Fn(&[Crossing<T>]) -> Option<usize>,
+) -> Result<Vec<Crossing<T>>, TraceFault> {
+    let two = T::one() + T::one();
+    let (found, read_to, whole) = match read(run, true) {
+        Ok(all) => (all, run, true),
+        Err(fault) => {
+            let (mut lo, mut hi, mut best) = (T::zero(), run, None);
+            for _ in 0..TAKEN_HALVINGS {
+                let mid = (lo + hi) / two;
+                match read(mid, false) {
+                    Ok(found) => {
+                        best = Some((found, mid));
+                        lo = mid;
+                    }
+                    Err(_) => hi = mid,
+                }
+            }
+            match best {
+                Some((found, at)) if taken(&found).is_some() => (found, at, false),
+                _ => return Err(fault),
+            }
+        }
+    };
+    let Some(k) = taken(&found) else {
+        return Ok(found);
+    };
+    match found.get(k + 1) {
+        Some(next) => read((found[k].along + next.along) / two, false),
+        None => read(read_to, whole),
+    }
+}
+
+/// **[`ray_crossings`] up to the crossing the piece takes**
+/// ([`taken_over`]): `reach` the run it reads for where its crossings
+/// are, and each read levered over its own run.
+///
+/// # Errors
+///
+/// [`TraceFault`], past no crossing the piece takes.
+pub fn ray_crossings_to<T: Decide>(
+    surface: &Surface<T>,
+    sense: bool,
+    ray: &geom::Ray<T>,
+    reach: T,
+    band: Band,
+    taken: impl Fn(&[Crossing<T>]) -> Option<usize>,
+) -> Result<Vec<Crossing<T>>, TraceFault> {
+    let dir = ray.line().dir;
+    let carrier = Curve3::Line(ray.line());
+    let read = |run: T, whole: bool| {
+        // Unsourced lever: the run the piece reads, a length along the
+        // piece rather than geometry the extent home reads.
+        let arm = geom_core::Lever::unsourced(run);
+        let span = Span::new(&carrier, (ray.start(), ray.from_start(run)));
+        let skip: &[SpanEnd] = if whole {
+            &[SpanEnd::Start]
+        } else {
+            &[SpanEnd::Start, SpanEnd::Stop]
+        };
+        meetings(&span, surface, skip, band)?
+            .into_iter()
+            .map(|(t, point)| crossing(surface, sense, t, point, dir, arm, band))
+            .collect()
+    };
+    taken_over(reach, read, taken)
+}
+
+/// **[`circle_crossings`] up to the crossing the piece takes**
+/// ([`taken_over`]): the whole turn read for where its crossings are,
+/// and each read levered over the arc it runs.
+///
+/// # Errors
+///
+/// [`TraceFault`], past no crossing the piece takes.
+pub fn circle_crossings_to<T: Decide>(
+    surface: &Surface<T>,
+    sense: bool,
+    (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
+    band: Band,
+    taken: impl Fn(&[Crossing<T>]) -> Option<usize>,
+) -> Result<Vec<Crossing<T>>, TraceFault> {
+    let frame = geom::Frame::new(center, axis, u_ref);
+    let (u_ref, v_ref) = (frame.u_ref(), frame.v_ref());
+    let tau = geom::conic_period::<T>().length();
+    let carrier = Curve3::Circle(geom::Circle::new(frame, radius));
+    let read = |run: T, _whole: bool| {
+        let reach = geom_brep::ExtentBall::of_covered(
+            geom::cover::Cover::arc(
+                &frame,
+                (radius, radius),
+                geom::cover::ParamWindow::new(T::zero(), run),
+            )
+            .as_ref(),
+        )
+        .lever();
+        let span = Span::new(&carrier, (T::zero(), run));
+        meetings(&span, surface, &[SpanEnd::Start, SpanEnd::Stop], band)?
+            .into_iter()
+            .map(|(theta, point)| {
+                let (s, c) = theta.sin_cos();
+                let velocity = v_ref * c - u_ref * s;
+                crossing(surface, sense, theta, point, velocity, reach, band)
+            })
+            .collect()
+    };
+    taken_over(tau, read, taken)
+}
+
 /// **The crossings of the circle about `center` in the plane normal to
 /// `axis`, of `radius`, starting at `center + radius·u_ref` and turning
 /// right-handed about `axis`, with `surface`**: each strictly past the

@@ -938,6 +938,100 @@ fn a_lens_is_carried_over_its_arcs_reach_on_both_edges() {
     );
 }
 
+/// A disc of radius `radius` drawn on the near-pole cap of the block's
+/// copy, the copy slid `at` along `x` and its top cap 100 from the
+/// origin, on the chart slid `slides`; tracing the copy's bottom cap or
+/// not. The profile's chart, and its placed twin's motion: the same disc
+/// extruded a hundredth of its radius free and mated onto the cap.
+fn traced_and_twin(
+    tilt: f64,
+    at: f64,
+    slides: [f64; 2],
+    radius: f64,
+    traced: bool,
+) -> (
+    Result<RigidMotion<f64>, NodeErrorKind>,
+    Result<geom_core::Affine3<f64>, MateFault>,
+) {
+    let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
+    let (doc, body, copy) = tilted_by([tilt, 0.0, 0.0], [at, 0.0, 99.0]);
+    let top = cap(body, CapEnd::End);
+    let mut drawn_on = on(Some(backwards), 0.0, slides);
+    if traced {
+        drawn_on.traced = vec![Operand::select(
+            BodyRead::plain(Operand::from(copy)),
+            vec![cap(body, CapEnd::Start)],
+        )];
+    }
+    let (drawn_doc, profile) = drawn_loop(&doc, copy, top.clone(), drawn_on, disc(radius));
+    let outline = editor_core::ProfileProgram {
+        loops: vec![disc(radius)],
+        ids: Vec::new(),
+        on: None,
+    };
+    let twin = placed_twin(
+        doc,
+        (copy, top),
+        backwards,
+        (ang(0.0), slides),
+        (outline, radius / 100.0),
+    );
+    (chart(&drawn_doc, profile), twin)
+}
+
+/// **A traced face is read, not carried** (`[placement]`: a trace uses
+/// the turn only at the crossing a piece takes): a profile tracing a
+/// face is decided over its own loops, as the same disc placed on the
+/// face is, whatever the traced face's reach. At a tilt in its twin's
+/// band and one past it, each profile, traced or not, refuses or charts
+/// where its placed twin does, and refuses backwards where it refuses.
+///
+/// - **The frame on a far block**: the block at `x = 400`, the chart slid
+///   400 along `x` onto it, the disc tracing the block's bottom cap.
+/// - **The frame far off its block**: the block at the origin, the chart
+///   slid 400 off it.
+/// - **A small disc tracing a wide face**: a disc of radius `0.01` at the
+///   chart's origin, tracing the block's bottom cap, a face a hundred
+///   times its size.
+#[test]
+fn a_traced_profile_is_decided_as_its_placed_twin_is() {
+    let tol = Tol::witness();
+    let edge = |arm| geom_core::test_support::least_turn_band_edge(tol, arm);
+    let pole = |arm| tol.k() * tol.eps() / arm;
+    let band = |arm: f64| edge(arm).max(pole(arm));
+    let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
+    let rows: [(&str, f64, [f64; 2], f64); 3] = [
+        ("the frame on a far block", 400.0, [400.0, 0.0], 0.25),
+        ("the frame far off its block", 0.0, [400.0, 0.0], 0.25),
+        ("a small disc tracing a wide face", 0.0, [0.0, 0.0], 0.01),
+    ];
+    for (row, at, slides, radius) in rows {
+        let arm = radius + slides[0].abs() + slides[1].abs() + 100.0;
+        let mut outcomes = Vec::new();
+        for tilt in [0.5 * band(arm), 2.0 * band(arm)] {
+            for traced in [true, false] {
+                let (drawn, twin) = traced_and_twin(tilt, at, slides, radius, traced);
+                assert!(
+                    drawn.is_ok() == twin.is_ok()
+                        && (drawn.is_ok()
+                            || drawn
+                                .as_ref()
+                                .is_err_and(|e| refuses_backwards(e, backwards))
+                                && matches!(twin, Err(MateFault::Backwards { .. }))),
+                    "{row} (traced {traced}): the profile and its placed twin agree at tilt {tilt}: {:?} / {twin:?}",
+                    drawn.as_ref().err()
+                );
+                outcomes.push(drawn.is_ok());
+            }
+        }
+        assert_eq!(
+            outcomes,
+            [false, false, true, true],
+            "{row}: refused in the twin's band, charted past it"
+        );
+    }
+}
+
 /// **A face's chart moved in a profile's frame seat refuses typed**: a
 /// profile drawn on the top cap's chart slid along the chart's own `z`,
 /// or spun about an axis read off another variable (the bottom cap's

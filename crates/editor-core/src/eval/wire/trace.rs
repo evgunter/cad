@@ -132,10 +132,31 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     env: &VarEnv<T>,
     tol: Tol,
 ) -> Result<Option<Drawn<T>>, NodeErrorKind> {
+    drawn_in(doc, results, program, None, env, tol)
+}
+
+/// [`drawn`], its faces read through `decided`, the frame the profile's
+/// own carriage decided, where it is in hand: a reader after the profile
+/// reads its frame, never selects it again.
+///
+/// # Errors
+///
+/// As [`drawn`].
+pub(crate) fn drawn_in<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    program: &ProfileProgram,
+    decided: Option<&DrawnFrame<T>>,
+    env: &VarEnv<T>,
+    tol: Tol,
+) -> Result<Option<Drawn<T>>, NodeErrorKind> {
     let Some(on) = &program.on else {
         return Ok(None);
     };
-    let frame = super::pose::on_frame(doc, results, on.frame, env, tol)?;
+    let frame = match decided {
+        Some(decided) => OnFrame::Drawn(decided.clone()),
+        None => super::pose::on_frame(doc, results, on.frame, env, tol)?,
+    };
     let band = super::band(tol)?;
     if on.faces.is_empty() {
         return Ok(Some(Drawn {
