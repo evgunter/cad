@@ -142,8 +142,10 @@ impl Deck {
     /// periods, each in the period the chart owns for that channel
     /// (`periods`: `crate::pcurves`' `ChartPeriods`, decided at a band
     /// where the caller has one). A spline chart's periods are its knot
-    /// domains' lengths (an element with `u ≠ 0` or `v ≠ 0` is decided
-    /// only on a net closed in that channel); an analytic chart's first
+    /// domains, each stated by its two ends, so an iso image held at one
+    /// end and moved one period is held at the other end itself (an
+    /// element with `u ≠ 0` or `v ≠ 0` is decided only on a net closed
+    /// in that channel); an analytic chart's first
     /// is `τ`, and its second `τ` where `v` is an angle (sphere, torus).
     ///
     /// `None` where the element does not apply to the image: a twin off

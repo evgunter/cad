@@ -3,7 +3,8 @@
 //!
 //! [`Period`] answers every whole-period question of a channel: which
 //! deck element a joint is on ([`Period::decide`]), how far `k` periods
-//! shift ([`Period::times`]), and whether an extent along the channel is
+//! shift ([`Period::times`]) and where they move a value
+//! ([`Period::moved`]), and whether an extent along the channel is
 //! short of one turn, a whole turn, or over one ([`Period::turn`]).
 //!
 //! # The turn rule
@@ -118,7 +119,9 @@ enum Closed {
 /// it:
 /// - a joint's deck element, decided by the half-period marks
 ///   ([`Period::decide`]);
-/// - a deck element's shift, `k` periods as a length ([`Period::times`]);
+/// - a deck element's shift, `k` periods as a length ([`Period::times`]),
+///   and a value moved by it ([`Period::moved`]: an end of a domain the
+///   period is stated by moves to the other end itself);
 /// - whether an extent along the channel is short of one turn, a whole
 ///   turn, or over one ([`Period::turn`]).
 ///
