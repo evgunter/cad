@@ -539,3 +539,20 @@ body has the reasons):
   - **Review:** FULL, dispatched to cloud session
     session_013QoYWWUb1cWaS6PFWRPmfo, focused on real-function soundness,
     value drift, and whether this needs Ev.
+- 2026-11-22 18:35 — **The FULL review of 7396 found a MAJOR: a false
+  proof.**
+  - **Mechanism:** `Sym`'s `is_exactly` / `exactly_zero` read only the
+    nominal, so at a zero-nominal tilt the least turn is constant, and
+    the frames spelling drops the folded map's dependence. The door then
+    proves MarginIdentity for a boss that is tangent only at a = 0.
+    Main, with the atan2 spelling, correctly answers Unproven.
+  - **Fix pass sent:**
+    - never prove through a value-exact branch at `Sym` (stop if it
+      needs a geom-core `Sym` semantics change);
+    - sweep every such branch, and check whether main is exposed (file
+      P0 if so);
+    - zero-nominal rows;
+    - `revalue_corpus` moving zero-nominal variables;
+    - a budget-specific pin.
+
+    Delta review to follow.
