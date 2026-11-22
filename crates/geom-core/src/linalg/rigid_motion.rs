@@ -1330,6 +1330,19 @@ impl<T: Real> RigidMotion<T> {
     /// [`RigidMotion::spun_toward`] is this at a vector normalized once;
     /// a direction a construction recorded is turned onto as it stands,
     /// so a frame's `u` is that direction placed, node for node.
+    ///
+    /// **The image is a rigid frame exactly where `c` is a unit, and the
+    /// signature does not say so.** At an enclosure scalar it encloses a
+    /// rotation when `c` is a unit in exact arithmetic at every point of
+    /// its box: a normalization, or a construction's formula whose
+    /// squared length is one as an identity. At a point scalar it is as
+    /// far from a rotation as `c` is from a unit. A vector that is a
+    /// unit only to a decision (one accepted because walking it a length
+    /// lands within a band of a point, which bounds its stretch times
+    /// that length) is not one this door may take: it goes through
+    /// [`RigidMotion::spun_toward`]. The argument is a bare [`Vec2`], so
+    /// that is the caller's to hold
+    /// (`work/boxfinish/spun-onto-takes-a-bare-vector-for-a-unit.md`).
     #[must_use]
     pub fn spun_onto(self, c: Vec2<T>) -> Self {
         let along = Vec3::new(c.x, c.y, T::zero());
