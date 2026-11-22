@@ -331,6 +331,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
     ];
     let corpus = k_corpus();
     assert_eq!(corpus.len(), MAIN.len(), "one row per body");
+    let mut moved = Vec::new();
     for ((name, body), (want_name, run, hit, bytes)) in corpus.iter().zip(MAIN) {
         assert_eq!(name, want_name, "the corpus and the table agree on order");
         let got = k_digest(|| {
@@ -343,8 +344,12 @@ fn a_body_that_meshes_records_mains_k_stream() {
             let _ = mesh::tessellate_with(body, 5e-2, Tol::witness(), &mut memo);
         });
         assert_eq!(got, hit, "{name}: a memo hit's K stream is main's");
-        assert_eq!(mesh_digest(body, 5e-2), bytes, "{name}: main's bytes");
+        let got = mesh_digest(body, 5e-2);
+        if got != bytes {
+            moved.push(format!("{name}: {got:#x}, main's {bytes:#x}"));
+        }
     }
+    assert!(moved.is_empty(), "main's bytes, every row that moved: {moved:#?}");
 }
 
 /// The cylinder wider by [`in_band`]: the poison of
