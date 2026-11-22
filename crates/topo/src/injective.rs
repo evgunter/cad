@@ -8374,6 +8374,302 @@ mod presentation_rows {
         );
     }
 
+    /// The radius-1 cylinder about the vertical line through
+    /// `(0, -1, 0)`: its chart point `(π/2, 0)` is the origin, its ruling
+    /// there the `z` axis, its circle there the one about `(0, -1, 0)`
+    /// in `z = 0`.
+    fn cylinder_through_origin() -> Surface<Interval> {
+        Surface::Cylinder {
+            frame: geom::Frame::new(Point3::new(iv0(0.0), iv0(-1.0), iv0(0.0)), ez(), ex()),
+            radius: iv0(1.0),
+        }
+    }
+
+    const QUARTER: f64 = core::f64::consts::FRAC_PI_2;
+
+    /// An edge of [`cylinder_through_origin`] on a coordinate line, its
+    /// curve run from chart point `a` to `b`, the loop running it
+    /// backward.
+    fn iso_rim(key: u64, ends: [u64; 2], held: Axis, a: (f64, f64), b: (f64, f64)) -> Rim {
+        let (carrier, span) = match held {
+            Axis::U => (Curve3::line(origin(), ez()), (a.1, b.1)),
+            Axis::V => (
+                Curve3::circle(Point3::new(iv0(0.0), iv0(-1.0), iv0(a.1)), ez(), iv0(1.0), ex()),
+                (a.0, b.0),
+            ),
+        };
+        Rim {
+            stated: None,
+            key: edge(key),
+            arc: Some((carrier, (iv0(span.0), iv0(span.1)))),
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus: false,
+                image: Some([p2(a), p2(b)]),
+                iso: Some(Iso {
+                    held,
+                    at: iv0(held.of(a)),
+                    full: false,
+                }),
+                wall: None,
+                harmonic: None,
+            }],
+        }
+    }
+
+    /// **A wall of [`cylinder_through_origin`] with vertex 1, the origin,
+    /// in the middle of one line of its boundary**: its ruling `u = π/2`
+    /// as two edges, the face at `u > π/2`; or its circle `v = 0` as two
+    /// arcs, the face below.
+    fn wall_through_vertex_1(held: Axis, keys: [u64; 2]) -> Boundary {
+        let q = QUARTER;
+        let edges = match held {
+            Axis::U => vec![
+                iso_rim(keys[0], [keys[0] + 10, 1], held, (q, -1.0), (q, 0.0)),
+                iso_rim(keys[1], [1, keys[1] + 10], held, (q, 0.0), (q, 1.0)),
+            ],
+            Axis::V => vec![
+                iso_rim(keys[0], [keys[0] + 10, 1], held, (q - 1.0, 0.0), (q, 0.0)),
+                iso_rim(keys[1], [1, keys[1] + 10], held, (q, 0.0), (q + 1.0, 0.0)),
+            ],
+        };
+        Boundary {
+            sense: true,
+            edges,
+            vertices: BTreeMap::from([(vertex(1), origin())]),
+            extent: Some(match held {
+                Axis::U => [(q, q + 1.0), (-1.0, 1.0)],
+                Axis::V => [(q - 1.0, q + 1.0), (-1.0, 0.0)],
+            }),
+        }
+    }
+
+    /// [`certify_pair`] of a wall in the cell `(u, v)` and a plane face
+    /// in the cell `(-½, ½)²` about vertex 1, the only cell they share.
+    fn at_vertex_1_alone(
+        wall: &Boundary,
+        (u, v): ((f64, f64), (f64, f64)),
+        plane: &Surface<Interval>,
+        corner: &Boundary,
+    ) -> Outcome {
+        let local = two_edges_and_vertex_1();
+        let s = cylinder_through_origin();
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+        };
+        let wall = Piece {
+            face: face(1),
+            surface: &s,
+            whole: false,
+            boundary: wall,
+            u,
+            v,
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        certify_pair(
+            &wall,
+            &about_vertex_1(plane, corner, &local, (-0.5, 0.5)),
+            &near,
+            band(),
+        )
+    }
+
+    /// **A wall and a plane face that meet at one vertex in the middle of
+    /// a line of the wall's boundary certify** under a plane holding that
+    /// line: through the ruling, or the circle's own. The plane face's
+    /// corner there leaves the vertex strictly to the plane's other side.
+    /// Red if a shared vertex on one clip's side has no zero (the wall is
+    /// `Local` at every depth), or if no plane is built through a run
+    /// that is a circle.
+    ///
+    /// **And not where the corner crosses the line's plane**: turned so
+    /// that one of its edges leaves the vertex to the wall's side, no
+    /// plane through the line has the corner on its other side.
+    #[test]
+    fn a_wall_and_a_corner_at_a_vertex_mid_line_certify_under_the_lines_plane() {
+        let q = QUARTER;
+        let floor = plane_through_origin([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+        let beside = corner_at_vertex_1([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [4, 5]);
+        let ruling = wall_through_vertex_1(Axis::U, [2, 3]);
+        let cell = ((q, q + 0.01), (-0.01, 0.01));
+        let got = at_vertex_1_alone(&ruling, cell, &floor, &beside);
+        assert!(
+            matches!(got, Outcome::Certified { .. }),
+            "the ruling through the vertex: {got:?}"
+        );
+        let upright = plane_through_origin([1.0, 0.0, 0.0], [0.0, 0.6, 0.8]);
+        let above = corner_at_vertex_1([0.0, 0.6, 0.8], [0.0, -0.8, 0.6], [4, 5]);
+        let circle = wall_through_vertex_1(Axis::V, [2, 3]);
+        let cell = ((q - 0.01, q + 0.01), (-0.01, 0.0));
+        let got = at_vertex_1_alone(&circle, cell, &upright, &above);
+        assert!(
+            matches!(got, Outcome::Certified { .. }),
+            "the circle through the vertex: {got:?}"
+        );
+        let tipped = plane_through_origin([1.0, 0.0, 0.0], [0.0, 0.8, -0.6]);
+        let across = corner_at_vertex_1([0.0, 0.8, -0.6], [0.0, 0.6, 0.8], [4, 5]);
+        let got = at_vertex_1_alone(&circle, cell, &tipped, &across);
+        assert!(
+            !matches!(got, Outcome::Certified { .. }),
+            "a corner with an edge below the circle's plane: {got:?}"
+        );
+    }
+
+    /// **Two walls of [`cylinder`] glued across its circle at height 1**,
+    /// the circle two arcs: edge 20 over `u ∈ [0, 0.3]` and edge 18 over
+    /// `[0.3, 2]`, joined at vertex 2. The wall above, or the one below.
+    fn glued_wall(above: bool) -> Boundary {
+        let arc = |key: u64, ends: [u64; 2], (a, b): (f64, f64)| Rim {
+            stated: None,
+            key: edge(key),
+            arc: Some((
+                Curve3::circle(Point3::new(iv0(0.0), iv0(0.0), iv0(1.0)), ez(), iv0(1.0), ex()),
+                (iv0(a), iv0(b)),
+            )),
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus: above,
+                image: Some([p2((a, 1.0)), p2((b, 1.0))]),
+                iso: Some(Iso {
+                    held: Axis::V,
+                    at: iv0(1.0),
+                    full: false,
+                }),
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        Boundary {
+            sense: true,
+            edges: vec![arc(20, [1, 2], (0.0, 0.3)), arc(18, [2, 3], (0.3, 2.0))],
+            vertices: BTreeMap::from([(vertex(2), on_cyl(0.3, 1.0))]),
+            extent: Some([(0.0, 2.0), if above { (1.0, 2.0) } else { (0.0, 1.0) }]),
+        }
+    }
+
+    /// [`certify_pair`] of two faces on [`cylinder`] sharing edge 0 of
+    /// each, no vertex in reach: `x` in its cell with `local` edges, `y`
+    /// in its cell with edge 0 alone.
+    fn across_the_first_arc(
+        (x, cell_x, local): (&Boundary, ((f64, f64), (f64, f64)), &[usize]),
+        (y, cell_y): (&Boundary, ((f64, f64), (f64, f64))),
+    ) -> Outcome {
+        let s = cylinder();
+        let locals = [local, &[0]].map(|edges| Local {
+            edges: edges.to_vec(),
+            vertices: Vec::new(),
+        });
+        let piece = |b, (u, v): ((f64, f64), (f64, f64)), local, n| Piece {
+            face: face(n),
+            surface: &s,
+            whole: false,
+            boundary: b,
+            u,
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        certify_pair(
+            &piece(x, cell_x, &locals[0], 1),
+            &piece(y, cell_y, &locals[1], 2),
+            &near,
+            band(),
+        )
+    }
+
+    /// **Two walls glued across a circle of two arcs certify where one
+    /// cell holds both arcs and the pair's reach holds one**: the cell
+    /// above, across the joint, against the cell below, beside it. The
+    /// side above is the circle's whole line, of which the pair shares
+    /// the near arc ([`Zero::Past`]), and the circle's own plane holds
+    /// it. Red if a clip that holds a shared arc beside another is read
+    /// as holding none of the shared cell ([`Zero::None`]): the plane
+    /// then reaches zero on the side and signs nothing.
+    #[test]
+    fn two_walls_glued_across_a_circle_of_two_arcs_certify_beside_its_joint() {
+        let (upper, lower) = (glued_wall(true), glued_wall(false));
+        let got = across_the_first_arc(
+            (&upper, ((0.2945, 0.3007), (1.0, 1.001)), &[0, 1]),
+            (&lower, ((0.288, 0.2945), (0.999, 1.0))),
+        );
+        assert!(matches!(got, Outcome::Certified { .. }), "{got:?}");
+    }
+
+    /// **A face that runs up through the unshared arc is not certified
+    /// against the wall above it.** The lower face shares the near arc
+    /// and, past the joint, climbs the ruling `u = 0.3` through the
+    /// circle onto the upper wall, where the two coincide on no shared
+    /// cell. The upper wall's side is zero along the whole circle, the
+    /// unshared arc included; the climbing face in a cell above the
+    /// circle is on the plane's same side, or reaches it. Red if a side
+    /// past the shared cell certifies against a face that is not wholly
+    /// across the separator.
+    #[test]
+    fn a_face_through_the_unshared_arc_of_a_side_is_not_certified() {
+        let upper = glued_wall(true);
+        let mut climbing = glued_wall(false);
+        // Run down the ruling, the face on its left: at `u > 0.3`.
+        let ruling = rim(31, [2, 9], Axis::U, 0.3, (0.3, 1.0), (0.3, 1.5));
+        climbing.edges[1] = Rim {
+            uses: vec![Use {
+                plus: false,
+                ..ruling.uses[0].clone()
+            }],
+            ..ruling
+        };
+        climbing.extent = Some([(0.0, 2.0), (0.0, 1.5)]);
+        for (what, cell) in [
+            ("on the circle", ((0.3, 0.3007), (1.0, 1.001))),
+            ("above it", ((0.3, 0.3007), (1.0005, 1.001))),
+        ] {
+            let s = cylinder();
+            let locals = [0, 1].map(|_| Local {
+                edges: vec![0, 1],
+                vertices: Vec::new(),
+            });
+            let piece = |b, (u, v): ((f64, f64), (f64, f64)), local, n| Piece {
+                face: face(n),
+                surface: &s,
+                whole: false,
+                boundary: b,
+                u,
+                v,
+                local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            for vertices in [Vec::new(), vec![vertex(2)]] {
+                let near = Near {
+                    edges: vec![(0, 0)],
+                    vertices,
+                };
+                let got = certify_pair(
+                    &piece(&upper, ((0.2945, 0.3007), (1.0, 1.001)), &locals[0], 1),
+                    &piece(&climbing, cell, &locals[1], 2),
+                    &near,
+                    band(),
+                );
+                assert!(
+                    !matches!(got, Outcome::Certified { .. }),
+                    "{what}, vertices {:?}: {got:?}",
+                    near.vertices
+                );
+                assert!(
+                    !matches!(
+                        present(&piece(&climbing, cell, &locals[1], 2), &[0], &near.vertices, band()),
+                        Ok(Presentation::Vacuous)
+                    ),
+                    "{what}: the climbing face has points in its cell"
+                );
+            }
+        }
+    }
+
     /// **A side on the face's own run is zero only under a plane holding
     /// the run's whole line, against a partner whose zero meets the line
     /// at the vertex alone** ([`through_read`]). Red if it is read in the
