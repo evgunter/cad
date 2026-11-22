@@ -613,7 +613,18 @@ impl<T: Decide> CylinderCylinderPose<T> {
 /// not a decision about the pair, so it reads the margins' signs without
 /// recording them.
 fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) -> RegionPlacement {
-    let apart = (ball.center() - region.center()).norm();
+    placement_of(ball.center(), ball.radius(), region, band)
+}
+
+/// [`placement`] of the ball about `center` of `radius`, for a reader
+/// that holds a point and no ball (the cone pair's points).
+pub(super) fn placement_of<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    region: ExtentBall<T>,
+    band: Band,
+) -> RegionPlacement {
+    let apart = (center - region.center()).norm();
     let positive = |m: T| {
         matches!(
             // NO-DECISION: which listing of the pair to take, each sound.
@@ -624,9 +635,9 @@ fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) 
             })
         )
     };
-    if positive(region.radius() - (apart + ball.radius())) {
+    if positive(region.radius() - (apart + radius)) {
         RegionPlacement::Inside
-    } else if positive(apart - (region.radius() + ball.radius())) {
+    } else if positive(apart - (region.radius() + radius)) {
         RegionPlacement::Outside
     } else {
         RegionPlacement::Straddles
@@ -1030,9 +1041,9 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         .components
                         .into_iter()
                         .map(|c| SectionComponent {
-                            cut_ends: c.cut_ends,
+                            cut_ends: c.cut_ends(),
                             ..component(
-                                match c.cut_ends {
+                                match c.cut_ends() {
                                     Some(_) => cut,
                                     None => ComponentShape::Loop,
                                 },

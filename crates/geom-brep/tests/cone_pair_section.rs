@@ -267,6 +267,10 @@ fn checked(
             ..Shapes::default()
         };
         let mut clusters = Vec::new();
+        // A touch is an isolated point the trace's roots may or may not
+        // reach (a double root, read at rounding): its cluster, where it
+        // has one, is the point's.
+        let mut touched = Vec::new();
         let in_set = |i: usize| section.node_sets().iter().any(|s| s.arcs.contains(&i));
         for (i, c) in listed.iter().enumerate() {
             let w = c.witness.expect("every listed component is witnessed");
@@ -285,6 +289,7 @@ fn checked(
                 ComponentShape::Loop => shapes.loops += 1,
                 ComponentShape::Point => {
                     shapes.points += 1;
+                    touched.extend(trace.cluster_at(w, link));
                     continue;
                 }
                 ComponentShape::Open { ends } => {
@@ -336,9 +341,12 @@ fn checked(
             clusters.len(),
             "each component on its own traced cluster: {clusters:?}"
         );
+        touched.sort_unstable();
+        touched.dedup();
+        touched.retain(|c| !trace.apex_only[*c] && !clusters.contains(c));
         assert_eq!(
             clusters.len(),
-            trace.components(),
+            trace.components() - touched.len(),
             "the components (each node-joined set one) against the traced clusters"
         );
         match &seen {
@@ -469,31 +477,67 @@ fn a_region_across_the_bite_cuts_its_loop_open() {
     );
 }
 
-/// **A rod grazing the cone is decided tangent**: the rod about
-/// `y = 0, z = 1` along `x` of radius `1/√2` touches the cone at
-/// `(0, ±1/2, 1/2)`, two double roots of the discriminant, which is
-/// positive elsewhere: two sheets crossing at each. The tangency is
-/// decided `Zero` on the rulings' clearance ceiling, and every component
-/// through it mints no carrier. A sweep that escalates the double root,
-/// or lists the tangent loops as the march's: red.
+/// **A rod grazing the cone is decided tangent, its crossings nodes**:
+/// the rod about `y = 0, z = 1` along `x` of radius `1/√2` touches the
+/// cone at `(0, ±1/2, 1/2)`, two double roots of the discriminant, which
+/// is positive elsewhere: the two sheets cross at each. Each crossing is
+/// decided `Zero` on the rulings' clearance ceiling and listed as a node
+/// (C5), each sheet cut there into two arcs ending at both nodes: four
+/// arcs, one node-joined set, which the trace sees as one component. A
+/// sweep that escalates the double root, or lists a loop per sheet: red.
 #[test]
 fn a_rod_grazing_the_cone_is_decided_tangent() {
     let graze = cylinder(p(0.0, 0.0, 1.0), Vec3::unit_x(), FRAC_1_SQRT_2);
-    for (a, b) in [(unit_cone(), graze.clone()), (graze.clone(), unit_cone())] {
-        let section = built(&a, &b, region());
-        let tangency = section.tangency().expect("the graze is decided a tangency");
-        assert_eq!(
-            tangency.decision,
-            SectionDecision::Tangency("ruling_tangency")
-        );
-        let listed = section.counted().unwrap();
-        assert!(!listed.is_empty(), "the tangent section is listed");
+    let (shapes, section) = checked(&unit_cone(), &graze, region(), 0.05);
+    assert_eq!(
+        shapes,
+        Shapes {
+            noded: 4,
+            sets: 1,
+            ..Shapes::default()
+        }
+    );
+    let tangency = section.tangency().expect("the graze is decided a tangency");
+    assert_eq!(
+        tangency.decision,
+        SectionDecision::Tangency("ruling_tangency")
+    );
+    assert_eq!(section.nodes().len(), 2, "a node at each crossing");
+    for node in section.nodes() {
+        let at = node.point;
         assert!(
-            listed
-                .iter()
-                .all(|c| matches!(c.carrier, ClassCarrier::Unminted(NoCarrier::Tangent))),
-            "every component runs through a tangency: {listed:?}"
+            (at.y.abs() - 0.5).abs() < 1e-6 && (at.z - 0.5).abs() < 1e-6 && at.x.abs() < 1e-6,
+            "a crossing at (0, ±1/2, 1/2): {at:?}"
         );
+        assert!(
+            node.lines[0].cross(node.lines[1]).dot(node.normal) > 0.0,
+            "the second line turned counterclockwise from the first"
+        );
+        // The rod's outward normal there, toward (0, ±1/2, −1/2).
+        let out = Vec3::new(0.0, at.y, at.z - 1.0).normalize();
+        assert!(
+            (node.normal - out).norm() < 1e-6,
+            "the rod's normal: {node:?}"
+        );
+    }
+    for c in section.counted().unwrap() {
+        let ComponentShape::Open { ends } = c.shape else {
+            panic!("an arc: {c:?}")
+        };
+        assert!(
+            ends.nodes.nodes().iter().all(Option::is_some),
+            "each arc runs from a node to a node"
+        );
+        // Each end's ray points into its own arc: toward its witness's
+        // side of the node.
+        for e in ends.nodes.both().into_iter().flatten() {
+            let node = &section.nodes()[e.node];
+            let ray = node.ray(e.line, e.sense);
+            assert!(
+                ray.dot(c.witness.unwrap() - node.point) > 0.0,
+                "the arc leaves its node toward itself: {e:?}"
+            );
+        }
     }
 }
 
@@ -508,17 +552,58 @@ fn a_rod_touching_the_cone_from_outside_is_a_point() {
     let at = p(0.0, 1.0, 1.0);
     let normal = Vec3::new(0.0, 1.0, -1.0).normalize();
     let rod = cylinder(at + normal * 0.3, Vec3::unit_x(), 0.3);
-    for (a, b) in [(unit_cone(), rod.clone()), (rod.clone(), unit_cone())] {
-        let section = built(&a, &b, region());
+    let (shapes, section) = checked(&unit_cone(), &rod, region(), 0.05);
+    assert_eq!(
+        shapes,
+        Shapes {
+            points: 1,
+            ..Shapes::default()
+        }
+    );
+    assert!(
+        section.tangency().is_some(),
+        "the touch is decided a tangency"
+    );
+    let w = section.counted().unwrap()[0].witness.unwrap();
+    assert!((w - at).norm() < 1e-4, "the touch at {w:?}");
+}
+
+/// **A narrow cone touching the unit cone at one point is decided
+/// tangent**: its ruling along `x` through `(0, 1, 1)`, apex `2` back
+/// along it, axis turned `±0.3` from `x` toward the unit cone's normal
+/// there, `α = 0.3`, so both cones share the tangent plane at that point
+/// and nowhere else. The double root is read on the cone partner's
+/// clearance ceiling, `|E|/4|p₂|` by its mean value over the core. A
+/// ceiling read on the form at `X*` directly, first order in the core's
+/// width: red (it escalates the discriminant at the floor).
+#[test]
+fn a_narrow_cone_touching_the_unit_cone_is_decided_tangent() {
+    let at = p(0.0, 1.0, 1.0);
+    let n = Vec3::new(0.0, 1.0, -1.0).normalize();
+    for sign in [1.0, -1.0] {
+        let beta: f64 = 0.3;
+        let d = Vec3::unit_x() * beta.cos() + n * (sign * beta.sin());
+        let other = cone_about(at - Vec3::unit_x() * 2.0, d, beta);
+        let (_, section) = checked(&unit_cone(), &other, region(), 0.05);
         assert!(
             section.tangency().is_some(),
-            "the touch is decided a tangency"
+            "the touch at {at:?} is decided a tangency (sign {sign})"
         );
+    }
+}
+
+/// **A bite read with the rod's frame far along its own axis reads the
+/// same**: the rod's partner point is the apex's foot on its axis, which
+/// the geometry fixes, so neither the read nor its rounding moves with
+/// the frame. A partner point at the frame's origin: red at `1e4`.
+#[test]
+fn a_bite_reads_one_loop_wherever_the_rods_frame_stands() {
+    for shift in [0.0, 1e2, 1e4, 1e5] {
+        let bite = cylinder(p(shift, 1.3, 1.0), Vec3::unit_x(), 0.4);
+        let section = built(&unit_cone(), &bite, region());
         let listed = section.counted().unwrap();
-        assert_eq!(listed.len(), 1, "one component: {listed:?}");
-        assert_eq!(listed[0].shape, ComponentShape::Point);
-        let w = listed[0].witness.unwrap();
-        assert!((w - at).norm() < 1e-4, "the touch at {w:?}");
+        assert_eq!(listed.len(), 1, "one loop with the frame at {shift:e}");
+        assert_eq!(listed[0].shape, ComponentShape::Loop);
     }
 }
 
@@ -700,8 +785,18 @@ fn a_tilted_cone_sharing_asymptotes_cuts_its_unbounded_branches_open() {
 fn a_cone_with_its_apex_on_the_other_is_ruled_from_that_apex() {
     let facing = cone_about(p(1.0, 0.0, 1.0), Vec3::new(-1.0, 0.0, -1.0), 0.3);
     let (shapes, section) = checked(&facing, &unit_cone(), region(), 0.02);
-    assert_eq!(shapes.sets, 1, "one node-joined set: {shapes:?}");
-    assert!(shapes.noded >= 2, "arcs end at the node: {shapes:?}");
+    // The divided sheet passes the apex twice and runs past every bound
+    // twice, between the passes: three arcs at the node, one set, and one
+    // branch the region cuts at both ends.
+    assert_eq!(
+        shapes,
+        Shapes {
+            noded: 3,
+            cut: 1,
+            sets: 1,
+            ..Shapes::default()
+        }
+    );
     let [node] = section.nodes() else {
         panic!("one node: {:?}", section.nodes())
     };
@@ -753,16 +848,16 @@ fn the_degenerate_poses_refuse_typed() {
 }
 
 /// **Carrying a cone pair's section refuses typed**: its components are
-/// the march's, which needs the cone's ℝ³ enclosures; at `f64` with a
-/// march door the refusal names them, without one the lane.
+/// the march's, and no march carries the pair yet; at `f64` with a march
+/// door the refusal names that, without one the lane.
 #[test]
-fn carrying_refuses_on_the_cones_enclosures() {
+fn carrying_refuses_until_a_march_carries_the_cone() {
     let bite = cylinder(p(0.0, 1.3, 1.0), Vec3::unit_x(), 0.4);
     let section = built(&unit_cone(), &bite, region());
     assert!(matches!(
         section.carry(Some(SsiLane::marched()), band()),
         Err(CarryError::Refused(CarryRefusal::Unminted(
-            NoCarrier::ConeUnenclosed
+            NoCarrier::ConeUnmarched
         )))
     ));
     assert!(matches!(
@@ -771,28 +866,67 @@ fn carrying_refuses_on_the_cones_enclosures() {
     ));
 }
 
-/// **The value decides at `Interval` as it does at `f64`**: the bite's
-/// one loop, read on certified enclosures.
+/// **The value decides at `Interval` as it does at `f64`**, on certified
+/// enclosures: the bite's one loop (the two-sheet sweep), the outside
+/// touch's point (the double root's ceiling), the apex touch's point and
+/// loop (the divided sweep, the apex's definite form) and the apex
+/// node's two arcs (its indefinite form and passes). A step of any of
+/// those read only at `f64`, or poisoned at `Interval`: red.
 #[test]
-fn the_bite_reads_one_loop_at_interval() {
+fn the_value_reads_at_interval_as_at_f64() {
     use geom_core::{Interval, Real as _};
     let lift = |s: &Surface<f64>| s.map_scalar(Interval::from_computed);
-    let bite = cylinder(p(0.0, 1.3, 1.0), Vec3::unit_x(), 0.4);
     let region = ExtentBall::fixture(
         Point3::origin().map(Interval::from_computed),
         Interval::from_computed(5.0),
     );
-    let got = geom_brep::pair_section(
-        &lift(&unit_cone()),
-        &lift(&bite),
-        Some(region),
-        None::<geom_core::NoLane>,
-        band(),
-    );
-    let Ok(SectionRead::Built(section)) = got else {
-        panic!("the bite at Interval: {got:?}")
-    };
-    let listed = section.counted().unwrap();
-    assert_eq!(listed.len(), 1);
-    assert_eq!(listed[0].shape, ComponentShape::Loop);
+    let at = p(0.0, 1.0, 1.0);
+    let normal = Vec3::new(0.0, 1.0, -1.0).normalize();
+    let rows = [
+        (
+            "the bite",
+            cylinder(p(0.0, 1.3, 1.0), Vec3::unit_x(), 0.4),
+            vec![ComponentShape::Loop],
+            0,
+        ),
+        (
+            "the outside touch",
+            cylinder(at + normal * 0.3, Vec3::unit_x(), 0.3),
+            vec![ComponentShape::Point],
+            0,
+        ),
+        (
+            "the apex touch",
+            cylinder(p(0.0, 0.0, 0.2), Vec3::unit_x(), 0.2),
+            vec![ComponentShape::Point, ComponentShape::Loop],
+            0,
+        ),
+        (
+            "the apex node",
+            cylinder(p(0.5, 0.0, 0.0), Vec3::unit_y(), 0.5),
+            vec![],
+            1,
+        ),
+    ];
+    for (what, partner, shapes, nodes) in rows {
+        let got = geom_brep::pair_section(
+            &lift(&unit_cone()),
+            &lift(&partner),
+            Some(region),
+            None::<geom_core::NoLane>,
+            band(),
+        );
+        let Ok(SectionRead::Built(section)) = got else {
+            panic!("{what} at Interval: {got:?}")
+        };
+        let listed = section.counted().unwrap();
+        assert_eq!(section.nodes().len(), nodes, "{what}: its nodes");
+        if nodes == 0 {
+            let read: Vec<_> = listed.iter().map(|c| c.shape).collect();
+            assert_eq!(read, shapes, "{what}: its shapes");
+        } else {
+            assert_eq!(listed.len(), 2, "{what}: two arcs");
+            assert_eq!(section.node_sets().len(), 1, "{what}: one set");
+        }
+    }
 }

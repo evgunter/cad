@@ -29,15 +29,18 @@
 //! refuse.
 //!
 //! Every component is the general rung's ([`ClassCarrier::General`]),
-//! save the points a tangency or a touch lists. The march needs the
-//! cone's ℝ³ enclosures, which are not built, so carrying refuses typed
-//! ([`super::NoCarrier::ConeUnenclosed`]).
+//! save the points a tangency or a touch lists. A crossing tangency is a
+//! node (C5), its arcs ending at it, one node-joined set. No march
+//! carries the pair yet (limb 2 has no composite for the cone at the
+//! march's search, and the pair has no march door), so carrying refuses
+//! typed ([`super::NoCarrier::ConeUnmarched`]).
 
 use geom::Surface;
 use geom_core::k_stats::decide_reported;
 use geom_core::{Band, Decide, Decided, Margin, Point3, Real, Sign, Vec3};
 
-use super::ruling::{self, End, Form, RuledCone};
+use super::cylinders::RegionPlacement;
+use super::ruling::{self, End, Form, RuledCone, Swept};
 use super::{
     ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NoCarrier, NodeEnd,
     NodeEnds, NodeLine, PairPose, PairSection, PairSide, RaySense, SectionComponent,
@@ -264,20 +267,15 @@ impl<T: Decide> ConeRuledPose<T> {
         band: Band,
     ) -> Result<ConeRead<T>, SectionError> {
         let (one, two) = (carrier(a, region, band)?, carrier(b, region, band)?);
-        let (ruled_first, ruled) = match (one, two) {
+        let (ruled_first, (ruled, apex)) = match (one, two) {
             (Some(cone), None) => (true, Self::against_wall(cone, b, region, band)?),
             (None, Some(cone)) => (false, Self::against_wall(cone, a, region, band)?),
             (Some(one), Some(two)) => match Self::against_cone(one, two, region, band)? {
-                Some(picked) => picked,
+                Some((first, ruled, apex)) => (first, (ruled, apex)),
                 None => return Ok(ConeRead::Elsewhere),
             },
             (None, None) => unreachable!("`decide` admits only pairs with a cone"),
         };
-        let apex = read(
-            ConeDecision::ApexOnPartner,
-            Margin::of(ruled.partner_residual(ruled.apex)),
-            band,
-        )?;
         let stance = match apex.sign {
             Sign::Positive | Sign::Negative => ConeStance::Sheets,
             Sign::Zero => Self::apex_stance(&ruled, region, band)?,
@@ -293,13 +291,16 @@ impl<T: Decide> ConeRuledPose<T> {
         }))
     }
 
-    /// The cone's rulings against the cylinder `wall`.
+    /// **The cone's rulings against the cylinder `wall`**, and the apex
+    /// margin. The wall's axis is read from the apex's foot on it, a point
+    /// the geometry fixes, so neither the read nor its rounding depends on
+    /// where the wall's frame stands along its axis.
     fn against_wall(
         cone: Carrier<T>,
         wall: &Surface<T>,
         region: ExtentBall<T>,
         band: Band,
-    ) -> Result<RuledCone<T>, SectionError> {
+    ) -> Result<(RuledCone<T>, Decided), SectionError> {
         let &Surface::Cylinder { frame, radius } = wall else {
             unreachable!("`decide` pairs a cone with a cylinder or a cone")
         };
@@ -335,11 +336,18 @@ impl<T: Decide> ConeRuledPose<T> {
                 predicate: ConeDecision::GeneratorAlongAxis.name(),
             });
         }
+        let o = frame.origin();
         let axis = geom::Line {
-            origin: frame.origin(),
+            origin: o + d * d.dot(cone.apex - o),
             dir: d,
         };
-        Ok(ruled(cone, Form::cylinder(axis, radius), region))
+        let ruled = ruled(cone, Form::cylinder(axis, radius), region);
+        let apex = read(
+            ConeDecision::ApexOnPartner,
+            Margin::of(ruled.partner_residual(ruled.apex)),
+            band,
+        )?;
+        Ok((ruled, apex))
     }
 
     /// **Two cones' ruled side**: `None` where the value does not build
@@ -350,7 +358,7 @@ impl<T: Decide> ConeRuledPose<T> {
         two: Carrier<T>,
         region: ExtentBall<T>,
         band: Band,
-    ) -> Result<Option<(bool, RuledCone<T>)>, SectionError> {
+    ) -> Result<Option<(bool, RuledCone<T>, Decided)>, SectionError> {
         let apart = (one.apex - two.apex).norm();
         if read(ConeDecision::ApexesApart, Margin::of(apart), band)?.sign == Sign::Zero {
             return Ok(None);
@@ -405,8 +413,8 @@ impl<T: Decide> ConeRuledPose<T> {
                     predicate: ConeDecision::PartnerApexOnCone.name(),
                 });
             }
-            (_, Sign::Zero) => (false, on_one),
-            _ => (true, on_two),
+            (_, Sign::Zero) => (false, on_one, second_on),
+            _ => (true, on_two, first_on),
         }))
     }
 
@@ -452,25 +460,30 @@ impl<T: Decide> ConeRuledPose<T> {
                 predicate: ConeDecision::ApexForm.name(),
             }),
             Sign::Negative => {
-                // `Q₁₁x² + 2Q₁₂xy + Q₂₂y² = 0`, solved for the ratio along
-                // the larger diagonal entry's axis, a selection.
-                let root = (T::zero() - det).sqrt();
-                let first = (q11.abs() - q22.abs()).select_le_zero(T::zero(), T::one());
-                let line = |sign: T| {
-                    let along_first = (T::zero() - q12 + sign * root) / q11;
-                    let along_second = (T::zero() - q12 + sign * root) / q22;
-                    let v1 = e1 * along_first + e2;
-                    let v2 = e1 + e2 * along_second;
-                    let v = Vec3::new(
-                        first.select_le_zero(v2.x, v1.x),
-                        first.select_le_zero(v2.y, v1.y),
-                        first.select_le_zero(v2.z, v1.z),
-                    );
-                    v.normalize().turned_toward(a)
+                // `Q(cos θ e₁ + sin θ e₂) = h + b cos 2θ + c sin 2θ`, `h`
+                // the trace's half, `b = (Q₁₁ − Q₂₂)/2`, `c = Q₁₂`; its
+                // zeros are `2θ = ψ ± acos(−h/R)`, `R = √(b² + c²)`,
+                // `ψ` the angle of `(b, c)`. Indefinite, `R > |h|`, so
+                // nothing divides by a diagonal entry that may vanish.
+                let half = T::from_f64(0.5);
+                let (h, b, c) = ((q11 + q22) * half, (q11 - q22) * half, q12);
+                let r = (b.powi(2) + c.powi(2)).sqrt();
+                let psi = (b / r)
+                    .max(T::zero() - T::one())
+                    .min(T::one())
+                    .acos()
+                    .copysign(c);
+                let open = ((T::zero() - h) / r)
+                    .max(T::zero() - T::one())
+                    .min(T::one())
+                    .acos();
+                let line = |theta: T| {
+                    let (sn, cs) = theta.sin_cos();
+                    (e1 * cs + e2 * sn).turned_toward(a)
                 };
                 Ok(ConeStance::Node {
                     normal,
-                    rulings: [line(T::one()), line(T::zero() - T::one())],
+                    rulings: [line((psi + open) * half), line((psi - open) * half)],
                 })
             }
         }
@@ -553,22 +566,9 @@ pub(super) fn cone_ruled<T: Decide>(
     let region = pose.region;
     let apex = pose.ruled.apex;
     let mut decided = Vec::new();
-    let mut nodes = Vec::new();
     let mut listed = Vec::new();
-    // A point the region holds, or stands within the band of its
-    // boundary (the region is padded, so nothing the operation uses lies
-    // there): a choice of listing, as the cylinder pair's placement is.
     let held = |p: Point3<T>| {
-        let past = (p - region.center()).norm() - region.radius();
-        // NO-DECISION: which listing of the pair to take, each sound.
-        let read = past.sign_within(band);
-        !matches!(
-            read,
-            Ok(Decided {
-                sign: Sign::Positive,
-                ..
-            })
-        )
+        super::cylinders::placement_of(p, T::zero(), region, band) != RegionPlacement::Outside
     };
     let point = |at: Point3<T>, why: NoCarrier| {
         SectionComponent::closed_form(
@@ -578,30 +578,10 @@ pub(super) fn cone_ruled<T: Decide>(
             ClassCarrier::Unminted(why),
         )
     };
-    match pose.stance {
+    let (arcs, found) = match pose.stance {
         ConeStance::Sheets => {
             let swept = ruling::sweep(&pose.ruled, region, band)?;
-            for c in swept.components {
-                listed.push(SectionComponent {
-                    cut_ends: c.cut_ends,
-                    ..SectionComponent::closed_form(
-                        match c.cut_ends {
-                            Some(_) => ComponentShape::Open {
-                                ends: ComponentEnds::cut(),
-                            },
-                            None => ComponentShape::Loop,
-                        },
-                        pose.order([c.encircles, false]),
-                        Some(c.witness),
-                        if c.tangent {
-                            ClassCarrier::Unminted(NoCarrier::Tangent)
-                        } else {
-                            ClassCarrier::General
-                        },
-                    )
-                });
-            }
-            for t in swept.touches {
+            for t in &swept.touches {
                 decided.push(ZeroVerdict {
                     decision: SectionDecision::Tangency(ruling::TANGENCY),
                     margin: t.margin,
@@ -610,6 +590,7 @@ pub(super) fn cone_ruled<T: Decide>(
                     listed.push(point(t.at, NoCarrier::Tangent));
                 }
             }
+            (swept.components, Found::Crossings)
         }
         ConeStance::Node { .. } | ConeStance::Touch { .. } => {
             decided.push(ZeroVerdict {
@@ -617,11 +598,8 @@ pub(super) fn cone_ruled<T: Decide>(
                 margin: pose.apex.margin,
             });
             let divided = ruling::sweep_divided(&pose.ruled, region, band)?;
-            let lines = match pose.stance {
-                ConeStance::Node { normal, rulings } => Some((normal, rulings)),
-                ConeStance::Touch { .. } | ConeStance::Sheets => None,
-            };
-            let passes = if lines.is_some() && held(apex) { 2 } else { 0 };
+            let node = matches!(pose.stance, ConeStance::Node { .. });
+            let passes = if node && held(apex) { 2 } else { 0 };
             if divided.nodes.len() != passes {
                 return Err(SectionError::Unaccounted {
                     cause: format!(
@@ -631,56 +609,53 @@ pub(super) fn cone_ruled<T: Decide>(
                     ),
                 });
             }
-            let node = lines
-                .filter(|_| passes == 2)
-                .map(|(normal, rulings)| apex_node(&pose, normal, rulings, band));
-            for arc in &divided.arcs {
-                let Some([from, to]) = arc.ends else {
-                    listed.push(SectionComponent::closed_form(
-                        ComponentShape::Loop,
-                        pose.order([true, false]),
-                        Some(arc.witness),
-                        ClassCarrier::General,
-                    ));
-                    continue;
-                };
-                let end = |e: End<T>| match (e, &node) {
-                    (End::Node(phi), Some((node, rulings))) => {
-                        Some(node_end(&pose, node, *rulings, phi, arc.witness, band))
-                    }
-                    _ => None,
-                };
-                let cuts = match (from, to) {
-                    (End::Cut(p), End::Cut(q)) => Some([p, q]),
-                    _ => None,
-                };
-                listed.push(SectionComponent {
-                    cut_ends: cuts,
-                    ..SectionComponent::closed_form(
-                        ComponentShape::Open {
-                            ends: ComponentEnds {
-                                cut: matches!(from, End::Cut(_)) || matches!(to, End::Cut(_)),
-                                nodes: NodeEnds {
-                                    start: end(from).transpose()?,
-                                    end: end(to).transpose()?,
-                                },
-                                ..ComponentEnds::default()
-                            },
-                        },
-                        [false, false],
-                        Some(arc.witness),
-                        ClassCarrier::General,
-                    )
-                });
-            }
-            if let Some((node, _)) = node {
-                nodes.push(node);
-            }
-            if matches!(pose.stance, ConeStance::Touch { .. }) && held(apex) {
+            if !node && held(apex) {
                 listed.push(point(apex, NoCarrier::ApexTouch));
             }
+            let found = match pose.stance {
+                ConeStance::Node { normal, rulings } => Found::Apex { normal, rulings },
+                // A touch's sheet passes no node: the count above holds it
+                // to none.
+                ConeStance::Touch { .. } | ConeStance::Sheets => Found::Crossings,
+            };
+            (divided.arcs, found)
         }
+    };
+    let nodes = Nodes::read(&pose, &arcs, found, band);
+    for arc in &arcs {
+        let Some([from, to]) = arc.ends else {
+            listed.push(SectionComponent::closed_form(
+                ComponentShape::Loop,
+                pose.order([arc.encircles, false]),
+                Some(arc.witness),
+                ClassCarrier::General,
+            ));
+            continue;
+        };
+        let end = |e: End<T>, start: bool| match e {
+            End::Node(pass) => nodes.end(&pose, pass, start, arc.witness, band).map(Some),
+            End::Cut(_) => Ok(None),
+        };
+        listed.push(SectionComponent {
+            cut_ends: arc.cut_ends(),
+            ..SectionComponent::closed_form(
+                ComponentShape::Open {
+                    ends: ComponentEnds {
+                        cut: matches!(from, End::Cut(_)) || matches!(to, End::Cut(_)),
+                        nodes: NodeEnds {
+                            start: end(from, true)?,
+                            end: end(to, false)?,
+                        },
+                        ..ComponentEnds::default()
+                    },
+                },
+                [false, false],
+                Some(arc.witness),
+                ClassCarrier::General,
+            )
+        });
     }
+    let nodes = nodes.listed;
     let node_sets = node_joined(&listed, nodes.len(), [false, false]);
     let partner = if pose.ruled_first {
         &pose.second
@@ -706,93 +681,208 @@ pub(super) fn cone_ruled<T: Decide>(
     })
 }
 
-/// **The node at the apex** (C5, [`SectionNode`]): the partner's normal,
-/// the two rulings in its tangent plane as the lines, the second turned
-/// counterclockwise from the first about the normal by less than a half
-/// turn, and `above` the side the residuals' signs name in sector 0:
-/// the cone where the partner runs inside the cone's solid there (the
-/// cone's form positive on the sector's bisector), else the partner, as a
-/// smooth surface's residual on its partner names its side.
-fn apex_node<T: Decide>(
-    pose: &ConeRuledPose<T>,
-    normal: Vec3<T>,
-    [l0, l1]: [Vec3<T>; 2],
-    band: Band,
-) -> (SectionNode<T>, [Vec3<T>; 2]) {
-    let l1 = l1 * l0.cross(l1).dot(normal).unit_sign();
-    let (a, c) = (pose.ruled.axis, pose.ruled.sc.1);
-    let w = l0 + l1;
-    let inside = a.dot(w).powi(2) - c.powi(2) * w.norm_squared();
-    let cone = pose.ruled_side();
-    // NO-DECISION: a label for the sectors, which no reader decides on.
-    let above = match inside.sign_within(band) {
+/// What the sweep's passes through nodes pass: crossing tangencies, or
+/// the apex with its two rulings in the partner's tangent plane (each
+/// along its generator's opening direction).
+#[derive(Clone, Copy)]
+enum Found<T: Real> {
+    Crossings,
+    Apex {
+        normal: Vec3<T>,
+        rulings: [Vec3<T>; 2],
+    },
+}
+
+/// **The nodes the sweep's arcs end at** (C5, [`SectionNode`]), each with
+/// what an arc end there reads: the raw lines its rays run along (before
+/// the second is turned counterclockwise from the first about the
+/// normal), and whether that turn reversed the second.
+struct Nodes<T: Real> {
+    listed: Vec<SectionNode<T>>,
+    /// Per node: the pass angle it was found at (a crossing's; the apex's
+    /// arcs name their passes by the ruling, so none), its raw lines, and
+    /// whether `lines[1]` is the second reversed.
+    keys: Vec<(Option<f64>, [Vec3<T>; 2], bool)>,
+    found: Found<T>,
+}
+
+impl<T: Decide> Nodes<T> {
+    /// The nodes `arcs` end at: one per crossing angle they pass, or the
+    /// apex where they pass it.
+    fn read(pose: &ConeRuledPose<T>, arcs: &[Swept<T>], found: Found<T>, band: Band) -> Self {
+        let mut out = Self {
+            listed: Vec::new(),
+            keys: Vec::new(),
+            found,
+        };
+        let passes = arcs
+            .iter()
+            .flat_map(|a| a.ends.into_iter().flatten())
+            .filter_map(|e| match e {
+                End::Node(pass) => Some(pass.phi),
+                End::Cut(_) => None,
+            });
+        match found {
+            Found::Crossings => {
+                for phi in passes {
+                    if out.keys.iter().any(|k| k.0 == Some(phi)) {
+                        continue;
+                    }
+                    let x = pose.ruled.crossing(phi);
+                    let [a, b, c] = x.form;
+                    let (flip, l1) = turned(x.lines, x.normal, band);
+                    // The sector from `lines[0]` to `lines[1]` holds the
+                    // image of `(1, m+) + (±1, ±m−)`; the form's sign on it
+                    // is the partner's residual on the cone there, and the
+                    // cone lies on the normal's side where that residual
+                    // grows outward.
+                    let sign = if flip { T::zero() - T::one() } else { T::one() };
+                    let (cphi, ct) = (T::one() + sign, x.slopes[0] + sign * x.slopes[1]);
+                    let h = a * cphi.powi(2) + T::from_f64(2.0) * b * cphi * ct + c * ct.powi(2);
+                    // NO-DECISION: a label for the sectors, which no reader of a cone pair decides on.
+                    let above = above_where((h * x.outward).sign_within(band), pose.ruled_side());
+                    out.listed.push(SectionNode {
+                        point: x.point,
+                        normal: x.normal,
+                        lines: [x.lines[0], l1],
+                        above,
+                    });
+                    out.keys.push((Some(phi), x.lines, flip));
+                }
+            }
+            Found::Apex { normal, rulings } => {
+                if passes.count() > 0 {
+                    let (flip, l1) = turned(rulings, normal, band);
+                    let (a, c) = (pose.ruled.axis, pose.ruled.sc.1);
+                    let w = rulings[0] + l1;
+                    let inside = a.dot(w).powi(2) - c.powi(2) * w.norm_squared();
+                    // NO-DECISION: a label for the sectors, which no reader of a cone pair decides on.
+                    let above = above_where(inside.sign_within(band), pose.ruled_side());
+                    out.listed.push(SectionNode {
+                        point: pose.ruled.apex,
+                        normal,
+                        lines: [rulings[0], l1],
+                        above,
+                    });
+                    out.keys.push((None, rulings, flip));
+                }
+            }
+        }
+        out
+    }
+
+    /// **An arc's end at the node it passes at `pass`**, `start` the end
+    /// its walk leaves from: the line its ray runs along and the sense.
+    /// At a crossing, the sheet leaves toward the side `e` of the angle
+    /// (the walk's direction past a start, against it before an end)
+    /// along the line of `m` of sign `σe` ([`ruling::Crossing`]); at the
+    /// apex, the ruling the pass is at, read by azimuth against the two
+    /// closed-form rulings, toward the nappe the arc lies on (`t` keeps
+    /// its sign between the arc's ends: it changes only through the apex
+    /// or past every bound, where the region cuts it).
+    fn end(
+        &self,
+        pose: &ConeRuledPose<T>,
+        pass: ruling::Pass,
+        start: bool,
+        witness: Point3<T>,
+        band: Band,
+    ) -> Result<NodeEnd, SectionError> {
+        let unread = |what: &'static str| SectionError::Unaccounted {
+            cause: what.to_owned(),
+        };
+        let (node, k, along) = match self.found {
+            Found::Crossings => {
+                let node = self
+                    .keys
+                    .iter()
+                    .position(|key| key.0 == Some(pass.phi))
+                    .ok_or_else(|| unread("an arc passes a crossing no node lists"))?;
+                let e_forward = start != pass.backward;
+                let sigma = pass.sheet == ruling::Sheet::Plus;
+                // `σe > 0` takes `m+`, the first raw line.
+                let k = usize::from(sigma != e_forward);
+                (node, k, e_forward)
+            }
+            Found::Apex { .. } => {
+                let (_, rulings, _) = self
+                    .keys
+                    .first()
+                    .ok_or_else(|| unread("an arc passes the apex no node lists"))?;
+                let r = &pose.ruled;
+                let v = r.dir(&ruling::Cell::at(pass.phi)).mid() - Point3::origin();
+                let azimuth = |l: Vec3<T>| {
+                    let (x, y) = (v - r.axis * r.axis.dot(v), l - r.axis * r.axis.dot(l));
+                    x.dot(y) / (x.norm() * y.norm())
+                };
+                // NO-DECISION: the nearer of two rulings by azimuth, a selection between them.
+                let second = (azimuth(rulings[1]) - azimuth(rulings[0])).sign_within(band);
+                let k = usize::from(matches!(
+                    second,
+                    Ok(Decided {
+                        sign: Sign::Positive,
+                        ..
+                    })
+                ));
+                let nappe = (witness - r.apex).dot(r.axis);
+                // NO-DECISION: the nappe of a point the sweep decided on the arc, off the apex.
+                let up = match nappe.sign_within(band) {
+                    Ok(Decided {
+                        sign: Sign::Positive,
+                        ..
+                    }) => true,
+                    Ok(Decided {
+                        sign: Sign::Negative,
+                        ..
+                    }) => false,
+                    _ => return Err(unread("an arc's witness reads on neither nappe")),
+                };
+                (0, k, up)
+            }
+        };
+        let flip = self.keys[node].2;
+        // The ray is `±raw[k]`, `+` where `along`; `lines[1]` is `raw[1]`
+        // reversed where `flip`.
+        let reversed = k == 1 && flip;
+        Ok(NodeEnd {
+            node,
+            line: if k == 0 {
+                NodeLine::First
+            } else {
+                NodeLine::Second
+            },
+            sense: if along != reversed {
+                RaySense::Along
+            } else {
+                RaySense::Against
+            },
+        })
+    }
+}
+
+/// `lines[1]` turned counterclockwise from `lines[0]` about `normal` by
+/// less than a half turn: whether that reversed it, and the line.
+fn turned<T: Decide>(lines: [Vec3<T>; 2], normal: Vec3<T>, band: Band) -> (bool, Vec3<T>) {
+    // NO-DECISION: an orientation of two lines the pose read apart, a selection.
+    let turn = lines[0].cross(lines[1]).dot(normal).sign_within(band);
+    let flip = matches!(
+        turn,
+        Ok(Decided {
+            sign: Sign::Negative,
+            ..
+        })
+    );
+    (flip, if flip { -lines[1] } else { lines[1] })
+}
+
+/// **`above` at a node** ([`SectionNode::above`]): `cone` where the
+/// reading on sector 0 is positive, the partner otherwise.
+fn above_where(read: Result<Decided, geom_core::Indeterminate>, cone: PairSide) -> PairSide {
+    match read {
         Ok(Decided {
             sign: Sign::Positive,
             ..
         }) => cone,
         _ => cone.other(),
-    };
-    (
-        SectionNode {
-            point: pose.ruled.apex,
-            normal,
-            lines: [l0, l1],
-            above,
-        },
-        [l0, l1],
-    )
-}
-
-/// **An arc's end at the apex node**, from the pass at the ruling angle
-/// `phi`: the node line its ruling lies along (the nearer of the two),
-/// and the sense the arc leaves along, the nappe its witness lies on
-/// (`t`'s sign is the arc's between its ends: it changes only through the
-/// apex or past every bound, where the region cuts it).
-fn node_end<T: Decide>(
-    pose: &ConeRuledPose<T>,
-    node: &SectionNode<T>,
-    _rulings: [Vec3<T>; 2],
-    phi: f64,
-    witness: Point3<T>,
-    band: Band,
-) -> Result<NodeEnd, SectionError> {
-    let v = pose.ruled.dir(&ruling::Cell::at(phi)).mid() - Point3::origin();
-    let along = |l: Vec3<T>| v.dot(l).abs();
-    // Which of two lines a ruling found near one of them is nearer.
-    // NO-DECISION: a selection between two lines, each the ruling's to its precision.
-    let line = match (along(node.lines[0]) - along(node.lines[1])).sign_within(band) {
-        Ok(Decided {
-            sign: Sign::Negative,
-            ..
-        }) => NodeLine::Second,
-        _ => NodeLine::First,
-    };
-    let l = match line {
-        NodeLine::First => node.lines[0],
-        NodeLine::Second => node.lines[1],
-    };
-    let nappe = (witness - pose.ruled.apex).dot(pose.ruled.axis);
-    let ray = v * nappe.unit_sign();
-    // NO-DECISION: the sense of a ruling along the line it lies on, a selection.
-    let sense = match ray.dot(l).sign_within(band) {
-        Ok(Decided {
-            sign: Sign::Positive,
-            ..
-        }) => RaySense::Along,
-        Ok(Decided {
-            sign: Sign::Negative,
-            ..
-        }) => RaySense::Against,
-        _ => {
-            return Err(SectionError::Unaccounted {
-                cause: "an arc's ray at the apex read along neither sense of its node line"
-                    .to_owned(),
-            });
-        }
-    };
-    Ok(NodeEnd {
-        node: 0,
-        line,
-        sense,
-    })
+    }
 }

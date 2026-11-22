@@ -777,7 +777,13 @@ pub struct SectionNode<T: Real> {
     /// counterclockwise about `normal` by less than a half turn.
     pub lines: [Vec3<T>; 2],
     /// The surface lying on `normal`'s side of the other in sector 0,
-    /// from `+lines[0]` to `+lines[1]`.
+    /// from `+lines[0]` to `+lines[1]`. At a cone's apex, where the cone
+    /// has no tangent plane and lies on both sides of the partner's over
+    /// a sector it holds, it is read as a smooth pair's is, by the
+    /// residual's sign: the cone where the partner runs inside the cone's
+    /// solid on sector 0, the partner otherwise. `topo`'s vertex faces
+    /// (`vtxfac`, `above_in`) decide on it, and no cone pair reaches them
+    /// yet.
     pub above: PairSide,
 }
 
@@ -998,9 +1004,10 @@ pub enum NoCarrier {
     /// A cone's apex touches the other surface, the cone's form definite
     /// on its tangent plane there: an isolated point of the section.
     ApexTouch,
-    /// A section with a cone side is classified, and its march needs the
-    /// cone's ℝ³ enclosures, which are not built.
-    ConeUnenclosed,
+    /// A section with a cone side is classified, and no march carries it:
+    /// limb 2 has no composite for the cone at the march's search, and
+    /// the pair has no march door.
+    ConeUnmarched,
 }
 
 impl NoCarrier {
@@ -1040,9 +1047,10 @@ impl NoCarrier {
                 "a cone's apex touches the other surface at one point, an isolated point of the \
                  section, and no carrier is minted for it"
             }
-            Self::ConeUnenclosed => {
-                "a section with a cone side is classified, but its march needs enclosures of the \
-                 cone in space, which the kernel does not build"
+            Self::ConeUnmarched => {
+                "a section with a cone side is classified, but no march carries it: the \
+                 certificate's bound has no composite for the cone at the march's search, and \
+                 the pair has no march door"
             }
         }
     }
@@ -1069,7 +1077,7 @@ impl NoCarrier {
             | Self::RowRegion
             | Self::ChartLoop
             | Self::SplinePairWhole
-            | Self::ConeUnenclosed => geom_core::NOT_YET_ENDING,
+            | Self::ConeUnmarched => geom_core::NOT_YET_ENDING,
         }
     }
 }
@@ -1511,6 +1519,22 @@ pub fn serves(kind: SurfaceKind) -> bool {
     }
 }
 
+/// **Why the value carries no component of a kind pair it classifies**,
+/// where that holds by kind: a cone against a cylinder or a cone, which
+/// no march carries yet ([`NoCarrier::ConeUnmarched`]). A reader that uses
+/// only a carried section reads this first, and refuses by its cause,
+/// rather than classify a pair whose carry must refuse. Exhaustive, as
+/// [`pair_section`]'s match is.
+#[must_use]
+pub fn uncarried(a: SurfaceKind, b: SurfaceKind) -> Option<NoCarrier> {
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
+    match (a, b) {
+        (Cone, Cylinder | Cone) | (Cylinder, Cone) => Some(NoCarrier::ConeUnmarched),
+        (Plane | Cylinder | Sphere | Torus | Spindle | Nurbs | Approx, _)
+        | (Cone, Plane | Sphere | Torus | Spindle | Nurbs | Approx) => None,
+    }
+}
+
 /// **Whether a pair of kinds `a` and `b` is traced in ℝ³** (C3): each
 /// side enters the section through its implicit residual where the ℝ³
 /// tube and exhaustion enclose it
@@ -1673,7 +1697,7 @@ fn cylinder_sphere<T: Decide>(
                 swept
                     .components
                     .into_iter()
-                    .map(|c| match c.cut_ends {
+                    .map(|c| match c.cut_ends() {
                         Some(_) => Err(SectionError::Unaccounted {
                             cause: "the ruling sweep cut a cylinder × sphere component, \
                                     which the sphere's own ball holds whole"
@@ -2521,7 +2545,7 @@ fn march_over_the_ball(
         }
         PairPose::ConeCylinder(_) | PairPose::ConeCone(_) => {
             return Err(CarryError::Refused(CarryRefusal::Unminted(
-                NoCarrier::ConeUnenclosed,
+                NoCarrier::ConeUnmarched,
             )));
         }
         // Its whole reading marches it and lists every component with

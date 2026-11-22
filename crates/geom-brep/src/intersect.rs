@@ -287,9 +287,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    transversally; a tilted cylinder and a parallel-but-OFFSET one \
                    both cut a QUARTIC, classified by the section value \
                    (geom_brep::pair_section) on the sweep along the cone's rulings \
-                   and not marched: the general rung's march needs the cone's ℝ³ \
-                   enclosures, which are not built (arms retire one at a time, each \
-                   with its proof)",
+                   and not marched: the general rung's march has no limb-2 composite \
+                   for the cone at its search and no door for the pair (arms retire one \
+                   at a time, each with its proof)",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ³ implicit-pair
         // march. Both operands' C9 composites convert to meters
@@ -317,9 +317,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
                    trace shape (the general-rung marcher): classified by the section \
                    value (geom_brep::pair_section) on the sweep along one cone's \
-                   rulings, and not marched, the march needing the cone's ℝ³ \
-                   enclosures, which are not built; the common-apex line-pair special \
-                   case is not classified here",
+                   rulings, and not marched, the march having no limb-2 composite for \
+                   the cone at its search and no door for the pair; the common-apex \
+                   line-pair special case is not classified here",
         },
         (Cone, Sphere) | (Sphere, Cone) => PairRoute {
             rung: Rung::General,

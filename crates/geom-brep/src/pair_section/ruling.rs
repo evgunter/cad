@@ -4,7 +4,8 @@
 //! where the discriminant `Δ` is negative, twice where it is positive (two
 //! sheets of meetings), once where it vanishes. A simple zero of `Δ` is a
 //! branch point, where the two sheets join; a double one is a tangency,
-//! which the pose decides before any sweep.
+//! which a cylinder's pose decides before any sweep and a cone's sweep
+//! decides itself ([`Touch`]).
 //!
 //! The ruling angle `φ` is cut into cells, each read on enclosures of `Δ`,
 //! of the two meetings and of their velocity over the cell ([`Ruled`]).
@@ -12,7 +13,9 @@
 //!
 //! - **counts the components**: an arc of `φ` where `Δ > 0`, bounded by
 //!   two branch points, is one loop (its two sheets joined at both), and
-//!   `Δ > 0` over the whole turn is two loops, one per sheet;
+//!   `Δ > 0` over the whole turn is two loops, one per sheet; a crossing
+//!   tangency is a node every walk through it passes, the loops cut into
+//!   arcs that end there;
 //! - **cuts them by the domain**: a cut end is a certified root where a
 //!   sheet crosses the boundary of the ball the march ends at, in a cell
 //!   where that sheet is monotone against the ball and its two ends lie
@@ -443,8 +446,10 @@ impl<T: Real> Cell<T> {
     }
 }
 
-/// **The two sheets of meetings**: the quadratic's larger root and its
-/// smaller, joined at a branch point.
+/// **The two sheets of meetings**: the quadratic's roots by the sign `σ`
+/// of `√Δ` in them (`Plus` the `+`), joined at a branch point. For a
+/// cylinder's rulings, whose leading coefficient is positive, `Plus` is
+/// the larger; a cone's projective roots keep `σ` and not the order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Sheet {
     Plus,
@@ -461,8 +466,10 @@ impl Sheet {
 }
 
 /// **A ruled side against its partner**, read over cells of the ruling
-/// angle: the shape every ruled pair (a cylinder or a cone against a
-/// plane, a cylinder, a cone or a sphere) hands the sweep.
+/// angle: the shape a ruled pair hands the sweep, built for a cylinder
+/// against a cylinder or a sphere ([`RuledCylinders`],
+/// [`RuledCylinderSphere`]) and a cone against a cylinder or a cone
+/// ([`RuledCone`], [`DividedCone`]).
 pub(crate) trait Ruled<T: Real> {
     /// The ruled wall's radius of curvature: the lever a cosine read
     /// against the ruling's turn is metered at.
@@ -813,7 +820,7 @@ pub(crate) struct RuledCone<T: Real> {
 struct Quadratic<T: Real> {
     p2: Iv<T>,
     p1: Iv<T>,
-    p0: T,
+    p0: Iv<T>,
     dp2: Iv<T>,
     dp1: Iv<T>,
     e: Iv<T>,
@@ -881,20 +888,18 @@ impl<T: Real> RuledCone<T> {
             .scale(two * kappa)
             .plus(dv.scale(two * beta * du))
             .widen(c1);
-        let p0 = kappa * u.norm_squared() + beta * du.powi(2) + gamma;
+        let p0 = Iv::point(kappa * u.norm_squared() + beta * du.powi(2) + gamma).widen(c0);
         let dp2 = dv.times(ddv).scale(two * beta).widen(c2);
         let dp1 = duv
             .scale(two * kappa)
             .plus(ddv.scale(two * beta * du))
             .widen(c1);
-        let e = p1
-            .square()
-            .plus(p2.scale(T::from_f64(-4.0) * p0))
-            .widen(ce + c0.abs() * T::from_f64(4.0) * p2.size());
+        let minus_four = T::from_f64(-4.0);
+        let e = p1.square().plus(p2.times(p0).scale(minus_four)).widen(ce);
         let de = p1
             .times(dp1)
             .scale(two)
-            .plus(dp2.scale(T::from_f64(-4.0) * p0))
+            .plus(dp2.times(p0).scale(minus_four))
             .widen(ce);
         Quadratic {
             p2,
@@ -920,7 +925,13 @@ impl<T: Real> RuledCone<T> {
         let (num, dnum) = (w.toward(u), dw.toward(u));
         let den = w.norm();
         let reach = self.reach();
-        let q = num.abs().quotient(den);
+        // The quotient's rounding: the numerator's, of size `|u|`, and the
+        // divisor's relative one, both levered by `1/|v × d|`, which a
+        // ruling near the axis's direction makes large.
+        let charge = den
+            .lo
+            .select_le_zero(T::zero(), rounding_charge(reach + reach) / den.lo);
+        let q = num.abs().quotient(den).widen(charge);
         let delta = Iv {
             lo: q.lo.max(T::zero()).min(reach),
             hi: q.hi.min(reach).max(T::zero()),
@@ -949,7 +960,7 @@ impl<T: Real> RuledCone<T> {
         let s = q.e.sqrt().scale(sheet.sign());
         let minus_p1 = q.p1.neg();
         let wide = minus_p1.plus(s).quotient(q.p2.scale(two));
-        let narrow = Iv::point(two * q.p0).quotient(minus_p1.plus(s.neg()));
+        let narrow = q.p0.scale(two).quotient(minus_p1.plus(s.neg()));
         wide.meet(narrow)
     }
 
@@ -1023,61 +1034,113 @@ impl<T: Real> Ruled<T> for RuledCone<T> {
             d.select_le_zero(T::zero(), n / d)
         };
         let t = floor(minus_p1.plus(s), q.p2.scale(two))
-            .max(floor(Iv::point(two * q.p0), minus_p1.plus(s.neg())));
+            .max(floor(q.p0.scale(two), minus_p1.plus(s.neg())));
         Some(t - (self.apex - center).norm())
     }
 
     fn ceiling(&self, cell: &Cell<T>) -> Option<T> {
-        match self.partner.radius {
-            Some(_) => Some(self.discriminant(cell).size()),
-            None => Some(self.form_ceiling(cell)),
-        }
+        Some(self.form_ceiling(cell))
     }
 }
 
 impl<T: Real> RuledCone<T> {
-    /// **The clearance ceiling against a cone**: at the ruling's point
-    /// `X*` where the form is extreme along it (`t* = −p₁/2p₂`, the
-    /// gradient `g` there square to the ruling), translating the ruling
-    /// by `s` along `ĝ` moves the extreme to
-    /// `q* + s|g| + s²k′`, `|k′| ≤ 1 + 1/|p₂|` (the form's matrix has norm
-    /// at most one). Where `|g|² ≥ 4(1 + 1/|p₂|)|q*|` that has a root
-    /// within `2|q*|/|g|`, where the ruling turns tangent, so its
-    /// clearance is at most that; elsewhere it is no ceiling, and reads
-    /// as every value.
-    fn form_ceiling(&self, cell: &Cell<T>) -> T {
+    /// **The clearance ceiling over a cell**: at the ruling's point `X*`
+    /// where the form is extreme along it (`t* = −p₁/2p₂`, the gradient
+    /// `g` there square to the ruling), translating the ruling by `s`
+    /// along `ĝ` moves the extreme to `q* + s|g| + s²k′`,
+    /// `|k′| ≤ 1 + 1/|p₂|` (the form's matrix has norm at most one, for
+    /// a cylinder and for a cone). Where `|g|² ≥ 4(1 + 1/|p₂|)|q*|` that
+    /// has a root within `2|q*|/|g|`, where the ruling turns tangent, so
+    /// its clearance is at most that; elsewhere it is no ceiling, and
+    /// reads as every value ([`WIDE`]). `q* = −E/4p₂` is read from `E`
+    /// by its mean value about the cell's middle,
+    /// `|E| ≤ |E(φ₀)| + |E′|·w/2`, which is second order in the width
+    /// where `E′` vanishes, as at a double root; the point `X*` itself
+    /// moves to first order, so `q` read there directly would not be.
+    pub(crate) fn form_ceiling(&self, cell: &Cell<T>) -> T {
         let Form {
-            at,
-            d,
-            kappa,
-            beta,
-            gamma,
-            ..
+            at, d, kappa, beta, ..
         } = self.partner;
         let wide = T::from_f64(WIDE);
         let two = T::from_f64(2.0);
         let q = self.quadratic(cell);
+        let mid = self.quadratic(&Cell::at(cell.mid()));
+        let half = T::from_f64(0.5 * cell.width());
+        let e = mid.e.size() + q.de.size() * half;
+        let value = e / (T::from_f64(4.0) * q.p2.abs().lo);
+        let value = value + rounding_charge(value);
         let t = q.p1.quotient(q.p2.scale(two)).neg();
-        let x = self.point(cell, t);
-        let w = x.less(at);
+        let w = self.point(cell, t).less(at);
         let dw = w.toward(d);
-        let value = w
-            .dot(w)
-            .scale(kappa)
-            .plus(dw.square().scale(beta))
-            .shift(gamma)
-            .size();
-        let g = w
+        let gv = w
             .times(Iv::point(two * kappa))
-            .plus(V3::along(d, dw.scale(two * beta)))
-            .norm()
-            .lo;
+            .plus(V3::along(d, dw.scale(two * beta)));
+        let g = gv.norm().lo - rounding_charge(two * w.norm().hi);
         let k = T::one() + T::one() / q.p2.abs().lo;
         let room = T::from_f64(4.0) * k * value - g.powi(2);
-        let ceiling = two * value / g;
-        let ceiling = room.select_le_zero(ceiling, wide);
+        let ceiling = room.select_le_zero(two * value / g, wide);
         if ceiling.is_poison() { wide } else { ceiling }
     }
+
+    /// **The chart of a crossing tangency at the ruling angle `phi`**
+    /// ([`Crossing`]), read at the angle's own scalars.
+    pub(crate) fn crossing(&self, phi: f64) -> Crossing<T> {
+        let Form {
+            at, d, kappa, beta, ..
+        } = self.partner;
+        let cell = Cell::at(phi);
+        let mid = |v: V3<T>| v.mid() - Point3::origin();
+        let (v, dv) = (mid(self.dir(&cell)), mid(self.turn(&cell)));
+        let ddv = self.axis * self.sc.1 - v;
+        let u = self.u();
+        let two = T::from_f64(2.0);
+        let (du, dvv, dvd, dvdd) = (d.dot(u), d.dot(v), d.dot(dv), d.dot(ddv));
+        let p2 = kappa + beta * dvv.powi(2);
+        let p1 = two * (kappa * u.dot(v) + beta * du * dvv);
+        let dp2 = two * beta * dvv * dvd;
+        let dp1 = two * (kappa * u.dot(dv) + beta * du * dvd);
+        let ddp2 = two * beta * (dvd.powi(2) + dvv * dvdd);
+        let ddp1 = two * (kappa * u.dot(ddv) + beta * du * dvdd);
+        let t = T::zero() - p1 / (two * p2);
+        let (a, b, c) = (ddp2 * t.powi(2) + ddp1 * t, two * dp2 * t + dp1, two * p2);
+        let root = (b.powi(2) - a * c).max(T::zero()).sqrt();
+        let slopes = [(root - b) / c, (T::zero() - root - b) / c];
+        let point = self.apex + v * t;
+        let w = point - at;
+        let gradient = (w * kappa + d * (beta * d.dot(w))) * two;
+        Crossing {
+            point,
+            normal: (gradient * kappa.unit_sign()).normalize(),
+            lines: slopes.map(|m| (v * m + dv * t).normalize()),
+            slopes,
+            form: [a, b, c],
+            outward: kappa.unit_sign(),
+        }
+    }
+}
+
+/// **A crossing tangency's chart** ([`RuledCone::crossing`]): the partner's
+/// form along the cone's rulings, `F(φ, t) = p₂t² + p₁t + p₀`, has a
+/// critical point of value zero there, and its Hessian
+/// `[[A, B], [B, C]]` (`A = F_φφ`, `B = F_φt`, `C = F_tt = 2p₂`) is
+/// indefinite: its null directions `(1, m±)`, `m± = (−B ± √(B² − AC))/C`,
+/// are the two branches, and their images `m±·v + t·v′` the node's lines.
+/// Sheet `σ` leaves the node toward the side `e = ±1` of the angle
+/// along `e·(1, m)`, `m` the root of sign `σe` (its `t′` is the mean
+/// slope plus `σe·√(E″/2)/2p₂`, and `C = 2p₂`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Crossing<T: Real> {
+    pub(crate) point: Point3<T>,
+    /// The partner's unit normal there, outward.
+    pub(crate) normal: Vec3<T>,
+    /// The images of `(1, m+)` and `(1, m−)`, unit.
+    pub(crate) lines: [Vec3<T>; 2],
+    pub(crate) slopes: [T; 2],
+    /// `[A, B, C]`.
+    pub(crate) form: [T; 3],
+    /// `+1` where the partner's form grows outward (a cylinder), `−1`
+    /// where it shrinks (a cone).
+    pub(crate) outward: T,
 }
 
 /// **A cone whose apex lies on its partner, its rulings read with the
@@ -1140,21 +1203,39 @@ impl<T: Real> Ruled<T> for DividedCone<'_, T> {
     }
 }
 
-/// **A component the sweep lists**: open between two cut ends, or a loop
+/// **A component the sweep lists**: open between two ends, or a loop
 /// the ball holds whole.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Swept<T: Real> {
-    /// Its two cut ends, where it is open: the certified roots where it
-    /// crosses the ball's boundary, the one it enters by first.
-    pub(crate) cut_ends: Option<[Point3<T>; 2]>,
+    /// Its two ends in the order the sweep walks it, where it is open:
+    /// each a certified root where it crosses the ball's boundary, or a
+    /// node it ends at.
+    pub(crate) ends: Option<[End<T>; 2]>,
     /// A point of it decided inside the ball (module docs: where).
     pub(crate) witness: Point3<T>,
     /// A loop of one sheet over the whole turn, which winds about the
     /// ruled side.
     pub(crate) encircles: bool,
-    /// It runs through a crossing tangency the sweep decided
-    /// ([`Touch`]).
-    pub(crate) tangent: bool,
+}
+
+impl<T: Real> Swept<T> {
+    /// Its two cut ends, where both its ends are on the ball's boundary.
+    pub(crate) fn cut_ends(&self) -> Option<[Point3<T>; 2]> {
+        match self.ends {
+            Some([End::Cut(a), End::Cut(b)]) => Some([a, b]),
+            _ => None,
+        }
+    }
+}
+
+/// **Where a sheet passes through a node**: the ruling angle, the sheet,
+/// and whether the walk runs it against the angle there. Which of the
+/// node's rays an arc leaves along follows from the three.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Pass {
+    pub(crate) phi: f64,
+    pub(crate) sheet: Sheet,
+    pub(crate) backward: bool,
 }
 
 /// **A double root of `Δ` the sweep decided a tangency** (C5): `Δ` turns
@@ -1163,7 +1244,8 @@ pub(crate) struct Swept<T: Real> {
 /// ([`Ruled::ceiling`]) is decided `Zero` on [`TANGENCY`]. Below zero
 /// either side (a maximum), the rulings touch the partner at one point
 /// of the section; above it (a minimum), two arcs of the section cross
-/// there, and the stretch of the section through it is tangent.
+/// there, a node of the section the arcs either side end at (C5: a
+/// `Zero` tangency whose section still has carriers).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Touch<T: Real> {
     /// The ruling's double meeting at the core's middle.
@@ -1172,8 +1254,8 @@ pub(crate) struct Touch<T: Real> {
     pub(crate) crossing: bool,
     /// The ceiling's `Zero` margin.
     pub(crate) margin: geom_core::MarginDiag,
-    lo: f64,
-    hi: f64,
+    /// The core's middle, the ruling angle the double meeting is read at.
+    pub(crate) phi: f64,
 }
 
 /// The row a double root of `Δ` is decided a tangency on.
@@ -1283,10 +1365,10 @@ enum Event<T: Real> {
         at: Point3<T>,
         inside: Point3<T>,
     },
-    /// A pass through the apex of a cone whose apex root is divided out
-    /// ([`DividedCone`]), at the ruling angle `phi`: a node of the
-    /// section.
-    Node { phi: f64 },
+    /// A pass through a node of the section: a crossing tangency
+    /// ([`Touch`]), or the apex of a cone whose apex root is divided out
+    /// ([`DividedCone`]).
+    Node { pass: Pass },
 }
 
 /// **The sweep of `ruled` against `ball`**, the ball the march ends at
@@ -1303,29 +1385,19 @@ pub(crate) fn sweep<T: Decide, R: Ruled<T>>(
     Sweeper::new(ruled, ball, band).run()
 }
 
-/// **An end of an arc of a divided cone's sheet** ([`sweep_divided`]):
-/// a cut end on the ball's boundary, or a pass through the apex at the
-/// ruling angle `phi`.
+/// **An end of an arc of a sheet** ([`Swept::ends`]): a cut end on the
+/// ball's boundary, or a node it ends at, where it passes through it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum End<T: Real> {
     Cut(Point3<T>),
-    Node(f64),
-}
-
-/// **An arc of a divided cone's sheet inside the ball**: its two ends in
-/// the turn's order, or none for a loop the ball holds whole, and a
-/// point of it decided inside.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Stretched<T: Real> {
-    pub(crate) ends: Option<[End<T>; 2]>,
-    pub(crate) witness: Point3<T>,
+    Node(Pass),
 }
 
 /// **What a divided sweep read**: the arcs inside the ball, and the
 /// ruling angles of the sheet's passes through the apex the ball holds.
 #[derive(Clone, Debug)]
 pub(crate) struct Divided<T: Real> {
-    pub(crate) arcs: Vec<Stretched<T>>,
+    pub(crate) arcs: Vec<Swept<T>>,
     pub(crate) nodes: Vec<f64>,
 }
 
@@ -1352,30 +1424,33 @@ pub(crate) fn sweep_divided<T: Decide>(
             Disc::Rise | Disc::Fall => events.extend(sweeper.passes(cell, disc == Disc::Rise)?),
             Disc::Positive | Disc::Negative | Disc::Touch { .. } => {
                 for leaf in sweeper.leaves(&[cell], Sheet::Plus)? {
-                    events.push(sweeper.event(leaf, Sheet::Plus, false).0);
+                    events.push(sweeper.event(leaf, Sheet::Plus, false));
                 }
             }
         }
     }
-    cut_divided(&events)
-}
-
-/// **A divided sheet's readings cut into its arcs** ([`sweep_divided`]):
-/// each stretch inside the ball from a pass through the apex or an
-/// entering cut end to the next pass or leaving cut end is an arc; a
-/// sheet with neither is one loop where it lies inside, none where
-/// outside.
-fn cut_divided<T: Real>(events: &[Event<T>]) -> Result<Divided<T>, SweepRefusal> {
-    let inconsistent = SweepRefusal::Inconsistent(
-        "the divided sweep reads one stretch of its sheet on both sides",
-    );
     let nodes = events
         .iter()
         .filter_map(|e| match *e {
-            Event::Node { phi } => Some(phi),
+            Event::Node { pass } => Some(pass.phi),
             Event::Side(..) | Event::Cut { .. } => None,
         })
         .collect();
+    let arcs = cut_noded(&events, true, events.len() / 2)?;
+    Ok(Divided { arcs, nodes })
+}
+
+/// **A walk's readings cut into its arcs**: each stretch inside the ball
+/// from a node or an entering cut end to the next node or leaving cut
+/// end is an arc; a walk with neither is [`cut_loop`]'s, one loop where it
+/// lies inside (witnessed at `events[middle]`), none where outside.
+fn cut_noded<T: Real>(
+    events: &[Event<T>],
+    encircles: bool,
+    middle: usize,
+) -> Result<Vec<Swept<T>>, SweepRefusal> {
+    let inconsistent =
+        SweepRefusal::Inconsistent("the ruling sweep reads one stretch of a sheet on both sides");
     let boundary = |e: &Event<T>| {
         matches!(
             e,
@@ -1386,16 +1461,11 @@ fn cut_divided<T: Real>(events: &[Event<T>]) -> Result<Divided<T>, SweepRefusal>
                 }
         )
     };
+    if !events.iter().any(|e| matches!(e, Event::Node { .. })) {
+        return cut_loop(events, encircles, middle);
+    }
     let Some(start) = events.iter().position(boundary) else {
-        let flagged = events.iter().map(|&e| (e, false)).collect();
-        let arcs = cut_loop(flagged, true, events.len() / 2)?
-            .into_iter()
-            .map(|c| Stretched {
-                ends: None,
-                witness: c.witness,
-            })
-            .collect();
-        return Ok(Divided { arcs, nodes });
+        return Err(inconsistent);
     };
     let n = events.len();
     let mut arcs = Vec::new();
@@ -1404,20 +1474,21 @@ fn cut_divided<T: Real>(events: &[Event<T>]) -> Result<Divided<T>, SweepRefusal>
     type Open<T> = (End<T>, Option<Point3<T>>, Vec<Point3<T>>);
     let opened = |e: Event<T>| -> Option<Open<T>> {
         match e {
-            Event::Node { phi } => Some((End::Node(phi), None, Vec::new())),
+            Event::Node { pass } => Some((End::Node(pass), None, Vec::new())),
             Event::Side(..) | Event::Cut { .. } => None,
         }
     };
     let closed =
-        |(from, beside, points): Open<T>, to: End<T>| -> Result<Stretched<T>, SweepRefusal> {
+        |(from, beside, points): Open<T>, to: End<T>| -> Result<Swept<T>, SweepRefusal> {
             let witness = points.get(points.len() / 2).copied().or(beside).ok_or(
                 SweepRefusal::Inconsistent(
-                    "the divided sweep read an arc of its sheet with no point inside the ball",
+                    "the ruling sweep read an arc of a sheet with no point inside the ball",
                 ),
             )?;
-            Ok(Stretched {
+            Ok(Swept {
                 ends: Some([from, to]),
                 witness,
+                encircles: false,
             })
         };
     let mut open = opened(events[start]);
@@ -1447,18 +1518,18 @@ fn cut_divided<T: Real>(events: &[Event<T>]) -> Result<Divided<T>, SweepRefusal>
                 arcs.push(closed(run, End::Cut(at))?);
                 None
             }
-            (Some(run), Event::Node { phi }) => {
-                arcs.push(closed(run, End::Node(phi))?);
-                Some((End::Node(phi), None, Vec::new()))
+            (Some(run), Event::Node { pass }) => {
+                arcs.push(closed(run, End::Node(pass))?);
+                Some((End::Node(pass), None, Vec::new()))
             }
             _ => return Err(inconsistent),
         };
     }
-    // Round the turn, the walk stands where it started.
+    // Round the walk, it stands where it started.
     if open.is_some() != opened(events[start]).is_some() {
         return Err(inconsistent);
     }
-    Ok(Divided { arcs, nodes })
+    Ok(arcs)
 }
 
 struct Sweeper<'a, T: Real, R> {
@@ -1467,6 +1538,9 @@ struct Sweeper<'a, T: Real, R> {
     band: Band,
     spent: usize,
     touches: Vec<Touch<T>>,
+    /// The angles of the crossing tangencies the ball holds, each a node
+    /// every walk through it passes.
+    crossings: Vec<f64>,
 }
 
 impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
@@ -1477,21 +1551,27 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             band,
             spent: 0,
             touches: Vec::new(),
+            crossings: Vec::new(),
         }
     }
 
     fn run(&mut self) -> Result<Sweep<T>, SweepRefusal> {
         let cells = self.tiled()?;
+        self.crossings = self
+            .touches
+            .iter()
+            .filter(|t| {
+                t.crossing && self.reads(Row::Cut, self.past(V3::at(t.at))) == Some(Reads::Below)
+            })
+            .map(|t| t.phi)
+            .collect();
         if cells.iter().all(|(_, d)| d.positive() == Some(true)) {
             let turn: Vec<Cell<T>> = cells.into_iter().map(|(c, _)| c).collect();
             let mut components = Vec::new();
             for sheet in [Sheet::Plus, Sheet::Minus] {
-                let events = self
-                    .leaves(&turn, sheet)?
-                    .into_iter()
-                    .map(|l| self.event(l, sheet, false))
-                    .collect();
-                components.extend(cut_loop(events, true, 0)?);
+                let leaves = self.leaves(&turn, sheet)?;
+                let events = self.walk(leaves, sheet, false);
+                components.extend(cut_noded(&events, true, 0)?);
             }
             return Ok(Sweep {
                 components,
@@ -1795,8 +1875,7 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
                     .mid(),
                 crossing,
                 margin,
-                lo: cell.lo,
-                hi: cell.hi,
+                phi: geom::mid_param(a, b),
             })),
             Ok(_) => Ok(None),
             Err(diag) => Err(SweepRefusal::Escalated(diag)),
@@ -1844,18 +1923,61 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             .position(|run| run >= half)
             .unwrap_or(plus.len().saturating_sub(1));
         // Along the loop: the first sheet from the rise to the fall, then
-        // the second back.
-        let mut events = vec![(Event::Side(rise, None), false)];
-        events.extend(plus.into_iter().map(|l| self.event(l, Sheet::Plus, false)));
-        events.push((Event::Side(fall, None), false));
-        let back: Vec<(Event<T>, bool)> = self
-            .leaves(&smooth, Sheet::Minus)?
-            .into_iter()
-            .rev()
-            .map(|l| self.event(l, Sheet::Minus, true))
+        // the second back, each through the crossings on the arc.
+        let mut events = vec![Event::Side(rise, None)];
+        events.extend(self.walk(plus, Sheet::Plus, false));
+        events.push(Event::Side(fall, None));
+        let mut back = self.leaves(&smooth, Sheet::Minus)?;
+        back.reverse();
+        events.extend(self.walk(back, Sheet::Minus, true));
+        cut_noded(&events, false, 1 + middle)
+    }
+
+    /// **A walk along `sheet` over `leaves`**, in the walk's order
+    /// (`backward`: against the angle), a pass through each crossing the
+    /// leaves reach placed before the first leaf past its angle.
+    fn walk(&self, leaves: Vec<Leaf<T>>, sheet: Sheet, backward: bool) -> Vec<Event<T>> {
+        let (lo, hi) = leaves
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), l| {
+                (lo.min(l.cell().lo), hi.max(l.cell().hi))
+            });
+        let mut pending: Vec<f64> = self
+            .crossings
+            .iter()
+            .copied()
+            .filter(|&phi| lo < phi && phi < hi)
             .collect();
-        events.extend(back);
-        cut_loop(events, false, 1 + middle)
+        let mut out = Vec::new();
+        for leaf in leaves {
+            let cell = *leaf.cell();
+            pending.retain(|&phi| {
+                let past = if backward {
+                    cell.hi <= phi
+                } else {
+                    cell.lo >= phi
+                };
+                if past {
+                    out.push(Event::Node {
+                        pass: Pass {
+                            phi,
+                            sheet,
+                            backward,
+                        },
+                    });
+                }
+                !past
+            });
+            out.push(self.event(leaf, sheet, backward));
+        }
+        out.extend(pending.into_iter().map(|phi| Event::Node {
+            pass: Pass {
+                phi,
+                sheet,
+                backward,
+            },
+        }));
+        out
     }
 
     /// **A branch point's side of the ball**, read sheet-wise: both
@@ -1938,7 +2060,19 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             let h = self.side(&cell, Sheet::Plus);
             self.spend();
             if self.positive(Row::Branch, Margin::of(T::zero() - h.hi)) {
-                break Event::Node { phi: cell.mid() };
+                // The cell's ends are points of the arcs either side,
+                // decided inside with it: an arc between two passes reads
+                // a point even where no leaf lies between them.
+                let at = |phi: f64| Some(self.ruled.meeting(&Cell::at(phi), Sheet::Plus).mid());
+                before.push(Event::Side(true, at(cell.lo)));
+                after.insert(0, Event::Side(true, at(cell.hi)));
+                break Event::Node {
+                    pass: Pass {
+                        phi: cell.mid(),
+                        sheet: Sheet::Plus,
+                        backward: false,
+                    },
+                };
             }
             if self.positive(Row::Branch, Margin::of(h.lo)) {
                 break Event::Side(false, None);
@@ -1957,13 +2091,13 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             if reads == start {
                 // The zero lies past the cut.
                 for leaf in self.leaves(&[l], Sheet::Plus)? {
-                    before.push(self.event(leaf, Sheet::Plus, false).0);
+                    before.push(self.event(leaf, Sheet::Plus, false));
                 }
                 cell = r;
             } else {
                 let mut right = Vec::new();
                 for leaf in self.leaves(&[r], Sheet::Plus)? {
-                    right.push(self.event(leaf, Sheet::Plus, false).0);
+                    right.push(self.event(leaf, Sheet::Plus, false));
                 }
                 right.extend(after);
                 after = right;
@@ -2092,17 +2226,11 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
     }
 
     /// **A leaf as one reading along its loop**, `backward` where the
-    /// loop runs it against the angle, flagged where it lies on a
-    /// crossing tangency's cell. A cut end carries the meeting at its
-    /// cell's inside end, decided inside by the leaf.
-    fn event(&self, leaf: Leaf<T>, sheet: Sheet, backward: bool) -> (Event<T>, bool) {
+    /// loop runs it against the angle. A cut end carries the meeting at
+    /// its cell's inside end, decided inside by the leaf.
+    fn event(&self, leaf: Leaf<T>, sheet: Sheet, backward: bool) -> Event<T> {
         let point = |phi: f64| self.ruled.meeting(&Cell::at(phi), sheet).mid();
-        let cell = leaf.cell();
-        let tangent = self
-            .touches
-            .iter()
-            .any(|t| t.crossing && cell.lo < t.hi && cell.hi > t.lo);
-        let event = match leaf {
+        match leaf {
             Leaf::Inside(cell) => Event::Side(true, Some(point(cell.mid()))),
             Leaf::Outside(_) => Event::Side(false, None),
             Leaf::Root { cell, entering, at } => Event::Cut {
@@ -2110,8 +2238,7 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
                 at,
                 inside: point(if entering { cell.hi } else { cell.lo }),
             },
-        };
-        (event, tangent)
+        }
     }
 }
 
@@ -2171,13 +2298,13 @@ type Stretch<T> = (Point3<T>, Point3<T>, Vec<Point3<T>>);
 /// lies inside, none where outside, witnessed at `events[middle]`.
 /// `encircles` is the loop's winding about the ruled side.
 fn cut_loop<T: Real>(
-    events: Vec<(Event<T>, bool)>,
+    events: &[Event<T>],
     encircles: bool,
     middle: usize,
 ) -> Result<Vec<Swept<T>>, SweepRefusal> {
     let inconsistent =
         SweepRefusal::Inconsistent("the ruling sweep reads one stretch of a sheet on both sides");
-    let Some(start) = events.iter().position(|(e, _)| {
+    let Some(start) = events.iter().position(|e| {
         matches!(
             e,
             Event::Cut {
@@ -2186,12 +2313,12 @@ fn cut_loop<T: Real>(
             }
         )
     }) else {
-        if events.iter().any(|(e, _)| !matches!(e, Event::Side(..))) {
+        if events.iter().any(|e| !matches!(e, Event::Side(..))) {
             return Err(inconsistent);
         }
         let sides: Vec<bool> = events
             .iter()
-            .filter_map(|(e, _)| match *e {
+            .filter_map(|e| match *e {
                 Event::Side(inside, _) => Some(inside),
                 Event::Cut { .. } | Event::Node { .. } => None,
             })
@@ -2203,28 +2330,25 @@ fn cut_loop<T: Real>(
         if !inside {
             return Ok(Vec::new());
         }
-        let Some((Event::Side(true, Some(witness)), _)) = events.get(middle).copied() else {
+        let Some(Event::Side(true, Some(witness))) = events.get(middle).copied() else {
             return Err(SweepRefusal::Inconsistent(
                 "the ruling sweep read a loop inside the ball but no point at its middle",
             ));
         };
         return Ok(vec![Swept {
-            cut_ends: None,
+            ends: None,
             witness,
             encircles,
-            tangent: events.iter().any(|&(_, t)| t),
         }]);
     };
     // From just past a leaving cut end: outside, until the next entering.
     let n = events.len();
     let mut out = Vec::new();
-    // The open stretch: its entering cut end, the point beside it, the
-    // points read inside along it, and whether it runs through a
-    // crossing tangency.
-    let mut run: Option<(Stretch<T>, bool)> = None;
+    // The open stretch: its entering cut end, the point beside it, and
+    // the points read inside along it.
+    let mut run: Option<Stretch<T>> = None;
     for k in 1..=n {
-        let (event, flagged) = events[(start + k) % n];
-        run = match (run, event) {
+        run = match (run, events[(start + k) % n]) {
             (None, Event::Side(false, _)) => None,
             (
                 None,
@@ -2233,13 +2357,13 @@ fn cut_loop<T: Real>(
                     at,
                     inside,
                 },
-            ) => Some(((at, inside, Vec::new()), flagged)),
-            (Some(((from, inside, mut points), tangent)), Event::Side(true, at)) => {
+            ) => Some((at, inside, Vec::new())),
+            (Some((from, inside, mut points)), Event::Side(true, at)) => {
                 points.extend(at);
-                Some(((from, inside, points), tangent || flagged))
+                Some((from, inside, points))
             }
             (
-                Some(((from, inside, points), tangent)),
+                Some((from, inside, points)),
                 Event::Cut {
                     entering: false,
                     at,
@@ -2247,10 +2371,9 @@ fn cut_loop<T: Real>(
                 },
             ) => {
                 out.push(Swept {
-                    cut_ends: Some([from, at]),
+                    ends: Some([End::Cut(from), End::Cut(at)]),
                     witness: points.get(points.len() / 2).copied().unwrap_or(inside),
                     encircles: false,
-                    tangent: tangent || flagged,
                 });
                 None
             }
@@ -2300,7 +2423,9 @@ pub(crate) const COVERAGE_CELLS: usize = 1 << 18;
 /// is independent of the sweep in its algebra. It is not independent in
 /// its enclosure arithmetic, which it shares with the sweep
 /// ([`Cell::new`], [`Iv`], [`V3`]). Either of two cylinders may be ruled:
-/// every section point lies on exactly one of its rulings.
+/// every section point lies on exactly one of its rulings. The cone side
+/// has no caller yet: the join's reading of the cone pairs gives it its
+/// first (`work/sectcone/the-join-reads-the-cone-pairs-on-the-value.md`).
 ///
 /// # Errors
 ///
@@ -2409,6 +2534,9 @@ pub(crate) fn coverage(
     };
     let hull = |i: Iv<Interval>| i.lo.enclosure_hull(i.hi);
     let (centre, radius) = (ball.center(), ball.radius());
+    // `distance > reach` on `f64` readings each held a relative 1e-12 to
+    // the safe side, far past the few roundings between them.
+    let past = |distance: f64, reach: f64| distance * (1.0 - 1e-12) > reach * (1.0 + 1e-12);
     let clear = |bx: Box3| {
         let gap = |i: Interval, c: f64| {
             if !i.is_certified() {
@@ -2421,9 +2549,7 @@ pub(crate) fn coverage(
             gap(bx.y, centre.y),
             gap(bx.z, centre.z),
         );
-        // The f64 distance and radius each held a relative 1e-12 to the
-        // safe side, far past the few roundings between them.
-        (gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt() * (1.0 - 1e-12) > radius * (1.0 + 1e-12)
+        past((gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt(), radius)
     };
     let mut hint = 0usize;
     let mut read = Coverage { cells: 0, depth: 0 };
@@ -2471,7 +2597,7 @@ pub(crate) fn coverage(
                         let (n, d) = (hull(wide.abs()).lo(), hull(big_a.abs()).hi());
                         let reach = hull(p.less(ball.center().map(lift)).norm()).hi();
                         let speed = hull(a.norm()).lo();
-                        return n / d * speed * (1.0 - 1e-12) > (reach + radius) * (1.0 + 1e-12);
+                        return past(n / d * speed, reach + radius);
                     };
                     let x = p.plus(a.times(t));
                     let bx = Box3 {
@@ -2842,5 +2968,49 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **The clearance ceiling holds only where its translation meets
+    /// the partner**: the unit cone's ruling along `(0, 1, 1)/√2` against
+    /// three rods along `x` about `y = 0, z = 1` and one far off.
+    /// Grazing (radius `1/√2`, the ruling tangent at `(0, 1/2, 1/2)`) the
+    /// ceiling is the touch's own, within rounding; clear by `≈ 0.107`
+    /// (radius `0.6`, `|g|² = 2 ≥ 4k|q*| = 1.12`) it is a ceiling, at or
+    /// above that clearance (`2|q*|/|g| ≈ 0.198`); a thin rod `5` off
+    /// (`|g|²` short of `4k|q*|`) reads no ceiling at all. A ceiling read
+    /// past the condition, or below the clearance: red.
+    #[test]
+    fn the_clearance_ceiling_holds_only_where_its_condition_does() {
+        use super::{Form, RuledCone, WIDE};
+        use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, FRAC_PI_4};
+        let cone = |origin: (f64, f64, f64), r: f64| RuledCone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            n: Vec3::unit_x(),
+            m: Vec3::unit_y(),
+            sc: FRAC_PI_4.sin_cos(),
+            partner: Form::cylinder(
+                geom::Line {
+                    origin: Point3::new(origin.0, origin.1, origin.2),
+                    dir: Vec3::unit_x(),
+                },
+                r,
+            ),
+            lever: geom_core::Lever::of_consumed_extent(10.0),
+        };
+        let at = Cell::at(FRAC_PI_2);
+        let graze = cone((0.0, 0.0, 1.0), FRAC_1_SQRT_2).form_ceiling(&at);
+        assert!(
+            graze < 1e-12,
+            "the graze's ceiling is its rounding: {graze:e}"
+        );
+        let clear = cone((0.0, 0.0, 1.0), 0.6).form_ceiling(&at);
+        let clearance = FRAC_1_SQRT_2 - 0.6;
+        assert!(
+            clear >= clearance && clear < 0.2,
+            "a ceiling at or above the clearance {clearance}: {clear}"
+        );
+        let far = cone((0.0, 5.0, 1.0), 0.1).form_ceiling(&Cell::at(-FRAC_PI_2));
+        assert!(far >= WIDE, "no ceiling past the condition: {far:e}");
     }
 }

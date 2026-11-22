@@ -1200,8 +1200,9 @@ clearance; and an apex on the partner is divided out of the rulings'
 quadratic, its node's arcs ending at it. Two cones through one apex,
 and two on parallel axes of one aperture, are not built here. Its
 components are the general rung's, and carrying them refuses typed:
-the march needs the cone's ℝ³ enclosures (C2), which are not built.
-Every other pair refuses: the cone against a sphere or a torus.
+no march carries them: limb 2 has no composite for the cone at the
+march's search (C2), and the pair has no march door. Every other pair
+refuses: the cone against a sphere or a torus.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
