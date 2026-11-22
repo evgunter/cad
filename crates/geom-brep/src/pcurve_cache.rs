@@ -6947,23 +6947,27 @@ fn rim_slant<T: Real>(h: T, radius: T, half_angle: T, nappe: Nappe) -> T {
 /// `|p − ‖q‖|`, spelled `|p² − q·q| / (p + ‖q‖)` so the numerator is a
 /// polynomial in the carrier's and the chart's data and `√(p²) = p` is
 /// never asked of the arithmetic: [`geom_core::radius_gap`]'s identity
-/// for a length `p` the caller holds with its square in another
-/// spelling (`p_sq`: a root's radicand, a magnitude's signed square).
-/// `p ≥ 0`.
+/// for a length `p` that is no stored radius and whose square the
+/// caller holds in its own spelling `p_sq` (a root's radicand, a
+/// magnitude's signed square, a product). `p ≥ 0`; a chart's own radius
+/// is read through [`wall_distance`].
 fn norm_gap<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
     (p_sq - q.dot(q)).abs() / (p + q.norm())
 }
 
 /// **A point's distance from a chart of radius `radius`**, `w` its offset
 /// from the chart's centre or axis: `|‖w‖ − radius|` through
-/// [`geom_core::radius_gap`], so a point built at `centre + radius·x`,
-/// `x` a unit direction, reads the zero form.
+/// [`geom_core::Vec3::radius_gap`], so a point built at
+/// `centre + radius·x`, `x` a unit direction, reads the zero form. The
+/// radius is positive wherever the surface is at rest (check 1's
+/// `radius > 0`); the `abs` is of the whole quotient so that a radius
+/// `−R` that reaches here all the same reads `‖w‖ + R`, never on.
 fn wall_distance<T: Real>(radius: T, w: Vec3<T>) -> T {
     #[cfg(test)]
     if mutants::distance_raw_norm() {
         return (w.norm() - radius).abs();
     }
-    geom_core::radius_gap(w.dot(w), w.norm(), radius).abs()
+    w.radius_gap(radius).abs()
 }
 
 /// **A cylinder ruling's direction in the chart's angular frame**
@@ -7144,7 +7148,7 @@ fn incidence<T: Decide>(
                 // the moving arm is a conic's, whose `l` is zero.
                 _ => {
                     terms.add(Line, radial(l).norm() * reach);
-                    terms.add(Radius, norm_gap(radius, radius.powi(2), w_r));
+                    terms.add(Radius, wall_distance(radius, w_r));
                     terms.add(Drift, harmonic_sup(a_r, b_r));
                 }
             }
@@ -11538,7 +11542,7 @@ fn derive_class_zero<T: Decide>(
             // amplitude.
             let moving = match carrier {
                 Curve3::Line(line) => {
-                    let standoff = norm_gap(radius, radius.powi(2), w_r);
+                    let standoff = wall_distance(radius, w_r);
                     #[cfg(test)]
                     let standoff = if mutants::meridian_standoff_unread() {
                         T::zero()

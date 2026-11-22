@@ -1,12 +1,15 @@
-//! **A point built on a cylinder or a sphere at a parameter radius
-//! reads its chart with no sign asked of the radius.** A point at
-//! `c + r·x`, `x` a unit direction, is on the chart of radius `r` at
-//! every `r`; over a box on `r` its distance from the chart
+//! **A point built on a cylinder or a sphere at a parameter radius,
+//! along the chart's own frame, reads its chart with no sign asked of
+//! the radius.** A point at `c + r·x`, `x` a unit direction of an
+//! exactly orthonormal frame, is on the chart of radius `r` at every
+//! `r`; over a box on `r` its distance from the chart
 //! ([`chart_distance`]) is the zero form, and a ruling through it is
-//! placed at `x`'s own angle ([`chart_pcurve`]). The same readers at
-//! `f64` and `Interval` are held to the direct spellings, `|‖w‖ − R|`
-//! and the angle of the offset at its length, on a table that runs
-//! from the axis to far past the wall.
+//! placed at `x`'s own angle ([`chart_pcurve`]). On a frame whose axes
+//! are unit only to rounding (normalized `f64` directions) the distance
+//! is not the zero form; that is pinned as it stands. The same readers
+//! at `f64` and `Interval` are held to the direct spellings,
+//! `|‖w‖ − R|` and the angle of the offset at its length, on a table
+//! that runs from the axis to far past the wall.
 //!
 //! Each row names in its own doc the mutant it is red under.
 
@@ -271,12 +274,13 @@ fn ivp(p: Point3<f64>) -> Point3<Interval> {
 /// the table against the direct spelling's `Interval` enclosure, which
 /// holds the exact distance of the point as given: the `f64` read is
 /// within four ulps of the offset's and the radius's sum of it, and
-/// the `Interval` read meets it. The `Interval` read's quotient
-/// carries the offset's rounding twice, so it is wider than the direct
-/// one by a rounding of the offset: within a part in `1e4` of the
-/// wall, where incidence is decided, at most twice its width (measured:
-/// `0.85` to `1.01` on the sphere, up to `2.0` on the tilted cylinder),
-/// and away from the wall up to five times.
+/// the `Interval` read meets it. Against the direct spelling on the
+/// same operands (the offset about the frame's own axis) the `Interval`
+/// read is as narrow within a part in `1e4` of the wall, where
+/// incidence is decided (measured: `0.77` to `1.01` of its width); away
+/// from the wall its quotient carries the offset's rounding twice, and
+/// it is up to five times the direct one's width, a rounding of the
+/// offset still.
 ///
 /// Red with [`super::wall_distance`] handing the gap the radius's
 /// square for the radius (run by hand: no site in `mutants`).
@@ -319,11 +323,14 @@ fn the_distance_is_the_measured_norm_less_the_radius_to_its_rounding() {
                                 },
                             )
                         };
+                        // The direct spelling on the reader's own operands:
+                        // the frame's axis as the frame holds it.
                         let w = if sphere {
                             ivp(p) - ivp(c)
                         } else {
+                            let held = geom::Frame::new(ivp(c), iv3(axis), iv3(u_ref)).axis();
                             let q = ivp(p) - ivp(c);
-                            q - iv3(axis) * q.dot(iv3(axis))
+                            q - held * q.dot(held)
                         };
                         let direct = (w.norm() - Interval::from_f64(radius_f)).abs();
                         (
@@ -354,7 +361,7 @@ fn the_distance_is_the_measured_norm_less_the_radius_to_its_rounding() {
                     let (width, direct_width) =
                         (got_iv.hi() - got_iv.lo(), direct.hi() - direct.lo());
                     let allowed = if (reach - 1.0).abs() <= 1.0e-4 {
-                        2.1 * direct_width + f64::EPSILON * radius
+                        1.05 * direct_width + f64::EPSILON * radius
                     } else {
                         6.0 * direct_width + slack
                     };
@@ -383,14 +390,14 @@ fn the_distance_is_the_measured_norm_less_the_radius_to_its_rounding() {
 /// radius (run by hand: no site in `mutants`).
 #[test]
 fn a_rulings_direction_reads_the_angle_of_its_offset_to_its_rounding() {
-    let (axis, u_ref, cv, _) = tilted();
+    let (_, u_ref, cv, _) = tilted();
     let tau = core::f64::consts::TAU;
     let mut read = 0_u32;
     for radius in RADII {
         for reach in REACHES {
             for theta in table_angles() {
                 let (s, cs) = theta.sin_cos();
-                let w_r = (u_ref * cs + cv * s) * (radius * reach) + axis * 0.0;
+                let w_r = (u_ref * cs + cv * s) * (radius * reach);
                 let got = ruling_direction(w_r, radius, cv, u_ref).principal(band());
                 let direct = Azimuth::of(w_r.dot(cv), w_r.dot(u_ref)).principal(band());
                 let got_iv =
@@ -434,21 +441,23 @@ fn a_rulings_direction_reads_the_angle_of_its_offset_to_its_rounding() {
     assert_eq!(read, 4 * 11 * 64, "every row of the table read");
 }
 
-/// **Against a radius that is not positive a point reads its distance
-/// from no chart at all, off the mirror wall.** Against a cylinder or a
-/// sphere of radius `−R` every point of the table but the mirror
-/// wall's reads `‖w‖ + R`, never zero, as the direct spelling does: the
-/// gap's `abs` is taken of the whole quotient, whose denominator
-/// `‖w‖ − R` changes sign across that wall. Within its rounding of the
-/// mirror wall the gap's one precondition fails and the read is not
-/// claimed; a radius that is not positive is refused as a datum
-/// (`Surface`'s `radius > 0`), not by this distance.
+/// **Against a radius that is not positive no point reads on.** A
+/// radius is positive wherever its surface is at rest (check 1's
+/// `radius > 0`, `Surface`'s representability margin); this is what the
+/// reader does if one that is not reaches it all the same. Against a
+/// cylinder or a sphere of radius `−R` every point of the table off the
+/// mirror wall reads `‖w‖ + R`, as the direct spelling does: the gap's
+/// `abs` is taken of the whole quotient, whose denominator `‖w‖ − R`
+/// changes sign across that wall. On the mirror wall the gap's one
+/// precondition fails: the read is poison, which a decision refuses, or
+/// a finite quotient of two roundings, which decides off; it never
+/// decides on.
 ///
 /// Red with [`super::wall_distance`] taking the `abs` of the numerator
 /// alone (run by hand: no site in `mutants`): a point inside the mirror
 /// wall reads a negative distance, which decides as on the chart.
 #[test]
-fn a_radius_that_is_not_positive_reads_no_point_on_it_off_the_mirror_wall() {
+fn a_radius_that_is_not_positive_reads_no_point_on_it() {
     let (axis, u_ref, cv, c) = tilted();
     let mut read = 0_u32;
     for radius in RADII {
@@ -480,9 +489,15 @@ fn a_radius_that_is_not_positive_reads_no_point_on_it_off_the_mirror_wall() {
                     let want = radius * (reach + 1.0);
                     let label = format!("{name} R = -{radius}, reach {reach}, at {theta}");
                     // On the mirror wall the gap's precondition fails
-                    // (`‖w‖ + radius = 0`) and the quotient is its own
-                    // rounding: no value is claimed there.
-                    if reach != 1.0 {
+                    // (`‖w‖ + radius = 0`): the quotient is its own
+                    // rounding, poison or a finite value of no meaning,
+                    // and the one thing that holds is that it is never
+                    // read as on.
+                    if reach == 1.0 {
+                        let on = decide_reported("radial_reader_row", Margin::of(got), band())
+                            .is_ok_and(|d| d.sign != Sign::Positive);
+                        assert!(!on, "{label}: {got} on the mirror wall reads on");
+                    } else {
                         assert!(
                             (got - want).abs() <= 1.0e-6 * want,
                             "{label}: {got} against {want}"
@@ -494,4 +509,161 @@ fn a_radius_that_is_not_positive_reads_no_point_on_it_off_the_mirror_wall() {
         }
     }
     assert_eq!(read, 4 * 11 * 10 * 2, "every row of the table read");
+}
+
+/// **On a tilted frame whose axes are exactly orthonormal the point is
+/// on the wall as a theorem too.** The frame `(0.6, 0, 0.8)`,
+/// `(0, 1, 0)`: the chart's own `eval` at a literal angle, on the
+/// cylinder and the sphere, and `c + r·u_ref + h·axis` on the frame's
+/// own axes, each against the radius `r` over a box on it.
+///
+/// Red under `PCERT_RADIAL_PAIR_MUTANT=distance-raw-norm`.
+#[test]
+fn a_point_built_on_an_exactly_orthonormal_tilt_is_on_it_over_a_box() {
+    let c = Point3::new(0.5, -0.25, 2.0);
+    with_session(budget(), || {
+        let r = boxed("radial_reader_radius", RADIUS);
+        let frame = geom::Frame::new(
+            point(c),
+            lit3(Vec3::new(0.6, 0.0, 0.8)),
+            lit3(Vec3::new(0.0, 1.0, 0.0)),
+        );
+        let cylinder = Surface::Cylinder { frame, radius: r };
+        let sphere = Surface::Sphere { frame, radius: r };
+        let built = frame.origin() + frame.u_ref() * r + frame.axis() * lit(0.9);
+        for (name, d) in [
+            (
+                "the cylinder's eval",
+                chart_distance(&cylinder, cylinder.eval(lit(0.7), lit(0.4))),
+            ),
+            (
+                "the sphere's eval",
+                chart_distance(&sphere, sphere.eval(lit(0.7), lit(0.3))),
+            ),
+            ("c + r·u_ref + h·axis", chart_distance(&cylinder, built)),
+        ] {
+            assert_eq!(reading(d), PROVEN_ZERO, "{name}");
+        }
+    });
+}
+
+/// **On a frame made of normalized `f64` directions the point is NOT
+/// proven on the wall: today's truth, pinned**
+/// (`work/boxfinish/a-point-built-on-a-frame-of-normalized-directions-does-not-fold-onto-its-wall`).
+/// Such axes are unit only to rounding, so `w·w − r²` keeps a residue
+/// of the radius's box and the reading is its enclosure. Over a box of
+/// half-width `0.1` it is undecided, `[0, 0.32]` where the direct
+/// spelling's is `[0, 0.21]`; from a half-width of `1e-3` down the two
+/// spellings' enclosures agree to four digits (`2.06e-6` at `1e-6`),
+/// and at `2.5e-10` it reads Zero, unproven, as the direct spelling
+/// does.
+#[test]
+fn a_point_built_on_a_normalized_tilt_is_not_proven_on_it_over_a_box() {
+    let (axis, u_ref, _, c) = tilted();
+    let at = |half: f64| {
+        with_session(budget(), || {
+            let r = boxed("radial_reader_radius", (0.3 - half, 0.3 + half));
+            let frame = geom::Frame::new(point(c), lit3(axis), lit3(u_ref));
+            let cylinder = Surface::Cylinder { frame, radius: r };
+            let d = chart_distance(&cylinder, cylinder.eval(lit(0.7), lit(0.4)));
+            let read = decide_reported("radial_reader_row", Margin::of(d), band())
+                .ok()
+                .map(|g| (g.sign, g.margin.proven()));
+            (read, d.value.hi())
+        })
+        .0
+    };
+    let (wide, hi) = at(0.1);
+    assert!(
+        wide.is_none() && (0.30..0.33).contains(&hi),
+        "a wide box: undecided at [0, 0.32], read {wide:?} at {hi}"
+    );
+    let (mid, hi) = at(1.0e-6);
+    assert!(
+        mid.is_none() && (2.0e-6..2.1e-6).contains(&hi),
+        "a box of half-width 1e-6: undecided at the box's own width, read {mid:?} at {hi}"
+    );
+    let (narrow, hi) = at(2.5e-10);
+    assert_eq!(
+        narrow,
+        Some((Sign::Zero, false)),
+        "a box inside the band: Zero, and not a theorem ({hi})"
+    );
+}
+
+/// **At `Dual` the gap's tangent is the difference's**: along a
+/// direction that moves the offset and the radius together, on the
+/// wall, inside it, outside it and a part in `1e9` off it, the
+/// quotient's derivative is `d‖w‖ − dR` to a part in `1e6`.
+///
+/// Red with [`geom_core::radius_gap`]'s denominator spelled
+/// `norm − radius` (run by hand).
+#[test]
+fn the_gaps_tangent_is_the_differences() {
+    use geom_core::Dual;
+    for (radius, reach, dr, dw) in [
+        (0.7, 1.0, 0.3, 1.1),
+        (0.7, 0.5, -0.2, 0.4),
+        (1.0e3, 1.0 + 1.0e-9, 1.0, -2.0),
+        (1.0e-3, 2.0, 0.0, 1.0),
+    ] {
+        let r = Dual::new(radius, dr);
+        let x = Vec3::new(0.6, 0.8, 0.0);
+        let w = Vec3::new(
+            Dual::new(x.x * radius * reach, x.x * dw),
+            Dual::new(x.y * radius * reach, x.y * dw),
+            Dual::new(0.0, 0.0),
+        );
+        let (gap, direct) = (w.radius_gap(r), w.norm() - r);
+        assert!(
+            (gap.deriv - direct.deriv).abs() <= 1.0e-6 * (1.0 + direct.deriv.abs()),
+            "R = {radius}, reach {reach}: the gap's tangent {} against {}",
+            gap.deriv,
+            direct.deriv
+        );
+    }
+}
+
+/// **The wall an extruded circle leaves: its seam's ruling and its rims
+/// are placed at the zero form, with the radius stored as a magnitude.**
+/// The wall's `u_ref` is the start vertex's own radial over its length
+/// (`r·x/√(r²)`) and its radius is `|r|`; the seam is the ruling through
+/// the vertex `c + r·x`, and a rim is the circle of radius `|r|` on the
+/// same frame. The ruling's direction is its offset over the radius,
+/// `r²/(√(r²)·|r|)` along `u_ref`, which is `1` in the tier; the rim's
+/// is its axis vector at its length, `r²/√(r²)` along `u_ref`,
+/// non-negative by its syntax. Either way the phase is the zero form.
+///
+/// This pins the shape the plate certifies in. With the radius a
+/// magnitude the readers' direct spellings fold too, so it is green
+/// under both env mutants; it is red with [`super::ruling_direction`]
+/// dividing by the radius's negation (run by hand), which places the
+/// seam half a turn off.
+#[test]
+fn an_extruded_circles_wall_places_its_seam_and_rims_at_zero() {
+    let (axis, _, _, c) = frame();
+    let x = Vec3::new(0.0, 1.0, 0.0);
+    with_session(budget(), || {
+        let r = boxed("radial_reader_radius", RADIUS);
+        let start = point(c) + lit3(x) * r;
+        let wall = geom::Frame::new(point(c), lit3(axis), start - point(c));
+        let cylinder = Surface::Cylinder {
+            frame: wall,
+            radius: r.abs(),
+        };
+        let seam = Curve3::Line(geom::Line {
+            origin: start,
+            dir: lit3(axis),
+        });
+        let rim = Curve3::Circle(geom::Circle::new(wall, r.abs()));
+        for (name, carrier) in [("the seam", seam), ("a rim", rim)] {
+            let image = chart_pcurve(&carrier, &cylinder, band())
+                .unwrap_or_else(|e| panic!("{name}: no image: {e:?}"));
+            assert_eq!(
+                reading(image.eval(S::zero()).x),
+                PROVEN_ZERO,
+                "{name}: placed at the zero form"
+            );
+        }
+    });
 }

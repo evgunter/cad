@@ -979,13 +979,15 @@ fn washer_counts(full: bool) -> (bool, u64, u64) {
 /// nothing the tier does not now reach. Pinned as the session's
 /// counts: a build that decided those endpoints numerically would move
 /// decisions from the first count to the second. The full revolve reads
-/// 523 / 443 and the partial 505 / 603. Eighteen of the full washer's
-/// decisions and eight of the partial's are incidence readings of a
-/// carrier built on the wall of radius `r0`, which are the zero form
-/// (`geom_core::radius_gap`) where a measured norm less the radius left
-/// them to the numeric count; four more of each are symbolic with an
-/// arc's frame turned onto its recorded radial, decisions the numeric
-/// count never held.
+/// 523 / 443 and the partial 505 / 603. Of the full washer's decisions,
+/// nine that read a carrier's distance from the wall of radius `r0` and
+/// nine that rest on a ruling's phase there are theorems
+/// (`geom_core::radius_gap`; the phase read off the offset over the
+/// radius), where a measured norm less the radius and the angle of the
+/// offset at its length left them to the numeric count: it reads
+/// 510 / 452 with either alone. The partial washer's eight are all the
+/// distance's. Four more of each are symbolic with an arc's frame turned
+/// onto its recorded radial, decisions the numeric count never held.
 #[test]
 fn a_revolves_latitude_identity_is_symbolic_without_a_registration() {
     assert_eq!(washer_counts(true), (true, 523, 443), "the full washer");
