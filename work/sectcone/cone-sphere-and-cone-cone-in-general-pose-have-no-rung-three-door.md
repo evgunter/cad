@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-21
 priority: P0
 cost: M
-blocked_on: [the-search-certificate-reads-limb-two-through-the-edge-reader, the-tube-enclosure-has-a-cone-arm]
+blocked_on: [the-search-certificate-reads-limb-two-through-the-edge-reader]
 ---
 
 

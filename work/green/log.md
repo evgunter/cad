@@ -441,3 +441,6 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - Fix pass accepted. A delta re-review by the same reviewer gave APPROVE: 3000 randomized slow sets with no entry dropped, `not default()` read from nextest 0.9.140's source, and the step's shell dry-run at the all-selected case and at 7131's.
   - Tier FULL single, Opus. No model-compare row (Fable outage).
   - The hosted slow-set step has still never run on this PR's own gate, because a scripts-only diff seeds no crate. The first PR that edits a slow row's file runs it: check that run's step log.
+- 2026-11-22 — PR 7371 (U1) closes, on the orchestrator's read and a green gate.
+  - The ringless cone pins and the tour's private-radius build were already green on main, by TESSLIE's PR 7198 and GERM's PR 7226.
+  - step-import's coverage red is held by a `KNOWN_MISSING` entry citing `work/importgate/step-import-runs-no-recourse-roster-over-its-band-funnels.md` (P3). A real roster needs the band layer's funnels renamed, which is IMPORTGATE's call.
