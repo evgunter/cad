@@ -167,6 +167,8 @@ mod sym11_witness_kind_rows;
 mod sym_9_retry_rows;
 #[path = "sym_deferred_rows.rs"]
 mod sym_deferred_rows;
+#[path = "a_value_with_no_expression_is_named_where_it_was_minted.rs"]
+mod a_value_with_no_expression_is_named_where_it_was_minted;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
 #[path = "sym_root_rows.rs"]

@@ -67,6 +67,8 @@ mod a_bore_taken_alone_is_smooth_at_its_seams_interval;
 mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
+#[path = "a_symbolic_nodes_key_is_its_expression_and_its_number.rs"]
+mod a_symbolic_nodes_key_is_its_expression_and_its_number;
 #[path = "a_turned_discs_union_refuses_on_the_widened_copy.rs"]
 mod a_turned_discs_union_refuses_on_the_widened_copy;
 #[path = "aligned_overlap_quiets.rs"]
