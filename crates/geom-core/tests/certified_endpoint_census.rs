@@ -773,9 +773,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          finite; `curve_onward` (10) the other edge's span, refused unless finite and \
          ordered, its pieces' parameters, and its column coordinate against the far end, \
          one-sided the same way; `graph_read` (2) the hull of the other edge's reach into \
-         `R`, refused unless bounded; `graph_run` (2) the vertex's parameter, the span's end, \
-         against a piece `edge_piece` returns finite, the stretch past it decided at the \
-         vertex site whenever it is not decided absent. The rest read the window's carrier and the face's boundary, which \
+         `R`, refused unless bounded; `graph_of` (2) the run's vertex's parameter, the span's \
+         end, which a piece `edge_piece` returns finite is then compared against, a piece \
+         past it or no number answering nothing. The rest read the window's carrier and the face's boundary, which \
          `clearance`'s `window_of` admits only where every lifted value certifies; \
          `present_wall`'s wall-image reads, `speeds`' jet bound and the two corner \
          presentations' speed bounds also read an enclosure computed from them that may clamp, \
