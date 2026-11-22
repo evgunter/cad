@@ -10489,7 +10489,14 @@ mod properties_pane_tests {
                         if matches!(
                             &**fault,
                             pncad::trace::SketchTraceError::Read(kind)
-                                if matches!(**kind, pncad::document::NodeErrorKind::PoseRead { .. })
+                                if matches!(
+                                    &**kind,
+                                    pncad::document::NodeErrorKind::Mate(fault)
+                                        if matches!(
+                                            **fault,
+                                            pncad::document::MateFault::SideUnevaluated { .. }
+                                        )
+                                )
                         )
                 ),
                 "{:?}",
