@@ -66,17 +66,45 @@ fn a_ring_beside_its_axis_revolves_for_either_heading() {
     for ax in [3.0, -3.0] {
         for up in [true, false] {
             for theta in [FRAC_PI_2, -FRAC_PI_2] {
-                let row = format!("axis through ({ax}, 0) heading {}y, angle {theta}", if up { "+" } else { "-" });
+                let row = format!(
+                    "axis through ({ax}, 0) heading {}y, angle {theta}",
+                    if up { "+" } else { "-" }
+                );
                 let vp = validated(vec![circle(0.0, 0.0, 1.0, 0.0), circle(0.0, 0.0, 0.6, 0.0)]);
-                let built = revolve(&vp, axis(ax, up), Revolution::Partial(theta), Tol::witness())
-                    .unwrap_or_else(|e| panic!("{row}: {e}"));
+                let built = revolve(
+                    &vp,
+                    axis(ax, up),
+                    Revolution::Partial(theta),
+                    Tol::witness(),
+                )
+                .unwrap_or_else(|e| panic!("{row}: {e}"));
                 let body = &built.body;
                 assert_all_tiers(body);
                 for (x, phi, want, what) in [
-                    (0.8, theta / 2.0, topo::SolidContainment::In, "the ring along the turn"),
-                    (0.8, -theta / 2.0, topo::SolidContainment::Out, "the ring against the turn"),
-                    (-0.8, theta / 2.0, topo::SolidContainment::In, "the ring's far side along the turn"),
-                    (0.0, theta / 2.0, topo::SolidContainment::Out, "the bore along the turn"),
+                    (
+                        0.8,
+                        theta / 2.0,
+                        topo::SolidContainment::In,
+                        "the ring along the turn",
+                    ),
+                    (
+                        0.8,
+                        -theta / 2.0,
+                        topo::SolidContainment::Out,
+                        "the ring against the turn",
+                    ),
+                    (
+                        -0.8,
+                        theta / 2.0,
+                        topo::SolidContainment::In,
+                        "the ring's far side along the turn",
+                    ),
+                    (
+                        0.0,
+                        theta / 2.0,
+                        topo::SolidContainment::Out,
+                        "the bore along the turn",
+                    ),
                 ] {
                     assert_eq!(
                         containment(body, turned(x, 0.0, ax, up, phi)),
@@ -112,7 +140,10 @@ fn a_profile_and_its_mirror_across_the_axis_revolve_alike() {
             ])
         }),
         ("a half-disc on the axis", |s| {
-            bulge_loop(vec![(Point2::new(0.0, -s), 1.0), (Point2::new(0.0, s), 0.0)])
+            bulge_loop(vec![
+                (Point2::new(0.0, -s), 1.0),
+                (Point2::new(0.0, s), 0.0),
+            ])
         }),
         ("a circle touching the axis", |s| {
             RawLoop::new([(
@@ -133,15 +164,32 @@ fn a_profile_and_its_mirror_across_the_axis_revolve_alike() {
         }),
     ];
     for (what, lp) in rows {
-        for revolution in [Revolution::Partial(1.0), Revolution::Partial(-1.0), Revolution::Full] {
-            let right = revolve(&validated(vec![lp(1.0)]), axis(0.0, true), revolution, Tol::witness());
-            let left = revolve(&validated(vec![lp(-1.0)]), axis(0.0, true), revolution, Tol::witness());
+        for revolution in [
+            Revolution::Partial(1.0),
+            Revolution::Partial(-1.0),
+            Revolution::Full,
+        ] {
+            let right = revolve(
+                &validated(vec![lp(1.0)]),
+                axis(0.0, true),
+                revolution,
+                Tol::witness(),
+            );
+            let left = revolve(
+                &validated(vec![lp(-1.0)]),
+                axis(0.0, true),
+                revolution,
+                Tol::witness(),
+            );
             let row = format!("{what}, {revolution:?}");
             match (&right, &left) {
                 (Ok(r), Ok(l)) => {
                     assert_all_tiers(&l.body);
                     let (vr, vl) = (volume(&r.body, &row), volume(&l.body, &row));
-                    assert!(vl.volume > 0.0, "{row}: the left body is inside out ({vl:?})");
+                    assert!(
+                        vl.volume > 0.0,
+                        "{row}: the left body is inside out ({vl:?})"
+                    );
                     assert!(
                         (vr.volume - vl.volume).abs()
                             <= 1e-9 * vr.volume + vr.volume_pad + vl.volume_pad,
@@ -175,12 +223,20 @@ fn a_profile_across_its_axis_refuses_for_either_heading() {
         Point2::new(-1.0, 1.0),
     ]);
     for up in [true, false] {
-        let e = revolve(&validated(vec![lp.clone()]), axis(0.0, up), Revolution::Partial(1.0), Tol::witness())
-            .unwrap_err();
+        let e = revolve(
+            &validated(vec![lp.clone()]),
+            axis(0.0, up),
+            Revolution::Partial(1.0),
+            Tol::witness(),
+        )
+        .unwrap_err();
         assert!(
             matches!(e, RevolveError::VertexCrossesAxis { loop_index: 0, .. }),
             "heading {up}: {e:?}"
         );
-        assert!(e.to_string().contains("crosses the axis"), "heading {up}: {e}");
+        assert!(
+            e.to_string().contains("crosses the axis"),
+            "heading {up}: {e}"
+        );
     }
 }
