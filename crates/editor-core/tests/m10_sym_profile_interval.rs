@@ -327,25 +327,23 @@ fn eps_row(eps: f64) -> usize {
 /// **Then moved with validation reading no adjacent line pair's shared
 /// vertex** (`profile::seg`'s `line_line`): its two sides, two spans and
 /// two coincidences at each of the slab's four corners are asked no
-/// more. `Plain/Decision` 936 → 888 calls, and the `Early/Decision`
-/// line, 16 calls, goes with them; the assertions' forms and every
-/// digest move.
+/// more. `Plain/Decision` 936 → 888 calls (7727 → 7648 forms), and the
+/// `Early/Decision` line, 16 calls, goes with them; the assertions build
+/// a few more forms (`Plain/Assertion` 2554 → 2577, `Early/Assertion`
+/// 2878 → 2888), and every digest moves.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 7dd354c68900f9bd2642e7867aa7117d\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest d06777ecab62fd486c6cf3d10ffa4292\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest e261649c69c74804b353deb36837b75e",
+     Plain/Decision calls 888 forms 7648 frozen 0 digest d86835b79b50d1c5ef55ab38d228d828\n\
+     Plain/Assertion calls 992 forms 2577 frozen 0 digest b7a91079edab43973927c324069574b6\n\
+     Early/Assertion calls 992 forms 2888 frozen 0 digest 0a809129bdc03cfb7c8e66010f4dfd2c",
     "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 25ebd6ec55ec27aac257c5ae03962bd8\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest fed7a07a0b2a1819fbca55e6034725c4\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest 3852450066b87648d9a47dabcbf4b3c6",
+     Plain/Decision calls 888 forms 7648 frozen 0 digest af8e5beae0f90d3f33486745e1b13e7e\n\
+     Plain/Assertion calls 992 forms 2577 frozen 0 digest e6e436c6ee4b65f7b71c54be8168ff28\n\
+     Early/Assertion calls 992 forms 2888 frozen 0 digest 97b8d8e776052fead928fb324612ad0a",
     "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 0e443c7d8ad35608774883e83ff66472\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest 38013c4c51f3bafaf35bcb087fe3f8f2\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest 82f29cc0f25c0a1ecead88a1ad9741a0",
+     Plain/Decision calls 888 forms 7648 frozen 0 digest e3a337d413b4feda05d87057c0acc510\n\
+     Plain/Assertion calls 992 forms 2577 frozen 0 digest 1ba353afe68841544522dca33e7b9a5b\n\
+     Early/Assertion calls 992 forms 2888 frozen 0 digest 85218b8d5de1b2f19bed4cb61738c8a5",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
