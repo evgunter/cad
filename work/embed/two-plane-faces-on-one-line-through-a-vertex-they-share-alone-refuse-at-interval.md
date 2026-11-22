@@ -15,7 +15,7 @@ Found by EMBED's lane `embed/clip-vertex` (2026-11-22), building the
 body rows of `crates/sweep/tests/self_intersection_proves_injectivity.rs`
 for a vertex in the middle of a wall's ruling.
 
-The body is `half_rod_on_a_block(1.0)` of that file: the half disc
+The body is `half_rod_on_a_block` of that file: the half disc
 `x² + y² ≤ 1`, `y ≥ 0` over `z ∈ [0, 2]`, united with the block
 `[0, 1] × [-1, 0] × [0.5, 1.5]`, one valid solid. Its plane faces alone,
 asked of `topo::clearance`'s sweep at the strict bound:
@@ -32,15 +32,15 @@ footprint) and the block's side face `x = 1`. Vertex `12v1` is
 has it as an edge below the vertex, the side face above it, and the two
 share the vertex alone. Each face's corner there is convex.
 
-With the block reaching to `x = 2` (`half_rod_on_a_block(2.0)`) the same
-table reads `Uncertified { a: 3v3, b: 6v3, shared: Edge(15v1), arm: Departure }`
+With the block reaching to `x = 2` (the same builder, its block
+`[0, 2] × [-1, 0] × [0.5, 1.5]`) the same table reads
+`Uncertified { a: 3v3, b: 6v3, shared: Edge(15v1), arm: Departure }`
 at `Interval` as built and moved, between two plane faces again, and
 `Holds` turned and at `f64`.
 
 **Measured on main's `injective.rs`** (`b99f71c3d`, the file swapped into
 the lane's checkout, the plane faces asked alone): the same three
-verdicts per scalar. So it is not the lane's reading and not
-`embed/straight-corner`'s.
+verdicts per scalar. So it is not the lane's reading.
 
 **Not traced:** which exit refuses the `Interval` pair (the presentation
 of one face, or the vertex-alone plane's sign), and why a rigid turn

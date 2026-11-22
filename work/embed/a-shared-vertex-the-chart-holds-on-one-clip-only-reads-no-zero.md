@@ -97,17 +97,20 @@ its rectangle that lie on the shared cell, and a loose vertex adds a
 zero and never forbids one:
 
 - a lone loose vertex on one clip, on no corner, with no shared edge in
-  reach: that clip's side, through the vertex (`Zero::Through`, the
-  variant `embed/straight-corner` built for a plane face). `sign_on`
-  reads it only under a plane that holds the side's whole line or
-  circle (`planes_through`: through a ruling, or a circle's own plane),
-  against a partner whose zero is none, a corner point, or its own run;
+  reach: that clip's side, through the vertex (`Zero::Through`).
+  `sign_on` reads it only under a plane that holds the side's whole
+  line or circle (`planes_through`: through a ruling, or a circle's own
+  plane), against a partner whose zero is none or a corner point at
+  that vertex (`through_read`);
 - a loose vertex beside a wholly shared side leaves that side the zero;
   of several loose vertices the one at a corner of two clips is the
   point; anything else names no zero (`Zero::None`), read by the
   separator's value over the whole rectangle.
 
-**Measured.** Main `b99f71c3d` with the harness `ebb2e6f8e`
+**Measured** with the lane stacked on `embed/straight-corner`
+(`505a6756a`), which it no longer is; that branch read a plane face's
+straight run, which none of these tests' refusing pairs moved on. Main
+`b99f71c3d` with the harness `ebb2e6f8e`
 (`embed/clip-vertex-measure`), the gate logging and passing
 (`CAD_GATE_PASS=1`), on 55 census tests: every `2-refused` Departure
 row with a cylinder, torus/torus or cylinder/torus pair in the modules
@@ -161,8 +164,8 @@ Measured on the same run, each with its trace (`CVT`, `CVS` rows):
   no edge with, which `present_plane` does not offer.
 - **Two circles through the vertex** (`a_cylinder_through_a_hole_tangent_to_its_wall` 2,
   `a_boss_over_two_holes_tangent_outside…`): both walls are presented
-  `Through(YLo)`; a circle's own plane lists that circle alone, so the
-  partner's run is not zero under it (`planes = (Some, None)`). By the
+  `Through(YLo)`, and a side through the vertex is not read against a
+  partner's own (`planes = (Some, None)`). By the
   tests' construction the two rims are tangent at the vertex, a
   second-order contact; that no first-order separator parts them is
   read off that, not probed.
