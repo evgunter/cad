@@ -1426,6 +1426,8 @@ mod an_aimed_ray_over_boxed_door_bodies;
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
 mod review_4737_span_probes;
+#[path = "review_volume_premises_probes.rs"]
+mod review_volume_premises_probes;
 #[path = "side_reader_aims_ask_nothing.rs"]
 mod side_reader_aims_ask_nothing;
 #[path = "sphere_aims_reader_ties.rs"]
