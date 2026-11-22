@@ -2354,12 +2354,12 @@ fn partial_zero(
 ///
 /// **A run** is one line edge, or two at a corner that is straight: each
 /// edge's far end lies on the other's line as the point `0` (no band is
-/// asked: a lean enclosed by anything wider is not shown zero), the two
-/// meet at one chart point, and they leave it opposite ways. The two are
-/// then one line through the vertex for every member, as a split leaves
-/// an edge, and the vertex is a point of the run. A body stores the two
-/// as two lines, each from its own origin, so nothing but their chart
-/// points says they are one. What the pair shares of the run places the
+/// asked: a lean enclosed by anything wider is not shown zero), and the
+/// two leave the vertex opposite ways. The two are then on one line for
+/// every member, as a split leaves an edge, and the face beside them is
+/// that line's half-plane wherever on it each edge's end at the vertex
+/// falls. A body stores the two as two lines, each from its own origin,
+/// so nothing but their chart points says they are one. What the pair shares of the run places the
 /// zero: both edges, the side lies on them; one, the side runs on past
 /// the shared cell ([`Zero::Past`]); the vertex alone, the side is the
 /// face's own run through it ([`Zero::Through`]).
@@ -2528,7 +2528,7 @@ fn present_plane<'a>(
             } else {
                 ((q1, f1), (p1, s1))
             };
-            let ((o2, v2), (far2, w2)) = if start2 == vtx {
+            let ((_, v2), (far2, w2)) = if start2 == vtx {
                 ((p2, s2), (q2, f2))
             } else {
                 ((q2, f2), (p2, s2))
@@ -2546,8 +2546,6 @@ fn present_plane<'a>(
             // edge that ends there to the one that starts there.
             let straight = exactly(lean(n1, bv), 0.0)
                 && exactly(lean(n2, a), 0.0)
-                && one_value(o.x, o2.x, false)
-                && one_value(o.y, o2.y, false)
                 && (a[0] * bv[0] + a[1] * bv[1]).hi() < 0.0
                 && (start1 == vtx) != (start2 == vtx);
             if straight {
@@ -8068,8 +8066,8 @@ mod presentation_rows {
     }
 
     /// **Two line edges are a run only where each lies on the other's
-    /// line as the point 0**, met at one chart point, leaving it opposite
-    /// ways, one into the vertex and one out. Each row moves one of those
+    /// line as the point 0**, leaving the vertex opposite ways, one into
+    /// it and one out. Each row moves one of those
     /// and is refused, as it was: red if the run stops reading it. Two
     /// rows are the band's edge: a
     /// corner kinked by less than the band (its lean decides `Zero`) and
@@ -8093,10 +8091,6 @@ mod presentation_rows {
             (
                 "run the other way",
                 line_rim(3, [0.0; 3], x, (0.0, 4.0), [1, 13], false),
-            ),
-            (
-                "met a picometre apart",
-                line_rim(3, [0.0; 3], x, (1e-12, 4.0), [1, 13], true),
             ),
             (
                 "its far end on the first edge's side",
