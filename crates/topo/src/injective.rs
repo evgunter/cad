@@ -2117,7 +2117,11 @@ fn present_chart<'a>(
     // presentation, where (i) the face has a carrier implicit
     // (`implicit_of`), (ii) the partner is presented, and (iii) the
     // partner lies on one side of the face's whole carrier in the cell.
-    // Across a shared edge with a transverse partner (iii) holds for a
+    // The code tests (iii) by `sign_on(carrier, None, p, None).is_some()`,
+    // which is sufficient and stricter: a tangent partner on one side is
+    // refused, and a `Zero::Past` side is never read there. Two guards
+    // come before it: the arm is not asked inside one face (`two`), and a
+    // `Vacuous` partner certifies the pair first. Across a shared edge with a transverse partner (iii) holds for a
     // valid body; at a vertex alone (four or more faces there) a valid
     // partner may cross the carrier in the quadrant the face lacks. Where
     // (i) to (iii) fail, the reading is the cell cut at the vertex into

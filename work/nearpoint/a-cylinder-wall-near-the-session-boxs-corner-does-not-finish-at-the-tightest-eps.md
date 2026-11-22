@@ -28,7 +28,12 @@ That predicate is in `crates/geom-brep/src/props/curved.rs`. Its margin
 is about the coordinates' rounding at a thousand metres, which is the
 band at that ε.
 
-The row skips those two poses below ε 1e-10, printing `SKIPPED`.
+The row tries the build at every ε, and skips a case loudly only while
+the finish refuses for that predicate alone. The turned pose at the
+corner refuses for its edges' and pcurves' incidence instead, which is
+`onehome`'s
+`a-body-moved-by-a-boxed-turn-refuses-its-edges-and-pcurves-at-first-order-in-the-box`.
+At ε 9e-11 and 3e-11 both poses finish (the review's measurement).
 
 This is the family of the closed GREEN row
 `main-red-a-carrier-whose-origin-stands-far-off-leaves-the-union-unevaluated`
