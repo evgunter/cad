@@ -3785,6 +3785,8 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
             v.iter().collect()
         }
         RoleSeg::OutputBody
+        | RoleSeg::SubArc(_)
+        | RoleSeg::SubArcJoint(_)
         | RoleSeg::Cap(_)
         | RoleSeg::Lateral(_)
         | RoleSeg::RimEdge(..)

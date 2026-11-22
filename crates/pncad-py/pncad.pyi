@@ -4533,6 +4533,8 @@ class SegTag:
     LoftSeam: Final[SegTag]
     LoftSectionEdge: Final[SegTag]
     LoftSectionVertex: Final[SegTag]
+    SubArc: Final[SegTag]
+    SubArcJoint: Final[SegTag]
     Band: Final[SegTag]
     BandRim: Final[SegTag]
     BandRimPi: Final[SegTag]

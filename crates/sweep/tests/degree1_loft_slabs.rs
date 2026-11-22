@@ -70,6 +70,12 @@ impl Shape {
             Self::FullTurn => 1,
         }
     }
+
+    /// Walls per slab: one per segment, cut at every sub-arc joint, so
+    /// either circle is its four quarter turns.
+    fn walls(self) -> usize {
+        4
+    }
 }
 
 /// The section heights of `n` sections over `[0, 2]`, by spacing.
@@ -269,7 +275,12 @@ fn a_degree_one_loft_that_changes_scale_is_its_frusta() {
         )
     });
     assert!(
-        lofted.side_faces.iter().flatten().all(|w| w.len() == 2),
+        lofted
+            .side_faces
+            .iter()
+            .flatten()
+            .flatten()
+            .all(|w| w.len() == 2),
         "every loop's walls are two slabs"
     );
     at_rest(&lofted.body, "holed, scaled");
@@ -295,7 +306,7 @@ fn a_degree_one_loft_that_changes_scale_is_its_frusta() {
     );
 }
 
-/// The structure: `[loop][segment][slab]` walls, each a single span in
+/// The structure: `[loop][segment][sub-arc][slab]` walls, each a single span in
 /// `v` on its own surface; one straight strut per slab; each interior
 /// section a ring on the placed sketch segments, between the walls of
 /// the slabs it divides; `V − E + F = 2`.
@@ -310,9 +321,11 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         assert_eq!(lofted.side_faces.len(), 1, "{what}: one loop");
         assert_eq!(lofted.side_faces[0].len(), segs, "{what}: segments");
         let mut keys = Vec::new();
-        for (j, walls) in lofted.side_faces[0].iter().enumerate() {
-            assert_eq!(walls.len(), slabs, "{what}: segment {j}'s slabs");
-            for &w in walls {
+        let subs: Vec<&Vec<_>> = lofted.side_faces[0].iter().flatten().collect();
+        assert_eq!(subs.len(), shape.walls(), "{what}: the sub-arc walls");
+        for (j, walls) in subs.iter().enumerate() {
+            assert_eq!(walls.len(), slabs, "{what}: wall {j}'s slabs");
+            for &w in *walls {
                 let face = body.get_face(w).unwrap();
                 let Some(Surface::Nurbs(net)) = body.face_surface(w) else {
                     panic!("{what}: wall {w:?} is a spline")
@@ -327,8 +340,13 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         }
         keys.sort_unstable();
         keys.dedup();
-        assert_eq!(keys.len(), segs * slabs, "{what}: one surface per wall");
-        for (j, struts) in lofted.seam_edges[0].iter().enumerate() {
+        assert_eq!(
+            keys.len(),
+            shape.walls() * slabs,
+            "{what}: one surface per wall"
+        );
+        let joints = lofted.joint_edges[0].iter().flatten();
+        for (j, struts) in lofted.seam_edges[0].iter().chain(joints).enumerate() {
             assert_eq!(struts.len(), slabs, "{what}: vertex {j}'s struts");
             for &e in struts {
                 let c = body.stored_curve(e).unwrap();
@@ -345,8 +363,8 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         // The ring at each interior section: the edges between slab
         // `s − 1`'s and slab `s`'s wall of each segment.
         for s in 1..slabs {
-            for j in 0..segs {
-                let (below, above) = (lofted.side_faces[0][j][s - 1], lofted.side_faces[0][j][s]);
+            for (j, walls) in subs.iter().enumerate() {
+                let (below, above) = (walls[s - 1], walls[s]);
                 let shared = shared_edges(body, below, above);
                 let [rim] = shared[..] else {
                     panic!("{what}: section {s}, segment {j}: walls share {shared:?}")
@@ -384,7 +402,11 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         #[allow(clippy::cast_possible_wrap)]
         let chi = v as i64 - e as i64 + f as i64;
         assert_eq!(chi, 2, "{what}: V − E + F, ({v}, {e}, {f})");
-        assert_eq!(f, 2 + segs * slabs, "{what}: two caps and the walls");
+        assert_eq!(
+            f,
+            2 + shape.walls() * slabs,
+            "{what}: two caps and the walls"
+        );
     }
 }
 
@@ -395,7 +417,7 @@ fn a_higher_degree_loft_keeps_one_wall_per_segment() {
     let sections: Vec<Section> = (0..4).map(|_| Shape::Square.section(1.0)).collect();
     for degree in [2, 3] {
         let lofted = loft_body::<f64>(&sections, &stacked_at(&zs), degree, tol()).unwrap();
-        for walls in &lofted.side_faces[0] {
+        for walls in lofted.side_faces[0].iter().flatten() {
             assert_eq!(walls.len(), 1, "degree {degree}: one wall per segment");
         }
         assert_eq!(lofted.body.faces().count(), 6, "degree {degree}");
@@ -469,7 +491,7 @@ fn a_degree_one_path_sweep_is_one_wall_per_slab() {
             )
         });
     assert!(
-        swept.side_faces[0].iter().all(|w| w.len() == 4),
+        swept.side_faces[0].iter().flatten().all(|w| w.len() == 4),
         "four slabs a segment"
     );
     at_rest(&swept.body, "path sweep");

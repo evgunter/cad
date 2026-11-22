@@ -589,6 +589,15 @@ impl core::error::Error for SkinError {}
 // Analytic → NURBS: the section curves
 // ---------------------------------------------------------------------
 
+/// How many rational-quadratic sub-arcs an arc of sweep `|θ| = x`
+/// takes: `⌈x / MAX_SUB_ARC⌉`, at least one. [`segment_curve`] decides
+/// it over `|θ|`'s bracket, and the loft's sub-arc walls read it back
+/// for a sweep that decision already admitted.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+pub(crate) fn sub_arc_count(x: f64) -> usize {
+    ((x / MAX_SUB_ARC).ceil() as usize).max(1)
+}
+
 /// One profile segment as a NURBS curve in WORLD space, exactly.
 ///
 /// - **Line** → degree 1, two control points, unit weights: the chord,
@@ -677,8 +686,7 @@ pub fn segment_curve<T: SpanLocate>(
             if lo == 0.0 {
                 return Err(undecided(ArcSweepDecision::NonZero, lo, hi));
             }
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let count = |x: f64| ((x / MAX_SUB_ARC).ceil() as usize).max(1);
+            let count = sub_arc_count;
             let m = count(lo);
             if count(hi) != m {
                 #[allow(clippy::cast_precision_loss)]

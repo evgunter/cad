@@ -829,6 +829,14 @@ fn head<'n, 's>(
     let (lead, segs) = match path {
         [] => return vec![text(format!("the {}", leaf.kind.noun()))],
         [seg] => return role(seg, leaf, by, cites),
+        // A sub-arc piece or joint of a loft entity, said before the
+        // whole it cuts.
+        [whole, part @ (RoleSeg::SubArc(_) | RoleSeg::SubArcJoint(_))] => {
+            let mut items = role(part, leaf, by, cites);
+            items.push(text(" "));
+            items.extend(role(whole, leaf, by, cites));
+            return items;
+        }
         many if many.iter().all(|s| matches!(s, RoleSeg::Seam { .. })) => {
             ("the junction of ", many)
         }
@@ -933,6 +941,12 @@ fn role<'n, 's>(
             "the loft section {} vertex over {}",
             by.section_numeral(f, *s),
             vertex(v, f, by)
+        )),
+        RoleSeg::SubArc(q) => one(format!("sub-arc {} of", u64::from(*q) + 1)),
+        RoleSeg::SubArcJoint(q) => one(format!(
+            "the joint of sub-arcs {} and {} of",
+            q,
+            u64::from(*q) + 1
         )),
         RoleSeg::Band(r) => one(format!("the band face over {}", run(r, f, by))),
         RoleSeg::BandRim(v) => one(format!("the band rim over {}", vertex(v, f, by))),
