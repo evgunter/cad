@@ -689,7 +689,7 @@ fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     geom_brep::curve_face::line_quadric::line_wall_roots(
         geom::Line {
             origin: Point3::new(0.5, 0.0, 0.0),
-            dir: geom::stated_direction(Vec3::new(drift, 0.0, 1.0)),
+            dir: geom_core::UnitVec3::squared(Vec3::new(drift, 0.0, 1.0)),
         },
         geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),

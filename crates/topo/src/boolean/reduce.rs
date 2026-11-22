@@ -7301,7 +7301,7 @@ mod edge_span_tests {
         let crossing = |delta: f64, (t0, t1): (f64, f64)| {
             let line = geom::Curve3::line(
                 Point3::new(2.0, 0.0, 0.0),
-                geom::stated_direction(Vec3::new(delta, 0.0, 1.0)),
+                geom_core::UnitVec3::squared(Vec3::new(delta, 0.0, 1.0)),
             );
             wall_crossing(
                 &y,

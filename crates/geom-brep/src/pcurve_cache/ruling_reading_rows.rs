@@ -752,7 +752,9 @@ fn a_line_standing_off_the_wall_reads_its_standoff_with_its_lean() {
                     let reach = span.0.abs().max(span.1.abs());
                     let carrier = Curve3::line(
                         origin + r * (radius + off * zero()),
-                        geom::stated_direction(Vec3::unit_z() + tang * (frac * zero() / reach)),
+                        geom_core::UnitVec3::squared(
+                            Vec3::unit_z() + tang * (frac * zero() / reach),
+                        ),
                     );
                     let what = format!("φ {phi}, off {off}·zero, lean {frac}·zero, over {span:?}");
                     let (carrier_i, surface_i) = lift(&carrier, &surface);
@@ -820,7 +822,7 @@ fn a_line_whose_span_holds_no_origin_reads_its_origins_standoff() {
             for sigma in [1.0, -1.0] {
                 let carrier = Curve3::line(
                     origin + r * (radius - sigma * k * delta),
-                    geom::stated_direction(Vec3::unit_z() + r * (sigma * delta)),
+                    geom_core::UnitVec3::squared(Vec3::unit_z() + r * (sigma * delta)),
                 );
                 let span = (k - h, k + h);
                 let what = format!("φ {phi}, crossing at {k}, leaning {sigma}·δ, over {span:?}");

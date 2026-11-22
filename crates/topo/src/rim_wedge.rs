@@ -1259,7 +1259,7 @@ mod redfirst {
     fn circle(center: [f64; 3], axis: [f64; 3], radius: f64) -> Rim<f64> {
         Rim {
             center: Point3::from_array(center),
-            axis: geom::stated_direction(Vec3::from_array(axis)),
+            axis: geom_core::UnitVec3::squared(Vec3::from_array(axis)),
             radius,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
