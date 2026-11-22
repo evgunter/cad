@@ -10778,6 +10778,83 @@ mod presentation_rows {
     /// one axis and two `u`, whose lifts are points, are one circle by
     /// their lifts. Red if any one of the comparisons is dropped, or
     /// either reading is not read.
+    /// Review probe (delta): `one_conic` over turned frames and their
+    /// sign patterns, axis and origin nudges, and radius nudges; every pair
+    /// read as one circle must be a sign pattern of one frame with one
+    /// radius, or exactly rigid lifts as one value.
+    #[test]
+    fn review_probe_one_conic_admits_only_one_circle() {
+        let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = || {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            ((seed >> 11) as f64) / ((1u64 << 53) as f64) * 2.0 - 1.0
+        };
+        let mint = |o: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, w: Vec3<f64>| {
+            geom_core::RigidMotion::check_rigid(&geom_core::Affine3 {
+                linear: geom_core::Mat3::from_cols(u, v, w),
+                translation: o - Point3::origin(),
+            })
+            .ok()
+            .map(|m| geom::Frame::of_motion(&m))
+        };
+        let rim = |f: geom::Frame<f64>, r: f64| {
+            let c = Curve3::Circle(geom::Circle::new(f, r));
+            Rim {
+                key: edge(1),
+                arc: Some((c.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
+                stated: Some(c),
+                ends: [vertex(1), vertex(2)],
+                uses: Vec::new(),
+            }
+        };
+        let up = |x: Vec3<f64>, k: usize| match k {
+            0 => Vec3::new(x.x.next_up(), x.y, x.z),
+            1 => Vec3::new(x.x, x.y.next_down(), x.z),
+            _ => Vec3::new(x.x, x.y, x.z.next_up()),
+        };
+        let (mut asked, mut one, mut wrong) = (0, 0, 0);
+        for _ in 0..300 {
+            let a = Vec3::new(next(), next(), next()).normalize();
+            let th = 3.0 * next();
+            let (c, s) = (th.cos(), th.sin());
+            let rot = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+            let (u, v, w) = (rot(Vec3::new(1.0, 0.0, 0.0)), rot(Vec3::new(0.0, 1.0, 0.0)), rot(Vec3::new(0.0, 0.0, 1.0)));
+            let o = Point3::new(10.0 * next(), 10.0 * next(), 10.0 * next());
+            let Some(f) = mint(o, u, v, w) else { continue };
+            let base = rim(f, 1.0);
+            // (label, frame, radius, truly one circle)
+            let mut cases: Vec<(&str, Option<geom::Frame<f64>>, f64, bool)> = vec![
+                ("same", Some(f), 1.0, true),
+                ("v w turned", mint(o, u, -v, -w), 1.0, true),
+                ("u v turned", mint(o, -u, -v, w), 1.0, true),
+                ("u w turned", mint(o, -u, v, -w), 1.0, true),
+                ("radius ulp", Some(f), 1.0f64.next_up(), false),
+                ("origin ulp", mint(Point3::new(o.x.next_up(), o.y, o.z), u, v, w), 1.0, false),
+            ];
+            for k in 0..3 {
+                cases.push(("u ulp", mint(o, up(u, k), v, w), 1.0, false));
+                cases.push(("v ulp", mint(o, u, up(v, k), w), 1.0, false));
+                cases.push(("w ulp", mint(o, u, v, up(w, k)), 1.0, false));
+                cases.push(("u ulp, v w turned", mint(o, up(u, k), -v, -w), 1.0, false));
+            }
+            for (what, g, r, truly) in cases {
+                let Some(g) = g else { continue };
+                asked += 1;
+                if one_conic(&base, &rim(g, r)) {
+                    one += 1;
+                    if !truly {
+                        wrong += 1;
+                        eprintln!("READ ONE: {what}");
+                    }
+                } else if truly {
+                    eprintln!("REFUSED a true pair: {what}");
+                }
+            }
+        }
+        eprintln!("ASKED {asked} ONE {one} WRONG {wrong}");
+        assert_eq!(wrong, 0);
+    }
+
     #[test]
     fn two_stored_circles_are_one_only_with_every_axis_one_up_to_its_sign() {
         let o = Point3::new(0.299_999_999_999_999_9, -1.1, 2.9);
