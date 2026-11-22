@@ -6786,7 +6786,12 @@ fn graph_run(
     } else {
         piece.1 - t_v
     };
-    if past > 0.0 {
+    // Asked as "not at or before the vertex", so a parameter that is no
+    // number is read as past it.
+    if !matches!(
+        past.partial_cmp(&0.0),
+        Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
+    ) {
         let (carrier, _) = e.arc.as_ref()?;
         let stretch = if run.start {
             (piece.0, t_v)
