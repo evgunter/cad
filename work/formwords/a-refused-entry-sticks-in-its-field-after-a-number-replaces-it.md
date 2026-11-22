@@ -2,10 +2,12 @@
 id: a-refused-entry-sticks-in-its-field-after-a-number-replaces-it
 kind: issue
 title: viewer: once a slot field refuses an entry, a corrected entry or a plain number keeps showing it wrong, and its unit reads 'computed'
-status: open
+status: review
 opened: 2026-11-22
 priority: P1
 cost: M
+pr: 7378
+branch: formwords/refused-entry
 ---
 
 **Ev reported this** (in chat, 2026-11-22). If variables are typed into a field correctly the first time, it works. If one is typed wrong, then switching it to the right thing, or back to a plain number, keeps saying something is wrong, and the unit shows as "computed" rather than "m". Ev was not sure this happens everywhere.
