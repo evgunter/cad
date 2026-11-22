@@ -639,6 +639,12 @@ pub(super) fn placement<T: Decide>(
     }
 }
 
+/// **The ball of a closed-form carrier's cover**, the whole curve it
+/// lists, read against the region.
+pub(super) fn closed_form_ball<T: Decide>(curve: &Curve3<T>) -> ExtentBall<T> {
+    ExtentBall::of_covered(curve.cover().as_ref().ok())
+}
+
 /// **The parameter span of `line`** (its `dir` unit) inside `region`,
 /// `None` where the line is clear of it. The foot is read on `dir` as
 /// unit, not through `Line::param`'s `/|dir|²`: `dir` is a cylinder's
@@ -956,7 +962,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                     ];
                     let mut listed = Vec::new();
                     for ((curve, span), at) in arcs.into_iter().zip(ends) {
-                        let placed = against(ExtentBall::of_covered(curve.cover().as_ref().ok()));
+                        let placed = against(closed_form_ball(curve));
                         if placed == RegionPlacement::Outside {
                             continue;
                         }

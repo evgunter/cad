@@ -442,7 +442,7 @@ impl<T: Decide> CylinderSpherePose<T> {
 
     /// The sphere's own ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::of_covered(self.sphere.cover().as_ref().ok())
+        covered_ball(&self.sphere)
     }
 
     /// **The ball the ruling sweep reads the section against**: the
@@ -1310,6 +1310,12 @@ impl PairPose<f64> {
         let ball = self.ball();
         domain_about(ball.center(), ball.radius() * 1.01, ball.radius() * 2.0)
     }
+}
+
+/// **The ball of a surface's cover**, a bounded side's own ball (a
+/// sphere's), which holds every section it is a side of.
+pub(crate) fn covered_ball<T: Decide>(surface: &Surface<T>) -> ExtentBall<T> {
+    ExtentBall::of_covered(surface.cover().as_ref().ok())
 }
 
 /// **A march's domain**: the cube of half-width `half_extent` about

@@ -19,7 +19,7 @@
 use geom::{Curve3, Surface};
 use geom_core::{Band, Decide, Decided, MarginDiag, Real};
 
-use super::cylinders::{RegionPlacement, placement, region_span};
+use super::cylinders::{RegionPlacement, closed_form_ball, placement, region_span};
 use super::{
     ClassCarrier, ComponentEnds, ComponentShape, Components, NoCarrier, PairPose, PairSection,
     SectionComponent, SectionDecision, ZeroVerdict,
@@ -49,13 +49,14 @@ fn ordered(plane_first: bool, [on_plane, on_wall]: [bool; 2]) -> [bool; 2] {
     }
 }
 
-/// A closed conic, one loop of the section.
-fn ring<T: Decide>(curve: Curve3<T>, winds: [bool; 2]) -> SectionComponent<T> {
-    let witness = curve.eval(T::zero());
+/// A closed conic, one loop of the section, witnessed where `witnessed`
+/// at its parameter zero.
+fn ring<T: Decide>(curve: Curve3<T>, winds: [bool; 2], witnessed: bool) -> SectionComponent<T> {
+    let witness = witnessed.then(|| curve.eval(T::zero()));
     SectionComponent::closed_form(
         ComponentShape::Loop,
         winds,
-        Some(witness),
+        witness,
         ClassCarrier::Closed(curve),
     )
 }
@@ -120,7 +121,7 @@ impl<T: Decide> PlaneSpherePose<T> {
 
     /// The sphere's ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::of_covered(self.sphere.cover().as_ref().ok())
+        super::covered_ball(&self.sphere)
     }
 
     /// The section as the door classified it.
@@ -172,7 +173,7 @@ impl<T: Decide> SphereSpherePose<T> {
     /// The first sphere's ball, which holds the section, as the second's
     /// does.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::of_covered(self.first.cover().as_ref().ok())
+        super::covered_ball(&self.first)
     }
 
     /// The section as the door classified it.
@@ -250,7 +251,7 @@ impl<T: Decide> PlaneCylinderPose<T> {
 /// The plane × sphere arm over its decided pose.
 pub(super) fn plane_sphere<T: Decide>(pose: PlaneSpherePose<T>) -> PairSection<T> {
     let (components, decided) = match &pose.section {
-        PlaneSphereSection::Circle(c) => (vec![ring(c.clone(), [false, false])], None),
+        PlaneSphereSection::Circle(c) => (vec![ring(c.clone(), [false, false], true)], None),
         &PlaneSphereSection::TangentPoint(at) => (
             vec![touch(at)],
             Some(tangency("ps_center_gap", pose.gap.margin)),
@@ -271,7 +272,7 @@ pub(super) fn plane_sphere<T: Decide>(pose: PlaneSpherePose<T>) -> PairSection<T
 pub(super) fn sphere_sphere<T: Decide>(pose: SphereSpherePose<T>) -> PairSection<T> {
     let (row, read) = pose.row;
     let (components, decided) = match &pose.section {
-        SphereSphereSection::Circle(c) => (vec![ring(c.clone(), [false, false])], None),
+        SphereSphereSection::Circle(c) => (vec![ring(c.clone(), [false, false], true)], None),
         &SphereSphereSection::TangentPoint(at) => {
             (vec![touch(at)], Some(tangency(row, read.margin)))
         }
@@ -290,7 +291,10 @@ pub(super) fn sphere_sphere<T: Decide>(pose: SphereSpherePose<T>) -> PairSection
 
 /// **The plane × cylinder arm over its decided pose**, listed over the
 /// region: a loop clear of it is not listed, and each ruling is the
-/// span of its line the region holds, where it reaches it.
+/// span of its line the region holds, where it reaches it. A loop winds
+/// about the wall and names no witness: it is cleared on the wall's
+/// face by its winding (W2), never by a point read in a face's trim
+/// (`work/inside/a-seamless-bands-trim-reads-a-point-inside-it-out.md`).
 pub(super) fn plane_cylinder<T: Decide>(pose: PlaneCylinderPose<T>, band: Band) -> PairSection<T> {
     let cut = ComponentShape::Open {
         ends: ComponentEnds::cut(),
@@ -312,9 +316,8 @@ pub(super) fn plane_cylinder<T: Decide>(pose: PlaneCylinderPose<T>, band: Band) 
     let spanned = |curve, span| ClassCarrier::Span { curve, span };
     let tangent = |_, _| ClassCarrier::Unminted(NoCarrier::Tangent);
     let loop_of = |c: &Curve3<T>| {
-        let ball = ExtentBall::of_covered(c.cover().as_ref().ok());
-        (placement(ball, pose.region, band) != RegionPlacement::Outside)
-            .then(|| ring(c.clone(), ordered(pose.plane_first, [false, true])))
+        (placement(closed_form_ball(c), pose.region, band) != RegionPlacement::Outside)
+            .then(|| ring(c.clone(), ordered(pose.plane_first, [false, true]), false))
     };
     let components = match &pose.section {
         PlaneCylinderSection::TiltedEllipse(c) | PlaneCylinderSection::Rim(c) => {
