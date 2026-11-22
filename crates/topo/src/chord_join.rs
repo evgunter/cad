@@ -5859,12 +5859,8 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Join
     };
     for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
         let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
-        let curve = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?.curve;
-        if body
-            .get_curve_geom(curve)
-            .and_then(CurveGeom::null_scaffold)
-            .is_none()
-        {
+        let edge = body.edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+        if edge.curve().null_scaffold().is_none() {
             return Ok(false);
         }
     }

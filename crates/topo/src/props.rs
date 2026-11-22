@@ -5455,6 +5455,12 @@ fn tip_points<T: Real>(
 /// [`loop_edges`]' flattening over any closed run of half-edges, in
 /// the order given: a loop's cycle, or a chain of half-edges from
 /// several faces that closes on itself.
+///
+/// # Panics
+///
+/// Where a half-edge's edge, or that edge's curve, does not resolve:
+/// each is a link of the record before it (D2 row 4).
+#[track_caller]
 pub(crate) fn run_edges<T: Decide>(
     body: &Body<T>,
     cycle: &[crate::entity::HalfEdgeKey],
@@ -5474,13 +5480,8 @@ pub(crate) fn run_edges<T: Decide>(
         let Some(he) = body.half_edges.get(he_key) else {
             return Err(corrupt("half-edge key does not resolve"));
         };
-        let Some(edge) = body.edges.get(he.edge) else {
-            return Err(corrupt("edge key does not resolve"));
-        };
-        let Some(entry) = body.curves.get(edge.curve) else {
-            return Err(corrupt("curve key does not resolve"));
-        };
-        let Some(curve) = entry.certified() else {
+        let edge = body.linked_edge(he.edge, crate::entity::EntityId::HalfEdge(he_key), "edge");
+        let Some(curve) = edge.certified() else {
             return Err(LoopEdgesError::NullScaffoldEdge { edge: he.edge });
         };
         let Some(end) = body.half_edge_end(he_key) else {
@@ -5500,7 +5501,7 @@ pub(crate) fn run_edges<T: Decide>(
                 .map(|root| CarrierId::minted(root.data().as_ffi())),
             t0,
             t1,
-            forward: he_key == edge.he_plus,
+            forward: he_key == edge.record().he_plus,
             start: tag_of(he.start),
             end: tag_of(end),
         });

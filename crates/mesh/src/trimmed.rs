@@ -2295,7 +2295,7 @@ fn developed_runs(
 fn carried_by_a_line(body: &Body<f64>, ek: EdgeKey) -> bool {
     body.edge(ek)
         .and_then(topo::EdgeView::certified)
-        .is_some_and(|curve| matches!(curve.carrier(), geom::Curve3::Line(..)))
+        .is_some_and(|curve| !curve.carrier().is_curved())
 }
 
 /// The [`Run`] that `group`, every polygon point at one CDT point, is;
