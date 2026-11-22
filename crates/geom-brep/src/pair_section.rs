@@ -1465,21 +1465,20 @@ pub fn serves(kind: SurfaceKind) -> bool {
 }
 
 /// **Whether a pair of kinds `a` and `b` is traced in ℝ³** (C3): each
-/// side enters the section through its implicit residual where it has
-/// one in metres (a plane, a cylinder, a sphere, a torus), else through
-/// its chart, so the pair is traced in ℝ³ where both sides have one. Only
-/// such a pair is read over the operation's region; a chart side's knot
-/// rectangle bounds the pair, and the region never cuts it.
+/// side enters the section through its implicit residual where the ℝ³
+/// tube and exhaustion enclose it
+/// ([`crate::ssi::enclose::has_implicit_enclosure`]: a plane, a
+/// cylinder, a sphere, a cone, a torus), else through its chart. So
+/// "traced in ℝ³" means exactly that both sides have a residual
+/// enclosure, and the roster is read from there rather than kept here:
+/// a kind gains the region the day it gains its enclosure, and not
+/// before (a spindle sheet, enclosed by neither, is traced by neither).
+/// Only such a pair is read over the operation's region; a chart side's
+/// knot rectangle bounds the pair, and the region never cuts it.
 #[must_use]
 pub fn traced_in_r3(a: SurfaceKind, b: SurfaceKind) -> bool {
-    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
-    // The cone's residual is not in metres yet (C2 limb 2); a spindle
-    // sheet has no section lane yet.
-    let residual = |kind| match kind {
-        Plane | Cylinder | Sphere | Torus => true,
-        Cone | Spindle | Nurbs | Approx => false,
-    };
-    residual(a) && residual(b)
+    use crate::ssi::enclose::has_implicit_enclosure;
+    has_implicit_enclosure(a) && has_implicit_enclosure(b)
 }
 
 /// **The tangent circle of a coaxial pair**, where the pair's own pose
