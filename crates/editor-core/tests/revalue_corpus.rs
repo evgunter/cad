@@ -56,7 +56,9 @@ use crate::corpus;
 /// zero bands at every ε the CI runs: those bands scale with ε, and a
 /// move fixed in meters would sit inside a wide band at a coarse ε (an
 /// exact zero moved by it no longer flips) and outside a narrow one at a
-/// fine ε, so what a row pins would hold at one ε only.
+/// fine ε. So what flips, and where two builds part, is the same at every
+/// ε; how many margins change their bits under the move is not
+/// ([`holds_until_parting`]'s floors).
 fn step() -> f64 {
     1.0e-7 * (Tol::witness().eps() / geom_core::tolerance::DEFAULT_EPS)
 }
@@ -444,6 +446,31 @@ fn holds(
     );
 }
 
+/// A count pinned per ε row, each field named for the ε it holds at.
+struct PerRow {
+    at_1e6: usize,
+    at_1e9: usize,
+    at_1e12: usize,
+}
+
+impl PerRow {
+    /// The count for this run's ε row; any other ε has none and fails
+    /// loud rather than reading a neighbour's.
+    fn here(&self, name: &str) -> usize {
+        let eps = Tol::witness().eps();
+        let near = |e: f64| (eps / e - 1.0).abs() < 1.0e-3;
+        if near(1.0e-6) {
+            self.at_1e6
+        } else if near(1.0e-9) {
+            self.at_1e9
+        } else if near(1.0e-12) {
+            self.at_1e12
+        } else {
+            panic!("{name}: no count at eps = {eps:e}: measure one and add it")
+        }
+    }
+}
+
 /// **A gating row under [`Move::Apart`] for a document whose apart move
 /// parts**, read over the decisions before the parting: the coverage a
 /// row pinned [`Move::InStep`] lacks (a laundered quantity that depends
@@ -453,7 +480,24 @@ fn holds(
 /// and no decision before it flips. The floor counts the choices' margins
 /// that moved: the checks align apart ([`streams`]). Past it the row says nothing, which
 /// the document's in-step row covers.
-fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting: &str, item: &str) {
+///
+/// The builds take the same decisions at every ε row, so `in_step` (the
+/// decisions compared before the parting) and `checks` (the checks
+/// paired) are one pin for every row. How many margins move is not: a
+/// margin keeps its bits under the `100·ε` step at one ε and changes
+/// them at another, both residuals at rounding level (a carrier on its
+/// surface, a map's residual, an incidence read) and others (a chord's
+/// side, an arc's or a line's span, a radial chart read), so `moved` is
+/// floored per row.
+fn holds_until_parting(
+    name: &str,
+    (in_step, checks): (usize, usize),
+    moved: PerRow,
+    owed: &[(&str, &str)],
+    parting: &str,
+    item: &str,
+) {
+    let floor = moved.here(name);
     let cd = corpus::documents()
         .into_iter()
         .find(|cd| cd.name == name)
@@ -472,6 +516,12 @@ fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting:
     assert_eq!(
         found.escalated, 0,
         "{name}: a decision the f64 channel escalated ({found:?})"
+    );
+    assert_eq!(
+        (found.compared, found.checks),
+        (in_step, checks),
+        "{name}: (decisions in step before the parting, checks paired) are not the pinned ones, \
+         which hold at every ε row ({found:?})"
     );
     assert!(
         found.moved >= floor,
@@ -507,7 +557,12 @@ fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting:
 fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
-        1993,
+        (3246, 7228),
+        PerRow {
+            at_1e6: 1955,
+            at_1e9: 1993,
+            at_1e12: 1802,
+        },
         &[],
         "point_in_loop_arm",
         "work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md",
@@ -529,7 +584,12 @@ fn revalue_boss_union_apart_to_its_parting() {
     // more).
     holds_until_parting(
         "boss_union",
-        1406,
+        (2360, 3857),
+        PerRow {
+            at_1e6: 1414,
+            at_1e9: 1406,
+            at_1e12: 1402,
+        },
         &[],
         // PCERT E1c (every mint reads incidence first, PR 5889): the apart move now parts
         // at the read every mint makes first, before the radial decision.

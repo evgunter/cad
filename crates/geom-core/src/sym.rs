@@ -5273,6 +5273,21 @@ impl<T: Real> Neg for Sym<T> {
     }
 }
 
+/// `F` over a symbolic scalar: what [`Real::view`] at `Sym<T>` hands to
+/// `T`'s, so a `Sym`'s view borrows wherever its numeric channel's does.
+struct SymOf<F>(core::marker::PhantomData<F>);
+
+impl<F: crate::value_view::OverScalar> crate::value_view::OverScalar for SymOf<F> {
+    type At<S: Real> = F::At<Sym<S>>;
+
+    fn map<S: Real, U: Real>(x: &F::At<Sym<S>>, f: impl Fn(S) -> U) -> F::At<Sym<U>> {
+        F::map(x, |s: Sym<S>| Sym {
+            value: f(s.value),
+            node: s.node,
+        })
+    }
+}
+
 impl<T: Real> Real for Sym<T> {
     /// **Never the same: no certificate is read by its support at the
     /// symbolic tier.** A derivation here mints fresh unknowns (a hull
@@ -5297,6 +5312,26 @@ impl<T: Real> Real for Sym<T> {
     /// The lane scalar's: the tier changes how a margin decides, not
     /// whether the scalar certifies.
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = T::Carries<C>;
+
+    /// The symbolic scalar over its numeric channel's value: the
+    /// identity over the unknowns is what a decision at it reads, so it
+    /// is kept, node for node. Over `f64` or `Interval` that is the
+    /// scalar itself.
+    type Value = Sym<T::Value>;
+
+    fn without_tangent(self) -> Sym<T::Value> {
+        Sym {
+            value: self.value.without_tangent(),
+            node: self.node,
+        }
+    }
+
+    /// The numeric channel's view, node for node: borrowed where it is.
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Sym<T::Value>>> {
+        T::view::<SymOf<F>>(x)
+    }
 
     fn from_f64(x: f64) -> Self {
         Self::literal(T::from_f64(x), x)

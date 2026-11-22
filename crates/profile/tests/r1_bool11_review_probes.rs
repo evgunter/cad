@@ -287,8 +287,8 @@ fn r1_site_seam_is_reachable_from_the_declared_verb() {
         .line(1.0, t)
         .unwrap();
     match chain.continue_to(Start, t) {
-        Err(PathError::SeamTangent { margin }) => {
-            println!("R1: SeamTangent margin={margin}");
+        Err(PathError::SeamTurnWithinTolerance { turn }) => {
+            println!("R1: SeamTurnWithinTolerance {turn}");
         }
         other => panic!("expected a seam refusal, got {other:?}"),
     }

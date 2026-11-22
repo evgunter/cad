@@ -30,7 +30,6 @@ whole 2 crates/geom-brep/src/pair_section.rs
 arm 1 crates/geom-brep/src/pair_section/cylinders.rs
 whole 1 crates/geom-brep/src/pair_section/cylinders.rs
 ball 1 crates/geom-brep/src/pair_section/gap.rs
-arm 1 crates/geom-brep/src/pair_section/ruling.rs
 ball 1 crates/geom-brep/src/pair_section/ruling.rs
 arm 2 crates/geom-brep/src/pair_section/spline_implicit.rs
 ball 1 crates/geom-brep/src/pair_section/spline_pair.rs
@@ -77,7 +76,7 @@ arm 1 crates/sweep/src/test_support.rs
 arm 1 crates/topo/src/boolean/arcs.rs
 arm 9 crates/topo/src/boolean/carrier_touch.rs
 arm 1 crates/topo/src/boolean/fate.rs
-arm 18 crates/topo/src/boolean/join.rs
+arm 15 crates/topo/src/boolean/join.rs
 whole 1 crates/topo/src/boolean/join.rs
 arm 6 crates/topo/src/boolean/ops.rs
 arm 1 crates/topo/src/boolean/overlap.rs

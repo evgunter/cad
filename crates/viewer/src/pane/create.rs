@@ -15,18 +15,18 @@ use crate::app::ViewerBehavior;
 use crate::blend::{BlendKindChoice, FREEZE_NOTE};
 use crate::combine::{AssertionMeasure, BooleanTool, BoundChoice, PatternOutputChoice};
 use crate::drafts::{CommitFault, Drafts};
-use crate::forms::{COUNT_DRAG_SPEED, PatternLayoutChoice, boolean_op_label, split_half_label};
+use crate::forms::{PatternLayoutChoice, boolean_op_label, split_half_label};
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_KINDS, MateTool};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, WorkingNotation as _};
-use crate::seats::{Seat, Seats, seat_line};
+use crate::seats::{EdgeRole, NONE_PICKED, Seat, Seats, open_pick, seat_line};
 use crate::session::{Creation, NodeKindWanted, PlaceTarget, Selection, SessionOp, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
 use crate::tree::DrawnBody;
-use crate::widgets::{CANCEL, commit_row, door, form_door, number_field};
+use crate::widgets::{CANCEL, commit_row, count_field, door, form_door};
 
 /// **The smallest instance index the part form offers.**
 ///
@@ -55,7 +55,7 @@ pub(crate) const PROJECTION_IS_PLACED: &str = "the selected copy is read out of 
 pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mut i64) {
     ui.horizontal(|ui| {
         ui.label("instance");
-        ui.add(number_field(instance, COUNT_DRAG_SPEED).range(MIN_PART_INSTANCE..=i64::MAX));
+        ui.add(count_field(instance).range(MIN_PART_INSTANCE..=i64::MAX));
     });
     crate::widgets::message_toned(
         ui,
@@ -82,13 +82,6 @@ pub(crate) fn assertion_claim_rows(ui: &mut egui::Ui, drafts: &mut Drafts) {
             ui.radio_value(&mut drafts.assertion_bound, choice, label);
         }
     });
-}
-
-/// Why the assertion form's commit is withheld, if it is: a band
-/// bounds a clearance and no measure's value.
-pub(crate) fn assertion_blocked(drafts: &Drafts) -> Option<&'static str> {
-    (drafts.assertion_measure.verb().is_some() && drafts.assertion_bound.relation().is_none())
-        .then_some("a band bounds a clearance; bound a value from one side, or at one value")
 }
 
 /// **A seated tool's held picks, drawn**: [`seat_line`] over the
@@ -222,7 +215,7 @@ pub(crate) fn member_rows(
             }
             let id = ui.id().with(("member row", i));
             let mut position = ui.data_mut(|d| *d.get_temp_mut_or(id, 0_usize));
-            ui.add(number_field(&mut position, COUNT_DRAG_SPEED).range(0..=members.len() - 1));
+            ui.add(count_field(&mut position).range(0..=members.len() - 1));
             ui.data_mut(|d| d.insert_temp(id, position));
             ui.label(format!("of {}", members.len()));
             if let Some(at) = members.get(position)
@@ -353,10 +346,6 @@ pub(crate) const TRACE_FACE: &str = "trace";
 /// What the button that lets the form's face to trace go says.
 pub(crate) const TRACE_NOTHING: &str = "trace nothing";
 
-/// What the profile-on-a-face form waits for while no face is latched to
-/// draw on.
-const PICK_THE_FACE_DRAWN_ON: &str = "pick the face the profile is drawn on";
-
 /// The highest crossing the traced path's row offers: a line meets a
 /// quadric's trace twice and a torus's four times, so a count past this
 /// names a crossing no piece makes.
@@ -452,11 +441,43 @@ fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Opti
     chosen
 }
 
-/// **Why the profile-on-a-face button is withheld**: the form waiting for
-/// its face, drawn as the form asking ([`Tone::Advisory`]). A free
-/// function over the `Ui` so a headless drive can reach it.
-fn withheld_line(ui: &mut egui::Ui, theme: &Theme, words: &'static str) {
-    crate::widgets::message_toned(ui, words, theme, Tone::Advisory);
+/// **What a creation tool's commit does at the click**, once nothing
+/// withholds it: the op, formed then from the drafts and the notation.
+/// Most tools form theirs every frame ([`formed`]); the pattern tool
+/// measures its spacing off the body, so it defers that to the click.
+pub(crate) type ClickWork<'a> =
+    Box<dyn FnOnce(&Drafts, Notation) -> Result<SessionOp, CommitFault> + 'a>;
+
+/// **An op formed before the click**, as the work a commit row takes.
+fn formed<'a>(op: Result<SessionOp, impl Into<CommitFault>>) -> Result<ClickWork<'a>, CommitFault> {
+    let op = op.map_err(Into::into)?;
+    Ok(Box::new(move |_, _| Ok(op)))
+}
+
+/// **A creation commit's row, withheld over its fault**: live unless
+/// `fault` withholds it ([`CommitFault::withholds`]), and then saying
+/// that fault's words twice — on the disabled commit's hover, and in
+/// plain view under the row, drawn as the form asking
+/// ([`Tone::Advisory`]), so a reader with no hover is told too.
+/// `between` is drawn between the commit and Cancel, and is handed the
+/// withheld reason. The one place a creation tool's gate is read.
+fn withheld_commit_row(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    commit: impl Into<egui::WidgetText>,
+    fault: Option<&CommitFault>,
+    between: impl FnOnce(&mut egui::Ui, Option<&str>),
+) -> crate::widgets::Closing {
+    let withheld = fault
+        .filter(|fault| fault.withholds())
+        .map(ToString::to_string);
+    let closing = commit_row(ui, commit, withheld.as_deref(), |ui| {
+        between(ui, withheld.as_deref());
+    });
+    if let Some(why) = &withheld {
+        crate::widgets::message_toned(ui, why.as_str(), theme, Tone::Advisory);
+    }
+    closing
 }
 
 /// **Why the revolve button cannot work out a default axis** for the
@@ -630,17 +651,18 @@ impl ViewerBehavior<'_> {
             Tone::Advisory,
         );
         assertion_claim_rows(ui, self.drafts);
-        let blocked = assertion_blocked(self.drafts);
-        self.tool_commit_row(ui, ToolKind::Assertion, blocked, |drafts, notation| {
-            let contact = notation.length_literal(0.0)?;
-            let Some(claim) = drafts
-                .assertion_measure
-                .claim(drafts.assertion_bound, contact)
-            else {
-                unreachable!("the commit is withheld for a band over a value")
-            };
-            Ok(tool.op(claim)?)
-        });
+        let (measure, bound) = (self.drafts.assertion_measure, self.drafts.assertion_bound);
+        let work = self
+            .notation
+            .length_literal(0.0)
+            .map_err(CommitFault::from)
+            .and_then(|contact| {
+                let claim = measure
+                    .claim(bound, contact)
+                    .ok_or(CommitFault::BandOverValue)?;
+                formed(tool.op(claim))
+            });
+        self.tool_commit_row(ui, ToolKind::Assertion, None, work);
     }
 
     /// **The placement editor's panel**: the placement it edits, one
@@ -1179,25 +1201,21 @@ impl ViewerBehavior<'_> {
             return;
         }
         self.profile_drawn.create = true;
-        let blocked = self.trace_rows(ui);
-        if let Some(words) = blocked {
-            withheld_line(ui, &self.theme, words);
-        }
-        let closing = commit_row(ui, NEW_PROFILE_ON_FACE, blocked, |_| {});
+        self.trace_rows(ui);
+        let op = self.drafts.on_face_op(*self.notation);
+        let closing = withheld_commit_row(
+            ui,
+            &self.theme,
+            NEW_PROFILE_ON_FACE,
+            op.as_ref().err(),
+            |_, _| {},
+        );
         if closing.cancel {
             self.drafts.close_on_face();
         }
         if closing.commit {
-            match self.drafts.on_face_op(*self.notation) {
-                Ok(Some(op)) => self.push_labelled(PROFILE_NOUN, op),
-                // Unreachable while the button is gated on `blocked`,
-                // and typed rather than unwrapped: a form's enabling
-                // condition and its commit are two pieces of code.
-                Ok(None) => {
-                    self.notices.push(frame::tool_news(
-                        &FormKind::ProfileOnFace.refuses(&PICK_THE_FACE_DRAWN_ON),
-                    ));
-                }
+            match op {
+                Ok(op) => self.push_labelled(PROFILE_NOUN, op),
                 Err(error) => {
                     self.notices
                         .push(frame::tool_news(&FormKind::ProfileOnFace.refuses(&error)));
@@ -1211,9 +1229,8 @@ impl ViewerBehavior<'_> {
     /// it traces, if any — each taking the viewport's face pick on its
     /// button, the face to trace let go on its own ([`TRACE_NOTHING`]);
     /// and, while a face to trace is latched, the trace the two show or
-    /// its own refusal, and the trace's branches. Answers what the commit
-    /// still waits for.
-    fn trace_rows(&mut self, ui: &mut egui::Ui) -> Option<&'static str> {
+    /// its own refusal, and the trace's branches.
+    fn trace_rows(&mut self, ui: &mut egui::Ui) {
         let picked = match self.session.selection() {
             Selection::Face(face) => Some(face.clone()),
             _ => None,
@@ -1239,18 +1256,13 @@ impl ViewerBehavior<'_> {
                 }
             });
         }
-        let waiting = self
-            .drafts
-            .on_face
-            .is_none()
-            .then_some(PICK_THE_FACE_DRAWN_ON);
         if self.drafts.trace_face.is_none() {
-            return waiting;
+            return;
         }
         // On a row of its own: the latch's row is as wide as the face it says.
         if ui.button(TRACE_NOTHING).clicked() {
             self.drafts.trace_face = None;
-            return waiting;
+            return;
         }
         match self.drafts.trace_shown.as_ref().map(|shown| &shown.read) {
             Some(Ok(marks)) => {
@@ -1276,10 +1288,7 @@ impl ViewerBehavior<'_> {
         let gesture = &mut self.drafts.trace_gesture;
         ui.horizontal(|ui| {
             ui.label("to crossing");
-            ui.add(
-                number_field(&mut gesture.crossing.nth, COUNT_DRAG_SPEED)
-                    .range(1..=MAX_TRACE_CROSSING),
-            );
+            ui.add(count_field(&mut gesture.crossing.nth).range(1..=MAX_TRACE_CROSSING));
             for passage in [TracePassage::Leave, TracePassage::Enter] {
                 ui.radio_value(&mut gesture.crossing.passage, passage, passage.word());
             }
@@ -1296,7 +1305,6 @@ impl ViewerBehavior<'_> {
              chain heads along the trace there: both are read off the traced face at every \
              evaluation, and a crossing the piece does not make refuses on the profile",
         );
-        waiting
     }
 
     /// **The sweeps of the selected profile**: an extrude button and a
@@ -1431,12 +1439,12 @@ impl ViewerBehavior<'_> {
         let Some(tool) = self.tools.boolean() else {
             return;
         };
-        if clear_picks_button(ui, tool.picks().len(), Picked::Bodies)
+        let held = Some((tool.picks().len(), Picked::Bodies));
+        if self.tool_commit_row(ui, ToolKind::Boolean, held, formed(tool.op()))
             && let Some(open) = self.tools.boolean_mut()
         {
             open.clear();
         }
-        self.tool_commit_row(ui, ToolKind::Boolean, None, |_, _| Ok(tool.op()?));
     }
 
     /// The split tool's panel: the target and the plane it is cut
@@ -1460,14 +1468,12 @@ impl ViewerBehavior<'_> {
         if let Some((seat, half)) = half_rows(ui, waiting, &self.theme) {
             self.tools.choose_half(seat, half);
         }
-        let op = tool.op();
-        let blocked = op.as_ref().err().map(ToString::to_string);
-        self.tool_commit_row(ui, ToolKind::Split, blocked.as_deref(), |_, _| Ok(op?));
+        self.tool_commit_row(ui, ToolKind::Split, None, formed(tool.op()));
     }
 
-    /// The mirror tool's panel: the body and the face it is reflected
+    /// The mirror tool's panel: the body and the plane it is reflected
     /// across, held as picks ([`crate::combine::MirrorTool`]), and the
-    /// one committed edit.
+    /// one committed edit, withheld while a pick is missing.
     pub(crate) fn mirror_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.mirror().cloned() else {
             return self.tool_door(ui, ToolKind::Mirror);
@@ -1491,7 +1497,7 @@ impl ViewerBehavior<'_> {
         if let Some((seat, half)) = half_rows(ui, waiting, &self.theme) {
             self.tools.choose_half(seat, half);
         }
-        self.tool_commit_row(ui, ToolKind::Mirror, None, |_, _| Ok(tool.op()?));
+        self.tool_commit_row(ui, ToolKind::Mirror, None, formed(tool.op()));
     }
 
     /// **The Transform tool's panel**: its one pick, which opens the
@@ -1561,25 +1567,30 @@ impl ViewerBehavior<'_> {
             }
         });
         let session = self.session;
-        self.tool_commit_row(ui, ToolKind::Pattern, None, |drafts, notation| match drafts
-            .pattern_kind
-        {
-            PatternLayoutChoice::Linear => {
-                let clears = session.step_clear_of(&tool.read()?)?;
-                Ok(tool.linear_op(
-                    drafts.pattern_output,
-                    crate::combine::PATTERN_COUNT,
-                    crate::session::PatternDirection::Axis(crate::combine::STEP_ALONG),
-                    crate::combine::row_spacing(clears, notation.length)?,
-                )?)
-            }
-            PatternLayoutChoice::Circular => Ok(tool.circular_op(
-                drafts.pattern_output,
-                crate::combine::PATTERN_COUNT,
-                crate::session::PatternDirection::Axis(crate::combine::RING_ABOUT),
-                notation.angle_literal(crate::combine::RING_STEP)?,
-            )?),
+        // The work is the body read its ops take, and the spacing is
+        // measured off that body only at the click.
+        let work = tool.read().map_err(CommitFault::from).map(|read| {
+            Box::new(
+                move |drafts: &Drafts, notation: Notation| match drafts.pattern_kind {
+                    PatternLayoutChoice::Linear => {
+                        let clears = session.step_clear_of(&read)?;
+                        Ok(tool.linear_op(
+                            drafts.pattern_output,
+                            crate::combine::PATTERN_COUNT,
+                            crate::session::PatternDirection::Axis(crate::combine::STEP_ALONG),
+                            crate::combine::row_spacing(clears, notation.length)?,
+                        )?)
+                    }
+                    PatternLayoutChoice::Circular => Ok(tool.circular_op(
+                        drafts.pattern_output,
+                        crate::combine::PATTERN_COUNT,
+                        crate::session::PatternDirection::Axis(crate::combine::RING_ABOUT),
+                        notation.angle_literal(crate::combine::RING_STEP)?,
+                    )?),
+                },
+            ) as ClickWork<'_>
         });
+        self.tool_commit_row(ui, ToolKind::Pattern, None, work);
     }
 
     /// The projection tool's panel — [`crate::combine::PartTool`],
@@ -1607,9 +1618,8 @@ impl ViewerBehavior<'_> {
             self.tools.choose_half(seat, half);
         }
         part_selector_rows(ui, &self.theme, &mut self.drafts.part_instance);
-        self.tool_commit_row(ui, ToolKind::Part, None, |drafts, _| {
-            Ok(tool.instance_op(drafts.part_instance)?)
-        });
+        let work = formed(tool.instance_op(self.drafts.part_instance));
+        self.tool_commit_row(ui, ToolKind::Part, None, work);
     }
 
     /// The blend tool's panel: activation, the freeze sentence, the
@@ -1625,14 +1635,17 @@ impl ViewerBehavior<'_> {
     /// is while they are choosing the set, so it is stated here rather
     /// than only in the node's docs.
     pub(crate) fn blend_tool_ui(&mut self, ui: &mut egui::Ui) {
-        // **Read, never cloned.** The tool holds a SET, so copying it
-        // per frame is per-frame work proportional to the picks; what
-        // the panel actually needs is two small values, and the commit
-        // door is re-borrowed at the click.
-        let Some((target, count)) = self.tools.blend().map(|tool| (tool.target(), tool.count()))
-        else {
+        let Some(tool) = self.tools.blend() else {
             return self.tool_door(ui, ToolKind::Blend);
         };
+        let (target, count) = (tool.target(), tool.count());
+        let kind = self.drafts.blend_kind;
+        let work = crate::blend::default_size(self.notation.length)
+            .map_err(CommitFault::from)
+            .and_then(|size| match kind {
+                BlendKindChoice::Fillet => formed(tool.fillet_op(size)),
+                BlendKindChoice::Chamfer => formed(tool.chamfer_op(size)),
+            });
         crate::widgets::message(ui, ToolKind::Blend.says(&"pick the edges to blend"));
         crate::widgets::message_toned(ui, FREEZE_NOTE, &self.theme, Tone::Advisory);
         ui.weak(match (target, self.session.landed_pair()) {
@@ -1641,7 +1654,7 @@ impl ViewerBehavior<'_> {
                 Said(&target, Speaker::of(landed))
             ),
             (Some(target), None) => format!("{count} edges picked on {target}"),
-            (None, _) => "no edges picked yet".to_owned(),
+            (None, _) => open_pick(EdgeRole::Blended.name()),
         });
         self.all_edges_row(ui, target);
         ui.horizontal(|ui| {
@@ -1650,7 +1663,15 @@ impl ViewerBehavior<'_> {
                 ui.radio_value(&mut self.drafts.blend_kind, kind, label);
             }
         });
-        self.blend_commit_row(ui, count);
+        // `Clear picks` is this tool's third button: a set-valued tool
+        // needs a way to start the PICKS over without closing the form
+        // beside them, which is what `BlendTool::clear` is and what
+        // Cancel is not.
+        if self.tool_commit_row(ui, ToolKind::Blend, Some((count, Picked::Edges)), work)
+            && let Some(tool) = self.tools.blend_mut()
+        {
+            tool.clear();
+        }
     }
 
     /// **The all-edges affordance** — `editor_core::all_edges` through
@@ -1704,61 +1725,6 @@ impl ViewerBehavior<'_> {
                 &ToolNotice::Blend(event),
                 Some((landed, eval)),
             ));
-        }
-    }
-
-    /// The blend tool's commit/cancel row — [`ViewerBehavior::tool_commit_row`]'s
-    /// rules, spelled here because this tool holds a set rather than
-    /// seats. With no edge held there is no body to blend and so no op:
-    /// the commit is disabled and says why.
-    ///
-    /// Both halves of the close rule are unchanged: the op is QUEUED
-    /// and the application closes the tool when the edit actually
-    /// commits, so a refusal at the session door leaves every picked
-    /// edge in place to correct; Cancel closes at once.
-    ///
-    /// **`Clear picks` is this tool's third button and the seated
-    /// tools' second**: a set-valued tool needs a way to start the
-    /// PICKS over without closing the form beside them, which is what
-    /// `BlendTool::clear` is and what Cancel is not — Cancel replaces
-    /// the whole tool value.
-    pub(crate) fn blend_commit_row(&mut self, ui: &mut egui::Ui, count: usize) {
-        let noun = self.tool_noun(ToolKind::Blend);
-        if let Some(noun) = noun {
-            self.creation_label_row(ui, noun);
-        }
-        let mut clear = false;
-        let closing = commit_row(
-            ui,
-            ToolKind::Blend.commit(),
-            (count == 0).then_some("pick an edge first"),
-            |ui| clear = clear_picks_button(ui, count, Picked::Edges),
-        );
-        if clear && let Some(tool) = self.tools.blend_mut() {
-            tool.clear();
-        }
-        if closing.commit {
-            match crate::blend::default_size(self.notation.length) {
-                Ok(size) => {
-                    let op: Option<SessionOp> =
-                        self.tools
-                            .blend()
-                            .and_then(|tool| match self.drafts.blend_kind {
-                                BlendKindChoice::Fillet => tool.fillet_op(size.clone()),
-                                BlendKindChoice::Chamfer => tool.chamfer_op(size),
-                            });
-                    if let Some(op) = op {
-                        self.push_tool_op(noun, op);
-                    }
-                }
-                Err(error) => {
-                    self.notices
-                        .push(frame::tool_news(&ToolKind::Blend.refuses(&error)));
-                }
-            }
-        }
-        if closing.cancel {
-            self.tools.close();
         }
     }
 
@@ -1891,20 +1857,37 @@ impl ViewerBehavior<'_> {
     /// held picks in place to correct instead of costing all of them.
     /// Cancel closes immediately, being the door that means "drop
     /// these picks".
+    ///
+    /// `work` is the tool's commit as its door forms it: the commit is
+    /// withheld over its fault, and says it ([`withheld_commit_row`]).
+    /// `held` is a set-holding tool's count of picks and what they are,
+    /// for the `Clear picks` drawn beside the commit; the answer is
+    /// whether that was clicked.
     pub(crate) fn tool_commit_row(
         &mut self,
         ui: &mut egui::Ui,
         kind: ToolKind,
-        blocked: Option<&str>,
-        op: impl FnOnce(&Drafts, Notation) -> Result<SessionOp, CommitFault>,
-    ) {
+        held: Option<(usize, Picked)>,
+        work: Result<ClickWork<'_>, CommitFault>,
+    ) -> bool {
         let noun = self.tool_noun(kind);
         if let Some(noun) = noun.filter(|_| kind.offers_label()) {
             self.creation_label_row(ui, noun);
         }
-        let closing = commit_row(ui, kind.commit(), blocked, |_| {});
+        let mut clear = false;
+        let closing = withheld_commit_row(
+            ui,
+            &self.theme,
+            kind.commit(),
+            work.as_ref().err(),
+            |ui, withheld| {
+                if let Some((count, picked)) = held {
+                    clear = clear_picks_button(ui, count, picked, withheld);
+                }
+            },
+        );
         if closing.commit {
-            match op(self.drafts, *self.notation) {
+            match work.and_then(|work| work(self.drafts, *self.notation)) {
                 Ok(op) => self.push_tool_op(noun, op),
                 Err(error) => {
                     self.notices.push(frame::tool_news(&kind.refuses(&error)));
@@ -1914,13 +1897,14 @@ impl ViewerBehavior<'_> {
         if closing.cancel {
             self.tools.close();
         }
+        clear
     }
 }
 
-/// **What a tool's picks are, for its `Clear picks`**: the words its
-/// two states say on the hover egui shows in each.
+/// **What a tool's picks are, for its `Clear picks`**: what a click
+/// drops, said on its live hover.
 #[derive(Clone, Copy)]
-enum Picked {
+pub(crate) enum Picked {
     /// The blend tool's edges.
     Edges,
     /// The boolean tool's bodies.
@@ -1935,28 +1919,29 @@ impl Picked {
             Self::Bodies => "drop every picked body",
         }
     }
-
-    /// Why the button is disabled with nothing held.
-    fn nothing(self) -> &'static str {
-        match self {
-            Self::Edges => "no edge is picked, so there is nothing to clear",
-            Self::Bodies => "no body is picked, so there is nothing to clear",
-        }
-    }
 }
 
 /// **A tool's `Clear picks`**, live while `count` picks are held. No
 /// operation stands behind it — clearing is tool state — so with
-/// nothing held there is no refusal to read, and [`Picked`] carries the
-/// sentence: each state its own, on the hook egui shows in that state.
+/// nothing held its disabled hover is the commit's own withheld reason,
+/// `withheld`, which names the pick the tool waits for; the live hover
+/// is what [`Picked`] drops.
 ///
 /// Answers whether it was clicked, which a disabled button never is.
-fn clear_picks_button(ui: &mut egui::Ui, count: usize, picked: Picked) -> bool {
+fn clear_picks_button(
+    ui: &mut egui::Ui,
+    count: usize,
+    picked: Picked,
+    withheld: Option<&str>,
+) -> bool {
     let button = ui.add_enabled(count > 0, egui::Button::new("Clear picks"));
     if count > 0 {
         button.on_hover_text(picked.drops()).clicked()
     } else {
-        button.on_disabled_hover_text(picked.nothing()).clicked()
+        let why = withheld.unwrap_or(NONE_PICKED);
+        button
+            .on_disabled_hover_text(format!("{why}, so there is nothing to clear"))
+            .clicked()
     }
 }
 
@@ -2196,10 +2181,10 @@ mod tests {
     #[test]
     fn clear_picks_with_nothing_held_says_there_is_nothing_to_clear() {
         let hovered = painted_while_hovering("Clear picks", 0, |ui| {
-            clear_picks_button(ui, 0, Picked::Edges);
+            clear_picks_button(ui, 0, Picked::Edges, Some("no edges to blend picked yet"));
         });
         assert!(
-            hovered.contains("no edge is picked, so there is nothing to clear"),
+            hovered.contains("no edges to blend picked yet, so there is nothing to clear"),
             "{hovered}"
         );
         assert!(!hovered.contains("drop every picked edge"), "{hovered}");
@@ -2209,7 +2194,7 @@ mod tests {
     #[test]
     fn clear_picks_with_picks_held_says_what_it_drops() {
         let hovered = painted_while_hovering("Clear picks", 0, |ui| {
-            clear_picks_button(ui, 3, Picked::Edges);
+            clear_picks_button(ui, 3, Picked::Edges, None);
         });
         assert!(
             hovered.contains("drop every picked edge and start on any body"),
