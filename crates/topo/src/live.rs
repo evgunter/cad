@@ -1971,7 +1971,7 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
             ),
             (
                 "props.rs",
-                "each loop goes to a loop door that refuses Corrupt",
+                "the seam region walk reads its loops unchecked and refuses an unwalkable one",
             ),
             (
                 "euler.rs",
@@ -2018,6 +2018,10 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
             (
                 "lineage.rs",
                 "the snapshot is taken before a door's own checks run",
+            ),
+            (
+                "props.rs",
+                "the seam region walk refuses an unwalkable loop, which the raw door reads as Corrupt",
             ),
         ];
         let strays = read_outside(
