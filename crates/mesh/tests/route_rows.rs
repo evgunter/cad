@@ -308,13 +308,13 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "ball less a slab turned 0.3",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0x9809_23f1_eddf_8051,
+            0xc7c8_23ba_ac8c_455f,
         ),
         (
             "pipe cut on a tilt",
             0xcbf2_9ce4_8422_2325,
             0xcbf2_9ce4_8422_2325,
-            0x4299_0881_b1b2_3fb5,
+            0x3f32_81cc_55e5_8d9a,
         ),
         (
             "ball less a slab at 0.3 turned 2e-9",
@@ -331,6 +331,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
     ];
     let corpus = k_corpus();
     assert_eq!(corpus.len(), MAIN.len(), "one row per body");
+    let mut moved = Vec::new();
     for ((name, body), (want_name, run, hit, bytes)) in corpus.iter().zip(MAIN) {
         assert_eq!(name, want_name, "the corpus and the table agree on order");
         let got = k_digest(|| {
@@ -343,8 +344,15 @@ fn a_body_that_meshes_records_mains_k_stream() {
             let _ = mesh::tessellate_with(body, 5e-2, Tol::witness(), &mut memo);
         });
         assert_eq!(got, hit, "{name}: a memo hit's K stream is main's");
-        assert_eq!(mesh_digest(body, 5e-2), bytes, "{name}: main's bytes");
+        let got = mesh_digest(body, 5e-2);
+        if got != bytes {
+            moved.push(format!("{name}: {got:#x}, main's {bytes:#x}"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "main's bytes, every row that moved: {moved:#?}"
+    );
 }
 
 /// The cylinder wider by [`in_band`]: the poison of

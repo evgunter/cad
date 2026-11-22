@@ -2,10 +2,12 @@
 id: a-cell-past-an-iso-edges-end-is-clipped-by-its-whole-line
 kind: issue
 title: A curved face's cell that holds the end of an iso edge, beside a reflex corner or a non-iso edge, is clipped by that edge's whole line and reads Local at every depth
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P0
 cost: M
+pr: 7327
+branch: embed/iso-end
 ---
 
 

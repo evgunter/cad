@@ -705,9 +705,7 @@ which is what actually moves the number.
 | face_normal.rs (`cone_point`) | cone_off_axis / cone_at_apex | a point's distance off a cone's axis, and from its apex (m), through `Margin::norm3` | m | OK (SPLITDOOR; `cone_off_axis` was `bool_cone_off_axis`) |
 | face_normal.rs (`face_outward_normal_at_foot`) | foot_off_locus | a point's distance off a cylinder's axis or from a sphere's centre (`Margin::norm3`), and its height over a cone's apex plane along the axis (`Margin::of`), in m | m | OK (CLEAVE) |
 | splitting/classify.rs (`split_vertex_side`) | split_vertex_side | plane residual | m | OK |
-| geom-brep curve_face/plane_crossing.rs (`conic_plane_candidates`, `span_roots`, `span_plane_meet`, `span_place`) | curve_face_pose_plane_parallel / curve_face_pose_belly_graze / curve_face_pose_graze_side / curve_face_cross_apart / curve_face_cross_order (a span place is `curve_pair::Span::place_param`'s, below) | plane residual; rooted amplitude; the roots' chord (`_roots_apart`), then their parameter gap × the span's sup speed (`_root_order`) | m | OK |
-| geom-brep curve_face/plane_crossing.rs (`span_plane_meet`'s graze, `graze_reaches_span`) | plane_crossing_graze_reach | a graze extremum's parameter distance into the span widened by its root spread `acos(1 − z/r)`, × the smaller semi-axis (`conic_meter`) | m | OK |
-| geom-brep curve_face/plane_crossing.rs (`span_plane_meet`'s line arm) | plane_crossing_line_parallel | a line's slope across the plane `d̂·n̂` × the span's length: the change in its signed distance across the span | m | OK |
+| geom-brep curve_face/plane_crossing.rs and curve_face/pose.rs, curve_face/cross.rs (the plane arm's pose, `place`) | curve_face_pose_plane_parallel / curve_face_pose_belly_graze / curve_face_pose_graze_side / curve_face_cross_apart / curve_face_cross_order (a span place is `curve_pair::Span::place_param`'s, below) | plane residual; rooted amplitude; the roots' chord (`_roots_apart`), then their parameter gap × the span's sup speed (`_root_order`) | m | OK |
 | splitting/classify.rs `reach_clears` | split_gate_box_side | an unarmed entity's reach, read in the plane's own frame, against the plane: its gap from the plane's offset along the unit normal, less the sweep pad (metres) | m | OK |
 | cover.rs `sphere_window` | cover_sphere_axis | a sphere's polar axis, read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
 | cover.rs `sphere_window` | cover_sphere_seam_unit | a sphere's seam direction, read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
@@ -719,7 +717,7 @@ which is what actually moves the number.
 | splitting/containment.rs (the frame gate) | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | ray_walk.rs (via `containment.rs`'s `ARC_LOOP_ROWS`) | point_in_arc_loop_segment/boundary/side/advance | the point_in_loop rows over an arc-bearing loop's STRAIGHT edges (`on_segment` per chord edge, `ray_crossings` masked to chord edges): distances; m²/m advance | m | OK (ATREST-9) |
 | splitting/containment.rs (`point_in_loop`) | point_in_arc_loop_arm / point_in_arc_loop_reach | the frame gate, as point_in_loop_arm with the curved edges' reach in the extent; the reach row is a spiric piece's (below) | m | OK (ATREST-9; reach row CONTACT-4) |
-| splitting/containment.rs (`ConicArc`, `conic_crossings`) | point_in_arc_loop_conic_span / _straddle / _advance / _in_plane | `_span` / `_straddle`: (τ − width) through the turn rule (geom-brep's table, `Period::turn`) at `Exact(radius)` on a circle and `Bounded(turn_defect_speed_lo, turn_defect_speed_hi)` on an ellipse, read for "not over" (an undecided turn is kept as an arc only where `TurnUndecided::not_over_at_sup` admits it; any other escalates); a ray's crossing is the co-surface arm's (`geom_brep::curve_pair::on_surface`, the plane door's `plane_crossing_*` rows, the root's place on the arc's span among them): `_advance` the root's distance `(y − q)·d` along the unit ray, `_in_plane` an arc's offset from the ray's square plane it is parallel to (only on the projected read) | m | OK (ATREST-9) |
+| splitting/containment.rs (`ConicArc`, `conic_crossings`) | point_in_arc_loop_conic_span / _straddle / _advance | `_span` / `_straddle`: (τ − width) through the turn rule (geom-brep's table, `Period::turn`) at `Exact(radius)` on a circle and `Bounded(turn_defect_speed_lo, turn_defect_speed_hi)` on an ellipse, read for "not over" (an undecided turn is kept as an arc only where `TurnUndecided::not_over_at_sup` admits it; any other escalates); a ray's crossing is the co-surface arm's (`geom_brep::curve_pair::on_surface`, the crossing reading's `curve_face_pose_*` and `curve_face_cross_*` rows, the meeting's place on the arc's span and an arc's offset from the ray's square plane it is parallel to among them): `_advance` the meeting's distance `(y − q)·d` along the unit ray | m | OK (ATREST-9) |
 | splitting/spiric_arc.rs (`PiecedArc::contact` on a `SpiricArc`, through `LoopEdge::contact`) | point_in_arc_loop_spiric_end / _clear / _on / _leaf; bool_contact_spiric_end / _clear / bool_contact_spiric / _leaf | the distance from the point to an end of the arc; `|q − P(v_m)| − S·h`, a piece's ball's clearance from the point; `|q − P(v_m)|`; `S·h`, the ball's own radius | m | OK (CLEAVE) |
 | splitting/spiric_arc.rs (`PiecedArc::crossings` on a `SpiricArc`) | point_in_arc_loop_spiric_side / _turn / _advance (and point_in_arc_loop_reach) | `(P(v) − q)·n`, a piece end's offset from the ray line; `|s(v_b) − s(v_a)| − 2·A·h²` (A in m/rad², h in rad; `S` and `A` over the piece's own window, `geom::spiric_rate_bounds`); `(c − q)·d ∓ S·h`; the ball's in-plane clearance from the ray less `S·h` | m | OK (CLEAVE) |
 | splitting/spline_arc.rs (`PiecedArc::contact` on a `SplineArc`, through `LoopEdge::contact`) | point_in_arc_loop_spline_end / _clear / _on / _leaf; bool_contact_spline_end / _clear / bool_contact_spline / _leaf | the distance from the point to an end of the arc; `|q − c| − ρ`, a piece's control ball's clearance from the point (`c` its Bézier net's bounding-box centre, `ρ` its farthest control point's distance from `c`); `|q − c_0|`, the distance to the piece's start point; `ρ`, the ball's own radius | m | OK (SPLICE) |
@@ -1224,9 +1222,9 @@ Flagged, NOT fixed here (dispositions):
 
 - **F17** (added by M10-5, the clearance engine; the support compare
   by CLEAR's DIRSUPPORT unit) `topo/src/clearance.rs`
-  `clearance_margin`, `self_intersection_gap` and
-  `clearance_support_gap`: the compares the E7 inner subdivision
-  makes on a pair decided by DISTANCE. SELFX added the injectivity
+  `clearance_margin`, `self_intersection_gap`,
+  `clearance_support_gap` and `clearance_depth_gap`: the compares the
+  E7 inner subdivision makes on a pair decided by DISTANCE. SELFX added the injectivity
   question's local certificates beside them, each its own row in the
   `injective.rs` block above; this entry is about the distance test,
   which decides every pair that does not touch. Both comparands are `d − c`, the interval enclosure of the
@@ -1267,6 +1265,17 @@ Flagged, NOT fixed here (dispositions):
   `n` only chooses which bound is decided; it is a raw `f64` read of the
   cells' centre normals and centres, and the choice among three
   directions decides nothing.
+  A fourth compare, `clearance_depth_gap` (`parted_in_depth`), is asked
+  at a face pair's root, before the supports, under either bound. Its
+  comparand is `G − c`: `G` a gap between the two faces' depths about an
+  axis, a centre or a core circle one of them proposes, less both
+  faces' pads, as the census's depth gap reads it
+  (`census::depth_gap::gaps_in_depth`, the comparand of
+  `census_backstop_depth_gap`). `G` is METRES and bounds the two faces'
+  separation from below, so **the site is not flagged** and it is read
+  as `L` is: only `Sign::Positive`, which discharges the root whole. It
+  has its own name because its population is a face pair's depth
+  margins, not a cell pair's support margins.
 
 - **F18** (added by M10-8's fix pass, found by scoping the recorder's
   name) `editor-core/src/expr.rs` `refuse_non_finite`: the ruled

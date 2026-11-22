@@ -2,8 +2,9 @@
 id: the-ring-composite-refuses-an-interval-fitted-plane-from-exact-inputs
 kind: issue
 title: ssi::certify::composite_form refuses a plane fitted at Interval even from exact inputs, so the plane x NURBS lane cannot certify a loft's cap at Interval
-status: open
+status: closed
 opened: 2026-10-16
+closed: 2026-11-21
 priority: P2
 cost: M
 refs: [plane-nurbs-certificate-refuses-at-rest-rows-of-lofts-and-sweeps, on-locus-hull-is-named-for-charts-whose-metres-composite-refuses, onpair-has-no-incidence-lane-on-a-spline-adjacent-pair]
@@ -62,3 +63,22 @@ coefficients:
 - the point-polygon loft's rims certify at `Interval` on the lane;
 - a genuinely widened plane widens the bound instead of refusing;
 - a cone or torus still refuses for want of a root (C2).
+
+## Closed
+
+2026-11-21, by `sectcone/one-limb-two-reader`
+(`work/sectcone/the-search-certificate-reads-limb-two-through-the-edge-reader.md`).
+The cause is gone: `composite_form` and its exactness gate are deleted,
+and limb 2 against an analytic operand in `analytic_limbs` (the path the
+plane × NURBS limbs and `OnPair`'s incidence lane reach) reads through
+the edge certificate's reader, whose plane form is the frame applied to
+the carrier in certification arithmetic, its coefficients enclosures.
+Against the acceptance:
+- a genuinely widened plane widens the bound instead of refusing:
+  `ssi::certify::one_reader_rows::a_widened_plane_certifies_as_the_family_it_is`
+  (a normal enclosing a 10⁻¹² turn, far past a frame's rounding);
+- a cone or torus no longer refuses for want of a root: the reader's
+  per-part lever is the conversion, as C2 now says for the search too;
+- the point-polygon loft's rims at `Interval` were measured only under
+  the fork's probe (the loft door switched to `OnPair`), and the fork's
+  ruling states those rims `Chart(wall)`; the probe was not re-run.

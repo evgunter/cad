@@ -5,6 +5,8 @@ title: Main red (slow set): hand_written_impl_census (two rows) and pncad-py's p
 status: open
 opened: 2026-11-21
 priority: P1
+cost: E
+refs: [7267]
 ---
 
 

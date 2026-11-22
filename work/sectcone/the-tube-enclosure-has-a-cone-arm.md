@@ -2,12 +2,14 @@
 id: the-tube-enclosure-has-a-cone-arm
 kind: unit
 title: The ℝ³ tube enclosures (implicit_enclosure, implicit_gradient_enclosure) and exhaustion have a cone arm: the double cone's elevation, gated off the apex
-status: dispatched
+status: closed
 opened: 2026-11-21
 priority: P0
 cost: H
 parent: the-cone-has-no-implicit-enclosure-or-metres-conversion
 branch: sectcone/cone-tube-arm
+closed: 2026-11-22
+pr: 7358
 ---
 
 
@@ -33,3 +35,7 @@ Unit 2 of the P0's weighed design (`the-cone-has-no-implicit-enclosure-or-metres
 `route(Cone, *)` stays `implemented: false`: the pair doors are `cone-torus-rung-three-arm-waits-on-the-cone` and `cone-sphere-and-cone-cone-in-general-pose-have-no-rung-three-door`. Out of scope: limb 2 (sibling unit `the-search-certificate-reads-limb-two-through-the-edge-reader`, concurrent in `ssi/certify.rs` and `pcurve_cache`).
 
 Territory: `ssi/*` is SSIARITH/SSIEDGE ground. Run `python3 scripts/work.py territory --base origin/main` and announce the seam.
+
+## Closed (2026-11-22, PR 7358)
+
+The cone has its arm in the ℝ³ tube enclosures: the double cone's elevation, gated on `h` and `|w|²`. Exclusion reads the quadric off the gate. The apex refuses typed; the ℝ³ node-end gap is `ssiedge/an-r3-tube-chain-has-no-node-end`. Dual review: two Opus reviewers, both APPROVE-WITH-FIXES with no MAJOR, and the fix pass took the union. The cone's quadric spelled in seven scalars is `germ/the-cones-quadric-is-spelled-in-seven-scalars`.
