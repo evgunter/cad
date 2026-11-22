@@ -80,6 +80,18 @@ and the model comparison apply.
   `the-viewer-spells-a-node-as-its-kind-before-its-name`), and the
   certify control.
 
+## 2026-11-22 — the names fork goes to Ev
+
+(OFFER orchestrator) The fork on how a node is named to a person (`a-node-name-the-viewer-shows-is-not-a-link-to-it` with VNEWS' `the-viewer-spells-a-node-as-its-kind-before-its-name`) reconciled in one round. It goes to Ev as an `[ev]` PR on `offer/names-design`, because it changes DESIGN.md Band 1 "Node labels". The designers agree on the final state, and the PR carries their split on one taste sub-choice: how a label that two live nodes share reads on screen.
+
+Points from the designers' orchestrator sections:
+- The feature tree has no programmatic scroll today, so revealing the selected row is new work.
+- The main feasibility risk is hit-testing mentions inside one laid-out text block. Neither designer checked it, and the building unit checks it first.
+- `world::placements_of` and `copies_where` move into the kernel as views of `Doc::read_sites`.
+- Re-baselining the plain-text spelling moves `crates/pncad-py/tests/test_document.py`, `test_monte_carlo.py` and `pncad.pyi`.
+- `work/chrome/tree-rows-lead-with-raw-tags.md` closes with the vnews row; its placement-constraint half stays open on its own.
+- `work/chrome/a-checks-cell-for-a-vertex-selects-its-node.md` is independent of this fork.
+- The two relation rows (`a-made-body-…` and `a-placement-and-its-part-…`) are one unit: Properties shows operand slots, plus read-by.
 ## 2026-11-22 — the offer fork goes to Ev
 
 (OFFER orchestrator) The fork `a-refusal-offers-no-action-in-the-viewer` with `a-check-offers-no-way-to-add-the-assertion-it-asks-for` has reconciled. It went one round, then a further designer weighed in after the designers swapped on two points, then a final round in which all designers agreed. It goes to Ev as an `[ev]` PR on `offer/offer-design`, because it adds a sentence to DESIGN `[one-way.places]`. The agreed final state and a correction of the row's stale evidence are in the refusal row's `## Design` and `## Correction` sections.
@@ -126,3 +138,4 @@ Filed, as the design requires:
 - `the-viewer-has-one-assertion-tool`: letter M, tier SINGLE, FULL review. It writes claims into the document, and a wrong claim shape fails silently: it would not quiet.
 
 The local disk has 8 GB free and two lane targets are live, so these lanes run as their own cloud sessions.
+- 2026-11-22 — **Ev answered #7339:** names are decided, as recorded in the row's `## Decided` section. Fork-log row 300 (renumbered from 297, which another fork took on main) is completed: A is Opus 5.5 and B is Fable 5.2. The truncation row I filed on CHROME was reverted before it reached main, at Ev's word. (OFFER orchestrator)
