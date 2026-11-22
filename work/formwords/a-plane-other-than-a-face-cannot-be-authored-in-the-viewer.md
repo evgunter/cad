@@ -4,7 +4,7 @@ kind: issue
 title: No viewer gesture defines a plane other than a picked face, so a split or mirror cannot cut elsewhere
 status: open
 opened: 2026-11-03
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -23,3 +23,9 @@ The build is a general way to define a plane (and, by the same door, an axis), s
 (FORMS orchestrator)
 
 Moved from FORMS to FORMWORDS on 2026-11-20, by `git mv`, when FORMS merged into FORMWORDS: FORMS held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one FORMWORDS carries.
+
+## Ev hit it in the mirror (2026-11-22): raised to P1
+
+Ev (in chat, 2026-11-22): "in the gui, there seems to be no way to mirror around some arbitrary plane rather than a face of an object". Ev filed it at P1.
+
+The mirror is narrower than the split even before the general plane door exists. The split takes `Selection::Variable` (`crates/viewer/src/tools.rs:942-946`, through `PlaneSeats::pick_defined`, `crates/viewer/src/combine.rs:406-416`, and `SplitPlane::Read` in `SplitTool::op`, `combine.rs:605-623`). The mirror routes only `selection.face()` (`tools.rs:972-975`). `MirrorTool::op` refuses with `SeatError::NoFace` (`combine.rs:716-729`), `SessionOp::AddMirror { body, plane: FaceSelection }` can carry nothing else (`crates/viewer/src/session/op.rs:810-833`), and `add_mirror` reads the plane off the picked face (`crates/viewer/src/session.rs:3801-3826`). Meanwhile `Node::Mirror.plane` is already a `RoleRead` of a `Plane` or a frame's plane (`crates/editor-core/src/node.rs`, ~1852-1865), and `HeldPlane::Defined` exists (`combine.rs:361-372`) unused by the mirror. Giving the mirror the split's `pick_defined` arm is a cheap first step that can land ahead of the general plane-definition door.
