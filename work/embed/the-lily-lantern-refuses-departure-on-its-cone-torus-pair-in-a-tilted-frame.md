@@ -1,7 +1,7 @@
 ---
 id: the-lily-lantern-refuses-departure-on-its-cone-torus-pair-in-a-tilted-frame
 kind: issue
-title: The tour's lily lantern refuses Departure on its cone-torus pair in a tilted frame, at present_chart's clip exits, since a main between dc7059c445 and 94b6b284e
+title: The tour's lily lantern refuses Departure on its cone-torus pair in a tilted frame, at present_chart's clip exits, since the carrier-frames merge
 status: open
 opened: 2026-11-22
 priority: P1
@@ -9,7 +9,7 @@ cost: M
 ---
 
 Found by EMBED's one-plane lane (`embed/one-plane`), on the tour walk; not
-fixed there, and not traced to a commit.
+fixed there.
 
 ## What
 
@@ -17,9 +17,12 @@ The tour's `lily/lily_lantern` refuses the injectivity question,
 `Uncertified { a: 3v1, b: 12v1, shared: Edge(19v1), arm: Departure }` at
 33 candidates, 20,254 discharged, 76 refused, 20,297 splits, on main
 `2da45c59f` with or without `embed/one-plane`'s reading (the walk's line is
-identical). PR 7115's body records it embedded on main `dc7059c445` and
-refusing on `94b6b284e`; the carrier-frames merge (PR 7131) is among the
-merges between, and nothing narrower was measured.
+identical). The carrier-frames merge moved it: the whole walk on that merge's first
+parent `e4d679d37` reads the lantern embedded at 5,619 / 0 / 5,586
+(discharged / refused / splits), 82 of 85 holding; on the merge
+`9bc9d6517` it refuses as above, 78 of 85, the three dice with it. On
+`embed/one-plane`'s head (main `4d3402ecb` merged, PR 7120 in it) the
+dice hold again and the lantern alone still differs from `e4d679d37`.
 
 The pair is a cone (`3v1`) against a torus (`12v1`), both in the lantern's
 tilted frame (axis `(0.2079…, 0, …)`). Their shared edge `19v1` is one of two
