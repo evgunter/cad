@@ -15,14 +15,14 @@
 //! **Most of what is here draws one row or one field** from values the
 //! caller already holds, and returns what the user did with it. The
 //! rule that produces the exceptions is *a function that takes no
-//! `ui: &mut egui::Ui`*, and there are twelve — re-derived from this
+//! `ui: &mut egui::Ui`*, and there are thirteen — re-derived from this
 //! file's own text by
 //! `roster_tests::the_helpers_that_take_no_ui_are_the_ones_named_here`,
 //! so the list below goes red rather than stale: `wrapped_in_region`,
 //! which lays a sentence out without drawing it; [`message_floor`] and
 //! [`widest_number`], which measure the width it is laid out at;
-//! [`number_text`] and
-//! [`number_field`], which render and build rather than draw;
+//! [`number_text`], [`number_field`] and [`count_field`], which render
+//! and build rather than draw;
 //! [`install_number_formatter`], which writes a style; [`new_row_step`],
 //! which mints a value; `twin`, which picks a fused step's arrival
 //! role; [`value_gesture`] and [`free_move_gesture`],
@@ -1928,6 +1928,7 @@ mod roster_tests {
             "widest_number",
             "number_text",
             "number_field",
+            "count_field",
             "install_number_formatter",
             "new_row_step",
             "twin",
