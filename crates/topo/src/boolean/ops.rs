@@ -126,6 +126,8 @@ use super::shell_witness::{
 };
 use super::voids;
 use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
+
+mod interior_rings;
 use super::{BooleanDecision, LineWedgeFault};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
@@ -1596,6 +1598,46 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
 
     let interior_loops = interior_loop_verdict(op, a, b, &red, &glued, band);
+    if recut && interior_loops.is_err() {
+        let pairs = crossings_section_pairs(a, b, &red, &glued, band, false)?;
+        if std::env::var("LATHE_CUTIN").is_ok()
+            && let Some(cut_ins) = interior_rings::plan_cut_ins(a, b, &pairs, band)?
+        {
+            let (mut a2, mut b2) = (a.clone(), b.clone());
+            let cuts = apply_cut_ins(&mut a2, &mut b2, &cut_ins, band, tol)?;
+            let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
+            if let BooleanResult::Body(out) = &mut result {
+                respell_through_cuts(&mut out.coincidences, &cuts, &Default::default())?;
+                let n = &mut out.naming;
+                for ((made, joined), edges) in cuts
+                    .into_iter()
+                    .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
+                    .zip(&mut n.chart_cuts)
+                {
+                    *joined = crate::lineage::FaceDivisions::from_rows(
+                        made.divisions.into_iter().chain(joined.rows().iter().copied()),
+                    )?;
+                    edges.extend(made.edges);
+                }
+            }
+            return Ok(Joined::Answered(Box::new(result)));
+        }
+        if std::env::var("LATHE_RECHART").is_ok()
+            && let Some(recharts) = interior_rings::plan_recharts(a, b, &pairs, band)?
+        {
+            let (a2, b2, recharted) = apply_recuts(a, b, &recharts, tol)?;
+            let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
+            if let BooleanResult::Body(out) = &mut result {
+                respell_through_cuts(&mut out.coincidences, &Default::default(), &recharted)?;
+                *out.naming.recharted = recharted;
+            }
+            return Ok(Joined::Answered(Box::new(result)));
+        }
+        if let Some(rings) = interior_rings::plan(a, b, &pairs, band)? {
+            return through_interior_rings(op, a, b, decls, strategy, &rings, tol)
+                .map(|result| Joined::Answered(Box::new(result)));
+        }
+    }
     // The join carves both reduction operands through the Euler
     // operators; one scope per operand body, and what certifies the
     // result is `gate` below, over the body they are finished into.
@@ -1626,6 +1668,52 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         interior_loops,
         decls: Box::new(glued.into_owned()),
     })
+}
+
+/// **The crossings path re-entered on operands whose interior loops are
+/// built as rings** ([`interior_rings`]): each R-loop circle the guard
+/// found is a ring of its sphere face, and the op runs once more, its
+/// rows and face fragments read back through the rings to the op's
+/// inputs, as a cut-in's are.
+///
+/// # Errors
+///
+/// The rings' and the re-entered op's refusals.
+fn through_interior_rings<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    op: BooleanOp,
+    a: &Body<T>,
+    b: &Body<T>,
+    decls: &Glue<T>,
+    strategy: SweepStrategy,
+    rings: &[interior_rings::InteriorRing<T>],
+    tol: Tol,
+) -> Result<BooleanResult<T>, BooleanError> {
+    let (mut a2, mut b2) = (a.clone(), b.clone());
+    let cuts = interior_rings::apply(&mut a2, &mut b2, rings, tol)?;
+    for (what, body) in [("A", &a2), ("B", &b2)] {
+        debug_assert_eq!(
+            crate::validate_closed(body),
+            Ok(()),
+            "ringed operand {what} fails tier 1 or 2, though a ring of a face keeps both on a \
+             finished operand (kernel bug)"
+        );
+    }
+    let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
+    if let BooleanResult::Body(out) = &mut result {
+        respell_through_cuts(&mut out.coincidences, &cuts, &Default::default())?;
+        let n = &mut out.naming;
+        for (made, joined) in cuts
+            .into_iter()
+            .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
+        {
+            *joined = crate::lineage::FaceDivisions::from_rows(
+                made.divisions
+                    .into_iter()
+                    .chain(joined.rows().iter().copied()),
+            )?;
+        }
+    }
+    Ok(result)
 }
 
 /// **The crossings path's guard for the interior-loop class: the
@@ -7844,12 +7932,16 @@ struct ChartCuts {
     /// `(new vertex, new edge, split edge)` for each arc a cut's end
     /// split, in mint order.
     arc_splits: Vec<(VertexKey, EdgeKey, EdgeKey)>,
+    /// `(vertex, closed edge, face)` for each interior ring
+    /// ([`interior_rings`]): its two cells and the face it was built in.
+    rings: Vec<(VertexKey, EdgeKey, FaceKey)>,
 }
 
 impl ChartCuts {
     /// The input cell `cell` of the cut operand lies in: a division's
-    /// face is the face it was cut from, a meridian the face it runs
-    /// in, and an arc split's vertex or second piece the arc it split.
+    /// face is the face it was cut from, a meridian or a ring and its
+    /// vertex the face it runs in, and an arc split's vertex or second
+    /// piece the arc it split.
     fn input_cell(&self, mut cell: Cell) -> Cell {
         // One step at a time to a fixed point, so a cell a later cut
         // made of an earlier cut's (an arc split of a meridian) reads
@@ -7877,7 +7969,13 @@ impl ChartCuts {
                     .iter()
                     .find(|&&(w, _, _)| w == v)
                     .map(|&(_, _, split)| Cell::Edge(split)),
-            };
+            }
+            .or_else(|| {
+                self.rings
+                    .iter()
+                    .find(|&&(v, e, _)| cell == Cell::Vertex(v) || cell == Cell::Edge(e))
+                    .map(|&(_, _, f)| Cell::Face(f))
+            });
             match next {
                 Some(next) => cell = next,
                 None => return cell,
