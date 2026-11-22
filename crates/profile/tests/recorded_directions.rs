@@ -1476,7 +1476,7 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
 /// One arc verb's loop as its door stores it, `q` the quantity that
 /// fixes the arc's radius: a radius, a bulge, a through-point's or a
 /// target's coordinate, a leg's length.
-fn arc_verb_loop<T: Decide>(verb: &str, q: T) -> ProfileLoop<T> {
+fn arc_verb_loop<T: profile::ArcCarrierScalar>(verb: &str, q: T) -> ProfileLoop<T> {
     let t = tol();
     let l = T::from_f64;
     let p = |x: f64, y: f64| Point2::new(l(x), l(y));

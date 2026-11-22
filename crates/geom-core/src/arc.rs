@@ -377,6 +377,65 @@ impl<T: Real> Arc2<T> {
             ),
         ]
     }
+
+    /// **Registers the radial facts** of this arc between `a` and `b`
+    /// ([`Real::register_equal`]), per component: the carrier point
+    /// along the start radial is `a` and along the end radial is `b`
+    /// ([`Arc2::on_radial`]), and the start radial turned by the sweep
+    /// lands on `b` and the end radial turned back by it on `a`
+    /// ([`Arc2::on_turned_radial`], of this arc and of its reversal).
+    ///
+    /// Each is `centre + radius·(R·)radial` against a vertex, with no
+    /// root taken: for a construction that stores its radius as the
+    /// literal it decided ([`Arc2::radius`]) the first two are
+    /// identities of its own algebra at every value of its inputs, the
+    /// radius's sign included, and the turned two are its landing in
+    /// the radial's spelling. They are stated because the tier's ring
+    /// does not always carry that algebra through (a bulge whose
+    /// mantissa fills the coefficient budget freezes it), not because
+    /// anything about a sign is assumed.
+    ///
+    /// **An axiom, not a check**, as [`Arc2::register_endpoints`] is:
+    /// sound only where the CALLER built both radials so that these
+    /// hold over the reals at every value of its inputs, and its doc
+    /// comment carries that proof.
+    #[must_use = "a registration can be REFUSED, and a refusal a caller \
+                  drops is a lie nobody sees"]
+    pub fn register_radials(
+        self,
+        a: Point2<T>,
+        b: Point2<T>,
+        [start, end]: [Vec2<T>; 2],
+        tol: Tol,
+    ) -> [(&'static str, SymRegistration); 8] {
+        let (from, to) = (self.on_radial(start), self.on_radial(end));
+        let (turned, back) = (
+            self.on_turned_radial(start),
+            self.reversed().on_turned_radial(end),
+        );
+        [
+            ("the start radial's x", from.x.register_equal(a.x, tol)),
+            ("the start radial's y", from.y.register_equal(a.y, tol)),
+            ("the end radial's x", to.x.register_equal(b.x, tol)),
+            ("the end radial's y", to.y.register_equal(b.y, tol)),
+            (
+                "the turned start radial's x",
+                turned.x.register_equal(b.x, tol),
+            ),
+            (
+                "the turned start radial's y",
+                turned.y.register_equal(b.y, tol),
+            ),
+            (
+                "the turned-back end radial's x",
+                back.x.register_equal(a.x, tol),
+            ),
+            (
+                "the turned-back end radial's y",
+                back.y.register_equal(a.y, tol),
+            ),
+        ]
+    }
 }
 
 #[cfg(test)]
@@ -554,6 +613,33 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **The radial facts, and a planted lie, at the exact witness.**
+    /// The quarter circle's radials (1, 0) and (0, 1) meet, as do they
+    /// turned by the sweep and back; swapped, each is refused in both
+    /// components.
+    #[test]
+    fn register_radials_refuses_a_planted_lie_at_the_exact_witness() {
+        let (arc, a, b) = quarter_circle::<Interval>();
+        let (x, y) = (
+            Vec2::new(Interval::from_f64(1.0), Interval::from_f64(0.0)),
+            Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0)),
+        );
+        let answers = |radials| {
+            arc.register_radials(a, b, radials, Tol::witness())
+                .map(|(_, r)| r)
+        };
+        assert_eq!(
+            answers([x, y]),
+            [SymRegistration::Witnessed; 8],
+            "the true radials"
+        );
+        assert_eq!(
+            answers([y, x]),
+            [SymRegistration::Contradicted; 8],
+            "the radials swapped"
+        );
     }
 
     /// **A tangency at a foot, and a planted lie, at the exact witness.**

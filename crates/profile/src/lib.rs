@@ -422,8 +422,9 @@ pub(crate) struct BuiltArc<T: Real> {
     pub(crate) bulge_authored: bool,
     /// The unit radials at the arc's start and end its construction
     /// holds, where it holds them: the centre plus the stored radius
-    /// along each is the vertex it points at, as a form
-    /// ([`Arc2::on_radial`]).
+    /// along each is the vertex it points at, at every value of the
+    /// construction's inputs ([`Arc2::on_radial`]); registered with the
+    /// endpoint facts ([`Arc2::register_radials`]).
     pub(crate) radials: Option<[Vec2<T>; 2]>,
 }
 
@@ -533,6 +534,11 @@ impl<T: Real> BuiltArc<T> {
         if self.facts == Facts::Registered {
             for (fact, answer) in self.arc.register_endpoints(start, end, tol) {
                 answer.handle(fact);
+            }
+            if let Some(radials) = self.radials {
+                for (fact, answer) in self.arc.register_radials(start, end, radials, tol) {
+                    answer.handle(fact);
+                }
             }
         }
     }

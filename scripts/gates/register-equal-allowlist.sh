@@ -61,32 +61,33 @@
 #     as the radius along a side normal from a tangent foot, which the
 #     line×line fillet calls at its incoming foot
 #     (`profile/src/path.rs`, `register_incoming_tangency`, whose doc
-#     carries the proof). Each spells its identity here, so a
-#     registrant of another identity is a new function in this file.
-#   * `crates/sweep/src/swept.rs` — rigidity for a placed profile arc,
-#     one fact: `register_placed_carrier_end`, the carrier at its span
-#     is the placed sketch point the sweep turns the arc's recorded
-#     radial to, per component. It is one function of the centre, the
-#     radius, the direction and the sweep at every value of them (no
-#     root, the radius's sign included), and it is stated because a
-#     frame's axes are atoms to the tier. That function is the only
-#     body in the sweep that calls the method. The revolve's latitude
+#     carries the proof), and `Arc2::register_radials`, the centre
+#     plus the radius along each recorded radial is its vertex and the
+#     turned radial lands on the far one, which
+#     `profile::BuiltArc::register` calls for an arc whose construction
+#     made its radials: root-free, so true at every value where the
+#     construction stores its radius as the literal it decided. Each
+#     spells its identity here, so a registrant of another identity is
+#     a new function in this file.
+#   * `crates/sweep/src/swept.rs` — rigidity for a placed profile arc:
+#     `register_placed_carrier_ends`, the carrier at its start and at
+#     its span is the placed sketch point the arc's recorded radial,
+#     and that radial turned by the sweep, reaches, per component. Each
+#     is one function of the centre, the radius, the direction and the
+#     sweep at every value of them (no root, the radius's sign
+#     included), stated because a frame's axes are atoms to the tier.
+#     That function is the only body in the sweep that calls the
+#     method. The revolve's latitude
 #     carriers register nothing: their `u_ref` is the revolve's seam
 #     direction, so a latitude through its point is an identity the
 #     plain form proves.
 #
 # WHAT IS NOT REGISTERED, and why no site states it: that an arc's rim
-# at a vertex is its radius, or that the centre plus the radius along a
-# recorded radial is the vertex. An arc stores its radius as the
-# literal its construction decided (`Arc2::radius`), so the second is
-# an identity the plain form proves, and the first is `sqrt(r²)`
-# against `r`, which holds only where `r` is positive: a fact about a
-# sign a gate decided, which is not one function of the parameters, and
-# which the witness cannot tell from one. Its readers ask the
-# rationalized gap instead (`Arc2::off_carrier`). Nor does the sweep
-# state where a placed arc's carrier STARTS: it is the placed centre
-# plus the stored radius along the placed radial, the placed vertex as
-# a form.
+# at a vertex is its radius. That is `sqrt(r²)` against `r`, which
+# holds only where `r` is positive: a fact about a sign a gate decided,
+# which is not one function of the parameters, and which the witness
+# cannot tell from one. Its readers ask the rationalized gap instead
+# (`Arc2::off_carrier`, `geom_core::radius_gap`).
 #
 # WHAT THIS GATE DOES NOT COVER, stated rather than implied: it reads
 # source text, so a call reached through a macro, a re-export under
