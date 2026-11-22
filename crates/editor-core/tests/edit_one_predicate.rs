@@ -186,7 +186,7 @@ fn saved_assertion(
     )
     .expect("a well-dimensioned assertion inserts");
     let id = applied.record.minted.expect("the insert minted an id");
-    let text = save(&applied.doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&applied.doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     (text, id)
 }
@@ -326,7 +326,7 @@ fn mate(body: RecipeNodeId, on: RecipeNodeId, placed: RecipeNodeId) -> Mate<Form
 fn saved_mate(label: &str) -> (String, MateRef, [editor_core::VarId; 2]) {
     let (doc, [pinned, mated], body) = a_pinned_and_a_mated_instance(label);
     let (doc, id) = fixture::constrain_at(doc, mated, mate(body, pinned, mated));
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-to-face mate round trips");
     let written = fixture::constraint(&doc, id);
     let to = written.to;
@@ -403,19 +403,19 @@ fn kind_noun(kind: EntityKind) -> &'static str {
 fn a_face_to_face_mate_round_trips() {
     let (text, mate, reads) = saved_mate("onepred-matehead-ok");
     let loaded = load(&text, Tol::witness()).expect("a face-to-face mate loads");
-    let kept = fixture::constraint(&loaded.doc, mate);
+    let kept = fixture::constraint(&loaded, mate);
     let to = kept.to;
     assert_eq!(
         [
-            fixture::face_reads(&loaded.doc, kept.on),
-            fixture::face_reads(&loaded.doc, to)
+            fixture::face_reads(&loaded, kept.on),
+            fixture::face_reads(&loaded, to)
         ],
         [vec![reads[0]], vec![reads[1]]],
         "each pose reads the face it was saved reading"
     );
     for read in reads {
         assert_eq!(
-            crate::fixture::side_name(&loaded.doc, read).kind,
+            crate::fixture::side_name(&loaded, read).kind,
             EntityKind::Face
         );
     }
@@ -455,7 +455,7 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
             editor_core::stand().bundle(),
         ),
     );
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-referenced crossing round trips");
     (text, id)
 }
@@ -546,7 +546,7 @@ fn a_saved_crossing_reference_that_is_not_a_face_refuses_at_the_load_door() {
 fn a_face_referenced_crossing_round_trips() {
     let (text, instance) = saved_crossing("onepred-crossing-ok");
     let loaded = load(&text, Tol::witness()).expect("a face-referenced crossing loads");
-    let Some(Node::InstantiatePart { interface, .. }) = loaded.doc.node(instance) else {
+    let Some(Node::InstantiatePart { interface, .. }) = loaded.node(instance) else {
         panic!("the crossing-bearing instance survives the round trip");
     };
     let [InterfaceCrossing::Mate { .. }] = &interface.crossings[..] else {
@@ -651,7 +651,7 @@ fn saved_witness(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
             witness: witness(),
         },
     );
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     text
 }
@@ -764,7 +764,7 @@ fn an_inadmissible_epsilon_is_refused_at_both_doors() {
         other => panic!("an ε below the floor must refuse typed, got {other:?}"),
     }
 
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
         let eps = &mut wire["snapshot"]["epsilon"];
@@ -794,22 +794,18 @@ fn an_inadmissible_epsilon_is_refused_at_both_doors() {
 // ---- A document parameter's floats ----
 
 /// **A continuous parameter carrying a float that is not a number —
-/// both doors, naming WHICH float.**
+/// refused at the edit door, naming WHICH float.**
 ///
-/// `FreeVar::first_non_finite` is the one rule and both doors ask it:
-/// the nominal first, then the annotation's offsets. The edit door
-/// names its answer `EditError::NonFiniteVar` and the load door
-/// `NonFiniteSite::DocParam`, and each carries the field the predicate
+/// `FreeVar::first_non_finite` is the one rule: the nominal first, then
+/// the annotation's offsets. The edit door names its answer
+/// `EditError::NonFiniteVar`, carrying the field the predicate
 /// identified — a door that dropped it would be answering a coarser
-/// question than the one that was asked.
-///
-/// The load door is reached through an UNAPPLIED edit log rather than
-/// a doctored snapshot: JSON carries no non-finite token, so a log —
-/// which is data, and has not necessarily been through `apply` — is
-/// the only way a NaN reaches `validate_document` at all.
+/// question than the one that was asked. The save door's twin, which
+/// names the same field as `NonFiniteSite::DocParam`, is
+/// `persist::check`'s own row: no public door hands it a NaN.
 #[test]
-fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
-    use editor_core::{Distribution, DistributionField, DocParamField, persist::NonFiniteSite};
+fn a_non_finite_doc_param_is_refused_at_the_edit_door_naming_the_field() {
+    use editor_core::{Distribution, DistributionField, DocParamField};
 
     let (doc, _) = with_value();
     let name = VarName::from_static("wall");
@@ -844,23 +840,6 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
                 assert_eq!(field, expected, "the edit door names the offending float");
             }
             other => panic!("a non-finite parameter must refuse typed, got {other:?}"),
-        }
-
-        let edit = DocEdit::DeclareVar {
-            name: name.clone(),
-            def: editor_core::VarDecl::Free(value),
-        };
-        match save(&doc, &[edit], Tol::witness()) {
-            Err(PersistError::NonFinite {
-                site: NonFiniteSite::Edit { index: 0, inner },
-            }) => match *inner {
-                NonFiniteSite::DocParam { var: ref n, field } => {
-                    assert_eq!(*n, editor_core::VarRef::Name(name.clone()));
-                    assert_eq!(field, expected, "the load door names the same float");
-                }
-                ref other => panic!("expected a doc-param site, got {other:?}"),
-            },
-            other => panic!("a non-finite parameter must refuse at the wire, got {other:?}"),
         }
     }
 }
@@ -910,7 +889,7 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 3.0)),
         },
     );
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
         let id = doc
@@ -1010,7 +989,7 @@ fn saved_with_width() -> (ProfileDoc, String) {
         Tol::witness(),
     )
     .expect("a legal name declares");
-    let text = save(&applied.doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&applied.doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     (applied.doc, text)
 }
@@ -1054,37 +1033,6 @@ fn a_name_the_parser_cannot_read_back_is_refused_at_the_load_door() {
             ),
             other => panic!("{spelling:?} must refuse at the token, got {other:?}"),
         }
-    }
-}
-
-/// The edit LOG carries names too, and the same constructor reads
-/// them: a logged declaration under a refused spelling is refused
-/// before replay is asked.
-#[test]
-fn a_logged_declaration_under_a_refused_name_is_refused_at_the_load_door() {
-    let (doc, _) = saved_with_width();
-    let log = vec![DocEdit::DeclareVar {
-        name: VarName::from_static("depth"),
-        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.0)),
-    }];
-    let text = save(&doc, &log, Tol::witness()).expect("the fixture saves");
-    load(&text, Tol::witness()).expect("the fixture loads");
-    let fault = VarName::new("1 2").expect_err("a spaced number is not a name");
-    let corrupt = doctored(&text, |wire| {
-        let name = &mut wire["edits"][0]["DeclareVar"]["name"];
-        assert_eq!(
-            *name,
-            serde_json::json!("depth"),
-            "aimed at the logged name"
-        );
-        *name = serde_json::json!("1 2");
-    });
-    match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Unreadable { detail, .. }) => assert!(
-            detail.contains(&fault.to_string()),
-            "the log's refusal is the same sentence: {detail}"
-        ),
-        other => panic!("a logged name must refuse at the token, got {other:?}"),
     }
 }
 

@@ -116,9 +116,9 @@ pub use checks::at_rest::{
     PinnedDoc, Route, Unlocalized,
 };
 pub use checks::{
-    Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
-    Subject, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
+    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
+    ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity, Subject,
+    enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
 };
 pub use coincide::{
     CitedInput, NamedCell, NamedCoincidence, Proof, Residual, RowOrigin, Rung, Unreplayed,
@@ -126,8 +126,8 @@ pub use coincide::{
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, Unused,
-    VarName,
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, NameCarrier,
+    Unused, VarName,
 };
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
@@ -135,10 +135,11 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, IndexFault,
-    LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured, ProductReadFault, Recorded,
-    Recording, SketchOutcome, SketchedOnFace, SlotValue, SourceFault, Took, apply, apply_replayed,
-    cascade_delete_order, measure, sketch_on_face, slot_admits,
+    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, DrawnOnFace, EditError, EditRecord,
+    FaceUnread, IndexFault, LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured,
+    OnFace, ProductReadFault, Recorded, Recording, SketchOutcome, SketchedOnFace, SlotValue,
+    SourceFault, Took, apply, apply_replayed, cascade_delete_order, chart_on_face, draw_on_face,
+    measure, nearest_to_face, sketch_on_face, slot_admits,
 };
 pub use eval::measure::ObservedRefusal;
 pub use eval::{
@@ -206,12 +207,9 @@ pub use node::{
 pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
+pub use persist::{NonFiniteSite, OutputFault, SectionIdBreak, SelectionBodyFault, SnapshotError};
 pub use persist::{
-    Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
-    load, save,
-};
-pub use persist::{
-    NonFiniteSite, OutputFault, ProgramFault, SectionIdBreak, SelectionBodyFault, SnapshotError,
+    PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id, load, save,
 };
 pub use placement::{AxisRefusal, Frame, FrameFault};
 #[cfg(debug_assertions)]
@@ -221,41 +219,43 @@ pub use product::{
     product, product_named, product_recorded,
 };
 pub use program::{
-    DrawnOn, LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData,
-    ProgramRefusal, ProgramResolveFault, ProgramStep, ProgramTarget, RecordedNotation,
-    RecordedProgramError, SlotPayload, StepIdFault, StepSegmentsError, TraceCrossing, TracePassage,
-    TraceSense, WrittenLoopFault, resolve_loops, resolve_written_loops,
+    DrawnOn, LoopProgram, ProfileDoc, ProfilePartition, ProfilePayload, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramResolveFault, ProgramStep, ProgramTarget,
+    RecordedNotation, RecordedProgramError, SlotPayload, StepIdFault, StepSegmentsError,
+    TraceCrossing, TracePassage, TraceSense, WrittenLoopFault, resolve_loops,
+    resolve_written_loops,
 };
 pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{
-    FlattenError, FlattenOutcome, InlineError, InlineOutcome, NodeMap, RemapError, SectionMap,
-    SplitError, SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline, remap_name, split,
+    FlattenError, FlattenOutcome, InlineError, InlineOutcome, NamedUncarried, NodeMap, RemapError,
+    SectionMap, SplitError, SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline,
+    remap_name, split,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
 pub use resolve::{
     AboutReference, Diagnosis, FlipSet, GroupCutters, HitTestError, MeshPatchKey, NodeVerdictDelta,
-    PredicateDivergence, ReadEdit, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
-    ResolveIndeterminate, ResolveRefusal, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
-    UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,
-    body_name, derivation_nodes, derivation_reads, diff_verdicts, edge_name,
-    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
-    rebind_suggestions, resolve, resolve_with_prior, stranded_at, vertex_name,
+    ReadEdit, RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate,
+    ResolveRefusal, Resolved, RunCtx, RunStatus, TieWitness, Tombstone, UnnamedEntity,
+    UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names, body_name,
+    derivation_nodes, derivation_reads, diff_verdicts, edge_name, enrich_appearance_loss,
+    enrich_appearance_loss_with_prior, entity_name, face_name, first_turn, rebind_suggestions,
+    resolve, resolve_with_prior, stranded_at, vertex_name,
 };
 pub use resolve::{
-    NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
+    NodeVerdicts, SummaryDelta, SummaryDiff, SummaryDivergence, SummaryShift, VerdictRow,
     VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
 };
 pub use step_handle::{
-    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
+    ArcShape, AuthoredStep, PenRun, PenStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
+    pen_run, shape_of_recorded, step_kernel,
 };
 pub use take_over::{Answered, Moved, TakeOverOutcome, Taken, TakenOver, take_over};
 pub use trace::{
-    TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, TracedFrameFault, Traces,
-    trace_marks, traced_frame,
+    TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, Traces, pen_fault, trace_marks,
 };
 pub use var::{
     FreshEntry, Index, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId,

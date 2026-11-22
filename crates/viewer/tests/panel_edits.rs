@@ -309,7 +309,7 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
 fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
     let tol = Tol::witness();
     let (doc, extrude, member) = literal_and_pattern_doc(tol);
-    let text = pncad::document::save(&doc, &[], tol).expect("the fixture saves");
+    let text = pncad::document::save(&doc, tol).expect("the fixture saves");
     pncad::document::load(&text, tol).expect("and loads back as it was written");
 
     let count = doc

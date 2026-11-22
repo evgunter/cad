@@ -1,13 +1,15 @@
 ---
 id: step-import-discards-the-entity-ids-that-are-its-identity-channel
 kind: issue
-title: import_step keys its maps by the file's entity ids and discards them at the door, so an imported body has no provenance and cannot be told from a hand-built one
-status: open
+title: step-import decides which surface record a face wears by comparing f64 bits; the file's surface references should decide it, with distinct entities joined only by one_record's reported act and the exporter writing one entity per surface key
+status: closed
 opened: 2026-09-12
 refs: [2404]
 priority: P1
-cost: M
-design: true
+cost: H
+branch: export/import-records
+pr: 7361
+closed: 2026-11-22
 ---
 
 
@@ -112,3 +114,29 @@ write one of the four origins with real content rather than a bare tag.
 
 Nothing here claims EXCH's ground or reorders EXCH's slate — it is a
 cross-reference so the sequence survives WIRE's closure.
+
+## The design fork (EXPORT, 2026-11-17 to 2026-11-22)
+
+Weighed by three designers (`docs/DESIGN-FORK-PROTOCOL.md`, row 297 of `docs/DESIGN-FORK-LOG.md`).
+
+**The premise is stale.** The stamp channel this row would extend was retired: `GeomSource`, `SourceExpr`, `GeomOrigin`, `AxisSource` and `stamp_minted` went in INTENT stage 4 unit E, under PR 4322, and `docs/AXIS-DECLARATION-DESIGN.md` is deleted. `[import]` makes an imported body indistinguishable from a native one by intent. No identity token is built.
+
+**What the row is still evidence of.** The importer decides which surface record a face wears by comparing f64 bits (`adopt::surface_sig`, read at about six sites: `attach_surfaces`, `build::choose`, `snap`'s grouping, and the vertex-rooting reads in `build.rs`), beside a per-face slice of the file's own entity. That is a production bit-identity coincidence decision outside `scripts/gates/bit-identity-consumer.sh`. It joins silently what `one_record` would join reported, and it can disagree with `one_record`, which never joins opposite-facing faces.
+
+**The agreed answer** (all three designers, after one round):
+- surface records follow the file's references, with records a normalization mints (a knot split's sub-patches) as records of their own;
+- two distinct entities join only through `one_record`'s reported act;
+- `surface_sig` and its readers go;
+- `step-export` writes one surface entity per surface key;
+- `[import]` gains the paragraph "Records follow the file";
+- one import row per sharing pattern, each held to its native twin's at-rest verdict.
+
+**Measured, read-only.** Across the tree's 114 STEP files, no spline surface is stated twice. Every duplicated entity group is a plane or round surface facing one way (96 groups in 15 files), the case `one_record` joins.
+
+**Ev's concern** ("imported files can reach states that native files cannot") was weighed in two more rounds and probed. One record worn both ways in one solid is produced natively by `topo::union` (run). Every sharing pattern a file can state has a native producer, and import is narrower (it never shares across shells or solids). The unit therefore adds one import row per pattern, each held to its native twin's at-rest verdict. The one import state native bodies also reach and the boolean refuses, non-maximal planar faces, is its own row: `work/export/an-imported-union-ships-coplanar-same-record-neighbours-no-boolean-takes.md`.
+
+**Ruled (Ev, PR 7331, 2026-11-22):** approved, together with the `[import]` paragraph "Records follow the file". This row is now that unit. `work/origin/axis-source-lowered-bytes-carry-no-minter-namespace.md` closed as moot in the same PR.
+
+## Closed (2026-11-22)
+
+PR 7361 (`export/import-records`): surface records follow the file per shell; `surface_sig` and its readers are deleted; the writer emits one surface entity per key; per-pattern pins hold imports to their native twins. Dual review, fix pass, merged.

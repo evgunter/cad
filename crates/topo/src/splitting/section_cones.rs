@@ -12,7 +12,7 @@
 //! On each side, after the join and before the side's merges and joins,
 //! every section loop that passes a point at corners of two vertices is
 //! read through check 9's own reading
-//! ([`crate::validate::loop_point_groups`],
+//! ([`crate::loop_points::loop_corners`],
 //! [`crate::validate::point_corners`], the wedge about
 //! [`crate::validate::corner_normal`]). Where corner `i` holds another
 //! side of the loop at the point, and the wedge from `i`'s leaving side
@@ -43,8 +43,7 @@ use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::fuse::{Joint, fuse};
 use crate::unresolved::Unresolved;
 use crate::validate::{
-    CornerSide, PointCorner, WedgeNames, corner_normal, loop_point_groups, point_corners,
-    wedge_holds_named,
+    CornerSide, PointCorner, WedgeNames, corner_normal, point_corners, wedge_holds_named,
 };
 
 /// The split's cone-corner names ([`wedge_holds_named`]).
@@ -140,27 +139,23 @@ fn next_fusion<T: Decide>(
         let Some(f) = body.get_face(face) else {
             continue;
         };
-        for (cycle, at) in loop_point_groups(body, f) {
-            let vertex = |i: usize| body.get_half_edge(cycle[i]).map(|h| h.start);
-            let vertices = at
-                .iter()
-                .map(|&i| vertex(i).ok_or(desync(Unresolved::Record(EntityId::HalfEdge(cycle[i])))))
-                .collect::<Result<Vec<_>, _>>()?;
-            if vertices.iter().all(|&v| v == vertices[0]) {
-                continue;
-            }
-            let corners = point_corners(body, &cycle, &at);
-            if corners.len() < at.len() {
-                return Err(SplitFinishError::ConeCornerUnread {
-                    vertex: vertices[0],
-                });
-            }
-            if let Some((i, j)) = fusion_at(body, face, &corners, band)? {
-                return Ok(Some(Fusion {
-                    face,
-                    from: corners[i].1[0].0,
-                    to: corners[j].1[0].0,
-                }));
+        for l in f.loop_keys() {
+            let loop_corners = crate::loop_points::loop_corners(body, l).map_err(desync)?;
+            for group in loop_corners.groups().iter().filter(|g| g.pinches()) {
+                let at = group.corners();
+                let corners = point_corners(body, loop_corners.cycle(), at);
+                if corners.len() < at.len() {
+                    return Err(SplitFinishError::ConeCornerUnread {
+                        vertex: group.vertices()[0],
+                    });
+                }
+                if let Some((i, j)) = fusion_at(body, face, &corners, band)? {
+                    return Ok(Some(Fusion {
+                        face,
+                        from: corners[i].1[0].0,
+                        to: corners[j].1[0].0,
+                    }));
+                }
             }
         }
     }

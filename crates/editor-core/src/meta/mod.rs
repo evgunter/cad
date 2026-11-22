@@ -48,8 +48,8 @@ use std::collections::BTreeMap;
 /// ([`MetaError::NestedTooDeep`]).
 ///
 /// Equal to the expression bound ([`crate::expr::MAX_NESTING`]), not
-/// tied to it: either may move alone, since the load door reads the
-/// deeper of the two (`persist::nesting::BODY_NESTING`).
+/// tied to it: either may move alone, since the load door reads one
+/// level past the deeper of the two (`persist::nesting::BODY_NESTING`).
 pub const MAX_NESTING: usize = 128;
 
 /// **How deep a producer may nest**, in the nested `serialize` calls

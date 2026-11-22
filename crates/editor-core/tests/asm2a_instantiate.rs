@@ -732,9 +732,10 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // The counts are literals on purpose: a row that only compares the
     // two instances passes when both gain the same decisions. A copy
     // shares the part's product body under its own frame, so the
-    // placing op builds nothing and decides nothing: its pin is values
+    // placing op builds nothing and decides one thing: its pin is values
     // on the world's axes composed as a motion, reading no pose and
-    // deciding no margin. 826 is the part's, on its own nodes — its
+    // deciding no margin, and the placing door asks where the copy
+    // stands in its space (`session_box_reach`). 826 is the part's, on its own nodes — its
     // profile's pre-pass on the Profile node's log, then what the second
     // pass the `f64` lane skips decides, logged in its place
     // (`editor_core::ProfileLane`). Its placement's stand is the
@@ -755,8 +756,8 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // arise.
     assert_eq!(
         first.len(),
-        0,
-        "the instantiate op decides nothing; the part's {direct_total} decisions are its own"
+        1,
+        "the instantiate op decides its placement's box ask; the part's {direct_total} decisions are its own"
     );
     assert_eq!(direct_total, 1036, "the part's decisions on its own nodes");
 }
@@ -844,8 +845,8 @@ fn row3_instance_qualified_names_round_trip_persistence() {
             }),
         },
     );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("loads");
     assert!(
         loaded.appearance().keys().any(|k| k.name == name),
         "an instance-qualified name survives the wire verbatim"
@@ -1057,10 +1058,10 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
     let pin0 = content_pin(&doc, Tol::witness()).expect("pins");
 
     // A re-save of untouched content leaves the pin fixed.
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let reloaded = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let reloaded = load(&text, Tol::witness()).expect("loads");
     assert_eq!(content_pin(&reloaded, Tol::witness()).expect("pins"), pin0);
-    let again = save(&reloaded, &[], Tol::witness()).expect("saves again");
+    let again = save(&reloaded, Tol::witness()).expect("saves again");
     assert_eq!(text, again, "saves are byte-stable");
 
     // A placement moves it.
@@ -1207,8 +1208,8 @@ fn row7_instantiate_and_placement_round_trip() {
         &opts,
     );
 
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("loads");
     assert!(loaded.bit_eq(&doc), "the offset round-trips bit for bit");
     assert!(
         fixture::offset_of(&doc, ids[1]).is_some()
@@ -1219,7 +1220,7 @@ fn row7_instantiate_and_placement_round_trip() {
         matches!(loaded.node(ids[0]), Some(Node::InstantiatePart { doc_ref: r, .. }) if *r == doc_ref)
     );
     assert_eq!(
-        save(&loaded, &[], Tol::witness()).expect("saves"),
+        save(&loaded, Tol::witness()).expect("saves"),
         text,
         "byte-stable"
     );

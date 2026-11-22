@@ -4,6 +4,8 @@ kind: issue
 title: The edge sweep's line × wall and line × sphere roots carry no rounding slack, where its line × cone roots do
 status: open
 opened: 2026-10-31
+priority: P2
+cost: M
 ---
 
 
@@ -18,10 +20,10 @@ witness is `verbs_germarms2_interval`'s skew pair at 1e-12, whose
 re-posed twin then escalated on `pcurve_map_residual` instead of
 `carrier_matches_mapped_source`.
 
-The edge sweep's door (`boolean/reduce.rs` `line_wall_roots_of`, the
+The edge sweep's door (`boolean/reduce.rs` `line_quadric_roots`, the
 two `WallRoots::Two(ts, _) => two(ts)` arms) drops the slack: a line
 edge's wall and sphere roots go on as exact. Its cone arm does meter its
-roots (`line_cone_roots`, `bool_line_cone_root_slack`).
+roots (`line_cone_roots`, `line_quadric_cone_root_slack`).
 
 **The start form's discriminant carries its start's rounding too**
 (PR 6174's review). Read `About::Start` from far starts, 7 line × sphere
@@ -37,3 +39,13 @@ arm carries its own. Then state the start form's disc margin's rounding,
 or charge it as `Centred::charged` does for the nearest form.
 
 Moved from ROOTS to GERM on 2026-11-02, by `git mv`, when ROOTS merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## 2026-11-20: the cone arm reads about the nearest (`germ/line-cone-one-rule-set`)
+
+The edge door's cone arm now poses its quadratic `About::Nearest`, as
+the ray did, and meters each root with `Centred::roots`' slack. The
+witness above does not move: `verbs_germarms2_interval`'s skew pair at
+1e-12 answers the same before and after (direct `GermSectionUnbuilt …
+NoLane`, re-posed twin `CrossingInsertion … carrier_matches_mapped_source`
+at `[0, 1.06e-12]`), since its operands have no cone face. The wall and
+sphere arms are unchanged and still owe what this row says.

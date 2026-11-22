@@ -118,6 +118,55 @@ change 15 rows still refuse: 9 out of pairs, 4 on the departure arm
 (the two drums, the two-arc lune, the torus belly re-posed), 2 at a
 window.
 
+## Measured on main `da49c63f` (EMBED, lane cavity-trace, 2026-11-18)
+
+**Setup.**
+- Main `da49c63f` (after PRs 7086, 7089, 7093 and 7105), f64.
+- The sweep crate's cavity rows asked at f64 through a local,
+  uncommitted `CavityGate` switch, which prints the verdict door's
+  report, over the rows' whole test modules (230 tests).
+- 14 fail. Two are the crossing pins, which move with the switch:
+  `shell5_r2_probes::r2_a_thin_curved_wall_shells_silently_into_crossing_walls`
+  and `a_move_through_a_neighbour_inverts_the_body::the_shell_verb_refuses_the_crossing_at_its_closing_gate`.
+- **12 valid rows refuse**, in four classes. `editor-core`'s capped
+  vessel was not re-run here; it shelled on 2026-11-13.
+
+"Receipt" is discharged / refused / splits / outside / certified.
+
+| row | refusal (faces, shared cell) | carriers | receipt | class |
+|---|---|---|---|---|
+| `shell7_seam_corner::a_two_arc_sphere_shells_to_its_closed_form` | `Budget(Pairs)`; spent on `1v1 × 2v1` across `Edge(1v1)` | sphere × sphere | 45,928 / 19,608 / 65,526 / 56 / 154 | pole |
+| `shell9_probe::sphere_grafted_body_is_tier_3_valid_…` | the same | the same | the same | pole |
+| `shell9_r2_probes::r2_e2e_two_arc_sphere_hollows_and_tessellates` | the same | the same | the same | pole |
+| `shell_curved_mouth::a_tangent_dome_shells_at_its_tangent_circle` | `Budget(Pairs)`; spent on `1v1 × 2v1` across `Edge(1v1)` | sphere × sphere (beside two cylinders and a plane) | 45,835 / 19,701 / 65,523 / 0 / 79 | pole |
+| `shell_curved_mouth::opening_a_tangent_dome_refuses_two_equidistant_roots` | the same | the same | the same | pole |
+| `shell_curved_mouth::a_dome_short_of_tangent_shells_at_its_upper_root` | the same | the same | 45,881 / 19,655 / 65,523 / 17 / 85 | pole |
+| `verbs_shell::the_full_period_torus_shells_solid_and_hollow_alike` | `Budget(Pairs)`; spent on `1v5 × 4v1`, `2v3 × 3v1` (no shared cell) | torus × torus, nested | 52,548 / 12,988 / 65,526 / 11,642 / 352 | nested tori |
+| `shell7_r2_probes::e2e_a_consumer_shells_classifies_measures_and_tessellates_tori` | the same | the same | the same | nested tori |
+| `cross_solid_apart::a_hollow_shelled_again_passes_the_census` | the same | the same | the same | nested tori |
+| `torax_axial::torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows` | `Uncertified { 3v1, 4v1, Edge(6v1), Departure }` | sphere × sphere; plane caps | 120 / 21 / 131 / 24 / 16 | lune |
+| `sf2b_r2_probes::r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges` | `Unsupported { "a face whose carrier window is not a finite rectangle", 1v1 }` | plane cap, hyperbola edge | empty | rational window |
+| `shell7_seam_corner::a_three_quarter_turn_cone_frustum_hollows` | the same | the same | empty | rational window |
+
+**What moved since 2026-11-13:**
+- **Out of pairs:** 9 then, 9 now, the same rows.
+- **Departure:** 6 then (two drums, three lunes, the torus belly), 1
+  now, the two-arc lune:
+  - the lens reading (lane clear-corner2) shelled two lunes;
+  - PR 7089 (`Reading::Conic`) shelled the drums;
+  - PR 7093 (the cylinder's quadrant at a vertex alone) shelled the
+    torus belly re-posed.
+- **Window:** 2 then, the same 2 now.
+
+**The classes**, one row each (traced there):
+
+| class | rows | row | what fails |
+|---|---:|---|---|
+| **pole** | 6 | `a-sphere-face-whose-extent-stops-ulps-short-of-its-pole-never-places-the-pole` | The two sphere faces sharing a great circle split about 85k times at the pole and never certify. The rectangle is clipped to a stored extent 3 ulps below `π/2`, so the pole's collapsed side is skipped, the pole vertex is left loose, and `zero_of` returns `Local` at every depth. |
+| **nested tori** | 3 | `nested-tori-a-thin-gap-apart-spend-the-pair-budget-on-box-distance` | Inner against outer torus, 0.025 apart and sharing nothing, are separated by box distance alone: about 77k splits to depth 22, certifying slowly, never refused. |
+| **lune** | 1 | the departure row, `departure-reads-no-curved-corner-off-its-shared-edge` (trace added there) | The sphere faces read `Structural` beside the caps' off-axis circles. |
+| **rational window** | 2 | `a-rational-edges-whole-span-enclosure-is-unbounded-so-its-face-has-no-window` | The cap's hyperbola is a rational quadratic, and its one-interval whole-span enclosure is unbounded, so the face's box and window are infinite. |
+
 ## Carried by the switch (review of PR 6885)
 
 - At `Probe` the switch puts the cavity sweep's samples into the K

@@ -40,8 +40,7 @@ use crate::fixture;
 
 use corpus::{Recorder, eval, failures};
 use editor_core::{
-    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide, ValuePayload,
-    persist,
+    Node, NodeErrorKind, NodeResult, RecipeNodeId, SplitHalf, SplitSide, ValuePayload, persist,
 };
 use fixture::digest::digest;
 use fixture::{len, square, tol};
@@ -115,12 +114,13 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
         .into_iter()
         .find(|d| d.name == "part_select")
         .expect("the document is registered");
-    let snapshot = ProfileDoc::empty_derived("seat8_split_roundtrip", tol());
-    let first = persist::save(&snapshot, &doc.edits, tol()).expect("the document saves");
+    let first = persist::save(&doc.doc, tol()).expect("the document saves");
     let loaded = persist::load(&first, tol()).expect("its own bytes load back");
-    assert_eq!(loaded.edits, doc.edits, "the edit log did not survive");
-    let second = persist::save(&loaded.snapshot, &loaded.edits, tol())
-        .expect("the loaded document re-saves");
+    assert!(
+        loaded.bit_eq(&doc.doc),
+        "the loaded document is not bit-identical to the registered one"
+    );
+    let second = persist::save(&loaded, tol()).expect("the loaded document re-saves");
     assert_eq!(
         first, second,
         "a split document does not round-trip byte-identically"
@@ -453,9 +453,9 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xd978_3279_a614_f38c_u64),
-        ("part_select", 0x80a0_2a31_a48f_de42),
-        ("kitchen_sink", 0x76e9_14eb_4322_b8fb),
+        ("cut_cylinder", 0xe5a6_6d83_0fff_478c_u64),
+        ("part_select", 0x323e_0e72_9c73_bca0),
+        ("kitchen_sink", 0x4080_aff5_e382_f53d),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -625,7 +625,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     // the walls' origins moved back to where their fitted centroids
     // stood, to rounding; the caps' stay at their sketch origins.
     assert_eq!(
-        got, 0x4623_582c_d764_9006,
+        got, 0x1d9e_9348_6605_d97e,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

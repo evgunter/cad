@@ -111,7 +111,7 @@ fn a_validated_wall_never_refuses_its_own_boundary_column() {
             }
         }
     };
-    for name in SOLID_FIXTURES {
+    for &name in SOLID_FIXTURES {
         let (body, _) = import_body(name);
         walk(name, &body);
     }

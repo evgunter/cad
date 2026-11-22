@@ -18,7 +18,7 @@ use editor_core::{
 use fixture::{insert, len, step};
 use geom_core::Sign;
 use geom_core::Tol;
-use geom_core::k_stats::Verdict;
+use geom_core::k_stats::{Role, Verdict};
 
 fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -145,15 +145,33 @@ fn diagnosis(
     diagnosis
 }
 
+/// `ev` with `node`'s log replaced by one choice of
+/// `bool_point_in_solid_plane` decided `sign`, and no candidate marks:
+/// a turn set by hand on a real run, where the real edit's runs part at
+/// their candidates and record none.
+fn with_turn(mut ev: Evaluation<f64>, node: RecipeNodeId, sign: Sign) -> Evaluation<f64> {
+    let Some(editor_core::NodeResult::Ok(value)) = ev.nodes.get_mut(&node) else {
+        panic!("{node:?} built");
+    };
+    value.verdicts = std::sync::Arc::new(vec![Verdict {
+        predicate: "bool_point_in_solid_plane",
+        sign,
+        role: Role::Choice,
+    }]);
+    value.marks = std::sync::Arc::default();
+    ev
+}
+
 #[test]
 fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     // Two independent plates-with-bars in one document. The first
     // bar slides along its cap in y (the cap's fragment group goes
     // from two to one, no flip); the second, unrelated one withdraws
-    // in x, which records a containment flip at the SECOND cut. That
+    // in x. Its cut's runs part at the candidates its box queries hand
+    // on, so it records no turn of its own; one is set on its log. That
     // flip is on no path and upstream of nothing in the first scene,
     // so the first scene's fragments are answered by their own
-    // evidence: the group-size fact.
+    // evidence: where the first cut's runs part.
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
     let (doc, tr1, cut1) = slot(doc, 0.0);
     let (doc, tr2, cut2) = slot(doc, 100.0);
@@ -162,40 +180,20 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     assert!(!names.is_empty(), "the first cut mints fragments");
     let doc2 = slide(slide(doc.clone(), &tr1, 1, 2.5), &tr2, 0, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
+    let (ev1, ev2) = (
+        with_turn(ev1, cut2, Sign::Negative),
+        with_turn(ev2, cut2, Sign::Positive),
+    );
     let flips = editor_core::diff_verdicts(&ev1, &ev2).report();
     assert!(
         flips.iter().any(|(n, _)| *n == cut2),
         "the unrelated edit records a flip at the second cut: {flips:?}"
     );
-    // The first bar's walls (`block`'s profile runs counter-clockwise
-    // from `(x0, y0)`: wall 0 is y = y0, 1 is x = x1, 3 is x = x0).
-    let Some(Node::Place { source, .. }) = doc.node(tr1.placement) else {
-        panic!("slot() places the bar");
-    };
-    let bar1 = &doc
-        .operation_of(source.read)
-        .expect("the placement reads a live bar");
-    let wall = |segment| StableName {
-        kind: EntityKind::Face,
-        node: *bar1,
-        path: vec![RoleSeg::Lateral(
-            crate::fixture::piece(&doc, *bar1, 0, segment).into(),
-        )],
-    };
     let Some(Node::Subtract {
         tool: tool_read, ..
     }) = doc.node(cut1)
     else {
         panic!("slot() cuts the plate with a subtract");
-    };
-    // A seam's side: the bar's wall as the cut's table carries it in.
-    let cutter = |segment| StableName {
-        kind: EntityKind::Face,
-        node: cut1,
-        path: vec![RoleSeg::From {
-            read: tool_read.read,
-            of: wall(segment).into(),
-        }],
     };
     let mut vanished = 0;
     for name in &names {
@@ -210,26 +208,13 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
             continue;
         }
         vanished += 1;
-        // Landing short of the cap's far edge, the bar's y = y0 wall
-        // starts crossing the cap, and both its x walls leave the cap's
-        // near rim edge.
-        // The cutters are read in name order.
-        let (gone, new) = match name.kind {
-            EntityKind::Face => (vec![], vec![cutter(0)]),
-            _ => {
-                let mut gone = vec![cutter(1), cutter(3)];
-                gone.sort();
-                (gone, vec![])
-            }
-        };
-        assert_eq!(
-            diagnosis((&doc2, &ev2), (&doc, &ev1), name),
-            Diagnosis::GroupResized {
-                node: cut1,
-                was: 2,
-                now: 1,
-                cutters: editor_core::GroupCutters::Read { gone, new },
-            },
+        // The first cut's own runs part where its box query hands on
+        // other candidates, and that is named at the first cut.
+        assert!(
+            matches!(
+                diagnosis((&doc2, &ev2), (&doc, &ev1), name),
+                Diagnosis::Parted { node, site, .. } if node == cut1 && site.name == "bool_glue_pairs"
+            ),
             "{name:?}"
         );
     }
@@ -239,11 +224,12 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
 #[test]
 fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     // The cutter is itself a union of two bars (`cutter`). Sliding the
-    // second bar clear of the first records a flip at the cutter's
-    // union and leaves the plate's far rim undivided. A piece of that
-    // rim is named by its ends, which are crossings of the cutter's
-    // faces, so the cutter is on ITS derivation path: the flip answers
-    // it on the path. A name of the cut that mentions no partner has
+    // second bar clear of the first leaves the plate's far rim
+    // undivided; the cutter's runs part at the candidates its box
+    // queries hand on, so a turn is set on its log. A piece of that rim
+    // is named by its ends, which are crossings of the cutter's faces,
+    // so the cutter is on ITS derivation path: the flip answers it on
+    // the path. A name of the cut that mentions no partner has
     // the cutter upstream of it and off its path, and the same flip is
     // a candidate cause there — it fed the cut — reported as that,
     // with its node, in the upstream scope (hand-built tables at the
@@ -270,6 +256,10 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let ev1 = run(&doc, None);
     let doc2 = slide(doc.clone(), &tr, 1, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
+    let (ev1, ev2) = (
+        with_turn(ev1, cutter, Sign::Negative),
+        with_turn(ev2, cutter, Sign::Positive),
+    );
     let from_read = crate::fixture::out(&doc, a);
     let pieces: Vec<StableName> = fragments(&ev1, cut)
         .into_iter()
@@ -307,6 +297,7 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
+        role: Role::Choice,
     };
     let (before, after, name) = collapsing_group(&doc, cut);
     let prior = two_node_eval(&doc, (cutter, vec![verdict(Sign::Negative)]), (cut, before));
@@ -426,6 +417,7 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
+        role: Role::Choice,
     };
     let (before, after, name) = collapsing_group(&doc, cut);
     let prior = hand_eval(
@@ -483,6 +475,7 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
+        role: Role::Choice,
     };
     let prior = two_node_eval(&doc, (w, vec![verdict(Sign::Negative)]), (n, before));
     let now = two_node_eval(&doc2, (w, vec![verdict(Sign::Positive)]), (n, after));
@@ -646,6 +639,7 @@ fn the_border_delta_outranks_an_upstream_flip() {
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
+        role: Role::Choice,
     };
     let prior = two_node_eval(&doc, (u, vec![verdict(Sign::Negative)]), (n, table(&old)));
     let now = two_node_eval(

@@ -31,7 +31,7 @@ specified in `docs/PATHS-DESIGN.md` and is not restated here.
 | Structure record for guided replay (V2, V3) | `crates/profile/src/structure.rs` |
 | Validation ladder, canonical form (V6) | `crates/profile/src/validate.rs`, `seg.rs` |
 | The v1-form → program lift tool (V5) | `crates/profile/src/lift.rs` |
-| Expr-bearing program, slots, authoring-time check (V2, V4) | `crates/editor-core/src/program.rs`, `node.rs` |
+| Expr-bearing program, slots, the value-free door check (V2, V4) | `crates/editor-core/src/program.rs`, `node.rs` |
 | Persisted form (V4) | `crates/editor-core/src/program.rs` (serde derives), `crates/editor-core/src/persist/wire.rs` (`plane_ref`) |
 | Evaluation: resolve, replay, validate, naming anchor (V2, V3) | `crates/editor-core/src/eval/mod.rs`, `eval/wire.rs`, `eval/anchor.rs` |
 
@@ -126,10 +126,12 @@ driver's walk over the prefix, reading the tip it stops at):
 The first pass reads the traces off the nominal f64 evaluation, and
 every lane re-reads them at its own scalar.
 
-`ProfileProgram::check` runs resolve + replay + validate under the
-current parameter environment at the edit door
-(`ProgramRefusal::{Resolve, Transition, Geometry, Validate}`);
-evaluation re-runs the same ladder per binding.
+The edit door and the load door ask a program only its lattice of
+verbs (`ProgramRefusal::Transition`), which no binding moves: the walk
+`chain_shape` takes over the steps with their values erased
+(`ProfileProgram::lattice`). Resolve + replay + validate
+(`ProgramRefusal::{Resolve, Geometry, Validate}`) run at evaluation, per
+binding: each member of a family, each analysis sample, the nominal.
 
 **V3 — Caches and provenance.** Replayed segments, the structure record
 and the naming anchor are derived values: memoized per node under a
@@ -259,8 +261,10 @@ independent closed-form oracles.
   segment; the program form carries them the day the segment layer does.
 - **VQ8 — Plane placement is not an expression slot.** It is a frame
   node reference (V4), stored apart from the loop programs.
-- **VQ9 — Checks bind twice.** At the edit door under the current
-  environment (fail-loud early) and at every evaluation (V2).
+- **VQ9 — Values bind once, at evaluation.** A program whose geometry
+  refuses at some values is legal at rest (V1), so the doors judge only
+  what no binding moves, and every value is judged at every binding
+  evaluation runs (V2).
 
 **V8 — Acceptance shape.** The record → replay differential pin (V1),
 plus a corpus scene with a real parameter driven from geometry into a
@@ -571,9 +575,16 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
   carrier is one edge. A segment also records the unit directions its
   construction made, a line's director and an arc's radial at each
-  end: the verb that drew the segment holds them exactly, a table's are
-  decided once at validate, and a door that needs one reads it here and
-  never divides the difference of two vertices by its own length. The
+  end. The verb that drew the segment records them: a construction
+  that has the direction holds it exactly, and a hop between two
+  points is given its director by the one mint, which that hop's
+  junction checks read too (the axis where a component of the chord is
+  identically zero by the symbolic tier's structural question
+  (ERROR-DESIGN E12), signed by a
+  reading of the other component; the chord over its length
+  otherwise). A table's are minted the same way, once at validate. A
+  door that needs a direction reads it here, and the mint is the one
+  place that divides the difference of two vertices by its length. The
   form is redundant (the vertices lie on the
   carrier, a recorded direction agrees with them, Δθ agrees with them
   mod 2π, 0 < |Δθ| ≤ 2π), and those

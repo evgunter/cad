@@ -394,10 +394,10 @@ fn never_minted_node_reports_foreign_not_deleted() {
     }
 }
 
-// ---- Vanished: PredicateFlip diagnosis + tombstone + collapse offer ----
+// ---- Vanished: an honest diagnosis + tombstone + collapse offer ----
 
 #[test]
-fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
+fn a_vanished_join_diagnoses_honestly_with_tombstone() {
     let s = slide_union(0.5);
     let ev1 = run(&s.doc, None);
     let probe = joined_rim_name(&ev1, s.union);
@@ -426,18 +426,19 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
         panic!("expected Vanished, got {:?}", f.error);
     };
     assert_eq!(*name, probe);
-    // The pillar's promise: a recorded predicate flip on the
-    // derivation path, with real signs.
-    let Diagnosis::PredicateFlip {
-        predicate,
-        from,
-        to,
-    } = diagnosis
-    else {
-        panic!("expected PredicateFlip, got {diagnosis:?}");
-    };
-    assert!(!predicate.is_empty());
-    assert_ne!(from, to);
+    // The union's two runs part where its pruning queries hand on other
+    // candidates (the slid block leaves the other's boxes), before any
+    // choice turns: no flip is on the record, so the diagnosis names
+    // the union's face-pair query where the runs parted, and never a
+    // flip read off decisions about different pairs (N5's first turn).
+    assert!(
+        matches!(
+            diagnosis,
+            Diagnosis::Parted { node, site, step: 0 }
+                if *node == s.union && site.name == "bool_glue_pairs"
+        ),
+        "{diagnosis:?}"
+    );
     // The tombstone: last-good entry at the union, edge kind, owning
     // body = the union's body name.
     let t = last_good.as_ref().expect("prior run resolved the name");
@@ -687,7 +688,8 @@ fn member_of_vanished_master_name_diagnoses_cascade() {
         },
         "the upstream vanish carries the root cause"
     );
-    // And the through-name's own resolution chains to the flip.
+    // And the through-name's own resolution names where the union's
+    // runs part (`a_vanished_join_diagnoses_honestly_with_tombstone`).
     let res_master = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
@@ -702,13 +704,17 @@ fn member_of_vanished_master_name_diagnoses_cascade() {
     let Resolution::Failed(fm) = res_master else {
         panic!("expected Failed, got {res_master:?}");
     };
-    assert!(matches!(
-        fm.error,
-        ResolveError::Vanished {
-            diagnosis: Diagnosis::PredicateFlip { .. },
-            ..
-        }
-    ));
+    assert!(
+        matches!(
+            fm.error,
+            ResolveError::Vanished {
+                diagnosis: Diagnosis::Parted { node, site, .. },
+                ..
+            } if node == s.union && site.name == "bool_glue_pairs"
+        ),
+        "{:?}",
+        fm.error
+    );
 }
 
 // ---- Indeterminate: failed and poisoned targets ----

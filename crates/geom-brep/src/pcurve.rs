@@ -129,31 +129,36 @@ pub fn ellipse_pcurve_on_plane(
     t0: f64,
     t1: f64,
 ) -> Result<NurbsCurve2<f64>, PcurveError> {
-    let &Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        semi_u,
-        semi_v,
-    }) = carrier
+    let &Curve3::Ellipse(
+        conic_k @ geom::Ellipse {
+            frame: carrier_frame_12,
+            ..
+        },
+    ) = carrier
     else {
         return Err(PcurveError::WrongLane {
             expected: "an Ellipse carrier into a Plane chart",
         });
     };
+    let (center, axis, u_ref) = (
+        carrier_frame_12.origin(),
+        carrier_frame_12.axis(),
+        carrier_frame_12.u_ref(),
+    );
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let &Surface::Plane {
-        origin: q,
-        normal: n,
-        u_ref: pu,
+        frame: carrier_frame,
     } = plane
     else {
         return Err(PcurveError::WrongLane {
             expected: "an Ellipse carrier into a Plane chart",
         });
     };
+    let (q, n, pu) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let span = t1 - t0;
     if !(span.is_finite() && span > 0.0) {
         return Err(PcurveError::DegenerateSpan);

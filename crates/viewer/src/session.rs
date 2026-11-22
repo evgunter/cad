@@ -98,8 +98,8 @@ pub(crate) mod snap;
 pub use author::{BooleanSpec, PartSelectSpec, PatternDirection, PatternRuleSpec};
 pub use delete::DeleteAffordance;
 pub use op::{
-    CancelDoor, ClearedSeat, Creation, FreeMoveName, GestureName, OpOutcome, PlaceTarget,
-    PlacementBase, SessionOp, SplitPlane, ValueGestureName,
+    AssertedClaim, AssertedSeat, CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome,
+    PlaceTarget, PlacementBase, SessionOp, SplitPlane, ValueGestureName, measured,
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
@@ -480,6 +480,19 @@ pub struct DocSession {
     /// [`DocSession::generation`], which every route that changes the
     /// shown document moves ([`DocSession::request_eval`]).
     offers: crate::generation::GenerationMemo<RecipeNodeId, PlacementOffers>,
+    /// **The delete last rehearsed, with the history state and node it
+    /// was rehearsed for** ([`DocSession::priced_delete`]): the delete
+    /// button asks its wording and its refusal every frame, and one
+    /// rehearsal of the whole delete answers both.
+    ///
+    /// Keyed by the history state because the committed document is all
+    /// a rehearsal reads, and a gesture's previews move the generation
+    /// without moving it. A state's document changes under its id only
+    /// where the history is replaced or re-identified, and both drop
+    /// this ([`DocSession::clear_for_new_document`],
+    /// [`DocSession::save_as_new_document`]). Behind a mutex because
+    /// the panes ask through a shared borrow.
+    priced: std::sync::Mutex<Option<(HistoryId, RecipeNodeId, PricedDelete)>>,
     /// **The re-point buttons read this generation**
     /// ([`DocSession::repoint_button`]), each source row and "copy of" row
     /// asking under its own source and selected body: each asks the same
@@ -652,6 +665,15 @@ struct Derived {
     /// what its standing reads while no run answers the shown document
     /// ([`DocSession::name_run`]).
     verdict: Option<(Selection, Option<Box<Resolution>>)>,
+}
+
+/// **A delete rehearsed against the committed document**
+/// ([`DocSession::priced_delete`]): what its button says, and the
+/// refusal the click would get.
+#[derive(Clone)]
+struct PricedDelete {
+    affordance: DeleteAffordance,
+    refusal: Option<Arc<Refusal>>,
 }
 
 /// **Which run answers the shown document's names while its own run is
@@ -1084,6 +1106,7 @@ impl DocSession {
             resolver: None,
             notation: Notation::DEFAULT,
             offers: crate::generation::GenerationMemo::default(),
+            priced: std::sync::Mutex::new(None),
             repoints: crate::generation::GenerationMap::default(),
             bundles: crate::generation::GenerationMemo::default(),
             proposals: crate::generation::GenerationMemo::default(),
@@ -1156,6 +1179,12 @@ impl DocSession {
     /// The `cascade` field is the deletion order itself — exactly what
     /// [`SessionOp::DeleteNode`] applies — so the number on the button
     /// and the number of features that vanish are one list read twice.
+    /// The `stranded` field counts what the delete's own rehearsal
+    /// reports ([`Self::priced_delete`]), so the number of names the
+    /// button says it strands is the number the click's
+    /// [`OpOutcome::maintenance`] is about. A delete the click would
+    /// refuse ([`Self::delete_refusal`]) removes and strands nothing,
+    /// and its affordance says so.
     ///
     /// Read off the COMMITTED document, which is the one the edits
     /// apply to; the delete op is one of the table's refusals
@@ -1163,7 +1192,7 @@ impl DocSession {
     /// holds a scratch value, so the two never disagree at a live
     /// button.
     pub fn delete_affordance(&self, node: RecipeNodeId) -> DeleteAffordance {
-        DeleteAffordance::of(self.committed_doc(), node)
+        self.priced_delete(node).affordance
     }
 
     /// **The chrome's cancel doors, one per gesture** — the exits
@@ -2339,13 +2368,13 @@ impl DocSession {
             } => self.edit_profile(node, &base, loops, ids),
             op @ (SessionOp::AddProfile { .. }
             | SessionOp::SketchOnFace { .. }
-            | SessionOp::AddDrawnProfile { .. }
+            | SessionOp::DrawOnFace { .. }
             | SessionOp::AddExtrude { .. }
             | SessionOp::AddRevolve { .. }
             | SessionOp::AddBoolean { .. }
             | SessionOp::AddSplit { .. }
             | SessionOp::AddMirror { .. }
-            | SessionOp::AddClearance { .. }
+            | SessionOp::AddAssertion { .. }
             | SessionOp::Place { .. }
             | SessionOp::AddPattern { .. }
             | SessionOp::AddFusedPattern { .. }
@@ -2402,11 +2431,11 @@ impl DocSession {
                 distance,
                 spin,
             } => self.sketch_on_face(&face, loops, distance, spin),
-            SessionOp::AddDrawnProfile {
-                plane,
+            SessionOp::DrawOnFace {
+                face,
                 traced,
                 chains,
-            } => self.add_drawn_profile(&plane, &traced, chains),
+            } => self.draw_on_face(&face, &traced, chains),
             SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
             SessionOp::AddRevolve {
                 profile,
@@ -2417,7 +2446,7 @@ impl DocSession {
             SessionOp::AddBoolean { spec } => self.add_boolean(spec),
             SessionOp::AddSplit { target, plane } => self.add_split(target, &plane),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
-            SessionOp::AddClearance { a, b, bounds } => self.add_clearance(a, b, bounds),
+            SessionOp::AddAssertion { a, b, claim } => self.add_assertion(a, b, claim),
             SessionOp::Place { body, target, name } => self.place(body, target, name),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
@@ -3322,6 +3351,8 @@ impl DocSession {
         match docio::save_as_new_document(path, self.history.doc(), self.tol) {
             Ok(id) => {
                 self.history.under_identity(id);
+                // Every state's document changed under its id.
+                self.forget_priced_delete();
                 // The landed run is of the old identity, so a run is
                 // owed whether or not the folder moved.
                 if !self.bind_file(path) {
@@ -3428,16 +3459,25 @@ impl DocSession {
         self.landed_withdrawals.clear();
         // History ids are arena positions of the outgoing history.
         self.inserts.clear();
+        self.forget_priced_delete();
+    }
+
+    /// Drop the kept delete rehearsal (`DocSession::priced`).
+    fn forget_priced_delete(&mut self) {
+        *self
+            .priced
+            .get_mut()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
     }
 
     /// Insert one profile node ([`SessionOp::AddProfile`]), drawn on its
     /// own plane.
     ///
     /// No loop-count or nesting judgment here: every list goes to
-    /// `commit`, where the edit door's authoring-time check refuses a
-    /// degenerate loop or a non-nested pair typed in the profile
-    /// layer's own words — the one rule authored and hand-written
-    /// programs share. An empty list is the empty region, and inserts.
+    /// `commit`, the one door authored and hand-written programs share;
+    /// a degenerate loop or a non-nested pair is the profile's
+    /// evaluation's to refuse, in the profile layer's own words. An
+    /// empty list is the empty region, and inserts.
     fn add_profile(&self, loops: Vec<LoopProgram<Formula>>) -> Result<Creating, Refusal> {
         Ok(creating(move |run| {
             run.insert(Node::Profile(ProfileProgram {
@@ -3495,77 +3535,73 @@ impl DocSession {
         }))
     }
 
-    /// **A profile drawn on the frame of `plane` and the first traced
-    /// face, tracing `traced`** ([`SessionOp::AddDrawnProfile`]): the
-    /// frame read against an evaluation of the committed document
-    /// ([`drawn_frame`]), the program built by the façade's door
-    /// ([`pncad::trace::drawn_profile`], which checks each argument's
-    /// dimension), and one `InsertNode`.
-    fn add_drawn_profile(
+    /// **A profile drawn on `face`, tracing `traced`**
+    /// ([`SessionOp::DrawOnFace`]): `chains` as the façade checks them
+    /// ([`pncad::trace::chain_loops`]), drawn on the face's chart at its
+    /// nearest orientation by the kernel's one door
+    /// (`Recording::draw_on_face`), each pick read on the body it
+    /// landed on ([`picked_body`]), against an evaluation of the
+    /// committed document.
+    fn draw_on_face(
         &self,
-        plane: &FaceSelection,
+        face: &FaceSelection,
         traced: &[FaceSelection],
         chains: Vec<pncad::trace::Chain>,
     ) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
-        let Some(first) = traced.first() else {
-            return Err(Refusal::Frame(Box::new(GestureFrameFault::Traced(
-                Arc::new(pncad::trace::TracedFrameFault::NotAFace),
-            ))));
+        let picked = |face: &FaceSelection| Refusal::PickedMember {
+            node: doc.spoken(face.node),
         };
-        let ev: Evaluation<f64> = pncad::document::evaluate(
-            doc,
-            None,
-            &pncad::document::CancelToken::new(),
-            &self.eval_options(),
-            self.tol,
-        );
-        let read = |face: &FaceSelection| {
-            pick_read(doc, Some(&ev), face).ok_or_else(|| Refusal::PickedMember {
-                node: doc.spoken(face.node),
-            })
-        };
-        let frame = match drawn_frame(doc, &ev, (&read(plane)?, &read(first)?), self.tol) {
-            Ok(frame) => frame,
-            Err(fault) => {
-                return Err(Refusal::Frame(Box::new(GestureFrameFault::Traced(
-                    Arc::new(fault),
-                ))));
-            }
-        };
-        let faces = traced.iter().map(read).collect::<Result<Vec<_>, _>>()?;
-        match pncad::trace::drawn_profile(frame, faces, chains) {
-            Ok(node) => Ok(creating(move |run| run.insert(node))),
-            Err(error) => Err(Refusal::Edit(Box::new(error))),
-        }
+        let (body, name) = picked_body(doc, self.evaluation(), face).ok_or_else(|| picked(face))?;
+        self.require_read(&body.read, NodeKindWanted::Body)?;
+        let faces = traced
+            .iter()
+            .map(|face| pick_read(doc, self.evaluation(), face).ok_or_else(|| picked(face)))
+            .collect::<Result<Vec<_>, _>>()?;
+        let loops = pncad::trace::chain_loops(chains).map_err(|e| Refusal::Edit(Box::new(e)))?;
+        let opts = self.eval_options();
+        Ok(creating(move |run| {
+            run.draw_on_face(
+                body,
+                name,
+                loops,
+                the_forms_chart(faces),
+                (&opts, &pncad::document::CancelToken::new()),
+            )
+        }))
     }
 
-    /// **`face`'s trace in the plane of `plane`, for display**
+    /// **`face`'s trace on `on`, for display**
     /// ([`pncad::trace::sketch_trace`]), against the landed evaluation:
-    /// on the frame a profile drawn there tracing `face` stands on
-    /// ([`drawn_frame`]), read as that profile would read it, and
-    /// sampled across a square the traced body spans. Nothing is
-    /// written.
+    /// on the chart the form's profile on `on` stands on, read by the
+    /// door the commit draws through ([`pncad::document::chart_on_face`],
+    /// [`the_forms_chart`]), read as that
+    /// profile would read it, and sampled across a square the traced
+    /// body spans. Nothing is written.
     ///
     /// # Errors
     ///
     /// [`SketchTraceFault`].
     pub fn sketch_trace(
         &self,
-        plane: &FaceSelection,
+        on: &FaceSelection,
         face: &FaceSelection,
     ) -> Result<pncad::trace::TraceMarks, SketchTraceFault> {
         let (doc, ev) = self.name_run().ok_or(SketchTraceFault::Unevaluated)?;
-        let read = |face: &FaceSelection| {
-            pick_read(doc, Some(ev), face).ok_or_else(|| {
-                SketchTraceFault::Picked(Arc::new(Refusal::PickedMember {
-                    node: doc.spoken(face.node),
-                }))
-            })
+        let picked = |face: &FaceSelection| {
+            SketchTraceFault::Picked(Arc::new(Refusal::PickedMember {
+                node: doc.spoken(face.node),
+            }))
         };
-        let traced = read(face)?;
-        let frame = drawn_frame(doc, ev, (&read(plane)?, &traced), self.tol)
-            .map_err(|fault| SketchTraceFault::Frame(Arc::new(fault)))?;
+        let traced = pick_read(doc, Some(ev), face).ok_or_else(|| picked(face))?;
+        let (body, name) = picked_body(doc, Some(ev), on).ok_or_else(|| picked(on))?;
+        let frame = pncad::document::chart_on_face(
+            doc,
+            Some(ev),
+            body,
+            name,
+            &the_forms_chart(vec![traced.clone()]),
+        );
         let half = TRACE_WINDOW_MARGIN * body_reach(ev, face.node).unwrap_or(1.0);
         pncad::trace::sketch_trace(
             doc,
@@ -3829,9 +3865,10 @@ impl DocSession {
         }))
     }
 
-    /// **Add a clearance requirement** ([`SessionOp::AddClearance`]):
-    /// the assertion between the two seats, through the document's own
-    /// insert door.
+    /// **Add an assertion** ([`SessionOp::AddAssertion`]): the claim
+    /// between the two seats, through the document's own insert door —
+    /// a clearance as its one node, a `Gap` or a `Distance` as the
+    /// measure and the assertion over its output, in one action.
     ///
     /// **Each seat is read where it is drawn**: a requirement between
     /// two parts is about the parts as they stand, and two
@@ -3839,25 +3876,26 @@ impl DocSession {
     /// read on the drawn body it was picked on, never on the body a
     /// copy places, and a body that one world placement draws is read
     /// on that copy. A body seat of the wrong kind refuses
-    /// [`Refusal::WrongNodeKind`]; two seats in different spaces refuse
-    /// at the insert door (`EditError::SpaceMismatch`). The bounds are
-    /// written as they came: what is wrong with them is the
-    /// evaluation's to say.
-    fn add_clearance(
+    /// [`Refusal::WrongNodeKind`]; a read seat is written as given. Two
+    /// seats in different spaces, and a seat the measure cannot read,
+    /// refuse at the insert door (`EditError::SpaceMismatch`,
+    /// `EditError::SlotVarKind`). The bounds are written as they came:
+    /// what is wrong with them is the evaluation's to say.
+    fn add_assertion(
         &self,
-        a: ClearedSeat,
-        b: ClearedSeat,
-        bounds: pncad::document::ClearanceBounds<Formula>,
+        a: AssertedSeat,
+        b: AssertedSeat,
+        claim: AssertedClaim,
     ) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
-        let read = |seat: ClearedSeat| -> Result<Operand, Refusal> {
+        let read = |seat: AssertedSeat| -> Result<Operand, Refusal> {
             match seat {
-                ClearedSeat::Body(read) => {
+                AssertedSeat::Body(read) => {
                     let read = as_body(doc, read);
                     self.require_read(&read, NodeKindWanted::Body)?;
                     Ok(drawn_copy(doc, &read).unwrap_or(read))
                 }
-                ClearedSeat::Face(face) => {
+                AssertedSeat::Face(face) => {
                     let body = crate::world::body_read(doc, face.node, Some(face.body))
                         .ok_or_else(|| Refusal::NotABodyRead {
                             read: Box::new(Operand::Node(face.node)),
@@ -3869,10 +3907,41 @@ impl DocSession {
                             })?;
                     Ok(Operand::select(body, names))
                 }
+                AssertedSeat::Read(read) => Ok(read),
             }
         };
-        let node = Node::clearance(read(a)?, read(b)?, bounds);
-        Ok(creating(move |run| run.insert(node)))
+        let (a, b) = (read(a)?, read(b)?);
+        Ok(match claim {
+            AssertedClaim::Clearance(bounds) => {
+                let node = Node::clearance(a, b, bounds);
+                creating(move |run| run.insert(node))
+            }
+            AssertedClaim::Value {
+                measure,
+                relation,
+                bound,
+            } => {
+                let primitive = measured(measure, a, b);
+                creating(move |run| {
+                    let measured = run.measure(std::slice::from_ref(&primitive))?;
+                    let [output] = measured.outputs[..] else {
+                        unreachable!("one primitive measured defines one output")
+                    };
+                    // The output read at its own kind's dimension, so a
+                    // bound of another is the door's `assertion_dimension`.
+                    let dim = run
+                        .doc()
+                        .var(output)
+                        .and_then(|var| var.kind().dimension())
+                        .unwrap_or_else(|| bound.dim());
+                    run.insert(Node::Assertion(pncad::document::Claim::Value {
+                        value: Formula::var(output, dim),
+                        bound,
+                        relation,
+                    }))
+                })
+            }
+        })
     }
 
     /// Insert one pattern of an existing body, fused or not
@@ -4597,30 +4666,72 @@ impl DocSession {
         }
     }
 
-    /// **What `SessionOp::DeleteNode` would answer for `node` because
-    /// the committed document does not hold it, or `None` where it
-    /// does** — asked ahead of the click by the control that pushes
-    /// the op.
+    /// **The refusal `SessionOp::DeleteNode` would answer for `node`,
+    /// or `None` where the delete lands** — asked ahead of the click by
+    /// the control that pushes the op.
     ///
-    /// It walks [`Self::delete_node`]'s own branch over the document
-    /// that op reads: a node it does not hold takes the single edit, and
-    /// that edit is staged through the door ([`Self::stage_run`]) and never
+    /// It is [`Self::delete_node`]'s own branch rehearsed over the
+    /// document that op reads ([`Self::priced_delete`]): the plan's
+    /// fault where the delete cannot splice, and otherwise the refusal
+    /// of the first door that refuses one of its edits, staged and never
     /// recorded, so the refusal is `EditError`'s and has one home. A
-    /// selection can outlive its feature here — a face resolves
-    /// against the last LANDED run, which still holds a feature the
-    /// committed document has dropped until the next run lands, and
-    /// indefinitely after a cancel.
+    /// node the document does not hold takes the single edit, which the
+    /// door refuses: a selection can outlive its feature here — a face
+    /// resolves against the last LANDED run, which still holds a
+    /// feature the committed document has dropped until the next run
+    /// lands, and indefinitely after a cancel.
     ///
     /// Not everything `perform` can answer: a held value gesture
-    /// refuses the op before this admission runs, and a held node's
-    /// splice is applied at the click rather than rehearsed every frame.
-    pub fn delete_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
-        match spliced(self.committed_doc(), node) {
-            Ok(Some(_)) => None,
+    /// refuses the op before this admission runs.
+    pub fn delete_refusal(&self, node: RecipeNodeId) -> Option<Arc<Refusal>> {
+        self.priced_delete(node).refusal
+    }
+
+    /// **The delete of `node` rehearsed against the committed
+    /// document, kept** (`DocSession::priced`): rehearsed once per
+    /// history state and node, and answered from then on.
+    fn priced_delete(&self, node: RecipeNodeId) -> PricedDelete {
+        let at = self.history.current();
+        let mut kept = self
+            .priced
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((state, of, priced)) = kept.as_ref()
+            && *state == at
+            && *of == node
+        {
+            return priced.clone();
+        }
+        let priced = self.rehearse_delete(node);
+        *kept = Some((at, node, priced.clone()));
+        priced
+    }
+
+    /// **[`Self::delete_node`]'s action, staged and dropped**: the
+    /// nodes it removes and the rows it reports where every door
+    /// accepts it, and the refusal where one does not.
+    fn rehearse_delete(&self, node: RecipeNodeId) -> PricedDelete {
+        let doc = self.committed_doc();
+        let staged = match spliced(doc, node) {
+            Ok(Some(splice)) => {
+                let cascade = splice.deleted.clone();
+                self.stage_run(|run| splice.apply(run))
+                    .map(|(staged, ())| (cascade, staged.maintenance))
+            }
             Ok(None) => self
                 .stage_run(|run| run.apply(DocEdit::DeleteNode { id: node }).map(drop))
-                .err(),
-            Err(refusal) => Some(refusal),
+                .map(|(staged, ())| (vec![node], staged.maintenance)),
+            Err(refusal) => Err(refusal),
+        };
+        match staged {
+            Ok((cascade, report)) => PricedDelete {
+                affordance: DeleteAffordance::of(doc, node, cascade, &report),
+                refusal: None,
+            },
+            Err(refusal) => PricedDelete {
+                affordance: DeleteAffordance::of(doc, node, Vec::new(), &[]),
+                refusal: Some(Arc::new(refusal)),
+            },
         }
     }
 
@@ -5336,7 +5447,7 @@ fn write_product(
         .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
         .filter(|&at| {
             doc.output(at, 0)
-                .is_some_and(|read| !doc.reader_counts().contains_key(&read))
+                .is_some_and(|read| doc.read_by_nothing_but_the_product(read))
         });
     if let Some(id) = held {
         run.apply(DocEdit::SetProduct { product: None })?;
@@ -6174,11 +6285,9 @@ const TRACE_WINDOW_MARGIN: f64 = 1.25;
 pub enum SketchTraceFault {
     /// Nothing has landed to read the trace against.
     Unevaluated,
-    /// No frame reads off the picks ([`drawn_frame`]): the traced face
-    /// has no axis, or the picked face is no plane square to it.
-    Frame(Arc<pncad::trace::TracedFrameFault>),
     /// The trace's own refusal: the plane misses the face, the carrier
-    /// has no closed form, or a read refused.
+    /// has no closed form, or a read refused (the face drawn on is no
+    /// plane, so it has no chart).
     Trace(Arc<pncad::trace::SketchTraceError>),
     /// A pick is read in no one body ([`Refusal::PickedMember`]).
     Picked(Arc<Refusal>),
@@ -6188,7 +6297,6 @@ impl core::fmt::Display for SketchTraceFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Unevaluated => f.write_str("the document has not been evaluated yet"),
-            Self::Frame(e) => write!(f, "{e}"),
             Self::Trace(e) => write!(f, "{e}"),
             Self::Picked(refusal) => write!(f, "{refusal}"),
         }
@@ -6277,19 +6385,15 @@ pub(crate) fn pick_read(
     Some(Operand::select(body, vec![name]))
 }
 
-/// **The frame a sketch tracing `traced` stands on, in the plane of
-/// `plane`** ([`pncad::trace::traced_frame`]): `Through` the traced
-/// face's own axis and a vertex of the picked plane face. A boss swept
-/// up that axis from a piece leaving the trace along its tangent is
-/// tangent to the traced wall by construction: the coincidence door
-/// proves the union's tangency row `SameConstruction`.
-fn drawn_frame(
-    doc: &Doc<ProfileProgram>,
-    ev: &Evaluation<f64>,
-    (plane, traced): (&Operand, &Operand),
-    tol: Tol,
-) -> Result<Operand, pncad::trace::TracedFrameFault> {
-    pncad::trace::traced_frame(doc, ev, plane, traced, tol)
+/// **Where the profile-on-a-face form's profile stands on its face**: the
+/// chart's nearest orientation, no spin and no slide, tracing `traced`.
+/// The one spelling both the commit ([`DocSession::draw_on_face`]) and
+/// the trace shown before it ([`DocSession::sketch_trace`]) read.
+fn the_forms_chart(traced: Vec<Operand>) -> pncad::document::OnFace {
+    pncad::document::OnFace {
+        traced,
+        ..pncad::document::OnFace::nearest()
+    }
 }
 
 /// How far `node`'s body reaches from its own origin across its `xy`:
@@ -6327,8 +6431,8 @@ fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
 /// placement copies it ([`crate::world::world_copies_of_read`]): the
 /// body as it stands in the world. `None` for a read no world placement
 /// copies, and for one several copy, which names no one of them — the
-/// clearance tool refuses such a pick itself, in its own words
-/// (`crate::combine::ClearanceEvent::SeveralCopies`).
+/// assertion tool refuses such a pick itself, in its own words
+/// (`crate::combine::AssertionEvent::SeveralCopies`).
 fn drawn_copy(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<Operand> {
     match crate::world::world_copies_of_read(doc, read).as_slice() {
         [copy] => Some(Operand::Var(*copy)),
@@ -6437,6 +6541,7 @@ impl core::fmt::Debug for DocSession {
             resolver,
             notation,
             offers: _,
+            priced: _,
             repoints: _,
             bundles: _,
             proposals: _,
@@ -6485,15 +6590,18 @@ mod tests {
         let before = session.history().len();
         let outcome = session.commit_run(|run| {
             run.insert(square())?;
+            // A chain that never closes: the lattice refuses it.
             let degenerate = crate::sketch::path_program(
-                &[pncad::profile::Step::Circle {
-                    centre: pncad::geom_core::Point2::origin(),
-                    radius: 0.0,
-                }],
+                &[
+                    pncad::profile::Step::At(pncad::geom_core::Point2::origin()),
+                    pncad::profile::Step::LineTo(pncad::profile::Target::Point(
+                        pncad::geom_core::Point2::new(0.01, 0.0),
+                    )),
+                ],
                 crate::props::Notation::CANONICAL,
                 &|_, _| None,
             )
-            .expect("a zero radius lowers");
+            .expect("an unclosed chain lowers");
             let _ = run.insert(Node::Profile(ProfileProgram {
                 loops: vec![degenerate],
                 ids: Vec::new(),
@@ -6581,10 +6689,10 @@ mod tests {
         let tol = Tol::witness();
         let (doc, blocks, _) = crate::test_support::two_blocks_apart(tol);
         let mut session = DocSession::inline(doc, tol);
-        let added = session.perform(super::SessionOp::AddClearance {
-            a: super::ClearedSeat::Body(blocks[0].into()),
-            b: super::ClearedSeat::Body(blocks[1].into()),
-            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        let added = session.perform(super::SessionOp::AddAssertion {
+            a: super::AssertedSeat::Body(blocks[0].into()),
+            b: super::AssertedSeat::Body(blocks[1].into()),
+            claim: crate::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.02))),
         });
         let violated = added.made.expect("the requirement is a node");
         session.pump();

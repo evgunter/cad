@@ -39,35 +39,27 @@ fn charts() -> Vec<(&'static str, Surface<f64>)> {
     let u_ref = Vec3::new(1.0, 0.0, 0.0);
     let o = Point3::new(0.2, -0.1, 0.3);
     let cone = |half_angle| Surface::Cone {
-        apex: o,
-        axis,
+        frame: geom::Frame::new(o, axis, u_ref),
         half_angle,
-        u_ref,
     };
     let torus = |major_radius, minor_radius| Surface::Torus {
-        center: o,
-        axis,
+        frame: geom::Frame::new(o, axis, u_ref),
         major_radius,
         minor_radius,
-        u_ref,
     };
     vec![
         (
             "sphere",
             Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: 0.7,
-                axis,
-                u_ref,
             },
         ),
         (
             "cylinder",
             Surface::Cylinder {
-                origin: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: 0.7,
-                u_ref,
             },
         ),
         ("narrow cone", cone(0.4)),
@@ -169,6 +161,7 @@ fn compare<T: Decide>(lift: impl Fn(f64) -> T, bracket: Bracket<T>) -> usize {
                             u_off: T::zero(),
                             v_off: T::zero(),
                             v_sign: T::one(),
+                            pole: None,
                         };
                         let psi = image.raw(framed, 0);
                         let theta = f64::from(m) * FRAC_PI_2;
@@ -242,6 +235,7 @@ fn the_sphere_latitude_at_negative_zero_height_reads_positive_zero() {
         u_off: 0.0,
         v_off: 0.0,
         v_sign: 1.0,
+        pole: None,
     };
     let v = image.raw(Vec3::new(0.6, 0.1, -0.0), 0).y;
     assert_eq!(

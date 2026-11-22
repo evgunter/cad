@@ -458,9 +458,11 @@ impl<'a> AnalyticRow<'a> {
     /// lattice of `nu × nv` cells over the chart box `(u0, u1) × (v0, v1)`.
     /// The sphere's is the chart's own at the box's mid latitude,
     /// `(u·cos v, v)` to the nearest power of two: there a small face's
-    /// boundary circle is near round, so an ear on it usually has the
-    /// face's interior points in its circumcircle and the CDT does not cut
-    /// it. Every other chart's is its lattice's realized spacing: a ruled
+    /// boundary circle is near round, so a triangle on its points alone
+    /// (an ear, or a side across several chord steps) usually has the
+    /// face's interior points in its circumcircle and the CDT does not
+    /// make it, which leaves the trimmed lane's shared-side cure less to
+    /// split. Every other chart's is its lattice's realized spacing: a ruled
     /// lattice square in 3-D is a strip of aspect about `1/lever` in the
     /// chart, and a torus's is `√(r/(R + r))`.
     pub(crate) fn metric(
@@ -488,19 +490,20 @@ impl<'a> AnalyticRow<'a> {
         singular: [bool; 3],
     ) -> (f64, f64) {
         match *self.surface {
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => (
-                cert::cert_cylinder(origin, axis, radius, tri),
-                cert::position_scale(origin, tri),
-            ),
-            Surface::Sphere { center, radius, .. } => (
-                cert::cert_sphere(center, radius, tri),
-                cert::position_scale(center, tri),
-            ),
+            Surface::Cylinder { frame, radius, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
+                (
+                    cert::cert_cylinder(origin, axis, radius, tri),
+                    cert::position_scale(origin, tri),
+                )
+            }
+            Surface::Sphere { frame, radius, .. } => {
+                let center = frame.origin();
+                (
+                    cert::cert_sphere(center, radius, tri),
+                    cert::position_scale(center, tri),
+                )
+            }
             Surface::Cone { half_angle, .. } => (
                 cert::cert_cone(half_angle, uv, singular),
                 cert::cone_scale(half_angle, uv),
@@ -644,17 +647,13 @@ mod tests {
         let axis = Vec3::new(1.0, 2.0, 2.0) * (1.0 / 3.0);
         let u_ref = Vec3::new(2.0, -1.0, 0.0) * (1.0 / 5f64.sqrt());
         let cone = Surface::Cone {
-            apex: origin,
-            axis,
+            frame: geom::Frame::new(origin, axis, u_ref),
             half_angle: 0.4,
-            u_ref,
         };
         let torus = Surface::Torus {
-            center: origin,
-            axis,
+            frame: geom::Frame::new(origin, axis, u_ref),
             major_radius: 2.0,
             minor_radius: 0.6,
-            u_ref,
         };
         let distance = |surface: &Surface<f64>, p: Point3<f64>| -> f64 {
             let split = |w: Vec3<f64>| {
@@ -795,10 +794,8 @@ mod tests {
         let (mut gaps_read, mut under_floor) = (0usize, 0usize);
         for half_angle in [0.002, 0.4, core::f64::consts::FRAC_PI_4, 1.4] {
             let cone = Surface::Cone {
-                apex: frame.0,
-                axis: frame.1,
+                frame: geom::Frame::new(frame.0, frame.1, frame.2),
                 half_angle,
-                u_ref: frame.2,
             };
             for (widest, low, target) in [
                 (2.0_f64, 1.0, 1e-3),
@@ -907,10 +904,8 @@ mod tests {
             "gaps ({gaps_read}) and chords from under the floor ({under_floor}) were read"
         );
         let cylinder = Surface::Cylinder {
-            origin: frame.0,
-            axis: frame.1,
+            frame: geom::Frame::new(frame.0, frame.1, frame.2),
             radius: 1.0,
-            u_ref: frame.2,
         };
         let row = AnalyticRow::new(&cylinder, f64::NAN).unwrap();
         assert_eq!(
@@ -941,10 +936,8 @@ mod tests {
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     radius: 1.0,
-                    u_ref: x,
                 },
                 Analytic::Cylinder { radius: 1.0 },
                 foot,
@@ -953,10 +946,8 @@ mod tests {
             (
                 "sphere",
                 Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, z, x),
                     radius: 1.0,
-                    axis: z,
-                    u_ref: x,
                 },
                 Analytic::Sphere {
                     radius: 1.0,
@@ -968,10 +959,8 @@ mod tests {
             (
                 "cone",
                 Surface::Cone {
-                    apex: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     half_angle: core::f64::consts::FRAC_PI_4,
-                    u_ref: x,
                 },
                 Analytic::Cone {
                     half_angle: core::f64::consts::FRAC_PI_4,
@@ -983,11 +972,9 @@ mod tests {
             (
                 "torus",
                 Surface::Torus {
-                    center: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     major_radius: 1.0,
                     minor_radius: 0.5,
-                    u_ref: x,
                 },
                 Analytic::Torus {
                     major: 1.0,

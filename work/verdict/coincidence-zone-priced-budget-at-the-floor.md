@@ -135,3 +135,7 @@ would cover the half-line too.
 It is dropped from this row's `refs:` because `refs` names live items; the
 finding is unchanged and readable at `git show 63df2069c:work/props/<id>.md`,
 and PROPS' done-state of record is `docs/doc-ledger/props-leaves-the-tracker.md`.
+
+## The half-line is gone: a negative depth builds (DOCTAIL, 2026-11-18)
+
+(DOCTAIL, `work/doctail/a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face.md`) The section "A negative depth joins the class, as a half-line" no longer holds. An extrude's depth is signed (DESIGN.md `[placement]`, Ev's ruling on `[ev]` #7073): on the sweep's own `NegativeDepth` verdict `wire_extrude` sweeps `|d|` and lifts the body `d` along the profile's `z`, so a definitely negative depth builds a pocket's tool and never reaches `classify_replay`. What stays in the class from the extrude is the zero zone `(−ε, ε)`, `DegenerateExtrusion`, as first written above. `m10_3_driver_interval`'s `a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget` is back to bounding the `Budget` mass by `2ε / 80ε + 1e-3`. A range seed far below zero no longer spends its leaves there; the viewer's sampling probe, which steps over a point floor, is its own row (`work/viewer/`'s, filed in the same PR).

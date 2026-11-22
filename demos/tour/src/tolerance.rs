@@ -499,7 +499,7 @@ fn real_study(tol: Tol) {
                  certified leaves [{:.4e}, {:.4e}] m (the web is affine in the parameters, \
                  so that range is exact): padding {:.2e} m below and {:.2e} m above — the \
                  interval lane's dependency widening, at rounding on these leaves \
-                 (work/stack/certified-hull-padding-is-the-leaf-width-not-the-lane)",
+                 (work/encl/certified-hull-padding-is-the-leaf-width-not-the-lane)",
                 report.worst_case.lo,
                 report.worst_case.hi,
                 slack.true_lo,

@@ -211,13 +211,13 @@ fn a_one_face_refusal_names_its_side() {
     assert_eq!(
         torus(0.5, 1.0),
         "face FaceKey(null) of the first side lies on a torus not decided a ring (R > r > 0): a \
-         torus's tube radius is larger than its ring's (margin [-0.5, -0.5] m)",
+         torus's tube radius is larger than its ring's (margin -0.5 m)",
         "the torus names its side"
     );
     assert_eq!(
         torus(1.0, 1.0),
         "face FaceKey(null) of the first side lies on a torus not decided a ring (R > r > 0): a \
-         torus's tube radius is not shown smaller than its ring's (margin [0, 0] m)",
+         torus's tube radius is not shown smaller than its ring's (margin 0 m)",
         "a horn torus meets no contradiction"
     );
     let undecided = torus(1.0 + 0.5 * (band.zero() + band.escalate()), 1.0);

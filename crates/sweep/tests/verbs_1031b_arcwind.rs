@@ -67,7 +67,7 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()
@@ -109,7 +109,10 @@ fn loop_radii(body: &Body<f64>, l: topo::LoopKey) -> Vec<f64> {
             let hd = body.get_half_edge(he)?;
             let e = body.get_edge(hd.edge)?;
             match body.get_curve_geom(e.curve)?.certified()?.carrier() {
-                geom::Curve3::Circle(geom::Circle { radius, .. }) => Some(*radius),
+                geom::Curve3::Circle(circle) => {
+                    let radius = circle.radius();
+                    Some(radius)
+                }
                 _ => None,
             }
         })

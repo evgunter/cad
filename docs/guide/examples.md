@@ -2,7 +2,7 @@
 
 This project does not keep a folder of toy snippets. The examples
 *are* the test corpus: the demo tour renders real parts, and the
-editor-core corpus documents are replayed and measured by CI. Both are
+editor-core corpus documents are built and measured by CI. Both are
 kept honest by assertions, so nothing here can drift away from the
 kernel it documents.
 
@@ -98,9 +98,12 @@ lattice — the junction checks are local and all four corners are sharp
 
 18 documents in 16 modules — `islands` registers three, every other
 module registers one. Where the tour shows *kernel* usage, these
-show **recipe** usage: each one is a `Vec<DocEdit>` edit log replayed
-onto an empty document, never a hand-built graph — so each is also a
-worked example of the surface Python speaks.
+show **recipe** usage: each one is authored through the edit doors, a
+`DocEdit` at a time from an empty document, never a hand-built graph —
+so each is also a worked example of the surface Python speaks. The one
+exception is `die_composed_tour`, which the corpus loads from the save
+file the demo tour writes: a save holds the document's state, not the
+edits that authored it.
 
 Two properties make them a trustworthy example set. Several carry an
 exact **dyadic mass pin**, so the arithmetic is checked to the bit,

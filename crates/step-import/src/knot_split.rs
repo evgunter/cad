@@ -24,9 +24,15 @@
 //!
 //! Every split that changes the census, an edge into sub-arcs or a face
 //! into pieces, is reported as a [`StructureNormalization`], never done
-//! silently. A face the knot line leaves whole has its chart narrowed to
-//! the sub-patch on its side: an exact partition of the net that moves
-//! no point and changes no census, so it is not reported. A knot vertex is one the closing join keeps
+//! silently. Each sub-patch is a surface record of its own, named by the
+//! span of its source record's net it covers (its first and last knot in
+//! each direction, as indices into the source's knot vectors), and minted
+//! the first time a face on that span asks: two pieces on one span wear
+//! one record whichever knots their faces were split at, and in whatever
+//! order, and a record is never narrowed in place. A face the knot line
+//! leaves whole wears the sub-patch record on its side: an exact partition
+//! of the net that moves no point and changes no census, so it is not
+//! reported. A knot vertex is one the closing join keeps
 //! (`topo`'s `joinable`): two spline pieces meeting at a knot of full
 //! multiplicity are never joined. A face whose trim the split cannot
 //! place ([`split_face_once`]) refuses typed rather than ship the
@@ -43,6 +49,10 @@ use geom_core::{Band, Bounds as _, Interval, Point3, Vec3};
 
 use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
+use crate::interpret::FileBand;
+use crate::normalize::surgery::{
+    self, At, CutLine, Place, Split, boundary_census, split_edge, use_start,
+};
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
 /// Runs both splits over the shell: edges first, so a face's knot line
@@ -51,13 +61,12 @@ use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 /// split reads the knot line's crossings with the trim at.
 pub(crate) fn split_c0_knots(
     solid: &mut SolidSpec,
-    eps_in: f64,
-    band: Option<Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
     split_edges(solid, mint, sink)?;
-    split_faces(solid, eps_in, band, mint, sink)
+    split_faces(solid, file, mint, sink)
 }
 
 /// The least `ADVANCED_FACE` id whose loops use `edge`.
@@ -72,46 +81,6 @@ fn least_face_using(solid: &SolidSpec, edge: u64) -> Option<u64> {
         })
         .map(|f| f.id)
         .min()
-}
-
-/// Replaces every use of `edge` by `pieces`, which run from the edge's
-/// start to its end: a forward use walks them in order, a reversed use
-/// walks them backwards, each reversed.
-fn expand_uses(solid: &mut SolidSpec, edge: u64, pieces: &[u64]) {
-    for face in &mut solid.faces {
-        for lp in &mut face.loops {
-            if !lp.uses.iter().any(|u| u.edge == edge) {
-                continue;
-            }
-            lp.uses = lp
-                .uses
-                .iter()
-                .flat_map(|u| {
-                    let run: Vec<EdgeUse> = if u.edge != edge {
-                        vec![*u]
-                    } else if u.forward {
-                        pieces
-                            .iter()
-                            .map(|&e| EdgeUse {
-                                edge: e,
-                                forward: true,
-                            })
-                            .collect()
-                    } else {
-                        pieces
-                            .iter()
-                            .rev()
-                            .map(|&e| EdgeUse {
-                                edge: e,
-                                forward: false,
-                            })
-                            .collect()
-                    };
-                    run
-                })
-                .collect();
-        }
-    }
 }
 
 /// Splits every B-spline edge carrier at each of its crease knots.
@@ -141,57 +110,12 @@ fn split_edges(
             id,
             what: "internal: an EDGE_CURVE the shell holds bounds no face",
         })?;
-        let mut arcs = Vec::with_capacity(knots.len() + 1);
-        let mut rest: NurbsCurve3<f64> = carrier.as_ref().clone();
-        for &k in &knots {
-            let (lo, hi) = rest.split_at(k).map_err(|_| StepImportError::Topology {
+        let at: Vec<(f64, Place)> = knots.iter().map(|&k| (k, Place::Joint)).collect();
+        let Split { pieces, .. } =
+            split_edge(solid, id, &at, mint).ok_or(StepImportError::Topology {
                 id,
                 what: "internal: a B-spline carrier refused its split at its own crease knot",
             })?;
-            arcs.push(lo);
-            rest = hi;
-        }
-        arcs.push(rest);
-        let Some(spec) = solid.edges.remove(&id) else {
-            unreachable!("`ids` are the edge map's own keys, and each is removed once")
-        };
-        let mut ends = vec![spec.start];
-        for arc in &arcs[..arcs.len() - 1] {
-            let v = mint();
-            let Some(&p) = arc.control().last() else {
-                unreachable!("a validated B-spline holds at least two control points")
-            };
-            solid.vertices.insert(v, p);
-            ends.push(v);
-        }
-        ends.push(spec.end);
-        let params: Vec<f64> = std::iter::once(spec.t0)
-            .chain(knots.iter().copied())
-            .chain(std::iter::once(spec.t1))
-            .collect();
-        let pieces: Vec<u64> = arcs
-            .into_iter()
-            .enumerate()
-            .map(|(i, arc)| {
-                let e = mint();
-                solid.edges.insert(
-                    e,
-                    EdgeSpec {
-                        start: ends[i],
-                        end: ends[i + 1],
-                        carrier: Curve3::Nurbs(Arc::new(arc)),
-                        t0: params[i],
-                        t1: params[i + 1],
-                        // A minted edge: its start → end is the carrier's
-                        // increasing parameter, so there is no sense to
-                        // compose.
-                        reversed: false,
-                    },
-                );
-                e
-            })
-            .collect();
-        expand_uses(solid, id, &pieces);
         sink.push(StructureNormalization {
             face,
             kind: NormalizationKind::EdgeSplitAtC0Knot,
@@ -210,66 +134,6 @@ fn split_edges(
     Ok(())
 }
 
-/// Splits edge `id` at its interior parameter `t`, the new vertex at
-/// `q`, and walks every use of it through the two halves. A B-spline
-/// carrier is split into its two children; any other carrier is shared
-/// by both halves over their sub-intervals. Answers the new vertex and
-/// the halves over `[t₀, t]` and `[t, t₁]`.
-fn split_edge_at(
-    solid: &mut SolidSpec,
-    id: u64,
-    t: f64,
-    q: Point3<f64>,
-    mint: &mut dyn FnMut() -> u64,
-) -> Option<(u64, u64, u64)> {
-    let spec = solid.edges.remove(&id)?;
-    let (lo, hi) = match spec.carrier {
-        Curve3::Nurbs(ref c) => {
-            let (lo, hi) = c.split_at(t).ok()?;
-            (Curve3::Nurbs(Arc::new(lo)), Curve3::Nurbs(Arc::new(hi)))
-        }
-        ref carrier => (carrier.clone(), carrier.clone()),
-    };
-    let v = mint();
-    solid.vertices.insert(v, q);
-    let (a, b) = (mint(), mint());
-    for (e, start, end, carrier, t0, t1) in [
-        (a, spec.start, v, lo, spec.t0, t),
-        (b, v, spec.end, hi, t, spec.t1),
-    ] {
-        solid.edges.insert(
-            e,
-            EdgeSpec {
-                start,
-                end,
-                carrier,
-                t0,
-                t1,
-                // A minted edge: its start → end is the carrier's
-                // increasing parameter, so there is no sense to compose.
-                reversed: false,
-            },
-        );
-    }
-    expand_uses(solid, id, &[a, b]);
-    Some((v, a, b))
-}
-
-/// The distinct edges and vertices the loops of `faces` use.
-fn boundary_census(solid: &SolidSpec, faces: &[usize]) -> (usize, usize) {
-    let mut edges = BTreeSet::new();
-    let mut vertices = BTreeSet::new();
-    for &fi in faces {
-        for u in solid.faces[fi].loops.iter().flat_map(|l| &l.uses) {
-            edges.insert(u.edge);
-            let spec = &solid.edges[&u.edge];
-            vertices.insert(spec.start);
-            vertices.insert(spec.end);
-        }
-    }
-    (edges.len(), vertices.len())
-}
-
 /// Splits every B-spline face chart along each of its crease knots' iso
 /// lines that cross it: along `u` first, at every crossing knot of the
 /// face, then along `v`, at every crossing knot of each `u` tile. A
@@ -277,13 +141,14 @@ fn boundary_census(solid: &SolidSpec, faces: &[usize]) -> (usize, usize) {
 /// so each face's boundary is read once per direction.
 fn split_faces(
     solid: &mut SolidSpec,
-    eps_in: f64,
-    band: Option<Band>,
+    file: FileBand,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
+    let (eps_in, band) = (file.eps_in(), Some(file.band()));
+    let mut children = Children::default();
     for fi in 0..solid.faces.len() {
-        if !matches!(solid.faces[fi].surface, Surface::Nurbs(_)) {
+        if !matches!(solid.surface(fi), Surface::Nurbs(_)) {
             continue;
         }
         let (edges, vertices) = boundary_census(solid, &[fi]);
@@ -296,8 +161,9 @@ fn split_faces(
                     along_v,
                     eps_in,
                     band,
+                    file,
                 };
-                split_at_all(solid, f, &knots, at, mint, &mut tiles)?;
+                split_at_all(solid, f, &knots, at, (mint, &mut children), &mut tiles)?;
             }
             made = tiles;
         }
@@ -322,6 +188,96 @@ fn split_faces(
     Ok(())
 }
 
+/// **The span a sub-patch covers**, named in its source: the file
+/// record every split descends from, and the first and last knot of the
+/// span in each direction as indices into that record's own knot vectors.
+/// A sub-patch is an exact partition of its source's net, so the span
+/// alone decides it, whichever knots were split at first, and in which
+/// order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct Patch {
+    source: u64,
+    u: (usize, usize),
+    v: (usize, usize),
+}
+
+/// The sub-patch records the split has minted: each one's span, and the
+/// record of each span.
+#[derive(Default)]
+struct Children {
+    span_of: BTreeMap<u64, Patch>,
+    record_of: BTreeMap<Patch, u64>,
+}
+
+impl Children {
+    /// The span record `record` covers: its own whole net where it is no
+    /// sub-patch.
+    fn span(&self, solid: &SolidSpec, record: u64) -> Option<Patch> {
+        if let Some(&span) = self.span_of.get(&record) {
+            return Some(span);
+        }
+        let Surface::Nurbs(ref s) = solid.surfaces[&record].surface else {
+            return None;
+        };
+        let last = |n: usize| (0, n.saturating_sub(1));
+        Some(Patch {
+            source: record,
+            u: last(s.knot_values_u().values().len()),
+            v: last(s.knot_values_v().values().len()),
+        })
+    }
+
+    /// The two sides of `parent`'s span at its crease knot `knot` (along
+    /// `v` where `along_v`): `None` where the knot is no knot of the
+    /// source.
+    fn sides(
+        &self,
+        solid: &SolidSpec,
+        parent: u64,
+        knot: f64,
+        along_v: bool,
+    ) -> Option<[Patch; 2]> {
+        let span = self.span(solid, parent)?;
+        let Surface::Nurbs(ref source) = solid.surfaces[&span.source].surface else {
+            return None;
+        };
+        let knots = if along_v {
+            source.knot_values_v()
+        } else {
+            source.knot_values_u()
+        };
+        let at = knots.values().iter().position(|&x| x == knot)?;
+        let (lo, hi) = if along_v { span.v } else { span.u };
+        let part = |range: (usize, usize)| {
+            if along_v {
+                Patch { v: range, ..span }
+            } else {
+                Patch { u: range, ..span }
+            }
+        };
+        Some([part((lo, at)), part((at, hi))])
+    }
+
+    /// The record of span `span`, whose net is `net`: minted the first
+    /// time a face on it asks (module docs).
+    fn record(
+        &mut self,
+        solid: &mut SolidSpec,
+        mint: &mut dyn FnMut() -> u64,
+        span: Patch,
+        net: NurbsSurface<f64>,
+    ) -> u64 {
+        if let Some(&known) = self.record_of.get(&span) {
+            return known;
+        }
+        let id = mint();
+        solid.mint_record(id, span.source, Surface::Nurbs(Arc::new(net)));
+        self.record_of.insert(span, id);
+        self.span_of.insert(id, span);
+        id
+    }
+}
+
 /// How one direction's knot lines are read: along `v` where `along_v`,
 /// at the file's `eps_in` and its chart band.
 #[derive(Clone, Copy)]
@@ -329,6 +285,9 @@ struct Lines {
     along_v: bool,
     eps_in: f64,
     band: Option<Band>,
+    /// The file band the two above are read off, for a reading that
+    /// takes it whole (the iso line's recognition).
+    file: FileBand,
 }
 
 /// Splits face `f` along each of `knots` (ascending, each kept by
@@ -341,7 +300,7 @@ fn split_at_all(
     f: usize,
     knots: &[f64],
     at: Lines,
-    mint: &mut dyn FnMut() -> u64,
+    (mint, children): (&mut dyn FnMut() -> u64, &mut Children),
     tiles: &mut Vec<usize>,
 ) -> Result<(), StepImportError> {
     let mid = knots.len() / 2;
@@ -350,12 +309,12 @@ fn split_at_all(
         return Ok(());
     };
     let (below, above) = (&knots[..mid], &knots[mid + 1..]);
-    let Parted { low, high } = split_face_once(solid, f, knot, at, mint)?;
+    let Parted { low, high } = split_face_once(solid, f, knot, at, (&mut *mint, &mut *children))?;
     for g in low {
-        split_at_all(solid, g, below, at, mint, tiles)?;
+        split_at_all(solid, g, below, at, (&mut *mint, &mut *children), tiles)?;
     }
     for g in high {
-        split_at_all(solid, g, above, at, mint, tiles)?;
+        split_at_all(solid, g, above, at, (&mut *mint, &mut *children), tiles)?;
     }
     Ok(())
 }
@@ -429,7 +388,7 @@ fn split_net(s: &NurbsSurface<f64>, knot: f64, along_v: bool) -> Option<NetSplit
 /// clear before the line is left out. A line neither seen crossing nor
 /// certified clear is kept, and its split places it or refuses typed.
 fn crossing_knots(solid: &SolidSpec, f: usize, along_v: bool, eps_in: f64) -> Vec<f64> {
-    let Surface::Nurbs(ref s) = solid.faces[f].surface else {
+    let Surface::Nurbs(ref s) = *solid.surface(f) else {
         return Vec::new();
     };
     let knots = if along_v {
@@ -766,12 +725,6 @@ fn piece_box(carrier: &Curve3<Interval>, a: f64, b: f64) -> Option<[Interval; 3]
         .then(|| out.map(|(lo, hi)| Interval::from_bounds(lo, hi)))
 }
 
-/// The vertex a use starts at.
-fn use_start(solid: &SolidSpec, u: EdgeUse) -> u64 {
-    let spec = &solid.edges[&u.edge];
-    if u.forward { spec.start } else { spec.end }
-}
-
 /// The side of a knot line a boundary piece lies on, in the chart: below
 /// the knot, or above it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -870,8 +823,8 @@ struct Parted {
 /// since the line bounds each piece from outside; a loop the line does
 /// not cross is a ring on its side, and joins that side's one piece.
 ///
-/// A line that meets no cell leaves the face whole, its chart narrowed to
-/// the sub-patch on its side. What refuses typed,
+/// A line that meets no cell leaves the face whole, on the sub-patch
+/// record of its side. What refuses typed,
 /// naming the face and the knot
 /// (`work/importgate/the-c0-knot-split-refuses-what-it-cannot-place.md`):
 /// a reading that does not settle at the band; a touch or an edge along
@@ -884,14 +837,16 @@ fn split_face_once(
     fi: usize,
     knot: f64,
     at: Lines,
-    mint: &mut dyn FnMut() -> u64,
+    (mint, children): (&mut dyn FnMut() -> u64, &mut Children),
 ) -> Result<Parted, StepImportError> {
     let Lines {
         along_v,
         eps_in,
         band,
+        file,
     } = at;
-    let Surface::Nurbs(ref s) = solid.faces[fi].surface else {
+    let parent = solid.faces[fi].record;
+    let Surface::Nurbs(ref s) = *solid.surface(fi) else {
         unreachable!("only a B-spline chart has crease knots to split at")
     };
     let s = Arc::clone(s);
@@ -907,6 +862,10 @@ fn split_face_once(
     ))?;
     let NetSplit { lo, hi } = split_net(&s, knot, along_v)
         .ok_or(refuse("the chart refused its split at its own crease knot"))?;
+    // Which sub-patch record each side is: its span in the source record.
+    let [low_patch, high_patch] = children.sides(solid, parent, knot, along_v).ok_or(refuse(
+        "the crease knot is not a knot of the chart's source record",
+    ))?;
     // The iso curve at the knot: the high child's start column (along
     // `u`) or start row (along `v`), bitwise the low child's end.
     let iso = if along_v {
@@ -938,12 +897,16 @@ fn split_face_once(
         .all(|(&l, &h)| near(l, h));
     let up_is_low = sense != along_v;
     let w_domain = iso.knot_values().domain();
-    // The line as the curve-pair reader reads it: an iso the import's
-    // curve recognition certifies straight is read as that line, which
-    // the reader's table reads in closed form, its arc length carried
-    // back to the iso's parameter by the chord map the recognition
-    // certifies within `ε_in`.
-    let straight = crate::recognize_curve::try_line(&iso, eps_in).map(|(line, _)| line);
+    // The line as the curve-pair reader reads it: an iso that reads as
+    // the straight MAP (`recognize_curve::straight_map`, INV-C5) is read
+    // as that line, which the reader's table reads in closed form, its
+    // arc length carried back to the iso's parameter by the chord map the
+    // hull certifies within `ε_in`. The map, not the locus, is what
+    // `to_w` reads: a crossing at the line's ends is exact under any
+    // timing, an interior one is placed through the affine chord map. No
+    // committed fixture crosses a re-timed straight knot line inside it
+    // (`work/exch/knot-split-straight-map-reading-has-no-retimed-interior-crossing-row.md`).
+    let straight = crate::recognize_curve::straight_map(&iso, file).map(|(line, _)| line);
     let chord = (q1 - q0).norm();
     let (reading, read_span) = match straight {
         Some(line) => (line, (0.0, chord)),
@@ -995,7 +958,7 @@ fn split_face_once(
         } else {
             Pcurve::iso_column(at, (wa, wb), (spec.t0, spec.t1))
         };
-        let surface = &solid.faces[fi].surface;
+        let surface = solid.surface(fi);
         PcurveCache::certify(image, spec.t0, spec.t1, &spec.carrier, surface, band)
             .ok()
             .map(|_| (wa, wb))
@@ -1108,9 +1071,16 @@ fn split_face_once(
                 touches.push(w);
                 continue;
             }
-            let (v, a, b) = split_edge_at(solid, rest, t, q, mint).ok_or(refuse(
-                "a boundary edge refused its split where the knot's iso line crosses it",
-            ))?;
+            let Some(Split { vertices, pieces }) =
+                split_edge(solid, rest, &[(t, Place::At(q))], mint)
+            else {
+                return Err(refuse(
+                    "a boundary edge refused its split where the knot's iso line crosses it",
+                ));
+            };
+            let (&[v], &[a, b]) = (vertices.as_slice(), pieces.as_slice()) else {
+                unreachable!("one split makes one vertex and two pieces")
+            };
             on_line.insert(v, w);
             stand.insert(a, Stand::Off(sides[j]));
             rest = b;
@@ -1166,7 +1136,12 @@ fn split_face_once(
                  crosses",
             ));
         };
-        solid.faces[fi].surface = Surface::Nurbs(Arc::new(if high { hi } else { lo }));
+        let (patch, net) = if high {
+            (high_patch, hi)
+        } else {
+            (low_patch, lo)
+        };
+        solid.faces[fi].record = children.record(solid, mint, patch, net);
         let (low, high) = if high {
             (Vec::new(), vec![fi])
         } else {
@@ -1195,6 +1170,16 @@ fn split_face_once(
     // its stretch of the iso curve: that curve whole, so bitwise both
     // sub-patches' boundary column.
     let line_carrier = Curve3::Nurbs(Arc::new(iso.clone()));
+    // The loops the line crosses, and a crossing's position in them.
+    let crossed: Vec<usize> = (0..loops.len())
+        .filter(|&r| crossings.iter().any(|c| c.ring == r))
+        .collect();
+    let at_of = |c: &Crossing| -> At {
+        let Ok(k) = crossed.binary_search(&c.ring) else {
+            unreachable!("a crossing's loop is a crossed loop")
+        };
+        (k, c.at)
+    };
     let mut runs = Vec::with_capacity(crossings.len() / 2);
     for pair in crossings.chunks(2) {
         let [a, b] = [pair[0], pair[1]];
@@ -1202,10 +1187,10 @@ fn split_face_once(
             use_start(solid, loops[a.ring][a.at]),
             use_start(solid, loops[b.ring][b.at]),
         );
-        let ((w_lo, v_lo), (w_hi, v_hi)) = if a.w < b.w {
-            ((a.w, va), (b.w, vb))
+        let ((w_lo, v_lo, c_lo), (w_hi, v_hi, c_hi)) = if a.w < b.w {
+            ((a.w, va, a), (b.w, vb, b))
         } else {
-            ((b.w, vb), (a.w, va))
+            ((b.w, vb, b), (a.w, va, a))
         };
         let inside = |w: f64| w_lo < w && w < w_hi;
         if touches.iter().any(|&w| inside(w))
@@ -1225,61 +1210,32 @@ fn split_face_once(
                 t0: w_lo,
                 t1: w_hi,
                 reversed: false,
+                curve: None,
             },
         );
-        runs.push(e);
+        runs.push(CutLine {
+            first: EdgeUse {
+                edge: e,
+                forward: true,
+            },
+            ends: [Some(at_of(&c_lo)), Some(at_of(&c_hi))],
+        });
     }
-    // The crossing that ends the chain each crossing starts.
-    let mut next = vec![0; crossings.len()];
-    for ring in 0..loops.len() {
-        let mut on: Vec<usize> = (0..crossings.len())
-            .filter(|&j| crossings[j].ring == ring)
-            .collect();
-        on.sort_by_key(|&j| crossings[j].at);
-        for (k, &j) in on.iter().enumerate() {
-            next[j] = on[(k + 1) % on.len()];
+    // Each side's pieces, traced from the crossings into it in order:
+    // a chain of the loop on that side, the run its last crossing opens,
+    // the chain the run's other end starts, until the walk closes.
+    let crossed_loops: Vec<Vec<EdgeUse>> = crossed.iter().map(|&r| loops[r].clone()).collect();
+    let seeds: Vec<At> = crossings.iter().map(at_of).collect();
+    let (mut low_pieces, mut high_pieces) = (Vec::new(), Vec::new());
+    for piece in surgery::relink(solid, &crossed_loops, &runs, &seeds)
+        .map_err(|_| refuse("internal: the trim and the knot line's runs did not close"))?
+    {
+        match piece.first().and_then(|u| stand.get(&u.edge)) {
+            Some(_) if side_of(piece[0]) == Side::Low => low_pieces.push(piece),
+            Some(_) => high_pieces.push(piece),
+            None => return Err(refuse("internal: a piece traced from no crossing")),
         }
     }
-    let chain = |j: usize| -> Vec<EdgeUse> {
-        let uses = &loops[crossings[j].ring];
-        let n = uses.len();
-        let (from, to) = (crossings[j].at, crossings[next[j]].at);
-        let len = match (to + n - from) % n {
-            0 => n,
-            len => len,
-        };
-        (0..len).map(|q| uses[(from + q) % n]).collect()
-    };
-    // A side's pieces: the chains into it (out of the other side), each
-    // closed through the run its end crossing opens.
-    let trace = |side: Side| -> Vec<Vec<EdgeUse>> {
-        let forward = (side == Side::Low) == up_is_low;
-        let mut seen = vec![false; crossings.len()];
-        let mut pieces = Vec::new();
-        for start in 0..crossings.len() {
-            if seen[start] || crossings[start].from == side {
-                continue;
-            }
-            let mut walk = Vec::new();
-            let mut j = start;
-            loop {
-                seen[j] = true;
-                walk.extend(chain(j));
-                let end = next[j];
-                walk.push(EdgeUse {
-                    edge: runs[end / 2],
-                    forward,
-                });
-                j = end ^ 1;
-                if j == start {
-                    break;
-                }
-            }
-            pieces.push(walk);
-        }
-        pieces
-    };
-    let (low_pieces, high_pieces) = (trace(Side::Low), trace(Side::High));
     let mut rings = [Vec::new(), Vec::new()];
     for (ring, uses) in loops.iter().enumerate() {
         if crossings.iter().any(|c| c.ring == ring) {
@@ -1293,20 +1249,24 @@ fn split_face_once(
         rings[usize::from(side_of(uses[0]) == Side::High)].push(uses.clone());
     }
     let mut faces = Vec::new();
-    for (pieces, rings, net) in [(low_pieces, &rings[0], lo), (high_pieces, &rings[1], hi)] {
+    for (pieces, rings, net, high) in [
+        (low_pieces, &rings[0], lo, false),
+        (high_pieces, &rings[1], hi, true),
+    ] {
         if !rings.is_empty() && pieces.len() != 1 {
             return Err(refuse(
                 "a ring of the face lies on a side the knot's iso line parts into several \
                  pieces, which placing it needs containment on the chart to tell",
             ));
         }
-        let net = Arc::new(net);
+        let patch = if high { high_patch } else { low_patch };
+        let record = children.record(solid, &mut *mint, patch, net);
         faces.push(
             pieces
                 .into_iter()
                 .map(|outer| FaceSpec {
                     id: face_id,
-                    surface: Surface::Nurbs(Arc::clone(&net)),
+                    record,
                     sense,
                     loops: std::iter::once(LoopSpec {
                         outer: true,
@@ -1351,18 +1311,23 @@ mod tests {
     use std::sync::Arc;
 
     use geom::{Curve3, NurbsSurface, Surface};
+    use geom_brep::PolygonOrientation;
     use geom_core::spline::KnotVector;
     use geom_core::{Point3, Vec3};
 
-    use super::{crossing_knots, split_faces};
+    use super::{crossing_knots, split_faces, use_start};
     use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
     use crate::error::StepImportError;
+    use crate::normalize::surgery::use_end;
 
     const EPS_IN: f64 = 1e-7;
 
-    /// The chart band an import at `EPS_IN` reads at.
+    /// The file's own band at `EPS_IN`, `(ε_in, K·ε_in)`, unfloored by
+    /// the run's ε: the pass reads ε_in raw beside it
+    /// (`work/importgate/the-c0-knot-split-reads-eps-in-raw-not-at-the-file-band.md`),
+    /// so its rows pin the two at one scale on every run.
     fn band() -> Option<geom_core::Band> {
-        crate::chart::file_band(EPS_IN, geom_core::Tol::witness())
+        crate::interpret::band_at(EPS_IN, 0.0, geom_core::Tol::witness().k())
     }
 
     /// The flat unit square `z = 0`, degree 1 in `u` with a knot at
@@ -1391,7 +1356,7 @@ mod tests {
             id: 1,
             faces: vec![FaceSpec {
                 id: 10,
-                surface: Surface::Nurbs(Arc::new(s)),
+                record: 40,
                 sense: true,
                 loops: vec![LoopSpec {
                     outer: true,
@@ -1411,9 +1376,11 @@ mod tests {
                     t0,
                     t1: t0 + core::f64::consts::TAU,
                     reversed: false,
+                    curve: None,
                 },
             )]),
             vertices: BTreeMap::from([(30, p)]),
+            surfaces: crate::entities::records_of([(40, Surface::Nurbs(Arc::new(s)))]),
             band_seams: BTreeSet::new(),
         }
     }
@@ -1438,6 +1405,7 @@ mod tests {
                     t0: 0.0,
                     t1: 1.0,
                     reversed: false,
+                    curve: None,
                 };
                 (20 + i, spec)
             })
@@ -1451,15 +1419,11 @@ mod tests {
         assert_eq!(crossing_knots(&solid, 0, false, EPS_IN), Vec::<f64>::new());
     }
 
-    /// The left half of a chart curved along `v` (degree 2, bulging to
-    /// `z = 1/4`), bounded on its right by the knot line itself. The
-    /// line is not straight, so no chord certifies the edge on it whole,
-    /// and the selection's budget runs out before pieces `ε_in` long
-    /// would: the line is kept. The split certifies that edge along the
-    /// line by its iso pcurve, finds the loop never passes to the other
-    /// side, and leaves the face whole on the sub-patch below the line.
-    #[test]
-    fn a_face_along_a_curved_knot_line_is_certified_on_it_and_kept_whole() {
+    /// The chart curved along `v` (degree 2, bulging to `z = 1/4`) with a
+    /// knot at `u = ½`, worn on record `40` by one face per `(x0, x1)` of
+    /// `faces`: the strip `x ∈ [x0, x1]`, bounded by two straight rows and
+    /// two of the chart's own `v` iso curves.
+    fn curved(faces: &[(f64, f64)]) -> SolidSpec {
         let s = NurbsSurface::new(
             KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
             KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
@@ -1491,38 +1455,65 @@ mod tests {
             ))
         };
         let line = |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, b - a);
-        let corners =
-            [(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)].map(|(x, y)| Point3::new(x, y, 0.0));
-        let carriers = [
-            line(corners[0], corners[1]),
-            iso(0.5, false),
-            line(corners[2], corners[3]),
-            iso(0.0, true),
-        ];
         let mut solid = solid(0.25);
-        solid.faces[0].surface = Surface::Nurbs(Arc::new(s));
-        solid.vertices = (0..4).map(|i| (30 + i, corners[i as usize])).collect();
-        solid.edges = carriers
-            .into_iter()
-            .zip(0..4u64)
-            .map(|(carrier, i)| {
-                let spec = EdgeSpec {
-                    start: 30 + i,
-                    end: 30 + (i + 1) % 4,
-                    carrier,
-                    t0: 0.0,
-                    t1: 1.0,
-                    reversed: false,
-                };
-                (20 + i, spec)
-            })
-            .collect();
-        solid.faces[0].loops[0].uses = (0..4)
-            .map(|i| EdgeUse {
-                edge: 20 + i,
-                forward: true,
-            })
-            .collect();
+        solid.surfaces = crate::entities::records_of([(40, Surface::Nurbs(Arc::new(s)))]);
+        solid.vertices.clear();
+        solid.edges.clear();
+        solid.faces.clear();
+        for (k, &(x0, x1)) in faces.iter().enumerate() {
+            let (e, v) = (20 + 10 * k as u64, 30 + 10 * k as u64);
+            let corners =
+                [(x0, 0.0), (x1, 0.0), (x1, 1.0), (x0, 1.0)].map(|(x, y)| Point3::new(x, y, 0.0));
+            let carriers = [
+                line(corners[0], corners[1]),
+                iso(x1, false),
+                line(corners[2], corners[3]),
+                iso(x0, true),
+            ];
+            for (i, carrier) in (0..4u64).zip(carriers) {
+                solid.vertices.insert(v + i, corners[i as usize]);
+                solid.edges.insert(
+                    e + i,
+                    EdgeSpec {
+                        start: v + i,
+                        end: v + (i + 1) % 4,
+                        carrier,
+                        t0: 0.0,
+                        t1: 1.0,
+                        reversed: false,
+                        curve: None,
+                    },
+                );
+            }
+            solid.faces.push(FaceSpec {
+                id: 10 + k as u64,
+                record: 40,
+                sense: true,
+                loops: vec![LoopSpec {
+                    outer: true,
+                    uses: (0..4)
+                        .map(|i| EdgeUse {
+                            edge: e + i,
+                            forward: true,
+                        })
+                        .collect(),
+                }],
+                band: false,
+            });
+        }
+        solid
+    }
+
+    /// The left half of [`curved`]'s chart, bounded on its right by the
+    /// knot line itself. The line is not straight, so no chord certifies
+    /// the edge on it whole, and the selection's budget runs out before
+    /// pieces `ε_in` long would: the line is kept. The split certifies
+    /// that edge along the line by its iso pcurve, finds the loop never
+    /// passes to the other side, and leaves the face whole on the
+    /// sub-patch below the line.
+    #[test]
+    fn a_face_along_a_curved_knot_line_is_certified_on_it_and_kept_whole() {
+        let mut solid = curved(&[(0.0, 0.5)]);
         assert_eq!(crossing_knots(&solid, 0, false, EPS_IN), vec![0.5]);
         let mut n = 100;
         let mut mint = || {
@@ -1530,14 +1521,19 @@ mod tests {
             n
         };
         let mut sink = Vec::new();
-        let kept = split_faces(&mut solid, EPS_IN, band(), &mut mint, &mut sink);
+        let kept = split_faces(
+            &mut solid,
+            crate::interpret::FileBand::test(EPS_IN),
+            &mut mint,
+            &mut sink,
+        );
         assert!(kept.is_ok(), "the face along the line imports: {kept:?}");
         assert_eq!(
             (solid.faces.len(), sink.len(), solid.edges.len()),
             (1, 0, 4),
             "the face and its four edges as stated"
         );
-        let Surface::Nurbs(ref chart) = solid.faces[0].surface else {
+        let Surface::Nurbs(ref chart) = *solid.surface(0) else {
             panic!("the face stays on a spline chart")
         };
         assert_eq!(
@@ -1580,6 +1576,7 @@ mod tests {
                                 t0: 0.0,
                                 t1: 1.0,
                                 reversed: false,
+                                curve: None,
                             },
                         );
                         uses.push(EdgeUse {
@@ -1607,6 +1604,7 @@ mod tests {
                             t0,
                             t1: t0 + core::f64::consts::TAU,
                             reversed: false,
+                            curve: None,
                         },
                     );
                     uses.push(EdgeUse {
@@ -1625,6 +1623,185 @@ mod tests {
         solid
     }
 
+    /// The flat unit square `z = 0`, degree 1 in `u` with its knots at
+    /// `xs` (each a crease run), worn by one face per polygon of `faces`,
+    /// all on record `40`.
+    fn on_one_record(xs: &[f64], faces: &[&[(f64, f64)]]) -> SolidSpec {
+        let knots: Vec<f64> = [0.0, 0.0]
+            .into_iter()
+            .chain(xs.iter().copied())
+            .chain([1.0, 1.0])
+            .collect();
+        let columns: Vec<f64> = [0.0]
+            .into_iter()
+            .chain(xs.iter().copied())
+            .chain([1.0])
+            .collect();
+        let net = NurbsSurface::new(
+            KnotVector::clamped(knots, 1).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            columns
+                .iter()
+                .flat_map(|&x| [0.0, 1.0].map(|y| Point3::new(x, y, 0.0)))
+                .collect(),
+            vec![1.0; 2 * columns.len()],
+        )
+        .unwrap();
+        let mut solid = solid(0.25);
+        solid.edges.clear();
+        solid.vertices.clear();
+        solid.faces.clear();
+        solid.surfaces = crate::entities::records_of([(40, Surface::Nurbs(Arc::new(net)))]);
+        let (mut e, mut v) = (200u64, 300u64);
+        for (i, pts) in faces.iter().enumerate() {
+            let first = v;
+            let mut uses = Vec::new();
+            for (k, &(x, y)) in pts.iter().enumerate() {
+                let (nx, ny) = pts[(k + 1) % pts.len()];
+                let (a, b) = (Point3::new(x, y, 0.0), Point3::new(nx, ny, 0.0));
+                solid.vertices.insert(v, a);
+                let end = if k + 1 == pts.len() { first } else { v + 1 };
+                solid.edges.insert(
+                    e,
+                    EdgeSpec {
+                        start: v,
+                        end,
+                        carrier: Curve3::line(a, b - a),
+                        t0: 0.0,
+                        t1: 1.0,
+                        reversed: false,
+                        curve: None,
+                    },
+                );
+                uses.push(EdgeUse {
+                    edge: e,
+                    forward: true,
+                });
+                (e, v) = (e + 1, v + 1);
+            }
+            solid.faces.push(FaceSpec {
+                id: 10 + i as u64,
+                record: 40,
+                sense: true,
+                loops: vec![LoopSpec { outer: true, uses }],
+                band: false,
+            });
+        }
+        solid
+    }
+
+    /// The rectangle `[x0, x1] × [y0, y1]`, counter-clockwise.
+    fn rect(x0: f64, x1: f64, y0: f64, y1: f64) -> [(f64, f64); 4] {
+        [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+    }
+
+    /// Each face's record, by the least `x` of its corners and its `y`.
+    fn worn_by(solid: &SolidSpec) -> Vec<((i64, i64), u64)> {
+        let mut out: Vec<_> = solid
+            .faces
+            .iter()
+            .map(|face| {
+                let corners: Vec<Point3<f64>> = face.loops[0]
+                    .uses
+                    .iter()
+                    .map(|&u| solid.vertices[&use_start(solid, u)])
+                    .collect();
+                let least = |f: fn(&Point3<f64>) -> f64| {
+                    corners.iter().map(f).fold(f64::INFINITY, f64::min)
+                };
+                let at = |w: f64| (w * 1000.0).round() as i64;
+                ((at(least(|p| p.x)), at(least(|p| p.y))), face.record)
+            })
+            .collect();
+        out.sort_unstable();
+        out
+    }
+
+    /// **A sub-patch record is its span, whatever knots led there.** One
+    /// record with creases at `x = ¼, ½, ¾`: face A crosses `¼` and `½`
+    /// (its split takes `½` first, then `¼` below it), face B crosses `¼`
+    /// alone. Their pieces on `[0, ¼]` wear one record. Above `¼`, A's
+    /// piece covers `[¼, ½]` and B's `[¼, 1]`: two spans, two records.
+    #[test]
+    fn pieces_on_one_span_wear_one_record_whichever_knots_their_faces_cross() {
+        let a = rect(0.1, 0.6, 0.1, 0.4);
+        let b = rect(0.1, 0.4, 0.6, 0.9);
+        let mut solid = on_one_record(&[0.25, 0.5, 0.75], &[&a, &b]);
+        split(&mut solid).expect("both faces split");
+        let worn = worn_by(&solid);
+        let record_at = |at: (i64, i64)| {
+            worn.iter()
+                .find(|(w, _)| *w == at)
+                .map(|&(_, r)| r)
+                .unwrap_or_else(|| panic!("a piece at {at:?}: {worn:?}"))
+        };
+        assert_eq!(
+            record_at((100, 100)),
+            record_at((100, 600)),
+            "A's and B's pieces on [0, ¼] wear one record: {worn:?}"
+        );
+        let domain = |at| {
+            let Surface::Nurbs(ref s) = solid.surfaces[&record_at(at)].surface else {
+                unreachable!("a sub-patch is a spline")
+            };
+            s.knot_values_u().domain()
+        };
+        assert_eq!(
+            [
+                domain((100, 100)),
+                domain((250, 100)),
+                domain((500, 100)),
+                domain((250, 600))
+            ],
+            [(0.0, 0.25), (0.25, 0.5), (0.5, 1.0), (0.25, 1.0)],
+            "each piece on the span its splits leave it: {worn:?}"
+        );
+        let records: BTreeSet<u64> = worn.iter().map(|&(_, r)| r).collect();
+        assert_eq!(records.len(), 4, "one record per span: {worn:?}");
+        assert!(!records.contains(&40), "no piece wears the source record");
+    }
+
+    /// **Faces the knot line leaves whole wear their side's sub-patch
+    /// record, one per side, and the source record keeps its net.** Two
+    /// faces on the left half of [`curved`]'s chart and one on its right,
+    /// each bounded by the knot line.
+    #[test]
+    fn faces_left_whole_share_their_sides_record_and_the_source_keeps_its_net() {
+        let mut solid = curved(&[(0.0, 0.5), (0.0, 0.5), (0.5, 1.0)]);
+        let Surface::Nurbs(ref source) = solid.surfaces[&40].surface else {
+            unreachable!("the record is a spline")
+        };
+        let source = Arc::clone(source);
+        let sink = split(&mut solid).expect("each face is left whole");
+        assert!(sink.is_empty(), "no census changes: {sink:?}");
+        let worn: Vec<u64> = solid.faces.iter().map(|f| f.record).collect();
+        let [left, again, right] = worn[..] else {
+            panic!("the three faces, each whole: {worn:?}")
+        };
+        assert_eq!(
+            left, again,
+            "the two left faces wear one sub-patch record: {worn:?}"
+        );
+        assert_ne!(left, right, "each side is its own record: {worn:?}");
+        assert!(
+            !worn.contains(&40),
+            "no face wears the source record: {worn:?}"
+        );
+        let Surface::Nurbs(ref kept) = solid.surfaces[&40].surface else {
+            unreachable!("the source record is a spline")
+        };
+        assert!(
+            Arc::ptr_eq(kept, &source),
+            "the source record is not narrowed in place"
+        );
+        for (face, domain) in [(0, (0.0, 0.5)), (2, (0.5, 1.0))] {
+            let Surface::Nurbs(ref chart) = *solid.surface(face) else {
+                unreachable!("a sub-patch is a spline")
+            };
+            assert_eq!(chart.knot_values_u().domain(), domain, "face {face}'s side");
+        }
+    }
+
     /// Splits every face of `solid`, minting ids from 1000.
     fn split(solid: &mut SolidSpec) -> Result<Vec<crate::StructureNormalization>, StepImportError> {
         let mut n = 1000;
@@ -1633,7 +1810,13 @@ mod tests {
             n
         };
         let mut sink = Vec::new();
-        split_faces(solid, EPS_IN, band(), &mut mint, &mut sink).map(|()| sink)
+        split_faces(
+            solid,
+            crate::interpret::FileBand::test(EPS_IN),
+            &mut mint,
+            &mut sink,
+        )
+        .map(|()| sink)
     }
 
     /// Points along a use, in its walking order, its last point left out.
@@ -1659,7 +1842,7 @@ mod tests {
             .iter()
             .map(|face| {
                 assert_eq!(face.sense, sense, "a piece keeps the face's sense");
-                let Surface::Nurbs(ref s) = face.surface else {
+                let Surface::Nurbs(ref s) = *solid.surface_of(face) else {
                     panic!("a split face stays on a spline chart")
                 };
                 let (lo, hi) = s.knot_values_u().domain();
@@ -1668,11 +1851,7 @@ mod tests {
                     let n = lp.uses.len();
                     for i in 0..n {
                         let (a, b) = (lp.uses[i], lp.uses[(i + 1) % n]);
-                        let end = |u: EdgeUse| {
-                            let spec = &solid.edges[&u.edge];
-                            if u.forward { spec.end } else { spec.start }
-                        };
-                        assert_eq!(end(a), super::use_start(solid, b), "the loop closes");
+                        assert_eq!(use_end(solid, a), use_start(solid, b), "the loop closes");
                     }
                     let pts: Vec<_> = lp.uses.iter().flat_map(|&u| walked(solid, u)).collect();
                     for p in &pts {
@@ -1764,10 +1943,36 @@ mod tests {
             }
             let mut solid = bounded(&[Bound::Polygon(c)]);
             solid.faces[0].sense = sense;
+            let Surface::Nurbs(ref parent) = *solid.surface(0) else {
+                unreachable!("the unit chart is a spline")
+            };
+            let parent = Arc::clone(parent);
             split(&mut solid).expect("the C splits");
+            // The pieces wear minted sub-patch records, the two arms one
+            // record, and the parent record keeps its net.
+            let mut worn: BTreeMap<u64, usize> = BTreeMap::new();
+            for face in &solid.faces {
+                *worn.entry(face.record).or_default() += 1;
+            }
+            assert_eq!(
+                worn.values().copied().collect::<BTreeSet<_>>(),
+                BTreeSet::from([1, 2]),
+                "sense {sense}: the back on one sub-patch record, the two arms on the other: {worn:?}"
+            );
+            assert!(
+                !worn.contains_key(&40),
+                "sense {sense}: no piece wears the parent record"
+            );
+            let Surface::Nurbs(ref kept) = solid.surfaces[&40].surface else {
+                unreachable!("the parent record is a spline")
+            };
+            assert!(
+                Arc::ptr_eq(kept, &parent),
+                "sense {sense}: the parent record is not narrowed"
+            );
             let turned: Vec<_> = parts(&solid, sense)
                 .into_iter()
-                .map(|(n, a)| (n, if sense { a } else { -a }))
+                .map(|(n, a)| (n, PolygonOrientation::of_face(sense).to_interior(a)))
                 .collect();
             assert_eq!(
                 turned.iter().map(|p| p.0).collect::<Vec<_>>(),
@@ -2002,7 +2207,8 @@ mod tests {
             );
             solid.edges.get_mut(&(200 + k)).unwrap().carrier = Curve3::line(a, b - a);
         }
-        solid.faces[0].surface = Surface::Nurbs(Arc::new(s));
+        let worn = solid.faces[0].record;
+        solid.surfaces.get_mut(&worn).unwrap().surface = Surface::Nurbs(Arc::new(s));
         solid
     }
 
@@ -2015,7 +2221,7 @@ mod tests {
             .iter()
             .map(|face| {
                 assert_eq!(face.sense, sense, "a piece keeps the face's sense");
-                let Surface::Nurbs(ref s) = face.surface else {
+                let Surface::Nurbs(ref s) = *solid.surface_of(face) else {
                     panic!("a piece stays on a spline chart")
                 };
                 let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
@@ -2023,9 +2229,8 @@ mod tests {
                     let n = lp.uses.len();
                     for i in 0..n {
                         let (a, b) = (lp.uses[i], lp.uses[(i + 1) % n]);
-                        let spec = &solid.edges[&a.edge];
-                        let end = if a.forward { spec.end } else { spec.start };
-                        assert_eq!(end, super::use_start(solid, b), "the loop closes");
+                        let end = use_end(solid, a);
+                        assert_eq!(end, use_start(solid, b), "the loop closes");
                         let foot = s.project(solid.vertices[&end]).unwrap();
                         assert!(foot.distance < 1e-9, "a corner lies on its piece's chart");
                         (lo, hi) = (lo.min(foot.u), hi.max(foot.u));
@@ -2138,7 +2343,13 @@ mod tests {
             n
         };
         let mut sink = Vec::new();
-        split_faces(&mut solid, EPS_IN, band(), &mut mint, &mut sink).unwrap();
+        split_faces(
+            &mut solid,
+            crate::interpret::FileBand::test(EPS_IN),
+            &mut mint,
+            &mut sink,
+        )
+        .unwrap();
         assert_eq!((solid.faces.len(), sink.len()), (1, 0));
     }
 
@@ -2187,6 +2398,7 @@ mod tests {
                         t0,
                         t1,
                         reversed: false,
+                        curve: None,
                     },
                 );
             }
@@ -2194,7 +2406,7 @@ mod tests {
                 id: 1,
                 faces: vec![FaceSpec {
                     id: 10,
-                    surface: Surface::Nurbs(Arc::new(s)),
+                    record: 40,
                     sense: true,
                     loops: vec![LoopSpec {
                         outer: true,
@@ -2209,6 +2421,7 @@ mod tests {
                 }],
                 edges: map,
                 vertices,
+                surfaces: crate::entities::records_of([(40, Surface::Nurbs(Arc::new(s)))]),
                 band_seams: BTreeSet::new(),
             }
         }

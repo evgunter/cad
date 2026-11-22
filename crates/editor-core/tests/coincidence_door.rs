@@ -24,7 +24,6 @@ fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<editor_core::CheckFin
     let cfg = ChecksConfig {
         connectedness: Severity::Off,
         at_rest: Severity::Off,
-        chart_coherence: Advisory::Off,
         unproven_coincidence: Advisory::Warn,
         unused: Advisory::Off,
         ..ChecksConfig::default()
@@ -1393,20 +1392,22 @@ fn a_profile_junction_the_lattice_reads_as_a_corner_is_no_row() {
     assert!(findings.is_empty(), "{findings:?}");
 }
 
-/// **A same-carrier junction no constructor made refuses at the
-/// door.** A leg of `ε/10` rise over 1 mm turns off the 10 m line by
-/// `1e-7` rad. Levered by the shorter leg's arm, the lattice reads that
-/// turn as `0.1ε`, Zero, and refuses the undeclared tangent junction at
-/// step 2, as validation reads the same leg's far end within ε of the
-/// line, one carrier continuing. Before the shorter-arm reading the
-/// lattice levered the 10 m arriving leg and built a corner validation
-/// recorded as one `SameOriented` row at `ProfileJunction`; with both
-/// reading the short leg, a document reaches neither of that arm's
-/// relations (`work/coincide/a-profile-junction-row-has-no-reaching-document.md`).
+/// **A same-carrier junction no constructor made refuses at
+/// evaluation**, the door admitting it (`[recipe.doors]`: a junction's
+/// turn is a value). A leg of `ε/10` rise over 1 mm turns off the 10 m
+/// line by `1e-7` rad. Levered by the shorter leg's arm, the lattice
+/// reads that turn as `0.1ε`, Zero, and refuses the undeclared tangent
+/// junction at step 2, as validation reads the same leg's far end
+/// within ε of the line, one carrier continuing. Before the shorter-arm
+/// reading the lattice levered the 10 m arriving leg and built a corner
+/// validation recorded as one `SameOriented` row at `ProfileJunction`;
+/// with both reading the short leg, a document reaches neither of that
+/// arm's relations
+/// (`work/coincide/a-profile-junction-row-has-no-reaching-document.md`).
 ///
 /// Red if the junction builds, or refuses for anything but its turn.
 #[test]
-fn a_profile_junction_on_one_carrier_refuses_at_the_door() {
+fn a_profile_junction_on_one_carrier_refuses_at_evaluation() {
     let rise = 0.1 * Tol::witness().eps();
     let doc = ProfileDoc::empty_derived("g_profile_same_carrier", Tol::witness());
     let node = Node::Profile(ProfileProgram {
@@ -1420,24 +1421,33 @@ fn a_profile_junction_on_one_carrier_refuses_at_the_door() {
         ids: Vec::new(),
         on: None,
     });
-    match doc.apply(
-        &editor_core::DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
-        },
+    let applied = doc
+        .apply(
+            &editor_core::DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("the door reads no value");
+    let id = applied.record.minted.expect("the insert mints the profile");
+    let ev = editor_core::evaluate::<f64>(
+        &applied.doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &editor_core::EvalOptions::default(),
         Tol::witness(),
-    ) {
-        Err(editor_core::EditError::ProfileProgramRefused { refusal, .. }) => match *refusal {
-            editor_core::ProgramRefusal::Geometry {
-                loop_: 0,
-                step: 2,
-                kind: profile::PathErrorKind::JunctionTangent,
-                ..
-            } => {}
-            other => panic!("the junction refuses as tangent at step 2, got {other:?}"),
-        },
-        Ok(_) => panic!("the junction must refuse at the door"),
-        Err(other) => panic!("the junction must refuse at the door, got {other:?}"),
+    );
+    match ev.node_error(id).map(|e| &e.kind) {
+        Some(editor_core::NodeErrorKind::ProfileReplay {
+            loop_: 0,
+            error:
+                profile::ReplayError {
+                    step: 2,
+                    kind: profile::ReplayErrorKind::Path(e),
+                },
+        }) if e.kind() == profile::PathErrorKind::JunctionTangent => {}
+        other => panic!("the junction refuses as tangent at step 2, got {other:?}"),
     }
 }
 
@@ -2825,7 +2835,7 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
         .copies
         .iter()
         .map(|copy| {
-            let body = &*copy.body;
+            let body = &crate::fixture::in_space(&copy.body);
             body.vertices()
                 .map(|(_, v)| body.get_point(v.point).unwrap().y)
                 .fold(f64::INFINITY, f64::min)
@@ -3119,7 +3129,7 @@ fn a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency() {
 ///   `CurvedPierceUnsupported`, or an escalation on the conic–quadric
 ///   reading that comes before it, at the edge and the face where the
 ///   door reads the touch in the band's gap (at `1e-9`,
-///   `bool_conic_quadric_sub_side`; at `1e-12`, `bool_conic_quadric_disc`).
+///   `conic_quadric_sub_side`; at `1e-12`, `conic_quadric_disc`).
 ///
 /// `shaft_and_bearing_ball` and `shaft_and_bearing_rounded` left this
 /// row when the join's carried lane came to chord a coaxial pair's
@@ -3143,7 +3153,8 @@ fn the_curved_stage6_scenes_refuse_at_their_unions() {
     refused(crate::corpus::cone_on_sphere::document(), &|e| {
         matches!(e, B::CurvedPierceUnsupported { .. })
             || matches!(e, B::Escalated { diag, .. } | B::CurvedPierceEscalated { diag, .. }
-                if diag.predicate.is_some_and(|p| p.starts_with("bool_conic_quadric")))
+                if diag.predicate.is_some_and(|p| p.starts_with("conic_quadric_")
+                    && !p.starts_with("conic_quadric_cone_")))
     });
 }
 
@@ -3191,7 +3202,7 @@ fn rounded_mouth_volume() -> f64 {
 /// (`the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows`
 /// holds each to it), so both meet the bar of the registry they stand
 /// beside, which requires every lane green (whether they join it:
-/// `work/tint/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry`).
+/// `work/ciw/the-rounded-mouth-scene-is-green-at-every-lane-but-stands-beside-the-registry`).
 ///
 /// Red if a union stops building at `f64`, if its volume moves, if its
 /// coaxial rows change in number or kind, or if its `Interval` outcome
@@ -3782,25 +3793,8 @@ fn tag(var: VarId) -> String {
 ///
 /// Red if the edit is chosen by cell order, or names a pose no mate
 /// reaches.
-///
-/// Pinned red at every ε row: the union refuses `RingHomingAmbiguous`
-/// (`work/sect/a-union-of-two-axis-placed-revolves-refuses-ring-homing-ambiguous-since-rehome-by-path.md`).
 #[test]
 fn the_axis_edit_mates_the_copy_no_mate_reaches_in_either_cell_order() {
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "the housing, shaft and collar union",
-        &[
-            "evaluates",
-            "UnionFoldStep { member: 2",
-            "RingHomingAmbiguous { ring: LoopKey(1v3) }",
-        ],
-        the_axis_edit_rows,
-    );
-}
-
-fn the_axis_edit_rows() {
     use crate::corpus::{Recorder, placed_in, revolved};
     use editor_core::{Coord, Dimension, Operand, TargetAxis};
     let rect = |inner: f64, outer: f64, (lo, hi): (f64, f64)| {
@@ -4064,7 +4058,7 @@ fn a_refused_bundle_states_nothing() {
             vec![shaft_wall],
         )),
     );
-    let text = editor_core::save(&r.doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&r.doc, Tol::witness()).expect("saves");
     let doctored = crate::wire::doctored(&text, |w| {
         let nodes = &mut w["snapshot"]["nodes"];
         let moved = nodes[second.0.to_string()]["Place"]["constraints"]
@@ -4077,8 +4071,7 @@ fn a_refused_bundle_states_nothing() {
             .insert(1, moved);
     });
     let doc = editor_core::load(&doctored, Tol::witness())
-        .expect("the load door admits each mate on its own")
-        .doc;
+        .expect("the load door admits each mate on its own");
     let ev = run(&doc);
     assert!(
         crate::corpus::failures(&ev)
@@ -4226,15 +4219,24 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                     let residuals = match key {
                         EntityKey::Face(face) => {
                             match body.face_surface(*face).expect("a face has a surface") {
-                                Surface::Cylinder { origin, axis, .. } => {
-                                    line_on(*origin, Some(*axis))
+                                Surface::Cylinder { frame, .. } => {
+                                    let (origin, axis) = (frame.origin(), frame.axis());
+                                    line_on(origin, Some(axis))
                                 }
-                                Surface::Cone { apex, axis, .. } => line_on(*apex, Some(*axis)),
-                                Surface::Torus { center, axis, .. } => {
-                                    line_on(*center, Some(*axis))
+                                Surface::Cone { frame, .. } => {
+                                    let (apex, axis) = (frame.origin(), frame.axis());
+                                    line_on(apex, Some(axis))
                                 }
-                                Surface::Sphere { center, .. } => line_on(*center, None),
-                                Surface::Plane { normal, .. } => {
+                                Surface::Torus { frame, .. } => {
+                                    let (center, axis) = (frame.origin(), frame.axis());
+                                    line_on(center, Some(axis))
+                                }
+                                Surface::Sphere { frame, .. } => {
+                                    let center = frame.origin();
+                                    line_on(center, None)
+                                }
+                                Surface::Plane { frame, .. } => {
+                                    let normal = frame.axis();
                                     let c = normal.cross(dir);
                                     vec![c.x, c.y, c.z]
                                 }
@@ -4248,15 +4250,10 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                             .map(geom_brep::EdgeCurve::carrier)
                             .expect("an edge has a carrier")
                         {
-                            Curve3::Circle(geom::Circle {
-                                frame:
-                                    geom::Frame {
-                                        origin: center,
-                                        axis,
-                                        ..
-                                    },
-                                ..
-                            }) => line_on(*center, Some(*axis)),
+                            Curve3::Circle(geom::Circle { frame, .. }) => {
+                                let (center, axis) = (frame.origin(), frame.axis());
+                                line_on(center, Some(axis))
+                            }
                             Curve3::Line(geom::Line { origin, dir }) => {
                                 line_on(*origin, Some(*dir))
                             }

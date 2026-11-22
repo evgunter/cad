@@ -129,7 +129,8 @@ use geom_core::NonzeroSign;
 use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
-use crate::implicit::{curvature_lever_arm, implicit_gradient};
+use crate::curvature_arm::curvature_lever_arm;
+use crate::implicit::implicit_gradient;
 use crate::recourse::{RefusedSide, SizedDecision, SizedPass};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
@@ -242,9 +243,9 @@ pub enum DihedralClass {
 /// clause (i)): each call site states its dimensional argument by the
 /// construction door it chooses; the per-site arguments are the rows of
 /// `docs/predicate-dimension-audit.md`.
-pub(crate) fn decide<T: Decide>(
+pub(crate) fn decide<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
@@ -255,9 +256,9 @@ pub(crate) fn decide<T: Decide>(
 /// refusal whose words read it — a sized decision's quoting the
 /// tolerance that would decide it, and a residual's definite miss read
 /// against the file's ε_in at the import door.
-pub(crate) fn decide_reported<T: Decide>(
+pub(crate) fn decide_reported<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
     geom_core::k_stats::decide_reported(name, margin, band)
@@ -266,9 +267,9 @@ pub(crate) fn decide_reported<T: Decide>(
 /// The crate's **magnitude door**
 /// ([`geom_core::k_stats::decide_magnitude`]): for a margin that is
 /// nonnegative by construction, whose two signs are both verdicts.
-pub(crate) fn decide_magnitude<T: Decide>(
+pub(crate) fn decide_magnitude<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Magnitude, Indeterminate> {
     geom_core::k_stats::decide_magnitude(name, margin, band)
@@ -276,9 +277,9 @@ pub(crate) fn decide_magnitude<T: Decide>(
 
 /// [`decide_magnitude`], keeping the reporting margin it decided on
 /// ([`geom_core::k_stats::decide_magnitude_reported`]).
-pub(crate) fn decide_magnitude_reported<T: Decide>(
+pub(crate) fn decide_magnitude_reported<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(Magnitude, MarginDiag), Indeterminate> {
     geom_core::k_stats::decide_magnitude_reported(name, margin, band)
@@ -291,9 +292,9 @@ pub(crate) fn decide_magnitude_reported<T: Decide>(
 /// definite non-positive sign is the funnel's escalation, recorded on
 /// the open frame, so no caller here mints an [`Indeterminate`] the
 /// verdict log cannot see.
-pub(crate) fn decide_positive<T: Decide>(
+pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
     geom_core::k_stats::decide_positive(name, margin, band)
@@ -303,9 +304,9 @@ pub(crate) fn decide_positive<T: Decide>(
 /// ([`geom_core::k_stats::decide_nonzero`]): for a predicate that reads
 /// a side off the margin's sign and has none to read at a definite
 /// zero.
-pub(crate) fn decide_nonzero<T: Decide>(
+pub(crate) fn decide_nonzero<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<NonzeroSign, Indeterminate> {
     geom_core::k_stats::decide_nonzero(name, margin, band)
@@ -313,9 +314,9 @@ pub(crate) fn decide_nonzero<T: Decide>(
 
 /// [`decide_nonzero`], keeping the reporting margin the passing sign was
 /// decided on ([`geom_core::k_stats::decide_nonzero_reported`]).
-pub(crate) fn decide_nonzero_reported<T: Decide>(
+pub(crate) fn decide_nonzero_reported<T: Decide, A: geom_core::MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(NonzeroSign, MarginDiag), Indeterminate> {
     geom_core::k_stats::decide_nonzero_reported(name, margin, band)
@@ -500,30 +501,19 @@ fn signed_wedge<T: Real>(
     Margin::levered(n_plus.cross(n_minus).dot(tau.normalize()), arm)
 }
 
-/// The name a corner's sign is decided under when the reading is of the
-/// body's shape ([`crate::edge_wedge_over`]).
+/// The name a corner's sign is decided under ([`Corner::convexity`],
+/// read only through [`crate::edge_wedge_over`]).
 ///
-/// **What its verdicts are.** Each records which way one corner turns at
-/// one station, taken by tier 3's check 4, the boolean's shared-rim
-/// routing, and the extrude and revolve upgrades that describe an edge by
-/// its whole wedge (`topo::edge_wedge`, `topo::edge_wedge_description`).
-/// Its population is the body's mix of convex and concave stations, so
-/// an edit that trades corners of one turn for corners of the other (a
-/// through slot becoming a blind pocket) moves the population across
-/// signs although no corner turned, and a population diff cannot tell
-/// the two apart. A flip among them changes whether a body is accepted (a
-/// sign that turns along one edge, or reads in band), never which body
-/// was built, since a crease of either turn is described alike:
-/// `editor_core::resolve`'s flip lane passes over it, as it does over the
-/// side reader's family.
-///
-/// **A reader whose side builds records it under its own name.** The
-/// blend reads the same fold through [`crate::edge_wedge_over_as`] with
-/// its own [`crate::FoldNames`], `fillet3_convexity_sign` for a corner's
-/// sign and `fillet3_knife_end` for a tangency's end, since either picks
-/// the side its ball rolls on and so which body it builds; the split
-/// rule's sign stays on its own reading for the same reason. Neither is
-/// in this population, so the flip lane sees their flips.
+/// **One population, two roles.** Each verdict records which way one
+/// corner turns at one station. Tier 3's check 4 reads it off a body
+/// already built, under the at-rest doors' check scope; the boolean's
+/// shared-rim routing and the constructors that store an edge by its
+/// wedge (`topo::edge_wedge_description`) route a crease of either turn
+/// alike, so they record it as a check too ([`crate::edge_wedge_over_as`]'s
+/// side, [`crate::WedgeClass`]). The
+/// blend builds from it, since the sign picks the side its ball rolls on,
+/// and records it as a choice. Which one a verdict is, the verdict says
+/// (`geom_core::k_stats::Role`); the name does not.
 pub const DIHEDRAL_SIGN: &str = "dihedral_sign";
 
 /// The name a dihedral's class is decided under ([`classify_dihedral`]):
@@ -539,9 +529,8 @@ pub const TANGENT_SECOND_ORDER: &str = "tangent_second_order";
 pub const MATERIAL_CUSP_SIDE: &str = "material_cusp_side";
 
 impl<T: Decide> Corner<T> {
-    /// **The corner's convexity** at `station`, decided as `name` (the
-    /// fold's reader's: [`DIHEDRAL_SIGN`] for a reading of the body's
-    /// shape, the blend's own name for its building decision): the signed wedge `((n₊ × n₋)·τ̂)·arm` over the
+    /// **The corner's convexity** at `station`, decided as
+    /// [`DIHEDRAL_SIGN`]: the signed wedge `((n₊ × n₋)·τ̂)·arm` over the
     /// token's normals, each turned outward by its face's `Face::sense`
     /// bit (`senses`, the plus face's first), with `τ̂` the station's
     /// direction, under [`Convexity`]'s convention: the plus face is the
@@ -569,14 +558,13 @@ impl<T: Decide> Corner<T> {
     /// [`WedgeRung::Sign`] in band, decided zero, or poisoned.
     pub(crate) fn convexity(
         &self,
-        name: &'static str,
         station: &Station<T>,
         senses: [bool; 2],
         band: Band,
     ) -> Result<(Convexity, geom_core::MarginDiag), WedgeEscalation> {
         let [n_plus, n_minus] = self.0.outward(senses);
         decide_nonzero_reported(
-            name,
+            DIHEDRAL_SIGN,
             signed_wedge(n_plus.vec(), n_minus.vec(), station.tau, self.0.arm),
             band,
         )
@@ -1274,7 +1262,7 @@ fn second_order_verdict<T: Decide>(
 ) -> Result<Decided, Indeterminate> {
     decide_reported(
         TANGENT_SECOND_ORDER,
-        Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
+        Margin::sagitta(jet.kappa_rel.abs(), arm),
         band,
     )
 }
@@ -2704,15 +2692,15 @@ mod tests {
             |v: Vec3<f64>| v * a.cos() + k.cross(v) * a.sin() + k * (k.dot(v) * (1.0 - a.cos()));
         let c0 = Point3::new(0.4, -1.3, 2.2);
         let cyl = Surface::Cylinder {
-            origin: c0 + r(Vec3::new(0.0, 1.0, 0.0)),
-            axis: r(Vec3::unit_z()),
+            frame: geom::Frame::new(
+                c0 + r(Vec3::new(0.0, 1.0, 0.0)),
+                r(Vec3::unit_z()),
+                r(Vec3::unit_x()),
+            ),
             radius: 1.0,
-            u_ref: r(Vec3::unit_x()),
         };
         let pl = Surface::Plane {
-            origin: c0,
-            normal: r(Vec3::new(0.0, -1.0, 0.0)),
-            u_ref: r(Vec3::unit_x()),
+            frame: geom::Frame::new(c0, r(Vec3::new(0.0, -1.0, 0.0)), r(Vec3::unit_x())),
         };
         let p = c0 + r(Vec3::new(0.0, 0.0, 0.3));
         assert_eq!(quoted(&cyl, &pl, p), (Some("dihedral_arm"), extent));
@@ -2922,10 +2910,8 @@ mod tests {
         );
 
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 2.0),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_y(), Vec3::unit_x()),
             radius: 2.0,
-            u_ref: Vec3::unit_x(),
         };
         let pair = crate::SurfacePair::new(a, b);
         assert!(
@@ -2944,10 +2930,8 @@ mod tests {
 
         let (sin, cos) = std::f64::consts::FRAC_PI_4.sin_cos();
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: std::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::unit_x(),
         };
         let ruling = Vec3::new(sin, 0.0, cos);
         let tangent = plane(Vec3::new(cos, 0.0, -sin), ruling);
@@ -2968,25 +2952,17 @@ mod tests {
         let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
         let (center, radius) = (Point3::new(0.37, -1.21, 2.9), 1.7);
         let sleeve = Surface::Cylinder {
-            origin: center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
-            u_ref,
         };
         let ball = Surface::Sphere {
-            center,
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
-            axis,
-            u_ref,
         };
-        let equator = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+        let equator = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(center, axis, u_ref),
             radius,
-        });
+        ));
         let turn = (2.0 * (band().zero() * band().escalate()).sqrt() * radius).sqrt() / radius;
         let bend = ask(&sleeve, &ball, &equator, (0.15, 0.15 + turn));
         assert!(
@@ -3022,10 +2998,8 @@ mod tests {
         let b = band();
         let (s, c) = std::f64::consts::FRAC_PI_4.sin_cos();
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: std::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::unit_x(),
         };
         let ruling = Vec3::new(s, 0.0, c);
         let tangent = plane(Vec3::new(c, 0.0, -s), ruling);
@@ -3107,10 +3081,12 @@ mod tests {
     fn walk<T: Decide>(r2: f64, script: &mut Script) -> SecondOrderWalk<usize> {
         let f = T::from_f64;
         let cylinder = |radius: f64| Surface::Cylinder {
-            origin: Point3::new(f(0.0), f(0.0), f(radius)),
-            axis: Vec3::new(f(0.0), f(1.0), f(0.0)),
+            frame: geom::Frame::new(
+                Point3::new(f(0.0), f(0.0), f(radius)),
+                Vec3::new(f(0.0), f(1.0), f(0.0)),
+                Vec3::new(f(1.0), f(0.0), f(0.0)),
+            ),
             radius: f(radius),
-            u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
         };
         let axis = geom::Curve3::line(
             Point3::new(f(0.0), f(0.0), f(0.0)),
@@ -3215,9 +3191,7 @@ mod tests {
 
     fn plane(normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal,
-            u_ref,
+            frame: geom::Frame::new(Point3::origin(), normal, u_ref),
         }
     }
 
@@ -3386,10 +3360,8 @@ mod tests {
     fn plane_cylinder_tangency_and_corner() {
         let r = 2.0;
         let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, r),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, r), Vec3::unit_y(), Vec3::unit_x()),
             radius: r,
-            u_ref: Vec3::unit_x(),
         };
         // The plane z = 0 touches the cylinder along the x…no: along
         // the line through the origin parallel to y (lowest generator).
@@ -3415,10 +3387,8 @@ mod tests {
     #[test]
     fn cone_apex_escalates_at_the_arm_gate() {
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: std::f64::consts::FRAC_PI_6,
-            u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err = classify_dihedral(&cone, &s1, Point3::origin(), fixture_lever(1.0), band())
@@ -3454,10 +3424,8 @@ mod tests {
         use crate::recourse::{Reading, RefusedArm};
 
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: std::f64::consts::FRAC_PI_6,
-            u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err = classify_dihedral(&cone, &s1, Point3::origin(), fixture_lever(1.0), band())
@@ -3554,16 +3522,12 @@ mod tests {
     #[test]
     fn kissing_cylinders_discriminate_cusp_from_slit() {
         let inner = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_y(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let outer = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 2.0),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_y(), Vec3::unit_x()),
             radius: 2.0,
-            u_ref: Vec3::unit_x(),
         };
         let p = Point3::origin();
         assert_eq!(
@@ -3669,15 +3633,19 @@ mod tests {
         };
         let r = 1.0;
         let cap = Surface::Plane {
-            origin: pt(0.0, Interval::zero()),
-            normal: unit(0.0, 0.0, -1.0),
-            u_ref: unit(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                pt(0.0, Interval::zero()),
+                unit(0.0, 0.0, -1.0),
+                unit(1.0, 0.0, 0.0),
+            ),
         };
         let cyl = |delta: f64| Surface::Cylinder {
-            origin: pt(0.0, i(-delta, delta)),
-            axis: unit(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                pt(0.0, i(-delta, delta)),
+                unit(0.0, 0.0, 1.0),
+                unit(1.0, 0.0, 0.0),
+            ),
             radius: Interval::from_f64(r),
-            u_ref: unit(1.0, 0.0, 0.0),
         };
         let p = |delta: f64| pt(0.0, i(r - delta, r + delta));
         let extent = Interval::from_f64(2.0 * r);
@@ -3714,10 +3682,8 @@ mod tests {
         let off_locus = wedge_decided(
             &plane(Vec3::unit_z(), Vec3::unit_x()),
             &Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             Point3::new(f64::NAN, 1.0, 0.0),
             fixture_lever(1.0),
@@ -3743,14 +3709,10 @@ mod tests {
         let mut keys: slotmap::SlotMap<crate::SurfaceKey, ()> = slotmap::SlotMap::with_key();
         let (ka, kb) = (keys.insert(()), keys.insert(()));
         let floor = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let wall = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_y(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
         };
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let spline_wall = Surface::Nurbs(std::sync::Arc::new(
@@ -3876,9 +3838,7 @@ mod seam_rows {
     /// A plane through the seam point with normal `n`.
     fn plane(n: Vec3<f64>) -> Surface<f64> {
         Surface::Plane {
-            origin: ORIGIN,
-            normal: n.normalize(),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(ORIGIN, n.normalize(), Vec3::new(1.0, 0.0, 0.0)),
         }
     }
 
@@ -4236,10 +4196,12 @@ mod seam_rows {
         let cylinder = |rho: f64, sin: f64| {
             let n = Vec3::new(0.0, -sin, (1.0 - sin * sin).sqrt());
             Surface::Cylinder {
-                origin: ORIGIN - n * rho,
-                axis: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    ORIGIN - n * rho,
+                    Vec3::new(1.0, 0.0, 0.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                ),
                 radius: rho,
-                u_ref: Vec3::new(0.0, 1.0, 0.0),
             }
         };
         let rho = 0.01;

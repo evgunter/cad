@@ -10,12 +10,11 @@
 //! double-count.
 //!
 //! One site is not like that. A pole-to-pole sphere band's meridian
-//! walk needs to know **which azimuth half** the band occupies — a
-//! direction in the surface's CHART frame, recovered from the loop's
-//! 3-D vector area, which is stated in the OUTWARD frame. Those two
-//! frames differ by exactly the sense, so `walk.rs` negates on a
-//! reversed face. This
-//! row is what proves it: flip one band's bit and the branch selection
+//! walk needs to know **which azimuth half** the band occupies, and its
+//! loop's winding cannot say: the walk reads it off the loop's stored
+//! lift, whose joint at each pole is the turn the face takes there on its
+//! own side, which topo decides from the sense. This row is what proves the
+//! bit reaches the band: flip one band's bit and the branch selection
 //! moves by π, meshing the complementary half of the sphere.
 //!
 //! **Tolerance shape**: structural, per the `PartialSphereFace`
@@ -72,8 +71,8 @@ fn tessellation_follows_the_band_sense() {
     let lied = mesh::tessellate(&flipped, delta, Tol::witness()).unwrap();
 
     // The band's meridian branch moved by π: the emitted geometry is
-    // NOT the same mesh. (Bitwise: if `walk.rs` ignored the bit these
-    // would be identical, since every other input is untouched.)
+    // NOT the same mesh. (Bitwise: if the band's columns ignored the bit
+    // these would be identical, since every other input is untouched.)
     let same = honest.positions.len() == lied.positions.len()
         && honest
             .positions
@@ -83,6 +82,6 @@ fn tessellation_follows_the_band_sense() {
     assert!(
         !same,
         "flipping a rimless band's sense must move its azimuth branch — \
-         the tessellator is still ignoring Face::sense"
+         the band's columns are not reading the face's side"
     );
 }

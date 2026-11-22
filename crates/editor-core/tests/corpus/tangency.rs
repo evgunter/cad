@@ -109,7 +109,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "declared_tangency",
         about: "#101: fillet-constructed joints + a hand-declared line/arc tangency",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(tangent_body),
         pin: None, // arcs: not dyadic (module docs)

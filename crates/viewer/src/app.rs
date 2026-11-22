@@ -140,6 +140,9 @@ const UNTITLED: &str = "untitled";
 /// apart from every other commit on screen.
 const NEW_DOCUMENT_COMMIT: &str = "Create document";
 
+/// The controls guide's toolbar button and its window's title.
+const CONTROLS: &str = "Controls";
+
 /// The tab name of the container holding the feature tree and the
 /// properties — the document's model, as against the View pane's
 /// display settings.
@@ -464,7 +467,7 @@ pub struct ViewerApp {
     /// leaves the frame after it is closed, which is the same
     /// staleness the preview itself carries and for the same reason.
     ///
-    /// One latch per panel: the traced-profile form, which shows its
+    /// One latch per panel: the profile-on-a-face form, which shows its
     /// trace, and the profile editor (`ViewerBehavior::edit_profile_ui`).
     profile_drawn: ProfileDoors<bool>,
     /// **The feature-tree row the pointer was over on the last frame**,
@@ -479,6 +482,9 @@ pub struct ViewerApp {
     /// should still be open when the edit made to answer it lands, so
     /// the reader can see whether the finding went away.
     checks_shown: bool,
+    /// Whether the controls guide window is open. Chrome state, as
+    /// [`Self::checks_shown`] is.
+    controls_shown: bool,
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
     pending_fit: bool,
@@ -994,6 +1000,7 @@ impl ViewerApp {
             profile_drawn: ProfileDoors::default(),
             row_hovered: None,
             checks_shown: false,
+            controls_shown: false,
             camera,
             input,
             theme,
@@ -1864,6 +1871,37 @@ impl ViewerApp {
         self.checks_shown = open;
     }
 
+    /// The controls guide: every gesture the viewport honours and
+    /// what it does.
+    ///
+    /// **The rows are [`InputMap::bindings`]** — the table
+    /// [`InputMap::map`] and [`InputMap::pick`] read, of the map this
+    /// session resolved from its preferences — so the window lists
+    /// what the viewport in front of the reader does, and nothing
+    /// here words a binding.
+    fn controls_window(&mut self, ctx: &egui::Context) {
+        if !self.controls_shown {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new(CONTROLS)
+            .open(&mut open)
+            .resizable(false)
+            .show(ctx, |ui| {
+                egui::Grid::new("viewer_controls_guide")
+                    .num_columns(2)
+                    .striped(true)
+                    .show(ui, |ui| {
+                        for binding in self.input.bindings {
+                            ui.label(binding.gesture());
+                            ui.label(binding.action());
+                            ui.end_row();
+                        }
+                    });
+            });
+        self.controls_shown = open;
+    }
+
     /// The toolbar row: the document's controls, and the two gesture
     /// cancel doors while their gestures are in flight.
     ///
@@ -2072,6 +2110,13 @@ impl ViewerApp {
                 // for a fit rather than performing one; the
                 // viewport takes it at the real aspect.
                 self.pending_fit = true;
+            }
+            if ui
+                .button(CONTROLS)
+                .on_hover_text("what each pointer gesture does in the viewport")
+                .clicked()
+            {
+                self.controls_shown = !self.controls_shown;
             }
             // The indicator is a READ of session state, and the
             // buttons beside it are the shipped token and its pair.
@@ -2356,7 +2401,7 @@ impl eframe::App for ViewerApp {
                 (Some(preview), Some(built))
             });
         // A traced path runs onto the trace at evaluation, which no
-        // replay here can draw: the traced-profile form shows the trace.
+        // replay here can draw: the profile-on-a-face form shows the trace.
         let landed = self.session.evaluation_arc().cloned();
         if let Some(latches) = self
             .drafts
@@ -2467,6 +2512,7 @@ impl eframe::App for ViewerApp {
             });
         ops.append(&mut toolbar_ops);
         self.checks_window(ui.ctx(), &mut ops);
+        self.controls_window(ui.ctx());
         if notation != self.session.notation() {
             self.session.set_notation(notation);
             self.remember_prefs();
@@ -4394,7 +4440,7 @@ mod properties_pane_tests {
             | ToolKind::Part
             | ToolKind::Mirror => COMBINE_BODIES,
             ToolKind::Blend => BLEND_EDGES,
-            ToolKind::Clearance => REQUIREMENTS,
+            ToolKind::Assertion => REQUIREMENTS,
         }
     }
 
@@ -5816,7 +5862,7 @@ mod properties_pane_tests {
     mod live_editor {
         use super::*;
         use crate::forms::ShapeKind;
-        use crate::pane::profile::{DISCARD, PENDING, add_loop_label};
+        use crate::pane::profile::add_loop_label;
 
         /// The startup app with its plate's profile selected and the
         /// editor open on it.
@@ -5886,10 +5932,11 @@ mod properties_pane_tests {
                 .and_then(|row| row.value.ok()?.one().map(|value| value.as_f64()))
         }
 
-        /// The plate with a rectangle added across its hole: a change
-        /// the door refuses, so the editor holds it pending. Answers
-        /// the app, the profile and the history's length before it.
-        fn pending_rectangle() -> (Driven, RecipeNodeId, usize) {
+        /// The plate with its outline's last row removed: the chain no
+        /// longer closes, a step order no value makes valid, so the
+        /// editor holds it and says why. Answers the app, the profile
+        /// and the history's length before it.
+        fn pending_unclosed() -> (Driven, RecipeNodeId, usize) {
             let (mut driven, profile) = plate_open();
             // One step in the history, for an undo to have something
             // to step back over.
@@ -5899,12 +5946,29 @@ mod properties_pane_tests {
             }]);
             driven.settle();
             let steps = driven.app.session.history().len();
-            driven.click(&add_loop_label(ShapeKind::Rectangle));
+            let last = match driven.app.session.committed_doc().node(profile) {
+                Some(Node::Profile(program)) => program.loops[0].authored_steps() - 1,
+                other => panic!("{profile:?} is a profile: {other:?}"),
+            };
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("the editor holds the profile")
+                .edit_row(
+                    0,
+                    crate::drafts::RowEdit::Remove(last),
+                    crate::props::Notation::CANONICAL,
+                )
+                .expect("a removal makes no row");
             driven.settle();
             let painted = driven.quiet();
             assert!(
-                painted.iter().any(|(run, _)| run.starts_with(PENDING)),
-                "the rectangle across the hole is pending: {painted:?}"
+                painted
+                    .iter()
+                    .any(|(run, _)| run.contains("does not close")),
+                "the editor says why it holds the unclosed outline: {painted:?}"
             );
             assert!(pending(&driven));
             assert_eq!(driven.app.session.history().len(), steps, "nothing landed");
@@ -5914,13 +5978,16 @@ mod properties_pane_tests {
         /// **A field's commit and a click in one frame are two offers,
         /// in the order they were made.** The hole's radius typed, then
         /// `Add circle loop` clicked (the click takes the field's
-        /// focus): the radius lands on its own, one step; the circle,
-        /// placed in the plate's box and identical to the new hole, is
-        /// refused and alone is pending. Discarding it keeps the radius.
+        /// focus): the radius lands on its own, one step, and then the
+        /// circle, placed in the plate's box and identical to the new
+        /// hole, as a second (the door reads no value; the profile
+        /// refuses at evaluation). Undoing once takes back the circle
+        /// and keeps the radius.
         #[test]
         fn a_typed_field_lands_before_the_click_that_took_its_focus() {
             let (mut driven, profile) = plate_open();
             let steps = driven.app.session.history().len();
+            let loops = loop_count(&driven, profile);
             let painted = driven.quiet();
             let field = runs(&painted, "radius ")[0];
             driven.click_at(field);
@@ -5930,33 +5997,27 @@ mod properties_pane_tests {
             driven.settle();
             assert_eq!(
                 driven.app.session.history().len(),
-                steps + 1,
-                "the radius landed on its own: {}",
+                steps + 2,
+                "the radius, then the circle: {}",
                 status(&driven)
             );
-            assert_eq!(
-                hole_radius(&driven, profile),
-                Some(0.01),
-                "the radius moved"
-            );
-            assert!(pending(&driven), "the circle alone is pending");
-            driven.click(DISCARD);
+            assert_eq!(loop_count(&driven, profile), loops + 1, "the circle landed");
+            driven.app.perform_batch(vec![SessionOp::Undo]);
             driven.settle();
-            assert!(!pending(&driven), "discarded");
+            assert_eq!(loop_count(&driven, profile), loops, "undo took the circle");
             assert_eq!(
                 hole_radius(&driven, profile),
                 Some(0.01),
                 "the landed radius is kept"
             );
-            assert_eq!(driven.app.session.history().len(), steps + 1);
         }
 
         /// **Undo takes back a pending draft first, and says so.** The
-        /// first undo discards the pending rectangle without stepping
+        /// first undo discards the pending draft without stepping
         /// the history; the next undo steps it.
         #[test]
         fn undo_takes_back_a_pending_draft_first_and_says_so() {
-            let (mut driven, _profile, steps) = pending_rectangle();
+            let (mut driven, _profile, steps) = pending_unclosed();
             let state = driven.app.session.history().current();
             driven.app.perform_batch(vec![SessionOp::Undo]);
             driven.settle();
@@ -5984,7 +6045,7 @@ mod properties_pane_tests {
         /// **Selecting away from a pending draft says it was dropped.**
         #[test]
         fn selecting_away_from_a_pending_draft_says_so() {
-            let (mut driven, _profile, _) = pending_rectangle();
+            let (mut driven, _profile, _) = pending_unclosed();
             driven.select(Selection::Node(extrude()));
             driven.settle();
             assert!(
@@ -6001,7 +6062,7 @@ mod properties_pane_tests {
         /// **Another document drops a pending draft, and says so.**
         #[test]
         fn a_new_document_says_the_pending_draft_was_dropped() {
-            let (mut driven, _profile, _) = pending_rectangle();
+            let (mut driven, _profile, _) = pending_unclosed();
             driven.app.perform_batch(vec![SessionOp::NewDocument {
                 name: "other".to_owned(),
             }]);
@@ -6135,7 +6196,7 @@ mod properties_pane_tests {
         /// went**, not that the document moved.
         #[test]
         fn deleting_the_profile_under_a_pending_draft_says_it_went() {
-            let (mut driven, profile, _) = pending_rectangle();
+            let (mut driven, profile, _) = pending_unclosed();
             driven
                 .app
                 .perform_batch(vec![SessionOp::DeleteNode { node: profile }]);
@@ -6799,7 +6860,7 @@ mod properties_pane_tests {
 
     /// **The Properties pane at rest is its doors**: with nothing
     /// selected and nothing open, no form's fields or commit is
-    /// painted — the traced-profile form behind `New traced profile…`
+    /// painted — the profile-on-a-face form behind `New profile on a face…`
     /// even with its section open, the add-variable form behind
     /// `New variable…` —
     /// and each door opens its form. The add-variable form, open with
@@ -6807,7 +6868,7 @@ mod properties_pane_tests {
     /// frame rather than only on a hover.
     #[test]
     fn the_properties_pane_at_rest_draws_doors_and_each_opens_its_form() {
-        use crate::pane::create::{ADD_FEATURE, NEW_TRACED_PROFILE, NEW_TRACED_PROFILE_DOOR};
+        use crate::pane::create::{ADD_FEATURE, NEW_PROFILE_ON_FACE, NEW_PROFILE_ON_FACE_DOOR};
         use crate::pane::properties::{NEW_VARIABLE, NEW_VARIABLE_COMMIT};
         let offers = |painted: &[(String, egui::Rect)], words: &str| {
             painted.iter().any(|(run, _)| run == words)
@@ -6816,7 +6877,7 @@ mod properties_pane_tests {
         let rest = driven.frame(Vec::new());
         for (door, form) in [
             (NEW_VARIABLE, NEW_VARIABLE_COMMIT),
-            (ADD_FEATURE, NEW_TRACED_PROFILE),
+            (ADD_FEATURE, NEW_PROFILE_ON_FACE),
         ] {
             assert!(
                 offers(&rest, door) && !offers(&rest, form),
@@ -6826,13 +6887,13 @@ mod properties_pane_tests {
         driven.click(ADD_FEATURE);
         let section = driven.frame(Vec::new());
         assert!(
-            offers(&section, NEW_TRACED_PROFILE_DOOR) && !offers(&section, NEW_TRACED_PROFILE),
+            offers(&section, NEW_PROFILE_ON_FACE_DOOR) && !offers(&section, NEW_PROFILE_ON_FACE),
             "the open section offers the form's door, not the form: {section:?}"
         );
-        driven.click(NEW_TRACED_PROFILE_DOOR);
+        driven.click(NEW_PROFILE_ON_FACE_DOOR);
         assert!(
-            offers(&driven.frame(Vec::new()), NEW_TRACED_PROFILE),
-            "the door opens the traced-profile form"
+            offers(&driven.frame(Vec::new()), NEW_PROFILE_ON_FACE),
+            "the door opens the profile-on-a-face form"
         );
         driven.click(NEW_VARIABLE);
         driven.app.drafts.new_variable_name = "gap".to_owned();
@@ -7459,6 +7520,93 @@ mod properties_pane_tests {
         );
     }
 
+    /// **The Controls button opens a guide whose rows are exactly the
+    /// bindings of the session's input map, and closes it again.** The
+    /// map installed is one no preset registers, so a window that
+    /// worded its own bindings would not show them; and everything
+    /// the opened window paints is accounted for, so a row written
+    /// beside the table is red too.
+    #[test]
+    fn the_controls_button_shows_exactly_the_bindings_of_the_sessions_input_map() {
+        use crate::app::CONTROLS;
+        use crate::input::{Binding, Held, InputMap, Navigation, PointerButton};
+        let mut driven = Driven::with(Vec::new());
+        driven.app.input = InputMap {
+            bindings: &[
+                Binding::Drag {
+                    button: PointerButton::Secondary,
+                    held: Held {
+                        shift: true,
+                        alt: true,
+                    },
+                    moves: Navigation::Orbit,
+                },
+                Binding::Drag {
+                    button: PointerButton::Primary,
+                    held: Held::NONE,
+                    moves: Navigation::Pan,
+                },
+                Binding::Pinch,
+                Binding::Click {
+                    button: PointerButton::Middle,
+                },
+            ],
+            ..InputMap::DEFAULT
+        };
+        // The window's title, then each row's gesture and its action.
+        let guide: Vec<String> = std::iter::once(CONTROLS.to_owned())
+            .chain(
+                driven
+                    .app
+                    .input
+                    .bindings
+                    .iter()
+                    .flat_map(|binding| [binding.gesture(), binding.action().to_owned()]),
+            )
+            .collect();
+        let before = driven.quiet();
+        // What a frame paints that the closed app did not, in reading
+        // order: down the lines, and along each.
+        let added = |painted: &[(String, egui::Rect)]| -> Vec<String> {
+            let mut new: Vec<&(String, egui::Rect)> =
+                painted.iter().filter(|run| !before.contains(run)).collect();
+            new.sort_by(|(_, a), (_, b)| {
+                a.center()
+                    .y
+                    .total_cmp(&b.center().y)
+                    .then(a.left().total_cmp(&b.left()))
+            });
+            new.into_iter().map(|(run, _)| run.clone()).collect()
+        };
+        driven.click(CONTROLS);
+        let open = driven.quiet();
+        assert_eq!(added(&open), guide, "the opened window, whole: {open:?}");
+        // The button and the window's title both read `Controls`;
+        // the button was there first.
+        let button = before
+            .iter()
+            .find(|(run, _)| run == CONTROLS)
+            .expect("the button")
+            .1;
+        driven.frame(vec![egui::Event::PointerMoved(button.center())]);
+        driven.frame(
+            [true, false]
+                .map(|pressed| egui::Event::PointerButton {
+                    pos: button.center(),
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                })
+                .to_vec(),
+        );
+        let closed = driven.quiet();
+        assert_eq!(
+            added(&closed),
+            Vec::<String>::new(),
+            "the button closes it: {closed:?}"
+        );
+    }
+
     /// **"Add to the product" is offered on a drawn body's tree row, and
     /// as the `unused` finding's recourse.** A fresh revolve lands
     /// unplaced and nothing reads it, so the checks report it unused
@@ -7703,11 +7851,11 @@ mod properties_pane_tests {
             self.quiet();
         }
 
-        /// The traced-profile form, opened, with the startup extrude's
-        /// top cap latched as the face its sketch plane is on, by the
+        /// The profile-on-a-face form, opened, with the startup extrude's
+        /// top cap latched as the face its profile is drawn on, by the
         /// latch's own button, and the selection then cleared.
         fn holding_the_top_cap() -> (Self, crate::session::FaceSelection) {
-            let mut driven = Self::with_seams(Vec::new(), |app| app.drafts.traced_open = true);
+            let mut driven = Self::with_seams(Vec::new(), |app| app.drafts.on_face_open = true);
             driven.settle();
             driven.click(crate::pane::create::ADD_FEATURE);
             let top = cap_of(pncad::prelude::CapEnd::End);
@@ -7716,7 +7864,7 @@ mod properties_pane_tests {
                 driven
                     .app
                     .drafts
-                    .trace_plane
+                    .on_face
                     .as_ref()
                     .map(crate::tree::HeldPick::face),
                 Some(&top),
@@ -7805,10 +7953,10 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The traced-profile form's Cancel lets its held face go**:
+    /// **The profile-on-a-face form's Cancel lets its held face go**:
     /// closed behind its door, the form holds nothing, so the viewport
     /// marks nothing as held. Goes red if `Drafts::marked_face` stops
-    /// reading `traced_open`.
+    /// reading `on_face_open`.
     #[test]
     fn the_traced_profile_forms_cancel_lets_its_held_face_go() {
         use crate::pickindex::IdMap;
@@ -7818,7 +7966,7 @@ mod properties_pane_tests {
         assert_eq!(driven.held(), [top_id, NONE, NONE], "held while open");
         driven.click("Cancel");
         driven.quiet();
-        assert!(!driven.app.drafts.traced_open, "the Cancel closed it");
+        assert!(!driven.app.drafts.on_face_open, "the Cancel closed it");
         assert_eq!(
             driven.held(),
             [NONE, NONE, NONE],
@@ -7826,7 +7974,7 @@ mod properties_pane_tests {
         );
     }
 
-    /// **Folding the section the open traced-profile form sits in lets
+    /// **Folding the section the open profile-on-a-face form sits in lets
     /// its held face go too**: the form is no more on screen than
     /// behind its door, and a face marked as held by a form nobody can
     /// see is the defect the door's gate closes.
@@ -7841,7 +7989,7 @@ mod properties_pane_tests {
         driven.quiet();
         assert!(
             driven
-                .each(crate::pane::create::NEW_TRACED_PROFILE)
+                .each(crate::pane::create::NEW_PROFILE_ON_FACE)
                 .is_empty(),
             "the section folded"
         );
@@ -7852,7 +8000,7 @@ mod properties_pane_tests {
         );
     }
 
-    /// **The traced-profile form's held face is marked after the
+    /// **The profile-on-a-face form's held face is marked after the
     /// selection moves on, and only while the form holds it.**
     ///
     /// Driven through the form itself: the pick is latched by the
@@ -7891,7 +8039,7 @@ mod properties_pane_tests {
 
     /// **Both picks of the held face follow a sketch committed on it**:
     /// the startup plate's top cap selected and held by the
-    /// traced-profile form, then a sketch on the plate picked as itself and
+    /// profile-on-a-face form, then a sketch on the plate picked as itself and
     /// the re-point it offers accepted, which takes the plate's copy over
     /// with the union. The union carries the cap as one face, so the
     /// selection and the form's held face both follow it there at the
@@ -7923,7 +8071,7 @@ mod properties_pane_tests {
             matches!(resolution.as_deref(), Some(Resolution::Resolved(_))),
             "the selection resolves: {resolution:?}"
         );
-        let held = driven.app.drafts.trace_plane.clone();
+        let held = driven.app.drafts.on_face.clone();
         assert_eq!(
             held.as_ref().map(crate::tree::HeldPick::face),
             Some(&face),
@@ -8056,7 +8204,7 @@ mod properties_pane_tests {
         let held = driven
             .app
             .drafts
-            .trace_plane
+            .on_face
             .as_ref()
             .expect("the form holds the cap")
             .face()
@@ -8090,7 +8238,7 @@ mod properties_pane_tests {
         driven.perform(SessionOp::NewDocument {
             name: "fresh".to_owned(),
         });
-        assert_eq!(driven.app.drafts.trace_plane, None, "new document");
+        assert_eq!(driven.app.drafts.on_face, None, "new document");
 
         let (mut driven, _top) = Driven::holding_the_top_cap();
         // A folder of its own: a save scans the folder it writes into.
@@ -8103,13 +8251,13 @@ mod properties_pane_tests {
             .perform_batch(vec![SessionOp::Save(path.clone())]);
         driven.perform(SessionOp::Open(path.clone()));
         let removed = std::fs::remove_dir_all(&dir);
-        assert_eq!(driven.app.drafts.trace_plane, None, "open");
+        assert_eq!(driven.app.drafts.on_face, None, "open");
         removed.expect("the row removes the document it saved");
     }
 
     /// **The op loop re-speaks what outlives the op that made it**
     /// (`ViewerApp::respeak_held`): picked, renamed, then deleted, the
-    /// open tool's drop and the traced-profile form's held face both name the
+    /// open tool's drop and the profile-on-a-face form's held face both name the
     /// extrude by its last label, through `perform_batch` itself.
     #[test]
     fn the_op_loop_says_a_held_node_by_its_last_label() {
@@ -8152,7 +8300,7 @@ mod properties_pane_tests {
             driven
                 .app
                 .drafts
-                .trace_plane
+                .on_face
                 .as_ref()
                 .expect("the form holds the top cap")
                 .said()
@@ -8662,7 +8810,7 @@ mod properties_pane_tests {
         // `held_edges_refused` is non-zero here, so the whole-value
         // asserts below guard that member alone; `profiles_undrawn`
         // waits on a fixture that makes it non-zero
-        // (`work/vdoc/committed-profiles-undrawn-has-no-witness.md`).
+        // (`work/chrome/committed-profiles-undrawn-has-no-witness.md`).
         assert_ne!(
             driven.app.viewport_reads,
             super::ViewportReads::default(),
@@ -9586,10 +9734,11 @@ mod properties_pane_tests {
         );
     }
 
-    /// **The traced-profile form, driven through the whole app**
-    /// (`SessionOp::AddDrawnProfile`): on the cylinder of the
-    /// corpus's `boss_tangent_by_value`, a boss footprint drawn in the
-    /// plane of a cap runs onto the wall's trace and on along it.
+    /// **The profile-on-a-face form, driven through the whole app**
+    /// (`SessionOp::DrawOnFace`): on the cylinder of the corpus's
+    /// `boss_tangent_by_value`, a boss footprint drawn on a cap's chart,
+    /// with the wall picked to trace, runs onto the wall's trace and on
+    /// along it.
     mod trace_tool {
         use pncad::document::{
             DrawnOn, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
@@ -9602,7 +9751,7 @@ mod properties_pane_tests {
         use pncad::select::{all_faces, all_vertices, vertex_position};
 
         use super::Driven;
-        use crate::pane::create::{NEW_TRACED_PROFILE, USE_THE_PICKED_FACE};
+        use crate::pane::create::{NEW_PROFILE_ON_FACE, TRACE_NOTHING, USE_THE_PICKED_FACE};
         use crate::session::{DocSession, FaceSelection, Selection, SessionOp, SketchTraceFault};
         use crate::test_support::{inserted, len, placed};
 
@@ -9699,14 +9848,14 @@ mod properties_pane_tests {
             ]
         }
 
-        /// **The form, its latches taken from picks of `plane` and
+        /// **The form, its latches taken from picks of `on` and
         /// `traced`, and the heading against the trace.**
-        fn drive(session: DocSession, plane: FaceSelection, traced: FaceSelection) -> Driven {
+        fn drive(session: DocSession, on: FaceSelection, traced: FaceSelection) -> Driven {
             let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
-            pane.app.drafts.traced_open = true;
+            pane.app.drafts.on_face_open = true;
             pane.settle();
             pane.click(crate::pane::create::ADD_FEATURE);
-            for (nth, face) in [plane, traced].into_iter().enumerate() {
+            for (nth, face) in [on, traced].into_iter().enumerate() {
                 pane.app
                     .perform_batch(vec![SessionOp::Select(Selection::Face(face))]);
                 let at = pane.each(USE_THE_PICKED_FACE);
@@ -9743,7 +9892,7 @@ mod properties_pane_tests {
         /// ([`Driven::settle_draft`]) and lands as one edit. The trace's
         /// two steps follow row 1. Answers the profile.
         fn add(pane: &mut Driven) -> RecipeNodeId {
-            pane.click(NEW_TRACED_PROFILE);
+            pane.click(NEW_PROFILE_ON_FACE);
             pane.quiet();
             let (profile, _) = added(pane);
             let session = &pane.app.session;
@@ -9786,7 +9935,7 @@ mod properties_pane_tests {
                 .expect("the boss extrude")
         }
 
-        /// `node`'s least `x`, greatest `y` and least `z`, as it landed.
+        /// `node`'s least `x`, `y` and `z`, as it landed.
         fn extent(pane: &Driven, node: RecipeNodeId) -> [f64; 3] {
             let (_, ev) = pane.app.session.landed_pair().expect("landed");
             assert!(
@@ -9800,7 +9949,7 @@ mod properties_pane_tests {
                 .collect();
             [
                 at.iter().map(|p| p.x).fold(f64::INFINITY, f64::min),
-                at.iter().map(|p| p.y).fold(f64::NEG_INFINITY, f64::max),
+                at.iter().map(|p| p.y).fold(f64::INFINITY, f64::min),
                 at.iter().map(|p| p.z).fold(f64::INFINITY, f64::min),
             ]
         }
@@ -9839,11 +9988,12 @@ mod properties_pane_tests {
         /// traces one face; after the authored heading its chain runs
         /// `line_to` the first crossing out of the wall and heads
         /// `along_trace` against it, so the one direction written is the
-        /// authored one. Extruded, the boss's wall stands at the radius;
-        /// the radius typed again, it stands at the new one. The door's
-        /// proof of the tangency, and the frame on the top cap and off
-        /// the origin, are `editor-core`'s rows
-        /// (`intent_s6_e_traced_frame`), where the frame is read.
+        /// authored one. Drawn on the bottom cap's chart, whose `y` is the
+        /// space's `−y`, and extruded, the boss stands outward below the
+        /// base, its wall at `y = −r`; the radius typed again, it stands at
+        /// the new one. The door's proof of the tangency, and the chart on
+        /// the top cap and off the origin, are `editor-core`'s rows
+        /// (`intent_s6_e_traced_on_a_face`).
         #[test]
         fn the_gesture_writes_the_trace_steps_and_the_boss_follows_the_wall() {
             let (session, disc, cylinder) = cylinder(0.0);
@@ -9895,16 +10045,14 @@ mod properties_pane_tests {
                 1,
                 "the one heading written is the authored one: {steps:?}"
             );
-            near(
-                extent(&pane, boss)[1],
-                RADIUS,
-                "the boss's wall is at the radius",
-            );
+            let [_, y, z] = extent(&pane, boss);
+            near(y, -RADIUS, "the boss's wall is at the radius");
+            near(z, -BOSS_H, "the boss stands outward of the bottom cap");
 
             set(&mut pane, disc, arg(StepArg::Radius), 0.625);
             near(
                 extent(&pane, boss)[1],
-                0.625,
+                -0.625,
                 "the boss's wall follows the radius",
             );
         }
@@ -10200,14 +10348,13 @@ mod properties_pane_tests {
             }
         }
 
-        /// **A traced face with no axis is refused in the pane, Add is
-        /// held, and nothing is written; a traced wall is then shown,
-        /// and its profile undoes, redoes and persists.** The top cap
-        /// traced from the bottom cap's plane (which misses it) has no
-        /// axis to stand the frame on: the pane says the frame's own
-        /// refusal and Add writes nothing. Moved to the wall, the trace
-        /// shows and still nothing is written until Add, which is one
-        /// undoable step and reopens from a save as it was written.
+        /// **A trace refused in the pane writes nothing; a traced wall is
+        /// then shown, and its profile undoes, redoes and persists.** The
+        /// top cap traced on the bottom cap's chart, whose plane misses
+        /// it: the pane says the trace's own refusal and nothing is
+        /// written. Moved to the wall, the trace shows and still nothing
+        /// is written until Add, which is one undoable step and reopens
+        /// from a save as it was written.
         #[test]
         fn a_trace_refused_in_the_pane_writes_nothing_and_an_added_one_persists() {
             let (session, _, cylinder) = cylinder(0.0);
@@ -10217,8 +10364,8 @@ mod properties_pane_tests {
             let undo = session.history().can_undo();
             let mut pane = drive(session, bottom, top);
             let shown = pane.app.drafts.trace_shown.as_ref().expect("read");
-            let Err(fault @ SketchTraceFault::Frame(_)) = &shown.read else {
-                panic!("the frame refuses: {:?}", shown.read)
+            let Err(fault @ SketchTraceFault::Trace(_)) = &shown.read else {
+                panic!("the trace refuses: {:?}", shown.read)
             };
             let said = format!("the trace: {fault}");
             let painted = pane.quiet();
@@ -10226,11 +10373,9 @@ mod properties_pane_tests {
                 painted.iter().any(|(run, _)| *run == said),
                 "the pane says {said:?}: {painted:?}"
             );
-            pane.click(NEW_TRACED_PROFILE);
-            pane.quiet();
             assert!(
                 *pane.app.session.committed_doc() == before,
-                "the commit is held"
+                "a refused trace writes nothing"
             );
 
             let doc = pane.app.session.doc().clone();
@@ -10249,7 +10394,7 @@ mod properties_pane_tests {
                 "a shown trace writes nothing"
             );
             assert_eq!(pane.app.session.history().can_undo(), undo);
-            pane.click(NEW_TRACED_PROFILE);
+            pane.click(NEW_PROFILE_ON_FACE);
             pane.quiet();
             let after = pane.app.session.committed_doc().clone();
             assert!(after != before, "the commit writes the profile");
@@ -10274,6 +10419,43 @@ mod properties_pane_tests {
             assert!(*reopened.doc() == after, "a save reopens as written");
         }
 
+        /// **The face to trace is kept for one profile**: latched and
+        /// committed, the form closes and lets it go, so the reopened
+        /// form traces nothing and offers no branch rows; latched again,
+        /// it offers them, and its own button lets it go.
+        #[test]
+        fn a_committed_trace_is_let_go_and_the_reopened_form_traces_nothing() {
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = drive(session, bottom, wall.clone());
+            pane.click(NEW_PROFILE_ON_FACE);
+            pane.quiet();
+            assert!(!pane.app.drafts.on_face_open, "the commit closes the form");
+            assert!(
+                pane.app.drafts.trace_face.is_none(),
+                "and lets the face to trace go"
+            );
+            pane.app.drafts.on_face_open = true;
+            let painted = pane.quiet();
+            assert!(
+                !painted.iter().any(|(run, _)| run == "to crossing"),
+                "no branch rows without a face to trace: {painted:?}"
+            );
+            let doc = pane.app.session.doc().clone();
+            crate::drafts::latch(&mut pane.app.drafts.trace_face, &doc, &wall);
+            let painted = pane.quiet();
+            assert!(
+                painted.iter().any(|(run, _)| run == "to crossing"),
+                "a latched face to trace offers its branches: {painted:?}"
+            );
+            pane.click(TRACE_NOTHING);
+            pane.quiet();
+            assert!(
+                pane.app.drafts.trace_face.is_none(),
+                "its own button lets it go"
+            );
+        }
+
         /// **A folded form reads no trace**: the trace is read for the
         /// form only while it is on screen, so folding the section over
         /// the open form drops the trace it showed, as its Cancel does.
@@ -10285,17 +10467,17 @@ mod properties_pane_tests {
             assert!(pane.app.drafts.trace_shown.is_some(), "read while open");
             pane.click(crate::pane::create::ADD_FEATURE);
             pane.quiet();
-            assert!(pane.app.drafts.traced_open, "folded, not closed");
+            assert!(pane.app.drafts.on_face_open, "folded, not closed");
             assert!(
                 pane.app.drafts.trace_shown.is_none(),
                 "a folded form reads no trace"
             );
         }
 
-        /// **The wall picked for the plane is no plane**: the pane says
-        /// so in the frame's words.
+        /// **The wall picked to draw on is no plane**: it has no chart,
+        /// and the pane says so in the chart's read's words.
         #[test]
-        fn a_wall_picked_for_the_plane_is_refused_as_no_plane() {
+        fn a_wall_picked_to_draw_on_is_refused_as_no_plane() {
             let (session, _, cylinder) = cylinder(0.0);
             let [wall, _] = wall_and_cap(&session, cylinder, 0.0);
             let pane = drive(session, wall.clone(), wall);
@@ -10303,13 +10485,57 @@ mod properties_pane_tests {
             assert!(
                 matches!(
                     &shown.read,
-                    Err(SketchTraceFault::Frame(fault))
-                        if matches!(**fault, pncad::trace::TracedFrameFault::NotAPlane {
-                            carrier: SurfaceKind::Cylinder
-                        })
+                    Err(SketchTraceFault::Trace(fault))
+                        if matches!(
+                            &**fault,
+                            pncad::trace::SketchTraceError::Read(kind)
+                                if matches!(**kind, pncad::document::NodeErrorKind::PoseRead { .. })
+                        )
                 ),
                 "{:?}",
                 shown.read
+            );
+        }
+
+        /// **With no face picked to trace, the form draws an empty
+        /// profile on the face's chart**: one profile in the cylinder's
+        /// space, tracing nothing, which the editor then fills.
+        #[test]
+        fn with_nothing_to_trace_the_form_draws_an_empty_profile_on_the_face() {
+            let (session, _, cylinder) = cylinder(0.0);
+            let [_, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
+            pane.app.drafts.on_face_open = true;
+            pane.settle();
+            pane.click(crate::pane::create::ADD_FEATURE);
+            pane.app
+                .perform_batch(vec![SessionOp::Select(Selection::Face(bottom))]);
+            let at = pane.each(USE_THE_PICKED_FACE);
+            pane.click_at(at[0]);
+            pane.quiet();
+            assert!(pane.app.drafts.trace_shown.is_none(), "no trace is read");
+            pane.click(NEW_PROFILE_ON_FACE);
+            pane.quiet();
+            let (profile, program) = added(&pane);
+            let doc = pane.app.session.committed_doc();
+            let Some(DrawnOn { frame, faces }) = &program.on else {
+                unreachable!("found drawn")
+            };
+            assert!(
+                program.loops.is_empty() && faces.is_empty(),
+                "an empty profile tracing nothing: {program:?}"
+            );
+            assert!(
+                matches!(
+                    doc.var(*frame).and_then(|v| v.def().pose()),
+                    Some(pncad::document::pose::PoseDef::FaceChart { .. })
+                ),
+                "drawn on the face's chart"
+            );
+            assert_eq!(
+                doc.node_space(profile),
+                doc.node_space(cylinder),
+                "in the cylinder's space"
             );
         }
 
@@ -10323,7 +10549,7 @@ mod properties_pane_tests {
             let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
             let mut pane = drive(session, bottom, wall);
             pane.app.drafts.trace_gesture.crossing = crossing;
-            pane.click(NEW_TRACED_PROFILE);
+            pane.click(NEW_PROFILE_ON_FACE);
             pane.quiet();
             let (profile, _) = added(&pane);
             let (_, ev) = pane.app.session.landed_pair().expect("landed");

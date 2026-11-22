@@ -253,15 +253,12 @@ the table.
   concentric, constant along the arc. An eccentric bore, a varying
   wall, or a non-circular section is still a profile-side job, and
   the `revolve`/`sweep_body` doors remain where those are said. And
-  the full-period form is a multi-shell curved solid, so it JOINS the
-  STEP row below rather than escaping it — now a receipt, not an
-  expectation: the `hollowtorus` tour scene (`demos/tour/src/tubewall.rs`)
-  declares the writer's frontier at the body and probes it on every
-  pass, and the export refuses `VoidShellUnsupported` (the scene
-  pins the variant, not the `kind` payload) exactly as the hollow
-  ring's does. Self-retiring in klein's wall-6 shape — a different
-  refusal, or a success, fails the tour. Issue #986 — the scene is
-  built and pinning; the issue is still open and wants closing.
+  the full-period form is a multi-shell curved solid, which leaves as
+  STEP like the hollow ring (below): the `hollowtorus` tour scene
+  (`demos/tour/src/tubewall.rs`) exports it as one `BREP_WITH_VOIDS`
+  and imports it back as one solid with its cavity on every pass.
+  Issue #986 — the scene is built; the issue is still open and wants
+  closing.
 - **`shell`'s former PER-CHART arm survived exactly ONE junction shape,
   and it was not about curvature.** An all-planar body is offset SIMULTANEOUSLY and its
   oblique corners hollow; what is described below is the per-chart door,
@@ -516,30 +513,23 @@ the table.
   validator's planted red, built through the public doors the verb used
   to compose), `demos/tour/tests/verbs_teapot.rs` (the sweep, flipped)
   and the two review probe suites beside it. Consequence for the demo:
-  **the teapot ships OPENED**, and — being one shell — it also leaves
-  as STEP, which the sealed two-shell body could not.
-- **A hollow ring cannot leave as STEP.** The one-call hollow ring
-  itself SHIPPED (VERBS-RING retired `FullRevolveHoles`: a full
+  **the teapot ships OPENED**, and leaves as STEP as one shell.
+- **A hollow ring leaves as STEP and comes back.** The one-call
+  hollow ring SHIPPED (VERBS-RING retired `FullRevolveHoles`: a full
   revolve of a holed profile builds the multi-shell solid through the
   shared void-insertion door — the register's old defect row here),
-  but the STEP writer reads its cavity as the void it is and refuses
-  it, `VoidShellUnsupported`, since it does not write
-  `BREP_WITH_VOIDS` (`work/export/step-export-refuses-every-hollow-body.md`)
-  — the standing gate of OFFSET-DESIGN O6's demo-gates list, which every hollow part
-  (this ring, the full-period `tube_along_arc_hollow` shell
-  since VERBS-TUBEWALL, and the shelled teapot, which reached it as
-  predicted) hits at export. (Wall 6, re-baselined: it now pins THIS
-  refusal on the ring it builds.) The gate now carries THREE probes,
-  which retire together: klein's wall 6, the `ring` scene's
-  `step_at_frontier` on the profile door's hollow ring, and the
-  `hollowtorus` scene's on the parameter door's. The `teapot` scene
-  was a fourth until #1082's repair: its vessel ships OPENED now, and
-  a cup is ONE shell, which this gate never reaches. Three separate
-  bodies through three doors, and a void-writing exporter releases all
-  of them;
-  what the teapot's adds is that the gate is now on record for a body
-  built by asking for a hollow PART rather than for a shape chosen to
-  reach it.
+  and the STEP writer writes its cavity as the void it is: one
+  `BREP_WITH_VOIDS`, the cavity an `ORIENTED_CLOSED_SHELL(.F.)`, which
+  the importer reads back into one solid with the same shell roles.
+  This ring, the full-period `tube_along_arc_hollow` shell and the
+  hollow bodies the tour builds with `shell` do the same, and the tour
+  round-trips each of them (klein's wall 6, retired; the `ring`,
+  `hollowtorus`, `torusvessel`, `fivewall` and `teapot` scenes). A
+  cavity is no refusal of its own any more, but its walls' curves still
+  have to export: a cavity whose torus wall meets a cap in a spiric
+  edge refuses `UnsupportedCurve` ("spiric: export tolerance not met")
+  at the kernel's ε (`sweep/tests/spiric_rim.rs`,
+  `the_census_refusals_through_public_doors`).
 - **The PATHS lattice has no tangent straight leg to an anchor.**
   After a declared-tangent joint off an arc, the only straight
   continuation is `.line(len)` — `.to(anchor)` belongs to a fillet's

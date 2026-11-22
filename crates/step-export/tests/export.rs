@@ -314,27 +314,107 @@ fn curved_bodies_export_rather_than_refuse() {
     }
 }
 
+/// The records of a Part 21 data section, `(id, record)` in id order,
+/// each record with its terminating `;`.
+fn records(text: &str) -> Vec<(u64, &str)> {
+    text.lines()
+        .filter_map(|line| {
+            let (id, record) = line.strip_prefix('#')?.split_once(" = ")?;
+            Some((id.parse().ok()?, record))
+        })
+        .collect()
+}
+
+/// The records of `keyword`, in id order.
+fn of<'t>(records: &[(u64, &'t str)], keyword: &str) -> Vec<(u64, &'t str)> {
+    let head = format!("{keyword}(");
+    records
+        .iter()
+        .filter(|(_, record)| record.starts_with(&head))
+        .copied()
+        .collect()
+}
+
+/// **A voided body exports as `BREP_WITH_VOIDS`** (crate docs, "Solids,
+/// shells, and voids"): the outer shell is the record's `CLOSED_SHELL`,
+/// and the cavity an `ORIENTED_CLOSED_SHELL(.F.)` over the void's shell
+/// written reversed — each face's `same_sense` the kernel face's
+/// negated and each bound `.F.` — where the outer shell's faces are
+/// written as stored.
 #[test]
-fn voided_body_refuses_typed() {
+fn voided_body_exports_brep_with_voids() {
+    let tol = Tol::witness();
     let body = common::voided();
-    let cavity = body.shells().nth(1).expect("two shells").0;
-    match try_export(&body, "voided") {
-        Err(StepExportError::VoidShellUnsupported {
-            shell,
-            volume_lo,
-            volume_hi,
-        }) => {
-            assert_eq!(shell, cavity, "the inner shell is the void");
-            // The cavity's walls face into it, away from the material,
-            // so its signed volume is exactly −1, in closed form.
-            assert_eq!(
-                (volume_lo, volume_hi),
-                (-1.0, -1.0),
-                "cavity volume enclosure, negatively signed"
-            );
+    let at_rest = common::at_rest(&body);
+    let roles = topo::classify_shells(&at_rest, tol).expect("the voided body classifies");
+    let shell_of = |role| {
+        let [row] = &roles.iter().filter(|r| r.role == role).collect::<Vec<_>>()[..] else {
+            panic!("the voided body has one shell of role {role:?}: {roles:?}")
+        };
+        row.shell
+    };
+    let (outer, cavity) = (
+        shell_of(topo::ShellRole::Outer),
+        shell_of(topo::ShellRole::Void),
+    );
+    let text = export(&body, "voided");
+    let records = records(&text);
+    assert_eq!(
+        of(&records, "MANIFOLD_SOLID_BREP"),
+        vec![],
+        "a solid with a cavity is not written voidless"
+    );
+    let [(outer_cs, _), (void_cs, _)] = of(&records, "CLOSED_SHELL")[..] else {
+        panic!("two closed shells, the outer one first")
+    };
+    let [(oriented, oriented_record)] = of(&records, "ORIENTED_CLOSED_SHELL")[..] else {
+        panic!("one oriented closed shell")
+    };
+    assert_eq!(
+        oriented_record,
+        format!("ORIENTED_CLOSED_SHELL('', *, #{void_cs}, .F.);"),
+        "the void is its shell, reversed"
+    );
+    assert_eq!(
+        of(&records, "BREP_WITH_VOIDS"),
+        vec![(
+            oriented + 1,
+            &*format!("BREP_WITH_VOIDS('voided', #{outer_cs}, (#{oriented}));")
+        )],
+        "one solid: the outer shell and its void"
+    );
+    // Faces and their one bound each are emitted shell by shell, outer
+    // first, each shell's in stored order.
+    let mut written = Vec::new();
+    for (shell, reversed) in [(outer, false), (cavity, true)] {
+        for &face in &body.get_shell(shell).expect("the shell resolves").faces {
+            let sense = body.get_face(face).expect("the face resolves").sense;
+            written.push((sense != reversed, !reversed));
         }
-        other => panic!("expected VoidShellUnsupported, got {other:?}"),
     }
+    let flag = |record: &str| match &record[record.len() - 5..] {
+        ".T.);" => true,
+        ".F.);" => false,
+        _ => panic!("a record ending in a logical: {record}"),
+    };
+    let senses = of(&records, "ADVANCED_FACE");
+    let bounds = of(&records, "FACE_OUTER_BOUND");
+    assert_eq!(senses.len(), 12, "twelve faces");
+    assert_eq!(
+        senses
+            .iter()
+            .zip(&bounds)
+            .map(|((_, face), (_, bound))| (flag(face), flag(bound)))
+            .collect::<Vec<_>>(),
+        written,
+        "(same_sense, bound orientation) per face: the void's reversed"
+    );
+    assert_eq!(
+        truck_shells(&text),
+        vec![(6, 12, 8), (6, 12, 8)],
+        "an independent reader reconstructs both shells"
+    );
+    assert_eq!(ruststep_instances(&text), records.len(), "Part 21 parses");
 }
 
 /// **An inside-out body cannot reach the writer**, whatever its shell
@@ -342,7 +422,7 @@ fn voided_body_refuses_typed() {
 /// each of these naming the inverted solid. The single-shell brick and
 /// the reverted voided body refuse alike; a voided solid beside a far
 /// inverted brick refuses for the brick alone (exported on its own, the
-/// voided solid refuses as the void it is, `voided_body_refuses_typed`).
+/// voided solid writes its cavity, `voided_body_exports_brep_with_voids`).
 #[test]
 fn an_inside_out_body_refuses_at_the_gate_not_the_writer() {
     let tol = Tol::witness();
@@ -444,6 +524,31 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// for byte. Both spellings are the one turn, so this is rounding: the
 /// reference stays as orthogonal to the cap's normal as it was, and no
 /// point, normal or wall moved.
+///
+/// **Regenerated when the carriers held their frames as rigid motions**
+/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): 34 lines in
+/// two fixtures, every one a `DIRECTION`, and no point, vertex or edge.
+/// `composed_die`'s 33 are its blend faces' frames, squared from their
+/// two directions where they were stored as computed: a component a
+/// rounding short of one reads `1.0` (21) and a `-0.0` reads `0.0` (12).
+/// `lily_lantern`'s 1 is the axis of its angle-π meridian off the axis,
+/// now its turned placement's own frame, whose axis carries the half
+/// turn's `sin π` (`-1.2246467991473532E-16`) where it was the sketch
+/// normal negated, paired with that placement's direction (a pair a
+/// rounding off square).
+///
+/// **Regenerated when the writer cited one surface entity per surface
+/// key** (`[import]`, "Records follow the file"): nine fixtures, each
+/// face whose key an earlier face wore citing that face's entity, and the
+/// ids after it shifted. Surface entities: `ball` 2 → 1, `boss_union`
+/// 10 → 8, `composed_die` 89 → 68, `cone` 3 → 2, `cut_cylinder` 4 → 3,
+/// `die_pips` 48 → 27, `donut` 2 → 1, `kiss_assembly` 22 → 19,
+/// `lily_lantern` 6 → 4; no face, point or edge moved. `composed_die`
+/// also carries a move main's writer had made and the fixture had not:
+/// 12 `DIRECTION`s `(0.0, 0.0, 1.0)` written `(-0.0, 0.0, 1.0)`, the
+/// last commits of the carrier-frames row (PR 7131) after its own
+/// regeneration. The sign of a zero component is one real number either
+/// way, and nothing reads it: the importer folds it at translation.
 #[test]
 fn committed_fixtures_are_byte_golden() {
     for (name, body) in common::fixture_corpus() {
@@ -514,8 +619,8 @@ fn committed_fixtures_are_byte_golden() {
 /// applied rather than a judgement asserted: a gap inside ε is only
 /// actionable if some site assumes BITWISE membership of a vertex in a
 /// surface, and a search of the kernel finds none — the bitwise
-/// comparisons that exist are surface-to-surface (`surface_sig`'s
-/// dedup), curve-to-curve (`bitwise_iso_match`) and vertex-to-vertex
+/// comparisons that exist are curve-to-curve
+/// (`step_import::on_built::bitwise_twin`) and vertex-to-vertex
 /// (the boolean zip's coincidence requirement). This row is the
 /// record.
 #[test]
@@ -525,11 +630,12 @@ fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
     let tops: Vec<_> = body
         .surfaces()
         .filter_map(|(k, s)| match s {
-            geom::Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } if origin.z == 1.0 && normal.z.abs() == 1.0 => Some((k, *origin, *normal, *u_ref)),
+            geom::Surface::Plane { frame }
+                if frame.origin().z == 1.0 && frame.axis().z.abs() == 1.0 =>
+            {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some((k, origin, normal, u_ref))
+            }
             _ => None,
         })
         .collect();

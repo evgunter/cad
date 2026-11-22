@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::Formula;
-use editor_core::{PersistError, ProfileDoc, REGENERATE_RECOURSE, load, save};
+use editor_core::{PersistError, REGENERATE_RECOURSE, load};
 use geom_core::Tol;
 
 /// `tests/corpus/die_tool.pncad` with its header line kept and one
@@ -20,48 +20,19 @@ use geom_core::Tol;
 /// 1e-12 rows — before serde ever reached the injected field, for the
 /// control, and for the wrong reason everywhere else. The document's
 /// STRUCTURE is what these rows are about and it is ε-independent, so
-/// the ε line is re-stamped the way `corpus/die_composed_tour.rs` and
-/// the viewer's fixture rows re-stamp theirs.
+/// the ε line is re-stamped by the re-stamp every suite shares
+/// (`editor_core::test_support::restamped_at`).
 fn doctored(anchor: &str, injected: &str) -> String {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("corpus")
         .join("die_tool.pncad");
     let raw = std::fs::read_to_string(path).expect("readable");
-    let raw = restamped_at_process_epsilon(&raw);
+    let raw = editor_core::test_support::restamped_at(&raw, Tol::witness());
     let (header, body) = raw.split_once('\n').expect("a header line");
     let at = body.find(anchor).expect("the anchor is in the corpus");
     let open = at + anchor.len();
     format!("{header}\n{}{}{}", &body[..open], injected, &body[open..])
-}
-
-/// `text` with its one `"epsilon":` line replaced by the line the
-/// persistence layer writes for the process's own ε.
-fn restamped_at_process_epsilon(text: &str) -> String {
-    let tol = Tol::witness();
-    let probe = save(
-        &ProfileDoc::empty_derived("wire-rv-epsilon-probe", tol),
-        &[],
-        tol,
-    )
-    .expect("an empty document saves");
-    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-    let wanted = probe
-        .lines()
-        .find(|line| is_epsilon(line))
-        .expect("a saved document records its ε");
-    assert_eq!(
-        text.lines().filter(|l| is_epsilon(l)).count(),
-        1,
-        "the die_tool document carries exactly one ε line"
-    );
-    let mut out: String = text
-        .lines()
-        .map(|line| if is_epsilon(line) { wanted } else { line })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    out.push('\n');
-    out
 }
 
 #[test]

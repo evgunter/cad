@@ -43,8 +43,8 @@ fn plane_face_at(body: &Body<f64>, y: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if (origin.z - y).abs() < 1e-9 && normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
+                Some(geom::Surface::Plane { frame, .. })
+                    if (frame.origin().z - y).abs() < 1e-9 && frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
@@ -565,7 +565,10 @@ fn assert_the_arm_walls_refuse(body: &Body<f64>, t: f64, why: &str) {
         );
     };
     let normal_x = |f: FaceKey| match body.face_surface(f) {
-        Some(geom::Surface::Plane { normal, .. }) => normal.x.abs(),
+        Some(geom::Surface::Plane { frame, .. }) => {
+            let normal = frame.axis();
+            normal.x.abs()
+        }
         _ => panic!("{f:?} is planar"),
     };
     assert!(
@@ -645,7 +648,7 @@ fn assert_the_tilted_arm_walls_cross(body: &Body<f64>, t: f64, why: &str) -> f64
     };
     assert_eq!(thickness, t, "{why}: the refusal quotes the wall");
     let normal = |f: FaceKey| match body.face_surface(f) {
-        Some(geom::Surface::Plane { normal, .. }) => *normal,
+        Some(geom::Surface::Plane { frame, .. }) => frame.axis(),
         _ => panic!("{f:?} is planar"),
     };
     let (wall, crossed) = if normal(face).x.abs() > normal(other).x.abs() {
@@ -1565,12 +1568,14 @@ fn a_mixed_sense_chart_built_from_outside_is_refused_at_the_gate() {
 // The STEP gate, recorded
 // ---------------------------------------------------------------------
 
-/// **A shelled body's cavity reads as a void.** The shelled tube is a
+/// **A shelled body's cavity exports as a void.** The shelled tube is a
 /// solid of two curved shells, and STEP export reads their roles off
-/// the kernel's shell-role door: the inner wall is a void, which the
-/// writer refuses (`BREP_WITH_VOIDS` is not written yet).
+/// the kernel's shell-role door: the inner wall is the solid's void,
+/// written as the one `ORIENTED_CLOSED_SHELL` of a `BREP_WITH_VOIDS`.
+/// The round trip through the importer is
+/// `step-import`'s `hollow_bodies_round_trip`.
 #[test]
-fn a_curved_shelled_body_refuses_step_export_as_a_void() {
+fn a_curved_shelled_body_exports_its_cavity_as_a_void() {
     let hollow = topo::shell(
         &finished("the operand", tube(0.6, 1.0, 2.0), Tol::witness()),
         0.1,
@@ -1579,7 +1584,7 @@ fn a_curved_shelled_body_refuses_step_export_as_a_void() {
     .expect("the tube shells")
     .body;
     assert_eq!(hollow.shells().count(), 2);
-    let e = step_export::step_string(
+    let text = step_export::step_string(
         &finished("the shelled tube", hollow, Tol::witness()),
         &step_export::StepOptions {
             product_name: "shelled tube".into(),
@@ -1587,21 +1592,22 @@ fn a_curved_shelled_body_refuses_step_export_as_a_void() {
         },
         Tol::witness(),
     )
-    .expect_err("a body with a cavity has no STEP spelling yet");
-    let step_export::StepExportError::VoidShellUnsupported {
-        volume_lo,
-        volume_hi,
-        ..
-    } = e
-    else {
+    .unwrap_or_else(|e| {
         panic!(
-            "expected the void refusal, got {e_at}",
+            "the shelled tube exports: {e_at}",
             e_at = e.render(geom_brep::recourse::Reading::Build)
-        );
-    };
-    assert!(
-        volume_lo <= volume_hi && volume_hi < 0.0,
-        "the cavity's signed volume is negative: [{volume_lo}, {volume_hi}]"
+        )
+    });
+    let count = |keyword: &str| text.matches(&format!("= {keyword}(")).count();
+    assert_eq!(
+        (
+            count("MANIFOLD_SOLID_BREP"),
+            count("BREP_WITH_VOIDS"),
+            count("ORIENTED_CLOSED_SHELL"),
+            count("CLOSED_SHELL")
+        ),
+        (0, 1, 1, 2),
+        "one solid with one void, over two closed shells"
     );
 }
 
@@ -2101,7 +2107,7 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
+                Some(geom::Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()
@@ -2207,7 +2213,7 @@ fn an_annular_cap_opens_to_two_disjoint_rims() {
                     .expect("carrier")
                     .carrier()
                 {
-                    geom::Curve3::Circle(geom::Circle { radius, .. }) => *radius,
+                    geom::Curve3::Circle(circle) => circle.radius(),
                     other => panic!("a rim bounded by {other:?}"),
                 }
             };
@@ -2272,7 +2278,10 @@ fn the_old_rim_composition_refuses_at_the_glue_on_an_annular_cap() {
         "the annular cap and its counterpart are one face each"
     );
     let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
-        Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+        Some(geom::Surface::Plane { frame, .. }) => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (origin, normal)
+        }
         other => panic!("a non-planar cap: {other:?}"),
     };
     let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
@@ -2343,7 +2352,10 @@ fn a_re_slit_annular_caps_old_glue_reaches_check_9_through_an_outer_edge() {
         sealed.mekr_chord(site, tol).expect("the slit mekr");
     }
     let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
-        Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+        Some(geom::Surface::Plane { frame, .. }) => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (origin, normal)
+        }
         other => panic!("a non-planar cap: {other:?}"),
     };
     let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
@@ -2770,7 +2782,10 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+            Some(geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                (origin, normal)
+            }
             other => panic!("{what}: a non-planar cap: {other:?}"),
         };
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
@@ -2857,7 +2872,10 @@ fn r2_probe_other_two_passes_dump() {
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of = |b: &Body<f64>, f: FaceKey| match b.face_surface(f) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+            Some(geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                (origin, normal)
+            }
             other => panic!("non-planar: {other:?}"),
         };
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
@@ -2980,12 +2998,13 @@ fn face_roles(body: &Body<f64>) -> Vec<(FaceKey, ShellRole)> {
 /// A planar face's origin and OUTWARD normal.
 fn plane_of(body: &Body<f64>, face: FaceKey) -> (geom_core::Point3<f64>, geom_core::Vec3<f64>) {
     let data = body.get_face(face).expect("the face");
-    let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(face) else {
+    let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(face) else {
         panic!("{face:?} is not planar")
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     (
-        *origin,
-        geom_brep::OutwardNormal::from_chart(*normal, data.sense).vec(),
+        origin,
+        geom_brep::OutwardNormal::from_chart(normal, data.sense).vec(),
     )
 }
 
@@ -3603,7 +3622,7 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
         .map(|(k, _)| k)
         .filter(|&k| {
             matches!(slab.face_surface(k),
-                Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.6).abs() < 1e-12)
+                Some(geom::Surface::Plane { frame, .. }) if (frame.origin().z - 0.6).abs() < 1e-12)
         })
         .collect();
     let (capped, _, _) = capped_vessel(0.5, 0.6, 60.0);
@@ -3795,7 +3814,7 @@ fn a_designated_face_with_a_hole_records_its_promoted_rim() {
         .map(|(k, _)| k)
         .filter(|&k| {
             matches!(seamless.face_surface(k),
-                Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.6).abs() < 1e-12)
+                Some(geom::Surface::Plane { frame, .. }) if (frame.origin().z - 0.6).abs() < 1e-12)
         })
         .collect();
     assert_eq!(seamless_chart.len(), 1, "one holed mouth face");

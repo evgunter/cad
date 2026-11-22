@@ -79,11 +79,11 @@ fn a_mate_bearing_document_round_trips() {
         ids[1],
         crate::fixture::mate(plane(head(name(ids[1]))), flip(standoff)),
     );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     assert!(
         !text.contains("\"class\""),
         "a mate writes no class: {text}"
     );
-    let back = load(&text, Tol::witness()).expect("loads").doc;
+    let back = load(&text, Tol::witness()).expect("loads");
     assert!(back.bit_eq(&doc), "the mate round-trips bit for bit");
 }

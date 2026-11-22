@@ -606,8 +606,8 @@ fn profile_payloads_are_matchable(
             radius,
             angular_margin,
         } => {
-            named::<f64>(radius);
-            named::<f64>(angular_margin);
+            named::<pncad::geom_core::Told>(radius);
+            named::<pncad::geom_core::Told>(angular_margin);
             "arc"
         }
     };
@@ -772,8 +772,11 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             ),
             FilletLeg::Outgoing,
             FilletLegCarrier::Arc {
-                radius: 2.0,
-                angular_margin: -0.5,
+                radius: pncad::geom_core::Told::computed(&2.0, pncad::geom_core::Dimension::Length),
+                angular_margin: pncad::geom_core::Told::computed(
+                    &-0.5,
+                    pncad::geom_core::Dimension::Angle,
+                ),
             },
             NoCornerReason::OffsetCarriersDisjoint,
         ),
@@ -1373,10 +1376,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
         None
     );
 
-    let options = ImportOptions {
-        eps_in: Some(1e-7),
-        examine_chart_coherence: true,
-    };
+    let options = ImportOptions { eps_in: Some(1e-7) };
     assert!(matches!(
         import_step("not a step file", &options, Tol::witness()),
         Err(StepImportError::Syntax { .. })
@@ -1386,7 +1386,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
 /// Which analytic kind's estimator declined, read off the arm that
 /// reports it — `None` on every other refusal.
 ///
-/// The kinds are matched EXHAUSTIVELY, so a third one recognised
+/// The kinds are matched EXHAUSTIVELY, so a new one recognised
 /// kernel-side stops this compiling rather than arriving under an
 /// existing word. Their recourses differ, which is why the
 /// discriminant is worth a curated name: a plane that will not
@@ -1397,6 +1397,9 @@ fn recognition_ambiguity_is_matchable(err: &StepImportError) -> Option<&'static 
         StepImportError::RecognitionAmbiguous { kind, .. } => Some(match kind {
             PromotedKind::Plane => "plane",
             PromotedKind::Cylinder => "cylinder",
+            PromotedKind::Cone => "cone",
+            PromotedKind::Sphere => "sphere",
+            PromotedKind::Torus => "torus",
         }),
         _ => None,
     }
@@ -1427,14 +1430,13 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     let imported: StepImport = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect("the export re-imports");
 
+    let curve_promotions = imported.curve_promotions();
     // Every field of the arm, bound by name and typed from this list.
     let StepImport::Solid {
         body,
         eps_in,
         normalizations,
-        curve_promotions,
         instances,
-        coherence,
         contacts,
         coincidences,
     } = imported
@@ -1452,13 +1454,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
     named::<Vec<PlacedInstance>>(instances.clone());
-    // The chart-coherence channel, spelled from the prelude down to
-    // the vocabulary a consumer matches on. The import above asked
-    // for no examination, so the field is `None` — which is the
-    // CONFIGURATION half of this channel's distinction and not an
-    // empty report; `topo`'s own door draws the same line about the
-    // two lists inside a report it did produce.
-    named::<Option<CoherenceReport>>(coherence.clone());
     // The touches between instances the gate recorded, and the rows
     // they cite: none, since one box touches nothing.
     named::<ContactRecords>(contacts.clone());
@@ -1467,19 +1462,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         contacts.is_empty() && coincidences.is_empty(),
         "one box records no contact"
     );
-    assert!(
-        coherence.is_none(),
-        "the default import asked for no chart-coherence examination"
-    );
-    // The report's own two lists, spelled from here too, because a
-    // consumer that holds the answer reads them. No `assert_ne!`
-    // against `Some(empty)`: the assertion above is the whole runtime
-    // claim, and the fold it would guard against — an unasked import
-    // rendering as an empty report — is unrepresentable in
-    // `Option<CoherenceReport>` and would fail `is_none` first.
-    let empty = CoherenceReport::default();
-    named::<&Vec<CoherenceFinding>>(&empty.findings);
-    named::<&Vec<Unexamined>>(&empty.unexamined);
 
     // "Not a second computation", as an equality rather than a claim.
     let again = mass_properties(&body, Tol::witness(), pinned_resolution(Tol::witness()))
@@ -1562,6 +1544,47 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             match to {
                 PromotedKind::Plane => "surface_promotion_plane",
                 PromotedKind::Cylinder => "surface_promotion_cylinder",
+                PromotedKind::Cone => "surface_promotion_cone",
+                PromotedKind::Sphere => "surface_promotion_sphere",
+                PromotedKind::Torus => "surface_promotion_torus",
+            }
+        }
+        NormalizationKind::OneRecord {
+            kept,
+            joined,
+            moved_by,
+        } => {
+            named::<&u64>(kept);
+            named::<&u64>(joined);
+            named::<&f64>(moved_by);
+            "one_record"
+        }
+        NormalizationKind::Snapped {
+            surface,
+            relation,
+            moved_by,
+        } => {
+            named::<&u64>(surface);
+            named::<&f64>(moved_by);
+            match relation {
+                SnapRelation::Coaxial => "snapped_coaxial",
+                SnapRelation::Tangent => "snapped_tangent",
+                SnapRelation::AxisNormal => "snapped_axis_normal",
+            }
+        }
+        NormalizationKind::VertexBuilt { moved_by } => {
+            named::<&f64>(moved_by);
+            "vertex_built"
+        }
+        NormalizationKind::CarrierBuilt { moved_by } => {
+            named::<&f64>(moved_by);
+            "carrier_built"
+        }
+        NormalizationKind::CurvePromoted { kind, residual } => {
+            named::<&f64>(residual);
+            match kind {
+                PromotedCurveKind::Circle => "curve_promoted_circle",
+                PromotedCurveKind::Line => "curve_promoted_line",
             }
         }
     }
@@ -2150,10 +2173,8 @@ fn lib_doors_vocabulary_is_nameable() {
     named::<Option<pncad::document::NodeValue<f64>>>(None);
     named::<Option<pncad::document::NodeResult<f64>>>(None);
     named::<Option<pncad::document::EvalOutcome>>(None);
-    named::<Option<pncad::document::Loaded>>(None);
     named::<Option<pncad::document::PersistError>>(None);
     named::<Option<pncad::document::NonFiniteSite>>(None);
-    named::<Option<pncad::document::ProgramFault>>(None);
     named::<Option<pncad::document::SnapshotError>>(None);
     named::<Option<pncad::document::DimensionError>>(None);
     named::<Option<pncad::export::ExportError>>(None);
@@ -2536,21 +2557,16 @@ fn the_persist_doors_round_trip_through_the_facade() {
     // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(volume, 6.0);
 
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     assert!(
         text.starts_with(&format!("id: {}\n", doc.id())),
         "the file's header names the document"
     );
 
     let loaded = pncad::document::load(&text, Tol::witness()).expect("the file loads");
-    assert!(loaded.edits.is_empty(), "no edit log was saved");
-    assert!(loaded.records.is_empty());
-    assert!(
-        loaded.doc.bit_eq(&doc),
-        "load replays to the SAME document (D9)"
-    );
+    assert!(loaded.bit_eq(&doc), "load answers the SAME document (D9)");
 
-    let after = doors_evaluate(&loaded.doc);
+    let after = doors_evaluate(&loaded);
     let replayed = mass_properties(
         &pncad::topo::finish(
             pncad::topo::Body::clone(
@@ -3035,7 +3051,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         "volume {volume} vs the plate_param oracle {oracle}"
     );
 
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
@@ -3118,7 +3134,7 @@ fn ws_doc_and_body(label: &str) -> (pncad::document::ProfileDoc, String, PartBod
     );
     let (doc, copy) = place(doc, body);
     let doc = product_is(doc, &[copy]);
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     (doc, text, PartBody { body })
 }
 
@@ -3218,7 +3234,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
     .expect("the edit applies")
     .doc;
     let new_text =
-        pncad::document::save(&edited, &[], Tol::witness()).expect("the edited document saves");
+        pncad::document::save(&edited, Tol::witness()).expect("the edited document saves");
     dir.write("part.pncad", &new_text);
     drop(text);
 
@@ -3379,66 +3395,6 @@ fn random_document_ids_are_distinct() {
     let a = pncad::workspace::random_document_id().expect("OS randomness");
     let b = pncad::workspace::random_document_id().expect("OS randomness");
     assert_ne!(a, b, "128 random bits collide never in practice");
-}
-
-/// D-5's pin-the-REPLAYED-document discipline, falsified (R2
-/// MINOR-2): a workspace file saved WITH a non-empty edit log. The
-/// replayed state's pin resolves; the RAW snapshot's pin refuses
-/// PinMismatch — so a resolve that pinned `loaded.snapshot` instead
-/// of `loaded.doc` fails this row in both directions.
-#[test]
-fn workspace_resolve_pins_replayed_state_not_snapshot() {
-    use pncad::document::{Dimension, DocEdit, FreeVar, VarName};
-    let dir = WsDir::new("log");
-    let (origin, _) = ws_doc("ws-logged");
-    let edit = DocEdit::DeclareVar {
-        name: VarName::from_static("depth"),
-        def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
-    };
-    // Save snapshot + ONE-edit log; the file's current state is the
-    // replayed result, and that is what a resolve must pin.
-    let text = pncad::document::save(&origin, std::slice::from_ref(&edit), Tol::witness())
-        .expect("the logged document saves");
-    dir.write("logged.pncad", &text);
-    let replayed = pncad::document::apply(&origin, &edit, Tol::witness())
-        .expect("the edit applies")
-        .doc;
-    let replayed_pin =
-        pncad::document::content_pin(&replayed, Tol::witness()).expect("the pin computes");
-    let snapshot_pin =
-        pncad::document::content_pin(&origin, Tol::witness()).expect("the pin computes");
-    assert_ne!(
-        replayed_pin, snapshot_pin,
-        "the log is semantic here, so the two pins must differ for this row to bite"
-    );
-
-    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let resolved = ws
-        .resolve(
-            &pncad::document::DocRef {
-                id: origin.id(),
-                pin: replayed_pin,
-            },
-            Tol::witness(),
-        )
-        .expect("the replayed state's pin is the one that resolves");
-    assert!(
-        resolved.bit_eq(&replayed),
-        "resolve hands back the replayed state"
-    );
-    match ws.resolve(
-        &pncad::document::DocRef {
-            id: origin.id(),
-            pin: snapshot_pin,
-        },
-        Tol::witness(),
-    ) {
-        Err(pncad::workspace::WorkspaceError::PinMismatch { wanted, found, .. }) => {
-            assert_eq!(wanted, snapshot_pin);
-            assert_eq!(found, replayed_pin);
-        }
-        other => panic!("the raw snapshot's pin must refuse PinMismatch, got {other:?}"),
-    }
 }
 
 // ---- A4: a save is two acts (the save door and the fork) ----
@@ -3962,7 +3918,7 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
                 distance: len(1.5),
             },
         );
-        pncad::document::save(&doc, &[], Tol::witness()).expect("saves")
+        pncad::document::save(&doc, Tol::witness()).expect("saves")
     };
     dir.write("part.pncad", &edited);
 
@@ -4186,7 +4142,7 @@ fn asm_r2a_child_mated_probe() {
     .expect("mass properties")
     .enclosure
     .volume;
-    let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = pncad::document::save(&doc, Tol::witness()).expect("the document saves");
     std::fs::write(
         &out,
         format!(
@@ -4278,10 +4234,10 @@ fn asm_r2b_child_crossing_probe() {
     )
     .expect("a whole-group cut splits");
     let text =
-        pncad::document::save(&split.remainder, &[], Tol::witness()).expect("the remainder saves");
+        pncad::document::save(&split.remainder, Tol::witness()).expect("the remainder saves");
     dir.write(
         "split.pncad",
-        &pncad::document::save(&split.part, &[], Tol::witness()).expect("the part saves"),
+        &pncad::document::save(&split.part, Tol::witness()).expect("the part saves"),
     );
 
     let ev = asm2a_eval(&doc, &ws);
@@ -4349,7 +4305,7 @@ fn asm_r2b_crossing_bearing_bits_agree_across_two_fresh_processes() {
 fn asm2b_workspace(dir: &WsDir) -> (pncad::document::DocRef, pncad::document::DocRef) {
     let p = asm2a_part(dir, "part.pncad", "asm2b-part");
     let (b_doc, _) = asm2a_assembly("asm2b-sub", p, 2);
-    let text = pncad::document::save(&b_doc, &[], Tol::witness()).expect("the sub-assembly saves");
+    let text = pncad::document::save(&b_doc, Tol::witness()).expect("the sub-assembly saves");
     dir.write("sub.pncad", &text);
     let b = pncad::document::DocRef {
         id: b_doc.id(),
@@ -4702,8 +4658,8 @@ fn asm4_child_split_probe() {
     .expect("legal");
     let text = format!(
         "{}\u{1e}{}",
-        d::save(&split_out.part, &[], Tol::witness()).expect("part saves"),
-        d::save(&split_out.remainder, &[], Tol::witness()).expect("remainder saves"),
+        d::save(&split_out.part, Tol::witness()).expect("part saves"),
+        d::save(&split_out.remainder, Tol::witness()).expect("remainder saves"),
     );
     std::fs::write(&out, text).expect("probe output writable");
 }
@@ -4919,7 +4875,7 @@ fn asm_upd_child_update_probe() {
     .volume;
     let text = format!(
         "{}\u{1e}{}",
-        d::save(&updated, &[], Tol::witness()).expect("the updated document saves"),
+        d::save(&updated, Tol::witness()).expect("the updated document saves"),
         volume.to_bits(),
     );
     std::fs::write(&out, text).expect("probe output writable");
@@ -4974,7 +4930,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
 ///   `Diagnosis`, `UpstreamCause`, `GroupCutters`, `Implicated`,
-///   `PredicateDivergence`, `DocDiff`, `NodeChange`, `diff_*`,
+///   `DocDiff`, `NodeChange`, `diff_*`, `first_turn`,
 ///   `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
@@ -5038,7 +4994,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
-///   (`ProfilePayload`, `ParamValue`,
+///   (`ProfilePayload`, `ProfilePartition`, `ParamValue`,
 ///   `BifurcationKind`,
 ///   `MetaValue`, `MetaInt`, `MetaError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
@@ -5177,7 +5133,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 101] = [
+const NOT_CARRIED: [&str; 102] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5220,8 +5176,8 @@ const NOT_CARRIED: [&str; 101] = [
     "NodeVerdictDelta",
     "NodeVerdicts",
     "ParamValue",
-    "PredicateDivergence",
     "ProfileLane",
+    "ProfilePartition",
     "ProfilePayload",
     "Qualifier",
     "RangeField",
@@ -5236,9 +5192,9 @@ const NOT_CARRIED: [&str; 101] = [
     "SlotPayload",
     "StructureFlip",
     "SummaryDelta",
+    "SummaryDiff",
     "SummaryDivergence",
-    "SummaryFlip",
-    "SummaryFlipSet",
+    "SummaryShift",
     "TieWitness",
     "Tombstone",
     "UpstreamCause",
@@ -5261,6 +5217,7 @@ const NOT_CARRIED: [&str; 101] = [
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
+    "first_turn",
     "from_value",
     "var_env_over",
     // The analysis's axis rule (VR8), which `analyzed_box` and the
@@ -6801,8 +6758,8 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
         ),
     );
 
-    let text = save(&doc, &[], Tol::witness()).expect("the annotated document saves");
-    let back = load(&text, Tol::witness()).expect("and loads").doc;
+    let text = save(&doc, Tol::witness()).expect("the annotated document saves");
+    let back = load(&text, Tol::witness()).expect("and loads");
     assert!(back.bit_eq(&doc), "the annotation round-trips bit for bit");
 
     let policy = AnalysisPolicy::default();
@@ -7440,18 +7397,18 @@ fn standing(value: &pncad::document::Framed<f64>) -> pncad::topo::Body<f64> {
     )
 }
 
-/// **A body far out builds and refuses to be read out** (INTENT stage 3
-/// E, R2's far-from-origin note): a block's copy turned and stood
-/// `1e17 ε` out (at least 1e7) builds, sharing its source's body under its frame, so nothing in
-/// the model maps it. The façade's read-out composes it into the world
-/// and re-certifies every edge there, which refuses at that distance:
-/// `body_in_space` answers `compose_refused`'s refusal, and so does a
-/// STEP export of the node. The viewer's picture, which moves the copy's
-/// tessellation on the CPU and certifies nothing, draws it
-/// (`work/intent/a-far-body-the-read-out-refuses-the-picture-draws.md`).
+/// **A copy stood far out refuses at its placement, and exports
+/// nothing** (INTENT stage 3 E, R2's far-from-origin note;
+/// `[placement.frame]`, the door that places a copy asks where it
+/// stands). A block's copy turned and stood `1e17 ε` out (at least 1e7)
+/// is past the 1 km session box, so its placement refuses with the box's
+/// finding alone, and the node's STEP export refuses on the node's
+/// standing. No copy that builds stands where composing it into the
+/// world would round past ε, so the read-out never meets one it cannot
+/// compose (`work/vgeom/a-far-body-the-read-out-refuses-the-picture-draws.md`).
 #[test]
-fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
-    use pncad::document::{Coord, Dimension, Formula, TargetAxis, ValuePayload};
+fn a_far_turned_copy_refuses_at_its_placement_and_exports_nothing() {
+    use pncad::document::{Coord, Dimension, Formula, TargetAxis};
     let (doc, _, _) = box_doc("e-far-read-out");
     let placement = doc
         .product()
@@ -7459,8 +7416,8 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
         .expect("the copy is the product");
     let mut far = pncad::document::stand();
     let turn = |r: f64| Formula::literal(r, Dimension::Angle).unwrap();
-    // Far enough that the composition's rounding outgrows the run's ε:
-    // the distance scales with it.
+    // Far past the session box, as far as the composition's rounding
+    // would outgrow the run's ε.
     let d = (1.0e17 * Tol::witness().eps()).max(1.0e7);
     far.values = vec![
         (Coord::slide(TargetAxis::X), len(d + 0.3)),
@@ -7481,16 +7438,15 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
         &pncad::document::EvalOptions::default(),
         Tol::witness(),
     );
-    let Some(ValuePayload::Body(copy)) = ev.value(placement).map(|v| &v.payload) else {
-        panic!(
-            "the far copy builds: {:?}",
-            ev.node_error(placement).map(|e| &e.kind)
-        );
-    };
-    let read = pncad::export::body_in_space::<f64>(copy, Tol::witness());
+    let refused = ev.node_error(placement).expect("the far copy refuses");
     assert!(
-        read.is_err(),
-        "the read-out composes it into the world and re-certifies there, which refuses this far out"
+        matches!(
+            &refused.kind,
+            pncad::document::NodeErrorKind::NotFinished { findings }
+                if matches!(&findings[..], [pncad::topo::ValidationError::OutsideSessionBox { .. }])
+        ),
+        "at its placement, with the session box's finding alone: {:?}",
+        refused.kind
     );
     let step = pncad::export::step_for_node(
         &ev,
@@ -7499,8 +7455,8 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
         Tol::witness(),
     );
     assert!(
-        matches!(step, Err(pncad::export::ExportError::Compose(_))),
-        "and so does the node's STEP export: {:?}",
+        matches!(step, Err(pncad::export::ExportError::Standing(_))),
+        "and the node's STEP export refuses on its standing: {:?}",
         step.as_ref().map(|_| ())
     );
 }

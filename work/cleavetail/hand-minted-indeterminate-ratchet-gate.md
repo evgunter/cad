@@ -71,3 +71,16 @@ or `straddle(` in production code, beside the two counts above.
 ## Two sites retired (SEAL PR 6693, 2026-11-10)
 
 Two of the four sites cited above are retired by PR 6693 (SEAL's `a-corner-reads-only-its-own-sectors`): `vtxfac`'s `bool_sector_coplanar` and `boolean/mod.rs`'s `unglued_coincidence`. Both are deleted, and the unglued corner refuses through `gate_rejection` or `straddle`.
+
+## chart_region's site retired (CHARTTAIL, 2026-11-20, branch `charttail/decided-gates`)
+
+The third of the four sites cited above, `chart_region.rs`'s
+`definite_diag` callers, is retired by the CHARTTAIL change on
+`charttail/decided-gates`. `definite_diag` is deleted, and the three
+callers go through `k_stats::decide_positive`. The same change routes
+the file's other hand mint, `chart_region_cyl_axis_sense`'s Zero,
+through `decide_nonzero`. Production `chart_region.rs` now has no
+`terminal_sliver:` literal and no `invalid_margin::invalid(` call, so
+its starting count, once the gate exists, is 0. No gate carries the
+count yet. `reporting-margin-door.sh`'s mint list, the nearest gate,
+drops `chart_region.rs` in the same change (8 mint sites, down from 9).

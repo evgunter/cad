@@ -348,7 +348,7 @@ fn scene(
     CorpusDoc {
         name,
         about,
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(whole),
         pin: None, // revolved: π-valued

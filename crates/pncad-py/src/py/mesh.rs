@@ -94,6 +94,9 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
     let projected = match err {
         T::InvalidChordalTolerance { value } => float(*value).map(|v| fields[1] = ("value", v)),
         T::ResolutionOverflow { count } => float(*count).map(|v| fields[1] = ("value", v)),
+        // The triangles on the side; the faces are keys.
+        #[allow(clippy::cast_precision_loss)]
+        T::OverusedSide { uses, .. } => float(*uses as f64).map(|v| fields[1] = ("value", v)),
         T::StepNotPositive { step, .. } => float(*step).map(|v| fields[1] = ("value", v)),
         T::CertificateExceeded {
             bound, requested, ..
@@ -123,7 +126,7 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             fields[4] = ("note", PyString::new(py, note).unbind().into_any());
             Ok(())
         }
-        T::MissingEntity { what } | T::RouterDefect { what, .. } => {
+        T::MissingEntity { what } => {
             fields[4] = ("note", PyString::new(py, what).unbind().into_any());
             Ok(())
         }
@@ -193,9 +196,12 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         | T::Triangulation { .. }
         | T::SelfTouchingTrimLoop { .. }
         | T::PinchWedge { .. }
+        | T::BoundaryBoundsNoRegion { .. }
         | T::TrimLoopOrientation { .. }
         | T::FoldedTriangle { .. }
-        | T::BoundaryEar { .. } => Ok(()),
+        | T::UnclearedSharedSide { .. }
+        | T::WrapStripTurn { .. }
+        | T::LiftedColumnOff { .. } => Ok(()),
     };
     if let Err(failed) = projected {
         return failed;
