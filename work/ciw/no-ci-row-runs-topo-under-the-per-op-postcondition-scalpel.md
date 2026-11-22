@@ -30,7 +30,7 @@ every seed: one effort-1 run caught 77,803 operator sweeps). Bisected:
 alone reds neither.
 
 The only hosted row that builds the scalpel is `nightly.yml`'s `the
-per-op postcondition scalpel (topo)` step, and it runs
+per-op postcondition scalpel (topo)` job (its own job since PR 7365), and it runs
 `cargo test -p topo --lib --features topo/per-op-postcondition --
 surgery::tests::` — one module. Nothing runs the rest of `topo`'s lib
 or its `all` suite under it, nor the `sweep` suite the feature's own

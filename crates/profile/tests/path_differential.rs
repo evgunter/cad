@@ -1358,7 +1358,7 @@ fn an_arc_carrier_arrival_refuses_carriers_that_never_meet() {
         .unwrap_err();
     assert!(
         matches!(
-            err,
+            err.refusal(),
             profile::PathError::NoCornerForFillet {
                 reason: profile::path::PathNoCornerReason::CarriersDoNotMeet,
                 ..
