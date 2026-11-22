@@ -2,10 +2,11 @@
 id: an-ovoid-cannot-be-authored
 kind: issue
 title: An ovoid cannot be authored: a profile has no ellipse arc to revolve, and a body cannot be scaled non-uniformly
-status: open
+status: parked
 opened: 2026-10-25
 priority: P1
 cost: M
+blocked_on: [the-lily-bud-is-an-ovoid-and-wall-4-is-deleted, the-egg-and-the-elliptic-prism-meet-the-bar]
 ---
 
 
@@ -96,3 +97,56 @@ bound, tessellates within its theorem, writes exact STEP, replays at
 every lane scalar, and is cut by a plane; every other door refuses
 typed. Bar for part 3: the same list for an egg and an elliptic prism.
 Wall 4 is then deleted, not re-aimed.
+
+## Moved (2026-11-22)
+
+From `work/profile/` to OVOID by `git mv`, id kept, when the build was
+cut (below). Parked on the last unit of each program.
+
+## Cut (2026-11-22)
+
+Ruled on PR 7289 (2026-11-21). Cut into two programs at the seam
+between the analytic lanes and the spline lanes: OVOID holds parts 1
+and 2, SPLINEWALL part 3. Each unit's body is its spec.
+
+**OVOID** (`work/ovoid/plan.md`):
+
+1. `a-spheroid-is-a-surface-kind-that-nothing-mints-yet` (H, open)
+2. `a-profile-segment-is-an-ellipse-arc` (H, open)
+3. `ellipse-to-draws-the-stretched-circle-from-a-point-tip` (H, on 2)
+4. `profile-validation-reads-an-ellipse-arcs-pairs-on-the-planar-reader`
+   (M, on 2 and on PROFILE's planar-reader build,
+   `check-9-arm-5-is-a-second-copy-of-seg-planar-edge-pair-intersector`)
+5. `the-revolve-mints-a-spheroid-from-an-ellipse-arc-centred-on-its-axis`
+   (H, on 1 and 4)
+6. `a-spheroid-face-tessellates-within-its-own-sizing-theorem` (M, on 5)
+7. `a-spheroid-face-measures-its-closed-form-volume-and-area` (M, on 5)
+8. `a-spheroid-writes-exact-step-as-a-surface-of-revolution` (E, on 5)
+9. `a-plane-cuts-a-spheroid-by-pulling-the-plane-back-through-the-stretch`
+   (H, on 5)
+10. `the-lily-bud-is-an-ovoid-and-wall-4-is-deleted` (M, on 3, 6 and 8)
+
+**SPLINEWALL** (`work/splinewall/plan.md`):
+
+1. `measure-what-an-exact-nurbs-wall-of-revolution-does-today` (M, open)
+2. `a-profile-segment-is-a-rational-spline-and-the-nurbs-legs-lower-to-it`
+   (H, on OVOID 2 and the planar-reader build)
+3. `the-revolve-mints-the-exact-nurbs-wall-where-no-kind-fits` (H, on 1
+   and OVOID 4)
+4. `extrude-loft-and-sweep-mint-the-wall-of-an-ellipse-or-spline-segment`
+   (H, `design`: the elliptic cylinder; on 1 and OVOID 2)
+5. `the-egg-and-the-elliptic-prism-meet-the-bar` (X, 24; re-cut after 1)
+
+**The ellipse pair rows are the planar reader's.** Ev's planar-readings
+ruling of the same day (PR 7290) gives profile one planar meeting
+reader in `geom-brep`, whose table already routes line × ellipse,
+circle × ellipse and ellipse × ellipse. So OVOID writes no pair reader:
+unit 4 wires the segment to the reader. That also settles where the
+designers' "quartic sign ladder in `geom-brep`, above `profile`" goes:
+nowhere, since profile reads it through `geom-brep`. And the table
+reads two coplanar ellipses by certified subdivision
+(`curve_pair::pose::coplanar_ellipses`), not by a quartic closed form.
+
+Filed beside the cut: ONECOPY's
+`an-ellipse-with-equal-semi-axes-is-a-second-circle` and EXCH's
+`a-surface-of-revolution-is-refused-at-import`.
