@@ -718,9 +718,58 @@ fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> 
     }
 }
 
+/// REVIEW PROBE (not for merge): the mutant armed by `REMETER_MUTANT`.
+pub(crate) fn mutant() -> u32 {
+    static M: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *M.get_or_init(|| {
+        std::env::var("REMETER_MUTANT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0)
+    })
+}
+
+/// REVIEW PROBE: a trace line per departure decision under `REMETER_TRACE`.
+pub(crate) fn tracing() -> bool {
+    static M: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *M.get_or_init(|| std::env::var("REMETER_TRACE").is_ok())
+}
+
 /// The sign of a sine levered at `arm`, decided at the departure's site,
 /// or `None`.
 fn levered_sign(sine: Interval, arm: Lever<Interval>, band: Band) -> Option<Sign> {
+    let sine = if mutant() == 10 {
+        // M10: the sine's enclosure replaced by its midpoint.
+        at(mid(sine))
+    } else {
+        sine
+    };
+    let arm = if mutant() == 11 {
+        // M11: the arm doubled.
+        Lever::unsourced(arm.length() * at(2.0))
+    } else {
+        arm
+    };
+    if tracing() {
+        let m = sine * arm.length();
+        eprintln!(
+            "REMETER sine=[{:e},{:e}] arm=[{:e},{:e}] margin=[{:e},{:e}]",
+            sine.lo(), sine.hi(), arm.length().lo(), arm.length().hi(), m.lo(), m.hi()
+        );
+    }
+    if mutant() == 12 || mutant() == 13 {
+        // M12: any strictly positive (negative) margin decides (the exact sign).
+        // M13: the margin compared with the zero band (eps), not K*eps.
+        let m = sine * arm.length();
+        let bar = if mutant() == 12 { f64::MIN_POSITIVE } else { band.zero() };
+        return if m.lo() >= bar {
+            Some(Sign::Positive)
+        } else if m.hi() <= -bar {
+            Some(Sign::Negative)
+        } else {
+            None
+        };
+    }
     match decide(
         SELF_INTERSECTION_DEPARTURE,
         Margin::levered(sine, arm),
@@ -5624,14 +5673,42 @@ fn sign_on(
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
     let grad = psi.gradient(image);
+    let arm = if mutant() == 6 {
+        // M6: a missing arm read as a metre.
+        Some(arm.unwrap_or_else(|| Lever::unsourced(at(1.0))))
+    } else {
+        arm
+    };
+    let span = |axis: Axis| match axis {
+        Axis::U => p.x.1 - p.x.0,
+        Axis::V => p.y.1 - p.y.0,
+    };
     let sine = |axis: Axis| {
         let f = match axis {
             Axis::U => fx,
             Axis::V => fy,
         };
+        if mutant() == 2 {
+            // M2: the sine not divided by its norms.
+            return grad.dot(f);
+        }
         grad.dot(f) / (grad.norm() * f.norm())
     };
-    let departs = |s: Side| levered_sign(sine(s.axis()) * at(s.into()), arm?, band);
+    let departs = |s: Side| {
+        if mutant() == 1 {
+            // M1: main's margin, the rate times the rectangle's span.
+            let f = match s.axis() {
+                Axis::U => fx,
+                Axis::V => fy,
+            };
+            return interval_sign_as(
+                grad.dot(f) * at(span(s.axis())) * at(s.into()),
+                SELF_INTERSECTION_DEPARTURE,
+                band,
+            );
+        }
+        levered_sign(sine(s.axis()) * at(s.into()), arm?, band)
+    };
     match &p.zero {
         Zero::None => interval_sign_as(
             centred(psi, p, p.x, p.y)?,
@@ -5655,10 +5732,21 @@ fn sign_on(
             if !(zero_on(*s, a, true) && zero_on(*t, b, true)) {
                 return None;
             }
-            if a.collapsed().is_some() == b.collapsed().is_some() {
+            if mutant() != 8 && a.collapsed().is_some() == b.collapsed().is_some() {
+                // M8 removes this guard.
                 return None;
             }
-            let sine = n.dot(fxy) / (n.norm() * fxy.norm());
+            if mutant() == 1 {
+                let g = n.dot(fxy)
+                    * at(span(Axis::U) * span(Axis::V) * Side::into(*s) * Side::into(*t));
+                return interval_sign_as(g, SELF_INTERSECTION_DEPARTURE, band);
+            }
+            let sine = if mutant() == 7 {
+                // M7: the naive pole, n.Phi_xy / (|n| |Phi_x| |Phi_y|).
+                n.dot(fxy) / (n.norm() * fx.norm() * fy.norm())
+            } else {
+                n.dot(fxy) / (n.norm() * fxy.norm())
+            };
             levered_sign(sine * at(Side::into(*s) * Side::into(*t)), arm?, band)
         }
         Zero::Curve(s, c) => {
@@ -5873,6 +5961,13 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 fn arm_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval>> {
     // One face against itself reads its boundary once.
     let other = (x.face != y.face).then_some(y.boundary);
+    // M5: the other face's vertices dropped from the reach (edges and vertices).
+    // M9: a vertex pair's reach from one face only.
+    let other = match mutant() {
+        5 => None,
+        9 if near.edges.is_empty() => None,
+        _ => other,
+    };
     let faces = || {
         x.boundary
             .vertices
@@ -5897,7 +5992,13 @@ fn arm_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval>> 
             })
             .collect()
     };
-    arms?.into_iter().reduce(Lever::min)
+    match mutant() {
+        // M3: the greatest reach in place of the least.
+        3 => arms?.into_iter().reduce(Lever::max),
+        // M4: the first edge's (or vertex's) reach.
+        4 => arms?.into_iter().next(),
+        _ => arms?.into_iter().reduce(Lever::min),
+    }
 }
 
 /// **Whether a face's part of a cell pair is refused as unreadable**:
@@ -13077,3 +13178,8 @@ mod margin_rows {
         assert_eq!(read((2, &y), &[0, 2], &[]), None, "a null edge");
     }
 }
+
+/// REVIEW PROBES (reviewer lane of PR 7329; not for merge).
+#[cfg(test)]
+#[path = "injective_review_probes.rs"]
+mod review_probes;

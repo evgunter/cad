@@ -3286,3 +3286,196 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }
+
+/// REVIEW PROBES (reviewer lane of PR 7329; print-only, not for merge).
+mod review_probes {
+    use super::*;
+    use geom_core::{Affine3, Vec3};
+    use profile::test_support::bulge_loop;
+
+    fn short(s: String) -> String {
+        s.chars().take(700).collect()
+    }
+
+    fn poses() -> Vec<(&'static str, Affine3<f64>)> {
+        let axis = Vec3::new(1.0, 2.0, 3.0) * (1.0 / 14.0_f64.sqrt());
+        vec![
+            ("as built", Affine3::translation(Vec3::new(0.0, 0.0, 0.0))),
+            ("turned", Affine3::rotation_about_axis(Point3::origin(), axis, 0.7)),
+            ("far", Affine3::translation(Vec3::new(60.0, -80.0, 30.0))),
+        ]
+    }
+
+    fn ask<T: Scalar + geom_core::Certifies>(
+        what: &str,
+        scalar: &str,
+        loops: &[ProfileLoop<f64>],
+        revolved: Option<Revolution<T>>,
+        posed: bool,
+    ) {
+        let profile = match Profile::new(SketchPlane::xy(), lifted::<T>(loops)).validate(tol()) {
+            Ok(p) => p,
+            Err(e) => {
+                println!("[probe] {what} at {scalar}: PROFILE REFUSED {}", short(format!("{e:?}")));
+                return;
+            }
+        };
+        let leaf = match revolved {
+            Some(turn) => match revolve(&profile, axis_y(), turn, tol()) {
+                Ok(b) => b.body,
+                Err(e) => {
+                    println!("[probe] {what} at {scalar}: REVOLVE REFUSED {}", short(format!("{e:?}")));
+                    return;
+                }
+            },
+            None => match extrude(&profile, to_offset(1.0), tol()) {
+                Ok(b) => b.body,
+                Err(e) => {
+                    println!("[probe] {what} at {scalar}: EXTRUDE REFUSED {}", short(format!("{e:?}")));
+                    return;
+                }
+            },
+        };
+        let raw = leaf.clone().into_body();
+        let r = embedding(&raw);
+        println!("[probe] {what} at {scalar}, leaf: {}", short(format!("{r:?}")));
+        match sweep::test_support::taken::<T>(leaf, tol()) {
+            Ok(rest) => {
+                println!("[probe] {what} at {scalar}: the at-rest gate TAKES it");
+                if posed {
+                    for (pose, map) in poses() {
+                        let rigid = geom_core::test_support::rigid(&map.map(T::from_f64), tol());
+                        match topo::transform_rigid(&rest, &rigid) {
+                            Ok(m) => {
+                                let b = m;
+                                let r = embedding(&b);
+                                println!(
+                                    "[probe] {what} at {scalar}, {pose}: {}",
+                                    short(format!("{r:?}"))
+                                );
+                            }
+                            Err(e) => println!(
+                                "[probe] {what} at {scalar}, {pose}: MOVE REFUSED {}",
+                                short(format!("{e:?}"))
+                            ),
+                        }
+                    }
+                }
+            }
+            Err(e) => println!(
+                "[probe] {what} at {scalar}: the at-rest gate REFUSES {}",
+                short(format!("{e:?}"))
+            ),
+        }
+    }
+
+    fn both(what: &str, loops: &[ProfileLoop<f64>], revolved: Option<f64>, posed: bool) {
+        let turn = |full: f64| {
+            if full >= TAU {
+                None
+            } else {
+                Some(full)
+            }
+        };
+        let rev = |t: Option<f64>| -> Option<Revolution<f64>> {
+            t.map(|a| match turn(a) {
+                None => Revolution::Full,
+                Some(a) => Revolution::Partial(a),
+            })
+        };
+        let rev_i = |t: Option<f64>| -> Option<Revolution<Interval>> {
+            t.map(|a| match turn(a) {
+                None => Revolution::Full,
+                Some(a) => Revolution::Partial(<Interval as Real>::from_f64(a)),
+            })
+        };
+        ask::<f64>(what, "f64", loops, rev(revolved), posed);
+        ask::<Interval>(what, "Interval", loops, rev_i(revolved), posed);
+    }
+
+    /// A prism on the triangle (0,0) (1,0) (1,h): the two long faces fold
+    /// at the angle h along the edge through the origin.
+    #[test]
+    fn probe_a_fold_at_a_small_angle() {
+        for h in [1e-3, 1e-6, 2e-7, 5e-8, 2e-8, 1.2e-8, 8e-9, 5e-9, 5e-10] {
+            let tri = ProfileLoop::polygon(
+                [(0.0, 0.0), (1.0, 0.0), (1.0, h)].map(|(x, y)| Point2::new(x, y)),
+            );
+            both(&format!("fold h={h:e}"), &[tri], None, false);
+        }
+    }
+
+    /// A long thin fold: the triangle (0,0) (w,0) (w,h) with w small, so
+    /// the faces are w wide across the edge and a metre along it.
+    #[test]
+    fn probe_a_fold_between_narrow_faces() {
+        for (w, h) in [(1e-4, 1e-8), (1e-5, 1e-9), (1e-6, 1e-10), (1e-6, 1e-9), (1e-7, 1e-9)] {
+            let tri = ProfileLoop::polygon(
+                [(0.0, 0.0), (w, 0.0), (w, h)].map(|(x, y)| Point2::new(x, y)),
+            );
+            both(&format!("narrow fold w={w:e} h={h:e}"), &[tri], None, false);
+        }
+    }
+
+    /// A lens on the chord (0,0)-(1,0) with sagitta s: the arc leaves the
+    /// chord at about 4s and curls back to it; extruded, a plane and a
+    /// cylinder sharing two straight edges.
+    #[test]
+    fn probe_a_face_that_curls_back() {
+        for s in [1e-3, 1e-6, 1e-7, 2.5e-8, 1.2e-8, 5e-9, 5e-10] {
+            let b = 2.0 * s;
+            let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+            both(
+                &format!("lens s={s:e}"),
+                &[bulge_loop(vec![v(0.0, 0.0, b), v(1.0, 0.0, 0.0)])],
+                None,
+                false,
+            );
+            both(
+                &format!("lens (other sense) s={s:e}"),
+                &[bulge_loop(vec![v(1.0, 0.0, b), v(0.0, 0.0, 0.0)])],
+                None,
+                false,
+            );
+        }
+    }
+
+    /// The same lens revolved a quarter turn about y from x in [1, 2]: a
+    /// plane annulus against a torus-like (sphere/torus) band.
+    #[test]
+    fn probe_a_revolved_lens() {
+        for s in [1e-3, 1e-6, 2.5e-8, 5e-9] {
+            let b = 2.0 * s;
+            let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+            both(
+                &format!("revolved lens s={s:e}"),
+                &[bulge_loop(vec![v(1.0, 0.0, b), v(2.0, 0.0, 0.0)])],
+                Some(1.5),
+                false,
+            );
+        }
+    }
+
+    /// A cone that owns its apex, at several opening angles, in three poses.
+    #[test]
+    fn probe_cones_at_their_apex() {
+        for (r, h) in [(0.01, 1.0), (0.1, 1.0), (1.0, 1.0), (1.0, 0.1), (1.0, 0.01), (1.0, 1e-4)] {
+            let tri = ProfileLoop::polygon(
+                [(0.0, 0.0), (r, h), (0.0, h)].map(|(x, y)| Point2::new(x, y)),
+            );
+            both(&format!("cone r={r} h={h}"), &[tri.clone()], Some(TAU), true);
+            both(&format!("quarter cone r={r} h={h}"), &[tri], Some(1.5), true);
+        }
+    }
+
+    /// A ball and a part ball, in three poses.
+    #[test]
+    fn probe_balls_at_their_poles() {
+        let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+        for r in [1.0, 1e-3, 30.0] {
+            let half = bulge_loop(vec![v(0.0, -r, 1.0), v(0.0, r, 0.0)]);
+            both(&format!("ball r={r}"), &[half.clone()], Some(TAU), true);
+            both(&format!("part ball r={r}"), &[half], Some(1.5), true);
+        }
+    }
+}
