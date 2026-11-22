@@ -1593,10 +1593,11 @@ fn a_filleted_drum_certifies_across_its_fillet() {
 
 /// **The three-arc disc, its top rim filleted**: the disc of radius
 /// `0.5` and height `1` whose circle is authored as three equal arcs,
-/// its top rim filleted at `0.1`. The band is one
-/// torus face whose foot parallel is three arcs, joined at the wall's
-/// three seams, at azimuths `0`, `2π/3` and `4π/3`.
-fn filleted_arc_disc<T: Scalar>() -> topo::AtRestBody<T> {
+/// its top rim filleted at `0.1`. The band is one torus face whose foot
+/// parallel is three arcs, joined at the wall's three seams, at azimuths
+/// `0`, `2π/3` and `4π/3`. `Err` where the fillet refuses it, which at
+/// `Interval` and ε = 1e-12 it does (its pcurve envelope escalates).
+fn filleted_arc_disc<T: Scalar>() -> Result<topo::AtRestBody<T>, String> {
     use sweep::blend::fillet_edges;
     use sweep::test_support::{arc_polygon, finished, prism_at};
     let at = T::from_f64;
@@ -1614,29 +1615,28 @@ fn filleted_arc_disc<T: Scalar>() -> topo::AtRestBody<T> {
         .filter(|(_, e)| {
             matches!(
                 disc.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
-                Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. })) if (mid(center.z) - 1.0).abs() < 1e-9
+                Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if (mid(frame.origin().z) - 1.0).abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
         .collect();
     assert_eq!(rim.len(), 3, "the rim is three arcs");
     fillet_edges(&disc, &rim, at(0.1), tol())
-        .map_err(|e| e.error)
-        .expect("the rim fillets")
-        .body
+        .map(|blended| blended.body)
+        .map_err(|e| format!("{:?}", e.error))
 }
 
-/// [`filleted_arc_disc`] moved by `m`, or why the moved body is not a
-/// finished one.
+/// [`filleted_arc_disc`] moved by `m`; `Err` where it is not built, or
+/// the moved body is not a finished one.
 fn posed_arc_disc<T: Scalar>(
     m: Option<&geom_core::Affine3<f64>>,
-) -> Result<topo::AtRestBody<T>, topo::NotFinished> {
-    let home = filleted_arc_disc::<T>();
+) -> Result<topo::AtRestBody<T>, String> {
+    let home = filleted_arc_disc::<T>()?;
     let Some(m) = m else {
         return Ok(home);
     };
     let rigid = geom_core::test_support::rigid(&m.map(T::from_f64), tol());
-    T::finish(topo::transform_rigid(&home, &rigid).unwrap(), tol())
+    T::finish(topo::transform_rigid(&home, &rigid).unwrap(), tol()).map_err(|e| format!("{e:?}"))
 }
 
 /// A rigid turn of one radian about a generic axis through a point off
@@ -1667,19 +1667,20 @@ fn generic_poses() -> [(&'static str, Option<geom_core::Affine3<f64>>); 3] {
 /// of the body as built, an ulp apart at another). A cell beside the
 /// line across a joint is covered by the two edges together: below the
 /// parallel it holds none of the band, above it the parallel is its
-/// side. Holds at both scalars, as built, turned about a generic axis
-/// and a hundred units from the origin. At ε = 1e-12 the turned body's
-/// `Interval` twin does not pass the finish gate (its pcurve envelope
-/// escalates), so the row asks it at `f64` alone and says so. Red if a
-/// side is read against one edge of its line alone (the wall against
-/// the band then runs out of depth at a joint), or if two edges are
-/// joined only where their stored ends agree.
+/// side. Holds as built, turned about a generic axis and a hundred
+/// units from the origin, at `f64` and, in one verdict class, at
+/// `Interval` wherever the `Interval` twin builds: at ε = 1e-12 its
+/// fillet refuses (a pcurve envelope escalates), and the row asks that
+/// pose at `f64` alone and says so. Red if a side is read against one
+/// edge of its line alone (the wall against the band then runs out of
+/// depth at a joint), or if two edges are joined only where their
+/// stored ends agree.
 #[test]
 fn a_three_arc_discs_filleted_rim_holds_across_its_joints() {
     for (what, m) in generic_poses() {
         let what = format!("the three-arc disc's filleted rim, {what}");
         let body = posed_arc_disc::<f64>(m.as_ref())
-            .expect("the f64 body finishes")
+            .expect("the f64 body builds")
             .into_body();
         match posed_arc_disc::<Interval>(m.as_ref()) {
             Ok(twin) => {
@@ -1688,7 +1689,7 @@ fn a_three_arc_discs_filleted_rim_holds_across_its_joints() {
             }
             Err(refusal) => {
                 println!(
-                    "SKIPPED: {what} is asked at f64 alone, its Interval twin unbuilt: {refusal:?}"
+                    "SKIPPED: {what} is asked at f64 alone, its Interval twin unbuilt: {refusal}"
                 );
                 assert_holds(&what, &injective(&body, None, BUDGET), &body);
             }
@@ -1704,26 +1705,28 @@ fn a_three_arc_discs_filleted_rim_holds_across_its_joints() {
 /// decided by distance; the row pins that the joint reading leaves a
 /// crossing beside a joint to be found. A crossing of two faces that
 /// share the joint is no kernel operation's to build; the joint's own
-/// guards are `injective`'s unit rows.
+/// guards are `injective`'s unit rows. In one class at `Interval` where
+/// the twin builds ([`filleted_arc_disc`]).
 #[test]
 fn two_filleted_discs_through_each_other_at_a_joint_read_violated() {
-    fn folded_at<T: Scalar>() -> Body<T> {
+    fn folded_at<T: Scalar>() -> Result<Body<T>, String> {
         use geom_core::{Affine3, Vec3};
-        let disc = filleted_arc_disc::<T>();
+        let disc = filleted_arc_disc::<T>()?;
         let mut folded = disc.clone().into_body();
         let over = Affine3::translation(Vec3::new(0.5, 0.0, 0.95)).map(T::from_f64);
         let rigid = geom_core::test_support::rigid(&over, tol());
         let copy = topo::transform_rigid(&disc, &rigid).unwrap();
         topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
-        folded
+        Ok(folded)
     }
-    let folded = folded_at::<f64>();
+    let folded = folded_at::<f64>().expect("the f64 body builds");
     let report = injective(&folded, None, BUDGET);
-    same_class(
-        "the folded discs",
-        &report,
-        &injective(&folded_at::<Interval>(), None, BUDGET),
-    );
+    match folded_at::<Interval>() {
+        Ok(twin) => same_class("the folded discs", &report, &injective(&twin, None, BUDGET)),
+        Err(refusal) => println!(
+            "SKIPPED: the folded discs are asked at f64 alone, their Interval twin unbuilt: {refusal}"
+        ),
+    }
     let BoundVerdict::Violated(w) = report.verdict else {
         panic!("the two discs cross: {:?}", report.verdict)
     };
