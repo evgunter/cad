@@ -11679,21 +11679,41 @@ mod presentation_rows {
     }
 
     /// **A line corner on a torus whose cell stops at the line on its
-    /// other side reads vacuous** ([`present_line_corner`]'s sliver):
-    /// the cell under the parallel, reaching it, clips to a rectangle
-    /// within the band of the line. Red if the sliver is not read there
-    /// (the rectangle is then presented with no width across the line,
-    /// on which no separator's sign is decided).
+    /// other side is presented on the line and read**: the cell under
+    /// the parallel, reaching it, clips to a rectangle with no width
+    /// across the line, the line its zero side, and the parallel's plane
+    /// is signed on it at the faces' reach. Red if the rectangle reads
+    /// vacuous, or if the sign is levered at the rectangle's own width.
     #[test]
-    fn a_line_corner_cell_reaching_the_line_from_outside_reads_vacuous() {
+    fn a_line_corner_cell_reaching_the_line_from_outside_is_read_on_the_line() {
         let b = wall_corner(-0.5, false, 1.0);
         let s = ring(2.0);
         let local = at_the_corner();
         let cell = ((g(1.0) - 0.01, g(1.0) + 0.01), (0.98, 1.0));
-        assert!(matches!(
-            on_wall(&s, &b, &local, (&[1], &[vertex(1)]), cell),
-            Ok(Presentation::Vacuous)
-        ));
+        let Ok(Presentation::Of(p)) = on_wall(&s, &b, &local, (&[1], &[vertex(1)]), cell) else {
+            panic!("the cell is presented");
+        };
+        assert!(matches!(p.zero, Zero::Side(..)), "the line is its zero");
+        assert_eq!(p.y, (1.0, 1.0), "no width across the line");
+        let line = &b.edges[1];
+        let plane = Psi::Linear {
+            n: ez(),
+            q: Point3::new(iv0(0.0), iv0(0.0), iv0(0.5 * 1.0_f64.sin())),
+        };
+        let on = On {
+            edges: vec![line.key],
+            vertices: line.ends.to_vec(),
+            whole: true,
+        };
+        assert!(
+            sign_on(&plane, Some(&on), &p, None, metre_arm(), band()).is_some(),
+            "the parallel's plane is signed on the line"
+        );
+        assert_eq!(
+            sign_on(&plane, Some(&on), &p, None, None, band()),
+            None,
+            "no arm decides nothing"
+        );
     }
 
     /// **A wall frame**: the torus, the carrier, its wall image there,
@@ -12034,29 +12054,26 @@ mod presentation_rows {
         assert_eq!(chart(&s, &b, &[0, 1], hole.0, hole.1), Read::Local);
     }
 
-    /// **A lever that does not certify measures no sliver** (the sliver in
-    /// [`present_chart`]): a cell `1e-13` wide beside [`slot`]'s shared
-    /// right line on a cylinder whose radius is a refused `1`. Certified,
-    /// the strip is within the band and vacuous; refused, the width is
-    /// not decided. Red if the width is minted from the lever's upper
-    /// end.
+    /// **A strip beside a shared line is presented however thin**
+    /// ([`present_chart`]): a cell `1e-13` wide beside [`slot`]'s shared
+    /// right line on a cylinder. Red if a width across a shared line
+    /// reads the cell as holding none of the face.
     #[test]
-    fn a_refused_lever_measures_no_sliver() {
+    fn a_strip_beside_a_shared_line_is_presented_however_thin() {
         let b = slot();
         let cell = ((1.5, 1.5 + 1e-13), (0.3, 0.7));
-        let on = |radius| {
-            let s = Surface::Cylinder {
-                frame: geom::Frame::new(
-                    origin(),
-                    Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
-                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                ),
-                radius,
-            };
-            chart_near(&s, &b, &[0, 1], &[1], cell)
+        let s = Surface::Cylinder {
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            radius: iv0(1.0),
         };
-        assert_eq!(on(iv0(1.0)), Read::Vacuous, "the certified control");
-        assert_ne!(on(trv(1.0)), Read::Vacuous);
+        assert_eq!(
+            chart_near(&s, &b, &[0, 1], &[1], cell),
+            Read::Of(cell.0, cell.1)
+        );
     }
 
     /// **A separator whose coefficients do not certify bounds nothing
@@ -12690,5 +12707,324 @@ mod presentation_rows {
             None,
             "the shared edge's far end"
         );
+    }
+}
+
+#[cfg(test)]
+mod margin_rows {
+    //! The departure's margin: a sine levered at the faces' reach.
+    use super::*;
+    use geom_core::test_support::fixture_lever;
+
+    fn iv0(x: f64) -> Interval {
+        Interval::from_bounds(x, x)
+    }
+
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).unwrap()
+    }
+
+    fn key<K: From<slotmap::KeyData>>(n: u64) -> K {
+        slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
+    }
+
+    fn v3(x: f64, y: f64, z: f64) -> Vec3<Interval> {
+        Vec3::new(iv0(x), iv0(y), iv0(z))
+    }
+
+    fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
+        Point3::new(iv0(x), iv0(y), iv0(z))
+    }
+
+    fn arm(length: f64) -> Option<Lever<Interval>> {
+        Some(fixture_lever(iv0(length)))
+    }
+
+    /// A side on the one edge `e`, the whole of its line.
+    fn along(e: u64) -> Along {
+        Along {
+            edges: vec![key(e)],
+            vertex: None,
+            whole: true,
+            params: None,
+            on_edges: true,
+        }
+    }
+
+    /// A separator that vanishes on the edges `edges` and the vertices
+    /// `vertices`, whole.
+    fn on(edges: &[u64], vertices: &[u64]) -> On {
+        On {
+            edges: edges.iter().map(|&e| key(e)).collect(),
+            vertices: vertices.iter().map(|&v| key(v)).collect(),
+            whole: true,
+        }
+    }
+
+    fn presented(
+        surface: &Surface<Interval>,
+        x: (f64, f64),
+        y: (f64, f64),
+        zero: Zero,
+    ) -> Presented<'_> {
+        Presented {
+            surface,
+            map: Map::Chart,
+            x,
+            y,
+            zero,
+            corner: false,
+            cache: Cache::default(),
+        }
+    }
+
+    /// The plane `z = 0`, charted `(u, v) = (x, y)`.
+    fn floor() -> Surface<Interval> {
+        Surface::Plane {
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
+        }
+    }
+
+    /// The plane through the `x` axis that the floor leaves at the angle
+    /// whose sine is `sine`, the floor's `+y` side on its positive side.
+    fn wall(sine: f64) -> Psi {
+        Psi::Linear {
+            n: v3(0.0, sine, -(1.0 - sine * sine).sqrt()),
+            q: p3(0.0, 0.0, 0.0),
+        }
+    }
+
+    /// **A departure is levered at its arm, never at its rectangle.** The
+    /// floor beside its edge on the `x` axis, against a wall through that
+    /// edge:
+    /// - a rectangle `1e-15` across, and one of no width at all, leave a
+    ///   square wall decidedly at a metre's arm;
+    /// - a rectangle a metre across decides nothing at an arm inside the
+    ///   band, and nothing with no arm;
+    /// - a wall the floor leaves at a sine three times the zero band is
+    ///   undecided at a metre and decided at a hundred.
+    ///
+    /// Red if the margin reads the rectangle's extent across the side,
+    /// if it is not levered at all, or if a missing arm reads as one.
+    #[test]
+    fn a_departure_is_levered_at_its_arm_never_at_its_rectangle() {
+        let s = floor();
+        let read = |across: f64, sine: f64, arm: Option<Lever<Interval>>| {
+            let p = presented(
+                &s,
+                (0.0, 1.0),
+                (0.0, across),
+                Zero::Side(Side::YLo, along(1)),
+            );
+            sign_on(&wall(sine), Some(&on(&[1], &[])), &p, None, arm, band())
+        };
+        for across in [1e-15, 0.0] {
+            assert_eq!(
+                read(across, 1.0, arm(1.0)),
+                Some(Sign::Positive),
+                "a rectangle {across} across is read"
+            );
+        }
+        let inside = 0.5 * (band().zero() + band().escalate());
+        assert_eq!(read(1.0, 1.0, arm(inside)), None, "an arm inside the band");
+        assert_eq!(read(1.0, 1.0, None), None, "no arm");
+        let shallow = 3.0 * band().zero();
+        assert_eq!(
+            read(1.0, shallow, arm(1.0)),
+            None,
+            "a shallow wall at a metre"
+        );
+        assert_eq!(
+            read(1.0, shallow, arm(100.0)),
+            Some(Sign::Positive),
+            "the same wall at a hundred metres"
+        );
+    }
+
+    /// **The rate is read as a sine, whatever the chart's speed.** A
+    /// cylinder of radius `r` on its ruling at `u = 0`, a rectangle of no
+    /// width, against a plane through the ruling that the cylinder
+    /// leaves at a sine `s`; the rate across the ruling is `r·s`.
+    /// - `r = 1e-3`, `s` a hundred times the band: decided, where the
+    ///   bare rate at a metre is a tenth of the band;
+    /// - `r = 1e3`, `s` a hundredth of the band's zero: undecided, where
+    ///   the bare rate at a metre is ten times it.
+    ///
+    /// Red if the rate is levered without its chart speed divided out.
+    #[test]
+    fn a_departures_rate_is_read_as_a_sine_whatever_the_charts_speed() {
+        let read = |radius: f64, sine: f64| {
+            let s = Surface::Cylinder {
+                frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
+                radius: iv0(radius),
+            };
+            let p = presented(&s, (0.0, 0.0), (0.0, 1.0), Zero::Side(Side::XLo, along(1)));
+            // The ruling at `(r, 0, ·)`; the cylinder's direction across
+            // it is `+y`.
+            let plane = Psi::Linear {
+                n: v3(-(1.0 - sine * sine).sqrt(), sine, 0.0),
+                q: p3(radius, 0.0, 0.0),
+            };
+            sign_on(&plane, Some(&on(&[1], &[])), &p, None, arm(1.0), band())
+        };
+        assert_eq!(
+            read(1e-3, 100.0 * band().escalate()),
+            Some(Sign::Positive),
+            "a slow chart"
+        );
+        assert_eq!(read(1e3, 0.01 * band().zero()), None, "a fast chart");
+    }
+
+    /// **At a pole the sine is read by its limit, and only there.** A
+    /// sphere's cell at its north pole beside the meridian `u = 0`,
+    /// against that meridian's plane: the rate across the meridian and
+    /// the chart's speed both vanish at the pole, and the lune leaves the
+    /// plane squarely all the way to it.
+    /// - with the pole's side collapsed, the plane is signed;
+    /// - with that side stated as a regular one on an edge, the same
+    ///   rectangle answers nothing: between two regular sides the face is
+    ///   tangent to the separator at the corner, and the mixed rate over
+    ///   its own size does not bound the sine.
+    ///
+    /// Red if the collapsed side's reading divides by the chart's own
+    /// speeds (`0/0` at the pole), or if two regular sides are read by
+    /// the mixed rate.
+    #[test]
+    fn a_pole_is_read_by_the_sines_limit_and_two_regular_sides_are_not() {
+        let s = Surface::Sphere {
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
+            radius: iv0(1.0),
+        };
+        let pole = core::f64::consts::FRAC_PI_2;
+        let meridian = Psi::Linear {
+            n: v3(0.0, 1.0, 0.0),
+            q: p3(0.0, 0.0, 0.0),
+        };
+        let read = |top: Along| {
+            let zero = Zero::Corner((Side::XLo, along(1)), (Side::YHi, top));
+            let p = presented(&s, (0.0, 0.1), (pole - 0.1, pole), zero);
+            sign_on(
+                &meridian,
+                Some(&on(&[1, 2], &[7])),
+                &p,
+                None,
+                arm(1.0),
+                band(),
+            )
+        };
+        assert_eq!(read(Along::at(key(7))), Some(Sign::Positive), "the pole");
+        assert_eq!(read(along(2)), None, "two regular sides");
+    }
+
+    /// A boundary of line edges `(key, from, to)` over the vertices
+    /// `vertices`.
+    fn boundary(
+        edges: &[(u64, Option<([f64; 3], [f64; 3])>, [u64; 2])],
+        vertices: &[(u64, [f64; 3])],
+    ) -> Boundary {
+        Boundary {
+            sense: true,
+            edges: edges
+                .iter()
+                .map(|&(k, arc, ends)| Rim {
+                    key: key(k),
+                    arc: arc.map(|(a, b)| {
+                        let d = v3(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+                        (Curve3::line(p3(a[0], a[1], a[2]), d), (iv0(0.0), iv0(1.0)))
+                    }),
+                    stated: None,
+                    ends: ends.map(key),
+                    uses: Vec::new(),
+                })
+                .collect(),
+            vertices: vertices
+                .iter()
+                .map(|&(k, p)| (key(k), p3(p[0], p[1], p[2])))
+                .collect(),
+            extent: None,
+        }
+    }
+
+    /// **The arm is the faces' reach, the least over what the pair is
+    /// near.** Two faces sharing the edges `1` (along `x`, a metre) and
+    /// `2` (along `z`, ten metres) at the origin, the second face
+    /// reaching five metres along `y`:
+    /// - near edge `1` alone, its reach from its middle: the far end of
+    ///   edge `2`, `√100.25`;
+    /// - near edge `2` alone: the second face's far vertex, `√50`;
+    /// - near both: the lesser;
+    /// - near the origin alone: the farthest vertex of either face from
+    ///   it, ten;
+    /// - one face against itself reads its own vertices alone, `√26`;
+    /// - near a null edge: no arm.
+    ///
+    /// Red if the arm is one face's, the first edge's or the greater, if
+    /// a vertex pair is levered at an edge, or if a null edge lends one.
+    #[test]
+    fn the_arm_is_the_faces_reach_the_least_over_what_the_pair_is_near() {
+        let o = [0.0; 3];
+        let edges = [
+            (1, Some((o, [1.0, 0.0, 0.0])), [1, 2]),
+            (2, Some((o, [0.0, 0.0, 10.0])), [1, 3]),
+            (9, None, [1, 1]),
+        ];
+        let x = boundary(
+            &edges,
+            &[(1, o), (2, [1.0, 0.0, 0.0]), (3, [0.0, 0.0, 10.0])],
+        );
+        let y = boundary(
+            &edges,
+            &[
+                (1, o),
+                (2, [1.0, 0.0, 0.0]),
+                (3, [0.0, 0.0, 10.0]),
+                (4, [0.0, 5.0, 0.0]),
+            ],
+        );
+        let s = floor();
+        let local = Local::default();
+        fn piece<'a>(
+            face: u64,
+            surface: &'a Surface<Interval>,
+            boundary: &'a Boundary,
+            local: &'a Local,
+        ) -> Piece<'a> {
+            Piece {
+                face: key(face),
+                surface,
+                whole: false,
+                boundary,
+                u: (0.0, 1.0),
+                v: (0.0, 1.0),
+                local,
+                ball: Ball::holding(p3(0.0, 0.0, 0.0), p3(0.0, 0.0, 0.0)),
+            }
+        }
+        let read = |other: (u64, &Boundary), edges: &[usize], vertices: &[u64]| {
+            let near = Near {
+                edges: edges.iter().map(|&i| (i, i)).collect(),
+                vertices: vertices.iter().map(|&v| key(v)).collect(),
+            };
+            arm_of(
+                &piece(1, &s, &x, &local),
+                &piece(other.0, &s, other.1, &local),
+                &near,
+            )
+            .map(|arm| arm.length().hi())
+        };
+        let close = |got: Option<f64>, want: f64, what: &str| {
+            let got = got.unwrap_or_else(|| panic!("{what}: an arm"));
+            assert!((got - want).abs() < 1e-12, "{what}: {got}, not {want}");
+        };
+        close(read((2, &y), &[0], &[]), 100.25_f64.sqrt(), "edge 1");
+        close(read((2, &y), &[1], &[]), 50.0_f64.sqrt(), "edge 2");
+        close(read((2, &y), &[0, 1], &[1]), 50.0_f64.sqrt(), "both edges");
+        close(read((2, &y), &[], &[1]), 10.0, "the vertex alone");
+        close(
+            read((1, &y), &[1], &[]),
+            26.0_f64.sqrt(),
+            "one face against itself",
+        );
+        assert_eq!(read((2, &y), &[0, 2], &[]), None, "a null edge");
     }
 }
