@@ -121,14 +121,14 @@ its distance from the world origin,
 and on the cone a part the lever does not decide positive (one reaching
 the apex) reads `√|f|` instead: `f` is the product of the distances
 from the meridian half-plane's two generator lines, both on the implicit
-cone. The search's limbs convert the torus per span of the carrier
-too, bounding the residual its limb 1 reads,
-`m = F/(2r·(A + 2Rρ))` for the quartic `F = A² − 4R²ρ²` with
-`A = |q|² + R² − r²`, by `sup|F∘C|` over `2r` times
-`inf A∘C + √(inf A∘C² − sup F∘C)`, `A∘C` its own composite over the
-same spans and floored by `R² − r²` (`ssi::certify`); the cone has no
-such conversion at the search, which is why its rung-3 arms are
-unretired. At a
+cone. The search reads limb 2 through the same reader, against the
+surface's whole carrier rather than a face's
+(`pcurve_cache::limb2_carrier_read`): a pair's section is a section of
+carriers (C5), so it reads a cone as the double cone, whose lever is
+`ρ cos α + |z| sin α`, taking the lesser of that reading and `√|f|`.
+The coefficients are enclosures built at the lane scalar, a cone's
+sine and cosine taken of its angle crossed in first, so a widened
+operand is read as the family it is. At a
 parameter-family scalar the limb is decided by the scalar like any
 margin (E12): its symbolic identity is the residual of the carrier's own
 description against the operand, per span, with the carrier's parameter
