@@ -2763,15 +2763,30 @@ fn present_plane<'a>(
     };
     match *edges.as_slice() {
         [e] => along(e, None),
-        [e1, e2] => match meet(e1, e2) {
-            Some(vtx) => corner(e1, e2, vtx, None),
+        [e1, e2] => {
             // Across the face from each other, anchored on the shared one.
-            None => match (near_edges.contains(&e1), near_edges.contains(&e2)) {
+            let strip = || match (near_edges.contains(&e1), near_edges.contains(&e2)) {
                 (true, true) => { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Err(Unpresented::Local) }
                 (false, true) => along(e2, Some(e1)),
                 _ => along(e1, Some(e2)),
-            },
-        },
+            };
+            match meet(e1, e2) {
+                // A wedge whose tip is clear of the cell is a strip there:
+                // its corner's frame, its sides at a small angle, holds the
+                // cell only in coordinates as wide as the angle is small.
+                Some(vtx) => corner(e1, e2, vtx, None).or_else(|why| {
+                    let clear =
+                        !piece.local.vertices.contains(&vtx) && !near_vertices.contains(&vtx);
+                    if why == Unpresented::Local && clear {
+                        if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPW"); }
+                        strip()
+                    } else {
+                        Err(why)
+                    }
+                }),
+                None => strip(),
+            }
+        }
         // An edge `m` with a neighbour at each end, the one of a sliver
         // triangle's three whose ends the cell holds: read at one of
         // `m`'s corners, the other neighbour, not shared, capping it.
@@ -8199,6 +8214,26 @@ mod presentation_rows {
             ),
             "a vertex in the cell: the sides' chords are not all there is"
         );
+        // A sliver wedge, its sides meeting at the origin at a
+        // milliradian: across its middle, a strip.
+        let (plane, wedge) = segments(&[
+            (1, (0.0, 0.0), (10.0, 0.0), [1, 2]),
+            (3, (10.0, 1e-3), (0.0, 0.0), [3, 1]),
+        ]);
+        match present_in(&plane, &wedge, cell, &holding(&[0, 1], &[]), &[0]) {
+            Ok(Presentation::Of(q)) => {
+                assert!(
+                    matches!(&q.zero, Zero::Side(Side::YLo, a) if a.edges == [edge(1)]),
+                    "the wedge's shared side is the zero side"
+                );
+                let across = q.whole().y;
+                assert!(
+                    across.hi() < 5e-4 + 1e-12,
+                    "capped at the other side over the cell's reach: {across:?}"
+                );
+            }
+            _ => panic!("a wedge's middle, its tip clear of the cell, is a strip"),
+        }
     }
 
     /// **`present_plane`, a strip's end**: a cell holding a thin face's
