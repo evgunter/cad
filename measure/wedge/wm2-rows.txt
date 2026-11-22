@@ -1,0 +1,157 @@
+   Compiling sweep v0.0.0 (/home/user/cad/crates/sweep)
+    Finished `test` profile [optimized] target(s) in 15.18s
+────────────
+ Nextest run ID 0b2521c6-693c-4259-b136-2e0083c3020c with nextest profile: default
+    Starting 1 test across 1 binary
+       START [         ] (1/1) sweep::wedge_measure wm2_rows
+
+running 1 test
+WM2 sliver(bulge+) [f64] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 sliver(bulge+) [Interval] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 sliver(bulge-) [f64] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 sliver(bulge-) [Interval] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 short(bulge+) [f64] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 short(bulge+) [Interval] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 short(bulge-) [f64] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 short(bulge-) [Interval] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 long(bulge+) [f64] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 long(bulge+) [Interval] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 long(bulge-) [f64] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 long(bulge-) [Interval] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 short_moved_in(bulge+) [f64] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 short_moved_in(bulge+) [Interval] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 short_moved_in(bulge-) [f64] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 short_moved_in(bulge-) [Interval] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 long_moved_in(bulge+) [f64] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 long_moved_in(bulge+) [Interval] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 long_moved_in(bulge-) [f64] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 long_moved_in(bulge-) [Interval] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 short_moved_out(bulge+) [f64] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 short_moved_out(bulge+) [Interval] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 short_moved_out(bulge-) [f64] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 short_moved_out(bulge-) [Interval] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 0 }, second: SegmentRef { loop_index: 0, segment_index: 1 }, kind: Overlap }
+WM2 long_moved_out(bulge+) [f64] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 long_moved_out(bulge+) [Interval] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 long_moved_out(bulge-) [f64] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 long_moved_out(bulge-) [Interval] NOT BUILT: profile refused: NearFullArc(SegmentRef { loop_index: 0, segment_index: 0 })
+WM2 long2_plain(bulge+) [f64] faces=4 edges=6 tier3=PASS
+WM2 long2_plain(bulge+) [f64]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.000001999997995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 long2_plain(bulge+) [f64]   edge EdgeKey(3v1) cyl-plane desc=Intersection reach=Some(0.50000000000004) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(9.999999983312519e-8, None, ZeroWord(0))) })
+WM2 long2_plain(bulge+) [f64]   edge EdgeKey(4v1) plane-cyl desc=Intersection reach=Some(0.50000000000004) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(9.99999998335415e-8, None, ZeroWord(0))) })
+WM2 long2_plain(bulge+) [f64]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.000001999997995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 long2_plain(bulge+) [f64] embedded=Refused Uncertified { a: FaceKey(1v1), b: FaceKey(3v1), shared: Edge(EdgeKey(5v1)), arm: Departure } a=plane b=plane cand=9 disc=16014 refused=6 splits=16011 1.49s
+WM2 long2_plain(bulge+) [Interval] faces=4 edges=6 tier3=PASS
+WM2 long2_plain(bulge+) [Interval]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000019999979952) fold=Some(0.001000000000000001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.0009999999999999788, hi: 0.001000000000000021, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_plain(bulge+) [Interval]   edge EdgeKey(3v1) cyl-plane desc=Intersection reach=Some(0.5000000000000402) fold=Some(0.001000000000000001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 9.999999983306905e-8, hi: 9.999999983318133e-8, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_plain(bulge+) [Interval]   edge EdgeKey(4v1) plane-cyl desc=Intersection reach=Some(0.5000000000000402) fold=Some(0.001000000000000001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 9.999999983348538e-8, hi: 9.999999983359766e-8, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_plain(bulge+) [Interval]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000019999979952) fold=Some(0.001000000000000001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.0009999999999999788, hi: 0.001000000000000021, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_plain(bulge+) [Interval] embedded=Refused Uncertified { a: FaceKey(1v1), b: FaceKey(3v1), shared: Edge(EdgeKey(5v1)), arm: Departure } a=plane b=plane cand=9 disc=16014 refused=6 splits=16011 1.56s
+WM2 long2_plain(bulge-) [f64] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 1 }, second: SegmentRef { loop_index: 0, segment_index: 2 }, kind: Crossing }
+WM2 long2_plain(bulge-) [Interval] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 1 }, second: SegmentRef { loop_index: 0, segment_index: 2 }, kind: Crossing }
+WM2 long2_moved_in(bulge+) [f64] faces=4 edges=6 tier3=PASS
+WM2 long2_moved_in(bulge+) [f64]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000019999979899) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 long2_moved_in(bulge+) [f64]   edge EdgeKey(3v1) cyl-plane desc=Intersection reach=Some(0.5000000000000799) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(1.4142135623889654e-7, None, ZeroWord(0))) })
+WM2 long2_moved_in(bulge+) [f64]   edge EdgeKey(4v1) plane-cyl desc=Intersection reach=Some(0.5000000000000799) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(1.4142135623922397e-7, None, ZeroWord(0))) })
+WM2 long2_moved_in(bulge+) [f64]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000019999979899) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 long2_moved_in(bulge+) [f64] embedded=Refused Uncertified { a: FaceKey(3v1), b: FaceKey(4v1), shared: Edge(EdgeKey(3v1)), arm: Departure } a=plane b=cyl cand=9 disc=15902 refused=2 splits=15895 1.51s
+WM2 long2_moved_in(bulge+) [Interval] faces=4 edges=6 tier3=PASS
+WM2 long2_moved_in(bulge+) [Interval]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000019999979903) fold=Some(0.0010000000000000009) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.00099999999999998, hi: 0.0010000000000000198, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_moved_in(bulge+) [Interval]   edge EdgeKey(3v1) cyl-plane desc=Intersection reach=Some(0.5000000000000802) fold=Some(0.0010000000000000009) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 1.4142135623884005e-7, hi: 1.4142135623895297e-7, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_moved_in(bulge+) [Interval]   edge EdgeKey(4v1) plane-cyl desc=Intersection reach=Some(0.5000000000000802) fold=Some(0.0010000000000000009) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 1.4142135623916748e-7, hi: 1.4142135623928038e-7, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_moved_in(bulge+) [Interval]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000019999979903) fold=Some(0.0010000000000000009) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.00099999999999998, hi: 0.0010000000000000198, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_moved_in(bulge+) [Interval] embedded=Refused Uncertified { a: FaceKey(3v1), b: FaceKey(4v1), shared: Edge(EdgeKey(3v1)), arm: Departure } a=plane b=cyl cand=9 disc=15902 refused=2 splits=15895 1.59s
+WM2 long2_moved_in(bulge-) [f64] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 1 }, second: SegmentRef { loop_index: 0, segment_index: 2 }, kind: Crossing }
+WM2 long2_moved_in(bulge-) [Interval] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 1 }, second: SegmentRef { loop_index: 0, segment_index: 2 }, kind: Crossing }
+WM2 long2_moved_out(bulge+) [f64] faces=4 edges=6 tier3=PASS
+WM2 long2_moved_out(bulge+) [f64]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000019999979999) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 long2_moved_out(bulge+) [f64]   edge EdgeKey(3v1) cyl-plane desc=Intersection reach=Some(0.5000000000000008) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(1.4142136208421361e-8, None, ZeroWord(0))) })
+WM2 long2_moved_out(bulge+) [f64]   edge EdgeKey(4v1) plane-cyl desc=Intersection reach=Some(0.5000000000000008) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(1.4142136208458958e-8, None, ZeroWord(0))) })
+WM2 long2_moved_out(bulge+) [f64]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000019999979999) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 long2_moved_out(bulge+) [f64] embedded=Refused Uncertified { a: FaceKey(1v1), b: FaceKey(3v1), shared: Edge(EdgeKey(5v1)), arm: Departure } a=plane b=plane cand=9 disc=16022 refused=6 splits=16019 1.68s
+WM2 long2_moved_out(bulge+) [Interval] faces=4 edges=6 tier3=PASS
+WM2 long2_moved_out(bulge+) [Interval]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000019999980003) fold=Some(0.0010000000000000009) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.000999999999999981, hi: 0.0010000000000000198, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_moved_out(bulge+) [Interval]   edge EdgeKey(3v1) cyl-plane desc=Intersection reach=Some(0.5000000000000009) fold=Some(0.0010000000000000009) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 1.4142136208365766e-8, hi: 1.4142136208476954e-8, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_moved_out(bulge+) [Interval]   edge EdgeKey(4v1) plane-cyl desc=Intersection reach=Some(0.5000000000000009) fold=Some(0.0010000000000000009) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 1.4142136208403366e-8, hi: 1.4142136208514551e-8, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_moved_out(bulge+) [Interval]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000019999980003) fold=Some(0.0010000000000000009) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.000999999999999981, hi: 0.0010000000000000198, tag: None, zero: ZeroWord(0) }) })
+WM2 long2_moved_out(bulge+) [Interval] embedded=Refused Uncertified { a: FaceKey(1v1), b: FaceKey(3v1), shared: Edge(EdgeKey(5v1)), arm: Departure } a=plane b=plane cand=9 disc=16022 refused=6 splits=16019 1.58s
+WM2 long2_moved_out(bulge-) [f64] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 1 }, second: SegmentRef { loop_index: 0, segment_index: 2 }, kind: Crossing }
+WM2 long2_moved_out(bulge-) [Interval] NOT BUILT: profile refused: NonSimple { first: SegmentRef { loop_index: 0, segment_index: 1 }, second: SegmentRef { loop_index: 0, segment_index: 2 }, kind: Touch }
+WM2 bool sliver_chord short=rod∩brick [f64] EMPTY
+WM2 bool sliver_chord long=rod−brick [f64] faces=4 edges=6 tier3=PASS
+WM2 bool sliver_chord long=rod−brick [f64]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool sliver_chord long=rod−brick [f64]   edge EdgeKey(3v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840001) fold=Some(0.001) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool sliver_chord long=rod−brick [f64]   edge EdgeKey(4v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840001) fold=Some(0.001) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool sliver_chord long=rod−brick [f64]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool sliver_chord long=rod−brick [f64]   edge EdgeKey(7v1) cyl-plane desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool sliver_chord long=rod−brick [f64]   edge EdgeKey(8v1) plane-cyl desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool sliver_chord long=rod−brick [f64] embedded=Embedded cand=9 disc=29124 refused=0 splits=29115 4.21s
+WM2 bool sliver_chord short=rod∩brick [Interval] EMPTY
+WM2 bool sliver_chord long=rod−brick [Interval] faces=4 edges=6 tier3=PASS
+WM2 bool sliver_chord long=rod−brick [Interval]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.0009999999999999903, hi: 0.0010000000000000096, tag: None, zero: ZeroWord(0) }) })
+WM2 bool sliver_chord long=rod−brick [Interval]   edge EdgeKey(3v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840002) fold=Some(0.0010000000000000002) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool sliver_chord long=rod−brick [Interval]   edge EdgeKey(4v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840002) fold=Some(0.0010000000000000002) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool sliver_chord long=rod−brick [Interval]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.0009999999999999903, hi: 0.0010000000000000096, tag: None, zero: ZeroWord(0) }) })
+WM2 bool sliver_chord long=rod−brick [Interval]   edge EdgeKey(7v1) cyl-plane desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.00099999999999999, hi: 0.0010000000000000098, tag: None, zero: ZeroWord(0) }) })
+WM2 bool sliver_chord long=rod−brick [Interval]   edge EdgeKey(8v1) plane-cyl desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.00099999999999999, hi: 0.0010000000000000098, tag: None, zero: ZeroWord(0) }) })
+WM2 bool sliver_chord long=rod−brick [Interval] embedded=Embedded cand=9 disc=29124 refused=0 splits=29115 4.43s
+WM2 bool plain short=rod∩brick [f64] EMPTY
+WM2 bool plain long=rod−brick [f64] faces=4 edges=6 tier3=PASS
+WM2 bool plain long=rod−brick [f64]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool plain long=rod−brick [f64]   edge EdgeKey(3v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840001) fold=Some(0.001) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool plain long=rod−brick [f64]   edge EdgeKey(4v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840001) fold=Some(0.001) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool plain long=rod−brick [f64]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool plain long=rod−brick [f64]   edge EdgeKey(7v1) cyl-plane desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool plain long=rod−brick [f64]   edge EdgeKey(8v1) plane-cyl desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool plain long=rod−brick [f64] embedded=Embedded cand=9 disc=29124 refused=0 splits=29115 4.90s
+WM2 bool plain short=rod∩brick [Interval] EMPTY
+WM2 bool plain long=rod−brick [Interval] faces=4 edges=6 tier3=PASS
+WM2 bool plain long=rod−brick [Interval]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.0009999999999999903, hi: 0.0010000000000000096, tag: None, zero: ZeroWord(0) }) })
+WM2 bool plain long=rod−brick [Interval]   edge EdgeKey(3v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840002) fold=Some(0.0010000000000000002) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool plain long=rod−brick [Interval]   edge EdgeKey(4v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840002) fold=Some(0.0010000000000000002) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool plain long=rod−brick [Interval]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.0009999999999999903, hi: 0.0010000000000000096, tag: None, zero: ZeroWord(0) }) })
+WM2 bool plain long=rod−brick [Interval]   edge EdgeKey(7v1) cyl-plane desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.00099999999999999, hi: 0.0010000000000000098, tag: None, zero: ZeroWord(0) }) })
+WM2 bool plain long=rod−brick [Interval]   edge EdgeKey(8v1) plane-cyl desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.00099999999999999, hi: 0.0010000000000000098, tag: None, zero: ZeroWord(0) }) })
+WM2 bool plain long=rod−brick [Interval] embedded=Embedded cand=9 disc=29124 refused=0 splits=29115 4.56s
+WM2 bool moved_in short=rod∩brick [f64] EMPTY
+WM2 bool moved_in long=rod−brick [f64] faces=4 edges=6 tier3=PASS
+WM2 bool moved_in long=rod−brick [f64]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool moved_in long=rod−brick [f64]   edge EdgeKey(3v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840001) fold=Some(0.001) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool moved_in long=rod−brick [f64]   edge EdgeKey(4v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840001) fold=Some(0.001) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool moved_in long=rod−brick [f64]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool moved_in long=rod−brick [f64]   edge EdgeKey(7v1) cyl-plane desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool moved_in long=rod−brick [f64]   edge EdgeKey(8v1) plane-cyl desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool moved_in long=rod−brick [f64] embedded=Embedded cand=9 disc=29124 refused=0 splits=29115 4.01s
+WM2 bool moved_in short=rod∩brick [Interval] EMPTY
+WM2 bool moved_in long=rod−brick [Interval] faces=4 edges=6 tier3=PASS
+WM2 bool moved_in long=rod−brick [Interval]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.0009999999999999903, hi: 0.0010000000000000096, tag: None, zero: ZeroWord(0) }) })
+WM2 bool moved_in long=rod−brick [Interval]   edge EdgeKey(3v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840002) fold=Some(0.0010000000000000002) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool moved_in long=rod−brick [Interval]   edge EdgeKey(4v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840002) fold=Some(0.0010000000000000002) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool moved_in long=rod−brick [Interval]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.0009999999999999903, hi: 0.0010000000000000096, tag: None, zero: ZeroWord(0) }) })
+WM2 bool moved_in long=rod−brick [Interval]   edge EdgeKey(7v1) cyl-plane desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.00099999999999999, hi: 0.0010000000000000098, tag: None, zero: ZeroWord(0) }) })
+WM2 bool moved_in long=rod−brick [Interval]   edge EdgeKey(8v1) plane-cyl desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.00099999999999999, hi: 0.0010000000000000098, tag: None, zero: ZeroWord(0) }) })
+WM2 bool moved_in long=rod−brick [Interval] embedded=Embedded cand=9 disc=29124 refused=0 splits=29115 4.54s
+WM2 bool moved_out short=rod∩brick [f64] EMPTY
+WM2 bool moved_out long=rod−brick [f64] faces=4 edges=6 tier3=PASS
+WM2 bool moved_out long=rod−brick [f64]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool moved_out long=rod−brick [f64]   edge EdgeKey(3v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840001) fold=Some(0.001) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool moved_out long=rod−brick [f64]   edge EdgeKey(4v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840001) fold=Some(0.001) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool moved_out long=rod−brick [f64]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool moved_out long=rod−brick [f64]   edge EdgeKey(7v1) cyl-plane desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool moved_out long=rod−brick [f64]   edge EdgeKey(8v1) plane-cyl desc=Intersection reach=Some(1.0000009999995) fold=Some(0.001) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Value(0.001, None, ZeroWord(0))) })
+WM2 bool moved_out long=rod−brick [f64] embedded=Embedded cand=9 disc=29124 refused=0 splits=29115 4.06s
+WM2 bool moved_out short=rod∩brick [Interval] EMPTY
+WM2 bool moved_out long=rod−brick [Interval] faces=4 edges=6 tier3=PASS
+WM2 bool moved_out long=rod−brick [Interval]   edge EdgeKey(2v1) cyl-plane desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.0009999999999999903, hi: 0.0010000000000000096, tag: None, zero: ZeroWord(0) }) })
+WM2 bool moved_out long=rod−brick [Interval]   edge EdgeKey(3v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840002) fold=Some(0.0010000000000000002) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool moved_out long=rod−brick [Interval]   edge EdgeKey(4v1) cyl-cyl desc=other(conventional) reach=Some(0.5000039999840002) fold=Some(0.0010000000000000002) check4=Some(Seam { bend: UnderDetermined, margin: None })
+WM2 bool moved_out long=rod−brick [Interval]   edge EdgeKey(6v1) plane-cyl desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.0009999999999999903, hi: 0.0010000000000000096, tag: None, zero: ZeroWord(0) }) })
+WM2 bool moved_out long=rod−brick [Interval]   edge EdgeKey(7v1) cyl-plane desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.00099999999999999, hi: 0.0010000000000000098, tag: None, zero: ZeroWord(0) }) })
+WM2 bool moved_out long=rod−brick [Interval]   edge EdgeKey(8v1) plane-cyl desc=Intersection reach=Some(1.0000009999995003) fold=Some(0.0010000000000000002) check4=Some(Crease { convexity: Convex, margin: MarginDiag(Enclosure { lo: 0.00099999999999999, hi: 0.0010000000000000098, tag: None, zero: ZeroWord(0) }) })
+WM2 bool moved_out long=rod−brick [Interval] embedded=Embedded cand=9 disc=29124 refused=0 splits=29115 4.46s
+test wm2_rows ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 44.89s
+
+        PASS [  44.899s] (1/1) sweep::wedge_measure wm2_rows
+────────────
+     Summary [  44.900s] 1 test run: 1 passed, 0 skipped

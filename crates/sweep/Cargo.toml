@@ -121,3 +121,9 @@ rayon = { workspace = true }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+# MEASUREMENT ONLY (embed/wedge-measure)
+[[test]]
+name = "wedge_measure"
+path = "tests/wedge_measure.rs"
+required-features = ["test-support"]
