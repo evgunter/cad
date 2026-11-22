@@ -128,6 +128,8 @@ mod guided_replay;
 mod hairpin_fillet_radius;
 #[path = "interval_lane.rs"]
 mod interval_lane;
+#[path = "junction_turn_lever.rs"]
+mod junction_turn_lever;
 #[path = "lift_census.rs"]
 mod lift_census;
 #[path = "onarc_probe.rs"]
