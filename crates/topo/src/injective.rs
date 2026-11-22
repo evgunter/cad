@@ -3783,7 +3783,8 @@ fn corner_of(
 /// points on `E`'s line or graph lie on `E` itself, the shared cell:
 /// `R` is presented with `E`'s side or curve as its zero, as the edge's
 /// own presentations are. A corner `O` leaves into `E`'s other side
-/// (reflex) is read by neither, at any depth: `Structural`.
+/// (reflex) is read by neither of these: by a curve as one run (below),
+/// or by nothing, at any depth: `Structural`.
 ///
 /// **Two arcs of one conic** ([`Reading::Conic`]): `O` is `E`'s
 /// continuation through `V` ([`continues`]): one conic as one value,
@@ -10828,11 +10829,12 @@ mod presentation_rows {
     /// the circle past the vertex in its interior, between the circle's
     /// continuation and the line; the wall past the corner stands on it
     /// there, a fold of M on no shared cell. The disc is one run of the
-    /// arc and the line, and the wall's side runs on along the circle
-    /// two hundredths past the vertex. Red if [`graph_run`] lets the
-    /// graph's own edge follow its carrier past the vertex further than
-    /// the vertex concession: the graph is then the circle where the
-    /// disc's boundary is the line, and the pair certifies.
+    /// arc and the line. Red if the joint is read through by the circle
+    /// continued ([`leaving`] reading an undecided rate as leaving onto
+    /// the face's side): the disc is then presented inside the circle,
+    /// the wall's carrier departs it, and the pair certifies. (That the
+    /// graph's own edge stops at the vertex is
+    /// [`the_graph_runs_on_along_a_runs_other_edge`]'s.)
     #[test]
     fn a_fold_through_a_tangent_joint_is_not_certified() {
         let disc = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());

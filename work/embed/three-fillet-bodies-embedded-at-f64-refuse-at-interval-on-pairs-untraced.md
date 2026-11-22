@@ -32,6 +32,14 @@ not touch. None of these is traced to its exit.
 In each, every support plane against every patch it shares an arc
 with holds at `Interval`, asked alone.
 
+That table is main `0c1eb97ad`. With main `02a9a2df4` merged in, the
+inset corner at `Interval` reads `Budget(Depth { max_cell_depth: 40 })`
+instead, at the default ε and at 1e−6; the other two read as above.
+Which pair the door names first moves with the build, so the suite row
+pins only that the three are refused, and prints what each reads. At
+ε = 1e−12 the three do not fillet at `Interval` at all (the band's own
+escalation), and the row says so and skips them.
+
 The inset corner's pair, read with the gate's cell trace on
 `band_mixed_corner_reach::the_inset_witness_fillets_or_escalates_at_every_eps_row`
 (its `Interval` body): plane `8v3` against torus `15v3` at vertex
