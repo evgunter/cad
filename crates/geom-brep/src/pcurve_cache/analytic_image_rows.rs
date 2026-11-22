@@ -215,8 +215,8 @@ impl Image {
 
     fn at<T: Real>(&self) -> Pcurve<T> {
         match self {
-            Self::Iso(p0, pl) => Pcurve::iso_line_for_tests(*p0, *pl)
-                .expect("an iso image is built by `Image::iso`, a row or a column"),
+            // Built by `Image::iso`: a row or a column.
+            Self::Iso(p0, pl) => Pcurve::iso_line_for_tests(*p0, *pl).unwrap(),
             Self::General(net) => Pcurve::General(Arc::new(net.map_scalar(T::from_f64))),
         }
     }
