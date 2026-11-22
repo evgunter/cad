@@ -1,0 +1,192 @@
+diff --git a/crates/topo/src/boolean/fate.rs b/crates/topo/src/boolean/fate.rs
+index 8ff724e5..5e744232 100644
+--- a/crates/topo/src/boolean/fate.rs
++++ b/crates/topo/src/boolean/fate.rs
+@@ -1342,7 +1342,7 @@ fn straight_corner<T: Decide>(
+         reach: crate::cover::piece_reach_bounds(carrier, (at, t), (p, far), p),
+         bend: run.bend,
+     };
+-    let (to_end, to_start) = if forward { (t1, t0) } else { (t0, t1) };
++    let (to_end, to_start) = if forward != crate::cover::review_mut("corner_swap") { (t1, t0) } else { (t0, t1) };
+     (
+         bound(run.dir, (to_end, end)),
+         bound(-run.dir, (to_start, start)),
+diff --git a/crates/topo/src/cover.rs b/crates/topo/src/cover.rs
+index ff3ae046..05a7bde5 100644
+--- a/crates/topo/src/cover.rs
++++ b/crates/topo/src/cover.rs
+@@ -1343,3 +1343,12 @@ pub(crate) fn edge_end_point<T: Real>(
+ #[cfg(test)]
+ #[path = "cover_reach_rows.rs"]
+ mod cover_reach_rows;
++
++/// REVIEW MUTANT SWITCH.
++pub(crate) fn review_mut(name: &str) -> bool {
++    std::env::var("REVIEW_MUT").is_ok_and(|v| v == name)
++}
++/// The bound `want_above` asks for, flipped under mutant `name`.
++pub(crate) fn review_pick<T: Real>(b: geom_brep::LeverBounds<T>, want_above: bool, name: &str) -> geom_core::Lever<T> {
++    if want_above != review_mut(name) { b.above() } else { b.below() }
++}
+diff --git a/crates/topo/src/offset_axial.rs b/crates/topo/src/offset_axial.rs
+index 7bade0d1..8b02f5ac 100644
+--- a/crates/topo/src/offset_axial.rs
++++ b/crates/topo/src/offset_axial.rs
+@@ -1122,16 +1122,21 @@ fn axial_frame<T: Decide>(
+     // and a whole-body walk leaves every suite verdict as it is. What
+     // pins it is `frame_extent_rows`, which reads the region itself on a
+     // body holding a solid outside the scope.
+-    let covers = scope
+-        .faces_in_scope()
++    let review_faces: Vec<FaceKey> = if crate::cover::review_mut("axial_allfaces") {
++        body.faces().map(|(k, _)| k).collect()
++    } else {
++        scope.faces_in_scope()
++    };
++    let covers = review_faces
+         .into_iter()
+-        .map(|face| crate::cover::face_cover(body, face, band));
++        .map(|face| crate::cover::face_cover(body, face, band))
++        .filter(|c| !(crate::cover::review_mut("axial_skip_uncovered") && c.is_err()));
+     let cover = crate::cover::hull_of_covers(covers)
+         .unwrap_or_else(|| unreachable!("the scope holds {first:?}"))
+         .ok();
+     let vertices = body
+         .vertices()
+-        .filter(|&(k, _)| scope.holds_vertex(k))
++        .filter(|&(k, _)| scope.holds_vertex(k) || crate::cover::review_mut("axial_allverts"))
+         .map(|(key, vertex)| body.point_of(key, vertex))
+         .collect();
+     Ok(Frame {
+@@ -1164,7 +1169,8 @@ fn classify<T: Decide>(
+     // chart aligned and any other sign refuses, so the reach is read
+     // from above.
+     let sine = |x: T, at: Point3<T>, what: &'static str| -> Result<bool, ReplaceFaceError<T>> {
+-        let lever = frame.region.reach_from(at).above();
++        let at = if crate::cover::review_mut("sine_pivot") { frame.axis.origin } else { at };
++        let lever = crate::cover::review_pick(frame.region.reach_from(at), true, "sine_below");
+         match decide(what, Margin::levered(x, lever), band) {
+             Ok(Sign::Zero) => Ok(true),
+             Ok(_) => Ok(false),
+@@ -1179,7 +1185,16 @@ fn classify<T: Decide>(
+         crate::validate::decide_levered(
+             ("offset_axial_alignment", "offset_axial_alignment_straddle"),
+             x,
+-            frame.region.reach_from(at),
++            {
++                let b = frame.region.reach_from(at);
++                if crate::cover::review_mut("both_above") {
++                    LeverBounds::Exact(b.above())
++                } else if crate::cover::review_mut("both_below") {
++                    LeverBounds::Exact(b.below())
++                } else {
++                    b
++                }
++            },
+             band,
+         )
+         .map(|sign| sign == Sign::Zero)
+@@ -1335,7 +1350,13 @@ fn corner_arms<T: Decide>(
+                 // longer than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
+                 Lever::unsourced((t1 - t0).abs() * radius)
+             }
+-            other => geom_brep::edge_extent_inf(other, t0, t1),
++            other if crate::cover::review_mut("fallback_chord") => {
++                geom_brep::ExtentBall::point(other.eval(t1)).lever_from(other.eval(t0))
++            }
++            other => {
++                assert!(!crate::cover::review_mut("fallback_panic"), "REVIEW: fallback reached");
++                geom_brep::edge_extent_inf(other, t0, t1)
++            }
+         });
+     }
+     Ok(out)
+@@ -2414,10 +2435,11 @@ fn mint_carrier<T: Decide>(
+         };
+         // The sense is a definite sign, levered from below at the old
+         // edge's middle, where the two directions are compared.
+-        let lever = frame
+-            .region
+-            .reach_from(old.mid_point(old_span.0, old_span.1))
+-            .below();
++        let lever = crate::cover::review_pick(
++            frame.region.reach_from(old.mid_point(old_span.0, old_span.1)),
++            false,
++            "sense_above",
++        );
+         return match decide(
+             "offset_axial_generator_sense",
+             Margin::levered(old_dir.normalize().dot(dir.normalize()), lever),
+@@ -2552,10 +2574,11 @@ fn mint_carrier<T: Decide>(
+             .unwrap_or_else(|| unreachable!("{edge:?}: a section curve is a circle or a spiric"));
+         // The sense is a definite sign, levered from below at the old
+         // rim's middle.
+-        let lever = frame
+-            .region
+-            .reach_from(old.mid_point(old_span.0, old_span.1))
+-            .below();
++        let lever = crate::cover::review_pick(
++            frame.region.reach_from(old.mid_point(old_span.0, old_span.1)),
++            false,
++            "sense_above",
++        );
+         return match decide(
+             "offset_axial_rim_sense",
+             Margin::levered(old_normal.dot(new_normal), lever),
+@@ -2741,7 +2764,7 @@ fn torus_centre<T: Real>(torus: &Surface<T>) -> Point3<T> {
+ /// coordinates are read. A Positive is divided by (`h = c / n.1`), so
+ /// the reach is read from below.
+ fn pole_station<T: Decide>(n1: T, frame: &Frame<T>, band: Band) -> Result<Sign, Indeterminate> {
+-    let lever = frame.region.reach_from(frame.axis.origin).below();
++    let lever = crate::cover::review_pick(frame.region.reach_from(frame.axis.origin), false, "pole_above");
+     decide(
+         "offset_axial_pole_station",
+         Margin::levered(n1.abs(), lever),
+@@ -2796,7 +2819,7 @@ fn latitude_posture<T: Decide>(
+     let tilt = axis.normalize().cross(frame.axis.dir).norm();
+     match decide(
+         "offset_axial_latitude_tilt",
+-        Margin::levered(tilt, frame.region.reach_from(center).above()),
++        Margin::levered(tilt, crate::cover::review_pick(frame.region.reach_from(if crate::cover::review_mut("lat_pivot") { frame.axis.origin } else { center }), true, "lat_below")),
+         band,
+     ) {
+         Ok(Sign::Zero) => Ok(None),
+diff --git a/crates/topo/src/ring_path/spline_wall.rs b/crates/topo/src/ring_path/spline_wall.rs
+index 2232ae36..43e29ec2 100644
+--- a/crates/topo/src/ring_path/spline_wall.rs
++++ b/crates/topo/src/ring_path/spline_wall.rs
+@@ -213,7 +213,14 @@ impl<T: Decide> IsoPiece<T> {
+     /// and its direction of travel where it stops.
+     pub(super) fn travel(&self) -> (Lever<T>, Vec3<T>) {
+         let carrier = self.carrier();
+-        let extent = geom_brep::edge_extent_inf(&carrier, self.span.0, self.span.1);
++        let extent = if crate::cover::review_mut("iso_sup") {
++            geom_brep::edge_extent_sup(&carrier, self.span.0, self.span.1)
++        } else if crate::cover::review_mut("iso_chord") {
++            let (a, b) = self.ends();
++            geom_brep::ExtentBall::point(a).lever_from(b)
++        } else {
++            geom_brep::edge_extent_inf(&carrier, self.span.0, self.span.1)
++        };
+         let along = if self.forward {
+             carrier.deriv(self.span.1)
+         } else {
+diff --git a/crates/topo/src/separating.rs b/crates/topo/src/separating.rs
+index 5c00bf13..4a9f471f 100644
+--- a/crates/topo/src/separating.rs
++++ b/crates/topo/src/separating.rs
+@@ -168,6 +168,14 @@ pub(crate) fn planar_axis<T: Decide>(
+ ) -> Option<UnitVec3<T>> {
+     let n = crate::face_normal::face_outward_normal(body, face)?;
+     let arm = crate::cover::face_extent_below(body, face)?;
++    let arm = if crate::cover::review_mut("planar_half") {
++        geom_core::Lever::unsourced(arm.length() * T::from_f64(0.5))
++    } else if crate::cover::review_mut("planar_ball") {
++        let cover = crate::cover::face_cover(body, face, band).ok()?;
++        geom_core::Lever::unsourced(geom_brep::ExtentBall::of_cover(&cover).radius() * T::from_f64(2.0))
++    } else {
++        arm
++    };
+     UnitVec3::levered(n.vec(), PAIR_NORMAL, band, arm).ok()
+ }
+ 
