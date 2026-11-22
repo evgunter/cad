@@ -8360,6 +8360,78 @@ mod presentation_rows {
         }
     }
 
+    /// PROBE (not for merge): a two-line corner split by a ray into the
+    /// face into two convex pieces, each piece pair asked alone.
+    #[test]
+    fn probe_pieces_of_a_corner_each_part_alone() {
+        let local = two_edges_and_vertex_1();
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+        };
+        let cross = |a: [f64; 3], b: [f64; 3]| {
+            [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0],
+            ]
+        };
+        // A piece: the cone of `d1` and `d2` at vertex 1.
+        let piece = |d1: [f64; 3], d2: [f64; 3], k: u64| {
+            (
+                plane_through_origin(cross(d1, d2), d1),
+                corner_at_vertex_1(d1, d2, [k, k + 1]),
+            )
+        };
+        let ask = |p: &(Surface<Interval>, Boundary), q: &(Surface<Interval>, Boundary)| {
+            let x = about_vertex_1(&p.0, &p.1, &local, (-0.5, 0.5));
+            let y = about_vertex_1(&q.0, &q.1, &local, (-0.5, 0.5));
+            let px = match present_plane(&x, &[], &[vertex(1)], band()) {
+                Ok(Presentation::Of(_)) => "Of",
+                Ok(Presentation::Vacuous) => "Vacuous",
+                Err(_) => "Err",
+            };
+            let py = match present_plane(&y, &[], &[vertex(1)], band()) {
+                Ok(Presentation::Of(_)) => "Of",
+                Ok(Presentation::Vacuous) => "Vacuous",
+                Err(_) => "Err",
+            };
+            format!(
+                "{px}/{py} {}",
+                match departure(&x, &y, &near, band(), true) {
+                    Outcome::Certified { .. } => "Certified",
+                    Outcome::Split { .. } => "Split",
+                    _ => "other",
+                }
+            )
+        };
+        let (up, down) = ([0.0, 0.0, 1.0], [0.0, 0.0, -1.0]);
+        let (xp, xm, yp) = ([1.0, 0.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+        // G: the half z >= 0 of y = 0, its run the x axis, split by +z.
+        let g = [piece(xp, up, 20), piece(up, xm, 30)];
+        // G crossing: the half x >= 0 of y = 0, run the z axis, split by +x.
+        let gx = [piece(up, xp, 20), piece(xp, down, 30)];
+        // G one-sided reflex: 270 degrees of y = 0 about the vertex, less the
+        // quadrant x > 0, z < 0... its pieces by the ray -x: (+x.. up.. -x), (-x, down).
+        for (what, far) in [
+            ("exact straight", [0.0, -1.0, 0.0]),
+            ("convex by 1e-13", [0.0, -1.0, -1e-13]),
+            ("reflex by 1e-13", [0.0, -1.0, 1e-13]),
+            ("reflex 207 deg", [0.0, -1.0, 0.5]),
+            ("reflex 260 deg", [0.0, -0.17, 1.0]),
+        ] {
+            // F: in x = 0, from +y round through -z to `far`, split by -z.
+            let f = [piece(yp, down, 2), piece(down, far, 10)];
+            for (gname, gs) in [("G", &g), ("G crossing", &gx)] {
+                let r: Vec<String> = f
+                    .iter()
+                    .flat_map(|p| gs.iter().map(move |q| ask(p, q)))
+                    .collect();
+                eprintln!("PIECES {what} vs {gname}: {r:?}");
+            }
+        }
+    }
+
     /// **`edge_piece`**: the hull of an edge's parameters whose points the
     /// boxes may hold, narrowed to them from both ends.
     #[test]
