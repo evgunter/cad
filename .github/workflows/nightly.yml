@@ -512,7 +512,7 @@ jobs:
           esac
           echo "solver predicates are vacuous in v1 (ruling Q1): no solver exists to sample" >> "$GITHUB_STEP_SUMMARY"
   full-suite-build:
-    name: full suite, build once (archive; doc-tests, slow-set names, topo scalpel, wasm32)
+    name: full suite, build once (archive; doc-tests, slow-set names, wasm32)
     runs-on: ubuntu-latest
     needs: gate
     if: needs.gate.outputs.run == 'true'
@@ -548,9 +548,49 @@ jobs:
         uses: ./.github/actions/install-nextest
         with:
           version: ${{ steps.nextest.outputs.version }}
+      # The build peaks with two or three 5-6 GB rustc processes at once (the
+      # editor-core and sweep integration binaries, topo's unit-test harness):
+      # on the runner's 16 GB that leaves under 1 GB available and fills its
+      # 3 GB of swap, and a runner out of both is shut down mid-compile. More
+      # swap on the free disk lets the peak page out instead.
+      - name: add 12 GB of swap
+        run: |
+          sudo fallocate -l 12G /nightly.swap
+          sudo chmod 600 /nightly.swap
+          sudo mkswap /nightly.swap
+          sudo swapon /nightly.swap
+          free -m
+      # viewer, pncad and pncad-py build at opt-level 1: at 2 they are about
+      # 70 of the build's 410 unit-minutes and run about a minute of tests.
+      # In CARGO_HOME's config, so every cargo step below agrees and none
+      # rebuilds them.
+      - name: the leaf crates build at opt-level 1
+        run: |
+          for p in viewer pncad pncad-py; do
+            for prof in dev test; do
+              printf '[profile.%s.package."%s"]\nopt-level = 1\n' "$prof" "$p"
+            done
+          done >> "$CARGO_HOME/config.toml"
+          cat "$CARGO_HOME/config.toml"
+      # The sampler's lines are in this step's log, the one record a runner
+      # shut down mid-step leaves.
       - name: build and archive every test binary
         id: build
-        run: cargo nextest archive --workspace --archive-file "$RUNNER_TEMP/full-suite.tar.zst"
+        run: |
+          scripts/ci-resource-sampler.sh 60 &
+          sampler=$!
+          rc=0
+          cargo nextest archive --workspace --timings --archive-file "$RUNNER_TEMP/full-suite.tar.zst" || rc=$?
+          kill "$sampler" || true
+          exit "$rc"
+      - name: upload the build's per-unit timings
+        if: '!cancelled()'
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-suite-build-timings
+          path: target/cargo-timings/cargo-timing.html
+          if-no-files-found: warn
+          retention-days: 14
       # Already zstd, so not zipped again; its only readers are the rows below.
       - name: upload the archive for the eps rows
         id: upload
@@ -584,15 +624,39 @@ jobs:
           path: ${{ runner.temp }}/test-list.json
           if-no-files-found: error
           retention-days: 1
-      - name: the per-op postcondition scalpel (topo)
-        if: '!cancelled()'
-        run: |
-          cargo test -p topo --lib --features topo/per-op-postcondition -- surgery::tests::
       - name: wasm32 check (kernel + editor-core)
         if: '!cancelled()'
         run: |
           rustup target add wasm32-unknown-unknown
           cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --target wasm32-unknown-unknown
+  # Its own job so its rebuild of topo is off the build job's clock and the
+  # eps rows do not wait for it.
+  topo-scalpel:
+    name: the per-op postcondition scalpel (topo)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 45
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: nightly-opt2
+          save-if: false
+      - name: the per-op postcondition scalpel (topo)
+        run: |
+          cargo test -p topo --lib --features topo/per-op-postcondition -- surgery::tests::
   full-suite:
     name: full suite (eps ${{ matrix.eps }}${{ matrix.part && format(', shard {0}', matrix.part) || '' }}, slow set included)
     runs-on: ubuntu-latest
@@ -1066,7 +1130,7 @@ jobs:
     runs-on: ubuntu-latest
     # Every test row, so the tag is written once each has finished; ci-latency
     # is the per-PR gate's latency alarm, not a row of the nightly's own.
-    needs: [gate, watertight, viewer-toolkit, rebuild-latency, criterion, rustdoc-roots, gate-selftests, any-first-mutant, full-suite-build, full-suite, full-suite-coverage, all-features, k-lint, python, topo-release, step-import, interval, renders]
+    needs: [gate, watertight, viewer-toolkit, rebuild-latency, criterion, rustdoc-roots, gate-selftests, any-first-mutant, full-suite-build, topo-scalpel, full-suite, full-suite-coverage, all-features, k-lint, python, topo-release, step-import, interval, renders]
     if: ${{ !cancelled() && needs.gate.outputs.run == 'true' && inputs.ref == '' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write
