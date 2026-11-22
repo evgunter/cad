@@ -2505,7 +2505,7 @@ impl<P> Doc<P> {
     /// definitions, or through the operations it reads (D10: reading is
     /// the only dependency), for every node of the document.
     ///
-    /// A node's own reads are [`Self::read_sites`]'s node arm, its
+    /// A node's own reads are `Doc::read_sites`'s node arm, its
     /// expressions and its operand rows. Each is followed through its
     /// definition ([`Self::definition_reads`]) down to free variables
     /// and to outputs; an output reads what its operation reads, as does
