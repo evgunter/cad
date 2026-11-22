@@ -736,11 +736,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        177,
-        79,
-        "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+        184,
+        86,
+        "the 86 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `present_chart` (26), \
-         `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
+         `present_plane` (18), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
          `is_certified()` and finiteness ask; `present_plane`'s 3 beyond its `y` are a side's \
