@@ -2,10 +2,12 @@
 id: the-viewer-has-no-guide-to-its-controls
 kind: issue
 title: viewer: the viewer shows no guide to its mouse and keyboard controls, so pan is undiscoverable
-status: open
+status: review
 opened: 2026-11-22
 priority: P1
 cost: E
+pr: 7336
+branch: offer/the-viewer-has-no-guide-to-its-controls
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "no user guide for the controls (and i don't know how to pan)".
