@@ -407,7 +407,7 @@ mod tests {
         use crate::pcurves::ChartPeriods;
         use geom::Surface;
         use geom_brep::Pcurve;
-        use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+        use geom_core::{Band, Point3, Tol, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
         // `u` the height; `v` across three rows, the last the first's
         // points where `closed`.

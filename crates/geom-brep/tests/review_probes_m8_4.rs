@@ -13,8 +13,8 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{Pcurve, PcurveCache};
+use geom_core::Point3;
 use geom_core::spline::KnotVector;
-use geom_core::{Point2, Point3, Vec2};
 
 const R: f64 = 0.005;
 const H: f64 = 0.01;

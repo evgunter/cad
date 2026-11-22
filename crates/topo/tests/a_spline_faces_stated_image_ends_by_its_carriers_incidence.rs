@@ -33,7 +33,7 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::recourse::Reading;
 use geom_brep::{CertifyError, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCertifyError};
 use geom_core::spline::{KnotVector, Knots};
-use geom_core::{Band, Bounds, Point2, Point3, Real, Tol, Vec2};
+use geom_core::{Band, Bounds, Point2, Point3, Real, Tol};
 use std::sync::Arc;
 use topo::construction::Construct;
 use topo::{AtRestPolicy, Body, EulerOpError, FaceKey, HalfEdgeKey, PcurveMintError};

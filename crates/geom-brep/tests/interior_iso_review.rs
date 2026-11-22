@@ -27,7 +27,7 @@ use geom_brep::{
     interior_iso_u,
 };
 use geom_core::spline::KnotVector;
-use geom_core::{Bounds, Decide, Point2, Point3, Real, Vec2};
+use geom_core::{Bounds, Decide, Point3, Real};
 use std::sync::Arc;
 
 /// The weight net: polynomial, constant along `u` (case (a)), constant
@@ -120,7 +120,7 @@ fn certify_line<T: Decide>(
     p0: (f64, f64),
     pl: (f64, f64),
 ) -> Result<PcurveCache<T>, PcurveCertifyError> {
-    let f = T::from_f64;
+    let _f = T::from_f64;
     PcurveCache::certify(
         Pcurve::iso_line_for_tests([p0.0, p0.1], [pl.0, pl.1])
             .expect("the probes state rows and columns"),

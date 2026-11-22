@@ -340,8 +340,6 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
         "the seam traverses the chart's whole v domain: rate {rate:?} on [{dv0}, {dv1}]"
     );
     assert!(at0.abs() < 1e-12, "and starts at its v origin: {at0:?}");
-    // TODO(iso-image): the stated-corners assertion (`ends` bit-equal
-    // to the column's two corners) went with the `ends` field.
     // The mint pass certifies every face of the body it charts.
     topo::mint_pcurves(&mut body, Tol::witness()).expect("the whole body charts over the new arm");
     let stored = body

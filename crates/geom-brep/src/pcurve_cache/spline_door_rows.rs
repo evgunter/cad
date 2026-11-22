@@ -33,7 +33,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Decide, Interval, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Band, Decide, Interval, Point2, Point3, Tol, Vec3};
 
 use super::{Pcurve, PcurveCache, PcurveCertifyError};
 use crate::{

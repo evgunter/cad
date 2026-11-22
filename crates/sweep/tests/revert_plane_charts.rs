@@ -321,19 +321,20 @@ fn image_of(c: &EdgeCurve<f64>) -> Pcurve<f64> {
     c.description().chart().unwrap().pcurve.clone()
 }
 
-/// **The other image kinds a plane can carry, at the body.** An
-/// `IsoLine`, a `Fitted` and a `General` image of one line carrier at
-/// 60° (so `v ≠ 0`) on a plane face: after `revert` the image keeps
+/// **The other image kinds a plane can carry, at the body.** A
+/// `Fitted` and a `General` image of one line carrier at 60° (so
+/// `v ≠ 0`) on a plane face: after `revert` the image keeps
 /// its kind and is the stored one with `v` negated at nine samples,
 /// the SOURCE curve re-certified on the reverted plane refuses
 /// `StatedImage` at sample 1 (the control), the mirrored curve's
 /// fresh certificate is the one it carries to rounding, and `revert ∘ revert`
-/// restores the body. `IsoArc` has no plane producer and no plane
-/// carrier — its parameter map is a rational-quadratic Bézier's,
-/// which no `Curve3` matches — so it is pinned at the `geom-brep`
+/// restores the body. An iso image holds a row or a column of its chart,
+/// which a line at 60° is not, and `IsoArc` has no plane producer and no
+/// plane carrier (its parameter map is a rational-quadratic Bézier's,
+/// which no `Curve3` matches), so both are pinned at the `geom-brep`
 /// door only (`pcurve_mirror_v`).
 #[test]
-fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
+fn a_plane_face_with_a_nurbs_image_reverts_and_recertifies() {
     let (c, s) = (0.5f64, 3f64.sqrt() / 2.0);
     let len = 2.0;
     let carrier = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(c, s, 0.0));
@@ -346,10 +347,6 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
         .unwrap()
     };
     let kinds: Vec<(&str, Pcurve<f64>)> = vec![
-        // TODO(iso-image): diagonal. This row stated the 60° line
-        // `P(t) = (0, 0) + (c, s)·t` as a `Pcurve::IsoLine`, which a
-        // `ChartLine` cannot write; the `IsoLine` arm is out of this
-        // test until it is restated.
         ("Fitted", Pcurve::Fitted(Arc::new(lin()))),
         ("General", Pcurve::General(Arc::new(lin()))),
     ];

@@ -25,7 +25,7 @@ use geom::Curve3;
 use geom::{NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::spline::KnotVector;
-use geom_core::{Bounds, Decide, Point2, Point3, Real, Vec2};
+use geom_core::{Bounds, Decide, Point3, Real};
 use std::sync::Arc;
 
 /// A degree-2 × degree-1 polynomial chart, `u` knots at thirds, bowed

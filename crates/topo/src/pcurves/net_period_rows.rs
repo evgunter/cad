@@ -3,7 +3,7 @@ use crate::joint::{Deck, JointElement};
 use geom::Surface;
 use geom_brep::Pcurve;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Decide, Interval, Point2, Point3, Tol, Vec2};
+use geom_core::{Band, Decide, Interval, Point2, Point3, Tol};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()

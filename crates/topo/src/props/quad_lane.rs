@@ -2516,7 +2516,7 @@ mod tests {
         }
 
         /// The two scalars a loop is read at, each reading its loop.
-        trait Reads: Real {
+        trait Reads: Real + geom_core::SpanLocate {
             fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError>;
         }
 

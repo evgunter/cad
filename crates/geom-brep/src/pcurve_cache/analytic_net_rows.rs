@@ -28,7 +28,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
+use geom_core::{Interval, Point2, Point3, Real, Vec3};
 use test_utils::fuzz;
 
 use super::Pcurve;

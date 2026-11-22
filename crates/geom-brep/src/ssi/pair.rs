@@ -1147,7 +1147,7 @@ mod tests {
 mod r2_line_rows {
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point2, Point3, Vec2};
+    use geom_core::{Band, Point3};
 
     use super::{PairRow, Section};
     use crate::ssi::{BranchEnd, SsiDomain};
@@ -1279,7 +1279,7 @@ mod r2_line_rows {
 mod r2_ellipse_rows {
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point2, Point3, Vec2};
+    use geom_core::{Band, Point3};
 
     use super::{PairRow, Section};
     use crate::ssi::{BranchEnd, SsiDomain, SsiError};

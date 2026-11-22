@@ -17753,7 +17753,7 @@ mod row_support_rows {
 
     use geom::{Curve3, NurbsCurve2, Surface};
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point2, Point3, Vec2, Vec3};
+    use geom_core::{Band, Point2, Point3, Vec3};
 
     use super::{Pcurve, PcurveCache, RowSupport};
 

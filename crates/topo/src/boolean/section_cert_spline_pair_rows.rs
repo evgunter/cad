@@ -13,8 +13,8 @@ use super::*;
 use geom::Surface;
 use geom_brep::KnownPair;
 use geom_brep::ssi::{ChartCorner, ChartEnd, PairCorner};
+use geom_core::Band;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point2, Vec2};
 
 /// The pair's section through the march door, `known` handed in, over a
 /// reach the spline arm does not read.
