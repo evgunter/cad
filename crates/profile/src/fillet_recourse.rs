@@ -17,11 +17,12 @@
 
 /// The lever of an undecided corner **turn** (`fillet_corner_turn`).
 ///
-/// The margin is levered, `sin φ · arm` with the shorter leg's extent as
-/// the arm (`sugar::arc_fillet_corner`'s gate (2)), so the band admits
-/// two situations and the sentence names both: a degenerate angle (the
-/// legs run smoothly into each other, or double back into a cusp), and a
-/// real angle on a leg a few ε long, whose lever is the leg's extent.
+/// The margin is levered, `sin φ · arm` with the shorter leg's arm (a
+/// line's extent; an arc's lesser of extent and radius) as the arm
+/// (`sugar::arc_fillet_corner`'s gate (2)), so the band admits two
+/// situations and the sentence names both: a degenerate angle (the legs
+/// run smoothly into each other, or double back into a cusp), and a real
+/// angle on a leg whose arm is a few ε.
 /// Pinned at both by `profile/tests/fillet_recourse_followability.rs`'s
 /// `the_turn_in_band_recourse_names_both_of_its_situations`. The gate's
 /// definite arm, `PathNoCornerReason::TurnWithinTolerance` on the shorter
@@ -35,9 +36,9 @@
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the angle is real, give the shorter leg a longer extent; if the legs \
-     continue smoothly, construct the tangency (.tangent()); if they exactly double back, the \
-     cusp is refused; otherwise move the geometry";
+pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the angle is real, lengthen the shorter leg (or \
+     grow an arc's radius); if smooth, construct the tangency (.tangent()); if they exactly double \
+     back, the cusp is refused; otherwise move the geometry";
 
 /// The lever of a straight pair's corner turn (`path_corner_turn`),
 /// undecided or zero at tolerance
@@ -210,3 +211,21 @@ pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "move the geometry nearer the
 )]
 pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "drop the fillet; or, if the arc is too shallow to store, turn the corner further or \
      enlarge the radius; or, if it is too fine for the scene, move nearer the origin";
+
+/// The lever at a path junction whose turn, levered by the shorter leg's
+/// arm (a line's length; an arc's lesser of radius and chord), is
+/// undecided ([`crate::Gate::PathJunctionTurn`] at the door, and at
+/// validation's joint pass), and at one where it is zero at tolerance
+/// ([`crate::PathError::JunctionTurnWithinTolerance`]). Either reading is
+/// a smooth joint or a real angle over a short arm, so it names both.
+pub(crate) const JUNCTION_TURN_LEVER: &str = "if the angle is real, lengthen the shorter leg (or \
+     grow an arc's radius); if smooth, declare it: .tangent() (.tangent().tangent_arc_to(p) for an \
+     arc), or line(len) for a straight continuation; otherwise move the geometry";
+
+/// The same reading at the SEAM, undecided
+/// ([`crate::EscalatedAt::Seam`]) or zero at tolerance
+/// ([`crate::PathError::SeamTurnWithinTolerance`]): a real angle over a
+/// short arm, or a smooth seam to declare on the target.
+pub(crate) const SEAM_TURN_RECOURSE: &str = "if the angle is real, lengthen the shorter leg (or grow \
+     an arc's radius); if the seam is smooth, DECLARE it with Start.arrives_tangent() on the \
+     target; otherwise cut the loop at a CORNER";

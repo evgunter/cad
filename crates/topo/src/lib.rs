@@ -1603,6 +1603,7 @@ pub use finish::{
     KernelOnly, LeafBody, MoveError, NotFinished, Replay, finish, finish_assembled, session_box_at,
     take,
 };
+pub use geom_brep::curve_face::CrossWhy;
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use mirror::{Reflection, mirror_body};

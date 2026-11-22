@@ -2,11 +2,13 @@
 id: a-finished-body-holds-its-contact-records-at-every-door
 kind: unit
 title: AtRestBody holds its contact records; every door carries its operand's records through its own lineage and gates each finished body it returns at tier 3′
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: X
 points: 16
+pr: 7124
+branch: embed/records
 ---
 
 

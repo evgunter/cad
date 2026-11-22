@@ -9015,6 +9015,12 @@ pub(crate) fn joinable_at_rest_errors<T: geom_core::Decide>(
         .collect()
 }
 
+/// [`ring_pairs`]' query.
+const RING_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "validate_ring_pairs",
+    "the rings whose boxes meet a ring's",
+);
+
 /// The pairs `(i, j)`, `j < i`, of `rings` whose padded certified
 /// boxes meet, ascending in `i` and then `j`: the order a loop over
 /// every pair reads them in, less the pairs the boxes clear (D9).
@@ -9059,7 +9065,7 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
     let tree = bvh::Bvh::build(&boxes);
     let mut pairs = Vec::new();
     for (k, ring_box) in boxes.iter().enumerate() {
-        for m in tree.overlapping(ring_box) {
+        for m in tree.overlapping(RING_PAIRS, ring_box) {
             if m < k {
                 pairs.push((index[k], index[m]));
             }
