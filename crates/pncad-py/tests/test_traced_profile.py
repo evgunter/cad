@@ -1,11 +1,14 @@
-"""`Node.drawn_profile`: a sketch continues tangent to a surface's trace
-(INTENT stage 6 C, D10 "Constructing a coincidence").
+"""`Node.drawn_profile` and `Doc.draw_on_face`: a sketch continues
+tangent to a surface's trace (INTENT stage 6 C, D10 "Constructing a
+coincidence").
 
 The Python mirror of `crates/editor-core/tests/intent_s6_c_trace.rs`: a
 profile drawn on a frame of a cylinder's space runs up until it leaves
 the cylinder's wall, then along the wall's trace, and its extrude stands
 in the cylinder's space with its wall at the cylinder's radius. A step
-whose trace refuses refuses at `evaluate` under the `trace` class.
+whose trace refuses refuses at `evaluate` under the `trace` class. The
+same chain drawn on the bottom cap's chart is the mirror of
+`crates/editor-core/tests/intent_s6_e_traced_on_a_face.rs`.
 """
 
 import unittest
@@ -46,6 +49,19 @@ def frame_and_wall(doc, cyl):
     return PoseDef.through(PoseDef.axis(cyl, wall), PoseDef.point(cyl, base)), wall
 
 
+def caps(ev, cyl):
+    """The cylinder's two planar caps."""
+    return [f for f in sorted(ev.all_faces(cyl)) if ev.face_carrier_kind(cyl, f) == SurfaceKind.Plane]
+
+
+def bottom_and_wall(doc, cyl):
+    """The cylinder's bottom cap and its round wall."""
+    ev = evaluate(doc)
+    _, wall = frame_and_wall(doc, cyl)
+    bottom = min(caps(ev, cyl), key=lambda f: ev.face_frame(cyl, f).origin[2].meters)
+    return bottom, wall
+
+
 def footprint(passage="leave", nth=1):
     """Up from `(0, -1/4)` until the line leaves the wall, then against
     the trace (its tangent there runs along the frame's x) to `x = 1`,
@@ -74,6 +90,41 @@ class TracedProfileTest(unittest.TestCase):
         self.assertAlmostEqual(max(ys), R, delta=1e-12)
         self.assertEqual(doc.space(boss), doc.space(cyl), "the boss is in the cylinder's space")
 
+    def test_a_boss_traced_off_the_wall_on_the_bottom_caps_chart_stands_outward(self):
+        """`Doc.draw_on_face` on the bottom cap, tracing the wall: the
+        cap's chart has `z` along its outward normal (the space's `-z`)
+        and `y` along the space's `-y`, so the footprint's wall stands at
+        `y = -r`, a `+` depth stands below the base and a `-` depth runs
+        up along the wall."""
+        for depth, (low, high) in ((0.5, (-0.5, 0.0)), (-0.5, (0.0, 0.5))):
+            with self.subTest(depth=depth):
+                doc = Doc()
+                cyl = cylinder(doc)
+                bottom, wall = bottom_and_wall(doc, cyl)
+                sketch = doc.draw_on_face(cyl, bottom, footprint(), traced=[(cyl, wall)])
+                boss = doc.insert(Node.extrude(sketch, depth * m))
+                ev = evaluate(doc)
+                at = [ev.vertex_position(boss, v) for v in ev.all_vertices(boss)]
+                self.assertAlmostEqual(min(p[1].meters for p in at), -R, delta=1e-12)
+                self.assertAlmostEqual(min(p[2].meters for p in at), low, delta=1e-12)
+                self.assertAlmostEqual(max(p[2].meters for p in at), high, delta=1e-12)
+                self.assertEqual(doc.space(boss), doc.space(cyl), "the boss is in the cylinder's space")
+
+    def test_a_face_to_trace_with_no_axis_is_drawn_and_refuses_as_its_trace(self):
+        """The chart is read off the face drawn on, never off a traced
+        face, so tracing the top cap (a plane, no axis) is drawn; its
+        evaluation refuses as the trace, the bottom cap's plane missing
+        the top."""
+        doc = Doc()
+        cyl = cylinder(doc)
+        bottom, _ = bottom_and_wall(doc, cyl)
+        ev = evaluate(doc)
+        top = max(caps(ev, cyl), key=lambda f: ev.face_frame(cyl, f).origin[2].meters)
+        sketch = doc.draw_on_face(cyl, bottom, footprint(), traced=[(cyl, top)])
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(sketch)
+        self.assertEqual((caught.exception.kind, caught.exception.inner_kind), ("trace", "no_trace"))
+
     def test_a_crossing_the_piece_does_not_make_refuses_as_a_trace(self):
         doc = Doc()
         cyl = cylinder(doc)
@@ -99,6 +150,25 @@ class TracedProfileTest(unittest.TestCase):
         self.assertEqual(refusal.expected, "length")
         self.assertEqual(refusal.found, "angle")
         self.assertIn("loop 1", str(refusal))
+
+    def test_a_chain_drawn_on_a_face_beside_a_loop_is_checked_at_its_place(self):
+        """The door takes closed loops and chains in one list, and checks
+        each chain's arguments at its own place in it: an angle written
+        for the third loop's start refuses naming loop 2, and nothing
+        lands."""
+        doc = Doc()
+        cyl = cylinder(doc)
+        bottom, wall = bottom_and_wall(doc, cyl)
+        hole = Chain.at(0 * m, 1 * deg).line_to(Start)
+        before = doc.node_count
+        with self.assertRaises(EditError) as caught:
+            doc.draw_on_face(
+                cyl, bottom, [footprint(), circle((0.5 * m, 0 * m), 0.05 * m), hole], traced=[(cyl, wall)]
+            )
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "slot_dimension_mismatch")
+        self.assertIn("loop 2", str(refusal))
+        self.assertEqual(doc.node_count, before)
 
     def test_the_words_a_chain_takes(self):
         with self.assertRaises(ValueError):
