@@ -32,7 +32,6 @@ fn write(body: &AtRestBody<f64>) -> String {
 fn import(text: &str) -> Result<StepImport, StepImportError> {
     let options = ImportOptions {
         eps_in: Some(EPS_IN),
-        ..ImportOptions::default()
     };
     step_import::import_step(text, &options, tol())
 }

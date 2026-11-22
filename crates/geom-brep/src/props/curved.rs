@@ -38,7 +38,7 @@ use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
 use crate::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
-use crate::pcurve_cache::{BranchMiss, Period, Ruling, ruling_miss};
+use crate::pcurve_cache::{BranchMiss, IsoFamily, Period, Ruling, ruling_miss};
 use geom_core::NonzeroSign;
 
 /// The flux and area of a curved face from its **outer** loop:
@@ -405,6 +405,23 @@ pub fn require_iso_rectangle<T: Decide>(
     outer: &[LoopEdge<T>],
     band: Band,
 ) -> Result<(), PropsError> {
+    iso_rectangle_sides(surface, outer, band).map(|_| ())
+}
+
+/// **[`require_iso_rectangle`], answering what it decided**: on a pass,
+/// each edge of `outer`'s iso family in loop order, as the parse
+/// certified it — a meridian (`U`) or a rim (`V`). A consumer that walks
+/// the rectangle reads this answer rather than classifying the carriers
+/// again, so the face's sides are decided once, here.
+///
+/// # Errors
+///
+/// As [`require_iso_rectangle`].
+pub fn iso_rectangle_sides<T: Decide>(
+    surface: &Surface<T>,
+    outer: &[LoopEdge<T>],
+    band: Band,
+) -> Result<Vec<IsoFamily>, PropsError> {
     if let Some(chart) = IsoChart::of(surface) {
         for e in outer {
             if !chart.reads(&e.carrier) {
@@ -426,7 +443,8 @@ pub fn require_iso_rectangle<T: Decide>(
                 outer,
                 band,
             )?;
-            linear_rims_at_extremes(&b, band)
+            linear_rims_at_extremes(&b, band)?;
+            Ok(b.sides)
         }
         Surface::Cone {
             frame, half_angle, ..
@@ -434,7 +452,8 @@ pub fn require_iso_rectangle<T: Decide>(
             let (apex, axis) = (frame.origin(), frame.axis());
             let (sin_a, cos_a) = half_angle.sin_cos();
             let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
-            linear_rims_at_extremes(&b, band)
+            linear_rims_at_extremes(&b, band)?;
+            Ok(b.sides)
         }
         Surface::Sphere { frame, radius, .. } => {
             let (center, axis) = (frame.origin(), frame.axis());
@@ -446,7 +465,8 @@ pub fn require_iso_rectangle<T: Decide>(
                 outer,
                 band,
             )?;
-            linear_rims_at_extremes(&b, band)
+            linear_rims_at_extremes(&b, band)?;
+            Ok(b.sides)
         }
         Surface::Torus {
             frame,
@@ -471,7 +491,8 @@ pub fn require_iso_rectangle<T: Decide>(
                 outer,
                 band,
             )?;
-            torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, tube_arm, band)
+            torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, tube_arm, band)?;
+            Ok(p.sides)
         }
         // As `curved_face`: no rim inventory for a spline or for an
         // offset description over one.
@@ -986,6 +1007,9 @@ struct TorusParse<T: Real> {
     rims: Vec<Rim<T>>,
     anchor: TorusMeridian<T>,
     orient: NonzeroSign,
+    /// Each edge's iso family, in loop order, as [`torus_classify`]
+    /// certified it.
+    sides: Vec<IsoFamily>,
 }
 
 fn torus_parse<T: Decide>(
@@ -997,7 +1021,8 @@ fn torus_parse<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<TorusParse<T>, PropsError> {
-    let (rims, mut meridians) = torus_boundary(center, axis, major, minor, tube_arm, edges, band)?;
+    let ((rims, mut meridians), sides) =
+        torus_boundary(center, axis, major, minor, tube_arm, edges, band)?;
     if meridians.is_empty() {
         return Err(PropsError::NotIsoRectangle {
             what: "torus face without a meridian",
@@ -1009,6 +1034,7 @@ fn torus_parse<T: Decide>(
         rims,
         anchor,
         orient,
+        sides,
     })
 }
 
@@ -1464,6 +1490,9 @@ struct LinearBoundary<T: Real> {
     /// near a pole. Empty for the cylinder and the cone, whose levels
     /// are lengths.
     cosines: Vec<T>,
+    /// Each edge's iso family, in loop order: what the parse certified
+    /// it to be, a meridian (`U`) or a rim (`V`).
+    sides: Vec<IsoFamily>,
 }
 
 impl<T: Decide> LinearBoundary<T> {
@@ -2131,6 +2160,7 @@ fn cylinder_boundary<T: Decide>(
 ) -> Result<LinearBoundary<T>, PropsError> {
     let mut rims: Vec<Rim<T>> = Vec::new();
     let mut levels: Vec<T> = Vec::new();
+    let mut sides = Vec::with_capacity(edges.len());
     for e in edges {
         match e.carrier {
             Curve3::Line(ref line) => {
@@ -2162,6 +2192,7 @@ fn cylinder_boundary<T: Decide>(
                 )?;
                 levels.push((e.p0() - origin).dot(axis));
                 levels.push((e.p1() - origin).dot(axis));
+                sides.push(IsoFamily::U);
             }
             Curve3::Circle(
                 conic_k @ geom::Circle {
@@ -2251,6 +2282,7 @@ fn cylinder_boundary<T: Decide>(
                     band,
                 )?);
                 levels.push(v);
+                sides.push(IsoFamily::V);
             }
             Curve3::Ellipse(..)
             | Curve3::Nurbs(_)
@@ -2273,6 +2305,7 @@ fn cylinder_boundary<T: Decide>(
         levels,
         arms: RimArms::uniform(radius, arm),
         cosines: Vec::new(),
+        sides,
     })
 }
 
@@ -3437,6 +3470,7 @@ fn cone_boundary<T: Decide>(
     let mut rims: Vec<Rim<T>> = Vec::new();
     let mut levels: Vec<T> = Vec::new();
     let mut generators = false;
+    let mut sides = Vec::with_capacity(edges.len());
     for e in edges {
         match e.carrier {
             Curve3::Line(geom::Line { dir, .. }) => {
@@ -3444,6 +3478,7 @@ fn cone_boundary<T: Decide>(
                 require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)?;
                 levels.push((e.p0() - apex).dot(axis) / cos_a);
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
+                sides.push(IsoFamily::U);
             }
             Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
                 let (center, n_c) = (frame.origin(), frame.axis());
@@ -3474,6 +3509,7 @@ fn cone_boundary<T: Decide>(
                     band,
                 )?);
                 levels.push(v);
+                sides.push(IsoFamily::V);
             }
             Curve3::Ellipse(..)
             | Curve3::Nurbs(_)
@@ -3498,6 +3534,7 @@ fn cone_boundary<T: Decide>(
         levels,
         arms,
         cosines: Vec::new(),
+        sides,
     };
     if !generators && !b.rims.is_empty() {
         cone_apex_level(&mut b, edges, band)?;
@@ -5247,6 +5284,7 @@ fn sphere_boundary<T: Decide>(
         .height_and_distance(p);
         (h / radius, rho / radius)
     };
+    let mut sides = Vec::with_capacity(edges.len());
     for e in edges {
         let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = e.carrier else {
             return Err(IsoChart::Sphere { center, radius }.kind_refusal(e, band));
@@ -5294,6 +5332,7 @@ fn sphere_boundary<T: Decide>(
                 rims.push(Rim::decided(e, rim_dir(s, e.forward), level, r_c, band)?);
                 levels.push(sin_v);
                 cosines.push(cos_v);
+                sides.push(IsoFamily::V);
             }
             None => {
                 // Meridian great circle: centered at the sphere center
@@ -5348,6 +5387,7 @@ fn sphere_boundary<T: Decide>(
                     (&mut levels, &mut cosines),
                     band,
                 )?;
+                sides.push(IsoFamily::U);
             }
         }
     }
@@ -5360,6 +5400,7 @@ fn sphere_boundary<T: Decide>(
         levels,
         arms: RimArms::uniform(radius, arm),
         cosines,
+        sides,
     })
 }
 
@@ -6205,11 +6246,12 @@ enum TorusEdge<'a, T: Real> {
 /// its meridians after the fold.
 type TorusParts<T> = (Vec<Rim<T>>, Vec<TorusMeridian<T>>);
 
-/// Classify a torus face's boundary into (rims, meridians) — the
-/// shared parse consumed by the flux closed form,
-/// [`boundary_material_sign`] and the shape door. Every edge is
-/// certified rim-or-meridian in loop order first; the arcs that carry
-/// one meridian are then folded into it.
+/// Classify a torus face's boundary into (rims, meridians) — the shape
+/// door's parse, read by [`torus_parse`] (the flux and side readers
+/// take the Green form instead, [`torus_chart`]) — beside each edge's
+/// iso family in loop order. Every edge is certified rim-or-meridian in
+/// loop order first; the arcs that carry one meridian are then folded
+/// into it.
 fn torus_boundary<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
@@ -6218,12 +6260,16 @@ fn torus_boundary<T: Decide>(
     tube_arm: Lever<T>,
     edges: &[LoopEdge<T>],
     band: Band,
-) -> Result<TorusParts<T>, PropsError> {
-    fold_torus_meridians(
-        torus_classify(center, axis, major, minor, tube_arm, edges, band)?,
-        minor,
-        band,
-    )
+) -> Result<(TorusParts<T>, Vec<IsoFamily>), PropsError> {
+    let classified = torus_classify(center, axis, major, minor, tube_arm, edges, band)?;
+    let sides = classified
+        .iter()
+        .map(|c| match c {
+            TorusEdge::Rim(_) => IsoFamily::V,
+            TorusEdge::Arc(_) => IsoFamily::U,
+        })
+        .collect();
+    Ok((fold_torus_meridians(classified, minor, band)?, sides))
 }
 
 /// Certify every edge of a torus face's boundary as a rim or a meridian
