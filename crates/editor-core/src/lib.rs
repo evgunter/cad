@@ -123,8 +123,8 @@ pub use coincide::{
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, Unused,
-    VarName,
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, NameCarrier,
+    Unused, VarName,
 };
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
@@ -216,10 +216,11 @@ pub use product::{
     product, product_named, product_recorded,
 };
 pub use program::{
-    DrawnOn, LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData,
-    ProgramRefusal, ProgramResolveFault, ProgramStep, ProgramTarget, RecordedNotation,
-    RecordedProgramError, SlotPayload, StepIdFault, StepSegmentsError, TraceCrossing, TracePassage,
-    TraceSense, WrittenLoopFault, resolve_loops, resolve_written_loops,
+    DrawnOn, LoopProgram, ProfileDoc, ProfilePartition, ProfilePayload, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramResolveFault, ProgramStep, ProgramTarget,
+    RecordedNotation, RecordedProgramError, SlotPayload, StepIdFault, StepSegmentsError,
+    TraceCrossing, TracePassage, TraceSense, WrittenLoopFault, resolve_loops,
+    resolve_written_loops,
 };
 pub use range::{
     Admission, CertifiedRange, DerivedRange, DifferenceKind, NotDecided, ProvenDifferent,
