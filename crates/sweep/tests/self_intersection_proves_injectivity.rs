@@ -3538,10 +3538,14 @@ fn review_sweep_cone_tips_off_the_origin() {
 }
 
 /// **Review sweep, delta of PR 7115**: shapes the first sweep did not
-/// vary. It prints one line per case and asserts nothing. On the PR's
-/// final head eight turned-frame cones refuse, traced on
-/// `work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`;
-/// every other case that builds holds.
+/// vary. It prints one line per case and asserts nothing. Of the cases
+/// that build, 46 hold and 22 refuse on the PR's final head: six
+/// turned-frame cone cases, on
+/// `work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`,
+/// which gives each main's set, as it has moved with main; and the
+/// sixteen turned ice-cream cones, on their sphere caps, since main's
+/// carrier frames
+/// (`work/embed/a-balls-seam-meridians-in-one-bracket-are-not-one-plane-so-its-pole-refuses-at-interval.md`).
 #[test]
 #[ignore = "review sweep: prints, asserts nothing"]
 fn review_sweep_delta_shapes() {
