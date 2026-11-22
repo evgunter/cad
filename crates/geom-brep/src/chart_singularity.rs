@@ -1599,9 +1599,7 @@ pub fn spline_collapsed_row<T: Real>(
     let control = net.control();
     let first = *row.first().and_then(|&i| control.get(i))?;
     row.iter()
-        .all(|&i| control
-            .get(i)
-            .is_some_and(|p| one_stored_point(p, &first)))
+        .all(|&i| control.get(i).is_some_and(|p| one_stored_point(p, &first)))
         .then_some(row)
 }
 

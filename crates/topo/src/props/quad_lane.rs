@@ -1576,7 +1576,10 @@ fn joint_defect<T: Decide + Bounds + CertifiedEnclosure>(
         // Off the collapsed side a joint walks, each end against its own
         // corner of that side: the meet of the side with the end's line,
         // which differs from the end only in the side's channel.
-        let pole = jumps.iter().find(|(row, _)| *row == i).map(|(_, side)| *side);
+        let pole = jumps
+            .iter()
+            .find(|(row, _)| *row == i)
+            .map(|(_, side)| *side);
         let off = |x: Interval| Interval::point(x.mag());
         let reach = |p: Point2<T>, m: Point2<Interval>| {
             Interval::point((su * off(iv(p.x) - m.x) + sv * off(iv(p.y) - m.y)).mag())
