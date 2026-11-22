@@ -56,7 +56,6 @@ fn frame_at(p: &geom::Surface<f64>, lever: f64) -> Loops {
         pair_section_frame_at(
             a,
             b,
-            Point3::new(BIG_R, 0.0, 0.0),
             FrameExtent::Reach(geom_core::test_support::fixture_lever(lever)),
             band(),
         )
@@ -441,7 +440,6 @@ fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
         let got = pair_section_frame_at(
             &torus,
             &p,
-            Point3::new(big_r, 0.0, 0.0),
             FrameExtent::Reach(geom_core::test_support::fixture_lever(REACH)),
             b,
         );
@@ -523,7 +521,7 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
         );
     }
     let torus = donut();
-    let got = pair_section_frame_at(&p, &torus, Point3::origin(), FrameExtent::Radii, b);
+    let got = pair_section_frame_at(&p, &torus, FrameExtent::Radii, b);
     assert!(
         matches!(got, Err(FrameError::Desync(_))),
         "plane×torus under its radii: got {}",
