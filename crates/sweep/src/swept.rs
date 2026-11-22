@@ -618,8 +618,8 @@ pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegmen
 
 /// **A unit sketch direction**, read only from the directions a
 /// segment's traversal holds ([`sketch_direction`]): the ones the
-/// profile recorded, or a half turn's construction. Nothing in the
-/// sweep divides a sketch difference by its own length for one. The
+/// profile recorded, or a half turn's construction; a line's is its
+/// chord over its length, taken once ([`sketch_chord`]). The
 /// station's frame carries it to a [`Unit3`] ([`Placing::direction`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Unit2<T: Real>(Vec2<T>);

@@ -1262,3 +1262,61 @@ fn each_arc_verbs_slab_over_a_box_reaches_its_pinned_stage() {
 fn slab_of<T: Decide + topo::AtRestPolicy>(lp: ProfileLoop<T>) -> Extruded<T> {
     slab(SketchPlane::xy(), lp, T::one())
 }
+
+/// **A table's written radial reaches a wall's frame as it was written**
+/// (a fixture row: the table door, `RawLoop::new_directed`, is compiled
+/// for tests only, so no shipped build holds a written radial). A
+/// two-arc unit circle whose start radial is written `0.4·ε` too long:
+/// validation accepts it (`segment_direction` reads `‖c + r·d − p‖`,
+/// which bounds the stretch times the radius), the extrude turns the
+/// wall's and the rims' frames onto it with no arithmetic
+/// (`geom_core::RigidMotion::spun_onto`), and the finish's check 1 reads
+/// the frame's length at the same lever and accepts it. So the body
+/// builds holding a `u_ref` that long: today nothing refuses it, and
+/// check 1 is the one reader that could
+/// (`work/boxfinish/spun-onto-takes-a-bare-vector-for-a-unit.md`).
+///
+/// Red when the stretch stops reaching the frame (a door that
+/// normalizes a written radial, or a type no written radial inhabits),
+/// and when something refuses it.
+#[test]
+fn a_tables_stretched_radial_is_stored_in_the_walls_frame_as_written() {
+    let stretch = 0.4 * tol().eps();
+    let half = geom_core::Arc2 {
+        centre: Point2::new(0.0, 0.0),
+        radius: 1.0,
+        sweep: core::f64::consts::PI,
+    };
+    let lp: ProfileLoop<f64> = RawLoop::new_directed([
+        (
+            Point2::new(1.0, 0.0),
+            profile::Segment::Arc(half),
+            Some(profile::SegmentDirections::Arc {
+                start: Vec2::new(1.0 + stretch, 0.0),
+                end: Vec2::new(-1.0, 0.0),
+            }),
+        ),
+        (Point2::new(-1.0, 0.0), profile::Segment::Arc(half), None),
+    ]);
+    let built = slab(SketchPlane::xy(), lp, 1.0);
+    let body: &Body<f64> = &built.body;
+    let mut longest = 0.0_f64;
+    for (face, _) in body.faces() {
+        if let Surface::Cylinder { frame, .. } = body.face_surface(face).expect("a live face") {
+            longest = longest.max(frame.u_ref().norm() - 1.0);
+        }
+    }
+    for (edge, _) in body.edges() {
+        let circle = topo::readback::edge_carrier_ref(body, edge)
+            .ok()
+            .and_then(|carrier| carrier.as_circle());
+        if let Some(circle) = circle {
+            longest = longest.max(circle.frame.u_ref().norm() - 1.0);
+        }
+    }
+    println!("stretch {stretch:e}, longest u_ref defect {longest:e}");
+    assert!(
+        (longest - stretch).abs() <= 1e-3 * stretch,
+        "the written stretch {stretch:e} is the frame's: {longest:e}"
+    );
+}

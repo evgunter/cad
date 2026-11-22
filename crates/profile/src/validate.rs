@@ -975,12 +975,29 @@ impl ValidatedSegment<f64> {
     /// `from_f64` — the endpoints, an arc's carrier and sweep and the
     /// recorded directions ([`SegmentKind::map`]) — and the
     /// classification and turn carried.
-    /// Nothing is re-derived. See [`ValidatedProfile::lift_onto`].
+    /// Nothing is re-derived but an arc's radials, which are normalized
+    /// at `U`: a radial's two `f64` numbers are a unit to rounding, so
+    /// lifted as they stand they are a point that holds no unit, and a
+    /// sweep turns an arc's frame onto its radial with no arithmetic
+    /// (`geom_core::RigidMotion::spun_onto`). Normalized at `U` they
+    /// enclose the unit they round. See [`ValidatedProfile::lift_onto`].
     fn lift<U: Real>(self) -> ValidatedSegment<U> {
+        let kind = match self.kind.map(U::from_f64) {
+            SegmentKind::Arc {
+                arc,
+                turn,
+                radials: [start, end],
+            } => SegmentKind::Arc {
+                arc,
+                turn,
+                radials: [start.normalize(), end.normalize()],
+            },
+            line @ SegmentKind::Line { .. } => line,
+        };
         ValidatedSegment {
             start: self.start.map(U::from_f64),
             end: self.end.map(U::from_f64),
-            kind: self.kind.map(U::from_f64),
+            kind,
         }
     }
 }
