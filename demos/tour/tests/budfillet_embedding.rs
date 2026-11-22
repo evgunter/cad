@@ -24,6 +24,7 @@ fn every_budfillet_body_is_embedded() {
             let side = Side {
                 body: &sb.body,
                 faces: sb.body.faces().map(|(k, _)| k).collect(),
+                excluded: pncad::topo::clearance::FacePairs::none(),
             };
             let report = embedded(&side, band, budgets);
             assert!(
