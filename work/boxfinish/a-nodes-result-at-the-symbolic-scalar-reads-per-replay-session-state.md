@@ -30,3 +30,14 @@ which the retry ladder runs or an identity is registered.
 count columns and two of its walks: this unit moves the same counts
 onto a node's value, so it stacks on that branch once its PR is open.
 After `a-nodes-content-key-at-the-symbolic-scalar-hashes-the-number-and-not-the-expression`.
+
+**The split rule rests on this unit** (split-reads lane, 2026-11-22).
+`drive::bisect` splits only what the deciding node reads
+(`Doc::free_reads`), and a deciding node that reads nothing of the box
+refuses `ReadsNoVariable`: "no split changes it". That is exact when a
+node's result is a function of its inputs. While a node can read
+per-replay session state (the retry ladder's per-replay cap, the
+registry), an earlier node that reads another variable can move that
+state, and a split of that variable could change what the deciding node
+says. Not observed: no retry runs in the drives measured, and the
+corpus differential compares content keys, which do not see the session.
