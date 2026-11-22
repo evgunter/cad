@@ -74,3 +74,7 @@ staled, dropped or left incomplete (`kfmrh`, `ring_move`, `kef`'s
 same-chart merge, the chart-change drops, `mev_null` —
 `PcurveMintError::MissingCache`'s list). The laundering in (1) and the
 drop in (2) are the pass's, not the operators', and stand as measured.
+
+## The question to Ev (2026-11-22, fork F4)
+
+Two designers weighed it and converged after one round: the obligation moves off the producers into the doors that construct a rest type (`finish`/`leaf` at every scalar, and `FinishedBody::moved_by`'s reflection arm), and those doors COMPLETE the rows (drop dead, keep stored, derive missing) rather than re-mint them, so a stale construction-state row fails loudly at the finish. Producers lose their closing mints and their `Pcurve` arms; `a-joined-finisher-mints-the-whole-body-twice` closes with it. The binding sentence is the new `[one-way.places]` row in `docs/DESIGN.md` on the `[ev]` PR; the implementation waits for it.
