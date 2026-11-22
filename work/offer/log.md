@@ -155,3 +155,12 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
 **Dispatch, letters and tiers** (logged before any draw):
 - 1 is letter H, tier DUAL. It is an architectural change to how every sentence the kernel hands out is built (56 `Say` impls, the Python stubs), and it would be hard to change later.
 - 3 is letter M, tier SINGLE, FULL review. A wrong relation shown as a link is a confident wrong answer.
+- 2026-11-22 — **Dispatched.** All four run as cloud sessions and report to the orchestrator by `send_message`.
+  - **Names lanes:**
+    - `the-viewer-spells-a-node-as-its-kind-before-its-name`, on `offer/a-node-is-spoken-as-a-mention`, session `session_013QoYWX8dyxZkisPkoWqKE2`;
+    - `a-placement-and-its-part-do-not-link-to-each-other`, on `offer/a-node-shows-what-it-reads-and-what-reads-it`, session `session_013QoYWWdDR39ioDz6evAqWY`.
+  - **Reviews:**
+    - cascade PR #7346, FULL, session `session_013QoYWYJT7Yej2UM7GWwepM`;
+    - guide PR #7336, STYLE, session `session_013QoYWVuZ9dUBajTwT442oB`.
+
+  Draws are on `analysis/model-compare/offer-2026-11-22`. Each fix pass runs as its implementer's own agent, continued. (OFFER orchestrator)
