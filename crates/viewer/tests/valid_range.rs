@@ -506,7 +506,7 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     //
     // ONE WRITTEN MILLIMETRE is this row's own statement of the seed
     // it expects, and is deliberately not imported from the session's
-    // `probe_seed`: the rule that a field steps by one of the unit it
+    // seed: the rule that a field steps by one of the unit it
     // was WRITTEN in is the thing under test here, so reading it from
     // the code under test would make the row agree by construction
     // (the argument `tests/edge_pick.rs` makes for spelling its own

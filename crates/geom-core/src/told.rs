@@ -83,7 +83,7 @@ use core::cmp::Ordering;
 use core::fmt;
 use std::sync::Arc;
 
-use quantity::{Decimal, InUnit, Notation, ROUND_TRIP_FIGURES, Rounding, UnitDef};
+use quantity::{Decimal, InUnit, Notation, ROUND_TRIP_FIGURES, Rounding, UnitDef, UnitQuantity};
 
 use crate::Real;
 use crate::tolerance::DEFAULT_EPS;
@@ -158,13 +158,29 @@ pub enum Dimension {
 }
 
 impl Dimension {
+    /// The quantity of the unit table a number of this dimension is
+    /// held in — the dimensions are that table's quantities, told.
+    pub const fn quantity(self) -> UnitQuantity {
+        match self {
+            Self::Length => UnitQuantity::Length,
+            Self::Angle => UnitQuantity::Angle,
+            Self::Dimensionless => UnitQuantity::Scalar,
+        }
+    }
+
+    /// The dimension a number held in `quantity` is told as —
+    /// [`Self::quantity`]'s inverse.
+    pub const fn of(quantity: UnitQuantity) -> Self {
+        match quantity {
+            UnitQuantity::Length => Self::Length,
+            UnitQuantity::Angle => Self::Angle,
+            UnitQuantity::Scalar => Self::Dimensionless,
+        }
+    }
+
     /// The unit of `notation` a number of this dimension is told in.
     const fn unit(self, notation: Notation) -> UnitDef {
-        match self {
-            Self::Length => notation.length.def(),
-            Self::Angle => notation.angle.def(),
-            Self::Dimensionless => quantity::ONE.def(),
-        }
+        notation.unit_of(self.quantity())
     }
 }
 
