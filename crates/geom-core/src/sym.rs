@@ -2398,25 +2398,11 @@ struct Session {
     /// ([`SymRetry`]) — [`SymRetry::none`] under every door but
     /// [`with_session_retry`] and [`with_session_memo_retry`].
     retry: SymRetry,
-    /// **The retry attempts' memos, one entry per attempt beyond the
-    /// first** — the `(id, attempt)` keying [`SymRetry`]'s ladder
-    /// needs, spelled as a table per attempt so that an attempt's
-    /// lookup costs what the first attempt's does.
-    ///
-    /// They are SEPARATE from `forms_early` and `forms_door` and never
-    /// read into them: an attempt's forms are built under different
-    /// rules or a different ring bound, so a form of one attempt is not
-    /// a form of another and serving one for the other would move a
-    /// decision the first attempt already made. Grown lazily and capped
-    /// at [`SymRetry::max_forms`] entries, past which the ladder stops
-    /// offering that attempt for the rest of the leaf.
-    ///
-    /// **A registration clears every attempt's DOOR memo**, as it clears
-    /// `forms_door` and for the same reason: a door form is a function
-    /// of the registry, so one built before a record would answer for a
-    /// registry that no longer exists. The early memos never consult the
-    /// registry and stay whole.
-    retries: Vec<RetryMemo>,
+    /// **The open node's state** ([`NodeState`]), and the states of the
+    /// scopes it was opened inside, outermost first. With no node scope
+    /// open, `node` is the root scope's.
+    node: NodeState,
+    outer: Vec<NodeState>,
     nodes: IdMap<SymNode>,
     /// The PLAIN quotient forms — every atom opaque, rule A0 only (the
     /// constant fold, which cannot cost a cancellation). Rules A/B are
@@ -2426,21 +2412,6 @@ struct Session {
     /// The EARLY-reduced forms (`SymRules::early`), a second memo
     /// beside the plain one.
     forms_early: IdMap<Arc<Form>>,
-    /// **The DOOR-reduced forms** ([`SymRules::registered`]): the early
-    /// walk again, this time with the session's registry applied — a
-    /// THIRD memo, beside the plain one and the early one, so the early
-    /// memo stays free of the registry: a decision the early form
-    /// answers never pays for the registry, and a zero that RESTS on a
-    /// registration (the registry-free rungs decline it) is told from
-    /// one that merely touched a registered node. Measured, that line
-    /// matters: on R2's pad at its nominal a sticky-flag attribution
-    /// (one memo, the registry in it) charged the registry 40 of 368
-    /// zeros that A0 had already proved.
-    ///
-    /// Built lazily like the others, and never at all while the
-    /// registry is empty — so a document with no registrants (all of
-    /// straight geometry) pays nothing and serializes M10-8's bytes.
-    forms_door: IdMap<Arc<Form>>,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
     /// by [`Sym::param_over`] and read by the decision read
@@ -2461,12 +2432,6 @@ struct Session {
     witness: Option<crate::real::Witness>,
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
-    /// **The registered-identity registry** ([`Sym::register_equal`]):
-    /// `node -> the node it was registered equal to`, resolved
-    /// transitively by [`Session::alias`]. Keyed by content hashes and
-    /// per leaf replay, like everything else here; consulted by the
-    /// EARLY walk only, and only under [`SymRules::registered`].
-    registry: IdMap<SymId>,
     /// **Rule D's closed forms, by argument form** (`trig::Closed`):
     /// `sin` and `cos` of one argument are two nodes, and the recurrence
     /// that builds `(cos kψ, sin kψ)` over the shared denominator yields
@@ -2494,7 +2459,6 @@ struct Session {
     /// How many asks an entry answered — read by this module's rows.
     #[cfg(test)]
     reduction_hits: u64,
-    counts: SymCounts,
     /// **The drive's shared plain memo** ([`DriveMemo`]), when a drive
     /// installed one ([`with_session_memo`]). The plain walk consults
     /// it on a miss in `forms` and the leaf publishes to it once, at its
@@ -2512,13 +2476,6 @@ struct Session {
     /// ([`with_deferred_session`](self::deferred::with_deferred_session)): `None` in every other session, which
     /// discharges each decision as it is taken.
     deferred: Option<std::collections::HashMap<u32, deferred::Pending>>,
-    /// **The roots the PLAIN walk was asked for** — the leaf's NEED is
-    /// counted over their closure ([`leaf_need`]). A SET and not a
-    /// list: one decision asks for one root many times over a leaf
-    /// (1,413 asks over ~120 distinct roots on the plate), and the
-    /// closure walk wants each once. Kept only while a drive memo is
-    /// installed, where the column is a NEED; empty otherwise.
-    plain_roots: IdSet,
     /// **The ids this leaf's table did not hold when a node named them
     /// as a child** — a node minted before the session was installed,
     /// or outside one.
@@ -2574,6 +2531,203 @@ struct Session {
     /// against one the ring's guards refused
     /// ([`form::Refusal::Ring`]).
     budget_frozen: IdSet,
+}
+
+/// **What one node holds in the session while its scope is open**
+/// ([`MintScope::node`]): everything a decision reads or writes that is
+/// the node's and not the leaf's or the drive's. A node's scope opens
+/// empty but for the registry it is handed, so what the node decides
+/// and counts is a function of its inputs and of nothing a node that
+/// does not feed it did.
+#[derive(Default)]
+struct NodeState {
+    /// **The registered identities this node reads**
+    /// ([`Sym::register_equal`]): `node -> the node it was registered
+    /// equal to`, resolved transitively by [`Session::alias`] and
+    /// consulted by the door walk alone. The identities the scope was
+    /// opened with (its upstream nodes' and its enclosing scope's) and
+    /// the ones it has registered since.
+    registry: IdMap<SymId>,
+    /// The registrations made inside this scope, in the order made, as
+    /// the registry recorded them: what [`NodeRecord`] carries.
+    registered: Vec<(SymId, SymId)>,
+    /// **The door-reduced forms** ([`SymRules::registered`]): the early
+    /// walk with `registry` applied, a memo beside the early one so
+    /// that a decision the early form answers never pays for the
+    /// registry. A function of `registry`, so it is the node's and a
+    /// registration clears it; never built while the registry is empty.
+    forms_door: IdMap<Arc<Form>>,
+    /// **The retry attempts' memos, one entry per attempt beyond the
+    /// first** ([`SymRetry`]). An attempt's forms are built under its
+    /// own rules or ring bound and are never read into the first
+    /// attempt's. [`SymRetry::max_forms`] guards each entry, so the
+    /// guard counts this node's forms; a registration clears every
+    /// attempt's door memo as it clears `forms_door`.
+    retries: Vec<RetryMemo>,
+    /// What this node's decisions came to. `frozen` is the plain
+    /// freezes made while the scope was open.
+    counts: SymCounts,
+    /// **The roots the plain walk was asked for**: the `frozen` column
+    /// is counted over their closure ([`leaf_need`]). Kept only while a
+    /// drive memo is installed.
+    plain_roots: IdSet,
+}
+
+impl NodeState {
+    /// Adds what a scope opened inside this one came to: its counts
+    /// and its roots.
+    fn absorb(&mut self, inner: &NodeState) {
+        self.counts.absorb(inner.counts);
+        self.counts.frozen += inner.counts.frozen;
+        for id in inner.plain_roots.keys() {
+            self.plain_roots.insert(*id, ());
+        }
+    }
+}
+
+/// **What a node's evaluation leaves for the nodes it feeds and for
+/// the leaf's receipt** ([`MintScope::node`]): the identities it
+/// registered, what its decisions came to, and the roots its `frozen`
+/// column is counted over. It travels with the node's value, and it is
+/// a function of the node's inputs: two replays that evaluate a node
+/// under one content key hold equal records.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NodeRecord {
+    registered: Vec<(SymId, SymId)>,
+    counts: SymCounts,
+    roots: Vec<SymId>,
+}
+
+impl NodeRecord {
+    /// What the node's decisions came to, the scopes opened inside it
+    /// included. `frozen` is zero: that column is a set, read off a
+    /// leaf's roots when the leaf is done ([`SymCounts::frozen`]).
+    #[must_use]
+    pub fn counts(&self) -> SymCounts {
+        self.counts
+    }
+
+    /// How many identities the node registered.
+    #[must_use]
+    pub fn registrations(&self) -> usize {
+        self.registered.len()
+    }
+}
+
+impl Session {
+    /// Records `a ≡ b` in the open node's registry as
+    /// [`Sym::register_equal`] does past its witness: resolved through
+    /// the registry first, and dropped where the two are already one
+    /// node or the record would close a cycle. Answers whether the
+    /// registry changed.
+    fn adopt(&mut self, a: SymId, b: SymId) -> Option<(SymId, SymId)> {
+        let (a, b) = (self.alias(a), self.alias(b));
+        if a == b || self.reaches(b, a) {
+            return None;
+        }
+        self.node.registry.insert(a, b);
+        self.node.forms_door.clear();
+        for r in &mut self.node.retries {
+            r.door.clear();
+        }
+        Some((a, b))
+    }
+
+    /// What the session's decisions have come to so far: every open
+    /// scope's counts.
+    fn counts_so_far(&self) -> SymCounts {
+        self.outer.iter().fold(self.node.counts, |mut sum, outer| {
+            sum.absorb(outer.counts);
+            sum.frozen += outer.counts.frozen;
+            sum
+        })
+    }
+}
+
+/// Closes the node scope [`node_scope`] opened, by any path including a
+/// panic: the enclosing scope's state is the open one again and has
+/// absorbed this one's.
+struct NodeGuard {
+    /// The depth of `Session::outer` with this scope open.
+    depth: usize,
+}
+
+impl NodeGuard {
+    fn close(&self) -> Option<NodeRecord> {
+        SESSION.with(|s| {
+            let mut slot = s.borrow_mut();
+            let sess = slot.as_mut()?;
+            if sess.outer.len() != self.depth {
+                return None;
+            }
+            let outer = sess.outer.pop()?;
+            let inner = core::mem::replace(&mut sess.node, outer);
+            #[cfg(feature = "sym-profile-testing")]
+            profile::retry_memos(&inner.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
+            sess.node.absorb(&inner);
+            // A scope opened inside a node's scope is part of that
+            // node: what it registered, the node has registered. The
+            // root scope is no node, and reads nothing a node stated.
+            if !sess.outer.is_empty() {
+                for &(a, b) in &inner.registered {
+                    if let Some(recorded) = sess.adopt(a, b) {
+                        sess.node.registered.push(recorded);
+                    }
+                }
+            }
+            let mut roots: Vec<SymId> = inner.plain_roots.keys().copied().collect();
+            roots.sort_unstable_by_key(|id| id.bits());
+            Some(NodeRecord {
+                registered: inner.registered,
+                counts: SymCounts {
+                    frozen: 0,
+                    ..inner.counts
+                },
+                roots,
+            })
+        })
+    }
+}
+
+impl Drop for NodeGuard {
+    fn drop(&mut self) {
+        let _ = self.close();
+    }
+}
+
+/// [`MintScope::node`]'s session half: `work` in a node scope of its
+/// own, opened over the enclosing scope's registry and `upstream`'s
+/// registrations in the order given, and the record it leaves. Outside
+/// a session there is no state to scope and the record is empty.
+pub(crate) fn node_scope<'a, R>(
+    upstream: impl IntoIterator<Item = &'a NodeRecord>,
+    work: impl FnOnce() -> R,
+) -> (R, NodeRecord) {
+    let opened = SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let sess = slot.as_mut()?;
+        let fresh = NodeState {
+            registry: sess.node.registry.clone(),
+            ..NodeState::default()
+        };
+        let outer = core::mem::replace(&mut sess.node, fresh);
+        sess.outer.push(outer);
+        for record in upstream {
+            for &(a, b) in &record.registered {
+                let _ = sess.adopt(a, b);
+            }
+        }
+        Some(NodeGuard {
+            depth: sess.outer.len(),
+        })
+    });
+    let out = work();
+    let record = opened.and_then(|guard| {
+        let record = guard.close();
+        core::mem::forget(guard);
+        record
+    });
+    (out, record.unwrap_or_default())
 }
 
 /// One memoized per-node reduction ([`Session::reductions`]).
@@ -2666,28 +2820,25 @@ impl Session {
             budget,
             rules,
             retry,
-            retries: Vec::new(),
+            node: NodeState::default(),
+            outer: Vec::new(),
             nodes: IdMap::default(),
             forms: IdMap::default(),
             forms_early: IdMap::default(),
-            forms_door: IdMap::default(),
             params: IndetMap::default(),
             mints: IndetMap::default(),
             atoms: IndetMap::default(),
-            registry: IdMap::default(),
             witness: None,
             trig_closed: IndetMap::default(),
             reductions: IndetMap::default(),
             reductions_held: 0,
             #[cfg(test)]
             reduction_hits: 0,
-            counts: SymCounts::default(),
             memo,
             plain_built: Vec::new(),
             plain_atoms: Vec::new(),
             plain_frozen: Vec::new(),
             deferred: None,
-            plain_roots: IdSet::default(),
             foreign: IdSet::default(),
             plain_unpublished: IdSet::default(),
             plain_tainted: IdSet::default(),
@@ -2706,7 +2857,7 @@ impl Session {
     fn alias(&self, id: SymId) -> SymId {
         let mut cur = id;
         for _ in 0..ALIAS_DEPTH {
-            match self.registry.get(&cur) {
+            match self.node.registry.get(&cur) {
                 Some(next) => cur = *next,
                 None => return cur,
             }
@@ -2933,7 +3084,7 @@ fn with_session_in<R>(
     #[cfg(feature = "sym-profile-testing")]
     if let Some(s) = &sess {
         profile::session_done(s.nodes.len(), s.atoms.len());
-        profile::retry_memos(&s.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
+        profile::retry_memos(&s.node.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
         profile::reduction_memo(s.reductions_held);
     }
     if let Some(s) = &mut sess {
@@ -2944,10 +3095,10 @@ fn with_session_in<R>(
         // against ([`SymCounts::frozen`] argues the column).
         if let Some(memo) = &s.memo {
             let need = leaf_need(&*s, memo);
-            s.counts.frozen = need;
+            s.node.counts.frozen = need;
         }
     }
-    let counts = sess.map_or_else(SymCounts::default, |s| s.counts);
+    let counts = sess.map_or_else(SymCounts::default, |s| s.node.counts);
     (out, counts)
 }
 
@@ -3012,7 +3163,7 @@ fn leaf_need(sess: &Session, memo: &DriveMemo) -> u64 {
     if sess.foreign.is_empty() && sess.plain_unpublished.is_empty() && memo.frozen_is_empty() {
         return 0;
     }
-    let reached = sess.closure(sess.plain_roots.keys().copied());
+    let reached = sess.closure(sess.node.plain_roots.keys().copied());
     // Every freeze this leaf made was made inside its own walk, so it
     // is under a root: the union below never counts a node outside the
     // closure, and a push from anywhere but the walk would break that.
@@ -3059,7 +3210,7 @@ fn leaf_need(sess: &Session, memo: &DriveMemo) -> u64 {
 /// Every other column is the same one the leaf's receipt will carry.
 #[must_use]
 pub fn session_counts() -> Option<SymCounts> {
-    SESSION.with(|s| s.borrow().as_ref().map(|s| s.counts))
+    SESSION.with(|s| s.borrow().as_ref().map(Session::counts_so_far))
 }
 
 /// **Whether a decision may be taken on a worker thread at all** — the
@@ -3744,7 +3895,7 @@ fn form_in(
     // ([`leaf_need`], which [`SymCounts::frozen`] argues).
     let frozen = |sess: &mut Session, id: SymId| -> Arc<Form> {
         if !early {
-            sess.counts.frozen += 1;
+            sess.node.counts.frozen += 1;
         }
         Arc::new(Form::poly(Poly::indet(id.bits())))
     };
@@ -3758,7 +3909,7 @@ fn form_in(
     // column counts the drive's freezes inside the closure of what this
     // leaf ASKED, and the asking is here.
     if drive.is_some() {
-        sess.plain_roots.insert(root, ());
+        sess.node.plain_roots.insert(root, ());
     }
     // **One place that notes what this walk computed** — the profile's
     // distinct-id counter, and the drive memo's publication list.
@@ -4214,14 +4365,14 @@ impl Session {
         match slot {
             MemoSlot::Plain => &mut self.forms,
             MemoSlot::Early => &mut self.forms_early,
-            MemoSlot::Door => &mut self.forms_door,
+            MemoSlot::Door => &mut self.node.forms_door,
             MemoSlot::RetryEarly(k) => {
-                retry(&mut self.retries, k);
-                &mut self.retries[k].early
+                retry(&mut self.node.retries, k);
+                &mut self.node.retries[k].early
             }
             MemoSlot::RetryDoor(k) => {
-                retry(&mut self.retries, k);
-                &mut self.retries[k].door
+                retry(&mut self.node.retries, k);
+                &mut self.node.retries[k].door
             }
         }
     }
@@ -4558,6 +4709,7 @@ fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
         // decision stays numeric.
         let k = usize::from(attempt) - 1;
         if sess
+            .node
             .retries
             .get(k)
             .is_some_and(|m| m.len() >= sess.retry.max_forms)
@@ -4565,7 +4717,7 @@ fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
             continue;
         }
         if let Some(rung) = rungs(sess, id, &plain, attempt, (rules, bits), path) {
-            sess.counts.retried += 1;
+            sess.node.counts.retried += 1;
             return Some((rung, attempt));
         }
     }
@@ -4611,7 +4763,7 @@ fn rungs(
     if path == Path::Decision
         && rules.registered
         && rules.early
-        && !sess.registry.is_empty()
+        && !sess.node.registry.is_empty()
         && walk(sess, id, WalkKind::Door, attempt, (rules, bits)).is_zero()
     {
         return Some(Rung::Door);
@@ -4623,7 +4775,7 @@ fn rungs(
 fn count_registration_refused() {
     SESSION.with(|s| {
         if let Some(sess) = s.borrow_mut().as_mut() {
-            sess.counts.registrations_refused += 1;
+            sess.node.counts.registrations_refused += 1;
         }
     });
 }
@@ -4654,9 +4806,9 @@ fn count_decision(proven: bool) {
     SESSION.with(|s| {
         if let Some(sess) = s.borrow_mut().as_mut() {
             if proven {
-                sess.counts.symbolic += 1;
+                sess.node.counts.symbolic += 1;
             } else {
-                sess.counts.numeric += 1;
+                sess.node.counts.numeric += 1;
             }
         }
     });
@@ -4956,16 +5108,17 @@ impl<T: Real> Sym<T> {
                 return SymRegistration::Already;
             }
             if sess.reaches(b, a) {
-                sess.counts.registrations_refused += 1;
+                sess.node.counts.registrations_refused += 1;
                 return SymRegistration::Cyclic;
             }
-            sess.registry.insert(a, b);
             // Only the DOOR memos can hold a form the new record would
-            // have changed — the first attempt's and every retry's; the
-            // plain and early memos never consult the registry, so they
-            // stay whole (and M10-8's, bit for bit).
-            sess.forms_door.clear();
-            for r in &mut sess.retries {
+            // have changed, the first attempt's and every retry's
+            // (`Session::adopt` clears them); the plain and early memos
+            // never consult the registry.
+            sess.node.registry.insert(a, b);
+            sess.node.registered.push((a, b));
+            sess.node.forms_door.clear();
+            for r in &mut sess.node.retries {
                 r.door.clear();
             }
             SymRegistration::Recorded
@@ -5605,7 +5758,7 @@ mod tests {
         SESSION.with(|s| {
             s.borrow()
                 .as_ref()
-                .map(|sess| sess.retries.iter().map(RetryMemo::len).collect())
+                .map(|sess| sess.node.retries.iter().map(RetryMemo::len).collect())
                 .unwrap_or_default()
         })
     }

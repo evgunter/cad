@@ -59,7 +59,7 @@
 use core::cell::Cell;
 use core::marker::PhantomData;
 
-use super::{Hash128, SESSION};
+use super::{Hash128, NodeRecord, SESSION};
 
 /// The root scope's name: the empty child slot's bits, which
 /// [`Hash128::finish`] never answers, so no opened scope has it.
@@ -96,6 +96,25 @@ impl MintScope {
             |h, &w| h.word(w),
         );
         Self(named.finish())
+    }
+
+    /// **Runs `work` as the node this scope names**: the scope open
+    /// for its mints, and in the installed session a node state of its
+    /// own (the registry, the counts, the retry memos and their guard),
+    /// opened over the enclosing scope's registry and the identities
+    /// `upstream` registered, in the order given. Answers `work`'s
+    /// value and the record the node leaves ([`NodeRecord`]).
+    ///
+    /// `upstream` is the records of the nodes that feed this one. What
+    /// any other node registered, spent of the retry guard or counted
+    /// is not read here.
+    pub fn node<'a, R>(
+        self,
+        upstream: impl IntoIterator<Item = &'a NodeRecord>,
+        work: impl FnOnce() -> R,
+    ) -> (R, NodeRecord) {
+        let _named = self.enter();
+        super::node_scope(upstream, work)
     }
 
     /// Opens this scope on the calling thread until the guard drops,

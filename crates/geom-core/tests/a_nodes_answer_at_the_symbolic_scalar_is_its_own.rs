@@ -8,7 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Margin};
-use geom_core::sym::{MintScope, session_counts, with_session_retry};
+use geom_core::sym::{MintScope, NodeRecord, with_session_retry};
 use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymCounts, SymRetry, SymRules, Tol};
 
 fn budget() -> SymBudget {
@@ -26,15 +26,14 @@ fn decide<T: geom_core::Decide>(m: Sym<T>) {
     let _ = geom_core::k_stats::decide("a_nodes_answer", Margin::of(m), band());
 }
 
-/// `[symbolic, numeric, retried]` decided while `work` ran, as the node
-/// `name`.
-fn as_node(name: u64, work: impl FnOnce()) -> [u64; 3] {
-    let _scope = MintScope::current().child(&[name]).enter();
-    let columns = |c: SymCounts| [c.symbolic, c.numeric, c.retried];
-    let before = columns(session_counts().unwrap());
-    work();
-    let after = columns(session_counts().unwrap());
-    [0, 1, 2].map(|i| after[i] - before[i])
+/// `work` as the node `name`, fed by `upstream`: its record.
+fn as_node(name: u64, upstream: &[NodeRecord], work: impl FnOnce()) -> NodeRecord {
+    MintScope::current().child(&[name]).node(upstream, work).1
+}
+
+fn columns(record: &NodeRecord) -> [u64; 3] {
+    let c: SymCounts = record.counts();
+    [c.symbolic, c.numeric, c.retried]
 }
 
 /// What `b` decides alone, and what it decides after `a`.
@@ -42,9 +41,9 @@ fn alone_and_after(retry: SymRetry, a: impl Fn(), b: impl Fn()) -> ([u64; 3], [u
     let session = |with_a: bool| {
         with_session_retry(budget(), SymRules::shipped(), retry, || {
             if with_a {
-                as_node(1, &a);
+                as_node(1, &[], &a);
             }
-            as_node(2, &b)
+            columns(&as_node(2, &[], &b))
         })
         .0
     };

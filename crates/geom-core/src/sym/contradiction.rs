@@ -102,7 +102,7 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
         if sess.budget.max_terms == 0 {
             return None;
         }
-        let counts = sess.counts;
+        let counts = sess.node.counts;
         let cap = sess.retry.max_forms;
         sess.retry.max_forms = cap.min(RETRY_FORMS);
         let exact = matches!(sess.witness, Some(crate::Witness::Exact));
@@ -132,7 +132,7 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
                             },
                             at,
                         )),
-                        None if door && !sess.registry.is_empty() => {
+                        None if door && !sess.node.registry.is_empty() => {
                             ladder(sess, d.node, Path::Decision).map(|at| (Event::Registration, at))
                         }
                         None => None,
@@ -149,7 +149,7 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
                 });
             }
         }
-        sess.counts = counts;
+        sess.node.counts = counts;
         sess.retry.max_forms = cap;
         Some(report)
     });
