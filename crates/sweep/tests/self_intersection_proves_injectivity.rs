@@ -3763,7 +3763,7 @@ fn review_probe_far_witnesses() {
                 };
                 let what = format!("{place} {far:e} r={r} h={h} up={up}");
                 let profile = Profile::new(
-                    plane.clone(),
+                    plane,
                     vec![ProfileLoop::polygon(pts.map(|(x, y)| Point2::new(x, y)))],
                 )
                 .validate(tol());
