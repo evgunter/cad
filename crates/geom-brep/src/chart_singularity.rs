@@ -224,11 +224,17 @@ fn analytic_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3
 /// constructor decides collapsed at its band it builds exactly one
 /// point, and a side that is tiny but not one point is a regular side of
 /// the chart, a short edge. With positive weights a clamped boundary iso
-/// is one point exactly when its control points are.
+/// is one point exactly when its control points are. A net that is not
+/// [`geom::NetState::Described`] — the placeholder, or a poisoned net —
+/// describes no surface, so it has no sides to read: its rows are one
+/// stored point because they are poison, not because a side collapses.
 #[must_use]
 pub fn collapsed_sides<T: Real>(
     net: &geom::NurbsSurface<T>,
 ) -> Vec<(crate::ssi::ChartSide, Point3<T>)> {
+    if !matches!(net.net_state(), geom::NetState::Described) {
+        return Vec::new();
+    }
     crate::ssi::boundary::SIDES
         .into_iter()
         .filter_map(|side| {
