@@ -5968,7 +5968,26 @@ fn sign_on(
         };
         grad.dot(f) / (grad.norm() * f.norm())
     };
-    let departs = |s: Side| levered_sign(sine(s.axis()) * at(s.into()), arm?, band);
+    let departs = |s: Side| {
+        let r = arm.and_then(|arm| levered_sign(sine(s.axis()) * at(s.into()), arm, band));
+        if std::env::var_os("RM_TRACE").is_some() {
+            let x = sine(s.axis());
+            eprintln!(
+                "RMS psi={} side={s:?} x={:?} y={:?} sine=[{:e},{:e}] arm={:?} -> {r:?}",
+                match psi {
+                    Psi::Linear { .. } => "linear",
+                    Psi::Carrier(_) => "carrier",
+                    Psi::Graph { .. } => "graph",
+                },
+                p.x,
+                p.y,
+                x.lo(),
+                x.hi(),
+                arm.map(|a| (a.length().lo(), a.length().hi())),
+            );
+        }
+        r
+    };
     match &p.zero {
         Zero::None => interval_sign_as(
             centred(psi, p, p.x, p.y)?,
@@ -6172,6 +6191,36 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         );
     }
     let arm = arm_of(x, y, near);
+    if std::env::var_os("RM_TRACE").is_some() {
+        let k = |p: &Result<Presentation<'_>, Unpresented>| match p {
+            Ok(Presentation::Of(q)) => match &q.zero {
+                Zero::None => "Of(None)",
+                Zero::Side(..) => "Of(Side)",
+                Zero::Past(..) => "Of(Past)",
+                Zero::Corner(..) => "Of(Corner)",
+                Zero::Curve(..) => "Of(Curve)",
+                Zero::Point(..) => "Of(Point)",
+            },
+            Ok(Presentation::Vacuous) => "Vacuous",
+            Err(Unpresented::Local) => "Local",
+            Err(Unpresented::Structural) => "Structural",
+            Err(Unpresented::Collapsed(_)) => "Collapsed",
+        };
+        eprintln!(
+            "RMP {:?} {:?} ne={} nv={} arm={:?} | {} | {} | xu={:?} xv={:?} yu={:?} yv={:?}",
+            x.face,
+            y.face,
+            near.edges.len(),
+            near.vertices.len(),
+            arm.map(|a| (a.length().lo(), a.length().hi())),
+            k(&px),
+            k(&py),
+            x.u,
+            x.v,
+            y.u,
+            y.v
+        );
+    }
     for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
         if let Err(Unpresented::Collapsed(v)) = p {
             return Outcome::Refuse(EngineRefusal::CollapsedChart {
