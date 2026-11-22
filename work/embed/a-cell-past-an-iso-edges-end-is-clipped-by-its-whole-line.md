@@ -189,7 +189,11 @@ restoring the old reads; one build), `f64`, over the three cylinder
 buckets of the census (Departure/Edge plane/cyl, cyl/plane, cyl/cyl:
 236 tests; 5 `intent_s6_*` names no longer exist):
 
-- before: 230 refuse, 1 passes; after: 182 refuse, 49 pass; none worse.
+- before: 230 refuse, 1 passes; after: 183 refuse, 48 pass; none worse.
+  One more, `reach_wall_chord_rows::an_x_bar_sunk_into_either_cap_answers_its_closed_form`,
+  passes where the graph arm's rate is spelled `m·v − (t·v)·slope`
+  (naming the slope once), and reads `Budget(Depth)` with the graph's
+  rate spelled as before, which landed.
 - **reflex shape** (two clips uncovered, the corner not convex; 66 of
   the 199 tests ≤ 30 s, classed by the trace run): 43 pass, 19 now
   refuse at another pair (a partner's exit), 4 stay where both faces are
