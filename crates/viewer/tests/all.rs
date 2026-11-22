@@ -80,6 +80,8 @@ mod chrome_labels;
 mod clearance_consumer;
 #[path = "combine_ops.rs"]
 mod combine_ops;
+#[path = "controls_guide.rs"]
+mod controls_guide;
 #[path = "creation_ops.rs"]
 mod creation_ops;
 #[path = "debug_dumps.rs"]

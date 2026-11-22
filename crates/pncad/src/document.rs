@@ -76,7 +76,10 @@
 // that rule has one spelling. `Recording` and `Recorded` are that
 // action whole — the edits applied in order, their rows netted, the
 // ids they minted — so a consumer composing one does not re-write the
-// loop.
+// loop. `NameCarrier` is what `Maintenance::stranded_name` answers in
+// — which rows are a stranded name, and what holds each — so a consumer
+// counting the names an action stranded reads that classing and keeps
+// no copy of it.
 // `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
@@ -91,8 +94,8 @@
 // `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoftFault,
-    Maintenance, MaintenanceNet, MetaVersionError, ProductReadFault, ProgramRefusal, Recorded,
-    Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
+    Maintenance, MaintenanceNet, MetaVersionError, NameCarrier, ProductReadFault, ProgramRefusal,
+    Recorded, Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
     apply_replayed, slot_admits,
 };
 // `ReadSite` is the element of `Doc::read_sites`, every read the

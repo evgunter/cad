@@ -624,6 +624,18 @@ mass has no valid build" — is not sayable about any macroscopic box.
   pass still evaluates every residual numerically at a point, so a
   constructor that fails to build what it claims is still caught
   where widening cannot hide it.
+- **The two channels are checked where an answer is returned.** A
+  definite numeric sign is the answer, and the tier is asked nothing
+  about it. Where the tier answers `Zero` at an exact witness
+  (`Sym<Interval>`), a `debug_assert!` checks that the certified
+  enclosure contains 0 (DESIGN [failure.taxonomy] row 5: a kernel bug
+  only a re-derivation detects); it leaves out
+  `Decide::free_identity`, whose number is a measured bound and not
+  its expression's value. Whether the algebra or a registration would
+  have claimed `Zero` on a margin the numbers decided is a question
+  about the kernel, never about a document: a test instrument that no
+  shipped build contains asks it, and no receipt column counts it
+  (DESIGN [simple.checks]).
 - **The K instrument sees it.** A symbolic `Zero` is recorded in the
   k_stats funnel as its OWN outcome (`Symbolic`), never as a
   vanished sample — the driver population E6 promised K stays
@@ -695,8 +707,10 @@ number.
   reads no value except its own witness and writes none — and the
   numeric channel runs FIRST at every decide site, so no registration
   can turn a margin the enclosure proved non-zero into a `Zero`; where
-  a registration WOULD have, the run counts the contradiction
-  (`SymCounts::registrations_contradicted`) instead of folding it away.
+  a registration would have, nothing is folded, and the tier's test
+  instrument (the two channels' bullet above) is where that is counted.
+  A registered zero that does decide is asserted against its exact
+  enclosure like any other.
 
   **What the witness is worth, stated exactly, because this clause's
   own wording ("verified at the f64 witness point") overstates it.** A
