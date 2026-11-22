@@ -2,7 +2,7 @@
 id: a-drive-splits-a-box-along-a-variable-its-undecided-node-does-not-read
 kind: unit
 title: A drive splits a box along its widest variable, though the undecided node may not read it: 57% of the tour's splits change nothing
-status: open
+status: dispatched
 opened: 2026-11-22
 priority: P1
 cost: M
