@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-03
 priority: P1
 cost: M
+refs: [7373]
 ---
 
 
@@ -32,7 +33,7 @@ The mirror is narrower than the split even before the general plane door exists.
 
 ## The mirror takes the split's plane seat (2026-11-22)
 
-The cheap first step above, landed by the `formwords/mirror-plane` PR (in `refs`); this row stays open for the general door. The mirror and the split now share one plane-seat path: `PlaneSeats::feed` (a face is the plane, a `Plane` or `Frame` variable the plane, any other node pick the body) and `PlaneSeats::tool_plane` (the commit's plane, or `SeatError::NoPlane`), in `crates/viewer/src/combine.rs`; `SessionOp::AddMirror` carries the split's plane type, renamed `ToolPlane` (`crates/viewer/src/session/op.rs`), and `DocSession::tool_plane` lowers it for both `add_split` and `add_mirror` (`crates/viewer/src/session.rs`). A pose variable still has no row to click, so the variable pick comes through the selection stream only, as the split's does.
+The cheap first step above, landed by PR 7373; this row stays open for the general door. The mirror and the split now share one plane-seat path: `PlaneSeats::feed` (a face is the plane, a `Plane` or `Frame` variable the plane, any other node pick the body) and `PlaneSeats::tool_plane` (the commit's plane, or `SeatError::NoPlane`), in `crates/viewer/src/combine.rs`; `SessionOp::AddMirror` carries the split's plane type, renamed `ToolPlane` (`crates/viewer/src/session/op.rs`), and `DocSession::tool_plane` lowers it for both `add_split` and `add_mirror` (`crates/viewer/src/session.rs`). A pose variable still has no row to click, so the variable pick comes through the selection stream only, as the split's does.
 
 Other plane or axis seats that take a face or edge pick and no pose variable, for the general door to reach:
 - the pattern tool's row direction and ring axis (`session::PatternDirection`: a target axis, an edge or a face; no `Axis` or `Frame` variable);
