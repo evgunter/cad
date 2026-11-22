@@ -1865,10 +1865,9 @@ fn bisect(
         return Err(Unsplit::Unread);
     }
     let splits = |var: VarId| b.box_.split(var).is_some();
-    let Some(axis) = b
-        .box_
-        .split_axis(root, |var| read(var) && depth(var) < max_depth && splits(var))
-    else {
+    let Some(axis) = b.box_.split_axis(root, |var| {
+        read(var) && depth(var) < max_depth && splits(var)
+    }) else {
         let at_depth = b.box_.varying().any(|(var, _, _)| read(var) && splits(var));
         return Err(Unsplit::Budget(if at_depth {
             BudgetKind::Depth { max_depth }

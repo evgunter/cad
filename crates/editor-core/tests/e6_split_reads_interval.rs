@@ -22,7 +22,7 @@ use editor_core::{
     ProfileProgram, RecipeNodeId, UnitSym, VarId, VarName,
 };
 use fixture::{Recorder, len};
-use geom_core::{Interval, Tol};
+use geom_core::Tol;
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -40,7 +40,10 @@ fn declare(r: &mut Recorder, name: &'static str, nominal: f64, half: f64) {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
-            distribution: Some(Distribution::Uniform { lo: -half, hi: half }),
+            distribution: Some(Distribution::Uniform {
+                lo: -half,
+                hi: half,
+            }),
         }),
     });
 }
@@ -182,7 +185,11 @@ fn a_variable_the_deciding_node_does_not_read_is_never_split() {
     slab(&mut r, len(1.0), read("depth"));
     slab(&mut r, len(1.0), read("other"));
     let v = run(&r.doc, leaves(8));
-    assert!(v.receipt().holds() && v.receipt().splits >= 3, "{:?}", v.receipt());
+    assert!(
+        v.receipt().holds() && v.receipt().splits >= 3,
+        "{:?}",
+        v.receipt()
+    );
     assert_eq!(
         spans(&v, var(&r.doc, "other")),
         whole(&v, var(&r.doc, "other")),
@@ -233,6 +240,33 @@ fn a_tie_goes_to_the_earliest_variable_read_and_a_read_through_an_input_counts()
     assert_eq!(spans(&four, width).len(), 2, "each half of width, once");
     assert_eq!(spans(&four, depth).len(), 2, "then depth, the wider read");
     assert_eq!(spans(&four, unread), whole(&four, unread));
+}
+
+/// **A read through a definition counts.** The extrude's distance is
+/// `throw`, defined as `depth`; `unread` is declared before both. The
+/// one split two leaves allow is `depth`'s.
+///
+/// Red when `Doc::free_reads` stops at a defined variable instead of
+/// following its definition: the extrude then reads nothing and the
+/// root refuses `ReadsNoVariable`.
+#[test]
+fn a_read_through_a_definition_counts() {
+    let mut r = Recorder::new();
+    declare_in_eps(&mut r, "unread", DECIDED);
+    declare_in_eps(&mut r, "depth", UNDECIDED);
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("throw"),
+        def: editor_core::VarDecl::Defined(read("depth")),
+    });
+    slab(&mut r, len(1.0), read("throw"));
+    slab(&mut r, len(1.0), read("unread"));
+    let v = run(&r.doc, leaves(2));
+    assert_eq!(v.receipt().splits, 1, "{:?}", v.refused()[0].reason);
+    assert_eq!(spans(&v, var(&r.doc, "depth")).len(), 2);
+    assert_eq!(
+        spans(&v, var(&r.doc, "unread")),
+        whole(&v, var(&r.doc, "unread"))
+    );
 }
 
 /// **A deciding node that reads no variable of the box refuses the
@@ -297,7 +331,11 @@ fn a_deciding_node_that_reads_nothing_refuses_naming_it_at_the_root_and_at_a_chi
     let loft = arc_loft(&mut r);
     let v = run(&r.doc, leaves(8));
     let depth = var(&r.doc, "depth");
-    assert!(v.receipt().holds() && v.receipt().splits >= 1, "{:?}", v.receipt());
+    assert!(
+        v.receipt().holds() && v.receipt().splits >= 1,
+        "{:?}",
+        v.receipt()
+    );
     let named: Vec<_> = v
         .refused()
         .iter()
@@ -342,7 +380,10 @@ fn a_read_set_at_its_depth_budget_refuses_budget_and_splits_nothing_else() {
         },
     );
     assert_eq!(v.receipt().splits, 1, "{:?}", v.receipt());
-    assert_eq!(spans(&v, var(&r.doc, "other")), whole(&v, var(&r.doc, "other")));
+    assert_eq!(
+        spans(&v, var(&r.doc, "other")),
+        whole(&v, var(&r.doc, "other"))
+    );
     let reasons: Vec<_> = v.refused().iter().map(|l| &l.reason).collect();
     assert!(
         reasons.contains(&&RefusalReason::Budget(BudgetKind::Depth { max_depth: 1 })),
@@ -374,54 +415,65 @@ fn the_first_undecided_node_in_evaluation_order_chooses_the_axis() {
     let v = run(&r.doc, leaves(2));
     assert_eq!(v.receipt().splits, 1, "{:?}", v.receipt());
     assert_eq!(spans(&v, var(&r.doc, "second")).len(), 2);
-    assert_eq!(spans(&v, var(&r.doc, "first")), whole(&v, var(&r.doc, "first")));
+    assert_eq!(
+        spans(&v, var(&r.doc, "first")),
+        whole(&v, var(&r.doc, "first"))
+    );
 }
 
-/// **The read set is complete over the corpus**: widening one free
+/// **The read set is complete over the corpus**: moving one free
 /// variable moves the content key of no node whose read set lacks it.
-/// Each continuous free variable of each corpus document is widened
-/// alone at `Interval`, by `ε/64`, and every node that still builds is
-/// compared with the nominal run (the widened run's prior, so a node
-/// whose key holds is served and only a moved one is built).
+/// Each continuous free variable of each corpus document is moved
+/// alone, by a part in `2^20` of its size, and every node that still
+/// builds is compared with the nominal run (the moved run's prior, so a
+/// node whose key holds is served and only a moved one is built). At
+/// `f64`: the read set is the document's, whatever scalar replays it,
+/// and a key hashes the scalar's bits.
 ///
-/// A node that fails under the widened variable has no key to compare
-/// and is passed over, so the row speaks for nodes that build.
+/// A node that fails at the moved value has no key to compare and is
+/// passed over, so the row speaks for nodes that build.
 ///
 /// Red when `Doc::free_reads` keeps a node's own reads alone, or stops
 /// following a read at its definition.
 #[test]
-fn widening_a_variable_moves_no_key_outside_its_readers() {
-    let half = eps() / 64.0;
+fn moving_a_variable_moves_no_key_outside_its_readers() {
+    fn run(
+        doc: &ProfileDoc,
+        prior: Option<&editor_core::Evaluation<f64>>,
+    ) -> editor_core::Evaluation<f64> {
+        editor_core::evaluate::<f64>(
+            doc,
+            prior,
+            &editor_core::CancelToken::new(),
+            &editor_core::EvalOptions::default(),
+            Tol::witness(),
+        )
+    }
     let mut compared = 0usize;
     let mut moved = 0usize;
     for d in crate::corpus::documents() {
         let reads = d.doc.free_reads();
-        let at = |box_: Option<ParamBox>, prior| {
-            editor_core::evaluate::<Interval>(
-                &d.doc,
-                prior,
-                &editor_core::CancelToken::new(),
-                &editor_core::EvalOptions {
-                    param_box: box_.map(std::sync::Arc::new),
-                    ..editor_core::EvalOptions::default()
-                },
-                Tol::witness(),
-            )
-        };
-        let nominal = at(None, None);
-        let continuous: Vec<VarId> = d
+        let nominal = run(&d.doc, None);
+        let continuous: Vec<(VarId, f64)> = d
             .doc
             .free_vars()
-            .filter(|(_, free)| matches!(free, FreeVar::Continuous { .. }))
-            .map(|(id, _)| id)
+            .filter_map(|(id, free)| match free {
+                FreeVar::Continuous { value, .. } => Some((id, *value)),
+                _ => None,
+            })
             .collect();
-        for widened in continuous {
-            let box_ = ParamBox::from_axes(
-                [(widened, BoxAxis::Varying { lo: -half, hi: half })].into(),
-            );
-            let wide = at(Some(box_), Some(&nominal));
+        for (var, value) in continuous {
+            let to = value + value.abs().max(1.0) / f64::from(1u32 << 20);
+            let edit = DocEdit::SetVarValue {
+                var: editor_core::VarRef::Id(var),
+                value: editor_core::FreeValue::Continuous(to),
+            };
+            let there = editor_core::apply(&d.doc, &edit, Tol::witness())
+                .unwrap_or_else(|e| panic!("{}: a value edit applies: {e:?}", d.name))
+                .doc;
+            let at = run(&there, Some(&nominal));
             for &node in &nominal.order {
-                let (Some(a), Some(b)) = (nominal.value(node), wide.value(node)) else {
+                let (Some(a), Some(b)) = (nominal.value(node), at.value(node)) else {
                     continue;
                 };
                 compared += 1;
@@ -430,10 +482,10 @@ fn widening_a_variable_moves_no_key_outside_its_readers() {
                 }
                 moved += 1;
                 assert!(
-                    reads.get(&node).is_some_and(|set| set.contains(&widened)),
-                    "{}: widening {} moved the key of {}, whose read set lacks it",
+                    reads.get(&node).is_some_and(|set| set.contains(&var)),
+                    "{}: moving {} moved the key of {}, whose read set lacks it",
                     d.name,
-                    d.doc.spoken_var(widened),
+                    d.doc.spoken_var(var),
                     d.doc.spoken(node)
                 );
             }
