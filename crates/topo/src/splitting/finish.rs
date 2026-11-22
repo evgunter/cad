@@ -1910,7 +1910,7 @@ pub(crate) fn section_plane_restatements<T: Decide>(
             if !stranded.contains(&edge) || out.iter().any(|(e, _)| *e == edge) {
                 continue;
             }
-            let geom = body.edge_curve_linked(edge, edge_data);
+            let geom = edge_data.curve();
             let Some(curve) = geom.certified() else {
                 continue;
             };
@@ -2001,10 +2001,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             body.proven_face(face).surface(),
             body.proven_face(other_face).surface(),
         );
-        let existing = body
-            .edge_curve_linked(edge, &edge_data)
-            .certified()
-            .cloned();
+        let existing = body.proven_edge(edge).certified().cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (carrier, interval) = draft.span();
         let reach = crate::wedge_reach(body, [face, other_face], carrier, interval);
@@ -2252,10 +2249,7 @@ fn shell_side<T: Decide>(
             if seen_e.insert(ek, ()).is_some() {
                 continue;
             }
-            let Some(curve) = body
-                .get_curve_geom(edge.curve)
-                .and_then(crate::null::CurveGeom::certified)
-            else {
+            let Some(curve) = edge.certified() else {
                 continue;
             };
             if curve.carrier().is_curved() {

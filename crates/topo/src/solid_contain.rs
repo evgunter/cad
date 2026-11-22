@@ -216,7 +216,7 @@ use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_desc_of;
-use crate::live::{linked, proven};
+use crate::live::proven;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::side_reader::{SideUnread, side_at_infinity};
 use crate::splitting::containment::{
@@ -1389,14 +1389,8 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             .and_then(|v| body.get_point(v.point))
             .ok_or(PointInSolidError::CorruptFace { face })?;
         levels.push(axis_line.height_and_distance(v));
-        let edge = linked(
-            &body.edges,
-            he_data.edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        let Some(curve) = body.edge_curve_linked(he_data.edge, edge).certified() else {
+        let edge = body.linked_edge(he_data.edge, EntityId::HalfEdge(he), "edge");
+        let Some(curve) = edge.certified() else {
             // Null scaffolding: no carrier, so no class claim and no
             // latitude of its own beyond the vertex above.
             continue;

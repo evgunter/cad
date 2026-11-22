@@ -79,6 +79,7 @@ use crate::euler::{BadArgument, EulerOpError};
 use crate::geometry::PointKey;
 use crate::null::CurveGeom;
 use geom::Surface;
+use geom_brep::EdgeCurve;
 use geom_core::{Point3, Real};
 use slotmap::SecondaryMap;
 
@@ -382,12 +383,12 @@ pub(crate) enum BoundaryMember<'a, T: Real> {
     /// An isolated-vertex loop's `vertex`, at `point`.
     Isolated { vertex: VertexKey, point: Point3<T> },
     /// A loop cycle member `he`, whose record is `half`, and its edge
-    /// `ek`, whose record is `edge`.
+    /// `ek`, resolved as `edge`, a link `he`'s record holds.
     Edge {
         he: HalfEdgeKey,
         half: &'a HalfEdge,
         ek: EdgeKey,
-        edge: &'a Edge,
+        edge: EdgeView<'a, T>,
     },
 }
 
@@ -596,7 +597,7 @@ impl<'a, T: Real> FaceView<'a, T> {
                 let BoundaryMember::Edge { he, half, ek, edge } = member else {
                     return None;
                 };
-                let (mate, across) = body.face_across_linked(he, ek, edge);
+                let (mate, across) = body.face_across_linked(he, ek, edge.record());
                 Some(FaceEdge {
                     half: he,
                     edge: ek,
@@ -612,6 +613,116 @@ impl<'a, T: Real> FaceView<'a, T> {
     /// once).
     pub(crate) fn edge_set(self) -> std::collections::BTreeSet<EdgeKey> {
         self.edges().into_iter().map(|e| e.edge).collect()
+    }
+}
+
+/// **An edge resolved once, by where its key came from**, and its curve
+/// read from here: its record, its curve-arena entry, and the certified
+/// carrier that entry holds.
+///
+/// The source decides how the edge's own miss reads, once, at the door
+/// that builds the view: [`Body::proven_edge`] for a key the kernel
+/// enumerated, minted or resolved, [`Body::linked_edge`] for one a
+/// record holds, [`Body::edge`] for one a caller passed (whose miss is
+/// the caller's to refuse), and [`Body::edge_views`] for every edge. The
+/// curve is a link the edge's record holds, so [`EdgeView::curve`] and
+/// [`EdgeView::certified`] panic on a torn body naming the edge (D2 row
+/// 4); the one absence left is null scaffolding, which certifies no
+/// carrier.
+///
+/// The fields are private to this module, so a view exists only where a
+/// door resolved its edge. A reader that reports a miss itself (the
+/// validator) reads the record's raw curve key instead.
+#[derive(Clone, Copy)]
+pub struct EdgeView<'a, T: Real> {
+    body: &'a Body<T>,
+    key: EdgeKey,
+    record: &'a Edge,
+}
+
+impl<'a, T: Real> EdgeView<'a, T> {
+    /// The edge's key.
+    pub fn key(self) -> EdgeKey {
+        self.key
+    }
+
+    /// The edge's record.
+    pub(crate) fn record(self) -> &'a Edge {
+        self.record
+    }
+
+    /// The edge's curve-arena entry, a link its record holds: a certified
+    /// carrier, or null-edge scaffolding.
+    #[track_caller]
+    pub fn curve(self) -> &'a CurveGeom<T> {
+        let curve = self.record.curve;
+        self.body.get_curve_geom(curve).unwrap_or_else(|| {
+            dangling_link(EntityId::Edge(self.key), "curve", GeomRef::Curve(curve))
+        })
+    }
+
+    /// The edge's certified carrier and interval; `None` for null
+    /// scaffolding, which has no carrier by type.
+    #[track_caller]
+    pub fn certified(self) -> Option<&'a EdgeCurve<T>> {
+        self.curve().certified()
+    }
+}
+
+impl<T: Real> Body<T> {
+    /// **`edge`, a key the kernel enumerated, minted, resolved or read out
+    /// of its own records** ([`proven`]): a miss is a kernel bug, and
+    /// panics naming the key. A key a record holds is better resolved
+    /// through [`Body::linked_edge`], whose panic names the record.
+    #[track_caller]
+    pub(crate) fn proven_edge(&self, edge: EdgeKey) -> EdgeView<'_, T> {
+        EdgeView {
+            body: self,
+            key: edge,
+            record: proven(&self.edges, edge, EntityId::Edge),
+        }
+    }
+
+    /// **`edge`, a key `holder`'s field `field` holds**: a miss is a
+    /// kernel bug ([`NAMES_ONLY_LIVE`]), and panics naming the record and
+    /// its field.
+    #[track_caller]
+    pub(crate) fn linked_edge(
+        &self,
+        edge: EdgeKey,
+        holder: EntityId,
+        field: &'static str,
+    ) -> EdgeView<'_, T> {
+        EdgeView {
+            body: self,
+            key: edge,
+            record: linked(&self.edges, edge, EntityId::Edge, holder, field),
+        }
+    }
+
+    /// **`edge`, a key a caller passed**: `None` where it does not
+    /// resolve, which is the caller's to refuse in its own terms; a
+    /// foreign key is not caught.
+    ///
+    /// The public door to an edge's curve: read it off the returned
+    /// [`EdgeView`], whose curve link panics on a torn body (D2 row 4).
+    #[must_use]
+    pub fn edge(&self, edge: EdgeKey) -> Option<EdgeView<'_, T>> {
+        let record = self.edges.get(edge)?;
+        Some(EdgeView {
+            body: self,
+            key: edge,
+            record,
+        })
+    }
+
+    /// **Every edge of the body**, in arena order.
+    pub fn edge_views(&self) -> impl Iterator<Item = EdgeView<'_, T>> {
+        self.edges.iter().map(move |(key, record)| EdgeView {
+            body: self,
+            key,
+            record,
+        })
     }
 }
 
@@ -790,14 +901,6 @@ impl<T: Real> Body<T> {
         )
     }
 
-    /// `edge`'s curve-arena entry, a link its record holds.
-    #[track_caller]
-    pub(crate) fn edge_curve_linked(&self, edge: EdgeKey, data: &Edge) -> &CurveGeom<T> {
-        self.get_curve_geom(data.curve).unwrap_or_else(|| {
-            dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(data.curve))
-        })
-    }
-
     /// The mate of `he`, a half of edge `ek` (its record `data`), and the
     /// face across it, the face of the mate's loop: every hop a link.
     #[track_caller]
@@ -841,13 +944,7 @@ impl<T: Real> Body<T> {
                 .map(|he| {
                     let half = proven(&self.half_edges, he, EntityId::HalfEdge);
                     let ek = half.edge;
-                    let edge = linked(
-                        &self.edges,
-                        ek,
-                        EntityId::Edge,
-                        EntityId::HalfEdge(he),
-                        "edge",
-                    );
+                    let edge = self.linked_edge(ek, EntityId::HalfEdge(he), "edge");
                     BoundaryMember::Edge { he, half, ek, edge }
                 })
                 .collect(),

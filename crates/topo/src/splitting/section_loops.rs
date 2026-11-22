@@ -356,10 +356,8 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
         let h = body
             .get_half_edge(he)
             .ok_or(record(EntityId::HalfEdge(he)))?;
-        let edge = body
-            .get_edge(h.edge)
-            .ok_or(record(EntityId::Edge(h.edge)))?;
-        let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() else {
+        let edge = body.edge(h.edge).ok_or(record(EntityId::Edge(h.edge)))?;
+        let Some(curve) = edge.certified() else {
             out.push(OutlineEdge::Undecided);
             continue;
         };

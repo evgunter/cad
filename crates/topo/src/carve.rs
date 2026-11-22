@@ -169,7 +169,7 @@ pub(crate) fn carve<T: Decide>(
                         hes.push(he);
                         // Each edge is claimed by its he_plus only (one
                         // removal per edge).
-                        if edge.he_plus == he {
+                        if edge.record().he_plus == he {
                             edges.push(ek);
                         }
                     }

@@ -535,7 +535,7 @@ pub(crate) fn boundary<T: Decide>(
             else {
                 continue;
             };
-            let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
+            let Some(curve) = edge.certified() else {
                 if crate::null::is_placeholder(body, edge_key) {
                     null.push(edge_key);
                     continue;
@@ -555,8 +555,8 @@ pub(crate) fn boundary<T: Decide>(
             if null.contains(&h.edge) {
                 continue;
             }
-            let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
-            let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() else {
+            let edge = body.edge(h.edge).ok_or_else(corrupt)?;
+            let Some(curve) = edge.certified() else {
                 unreachable!("every edge of the face's loops was read certified above")
             };
             let (t0, t1) = curve.params();
@@ -568,7 +568,7 @@ pub(crate) fn boundary<T: Decide>(
                 t0,
                 t1,
                 turn: curve.turn().copied(),
-                forward: he == edge.he_plus,
+                forward: he == edge.record().he_plus,
             });
         }
     }
@@ -1171,9 +1171,9 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
 #[allow(clippy::unwrap_used)]
 pub(crate) fn part_null_edge(body: &mut Body<f64>, to: Point3<f64>) {
     let nulls: Vec<_> = body
-        .edges()
-        .filter(|&(e, d)| body.edge_curve_linked(e, d).null_scaffold().is_some())
-        .map(|(e, _)| e)
+        .edge_views()
+        .filter(|e| e.curve().null_scaffold().is_some())
+        .map(crate::live::EdgeView::key)
         .collect();
     assert_eq!(nulls.len(), 1, "the fixture holds one null edge");
     let null = nulls[0];

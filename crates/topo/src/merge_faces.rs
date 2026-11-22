@@ -2286,7 +2286,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                     else {
                         continue;
                     };
-                    let Some(claim) = e.claim(he) else {
+                    let Some(claim) = e.record().claim(he) else {
                         unreachable!(
                             "{he:?}'s edge {edge:?} does not claim it: on a tier-1-valid body \
                              an edge claims the two half-edges that name it"

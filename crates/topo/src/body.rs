@@ -81,7 +81,7 @@ use crate::entity::{
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::joint::JointElement;
-use crate::live::{Arg, lookup};
+use crate::live::Arg;
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::provenance::Provenance;
 use crate::validate::ValidatorSeal;
@@ -1125,10 +1125,12 @@ impl<T: Real> Body<T> {
         edge: EdgeKey,
         from: Arg,
     ) -> Result<&EdgeCurve<T>, EulerOpError> {
-        let data = lookup(&self.edges, edge, EntityId::Edge, from)?;
-        self.edge_curve_linked(edge, data)
-            .certified()
-            .ok_or(EulerOpError::NullScaffoldCurve { curve: data.curve })
+        let view = self
+            .edge(edge)
+            .ok_or_else(|| from.miss(EntityId::Edge(edge)))?;
+        view.certified().ok_or(EulerOpError::NullScaffoldCurve {
+            curve: view.record().curve,
+        })
     }
 
     /// The surface geometry at `key`, or `None` if the key is stale;

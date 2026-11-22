@@ -142,7 +142,7 @@ fn unmated_boundary<T: Decide>(
                 continue;
             }
             let Some(geom::Curve3::Circle(circle)) = body
-                .edge_curve_linked(hop.edge, hop.edge_data)
+                .linked_edge(hop.edge, crate::entity::EntityId::HalfEdge(he), "edge")
                 .certified()
                 .map(|c| c.carrier().clone())
             else {

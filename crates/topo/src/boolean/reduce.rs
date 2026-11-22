@@ -741,7 +741,8 @@ pub(super) fn gate_maximal_faces<T: Decide>(
     operand: Operand,
     band: Band,
 ) -> Result<(), BooleanError> {
-    for (edge_key, edge) in body.edges() {
+    for view in body.edge_views() {
+        let (edge_key, edge) = (view.key(), view.record());
         let sides = crate::readback::edge_sides_of(body, edge_key, edge);
         let (f1, f2) = sides.faces();
         if f1 == f2 {
@@ -777,7 +778,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         );
         // The ball about the edge's start that holds all of it: out to
         // its cover's farthest distance from there.
-        let cover = match crate::cover::edge_cover_linked(body, edge_key, edge) {
+        let cover = match crate::cover::edge_cover_linked(body, view) {
             Ok(cover) => Some(cover),
             Err(crate::cover::EdgeUncovered::Scaffold) => unreachable!(
                 "{operand:?}'s edge {edge_key:?}, read out of its arena, has no certified \
@@ -3893,11 +3894,11 @@ fn sheets_part<T: crate::props::AtRestPolicy>(
     let [(h_x, f_x)] = covered[..] else {
         return Ok(false);
     };
-    let d_y = y.get_edge(e_y).ok_or(desync(
+    let d_y = y.edge(e_y).ok_or(desync(
         "a boundary edge a crossing lands on does not resolve",
     ))?;
     let mut halves = Vec::new();
-    for h in [d_y.he_plus, d_y.he_minus] {
+    for h in [d_y.record().he_plus, d_y.record().he_minus] {
         if y.face_of_half_edge(h)
             .ok_or(desync("a boundary edge's half has no face"))?
             == face
@@ -3908,8 +3909,7 @@ fn sheets_part<T: crate::props::AtRestPolicy>(
     let [h_y] = halves[..] else {
         return Ok(false);
     };
-    let c_y = y
-        .edge_curve_linked(e_y, d_y)
+    let c_y = d_y
         .certified()
         .ok_or(desync("a boundary edge a crossing lands on is scaffolding"))?;
     let along = |dir: Vec3<T>, forward: bool| if forward { dir } else { -dir };
@@ -3930,7 +3930,7 @@ fn sheets_part<T: crate::props::AtRestPolicy>(
         n_x,
         along(curve.carrier().deriv(t), h_x == edge.he_plus).normalize(),
     );
-    let into_y = crate::stands::inward(n_y, along(tau_y, h_y == d_y.he_plus).normalize());
+    let into_y = crate::stands::inward(n_y, along(tau_y, h_y == d_y.record().he_plus).normalize());
     let arm = crate::wedge_reach(x, [f_x, f_x], curve.carrier(), curve.params()).max(
         crate::wedge_reach(y, [face, face], c_y.carrier(), c_y.params()),
     );

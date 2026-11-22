@@ -15,7 +15,7 @@ use super::{
     Certified, DerivedRow, SingularMiss, Walked, certify_walked, loop_rows, walk_loop, walk_runs,
 };
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopKey};
+use crate::entity::{EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopKey};
 use crate::live::{FaceView, linked, proven};
 use crate::props::AtRestPolicy;
 
@@ -692,7 +692,8 @@ pub(super) fn edge_vertex_points<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> (geom_core::Point3<T>, geom_core::Point3<T>) {
-    let (edge, data) = edge_record(body, half_edge);
+    let view = edge_record(body, half_edge);
+    let (edge, data) = (view.key(), view.record());
     let point = |he, field| {
         let start = linked(
             &body.half_edges,
@@ -729,21 +730,14 @@ pub(super) fn half_edge_record<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> &Hal
     proven(&body.half_edges, he, EntityId::HalfEdge)
 }
 
-/// `he`'s edge and its record, a link `he`'s record holds.
+/// `he`'s edge, a link `he`'s record holds.
 #[track_caller]
 pub(super) fn edge_record<T: Real>(
     body: &Body<T>,
     he: HalfEdgeKey,
-) -> (EdgeKey, &crate::entity::Edge) {
+) -> crate::live::EdgeView<'_, T> {
     let edge = half_edge_record(body, he).edge;
-    let data = linked(
-        &body.edges,
-        edge,
-        EntityId::Edge,
-        EntityId::HalfEdge(he),
-        "edge",
-    );
-    (edge, data)
+    body.linked_edge(edge, EntityId::HalfEdge(he), "edge")
 }
 
 /// The face `he` bounds: a link of `he`'s record and of
@@ -772,8 +766,7 @@ pub(crate) fn half_edge_curve<T: Real>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<&geom_brep::EdgeCurve<T>, PcurveMintError> {
-    let (edge, data) = edge_record(body, half_edge);
-    body.edge_curve_linked(edge, data)
+    edge_record(body, half_edge)
         .certified()
         .ok_or(PcurveMintError::NoCarrier { half_edge })
 }
@@ -1366,7 +1359,7 @@ pub(super) fn computed_foot<T: Real>(foot: geom_core::Point2<f64>) -> Point2<T> 
 /// forward in the carrier parameter)?
 #[track_caller]
 pub(crate) fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool {
-    edge_record(body, half_edge).1.he_plus == half_edge
+    edge_record(body, half_edge).record().he_plus == half_edge
 }
 
 /// The FIRST-CHANNEL arm of a chart — the metres a unit step of the

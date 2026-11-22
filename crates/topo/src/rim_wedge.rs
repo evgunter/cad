@@ -1027,11 +1027,11 @@ pub(crate) fn face_boundary_arcs<T: Real>(
         return out;
     };
     for member in f.boundary() {
-        let crate::live::BoundaryMember::Edge { he, ek, edge, .. } = member else {
+        let crate::live::BoundaryMember::Edge { he, edge, .. } = member else {
             continue;
         };
-        if let Some(c) = body.edge_curve_linked(ek, edge).certified() {
-            out.push((edge.he_plus == he, c));
+        if let Some(c) = edge.certified() {
+            out.push((edge.record().he_plus == he, c));
         }
     }
     out

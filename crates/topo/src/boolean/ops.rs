@@ -3277,10 +3277,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let p1 = body.linked_vertex_point(v1, EntityId::HalfEdge(sides.plus.half_edge), "end");
         let surface_of = |side: crate::readback::EdgeSide| body.proven_face(side.face).surface();
         let (surf1, surf2) = (surface_of(sides.plus), surface_of(sides.minus));
-        let existing = body
-            .edge_curve_linked(edge, &edge_data)
-            .certified()
-            .cloned();
+        let existing = body.proven_edge(edge).certified().cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (carrier, interval) = draft.span();
         let reach =
@@ -7418,7 +7415,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 else {
                     return Err(refuse("the sphere face carries a lone-vertex loop"));
                 };
-                let Some(curve) = body.edge_curve_linked(edge, ed).certified() else {
+                let Some(curve) = ed.certified() else {
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };
                 let (t0, t1) = curve.params();

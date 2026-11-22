@@ -412,10 +412,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
     if proven(&body.half_edges, first.half, EntityId::HalfEdge).parent_loop != outer {
         return None;
     }
-    let curve = |e: crate::entity::EdgeKey| {
-        body.edge_curve_linked(e, proven(&body.edges, e, EntityId::Edge))
-            .certified()
-    };
+    let curve = |e: crate::entity::EdgeKey| body.proven_edge(e).certified();
     let (m, tau) =
         crate::solid_contain::along_half(body, first.half, 1.0 - geom_core::GOLDEN_SECTION)?;
     let half = T::from_f64(0.5);

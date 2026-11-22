@@ -199,8 +199,7 @@ pub(super) fn tangent_on_interior<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<Departure<T>>> {
     let tangent = edge_tangent_at(body, e, q, band, errors)?;
-    let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
-    let lever = crate::cover::edge_reach_bounds(body, e, edge, q)?;
+    let lever = crate::cover::edge_reach_bounds(body, body.proven_edge(e), q)?;
     Some(tangent.map(|tangent| Departure::along(tangent.dir(), lever)))
 }
 

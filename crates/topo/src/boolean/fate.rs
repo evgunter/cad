@@ -494,15 +494,15 @@ pub(super) fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<Le
 /// levers at the edge's extent from below.
 fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<Leaving<T>> {
     let h = body.get_half_edge(he)?;
-    let edge = body.get_edge(h.edge)?;
-    let curve = body.get_curve_geom(edge.curve)?.certified()?;
+    let edge = body.edge(h.edge)?;
+    let curve = edge.certified()?;
     let base = body.half_edge_start_point(he)?;
     let end = body.half_edge_start_point(body.mate(he)?)?;
     let reach = match curve.carrier() {
         geom::Curve3::Line(_) => {
             LeverBounds::Exact(geom_brep::ExtentBall::point(end).lever_from(base))
         }
-        _ => crate::cover::edge_reach_bounds(body, h.edge, edge, base)?,
+        _ => crate::cover::edge_reach_bounds(body, edge, base)?,
     };
     let (dir, bend) = if secant {
         (curve.mid_point() - base, None)

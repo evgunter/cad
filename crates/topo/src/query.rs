@@ -65,7 +65,6 @@ use geom_core::Real;
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::readback::CarrierAbsence;
 
 /// The kinds, re-exported where their sets and predicates live.
 ///
@@ -201,8 +200,8 @@ pub fn all_faces<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
 ///
 /// The flattening of the typed readback door
 /// [`crate::readback::edge_carrier_kind`], which is the one reading of
-/// an edge's carrier tag: the three lookups run once, there, and what
-/// is dropped here is only WHICH of them came back empty.
+/// an edge's carrier tag: the walk runs once, there, and what is
+/// dropped here is only WHICH of its two refusals came back.
 #[must_use]
 pub fn edge_carrier_kind<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<CurveKind> {
     crate::readback::edge_carrier_kind(body, e).ok()
@@ -445,14 +444,14 @@ fn on_pair(sides: (SurfaceKey, SurfaceKey), pair: SurfacePair) -> bool {
 /// two surfaces (an ellipse rim from a tilted plane through a
 /// cylinder), when a consumer needs non-circle rims.
 fn seed_is_an_arc<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<(), RimError> {
-    match crate::readback::edge_carrier_ref(body, edge) {
-        Ok(Curve3::Circle(..)) => Ok(()),
-        Ok(other) => Err(RimError::NotAnArc {
+    let view = body.edge(edge).ok_or(RimError::Stale(edge))?;
+    match view.certified().map(|c| c.carrier()) {
+        Some(Curve3::Circle(..)) => Ok(()),
+        Some(other) => Err(RimError::NotAnArc {
             edge,
             kind: Some(other.kind()),
         }),
-        Err(CarrierAbsence::Dangling(edge)) => Err(RimError::Stale(edge)),
-        Err(CarrierAbsence::NoCarrier) => Err(RimError::NotAnArc { edge, kind: None }),
+        None => Err(RimError::NotAnArc { edge, kind: None }),
     }
 }
 

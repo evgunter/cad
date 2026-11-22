@@ -127,11 +127,11 @@ use crate::FaceContainment;
 use crate::cell_region::{
     Ball, BoundaryStop, CellRegion, cell_region_lifted, centre, lift_boundary, station_region,
 };
-use crate::entity::{EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, VertexKey};
 use crate::injective::{
     self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, Rim, Shared, Use, full_turn,
 };
-use crate::live::{BoundaryMember, FaceView, proven};
+use crate::live::{BoundaryMember, FaceView};
 use lift::{Lift, certified_lift};
 
 /// The funnel site name of the clearance comparison — the separation
@@ -3877,8 +3877,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             }
         }
         for (ek, hes) in halves {
-            let e = proven(&body.edges, ek, EntityId::Edge);
-            let curve = body.edge_curve_linked(ek, e).certified()?;
+            let e = body.proven_edge(ek);
+            let curve = e.certified()?;
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
             let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
@@ -3899,7 +3899,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 .map(|he| {
                     let found = images.get(he);
                     Use {
-                        plus: e.he_plus == *he,
+                        plus: e.record().he_plus == *he,
                         image: found.map(|(image, ..)| *image),
                         harmonic: found.and_then(|(_, _, h, _)| *h),
                         wall: found.and_then(|(.., w)| *w),

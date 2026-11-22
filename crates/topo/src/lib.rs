@@ -1533,7 +1533,7 @@ pub use entity::{
 };
 pub use euler::{BadArgument, EulerOpError, RechartDoor};
 pub use link::{CurvedUnread, Link, LinkRefusal, Material, Round, TouchUnread};
-pub use live::FaceView;
+pub use live::{EdgeView, FaceView};
 pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common

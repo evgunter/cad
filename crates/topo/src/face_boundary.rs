@@ -113,7 +113,7 @@ pub(crate) fn face_boundary<T: Decide>(
             BoundaryMember::Isolated { vertex, point } => boundary.lone.push((vertex, point)),
             BoundaryMember::Edge { he, half, ek, edge } => {
                 let start = y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
-                let CurveGeom::Certified(curve) = y.edge_curve_linked(ek, edge) else {
+                let CurveGeom::Certified(curve) = edge.curve() else {
                     return Ok(None);
                 };
                 // A span runs forward from its `he_plus`'s start.

@@ -357,7 +357,7 @@ pub(crate) fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<
                 points.push(match member {
                     BoundaryMember::Isolated { point, .. } => point,
                     BoundaryMember::Edge { ek, edge, .. } => {
-                        edge_end_point(body, ek, edge.he_plus, "he_plus")
+                        edge_end_point(body, ek, edge.record().he_plus, "he_plus")
                     }
                 });
             }
