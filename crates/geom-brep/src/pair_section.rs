@@ -101,6 +101,7 @@ use crate::ExtentBall;
 use crate::intersect::{PairRoute, SectionError, SectionRadius, route};
 use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 
+pub mod cones;
 pub mod cylinders;
 pub mod gap;
 pub(crate) mod ruling;
@@ -111,6 +112,7 @@ mod torus_arms;
 pub mod torus_coincidence;
 pub mod winds;
 
+pub use cones::{ConeDecision, ConeRead, ConeRuledPose, ConeStance};
 pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
 pub use spline_implicit::SplineImplicitPose;
@@ -554,6 +556,9 @@ pub enum Coincident {
     CylinderRadii,
     /// `cc_axes_coplanar`: two cylinders' axes meeting, at the node pose.
     CylinderAxesMeet,
+    /// `kc_apex_on_partner`: a cone's apex on the other surface, a node
+    /// or a touch.
+    ConeApex,
 }
 
 impl Coincident {
@@ -566,6 +571,7 @@ impl Coincident {
             Self::CylinderTorus | Self::TorusTorus => "section_axes_offset",
             Self::CylinderRadii => CcDecision::RadiusEquality.name(),
             Self::CylinderAxesMeet => CcDecision::AxesMeet.name(),
+            Self::ConeApex => ConeDecision::ApexOnPartner.name(),
         }
     }
 }
@@ -989,6 +995,12 @@ pub enum NoCarrier {
     /// A spline pair's section is read whole for its certificate alone,
     /// which carries none of its components.
     SplinePairWhole,
+    /// A cone's apex touches the other surface, the cone's form definite
+    /// on its tangent plane there: an isolated point of the section.
+    ApexTouch,
+    /// A section with a cone side is classified, and its march needs the
+    /// cone's ℝ³ enclosures, which are not built.
+    ConeUnenclosed,
 }
 
 impl NoCarrier {
@@ -1024,6 +1036,14 @@ impl NoCarrier {
                 "a spline pair's section is read whole for the section certificate alone, which \
                  carries none of its components"
             }
+            Self::ApexTouch => {
+                "a cone's apex touches the other surface at one point, an isolated point of the \
+                 section, and no carrier is minted for it"
+            }
+            Self::ConeUnenclosed => {
+                "a section with a cone side is classified, but its march needs enclosures of the \
+                 cone in space, which the kernel does not build"
+            }
         }
     }
 
@@ -1038,16 +1058,18 @@ impl NoCarrier {
     #[must_use]
     pub const fn recourse(self) -> &'static str {
         match self {
-            Self::Tangent | Self::Pinch => {
+            Self::Tangent | Self::Pinch | Self::ApexTouch => {
                 geom_core::move_recourse!("so the surfaces clearly cross or clearly part")
             }
             // A touch moved to cross opens a loop on the wall's chart,
             // which is not carried (`ChartLoop`), so parting is the one
             // way through.
             Self::Touch => geom_core::move_recourse!("so the surfaces clearly part"),
-            Self::WallRegion | Self::RowRegion | Self::ChartLoop | Self::SplinePairWhole => {
-                geom_core::NOT_YET_ENDING
-            }
+            Self::WallRegion
+            | Self::RowRegion
+            | Self::ChartLoop
+            | Self::SplinePairWhole
+            | Self::ConeUnenclosed => geom_core::NOT_YET_ENDING,
         }
     }
 }
@@ -1196,6 +1218,10 @@ pub enum PairPose<T: Real> {
     TorusTorus(TorusTorusPose<T>),
     /// Cylinder × cylinder.
     CylinderCylinder(CylinderCylinderPose<T>),
+    /// A cone and a cylinder.
+    ConeCylinder(ConeRuledPose<T>),
+    /// Two cones.
+    ConeCone(ConeRuledPose<T>),
     /// A spline wall and an implicit surface.
     SplineImplicit(Box<SplineImplicitPose<T>>),
     /// Two spline walls.
@@ -1211,6 +1237,8 @@ impl<T: Real> PairPose<T> {
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
             | Self::CylinderCylinder(_)
+            | Self::ConeCylinder(_)
+            | Self::ConeCone(_)
             | Self::SplineImplicit(_)
             | Self::SplinePair(_) => None,
         }
@@ -1226,6 +1254,7 @@ impl<T: Decide> PairPose<T> {
             Self::CylinderTorus(p) => p.operands(),
             Self::TorusTorus(p) => p.operands(),
             Self::CylinderCylinder(p) => p.operands(),
+            Self::ConeCylinder(p) | Self::ConeCone(p) => p.operands(),
             Self::SplineImplicit(p) => p.operands(),
             Self::SplinePair(p) => p.operands(),
         }
@@ -1248,6 +1277,7 @@ impl<T: Decide> PairPose<T> {
             Self::CylinderTorus(p) => p.ball(),
             Self::TorusTorus(p) => p.ball(),
             Self::CylinderCylinder(p) => p.region(),
+            Self::ConeCylinder(p) | Self::ConeCone(p) => p.region(),
             Self::SplineImplicit(p) => p.ball(),
             Self::SplinePair(p) => p.ball(),
         }
@@ -1258,6 +1288,8 @@ impl<T: Decide> PairPose<T> {
     pub fn cut(&self) -> bool {
         match self {
             Self::CylinderCylinder(p) => p.cut(),
+            // Neither side is bounded: the region may cut any branch.
+            Self::ConeCylinder(_) | Self::ConeCone(_) => true,
             Self::CylinderSphere(_)
             | Self::SphereTorus(_)
             | Self::CylinderTorus(_)
@@ -1407,6 +1439,21 @@ pub fn pair_section<T: Decide>(
                 }),
             }
         }
+        (Cone, Cylinder | Cone) | (Cylinder, Cone) => {
+            let region = region.ok_or(SectionError::NoRegion {
+                pair: "a cone against a cylinder or a cone",
+            })?;
+            match ConeRuledPose::decide(a, b, region, band) {
+                Some(Ok(ConeRead::Pose(pose))) => {
+                    cones::cone_ruled(pose, band).map(SectionRead::Built)
+                }
+                Some(Ok(ConeRead::Elsewhere)) => Ok(SectionRead::Elsewhere(route(ka, kb))),
+                Some(Err(e)) => Err(e),
+                None => Err(SectionError::WrongLane {
+                    expected: "a cone and a cylinder or a cone",
+                }),
+            }
+        }
         (Plane | Cylinder | Sphere | Torus, Nurbs | Approx)
         | (Nurbs | Approx, Plane | Cylinder | Sphere | Torus) => {
             spline_implicit::classified(a, b, lane, band).map(SectionRead::Built)
@@ -1416,8 +1463,8 @@ pub fn pair_section<T: Decide>(
                 .map(SectionRead::Built)
         }
         (Plane, Plane | Cylinder | Cone | Sphere | Torus)
-        | (Cylinder, Plane | Cone)
-        | (Cone, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
+        | (Cylinder, Plane)
+        | (Cone, Plane | Sphere | Torus | Nurbs | Approx)
         | (Sphere, Plane | Cone | Sphere)
         | (Torus, Plane | Cone)
         | (Nurbs | Approx, Cone)
@@ -1473,11 +1520,10 @@ pub fn serves(kind: SurfaceKind) -> bool {
 #[must_use]
 pub fn traced_in_r3(a: SurfaceKind, b: SurfaceKind) -> bool {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
-    // The cone's residual is not in metres yet (C2 limb 2); a spindle
-    // sheet has no section lane yet.
+    // A spindle sheet has no section lane yet.
     let residual = |kind| match kind {
-        Plane | Cylinder | Sphere | Torus => true,
-        Cone | Spindle | Nurbs | Approx => false,
+        Plane | Cylinder | Cone | Sphere | Torus => true,
+        Spindle | Nurbs | Approx => false,
     };
     residual(a) && residual(b)
 }
@@ -2472,6 +2518,11 @@ fn march_over_the_ball(
         PairPose::TorusTorus(p) => crate::ssi::march_torus_torus(p, domain, band).map(branches),
         PairPose::CylinderCylinder(p) => {
             crate::ssi::march_cylinder_cylinder(p, &section.seeds(), domain, band)
+        }
+        PairPose::ConeCylinder(_) | PairPose::ConeCone(_) => {
+            return Err(CarryError::Refused(CarryRefusal::Unminted(
+                NoCarrier::ConeUnenclosed,
+            )));
         }
         // Its whole reading marches it and lists every component with
         // its carrier or why it has none, so no component asks the march.

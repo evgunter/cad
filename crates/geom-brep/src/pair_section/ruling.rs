@@ -726,6 +726,8 @@ pub(crate) struct Form<T: Real> {
     gamma: T,
     /// The cylinder's radius, whose clearance is read exactly.
     radius: Option<T>,
+    /// The partner cone's `cos α`.
+    cos: Option<T>,
 }
 
 impl<T: Real> Form<T> {
@@ -738,6 +740,7 @@ impl<T: Real> Form<T> {
             beta: T::zero() - T::one(),
             gamma: T::zero() - r.powi(2),
             radius: Some(r),
+            cos: None,
         }
     }
 
@@ -751,7 +754,18 @@ impl<T: Real> Form<T> {
             beta: T::one(),
             gamma: T::zero(),
             radius: None,
+            cos: Some(cos),
         }
+    }
+
+    /// The cylinder's radius, `None` for a cone.
+    pub(crate) fn radius(&self) -> Option<T> {
+        self.radius
+    }
+
+    /// The cone's `cos α`, `None` for a cylinder.
+    pub(crate) fn cone_cos(&self) -> Option<T> {
+        self.cos
     }
 }
 
