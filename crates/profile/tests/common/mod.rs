@@ -1315,7 +1315,7 @@ pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
         {
             Some(source.predicate.unwrap_or("<unnamed>"))
         }
-        PathError::JunctionTangent { .. } => Some("JunctionTangent"),
+        PathError::JunctionTurnWithinTolerance { .. } => Some("JunctionTurnWithinTolerance"),
         _ => None,
     }
 }

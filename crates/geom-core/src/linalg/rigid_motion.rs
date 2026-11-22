@@ -7,10 +7,8 @@
 //! A motion places the world frame: [`RigidMotion::origin`] and the
 //! axes [`RigidMotion::u`], [`RigidMotion::v`], [`RigidMotion::w`] are
 //! where it sends the coordinate origin and `x̂`, `ŷ`, `ẑ`
-//! ([`RigidMotion::to_affine`]). It is not a carrier's placement: a
-//! carrier's frame (`geom::Frame`) is stated data certified at rest,
-//! and a motion is a proof certified at its mint. The two meet at one
-//! bridge, `geom::Frame::of_motion`.
+//! ([`RigidMotion::to_affine`]). A carrier's placement (`geom::Frame`)
+//! holds one, so a carrier's frame is rigid as a property of its type.
 //!
 //! # What the witness means, at every scalar
 //!
@@ -92,6 +90,26 @@
 //! [`RigidMotion::renormalized`] decides each axis of a minted frame's
 //! length again, the same real motion with its axes tightened.
 //!
+//! # The mints that decide nothing
+//!
+//! - [`RigidMotion::squared`] — a stated axis over its length and a
+//!   stated reference's part square to it over its own, poison where
+//!   either is zero: the door a frame derived from two directions
+//!   enters through;
+//! - [`RigidMotion::squared_about`] — the same about a unit axis the
+//!   caller already holds, the axis kept bit for bit;
+//! - [`RigidMotion::with_origin`] and [`RigidMotion::carried_by`] — a
+//!   frame placed elsewhere, or its image under a motion;
+//! - [`RigidMotion::reversed`], [`RigidMotion::reversed_as_difference`],
+//!   [`RigidMotion::rolled`], [`RigidMotion::quarter_turned`],
+//!   [`RigidMotion::half_turned`] and [`RigidMotion::with_signed_axes`]
+//!   — a frame's own axes negated and permuted;
+//! - [`RigidMotion::spun_toward`] — a frame turned in its own `uv`
+//!   plane toward a sketch direction, normalized once;
+//! - [`RigidMotion::quarter_turned_renormalized`] — a quarter turn whose
+//!   new `u` is `w × u` normalized, a conic seam's base arithmetic;
+//! - [`RigidMotion::select_le_zero`] — one of two frames by a sign.
+//!
 //! **An axis-aligned frame is a written turn.** An exact axis
 //! ([`UnitVec3::exact_x`] and its siblings) turned by a whole number
 //! of quarter turns has columns of `0` and `±1` exactly at every
@@ -154,24 +172,57 @@
 //!
 //! # Crossing scalars
 //!
-//! A frame exists at a scalar only by being minted there: by an exact
-//! mint or a decided mint over inputs held at that scalar, or at `f64`
-//! by the `f64` door. No door carries a frame up from `f64`: a frame
-//! is a claim, and what a lane scalar takes from `f64` is a choice,
-//! the same across the box (DESIGN `[scalars]`). A skin's carry, over a
-//! path that is a constant of the model, chooses each station's roll at
-//! `f64` as one reference vector, a value that depends on none of the
-//! document's variables, and the station's frame is minted at the
-//! scalar from the path's tangent read there and that vector. Every
-//! frame that would cross is the product of a decision, so at `Sym` it
-//! would enter either as literals, a theorem about its rounding (E12),
-//! or as unknowns, over which nothing is proved; minted at the scalar,
-//! it carries its inputs' dependence on the variables instead (Ev on
-//! #5068, 2026-10-14).
+//! **A frame enters a lane only by being minted there**: by an exact
+//! mint or a decided mint over inputs held at that scalar, at `f64` by
+//! the `f64` door, or by a mint above that decides nothing. No read
+//! carries a frame into a lane. What a frame's entries mean is its
+//! scalar's [`Witness`](crate::Witness) kind: at an `Inexact` scalar
+//! (`f64`, a dual over it) they are the rounding of one rotation, at an
+//! `Exact` one (`Interval`, the duals and symbolic forms over it) they
+//! enclose it.
 //!
-//! The one crossing is downward, closure-free: an arbitrary map of the
-//! twelve numbers could unmake the witness (negating every component
-//! leaves `w` opposed to `u × v`).
+//! **Two reads take a frame out of the lane that holds it**:
+//!
+//! - **its point value**, down to `f64` ([`RigidMotion::point_value`]);
+//! - **its enclosure, to `Interval`** ([`RigidMotion::map_scalar`]):
+//!   from `Interval` the frame itself;
+//!   from `Dual` or `Sym` over an enclosure each component's bracket,
+//!   the claim the frame's value channel already makes; and from `f64`
+//!   the polar factor of the stored entries, the rotation nearest them,
+//!   enclosed entry by entry with no decision
+//!   ([`Real::enclose_rotation`], whose doc carries the bound): about an ulp
+//!   of each entry on a stated frame, a frame whose entries are exactly
+//!   orthonormal a point.
+//!
+//! **No read carries a frame into `Dual` or `Sym` from another
+//! scalar's lane.** A frame at a scalar that carries derivatives or
+//! forms holds the rotation in those channels, and no read of another
+//! lane's frame supplies them; a computation there
+//! mints its frames there. `map_scalar` across witness kinds into any
+//! target but `Interval` is a kernel defect: it fails a debug
+//! assertion, and a release build answers the frame poisoned. Within
+//! one kind `map_scalar` carries the entries as they are, the same
+//! claim at another spelling of the scalar.
+//!
+//! **The polar read's poison arm is unreachable from a stored frame.**
+//! It answers poison where `η` is not below ½ or the determinant is not
+//! certified positive, and every mint stores a rotation within its
+//! rounding, so a whole frame stored at `f64` never reaches it; a frame
+//! that does was built off the mints, and `map_scalar` fails a debug
+//! assertion on it (`a_reflected_frame_lifted_to_an_enclosure_poisons`).
+//!
+//! A skin's carry, over a path that is a constant of the model, chooses
+//! each station's roll at `f64` as one reference vector, and the
+//! station's frame is minted at the scalar from the path's tangent read
+//! there and that vector. A frame built by a decision over the
+//! document's variables is minted at the lane scalar, where it carries
+//! its inputs' dependence on the variables (Ev on #5068, 2026-10-14);
+//! no map of a frame decided at `f64` stands for it.
+//!
+//! An arbitrary map of the twelve numbers could unmake the witness
+//! (negating every component leaves `w` opposed to `u × v`), so the
+//! scalar map is a lift: it keeps each entry's point. The exact read
+//! down to `f64` is closure-free:
 //!
 //! - [`RigidMotion::point_value`] — any scalar to `f64`, every
 //!   component through [`SpanLocate::point_value`], `None` where one
@@ -202,10 +253,10 @@
 //! [`Affine3`] stays the general affine map: a motion CONVERTS into one
 //! ([`RigidMotion::to_affine`]), and an [`Affine3`] read back off a body
 //! is a placement, not a witness. There is no mirror and no scale here:
-//! the kernel acts with one group. The geometry carriers' direction
-//! fields — `Line.dir`, `Plane.normal`, the conic axes — stay bare
-//! `Vec3` under the at-rest rule stated in `geom`'s crate docs, and so
-//! do the carrier frames those fields make up. Two other types in the
+//! the kernel acts with one group. The geometry carriers' frames are this
+//! type (`geom::Frame` holds one); a line's `dir` stays a bare `Vec3`,
+//! since a line is also an affine chord whose parameter is scaled by
+//! `|dir|`. Two other types in the
 //! workspace are called frames and are different things:
 //! `editor-core`'s placement `Frame` stores a general linear part, so
 //! an improper map stays representable and refusable, and `sweep`'s
@@ -215,7 +266,7 @@
 //! one home, [`frame`](super::frame)'s module docs; nothing is
 //! restated here.
 
-use crate::linalg::{Affine3, Angle, Mat3, Point3, Turns, UnitVec3, UnitVec3Error, Vec3};
+use crate::linalg::{Affine3, Angle, Mat3, Point3, Turns, UnitVec3, UnitVec3Error, Vec2, Vec3};
 use crate::predicate::{Band, Decide, Indeterminate, Lever, Margin, Sign};
 use crate::real::Real;
 use crate::spline::SpanLocate;
@@ -1049,6 +1100,321 @@ impl<T: SpanLocate> RigidMotion<T> {
     }
 }
 
+impl<T: Real> RigidMotion<T> {
+    /// **A frame squared with no decision**: the third axis `w` over its
+    /// own length, the first the part of `u` square to it, `u − a(a·u)`
+    /// over its own length, and the second their cross product. For a `u`
+    /// already square to rounding (a frame's own stated axes)
+    /// `a·u` is at the rounding's scale, so the subtraction moves `u` by
+    /// far less than its own width at an enclosure scalar. Each is
+    /// unit, and the three orthonormal and right-handed, over the reals
+    /// wherever `w` and `u`'s part square to it are not zero; where one
+    /// is, the axes are poison (the totality policy's NaN or NaI, which
+    /// the predicate layer catches). Nothing is decided, so no band and
+    /// no refusal. `origin` and every entry's finiteness are the
+    /// caller's: a non-finite entry is poison in the axes it reaches.
+    ///
+    /// It is the door a frame derived from two directions enters the type
+    /// through, where no frame carries it; a construction that can
+    /// decide its frame decides it
+    /// ([`RigidMotion::from_axis_and_reference`]).
+    ///
+    /// **Stated directions are a choice** (DESIGN `[scalars]`): where `w`
+    /// and `u` are certified points at a plain enclosure
+    /// ([`Real::stated_point`]), the frame they state does not vary over
+    /// the box, so it is minted at `f64` (this squaring there) and read
+    /// into the scalar by its enclosure, the polar factor of the `f64`
+    /// frame ([`RigidMotion::map_scalar`], the read a stored frame takes),
+    /// `origin` kept as given. Directions that are not points (a bracket,
+    /// a value over the box) are a claim about the reals they enclose and
+    /// are squared at the scalar, as above.
+    #[must_use]
+    pub fn squared(origin: Point3<T>, w: Vec3<T>, u: Vec3<T>) -> Self {
+        if let Some(stated) = Self::squared_as_stated(w, u) {
+            return Self { origin, ..stated };
+        }
+        Self::squared_about(origin, UnitVec3::squared(w), u)
+    }
+
+    /// The frame two stated directions name, minted at `f64` and read into
+    /// `T` by its enclosure; `None` unless both are certified points of a
+    /// plain enclosure ([`RigidMotion::squared`]).
+    fn squared_as_stated(w: Vec3<T>, u: Vec3<T>) -> Option<Self> {
+        let at = |v: Vec3<T>| {
+            Some(Vec3::new(
+                v.x.stated_point()?,
+                v.y.stated_point()?,
+                v.z.stated_point()?,
+            ))
+        };
+        let (w, u) = (at(w)?, at(u)?);
+        let minted = RigidMotion::<f64>::squared(Point3::origin(), w, u);
+        Some(minted.map_scalar(T::from_f64))
+    }
+
+    /// **[`RigidMotion::squared`] about a unit axis the caller holds**:
+    /// `w` kept bit for bit, and `u`'s part square to it normalized
+    /// (`u − w(w·u)` over its length), the one step of the squaring a
+    /// witness axis leaves. For a frame derived from an axis and a raw
+    /// reference, as a section plane's from its normal and a chord: no
+    /// frame carries it, so its `u` is the reference's residual, and
+    /// nothing is decided.
+    #[must_use]
+    pub fn squared_about(origin: Point3<T>, w: UnitVec3<T>, u: Vec3<T>) -> Self {
+        let a = w.get();
+        let u = UnitVec3::squared(u - a * a.dot(u));
+        Self {
+            origin,
+            u,
+            v: UnitVec3::cross_of_orthonormal(w, u),
+            w,
+        }
+    }
+}
+
+impl<T: Real> RigidMotion<T> {
+    /// **This frame placed at another origin**, its axes kept bit for
+    /// bit. Nothing is decided: the origin's finiteness is the caller's,
+    /// as for [`RigidMotion::squared`].
+    #[must_use]
+    pub fn with_origin(self, origin: Point3<T>) -> Self {
+        Self { origin, ..self }
+    }
+
+    /// **One of two frames, by the sign of `d`**: `when_le` where
+    /// `d ≤ 0`, `when_gt` where it is positive, entry by entry through
+    /// [`Real::select_le_zero`]. Each is a frame, so where the sign is
+    /// decided the result is one of them exactly; at a scalar that
+    /// selects without deciding (an enclosure straddling zero) each
+    /// entry encloses both, so the result encloses each frame the
+    /// selection could name.
+    #[must_use]
+    pub fn select_le_zero(d: T, when_le: Self, when_gt: Self) -> Self {
+        let pick = |a: UnitVec3<T>, b: UnitVec3<T>| {
+            UnitVec3::by_construction(Vec3::select(d, a.get(), b.get()))
+        };
+        Self {
+            origin: Point3::origin()
+                + Vec3::select(
+                    d,
+                    when_le.origin - Point3::origin(),
+                    when_gt.origin - Point3::origin(),
+                ),
+            u: pick(when_le.u, when_gt.u),
+            v: pick(when_le.v, when_gt.v),
+            w: pick(when_le.w, when_gt.w),
+        }
+    }
+
+    /// **This frame run back**: `w` and `v` reversed, `u` kept, a frame's
+    /// own axes negated, so nothing is decided.
+    #[must_use]
+    pub fn reversed(self) -> Self {
+        Self {
+            v: -self.v,
+            w: -self.w,
+            ..self
+        }
+    }
+
+    /// **This frame run back, its reversed axes spelled `0 − e`**: the
+    /// frame [`RigidMotion::reversed`] is, `u` kept and `v`, `w` reversed,
+    /// each written as its difference from zero rather than its negation.
+    /// The two agree except that a zero component comes out `+0` here
+    /// whichever sign it had, so a caller whose run-back axis was spelled
+    /// `0 − n` reads it bit for bit. Nothing is decided.
+    #[must_use]
+    pub fn reversed_as_difference(self) -> Self {
+        let from_zero = |e: UnitVec3<T>| UnitVec3::by_construction(Vec3::zero() - e.get());
+        Self {
+            v: from_zero(self.v),
+            w: from_zero(self.w),
+            ..self
+        }
+    }
+
+    /// **This frame rolled a quarter turn about its own `u`**: `v`
+    /// becomes the old `w` and `w` the old `v` reversed, spelled `0 − v`
+    /// (as [`RigidMotion::reversed_as_difference`] spells it), which is
+    /// the old `u × w` where the frame is exact. Its own axes permuted
+    /// and one reversed, so nothing is decided.
+    #[must_use]
+    pub fn rolled(self) -> Self {
+        Self {
+            v: self.w,
+            w: UnitVec3::by_construction(Vec3::zero() - self.v.get()),
+            ..self
+        }
+    }
+
+    /// **This frame turned a quarter turn about its own `w`**: `u` becomes
+    /// the old `v` and `v` the old `−u`, its own axes permuted and
+    /// negated, so nothing is decided.
+    #[must_use]
+    pub fn quarter_turned(self) -> Self {
+        Self {
+            u: self.v,
+            v: -self.u,
+            ..self
+        }
+    }
+
+    /// **This frame turned a quarter turn about its own `w`, its new `u`
+    /// the normalized `w × u`**: the merge base's arithmetic for a conic's
+    /// quarter-turned seam (`v_ref().normalize()`, `v_ref = axis ×
+    /// u_ref`), bit for bit. `w` and the origin are kept, and `v` is
+    /// `w × u` of the new `u`. The cross of two orthonormal witnesses is
+    /// unit and square to both over the reals, so its normalization is a
+    /// rounding of a unit vector square to `w`: nothing is decided, and
+    /// the axes are not re-squared (no `u − w(w·u)` step, which the base
+    /// never took). [`RigidMotion::quarter_turned`] is the same turn with
+    /// no arithmetic, a rounding apart.
+    #[must_use]
+    pub fn quarter_turned_renormalized(self) -> Self {
+        let u = UnitVec3::by_construction(self.w.get().cross(self.u.get()).normalize());
+        Self {
+            u,
+            v: UnitVec3::cross_of_orthonormal(self.w, u),
+            ..self
+        }
+    }
+
+    /// **This frame turned a half turn about its own `w`**: `u` and `v`
+    /// reversed, so nothing is decided.
+    #[must_use]
+    pub fn half_turned(self) -> Self {
+        Self {
+            u: -self.u,
+            v: -self.v,
+            ..self
+        }
+    }
+
+    /// **This frame's image under `by`**: its origin through
+    /// [`RigidMotion::transform_point`] and each axis turned
+    /// ([`RigidMotion::turn`]), a rigid image of a rigid frame, so
+    /// nothing is decided.
+    #[must_use]
+    pub fn carried_by(self, by: Self) -> Self {
+        Self {
+            origin: by.transform_point(self.origin),
+            u: by.turn(self.u),
+            v: by.turn(self.v),
+            w: by.turn(self.w),
+        }
+    }
+
+    /// **This frame turned about its own `w` onto the direction of `d`**,
+    /// a vector of its own `uv` plane: `d` normalized once
+    /// ([`Vec2::normalize`]) to `(c, s)`, then `u` becomes this frame
+    /// turning `(c, s, 0)` and `v` this frame turning `(−s, c, 0)`, `w`
+    /// and the origin kept. `(c, s)` is unit by its construction, and
+    /// its quarter turn is unit and perpendicular to it with it, so the
+    /// image is a rigid frame and nothing is decided: the one
+    /// arithmetic is the normalization a sketch direction is read by,
+    /// and a frame is not re-squared. A zero `d` yields a poisoned
+    /// frame, as [`Vec2::normalize`] yields a poisoned direction.
+    ///
+    /// The turned axes are [`RigidMotion::transform_vec`] of the sketch
+    /// vectors, the same arithmetic a placement's linear part applies
+    /// to `(c, s, 0)`, so `u` is a placed sketch direction bit for bit.
+    #[must_use]
+    pub fn spun_toward(self, d: Vec2<T>) -> Self {
+        let c = d.normalize();
+        let along = Vec3::new(c.x, c.y, T::zero());
+        let left = Vec3::new(T::zero() - c.y, c.x, T::zero());
+        Self {
+            origin: self.origin,
+            u: UnitVec3::by_construction(self.transform_vec(along)),
+            v: UnitVec3::by_construction(self.transform_vec(left)),
+            w: self.w,
+        }
+    }
+}
+
+impl<T: Real> RigidMotion<T> {
+    /// **This frame at another scalar**, one of the two reads the module
+    /// docs' "Crossing scalars" names. `f` is a lift: it reads each
+    /// entry's value at the target scalar (an embedding such as
+    /// `Real::from_f64`, a bracket, a value channel) and keeps its point.
+    ///
+    /// - **Between two scalars of one [`Witness`](crate::Witness) kind**
+    ///   the claim is the same claim, so the entries are carried through
+    ///   `f` as they are, and the image evaluates to the source bit for
+    ///   bit in its value channel (a dual or form over an enclosure read
+    ///   at `Interval` by its bracket).
+    /// - **From `f64` to `Interval`** a rounded entry read as an
+    ///   enclosure encloses nothing, so the image is the polar factor of
+    ///   the mapped entries, enclosed ([`Real::enclose_rotation`]); its
+    ///   entries are not `f`'s images verbatim.
+    /// - **Across kinds into any other target** (a dual or form over an
+    ///   enclosure, or `f64`, whose read is [`RigidMotion::point_value`])
+    ///   there is no read: it fails a debug assertion, and a release
+    ///   build answers the frame poisoned.
+    ///
+    /// The kind is a property of the two types, so which branch runs is
+    /// fixed at compile time and reads no value.
+    #[must_use]
+    pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> RigidMotion<U> {
+        let origin = self.origin.map(&f);
+        if T::WITNESS == U::WITNESS {
+            let carry = |d: UnitVec3<T>| UnitVec3::by_construction(d.get().map(&f));
+            RigidMotion {
+                origin,
+                u: carry(self.u),
+                v: carry(self.v),
+                w: carry(self.w),
+            }
+        } else {
+            let column = |d: UnitVec3<T>| {
+                let c = d.get().map(&f);
+                [c.x, c.y, c.z]
+            };
+            let stated = [column(self.u), column(self.v), column(self.w)];
+            let stated_whole = stated.iter().flatten().all(|x| !x.is_poison());
+            match U::enclose_rotation(stated) {
+                Some([u, v, w]) => {
+                    // Every mint stores a rotation within its rounding
+                    // (η far below ½, the determinant near 1), so a whole
+                    // stored frame never reaches the poison arm; a frame
+                    // that does was built off its mints, a kernel defect.
+                    debug_assert!(
+                        !stated_whole || !u[0].is_poison(),
+                        "a stored frame read at an enclosure named no rotation: \
+                         η not below ½ or its determinant not positive"
+                    );
+                    let axis = |[x, y, z]: [U; 3]| UnitVec3::by_construction(Vec3::new(x, y, z));
+                    RigidMotion {
+                        origin,
+                        u: axis(u),
+                        v: axis(v),
+                        w: axis(w),
+                    }
+                }
+                None => {
+                    debug_assert!(
+                        false,
+                        "no read carries a frame into a lane: the target is not a plain enclosure"
+                    );
+                    let poisoned = || {
+                        UnitVec3::by_construction(Vec3::new(
+                            crate::poison(),
+                            crate::poison(),
+                            crate::poison(),
+                        ))
+                    };
+                    RigidMotion {
+                        origin,
+                        u: poisoned(),
+                        v: poisoned(),
+                        w: poisoned(),
+                    }
+                }
+            }
+        }
+    }
+}
+
 impl RigidMotion<f64> {
     /// **The `f64` door**: a raw [`Affine3`] at `f64` admitted as the
     /// rigid motion it is, its twelve numbers kept bit for bit, when each
@@ -1450,11 +1816,20 @@ impl<T: Decide> RigidMotion<T> {
     /// and arithmetic and its pole verdict over `arm`, with no
     /// conditioning. The rounding reach bands a quotient where its lever
     /// is consumed (the geom-core README, "Float rounding"); a turn whose
-    /// rounding no claim consumes owes it none. Its one caller is the path
-    /// sweep's station step (`crates/sweep/README.md` `[sweep.frame]`): the
-    /// step selects a station's roll as a reference vector (fork 266), and
-    /// each lane mints the station's frame from the tangent read there,
-    /// aimed verbatim, so nothing claims the step's landing.
+    /// rounding no claim consumes owes it none. Its two callers:
+    ///
+    /// - the path sweep's station step (`crates/sweep/README.md`
+    ///   `[sweep.frame]`): the step selects a station's roll as a reference
+    ///   vector (fork 266), and each lane mints the station's frame from
+    ///   the tangent read there, aimed verbatim, so nothing claims the
+    ///   step's landing;
+    /// - a face's chart read before the extent it is consumed over exists
+    ///   (`editor_core`'s `mate::value::Chart::selected`, DESIGN
+    ///   `[placement]`): a trace reads its faces through the turn before
+    ///   the profile's loops resolve, its pole decided over the session
+    ///   box, and each carriage that consumes the turn decides its
+    ///   conditioning over its own reach.
+    ///
     /// [`Self::least_turn`] is the door for a turn a claim consumes.
     ///
     /// # Errors
@@ -1730,6 +2105,136 @@ mod tests {
     use crate::tolerance::Tol;
 
     pub(super) const SITE: &str = "rigid_motion_test_axis";
+
+    /// **No read carries a frame into `Dual` or `Sym`**: across witness
+    /// kinds `map_scalar` reads only to `Interval`, and a target that
+    /// carries derivatives or forms declines the enclosure
+    /// ([`Real::enclose_rotation`] answers `None` there), so the map is a
+    /// kernel defect, loud in a debug build and poison in release.
+    #[test]
+    #[cfg_attr(
+        debug_assertions,
+        should_panic(expected = "no read carries a frame into a lane")
+    )]
+    fn no_read_carries_a_frame_into_a_dual_or_a_form() {
+        use crate::dual::Dual;
+        let at = |k: usize| core::array::from_fn::<f64, 3, _>(|i| f64::from(u8::from(i == k)));
+        let dual = [at(0), at(1), at(2)]
+            .map(|c| c.map(|x| Dual::<Interval>::constant(Interval::from_f64(x))));
+        assert!(Dual::<Interval>::enclose_rotation(dual).is_none());
+        assert!(
+            <crate::sym::Sym<Interval> as Real>::enclose_unit(
+                at(0).map(<crate::sym::Sym<Interval> as Real>::from_f64)
+            )
+            .is_none()
+        );
+        let lifted = RigidMotion::<f64>::identity()
+            .map_scalar(|x| Dual::<Interval>::constant(Interval::from_f64(x)));
+        assert!(
+            lifted.u.get().x.is_poison(),
+            "a release build answers poison"
+        );
+    }
+
+    /// **A reflected `f64` frame names no rotation, and its lift to
+    /// `Interval` is poison**: `w` reversed, so the stated columns are
+    /// orthonormal (`η` is zero) and left-handed, and the polar
+    /// enclosure's determinant reading refuses it rather than taking the
+    /// reflection for a rotation. No mint stores a reflection, so the read
+    /// of one is a kernel defect: loud in a debug build, poison in
+    /// release.
+    #[test]
+    #[cfg_attr(debug_assertions, should_panic(expected = "named no rotation"))]
+    fn a_reflected_frame_lifted_to_an_enclosure_poisons() {
+        let turned = RigidMotion::<f64>::rotation(
+            UnitVec3::new(Vec3::new(1.0, 2.0, 3.0), SITE, band()).unwrap(),
+            0.83,
+        )
+        .unwrap();
+        let reflected = RigidMotion {
+            w: -turned.w,
+            ..turned
+        };
+        let lifted = reflected.map_scalar(Interval::from_f64);
+        for c in [lifted.u, lifted.v, lifted.w] {
+            for x in [c.get().x, c.get().y, c.get().z] {
+                assert!(
+                    x.lo().is_nan() && x.hi().is_nan(),
+                    "a reflection lifts as poison: {x:?}"
+                );
+            }
+        }
+        let kept = turned.map_scalar(Interval::from_f64);
+        assert!(!kept.u.get().x.lo().is_nan(), "the rotation itself lifts");
+    }
+
+    /// **A rounded rotation lifts to an enclosure of its polar factor at
+    /// the floor of an `f64`-ended interval**: no entry wider than
+    /// `EPSILON` (two units in the last place of an entry below one), and
+    /// the frame not a point, since its entries are a rounding off rigid
+    /// and the polar factor is no `f64`. Containment of the true polar
+    /// factor is `the_polar_enclosure_contains_the_polar_factor`'s.
+    #[test]
+    fn a_rounded_rotation_lifts_to_its_polar_enclosure() {
+        let turned = RigidMotion::<f64>::rotation(
+            UnitVec3::new(Vec3::new(1.0, 2.0, 3.0), SITE, band()).unwrap(),
+            0.83,
+        )
+        .unwrap();
+        let polar = turned.map_scalar(Interval::from_f64);
+        let width = |x: Interval| x.hi() - x.lo();
+        let entries: Vec<Interval> = [polar.u, polar.v, polar.w]
+            .iter()
+            .flat_map(|c| [c.get().x, c.get().y, c.get().z])
+            .collect();
+        for a in &entries {
+            assert!(width(*a) <= f64::EPSILON, "at the floor: {a:?}");
+        }
+        assert!(
+            entries.iter().any(|a| width(*a) > 0.0),
+            "a rounded rotation's polar factor is no f64: {entries:?}"
+        );
+    }
+
+    /// **`squared` at `Interval` takes one of two paths by its inputs**
+    /// ([`RigidMotion::squared`]'s doc, DESIGN `[scalars]`): directions
+    /// stated as certified points are a choice, so the frame is the
+    /// `f64` squaring read by its polar enclosure, bit for bit; directions
+    /// that are brackets are squared over them at the scalar, bit for bit
+    /// the Gram–Schmidt arm.
+    #[test]
+    fn a_frame_squared_at_an_enclosure_reads_stated_points_as_a_choice() {
+        let bits = |m: &RigidMotion<Interval>| {
+            [m.u, m.v, m.w]
+                .iter()
+                .flat_map(|c| [c.get().x, c.get().y, c.get().z])
+                .map(|x| (x.lo().to_bits(), x.hi().to_bits()))
+                .collect::<Vec<_>>()
+        };
+        let (w, u) = (Vec3::new(0.3, -0.4, 0.866), Vec3::new(0.8, 0.6, 0.1));
+        let lift = |v: Vec3<f64>| v.map(Interval::from_f64);
+        let origin = Point3::new(1.0, 2.0, 3.0).map(Interval::from_f64);
+        let stated = RigidMotion::squared(origin, lift(w), lift(u));
+        let minted = RigidMotion::<f64>::squared(Point3::new(1.0, 2.0, 3.0), w, u)
+            .map_scalar(Interval::from_f64);
+        assert_eq!(
+            bits(&stated),
+            bits(&minted),
+            "points: the f64 squaring, read"
+        );
+        assert!(
+            bits(&stated).iter().any(|(lo, hi)| lo != hi),
+            "a rounded squaring reads as its polar enclosure, not as points"
+        );
+        let wide = |v: Vec3<f64>| v.map(|x| Interval::from_bounds(x - 1e-9, x + 1e-9));
+        let bracketed = RigidMotion::squared(origin, wide(w), wide(u));
+        let schmidt = RigidMotion::squared_about(origin, UnitVec3::squared(wide(w)), wide(u));
+        assert_eq!(
+            bits(&bracketed),
+            bits(&schmidt),
+            "brackets: Gram–Schmidt at the scalar"
+        );
+    }
 
     /// The witness tolerance's linear band, shared by this module's
     /// rows and `motion_rows`.

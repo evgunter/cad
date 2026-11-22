@@ -56,23 +56,22 @@ fn p3<T: Real>(a: [f64; 3]) -> Point3<T> {
 }
 
 impl Pose {
+    /// The pose's frames are its stated `f64` bits (the oracle's roots
+    /// are computed off them), lifted to `T`.
     fn carrier<T: Real>(&self) -> geom::Curve3<T> {
-        geom::Curve3::circle(
-            p3(self.center),
-            v3(self.axis),
-            T::from_f64(self.radius),
-            v3(self.u_ref),
-        )
+        let frame = geom::Frame::admitted(p3(self.center), v3(self.axis), v3(self.u_ref))
+            .unwrap_or_else(|| panic!("a pose's circle frame is rigid within rounding"));
+        geom::Curve3::Circle(geom::Circle::new(frame, self.radius)).map_scalar(T::from_f64)
     }
 
     fn torus<T: Real>(&self) -> geom::Surface<T> {
         let axis = Vec3::from_array(self.t_axis);
+        let frame = geom::Frame::admitted(p3(self.t_center), axis, axis.orthonormal_basis().0)
+            .unwrap_or_else(|| panic!("a pose's torus frame is rigid within rounding"));
         geom::Surface::Torus {
-            center: p3(self.t_center),
-            axis: v3(self.t_axis),
+            frame: frame.map_scalar(T::from_f64),
             major_radius: T::from_f64(self.big),
             minor_radius: T::from_f64(self.small),
-            u_ref: v3(axis.orthonormal_basis().0.to_array()),
         }
     }
 

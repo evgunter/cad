@@ -821,7 +821,7 @@ fn a_product_in_one_shared_frame_localizes_in_it_moving_no_copy() {
 /// and make 7 placements (`EvalCounters::rigid_maps`), measured. *Breaks
 /// if* a copy is taken per pair: 15 placements. That the move itself is
 /// made per pair is
-/// `work/onehome/the-at-rest-localization-moves-each-copy-once-per-pair.md`.
+/// `work/partframes/the-at-rest-localization-moves-each-copy-once-per-pair.md`.
 #[cfg(debug_assertions)]
 #[test]
 fn localizing_takes_each_copy_once() {

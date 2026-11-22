@@ -849,9 +849,10 @@ transition_table! {
             ///
             /// On a directed point this classifies `theta` against the
             /// incoming tangent and its reverse (PATHS-DESIGN §4 item 1):
-            /// definitely-sharp proceeds; within ε_input of tangent refuses
-            /// [`PathError::JunctionTangent`] (one refusal, one recourse:
-            /// `.tangent()` makes intended tangency exact by construction);
+            /// definitely-sharp proceeds; a turn zero at tolerance refuses
+            /// [`PathError::JunctionTurnWithinTolerance`] (one refusal, one recourse:
+            /// lengthen the shorter leg if the angle is real; `.tangent()`
+            /// makes intended tangency exact by construction);
             /// within ε_input of the reverse refuses
             /// [`PathError::JunctionCusp`] (no declaration door — #131). On a
             /// plain point there is nothing to check (an arrival side meets
@@ -1283,11 +1284,11 @@ transition_table! {
             /// Closing runs the SEAM check unchanged: the junction between
             /// this leg and the entry's own departure is the loop's, and PQ4
             /// still wants a corner there
-            /// ([`PathError::SeamTangent`] when it is not one — a refusal
+            /// ([`PathError::SeamTurnWithinTolerance`] when it is not one — a refusal
             /// only a seam can produce). What the closer removes is the
             /// DEPARTURE half of the old wall, which is the half a rotation
             /// could never fix; that half is now an ordinary
-            /// [`PathError::JunctionTangent`], the same refusal any other
+            /// [`PathError::JunctionTurnWithinTolerance`], the same refusal any other
             /// departure gets.
             ///
             /// Carrier-blind, as the §2c axiom requires — off an ARC-carrier
@@ -1396,7 +1397,7 @@ transition_table! {
             /// The departure is DERIVED — the arrival reflected across the
             /// chord — and on a leg end it is junction-checked like any arc
             /// leg's start tangent: a tangent departure refuses
-            /// [`PathError::JunctionTangent`], whose spelling is
+            /// [`PathError::JunctionTurnWithinTolerance`], whose spelling is
             /// `.tangent().tangent_arc_to(p)`. The degeneracies are
             /// `tangent_arc_to`'s: an arrival along the chord ahead is a
             /// straight segment, behind it or at the tip

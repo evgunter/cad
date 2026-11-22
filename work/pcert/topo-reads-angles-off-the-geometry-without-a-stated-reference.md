@@ -61,3 +61,5 @@ Which of these reads a period-ambiguous angle that a reader then tells
 apart by copy (each such site goes onto `Azimuth::near` with a stated
 anchor, or through the marks), and which read a quantity that is never
 ambiguous (a span in `(0, π]`, a short-way turn) and need nothing.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` site this row cites is gone.

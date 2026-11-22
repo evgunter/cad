@@ -64,7 +64,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::face_normal::face_plane;
 use crate::live::{Proven, proven};
-use crate::props::{QuadLane, ShellRole};
+use crate::props::ShellRole;
 use crate::solid_contain::PointInSolidError;
 use crate::solid_contain::SolidContainment;
 use crate::solid_contain::{SolidFaces, point_in_face, point_in_solid_faces};
@@ -531,29 +531,29 @@ fn line_meetings<T: Decide>(
         }
         geom::Curve3::Circle(
             circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame_43,
                 ..
             },
         ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_43.origin(),
+                carrier_frame_43.axis(),
+                carrier_frame_43.u_ref(),
+            );
             let radius = circle.radius();
             conic(center, axis, u_ref, radius, radius)
         }
         geom::Curve3::Ellipse(
             ellipse @ geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame_42,
                 ..
             },
         ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_42.origin(),
+                carrier_frame_42.axis(),
+                carrier_frame_42.u_ref(),
+            );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             conic(center, axis, u_ref, semi_u, semi_v)
         }
@@ -644,12 +644,12 @@ pub(crate) struct ShellRead {
 impl ShellRead {
     /// `shell` read, or the shell's typed refusal where its role cannot
     /// be ([`crate::props::shell_role`]).
-    pub(crate) fn of<T: Decide>(
+    pub(crate) fn of<T: crate::props::AtRestPolicy>(
         body: &Body<T>,
         shell: ShellKey,
         band: Band,
         tol: Tol,
-        quad: Option<QuadLane<T>>,
+        quad: Option<T::QuadLane>,
     ) -> Result<Self, crate::props::ShellClassifyError> {
         crate::props::shell_role(body, shell, band, tol, quad).map(|role| Self {
             shell,

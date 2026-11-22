@@ -350,7 +350,7 @@ const DRIVEN: &[Driven] = &[
     Driven {
         id: "a junction's turn",
         gate: Gate::PathJunctionTurn,
-        lever: "for tangency onto a new carrier use .tangent()",
+        lever: "if smooth, declare it: .tangent()",
         offers: false,
         run: |e| {
             path(

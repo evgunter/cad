@@ -445,7 +445,7 @@ pub fn mass_properties<F: crate::FinishedBody>(
     settle: Settle<F::Scalar>,
 ) -> Result<MassMeasurement<F::Scalar>, MassPropsError>
 where
-    F::Scalar: geom_core::CertifiedBounds,
+    F::Scalar: CertifiedPolicy + geom_core::CertifiedBounds,
 {
     measure_body(body, tol, settle)
 }
@@ -475,7 +475,7 @@ pub(crate) mod raw_door {
     ///
     /// As [`mass_properties`].
     #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
-    pub fn measure_body<T: Decide + geom_core::CertifiedBounds>(
+    pub fn measure_body<T: CertifiedPolicy + geom_core::CertifiedBounds>(
         body: &Body<T>,
         tol: Tol,
         settle: Settle<T>,
@@ -495,7 +495,7 @@ pub(crate) mod raw_door {
     ///
     /// As [`mass_properties_structural`].
     #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
-    pub fn measure_body_structural<T: Decide>(
+    pub fn measure_body_structural<T: AtRestPolicy>(
         body: &Body<T>,
         tol: Tol,
     ) -> Result<MassProperties<T>, MassPropsError> {
@@ -510,7 +510,7 @@ pub(crate) mod raw_door {
     ///
     /// As [`classify_shells`].
     #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
-    pub fn classify_body<T: Decide + geom_core::CertifiedBounds>(
+    pub fn classify_body<T: CertifiedPolicy + geom_core::CertifiedBounds>(
         body: &Body<T>,
         tol: Tol,
     ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
@@ -525,7 +525,7 @@ pub(crate) mod raw_door {
     ///
     /// As [`classify_shells_of`].
     #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
-    pub fn classify_body_of<T: Decide + geom_core::CertifiedBounds>(
+    pub fn classify_body_of<T: CertifiedPolicy + geom_core::CertifiedBounds>(
         body: &Body<T>,
         shells: &[ShellKey],
         tol: Tol,
@@ -540,7 +540,7 @@ pub(crate) mod raw_door {
     ///
     /// As [`classify_shells_structural`].
     #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
-    pub fn classify_body_structural<T: Decide>(
+    pub fn classify_body_structural<T: AtRestPolicy>(
         body: &Body<T>,
         tol: Tol,
     ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
@@ -591,7 +591,7 @@ fn resolution_len(len: Length, tol: Tol) -> Result<f64, MassPropsError> {
 /// order, that a later round refused outright or whose kept enclosure
 /// has no width to meter ([`FaceRun::width_len`]) is the refusal; else
 /// why the rest could refine no further ([`SignCertificate::ran_out`]).
-fn resolution_stop<T: Decide>(
+fn resolution_stop<T: AtRestPolicy>(
     certificate: &SignCertificate<'_, T>,
     len: f64,
 ) -> Result<Stop, MassPropsError> {
@@ -623,8 +623,8 @@ fn resolution_stop<T: Decide>(
 /// `None` arm) — so a walk through this hook refuses exactly where any
 /// other walk over the same lane does.
 #[allow(clippy::type_complexity)]
-fn round_hook<T: Decide>(
-    quad: Option<QuadLane<T>>,
+fn round_hook<T: AtRestPolicy>(
+    quad: Option<T::QuadLane>,
 ) -> impl Fn(
     &Body<T>,
     &Surface<T>,
@@ -640,12 +640,8 @@ fn round_hook<T: Decide>(
 + Copy {
     move |body, surface, sense, loops, band, tol, window, about: Point3<T>, resolution| match quad {
         Some(lane) => {
-            let about = Point3::new(
-                (lane.lift)(about.x),
-                (lane.lift)(about.y),
-                (lane.lift)(about.z),
-            );
-            (lane.cut_face_rounds)(
+            let about = Point3::new(lane.lift(about.x), lane.lift(about.y), lane.lift(about.z));
+            lane.cut_face_rounds(
                 body,
                 surface,
                 sense,
@@ -667,12 +663,12 @@ fn round_hook<T: Decide>(
 /// displacement is at most `len`, or at its own stop, keeping its
 /// narrowest round. A face left short of `len` is no refusal: its
 /// enclosure is sound, and the sum keeps it.
-fn resolution_runs<T: Decide>(
+fn resolution_runs<T: AtRestPolicy>(
     body: &Body<T>,
     faces: &[FaceKey],
     band: Band,
     tol: Tol,
-    quad: Option<QuadLane<T>>,
+    quad: Option<T::QuadLane>,
     len: f64,
 ) -> Result<Vec<FaceRun<T>>, MassPropsError> {
     let hook = round_hook(quad);
@@ -711,12 +707,12 @@ fn resolution_runs<T: Decide>(
 /// [`MassPropsError`] where a face has no enclosure at all, a
 /// predicate's margin is poisoned, or a resolution is finer than ε,
 /// which the model defines no measure to.
-pub(crate) fn measure_to<'b, T: Decide>(
+pub(crate) fn measure_to<'b, T: AtRestPolicy>(
     body: &'b Body<T>,
     faces: &[FaceKey],
     band: Band,
     tol: Tol,
-    (measure, certify): (Option<QuadLane<T>>, Option<QuadLane<T>>),
+    (measure, certify): (Option<T::QuadLane>, Option<T::QuadLane>),
     settle: Settle<T>,
 ) -> Result<(Stop, SignCertificate<'b, T>), MassPropsError> {
     if let Settle::Resolution(len) = settle {
@@ -750,9 +746,9 @@ pub(crate) fn measure_to<'b, T: Decide>(
 /// [`MassPropsError`] where the re-derivation refuses a face, the
 /// predicate's margin is poisoned, or the walk runs out undecided on a
 /// face a later round refused outright.
-fn deciding_walk<T: Decide>(
+fn deciding_walk<T: AtRestPolicy>(
     certificate: &mut SignCertificate<'_, T>,
-    certify: Option<QuadLane<T>>,
+    certify: Option<T::QuadLane>,
     step: impl Fn(VolumeEnclosure<T>) -> settle::Step,
 ) -> Result<Stop, MassPropsError> {
     let walked = walk_set(&mut [&mut *certificate], certify, |rounds| {
@@ -835,9 +831,9 @@ pub(crate) enum Walked<V> {
 /// A round is taken member by member in the set's order, each member's
 /// faces one indexed map in its own order ([`decide_each`]), so the
 /// recordings splice in that order.
-pub(crate) fn walk_set<'b, T: Decide, V>(
+pub(crate) fn walk_set<'b, T: AtRestPolicy, V>(
     members: &mut [&mut SignCertificate<'b, T>],
-    certify: Option<QuadLane<T>>,
+    certify: Option<T::QuadLane>,
     mut settle: impl FnMut(&[Round<'_, 'b, T>]) -> Ask<V>,
 ) -> Walked<V> {
     loop {
@@ -958,15 +954,15 @@ pub(crate) enum FaceWalk {
 /// at. A certificate derived with no lane has no round left open (every
 /// face is closed-form, finished at round 0), so its continuation is
 /// the fold of what it already holds.
-pub struct SignCertificate<'b, T: Decide> {
+pub struct SignCertificate<'b, T: AtRestPolicy> {
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
-    quad: Option<QuadLane<T>>,
+    quad: Option<T::QuadLane>,
     runs: Vec<FaceRun<T>>,
 }
 
-impl<'b, T: Decide> SignCertificate<'b, T> {
+impl<'b, T: AtRestPolicy> SignCertificate<'b, T> {
     /// `faces` at round 0, in the caller's order: the walk's first
     /// reading, its faces decided as `walk` says. The faces' seam regions
     /// are read here, once.
@@ -979,7 +975,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         faces: &[FaceKey],
         band: Band,
         tol: Tol,
-        quad: Option<QuadLane<T>>,
+        quad: Option<T::QuadLane>,
         walk: FaceWalk,
     ) -> Result<Self, MassPropsError> {
         let hook = round_hook(quad);
@@ -1008,7 +1004,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         body: &'b Body<T>,
         band: Band,
         tol: Tol,
-        quad: Option<QuadLane<T>>,
+        quad: Option<T::QuadLane>,
         runs: Vec<FaceRun<T>>,
     ) -> Self {
         Self {
@@ -1067,7 +1063,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// question: its callers size the faces instead.
     pub(crate) fn settle_on(
         &mut self,
-        certify: Option<QuadLane<T>>,
+        certify: Option<T::QuadLane>,
         settle: Settle<T>,
     ) -> Result<Stop, MassPropsError> {
         let band = self.band;
@@ -1113,16 +1109,16 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
 /// round with no pad to say so. [`Self::certify`] reads the role off the
 /// re-derivation, which encloses the divergence sum about a corner of the
 /// body over the stored geometry ([`rederive`], [`certify_role`]).
-pub(crate) struct Round<'r, 'b, T: Decide> {
+pub(crate) struct Round<'r, 'b, T: AtRestPolicy> {
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
     /// The lane the round's closed forms are re-derived through.
-    certify: Option<QuadLane<T>>,
+    certify: Option<T::QuadLane>,
     runs: &'r [FaceRun<T>],
 }
 
-impl<T: Decide> Round<'_, '_, T> {
+impl<T: AtRestPolicy> Round<'_, '_, T> {
     /// The walk's own sums at this round.
     pub(crate) fn props(&self) -> MassProperties<T> {
         fold_runs(self.runs)
@@ -1142,7 +1138,7 @@ impl<T: Decide> Round<'_, '_, T> {
     pub(crate) fn interval_volume(&self) -> Option<Result<(Interval, Interval), MassPropsError>> {
         let lane = self.certify?;
         Some(
-            rederive(self.body, self.band, self.tol, lane, self.runs, true)
+            lane.rederive(self.body, self.band, self.tol, self.runs, true)
                 .map(|r| (r.volume, r.area)),
         )
     }
@@ -1154,8 +1150,10 @@ impl<T: Decide> Round<'_, '_, T> {
         certify_role(
             self.reading(),
             |tight| {
-                self.certify
-                    .map(|lane| rederived(self.body, self.band, self.tol, lane, self.runs, tight))
+                self.certify.map(|lane| {
+                    lane.rederive(self.body, self.band, self.tol, self.runs, tight)
+                        .map(|r| (SignReading::exact(r.volume, r.area), r.limit()))
+                })
             },
             || rounding_bound(self.body, self.runs),
             names,
@@ -1491,11 +1489,20 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
         let c = run.about.point();
         let about = |p: Point3<T>| one_norm(p.x - c.x, p.y - c.y, p.z - c.z);
         let anchor = match surface {
-            Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => Some(origin),
-            Surface::Cone { apex, .. } => Some(apex),
-            Surface::Sphere { center, .. }
-            | Surface::Torus { center, .. }
-            | Surface::Spindle { center, .. } => Some(center),
+            Surface::Plane { frame, .. } | Surface::Cylinder { frame, .. } => {
+                let origin = frame.origin();
+                Some(origin)
+            }
+            Surface::Cone { frame, .. } => {
+                let apex = frame.origin();
+                Some(apex)
+            }
+            Surface::Sphere { frame, .. }
+            | Surface::Torus { frame, .. }
+            | Surface::Spindle { frame, .. } => {
+                let center = frame.origin();
+                Some(center)
+            }
             Surface::Nurbs(_) | Surface::Approx(_) => None,
         };
         // One plus the face's edge count, kept in `T`.
@@ -1536,19 +1543,6 @@ pub(crate) type IntervalRead = Result<(SignReading<Interval>, Option<SignLimit>)
 /// [`rounding_bound`]'s allowance for the rounded operations of one term.
 const ROUNDING_TERMS: f64 = 16.0;
 
-/// [`rederive`] as a role read takes it: one interval, read once.
-fn rederived<T: Decide>(
-    body: &Body<T>,
-    band: Band,
-    tol: Tol,
-    lane: QuadLane<T>,
-    runs: &[FaceRun<T>],
-    tight: bool,
-) -> Result<(SignReading<Interval>, Option<SignLimit>), MassPropsError> {
-    rederive(body, band, tol, lane, runs, tight)
-        .map(|r| (SignReading::exact(r.volume, r.area), r.limit()))
-}
-
 /// The interval signature of a closed form read about a centre
 /// ([`QuadLane`]'s `closed_form`).
 type ClosedFormAt<T> = fn(
@@ -1571,7 +1565,15 @@ type ClosedFormAt<T> = fn(
 /// width. A closed-form face is bounded by no spiric, so its loops'
 /// vector area has a closed form.
 fn closed_form_or_carried<T: Decide>(
-    closed_form: ClosedFormAt<T>,
+    closed_form: impl Fn(
+        &Surface<T>,
+        &[Vec<LoopEdge<T>>],
+        &[Point3<T>],
+        bool,
+        Band,
+        Point3<Interval>,
+        Option<((Interval, Interval), Point3<Interval>)>,
+    ) -> Result<(FaceContribution<Interval>, bool), PropsError>,
     surface: &Surface<T>,
     loops: &[Vec<LoopEdge<T>>],
     held: &[Point3<T>],
@@ -1636,7 +1638,7 @@ fn closed_form_or_carried<T: Decide>(
 /// hold at the interval scalar — the face's geometry read with no
 /// rounding to hide behind, which can leave a classification open that
 /// the walk's scalar decided.
-fn rederive<T: Decide>(
+fn rederive<T: geom_core::Certifies>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
@@ -1661,7 +1663,7 @@ fn rederive<T: Decide>(
 /// [`rederive`] face by face, each about the point `c` the walk read it
 /// about ([`corner_of`]), which every run's enclosure is about already,
 /// and each carried region's first face with its carry ([`References`]).
-fn rederive_faces<T: Decide>(
+fn rederive_faces<T: geom_core::Certifies>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
@@ -1702,7 +1704,7 @@ fn rederive_faces<T: Decide>(
                 };
                 let taken = *taken;
                 let rerun = if tight {
-                    (lane.cut_face_rounds)(
+                    lane.cut_face_rounds(
                         body,
                         surface,
                         face.record().sense,
@@ -1726,7 +1728,9 @@ fn rederive_faces<T: Decide>(
             }
             None => {
                 let (c, moved) = closed_form_or_carried(
-                    lane.closed_form,
+                    |surface, loops, points, same_sense, band, about, cap| {
+                        (lane.closed_form)(surface, loops, points, same_sense, band, about, cap)
+                    },
                     surface,
                     &loops,
                     &held,
@@ -1774,13 +1778,13 @@ type PlanePolygon = (Rings, geom_core::Vec3<Interval>);
 /// (review R2 of PR 5119's second delta, measured in exact rationals);
 /// a face's own term is widened by that tilt where it is read at all
 /// ([`quad_lane::polygon_face_about`]).
-fn shell_polygons<T: Decide>(
+fn shell_polygons<T: geom_core::Certifies>(
     body: &Body<T>,
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
 ) -> Result<Option<Vec<PlanePolygon>>, MassPropsError> {
     let lift = |v: geom_core::Vec3<T>| {
-        geom_core::Vec3::new((lane.lift)(v.x), (lane.lift)(v.y), (lane.lift)(v.z))
+        geom_core::Vec3::new(lane.lift(v.x), lane.lift(v.y), lane.lift(v.z))
     };
     let mut polygons = Vec::with_capacity(runs.len());
     for run in runs {
@@ -1790,7 +1794,15 @@ fn shell_polygons<T: Decide>(
             vertex_rings(body, surface, &flat_loops(body, face.record())?, lane)?,
             surface,
         ) {
-            (Some(rings), &Surface::Plane { normal, .. }) => polygons.push((rings, lift(normal))),
+            (
+                Some(rings),
+                &Surface::Plane {
+                    frame: plane_frame, ..
+                },
+            ) => {
+                let normal = plane_frame.axis();
+                polygons.push((rings, lift(normal)))
+            }
             _ => return Ok(None),
         }
     }
@@ -1805,7 +1817,7 @@ fn shell_polygons<T: Decide>(
 /// its polygon's signed area widened by the polygon's tilt off the plane
 /// ([`quad_lane::polygon_face_about`]). The area is the faces' own,
 /// either way.
-fn rederive_polygons<T: Decide>(
+fn rederive_polygons<T: geom_core::Certifies>(
     lane: QuadLane<T>,
     polygons: &[PlanePolygon],
     runs: &[FaceRun<T>],
@@ -1834,7 +1846,7 @@ fn rederive_polygons<T: Decide>(
 
 /// A planar face bounded by lines, as its loops' vertex points in
 /// traversal order, lifted through `lane`; `None` for any other face.
-fn vertex_rings<T: Decide>(
+fn vertex_rings<T: geom_core::Certifies>(
     body: &Body<T>,
     surface: &Surface<T>,
     loops: &[FlatLoop<T>],
@@ -1847,7 +1859,7 @@ fn vertex_rings<T: Decide>(
     if !matches!(surface, Surface::Plane { .. }) || !lines {
         return Ok(None);
     }
-    let lift = |p: Point3<T>| Point3::new((lane.lift)(p.x), (lane.lift)(p.y), (lane.lift)(p.z));
+    let lift = |p: Point3<T>| Point3::new(lane.lift(p.x), lane.lift(p.y), lane.lift(p.z));
     loops
         .iter()
         .map(|(_, hes)| {
@@ -1931,12 +1943,12 @@ impl Rederived {
 /// ([`shell_polygons`]) that is the whole difference; on the fan route
 /// the loops' gaps at their carrier ends add their own
 /// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
-fn corner_of<T: Decide>(lane: QuadLane<T>, run: &FaceRun<T>) -> Point3<Interval> {
+fn corner_of<T: geom_core::Certifies>(lane: QuadLane<T>, run: &FaceRun<T>) -> Point3<Interval> {
     let c = run.about.point();
-    Point3::new((lane.lift)(c.x), (lane.lift)(c.y), (lane.lift)(c.z))
+    Point3::new(lane.lift(c.x), lane.lift(c.y), lane.lift(c.z))
 }
 
-impl<T: Decide> fmt::Debug for SignCertificate<'_, T> {
+impl<T: AtRestPolicy> fmt::Debug for SignCertificate<'_, T> {
     /// The certificate, not the body it reads: the bracket and the rounds
     /// its faces can still run. Both patterns tie the render to the
     /// fields: one added to either type is an E0027 here.
@@ -1966,7 +1978,7 @@ impl<T: Decide> fmt::Debug for SignCertificate<'_, T> {
     }
 }
 
-impl<'b, T: Decide> SignCertificate<'b, T> {
+impl<'b, T: AtRestPolicy> SignCertificate<'b, T> {
     /// **The body's certificate, assembled from its parts'** — the
     /// runs of certificates taken over disjoint face sets, re-ordered
     /// into FACE-ARENA order.
@@ -2008,7 +2020,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         body: &'b Body<T>,
         band: Band,
         tol: Tol,
-        quad: Option<QuadLane<T>>,
+        quad: Option<T::QuadLane>,
         parts: Vec<Self>,
     ) -> Self {
         let mut by_face: slotmap::SecondaryMap<FaceKey, FaceRun<T>> = slotmap::SecondaryMap::new();
@@ -2061,7 +2073,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// certificate holds no lane or the re-derivation refuses.
     pub(crate) fn interval_volume(&self) -> Option<(f64, f64)> {
         let lane = self.quad?;
-        rederive(self.body, self.band, self.tol, lane, &self.runs, true)
+        lane.rederive(self.body, self.band, self.tol, &self.runs, true)
             .ok()
             .map(|r| (r.volume.lo(), r.volume.hi()))
     }
@@ -2143,7 +2155,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     }
 }
 
-impl<T: Decide + geom_core::Bounds> SignCertificate<'_, T> {
+impl<T: AtRestPolicy + geom_core::Bounds> SignCertificate<'_, T> {
     /// **The measurement, continued from here** — the door
     /// ([`crate::mass_properties`]) under `settle`, over the faces as the
     /// certificate holds them, reusing every round already taken.
@@ -2244,14 +2256,14 @@ impl<T: Decide + geom_core::Bounds> SignCertificate<'_, T> {
 /// one body it was derived over, so a reader measures through the rounds
 /// the gate already ran ([`crate::AtRestBody::measure`]).
 #[derive(Clone)]
-pub(crate) struct KeptSign<T: Decide> {
+pub(crate) struct KeptSign<T: AtRestPolicy> {
     band: Band,
     tol: Tol,
-    quad: Option<QuadLane<T>>,
+    quad: Option<T::QuadLane>,
     runs: Vec<FaceRun<T>>,
 }
 
-impl<T: Decide> KeptSign<T> {
+impl<T: AtRestPolicy> KeptSign<T> {
     /// **This certificate over the body's image under an isometry**
     /// `map`: every run's reference point moved with the body, and every
     /// flux, area and carry kept. Each face's flux `∫(p − c)·n` about a
@@ -2305,7 +2317,7 @@ impl<T: Decide> KeptSign<T> {
 /// # Errors
 ///
 /// [`MassPropsError`], as [`mass_properties_structural`].
-pub(crate) fn mass_properties_closed_form<T: Decide>(
+pub(crate) fn mass_properties_closed_form<T: AtRestPolicy>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
@@ -2318,7 +2330,7 @@ pub(crate) fn mass_properties_closed_form<T: Decide>(
 /// those faces bound, summed in the order given. The whole-body door
 /// is this one handed the face arena in arena order, so its answer is
 /// bit-for-bit the same (`face_list_door_tests` pins it).
-pub(crate) fn mass_properties_closed_form_of<T: Decide>(
+pub(crate) fn mass_properties_closed_form_of<T: AtRestPolicy>(
     body: &Body<T>,
     faces: &[FaceKey],
     band: Band,
@@ -2935,9 +2947,11 @@ mod region_carry_tests {
         let mut edges = square(true);
         edges.push(LoopEdge::hand_built(
             geom::Curve3::Spiric {
-                center: iv(Point3::origin()),
-                axis: iv(Point3::new(0.0, 0.0, 1.0)) - Point3::origin(),
-                u_ref: iv(Point3::new(1.0, 0.0, 0.0)) - Point3::origin(),
+                frame: geom::Frame::new(
+                    iv(Point3::origin()),
+                    iv(Point3::new(0.0, 0.0, 1.0)) - Point3::origin(),
+                    iv(Point3::new(1.0, 0.0, 0.0)) - Point3::origin(),
+                ),
                 major_radius: Interval::from_f64(2.0),
                 minor_radius: Interval::from_f64(1.0),
                 offset: Interval::from_f64(0.5),
@@ -3668,7 +3682,7 @@ pub fn region_carries_of<T: AtRestPolicy>(
             let quadrature = quadrature_regions(body, shell);
             let c = reference_of(body, shell, &quadrature);
             let carried = T::quad_lane().map_or_else(Vec::new, |lane| {
-                region_carries(body, c, quadrature.clone(), &held, lane)
+                lane.region_carries(body, c, quadrature.clone(), &held)
             });
             let regions = quadrature
                 .into_iter()
@@ -4379,7 +4393,7 @@ struct RegionCarry<T: Decide> {
     carry: Interval,
 }
 
-impl<T: Decide> References<T> {
+impl<T: AtRestPolicy> References<T> {
     /// The references of the shells `faces` lie on, the carried regions
     /// among them through `lane`, and the seam regions they reach, read
     /// in `band`.
@@ -4387,7 +4401,7 @@ impl<T: Decide> References<T> {
         body: &Body<T>,
         faces: impl IntoIterator<Item = FaceKey>,
         band: Band,
-        lane: Option<QuadLane<T>>,
+        lane: Option<T::QuadLane>,
     ) -> Self {
         let faces: Vec<FaceKey> = faces.into_iter().collect();
         Self {
@@ -4400,7 +4414,7 @@ impl<T: Decide> References<T> {
     fn points(
         body: &Body<T>,
         faces: impl IntoIterator<Item = FaceKey>,
-        lane: Option<QuadLane<T>>,
+        lane: Option<T::QuadLane>,
     ) -> Self {
         let held: std::collections::BTreeSet<FaceKey> = faces.into_iter().collect();
         let mut shells = std::collections::BTreeMap::new();
@@ -4419,7 +4433,7 @@ impl<T: Decide> References<T> {
             let c = reference_of(body, shell, &quadrature);
             shells.insert(shell, c);
             let Some(lane) = lane else { continue };
-            for region in region_carries(body, c, quadrature, &held, lane) {
+            for region in lane.region_carries(body, c, quadrature, &held) {
                 carries.insert(region.faces[0], region.carry);
                 for face in region.faces {
                     regions.insert(face, region.point);
@@ -4495,7 +4509,7 @@ impl<T: Real> ReadAbout<T> {
 /// `held` and that lies far from the shell's point `c` ([`far_from`]),
 /// with its point ([`region_point`]) and its carry to `c`, read through
 /// `lane`.
-fn region_carries<T: Decide>(
+fn region_carries<T: geom_core::Certifies>(
     body: &Body<T>,
     c: Point3<T>,
     quadrature: Vec<Vec<FaceKey>>,
@@ -4504,7 +4518,7 @@ fn region_carries<T: Decide>(
 ) -> Vec<RegionCarry<T>> {
     let lift = |p: Point3<T>| Point3::new(lane.lift(p.x), lane.lift(p.y), lane.lift(p.z));
     let lift_edge = |e: &LoopEdge<T>| LoopEdge {
-        carrier: e.carrier.map_scalar(lane.lift),
+        carrier: e.carrier.map_scalar(|x| lane.lift(x)),
         carrier_id: e.carrier_id,
         t0: lane.lift(e.t0),
         t1: lane.lift(e.t1),
@@ -4523,7 +4537,7 @@ fn region_carries<T: Decide>(
         let point = region_point(body, &faces);
         let every: Vec<(LoopEdge<Interval>, Option<geom_core::Vec3<Interval>>)> = every
             .iter()
-            .map(|(e, plane)| (lift_edge(e), plane.map(|n| n.map(lane.lift))))
+            .map(|(e, plane)| (lift_edge(e), plane.map(|n| n.map(|x| lane.lift(x)))))
             .collect();
         if !far_from(&every, lift(point), lift(c)) {
             continue;
@@ -4634,7 +4648,10 @@ fn region_edges<T: Decide>(
         let face = body.proven_face(key);
         let surface = face.surface();
         let plane = match *surface {
-            Surface::Plane { normal, .. } => Some(normal),
+            Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
+                Some(normal)
+            }
             _ => None,
         };
         for (edges, hes) in flat_loops(body, face.record()).ok()? {
@@ -5068,7 +5085,7 @@ pub mod read_points {
 /// quadrature region's), with the region's carry on the region's first
 /// face ([`References`]).
 #[allow(clippy::too_many_arguments)]
-fn face_flux<T: Decide>(
+fn face_flux<T: AtRestPolicy>(
     body: &Body<T>,
     face_key: FaceKey,
     band: Band,
@@ -5888,7 +5905,7 @@ pub fn classify_shells<F: crate::FinishedBody>(
     tol: Tol,
 ) -> Result<Vec<ShellClassification<F::Scalar>>, ShellClassifyError>
 where
-    F::Scalar: geom_core::CertifiedBounds,
+    F::Scalar: CertifiedPolicy + geom_core::CertifiedBounds,
 {
     classify_body(body, tol)
 }
@@ -5943,7 +5960,7 @@ pub fn classify_shells_of<F: crate::FinishedBody>(
     tol: Tol,
 ) -> Result<Vec<ShellClassification<F::Scalar>>, ShellClassifyError>
 where
-    F::Scalar: geom_core::CertifiedBounds,
+    F::Scalar: CertifiedPolicy + geom_core::CertifiedBounds,
 {
     classify_body_of(body, shells, tol)
 }
@@ -5954,11 +5971,11 @@ where
 /// enclosure that read reached — its volume walk's, where the role was
 /// read off the volume, and otherwise every face's round 0. No face is
 /// refined for a number.
-pub(crate) fn classify_shells_through<T: Decide>(
+pub(crate) fn classify_shells_through<T: AtRestPolicy>(
     body: &Body<T>,
     shells: &[ShellKey],
     tol: Tol,
-    quad: Option<QuadLane<T>>,
+    quad: Option<T::QuadLane>,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
     let band = Band::linear(tol).map_err(|error| ShellClassifyError::Band { error })?;
     let mut out = Vec::new();
@@ -6011,12 +6028,12 @@ pub(crate) fn classify_shells_through<T: Decide>(
 /// broken face ([`ShellClassifyError::Ray`]); or, where no aim read,
 /// the volume walk's [`ShellClassifyError::Props`] or the role its last
 /// round left undecided (escalated, zero or straddling).
-pub(crate) fn shell_role<T: Decide>(
+pub(crate) fn shell_role<T: AtRestPolicy>(
     body: &Body<T>,
     shell: ShellKey,
     band: Band,
     tol: Tol,
-    quad: Option<QuadLane<T>>,
+    quad: Option<T::QuadLane>,
 ) -> Result<ShellRole, ShellClassifyError> {
     shell_role_reading(body, shell, band, || {
         shell_volume_role(body, shell, band, tol, quad)
@@ -6077,12 +6094,12 @@ fn shell_role_reading<T: Decide>(
 /// The walk's or the re-derivation's [`ShellClassifyError::Props`], or
 /// the role the last round left undecided (escalated, zero or
 /// straddling).
-pub(crate) fn shell_volume_role<T: Decide>(
+pub(crate) fn shell_volume_role<T: AtRestPolicy>(
     body: &Body<T>,
     shell: ShellKey,
     band: Band,
     tol: Tol,
-    quad: Option<QuadLane<T>>,
+    quad: Option<T::QuadLane>,
 ) -> Result<ShellRole, ShellClassifyError> {
     let faces = body.get_shell(shell).map_or(&[][..], |s| &s.faces[..]);
     let mut certificate =
@@ -6093,10 +6110,10 @@ pub(crate) fn shell_volume_role<T: Decide>(
 
 /// [`shell_volume_role`] on the shell's faces as `certificate` holds
 /// them, walked on from there.
-fn shell_volume_role_of<T: Decide>(
+fn shell_volume_role_of<T: AtRestPolicy>(
     shell: ShellKey,
     certificate: &mut SignCertificate<'_, T>,
-    quad: Option<QuadLane<T>>,
+    quad: Option<T::QuadLane>,
 ) -> Result<ShellRole, ShellClassifyError> {
     let props = |source| ShellClassifyError::Props { shell, source };
     let Some(role) = role_walk_set(&mut [certificate], quad, crate::validate::PLUS_V_SIGN).pop()
@@ -6169,13 +6186,13 @@ pub(crate) enum RoleWalkRefusal {
 /// [`MassPropsError`] where a face has no enclosure at round 0. A face
 /// refused at a later round is the role's [`RoleWalkRefusal::Refused`].
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn role_walk<'b, T: Decide>(
+pub(crate) fn role_walk<'b, T: AtRestPolicy>(
     body: &'b Body<T>,
     faces: &[FaceKey],
     band: Band,
     tol: Tol,
-    measure: Option<QuadLane<T>>,
-    certify: Option<QuadLane<T>>,
+    measure: Option<T::QuadLane>,
+    certify: Option<T::QuadLane>,
     names: SignNames,
 ) -> Result<(Result<ShellRole, RoleWalkRefusal>, SignCertificate<'b, T>), MassPropsError> {
     let mut certificate =
@@ -6199,9 +6216,9 @@ pub(crate) fn role_walk<'b, T: Decide>(
 /// ([`RoleWalkRefusal::Poisoned`]), as does the interval re-derivation's
 /// refusal. A member the walk runs out on with a face a later round
 /// refused outright reads that refusal ([`RoleWalkRefusal::Refused`]).
-pub(crate) fn role_walk_set<'b, T: Decide>(
+pub(crate) fn role_walk_set<'b, T: AtRestPolicy>(
     members: &mut [&mut SignCertificate<'b, T>],
-    certify: Option<QuadLane<T>>,
+    certify: Option<T::QuadLane>,
     names: SignNames,
 ) -> Vec<Result<ShellRole, RoleWalkRefusal>> {
     let n = members.len();
@@ -6321,7 +6338,7 @@ fn shell_role_refusal(
 /// certifying scalar that has no row here. This type
 /// carries that fact to the passes that run at both kinds of scalar:
 /// its one constructor is [`QuadLane::certified`], at
-/// `Decide + CertifiedBounds`, so holding a value IS the statement that
+/// `Certifies + CertifiedBounds`, so holding a value IS the statement that
 /// the scalar it is parameterised by can certify. A pass holding `None`
 /// runs the closed form alone — it instantiates no quadrature code, and
 /// a face that needed the quadrature refuses typed. Nothing dispatches
@@ -6339,29 +6356,36 @@ fn shell_role_refusal(
 /// `Sym<T>: CertifiedBounds` whenever `T` is, so the constructor is
 /// there for it.
 ///
-/// A scalar that may not certify cannot hold one — the constructor's
-/// `impl` block is bounded on the right, so the value cannot be
-/// written, let alone handed to a walk:
+/// A scalar that does not certify has no such type: the lane is
+/// declared over [`geom_core::Certifies`], so a function that names it
+/// carries the bound, and a pass that runs at every scalar holds
+/// [`AtRestPolicy::QuadLane`] instead, which has no values at a dual.
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_core::Dual64;
 /// use topo::QuadLane;
 /// let _ = QuadLane::<Dual64>::certified();
 /// ```
 ///
-/// The code is `E0599` and not [`mass_properties`]'s `E0277`, because
-/// the two are refused at different places: a free function's bound is
-/// an unsatisfied trait obligation on the call (`E0277`), while
-/// `certified` is an associated function that EXISTS on
-/// `QuadLane<Dual64>` and whose `impl` block's bounds are not met, which
-/// `rustc` reports as "the associated function exists … but its trait
-/// bounds were not satisfied" (`E0599`, read off `rustc` on the
-/// snippet). Stable rustdoc verifies only that the block fails to build
-/// (`geom_core::spline::hull`'s rule), so the code beside the fence is a
-/// statement and not a check.
+/// ```compile_fail,E0277
+/// use geom_core::Dual64;
+/// use topo::QuadLane;
+/// fn names_it(_lane: Option<QuadLane<Dual64>>) {}
+/// ```
+///
+/// ```
+/// use geom_core::{Dual64, NoLane};
+/// use topo::AtRestPolicy;
+/// let held: Option<NoLane> = <Dual64 as AtRestPolicy>::quad_lane();
+/// let _ = held;
+/// ```
+///
+/// Stable rustdoc verifies only that a `compile_fail` block fails to
+/// build (`geom_core::spline::hull`'s rule), so the code beside each
+/// fence is a statement and not a check.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct QuadLane<T: Decide> {
+pub struct QuadLane<T: geom_core::Certifies> {
     /// The certified flux/area enclosures of one curved-cut face, over
     /// the round window it is handed, its flux about the world origin
     /// (`None`) or about a centre — `quad_lane::cut_face_rounds`, and
@@ -6390,7 +6414,7 @@ pub struct QuadLane<T: Decide> {
     lift: fn(T) -> Interval,
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
+impl<T: geom_core::Certifies + geom_core::CertifiedBounds> QuadLane<T> {
     /// The certified quadrature — the whole inventory of this door, and
     /// the only constructor there is. Its body is
     /// `quad_lane::cut_face_rounds`, entered by the number walk over
@@ -6408,10 +6432,181 @@ impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
     }
 }
 
-impl<T: Decide> QuadLane<T> {
+impl<T: geom_core::Certifies> QuadLane<T> {
     /// A value of the walk's scalar as the interval holding it.
     pub(crate) fn lift(self, x: T) -> Interval {
         (self.lift)(x)
+    }
+}
+
+/// **A [`QuadLane`] as a pass that runs at every scalar holds it**: the
+/// lane at a scalar that certifies, [`geom_core::NoLane`] (no values)
+/// at one that does not (`geom-core` README, DL5.3). Sealed: those two
+/// are its only implementors ([`ShellDoorOf`] and [`crate::RegionLaneOf`]
+/// carry the seal's pin; this trait's entries name types no other crate
+/// can spell, so no doctest can write its methods out).
+///
+/// Each method is the entry to a routine declared over
+/// [`geom_core::Certifies`], which takes the lane itself: what runs
+/// with a lane in hand is not a function at a dual.
+#[allow(clippy::too_many_arguments, private_interfaces)]
+pub trait QuadLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// The lane's certified enclosures of one curved-cut face
+    /// (`quad_lane::cut_face_rounds`).
+    fn cut_face_rounds(
+        self,
+        body: &Body<T>,
+        surface: &Surface<T>,
+        same_sense: bool,
+        loops: &[FlatLoop<T>],
+        band: Band,
+        tol: Tol,
+        window: RoundWindow,
+        about: Option<Point3<Interval>>,
+        height: Option<f64>,
+    ) -> Result<LaneRun, PropsError>;
+
+    /// [`rederive`].
+    fn rederive(
+        self,
+        body: &Body<T>,
+        band: Band,
+        tol: Tol,
+        runs: &[FaceRun<T>],
+        tight: bool,
+    ) -> Result<Rederived, MassPropsError>;
+
+    /// [`region_carries`].
+    fn region_carries(
+        self,
+        body: &Body<T>,
+        c: Point3<T>,
+        quadrature: Vec<Vec<FaceKey>>,
+        held: &std::collections::BTreeSet<FaceKey>,
+    ) -> Vec<RegionCarry<T>>;
+
+    /// A value of the walk's scalar as the interval holding it
+    /// (`Interval::from_certified`).
+    fn lift(self, x: T) -> Interval;
+    /// `crate::loop_winding::enclosed_winding_with`.
+    fn enclosed_winding(
+        self,
+        walked: &[crate::loop_winding::Step<'_, T>],
+        end: Point3<T>,
+        closing: Option<crate::loop_winding::Traversed<'_, T>>,
+        gapped: bool,
+        normal: geom_core::Vec3<T>,
+        band: Band,
+    ) -> crate::loop_winding::Winding;
+}
+
+#[allow(clippy::too_many_arguments, private_interfaces)]
+impl<T: geom_core::Certifies> QuadLaneOf<T> for QuadLane<T> {
+    fn cut_face_rounds(
+        self,
+        body: &Body<T>,
+        surface: &Surface<T>,
+        same_sense: bool,
+        loops: &[FlatLoop<T>],
+        band: Band,
+        tol: Tol,
+        window: RoundWindow,
+        about: Option<Point3<Interval>>,
+        height: Option<f64>,
+    ) -> Result<LaneRun, PropsError> {
+        (self.cut_face_rounds)(
+            body, surface, same_sense, loops, band, tol, window, about, height,
+        )
+    }
+
+    fn rederive(
+        self,
+        body: &Body<T>,
+        band: Band,
+        tol: Tol,
+        runs: &[FaceRun<T>],
+        tight: bool,
+    ) -> Result<Rederived, MassPropsError> {
+        rederive(body, band, tol, self, runs, tight)
+    }
+
+    fn region_carries(
+        self,
+        body: &Body<T>,
+        c: Point3<T>,
+        quadrature: Vec<Vec<FaceKey>>,
+        held: &std::collections::BTreeSet<FaceKey>,
+    ) -> Vec<RegionCarry<T>> {
+        region_carries(body, c, quadrature, held, self)
+    }
+
+    fn lift(self, x: T) -> Interval {
+        QuadLane::lift(self, x)
+    }
+    fn enclosed_winding(
+        self,
+        walked: &[crate::loop_winding::Step<'_, T>],
+        end: Point3<T>,
+        closing: Option<crate::loop_winding::Traversed<'_, T>>,
+        gapped: bool,
+        normal: geom_core::Vec3<T>,
+        band: Band,
+    ) -> crate::loop_winding::Winding {
+        crate::loop_winding::enclosed_winding_with(self, walked, end, closing, gapped, normal, band)
+    }
+}
+
+#[allow(clippy::too_many_arguments, private_interfaces)]
+impl<T: Decide> QuadLaneOf<T> for geom_core::NoLane {
+    fn cut_face_rounds(
+        self,
+        _body: &Body<T>,
+        _surface: &Surface<T>,
+        _same_sense: bool,
+        _loops: &[FlatLoop<T>],
+        _band: Band,
+        _tol: Tol,
+        _window: RoundWindow,
+        _about: Option<Point3<Interval>>,
+        _height: Option<f64>,
+    ) -> Result<LaneRun, PropsError> {
+        match self {}
+    }
+
+    fn rederive(
+        self,
+        _body: &Body<T>,
+        _band: Band,
+        _tol: Tol,
+        _runs: &[FaceRun<T>],
+        _tight: bool,
+    ) -> Result<Rederived, MassPropsError> {
+        match self {}
+    }
+
+    fn region_carries(
+        self,
+        _body: &Body<T>,
+        _c: Point3<T>,
+        _quadrature: Vec<Vec<FaceKey>>,
+        _held: &std::collections::BTreeSet<FaceKey>,
+    ) -> Vec<RegionCarry<T>> {
+        match self {}
+    }
+
+    fn lift(self, _x: T) -> Interval {
+        match self {}
+    }
+    fn enclosed_winding(
+        self,
+        _walked: &[crate::loop_winding::Step<'_, T>],
+        _end: Point3<T>,
+        _closing: Option<crate::loop_winding::Traversed<'_, T>>,
+        _gapped: bool,
+        _normal: geom_core::Vec3<T>,
+        _band: Band,
+    ) -> crate::loop_winding::Winding {
+        match self {}
     }
 }
 
@@ -6431,27 +6626,22 @@ impl<T: Decide> QuadLane<T> {
 /// typed where the seam answers [`None`]. The seam that answers it is
 /// [`AtRestPolicy::shell_door`], the per-scalar policy home.
 ///
-/// A scalar that may not certify cannot hold one — the constructor's
-/// `impl` block is bounded on the right, so the value cannot be
-/// written, let alone handed to a verb:
+/// A scalar that does not certify has no such type ([`QuadLane`]'s
+/// paragraph), and holds [`AtRestPolicy::ShellDoor`] with no values:
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_core::Dual64;
 /// use topo::ShellDoor;
 /// let _ = ShellDoor::<Dual64>::certified();
 /// ```
-///
-/// Why the code is `E0599`, and what the fence does not check:
-/// [`QuadLane`]'s paragraph.
-#[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct ShellDoor<T: AtRestPolicy> {
+pub struct ShellDoor<T: geom_core::Certifies + AtRestPolicy> {
     /// [`ShellDoor::open`]'s body — `crate::shell_open`, and nothing
     /// else can be written here (`wiring_rows` pins the pointer).
     open: fn(&T::Finished, T, &[FaceKey], Tol) -> Result<Shelled<T>, ShellError<T>>,
 }
 
-impl<T: Decide + geom_core::CertifiedBounds + AtRestPolicy> ShellDoor<T> {
+impl<T: CertifiedPolicy + geom_core::CertifiedBounds> ShellDoor<T> {
     /// The certified hollowing door — the whole inventory of this
     /// door, and the only constructor there is. Its body is
     /// [`crate::shell_open`], so the sealed hollow ([`crate::shell()`],
@@ -6464,18 +6654,55 @@ impl<T: Decide + geom_core::CertifiedBounds + AtRestPolicy> ShellDoor<T> {
     }
 }
 
-impl<T: AtRestPolicy> ShellDoor<T> {
-    /// The door's one operation: hollow `body` to `thickness`, opening
-    /// the designated faces into rims.
-    ///
-    /// Every check, every refusal and every minted entity is
-    /// [`crate::shell_open`]'s; this hands the arguments on and adds no
-    /// decision of its own.
+impl<T: geom_core::Certifies + AtRestPolicy> Clone for ShellDoor<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: geom_core::Certifies + AtRestPolicy> Copy for ShellDoor<T> {}
+
+/// **A [`ShellDoor`] as a pass that runs at every scalar holds it**: the
+/// door at a scalar that certifies, [`geom_core::NoLane`] (no values)
+/// at one that does not (`geom-core` README, DL5.3). Sealed: the lane and
+/// `NoLane` are its only implementors, so a pass that holds one holds
+/// the value of the lane's one constructor or nothing. In the block
+/// below every method is written out, so the seal is what refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::Tol;
+/// use topo::{AtRestBody, FaceKey, ShellError, Shelled};
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl topo::ShellDoorOf<f64> for Mine {
+///     fn open(
+///         self,
+///         _body: &AtRestBody<f64>,
+///         _thickness: f64,
+///         _open: &[FaceKey],
+///         _tol: Tol,
+///     ) -> Result<Shelled<f64>, ShellError<f64>> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait ShellDoorOf<T: AtRestPolicy>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// [`ShellDoor::open`].
     ///
     /// # Errors
     ///
-    /// [`ShellError`] — the door's own, verbatim.
-    pub fn open(
+    /// The door's own.
+    fn open(
+        self,
+        body: &T::Finished,
+        thickness: T,
+        open_faces: &[FaceKey],
+        tol: Tol,
+    ) -> Result<Shelled<T>, ShellError<T>>;
+}
+
+impl<T: geom_core::Certifies + AtRestPolicy> ShellDoorOf<T> for ShellDoor<T> {
+    fn open(
         self,
         body: &T::Finished,
         thickness: T,
@@ -6483,6 +6710,18 @@ impl<T: AtRestPolicy> ShellDoor<T> {
         tol: Tol,
     ) -> Result<Shelled<T>, ShellError<T>> {
         (self.open)(body, thickness, open_faces, tol)
+    }
+}
+
+impl<T: AtRestPolicy> ShellDoorOf<T> for geom_core::NoLane {
+    fn open(
+        self,
+        _body: &T::Finished,
+        _thickness: T,
+        _open_faces: &[FaceKey],
+        _tol: Tol,
+    ) -> Result<Shelled<T>, ShellError<T>> {
+        match self {}
     }
 }
 
@@ -6506,7 +6745,7 @@ mod wiring_rows {
     /// `Ok(())` when the quadrature door holds
     /// `quad_lane::cut_face_rounds` and `quad_lane::closed_form`;
     /// otherwise the name of the field that moved.
-    fn holds_the_certified_quadrature<T: super::Decide + geom_core::CertifiedBounds>()
+    fn holds_the_certified_quadrature<T: geom_core::Certifies + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().cut_face_rounds,
@@ -6531,8 +6770,9 @@ mod wiring_rows {
 
     /// `Ok(())` when the shell door holds `shell_open`; otherwise the
     /// name of the field that moved.
-    fn holds_the_certified_shell_door<T: geom_core::CertifiedBounds + AtRestPolicy>()
-    -> Result<(), &'static str> {
+    fn holds_the_certified_shell_door<
+        T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
+    >() -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             ShellDoor::<T>::certified().open,
             crate::shell::shell_open_at::<T> as fn(_, _, _, _) -> _,
@@ -6715,6 +6955,10 @@ mod wiring_rows {
 /// cannot read at its use sites, so every door that reads a bracket
 /// spells `Bounds` where the reader can see it.
 pub trait AtRestPolicy: Decide {
+    /// What this scalar holds [`AtRestPolicy::offset_fit_lane`]'s lane as: the
+    /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
+    type OffsetFitLane: geom_brep::OffsetFitLaneOf<Self>;
+
     /// **This scalar's offset-fit door, or `None` where the fit is not
     /// derived here** — the ONE seam the `Some` comes from, read by
     /// check 1's tier-3 battery, the offset mint
@@ -6734,12 +6978,18 @@ pub trait AtRestPolicy: Decide {
     /// as the per-scalar policy that cut leaves standing): the door
     /// itself is a value the passes take as a parameter, and this is
     /// the one place each scalar's answer is written. The same holds
-    /// of every door beside it — nine doors, one policy, no trait
-    /// apiece.
-    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>>;
+    /// of every door beside it: ten doors, one policy. No door is a
+    /// trait a scalar implements; each door's value is held through a
+    /// sealed `…Of` trait whose implementors are the door and
+    /// [`geom_core::NoLane`].
+    fn offset_fit_lane() -> Option<Self::OffsetFitLane>;
 
-    /// **This scalar's fitted-pcurve door, or `None` where it may not
-    /// certify** — the ONE seam the `Some` comes from, read by every
+    /// What this scalar holds [`AtRestPolicy::fitted_lane`]'s lane as: the
+    /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
+    type FittedLane: geom_brep::FittedLaneOf<Self>;
+
+    /// **This scalar's fitted-pcurve door** (a dual's holder has no
+    /// values, so `None` is the only answer its type has) — the ONE seam the `Some` comes from, read by every
     /// consumer: the pcurve mint ([`crate::mint_pcurves`]: its general
     /// image, its chart-foot rim arms and its `certify_general` call)
     /// and the tier-3 pcurve pass ([`crate::pcurves::validate_pcurves`],
@@ -6756,7 +7006,7 @@ pub trait AtRestPolicy: Decide {
     /// [`geom_brep::PcurveCertifyError::FittedLaneUnsupported`] — or,
     /// at the mint's rim arms, keeps the refusal the arm already had,
     /// since no foot is measured.
-    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>>;
+    fn fitted_lane() -> Option<Self::FittedLane>;
 
     /// **This scalar's edge door** — the ONE seam every operation
     /// generic over its scalar attaches an edge carrier through, read
@@ -6820,6 +7070,10 @@ pub trait AtRestPolicy: Decide {
         stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError>;
 
+    /// What this scalar holds [`AtRestPolicy::spline_foot`]'s lane as: the
+    /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
+    type SplineFoot: geom_brep::SplineFootOf<Self>;
+
     /// **This scalar's spline foot, or `None` where it is not derived
     /// here** — the offset door's re-anchor of a spline-carried edge
     /// ([`crate::replace_face_offset`], through
@@ -6828,7 +7082,7 @@ pub trait AtRestPolicy: Decide {
     /// ([`geom::NurbsCurve3::project_from_seed`]'s bound), so an offset
     /// whose edge needs it refuses at any other scalar by name
     /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
-    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>>;
+    fn spline_foot() -> Option<Self::SplineFoot>;
 
     /// **A spline span's crossings of an analytic face's carrier at this
     /// scalar, or `None` where it is not derived here** — the boolean's
@@ -6876,6 +7130,10 @@ pub trait AtRestPolicy: Decide {
         reach: Self,
     ) -> Result<f64, geom_brep::ChartArmRefusal>;
 
+    /// What this scalar holds [`AtRestPolicy::section_lane`]'s lane as: the
+    /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
+    type SectionLane: crate::offset_derive::SectionLaneOf<Self>;
+
     /// **This scalar's section lane, or `None` where it is not
     /// derived here** — the offset door's plane × spline-wall
     /// section and the plane's root along a spline edge
@@ -6883,7 +7141,11 @@ pub trait AtRestPolicy: Decide {
     /// `f64` alone, so that arm answers `Some`; an offset whose edge or
     /// corner needs it refuses at any other scalar by name
     /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
-    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>>;
+    fn section_lane() -> Option<Self::SectionLane>;
+
+    /// What this scalar holds [`AtRestPolicy::ssi_lane`]'s lane as: the
+    /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
+    type SsiLane: geom_brep::SsiLaneOf<Self>;
 
     /// **This scalar's general-rung march door, or `None` where it is not
     /// derived here** — the boolean's section table carries a section on
@@ -6891,10 +7153,14 @@ pub trait AtRestPolicy: Decide {
     /// The ℝ³ march is written at `f64` alone, so that arm answers
     /// `Some`; a join whose germs ride such a section refuses at any
     /// other scalar by name ([`geom_brep::CarryRefusal::NoLane`]).
-    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>>;
+    fn ssi_lane() -> Option<Self::SsiLane>;
 
-    /// **This scalar's shell door, or `None` where it may not form the
-    /// call** — the ONE seam the `Some` comes from, read by the verb
+    /// What this scalar holds [`AtRestPolicy::shell_door`]'s door as: the
+    /// door where the scalar certifies, [`geom_core::NoLane`] at a dual.
+    type ShellDoor: ShellDoorOf<Self>;
+
+    /// **This scalar's shell door** (a dual's holder has no values, so
+    /// `None` is the only answer its type has) — the ONE seam the `Some` comes from, read by the verb
     /// seat's `verbs::Shell::run_shell` and, above it, the document
     /// layer's shell lowering.
     ///
@@ -6907,15 +7173,23 @@ pub trait AtRestPolicy: Decide {
     /// and a different one from
     /// [`AtRestPolicy::offset_fit_lane`] above, which is about where a
     /// derivation is written.
-    fn shell_door() -> Option<ShellDoor<Self>>;
+    fn shell_door() -> Option<Self::ShellDoor>;
 
-    /// **This scalar's quadrature lane, or `None` where it may not
-    /// certify** — the lane a door that reads shell roles outside the
+    /// What this scalar holds [`AtRestPolicy::quad_lane`]'s lane as: the
+    /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
+    type QuadLane: QuadLaneOf<Self>;
+
+    /// **This scalar's quadrature lane** (a dual's holder has no values,
+    /// so `None` is the only answer its type has) — the lane a door that reads shell roles outside the
     /// validator reads them through ([`crate::pieces`]), the same one
     /// the at-rest gate makes check 7 and check 10 through. Certification
     /// rights, as [`AtRestPolicy::shell_door`]: `None` reads closed forms
     /// only.
-    fn quad_lane() -> Option<QuadLane<Self>>;
+    fn quad_lane() -> Option<Self::QuadLane>;
+
+    /// What this scalar holds [`AtRestPolicy::region_lane`]'s lane as: the
+    /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
+    type RegionLane: crate::RegionLaneOf<Self>;
 
     /// **This scalar's chart-region doors, or `None` where they may not
     /// certify** — what an op that confirms a record outside the
@@ -6923,7 +7197,11 @@ pub trait AtRestPolicy: Decide {
     /// ([`crate::census`]'s record confirm, run by the boolean's carry),
     /// as `validate_pseudomanifold` hands the census at a certifying
     /// scalar. `None` leaves a face–face pair unread.
-    fn region_lane() -> Option<crate::RegionLane<Self>>;
+    fn region_lane() -> Option<Self::RegionLane>;
+
+    /// What this scalar holds [`AtRestPolicy::clearance_lane`]'s lane as: the
+    /// lane where the scalar certifies, [`geom_core::NoLane`] at a dual.
+    type ClearanceLane: crate::ClearanceLaneOf<Self>;
 
     /// **This scalar's clearance measure, or `None` where it does not
     /// answer** — the ONE seam the `Some` comes from, read by a
@@ -6940,7 +7218,7 @@ pub trait AtRestPolicy: Decide {
     /// a point build evaluates one parameter point, where a search finds
     /// a near pair, not a verdict over the box, and a clearance there
     /// reads its third state naming the certifying lane.
-    fn clearance_lane() -> Option<crate::ClearanceLane<Self>>;
+    fn clearance_lane() -> Option<Self::ClearanceLane>;
 
     /// **This scalar's finished body** (`[topology.tiers]`): what
     /// [`AtRestPolicy::finish`] constructs and every door that returns a
@@ -7059,16 +7337,39 @@ pub trait AtRestPolicy: Decide {
     ) -> crate::FlushAtRest;
 }
 
+/// **A scalar whose policy holds the quadrature and region lanes
+/// themselves**: every scalar that certifies. A certified door names
+/// those two lanes by their constructors and hands them to passes and
+/// certificates that hold [`AtRestPolicy::QuadLane`] and
+/// [`AtRestPolicy::RegionLane`]; this bound says the two spellings are
+/// one type. It equates two of the ten doors, the two a certified door
+/// constructs; the other eight are read from the policy wherever they
+/// are held.
+pub trait CertifiedPolicy:
+    geom_core::Certifies + AtRestPolicy<QuadLane = QuadLane<Self>, RegionLane = crate::RegionLane<Self>>
+{
+}
+
+impl<T> CertifiedPolicy for T where
+    T: geom_core::Certifies
+        + AtRestPolicy<QuadLane = QuadLane<T>, RegionLane = crate::RegionLane<T>>
+{
+}
+
 impl AtRestPolicy for f64 {
+    type OffsetFitLane = geom_brep::OffsetFitLane<Self>;
+
     /// The fit IS written here: `geom_brep::offset_fit` is an `f64`
     /// module throughout, so this is the one arm that answers `Some`.
-    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+    fn offset_fit_lane() -> Option<Self::OffsetFitLane> {
         Some(geom_brep::OffsetFitLane::fit())
     }
 
+    type FittedLane = geom_brep::FittedLane<Self>;
+
     /// The decide-with-escalation lane certifies, so it derives fitted
     /// pcurves.
-    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
+    fn fitted_lane() -> Option<Self::FittedLane> {
         Some(geom_brep::FittedLane::certified())
     }
 
@@ -7101,7 +7402,9 @@ impl AtRestPolicy for f64 {
         crate::policy_lane::certifying_reattach(curve, start, end, surfaces, reach, band, stated)
     }
 
-    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
+    type SplineFoot = geom_brep::SplineFoot<Self>;
+
+    fn spline_foot() -> Option<Self::SplineFoot> {
         Some(geom_brep::SplineFoot::certified())
     }
 
@@ -7136,30 +7439,42 @@ impl AtRestPolicy for f64 {
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
+    type SectionLane = crate::offset_derive::SectionLane<Self>;
+
     /// The march is written here.
-    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+    fn section_lane() -> Option<Self::SectionLane> {
         Some(crate::offset_derive::SectionLane::f64())
     }
 
+    type SsiLane = geom_brep::SsiLane<Self>;
+
     /// The march is written here.
-    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
+    fn ssi_lane() -> Option<Self::SsiLane> {
         Some(geom_brep::SsiLane::marched())
     }
 
+    type ShellDoor = ShellDoor<Self>;
+
     /// The decide-with-escalation lane certifies, so it runs the door.
-    fn shell_door() -> Option<ShellDoor<Self>> {
+    fn shell_door() -> Option<Self::ShellDoor> {
         Some(ShellDoor::certified())
     }
 
-    fn quad_lane() -> Option<QuadLane<Self>> {
+    type QuadLane = QuadLane<Self>;
+
+    fn quad_lane() -> Option<Self::QuadLane> {
         Some(QuadLane::certified())
     }
 
-    fn region_lane() -> Option<crate::RegionLane<Self>> {
+    type RegionLane = crate::RegionLane<Self>;
+
+    fn region_lane() -> Option<Self::RegionLane> {
         Some(crate::RegionLane::certified())
     }
 
-    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+    type ClearanceLane = crate::ClearanceLane<Self>;
+
+    fn clearance_lane() -> Option<Self::ClearanceLane> {
         None
     }
 
@@ -7218,19 +7533,23 @@ impl AtRestPolicy for f64 {
 
 #[cfg(feature = "probe")]
 impl AtRestPolicy for geom_core::Probe {
+    type OffsetFitLane = geom_brep::OffsetFitLane<Self>;
+
     /// The fit is derived at `f64` only. The recording scalar is `f64`
     /// with a sink attached, and that is still not the type
     /// `geom_brep::offset_fit` is written in.
-    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+    fn offset_fit_lane() -> Option<Self::OffsetFitLane> {
         None
     }
+
+    type FittedLane = geom_brep::FittedLane<Self>;
 
     /// Certification rights, not the scalar a derivation is written
     /// in, decide this door: the recording scalar's arithmetic is
     /// `f64`'s, observed, and it holds `geom_core::CertifiedBounds`, so
     /// it derives fitted pcurves through the same generic bodies —
     /// where the offset fit above, written at `f64` alone, stays out.
-    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
+    fn fitted_lane() -> Option<Self::FittedLane> {
         Some(geom_brep::FittedLane::certified())
     }
 
@@ -7263,7 +7582,9 @@ impl AtRestPolicy for geom_core::Probe {
         crate::policy_lane::certifying_reattach(curve, start, end, surfaces, reach, band, stated)
     }
 
-    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
+    type SplineFoot = geom_brep::SplineFoot<Self>;
+
+    fn spline_foot() -> Option<Self::SplineFoot> {
         Some(geom_brep::SplineFoot::certified())
     }
 
@@ -7298,32 +7619,44 @@ impl AtRestPolicy for geom_core::Probe {
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
+    type SectionLane = crate::offset_derive::SectionLane<Self>;
+
     /// The march is written at `f64` alone.
-    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+    fn section_lane() -> Option<Self::SectionLane> {
         None
     }
+
+    type SsiLane = geom_brep::SsiLane<Self>;
 
     /// The march is written at `f64` alone, as the section lane's
     /// above.
-    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
+    fn ssi_lane() -> Option<Self::SsiLane> {
         None
     }
 
+    type ShellDoor = ShellDoor<Self>;
+
     /// The recording scalar is `f64` with a sink attached, so it
     /// carries exactly what `f64` carries — here, the door.
-    fn shell_door() -> Option<ShellDoor<Self>> {
+    fn shell_door() -> Option<Self::ShellDoor> {
         Some(ShellDoor::certified())
     }
 
-    fn quad_lane() -> Option<QuadLane<Self>> {
+    type QuadLane = QuadLane<Self>;
+
+    fn quad_lane() -> Option<Self::QuadLane> {
         Some(QuadLane::certified())
     }
 
-    fn region_lane() -> Option<crate::RegionLane<Self>> {
+    type RegionLane = crate::RegionLane<Self>;
+
+    fn region_lane() -> Option<Self::RegionLane> {
         Some(crate::RegionLane::certified())
     }
 
-    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+    type ClearanceLane = crate::ClearanceLane<Self>;
+
+    fn clearance_lane() -> Option<Self::ClearanceLane> {
         None
     }
 
@@ -7381,16 +7714,20 @@ impl AtRestPolicy for geom_core::Probe {
 }
 
 impl AtRestPolicy for geom_core::interval::Interval {
+    type OffsetFitLane = geom_brep::OffsetFitLane<Self>;
+
     /// The fit is derived at `f64` only — a fact about the scalar the
     /// derivation was written in, not about this scalar's
     /// certification rights, which it has in full.
-    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+    fn offset_fit_lane() -> Option<Self::OffsetFitLane> {
         None
     }
 
+    type FittedLane = geom_brep::FittedLane<Self>;
+
     /// The certified interval scalar derives fitted pcurves: its
     /// brackets are what the C2 certificate's hull bound is made of.
-    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
+    fn fitted_lane() -> Option<Self::FittedLane> {
         Some(geom_brep::FittedLane::certified())
     }
 
@@ -7423,7 +7760,9 @@ impl AtRestPolicy for geom_core::interval::Interval {
         crate::policy_lane::certifying_reattach(curve, start, end, surfaces, reach, band, stated)
     }
 
-    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
+    type SplineFoot = geom_brep::SplineFoot<Self>;
+
+    fn spline_foot() -> Option<Self::SplineFoot> {
         Some(geom_brep::SplineFoot::certified())
     }
 
@@ -7458,31 +7797,43 @@ impl AtRestPolicy for geom_core::interval::Interval {
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
+    type SectionLane = crate::offset_derive::SectionLane<Self>;
+
     /// The march is written at `f64` alone.
-    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+    fn section_lane() -> Option<Self::SectionLane> {
         None
     }
 
+    type SsiLane = geom_brep::SsiLane<Self>;
+
     /// The march is written at `f64` alone.
-    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
+    fn ssi_lane() -> Option<Self::SsiLane> {
         None
     }
+
+    type ShellDoor = ShellDoor<Self>;
 
     /// The certified interval scalar runs the door: its brackets are
     /// what the validator's certified claim is made of.
-    fn shell_door() -> Option<ShellDoor<Self>> {
+    fn shell_door() -> Option<Self::ShellDoor> {
         Some(ShellDoor::certified())
     }
 
-    fn quad_lane() -> Option<QuadLane<Self>> {
+    type QuadLane = QuadLane<Self>;
+
+    fn quad_lane() -> Option<Self::QuadLane> {
         Some(QuadLane::certified())
     }
 
-    fn region_lane() -> Option<crate::RegionLane<Self>> {
+    type RegionLane = crate::RegionLane<Self>;
+
+    fn region_lane() -> Option<Self::RegionLane> {
         Some(crate::RegionLane::certified())
     }
 
-    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+    type ClearanceLane = crate::ClearanceLane<Self>;
+
+    fn clearance_lane() -> Option<Self::ClearanceLane> {
         Some(crate::ClearanceLane::certified())
     }
 
@@ -7533,20 +7884,24 @@ impl AtRestPolicy for geom_core::interval::Interval {
 impl<T> AtRestPolicy for geom_core::Sym<T>
 where
     geom_core::Sym<T>: Decide + geom_core::Bounds,
-    T: geom_core::CertifiedBounds,
+    T: geom_core::Certifies + geom_core::CertifiedBounds,
     T: AtRestPolicy,
 {
+    type OffsetFitLane = geom_brep::OffsetFitLane<Self>;
+
     /// The fit is derived at `f64` only. The tier changes how a margin
     /// DECIDES, not which derivations exist, so wrapping a scalar
     /// cannot add one.
-    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+    fn offset_fit_lane() -> Option<Self::OffsetFitLane> {
         None
     }
+
+    type FittedLane = geom_brep::FittedLane<Self>;
 
     /// Every door is the base scalar's, run at `Sym<T>`: the tier
     /// alters one decision rule inside the scalar, so a `Sym`-wrapped
     /// certifying scalar still mints and re-derives fitted caches.
-    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
+    fn fitted_lane() -> Option<Self::FittedLane> {
         Some(geom_brep::FittedLane::certified())
     }
 
@@ -7579,7 +7934,9 @@ where
         crate::policy_lane::certifying_reattach(curve, start, end, surfaces, reach, band, stated)
     }
 
-    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
+    type SplineFoot = geom_brep::SplineFoot<Self>;
+
+    fn spline_foot() -> Option<Self::SplineFoot> {
         Some(geom_brep::SplineFoot::certified())
     }
 
@@ -7614,37 +7971,49 @@ where
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
+    type SectionLane = crate::offset_derive::SectionLane<Self>;
+
     /// The march is written at `f64` alone.
-    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+    fn section_lane() -> Option<Self::SectionLane> {
         None
     }
 
+    type SsiLane = geom_brep::SsiLane<Self>;
+
     /// The march is written at `f64` alone.
-    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
+    fn ssi_lane() -> Option<Self::SsiLane> {
         None
     }
+
+    type ShellDoor = ShellDoor<Self>;
 
     /// For the reason [`QuadLane`] gives at the symbolic tier: the
     /// tier changes how an identically-zero margin decides and
     /// nothing else, so wrapping a certifying base must not demote a
     /// certifying door to an absent one — the driver's leaf replay
     /// would otherwise stop hollowing the bodies it certifies.
-    fn shell_door() -> Option<ShellDoor<Self>> {
+    fn shell_door() -> Option<Self::ShellDoor> {
         Some(ShellDoor::certified())
     }
 
-    fn quad_lane() -> Option<QuadLane<Self>> {
+    type QuadLane = QuadLane<Self>;
+
+    fn quad_lane() -> Option<Self::QuadLane> {
         Some(QuadLane::certified())
     }
 
-    fn region_lane() -> Option<crate::RegionLane<Self>> {
+    type RegionLane = crate::RegionLane<Self>;
+
+    fn region_lane() -> Option<Self::RegionLane> {
         Some(crate::RegionLane::certified())
     }
+
+    type ClearanceLane = crate::ClearanceLane<Self>;
 
     /// Exactly where the base scalar's engine answers: the tier
     /// changes how a margin decides, not whether a bracket has
     /// somewhere to go.
-    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+    fn clearance_lane() -> Option<Self::ClearanceLane> {
         T::clearance_lane().map(|_| crate::ClearanceLane::certified())
     }
 
@@ -7697,12 +8066,16 @@ impl<T> AtRestPolicy for geom_core::Dual<T>
 where
     geom_core::Dual<T>: Decide + geom_core::TangentTransport,
 {
+    type OffsetFitLane = geom_core::NoLane;
+
     /// The fit is derived at `f64` only — the same reason every other
     /// arm here gives, and a separate fact from the gates below, which
     /// are absent because a dual does not certify.
-    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+    fn offset_fit_lane() -> Option<Self::OffsetFitLane> {
         None
     }
+
+    type FittedLane = geom_core::NoLane;
 
     /// **A dual does not certify** (DL1), and a fitted pcurve's
     /// certificate — like the image and chart feet it is certified
@@ -7714,7 +8087,7 @@ where
     /// fitted lane's checks, which refuse typed at check 4 — after
     /// checks 1–3, which read no door and so answer as at every other
     /// scalar.
-    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
+    fn fitted_lane() -> Option<Self::FittedLane> {
         None
     }
 
@@ -7748,9 +8121,11 @@ where
         crate::policy_lane::minting_reattach(curve, surfaces, band)
     }
 
+    type SplineFoot = geom_core::NoLane;
+
     /// Newton's foot is written at the certified-bracket scalars, which
     /// a dual is not.
-    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
+    fn spline_foot() -> Option<Self::SplineFoot> {
         None
     }
 
@@ -7788,34 +8163,46 @@ where
         Err(geom_brep::ChartArmRefusal::NoLane)
     }
 
+    type SectionLane = geom_core::NoLane;
+
     /// The march is written at `f64` alone.
-    fn section_lane() -> Option<crate::offset_derive::SectionLane<Self>> {
+    fn section_lane() -> Option<Self::SectionLane> {
         None
     }
 
+    type SsiLane = geom_core::NoLane;
+
     /// The march is written at `f64` alone.
-    fn ssi_lane() -> Option<geom_brep::SsiLane<Self>> {
+    fn ssi_lane() -> Option<Self::SsiLane> {
         None
     }
+
+    type ShellDoor = geom_core::NoLane;
 
     /// **A dual does not certify** (the DL3 ruling, unmoved), and the
     /// shell door's last act is a certified validation of what it
     /// built, so no `Dual` can hold one: a document evaluated for
     /// sensitivities meets a typed refusal at its shell node rather
     /// than an unvalidated hollow.
-    fn shell_door() -> Option<ShellDoor<Self>> {
+    fn shell_door() -> Option<Self::ShellDoor> {
         None
     }
 
-    fn quad_lane() -> Option<QuadLane<Self>> {
+    type QuadLane = geom_core::NoLane;
+
+    fn quad_lane() -> Option<Self::QuadLane> {
         None
     }
 
-    fn region_lane() -> Option<crate::RegionLane<Self>> {
+    type RegionLane = geom_core::NoLane;
+
+    fn region_lane() -> Option<Self::RegionLane> {
         None
     }
 
-    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+    type ClearanceLane = geom_core::NoLane;
+
+    fn clearance_lane() -> Option<Self::ClearanceLane> {
         None
     }
 
@@ -8067,7 +8454,9 @@ mod at_rest_policy_tests {
     }
 
     fn certifying_arms_are_the_doors<
-        T: AtRestPolicy<Finished = AtRestBody<T>> + geom_core::CertifiedBounds,
+        T: super::CertifiedPolicy
+            + AtRestPolicy<Finished = AtRestBody<T>, ShellDoor = super::ShellDoor<T>>
+            + geom_core::CertifiedBounds,
     >() {
         let tol = Tol::witness();
         let b = refusing_body::<T>();
@@ -8345,18 +8734,16 @@ mod face_list_door_tests {
                 let at = face_start(&body, f);
                 let k = body.proven_face(f).record().surface;
                 let Some(Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
+                    frame: carrier_frame,
                 }) = body.surfaces.get_mut(k)
                 else {
                     continue;
                 };
+                let (normal, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
                 // Turned about `u_ref` through a corner.
-                let v = normal.cross(*u_ref);
-                let turned = (*normal + v * lean).normalize();
-                *origin = at;
-                *normal = turned;
+                let v = normal.cross(u_ref);
+                let turned = (normal + v * lean).normalize();
+                *carrier_frame = geom::Frame::new(at, turned, u_ref);
             }
             let read = |body: &Body<f64>| {
                 let faces: Vec<FaceKey> = body
@@ -8376,8 +8763,12 @@ mod face_list_door_tests {
             let before = read(&body);
             for (_, surface) in body.surfaces.iter_mut() {
                 match surface {
-                    Surface::Plane { origin, u_ref, .. } => *origin = *origin + *u_ref * slide,
-                    Surface::Cylinder { origin, axis, .. } => *origin = *origin + *axis * slide,
+                    Surface::Plane { frame, .. } => {
+                        *frame = frame.translated(frame.u_ref() * slide)
+                    }
+                    Surface::Cylinder { frame, .. } => {
+                        *frame = frame.translated(frame.axis() * slide)
+                    }
                     _ => {}
                 }
             }
@@ -9121,7 +9512,7 @@ mod shell_reference_rows {
         measured: Option<((Interval, Interval), Point3<Interval>)>,
     ) -> Result<(FaceContribution<Interval>, bool), PropsError> {
         use geom_core::Bounds;
-        let up = matches!(surface, Surface::Plane { normal, .. } if normal.z > 0.5);
+        let up = matches!(surface, Surface::Plane { frame, .. } if frame.axis().z > 0.5);
         let off = [centre.x, centre.y, centre.z]
             .iter()
             .any(|x| x.lo() != 0.0 || x.hi() != 0.0);

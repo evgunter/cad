@@ -436,3 +436,55 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
 - (DOCTAIL lane) 2026-11-20: closed `main-red-the-collinear-walls-probe-expects-the-edit-door-to-refuse-a-tangent-junction` in PR 7148. The R1 probe now pins the `JunctionTangent` refusal at evaluation, not at the door.
 - 2026-11-19 — (SCALAR orchestrator) Filed `the-nightlys-shared-build-job-dies-to-a-runner-shutdown-most-nights` (P1 M): the shared build job was killed by a runner shutdown on 11-16, 11-18 and 11-19, so the full-suite legs ran on one night of the last four.
 - 2026-11-20 — (tracker sweep) **TCOST merged in.** It held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size). Its 17 live rows moved here by `git mv`, ids and bodies unchanged, each with a dated Moved note; its charter and plan are the `## From TCOST` sections of `program.md` and `plan.md` (`docs/doc-ledger/tcost-merges-into-green.md`). (tracker sweep)
+- 2026-11-22 — (EMBED orchestrator) **Two sweep rows on the 1 s bar moved to the slow set, beside the step-import row PR 7120 moved** (`embed/step-import-bar`): `step-import::all an_edge_is_read_on_its_description_whatever_recognition_says::a_straight_rim_recognition_declines_is_carried_on_its_column` (1.62 to 1.72 s on three gate runs; added by PR 7304 without its slow-set line) and two sweep rows on the bar (`join_pierce_strut_facing::two_out_runs_at_the_corner_build_in_every_op`, `band_turn_overrun_oracles::generic_hexahedra_build_and_fill_at_the_clip_oracle`). They redded `gate ok` on PRs 7115 and 7119 with every test passing; the pole lane timed them the same on main and on its head. The row `a-step-import-row-runs-at-1-65-s-and-two-sweep-rows-at-the-bar-and-red-a-pr-off-their-path` arrives with PR 7115 and is closed there. Why the step-import row costs 1.65 s is not looked at; that is EXCH's if it matters.
+
+## 2026-11-22 — picked up (Opus 5.5 orchestrator)
+
+- Track `active`. The slate: one P0, eight P1, all main reds but the slow-row selection gap and the nightly build job. The build job has run on every nightly since 11-20 (three scheduled or dispatched runs, 113-114 minutes each against its 120), so the shutdown row and the P2 near-limit row are one unit now. `main-red-three-source-censuses-red-since-the-told-quantity-type` is SCALAR's PR 7267 (gate green, open): no lane; it closes when that merges.
+- Units, each with its letter and review tier, logged before any draw:
+  - **U1 `green/small-reds`** — the ringless-cone 1e-12 pins (fix written in the row), the tour's probe build reading a circle's radius through its accessor, step-import's recourse roster. Letter S. Tier: orchestrator's read — each is written down in its row and mechanical. Not a model-compare row.
+  - **U2 `green/rim-ball`** — the P0: bisect the cylinder_sphere_frame r 0.1 rim refusal and say whether the refusal or the row is wrong, then green it. Letter M. Tier: FULL single — whether a refusal is right is a correctness claim a read cannot settle.
+  - **U3 `green/editor-1e-12`** — editor-core's four 1e-12 reds (the plates' sym ledger since PR 7183, the e2e slider and two revalue rows since before 11-19): bisect, judge each new reading, re-bless or pin. Letter M. Tier: STYLE single, as the earlier pin units.
+  - **U4 `green/slow-row-selection`** — the PR gate selects a slow row whose body, doc or read table a diff touches. Letter M (re-priced from C: the const-table case is more than a written fix). Tier: FULL single — a selection rule that silently selects too little is exactly what a read does not catch.
+  - **U5 `green/nightly-build`** — the shared build job: why runners shut it down, and its 113-114 minutes against 120. Letter M. Tier: FULL single — workflow changes whose failures are silent skips.
+  - **N `nightly read`** — nightly 44927630239 (`dbc608ff`, dispatched 11-21 17:00Z) read whole from each leg's junit against the slate. Exploration, no PR.
+- 02:35Z — Fable usage limit exhausted (resets 16:00Z): U2, U3 and U4 died at dispatch. Ev, in chat: run everything on Opus, no experiment rows, and where a protocol wants two reviewers run both on Opus. U2-U4 re-dispatched on Opus; no model-compare row for any of U1-U5 (rule 12; the note is on `analysis/model-compare/green-2026-11-22`). Running: U1, U4, U5 and the nightly read in this container; U2 and U3 as cloud sessions (sweep's and editor-core's 1e-12 builds do not fit 9 GB).
+- 03:00Z — nightly read in. **Run 44927630239 (17:00Z, `dbc608ff`) was dispatched on PR 7264's branch, not main**, as were the 14:50Z and 15:08Z dispatches; the last nightly of main is the scheduled 44870651337 (`f5ef8f2b`). U2 and U3 were redirected to it. Coverage sound (19874 tests per ε row). Held already: most reds (rows on GERM, SCALAR via PR 7267, SECTARMS, SPIRICARM, SSIARITH, DOCTAIL, CHARTTAIL, BAND). The rustdoc gate's red is the tour's private-radius build (U1). The render lane's red is GERM's nist_ftc_09 snap row; that row now names the lane.
+- Unheld, filed: `main-red-seven-sweep-and-topo-rows-red-at-1e-6-since-11-17` (P1; plus sweep's sphere offer row, likely PR 7159), dispatched as **U6 `green/eps-1e-6-sweep`**, letter M, STYLE single (cloud). `pr-ci-latency-median-is-32-minutes` (P2: median 27.2 min on 11-21's alarm against the 15-minute bar, no live row). Dispatched anyway under the Friction rule as **U7 `green/pr-latency-2`**, letter M, FULL single (container, run records only).
+- 2026-11-22 — PR 7359 (U4, slow-row selection) closes.
+  - Fix pass accepted. A delta re-review by the same reviewer gave APPROVE: 3000 randomized slow sets with no entry dropped, `not default()` read from nextest 0.9.140's source, and the step's shell dry-run at the all-selected case and at 7131's.
+  - Tier FULL single, Opus. No model-compare row (Fable outage).
+  - The hosted slow-set step has still never run on this PR's own gate, because a scripts-only diff seeds no crate. The first PR that edits a slow row's file runs it: check that run's step log.
+- 2026-11-22 — PR 7371 (U1) closes, on the orchestrator's read and a green gate.
+  - The ringless cone pins and the tour's private-radius build were already green on main, by TESSLIE's PR 7198 and GERM's PR 7226.
+  - step-import's coverage red is held by a `KNOWN_MISSING` entry citing `work/importgate/step-import-runs-no-recourse-roster-over-its-band-funnels.md` (P3). A real roster needs the band layer's funnels renamed, which is IMPORTGATE's call.
+- 2026-11-22 — PR 7364 (U7, PR CI latency) closes.
+  - The fix pass was taken whole on a green gate (run 45015627267). The env-block equality became a gate, not a single source: anchors went unchecked against the pinned actionlint.
+  - The cancel-mid-run sibling went to BIND as a row: an event would make it exercise less.
+  - FULL single review, Opus; no model-compare row (Fable outage).
+  - The latency row closes, and the queue row holds the remainder.
+- 2026-11-22 — PR 7359 (U4) merged on its one red, an inherited varying-seed torn-body fuzz row held by CHARTTAIL (`a-split-reduce-on-a-torn-body-panics-at-pcurves-unreachable-own-loop`). Annotated on the PR.
+- 2026-11-22 — PR 7392 (U2, the P0) closes.
+  - Fix pass taken whole on a green gate (run 45026090602). The pin now holds the whole one-element refusal list, edge and face keys included.
+  - GREEN's row closes. The red's owner is SECTARMS' P0 (`a-rim-ball-refuses-b-minus-a-at-the-slits-unread-carrier-since-the-periodic-loop`, `design: true`: strengthen `clears_plane`, or restore the seam split), so one red is one open P0.
+  - FULL single review, Opus; no model-compare row (Fable outage).
+- 2026-11-22 — PR 7389 (U3, editor-core's 1e-12 reds) closes.
+  - Fix pass taken whole on a green gate. Verified hosted at all three ε (run 45033589672).
+  - The review's MAJOR is settled: the plate ledger's untraced `Plain/Decision` digest is PR 7193's (`sect/certificate-by-support`), the same forms built in another order. An order-free sum of the form digests is unchanged across it; only the chain moves.
+  - Floors are named by ε, and `(compared, checks)` is pinned across rows.
+  - Rows filed: ONEHOME (the e2e receipt's old ε-dependence, P3), FIXTURE (the copied ε-row lookup, P4). Both GREEN rows close.
+  - STYLE single review, Opus; no model-compare row (Fable outage).
+- 2026-11-22 — PR 7383 (U6, the 1e-6 reds) closes, fix pass accepted on a green gate (run 45042088927).
+  - The MAJOR's fix was read by the orchestrator: `at_volume` fails closed (a missing `v=` or `want=` rejects the line) and holds both within `VOLUME_CLAIM` (1e-7), in the `coarse`, `main`, `shared` and `vertex` filters. The coarse class is bounded to 26 named (row, ops) pairs. The topo row is now bisected to PR 7052 too.
+  - Residue:
+    - ONEHOME's tipped-rod row (P1);
+    - SECTARMS' sliver row (P1, three more tests);
+    - `review-curved-accepts-an-invariant-refusal-at-any-pose` (P2, GREEN);
+    - ONEHOME told to re-weigh the level-root row.
+  - The sphere offer row rides SCALAR's PR 7267.
+  - STYLE single review, Opus; no model-compare row (Fable outage).
+- 2026-11-22 — PR 7365 (U5, the nightly build job) closes, fix pass taken on a green gate (run 45042902274).
+  - The opt-1 override now fails loudly on a missing package. `build-default-env-agrees.sh` covers nightly.yml's shared keys. The sampler names each rustc by package.
+  - The saving is re-attributed: about 13 min from opt 1 and about 10 from the scalpel move.
+  - The P1 shutdown row closes on the change, watched by `the-nightly-build-job-holds-over-five-scheduled-main-nights` (P2). The margin row (P2) carries the trend.
+  - FULL single review, Opus; no model-compare row (Fable outage).

@@ -18,25 +18,29 @@ fn band() -> Band {
 /// A cylinder of radius `r` about `z` through the origin.
 fn cylinder(r: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, -3.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, -3.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 /// A sphere of radius `big` about `(d, 0, 0.2)`.
 fn sphere(d: f64, big: f64) -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(d, 0.0, 0.2),
+        frame: geom::Frame::new(
+            Point3::new(d, 0.0, 0.2),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: big,
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn built(a: &Surface<f64>, b: &Surface<f64>) -> PairSection<f64> {
-    match geom_brep::pair_section(a, b, None, None, band()) {
+    match geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()) {
         Ok(SectionRead::Built(section)) => section,
         other => panic!("expected the section, got {other:?}"),
     }
@@ -93,7 +97,9 @@ fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
         [false, true],
         "the order asked of"
     );
-    let carried = section.carry(None, band()).expect("closed forms carry");
+    let carried = section
+        .carry(None::<geom_core::NoLane>, band())
+        .expect("closed forms carry");
     let p = match &section.counted().expect("a counted section")[1].carrier {
         ClassCarrier::Closed(curve) => curve.eval(0.4),
         _ => unreachable!(),
@@ -168,7 +174,7 @@ fn a_tangency_is_classification_data_and_does_not_carry() {
         }
         assert!(
             matches!(
-                section.carry(None, band()),
+                section.carry(None::<geom_core::NoLane>, band()),
                 Err(CarryError::Refused(CarryRefusal::Unminted(_)))
             ),
             "{label}: a tangency does not carry"
@@ -229,7 +235,13 @@ fn a_pose_in_the_band_escalates() {
         ("far reach", 0.25, 0.75 + mid, "cs_far_reach"),
         ("wall reach", 0.0, 0.5 + mid, "cs_wall_reach"),
     ] {
-        match geom_brep::pair_section(&cylinder(0.5), &sphere(d, big), None, None, b) {
+        match geom_brep::pair_section(
+            &cylinder(0.5),
+            &sphere(d, big),
+            None,
+            None::<geom_core::NoLane>,
+            b,
+        ) {
             Err(SectionError::Escalated(diag)) => {
                 assert_eq!(diag.predicate, Some(want), "{label}");
             }
@@ -272,7 +284,7 @@ fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
         for (a, b) in [(&cyl, &sph), (&sph, &cyl)] {
             assert!(
                 matches!(
-                    geom_brep::pair_section(a, b, None, None, band()),
+                    geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()),
                     Err(SectionError::DegenerateOperand { .. })
                 ),
                 "{label}: the section value"
@@ -324,7 +336,7 @@ fn a_radius_in_the_band_escalates_by_its_name() {
         ),
     ] {
         for (a, b) in [(&cyl, &sph), (&sph, &cyl)] {
-            match geom_brep::pair_section(a, b, None, None, band()) {
+            match geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()) {
                 Err(SectionError::RadiusEscalated { radius, diag }) => {
                     assert_eq!(radius, want, "{label}");
                     assert_eq!(diag.predicate, Some(predicate), "{label}");
@@ -347,7 +359,7 @@ fn the_general_rung_carries_through_its_door() {
     let section = built(&cyl, &sph);
     assert!(
         matches!(
-            section.carry(None, band()),
+            section.carry(None::<geom_core::NoLane>, band()),
             Err(CarryError::Refused(CarryRefusal::NoLane { scalar: "f64" }))
         ),
         "no door, no march"
@@ -540,19 +552,34 @@ fn a_seated_loop_has_no_start() {
     }
 }
 
-/// **Every other kind pair is read elsewhere**, with `route`'s own arm.
+/// **Every other kind pair is read elsewhere**, with `route`'s own arm,
+/// and `serves` says so.
 #[test]
 fn every_other_pair_is_read_elsewhere() {
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
-    for (a, b) in [
-        (&plane, &sphere(0.0, 1.0)),
-        (&sphere(0.0, 1.0), &sphere(0.5, 1.0)),
-    ] {
-        match geom_brep::pair_section(a, b, None, None, band()) {
+    let torus = Surface::Torus {
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+    };
+    for (a, b) in [(&plane, &plane), (&plane, &torus), (&torus, &plane)] {
+        assert!(
+            !geom_brep::pair_section::serves(a.kind(), b.kind()),
+            "{:?} × {:?} is not served",
+            a.kind(),
+            b.kind()
+        );
+        match geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()) {
             Ok(SectionRead::Elsewhere(route)) => {
                 assert_eq!(route, geom_brep::route(a.kind(), b.kind()));
             }
@@ -584,20 +611,16 @@ fn square_to(a: Vec3<f64>) -> Vec3<f64> {
 /// A cylinder of radius `r` about `axis` through `origin`.
 fn cylinder_about(origin: Point3<f64>, axis: Vec3<f64>, r: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, square_to(axis)),
         radius: r,
-        u_ref: square_to(axis),
     }
 }
 
 /// A sphere of radius `big` about `center`.
 fn sphere_at(center: Point3<f64>, big: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
         radius: big,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -707,7 +730,7 @@ fn reads_as_retired(
 /// The value's reading of a pair: its guard class, and whether it
 /// records a coincidence.
 fn read_class(a: &Surface<f64>, b: &Surface<f64>) -> (Class, bool) {
-    match geom_brep::pair_section(a, b, None, None, band()) {
+    match geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()) {
         Ok(SectionRead::Built(s)) => {
             let class = if s.tangency().is_some() {
                 match s.counted().expect("a counted section") {
@@ -1065,7 +1088,9 @@ fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
 fn a_closed_form_is_seated_by_its_span() {
     let (cyl, sph) = (cylinder(1.0), sphere(0.0, 2.0));
     let section = built(&cyl, &sph);
-    let carried = section.carry(None, band()).expect("closed forms carry");
+    let carried = section
+        .carry(None::<geom_core::NoLane>, band())
+        .expect("closed forms carry");
     for c in carried.components() {
         let (lo, hi) = c.span;
         assert!(c.closed() && c.certificate.is_none(), "a closed form");

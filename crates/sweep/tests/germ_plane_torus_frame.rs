@@ -383,9 +383,14 @@ fn the_donuts_corner_bar_refuses_at_its_end_square() {
             b_face
         };
         let surface = b.face_surface(face).unwrap();
-        let geom::Surface::Plane { normal, .. } = surface else {
+        let geom::Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = surface
+        else {
             panic!("{op}: the refusal's planar face is not a plane: {surface:?}");
         };
+        let normal = carrier_frame.axis();
         assert_eq!(
             (normal.x, normal.y),
             (0.0, 0.0),

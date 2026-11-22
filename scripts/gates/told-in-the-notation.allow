@@ -41,6 +41,7 @@ crates/viewer/src/sketch.rs :: tell :: vertex
 # lowering and resolve errors, which hold no told quantity today.
 crates/profile/src/path.rs :: tell :: source.undecided(gate.subject(), gate.kind().end(source))
 crates/profile/src/path.rs :: tell :: source.undecided( "the fillet arc about to be stored", gate.kind() .with_lever(FILLET_STORED_FORM_INBAND_RECOURSE) .end(source), )
+crates/profile/src/path.rs :: tell :: source.undecided( "whether the path turns at the seam", gate.kind().with_lever(SEAM_TURN_RECOURSE).end(source), )
 crates/profile/src/path.rs :: tell :: e
 crates/profile/src/path.rs :: tell :: r
 crates/viewer/src/sketch.rs :: tell :: invalid

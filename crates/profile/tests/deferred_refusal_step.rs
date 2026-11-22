@@ -358,7 +358,7 @@ fn a_junction_read_at_a_fillets_run_in_is_not_the_fillets() {
     ];
     let source = own_refusal(&steps, 6, "the junction is unresolvable at the run in");
     let junction = match &source {
-        PathError::JunctionTangent { .. } => true,
+        PathError::JunctionTurnWithinTolerance { .. } => true,
         PathError::Escalated { gate, .. } => gate.predicate().starts_with("path_junction_"),
         _ => false,
     };

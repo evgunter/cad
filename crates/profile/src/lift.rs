@@ -121,7 +121,7 @@ pub enum LiftRefusal {
     /// closing form (it mints a structural subdivision vertex mid-chain
     /// only), and closing with `arc_to(Start)` on the incoming carrier
     /// leaves the seam's own zero-turn junction unconstructed, which
-    /// refuses `SeamTangent`; the seam's construction is
+    /// refuses `SeamTurnWithinTolerance`; the seam's construction is
     /// `Start.arrives_tangent()`.
     SameCarrierClose {
         /// The joint's vertex index in the SOURCE loop.
@@ -504,7 +504,7 @@ fn chain_form(
 /// refusal rather than by a re-derived predicate).
 ///
 /// A cocircular arc/arc junction has zero turn, so `arc_to` classifies
-/// it `JunctionTangent` — the unconstructed zero-turn junction, which
+/// it `JunctionTurnWithinTolerance` — the unconstructed zero-turn junction, which
 /// is the one trigger left. The re-spelling is the lattice's own: the
 /// leg becomes `.tangent().tangent_arc_to(p)`, its joint constructed and
 /// its arc derived from the inherited tangent and the authored target
@@ -582,12 +582,12 @@ fn progressed(before: &ReplayError<f64>, after: &ReplayError<f64>) -> bool {
 ///
 /// One arm since the 2026-09-02 ruling: every zero-turn joint is a
 /// tangent joint, so the algebra no longer refuses carrier IDENTITY at
-/// all and `JunctionTangent` — the unconstructed zero-turn junction —
+/// all and `JunctionTurnWithinTolerance` — the unconstructed zero-turn junction —
 /// is the whole of what this asks about.
 fn is_carrier_continuation(kind: &ReplayErrorKind<f64>) -> bool {
     matches!(
         kind,
-        ReplayErrorKind::Path(PathError::JunctionTangent { .. })
+        ReplayErrorKind::Path(PathError::JunctionTurnWithinTolerance { .. })
     )
 }
 

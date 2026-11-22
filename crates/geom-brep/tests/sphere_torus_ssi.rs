@@ -140,10 +140,8 @@ fn the_sphere_torus_door_refuses_any_other_pair() {
     let t = handle();
     let s = sphere([0.0, 4.0 / 64.0, 0.0], 5.0 / 64.0);
     let c = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 0.05,
-        u_ref: Vec3::unit_x(),
     };
     for (a, b) in [(&s, &c), (&t, &t), (&s, &s)] {
         let got = ssi::sphere_torus_ssi(a, b, about_handle(), band());

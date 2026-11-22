@@ -315,7 +315,7 @@ pub(crate) fn every_edge<T: Scalar>(body: &Body<T>) -> Vec<EdgeKey> {
     all
 }
 
-pub(crate) fn volume<T: Scalar>(body: &Body<T>) -> (f64, f64) {
+pub(crate) fn volume<T: Scalar + topo::CertifiedPolicy>(body: &Body<T>) -> (f64, f64) {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
@@ -329,24 +329,26 @@ pub(crate) fn volume<T: Scalar>(body: &Body<T>) -> (f64, f64) {
 /// How far `p` lies from a stored plane, cylinder, sphere or torus.
 fn off(s: &Surface<f64>, p: Point3<f64>) -> f64 {
     match *s {
-        Surface::Plane { origin, normal, .. } => (p - origin).dot(normal).abs(),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (p - origin).dot(normal).abs()
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let d = p - origin;
             ((d - axis * d.dot(axis)).norm() - radius).abs()
         }
-        Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            ((p - center).norm() - radius).abs()
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let d = p - center;
             let h = d.dot(axis);
             let rho = (d - axis * h).norm();

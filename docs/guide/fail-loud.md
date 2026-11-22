@@ -51,17 +51,19 @@ let refused = Open
     .expect("the leg is fine")
     .toward(1.0, 0.0, tol);
 
-let Err(refusal @ PathError::JunctionTangent { .. }) = refused else {
+let Err(refusal @ PathError::JunctionTurnWithinTolerance { .. }) = refused else {
     panic!("a tangent departure is refused");
 };
-assert!(refusal.to_string().contains("turn margin 0 m on a 1 m arm"));
+assert!(refusal.to_string().contains("sin φ = 0 (cos φ = 1) over the shorter leg's arm of 1 m"));
 ```
 
-The refusal tells the **margin** — how far from tangent the junction
-actually was. Zero here, because the two directions are exactly equal;
-a near-miss would tell the small number instead, and that number is
-what tells you whether you have a modelling error or a sliver. The
-payload holds it as a quantity to be told, not a number to branch on.
+The refusal tells the **turn** and the **lever** it was read over:
+the sine of the angle between the two directions, and the shorter
+leg's length. The kernel decides their product, so a zero turn on a
+long leg and a real angle on a leg shorter than the tolerance refuse
+alike, and the two factors are what tell you which you have. Zero
+here, because the two directions are exactly equal. The payload holds
+them as quantities to be told, not numbers to branch on.
 
 The second class is structural: a fillet needs a corner, meaning two
 rays that actually meet. Turn north, then arrive north, and there is
