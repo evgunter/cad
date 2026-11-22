@@ -1522,7 +1522,8 @@ pub(crate) fn path_parity<T: Decide>(
                     let e = e.normalize();
                     let Some(roots) = plane_roots(
                         &p,
-                        &geom::Frame::new(p.circle.frame.origin(), e, e.orthonormal_basis().0),
+                        // `ê` is square to the axis `a`, which seams the plane.
+                        &geom::Frame::new(p.circle.frame.origin(), e, a),
                         arrival,
                         band,
                     )?
