@@ -48,8 +48,17 @@
 //! never folded into `refused`, which would be a claim that it was
 //! tried. A candidate the verifier does not confirm is
 //! [`EngineRefusal::WitnessUnverified`] (or, for an upper bound the box
-//! decides in part only, [`EngineRefusal::BoxDependent`]), and the
-//! sweep goes on.
+//! decides in part only, [`EngineRefusal::BoxDependent`]).
+//!
+//! **What a refusal does to the walk is the question's.** The
+//! injectivity question ends at its first FINDING, a verified crossing
+//! or a refusal, and reports that one: the refusal names the two faces
+//! of the cell pair it was made on, and the rest of the frontier is
+//! abandoned as it is at a crossing. A metric bound keeps the first
+//! refusal of each bound and reads on, so a definite violation still
+//! outranks a pair met earlier that the band or a budget stopped.
+//! Which finding is first is fixed by the walk's order
+//! ([`Sweep::run`]).
 //!
 //! # The one place a verdict is loose, stated at the door
 //!
@@ -510,9 +519,22 @@ pub enum EngineRefusal {
     Sliver {
         /// The funnel site that could not decide.
         predicate: &'static str,
+        /// The pair's face on the first side.
+        a: FaceKey,
+        /// Its face on the second side.
+        b: FaceKey,
     },
-    /// A budget was exhausted, typed and named.
-    Budget(CellBudget),
+    /// A budget was exhausted, typed and named, on a cell pair of two
+    /// faces: the pair whose split it refused, or the first pair of a
+    /// level it could not start.
+    Budget {
+        /// Which bound stopped the subdivision.
+        stop: CellBudget,
+        /// The pair's face on the first side.
+        a: FaceKey,
+        /// Its face on the second side.
+        b: FaceKey,
+    },
     /// A face whose carrier the engine does not read (E7: refuse
     /// typed, never downgrade to sampling): no admitted window, or, for
     /// the injectivity question, no kind that makes it injective.
@@ -586,9 +608,8 @@ pub enum EngineRefusal {
     /// A cell pair the interval pass classified as a definite violation
     /// of a lower bound, or as within an upper one, whose witness the
     /// caller's verifier did not confirm. The engine
-    /// reports what the verifier returned, verbatim, and goes on with
-    /// the sweep; whether the arm can fire is the verifier's property,
-    /// stated at the verifier.
+    /// reports what the verifier returned, verbatim; whether the arm can
+    /// fire is the verifier's property, stated at the verifier.
     ///
     /// Its own arm, and never a violation: a witness is a claim about a
     /// concrete configuration, and one the independent recomputation
@@ -597,6 +618,10 @@ pub enum EngineRefusal {
     WitnessUnverified {
         /// What the verifier could not confirm.
         what: String,
+        /// The pair's face on the first side.
+        a: FaceKey,
+        /// Its face on the second side.
+        b: FaceKey,
     },
     /// **An upper bound the box decides only in part.** The closest
     /// pair of the cells' stations, its separation enclosed over every
@@ -624,14 +649,16 @@ impl EngineRefusal {
     /// different evidence do not serialize alike.
     pub fn payload(&self) -> String {
         match self {
-            Self::Sliver { predicate } => (*predicate).to_owned(),
-            Self::Budget(k) => format!("{k:?}"),
+            Self::Sliver { predicate, a, b } => format!("{predicate} first={a:?} second={b:?}"),
+            Self::Budget { stop, a, b } => format!("{stop:?} first={a:?} second={b:?}"),
             Self::Unsupported {
                 carrier,
                 face,
                 side,
             } => format!("{carrier} {}={face:?}", side.name()),
-            Self::WitnessUnverified { what } => what.clone(),
+            Self::WitnessUnverified { what, a, b } => {
+                format!("first={a:?} second={b:?} {what}")
+            }
             Self::BoxDependent { a, b, separation } => {
                 format!(
                     "first={a:?} second={b:?} [{}, {}]",
@@ -659,7 +686,7 @@ impl EngineRefusal {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Sliver { .. } => "sliver",
-            Self::Budget(_) => "budget",
+            Self::Budget { .. } => "budget",
             Self::Unsupported { .. } => "unsupported",
             Self::WitnessUnverified { .. } => "witness_unverified",
             Self::BoxDependent { .. } => "box_dependent",
@@ -680,25 +707,31 @@ impl EngineRefusal {
     ) -> core::fmt::Result {
         let [first, second] = sides;
         match self {
-            Self::Sliver { predicate } => write!(
+            Self::Sliver { predicate, a, b } => write!(
                 f,
-                "the separation sits wholly inside {predicate}'s ambiguity band, so no \
-                 refinement can decide it"
+                "the separation of face {a:?} of {first} and face {b:?} of {second} sits wholly \
+                 inside {predicate}'s ambiguity band, so no refinement can decide it"
             ),
-            Self::Budget(CellBudget::Depth { max_cell_depth }) => write!(
-                f,
-                "a cell pair was split {max_cell_depth} times, the depth budget, and is still \
-                 undecided"
-            ),
-            Self::Budget(CellBudget::Pairs { max_cell_pairs }) => write!(
-                f,
-                "the query examined {max_cell_pairs} cell pairs, its budget, with pairs still \
-                 undecided"
-            ),
-            Self::Budget(CellBudget::Resolution) => f.write_str(
-                "a cell pair could not be bisected: its midpoint lands on an endpoint, so the \
-                 f64 grid itself is the bound",
-            ),
+            Self::Budget { stop, a, b } => {
+                let of = format_args!("face {a:?} of {first} and face {b:?} of {second}");
+                match stop {
+                    CellBudget::Depth { max_cell_depth } => write!(
+                        f,
+                        "a cell pair of {of} was split {max_cell_depth} times, the depth \
+                         budget, and is still undecided"
+                    ),
+                    CellBudget::Pairs { max_cell_pairs } => write!(
+                        f,
+                        "the query examined {max_cell_pairs} cell pairs, its budget, with pairs \
+                         still undecided, the first of them of {of}"
+                    ),
+                    CellBudget::Resolution => write!(
+                        f,
+                        "a cell pair of {of} could not be bisected: its midpoint lands on an \
+                         endpoint, so the f64 grid itself is the bound"
+                    ),
+                }
+            }
             Self::Unsupported {
                 carrier,
                 face,
@@ -708,10 +741,11 @@ impl EngineRefusal {
                 "the clearance engine cannot answer for face {face:?} of {}: it is {carrier}",
                 side.of(sides)
             ),
-            Self::WitnessUnverified { what } => write!(
+            Self::WitnessUnverified { what, a, b } => write!(
                 f,
-                "a pair the interval pass found below the lower bound or within the upper one \
-                 was not confirmed by the verifier: {what}"
+                "a pair of face {a:?} of {first} and face {b:?} of {second} the interval pass \
+                 found below the lower bound or within the upper one was not confirmed by the \
+                 verifier: {what}"
             ),
             Self::PoisonEnclosure { a, b } => write!(
                 f,
@@ -935,8 +969,10 @@ pub fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
 ///
 /// **`abandoned` is what the walk did not examine, spelled rather than
 /// hidden.** Calling it `refused` would claim it was tried. The bound
-/// sweep abandons the frontier it held when it stops at a verified
-/// violation, and a pair that only an upper bound still wanted once
+/// sweep abandons the frontier it held when it stops, at a verified
+/// violation or, for the injectivity question, at its first refusal;
+/// a level that does not fit its pair budget, which it never starts;
+/// and a pair that only an upper bound still wanted once
 /// that bound is proved, so a bound query that runs to completion with
 /// no upper bound has `abandoned == 0`. [`min_separation`] abandons a level that does not
 /// fit its pair budget and prices it into the bracket, so a completed
@@ -983,7 +1019,8 @@ pub struct CellReceipt {
     /// ([`CertificateArm::ByKind`]), one per face, never subdivided.
     pub by_kind: usize,
     /// Cell pairs the walk never classified: what it still held when the
-    /// sweep verified a violation and stopped, and under
+    /// sweep stopped at its finding, a level that did not fit the pair
+    /// budget, and under
     /// [`min_separation`] a level that did not fit the pair budget, each
     /// pair priced into the bracket's `lo` unexamined.
     pub abandoned: usize,
@@ -1175,7 +1212,10 @@ pub struct BoundReport<W> {
 ///
 /// A lower bound's violation outranks everything: a pair closer than
 /// the lower bound is closer than any upper one too. A refusal outranks
-/// a holding answer, which is never presented over an unknown.
+/// a holding answer, which is never presented over an unknown. For a
+/// metric bound that ranking is over the whole walk; the injectivity
+/// question ends at its first finding, so its violation is one met
+/// before any refusal ([`Sweep::run`]).
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundVerdict<W> {
     /// A bound with no upper end holds over both carrier windows minus
@@ -1459,7 +1499,8 @@ impl Sweep {
     /// two violations at the same depth are still separated by the
     /// candidate order, which is the order of the sides' faces.
     ///
-    /// **It stops at the first VERIFIED violation.** `verify` is asked,
+    /// **It stops at the first VERIFIED violation, and the injectivity
+    /// question at its first refusal too.** `verify` is asked,
     /// in that shallowest-first order, about every cell pair the funnel
     /// classifies violating, and about an indeterminate pair that does
     /// not touch, at the root and at the depth floor; its first `Ok` is
@@ -1467,6 +1508,25 @@ impl Sweep {
     /// [`EngineRefusal::WitnessUnverified`] carrying its prose. A
     /// touching pair is never offered: its two cells share a point of M,
     /// and a pair of coincident stations there is no violation.
+    ///
+    /// **The order that makes a finding the first** is the same for a
+    /// refusal as for a violation: the faces injective by kind, each
+    /// against itself, in the order of the side's faces; then the
+    /// frontier, a level at a time, the candidates in ascending order of
+    /// their two faces' places in the sides, a split's children in its
+    /// cut's order. It reads no address and no hash, so one body asked
+    /// twice in one order of its faces reports one finding.
+    ///
+    /// **Whether a body passes is the shape's; which finding a body that
+    /// does not pass is told is the walk's.** A cell's enclosure is a box
+    /// on the frame's axes, so the level at which a pair is decided or
+    /// refused moves with the pose, and the candidates' order is the
+    /// caller's order of faces, which is the body's order of
+    /// construction. A body that crosses itself and also holds a place
+    /// the engine cannot read is therefore told the crossing in one pose
+    /// or order and the refusal in another, and never that it holds.
+    /// A metric bound keeps its first refusal and reads on to the end
+    /// of the frontier, where only a verified violation outranks it.
     ///
     /// **Its readings are its report's, not the caller's log** (audit
     /// row F41): every decision the walk and `verify` take runs in
@@ -1542,6 +1602,12 @@ impl Sweep {
                 sweep: self,
                 injective,
                 shared: &shared,
+                at_refusal: if injective {
+                    AtRefusal::End
+                } else {
+                    AtRefusal::ReadOn
+                },
+                faces: WindowFaces::of(wa, wb),
                 region: RegionMemo::at(self.band),
                 locals: LocalMemo::default(),
                 across: BTreeMap::new(),
@@ -1560,6 +1626,8 @@ impl Sweep {
             };
 
             let mut frontier: Vec<Task> = Vec::with_capacity(candidates.len());
+            // The candidate the sweep ended on, before any walk.
+            let mut ended_at = None;
             for (k, &(i, j)) in candidates.iter().enumerate() {
                 let (Some(x), Some(y), Some(&a), Some(&b), Some(sh)) = (
                     wa.get(i),
@@ -1601,20 +1669,21 @@ impl Sweep {
                     let sliver = |r: &Reading| match r {
                         Reading::Undecided(source) => Some(EngineRefusal::Sliver {
                             predicate: source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE),
+                            a: x.face,
+                            b: y.face,
                         }),
                         _ => None,
                     };
                     if let Some(r) = readings.below.as_ref().and_then(sliver) {
-                        q.lower_refusal.get_or_insert(r);
+                        q.keep_below(r);
                     }
                     if let Some(r) = readings.above.as_ref().and_then(sliver) {
                         q.upper_refusal.get_or_insert(r);
                     }
                     match q.settle(&readings, &at) {
-                        ControlFlow::Break(()) => {
-                            receipt.violated += 1;
-                            receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
-                            frontier.clear();
+                        ControlFlow::Break(bucket) => {
+                            bucket.count(&mut receipt);
+                            ended_at = Some(k);
                             break;
                         }
                         ControlFlow::Continue(Bucket::Discharged)
@@ -1627,8 +1696,7 @@ impl Sweep {
                         ControlFlow::Continue(bucket) => bucket.count(&mut receipt),
                     }
                     if q.answered() {
-                        receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
-                        frontier.clear();
+                        ended_at = Some(k);
                         break;
                     }
                     continue;
@@ -1643,7 +1711,10 @@ impl Sweep {
                         }
                         Err(r) => {
                             receipt.refused += 1;
-                            q.lower_refusal.get_or_insert(r);
+                            if q.refuse_below(r).is_break() {
+                                ended_at = Some(k);
+                                break;
+                            }
                         }
                     }
                     continue;
@@ -1662,6 +1733,10 @@ impl Sweep {
                 });
             }
 
+            if let Some(k) = ended_at {
+                receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
+                frontier.clear();
+            }
             let (receipt, deepest) = walk(self.budgets, receipt, frontier, wa, wb, &mut q);
             let Bound {
                 region,
@@ -1828,19 +1903,63 @@ fn walk<T: Real, Q: Question<T>>(
     (w.receipt, deepest)
 }
 
+/// **What a refusal of the lower bound does to the walk.**
+///
+/// A refusal is a finding. Whether the walk ends at one is the
+/// question's policy, apart from what kind of question it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AtRefusal {
+    /// The walk ends at its first finding, a refusal as a verified
+    /// violation, and that is the verdict: the injectivity question's.
+    /// What it would read on is the rest of a proof the refusal has
+    /// already denied.
+    End,
+    /// The first refusal is kept and the walk reads on: a metric bound's.
+    /// Its report is a requirement's, and a definite violation elsewhere
+    /// outranks a pair the band or a budget stopped.
+    ReadOn,
+}
+
+/// **Each side's window faces, by window index**: what a cell pair the
+/// walk never examined is named by.
+struct WindowFaces(Vec<FaceKey>, Vec<FaceKey>);
+
+impl WindowFaces {
+    fn of<T: Real>(wa: &[Window<'_, T>], wb: &[Window<'_, T>]) -> Self {
+        Self(
+            wa.iter().map(|w| w.face).collect(),
+            wb.iter().map(|w| w.face).collect(),
+        )
+    }
+
+    /// The two faces of `task`'s windows.
+    fn of_task(&self, task: &Task) -> (FaceKey, FaceKey) {
+        match (self.0.get(task.i), self.1.get(task.j)) {
+            (Some(&a), Some(&b)) => (a, b),
+            _ => unreachable!("a task's windows are the walk's"),
+        }
+    }
+}
+
 /// **The bound question, per cell pair**: what [`Sweep::run`] carries
 /// across its walk.
 struct Bound<'q, W, F> {
     sweep: &'q Sweep,
+    /// Whether the question is injectivity: the strict bound over one
+    /// body. Every other question is metric.
     injective: bool,
     /// What each candidate's two faces share, in M, by candidate.
     shared: &'q [Shared],
+    /// What a refusal of the lower bound does to the walk.
+    at_refusal: AtRefusal,
+    /// What a level that does not fit is named by.
+    faces: WindowFaces,
     region: RegionMemo,
     locals: LocalMemo,
     across: BTreeMap<(FaceKey, FaceKey), usize>,
     cornered: usize,
     widths: DischargeWidths,
-    /// The lower bound's first refusal (the strict question's too).
+    /// The lower bound's first refusal ([`Self::keep_below`]).
     lower_refusal: Option<EngineRefusal>,
     /// The upper bound's first refusal.
     upper_refusal: Option<EngineRefusal>,
@@ -1947,7 +2066,25 @@ impl<W, F> Bound<'_, W, F> {
             // did not evaluate. Its own class.
             Some(EngineRefusal::PoisonEnclosure { a, b })
         } else {
-            sliver(source).map(|predicate| EngineRefusal::Sliver { predicate })
+            sliver(source).map(|predicate| EngineRefusal::Sliver { predicate, a, b })
+        }
+    }
+
+    /// The lower bound's refusal, kept where it is the first.
+    fn keep_below(&mut self, refusal: EngineRefusal) {
+        self.lower_refusal.get_or_insert(refusal);
+    }
+
+    /// **A refusal of the lower bound on a cell pair the walk examined**:
+    /// kept, and `Break` where the question ends at it ([`AtRefusal`]).
+    /// The policy is read here and nowhere else. The pair's count is its
+    /// site's: a split the walk refused has counted it, and every other
+    /// site lands it in its [`Bucket`].
+    fn refuse_below(&mut self, refusal: EngineRefusal) -> ControlFlow<()> {
+        self.keep_below(refusal);
+        match self.at_refusal {
+            AtRefusal::End => ControlFlow::Break(()),
+            AtRefusal::ReadOn => ControlFlow::Continue(()),
         }
     }
 
@@ -1982,17 +2119,24 @@ impl<W, F> Bound<'_, W, F> {
                 b: at.y.face,
                 separation,
             },
-            None => EngineRefusal::WitnessUnverified { what },
+            None => EngineRefusal::WitnessUnverified {
+                what,
+                a: at.x.face,
+                b: at.y.face,
+            },
         }
     }
 
     /// **The definite readings, settled**: a pair below the lower bound
     /// is offered as a violation, one within the upper bound as its
-    /// proof. `Break` when the violation is verified, which ends the
-    /// sweep; otherwise which of the two the interval pass classified.
-    /// A candidate the verifier declines is
-    /// [`EngineRefusal::WitnessUnverified`] for its question.
-    fn settle<T>(&mut self, r: &Readings, at: &Offer<'_, '_, T>) -> ControlFlow<(), Bucket>
+    /// proof. A candidate the verifier declines is
+    /// [`EngineRefusal::WitnessUnverified`] for its question. `Break`
+    /// where the sweep ends on the pair, with the bucket it lands in:
+    /// violated where the violation is verified, refused where the
+    /// verifier declined it and the question ends at a refusal
+    /// ([`Self::refuse_below`]). Otherwise which of the two the interval
+    /// pass classified.
+    fn settle<T>(&mut self, r: &Readings, at: &Offer<'_, '_, T>) -> ControlFlow<Bucket, Bucket>
     where
         T: Real,
         F: FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
@@ -2002,11 +2146,17 @@ impl<W, F> Bound<'_, W, F> {
             match self.offer(at, self.below()) {
                 Ok(w) => {
                     self.violation = Some(w);
-                    return ControlFlow::Break(());
+                    return ControlFlow::Break(Bucket::Violated);
                 }
                 Err(what) => {
-                    self.lower_refusal
-                        .get_or_insert(EngineRefusal::WitnessUnverified { what });
+                    let refusal = EngineRefusal::WitnessUnverified {
+                        what,
+                        a: at.x.face,
+                        b: at.y.face,
+                    };
+                    if self.refuse_below(refusal).is_break() {
+                        return ControlFlow::Break(Bucket::Refused);
+                    }
                 }
             }
             bucket = Bucket::Violated;
@@ -2192,7 +2342,7 @@ where
                     }
                     Outcome::Refuse(r) => {
                         walk.receipt.refused += 1;
-                        self.lower_refusal.get_or_insert(r);
+                        return self.refuse_below(r);
                     }
                     Outcome::Cusp { .. } => {
                         unreachable!("read as a split or a refusal above")
@@ -2217,14 +2367,18 @@ where
                             })
                         };
                         if let Err(stop) = split {
-                            self.lower_refusal.get_or_insert(match stop {
+                            return self.refuse_below(match stop {
                                 CellBudget::Depth { .. } => EngineRefusal::Uncertified {
                                     a: x.face,
                                     b: y.face,
                                     shared,
                                     arm,
                                 },
-                                other => EngineRefusal::Budget(other),
+                                stop => EngineRefusal::Budget {
+                                    stop,
+                                    a: x.face,
+                                    b: y.face,
+                                },
                             });
                         }
                     }
@@ -2269,10 +2423,11 @@ where
             meeting: None,
         };
         // Verified HERE, not after the sweep: a verified violation ends
-        // the query, and an unverified one must not.
+        // the query, and an unverified one ends only the question that
+        // ends at a refusal.
         let mut bucket = match self.settle(&r, &at) {
-            ControlFlow::Break(()) => {
-                walk.receipt.violated += 1;
+            ControlFlow::Break(bucket) => {
+                bucket.count(&mut walk.receipt);
                 return ControlFlow::Break(());
             }
             ControlFlow::Continue(bucket) => bucket,
@@ -2323,8 +2478,11 @@ where
             }
             match Self::terminal(source, x.face, y.face) {
                 Some(refusal) => {
-                    self.lower_refusal.get_or_insert(refusal);
                     bucket = Bucket::Refused;
+                    if self.refuse_below(refusal).is_break() {
+                        bucket.count(&mut walk.receipt);
+                        return ControlFlow::Break(());
+                    }
                 }
                 None => split.below = true,
             }
@@ -2381,32 +2539,49 @@ where
         };
         if let Err(stop) = walk.split(task, || split_by(pair, x, y, axes).map(|(lo, hi)| [lo, hi]))
         {
-            let refusal = EngineRefusal::Budget(stop);
-            if split.below {
-                self.lower_refusal.get_or_insert(refusal.clone());
-            }
+            let refusal = EngineRefusal::Budget {
+                stop,
+                a: x.face,
+                b: y.face,
+            };
             if split.above {
-                self.upper_refusal.get_or_insert(refusal);
+                self.upper_refusal.get_or_insert(refusal.clone());
+            }
+            if split.below {
+                return self.refuse_below(refusal);
             }
         }
         ControlFlow::Continue(())
     }
 
-    /// **The bound sweep REFUSES a level that does not fit**: its answer
-    /// is a verdict over every cell pair, and these are pairs it could
-    /// not classify, so the verdict refuses for them, under each bound
-    /// they were still examined for ([`CellBudget::Pairs`]).
+    /// **A level that does not fit refuses the verdict and is counted
+    /// abandoned**: the answer is a verdict over every cell pair, and
+    /// these are pairs nobody examined, so each bound they were still
+    /// open for refuses ([`CellBudget::Pairs`]), naming the first of
+    /// them, and none is counted refused, which would say it was tried.
+    /// The walk ends here whatever the question's policy.
     fn overflow(&mut self, receipt: &mut CellReceipt, frontier: Vec<Task>) {
-        receipt.refused += frontier.len();
-        let refusal = EngineRefusal::Budget(CellBudget::Pairs {
-            max_cell_pairs: self.sweep.budgets.max_cell_pairs,
-        });
-        if frontier.iter().any(|t| t.open.below) {
-            self.lower_refusal.get_or_insert(refusal.clone());
+        let refusal = |task: &Task| {
+            let (a, b) = self.faces.of_task(task);
+            EngineRefusal::Budget {
+                stop: CellBudget::Pairs {
+                    max_cell_pairs: self.sweep.budgets.max_cell_pairs,
+                },
+                a,
+                b,
+            }
+        };
+        let below = frontier.iter().find(|t| t.open.below).map(refusal);
+        let above = frontier.iter().find(|t| t.open.above).map(refusal);
+        if let Some(refusal) = below {
+            self.keep_below(refusal);
         }
-        if frontier.iter().any(|t| t.open.above) && self.within.is_none() {
+        if let Some(refusal) = above
+            && self.within.is_none()
+        {
             self.upper_refusal.get_or_insert(refusal);
         }
+        receipt.abandoned += frontier.len();
     }
 }
 
@@ -2955,10 +3130,7 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
             floor: f64::INFINITY,
             poison: None,
             region: RegionMemo::at(band),
-            faces: (
-                wa.iter().map(|w| w.face).collect(),
-                wb.iter().map(|w| w.face).collect(),
-            ),
+            faces: WindowFaces::of(&wa, &wb),
         };
         for (i, j, _) in &roots {
             if let (Some(x), Some(y), Some(&ca), Some(&cb)) =
@@ -3083,9 +3255,8 @@ struct Bracket {
     floor: f64,
     poison: Option<MinSeparationRefusal>,
     region: RegionMemo,
-    /// Each side's window faces, by window index: what a poisoned
-    /// abandoned pair is named by.
-    faces: (Vec<FaceKey>, Vec<FaceKey>),
+    /// What a poisoned abandoned pair is named by.
+    faces: WindowFaces,
 }
 
 impl Bracket {
@@ -3202,10 +3373,7 @@ impl<T: Decide + CertifiedBounds> Question<T> for Bracket {
         for task in frontier {
             let sep = separation(&task.pair.a.enc, &task.pair.b.enc);
             if poisoned(sep) {
-                let (Some(&a), Some(&b)) = (self.faces.0.get(task.i), self.faces.1.get(task.j))
-                else {
-                    unreachable!("a task's windows are the bracket's");
-                };
+                let (a, b) = self.faces.of_task(&task);
                 self.poison
                     .get_or_insert(MinSeparationRefusal::PoisonEnclosure { a, b });
             }
@@ -5939,7 +6107,7 @@ mod trv_rows {
             floor: f64::INFINITY,
             poison: None,
             region: RegionMemo::at(Band::linear(Tol::witness()).unwrap()),
-            faces: (vec![wa.face], vec![wb.face]),
+            faces: super::WindowFaces(vec![wa.face], vec![wb.face]),
         }
     }
 
@@ -6453,5 +6621,237 @@ mod seated_windows {
                 report.receipt
             );
         }
+    }
+}
+
+/// **The stop at two sites no built body reaches**, driven at the
+/// engine: a face its kind does not make injective, and a witness the
+/// verifier declines.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod first_finding_rows {
+    use std::collections::BTreeMap;
+    use std::ops::ControlFlow;
+
+    use super::{
+        AtRefusal, Bound, BoundVerdict, Bucket, Budgets, Candidate, Cell, CellPair, CellReceipt,
+        ClearanceBound, DischargeWidths, EngineRefusal, LocalMemo, Offer, Open, Question, Reading,
+        Readings, RegionMemo, Shared, Side, Sweep, Task, Walk, Which, WindowFaces, Windows,
+    };
+    use crate::Body;
+    use geom::Surface;
+    use geom_core::{Band, Interval, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn brick() -> Body<Interval> {
+        crate::test_support_fixtures::brick::<Interval>(
+            (0.0, 1.0),
+            (0.0, 1.0),
+            (0.0, 1.0),
+            Tol::witness(),
+        )
+    }
+
+    fn windows(body: &Body<Interval>) -> Windows<'_, Interval> {
+        Side {
+            body,
+            faces: body.faces().map(|(k, _)| k).collect(),
+        }
+        .windows(Which::First)
+        .unwrap()
+    }
+
+    fn strict() -> Sweep {
+        Sweep {
+            bound: ClearanceBound::StrictlyPositive,
+            band: band(),
+            budgets: Budgets {
+                max_cell_depth: super::DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: 65_536,
+            },
+        }
+    }
+
+    /// **A face its kind does not make injective ends the ask where it
+    /// is met.** A brick's second window is given a torus whose tube is
+    /// as wide as its ring. The first face is discharged by its kind, the
+    /// second refuses, and every other candidate is abandoned unread. Red
+    /// where the site keeps its refusal and reads on: nothing is
+    /// abandoned.
+    #[test]
+    fn a_face_refused_by_its_kind_ends_the_ask_before_the_walk() {
+        let body = brick();
+        let mut w = windows(&body);
+        let p = |x: f64| Interval::from_bounds(x, x);
+        w.of[1].surface = Surface::Torus {
+            frame: geom::Frame::new(
+                Point3::new(p(0.0), p(0.0), p(0.0)),
+                Vec3::new(p(0.0), p(0.0), p(1.0)),
+                Vec3::new(p(1.0), p(0.0), p(0.0)),
+            ),
+            major_radius: p(1.0),
+            minor_radius: p(1.0),
+        };
+        let face = w.of[1].face;
+        let report = strict().run(&w, &w, true, |_| Err::<(), _>("unasked".to_owned()));
+        assert!(
+            matches!(
+                &report.verdict,
+                BoundVerdict::Refused(EngineRefusal::TorusNotRing { face: f, .. }) if *f == face
+            ),
+            "{:?}",
+            report.verdict
+        );
+        let r = report.receipt;
+        assert!(r.holds(), "{r:?}");
+        assert_eq!(
+            (r.discharged, r.by_kind, r.refused, r.splits),
+            (1, 1, 1, 0),
+            "one face by its kind, then the refusal: {r:?}"
+        );
+        assert_eq!(r.abandoned, r.candidates - 2, "the rest unread: {r:?}");
+    }
+
+    /// **A witness the verifier declines is a refusal on its two faces,
+    /// and ends the question that ends at one.** A pair the interval pass
+    /// classed violating, offered to a verifier that declines: under
+    /// [`AtRefusal::End`] the sweep ends with the pair counted refused;
+    /// under [`AtRefusal::ReadOn`] it goes on, the pair counted as the
+    /// interval pass classed it. Red where the site reads on under `End`,
+    /// or lands the pair it ends on among the violated.
+    #[test]
+    fn a_declined_witness_names_its_faces_and_ends_the_question_that_ends_at_a_refusal() {
+        let body = brick();
+        let w = windows(&body);
+        let (x, y) = (&w.of[0], &w.of[1]);
+        let sweep = strict();
+        for (at_refusal, flow) in [
+            (AtRefusal::End, ControlFlow::Break(Bucket::Refused)),
+            (AtRefusal::ReadOn, ControlFlow::Continue(Bucket::Violated)),
+        ] {
+            let mut q = Bound {
+                sweep: &sweep,
+                injective: true,
+                shared: &[],
+                at_refusal,
+                faces: WindowFaces::of(&w.of, &w.of),
+                region: RegionMemo::at(band()),
+                locals: LocalMemo::default(),
+                across: BTreeMap::new(),
+                cornered: 0,
+                widths: DischargeWidths::empty(),
+                lower_refusal: None,
+                upper_refusal: None,
+                violation: None,
+                within: None,
+                box_dependent: core::cell::Cell::new(None),
+                verify: |_: Candidate<'_, '_, Interval>| Err::<(), _>("declined".to_owned()),
+            };
+            let offer = Offer {
+                x,
+                ca: Cell::of(x),
+                ia: 0,
+                y,
+                cb: Cell::of(y),
+                ib: 1,
+                meeting: None,
+            };
+            let readings = Readings {
+                below: Some(Reading::Answers),
+                above: None,
+            };
+            assert_eq!(q.settle(&readings, &offer), flow, "{at_refusal:?}");
+            assert_eq!(
+                q.lower_refusal,
+                Some(EngineRefusal::WitnessUnverified {
+                    what: "declined".to_owned(),
+                    a: x.face,
+                    b: y.face,
+                }),
+                "{at_refusal:?}"
+            );
+        }
+    }
+
+    /// **A pair the walk ends on for a declined witness is counted
+    /// refused, once.** Two faces of a brick that share nothing, their
+    /// cells' enclosures set to one point, so the interval pass classes
+    /// the pair at zero and offers it; the verifier declines. Through the
+    /// question's own `pair`: the walk breaks, and the receipt reads one
+    /// refused and none violated. Red where the pair is counted among
+    /// the violated.
+    #[test]
+    fn a_pair_ended_on_for_a_declined_witness_is_counted_refused() {
+        let body = brick();
+        let w = windows(&body);
+        let (i, j) = (0..w.of.len())
+            .flat_map(|i| (i + 1..w.of.len()).map(move |j| (i, j)))
+            .find(|&(i, j)| Shared::of(&w.of[i].boundary, &w.of[j].boundary, false).is_empty())
+            .expect("a brick has opposite faces");
+        let (x, y) = (&w.of[i], &w.of[j]);
+        let at = Interval::from_bounds(0.5, 0.5);
+        let point = |mut c: Cell| {
+            c.enc = Point3::new(at, at, at);
+            c
+        };
+        let sweep = strict();
+        let shared = [Shared::default()];
+        let mut q = Bound {
+            sweep: &sweep,
+            injective: true,
+            shared: &shared,
+            at_refusal: AtRefusal::End,
+            faces: WindowFaces::of(&w.of, &w.of),
+            region: RegionMemo::at(band()),
+            locals: LocalMemo::default(),
+            across: BTreeMap::new(),
+            cornered: 0,
+            widths: DischargeWidths::empty(),
+            lower_refusal: None,
+            upper_refusal: None,
+            violation: None,
+            within: None,
+            box_dependent: core::cell::Cell::new(None),
+            verify: |_: Candidate<'_, '_, Interval>| Err::<(), _>("declined".to_owned()),
+        };
+        let mut walk = Walk {
+            budgets: sweep.budgets,
+            receipt: CellReceipt {
+                candidates: 1,
+                ..CellReceipt::default()
+            },
+            left: 0,
+            next: Vec::new(),
+        };
+        let task = Task {
+            k: 0,
+            i,
+            j,
+            pair: CellPair {
+                a: point(Cell::of(x)),
+                b: point(Cell::of(y)),
+                depth: 0,
+                fresh: true,
+            },
+            open: Open {
+                below: true,
+                above: false,
+            },
+        };
+        assert!(q.pair(&mut walk, task, x, y).is_break(), "the walk ends");
+        assert!(
+            matches!(
+                q.lower_refusal,
+                Some(EngineRefusal::WitnessUnverified { a, b, .. }) if a == x.face && b == y.face
+            ),
+            "{:?}",
+            q.lower_refusal
+        );
+        let r = walk.receipt;
+        assert_eq!((r.refused, r.violated), (1, 0), "{r:?}");
+        assert!(r.holds(), "{r:?}");
     }
 }

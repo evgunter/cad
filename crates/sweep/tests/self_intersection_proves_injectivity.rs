@@ -58,9 +58,9 @@ use std::collections::BTreeSet;
 use sweep::test_support::revolved_about_y_at;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve, sweep_body};
 use topo::clearance::{
-    BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CellReceipt, CertificateArm,
-    ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep, Which,
-    min_separation,
+    BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CellBudget, CellReceipt,
+    CertificateArm, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep,
+    Which, min_separation,
 };
 use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
@@ -690,6 +690,11 @@ fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
         &injective(&kiss::<Interval>(), None, BUDGET),
     );
     println!("[selfx] kiss: {:?} {:?}", report.verdict, report.receipt);
+    assert_eq!(
+        report.receipt.refused, 1,
+        "the ask ends at the kiss: {:?}",
+        report.receipt
+    );
     match report.verdict {
         BoundVerdict::Refused(EngineRefusal::Uncertified {
             shared: SharedCell::Edge(e),
@@ -1796,26 +1801,33 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
 /// **The drum the cavity above is cut from refuses, out of depth**: its
 /// half-annulus cells a rounding off the disc's half-circle are read by no
 /// presentation (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
-/// Red when the drum holds, and that row's reading has landed. The
-/// refused cells are 210: the drum's stored frames read at `Interval` by
-/// their polar enclosure summed exactly, about an ulp of each entry
-/// (282 with the enclosure's sums in interval arithmetic, and 282 read as
-/// points, as at the base).
+/// Red when the drum holds, and that row's reading has landed. The ask
+/// ends at that first refusal, on two of the cap's coplanar faces, so
+/// one cell pair is refused and the frontier it held is abandoned.
 #[test]
 fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
     use crate::common::latitude_seam::collinear_cap_drum;
     let drum = collinear_cap_drum();
     let report = injective(&drum, None, BUDGET);
-    assert!(
-        matches!(
-            report.verdict,
-            BoundVerdict::Refused(EngineRefusal::Budget(_))
-        ),
-        "the drum runs out of depth: {:?} {:?}",
-        report.verdict,
-        report.receipt
+    let BoundVerdict::Refused(EngineRefusal::Budget {
+        stop: CellBudget::Depth { .. },
+        a,
+        b,
+    }) = report.verdict
+    else {
+        panic!(
+            "the drum runs out of depth: {:?} {:?}",
+            report.verdict, report.receipt
+        )
+    };
+    assert_ne!(a, b, "two faces");
+    assert_eq!(
+        [kind(&drum, a), kind(&drum, b)],
+        ["plane", "plane"],
+        "the refusal names the cap's two faces it was made on"
     );
-    assert_eq!(report.receipt.refused, 210, "{:?}", report.receipt);
+    assert_eq!(report.receipt.refused, 1, "{:?}", report.receipt);
+    assert!(report.receipt.abandoned > 0, "{:?}", report.receipt);
 }
 
 /// **A drum whose splits fall a rounding off its half-circle runs out of
@@ -1838,7 +1850,7 @@ fn a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
     assert!(
         matches!(
             report.verdict,
-            BoundVerdict::Refused(EngineRefusal::Budget(_))
+            BoundVerdict::Refused(EngineRefusal::Budget { .. })
         ),
         "the drum runs out of depth: {:?} {:?}",
         report.verdict,
@@ -2339,8 +2351,9 @@ fn one_face_torus_cut<T: Scalar>() -> topo::AtRestBody<T> {
 /// by the plain wall presentation, none through a corner. The body
 /// refuses `Departure` across the meridian the two torus faces share,
 /// pinned typed at both scalars
-/// (`one-face-torus-cut-refuses-across-its-meridian`). Red if the plain
-/// wall presentation is withdrawn.
+/// (`one-face-torus-cut-refuses-across-its-meridian`), and its ask ends
+/// there, so each cap is asked against its torus face alone. Red if the
+/// plain wall presentation is withdrawn.
 #[test]
 fn a_one_face_torus_cut_certifies_its_caps_by_the_wall_alone() {
     fn at<T: Scalar>() -> BoundReport<Witness> {
@@ -2370,14 +2383,22 @@ fn a_one_face_torus_cut_certifies_its_caps_by_the_wall_alone() {
             Some(geom::CurveKind::Circle),
             "across the meridian"
         );
+        assert_eq!(
+            (report.receipt.refused, report.receipt.abandoned > 0),
+            (1, true),
+            "the ask ends at the meridian: {:?}",
+            report.receipt
+        );
         assert_eq!(cut.len(), 2, "two caps, each on one whole oval");
         for p in &cut {
+            let alone = pair_report(&body, p.0, p.1, BUDGET);
+            assert_eq!(alone.verdict, BoundVerdict::Holds, "{p:?} asked alone");
+            assert_eq!(alone.cornered, 0, "{p:?}: no corner is read");
             assert!(
-                report.across.get(p).is_some_and(|&n| n > 0),
+                alone.across.get(p).is_some_and(|&n| n > 0),
                 "a cap and its torus face certified across their oval: {p:?}"
             );
         }
-        assert_eq!(report.cornered, 0, "no corner is read");
         report
     }
     same_class("the one-face torus cut", &at::<f64>(), &at::<Interval>());
@@ -3161,4 +3182,389 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         (mid(radius) - 0.8).abs() < 1e-9 && frame.origin().y.lo() < frame.origin().y.hi(),
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
+}
+
+// ------------------------------- the ask ends at its first finding
+
+/// **A plate whose void touches its top**: the box `(0, 3) × (0, 2) ×
+/// (0, 1)` less a pyramid hanging from `(1.5, 1, 1)`, a point of the
+/// top's interior. The void's apex and the top are one point of space
+/// and two of the boundary, so the body is not embedded; its faces are
+/// all planes.
+fn void_touching_plate<T: Scalar>() -> topo::AtRestBody<T> {
+    void_touching_plate_at([0.0; 3], false, 0)
+}
+
+/// [`void_touching_plate`] built `o` off the origin, mirrored in `x`
+/// where `mirror` (built so, not moved), its void's base listed from
+/// its vertex `from`.
+fn void_touching_plate_at<T: Scalar>(
+    o: [f64; 3],
+    mirror: bool,
+    from: usize,
+) -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished};
+    use topo::test_support::meeting::{Pose, posed_pyramid_at};
+    let plate = finished(
+        "the plate",
+        brick::<T>(
+            (o[0], 3.0 + o[0]),
+            (o[1], 2.0 + o[1]),
+            (o[2], 1.0 + o[2]),
+            tol(),
+        ),
+        tol(),
+    );
+    let x = |x: f64| if mirror { 3.0 - x } else { x };
+    let mut base: Vec<[f64; 3]> = [[1.2, 0.8, 0.5], [1.9, 0.9, 0.5], [1.4, 1.3, 0.5]]
+        .iter()
+        .map(|p| [x(p[0]) + o[0], p[1] + o[1], p[2] + o[2]])
+        .collect();
+    if mirror {
+        base.reverse();
+    }
+    base.rotate_left(from);
+    let void = posed_pyramid_at::<T>(
+        &base,
+        [x(1.5) + o[0], 1.0 + o[1], 1.0 + o[2]],
+        &Pose::rest(),
+        tol(),
+    );
+    built(topo::subtract(&plate, &void, tol()))
+}
+
+/// The verdict door over every face of `body`.
+fn door<T: Scalar + geom_core::Certifies>(
+    body: &Body<T>,
+    max_cell_depth: u32,
+    max_cell_pairs: usize,
+) -> topo::clearance::EmbeddingReport {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let report = topo::clearance::embedded(
+        &side,
+        band(),
+        Budgets {
+            max_cell_depth,
+            max_cell_pairs,
+        },
+    );
+    assert!(
+        report.receipt.holds(),
+        "the receipt adds up: {:?}",
+        report.receipt
+    );
+    report
+}
+
+/// **The embedding ask ends at its first finding, and a refusal is
+/// one.** The plate's top and a wall of its void run out of depth at
+/// the apex, on cells a rounding off it, before the cell that holds the
+/// apex is offered as a crossing on the same level: the ask ends there,
+/// refused on those two faces, which share no vertex, with one cell
+/// pair refused and the frontier it held abandoned. Red, `Crosses`,
+/// where a refusal is kept and the walk reads on.
+///
+/// The same finding at both scalars and on a second ask. In another
+/// pose or order of its faces the plate is told its crossing instead
+/// ([`a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_holds`]).
+#[test]
+fn a_plate_whose_void_touches_its_top_reads_the_refusal_it_meets_first() {
+    use topo::clearance::Embedding;
+    fn at<T: Scalar + geom_core::Certifies>() -> Embedding {
+        let rest = void_touching_plate::<T>().into_body();
+        let report = door(&rest, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+        let Embedding::Refused(EngineRefusal::Budget {
+            stop: CellBudget::Depth { .. },
+            a,
+            b,
+        }) = report.verdict
+        else {
+            panic!("the plate refuses out of depth: {:?}", report.verdict)
+        };
+        assert!(
+            a != b && !touching_pairs(&rest).contains(&(a.min(b), a.max(b))),
+            "the refusal names two faces that share no vertex: {a:?} {b:?}"
+        );
+        assert_eq!(report.receipt.refused, 1, "{:?}", report.receipt);
+        assert!(report.receipt.abandoned > 0, "{:?}", report.receipt);
+        assert_eq!(
+            door(&rest, DEFAULT_MAX_CELL_DEPTH, BUDGET),
+            report,
+            "asked again"
+        );
+        report.verdict
+    }
+    assert_eq!(at::<Interval>(), at::<f64>(), "one finding at both scalars");
+}
+
+/// **Whether a body passes is the shape's; which finding a body that
+/// does not pass is told is the walk's.** The plate whose void touches
+/// its top, placed many ways: set off the origin, mirrored, its void's
+/// base listed from each vertex, its faces asked in their order and
+/// reversed, and turned about four axes. No placement reads `Embedded`.
+/// Some are told the crossing and some the refusal met before it, at
+/// each scalar: the level a pair is refused at moves with the pose, and
+/// the candidates' order with the faces'. Red where a placement holds,
+/// and where one class is all there is, which would be a claim the
+/// engine does not make.
+#[test]
+fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_holds() {
+    use geom_core::{Affine3, Vec3};
+    use topo::clearance::Embedding;
+    fn class<T: Scalar + geom_core::Certifies>(body: &Body<T>, reversed: bool) -> &'static str {
+        let mut faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        if reversed {
+            faces.reverse();
+        }
+        let report = topo::clearance::embedded(
+            &Side { body, faces },
+            band(),
+            Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: BUDGET,
+            },
+        );
+        match report.verdict {
+            Embedding::Embedded => "embedded",
+            Embedding::Crosses(_) => "crosses",
+            Embedding::Refused(_) => "refused",
+        }
+    }
+    fn at<T: Scalar + geom_core::Certifies>() -> BTreeSet<&'static str> {
+        let mut seen = BTreeSet::new();
+        for o in [
+            [0.0; 3],
+            [100.0, 100.0, 100.0],
+            [900.0, -900.0, 900.0],
+            [0.1, 0.0, 0.0],
+        ] {
+            // Measured at ε = 1e-12: `f64` asks every placement. At
+            // `Interval` the body 100 off the origin panics in the region
+            // door, a station of a face's own chart reading indeterminate
+            // against its carrier, and the body 900 off does not build
+            // (`newell_plane` escalates in the fixture). At ε = 1e-9 and
+            // 1e-6 both scalars ask every placement.
+            // (`work/charttail/a-station-far-from-the-origin-reads-indeterminate-on-its-own-carrier-and-panics.md`)
+            let unread_at_interval = o == [100.0; 3] || o == [900.0, -900.0, 900.0];
+            if T::NAME == Interval::NAME && tol().eps() < 1e-9 && unread_at_interval {
+                println!(
+                    "SKIPPED at Interval, eps {}: the placement {o:?} off the origin is not asked",
+                    tol().eps()
+                );
+                continue;
+            }
+            for mirror in [false, true] {
+                for from in 0..3 {
+                    let body = void_touching_plate_at::<T>(o, mirror, from).into_body();
+                    for reversed in [false, true] {
+                        let c = class(&body, reversed);
+                        assert_ne!(
+                            c, "embedded",
+                            "off {o:?}, mirrored {mirror}, base from {from}, reversed {reversed}"
+                        );
+                        seen.insert(c);
+                    }
+                }
+            }
+        }
+        let rest = void_touching_plate::<T>();
+        for axis in [
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.3, -0.5, 0.8),
+            Vec3::new(1.0, 1.0, 1.0),
+        ] {
+            for k in 1..12 {
+                let angle = f64::from(k) * core::f64::consts::PI / 12.0;
+                let turn = Affine3::rotation_about_axis(Point3::origin(), axis.normalize(), angle);
+                let c = class(&moved(&rest, &turn).into_body(), false);
+                assert_ne!(c, "embedded", "turned {k}π/12 about {axis:?}");
+                seen.insert(c);
+            }
+        }
+        seen
+    }
+    let both = BTreeSet::from(["crosses", "refused"]);
+    assert_eq!(at::<f64>(), both, "f64");
+    assert_eq!(at::<Interval>(), both, "Interval");
+}
+
+/// **A refusal for a budget names the two faces it was made on, and
+/// ends the ask**, on the plate above at three dials, each read alike
+/// at both scalars:
+///
+/// - no depth: the first touching pair that would split refuses
+///   `Uncertified` across the edge its two faces share;
+/// - five cell pairs: the first level does not fit, and the refusal
+///   names its first pair, the first face's, with the whole level
+///   abandoned and no pair counted refused, since none was examined;
+/// - two hundred cell pairs: a split is refused at admission.
+///
+/// The first and third refuse one cell pair and abandon the rest. Red
+/// where a site keeps its refusal and reads on: the receipt then
+/// refuses more, or abandons nothing.
+#[test]
+fn a_budget_refusal_names_its_two_faces_and_ends_the_ask() {
+    use topo::clearance::{Embedding, EmbeddingReport};
+    fn at<T: Scalar + geom_core::Certifies>() -> [EmbeddingReport; 3] {
+        let plate = void_touching_plate::<T>().into_body();
+        let first = plate.faces().next().unwrap().0;
+        let by_kind = plate.faces().count();
+
+        let no_depth = door(&plate, 0, BUDGET);
+        let Embedding::Refused(EngineRefusal::Uncertified {
+            a,
+            b,
+            shared: SharedCell::Edge(_),
+            ..
+        }) = no_depth.verdict
+        else {
+            panic!("no depth refuses a touching pair: {:?}", no_depth.verdict)
+        };
+        assert!(
+            touching_pairs(&plate).contains(&(a.min(b), a.max(b))),
+            "{a:?} and {b:?} touch"
+        );
+
+        let no_level = door(&plate, DEFAULT_MAX_CELL_DEPTH, 5);
+        let Embedding::Refused(EngineRefusal::Budget {
+            stop: CellBudget::Pairs { max_cell_pairs: 5 },
+            a,
+            b,
+        }) = no_level.verdict
+        else {
+            panic!("the first level does not fit: {:?}", no_level.verdict)
+        };
+        assert!(
+            a == first && a != b,
+            "the first pair of the level: {a:?} {b:?}"
+        );
+
+        for (what, r, refused) in [("no depth", &no_depth, 1), ("no level", &no_level, 0)] {
+            let r = r.receipt;
+            assert_eq!(
+                (r.discharged, r.by_kind, r.refused, r.splits),
+                (by_kind, by_kind, refused, 0),
+                "{what}: every face by its kind, then the refusal: {r:?}"
+            );
+            assert_eq!(
+                r.abandoned,
+                r.candidates - by_kind - refused,
+                "{what}: the rest of the level abandoned: {r:?}"
+            );
+        }
+
+        let admission = door(&plate, DEFAULT_MAX_CELL_DEPTH, 200);
+        let Embedding::Refused(EngineRefusal::Budget {
+            stop: CellBudget::Pairs {
+                max_cell_pairs: 200,
+            },
+            a,
+            b,
+        }) = admission.verdict
+        else {
+            panic!("a split is refused at admission: {:?}", admission.verdict)
+        };
+        assert_ne!(a, b, "two faces");
+        let r = admission.receipt;
+        assert!(r.splits > 0 && r.refused == 1 && r.abandoned > 0, "{r:?}");
+        [no_depth, no_level, admission]
+    }
+    assert_eq!(at::<Interval>(), at::<f64>(), "one report at both scalars");
+}
+
+/// **A metric bound still reads a violation past a refusal.** The
+/// plate's top against the four faces of its void, asked `≥ 0.2` at a
+/// depth floor of 10: a cell pair runs out of depth before the pair at
+/// the apex is confirmed closer than the bound, and the verdict is the
+/// violation. The walk ends at the verified violation, which is why
+/// pairs are left abandoned, so a pair counted refused was refused
+/// before it. Red,
+/// refused for the depth, where the metric question ends at its first
+/// refusal as the embedding question does.
+#[test]
+fn a_metric_bound_reads_a_violation_past_a_refusal() {
+    fn at<T: Scalar>() -> String {
+        let plate = void_touching_plate::<T>().into_body();
+        // The box's six faces come first, its top the first of them;
+        // the void's four follow.
+        let faces: Vec<FaceKey> = plate.faces().map(|(k, _)| k).collect();
+        let (top, void) = (faces[0], faces[6..].to_vec());
+        let window = |faces: Vec<FaceKey>, which| {
+            Side {
+                body: &plate,
+                faces,
+            }
+            .windows(which)
+            .expect("every face has a window")
+        };
+        let bound = ClearanceBound::at_least(0.2);
+        let sweep = Sweep {
+            bound,
+            band: band(),
+            budgets: Budgets {
+                max_cell_depth: 10,
+                max_cell_pairs: BUDGET,
+            },
+        };
+        let report = sweep.run(
+            &window(vec![top], Which::First),
+            &window(void, Which::Second),
+            true,
+            verify(&plate, bound),
+        );
+        assert!(report.receipt.holds(), "{:?}", report.receipt);
+        assert!(
+            report.receipt.refused > 0 && report.receipt.abandoned > 0,
+            "a refusal is met, and the walk ends after it: {:?}",
+            report.receipt
+        );
+        let BoundVerdict::Violated(w) = &report.verdict else {
+            panic!("the violation outranks it: {:?}", report.verdict)
+        };
+        assert!(w.d < 0.2, "closer than the bound: {w:?}");
+        class(&report.verdict)
+    }
+    assert_eq!(at::<Interval>(), at::<f64>());
+}
+
+/// **Two bricks of one body a distance inside the band apart refuse as
+/// a sliver, on the two facing faces, and the ask ends there.** Bricks
+/// 30ε across, grafted 3ε apart: the facing cells' separation comes to
+/// lie wholly inside the band, where no refinement decides it. Red
+/// where the sliver is kept and the walk reads on: more is refused, or
+/// nothing abandoned.
+#[test]
+fn two_bricks_a_band_apart_refuse_as_a_sliver_and_end_the_ask() {
+    use sweep::test_support::{brick, finished};
+    use topo::clearance::{Embedding, SELF_INTERSECTION_GAP};
+    let e = tol().eps();
+    let s = 30.0 * e;
+    let tiny = |x0: f64, y0: f64| {
+        finished(
+            "a brick 30ε across",
+            brick::<f64>((x0, x0 + s), (y0, y0 + s), (0.5, 0.5 + s), tol()),
+            tol(),
+        )
+        .into_body()
+    };
+    let mut body = tiny(0.5, 0.5);
+    let first: BTreeSet<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    topo::instance::graft_disjoint(&mut body, &tiny(0.5 + s + 3.0 * e, 0.5 + 0.3 * s))
+        .expect("the bricks are disjoint");
+    let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+    let Embedding::Refused(EngineRefusal::Sliver { predicate, a, b }) = report.verdict else {
+        panic!("the gap refuses as a sliver: {:?}", report.verdict)
+    };
+    assert_eq!(predicate, SELF_INTERSECTION_GAP);
+    assert_ne!(
+        first.contains(&a),
+        first.contains(&b),
+        "one face of each brick: {a:?} {b:?}"
+    );
+    let r = report.receipt;
+    assert!(r.refused == 1 && r.abandoned > 0, "{r:?}");
 }
