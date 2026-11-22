@@ -598,7 +598,9 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     assert!(
         matches!(
             blend(&tools).fillet_op(len(BLEND)),
-            Err(viewer::SeatError::NoEdges)
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
         ),
         "and a tool holding no edges has no op to commit"
     );
@@ -815,14 +817,18 @@ fn an_empty_set_has_no_op_and_refuses_at_the_insert() {
     assert!(
         matches!(
             blend(&tools).fillet_op(len(BLEND)),
-            Err(viewer::SeatError::NoEdges)
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
         ),
         "no fillet op"
     );
     assert!(
         matches!(
             blend(&tools).chamfer_op(len(BLEND)),
-            Err(viewer::SeatError::NoEdges)
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
         ),
         "no chamfer op"
     );
@@ -1281,7 +1287,9 @@ fn an_emptied_set_releases_its_target() {
     assert!(
         matches!(
             blend(&tools).fillet_op(len(BLEND)),
-            Err(viewer::SeatError::NoEdges)
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
         ),
         "and no op"
     );

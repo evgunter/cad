@@ -77,7 +77,7 @@ use editor_core::resolve::RimNameFault;
 
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{EdgeNamesRefused, PickIndex};
-use crate::seats::SeatError;
+use crate::seats::{EdgeRole, SeatError};
 use crate::session::{EdgeSelection, SessionOp};
 use crate::tree::{DrawnBody, PickedName};
 use crate::vocab::vocabulary;
@@ -821,7 +821,8 @@ impl BlendTool {
     ///
     /// # Errors
     ///
-    /// [`SeatError::NoEdges`] with no edge held: there is no body to
+    /// [`SeatError::NoEdges`] naming [`EdgeRole::Blended`] with no edge
+    /// held: there is no body to
     /// blend and so no edit to author.
     pub fn require_target(&self) -> Result<RecipeNodeId, SeatError> {
         debug_assert_eq!(
@@ -831,7 +832,9 @@ impl BlendTool {
         );
         self.target()
             .map(|target| target.node())
-            .ok_or(SeatError::NoEdges)
+            .ok_or(SeatError::NoEdges {
+                role: EdgeRole::Blended,
+            })
     }
 }
 

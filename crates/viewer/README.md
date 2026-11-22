@@ -2117,15 +2117,19 @@ is its preview.
 Six seated tools hold no value field; what they used to type is a row
 of the node they insert, or a pick.
 
-**A commit waiting on a pick is withheld and names the pick.** What a
-form's commit waits for is a `seats::SeatError` read off the door its
-op is formed through — a seat, a held face, the blend's edge set, a
-split's half — and every tool's commit row, the blend's and the
-profile-on-a-face form's take that value rather than a sentence: the
-button is disabled while one stands, its hover `no mirror plane picked
-yet`. A panel line says an open pick `none picked`
-(`seats::NONE_PICKED`), and a pick that leaves the document is said by
-`seats::pick_gone`.
+**A creation tool's commit waiting on a pick is withheld and names
+the pick.** The seated tools', the blend tool's and the
+profile-on-a-face form's commits are drawn by one row
+(`pane::create`'s `withheld_commit_row`), which takes the op as the
+tool's door forms it and reads the fault off it: a pick not held — a
+`seats::SeatError`, its role named the way the panel line names it —
+or, on the assertion form, a band over a measure's value. While one
+stands the commit is disabled and the fault is said under it and on
+its hover (`no mirror plane picked yet`). A panel line says an open
+pick `role: none picked` (`seats::open_pick`), and a pick that leaves
+the document is said by `seats::pick_gone`. The mate tool, the
+add-variable form and the selection's own buttons (re-point,
+`Select all edges`) gate their controls apart.
 
 - **Blend.** The form asks for the edges and fillet or chamfer. The
   insert writes the size at `blend::default_size`: a millimetre,

@@ -12477,8 +12477,8 @@ mod properties_pane_tests {
         /// **Every tool's commit waits on its picks, and names the one it
         /// waits for** in the seats' vocabulary (`SeatError`): each
         /// seated tool and the blend tool, opened with nothing picked,
-        /// draws its commit withheld with the empty pick on its hover, and
-        /// a click inserts nothing. The profile-on-a-face form's, closed
+        /// draws its commit withheld with the empty pick under it and on
+        /// its hover, and a click inserts nothing. The profile-on-a-face form's, closed
         /// over its latch, says its face.
         ///
         /// Red if a tool's commit is live with a seat empty, or says why
@@ -12509,9 +12509,9 @@ mod properties_pane_tests {
                     COMBINE_BODIES,
                     "no pattern to project picked yet",
                 ),
-                (ToolKind::Blend, BLEND_EDGES, "no edges picked yet"),
+                (ToolKind::Blend, BLEND_EDGES, "no edges to blend picked yet"),
                 (
-                    ToolKind::Clearance,
+                    ToolKind::Assertion,
                     REQUIREMENTS,
                     "no first seat picked yet",
                 ),
@@ -12521,11 +12521,7 @@ mod properties_pane_tests {
                 driven.app.tools.open(kind);
                 driven.click(section);
                 let commit = kind.commit();
-                let gained = driven.gained_hovering(&commit);
-                assert!(
-                    gained.iter().any(|run| run == waiting),
-                    "{kind:?}: the withheld commit says {waiting:?}: {gained:?}"
-                );
+                withheld_says(&mut driven, &commit, waiting, &format!("{kind:?}"));
                 let before = driven.app.session.committed_doc().ids().len();
                 driven.click(&commit);
                 driven.settle();
@@ -12539,15 +12535,34 @@ mod properties_pane_tests {
             let mut driven = Driven::with_seams(Vec::new(), |app| app.drafts.on_face_open = true);
             driven.settle();
             driven.click(crate::pane::create::ADD_FEATURE);
-            let waiting = "no face to draw on picked yet";
+            withheld_says(
+                &mut driven,
+                crate::pane::create::NEW_PROFILE_ON_FACE,
+                "no face to draw on picked yet",
+                "profile on a face",
+            );
+        }
+
+        /// **A withheld commit says why in plain view and on its hover**:
+        /// `waiting` painted once with the pointer away, and once more
+        /// with it on `commit`.
+        fn withheld_says(driven: &mut Driven, commit: &str, waiting: &str, form: &str) {
             let says = |painted: &[(String, egui::Rect)]| {
                 painted.iter().filter(|(run, _)| run == waiting).count()
             };
             let quiet = driven.quiet();
-            assert_eq!(says(&quiet), 1, "said under the form: {quiet:?}");
-            let at = Driven::only(&quiet, crate::pane::create::NEW_PROFILE_ON_FACE);
+            assert_eq!(
+                says(&quiet),
+                1,
+                "{form}: {waiting:?} said under the commit: {quiet:?}"
+            );
+            let at = Driven::only(&quiet, commit);
             let hovered = driven.hovered(at);
-            assert_eq!(says(&hovered), 2, "and on the commit's hover: {hovered:?}");
+            assert_eq!(
+                says(&hovered),
+                2,
+                "{form}: and on the commit's hover: {hovered:?}"
+            );
         }
 
         /// **A two-pick tool holding its first pick still waits on its
@@ -12569,7 +12584,7 @@ mod properties_pane_tests {
                     "no mirror plane picked yet",
                 ),
                 (
-                    ToolKind::Clearance,
+                    ToolKind::Assertion,
                     REQUIREMENTS,
                     "no second seat picked yet",
                 ),
@@ -12580,11 +12595,7 @@ mod properties_pane_tests {
                 driven.click_through(vec![Selection::Node(placement())]);
                 driven.click(section);
                 let commit = kind.commit();
-                let gained = driven.gained_hovering(&commit);
-                assert!(
-                    gained.iter().any(|run| run == waiting),
-                    "{kind:?}: the withheld commit says {waiting:?}: {gained:?}"
-                );
+                withheld_says(&mut driven, &commit, waiting, &format!("{kind:?}"));
                 let before = driven.app.session.committed_doc().ids().len();
                 driven.click(&commit);
                 driven.settle();
@@ -12613,11 +12624,7 @@ mod properties_pane_tests {
             driven.click_through(vec![Selection::Node(placement())]);
             driven.click(crate::pane::create::COMBINE_BODIES);
             let commit = ToolKind::Split.commit();
-            let gained = driven.gained_hovering(&commit);
-            assert!(
-                gained.iter().any(|run| run == "no split plane picked yet"),
-                "the withheld button names the missing pick: {gained:?}"
-            );
+            withheld_says(&mut driven, &commit, "no split plane picked yet", "split");
             let splits = |driven: &Driven| -> Vec<RecipeNodeId> {
                 let doc = driven.app.session.committed_doc();
                 doc.ids()

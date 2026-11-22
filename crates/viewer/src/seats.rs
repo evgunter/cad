@@ -7,14 +7,15 @@
 //! are its own (`crate::matetool`), and the blend tool's held-picks
 //! line is drawn in its panel (`crate::pane`), not here.
 //!
-//! **What a form's commit waits for is a [`SeatError`]**, wherever the
-//! picks it waits on are held: the seated tools', the boolean tool's
-//! member list, the blend tool's edge set
-//! ([`crate::blend::BlendTool::require_target`]) and the
-//! profile-on-a-face form's latch ([`FaceRole::DrawnOn`]). A commit is
-//! withheld while one stands, and its disabled hover is that value's
-//! words: `crate::pane::create`'s commit rows take the value, not a
-//! sentence, so a form has no string of its own to say it with.
+//! **What a creation tool's commit waits for is a [`SeatError`]**,
+//! wherever the picks it waits on are held: the seated tools', the
+//! boolean tool's member list, the blend tool's edge set
+//! ([`EdgeRole`]) and the profile-on-a-face form's latch
+//! ([`FaceRole::DrawnOn`]). Those commits are drawn by
+//! `crate::pane::create`'s one withheld commit row, which takes the
+//! formed op and reads the fault off it, so none of those forms has a
+//! string of its own to say it with. The mate tool, the add-variable
+//! form and the selection's own buttons gate their controls apart.
 //!
 //! # Why one value and not one per tool
 //!
@@ -251,6 +252,24 @@ impl FaceRole {
     }
 }
 
+/// **What a set of held EDGES is for** — the role the blend tool's edge
+/// set plays, as [`Seat`] names a held node's and [`FaceRole`] a held
+/// face's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EdgeRole {
+    /// The edges a blend rounds or bevels.
+    Blended,
+}
+
+impl EdgeRole {
+    /// The role's name, for sentences.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Blended => "edges to blend",
+        }
+    }
+}
+
 /// A typed seated-tool refusal (closed enum, D4 ¶3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SeatError {
@@ -268,7 +287,10 @@ pub enum SeatError {
     },
     /// The blend tool holds no edge: its set is the one pick it waits
     /// for.
-    NoEdges,
+    NoEdges {
+        /// The set's role.
+        role: EdgeRole,
+    },
     /// A seat holds a split picked in the tree, and which of its two
     /// halves it reads is not chosen yet.
     HalfUnchosen {
@@ -282,7 +304,7 @@ impl core::fmt::Display for SeatError {
         let unpicked = match self {
             Self::Empty { seat } => seat.name(),
             Self::NoFace { role } => role.name(),
-            Self::NoEdges => "edges",
+            Self::NoEdges { role } => role.name(),
             Self::HalfUnchosen { seat } => {
                 return write!(
                     f,
@@ -929,12 +951,19 @@ pub fn seat_line(seats: &Seats, by: Speaker<'_>) -> String {
 /// own: nothing splits a panel line back into its items, so there is
 /// no hold for a name to carry.
 /// **What a panel says of a pick it does not hold**: an open seat in a
-/// held-picks line, a line holding nothing at all (the blend tool's
-/// edge count among them), a form's latch row with no face latched
-/// (`crate::drafts::latch_said`), and a `Clear picks` with nothing to
-/// clear. The one spelling of an empty pick in a panel; what a commit
-/// waiting on that pick says is its [`SeatError`].
+/// held-picks line ([`open_pick`]), a line holding nothing at all, and
+/// a form's latch row with no face latched
+/// (`crate::drafts::latch_said`). The one spelling of an empty pick in
+/// a panel; what a commit waiting on that pick says is its
+/// [`SeatError`].
 pub(crate) const NONE_PICKED: &str = "none picked";
+
+/// **An open pick, named by its role** — `role: none picked`, the item a
+/// held-picks line gives an open seat, and the blend tool's edge line
+/// with no edge held.
+pub(crate) fn open_pick(role: impl core::fmt::Display) -> String {
+    format!("{role}: {NONE_PICKED}")
+}
 
 pub(crate) fn picks_line<R: core::fmt::Display>(
     picks: impl IntoIterator<Item = (R, Option<String>)>,
@@ -945,7 +974,10 @@ pub(crate) fn picks_line<R: core::fmt::Display>(
     }
     picks
         .iter()
-        .map(|(role, held)| format!("{role}: {}", held.as_deref().unwrap_or(NONE_PICKED)))
+        .map(|(role, held)| match held {
+            Some(held) => format!("{role}: {held}"),
+            None => open_pick(role),
+        })
         .collect::<Vec<_>>()
         .join("; ")
 }

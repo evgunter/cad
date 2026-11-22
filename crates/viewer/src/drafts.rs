@@ -1743,20 +1743,24 @@ pub(crate) enum CommitFault {
     Refused(Box<Refusal>),
     /// A pattern row's default spacing could not be written.
     Spacing(crate::combine::RowSpacingFault),
+    /// The assertion form's band bounds a measure's value, which a band
+    /// cannot (`AssertionMeasure::claim`).
+    BandOverValue,
 }
 
 impl CommitFault {
-    /// **The pick the commit waits for**, where that is the fault: what
-    /// a form's commit is withheld over, and says on its hover, before
-    /// the click.
-    pub(crate) fn waits_for(&self) -> Option<&SeatError> {
+    /// **Whether the commit is withheld over this fault** before the
+    /// click: a pick it waits for, or a claim the form's choices cannot
+    /// make — the faults the form itself is still short of. A literal or
+    /// a measure the click would be refused over is said at the click.
+    pub(crate) fn withholds(&self) -> bool {
         match self {
-            Self::Seat(error) => Some(error),
+            Self::Seat(_) | Self::BandOverValue => true,
             Self::Dimension(_)
             | Self::Program(_)
             | Self::Traced(_)
             | Self::Refused(_)
-            | Self::Spacing(_) => None,
+            | Self::Spacing(_) => false,
         }
     }
 }
@@ -1800,6 +1804,9 @@ impl std::fmt::Display for CommitFault {
             Self::Traced(error) => error.fmt(f),
             Self::Refused(refusal) => refusal.fmt(f),
             Self::Spacing(fault) => fault.fmt(f),
+            Self::BandOverValue => f.write_str(
+                "a band bounds a clearance; bound a value from one side, or at one value",
+            ),
         }
     }
 }
