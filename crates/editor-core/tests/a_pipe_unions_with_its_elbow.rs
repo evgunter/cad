@@ -17,11 +17,12 @@ use std::f64::consts::{FRAC_PI_2, PI};
 
 use editor_core::test_support::{ang, len};
 use editor_core::{
-    BodyRead, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation, Formula,
-    LoopProgram, Node, OnFace, Operand, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
-    StableName, evaluate,
+    BodyRead, BooleanValue, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation,
+    Formula, LoopProgram, Node, OnFace, Operand, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
+    StableName, ValuePayload, evaluate,
 };
 use geom_core::Tol;
+use topo::ContactRecords;
 
 const OUTER: f64 = 1.0;
 const INNER: f64 = 0.6;
@@ -47,6 +48,7 @@ enum OffCap {
 /// evaluated to.
 struct Joined {
     ev: Evaluation<f64>,
+    built: RecipeNodeId,
     union: RecipeNodeId,
 }
 
@@ -168,12 +170,14 @@ fn join(hollow: bool, end: CapEnd, off: OffCap) -> Joined {
         "what is built off the {end:?} cap builds ({off:?}): {:?}",
         ev.node_error(built).map(|e| e.kind.to_string())
     );
-    Joined { ev, union }
+    Joined { ev, built, union }
 }
 
 /// The eight elbows that build: either cap, the axis on either side,
 /// either sign of the turn. (The other eight spellings put the profile
-/// across the axis, which the revolve refuses on its own.)
+/// across the axis, which the revolve refuses on its own.) Off the End
+/// cap (z = 2) a turn of +π/2 bends back into the pipe and −π/2 away
+/// from it; off the Start cap (z = 0) the reverse.
 fn the_eight_poses() -> [(CapEnd, OffCap); 8] {
     let q = FRAC_PI_2;
     let elbow = |axis_x, heading, angle| OffCap::Elbow {
@@ -219,4 +223,69 @@ fn a_pipe_unions_with_an_extrude_off_its_own_cap() {
     let joined = join(true, CapEnd::End, off);
     let _ = (joined.ev.node_error(joined.union), closed_form(true, off));
     // VERDICT: per the ruling.
+}
+
+/// What the union came to: its refusal, or its volume against the
+/// closed form and tier 3 and 3′ on the result.
+fn outcome(j: &Joined, expect: f64) -> String {
+    if let Some(e) = j.ev.node_error(j.union) {
+        return format!("REFUSES {}", e.kind);
+    }
+    let body = crate::corpus::body_of(&j.ev, j.union);
+    let none = ContactRecords::default();
+    let value = j.ev.value(j.union).expect("a value");
+    let contacts = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { .. }) => &*value.carry.contacts,
+        _ => &none,
+    };
+    let t3 = topo::validate_geometric(&body, Tol::witness()).map_err(|e| format!("{e:?}"));
+    let t3p = topo::validate_pseudomanifold(&body, contacts, Tol::witness())
+        .map_err(|e| format!("{e:?}"));
+    let vol = match &t3 {
+        Ok(()) => {
+            let f = topo::test_support::finished("the union", body.clone(), Tol::witness());
+            format!(
+                "{:.12}",
+                topo::test_support::pinned_volume("the union", &f, Tol::witness()).volume
+            )
+        }
+        Err(_) => "-".into(),
+    };
+    format!(
+        "BUILDS solids {} volume {vol} expect {expect:.12} records {} t3 {t3:?} t3' {t3p:?}",
+        body.solids().count(),
+        contacts.len()
+    )
+}
+
+#[test]
+#[ignore = "a probe"]
+fn zz_probe_outcomes() {
+    for (end, off) in the_eight_poses() {
+        let j = join(true, end, off);
+        let pipe_b = crate::corpus::body_of(&j.ev, j.built);
+        let zs: Vec<f64> = pipe_b.points().map(|(_, p)| p.to_array()[2]).collect();
+        println!(
+            "PROBE elbow z range {:?}",
+            (
+                zs.iter().cloned().fold(f64::MAX, f64::min),
+                zs.iter().cloned().fold(f64::MIN, f64::max)
+            )
+        );
+        println!(
+            "PROBE pipe {end:?} {off:?}: {}",
+            outcome(&j, closed_form(true, off))
+        );
+    }
+    for (end, off) in the_eight_poses() {
+        println!(
+            "PROBE rod {end:?} {off:?}: {}",
+            outcome(&join(false, end, off), closed_form(false, off))
+        );
+    }
+    let off = OffCap::Extrude(1.0);
+    println!(
+        "PROBE extrude: {}",
+        outcome(&join(true, CapEnd::End, off), closed_form(true, off))
+    );
 }
