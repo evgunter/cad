@@ -5,7 +5,7 @@ title: demos/tour/Cargo.lock is stale against its manifest: any build of the tou
 status: open
 opened: 2026-11-22
 priority: P2
-cost: S
+cost: C
 ---
 
 
