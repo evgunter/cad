@@ -2553,15 +2553,37 @@ fn present_plane<'a>(
             if !(ray_inside(m, u1, la, band) && ray_inside(m, u2, lb, band)) {
                 return Err(Unpresented::Local);
             }
+            // Each piece runs on past `m` toward the other edge: the first
+            // ends at `r1 = 3m̂ + b̂`, the second at `r2 = 3m̂ + â`,
+            // positive combinations, so each lies strictly between `m` and
+            // that edge and the pieces overlap in the cone of `r2` and
+            // `r1`. Each stays under a half turn: `a × r1` is
+            // `sin(θ/2)·(3 + 2cos(θ/2))`, positive at every corner angle
+            // `θ` short of a full turn.
+            let mh = unit2(m);
+            let (ah, bh) = ([a[0] / la, a[1] / la], [bv[0] / lb, bv[1] / lb]);
+            let three = at(3.0);
+            let r1 = [three * mh[0] + bh[0], three * mh[1] + bh[1]];
+            let r2 = [three * mh[0] + ah[0], three * mh[1] + ah[1]];
             let d = [cell_u - o.x, cell_v - o.y];
+            let cross = |u: [Interval; 2], v: [Interval; 2]| u[0] * v[1] - u[1] * v[0];
+            // Whether the cell holds no point of a piece that the other
+            // piece does not hold too: none on the edge `e`'s side of the
+            // other piece's ray `r`, strictly. The cell's part of the face
+            // is then all in the other piece.
+            let covered = |e: [Interval; 2], r: [Interval; 2]| {
+                let x = cross(d, r) / cross(e, r);
+                x.is_certified() && x.hi() <= 0.0
+            };
             // One piece: the cone of an edge's direction `e`, of length
             // `l`, and the ray, as the image of `[0, x] × [0, y]`; `None`
             // where the cell lies wholly off it.
             let cone = |e: [Interval; 2],
                         l: Interval,
+                        r: [Interval; 2],
                         zero: &dyn Fn(Interval) -> Zero|
              -> Result<Option<Presented<'a>>, Unpresented> {
-                let r = [m[0] * l, m[1] * l];
+                let r = [r[0] * l, r[1] * l];
                 let det = e[0] * r[1] - e[1] * r[0];
                 let x = (d[0] * r[1] - d[1] * r[0]) / det;
                 let y = (e[0] * d[1] - e[1] * d[0]) / det;
@@ -2591,8 +2613,12 @@ fn present_plane<'a>(
                 }))
             };
             // A piece's zero: its edge where the pair shares it, else the
-            // vertex where the pair shares that, else none. The edge runs
-            // over its coordinate, 0 at the vertex and 1 at its far end.
+            // vertex where the pair shares that, else none. The shared
+            // cell holds its edges' ends, so the vertex is shared where
+            // the other piece's edge is. The edge runs over its
+            // coordinate, 0 at the vertex and 1 at its far end.
+            let vertex_shared =
+                near_vertices.contains(&vtx) || near_edges.contains(e1) || near_edges.contains(e2);
             let zero = |e: usize, (v, w): (Interval, Interval)| {
                 move |hi: Interval| {
                     if near_edges.contains(&e) {
@@ -2602,15 +2628,26 @@ fn present_plane<'a>(
                                 segment_params(v, w, (0.0, hi.hi()))
                             }),
                         )
-                    } else if near_vertices.contains(&vtx) {
+                    } else if vertex_shared {
                         Zero::Point(Side::XLo, Side::YLo, vtx)
                     } else {
                         Zero::None
                     }
                 }
             };
-            let first = cone(a, la, &zero(*e1, (v1, w1)))?;
-            let second = cone(bv, lb, &zero(*e2, (v2, w2)))?;
+            let first = || cone(a, la, r1, &zero(*e1, (v1, w1)));
+            let second = || cone(bv, lb, r2, &zero(*e2, (v2, w2)));
+            // A piece the other covers is not presented: where the cell
+            // touches a piece's far ray from outside, that piece's part
+            // of the cell is a rectangle a rounding wide, and every point
+            // of it is the other piece's.
+            let (first, second) = if covered(a, r2) {
+                (None, second()?)
+            } else if covered(bv, r1) {
+                (first()?, None)
+            } else {
+                (first()?, second()?)
+            };
             Ok(match (first, second) {
                 (None, None) => Presentation::Vacuous,
                 (Some(p), None) | (None, Some(p)) => Presentation::Of(Box::new(p)),
@@ -5949,7 +5986,9 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// **What two pieces share of what their faces' cells are near**: a
 /// shared edge only where each face that is cut in two has its piece on
 /// that edge (the edge is that piece's zero side), and the shared
-/// vertices. A face in one piece holds every edge its cell is near.
+/// vertices, a piece's corner among them (a shared edge's end, which
+/// the other face's cell need not be near). A face in one piece holds
+/// every edge its cell is near.
 ///
 /// A separator is built through what the PIECE pair shares, never the
 /// face pair: a plane through one edge of a straight corner is zero
@@ -5975,7 +6014,17 @@ fn pieces_share(
                     .is_some_and(|e| on(cut_x, px, e.key) && on(cut_y, py, e.key))
             })
             .collect(),
-        vertices: near.vertices.clone(),
+        vertices: near
+            .vertices
+            .iter()
+            .copied()
+            .chain([px, py].into_iter().filter_map(|p| match p.zero {
+                Zero::Point(_, _, v) => Some(v),
+                _ => None,
+            }))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
     }
 }
 
