@@ -77,8 +77,7 @@ from the derived centre
 `work/pcert/the-cone-sections-image-is-built-from-its-derived-centre.md`).
 The families above are where the same reading would bite every conic
 that comes to be held on its arc
-(`a-construction-whose-centre-runs-off-still-stores-a-centre`,
-`a-section-conic-is-anchored-at-a-general-point-of-its-arc`).
+(`a-section-conic-is-anchored-at-a-general-point-of-its-arc`).
 
 ## The doors that rebuild a conic through a centre constructor
 
