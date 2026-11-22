@@ -31,9 +31,7 @@ fn ellipse(a: f64, b: f64) -> Curve3<f64> {
 
 fn spiric() -> Curve3<f64> {
     Curve3::Spiric {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: crate::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 3.0,
         minor_radius: 1.0,
         offset: 0.5,

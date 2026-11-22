@@ -32,18 +32,22 @@ fn rim_r() -> f64 {
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn rim_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, RIM_Z),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, RIM_Z),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 
@@ -278,10 +282,10 @@ fn stored_axis(body: &Body<f64>, k: EdgeKey) -> [u64; 3] {
         .certified()
         .unwrap();
     match *g.carrier() {
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame { axis, .. },
-            ..
-        }) => [axis.x.to_bits(), axis.y.to_bits(), axis.z.to_bits()],
+        Curve3::Circle(geom::Circle { frame, .. }) => {
+            let axis = frame.axis();
+            [axis.x.to_bits(), axis.y.to_bits(), axis.z.to_bits()]
+        }
         ref other => panic!("a rim arc is a circle, got {other:?}"),
     }
 }

@@ -524,6 +524,31 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// for byte. Both spellings are the one turn, so this is rounding: the
 /// reference stays as orthogonal to the cap's normal as it was, and no
 /// point, normal or wall moved.
+///
+/// **Regenerated when the carriers held their frames as rigid motions**
+/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): 34 lines in
+/// two fixtures, every one a `DIRECTION`, and no point, vertex or edge.
+/// `composed_die`'s 33 are its blend faces' frames, squared from their
+/// two directions where they were stored as computed: a component a
+/// rounding short of one reads `1.0` (21) and a `-0.0` reads `0.0` (12).
+/// `lily_lantern`'s 1 is the axis of its angle-π meridian off the axis,
+/// now its turned placement's own frame, whose axis carries the half
+/// turn's `sin π` (`-1.2246467991473532E-16`) where it was the sketch
+/// normal negated, paired with that placement's direction (a pair a
+/// rounding off square).
+///
+/// **Regenerated when the writer cited one surface entity per surface
+/// key** (`[import]`, "Records follow the file"): nine fixtures, each
+/// face whose key an earlier face wore citing that face's entity, and the
+/// ids after it shifted. Surface entities: `ball` 2 → 1, `boss_union`
+/// 10 → 8, `composed_die` 89 → 68, `cone` 3 → 2, `cut_cylinder` 4 → 3,
+/// `die_pips` 48 → 27, `donut` 2 → 1, `kiss_assembly` 22 → 19,
+/// `lily_lantern` 6 → 4; no face, point or edge moved. `composed_die`
+/// also carries a move main's writer had made and the fixture had not:
+/// 12 `DIRECTION`s `(0.0, 0.0, 1.0)` written `(-0.0, 0.0, 1.0)`, the
+/// last commits of the carrier-frames row (PR 7131) after its own
+/// regeneration. The sign of a zero component is one real number either
+/// way, and nothing reads it: the importer folds it at translation.
 #[test]
 fn committed_fixtures_are_byte_golden() {
     for (name, body) in common::fixture_corpus() {
@@ -594,8 +619,8 @@ fn committed_fixtures_are_byte_golden() {
 /// applied rather than a judgement asserted: a gap inside ε is only
 /// actionable if some site assumes BITWISE membership of a vertex in a
 /// surface, and a search of the kernel finds none — the bitwise
-/// comparisons that exist are surface-to-surface (`surface_sig`'s
-/// dedup), curve-to-curve (`bitwise_iso_match`) and vertex-to-vertex
+/// comparisons that exist are curve-to-curve
+/// (`step_import::on_built::bitwise_twin`) and vertex-to-vertex
 /// (the boolean zip's coincidence requirement). This row is the
 /// record.
 #[test]
@@ -605,11 +630,12 @@ fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
     let tops: Vec<_> = body
         .surfaces()
         .filter_map(|(k, s)| match s {
-            geom::Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } if origin.z == 1.0 && normal.z.abs() == 1.0 => Some((k, *origin, *normal, *u_ref)),
+            geom::Surface::Plane { frame }
+                if frame.origin().z == 1.0 && frame.axis().z.abs() == 1.0 =>
+            {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some((k, origin, normal, u_ref))
+            }
             _ => None,
         })
         .collect();

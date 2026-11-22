@@ -30,3 +30,5 @@ control hull of the whole carrier, which is a sound superset.
 Filed by NURBSWIN (CLEAR), 2026-10-28.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
+
+- 2026-11-18 — measured and fixed by EMBED's `a-rational-edges-whole-span-enclosure-is-unbounded-so-its-face-has-no-window` (branch `embed/rational-window`): two f64 cone cavities' plane caps, bounded by a rational quadratic hyperbola, had no window because this read is the whole line over a spline span. `boundary_of` now hulls each edge's cover over its span (`cover::arc_cover`). This row is that row's defect and closes with it. (EMBED, lane rational-window)

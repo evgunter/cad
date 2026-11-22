@@ -33,10 +33,8 @@ fn rectangle(
     (v0, v1): (f64, f64),
 ) -> (Surface<f64>, Vec<LoopEdge<f64>>) {
     let surface = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim = |v: f64, a: f64, b: f64, s: u32, e: u32| {
         edge(
@@ -141,10 +139,8 @@ fn framed(
     let x = v3(u_ref[0], u_ref[1], u_ref[2]);
     let y = a.cross(x);
     let surface = Surface::Cylinder {
-        origin: o,
-        axis: a,
+        frame: geom::Frame::new(o, a, x),
         radius: r,
-        u_ref: x,
     };
     let build = move |(u0, u1): (f64, f64), (v0, v1): (f64, f64), ccw: bool, tag: u32| {
         let rim = |v: f64, s: f64, e: f64, t0: u32, t1: u32| {

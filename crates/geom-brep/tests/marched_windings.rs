@@ -24,24 +24,19 @@ fn band() -> Band {
 fn oracle_turns(s: &Surface<f64>, pts: &[Point3<f64>]) -> Option<Vec<i64>> {
     type Coords = Box<dyn Fn(Point3<f64>) -> (f64, f64)>;
     let chans: Vec<Coords> = match *s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        } => {
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let e2 = axis.cross(u_ref);
             vec![Box::new(move |p| {
                 ((p - origin).dot(u_ref), (p - origin).dot(e2))
             })]
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
-            u_ref,
             ..
         } => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let e2 = axis.cross(u_ref);
             vec![
                 Box::new(move |p| ((p - center).dot(u_ref), (p - center).dot(e2))),
@@ -118,26 +113,20 @@ fn marched_windings_agree_with_a_projected_oracle() {
     let torus = |center: Point3<f64>, axis: Vec3<f64>, big: f64, r: f64| {
         let axis = axis.normalize();
         Surface::Torus {
-            center,
-            axis,
+            frame: geom::Frame::new(center, axis, axis.orthonormal_basis().0),
             major_radius: big,
             minor_radius: r,
-            u_ref: axis.orthonormal_basis().0,
         }
     };
     let ball = |center: Point3<f64>, radius: f64| Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let wall = |origin: Point3<f64>, axis: Vec3<f64>, radius: f64| {
         let axis = axis.normalize();
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: geom::Frame::new(origin, axis, axis.orthonormal_basis().0),
             radius,
-            u_ref: axis.orthonormal_basis().0,
         }
     };
     for k in 0..fuzz::scaled(48) {

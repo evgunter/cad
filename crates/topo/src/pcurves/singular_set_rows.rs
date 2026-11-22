@@ -14,11 +14,9 @@ fn the_sheet_has_a_singular_set_its_tips_are_read_against() {
         Vec3::new(1.0, 0.0, 0.0),
     );
     let sheet = |major_radius: f64| Surface::Spindle {
-        center: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         major_radius,
         minor_radius: 1.0,
-        u_ref: x,
     };
     for (surface, has) in [
         (sheet(-0.4), true),
@@ -26,46 +24,36 @@ fn the_sheet_has_a_singular_set_its_tips_are_read_against() {
         (sheet(1.0), true),
         (
             Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, z, x),
                 radius: 1.0,
-                axis: z,
-                u_ref: x,
             },
             true,
         ),
         (
             Surface::Cone {
-                apex: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 half_angle: 0.4,
-                u_ref: x,
             },
             true,
         ),
         (
             Surface::Plane {
-                origin: o,
-                normal: z,
-                u_ref: x,
+                frame: geom::Frame::new(o, z, x),
             },
             false,
         ),
         (
             Surface::Cylinder {
-                origin: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 radius: 1.0,
-                u_ref: x,
             },
             false,
         ),
         (
             Surface::Torus {
-                center: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 major_radius: 2.0,
                 minor_radius: 0.5,
-                u_ref: x,
             },
             false,
         ),

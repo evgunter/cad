@@ -320,9 +320,9 @@ impl<'a> Writer<'a> {
         frame: &geom::Frame<f64>,
         [origin_context, axis_context, ref_context]: [&'static str; 3],
     ) -> Result<u64, StepExportError> {
-        let cp = self.cartesian_point(frame.origin, origin_context)?;
-        let a = self.direction(frame.axis, axis_context)?;
-        let r = self.direction(frame.u_ref, ref_context)?;
+        let cp = self.cartesian_point(frame.origin(), origin_context)?;
+        let a = self.direction(frame.axis(), axis_context)?;
+        let r = self.direction(frame.u_ref(), ref_context)?;
         Ok(self.emit(&format!("AXIS2_PLACEMENT_3D('', #{cp}, #{a}, #{r})")))
     }
 
@@ -749,7 +749,8 @@ impl<'a> Writer<'a> {
 
     /// `ADVANCED_FACE` for a kernel face: the surface printer first
     /// (so an out-of-subset face refuses by its surface, the primary
-    /// fact, not incidentally by a boundary carrier), then bounds
+    /// fact, not incidentally by a boundary carrier), once per surface
+    /// key, so faces wearing one surface cite one entity; then bounds
     /// (outer first, rings in stored order), then `same_sense`.
     ///
     /// **`same_sense` IS [`topo::Face::sense`]** (M5 S10). This is not
@@ -783,6 +784,7 @@ impl<'a> Writer<'a> {
             })?;
         let outer = face.outer;
         let rings = face.rings.clone();
+        let surface_key = face.surface;
         // The S10 orientation bit, emitted as `same_sense` (fn docs:
         // the two are the same predicate), turned over on a void's face.
         let same_sense = if face.sense != reversed { ".T." } else { ".F." };
@@ -807,6 +809,7 @@ impl<'a> Writer<'a> {
             })
         };
         let surface_id = match *surface {
+            _ if let Some(&id) = self.shared.surfaces.get(&surface_key) => id,
             Surface::Plane { .. } => {
                 let placement = self
                     .axis2_placement(&frame()?, ["plane origin", "plane normal", "plane u_ref"])?;
@@ -918,6 +921,7 @@ impl<'a> Writer<'a> {
                 });
             }
         };
+        self.shared.surfaces.insert(surface_key, surface_id);
         let mut bounds = Vec::with_capacity(1 + rings.len());
         bounds.push(self.face_bound(outer, true, reversed)?);
         for ring in rings {
