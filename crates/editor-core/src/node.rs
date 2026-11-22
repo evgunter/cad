@@ -1344,8 +1344,8 @@ impl SitedRef {
 ///     pose: plane(face.clone()).into(),
 /// }));
 /// let _: Mate<Formula> = Mate {
-///     on: plane(face),
-///     to: flipped,
+///     on: plane(face).into(),
+///     to: flipped.into(),
 ///     orient: editor_core::Orientation::IDENTITY,
 /// };
 /// ```
