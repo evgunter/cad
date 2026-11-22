@@ -68,3 +68,8 @@ Reproduce (each reports the pin; the row itself is `<name>_row`):
 
 Each body finishes at 1e-12, its margin decided rather than the band
 loosened, and each pin comes out with its row green at every ε.
+
+## Also seen (PR 7292's gate, 2026-11-22)
+
+`sweep` `a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta::a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta` at `CAD_TOLERANCE_EPS=1e-12` (hosted run 45059887467, the PR gate's 1e-12 row of `sweep`): the union's finish refuses `VolumeUncomputable` on one face, `props_chart_junction_closed` reading `2.8154559647670245e-12` inside the band `[1e-12, 1e-11]`. It passes at the default ε and at 1e-6. The row unions an extruded prism with a cylinder and reaches no loft, skin or spline door, which is all that PR changes.
+
