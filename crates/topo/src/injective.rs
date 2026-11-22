@@ -5357,22 +5357,24 @@ impl Psi {
         })
     }
 
-    /// `∇ψ` over a box.
-    fn gradient(&self, p: Point3<Interval>) -> Vec3<Interval> {
+    /// **`ψ`'s rate along `v` over a box**: `∇ψ(q)·v` for every `q` in
+    /// `p`. A cylinder's or a cone's radial unit is square to its axis at
+    /// every point, so it is read against `v` less its part along the
+    /// axis ([`square_to`]): a box's enclosure of the radial unit holds
+    /// directions with an axial part, which the dot with `v` would read,
+    /// and along a ruling, where `v` is the axis, that part is all of it.
+    fn rate(&self, p: Point3<Interval>, v: Vec3<Interval>) -> Interval {
+        let unit = |w: Vec3<Interval>| w * (at(1.0) / w.norm());
         match *self {
-            Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n,
+            Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n.dot(v),
             Self::Carrier(Implicit::Cylinder { o, axis, .. }) => {
-                let radial = geom::Line {
+                let line = geom::Line {
                     origin: o,
                     dir: axis,
-                }
-                .offset(p);
-                radial * (at(1.0) / radial.norm())
+                };
+                unit(line.offset(p)).dot(square_to(axis, v))
             }
-            Self::Carrier(Implicit::Sphere { c, .. }) => {
-                let w = p - c;
-                w * (at(1.0) / w.norm())
-            }
+            Self::Carrier(Implicit::Sphere { c, .. }) => unit(p - c).dot(v),
             Self::Carrier(Implicit::Cone {
                 apex,
                 axis,
@@ -5380,14 +5382,13 @@ impl Psi {
                 sin,
                 nappe,
             }) => {
-                let radial = geom::Line {
+                let line = geom::Line {
                     origin: apex,
                     dir: axis,
-                }
-                .offset(p);
-                radial * (cos / radial.norm()) - axis * (nappe * sin)
+                };
+                unit(line.offset(p)).dot(square_to(axis, v)) * cos - axis.dot(v) * (nappe * sin)
             }
-            Self::Graph { m, t, slope, .. } => m - t * slope,
+            Self::Graph { m, t, slope, .. } => m.dot(v) - t.dot(v) * slope,
         }
     }
 
@@ -5400,16 +5401,27 @@ impl Psi {
     }
 }
 
+/// **`v` less its part along `axis`**: `v − axis·(axis·v)/|axis|²`. A
+/// vector square to the axis has the same dot with it as with `v`.
+fn square_to(axis: Vec3<Interval>, v: Vec3<Interval>) -> Vec3<Interval> {
+    v - axis * (axis.dot(v) / axis.norm_squared())
+}
+
 /// `ψ∘Φ` over `x × y` in its centred form: its value at the middle, and
-/// the gradient's enclosure over the image times the half-spans.
+/// its rate along each chart direction over the image ([`Psi::rate`])
+/// times the half-spans.
 /// Tight where the plain enclosure of a slanted image's box is not.
 fn centred(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option<Interval> {
     let (xm, ym) = (geom::mid_param(x.0, x.1), geom::mid_param(y.0, y.1));
     let middle = psi.value(p.image((xm, xm), (ym, ym)))?;
     let whole = x == p.x && y == p.y;
     let (fx, fy, _) = if whole { p.jet() } else { p.jet_on(x, y) };
-    let grad = psi.gradient(if whole { p.whole() } else { p.image(x, y) });
-    Some(middle + grad.dot(fx) * iv((x.0 - xm, x.1 - xm)) + grad.dot(fy) * iv((y.0 - ym, y.1 - ym)))
+    let image = if whole { p.whole() } else { p.image(x, y) };
+    Some(
+        middle
+            + psi.rate(image, fx) * iv((x.0 - xm, x.1 - xm))
+            + psi.rate(image, fy) * iv((y.0 - ym, y.1 - ym)),
+    )
 }
 
 /// `ψ∘Φ` over a side `x × y` of the presentation. On an analytic chart
@@ -5650,10 +5662,9 @@ fn sign_on(
     };
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
-    let grad = psi.gradient(image);
     let across = |axis: Axis| match axis {
-        Axis::U => grad.dot(fx) * at(p.span(Axis::U)),
-        Axis::V => grad.dot(fy) * at(p.span(Axis::V)),
+        Axis::U => psi.rate(image, fx) * at(p.span(Axis::U)),
+        Axis::V => psi.rate(image, fy) * at(p.span(Axis::V)),
     };
     let departs = |s: Side| {
         interval_sign_as(
