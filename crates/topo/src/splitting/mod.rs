@@ -274,9 +274,15 @@ pub struct SplitReduction<T: Real> {
 ///
 /// It holds the margin each ON vertex was decided on beside the rows, so
 /// the finish's row of an operand edge ON the plane
-/// ([`Self::edge_on`]) reads the decisions that put its two ends there.
+/// ([`Self::edge_on`]) reads the decisions that put its two ends there,
+/// and the operand's line edges lying in the plane, read before the null
+/// edges re-hang them on copies ([`on_lines`]).
 #[derive(Debug)]
-pub struct ReducedRows(Vec<crate::Coincidence>, SecondaryMap<VertexKey, MarginDiag>);
+pub struct ReducedRows(
+    Vec<crate::Coincidence>,
+    SecondaryMap<VertexKey, MarginDiag>,
+    Vec<OnLine>,
+);
 
 impl ReducedRows {
     /// **The row of operand edge `edge` ON the plane**, its ends `ends`,
@@ -291,18 +297,6 @@ impl ReducedRows {
     /// plane is the operand's, between two operand vertices the vertex
     /// sweep decided ON.
     pub(in crate::splitting) fn edge_on(&mut self, edge: EdgeKey, ends: [VertexKey; 2]) -> u32 {
-        let cells = [
-            crate::RowCell::Input {
-                input: crate::Operand::A,
-                cell: crate::Cell::Edge(edge),
-            },
-            crate::RowCell::Tool,
-        ];
-        let at =
-            |k: usize| u32::try_from(k).unwrap_or_else(|_| unreachable!("a row index fits u32"));
-        if let Some(k) = self.0.iter().position(|r| r.cells == cells) {
-            return at(k);
-        }
         let [a, b] = ends.map(|v| {
             self.1.get(v).copied().unwrap_or_else(|| {
                 unreachable!(
@@ -311,17 +305,71 @@ impl ReducedRows {
                 )
             })
         });
-        let margin = a.jointly(b);
-        self.0.push(crate::Coincidence {
-            cells,
-            more: [None; 3],
-            relation: crate::Relation::OnCarrier,
-            site: crate::DecisionSite::SplitOn,
-            margin,
-            discharge: crate::Discharge::of(margin),
-        });
-        at(self.0.len() - 1)
+        edge_on_row(&mut self.0, edge, a.jointly(b))
     }
+}
+
+/// **Each operand line edge lying in the plane** of `body`, the reduced
+/// clone before null-edge insertion: a line between two operand vertices
+/// the vertex sweep decided ON (`margins`), its ends' point keys, and the
+/// margin of its row ([`edge_on_row`]), for a pinch whose two copies run
+/// along it.
+fn on_lines<T: Real>(body: &Body<T>, margins: &SecondaryMap<VertexKey, MarginDiag>) -> Vec<OnLine> {
+    body.edges()
+        .filter(|&(e, _)| crate::census::edge_is_line(body, e))
+        .filter_map(|(e, data)| {
+            let ends =
+                [data.he_plus, data.he_minus].map(|he| body.get_half_edge(he).map(|h| h.start));
+            let [Some(a), Some(b)] = ends else {
+                return None;
+            };
+            let (ma, mb) = (*margins.get(a)?, *margins.get(b)?);
+            let point = |v| body.get_vertex(v).map(|d| d.point);
+            Some(OnLine {
+                edge: e,
+                segment: crate::census::segment_key([point(a)?, point(b)?]),
+                margin: ma.jointly(mb),
+            })
+        })
+        .collect()
+}
+
+/// **An operand line edge lying in the plane** ([`on_lines`]).
+#[derive(Clone, Copy, Debug)]
+pub(in crate::splitting) struct OnLine {
+    pub(in crate::splitting) edge: EdgeKey,
+    pub(in crate::splitting) segment: [crate::PointKey; 2],
+    pub(in crate::splitting) margin: MarginDiag,
+}
+
+/// **The `SplitOn` row of operand edge `edge` ON the plane**, decided
+/// at `margin`, in `rows`: its index, the edge's row once however many
+/// records cite it.
+pub(in crate::splitting) fn edge_on_row(
+    rows: &mut Vec<crate::Coincidence>,
+    edge: EdgeKey,
+    margin: MarginDiag,
+) -> u32 {
+    let cells = [
+        crate::RowCell::Input {
+            input: crate::Operand::A,
+            cell: crate::Cell::Edge(edge),
+        },
+        crate::RowCell::Tool,
+    ];
+    let at = |k: usize| u32::try_from(k).unwrap_or_else(|_| unreachable!("a row index fits u32"));
+    if let Some(k) = rows.iter().position(|r| r.cells == cells) {
+        return at(k);
+    }
+    rows.push(crate::Coincidence {
+        cells,
+        more: [None; 3],
+        relation: crate::Relation::OnCarrier,
+        site: crate::DecisionSite::SplitOn,
+        margin,
+        discharge: crate::Discharge::of(margin),
+    });
+    at(rows.len() - 1)
 }
 
 /// **A knife edge the split would mint and cannot declare.** The plane
@@ -973,6 +1021,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         classify::classify_vertices_margined(&body, plane, &tips, band)?;
     let edge_pieces =
         classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
+    let lines = on_lines(&body, &on_margins);
 
     let mut null_edges = Vec::new();
     let mut apex_germs = SecondaryMap::new();
@@ -1026,7 +1075,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         on_vertices,
         null_edges,
         apex_germs,
-        coincidences: ReducedRows(coincidences, on_margins),
+        coincidences: ReducedRows(coincidences, on_margins, lines),
         edge_pieces,
     })
 }
@@ -1221,13 +1270,14 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// solids, finished at its scalar ([`crate::AtRestPolicy::finish`], the
 /// gate the Boolean's result passes; [`SplitFinishError::ResultNotAtRest`]
 /// carries every finding). So at a certifying scalar no side is returned
-/// that [`crate::validate_geometric`] refuses. A pinch side's
-/// touching pieces need no contact record, since their copies of the
-/// pinched vertex share its point key, and the ON verdict that pinched
-/// them is in [`SplitResult::coincidences`]. A slit's two coincident
-/// edges over an operand edge lying in the plane, straight or curved,
-/// are recorded on their side, an edge–edge record citing that edge's
-/// ON row there ([`crate::DecisionSite::SplitOn`]). Where the cut
+/// that [`crate::validate_geometric`] refuses. A pinch side's pieces
+/// touching at a vertex need no contact record, since their copies of
+/// the pinched vertex share its point key, and the ON verdict that
+/// pinched them is in [`SplitResult::coincidences`]. Two coincident
+/// edges the split mints over an operand edge lying in the plane, a
+/// slit's (straight or curved) or a straight pinch's, are recorded on
+/// their side, an edge–edge record citing that edge's ON row there
+/// ([`crate::DecisionSite::SplitOn`]). Where the cut
 /// crosses two line edges that are one segment (their ends on one pair
 /// of point keys), its two crossings share one point key too.
 pub fn split<F: crate::FinishedBody>(
@@ -1250,7 +1300,7 @@ where
     } else {
         operand
     };
-    let (above, below, naming, coincidences, coincident) =
+    let (above, below, naming, mut coincidences, mints) =
         split_direct(operand, plane, tol)?.into_parts();
     // Each side sorted into its pieces.
     let sorted = |part| match part {
@@ -1282,14 +1332,14 @@ where
         <F::Scalar as crate::props::AtRestPolicy>::region_lane(),
     )
     .map_err(|refusal| SplitError::from(SplitFinishError::Carry { refusal }))?;
-    // The slits' coincident edge pairs the split minted, each recorded
-    // on the side holding it, citing the operand edge ON the plane.
+    // The coincident edge pairs the split minted, each recorded on the
+    // side holding it, citing the operand edge ON the plane.
     let minted = finish::Sides {
         above: above.as_ref(),
         below: below.as_ref(),
         naming: &naming,
     }
-    .minted_contacts(&coincident)
+    .minted_contacts(&mints, &mut coincidences)
     .map_err(|d| SplitError::from(SplitFinishError::Desync(d)))?;
     let at_rest = |side, part: Option<Body<F::Scalar>>, records, minted| match part {
         Some(body) => <F::Scalar as crate::props::AtRestPolicy>::finish(

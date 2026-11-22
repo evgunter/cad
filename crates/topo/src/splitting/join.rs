@@ -1648,7 +1648,11 @@ mod torn_hop_rows {
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
                     apex_germs: SecondaryMap::new(),
-                    coincidences: crate::splitting::ReducedRows(Vec::new(), SecondaryMap::new()),
+                    coincidences: crate::splitting::ReducedRows(
+                        Vec::new(),
+                        SecondaryMap::new(),
+                        Vec::new(),
+                    ),
                     edge_pieces: crate::lineage::SplitEdgeDivisions::new(
                         crate::lineage::LineageRows::EdgeDivisions(None),
                     ),

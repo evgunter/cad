@@ -160,12 +160,13 @@ mod raw {
         pub(in crate::splitting) below: RawPart<T>,
         pub(in crate::splitting) naming: SplitNaming,
         coincidences: Vec<crate::Coincidence>,
-        coincident: Vec<super::Coincident>,
+        mints: super::Mints,
     }
 
     impl<T: Real> RawSplit<T> {
         /// The split's two sides and naming, recording `rows`, and the
-        /// coincident edge pairs it minted, each citing its row there.
+        /// coincident edge pairs its slits minted, each citing its row
+        /// there.
         pub(in crate::splitting) fn from_reduction(
             rows: ReducedRows,
             (above, below): (RawPart<T>, RawPart<T>),
@@ -177,11 +178,14 @@ mod raw {
                 below,
                 naming,
                 coincidences: rows.0,
-                coincident,
+                mints: super::Mints {
+                    coincident,
+                    on_lines: rows.2,
+                },
             }
         }
 
-        /// Its sides, naming, record and coincident edge pairs.
+        /// Its sides, naming, record and what it minted on the plane.
         pub(in crate::splitting) fn into_parts(
             self,
         ) -> (
@@ -189,17 +193,27 @@ mod raw {
             RawPart<T>,
             SplitNaming,
             Vec<crate::Coincidence>,
-            Vec<super::Coincident>,
+            super::Mints,
         ) {
             (
                 self.above,
                 self.below,
                 self.naming,
                 self.coincidences,
-                self.coincident,
+                self.mints,
             )
         }
     }
+}
+
+/// **What the split minted on the plane that its records state**: its
+/// slits' coincident edge pairs, and the operand's line edges lying in
+/// the plane, along which a pinch's two copies run
+/// ([`Sides::minted_contacts`]).
+#[derive(Debug)]
+pub(in crate::splitting) struct Mints {
+    pub(in crate::splitting) coincident: Vec<Coincident>,
+    pub(in crate::splitting) on_lines: Vec<super::OnLine>,
 }
 
 /// **Two coincident edges the split minted** (a slit's,
@@ -318,22 +332,56 @@ impl<T: crate::props::AtRestPolicy> Sides<'_, T> {
 }
 
 impl<'a, T: Real> Sides<'a, T> {
-    /// The sides that hold material, each with its body.
     /// **The records of the coincident edge pairs the split minted**
     /// (`coincident`, a slit's two edges over an operand edge ON the
     /// plane): on the side that holds both, each edge read through that
     /// side's joins, an edge–edge record citing the row of the edge they
     /// lie over. A pair a side's coplanar merge killed an edge of is no
-    /// pair there.
+    /// pair there. And a pinch's: two line edges of one side on the
+    /// segment of an operand line edge lying in the plane, the two
+    /// pieces' copies of it, recorded citing that edge's row, added to
+    /// `rows` where no slit cited it.
     ///
     /// # Errors
     ///
     /// [`FinishDesync::CoincidentUnheld`] for a pair no side holds.
     pub(in crate::splitting) fn minted_contacts(
         &self,
-        coincident: &[Coincident],
+        Mints {
+            coincident,
+            on_lines,
+        }: &Mints,
+        rows: &mut Vec<crate::Coincidence>,
     ) -> Result<SplitContacts, FinishDesync> {
         let mut out = SplitContacts::default();
+        for (side, body) in self.listed() {
+            let segment = |e: EdgeKey| {
+                let data = body.get_edge(e)?;
+                let point = |he| {
+                    let v = body.get_half_edge(he)?.start;
+                    body.get_vertex(v).map(|d| d.point)
+                };
+                Some(crate::census::segment_key([
+                    point(data.he_plus)?,
+                    point(data.he_minus)?,
+                ]))
+            };
+            for pair in crate::census::shared_segments(body) {
+                let [a, b] = pair.edges;
+                let Some(line) = segment(a).and_then(|k| on_lines.iter().find(|l| l.segment == k))
+                else {
+                    continue;
+                };
+                let row = super::edge_on_row(rows, line.edge, line.margin);
+                let contact = crate::Contact::new(body, Cell::Edge(a), Cell::Edge(b))
+                    .map_err(|_| FinishDesync::CoincidentUnheld { edges: [a, b] })?;
+                let list = match side {
+                    PlaneSide::Above => &mut out.above,
+                    _ => &mut out.below,
+                };
+                list.push(crate::Cited::new(contact, crate::Cites::decided(row)));
+            }
+        }
         for pair in coincident {
             let mut held = false;
             for (side, body) in self.listed() {
@@ -378,6 +426,7 @@ impl<'a, T: Real> Sides<'a, T> {
         Ok(out)
     }
 
+    /// The sides that hold material, each with its body.
     fn listed(&self) -> Vec<(PlaneSide, &'a Body<T>)> {
         [
             (PlaneSide::Above, self.above),
