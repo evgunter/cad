@@ -3591,3 +3591,57 @@ fn review_probe_a_tiny_brick_a_band_off_a_big_one() {
         println!("[probe] tiny {k}: {:?} {:?}", report.verdict, report.receipt);
     }
 }
+
+/// Review probe: two bricks `k·ε` across, `g·ε` apart along x (negative
+/// overlaps), grafted into one body.
+fn review_tiny_pair(k: f64, g: f64) -> Option<Body<f64>> {
+    use sweep::test_support::{brick, finished};
+    let e = tol().eps();
+    let s = k * e;
+    let mk = |x0: f64, y0: f64| {
+        std::panic::catch_unwind(|| {
+            finished("tiny", brick::<f64>((x0, x0 + s), (y0, y0 + s), (0.5, 0.5 + s), tol()), tol())
+        })
+        .ok()
+    };
+    let a = mk(0.5, 0.5)?;
+    let b = mk(0.5 + s + g * e, 0.5 + 0.3 * s)?;
+    let mut body = a.into_body();
+    topo::instance::graft_disjoint(&mut body, &b.into_body()).ok()?;
+    Some(body)
+}
+
+/// Review probe: the terminal-sliver and declined-witness sites with
+/// two ε-scale bricks; the second half asks through `Sweep::run` with a
+/// verifier that declines every candidate.
+#[test]
+fn review_probe_two_tiny_bricks() {
+    for (k, g) in [(30.0, 3.0), (30.0, 2.0), (100.0, 3.0), (30.0, -10.0), (100.0, -30.0)] {
+        let Some(body) = review_tiny_pair(k, g) else {
+            println!("[probe] tiny pair {k} {g}: does not build");
+            continue;
+        };
+        let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+        println!("[probe] tiny pair {k} {g} door: {:?} {:?}", report.verdict, report.receipt);
+        let windows = Side {
+            body: &body,
+            faces: body.faces().map(|(k, _)| k).collect(),
+        }
+        .windows(Which::First)
+        .expect("windows");
+        let sweep = Sweep {
+            bound: ClearanceBound::StrictlyPositive,
+            band: band(),
+            budgets: Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: BUDGET,
+            },
+        };
+        let declined: BoundReport<()> =
+            sweep.run(&windows, &windows, true, |_| Err("declined by the probe".to_owned()));
+        println!(
+            "[probe] tiny pair {k} {g} declining: {:?} {:?}",
+            declined.verdict, declined.receipt
+        );
+    }
+}
