@@ -52,3 +52,46 @@ readers move no body, an aggregate finishes once, the n-ary fold and
 the at-rest intersection take placed operands; its fork 288). That is
 finishes per build; this row is builds and finishes per drive.
 (BOXFINISH orchestrator)
+
+## Corrected by the designers' first reports (2026-11-22)
+
+Both designers, independently, corrected this row before designing.
+
+- **The measured tour certifies nothing.** Every one of its 1,023
+  replays refuses at the holes (M4, M7: "still 0 certified"). The
+  22 s / 50 s split above is of an all-refusing drive, not of the tour
+  once its holes finish. The structure (the plate rebuilt and
+  re-finished per replay) stays.
+- **The holes' refusals are not one refusal repeated.** There are 254
+  distinct hole bodies, so the box does move them. What repeats is the
+  KIND (an undecided length on a direction derived from an end
+  vertex), which is the sweep doors' row and not the driver's. A hole
+  finish that succeeds costs about three times a refusing one (71 ms
+  against 24.5 ms, M7), so reuse matters more once they finish.
+- **The a0 row gains nothing from this row:** it runs one leaf per
+  drive and repeats no body. Its levers are finishes per build
+  (ONEHOME's) and the cost of each finish.
+- **"Same nodes or rebuilt" has an answer in the code:** expression
+  ids are content hashes, so an unmoved body has the same ids in every
+  replay with its table entries rebuilt per session; an opaque value's
+  id is the exception (a per-replay counter).
+- **The question is one level up from "what may a finish be keyed
+  by":** a document node's result is already a function of the
+  evaluator's content key (DESIGN `[determinism]`, `[scalars]` "no
+  parallel path"), and the drive passes no prior.
+
+**Latent, found on the way, and part of whatever is built here:**
+`ContentBits for Sym` (`crates/editor-core/src/eval/memo.rs`) feeds the
+value channel only, so at the symbolic scalar the content key is not
+the correctness proof DESIGN says it is: two inputs with equal numbers
+and different expressions share a key. It cannot bite today (checked:
+every evaluation at a `Sym` scalar, shipped and test, passes `None` as
+its prior; `LeafPrior::of` and `evaluate_nested` hard-code it), and
+that call-site rule is the only thing holding it. Beside it: an opaque
+value's id is a per-replay sequence, so two replays' "opaque #5" are
+different reals under one id.
+
+M8 (the probe lane) is measuring what both designers asked for:
+distinct content keys per node over a drive, the split axis against
+the deciding node's read set, parent against cousin repeats, and
+whether any two replays hold equal keys with different expressions.
