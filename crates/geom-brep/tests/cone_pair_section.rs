@@ -782,7 +782,7 @@ fn a_node_whose_rulings_stand_close_claims_each_ray_once() {
     // A region the arcs leave near the apex: past it, the sheet runs
     // nearly along the rulings, and a cut end there is in band at a fine
     // tolerance.
-    let near = ExtentBall::fixture(Point3::origin(), 1.0);
+    let near = ExtentBall::fixture(Point3::origin(), 1.25);
     let section = built(&unit_cone(), &wall, near);
     assert_eq!(section.nodes().len(), 1, "one node at the apex");
     let mut rays = Vec::new();
