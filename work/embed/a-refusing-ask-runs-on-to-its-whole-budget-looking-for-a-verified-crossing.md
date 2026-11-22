@@ -160,15 +160,20 @@ against main's). No body was found where the named pair differs, and
 nothing proves there is none.
 
 **Measured.**
-- *The 13 dearest asks.* Before, the gate lane's own figure
-  (`measure/gate/walk-rows.tsv`, main `c2a0c41f40`): 12 of them in four
-  tests, 150.9 to 563.7 s each, 4,433 s together. After, those four
-  tests through the gate on `embed/first-finding-measure` (main
-  `df73fd38d` and this branch): 11 refusing asks, 0.22 to 0.38 s each,
-  2.6 s together, all `Uncertified` departure at an edge, within 3
-  splits. The tests end at the first refused solid, so one of the 12
-  asks is no longer reached. The thirteenth (`sliver_shell_role`, 4.9 s,
-  `Budget(Pairs)`) was not rerun.
+- *The dearest asks*: the four tests behind 12 of the 13
+  (`germ_torus_components` twice, `germ_sphere_torus_placements`,
+  `quadric_pair_sections`), through the gate on
+  `embed/first-finding-measure`, before at `ad8a774ba` (main `df73fd38d`
+  and the harness at `c82f64759`) and after at `1c0e98740` (the same
+  and this branch). 38 asks both times, 11 of them refusing, all
+  departure at an edge. Before: ten take 107.9 to 386.6 s and one
+  0.38 s, 2,351 s together, 27,317 to 65,526 splits. After: 0.22 to
+  0.38 s each, 2.6 s together, within 3 splits. The tests end at their
+  first refused solid, so these are 11 asks, not the 12 of the gate
+  lane's own table (`measure/gate/walk-rows.tsv`, 4,433 s on main
+  `c2a0c41f40`, taken with the gate passing every body). The
+  thirteenth (`sliver_shell_role`, 4.9 s, `Budget(Pairs)`) was not
+  rerun.
 - *The 22 tests whose asks crossed after a refusal*, through the gate
   before and after on that branch: 2,007 asks both times. Before: 136
   cross, 38 of them after a refusal, in all 22 tests; 58.3 s in the
