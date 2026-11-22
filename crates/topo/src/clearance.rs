@@ -1692,7 +1692,7 @@ impl Sweep {
                         }
                         Err(r) => {
                             receipt.refused += 1;
-                            if q.refuse_below(r).is_break() {
+                            if site_gate("bykind", q.refuse_below(r)).is_break() {
                                 receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
                                 frontier.clear();
                                 break;
@@ -1752,6 +1752,21 @@ impl Sweep {
                 decided,
             }
         })
+    }
+}
+
+/// REVIEW PROBE: the mutant named by `REVIEW_MUTANT`, read once.
+fn review_mutant() -> &'static str {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("REVIEW_MUTANT").unwrap_or_default())
+}
+
+/// REVIEW PROBE: a site whose `Break` is ignored under its mutant.
+fn site_gate(site: &str, cf: ControlFlow<()>) -> ControlFlow<()> {
+    if review_mutant() == site {
+        ControlFlow::Continue(())
+    } else {
+        cf
     }
 }
 
@@ -2023,6 +2038,18 @@ impl<W, F> Bound<'_, W, F> {
     ///   elsewhere outranks a pair met earlier that only the band or a
     ///   budget stopped.
     fn refuse_below(&mut self, refusal: EngineRefusal) -> ControlFlow<()> {
+        match review_mutant() {
+            "never" => {
+                self.lower_refusal.get_or_insert(refusal);
+                return ControlFlow::Continue(());
+            }
+            "metric" => {
+                self.lower_refusal.get_or_insert(refusal);
+                return ControlFlow::Break(());
+            }
+            "nokeep" if self.injective => return ControlFlow::Break(()),
+            _ => {}
+        }
         self.lower_refusal.get_or_insert(refusal);
         if self.injective {
             ControlFlow::Break(())
@@ -2096,7 +2123,7 @@ impl<W, F> Bound<'_, W, F> {
                         a: at.x.face,
                         b: at.y.face,
                     };
-                    if self.refuse_below(refusal).is_break() {
+                    if site_gate("witness", self.refuse_below(refusal)).is_break() {
                         return ControlFlow::Break(());
                     }
                 }
@@ -2284,7 +2311,9 @@ where
                     }
                     Outcome::Refuse(r) => {
                         walk.receipt.refused += 1;
-                        return self.refuse_below(r);
+                        if site_gate("cert", self.refuse_below(r)).is_break() {
+                            return ControlFlow::Break(());
+                        }
                     }
                     Outcome::Cusp { .. } => {
                         unreachable!("read as a split or a refusal above")
@@ -2309,7 +2338,7 @@ where
                             })
                         };
                         if let Err(stop) = split {
-                            return self.refuse_below(match stop {
+                            return site_gate("touchsplit", self.refuse_below(match stop {
                                 CellBudget::Depth { .. } => EngineRefusal::Uncertified {
                                     a: x.face,
                                     b: y.face,
@@ -2321,7 +2350,7 @@ where
                                     a: x.face,
                                     b: y.face,
                                 },
-                            });
+                            }));
                         }
                     }
                 }
@@ -2420,7 +2449,7 @@ where
             }
             match Self::terminal(source, x.face, y.face) {
                 Some(refusal) => {
-                    if self.refuse_below(refusal).is_break() {
+                    if site_gate("terminal", self.refuse_below(refusal)).is_break() {
                         walk.receipt.refused += 1;
                         return ControlFlow::Break(());
                     }
@@ -2490,7 +2519,7 @@ where
                 self.upper_refusal.get_or_insert(refusal.clone());
             }
             if split.below {
-                return self.refuse_below(refusal);
+                return site_gate("distsplit", self.refuse_below(refusal));
             }
         }
         ControlFlow::Continue(())
@@ -2518,7 +2547,7 @@ where
         let (below, above) = (refusal(|t| t.open.below), refusal(|t| t.open.above));
         let mut refused = frontier.len();
         if let Some(refusal) = below
-            && self.refuse_below(refusal).is_break()
+            && site_gate("overflow", self.refuse_below(refusal)).is_break()
         {
             refused = 1;
         }

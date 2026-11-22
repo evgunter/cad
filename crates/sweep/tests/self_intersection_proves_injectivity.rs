@@ -3398,3 +3398,196 @@ fn a_metric_bound_reads_a_violation_past_a_refusal() {
     }
     assert_eq!(at::<Interval>(), at::<f64>());
 }
+
+// ------------------------------- review probes (embed/first-finding-review)
+
+/// The void-touching plate, with the whole scene offset by `o`,
+/// optionally mirrored `x -> 3 - x` (built natively, not moved), and the
+/// pyramid's base listed from vertex `rot`.
+fn probe_plate<T: Scalar>(o: [f64; 3], mirror: bool, rot: usize) -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished};
+    use topo::test_support::meeting::{Pose, posed_pyramid_at};
+    let plate = finished(
+        "the plate",
+        brick::<T>(
+            (o[0], 3.0 + o[0]),
+            (o[1], 2.0 + o[1]),
+            (o[2], 1.0 + o[2]),
+            tol(),
+        ),
+        tol(),
+    );
+    let mx = |x: f64| if mirror { 3.0 - x } else { x };
+    let mut base: Vec<[f64; 3]> = [[1.2, 0.8, 0.5], [1.9, 0.9, 0.5], [1.4, 1.3, 0.5]]
+        .iter()
+        .map(|p| [mx(p[0]) + o[0], p[1] + o[1], p[2] + o[2]])
+        .collect();
+    if mirror {
+        base.reverse();
+    }
+    base.rotate_left(rot);
+    let void = posed_pyramid_at::<T>(
+        &base,
+        [mx(1.5) + o[0], 1.0 + o[1], 1.0 + o[2]],
+        &Pose::rest(),
+        tol(),
+    );
+    built(topo::subtract(&plate, &void, tol()))
+}
+
+fn probe_class<T: Scalar + geom_core::Certifies>(body: &Body<T>, reverse: bool) -> String {
+    use topo::clearance::Embedding;
+    let mut faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    if reverse {
+        faces.reverse();
+    }
+    let side = Side { body, faces };
+    let r = topo::clearance::embedded(
+        &side,
+        band(),
+        Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    );
+    let c = match &r.verdict {
+        Embedding::Embedded => "embedded".to_owned(),
+        Embedding::Crosses(_) => "crosses".to_owned(),
+        Embedding::Refused(e) => format!("refused:{}", e.name()),
+    };
+    println!("[probe] {c} {:?}", r.receipt);
+    c
+}
+
+/// Review probe: does the CLASS of the plate's answer survive pose,
+/// mirror, offset, face order and base order?
+#[test]
+fn review_probe_the_plates_class_under_pose_and_order() {
+    use geom_core::{Affine3, Vec3};
+    fn at<T: Scalar + geom_core::Certifies>() -> std::collections::BTreeMap<String, Vec<String>> {
+        let mut seen: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+        let mut note = |what: String, c: String| {
+            println!("[probe] {what}: {c}");
+            seen.entry(c).or_default().push(what);
+        };
+        for &(o, ol) in &[
+            ([0.0; 3], "0"),
+            ([100.0, 100.0, 100.0], "100"),
+            ([900.0, -900.0, 900.0], "900"),
+            ([0.1, 0.0, 0.0], "0.1x"),
+        ] {
+            for mirror in [false, true] {
+                for rot in 0..3 {
+                    let p = probe_plate::<T>(o, mirror, rot);
+                    let body = p.clone().into_body();
+                    for reverse in [false, true] {
+                        note(
+                            format!("o={ol} mirror={mirror} rot={rot} rev={reverse}"),
+                            probe_class(&body, reverse),
+                        );
+                    }
+                }
+            }
+        }
+        let rest = probe_plate::<T>([0.0; 3], false, 0);
+        for axis in [
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.3, -0.5, 0.8),
+            Vec3::new(1.0, 1.0, 1.0),
+        ] {
+            for k in 1..12 {
+                let angle = f64::from(k) * core::f64::consts::PI / 12.0;
+                let m = Affine3::rotation_about_axis(Point3::origin(), axis.normalize(), angle);
+                let b = moved(&rest, &m).into_body();
+                note(format!("turn {axis:?} {k}pi/12"), probe_class(&b, false));
+            }
+        }
+        seen
+    }
+    let f = at::<f64>();
+    let i = at::<Interval>();
+    for (s, w) in [("f64", &f), ("Interval", &i)] {
+        for (c, whats) in w {
+            println!("[probe-summary] {s} {c}: {} {:?}", whats.len(), whats);
+        }
+    }
+    assert_eq!(f.len(), 1, "f64: the class moved with pose or order");
+    assert_eq!(i.len(), 1, "Interval: the class moved with pose or order");
+}
+
+/// Review probe: the by-kind site, reached by a built body. The loft
+/// prism's four walls are free-form faces, which no kind makes
+/// injective, and their windows are admitted, so the ask refuses by
+/// kind on the first wall and ends there.
+#[test]
+fn review_probe_a_lofted_prism_refuses_by_kind_and_ends_there() {
+    use topo::clearance::Embedding;
+    let body = sweep::test_support::loft_prism(tol());
+    let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+    println!("[probe] loft: {:?} {:?}", report.verdict, report.receipt);
+    assert!(
+        matches!(report.verdict, Embedding::Refused(EngineRefusal::Unsupported { .. })),
+        "{:?}",
+        report.verdict
+    );
+    assert_eq!(report.receipt.refused, 1, "{:?}", report.receipt);
+    assert!(report.receipt.abandoned > 0, "{:?}", report.receipt);
+}
+
+/// Review probe: two separate bricks of one body, `gap` apart along x,
+/// asked the embedding question (the graft does not ask it).
+fn review_two_bricks(gap: f64) -> Body<f64> {
+    use sweep::test_support::{brick, finished};
+    let a = finished("a", brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()), tol());
+    let b = finished(
+        "b",
+        brick::<f64>((1.0 + gap, 2.0 + gap), (0.2, 0.8), (0.2, 0.8), tol()),
+        tol(),
+    );
+    let mut body = a.into_body();
+    topo::instance::graft_disjoint(&mut body, &b.into_body()).expect("the graft");
+    body
+}
+
+/// Review probe: the terminal-sliver site and its neighbours, by gap.
+#[test]
+fn review_probe_two_bricks_a_band_apart() {
+    let eps = tol().eps();
+    for k in [-0.5, 0.0, 0.5, 1.0, 2.0, 3.0, 5.0, 10.0, 100.0] {
+        let body = review_two_bricks(k * eps);
+        let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+        println!(
+            "[probe] gap {k} eps: {:?} {:?}",
+            report.verdict, report.receipt
+        );
+    }
+}
+
+/// Review probe: a brick `k·ε` across, `3ε` off a unit brick, grafted
+/// into one body: the terminal-sliver site, if any body reaches it.
+#[test]
+fn review_probe_a_tiny_brick_a_band_off_a_big_one() {
+    use sweep::test_support::{brick, finished};
+    let eps = tol().eps();
+    for k in [3.0, 10.0, 30.0, 100.0, 1000.0] {
+        let s = k * eps;
+        let x0 = 1.0 + 3.0 * eps;
+        let small = std::panic::catch_unwind(|| {
+            finished(
+                "small",
+                brick::<f64>((x0, x0 + s), (0.5, 0.5 + s), (0.5, 0.5 + s), tol()),
+                tol(),
+            )
+        });
+        let Ok(small) = small else {
+            println!("[probe] tiny {k}: does not build");
+            continue;
+        };
+        let a = finished("a", brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()), tol());
+        let mut body = a.into_body();
+        topo::instance::graft_disjoint(&mut body, &small.into_body()).expect("the graft");
+        let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+        println!("[probe] tiny {k}: {:?} {:?}", report.verdict, report.receipt);
+    }
+}

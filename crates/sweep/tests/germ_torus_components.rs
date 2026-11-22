@@ -288,3 +288,42 @@ fn two_donuts_in_general_pose_pass_the_germ_mint() {
         ],
     );
 }
+
+/// Review probe: the embedding ask over each drum ∪ donut that builds,
+/// timed; `REVIEW_PLACEMENTS` (comma list) picks the placements.
+#[test]
+fn review_probe_time_the_embedding_ask_on_drum_unions() {
+    let picks: Vec<usize> = std::env::var("REVIEW_PLACEMENTS")
+        .unwrap_or_else(|_| "0,1,2,4,5".into())
+        .split(',')
+        .filter_map(|s| s.trim().parse().ok())
+        .collect();
+    for i in picks {
+        let (a, b) = (at_rest(&drum()), placed(&donut(), placements()[i]));
+        let Ok(r) = topo::union(&a, &b, Tol::witness()) else {
+            println!("[probe-time] placement {i}: no body");
+            continue;
+        };
+        let Some(body) = r.body() else { continue };
+        let body = body.body.clone();
+        let side = topo::clearance::Side {
+            body: &body,
+            faces: body.faces().map(|(k, _)| k).collect(),
+        };
+        let t = std::time::Instant::now();
+        let report = topo::clearance::embedded(
+            &side,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+            topo::clearance::Budgets {
+                max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: 65_536,
+            },
+        );
+        println!(
+            "[probe-time] placement {i}: {:.2} s {:?} {:?}",
+            t.elapsed().as_secs_f64(),
+            report.verdict,
+            report.receipt
+        );
+    }
+}
