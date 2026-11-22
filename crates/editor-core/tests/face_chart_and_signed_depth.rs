@@ -976,17 +976,19 @@ fn a_lens_is_carried_over_its_arcs_reach_on_both_edges() {
 /// order** (`[placement]`: what stands in a face's chart is carried over
 /// its own reach). Each row's arc is the loop's farthest part, or
 /// misreading it would make it so. The tilt sits between the bands of the
-/// true reach and the misread one, on the wide edge, where the band grows
-/// with the arm.
+/// true reach and the misread one. Every arm is a fiftieth of the arm the
+/// band's two edges meet at, or less, so the band is the pole verdict
+/// `Kε/arm` and shrinks as the arm grows. The loops stay inside the
+/// session box at every ε.
 ///
 /// - **A large-sweep arc**: a keyhole, a short chord near the origin
 ///   closed by an arc of sweep `2π − 0.6` about `(r, 0)`. Its reach is the
 ///   arc's far side, `2r`. Its chord alone stands `0.3r` off, so an arc
-///   measured by its chord would chart where the keyhole refuses.
+///   measured by its chord would refuse where the keyhole charts.
 /// - **A clockwise arc**: a square with a concave semicircular bite out of
 ///   its right side, the bite a clockwise arc. Its reach is the square's
 ///   far corners, `√2·h`. Read turning the other way from its start, the
-///   bite would bulge out to `1.9h` and refuse where the square charts.
+///   bite would bulge out to `1.9h` and chart where the square refuses.
 /// - **A loop reversed into canonical order**: the same bitten square
 ///   drawn clockwise, its bite then a counter-clockwise arc. It is
 ///   measured as the canonical loop is.
@@ -997,7 +999,6 @@ fn an_arc_is_measured_over_its_own_window_in_canonical_order() {
     let pole = |arm| tol.k() * tol.eps() / arm;
     let band = |arm: f64| edge(arm).max(pole(arm));
     let meet = (tol.k() * tol.eps() * tol.rounding_reach() / 2.0).sqrt();
-    let height = meet;
     // The tilt between the true arm's band and the misread one's, with
     // the margin to each.
     let between = |row: &str, true_arm: f64, misread: f64| {
@@ -1006,16 +1007,16 @@ fn an_arc_is_measured_over_its_own_window_in_canonical_order() {
             band(true_arm).min(band(misread)),
             band(true_arm).max(band(misread)),
         );
+        let far = true_arm.max(misread);
         assert!(
-            pole(true_arm.min(misread)) < 0.5 * edge(true_arm.min(misread))
-                && 1.1 * lo < tilt
-                && tilt < hi / 1.1,
-            "FIXTURE {row}: the tilt {tilt} stands clear of both bands on the wide edge ({lo}, {hi})"
+            edge(far) < 0.01 * pole(far) && 1.1 * lo < tilt && tilt < hi / 1.1,
+            "FIXTURE {row}: the tilt {tilt} stands clear of both pole bands ({lo}, {hi})"
         );
         tilt
     };
 
-    let r = 10.0 * meet;
+    let r = meet / 50.0;
+    let height = 0.1 * r;
     let alpha: f64 = 0.3;
     let (gx, gy) = (r - r * alpha.cos(), r * alpha.sin());
     let keyhole = outline(&[
@@ -1024,11 +1025,12 @@ fn an_arc_is_measured_over_its_own_window_in_canonical_order() {
     ]);
     let tilt = between("large sweep", 2.0 * r + height, gx.hypot(gy) + height);
     assert!(
-        !agrees_with_twin("a large-sweep arc", tilt, height, keyhole, r / 100.0),
-        "a large-sweep arc: the keyhole refuses at tilt {tilt}, where its chord's arm would chart"
+        agrees_with_twin("a large-sweep arc", tilt, height, keyhole, r / 100.0),
+        "a large-sweep arc: the keyhole charts at tilt {tilt}, where its chord's arm would refuse"
     );
 
-    let h = 10.0 * meet;
+    let h = meet / 50.0;
+    let height = 0.1 * h;
     let (w, rho) = (h, 0.9 * h);
     let tilt = between("clockwise", w.hypot(h) + height, w + rho + height);
     let bitten = outline(&[
@@ -1040,8 +1042,8 @@ fn an_arc_is_measured_over_its_own_window_in_canonical_order() {
         ([0.0, h], None),
     ]);
     assert!(
-        agrees_with_twin("a clockwise arc", tilt, height, bitten, h / 100.0),
-        "a clockwise arc: the bitten square charts at tilt {tilt}, where its bite read the other way would refuse"
+        !agrees_with_twin("a clockwise arc", tilt, height, bitten, h / 100.0),
+        "a clockwise arc: the bitten square refuses at tilt {tilt}, where its bite read the other way would chart"
     );
     let reversed = outline(&[
         ([0.0, -h], None),
@@ -1052,14 +1054,14 @@ fn an_arc_is_measured_over_its_own_window_in_canonical_order() {
         ([w, -h], None),
     ]);
     assert!(
-        agrees_with_twin(
+        !agrees_with_twin(
             "a loop reversed into canonical order",
             tilt,
             height,
             reversed,
             h / 100.0
         ),
-        "a loop reversed into canonical order: the bitten square drawn clockwise charts at tilt {tilt}"
+        "a loop reversed into canonical order: the bitten square drawn clockwise refuses at tilt {tilt}"
     );
 }
 
