@@ -187,3 +187,48 @@ fn a_datum_picked_whole_is_a_mates_far_side_through_its_role() {
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }
+
+/// **A datum picked whole fills the split's plane**, read through its xy
+/// plane, as a frame variable picked in the variables list does.
+#[test]
+fn a_datum_picked_whole_is_the_splits_plane_through_its_xy() {
+    use viewer::combine::HeldPlane;
+    use viewer::session::Selection;
+    use viewer::tools::{ToolKind, Tools};
+    let tol = Tol::witness();
+    let (doc, block, _) = viewer::test_support::boss_on_block("datum-split", tol);
+    let space = doc.node_space(block).expect("the block is in its space");
+    let mut session = DocSession::inline(doc, tol);
+    let datum = session
+        .perform(SessionOp::AddDatum {
+            space,
+            kind: VarKind::Plane,
+        })
+        .made
+        .expect("the op makes the datum");
+    let doc = session.committed_doc();
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Split);
+    let notices = tools.feed(
+        doc,
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &[
+            SessionOp::Select(Selection::Node(block)),
+            SessionOp::Select(Selection::Node(datum)),
+        ],
+    );
+    assert!(notices.is_empty(), "both picks land: {notices:?}");
+    let split = tools.split().expect("the split is open");
+    assert_eq!(split.target(), Some(block), "the block is the body split");
+    assert!(
+        matches!(
+            split.plane(),
+            Some(HeldPlane::Defined {
+                through: Some(PoseRole::Xy),
+                ..
+            })
+        ),
+        "the plane is the datum's frame through its xy: {:?}",
+        split.plane()
+    );
+}

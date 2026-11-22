@@ -971,6 +971,11 @@ impl Tools {
                 Some(OpenTool::Split(tool)) => match selection {
                     Selection::Face(face) => tool.pick_plane(doc, face.clone()),
                     Selection::Variable(var) => tool.pick_defined(doc, *var),
+                    // A datum picked whole is its frame, read through its
+                    // xy plane.
+                    Selection::Node(node) if let Some(frame) = datum_frame(doc, *node) => {
+                        tool.pick_defined(doc, frame);
+                    }
                     _ => on_node_pick(selection, |node| tool.pick(doc, node)),
                 },
                 Some(OpenTool::Transform(tool)) => {
@@ -1198,4 +1203,16 @@ impl Tools {
             .map(|event| ToolNotice::Seated { tool: kind, event })
             .collect()
     }
+}
+
+/// **The frame a datum defines** (D10 `[placement.datums]`), `None` for
+/// a node that is no datum: what a plane seat reads a datum picked whole
+/// through.
+pub(crate) fn datum_frame(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Option<pncad::document::VarId> {
+    matches!(doc.node(node), Some(pncad::document::Node::Datum { .. }))
+        .then(|| doc.output(node, 0))
+        .flatten()
 }
