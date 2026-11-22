@@ -9,6 +9,7 @@
 use std::collections::BTreeSet;
 
 use crate::fixture::{self, insert, len, section_ids};
+use editor_core::LoopProgram;
 use editor_core::{
     Axis3, DocEdit, EditError, EvalOptions, Formula, LoftSection, Node, Operand, ProfileDoc,
     RecipeNodeId, RoleSeg, SectionId, SectionIdBreak, SectionIdFault, SlotId, SlotValue,
@@ -590,4 +591,105 @@ fn set_members_on_a_loft_keeps_its_section_ids() {
         .doc;
     assert_eq!(repointed.upstream(loft), vec![p[0], other]);
     assert_eq!(section_ids(&repointed, loft), section_ids(&doc, loft));
+}
+
+/// **A lofted half turn names its quarter walls after the whole.** Two
+/// half discs (a half turn closed by its diameter) lofted: the skin cuts
+/// the half turn's wall at its sub-arc joint (`crates/sweep/README.md`,
+/// "Walls"), so its wall, rims and joint are named after that segment's
+/// own name — two `SubArc` walls and one `SubArcJoint` seam, two
+/// `SubArc` rims and one `SubArcJoint` cap vertex an end — the
+/// diameter's wall keeps its plain name, and a piece is said before its
+/// whole. Broken by a cut wall named as its whole (two faces, one name)
+/// or left unnamed.
+#[test]
+fn a_lofted_half_turn_names_its_quarter_walls_after_the_whole() {
+    use editor_core::{CapEnd, EntityKind, ProgramArcData, ProgramStep, ProgramTarget};
+    let half_disc = |r: f64| {
+        LoopProgram::Chain(vec![
+            ProgramStep::At(fixture::len2([r, 0.0])),
+            ProgramStep::ArcTo(ProgramArcData::Bulge {
+                target: ProgramTarget::Point(fixture::len2([-r, 0.0])),
+                b: fixture::scl(1.0),
+            }),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])
+    };
+    let mut doc = ProfileDoc::empty_derived("lofted-half-turn-names", Tol::witness());
+    let mut profiles = Vec::new();
+    for r in [1.0, 0.8] {
+        let (d, p) = insert(
+            doc,
+            Node::Profile(editor_core::ProfileProgram {
+                loops: vec![half_disc(r)],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        doc = d;
+        profiles.push(p);
+    }
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            first: profiles[0].into(),
+            first_id: None,
+            then: vec![up(profiles[1], 1.0)],
+            v_degree: Formula::count(1),
+        },
+    );
+    let all = names(&doc, loft);
+    let count = |kind: EntityKind, head: fn(&RoleSeg) -> bool, part: fn(&RoleSeg) -> bool| {
+        all.iter()
+            .filter(|n| n.kind == kind && matches!(n.path.as_slice(), [h, p] if head(h) && part(p)))
+            .count()
+    };
+    let wall = |s: &RoleSeg| matches!(s, RoleSeg::LoftWall(_));
+    let rim = |s: &RoleSeg| matches!(s, RoleSeg::RimEdge(..));
+    let piece = |s: &RoleSeg| matches!(s, RoleSeg::SubArc(0 | 1));
+    let joint = |s: &RoleSeg| matches!(s, RoleSeg::SubArcJoint(1));
+    assert_eq!(
+        count(EntityKind::Face, wall, piece),
+        2,
+        "two quarter walls: {all:#?}"
+    );
+    assert_eq!(count(EntityKind::Edge, wall, joint), 1, "one joint seam");
+    assert_eq!(count(EntityKind::Edge, rim, piece), 4, "two rims a cap");
+    assert_eq!(
+        count(EntityKind::Vertex, rim, joint),
+        2,
+        "a joint vertex a cap"
+    );
+    assert_eq!(
+        all.iter()
+            .filter(|n| matches!(n.path.as_slice(), [RoleSeg::LoftWall(_)]))
+            .count(),
+        1,
+        "the diameter's wall alone is named as its whole segment"
+    );
+    let second = all
+        .iter()
+        .find(|n| {
+            n.kind == EntityKind::Face && matches!(n.path.as_slice(), [_, RoleSeg::SubArc(1)])
+        })
+        .expect("a second quarter wall");
+    let said = doc.spoken_name(second).to_string();
+    assert!(
+        said.starts_with("sub-arc 2 of the loft wall over "),
+        "{said}"
+    );
+    let cap_joint = all
+        .iter()
+        .find(|n| {
+            matches!(
+                n.path.as_slice(),
+                [RoleSeg::RimEdge(CapEnd::Start, _), RoleSeg::SubArcJoint(1)]
+            )
+        })
+        .expect("a start cap joint vertex");
+    let said = doc.spoken_name(cap_joint).to_string();
+    assert!(
+        said.starts_with("the joint of sub-arcs 1 and 2 of the start rim edge over "),
+        "{said}"
+    );
 }
