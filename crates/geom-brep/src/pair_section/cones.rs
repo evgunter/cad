@@ -28,6 +28,11 @@
 //! ruling meets the partner doubly there. Both apexes on the other cone
 //! refuse.
 //!
+//! A loop the region holds whole claims its winding about both carriers:
+//! about the ruled cone where it is one sheet over the whole turn, and
+//! about the partner's axis as the sweep reads it, walking the loop's own
+//! cells ([`ruling::sweep_about`]).
+//!
 //! Every component is the general rung's ([`ClassCarrier::General`]),
 //! save the points a tangency or a touch lists. A crossing tangency is a
 //! node (C5), its arcs ending at it, one node-joined set. No march
@@ -583,9 +588,17 @@ pub(super) fn cone_ruled<T: Decide>(
             ClassCarrier::Unminted(why),
         )
     };
+    let partner = if pose.ruled_first {
+        &pose.second
+    } else {
+        &pose.first
+    };
+    let about = partner.frame().ok_or_else(|| SectionError::Unaccounted {
+        cause: "a cone pair's partner, a cylinder or a cone, has no frame".to_owned(),
+    })?;
     let (arcs, found) = match pose.stance {
         ConeStance::Sheets => {
-            let swept = ruling::sweep(&pose.ruled, region, band)?;
+            let swept = ruling::sweep_about(&pose.ruled, region, band, about)?;
             for t in &swept.touches {
                 decided.push(ZeroVerdict {
                     decision: SectionDecision::Tangency(ruling::TANGENCY),
@@ -602,7 +615,7 @@ pub(super) fn cone_ruled<T: Decide>(
                 decision: SectionDecision::Coincidence(Coincident::ConeApex),
                 margin: pose.apex.margin,
             });
-            let divided = ruling::sweep_divided(&pose.ruled, region, band)?;
+            let divided = ruling::sweep_divided(&pose.ruled, region, band, about)?;
             let node = matches!(pose.stance, ConeStance::Node { .. });
             let passes = if node && held(apex) { 2 } else { 0 };
             if divided.nodes.len() != passes {
@@ -631,7 +644,7 @@ pub(super) fn cone_ruled<T: Decide>(
         let Some([from, to]) = arc.ends else {
             listed.push(SectionComponent::closed_form(
                 ComponentShape::Loop,
-                pose.order([arc.encircles, false]),
+                pose.order([arc.encircles, arc.winds_partner]),
                 Some(arc.witness),
                 ClassCarrier::General,
             ));
@@ -662,11 +675,6 @@ pub(super) fn cone_ruled<T: Decide>(
     }
     let nodes = nodes.listed;
     let node_sets = node_joined(&listed, nodes.len(), [false, false]);
-    let partner = if pose.ruled_first {
-        &pose.second
-    } else {
-        &pose.first
-    };
     let partner_arm = match partner {
         Surface::Cylinder { .. } => crate::uniform_curvature_arm(partner),
         _ => region.lever_from(pose.ruled.partner.at),

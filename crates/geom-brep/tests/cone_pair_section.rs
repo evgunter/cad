@@ -1039,7 +1039,11 @@ fn a_tilted_cone_sharing_asymptotes_cuts_its_unbounded_branches_open() {
     );
     for c in section.counted().unwrap() {
         if c.shape == ComponentShape::Loop {
-            assert!(c.winds[0], "the loop winds about the unit cone");
+            assert_eq!(
+                c.winds,
+                [true, false],
+                "the loop winds about the unit cone, not about the tilted one"
+            );
         } else {
             assert!(c.cut_ends.is_some(), "an unbounded branch has two cut ends");
         }
@@ -1095,6 +1099,141 @@ fn two_cones_through_one_apex_are_read_elsewhere() {
             Ok(SectionRead::Elsewhere(_))
         ),
         "parallel axes of one aperture: the plane conic"
+    );
+}
+
+// -------------------------------------------------------------------
+// The winding on both carriers
+// -------------------------------------------------------------------
+
+/// **Every loop's claimed winding, `[on the cone, on the partner]`**, the
+/// section read both ways round and each read's claims checked to be the
+/// other's exchanged, sorted. Every component of these poses is a loop.
+fn windings(
+    cone: &Surface<f64>,
+    partner: &Surface<f64>,
+    region: ExtentBall<f64>,
+) -> Vec<[bool; 2]> {
+    let claims = |a: &Surface<f64>, b: &Surface<f64>| {
+        let mut claims: Vec<[bool; 2]> = built(a, b, region)
+            .counted()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                assert_eq!(c.shape, ComponentShape::Loop, "a loop: {c:?}");
+                c.winds
+            })
+            .collect();
+        claims.sort_unstable();
+        claims
+    };
+    let forward = claims(cone, partner);
+    let mut back: Vec<[bool; 2]> = claims(partner, cone)
+        .into_iter()
+        .map(|[a, b]| [b, a])
+        .collect();
+    back.sort_unstable();
+    assert_eq!(forward, back, "the claims, both ways round");
+    forward
+}
+
+/// **A loop round the partner claims its winding there**: each pose's
+/// loops claim the winding about the partner that `topo`'s
+/// `section_cert_cone_pair_rows` reads off its second chart, and which
+/// `scripts/oracles/cone_pair_sections_mpmath.py` reads at 40 digits —
+/// the rod through the cone, the fat steep wall, the narrow cone through
+/// the side, the parallel-axis cone — and the coaxial and parallel walls
+/// and cone, whose loops are parallels of the partner, or graphs over its
+/// azimuth. A sweep that drops the partner's claim (every loop
+/// `[_, false]`): red on every row here.
+#[test]
+fn a_loop_round_the_partner_claims_its_winding_there() {
+    let cone = unit_cone();
+    let rows: [(&str, Surface<f64>, ExtentBall<f64>, Vec<[bool; 2]>); 8] = [
+        (
+            "the rod through the cone",
+            cylinder(p(0.0, 0.0, 1.0), Vec3::unit_x(), 0.2),
+            region(),
+            vec![[false, true]; 2],
+        ),
+        (
+            "the fat steep wall",
+            cylinder(
+                p(0.1, 0.0, 0.0),
+                Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
+                1.0,
+            ),
+            region(),
+            vec![[true, true]; 2],
+        ),
+        (
+            "the narrow cone through the side",
+            cone_about(p(-5.0, 0.0, 2.0), Vec3::unit_x(), 0.2),
+            ExtentBall::fixture(Point3::origin(), 8.0),
+            vec![[false, true]; 2],
+        ),
+        (
+            "the parallel-axis cone",
+            cone_about(p(1.0, 0.0, 0.0), Vec3::unit_z(), 0.5f64.atan()),
+            region(),
+            vec![[false, true]; 2],
+        ),
+        (
+            "the coaxial wall",
+            cylinder(Point3::origin(), Vec3::unit_z(), 1.0),
+            region(),
+            vec![[true, true]; 2],
+        ),
+        (
+            "a parallel wall round the cone's axis",
+            cylinder(p(0.3, 0.0, 0.0), Vec3::unit_z(), 1.0),
+            region(),
+            vec![[true, true]; 2],
+        ),
+        (
+            "a parallel wall beside the cone's axis",
+            cylinder(p(2.0, 0.0, 0.0), Vec3::unit_z(), 0.5),
+            region(),
+            vec![[false, true]; 2],
+        ),
+        (
+            "the coaxial cone",
+            cone_about(p(0.0, 0.0, 1.0), Vec3::unit_z(), 0.3),
+            region(),
+            vec![[true, true]; 2],
+        ),
+    ];
+    for (name, partner, region, want) in rows {
+        assert_eq!(windings(&cone, &partner, region), want, "{name}");
+    }
+}
+
+/// **A loop clear of the partner's axis claims no winding there**: the
+/// bite, and the wall across the cone's axis about the apex, whose loops
+/// round each nappe never go round the wall (`topo`'s
+/// `a_wall_across_the_axis_about_the_apex_is_null_on_the_wall`). A sweep
+/// that claims the partner's winding for every loop, or reads a whole
+/// turn off a walk that doubles back: red.
+#[test]
+fn a_loop_clear_of_the_partners_axis_claims_no_winding_there() {
+    let cone = unit_cone();
+    assert_eq!(
+        windings(
+            &cone,
+            &cylinder(p(0.0, 1.3, 1.0), Vec3::unit_x(), 0.4),
+            region()
+        ),
+        vec![[false, false]],
+        "the bite"
+    );
+    assert_eq!(
+        windings(
+            &cone,
+            &cylinder(Point3::origin(), Vec3::unit_x(), 0.5),
+            region()
+        ),
+        vec![[true, false]; 2],
+        "the wall across the axis"
     );
 }
 
