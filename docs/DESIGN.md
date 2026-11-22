@@ -1500,16 +1500,9 @@ value of it, and each of its outputs is a **family** of that kind (a
 `Bodies` is the family of `Body`), one member per value, keyed by the
 tuple of the indices it reaches, outer first. Membership is derived
 from reads, as dependency is: no node holds a template, and there is
-no pattern operation. A profile's program repeats part of itself by braces: `each k { … }`
-around a loop, or around a run of one chain's steps, draws that part
-once per value of `k`, in index order, with the one pen. The block
-takes the index whole, as `union` takes a `Bodies`, so the profile is
-one profile holding every copy and not a family of profiles. The
-braces say which steps repeat because those steps need not read `k`
-(a tooth drawn by `line(s)`, `turn(a)`, `fillet(r)` reads nothing),
-and a step that does read `k` already means something else: it makes
-the whole profile a family, one profile per value. A read of `k`
-outside the braces, in a profile that has them, refuses. A variable defined by reading `k` is, to a
+no pattern operation. A profile's program repeats part of
+itself with `each k { … }`, which takes the index whole as `union`
+takes a `Bodies` (`docs/PATHS-DESIGN.md` §2, *Composition*). A variable defined by reading `k` is, to a
 reader that reaches the same `k`, its member at the same value, and to
 every other reader the whole family: `xs[i, j]` reads one member, and
 `union`, `intersect` and `assemble` take a `Bodies`: a family, or its

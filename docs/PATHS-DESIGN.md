@@ -394,7 +394,12 @@ checks once with the count unknown. A ring, a loop that is nothing but
 the copies of a run, is `at(P[0]); each k from P[k] { steps …, to Next }`
 with `Next` meaning `P[(k + 1) mod N]`: at the last copy that is the
 value the chain starts from, so it lowers to `Start` and the ring
-closes with nothing compared. A motif whose copies differ in structure
+closes with nothing compared. The braces
+say which steps repeat because those steps need not read `k` (a tooth
+drawn by `line(s)`, `turn(a)`, `fillet(r)` reads nothing), and a step
+that reads `k` with no braces makes the whole profile a family, one
+profile per value; a read of `k` outside the braces, in a profile that
+has them, refuses. A motif whose copies differ in structure
 is a BUILDER FUNCTION over the one chain
 (`fn motif(p: PartialPath<Directed>) -> PartialPath<Directed>`) —
 associative at the language level. Either way there is no second path
