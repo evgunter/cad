@@ -10527,10 +10527,10 @@ mod properties_pane_tests {
             );
             assert!(
                 matches!(
-                    doc.var(*frame).and_then(|v| v.def().pose()),
-                    Some(pncad::document::pose::PoseDef::FaceChart { .. })
+                    doc.operation_of(*frame).and_then(|at| doc.node(at)),
+                    Some(pncad::document::Node::Datum { .. })
                 ),
-                "drawn on the face's chart"
+                "drawn on a datum flush on the face"
             );
             assert_eq!(
                 doc.node_space(profile),

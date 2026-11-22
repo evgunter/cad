@@ -3291,6 +3291,30 @@ impl Node {
         )
     }
 
+    /// **A datum** (D10 `[placement.datums]`): a placement whose source
+    /// is nothing, placing a bare frame into `target` (`Doc.place`'s
+    /// space) by `constraints`, written whole as `Node.place`'s are.
+    /// `None` stands the frame at the space's origin, by the identity
+    /// bundle. Its one output is the frame (`Doc.output(node)`): read a
+    /// plane or an axis off it through a role (`RoleRead(frame, "xy")`).
+    /// A mate of its bundle reads the datum's own frame on its `on`
+    /// side, plainly or through its `"xy"` plane, `"z"` axis or
+    /// `"origin"`, so it is written once the datum is
+    /// (`DocEdit.set_constraints`); any other `on` refuses
+    /// `mate_not_the_datums_own`.
+    #[staticmethod]
+    #[pyo3(signature = (target, constraints=None))]
+    fn datum(
+        py: Python<'_>,
+        target: SpaceArg,
+        constraints: Option<super::mate::BundleArg>,
+    ) -> PyResult<Self> {
+        let constraints = constraints.map_or_else(|| d::stand().bundle(), super::mate::bundle);
+        let inner = d::Node::datum(target.read(), constraints);
+        Self::check_slots(py, &inner)?;
+        Ok(Self { inner })
+    }
+
     /// **A space of its own**, reading nothing: a target a placement
     /// places copies into beside the world's. Inserting it is
     /// `Doc.new_space`.

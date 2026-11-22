@@ -330,7 +330,7 @@ pub fn mated(
 ) -> (Doc<ProfileProgram>, pncad::document::MateRef) {
     // A mate into another space re-targets the copy here, an explicit
     // fixture move, never the gesture's.
-    let doc = retargeted(doc, placement, doc.operand_space(&mate.to), tol);
+    let doc = retargeted(doc, placement, doc.operand_space(&mate.to.read), tol);
     let applied = apply(
         &doc,
         &DocEdit::AddConstraint {
@@ -402,7 +402,7 @@ fn written(
     let space = constraints
         .iter()
         .find_map(|c| c.mate())
-        .and_then(|mate| doc.operand_space(&mate.to));
+        .and_then(|mate| doc.operand_space(&mate.to.read));
     let doc = retargeted(doc, placement, space, tol);
     let edits = [DocEdit::SetConstraints {
         placement,

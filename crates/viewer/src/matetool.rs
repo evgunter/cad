@@ -106,6 +106,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::pose::RoleRead;
 use pncad::document::{
     Constraint, ConstraintId, ConstraintKind, Dimension, Doc, Evaluation, Formula, Mate, MateRef,
     MateSide, Node, Operand, Orientation, Placed, ProfileProgram, RecipeNodeId, Said, Say,
@@ -427,6 +428,15 @@ fn toggled(side: Operand) -> Operand {
     }
 }
 
+/// [`toggled`] of a side read through a role: the pose read through it,
+/// flipped.
+fn toggled_read(side: RoleRead<Operand>) -> RoleRead<Operand> {
+    match side.role {
+        None => RoleRead::plain(toggled(side.read)),
+        Some(_) => RoleRead::plain(Operand::Pose(Box::new(pose::PoseDef::Flip { pose: side }))),
+    }
+}
+
 /// **The entity kinds a mate of `kind` reads**, at any of its seats, in
 /// the order a reader lists them.
 #[must_use]
@@ -539,7 +549,7 @@ impl MateSeat {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct MateSideDraft {
     /// The side as loaded from the bundle, in its loaded sense.
-    written: Option<Operand>,
+    written: Option<RoleRead<Operand>>,
     /// The one seat's pick, or a frame's axis pick.
     first: Option<HeldPick<MatePick>>,
     /// A frame's point pick.
@@ -618,10 +628,10 @@ impl MateRow {
         loaded: Option<ConstraintId>,
         mate: &Mate<Formula>,
     ) -> Self {
-        let read = editor_core::mate::pin::operand_kind(doc, &mate.on);
+        let read = editor_core::mate::pin::side_kind(doc, &mate.on);
         let flip = editor_core::mate::side_flipped(doc, &mate.to)
             != editor_core::mate::side_flipped(doc, &mate.on);
-        let written = |side: &Operand| MateSideDraft {
+        let written = |side: &RoleRead<Operand>| MateSideDraft {
             written: Some(side.clone()),
             ..MateSideDraft::default()
         };
@@ -681,7 +691,7 @@ impl MateRow {
     #[must_use]
     pub fn to_space(&self, doc: &Doc<ProfileProgram>, ev: &Evaluation<f64>) -> Option<VarId> {
         match &self.to.written {
-            Some(written) => doc.operand_space(written),
+            Some(written) => doc.operand_space(&written.read),
             None => {
                 let pick = self.to.picks().next()?;
                 let (_, read) = to_read(doc, Some(ev), pick.pick())?;
@@ -2886,12 +2896,12 @@ impl MateTool {
         at: usize,
         row: &MateRow,
     ) -> Result<ProposedMate, MateToolError> {
-        let sided = |side: MateSide| -> Result<(Operand, Vec<SitedRef>), MateToolError> {
+        let sided = |side: MateSide| -> Result<(RoleRead<Operand>, Vec<SitedRef>), MateToolError> {
             let drafted = row.side(side);
             if let Some(written) = &drafted.written {
                 let read = match (side, row.loaded) {
                     (MateSide::To, Some(loaded)) if loaded.flip != row.flip => {
-                        toggled(written.clone())
+                        toggled_read(written.clone())
                     }
                     _ => written.clone(),
                 };
@@ -2946,7 +2956,7 @@ impl MateTool {
                 [(one, read)] => one.side(read.clone(), flip),
                 _ => unreachable!("a side reads one pick a seat, of one or two seats"),
             };
-            Ok((pose, sites))
+            Ok((RoleRead::plain(pose), sites))
         };
         let (on, on_sites) = sided(MateSide::On)?;
         let (to, to_sites) = sided(MateSide::To)?;
@@ -3040,7 +3050,7 @@ impl MateTool {
             .position(|(_, row)| fixes_one_direction(row.kind));
         let base_chart = base.iter().find_map(|c| {
             let mate = c.mate()?;
-            editor_core::mate::pin::operand_kind(doc, &mate.on)
+            editor_core::mate::pin::side_kind(doc, &mate.on)
                 .filter(|&kind| fixes_one_direction(kind))
                 .map(|_| c.id)
         });

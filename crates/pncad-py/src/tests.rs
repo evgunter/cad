@@ -5320,13 +5320,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "node_inner_kind_tag",
-        values: &[
-            "chart",
-            "face_chart_backwards",
-            "face_chart_unleverable",
-            "meet",
-            "through",
-        ],
+        values: &["chart", "meet", "through"],
         delegates: &[
             "band_error_tag",
             "blend_error_tag",
@@ -10357,6 +10351,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "assemble",
     "assertion",
     "chamfer",
+    "datum",
     "extrude",
     "fillet",
     "hollow_tube",

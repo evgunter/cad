@@ -533,9 +533,11 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 
 /// The node kinds a document exercises (the coverage tally's domain).
 ///
-/// Hand-written, not welded to `Node`, and without `InstantiatePart`
-/// or `Mate`: `work/ciw/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 22] = [
+/// Hand-written, not welded to `Node`, and without `InstantiatePart`,
+/// `Datum` or `Mate`: `work/ciw/corpus-node-kinds-roster-is-hand-written`,
+/// and for `Datum`
+/// `work/ciw/no-corpus-document-holds-a-datum.md`.
+pub const NODE_KINDS: [&str; 21] = [
     "Profile",
     "Extrude",
     "Revolve",
@@ -591,8 +593,6 @@ pub const NODE_KINDS: [&str; 22] = [
     "Assertion",
     // The placement: every document's product is its copies.
     "Place",
-    // A datum: `face_sketch` draws on one flush on a face.
-    "Datum",
     // The world: in every document, authored by none, so it reads zero
     // here and is exempt through `NEVER_EVALUATES`.
     "World",

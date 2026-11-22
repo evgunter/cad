@@ -2094,7 +2094,7 @@ is its preview.
   that refuses shows its refusal on the node's badge, like any other.
 - **New profile** inserts a profile with no loops and opens the
   profile editor on it; **New profile on a face** does the same on a
-  latched face's chart (`Recording::draw_on_face`), and with a second
+  datum flush on a latched face (`Recording::draw_on_face`), and with a second
   face latched to trace, its one chain runs onto that face's trace and
   along it. A
   profile with no loops is the empty region: it evaluates and draws

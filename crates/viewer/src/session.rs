@@ -3572,12 +3572,13 @@ impl DocSession {
     }
 
     /// **`face`'s trace on `on`, for display**
-    /// ([`pncad::trace::sketch_trace`]), against the landed evaluation:
-    /// on the chart the form's profile on `on` stands on, read by the
-    /// door the commit draws through ([`pncad::document::chart_on_face`],
-    /// [`the_forms_chart`]), read as that
-    /// profile would read it, and sampled across a square the traced
-    /// body spans. Nothing is written.
+    /// ([`pncad::trace::sketch_trace`]): on the datum the form's profile
+    /// on `on` stands on, inserted into a scratch copy of the landed
+    /// document by the door the commit draws through
+    /// ([`pncad::document::datum_on_face`], [`the_forms_chart`]) and
+    /// evaluated from the landed evaluation, read as that profile would
+    /// read it, and sampled across a square the traced body spans.
+    /// Nothing is written.
     ///
     /// # Errors
     ///
@@ -3595,18 +3596,30 @@ impl DocSession {
         };
         let traced = pick_read(doc, Some(ev), face).ok_or_else(|| picked(face))?;
         let (body, name) = picked_body(doc, Some(ev), on).ok_or_else(|| picked(on))?;
-        let frame = pncad::document::chart_on_face(
+        let (scratch, datum) = pncad::document::datum_on_face(
             doc,
             Some(ev),
             body,
             name,
             &the_forms_chart(vec![traced.clone()]),
+            self.tol,
+        )
+        .map_err(|e| SketchTraceFault::Picked(Arc::new(Refusal::Edit(Box::new(e)))))?;
+        let landed = pncad::document::evaluate(
+            &scratch,
+            Some(ev),
+            &pncad::document::CancelToken::new(),
+            &self.eval_options(),
+            self.tol,
         );
         let half = TRACE_WINDOW_MARGIN * body_reach(ev, face.node).unwrap_or(1.0);
         pncad::trace::sketch_trace(
-            doc,
-            ev,
-            frame,
+            &scratch,
+            &landed,
+            Operand::Output {
+                node: datum,
+                port: 0,
+            },
             traced,
             (pncad::geom_core::Point2::origin(), half),
             SKETCH_TRACE_RAYS,
@@ -6289,7 +6302,8 @@ pub enum SketchTraceFault {
     /// has no closed form, or a read refused (the face drawn on is no
     /// plane, so it has no chart).
     Trace(Arc<pncad::trace::SketchTraceError>),
-    /// A pick is read in no one body ([`Refusal::PickedMember`]).
+    /// A pick is read in no one body ([`Refusal::PickedMember`]), or the
+    /// datum the trace is read on does not write.
     Picked(Arc<Refusal>),
 }
 
@@ -6478,8 +6492,8 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         // Copies bodies this document already holds; its constraints
         // relate copies some other node put in the document.
         Node::Place { .. } => false,
-        // Where copies stand; it puts nothing in.
-        Node::World | Node::Space => false,
+        // Where copies stand, or a frame there; it puts nothing in.
+        Node::World | Node::Space | Node::Datum { .. } => false,
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }

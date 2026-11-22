@@ -81,6 +81,21 @@ impl RoleRead {
     }
 }
 
+/// **A mate's side as Python reads it back**: a `PoseDef` read plainly,
+/// a `RoleRead` read through a role.
+pub(crate) fn side_object(py: Python<'_>, side: &Read<d::Operand>) -> PyResult<Py<PyAny>> {
+    Ok(match side.role {
+        None => Py::new(
+            py,
+            PoseDef {
+                inner: side.read.clone(),
+            },
+        )?
+        .into_any(),
+        Some(role) => Py::new(py, RoleRead::of(side.read.clone(), role))?.into_any(),
+    })
+}
+
 #[pymethods]
 impl RoleRead {
     /// `of` read through `role`.

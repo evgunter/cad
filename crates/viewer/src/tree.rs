@@ -1172,6 +1172,7 @@ fn readout_of(
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
+        | ValuePayload::Datum
         | ValuePayload::Instances(_) => None,
     }
 }
@@ -1648,6 +1649,7 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::NotOnTheCopy { mate }
+        | MateFault::NotTheDatumsOwn { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
         | MateFault::Backwards { mate, .. }
