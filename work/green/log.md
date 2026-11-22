@@ -584,3 +584,10 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - The gate median is 1.73× the solo time, and three runner classes sit at 0.8, 1.0 and 1.33.
   - A contended-p90 cut at 0.5 s would have moved 162 cheap tests.
   - Ruling (orchestrator's, a stopgap until Ev answers 7397): move only the 5 tests at gate p90 ≥ 0.9 s, the band that reds PRs. The data is posted on 7397.
+- 2026-11-22 18:50Z — Ev on [ev] PR 7397: "we can increase the hysteresis (maybe 0.25 rather than 0.5?) but i still want it to get caught if an old test becomes dramatically slower". The PR is updated in place:
+  - a test added or edited must stay under 0.25 s run alone;
+  - drift on main is flagged at 0.5 s, or on a severalfold jump in its median;
+  - the ceiling (about 2.5 s run alone) fails the PR that causes a gross slowdown.
+  One question is left for Ev at the top of the body: whether a severalfold jump below the ceiling may wait a day.
+- U9 reported: PR 7400, gate green. Six of the seven reds are now named by live rows. The kite-moat digest is bisected to PR 7131 and re-blessed as 7131's `Debug` spelling of a plane. STYLE review (Opus) dispatched, with a claim that the values themselves did not move.
+- Today's scheduled main nightly (44989179403) was killed on the old build config. Dispatched nightly 44989234943 ran on PR 7365's branch, not main. So main's ε legs have not been read since 11-21; tomorrow's nightly is the first on main with PR 7365, and its read comes first.
