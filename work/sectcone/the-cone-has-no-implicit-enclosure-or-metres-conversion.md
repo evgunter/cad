@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-03
 priority: P0
 cost: H
-design: true
 refs: [cone-torus-rung-three-arm-waits-on-the-cone, a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, cone-germ-pairs-against-a-curved-face-have-no-section-frame]
 ---
 
@@ -72,4 +71,4 @@ Both designers agree on the final state:
 
 1. **One limb-2 reader.** The search reads limbs 1–2 through the edge reader. That reader reports its uncleared parts for `ssi/refine.rs`. `ToMeters`, `composite_form`, `ImplicitSurface` and the torus's search-side conversion retire.
 2. **The tube's cone arm.** `implicit_enclosure` / `implicit_gradient_enclosure` read limb 1's own function, the double cone's elevation `g = ρ cos α − |h| sin α`, whose gradient `ŵ cos α − sgn(h)·â sin α` is unit. It is enclosed by the mean-value form met with the direct form, and gated on `h` and `|w|` excluding zero, which is the analogue of the torus's `A > 0`. A box at the apex refuses, and C5's node clause owns the point. Exclusion reads the quadric's sign where the gate fails.
-3. **What the cone stores** is the question for Ev: its slope `k = tan α`, or its half-angle in radians. Items 1 and 2 do not wait on it. They cross `sin α`, `cos α` on the lane at `Interval`, as `curve_face/composite.rs` does.
+3. **What the cone stores: its slope `k = tan α`** (Ev, `[ev]` PR 7326, 2026-11-22). That is the unit `the-cone-stores-its-slope`. Items 1 and 2 did not wait on it. They cross `sin α`, `cos α` on the lane at `Interval`, as `curve_face/composite.rs` does.
