@@ -3273,6 +3273,7 @@ fn door<T: Scalar + geom_core::Certifies>(
     let side = Side {
         body,
         faces: body.faces().map(|(k, _)| k).collect(),
+excluded: Default::default(),
     };
     let report = topo::clearance::embedded(
         &side,
@@ -3450,6 +3451,7 @@ fn a_metric_bound_reads_a_violation_past_a_refusal() {
             Side {
                 body: &plate,
                 faces,
+excluded: Default::default(),
             }
             .windows(which)
             .expect("every face has a window")
