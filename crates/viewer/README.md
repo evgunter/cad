@@ -21,24 +21,37 @@ it rather than using it. The ratified plan that record answers to is
 
 | Gesture | Action |
 | --- | --- |
-| LEFT click | select (a face, edge or vertex pick, or a profile by its drawn outline; also feeds the mate tool's picks) |
-| MIDDLE drag | orbit (shift+middle: pan) |
-| ALT + LEFT drag | orbit — the trackpad binding (plain left never moves the camera) |
-| RIGHT drag | pan |
-| scroll | zoom |
-| ctrl/⌘ + scroll | zoom (as scroll) |
+| Middle drag | orbit |
+| Alt + left drag | orbit |
+| Right drag | pan |
+| Shift + middle drag | pan |
+| Scroll | zoom |
+| Pinch | zoom |
+| Left click | select what is under the pointer |
+| Hover | highlight what is under the pointer |
 
-**A pinch is not a mouse binding, and it zooms too**, with the model's
-apparent size following the fingers: a trackpad pinch where the
+The running viewer shows this table from the toolbar's **Controls**
+button. Both are the rows of `InputMap::DEFAULT.bindings`
+(`src/input.rs`), the table the input mapper itself reads: the window
+draws them, and `tests/controls_guide.rs` holds this page's copy to
+them, so neither can name a binding the viewport does not honour.
+
+A click selects a face, edge or vertex, or a profile by its drawn
+outline, and feeds the mate tool's picks. Alt + left drag is the
+trackpad's orbit. A wheel turned with ctrl or ⌘ held zooms as a plain
+scroll does.
+
+**A pinch zooms** with the model's apparent size following the
+fingers: a trackpad pinch where the
 platform reports one as a gesture (macOS and iOS through winit, and a
 browser through the web backend), and a touchscreen pinch. A platform
 that turns a pinch into a ctrl+wheel instead hands the viewer a scroll,
 which zooms at the scroll rate — by that mechanism, what a Windows
 precision touchpad's pinch would be.
 
-Left-drag in the viewport is inert **by design** — primary is reserved
-for selection; hold ALT to orbit with it on a trackpad. Moving a body's
-space is not a viewport drag either: the free-move probe is the typed
+A plain left drag in the viewport is inert **by design** — primary is
+reserved for selection. Moving a body's space is not a viewport drag
+either: the free-move probe is the typed
 x/y/z fields in the selected body's display section of the Properties
 panel (display-only, in the working length unit).
 

@@ -42,11 +42,20 @@
 //! navigation vocabulary. Navigation lives on middle and secondary,
 //! which is mainstream CAD convention independently of that.
 //!
-//! The one modifier exception: **alt + primary drag orbits** (the
-//! [`InputMap::alt_orbit_button`] binding). First light (#1097) was a
-//! laptop trackpad, where a middle-button drag is impractical; a
-//! modifier-gated second orbit binding keeps plain primary purely
-//! selection while making orbit reachable with one hand on a trackpad.
+//! The one modifier exception: **alt + primary drag orbits**. First
+//! light (#1097) was a laptop trackpad, where a middle-button drag is
+//! impractical; a modifier-gated second orbit binding keeps plain
+//! primary purely selection while making orbit reachable with one hand
+//! on a trackpad.
+//!
+//! # One table, two readers
+//!
+//! Which gesture does what is **data**: [`InputMap::bindings`], a
+//! slice of [`Binding`] rows. The mapper ([`InputMap::map`],
+//! [`InputMap::pick`]) honours a gesture because a row names it, and
+//! the controls guide the running viewer shows is the same rows through
+//! [`Binding::gesture`] and [`Binding::action`] — so the guide cannot
+//! list a binding the mapper lacks, or miss one it has.
 //!
 //! # Two mappings over one event stream
 //!
@@ -63,15 +72,20 @@
 
 use crate::camera::{Camera, CameraOp, Folded};
 
-/// A pointer button, named rather than numbered.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum PointerButton {
-    /// Left, on a right-handed mouse.
-    Primary,
-    /// Right, on a right-handed mouse.
-    Secondary,
-    /// The wheel button.
-    Middle,
+crate::vocab::vocabulary! {
+    /// A pointer button, named rather than numbered.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub enum PointerButton {
+        /// Left, on a right-handed mouse.
+        Primary,
+        /// Right, on a right-handed mouse.
+        Secondary,
+        /// The wheel button.
+        Middle,
+    }
+
+    /// Every button a binding can name.
+    pub const ALL;
 }
 
 /// What the pointer did inside the viewport.
@@ -84,12 +98,9 @@ pub enum ViewportEvent {
     Drag {
         /// Which button is held.
         button: PointerButton,
-        /// Whether a shift-style modifier is held — the modifier that
-        /// turns the orbit binding into a pan binding.
+        /// Whether a shift-style modifier is held ([`Held::shift`]).
         shift: bool,
-        /// Whether an alt-style modifier is held — the modifier that
-        /// binds [`InputMap::alt_orbit_button`]'s drag to orbit (the
-        /// trackpad binding; see the module docs).
+        /// Whether an alt-style modifier is held ([`Held::alt`]).
         alt: bool,
         /// The motion since the previous event.
         delta_px: [f64; 2],
@@ -216,7 +227,145 @@ impl ViewportSize {
     }
 }
 
-/// The navigation bindings and their rates.
+impl PointerButton {
+    /// The button as a person names it, on a right-handed mouse.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Primary => "left",
+            Self::Secondary => "right",
+            Self::Middle => "middle",
+        }
+    }
+}
+
+/// The modifier keys a drag binding requires.
+///
+/// The two [`ViewportEvent::Drag`] carries. A requirement, not an
+/// exact state: a key this does not name is not asked about.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Held {
+    /// The shift-style modifier must be down.
+    pub shift: bool,
+    /// The alt-style modifier must be down.
+    pub alt: bool,
+}
+
+impl Held {
+    /// No modifier required.
+    pub const NONE: Self = Self {
+        shift: false,
+        alt: false,
+    };
+    /// Shift required.
+    pub const SHIFT: Self = Self {
+        shift: true,
+        alt: false,
+    };
+    /// Alt required.
+    pub const ALT: Self = Self {
+        shift: false,
+        alt: true,
+    };
+
+    /// Whether a drag with these keys down meets the requirement.
+    fn met_by(self, shift: bool, alt: bool) -> bool {
+        (!self.shift || shift) && (!self.alt || alt)
+    }
+
+    /// How many keys are required — a drag's most demanding matching
+    /// row is the one it denotes.
+    fn required(self) -> usize {
+        usize::from(self.shift) + usize::from(self.alt)
+    }
+}
+
+/// How a bound drag moves the camera.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Navigation {
+    /// Turn the camera about its target ([`CameraOp::Orbit`]).
+    Orbit,
+    /// Slide the target in the view plane ([`CameraOp::Pan`]).
+    Pan,
+}
+
+/// One row of the binding table: a gesture and what it does.
+///
+/// Each variant is a gesture together with the only kinds of action
+/// that gesture can carry, so a row the mapper could not honour — a
+/// scroll that orbits, a click that pans — cannot be written.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Binding {
+    /// A drag of `button` with at least `held` down navigates.
+    Drag {
+        /// The button held.
+        button: PointerButton,
+        /// The modifiers required.
+        held: Held,
+        /// The camera motion.
+        moves: Navigation,
+    },
+    /// The wheel zooms, at [`InputMap::zoom_rate_per_notch`].
+    Scroll,
+    /// A pinch zooms by its own ratio.
+    Pinch,
+    /// A click of `button` selects ([`PickAction::Select`]).
+    Click {
+        /// The button clicked.
+        button: PointerButton,
+    },
+    /// The pointer over the viewport hovers ([`PickAction::Hover`]),
+    /// and leaving it clears the hover ([`PickAction::ClearHover`]).
+    Hover,
+}
+
+impl Binding {
+    /// The gesture, as the controls guide names it.
+    pub fn gesture(&self) -> String {
+        match *self {
+            Self::Drag { button, held, .. } => {
+                let button = button.name();
+                match (held.shift, held.alt) {
+                    (false, false) => format!("{} drag", capitalized(button)),
+                    (true, false) => format!("Shift + {button} drag"),
+                    (false, true) => format!("Alt + {button} drag"),
+                    (true, true) => format!("Shift + Alt + {button} drag"),
+                }
+            }
+            Self::Scroll => "Scroll".to_owned(),
+            Self::Pinch => "Pinch".to_owned(),
+            Self::Click { button } => format!("{} click", capitalized(button.name())),
+            Self::Hover => "Hover".to_owned(),
+        }
+    }
+
+    /// What the gesture does, as the controls guide names it.
+    pub fn action(&self) -> &'static str {
+        match *self {
+            Self::Drag {
+                moves: Navigation::Orbit,
+                ..
+            } => "orbit",
+            Self::Drag {
+                moves: Navigation::Pan,
+                ..
+            } => "pan",
+            Self::Scroll | Self::Pinch => "zoom",
+            Self::Click { .. } => "select what is under the pointer",
+            Self::Hover => "highlight what is under the pointer",
+        }
+    }
+}
+
+/// `word` with its first letter in upper case.
+fn capitalized(word: &str) -> String {
+    let mut letters = word.chars();
+    letters
+        .next()
+        .map(|first| first.to_uppercase().chain(letters).collect())
+        .unwrap_or_default()
+}
+
+/// The bindings and their rates.
 ///
 /// A value rather than a set of constants because rates are the one
 /// thing a user is entitled to disagree with, and because a test that
@@ -228,17 +377,14 @@ pub struct InputMap {
     /// Multiplicative distance step per scroll notch. `0.1` means one
     /// notch toward the viewer multiplies the distance by `e^-0.1`.
     pub zoom_rate_per_notch: f64,
-    /// The button that orbits.
-    pub orbit_button: PointerButton,
-    /// The button whose drag orbits with the ALT-style modifier held —
-    /// the trackpad binding (module docs). A plain drag of this button
-    /// stays exactly as bound elsewhere; with the default bindings that
-    /// is the select button, whose plain drag navigates nothing.
-    pub alt_orbit_button: PointerButton,
-    /// The button that pans without a modifier.
-    pub pan_button: PointerButton,
-    /// The button that selects.
-    pub select_button: PointerButton,
+    /// Which gesture does what: every gesture this map honours, and
+    /// the rows the controls guide shows.
+    ///
+    /// A drag denotes the matching [`Binding::Drag`] row that requires
+    /// the most modifiers, so `shift + middle` can pan where plain
+    /// `middle` orbits; between rows requiring equally many, the
+    /// earlier.
+    pub bindings: &'static [Binding],
 }
 
 impl Default for InputMap {
@@ -258,11 +404,52 @@ impl InputMap {
         // A full turn across roughly 800 px of drag.
         orbit_radians_per_px: 0.008,
         zoom_rate_per_notch: 0.1,
-        orbit_button: PointerButton::Middle,
-        alt_orbit_button: PointerButton::Primary,
-        pan_button: PointerButton::Secondary,
-        select_button: PointerButton::Primary,
+        bindings: &[
+            Binding::Drag {
+                button: PointerButton::Middle,
+                held: Held::NONE,
+                moves: Navigation::Orbit,
+            },
+            Binding::Drag {
+                button: PointerButton::Primary,
+                held: Held::ALT,
+                moves: Navigation::Orbit,
+            },
+            Binding::Drag {
+                button: PointerButton::Secondary,
+                held: Held::NONE,
+                moves: Navigation::Pan,
+            },
+            Binding::Drag {
+                button: PointerButton::Middle,
+                held: Held::SHIFT,
+                moves: Navigation::Pan,
+            },
+            Binding::Scroll,
+            Binding::Pinch,
+            Binding::Click {
+                button: PointerButton::Primary,
+            },
+            Binding::Hover,
+        ],
     };
+
+    /// The camera motion a drag of `button` with these modifiers down
+    /// denotes, by the rule [`InputMap::bindings`] states.
+    fn drag_navigation(&self, button: PointerButton, shift: bool, alt: bool) -> Option<Navigation> {
+        self.bindings
+            .iter()
+            .filter_map(|binding| match *binding {
+                Binding::Drag {
+                    button: bound,
+                    held,
+                    moves,
+                } if bound == button && held.met_by(shift, alt) => Some((held.required(), moves)),
+                _ => None,
+            })
+            .reduce(|best, next| if next.0 > best.0 { next } else { best })
+            .map(|(_, moves)| moves)
+    }
 }
 
 /// The registered input presets, by the name a preferences file uses.
@@ -273,7 +460,8 @@ impl InputMap {
 ///
 /// It is worth being exact about what this does and does not reserve,
 /// because the name "preset" invites the wrong reading. [`InputMap`]
-/// binds MICE: two rate scalars and four buttons. **There is no
+/// binds POINTERS: two rate scalars and a table of pointer gestures
+/// ([`Binding`]). **There is no
 /// keyboard-binding vocabulary in this crate at all** — so a modal or
 /// vim-shaped preset is not a row that can be added here. It needs
 /// that vocabulary built first: which key means which
@@ -308,9 +496,9 @@ pub fn preset_by_name(name: &str) -> Option<InputMap> {
 
 impl InputMap {
     /// The operation an event denotes, or `None` when this event is
-    /// bound to no operation (a drag on an unbound button, a drag or
-    /// scroll of exactly zero, a pinch of exactly 1, or a viewport with
-    /// no area).
+    /// bound to no operation (a gesture no [`InputMap::bindings`] row
+    /// names, a drag or scroll of exactly zero, a pinch of exactly 1,
+    /// or a viewport with no area).
     ///
     /// `camera` and `viewport` enter because pan is defined in world
     /// units: the conversion from pixels needs the distance to the
@@ -331,32 +519,25 @@ impl InputMap {
                 if dx == 0.0 && dy == 0.0 {
                     return None;
                 }
-                let pans = button == self.pan_button || (button == self.orbit_button && shift);
-                // The alt-gated second orbit binding (module docs):
-                // checked alongside the plain one, after `pans` so a
-                // pan-bound button never orbits by accident.
-                let orbits =
-                    button == self.orbit_button || (button == self.alt_orbit_button && alt);
-                if pans {
-                    let world_per_px = self.world_per_px(viewport, camera)?;
-                    // The model follows the cursor, so the target
-                    // moves the other way; +y is down on screen and
-                    // up is +y in the camera frame, hence the signs.
-                    Some(CameraOp::Pan {
-                        right: -dx * world_per_px,
-                        up: dy * world_per_px,
-                    })
-                } else if orbits {
-                    Some(CameraOp::Orbit {
+                match self.drag_navigation(button, shift, alt)? {
+                    Navigation::Pan => {
+                        let world_per_px = self.world_per_px(viewport, camera)?;
+                        // The model follows the cursor, so the target
+                        // moves the other way; +y is down on screen and
+                        // up is +y in the camera frame, hence the signs.
+                        Some(CameraOp::Pan {
+                            right: -dx * world_per_px,
+                            up: dy * world_per_px,
+                        })
+                    }
+                    Navigation::Orbit => Some(CameraOp::Orbit {
                         yaw: -dx * self.orbit_radians_per_px,
                         pitch: dy * self.orbit_radians_per_px,
-                    })
-                } else {
-                    None
+                    }),
                 }
             }
             ViewportEvent::Scroll { units } => {
-                if units == 0.0 {
+                if units == 0.0 || !self.bindings.contains(&Binding::Scroll) {
                     return None;
                 }
                 Some(CameraOp::Dolly {
@@ -364,7 +545,7 @@ impl InputMap {
                 })
             }
             ViewportEvent::Pinch { factor } => {
-                if factor == 1.0 {
+                if factor == 1.0 || !self.bindings.contains(&Binding::Pinch) {
                     return None;
                 }
                 // Apparent size goes as the reciprocal of distance, so
@@ -385,20 +566,26 @@ impl InputMap {
     }
 
     /// The cursor action an event denotes, or `None` when this event
-    /// asks for no pick — every drag, scroll and pinch, and a click on a
-    /// button that is not [`InputMap::select_button`].
+    /// asks for no pick — every drag, scroll and pinch, and a click or
+    /// hover no [`InputMap::bindings`] row names.
     ///
     /// Needs no camera and no viewport: a cursor action names a screen
     /// position, and what lies under it is a question for the scene.
     pub fn pick(&self, event: &ViewportEvent) -> Option<PickAction> {
         match *event {
-            ViewportEvent::Hover { pos_px } => Some(PickAction::Hover(pos_px)),
-            ViewportEvent::Click { button, pos_px } if button == self.select_button => {
-                Some(PickAction::Select(pos_px))
-            }
-            ViewportEvent::Leave => Some(PickAction::ClearHover),
-            ViewportEvent::Click { .. }
-            | ViewportEvent::Drag { .. }
+            ViewportEvent::Hover { pos_px } => self
+                .bindings
+                .contains(&Binding::Hover)
+                .then_some(PickAction::Hover(pos_px)),
+            ViewportEvent::Click { button, pos_px } => self
+                .bindings
+                .contains(&Binding::Click { button })
+                .then_some(PickAction::Select(pos_px)),
+            ViewportEvent::Leave => self
+                .bindings
+                .contains(&Binding::Hover)
+                .then_some(PickAction::ClearHover),
+            ViewportEvent::Drag { .. }
             | ViewportEvent::Scroll { .. }
             | ViewportEvent::Pinch { .. } => None,
         }

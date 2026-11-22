@@ -140,6 +140,9 @@ const UNTITLED: &str = "untitled";
 /// apart from every other commit on screen.
 const NEW_DOCUMENT_COMMIT: &str = "Create document";
 
+/// The controls guide's toolbar button and its window's title.
+const CONTROLS: &str = "Controls";
+
 /// The tab name of the container holding the feature tree and the
 /// properties — the document's model, as against the View pane's
 /// display settings.
@@ -479,6 +482,9 @@ pub struct ViewerApp {
     /// should still be open when the edit made to answer it lands, so
     /// the reader can see whether the finding went away.
     checks_shown: bool,
+    /// Whether the controls guide window is open. Chrome state, as
+    /// [`Self::checks_shown`] is.
+    controls_shown: bool,
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
     pending_fit: bool,
@@ -994,6 +1000,7 @@ impl ViewerApp {
             profile_drawn: ProfileDoors::default(),
             row_hovered: None,
             checks_shown: false,
+            controls_shown: false,
             camera,
             input,
             theme,
@@ -1864,6 +1871,37 @@ impl ViewerApp {
         self.checks_shown = open;
     }
 
+    /// The controls guide: every gesture the viewport honours and
+    /// what it does.
+    ///
+    /// **The rows are [`InputMap::bindings`]** — the table
+    /// [`InputMap::map`] and [`InputMap::pick`] read, of the map this
+    /// session resolved from its preferences — so the window lists
+    /// what the viewport in front of the reader does, and nothing
+    /// here words a binding.
+    fn controls_window(&mut self, ctx: &egui::Context) {
+        if !self.controls_shown {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new(CONTROLS)
+            .open(&mut open)
+            .resizable(false)
+            .show(ctx, |ui| {
+                egui::Grid::new("viewer_controls_guide")
+                    .num_columns(2)
+                    .striped(true)
+                    .show(ui, |ui| {
+                        for binding in self.input.bindings {
+                            ui.label(binding.gesture());
+                            ui.label(binding.action());
+                            ui.end_row();
+                        }
+                    });
+            });
+        self.controls_shown = open;
+    }
+
     /// The toolbar row: the document's controls, and the two gesture
     /// cancel doors while their gestures are in flight.
     ///
@@ -2072,6 +2110,13 @@ impl ViewerApp {
                 // for a fit rather than performing one; the
                 // viewport takes it at the real aspect.
                 self.pending_fit = true;
+            }
+            if ui
+                .button(CONTROLS)
+                .on_hover_text("how the mouse orbits, pans, zooms and selects in the viewport")
+                .clicked()
+            {
+                self.controls_shown = !self.controls_shown;
             }
             // The indicator is a READ of session state, and the
             // buttons beside it are the shipped token and its pair.
@@ -2467,6 +2512,7 @@ impl eframe::App for ViewerApp {
             });
         ops.append(&mut toolbar_ops);
         self.checks_window(ui.ctx(), &mut ops);
+        self.controls_window(ui.ctx());
         if notation != self.session.notation() {
             self.session.set_notation(notation);
             self.remember_prefs();
@@ -7472,6 +7518,89 @@ mod properties_pane_tests {
             "{:?}",
             driven.app.session.product_fault()
         );
+    }
+
+    /// **The Controls button opens a guide that lists every binding of
+    /// the session's input map, and closes it again.** The rows are
+    /// read off the map the app holds, here one no preset registers,
+    /// so a window that worded its own bindings would not show them.
+    #[test]
+    fn the_controls_button_shows_every_binding_of_the_sessions_input_map() {
+        use crate::input::{Binding, Held, Navigation, PointerButton};
+        let mut driven = Driven::with(Vec::new());
+        driven.app.input = InputMap {
+            bindings: &[
+                Binding::Drag {
+                    button: PointerButton::Secondary,
+                    held: Held {
+                        shift: true,
+                        alt: true,
+                    },
+                    moves: Navigation::Orbit,
+                },
+                Binding::Drag {
+                    button: PointerButton::Primary,
+                    held: Held::NONE,
+                    moves: Navigation::Pan,
+                },
+                Binding::Pinch,
+                Binding::Click {
+                    button: PointerButton::Middle,
+                },
+            ],
+            ..InputMap::DEFAULT
+        };
+        let rows: Vec<(String, &str)> = driven
+            .app
+            .input
+            .bindings
+            .iter()
+            .map(|binding| (binding.gesture(), binding.action()))
+            .collect();
+        let shown = |painted: &[(String, egui::Rect)]| -> Vec<(String, &str)> {
+            rows.iter()
+                .filter(|(gesture, action)| {
+                    // One row: the gesture, and its action beside it
+                    // on the same line.
+                    painted.iter().any(|(run, at)| {
+                        run == gesture
+                            && painted.iter().any(|(other, beside)| {
+                                other == action
+                                    && beside.left() > at.right()
+                                    && beside.y_range().intersects(at.y_range())
+                            })
+                    })
+                })
+                .cloned()
+                .collect()
+        };
+        let before = driven.quiet();
+        assert_eq!(shown(&before), vec![], "no guide before it is asked for");
+        driven.click(CONTROLS);
+        let open = driven.quiet();
+        assert_eq!(shown(&open), rows, "the guide's rows: {open:?}");
+        assert!(
+            !open.iter().any(|(run, _)| run == "Scroll" || run == "Hover"),
+            "a gesture this map does not bind is not listed: {open:?}"
+        );
+        // The button and the window's title both read `Controls`;
+        // the button was there first.
+        let button = before
+            .iter()
+            .find(|(run, _)| run == CONTROLS)
+            .expect("the button")
+            .1;
+        driven.frame(vec![egui::Event::PointerMoved(button.center())]);
+        for pressed in [true, false] {
+            driven.frame(vec![egui::Event::PointerButton {
+                pos: button.center(),
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+        }
+        let closed = driven.quiet();
+        assert_eq!(shown(&closed), vec![], "the button closes it: {closed:?}");
     }
 
     /// **"Add to the product" is offered on a drawn body's tree row, and

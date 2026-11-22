@@ -452,7 +452,12 @@ fn viewport_and_camera() -> (ViewportSize, Camera) {
 #[test]
 fn the_primary_button_is_the_select_binding_and_moves_no_camera() {
     let map = InputMap::default();
-    assert_eq!(map.select_button, PointerButton::Primary);
+    assert!(
+        map.bindings.contains(&Binding::Click {
+            button: PointerButton::Primary
+        }),
+        "the default table binds the primary click"
+    );
     let click = ViewportEvent::Click {
         button: PointerButton::Primary,
         pos_px: [10.0, 20.0],
