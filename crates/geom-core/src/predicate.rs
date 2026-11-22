@@ -3790,6 +3790,81 @@ mod tests {
     // never land a margin on an exact boundary — so they corroborate the
     // structure but do not, and cannot, pin the boundary semantics.
 
+    /// **A refusal's offered band is the band at the tolerance its
+    /// sentence spells**, at the refused band's own K: the told offer,
+    /// not the raw `|m|/K`; off an enclosure, the end nearer zero; and
+    /// none where the refusal offers none. The refused margin decides
+    /// in it, at both lanes.
+    #[test]
+    fn the_offered_band_stands_at_the_spelled_offer_with_the_refused_bands_k() {
+        let band = Band::new(1e-9, 7e-9).unwrap();
+        let k = band.escalate() / band.zero();
+        let refused = |margin: MarginDiag| Indeterminate {
+            margin,
+            terminal_sliver: false,
+            band,
+            predicate: None,
+        };
+        let m = 3.456_789_012_345e-9;
+        let offered = refused(MarginDiag::value(m)).offered_band().unwrap();
+        let spelled = band.offer_deciding(m).unwrap();
+        assert_eq!(offered.zero(), spelled, "the told offer");
+        assert!(
+            spelled < band.tolerance_deciding(m),
+            "the fixture's offer is told below the raw one: {spelled:e}"
+        );
+        assert_eq!(offered.escalate(), k * spelled, "the refused band's K");
+        assert!(
+            refused(MarginDiag::value(m))
+                .ending("L")
+                .contains(&format!("{spelled:e} m")),
+            "the sentence spells the band's zero: {}",
+            refused(MarginDiag::value(m)).ending("L")
+        );
+        assert_eq!(m.sign_within(offered).map(|d| d.sign), Ok(Sign::Positive));
+        let (lo, hi) = (2.345_678_901_2e-9, 6.5e-9);
+        let boxed = refused(MarginDiag::enclosure(lo, hi))
+            .offered_band()
+            .unwrap();
+        assert_eq!(
+            boxed.zero(),
+            band.offer_deciding(lo).unwrap(),
+            "the end nearer zero"
+        );
+        assert_eq!(
+            crate::Interval::from_bounds(lo, hi)
+                .sign_within(boxed)
+                .map(|d| d.sign),
+            Ok(Sign::Positive)
+        );
+        for none in [
+            MarginDiag::value(0.0),
+            MarginDiag::value(f64::NAN),
+            MarginDiag::enclosure(-2e-9, 3e-9),
+            MarginDiag::value(0.5 * EPS_MIN),
+        ] {
+            assert_eq!(refused(none).offered_band(), None, "{none}");
+        }
+    }
+
+    /// **The band one K-step finer is `(ε/K, ε)`**, its escalation the
+    /// coarser band's zero to the bit, and a band with no positive
+    /// `ε/K` has none.
+    #[test]
+    fn a_step_finer_ends_at_the_bands_own_zero() {
+        let band = Band::new(1e-9, 7e-9).unwrap();
+        let finer = band.a_step_finer().unwrap();
+        assert_eq!(finer.zero(), 1e-9 / (7e-9 / 1e-9));
+        assert_eq!(finer.escalate(), 1e-9);
+        assert!(matches!(
+            Band::least().a_step_finer(),
+            Err(BandError::InvalidValue {
+                field: BandField::Zero,
+                ..
+            })
+        ));
+    }
+
     /// The fixed band used by the boundary table: exactly the default
     /// tolerance's linear band, but constructed purely.
     fn band_1e9() -> Band {
