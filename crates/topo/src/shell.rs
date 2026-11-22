@@ -6844,7 +6844,7 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod gate_reads_carried_records {
-    use super::{ShellError, shell};
+    use super::{ShellError, shell, shell_open};
     use crate::validate::unconfirmed::{kiss_holding_a_false_record, the_false_record_alone};
     use geom_core::Tol;
 
@@ -6862,6 +6862,30 @@ mod gate_reads_carried_records {
                 assert!(the_false_record_alone(&findings), "{findings:?}");
             }
             other => panic!("the shell refuses at its gate: {:?}", other.map(|_| ())),
+        }
+    }
+
+    /// The same operand opened at one of the false record's own faces:
+    /// the rim surgery divides that face, so the shell's carry puts the
+    /// record to its pieces, which no reading covers, and refuses it
+    /// before any gate ([`ShellError::Carry`]). Red where the shell finishes
+    /// without carrying its operand's records: the open shell builds.
+    #[test]
+    fn the_shell_refuses_a_record_its_carry_reads_on_a_face_it_opens() {
+        let tol = Tol::witness();
+        let operand = kiss_holding_a_false_record(tol);
+        let open = operand
+            .records()
+            .face_face()
+            .map(|(a, _)| a)
+            .next()
+            .expect("the fixture's face-face record");
+        match shell_open(&operand, 0.1, &[open], tol) {
+            Err(ShellError::Carry { refusal }) => assert!(
+                matches!(refusal, crate::CarryRefusal::Unread { record: 1, .. }),
+                "{refusal:?}"
+            ),
+            other => panic!("the shell's carry refuses: {:?}", other.map(|_| ())),
         }
     }
 }

@@ -4,9 +4,10 @@
 //! records and census decisions, which stay the source's".
 //!
 //! [`Carry`] is that one bundle, on every body value, every piece of a
-//! `⊔` and every part an instance copies: the records keyed in the
-//! body's arena and what each input they cite is, the findings of the
-//! documents below, the pieces and their door's census. Every value
+//! `⊔` and every part an instance copies: how the body's own records
+//! cite at this value and what each input they cite is, the findings of
+//! the documents below, the pieces and their door's census. The records
+//! themselves are the body's ([`topo::FinishedBody::records`]). Every value
 //! that carries its source's takes it through one door,
 //! [`Carry::copied`]: a placement's copy, an instance's, each member of
 //! a placed family, a pick of one piece, a union or an intersect of one
@@ -56,7 +57,7 @@ pub struct Carry<T: topo::AtRestPolicy + Decide> {
     pub cited_inputs: Arc<[CitedInput]>,
     /// The at-rest findings of the documents below (`ASSEMBLY.md` A5),
     /// each with the route it came by: what an instance reports as its
-    /// part's, keyed in the same arena as `contacts`.
+    /// part's, keyed in the same arena as the body's records.
     pub findings: Arc<crate::checks::at_rest::CarriedFindings>,
     /// How many parts its body is (`crates/editor-core/ASSEMBLY.md`, A2
     /// and A10): a document's product is its pieces, so an instance's

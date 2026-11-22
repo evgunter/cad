@@ -501,3 +501,51 @@ fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
         touches(&doc, what, &members, (plate, rod), 1, v, 2);
     }
 }
+
+/// **A document's cut refuses a record its gate does not confirm.** A
+/// pocket of radius 0.5 about (0, 1.5), half the plate's height, tangent
+/// to the plate's y = 2 face from inside: the cut records the crescent
+/// between the pocket's wall and that face as a tangency, the gate reads
+/// the pair as an overlap, and the node refuses on that one record
+/// (`work/heldrecords/a-cut-by-a-rod-tangent-from-inside-records-its-material-crescent-as-a-tangent-contact.md`).
+/// Red where a gate takes the records it is handed on their word: the
+/// cut evaluates, holding the record.
+#[test]
+fn a_cut_whose_record_its_gate_contradicts_refuses_at_the_node() {
+    let (doc, plate) = plate();
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::circle_split(0.0, 1.5, 0.5, 2, 0.0).expect("a finite circle")],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, pocket) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(0.5),
+        },
+    );
+    let (doc, pocket) = against(
+        doc,
+        plate,
+        pocket,
+        &axes_at([0.0, 0.0, 0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: plate.into(),
+            tool: pocket.into(),
+        },
+    );
+    let ev = run(&doc);
+    let refused = failure(&ev, cut).expect("the cut refuses");
+    let text = format!("{refused:?}");
+    assert!(
+        text.contains("ResultInvalid") && text.matches("ContactContradicted").count() == 1,
+        "the cut refuses on its one contradicted record: {text}"
+    );
+}
