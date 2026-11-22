@@ -171,8 +171,7 @@ fn a_junction_inside_the_pole_band_cannot_enter_through_the_import_door() {
 /// - At 1e-12 the vertex is off the pole, so the arc holds the pole
 ///   inside it: import splits the arc there and joins the vertex, a
 ///   regular point. The body ships the pole as a vertex of two meridian
-///   halves, tessellates watertight, and reports no coherence finding;
-///   the pole-crossing arc the walk's one-azimuth-per-meridian model
+///   halves, and tessellates watertight; the pole-crossing arc the walk's one-azimuth-per-meridian model
 ///   refuses (`UnsupportedCurvedShape` carrying props'
 ///   `NotOneChartBranch`, issue 1571) no longer arrives through this
 ///   door.
@@ -235,8 +234,6 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     let out = out.unwrap_or_else(|_| {
         panic!("at eps {eps:e} the witness must not panic — nothing here asserts")
     });
-    let report = topo::examine_chart_coherence(&body, Tol::witness());
-    assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
     if (0.99e-6..=1.01e-6).contains(&eps) {
         assert!(normalizations.is_empty(), "nothing is joined at this band");
         assert!(
@@ -248,12 +245,6 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
         assert!(
             nearest <= eps,
             "the vertex is inside this band, on the identified half"
-        );
-        assert!(
-            report.findings.is_empty(),
-            "a half-turn at a lever arm of {nearest:e} m opens {:e} m of arc, which this band calls noise: {:?}",
-            core::f64::consts::PI * nearest,
-            report.findings
         );
     } else if (0.99e-12..=1.01e-12).contains(&eps) {
         let kinds: Vec<_> = normalizations.iter().map(|n| n.kind).collect();
@@ -273,11 +264,6 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
         );
         let mesh = out.expect("tessellates");
         mesh::validate::check_mesh(&mesh).expect("watertight");
-        assert!(
-            report.findings.is_empty(),
-            "no arc crosses the pole, so no half-turn: {:?}",
-            report.findings
-        );
     }
     // Other ambient bands: the import and the no-panic assertions
     // above still ran; the walk outcome is unpinned there.
@@ -306,10 +292,7 @@ fn the_singularitys_file_band_ending_names_the_eps_in_that_decides_it() {
         env!("CARGO_MANIFEST_DIR")
     );
     let text = std::fs::read_to_string(&p).unwrap();
-    let options = ImportOptions {
-        eps_in: Some(1e-9),
-        ..ImportOptions::default()
-    };
+    let options = ImportOptions { eps_in: Some(1e-9) };
     let imported = import_step(&text, &options, Tol::witness());
     let Err(
         e @ step_import::StepImportError::SingularityUndecided {

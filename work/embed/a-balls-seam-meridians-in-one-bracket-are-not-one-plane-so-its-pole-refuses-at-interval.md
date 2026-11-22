@@ -4,7 +4,7 @@ kind: issue
 title: A ball whose centre is a bracket stores its two seam meridians in one bracket, which is not one value, so no plane lists both and its pole refuses Departure at Interval
 status: open
 opened: 2026-11-13
-priority: P2
+priority: P0
 cost: M
 ---
 
@@ -17,9 +17,11 @@ Found by CLEAR's seam lane (`clear/seam-meridians`), closing
 A full revolve now stores a ball's angle-π meridian with the angle-0
 meridian's centre and reference direction and its axis turned over
 (`sweep::revolve::full::build_wire`, `placed_segment_spec_about`). The
-plane built from either lists both only where `one_plane`
-(`crates/topo/src/injective.rs`) reads the two stored frames as one
-value: every component a point. A bracket is not one value. Two edges
+plane built from either lists both only where `coplanar`
+(`crates/topo/src/injective.rs`) reads them as one plane: a point-scalar
+body's stored frames one up to the signs of their axes, or the lifted
+frames as one value, every component a point (`one_plane`). A bracket is
+not one value. Two edges
 stored in the same bracket may take different values in two members of
 a family; the turning-line family in `injective.rs`
 (`a_plane_through_a_turning_line_edge_holds_it_for_every_member`) has
@@ -51,39 +53,68 @@ One of these:
   second meridian, and with it this row, may go. Re-measure the snowman
   at `Interval` when that lands.
 
-## At `f64` too, in a turned frame, since the carrier frames landed (EMBED, lane pole, PR 7115, 2026-11-21)
+## The f64 half read off the stored frames (EMBED, lane one-plane, 2026-11-22)
 
-Measured by lane pole while merging main into PR 7115.
+**Traced** (`embed/one-plane-measure`: main `2da45c59f` with PR 7115's
+branch, a print of `planes_through`'s conic frames), the unit ball on three
+turned sketch planes, f64:
+- **after** PR 7131: the two meridians' stored frames are one origin, one
+  `u`, and `v`, `w` exactly negated, bit for bit. Their lifts keep the
+  origin a point, and each axis is the enclosure of its frame's polar
+  factor, one or two ulps wide per component (frame 1's `w.x`
+  `[-0.39473979817379984, -0.3947397981737997]`). `one_value` reads no
+  point, so `one_plane` is false.
+- **before** (PR 7115's branch at `e718644b9`, on `dc7059c445`): the
+  lifted axes are the stored bits as points
+  (`[-0.3947397981737998, -0.3947397981737998]`), and `one_plane` holds.
+- The plain-frame ball's axes are exact (`(0, 0, ∓1)`), and stay points.
 
-The unit ball revolved on a sketch plane turned about a generic axis
-and moved (three such planes, `turned_plane` in
-`crates/sweep/tests/self_intersection_proves_injectivity.rs`), f64:
-- on main `dc7059c445` with PR 7115's reading of the poles, all three
-  held, at 254, 295 and 291 splits;
-- on main `94b6b284e`, after the carrier-frames merge (`ec8749552`
-  among its commits), all three refuse
-  `Uncertified { 1v1, 2v1, Edge(1v1), Departure }`, at
-  642 / 12 / 651, 589 / 8 / 594 and 611 / 10 / 618
-  (discharged / refused / splits), the same at ε 1e-6 and 1e-12. The
-  plain-frame ball holds on both, at 227 splits.
+So the cause is the polar read meeting `one_plane`'s point comparison. It
+is not a defect on ONEHOME's side: the polar factor of a frame that is not
+exactly rigid is not an `f64`, and a point would not enclose it.
 
-**The exit** (traced on the first plane): the poles are placed and
-both half-bands are presented by the corner of a meridian and the
-pole's side. `departure` reaches its last `split` with
-`planes_through` returning two planes, each listing one meridian
-(`on_edges = 1`), where the plain frame gets one plane listing both;
-each plane signs one half-band and reads no sign on the other. That is
-this row's `one_plane` reading failing on two stored frames that are no
-longer one value. Which accessor or constructor of the new frames
-breaks the value identity is not traced.
+**What landed** (`embed/one-plane`):
+- `planes_through` lists two conics in one plane where `coplanar` reads
+  it: their lifts as one value (`one_plane`, unchanged), or, on a
+  point-scalar body, their stored frames (`Rim::stated`, PR 7131's) one
+  origin and each axis `u`, `v`, `w` the other's or its negation
+  (`one_stated_plane`). The polar factor of `M·D`, `D` a diagonal of
+  signs, is `M`'s times `D`, so the two lifts enclose one origin and one
+  axis line exactly.
+- `one_stated_conic` reads the same comparison. It compared `w` alone,
+  which the polar read leaves short: the polar factor's axis leans on
+  `u` and `v` wherever the stored axes are not exactly rigid, so two
+  circles stored with one `w` and two `u` are two circles a rounding
+  apart. `one_conic` now takes the stored reading as one more way to be
+  one conic, beside the lifts' own (it returned the stored answer
+  alone).
 
-**Not PR 7115's:** `shell8_r2_probes::r2_three_solids_on_one_sphere_chart_open_additively`,
-asked through the f64 cavity switch, refuses
-`Uncertified { 1v1, 5v1, Edge(1v1), Departure }` at
-5,896 / 12 / 5,859 on main `94b6b284e` with main's own `injective.rs`,
-and shelled on `dc7059c445`. Its exit is not traced; it is a sphere
-pair at the same arm.
+**Measured** (receipts are discharged / refused / splits):
+- The three turned balls, f64, at the default ε, 1e-6 and 1e-12, with
+  PR 7115: 257 / 0 / 254, 295 / 0 / 292, 293 / 0 / 290, against
+  642 / 12 / 651, 589 / 8 / 594, 611 / 10 / 618 refusing `Departure`.
+  On main without PR 7115 (this lane's body row): the first plane is
+  embedded at 257 / 0 / 254, and the third plane's turn placed a hundred
+  units off the origin at 291 / 0 / 288; the second plane runs out of
+  pairs (`Budget(Pairs)`, 46,158 / 19,378 / 65,533), and holds with
+  PR 7115's reading of the pole (above), so it is not pinned here.
+- Their `Interval` twins, the frames minted at `Interval` (no stored
+  frame), refuse `Departure` on `Edge(1v1)` on every plane (about 780 to
+  820 splits). The plain-frame `Interval` ball holds (250 / 0 / 247).
+- The snowman at `Interval` is unchanged: it holds no stored frame, so
+  this reading does not reach it.
 
-Pinned as a refusal by
-`a_ball_in_a_turned_frame_refuses_departure_at_its_pole`.
-
+**What is left on this row** is the `Interval` half, and it is wider than
+the snowman: every ball built at `Interval` in a turned frame. No stored
+fact reaches the engine there. Weighed:
+- the sphere chart's seam: a plane from the face's own frame vanishes on
+  that face's `u = 0` and `u = π` for every member, but the two half-bands
+  store two sphere frames, so the same "two brackets alike" moves to the
+  faces;
+- `carrier_eq`: decides at the band, a concession this reader does not
+  have;
+- `RigidMotion`: a value, with no record of being minted from another.
+So the `Interval` half still needs the identity carried (one `Sym` node
+through `boundary_of`) or the one-band build (LATHE's row). Should the
+one-band build land, a ball has one meridian, `planes_through` sees one
+conic at the pole, and `coplanar` has nothing to compare.
