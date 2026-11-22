@@ -1527,7 +1527,12 @@ fn a_focal_section_whose_beta_is_not_below_one_ends_as_its_defect() {
 /// true-anomaly map's `atan2` argument keeps `1 − |β|` from the origin,
 /// so the structure check reads that room's sign alone. A cone's section
 /// stated with `|β|` at `1 − 2⁻⁴⁰`, a room far under the band at any
-/// arm, passes it; at `1` it does not.
+/// arm, passes it; at `1` it does not. No section in the box has such a
+/// `β` (it needs an eccentricity within about `2·10⁻¹⁶` of one), so a
+/// stated one is the image's defect, and the map, evaluated cut-free,
+/// names it: at every door the image misses its carrier
+/// ([`CertifyError::StatedImageMissed`]) and ends as the kernel
+/// defect.
 #[test]
 fn a_focal_section_below_one_by_any_room_passes_its_beta_check() {
     let mut g = fuzz::start("focal_beta_any_room");
@@ -1558,6 +1563,29 @@ fn a_focal_section_below_one_by_any_room_passes_its_beta_check() {
             fuzz::replay()
         );
         assert!(beta_refused(1.0), "no room is refused ({})", fuzz::replay());
+        let image = Pcurve::FocalSection(FocalImage {
+            beta: (1.0 - 2f64.powi(-40)) * f.beta.signum(),
+            ..f
+        });
+        for door in DOORS {
+            let got = (door.certify)(&cone, &image, &ellipse, span);
+            assert!(
+                matches!(got, Err(CertifyError::StatedImageMissed { .. })),
+                "{}: the cut-free map misses its carrier ({}): {got:?}",
+                door.name,
+                fuzz::replay()
+            );
+            assert_eq!(
+                got.as_ref()
+                    .err()
+                    .and_then(|e| e.ending(ReadAt::Run(Reading::Build)))
+                    .as_deref(),
+                Some(KERNEL_DEFECT_ENDING),
+                "{}: a stated β in the band is the kernel's defect ({})",
+                door.name,
+                fuzz::replay()
+            );
+        }
         seen += 1;
         if seen == 3 {
             break;
