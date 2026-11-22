@@ -1452,3 +1452,33 @@ fn a_defined_variable_reading_an_index_reads_per_member() {
         ]
     );
 }
+
+/// **No count names a unit, so every count field steps by one.**
+/// `FieldWriting::of` no longer special-cases a `Count`: its tick is
+/// the count tick through `shown_in(unit, ..)`, which is one only while
+/// `unit` is `None`. That holds because nothing a count row reads a
+/// unit from can carry one — the literal door (which the loader and
+/// the Python bindings both reach) refuses a count in every table row,
+/// a count's lone number remembers none, and a lone ratio is a scalar.
+/// Red if any of those doors comes to let a count name a unit.
+#[cfg(feature = "app")]
+#[test]
+fn no_count_names_a_unit_so_every_count_field_steps_by_one() {
+    use pncad::document::{Dimension, Formula};
+    use viewer::app::FieldWriting;
+    for row in pncad::quantity::UNITS {
+        assert!(
+            Formula::literal_with_unit(1.0, Dimension::Count, row).is_err(),
+            "a count is refused written in {:?}",
+            row.symbol()
+        );
+        assert_eq!(
+            FieldWriting::of(Dimension::Count, None, Notation::DEFAULT.with(row)).tick,
+            1.0,
+            "a count steps by one in every notation"
+        );
+    }
+    let count = Formula::count(3);
+    assert_eq!(count.dim(), Dimension::Count);
+    assert_eq!(count.display_unit(), None, "a lone count names no unit");
+}
