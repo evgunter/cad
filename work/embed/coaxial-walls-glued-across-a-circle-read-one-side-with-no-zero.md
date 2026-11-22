@@ -132,9 +132,14 @@ logging and passing):
   `u ∈ (0.2945, 0.3007)`, exits at `sides_are_the_faces`: the second
   defect, as the diagnostic flip predicted. The three corpus rows
   measured with it keep their bushing ask refused.
-- **Not measured:** the bushing with `embed/collinear-cover`'s joint
-  reading merged in. Whether (a) and (b) together certify it is still
-  unchecked.
+- **With `embed/collinear-cover` (`f10a4f1d1`) merged**, the same test:
+  10 asks, none refused, both over this lane's reading and **without
+  it** (collinear-cover alone over the harness). So the cover (b) is
+  what blocks the bushing, and (a) does not: with the cover read, a
+  cell that holds both arcs presents, and a `Zero::None` pair beside
+  the joint is split once and its halves read. The missing zero was a
+  symptom at the depth floor, where the cells that could not present
+  had spent the budget. What (a) changes alone is the count of splits.
 
 **Pinned** by `injective::presentation_rows::two_walls_glued_across_a_circle_of_two_arcs_certify_beside_its_joint`
 (the pair of cells above, at the door `certify_pair`) and, for the
