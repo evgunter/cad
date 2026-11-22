@@ -511,7 +511,7 @@ impl Ledger {
     /// are the only ops that may move it and a ledger that stopped
     /// saying so would stop noticing.
     ///
-    /// Derived h is NOT required to be non-negative: `mfkrh` applied to
+    /// The body's derived h is NOT required to be non-negative: `mfkrh` applied to
     /// a ring that never plugged a handle (a kemr-planted floating ring)
     /// legitimately drives it negative — the promotion disconnects the
     /// shell's surface into two components while keeping one shell
@@ -521,13 +521,10 @@ impl Ledger {
     /// `movefac` pays back: distributing the components into real
     /// shells raises `s`, and eq. 9.2 raises the derived `h` with it
     /// ([`OpChoice::Movefac`]'s vector is `h +1, s +1` for that
-    /// reason). The
-    /// component-aware per-shell form (per component
-    /// v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per shell the sum is
-    /// 2(c − Σgᵢ)) was ratified at M1 PR 5, corrected by PR 4, and
-    /// is implemented as the validator's pass 11
-    /// (`crate::validate`); this ledger keeps the per-body eq. 9.2 view
-    /// because the generator tracks the operator algebra, not surfaces.
+    /// reason). The ledger keeps that per-body view, the operator
+    /// algebra's; the per-component form (each component's census with
+    /// `s = 1` even, its `h()` ≥ 0) is a theorem of tier 1, checked last
+    /// ([`crate::euler_theorem`]).
     pub(crate) fn check(&self, body: &Body<f64>) -> Result<(), String> {
         let counts = euler_counts(body);
         let EulerCounts { v, e, f, r, s } = counts;

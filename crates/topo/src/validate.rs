@@ -126,20 +126,18 @@
 //!     shells, so a violation is operator-unreachable — a tier-1
 //!     invariant (the gap named by the PR 1 review: the ownership tree
 //!     alone never compares an edge's two shells).
-//! 11. **Component-aware per-shell Euler–Poincaré** (the PR 4
-//!     correction — the naive per-body form is wrong for tier-1 bodies,
-//!     where `mfkrh` on a detached ring disconnects a shell's surface
-//!     while one shell entity remains). Per shell, the incidence complex
-//!     is partitioned into connected components: faces glue all their
-//!     loops (outer and rings); a cycle loop glues its edges' two sides
-//!     via mate; an empty loop glues its lone vertex; a dartless
-//!     empty-outer face is its own component with its vertex. Each
-//!     component is a closed oriented surface piece and must satisfy
-//!     `v − e + f − r = 2(1 − g)` with genus `g` a non-negative integer
-//!     — parity and the `g ≥ 0` bound are checked per component
-//!     ([`ValidationError::ComponentEulerViolation`], which carries the
-//!     counts). The per-shell sum identity `v − e + f − r = 2(c − Σgᵢ)`
-//!     follows; tier 2 additionally requires c = 1 per shell.
+//! 11. **Per-shell component count** — it reports nothing of its own.
+//!     Per shell, the incidence complex is partitioned into connected
+//!     components: a face glues all its loops (outer and rings), and a
+//!     cycle loop glues across each edge via mate. Tier 2 reads the
+//!     count (c = 1 per shell). Checks 1–7 and 10 make every component
+//!     a closed, connected, orientable surface, so the component-aware
+//!     Euler–Poincaré identity `v − e + f − r = 2(1 − g)` with `g ≥ 0`
+//!     holds per component as a theorem of the checklist, and no check
+//!     repeats it (`[topology.tiers]`). The validator keeps this walk
+//!     of its own on purpose — a shipped re-derivation (D2) of the
+//!     partition `movefac` and the operators compute — rather than
+//!     reading theirs.
 //! 12. **Bidirectional D5 provenance.** Every live entity in all seven
 //!     topology arenas has a provenance record
 //!     ([`ValidationError::MissingProvenance`]), and every provenance
@@ -331,15 +329,12 @@
 //! comparison (pass 10) derives each half's shell through the
 //! *ownership partition* — never the stored back-pointers, whose
 //! defects are pass 7's report — and needs both ownership steps
-//! unambiguous. Pass 11 (component Euler–Poincaré) interprets the
-//! *counts* of a structurally coherent complex, so it has one coarse
-//! gate: it runs only when passes 1–7 reported nothing — any earlier
-//! structural defect voids the counting and already carries its own
-//! report (passes 8–10 do not gate it: orphan geometry and arity floors
-//! cannot corrupt the counts, and a cross-shell edge is exactly what the
-//! per-shell count must still be computed *through* — the moved-face
-//! scenario is reported by pass 10 AND pass 11). Tier 2's connectivity
-//! check shares pass 11's gate and its component enumeration. Its other
+//! unambiguous. Pass 11 (the component count) reads a coherent
+//! complex, so it has one coarse gate: it runs only when passes 1–7
+//! and 10 reported nothing — any of those defects voids the partition
+//! and already carries its own report (passes 8 and 9 do not gate it:
+//! orphan geometry and arity floors cannot move it). Tier 2's
+//! connectivity check reads pass 11's count, so it shares that gate. Its other
 //! two scans are ungated — the empty-loop scan reads single loops, but
 //! the strut scan is an AGGREGATE (it counts resolving `start`
 //! references over the half-edge arena), so on a corrupt in-crate body
@@ -373,9 +368,8 @@
 //! 8. orphan geometry, sweeping points → curves → surfaces;
 //! 9. arity floors, sweeping solids then shells;
 //! 10. edge-adjacency shell coherence, sweeping edges;
-//! 11. component Euler–Poincaré: shells in arena order; within a shell,
-//!     components in seed order, where a component's seed is its first
-//!     face in **face-arena order** (no hashing anywhere — D9);
+//! 11. the component count, which reports nothing (tier 2 reads it in
+//!     shell-arena order);
 //! 12. provenance: missing records (entities in arena order, kinds in
 //!     the pass-1 order solids → … → vertices), then leaked records
 //!     (`SecondaryMap` entries in slot order, same kind order).
@@ -2768,26 +2762,6 @@ pub enum ValidationError {
         shell_plus: ShellKey,
         /// The shell of the minus half's face (≠ `shell_plus`).
         shell_minus: ShellKey,
-    },
-    /// A connected component of a shell's incidence complex that fails
-    /// the Euler–Poincaré identity `v − e + f − r = 2(1 − g)` for every
-    /// non-negative integer genus `g` — i.e. its `v − e + f − r` is odd
-    /// or exceeds 2 (module docs, check 11). Carries the component's
-    /// counts so the report is self-contained.
-    ComponentEulerViolation {
-        /// The shell whose complex contains the component.
-        shell: ShellKey,
-        /// The component's seed: its first face in face-arena order
-        /// (the deterministic component identity — module docs).
-        seed: FaceKey,
-        /// Vertices in the component.
-        vertices: usize,
-        /// Edges in the component.
-        edges: usize,
-        /// Faces in the component.
-        faces: usize,
-        /// Rings (interior loops) across the component's faces.
-        rings: usize,
     },
     /// A live topology entity with no D5 provenance record — every
     /// entity records its birth, so a missing record means the
@@ -5487,21 +5461,6 @@ impl ValidationError {
                 "edge {edge:?}'s two halves lie in different shells ({shell_plus:?} and \
                  {shell_minus:?})"
             ),
-            Self::ComponentEulerViolation {
-                shell,
-                seed,
-                vertices,
-                edges,
-                faces,
-                rings,
-            } => {
-                let chi = *vertices as i64 - *edges as i64 + *faces as i64 - *rings as i64;
-                write!(
-                    f,
-                    "shell {shell:?}'s component at face {seed:?} fails Euler–Poincaré \
-                     (v − e + f − r = {chi}, not 2 − 2g for any genus g)"
-                )
-            }
             Self::MissingProvenance { entity } => {
                 write!(f, "{entity} has no provenance record")
             }
@@ -5929,35 +5888,9 @@ pub(crate) fn wrap_tips<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, Half
     tips
 }
 
-/// The counts of one connected component of a shell's incidence complex
-/// (pass 11 — see the module docs for the glue rules).
-struct ComponentCounts {
-    vertices: usize,
-    edges: usize,
-    faces: usize,
-    rings: usize,
-}
-
-impl ComponentCounts {
-    /// Whether `v − e + f − r = 2(1 − g)` holds for some integer
-    /// `g ≥ 0`: the characteristic must be even and at most 2.
-    ///
-    /// The `chi > 2` (negative-genus) arm is believed
-    /// defensive-unreachable: the PR 5 review could not construct it
-    /// even with gate-passing corruption — passes 3/4/6 force each
-    /// component to be a closed oriented surface (χ ≤ 2 automatic
-    /// within a coherent shell), and per-shell *cutting* (the
-    /// moved-face family) only ever produced odd χ. Kept as defense in
-    /// depth; untested until someone falsifies that derivation.
-    fn satisfies_euler_poincare(&self) -> bool {
-        let chi = self.vertices as i64 - self.edges as i64 + self.faces as i64 - self.rings as i64;
-        chi % 2 == 0 && chi <= 2
-    }
-}
-
 /// Tier 1's full result: the error vector plus the per-shell component
 /// counts when the component pass ran (`None` when its gate — passes
-/// 1–7 clean — did not hold). Tier 2 reuses the counts for its c = 1
+/// 1–7 and 10 clean — did not hold). Tier 2 reuses the counts for its c = 1
 /// check instead of re-enumerating.
 struct Tier1Report {
     errors: Vec<ValidationError>,
@@ -5996,8 +5929,8 @@ pub fn validate<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
 /// Tier-2 failures are appended after all tier-1 errors, in the
 /// documented order: empty loops (loop-arena order), valence-1 vertices
 /// (vertex-arena order), disconnected shells (shell-arena order). The
-/// connectivity check shares pass 11's gate (structural soundness of
-/// passes 1–7) and its component enumeration; a face-less shell is
+/// connectivity check reads pass 11's component count, and so shares
+/// its gate (passes 1–7 and 10 clean); a face-less shell is
 /// reported by the tier-1 arity floor alone (c = 0 is not double-
 /// reported here). The empty body validates vacuously.
 ///
@@ -11542,9 +11475,9 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         }
     }
 
-    // Pass 11's coarse gate, captured HERE — after the structural passes
-    // 1–7, before the passes that cannot corrupt the counts (module
-    // docs, cascade discipline).
+    // Pass 11's gate, part one, captured HERE — after the structural
+    // passes 1–7, before the passes that cannot move the partition
+    // (module docs, cascade discipline). Part two is pass 10.
     let structurally_sound = errors.is_empty();
 
     // ------------------------------------------------------------------
@@ -11605,6 +11538,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         };
         Some(shell)
     };
+    let before_pass_10 = errors.len();
     for (edge_key, edge) in body.edges.iter() {
         let (Some(shell_plus), Some(shell_minus)) =
             (shell_of(edge.he_plus), shell_of(edge.he_minus))
@@ -11621,12 +11555,12 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     }
 
     // ------------------------------------------------------------------
-    // Pass 11: component-aware per-shell Euler–Poincaré (module docs,
-    // check 11), gated on passes 1–7 having reported nothing. Shells in
-    // arena order; a shell's component seeds in face-arena order.
+    // Pass 11: the per-shell component count (module docs, check 11),
+    // gated on passes 1–7 and 10 having reported nothing. Reports
+    // nothing; tier 2 reads it.
     // ------------------------------------------------------------------
     let mut shell_components = None;
-    if structurally_sound {
+    if structurally_sound && errors.len() == before_pass_10 {
         // Per-shell face lists in face-arena order. Membership comes
         // from the `face.shell` back-pointer, which the gate guarantees
         // matches the ownership lists.
@@ -11648,21 +11582,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
                     continue;
                 }
                 components += 1;
-                // The walk is total but cannot fail under the gate; a
-                // `None` would mean a resolution failure passes 1–7
-                // somehow missed, and silence is then the safe echo rule.
-                if let Some(counts) = shell_component(body, shell_key, seed, &mut visited)
-                    && !counts.satisfies_euler_poincare()
-                {
-                    errors.push(ValidationError::ComponentEulerViolation {
-                        shell: shell_key,
-                        seed,
-                        vertices: counts.vertices,
-                        edges: counts.edges,
-                        faces: counts.faces,
-                        rings: counts.rings,
-                    });
-                }
+                shell_component(body, shell_key, seed, &mut visited);
             }
             per_shell.push((shell_key, components));
         }
@@ -11835,83 +11755,51 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     }
 }
 
-/// Collects one connected component of `shell`'s incidence complex by a
-/// bounded traversal from `seed`, marking every face it reaches in
-/// `visited` and returning the component's counts.
-///
-/// Glue rules (the ratified pass-11 partition — module docs): a face
-/// glues all its loops, outer and rings; a cycle loop contributes its
-/// half-edges' start vertices and edges, and glues across each edge via
-/// **mate** to the mate's face (followed only when that face is in the
-/// same shell — the per-shell filter is the point of the pass); an
-/// empty loop glues its lone vertex; a dartless empty-outer face is
-/// therefore its own component with its vertex. Traversal order does
-/// not affect the counts (they are set sizes); component *identity* is
-/// fixed by seed order (D9).
+/// Marks in `visited` every face of `shell`'s connected component that
+/// holds `seed`, by a bounded traversal: a face glues all its loops,
+/// outer and rings, and a cycle loop glues across each edge via **mate**
+/// to the mate's face. Component *identity* is fixed by seed order (D9).
 ///
 /// Total, never panicking (D9): every lookup is checked and the cycle
-/// walks are bounded. `None` is returned on any resolution failure —
-/// unreachable when the pass-11 gate held, and silent by the cascade
-/// rule (the cause was reported by passes 1–7).
+/// walks are bounded. A lookup that does not resolve ends that branch
+/// of the walk — unreachable under the pass-11 gate, and silent by the
+/// cascade rule (passes 1–7 reported its cause).
 fn shell_component<T: Real>(
     body: &Body<T>,
     shell: ShellKey,
     seed: FaceKey,
     visited: &mut SecondaryMap<FaceKey, ()>,
-) -> Option<ComponentCounts> {
-    let mut component_vertices: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
-    let mut component_edges: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
-    let mut faces = 0_usize;
-    let mut rings = 0_usize;
+) {
     let mut pending = vec![seed];
     visited.insert(seed, ());
     while let Some(face_key) = pending.pop() {
-        let face = body.faces.get(face_key)?;
-        faces += 1;
-        rings += face.rings.len();
+        let Some(face) = body.faces.get(face_key) else {
+            continue;
+        };
         for loop_key in face.loop_keys() {
-            let loop_ = body.loops.get(loop_key)?;
-            match loop_.boundary {
-                LoopBoundary::Empty { vertex } => {
-                    if !body.vertices.contains_key(vertex) {
-                        return None;
-                    }
-                    component_vertices.insert(vertex, ());
-                }
-                LoopBoundary::Cycle { first } => {
-                    let Walk::Closed(members) = body.loop_walk(first) else {
-                        return None;
-                    };
-                    for member in members {
-                        let he = body.half_edges.get(member)?;
-                        if !body.vertices.contains_key(he.start) {
-                            return None;
-                        }
-                        component_vertices.insert(he.start, ());
-                        if !body.edges.contains_key(he.edge) {
-                            return None;
-                        }
-                        component_edges.insert(he.edge, ());
-                        // Glue across the edge via mate.
-                        let mate = body.mate(member)?;
-                        let mate_face = body.face_of_half_edge(mate)?;
-                        if body.get_face(mate_face)?.shell == shell
-                            && !visited.contains_key(mate_face)
-                        {
-                            visited.insert(mate_face, ());
-                            pending.push(mate_face);
-                        }
-                    }
+            let Some(&LoopBoundary::Cycle { first }) =
+                body.loops.get(loop_key).map(|l| &l.boundary)
+            else {
+                continue;
+            };
+            let Walk::Closed(members) = body.loop_walk(first) else {
+                continue;
+            };
+            for member in members {
+                let Some(mate_face) = body
+                    .mate(member)
+                    .and_then(|mate| body.face_of_half_edge(mate))
+                else {
+                    continue;
+                };
+                if body.get_face(mate_face).is_some_and(|f| f.shell == shell)
+                    && visited.insert(mate_face, ()).is_none()
+                {
+                    pending.push(mate_face);
                 }
             }
         }
     }
-    Some(ComponentCounts {
-        vertices: component_vertices.len(),
-        edges: component_edges.len(),
-        faces,
-        rings,
-    })
 }
 
 #[cfg(test)]
@@ -13984,20 +13872,16 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Passes 10 + 11: edge-adjacency shell coherence and the
-    // component-aware per-shell Euler–Poincaré count.
+    // Pass 10: edge-adjacency shell coherence.
     // ------------------------------------------------------------------
 
     #[test]
-    fn face_moved_to_second_shell_is_caught_twice() {
+    fn face_moved_to_second_shell_is_caught() {
         // The PR 1 review's named gap at pillow scale: move face B to a
         // fresh solid+shell with membership and back-pointers fully
         // self-consistent. Passes 1–7 accept it (they never compare an
-        // edge's two shells); pass 10 reports both shared edges, and
-        // pass 11 fails BOTH shells' components — a lone face cut from
-        // its mates has v − e + f − r = 2 − 2 + 1 − 0 = 1, odd.
-        // Documented order: pass 10 (edge arena order), then pass 11
-        // (shell arena order).
+        // edge's two shells); pass 10 reports both shared edges, in edge
+        // arena order, and nothing else does.
         let mut t = pillow(Tol::witness());
         let solid2 = t.body.add_solid(Solid { shells: vec![] }, prov());
         let shell2 = t.body.add_shell(
@@ -14023,22 +13907,6 @@ mod tests {
                     shell_plus: t.shell,
                     shell_minus: shell2,
                 },
-                ValidationError::ComponentEulerViolation {
-                    shell: t.shell,
-                    seed: t.face_a,
-                    vertices: 2,
-                    edges: 2,
-                    faces: 1,
-                    rings: 0,
-                },
-                ValidationError::ComponentEulerViolation {
-                    shell: shell2,
-                    seed: t.face_b,
-                    vertices: 2,
-                    edges: 2,
-                    faces: 1,
-                    rings: 0,
-                },
             ])
         );
     }
@@ -14047,11 +13915,8 @@ mod tests {
     fn cube_face_moved_to_second_shell_is_caught() {
         // The scenario exactly as the PR 1 review posed it: an
         // operator-built cube with one side face moved to a second
-        // solid+shell. Four cross-shell edges (pass 10) plus two
-        // component violations (pass 11): the 5-face side keeps all 8
-        // vertices and all 12 edges (each moved edge still has its
-        // other face here), χ = 8 − 12 + 5 = 1; the lone face has
-        // χ = 4 − 4 + 1 = 1.
+        // solid+shell: four cross-shell edges (pass 10), and nothing
+        // else.
         let t = declined_cube::<f64>(Tol::witness());
         let mut body = t.body;
         let front = t.mefs[1].face;
@@ -14077,25 +13942,7 @@ mod tests {
             .filter(|e| matches!(e, ValidationError::EdgeAcrossShells { .. }))
             .count();
         assert_eq!(crossings, 4, "the moved face's four edges cross shells");
-        let violations: Vec<_> = errors
-            .iter()
-            .filter_map(|e| match e {
-                ValidationError::ComponentEulerViolation {
-                    shell,
-                    vertices,
-                    edges,
-                    faces,
-                    rings,
-                    ..
-                } => Some((*shell, *vertices, *edges, *faces, *rings)),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(
-            violations,
-            vec![(old_shell, 8, 12, 5, 0), (shell2, 4, 4, 1, 0)]
-        );
-        assert_eq!(errors.len(), 6, "nothing else fires");
+        assert_eq!(errors.len(), 4, "nothing else fires");
     }
 
     // ------------------------------------------------------------------
@@ -14133,7 +13980,7 @@ mod tests {
 
     #[test]
     fn cross_pass_report_order_is_the_documented_one() {
-        // One body with independent defects in passes 9, 10, 11, and 12:
+        // One body with independent defects in passes 9, 10 and 12:
         // the report arrives in exactly pass order. (The per-pass tests
         // above pin intra-pass order; this pins the pass sequence.)
         let mut t = pillow(Tol::witness());
@@ -14148,7 +13995,7 @@ mod tests {
         );
         t.body.get_solid_mut(solid2).unwrap().shells.push(shell2);
         t.body.get_shell_mut(t.shell).unwrap().faces = vec![t.face_a];
-        t.body.get_face_mut(t.face_b).unwrap().shell = shell2; // passes 10+11
+        t.body.get_face_mut(t.face_b).unwrap().shell = shell2; // pass 10
         let dead = t.body.add_solid(Solid { shells: vec![] }, prov());
         t.body.solids.remove(dead); // pass 12
         assert_eq!(
@@ -14164,22 +14011,6 @@ mod tests {
                     edge: t.edges[1],
                     shell_plus: t.shell,
                     shell_minus: shell2,
-                },
-                ValidationError::ComponentEulerViolation {
-                    shell: t.shell,
-                    seed: t.face_a,
-                    vertices: 2,
-                    edges: 2,
-                    faces: 1,
-                    rings: 0,
-                },
-                ValidationError::ComponentEulerViolation {
-                    shell: shell2,
-                    seed: t.face_b,
-                    vertices: 2,
-                    edges: 2,
-                    faces: 1,
-                    rings: 0,
                 },
                 ValidationError::LeakedProvenance {
                     entity: EntityId::Solid(dead),

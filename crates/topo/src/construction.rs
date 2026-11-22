@@ -1773,8 +1773,7 @@ pub trait Construct<T: geom_core::Real> {
     /// Tier-1 preservation: components move **whole**, so every edge's
     /// two faces stay in one shell (pass 10) and each new shell's
     /// complex is exactly one component with its old per-component
-    /// Euler–Poincaré count (pass 11) — the partition is re-labeled,
-    /// never re-cut.
+    /// Euler–Poincaré count — the partition is re-labeled, never re-cut.
     ///
     /// # Errors
     ///

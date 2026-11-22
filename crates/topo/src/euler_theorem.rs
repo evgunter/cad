@@ -147,7 +147,8 @@ mod tests {
             .iter()
             .filter(|e| matches!(e, ValidationError::EdgeAcrossShells { .. }))
             .count();
-        assert_eq!(crossings, 4, "the planted body breaks check 10: {errors:?}");
+        assert_eq!(crossings, 4, "the planted body breaks check 10");
+        assert_eq!(errors.len(), 4, "and only check 10: {errors:?}");
         let chis: Vec<i64> = component_censuses(&body)
             .iter()
             .map(|(_, _, n)| n.v - n.e + n.f - n.r)

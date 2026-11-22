@@ -23,8 +23,8 @@
 //! re-makeable when the survivor is a bare outer — the fix pass encoded
 //! the corrected taxonomy), exhaustive single-op-search proofs for the
 //! two genuinely irreversible kill subcases, the shell-component
-//! Euler–Poincaré formula that PR 5's validator now implements as
-//! pass 11 (this file's derivation was its spec seed), oracle
+//! Euler–Poincaré formula (a theorem of the validator's checks 1–7 and
+//! 10, pinned by `crate::euler_theorem`), oracle
 //! automorphism/degeneracy attacks, a genus-2 teardown, and
 //! release-mode torn-body batteries.
 //!
