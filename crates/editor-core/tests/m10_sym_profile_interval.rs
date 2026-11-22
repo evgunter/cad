@@ -323,22 +323,24 @@ fn eps_row(eps: f64) -> usize {
 /// the same calls (at every ε row `Plain/Decision` 8308 → 7727,
 /// `Plain/Assertion` 2572 → 2554, `Early/Assertion` 3001 → 2878), with
 /// their digests; `Early/Decision` does not move.
+///
+/// **Moved when a definite numeric sign stopped asking the tier
+/// anything**: the two `Assertion` lines go (the check that walked every
+/// definite margin's forms is a test instrument), and the decision's own
+/// walks build the forms of the nodes they share with those margins,
+/// which the check had built first: `Plain/Decision` 7727 → 7924 forms
+/// and `Early/Decision` 38 → 94 over the same calls, with their digests,
+/// at every ε row.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 7dd354c68900f9bd2642e7867aa7117d\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest d06777ecab62fd486c6cf3d10ffa4292\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest e261649c69c74804b353deb36837b75e",
+     Plain/Decision calls 936 forms 7924 frozen 0 digest a107014cdebb696cbf0b7ccb2044bfe7\n\
+     Early/Decision calls 16 forms 94 frozen 0 digest b2c49aa35aab28b8d18c97bd0473fd1f",
     "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 25ebd6ec55ec27aac257c5ae03962bd8\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest fed7a07a0b2a1819fbca55e6034725c4\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest 3852450066b87648d9a47dabcbf4b3c6",
+     Plain/Decision calls 936 forms 7924 frozen 0 digest 985ae15ddffb6bdd438bf9777a2c4103\n\
+     Early/Decision calls 16 forms 94 frozen 0 digest b2c49aa35aab28b8d18c97bd0473fd1f",
     "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 0e443c7d8ad35608774883e83ff66472\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest 38013c4c51f3bafaf35bcb087fe3f8f2\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest 82f29cc0f25c0a1ecead88a1ad9741a0",
+     Plain/Decision calls 936 forms 7924 frozen 0 digest 9eafbbc791b49a94c95cbb4bff5363a8\n\
+     Early/Decision calls 16 forms 94 frozen 0 digest b2c49aa35aab28b8d18c97bd0473fd1f",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -591,12 +593,18 @@ const PLATE_MAX_TERMS: usize = 38;
 /// decisions hold: under `SymRules::without_canonical_root` every recorded
 /// decision answers as on main (`sym11_exact_channel_rows`'
 /// `PAST_THE_CEILING`).
+///
+/// **Then moved when a definite numeric sign stopped asking the tier
+/// anything**: the two `Assertion` lines go, and so does `Door/Decision`,
+/// which was the registry's check of the same definite margins
+/// (`door_zero`, charged to the decision because it ran before the
+/// check set its origin); the decision's own walks build the forms of
+/// the nodes they share with those margins, which the check had built
+/// first: `Plain/Decision` 33086 → 34792 forms and `Early/Decision`
+/// 22928 → 24376 over the same calls, frozen unmoved, with their digests.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 33086 frozen 36 digest 407898919d7b27c5149424e9ae1e1603\n\
-     Plain/Assertion calls 1047 forms 12222 frozen 0 digest 19890dfe5402031cb310bd9f2a6ac16d\n\
-     Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
-     Early/Assertion calls 1047 forms 12672 frozen 0 digest 37c36445974ccfe414ca9058f7d94032\n\
-     Door/Decision calls 550 forms 12358 frozen 0 digest 78cd10530faa7f908c9d6f8c7eef962a";
+     Plain/Decision calls 979 forms 34792 frozen 36 digest a134bbb8fa2f7ee0a663446807bcd027\n\
+     Early/Decision calls 308 forms 24376 frozen 0 digest 2a05938d108107e7807fdf7599ab66f3";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

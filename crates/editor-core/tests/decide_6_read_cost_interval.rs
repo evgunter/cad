@@ -196,8 +196,10 @@ fn decide_6_where_the_reads_cost_is() {
 
 /// **The profile decides nothing.** The plate at its nominal, split per
 /// predicate under the shipped set with the profile installed and
-/// without it: the same split, and the instrument ran (it saw the
-/// plate's `min`/`max` reads, every one of which settles).
+/// without it: the same split, and the instrument ran (it saw a read of
+/// the plate's: one `atan` the decision path asks about, which declines;
+/// the reads that settle are of definite margins, which ask the tier
+/// nothing).
 #[test]
 fn decide_6_the_profile_decides_nothing() {
     let tol = Tol::witness();
@@ -208,7 +210,7 @@ fn decide_6_the_profile_decides_nothing() {
     let read = geom_core::sym::profile::take_profile().read;
     assert_eq!(profiled, bare, "the profiled split is the unprofiled one");
     assert!(
-        read.order > 0 && read.settled > 0,
+        read.order > 0,
         "the instrument saw the plate's reads: {}",
         read.render()
     );

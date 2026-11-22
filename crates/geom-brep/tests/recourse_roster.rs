@@ -329,6 +329,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ("dihedral_side.rs: chart_point_normal: name", FORWARDS),
     ("dihedral_side.rs: near_as: name", FORWARDS),
     (
+        "edge_nurbs.rs: a_floor_clear_of_zero_under_a_discharging_identity_passes_limb_two: geom::SurfaceKind::Plane",
+        CARRIER_CALL,
+    ),
+    (
         "edge_nurbs.rs: a_refused_offset_bound_stalls_limb_two: Interval::from_bounds(0.0, 0.0)",
         NOT_A_NAME,
     ),
