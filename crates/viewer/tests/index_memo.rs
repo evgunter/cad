@@ -42,6 +42,9 @@ use crate::common::corpus_pick::{
 use crate::corpus;
 use editor_core::test_support::{AXES, aimed, listed};
 
+const TEST_RAY: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("viewer_test_ray", "the triangles a test ray may hit");
+
 fn fnv(h: &mut u64, x: u64) {
     for b in x.to_le_bytes() {
         *h ^= u64::from(b);
@@ -987,17 +990,20 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
         .iter()
         .flat_map(|flat| {
             let ray = flat.local(&ray);
-            flat.tree.ray(&ray).into_iter().filter_map(move |cand| {
-                let tri = &flat.corners[cand.item];
-                if !same(&tri[0], &corner) {
-                    return None;
-                }
-                let det = crossing(&ray, tri)?.det;
-                let e1: Vec3<f64> = tri[1] - tri[0];
-                let e2: Vec3<f64> = tri[2] - tri[0];
-                let q = (ray.origin - tri[0]).cross(e1);
-                Some(e2.dot(q) / det)
-            })
+            flat.tree
+                .ray(TEST_RAY, &ray)
+                .into_iter()
+                .filter_map(move |cand| {
+                    let tri = &flat.corners[cand.item];
+                    if !same(&tri[0], &corner) {
+                        return None;
+                    }
+                    let det = crossing(&ray, tri)?.det;
+                    let e1: Vec3<f64> = tri[1] - tri[0];
+                    let e2: Vec3<f64> = tri[2] - tri[0];
+                    let q = (ray.origin - tri[0]).cross(e1);
+                    Some(e2.dot(q) / det)
+                })
         })
         .collect();
     assert!(
@@ -1140,10 +1146,13 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex_row() 
         .iter()
         .flat_map(|flat| {
             let ray = flat.local(&ray);
-            flat.tree.ray(&ray).into_iter().filter_map(move |cand| {
-                let tri = flat.corners[cand.item];
-                ray_triangle(&ray, &tri).map(|span| (tri, span))
-            })
+            flat.tree
+                .ray(TEST_RAY, &ray)
+                .into_iter()
+                .filter_map(move |cand| {
+                    let tri = flat.corners[cand.item];
+                    ray_triangle(&ray, &tri).map(|span| (tri, span))
+                })
         })
         .collect();
     // The wide candidate's own numbers, which are why the acceptance
@@ -1332,7 +1341,7 @@ fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both_row() 
         .flat_map(|flat| {
             let ray = flat.local(&ray);
             flat.tree
-                .ray(&ray)
+                .ray(TEST_RAY, &ray)
                 .into_iter()
                 .filter_map(move |cand| ray_triangle(&ray, &flat.corners[cand.item]))
         })
