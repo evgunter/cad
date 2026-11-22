@@ -179,7 +179,7 @@ fn the_tree_marks_the_bodies_the_world_places() {
     let rows = tree::rows(&doc, None, &viewer::parts::PartFiles::default());
     let placed: Vec<_> = rows
         .iter()
-        .filter(|row| row.placed)
+        .filter(|row| !row.placements.is_empty())
         .map(|row| row.id)
         .collect();
     assert_eq!(
@@ -190,7 +190,7 @@ fn the_tree_marks_the_bodies_the_world_places() {
     );
     let placement = doc.placements()[0];
     assert!(
-        rows.iter().any(|row| row.id == placement && !row.placed),
+        rows.iter().any(|row| row.id == placement && row.placements.is_empty()),
         "the placement is a row of its own, unbadged"
     );
     assert_eq!(
@@ -876,7 +876,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         id: RecipeNodeId::new(0, id),
         spoken: spoken(RecipeNodeId::new(0, id), Some("Place")),
         which: None,
-        placed: false,
+        placements: Vec::new(),
         status,
         repair_at: None,
         readout: None,

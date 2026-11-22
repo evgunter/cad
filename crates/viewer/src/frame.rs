@@ -2720,7 +2720,7 @@ pub fn repoint_button(
         by,
         doc,
         source,
-        &crate::world::placements_of_var(doc, source),
+        &doc.placements_of_var(source),
     );
     let Some(node) = onto else {
         return RepointButton {

@@ -965,10 +965,10 @@ pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
 }
 
 /// **The placements of `body` into the world**, in document order: the
-/// copies of it ([`viewer::world::placements_of`]) whose copy stands
+/// copies of it ([`Doc::placements_of`](pncad::document::Doc::placements_of)) whose copy stands
 /// there ([`viewer::world::world_copy`]).
 pub fn world_placements(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> Vec<RecipeNodeId> {
-    viewer::world::placements_of(doc, body)
+    doc.placements_of(body)
         .into_iter()
         .filter(|&copy| viewer::world::world_copy(doc, copy).is_some())
         .collect()

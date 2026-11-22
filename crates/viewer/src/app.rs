@@ -7507,7 +7507,7 @@ mod properties_pane_tests {
         driven.click(ADD_TO_THE_PRODUCT);
         driven.quiet();
         let doc = driven.app.session.committed_doc();
-        let [copy] = crate::world::placements_of(doc, revolve)[..] else {
+        let [copy] = doc.placements_of(revolve)[..] else {
             panic!("the door places the revolve into the world once")
         };
         assert_eq!(doc.node_space(copy), Some(pncad::document::VarId::WORLD));
@@ -7526,7 +7526,7 @@ mod properties_pane_tests {
         driven.click(ADD_TO_THE_PRODUCT);
         driven.quiet();
         assert_eq!(
-            crate::world::placements_of(driven.app.session.committed_doc(), revolve).len(),
+            driven.app.session.committed_doc().placements_of(revolve).len(),
             1,
             "the row's door placed the revolve"
         );

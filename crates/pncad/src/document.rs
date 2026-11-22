@@ -95,6 +95,9 @@ pub use editor_core::{
     Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
     apply_replayed, slot_admits,
 };
+// `ReadSite` is the element of `Doc::read_sites`, every read the
+// recipe holds and the seat reading it.
+pub use editor_core::ReadSite;
 pub use editor_core::{
     ArcShape, AuthoredStep, PenRun, PenStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
     pen_run, shape_of_recorded, step_kernel,

@@ -1015,7 +1015,7 @@ impl Readers {
 /// **One read of a variable, and the seat reading it** — the element of
 /// [`Doc::read_sites`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ReadSite {
+pub enum ReadSite {
     /// A slot or an operand of a live node.
     Node {
         /// The node.
@@ -1039,9 +1039,22 @@ pub(crate) enum ReadSite {
     },
 }
 
+/// The readers at [`crate::OperandSlot::Source`], each once: the
+/// placements among `readers`.
+fn sources(readers: Vec<(RecipeNodeId, crate::OperandSlot)>) -> Vec<RecipeNodeId> {
+    let mut out: Vec<RecipeNodeId> = Vec::new();
+    for (reader, seat) in readers {
+        if seat == crate::OperandSlot::Source && !out.contains(&reader) {
+            out.push(reader);
+        }
+    }
+    out
+}
+
 impl ReadSite {
     /// The variable read.
-    pub(crate) fn read(self) -> VarId {
+    #[must_use]
+    pub fn read(self) -> VarId {
         match self {
             Self::Node { read, .. } | Self::Definition { read, .. } | Self::Product { read } => {
                 read
@@ -1550,7 +1563,7 @@ impl<P> Doc<P> {
     /// reading it**: the one enumeration of readers, in [`Readers::ALL`]'s
     /// order — the nodes in id order, then the definitions in
     /// declaration order, then the product slot.
-    pub(crate) fn read_sites(&self) -> impl Iterator<Item = ReadSite> + '_
+    pub fn read_sites(&self) -> impl Iterator<Item = ReadSite> + '_
     where
         P: crate::ProfilePayload,
     {
@@ -2532,6 +2545,78 @@ impl<P> Doc<P> {
             }
         }
         out
+    }
+
+    /// **What reads `node`**: each live node with an operand seat whose
+    /// read reaches `node` ([`Self::read_ports`]), the seat beside it, in
+    /// [`Self::read_sites`]' order — the operand half of
+    /// [`Self::upstream`], inverted, so a node is read by exactly the
+    /// nodes whose upstream it is through an operand. A body's
+    /// placements are its readers at [`crate::OperandSlot::Source`].
+    pub fn read_by(&self, node: RecipeNodeId) -> Vec<(RecipeNodeId, crate::OperandSlot)>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.node_reads()
+            .filter(|&(reader, seat, read)| {
+                !crate::mate::solve::own_copy_side(self, reader, seat, read)
+                    && self.read_ports(read).iter().any(|&(at, _)| at == node)
+            })
+            .map(|(reader, seat, _)| (reader, seat))
+            .collect()
+    }
+
+    /// **What reads `var`**: each live node with an operand seat whose
+    /// read is `var` or passes through it down sources
+    /// ([`Self::source_steps`]: `spare = bracket`, `bracket = B`, so a
+    /// read of `spare` reads `bracket` and `B`), the seat beside it, in
+    /// [`Self::read_sites`]' order.
+    pub fn readers_of(&self, var: VarId) -> Vec<(RecipeNodeId, crate::OperandSlot)>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.node_reads()
+            .filter(|&(_, _, read)| {
+                read == var
+                    || self.through_sources(read).read == var
+                    || self.source_steps(read).iter().any(|&(at, _)| at == var)
+            })
+            .map(|(reader, seat, _)| (reader, seat))
+            .collect()
+    }
+
+    /// **The placements copying a body of `node`**: its readers at the
+    /// source seat ([`Self::read_by`]), in document order.
+    pub fn placements_of(&self, node: RecipeNodeId) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
+        sources(self.read_by(node))
+    }
+
+    /// **The placements copying `var`**: its readers at the source seat
+    /// ([`Self::readers_of`]), in document order.
+    pub fn placements_of_var(&self, var: VarId) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
+        sources(self.readers_of(var))
+    }
+
+    /// The operand reads of [`Self::read_sites`]: a scalar slot reads no
+    /// operation's output.
+    fn node_reads(&self) -> impl Iterator<Item = (RecipeNodeId, crate::OperandSlot, VarId)> + '_
+    where
+        P: crate::ProfilePayload,
+    {
+        self.read_sites().filter_map(|site| match site {
+            ReadSite::Node {
+                node,
+                seat: Some(seat),
+                read,
+            } => Some((node, seat, read)),
+            _ => None,
+        })
     }
 
     /// **What is wrong with reading `held` at a seat admitting

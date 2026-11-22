@@ -1374,7 +1374,7 @@ pub fn source_rows(doc: &Doc<ProfileProgram>) -> Vec<SourceRow> {
                 var,
                 label: doc.spoken_var(var),
                 body: doc.spoken_var(body.read),
-                copies: crate::world::placements_of_var(doc, var).len(),
+                copies: doc.placements_of_var(var).len(),
             })
         })
         .collect()

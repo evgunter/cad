@@ -267,10 +267,11 @@ pub struct TreeRow {
     /// `None` is a node kind that has no such sentence, not a sentence
     /// that came out empty.
     pub which: Option<String>,
-    /// Whether a placement places a body this node defines, wherever it
-    /// stands — the placed badge (A10). A placement's own row is an
-    /// ordinary row.
-    pub placed: bool,
+    /// **The placements copying a body this node defines**, wherever
+    /// they stand ([`Doc::placements_of`]): the node's readers at the
+    /// source seat, which its Properties lists, and the placed badge
+    /// (A10) that counts them. A placement's own row is an ordinary row.
+    pub placements: Vec<RecipeNodeId>,
     /// What the evaluation said about it.
     pub status: RowStatus,
     /// **Another node whose own slot refused**, when a
@@ -1114,7 +1115,7 @@ pub fn rows(
             id,
             spoken: doc.spoken(id),
             which: part_file(node, files),
-            placed: crate::world::is_placed(doc, id),
+            placements: doc.placements_of(id),
             status,
             repair_at,
             readout,
