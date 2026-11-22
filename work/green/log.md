@@ -591,3 +591,8 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   One question is left for Ev at the top of the body: whether a severalfold jump below the ceiling may wait a day.
 - U9 reported: PR 7400, gate green. Six of the seven reds are now named by live rows. The kite-moat digest is bisected to PR 7131 and re-blessed as 7131's `Debug` spelling of a plane. STYLE review (Opus) dispatched, with a claim that the values themselves did not move.
 - Today's scheduled main nightly (44989179403) was killed on the old build config. Dispatched nightly 44989234943 ran on PR 7365's branch, not main. So main's ε legs have not been read since 11-21; tomorrow's nightly is the first on main with PR 7365, and its read comes first.
+- 2026-11-22 — PR 7365 (U5, the nightly build job) closes, fix pass taken on a green gate (run 45042902274).
+  - The opt-1 override now fails loudly on a missing package. `build-default-env-agrees.sh` covers nightly.yml's shared keys. The sampler names each rustc by package.
+  - The saving is re-attributed: about 13 min from opt 1 and about 10 from the scalpel move.
+  - The P1 shutdown row closes on the change, watched by `the-nightly-build-job-holds-over-five-scheduled-main-nights` (P2). The margin row (P2) carries the trend.
+  - FULL single review, Opus; no model-compare row (Fable outage).

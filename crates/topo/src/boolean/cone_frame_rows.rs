@@ -16,7 +16,7 @@
 use super::BooleanError;
 use super::join::{
     FrameError, FrameExtent, frame_extent, frame_reading, frame_refusal, one_loop,
-    pair_section_frame, pair_section_frame_at,
+    pair_section_frame_at,
 };
 use crate::entity::FaceKey;
 use geom_brep::OpenConic;
@@ -82,7 +82,6 @@ fn frame(p: &geom::Surface<f64>, cone: &geom::Surface<f64>, at: Point3<f64>) -> 
         one_loop(pair_section_frame_at(
             a,
             b,
-            at,
             FrameExtent::Cone(measured(at, wall_reach())),
             band(),
         ))
@@ -321,7 +320,6 @@ fn a_near_parabola_escalates_and_is_never_snapped_to_an_ellipse() {
         one_loop(pair_section_frame_at(
             p,
             &cone,
-            at,
             FrameExtent::Cone(measured(at, lever)),
             b,
         ))
@@ -428,8 +426,8 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
     for (margin, want) in [(sliver, "pn_conic_type"), (4.0 * b.escalate(), "served")] {
         let p = turned(margin);
         for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
-            let (at, extent) = reading(a, c);
-            let got = one_loop(pair_section_frame_at(a, c, at, extent, b));
+            let (_, extent) = reading(a, c);
+            let got = one_loop(pair_section_frame_at(a, c, extent, b));
             let verdict = match &got {
                 Ok(Some(_)) => "served",
                 Err(FrameError::Escalated { diag: d, .. }) => d.predicate.unwrap_or("unnamed"),
@@ -453,7 +451,8 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
 /// tilt in the band reads the same: the pose's row (`pn_axis_normal`,
 /// `pc_rim_alignment`) is a lane choice, so in band takes the ellipse.
 /// The cone is the widening frustum, levered at the face's reach; the
-/// cylinder is a unit wall, levered at its radius.
+/// cylinder is a unit wall, its section the value's across a region of
+/// its radius about the reading point.
 #[test]
 fn a_near_circular_tilt_is_the_ellipses_frame_in_band_too() {
     let b = band();
@@ -478,13 +477,26 @@ fn a_near_circular_tilt_is_the_ellipses_frame_in_band_too() {
         ),
         radius: 1.0,
     };
-    let at = Point3::new(1.0, 0.5, 0.0);
+    let region = geom_brep::ExtentBall::fixture(Point3::new(1.0, 0.5, 0.0), 1.0);
     for margin in [clear, in_band] {
         let n = tilted(margin, 1.0);
         let p = plane([q.x, q.y, q.z], n);
         for (label, x, y) in [("plane, wall", &p, &wall), ("wall, plane", &wall, &p)] {
             let label = format!("{label}, tilt margin {margin:e}");
-            assert_conic_frame(&pair_section_frame(x, y, at, b), q, n, &label);
+            let read = geom_brep::pair_section(x, y, Some(region), None::<geom_core::NoLane>, b);
+            let got = match read {
+                Ok(geom_brep::SectionRead::Built(section)) => match section.counted() {
+                    Some([c]) => match &c.carrier {
+                        geom_brep::ClassCarrier::Closed(e @ geom::Curve3::Ellipse(_)) => {
+                            Ok(e.frame().map(|f| f.axis_line()))
+                        }
+                        other => panic!("{label}: the loop's carrier is {other:?}"),
+                    },
+                    other => panic!("{label}: the section lists {other:?}"),
+                },
+                other => panic!("{label}: {other:?}"),
+            };
+            assert_conic_frame(&got, q, n, &label);
         }
     }
 }
@@ -498,27 +510,12 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
     let b = band();
     let cone = widening();
     let p = plane([0.0, 0.3, 0.0], Vec3::new(0.0, 1.0, 0.0));
-    for extent in [
-        FrameExtent::Radii,
-        FrameExtent::Wall {
-            below: 1.0,
-            above: 1.0,
-            across: geom_core::test_support::fixture_lever(1.0),
-        },
-    ] {
-        let got = one_loop(pair_section_frame_at(
-            &p,
-            &cone,
-            on_wall(),
-            extent.clone(),
-            b,
-        ));
-        assert!(
-            matches!(got, Err(FrameError::Desync(_))),
-            "plane×cone under {extent:?}: got {}",
-            shape(&got)
-        );
-    }
+    let got = one_loop(pair_section_frame_at(&p, &cone, FrameExtent::Radii, b));
+    assert!(
+        matches!(got, Err(FrameError::Desync(_))),
+        "plane×cone under its radii: got {}",
+        shape(&got)
+    );
     let wall = geom::Surface::Cylinder {
         frame: geom::Frame::new(
             Point3::new(0.0, 0.0, 0.0),
@@ -539,7 +536,6 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
         let got = one_loop(pair_section_frame_at(
             a,
             c,
-            Point3::new(1.0, 0.3, 0.0),
             FrameExtent::Cone(measured(Point3::new(1.0, 0.3, 0.0), 1.0)),
             b,
         ));
