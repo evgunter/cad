@@ -533,6 +533,7 @@ fn a_split_records_its_pinch_and_nothing_where_it_only_cuts() {
 /// by `L·δ`, so this fixture's 8-long section refused as soon as `8δ`
 /// passed ε. In the `y = c` plane the in-plane axis has no `y` part at
 /// all, which is what the chart check pins.
+/// (A throwaway edit: proves the 0.25 s bar on an edited test; never merged.)
 #[test]
 fn a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch() {
     let tol = Tol::witness();
