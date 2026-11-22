@@ -107,8 +107,10 @@ where an answer is returned", is the ratified statement).
 1. A definite numeric sign returns at once. `contradicts` and
    `door_zero` leave `decide_sign`'s definite arm.
 2. Where the tier answers `Zero` at `Sym<Interval>` (any rung, a
-   retry, the registry door), a plain `assert!` that the enclosure
-   contains 0, in every build. It leaves out `Decide::free_identity`
+   retry, the registry door), a `debug_assert!` that the enclosure
+   contains 0 (`[failure.taxonomy]` row 5; Ev on PR 7337: a check for
+   bugs is a `debug_assert`, never a plain `assert!`). It leaves out
+   `Decide::free_identity`
    margins, recognised on the failing path only: when the enclosure
    excludes 0, the node's DAG is walked for a `SymOp::Free` before
    panicking. Nothing is stored. Its message names the rung and the

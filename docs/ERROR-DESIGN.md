@@ -599,9 +599,9 @@ mass has no valid build" — is not sayable about any macroscopic box.
 - **The two channels are checked where an answer is returned.** A
   definite numeric sign is the answer, and the tier is asked nothing
   about it. Where the tier answers `Zero` at an exact witness
-  (`Sym<Interval>`), a plain assertion checks that the certified
-  enclosure contains 0 (not a `debug_assert!`: the `Zero` is the
-  answer being returned, DESIGN [failure]); it leaves out
+  (`Sym<Interval>`), a `debug_assert!` checks that the certified
+  enclosure contains 0 (DESIGN [failure.taxonomy] row 5: a kernel bug
+  only a re-derivation detects); it leaves out
   `Decide::free_identity`, whose number is a measured bound and not
   its expression's value. Whether the algebra or a registration would
   have claimed `Zero` on a margin the numbers decided is a question
