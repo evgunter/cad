@@ -333,9 +333,18 @@ box (parameters = intervals; witness data verbatim per E8).
   subdivision only localizes the boundary to shrink refused mass.
   Branch enumeration = the recorded v2 door (with W3, E8).
 - Any `Indeterminate` → **bisect** and recurse. Split rule named,
-  deterministic (D9): max relative width, ties to lowest index.
-  Leaves are independent — parallel under D9 idiom 1, CPU/rayon per
-  the ratified GPU-boundary table.
+  deterministic (D9): of the variables the leaf's deciding node reads
+  (the first undecided node in evaluation order) that have depth
+  left, the one of greatest relative width, ties to lowest index. A
+  leaf whose deciding node reads no variable of the box is refused,
+  naming the node: no split changes it. A leaf's verdict is a function
+  of its box alone — leaves run in parallel under D9 idiom 1,
+  CPU/rayon per the ratified GPU-boundary table.
+- A node whose inputs a leaf leaves unchanged is served from an
+  earlier replay of the drive: result or refusal, and record, whole
+  (DESIGN [determinism]). A leaf's receipt counts what its result
+  rests on, served or built; the drive's total counts each distinct
+  node result once.
 - **Terminal sliver** (enclosure wholly inside (ε, Kε)) → refuse,
   never refine (ratified PR 7 semantics: a genuine semantic sliver).
 - **Budget exhaustion** (depth/work caps, run config like K) →

@@ -63,7 +63,7 @@
 
 use std::path::PathBuf;
 
-use pncad::quantity::{UNITS, UnitDef, UnitQuantity, unit_by_symbol};
+use pncad::quantity::{UnitDef, UnitQuantity, unit_by_symbol};
 
 use crate::input::{self, InputMap};
 use crate::props::Notation;
@@ -314,11 +314,7 @@ impl Prefs {
             ),
         ] {
             out.push_str("# One of: ");
-            let symbols: Vec<&str> = UNITS
-                .into_iter()
-                .filter(|row| row.quantity() == quantity)
-                .map(|row| row.symbol())
-                .collect();
+            let symbols: Vec<&str> = quantity.units().map(|row| row.symbol()).collect();
             out.push_str(&symbols.join(", "));
             out.push('\n');
             match unit {
