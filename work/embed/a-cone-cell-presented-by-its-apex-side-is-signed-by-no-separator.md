@@ -186,5 +186,19 @@ the same shape), which is
 `curved-presentation-reads-plane-and-cylinder-images-only`; added
 there.
 
+**Elsewhere** (measured the same day): the tour walk on main
+`0cae9969f` holds 78 of 85 stops, this change 81: `diepips`,
+`diecomposed` and `diechamfer` move from `Departure` on the pair
+`8v3`/`39v3` to `Embedded`, every other stop identical. The snowman
+(`a_two_ball_union_holds_with_its_poles_read`) holds at `Interval`
+(579 pairs). Unchanged: the vertex-alone pairs of
+`the-vertex-alone-plane-leans-…` (11 run, payloads identical; the arm
+needs a shared edge near), the pole lane's 90 delta cases on PR 7115's
+head (verdict classes identical, case B not closed), and a plane
+through a meridian to a sphere's pole (held before, identical
+receipts). A cone wedge past a half turn turned about a generic axis
+still refuses, at a cone cell short of the apex never halved in `u`
+(that row's case A), pinned refusing.
+
 The residue is filed as
 `the-apex-census-rows-that-still-refuse-read-cells-short-of-or-off-the-apex`.
