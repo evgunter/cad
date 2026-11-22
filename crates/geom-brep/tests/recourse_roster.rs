@@ -91,11 +91,11 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("apart_in_order_as"),
     NameCarrier::Call("bound_as"),
     NameCarrier::Call("classify_len_as"),
+    NameCarrier::Call("closed_form_shown"),
     NameCarrier::Call("coincident_over_extent_as"),
     NameCarrier::Call("cone_cylinder_section"),
     NameCarrier::Call("constant_as"),
     NameCarrier::Call("definitely_as"),
-    NameCarrier::Call("extreme_sign"),
     NameCarrier::Call("first_within"),
     NameCarrier::Call("gate"),
     NameCarrier::Call("incidence_over_span_as"),
@@ -113,15 +113,24 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("require_solid_angle_as"),
     NameCarrier::Call("gradient_alignment"),
     NameCarrier::Call("normals_alignment"),
+    NameCarrier::Call("shown"),
     NameCarrier::Call("unit_winding"),
     NameCarrier::Call("spline_incidence_as"),
     NameCarrier::Call("spline_point_incidence_as"),
     NameCarrier::Call("spread_readings"),
+    NameCarrier::Call("harmonic_roots_as"),
+    NameCarrier::Call("constant_residual_as"),
     NameCarrier::Call("torus_lift_as"),
     NameCarrier::Call("within_as"),
     NameCarrier::Const("AT_THE_END"),
+    NameCarrier::Const("BASIN_HELD"),
     NameCarrier::Const("CENTRES"),
     NameCarrier::Const("CLEAR"),
+    NameCarrier::Const("CONE_APEX"),
+    NameCarrier::Const("CONE_DEFLATED_CLEAR"),
+    NameCarrier::Const("CONE_DEFLATED_DEPTH"),
+    NameCarrier::Const("CONE_DEFLATED_SIDE"),
+    NameCarrier::Const("CONE_ROOT_SLACK"),
     NameCarrier::Const("CONE_RULING"),
     NameCarrier::Const("DIHEDRAL_SIGN"),
     NameCarrier::Const("EXTREME"),
@@ -129,6 +138,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("FOOT"),
     NameCarrier::Const("FORWARD_ROW"),
     NameCarrier::Const("GAP"),
+    NameCarrier::Const("HELD_ONE_PIECE"),
     NameCarrier::Const("HULL"),
     NameCarrier::Const("NODE_RAY"),
     NameCarrier::Const("OFFSET"),
@@ -175,7 +185,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("PLANE_INCIDENT"),
     NameCarrier::Const("CYLINDER_RADIUS"),
     NameCarrier::Const("SPHERE_RADIUS"),
-    NameCarrier::Call("FirstHarmonicRows"),
     NameCarrier::Call("HalfAngleRows"),
     NameCarrier::Call("QuarticRows"),
     NameCarrier::Call("SubdivisionRows"),
@@ -186,7 +195,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("check_residual_as"),
     NameCarrier::Call("class_gate"),
     NameCarrier::Call("classify_as"),
-    NameCarrier::Call("constant_residual_roots"),
     NameCarrier::Call("decided_sense"),
     NameCarrier::Call("definite_as"),
     NameCarrier::Call("gap_as"),
@@ -200,7 +208,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("read_samples_as"),
     NameCarrier::Call("section_of"),
     NameCarrier::Call("sign_as"),
-    NameCarrier::Call("spread_signs"),
     NameCarrier::Call("surely"),
     NameCarrier::Call("straddle"),
     NameCarrier::Call("chart_incidence"),
@@ -230,7 +237,8 @@ const STRUCT_UPDATE: &str = "a row struct built from another's literal (`..CHART
                              are read there";
 const SAME_NAMED: &str = "a call sharing a declared carrier's token that takes no name first: a \
                           closed row's `straddle()` accessor, quad's own \
-                          `require_holes_wound_against`";
+                          `require_holes_wound_against`, `pcurve_cache`'s \
+                          `Placement::shown`";
 const CROSS_CRATE: &str = "a public forwarder whose callers are in other crates, whose rosters \
                            declare it a carrier and read their literals";
 const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
@@ -281,30 +289,15 @@ const INDIRECT: &[(&str, &str)] = &[
     ("chart_singularity.rs: nearest_on_edge: t", NOT_A_NAME),
     ("chart_singularity.rs: sampled_near: t", NOT_A_NAME),
     (
-        "curve_face/circle_roots.rs: constant_residual_roots: row",
+        "curve_face/circle_roots.rs: harmonic_roots_as: root_slack",
         FORWARDS,
     ),
-    (
-        "curve_face/circle_roots.rs: harmonic_crossing: c0",
-        NOT_A_NAME,
-    ),
-    (
-        "curve_face/circle_roots.rs: harmonic_crossing: rows.coaxial()",
-        ROW_FIELD,
-    ),
-    (
-        "curve_face/circle_roots.rs: harmonic_crossing: rows.extreme()",
-        CARRIER_CALL,
-    ),
-    (
-        "curve_face/circle_roots.rs: harmonic_crossing: rows.noise()",
-        ROW_FIELD,
-    ),
-    (
-        "curve_face/circle_roots.rs: harmonic_crossing: rows.root_slack()",
-        ROW_FIELD,
-    ),
     ("curve_face/composite.rs: settle: row", CLOSURE_FORWARDS),
+    (
+        "curve_face/conic_quadric/in_band_sweep.rs: a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly: LADDER_ROWS.noise()",
+        ROW_FIELD,
+    ),
+    ("curve_face/pose.rs: constant_residual_as: name", FORWARDS),
     ("description.rs: harmonic_row: name", CLOSURE_FORWARDS),
     (
         "row_contact.rs: row_clear_of_singularities: name",
@@ -383,11 +376,15 @@ const INDIRECT: &[(&str, &str)] = &[
     ("half_angle.rs: subdivision: rows.side()", ROW_FIELD),
     ("half_angle.rs: subdivision: rows.width()", CARRIER_CALL),
     ("half_angle.rs: subdivision: touch.stretch()", ROW_FIELD),
+    ("intersect.rs: closed_form_shown: name", FORWARDS),
+    ("intersect.rs: coaxial_cone_sphere: name", LOOP_ROWS),
+    ("intersect.rs: coaxial_cone_torus: name", LOOP_ROWS),
     ("intersect.rs: cone_cylinder_section: name", FORWARDS),
     ("intersect.rs: cylinder_cylinder_section: c1", NOT_A_NAME),
     ("intersect.rs: plane_cone_section: name", FORWARDS),
     ("intersect.rs: route_pose: a", NOT_A_NAME),
     ("intersect.rs: route_pose: b", CARRIER_CALL),
+    ("intersect.rs: shown: name", FORWARDS),
     (
         "locus.rs: parallel_cylinder_gaps: [internal, \"tangent_locus_internal_gap_floor\"]",
         PAIRED,
@@ -409,6 +406,7 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSED_TYPE,
     ),
     ("pair_section.rs: decide_stance: name", FORWARDS),
+    ("pair_section.rs: coaxial_tangent_circle: a", NOT_A_NAME),
     ("pair_section.rs: pair_section: a", NOT_A_NAME),
     ("pair_section/cylinders.rs: decide: lines", NOT_A_NAME),
     (
@@ -520,10 +518,12 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurve_cache.rs: incidence_at: name", FORWARDS),
     ("pcurve_cache.rs: incidence_over_span_as: name", FORWARDS),
     ("pcurve_cache.rs: incident_as: name", FORWARDS),
+    ("pcurve_cache.rs: incident_as: return Ok(read);", SAME_NAMED),
     (
         "pcurve_cache.rs: read_edge_incidence: carrier",
         CARRIER_CALL,
     ),
+    ("pcurve_cache.rs: periodic_envelope_shown: read", SAME_NAMED),
     ("pcurve_cache.rs: read_identity#1(gates)", IDENTITY),
     ("pcurve_cache.rs: read_identity#2(data)", IDENTITY),
     ("pcurve_cache.rs: read_identity#3(gates)", IDENTITY),
@@ -663,9 +663,7 @@ const INDIRECT: &[(&str, &str)] = &[
         "quartic.rs: depressed_quartic_roots: rows.split_lead()",
         ROW_FIELD,
     ),
-    ("roots.rs: extreme_sign: row", FORWARDS),
     ("roots.rs: spread_readings: row", FORWARDS),
-    ("roots.rs: spread_signs: row", FORWARDS),
     ("rows.rs: names: ", ACCESSOR_LIKE_A_DOOR),
     ("rows.rs: quartic: &self.quartic", ROW_FIELD),
     ("rows.rs: verify: &self.verify", ROW_FIELD),

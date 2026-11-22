@@ -278,7 +278,7 @@ at risk, so no correctness arm.
 Three things a lane taking it owes. **`frame.rs:1345` loses its number
 rather than gaining a new one** — the rider says why. **`:656-658` and
 `:704` are also in
-`work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`'s
+`work/chrome/crates-cite-work-view-rows-that-moved-in-the-rescope`'s
 table**, so either the crossing is announced and those two lines
 struck, or the lane leaves the path alone and repairs only the gate
 claim; not both. And **`theme.rs` is out of fence and stays out**, so
@@ -345,7 +345,7 @@ receipt).
 
 #### One cross-program hazard on this file
 
-`work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope` edits
+`work/chrome/crates-cite-work-view-rows-that-moved-in-the-rescope` edits
 `crates/viewer/src/frame.rs:657`, `:704` and `:1895`, and
 `work/vseam/projection-fault-has-no-sweeper` names `:1895` too. The
 serialization clause above says *at most one `frame.rs` lane at a

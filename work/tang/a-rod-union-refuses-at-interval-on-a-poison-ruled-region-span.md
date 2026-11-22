@@ -1,0 +1,77 @@
+---
+id: a-rod-union-refuses-at-interval-on-a-poison-ruled-region-span
+kind: issue
+title: A rod union refuses at Interval on a poison bool_ruled_region_span margin, so the self-intersection tee row has no Interval body
+status: open
+opened: 2026-10-30
+priority: P2
+cost: M
+---
+
+
+## Finding
+
+Found by RIMSCALAR (CLEAR), which builds every row of
+`crates/sweep/tests/self_intersection_proves_injectivity.rs` at
+`Body<Interval>` by the same generic builders as at `Body<f64>`. The row
+`a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone`
+builds rod `A` (`sweep::test_support::prism_at`, radius 1, `z ∈ [−3, 3]`)
+less the slab tilted `−π/4` about `y`, then unites it with rod `B`
+(`z ∈ [0.2, 3]`) turned `π/2` about `y`. At `f64` both operations build.
+At `Interval` the subtract builds and `topo::union` refuses:
+
+```
+Err(Escalated { decision: Containment { decision: None, escalation: Margin },
+  diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false,
+  band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_ruled_region_span") } })
+```
+
+The margin is `Invalid` (poison), not in-band, so this is an enclosure
+that did not evaluate, at `topo::ruled_region`'s
+`bool_ruled_region_span` site, rather than a decision refinement could
+settle.
+
+The row pins this refusal as the tee's known divergence: the Interval
+injectivity verdict has no body to run on until the union builds.
+
+## The refusal moves with ε
+
+Found by EPSROWS (CLEAR). At `CAD_TOLERANCE_EPS=1e-12` the same union
+refuses earlier, at a different site:
+
+```
+CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(11v1),
+  band: Band { zero: 1e-12, escalate: 1e-11 } }
+```
+
+At the default ε and at `1e-6` it is still the poison
+`bool_ruled_region_span` above. So a fix for the poison span alone may
+leave the union refusing at `1e-12`. The tee row now pins only that the
+union refuses typed (`topo::test_support::offer_key`'s defect flag clear),
+so it goes red when the union builds at any ε.
+
+## Slate triage
+
+2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). TANGRIM holds the tangent curved rims and crescents; id and body unchanged. (CLEAVE orchestrator)
+
+## Evidence (ONECOPY `onecopy/angle-reads`, 2026-11-03)
+
+On that branch the cylinder–cylinder tee
+(`sweep/tests/self_intersection_proves_injectivity.rs`
+`a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone`)
+unites at `Interval` at the default ε and 1e-6, and still refuses typed at
+1e-12: the ruled region's span now reads the rim's parameter through
+`Period::near`, not through a floor a turn wide at the middle's antipode.
+The row's pin was flipped there.
+
+**The tee builds at 1e-12 too (GREEN `green/eps-1e-12`, 2026-11-14).**
+Since PR 6516 (`onecopy/meet-interval`, merge `b9cc0096c`; its first
+parent `b5d0d8805` still refuses), the tee's `Interval` union builds at
+ε 1e-12 as the `f64` body: the same f/e/v, and a volume enclosure
+[17.82886385, 17.82886387] bracketing `f64`'s 17.8288638620. The row
+`self_intersection_proves_injectivity::a_cylinder_cylinder_tee_builds_and_its_injectivity_refuses_typed_at_a_vertex_its_junction_shares_alone`
+(renamed from `…_tee_refuses_typed_…`) now requires the build at every
+ε, so nothing above stays red on main. Whether this row closes is its
+owner's call.
+
+Moved from TANGRIM to TANG on 2026-11-20, by `git mv`, when TANGRIM merged into TANG: TANGRIM held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TANG carries.

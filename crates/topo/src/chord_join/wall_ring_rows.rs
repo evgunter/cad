@@ -135,6 +135,80 @@ fn a_ring_vertex_on_the_run_says_nothing() {
     }
 }
 
+/// The unit wall `[0.1, 1.4] × [0, 1]` holding the island
+/// `[0.5, 1] × [0.3, 0.7]` with a vertex at azimuth 0.75 on each rim and
+/// at height 0.5 on each ruling, as two coaxial revolves leave their
+/// seam and section vertices: every outer edge's midpoint, like the
+/// island's middle `(0.75, 0.5)`, lies on azimuth 0.75 or height 0.5.
+/// Returns the body, the wall and the island's face.
+fn aligned_island() -> (Body<f64>, FaceKey, FaceKey) {
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(
+        &mut body,
+        CylFrame::canonical(1.0),
+        (0.1, 1.4),
+        (0.0, 1.0),
+        tol(),
+    );
+    let cyl = body.get_face(face).unwrap().surface;
+    let island = ring_at(&mut body, face, at(0.5, 0.5), &[]);
+    let fan = |he| MevSite::Fan { he1: he, he2: he };
+    let e = body
+        .mev_line(MevSite::Lone { r#loop: island }, at(0.5, 0.3), tol())
+        .unwrap();
+    let first = e.he_plus;
+    let mut last = e;
+    for (corner, rim) in [
+        (at(0.75, 0.3), Some((0.3, (0.5, 0.75)))),
+        (at(1.0, 0.3), Some((0.3, (0.75, 1.0)))),
+        (at(1.0, 0.5), None),
+        (at(1.0, 0.7), None),
+        (at(0.75, 0.7), Some((0.7, (1.0, 0.75)))),
+        (at(0.5, 0.7), Some((0.7, (0.75, 0.5)))),
+    ] {
+        last = match rim {
+            Some((v, span)) => {
+                let arc = rim_arc(&mut body, cyl, v, span);
+                body.mev(fan(last.he_minus), corner, arc, tol()).unwrap()
+            }
+            None => body.mev_line(fan(last.he_minus), corner, tol()).unwrap(),
+        };
+    }
+    let after = body.get_half_edge(last.he_plus).unwrap().next;
+    let made = body
+        .mef_chord(
+            MefSite::Chords {
+                he1: first,
+                he2: after,
+            },
+            tol(),
+        )
+        .unwrap();
+    (body, face, made.face)
+}
+
+/// **A ring vertex every ruled path from which runs through a run
+/// vertex reads its side by a detour.** From the island's middle
+/// `(0.75, 0.5)`, the ruling meets the rims' vertices and the parallel
+/// the rulings' vertices, toward every outer-loop point: only a path
+/// turning at an azimuth or a height no run vertex has decides.
+#[test]
+fn a_ring_vertex_aligned_with_run_vertices_reads_its_side() {
+    let (mut body, face, run) = aligned_island();
+    for (u, v, want) in [
+        (0.75, 0.5, RingSide::In),
+        (0.75, 0.2, RingSide::Out),
+        (1.2, 0.5, RingSide::Out),
+    ] {
+        let ring = ring_at(&mut body, face, at(u, v), &[]);
+        assert_eq!(
+            wall_side(&body, (face, run), ring).unwrap(),
+            want,
+            "the ring vertex at ({u}, {v})"
+        );
+    }
+}
+
 /// The slope of [`tilted_island`]'s rims: their planes are tilted
 /// `atan(TILT)` about `y`, so each cuts the unit cylinder in an ellipse
 /// whose semi-axes differ by more than the island is wide.
@@ -157,9 +231,7 @@ fn tilted_arc(
 ) -> EdgeCurveSpec<f64> {
     let (ellipse, normal) = crate::ring_path::tilted_section(h, TILT);
     let plane = body.add_surface(geom::Surface::Plane {
-        origin: Point3::new(0.0, 0.0, h),
-        normal,
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, h), normal, Vec3::unit_y()),
     });
     let (carrier, t0, t1) = if u1 > u0 {
         (ellipse, u0, u1)
@@ -411,9 +483,14 @@ fn bystander(
 /// frame.
 fn carried_loop(centre: Point3<f64>, big: f64) -> (geom_brep::CarriedComponent<f64>, CylFrame) {
     let frame = CylFrame::canonical(0.5);
-    let geom_brep::SectionRead::Built(section) =
-        geom_brep::pair_section(&frame.surface(), &ball(centre, big), None, None, band()).unwrap()
-    else {
+    let geom_brep::SectionRead::Built(section) = geom_brep::pair_section(
+        &frame.surface(),
+        &ball(centre, big),
+        None,
+        None::<geom_core::NoLane>,
+        band(),
+    )
+    .unwrap() else {
         panic!("the value builds cylinder × sphere");
     };
     let carried = section
@@ -512,10 +589,8 @@ fn spline_island_rehome(
 /// The sphere of the ball about `centre` of radius `big`.
 fn ball(centre: Point3<f64>, big: f64) -> geom::Surface<f64> {
     geom::Surface::Sphere {
-        center: centre,
+        frame: geom::Frame::new(centre, Vec3::unit_z(), Vec3::unit_x()),
         radius: big,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -720,6 +795,7 @@ fn closed_form(
     geom_brep::CarriedComponent {
         witness: carrier.mid_point(span.0, span.1),
         boxes: Vec::new(),
+        runs: Vec::new(),
         carrier,
         span,
         shape,
@@ -780,10 +856,12 @@ fn a_carried_ruling_chord_runs_back_where_it_leaves_back() {
     // A parallel wall of radius 0.8 holding the ruling: its axis 0.8
     // along `x` from the ruling.
     let partner = geom::Surface::Cylinder {
-        origin: at(0.8, 0.0) + Vec3::new(0.8, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(
+            at(0.8, 0.0) + Vec3::new(0.8, 0.0, 0.0),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
         radius: 0.8,
-        u_ref: Vec3::unit_x(),
     };
     assert!(
         geom_brep::implicit_residual(&partner, at(0.8, 0.5)).abs() < 1e-12,
@@ -832,10 +910,8 @@ fn a_carried_circle_chord_runs_back_where_it_leaves_back() {
         Vec3::unit_x(),
     );
     let partner = geom::Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.25_f64.sqrt(),
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let tangent = |u: f64| Vec3::new(-u.sin(), u.cos(), 0.0);
     for (what, (a, b), dir, want) in [
@@ -906,9 +982,7 @@ fn a_carried_ellipse_chord_starts_at_its_nodes_span_end() {
     )
     .unwrap();
     let partner = geom::Surface::Plane {
-        origin: center,
-        normal,
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(center, normal, Vec3::unit_x()),
     };
     let span = (FRAC_PI_2, FRAC_PI_2 + PI);
     let node_at = |t: f64| geom_brep::SectionNode {
@@ -987,6 +1061,7 @@ fn a_carried_chord_on_an_unwalkable_spline_refuses_unwalked() {
     let component = geom_brep::CarriedComponent {
         witness: still,
         boxes: Vec::new(),
+        runs: Vec::new(),
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(net)),
         span: (0.0, 1.0),
         shape: geom_brep::ComponentShape::Loop,
@@ -996,10 +1071,8 @@ fn a_carried_chord_on_an_unwalkable_spline_refuses_unwalked() {
         reach: 0.0,
     };
     let partner = geom::Surface::Cylinder {
-        origin: Point3::new(1.6, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(1.6, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 0.8,
-        u_ref: Vec3::unit_x(),
     };
     let ends = (at(0.8, 0.3), at(0.8, 0.7));
     let (got, _) = closed_form_chord(component, partner, ends, Vec3::unit_z());

@@ -182,6 +182,13 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
             "the graft — see `graft_disjoint_all_keyed`",
         ),
         (
+            "graft_placed",
+            Transfers,
+            "the graft — see `graft_disjoint_all_keyed`; a placed source's image is its \
+             data under a proper motion, which carries every pcurve row unchanged (a chart \
+             image is a parameter-space fact), then grafted",
+        ),
+        (
             "graft_disjoint_all_keyed",
             Transfers,
             "remaps each row onto the transplanted half-edge's fresh key and DROPS any \

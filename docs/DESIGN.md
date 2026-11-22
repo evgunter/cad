@@ -211,6 +211,23 @@ constructed only through doors that state its dimension
 (SPLINE-DESIGN S1); surface and curve kinds are closed enums
 ([surfaces]).
 
+A signature is a claim too. A generic bound says which types the code
+has a meaning for, not which it compiles at: where code generic over a
+scalar has no meaning at one of them (a certification at a `Dual`, a
+search at a `Sym`), its bound excludes that scalar, at compile time
+and never by a check at run time. The test of any generic signature is
+one sentence per type it admits, saying what the result means there: a
+type with no such sentence is excluded.
+
+A conversion between `f64` and a scalar `T`, in either direction, is
+always suspect. It is justified by showing that it is necessary, that
+the value cannot stay in the type it was computed in, and not by
+showing that it is valid where it is used; that it has callers is no
+evidence of either. One that is necessary says what makes its result
+true at every type it can produce
+(`crates/geom-core/README.md`, DL5.2 and DL5.3, is this clause at the
+scalars).
+
 ### Failure is loud, and its kind is plain `[loud-failure]`
 
 Nothing absorbs a failure: no silent discard, no hidden healing, no
@@ -269,11 +286,11 @@ of them is a defect.
 | The region a carrier, an edge or a face can occupy | one cover per entity: `geom`'s reading of a bounded carrier, whole or over a span, `topo`'s of an edge with its vertices and of a trimmed face; every box, support, reach and ball is a method on it, never a second reading | [one-way.readings] |
 | f64 rounding, a verdict's lever arm, and the extent it is consumed over | `crates/geom-core/README.md`, "Float rounding" | [simple.conditioned] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
-| A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
+| A refusal's recourse | one per decision, written in the decision's levers; a failure carries as data what its recourse determines (the value or the cells, and the edit where its layer can name one), and its words are rendered from that | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a certificate is a fact about its support and is read wherever that support is bit-identical and derived wherever it is not, so a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest, and an edge's or pcurve row's certificate is carried by every door that keeps its support; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -410,7 +427,10 @@ curve pairs.
   `FittedLane`) — so a WIDENED analytic operand refuses typed
   rather than picking a representative surface out of the family.
 - **What a lane scalar takes from `f64` is a choice, never a claim,
-  and the same across the box.** A choice is a discrete selection
+  and the same across the box.** This holds of every scalar that is
+  not `f64`, a `Dual` and a `Sym` as much as an `Interval`: at a
+  `Dual` the box is the neighbourhood its tangent speaks for, and at a
+  `Sym` the unknowns' whole range. A choice is a discrete selection
   (a structure, a branch, an order), checked at the lane scalar to
   stay the same over the box, or a continuous value that depends on
   none of the document's variables. A claim (a frame, which asserts
@@ -420,7 +440,11 @@ curve pairs.
   its entries), so no gate reads it back from entries that, at a box
   scalar, no longer carry it. A continuous
   value that varies over the box is no choice: chosen at the nominal
-  values, it is wrong everywhere else, so the lane builds it.
+  values, it is wrong everywhere else, so the lane builds it. The one
+  such value a lane takes from `f64` is a solved parameter with no
+  closed form, admitted by a check at the lane scalar that leaves
+  every member of the box within the band, and refused where no one
+  number does (`crates/geom-core/README.md`, DL5.2).
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.
@@ -604,8 +628,8 @@ A side no kernel construction produces panics at a build and past the
 import door, and at the import door is the file's like any other. No
 refusal names a lever the decision does not.
 
-How each door applies these (the import door's ε_in sentences and its
-stopgap, `Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review
+How each door applies these (the import door's ε_in sentences,
+`Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review
 checklist) is `crates/geom-core/README.md`, "The recourse rules at each
 door".
 
@@ -678,11 +702,12 @@ there is the bracket, with the resolution it reached.
 ε is a length: the maximum
 deviation from specified geometry at a single point. Four clauses
 make that structural: (i) **Margins are lengths, by signature.** The
-classify/Band seam takes a `#[repr(transparent)]` `Margin<T>`
-newtype — no dimension algebra, no generic dimension parameter —
-whose only constructors are blessed doors that make the dimension
-argument explicit at the call site (a coordinate difference that IS
-a length; a dimensionless quantity levered by an arm; a norm; a
+classify/Band seam takes a `Margin<T>`, or a `Margin<T, Allowance>`
+where an `f64` bound enters it (DL5.2) — no dimension algebra, no
+generic dimension parameter — whose only constructors are blessed
+doors that make the dimension argument explicit at the call site (a
+coordinate difference that IS a length; a dimensionless quantity
+levered by an arm; a norm; a
 measure over the lever at which it is a point's displacement, never a
 mean such as 2A/P or V/A, [intrinsic.epsilon]); the sagitta and reciprocal
 forms are the levered door applied at named arms; there is no raw
@@ -886,7 +911,12 @@ tiers".
   do not meet (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
   itself, the local reading (how the faces leave their shared edge or
-  vertex, or a face's own turning) passes by more than the band. A
+  vertex, or a face's own turning) passes by more than the band. That
+  reading is the edge's wedge as tier 3 reads it, one reading for
+  both: an angle metered at the reach of the faces it governs
+  ([tolerance.epsilon]), never at a cell of the question's own
+  subdivision. A cell holds none of a face only where it lies off
+  the face. A
   reading inside the band refuses as ambiguous, never as Holds or
   Violated. An exact
   value `x` enters the question as `[x, x]`; a stored bracket enters as
@@ -1139,7 +1169,12 @@ adding a variant and letting the compiler enumerate every dispatch
 site. A kind is a locus with one chart shape: its chart, implicit
 residual and normal agree at every point, and which of its chart's
 coordinates are periodic and which points are singular is fixed by the
-kind, with no tolerance. The `Nurbs` variant is the universal fallback: any exotic surface
+kind, with no tolerance. For `Nurbs` and `Approx` (read through its fitted
+net) the kind fixes the rule, not the points: a boundary iso of the net whose control
+points are all one stored point is a chart singularity at that point, decided on the
+stored values. A constructor that decides such a side collapsed at its band builds it
+exactly one point; a side that is tiny but not one point is a regular chart with a
+short edge. The `Nurbs` variant is the universal fallback: any exotic surface
 is at minimum representable. Same design for curves (line / circle /
 ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
@@ -1174,6 +1209,9 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    locus) is made exact by one construction from a closed catalogue,
    solving each connected class of such relations jointly; where the
    construction is symmetric, the record earlier in the file stays.
+   A net side whose control points read one point at the file's band is
+   made exactly that point, the first control point in file order
+   (**Extensibility**, above: a spline chart's singular set is read off its net).
    Each move is reported. A relation no catalogue construction makes
    exact, an edge whose description the kernel cannot construct, and
    data no description satisfies within ε_in fail loudly, naming the
@@ -1192,6 +1230,14 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    document's variables — are `unproven-coincidence` findings ([coincidence]),
    quieted by an assertion that the gap is zero at the site: the equivalence with a natively built twin whose parts
    touch by value.
+
+**Records follow the file.** A surface entity the file states is one
+surface record, worn by every face of one shell that cites it, and a
+record a normalization mints (a knot split's sub-patch) is a record of
+its own; two entities are two records unless healing's reported
+one-record act joins them (step 3); each face is certified against its
+record; and the writer emits one surface entity per surface record. No
+comparison of printed values decides which record a face wears.
 
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
 *input tolerance* ε_in — defaulted from the STEP file's declared
@@ -1327,8 +1373,8 @@ A name is also the mark that a value is wanted for itself.
 body's geometry (a face's plane, a carrier's axis or centre, a
 vertex's point, a face's flag along one of its edges); moved from another pose by a slide along, or a spin
 about, a direction or axis the definition reads; by a construction
-over other poses; as a pose of a copy; or as an output of an
-operation. So no pose is free and none is defined from nothing. A
+over other poses; as a pose of a copy; as the frame a placement
+places ([placement.datums]); or as an output of an operation. So no pose is free and none is defined from nothing. A
 construction reads poses as it reads any variable, only those of the
 space it is built in, and is in that space; relating two spaces is a
 placement's alone ([placement.spaces]).
@@ -1508,9 +1554,16 @@ the placement's own code computes it, so the two cannot differ: its z
 is the face's outward normal, and its x and origin are the space's
 under the orientation the gesture writes nearest the face, carried
 onto the face by the least turn, then turned by the written spin and
-moved by the two written slides ([placement.values]). Within the band
-about that orientation's pole it refuses, naming the orientation to
-write, as a placement does. Nothing about the face's cells chooses it:
+moved by the two written slides ([placement.values]). The frame alone
+decides nothing: each use of its turn is decided by the placement's own
+fold over the points the turn is used at, as a placement's copy is (the
+profile's own loops, and each sweep of the profile over its body), and
+within the band about the orientation's pole it refuses, naming the
+orientation to write. A trace uses the turn only at the crossing a piece
+takes, which is a point of the loops: it reads the traced face, which
+the turn never moves (as a placement never moves its mate's target),
+through the turn once that turn's pole is decided, and decides nothing
+past that crossing. Nothing about the face's cells chooses it:
 a sketch that should sit at a corner says so in its slides. The sketch
 may trace faces of that space ("Constructing a coincidence"): a profile
 on a face is one act whether or not it traces, and a sweep of it is
@@ -1599,10 +1652,10 @@ never mated twice.
 
 **Mates.** `[placement.mates]` Each mate equates two poses of one
 kind, modulo that kind's symmetry: a pose read off the source's
-geometry with a pose read off a body in the target space that does
-not read this placement. A mate reads only bodies' geometry, never a
-space and never a frame standing for a part's coordinates, and no
-space has roles a mate can read. A mate states a physical relation; a
+geometry with a pose that something placed or built in the target space
+defines and that does not read this placement. A mate reads only
+such poses, never a space and never a frame standing for a part's
+coordinates, and no space has roles a mate can read. A mate states a physical relation; a
 placement whose source touches nothing has none, and its values state
 the whole motion. A mate holds no number of its own, and its sense is
 a construction (`Flip`) on one side (a flag's `Flip` keeps its side:
@@ -1649,7 +1702,8 @@ turn has no answer, and within the band about that one pole the chart
 refuses, typed at evaluation and naming the orientation to write, as
 a construction refuses at its degenerate values. The band is where the
 least turn's answer is not determined at ε: its chord from the pole,
-levered by the bundle's arm (written slides included), is within the
+levered by the reach of what the turn carries (a copy, or what stands
+in a face's chart; written slides included), is within the
 run's band, or its lever on its own two directions, twice the arm over
 that chord, passes the run's rounding reach (`crates/geom-core/README.md`,
 "Float rounding"). So no edit that keeps the face outside that band
@@ -1676,13 +1730,26 @@ two tilts `0`, and the slides and spin the author chooses). A
 placement is the only reader of a source's own coordinates, and reads
 them only through the freedoms its mates leave.
 
+**Datums.** `[placement.datums]` A placement's source is a body or
+nothing. With nothing, it is a **datum**: what it places is a bare
+frame, its one output, and the rules of spaces, bundles and values
+hold of it as written.
+Its mates' near sides are that frame's own roles (its xy plane, its z
+axis, its origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
+as a finer pose is read off any frame ([variables.poses]). An offset
+from a face is the mate's far side slid along its normal, as for a
+body ([placement.mates]); a datum has no number of its own beyond its
+values. A datum is a recipe object the author places, like a body:
+its output is shared unnamed, and a face read in place needs none.
+
 **The world** `[placement.world]` is a space like any other, the one
 every document holds and cannot delete: it sets the coordinates. Its
 axes chart the values of placements into it, and it is nothing else.
-It has no datum plane, origin or axis as a recipe object: a viewer
+It has no datum plane, origin or axis of its own: a viewer
 may draw its axes or a grid as a display aid, and a gesture that drops
 a part on the floor writes values; neither is a recipe object, and no
-mate or construction reads the world. Export and the viewer's drawing compose a body into
+mate or construction reads the world. An author may place a datum into
+it, as into any space ([placement.datums]). Export and the viewer's drawing compose a body into
 the coordinates of a space it reaches, the world's or any other shown
 space's, through one door that nothing else calls, and what they
 produce never re-enters the model. The **product** is the body the
@@ -2166,8 +2233,7 @@ swallowed.
   firing one reads as evidence (`geom_brep::props::quad`'s area gauge
   is the precedent; an uncalibrated ceiling was once off by nine
   orders). Where the measured condition is reachable by input, the
-  preferred disposition is a reported value, not a tripwire
-  (`topo::coherence`).
+  preferred disposition is a reported value, not a tripwire.
 - *Boundary rule.* `pncad-py` re-types at the FFI edge — anything the
   Python layer can trigger is validated into a typed error before the
   kernel call, so an `unreachable!` never crosses into a
@@ -2409,9 +2475,14 @@ these. All are shipped in `editor-core` except where noted:
   node id to label beside the node, never inside it, so it is in
   neither the id's mint nor any content key. One edit sets or clears
   it; it is not unique and never identity (references hold ids, and
-  nothing resolves a label). Kernel sentences speak a node as its
-  kind, label and tag, `Extrude "base plate" (3fa9c1d2a0b1)`, or kind
-  and tag when it has none. A spoken label is never one its value can
+  nothing resolves a label). A node is spoken as its label and tag,
+  `"base plate" (3fa9c1d2a0b1)`, or as its kind and tag when it has no
+  label, `Extrude 3fa9c1d2a0b1`: the label and the tag already say
+  which node, so the kind is not repeated. A sentence carries each node
+  it names as a mention (its id, kind and label, and the document its
+  id is spelled in) rather than as text, so the viewer draws it as a
+  link to the node when the document on screen is the mention's. A
+  spoken label is never one its value can
   outlive: a value the evaluation memo reuses holds a label only when
   its memo key fixes that label. A document's own labels are outside
   its evaluation key (a rename re-evaluates nothing), so what it
@@ -2617,6 +2688,7 @@ is the board and `work/README.md` its contract.
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |
 | `crates/viewer/GUI-DESIGN.md` | Ratified; GUI v1 shipped | GUI architecture G1–G5, GQ1–GQ7: the three-layer split, egui as toolkit, what v1 ships. `crates/viewer/README.md` beside it is the implementation record, which the program maintains itself |
 | `docs/ERROR-DESIGN.md` | Ratified (#110); M10 closed 2026-09-13 | Error propagation E1–E12: duals, stackups, the subdivision driver, trichotomy. M10 built it and closed 2026-09-13; the analysis lane is PROPS' and E12's symbolic tier continues as SYM |
+| `crates/geom-core/README.md`, "Reading a bracket where nothing certifies" section only | Ratified (Ev, PR 7155) | The delegation rule, DUAL-DESIGN DL5: a bracket read whose `f64` leaves or is only compared needs no lane door (DL5.1); a bound, a place and `f64`-built data never become a free `T`, and a constant enters through a door that takes no runtime `f64`, and a solved value is a candidate admitted by its check (DL5.2); certifying code is closed to a dual by type on its interior as well as at its doors, through a bound that grants nothing else (DL5.3) |
 | `docs/DUAL-DESIGN.md` | Ratified (#1146) | The Dual contract DL1–DL6: a Dual is tangent transport and never certifies; ContentBits feeds both channels; the delegation rule; poison-vs-widen in certified lanes |
 | `docs/PATHS-DESIGN.md` | Ratified (#124) | The PartialPath authoring algebra |
 | `docs/LIBRARY-DESIGN.md` | Ratified (#229); program open | Usable-as-a-library L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, the authoring-ergonomics unit ladder |

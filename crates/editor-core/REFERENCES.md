@@ -68,7 +68,8 @@ reads it in its own way:
   profile's `on` is a frame in the space of the face's body
   (`ProfileProgram.on`, `DrawnOn`): the chart a plane placement onto the
   face with the same orientation, spin and slides gives, computed by that
-  placement's own chart (`[placement]`): its `z` is the face's outward
+  placement's own chart and decided by its fold over each body that stands
+  in it, never over the frame alone (`[placement]`): its `z` is the face's outward
   normal, and its `x` and origin are the space's under the written
   orientation, carried by the least turn, then the written spin and slides
   (each the constant `0` unless named). It may trace faces of that body
@@ -448,15 +449,31 @@ id (`names/README.md`, "N1, the profile pieces"), so:
   segment, as a fillet inserted or moved before a leg takes the leg's
   (`names/README.md`, "Undrawn pieces vanish rather than alias") — is the
   reshaping's removal too, and its names are reported the same way. The door
-  compares which pieces the old and the new program's structure can draw,
-  with values erased (the verbs' roles, a written `circle_split` count, a
-  piece another takes by construction), and reports a name whose piece the
-  new structure cannot draw and the old one could. A piece a value leaves
+  compares the partition the old and the new program's structure draws at
+  generic values: its pieces (the verbs' roles, a written `circle_split`
+  count, a piece another takes by construction), its runs, and the corners
+  between them. The door reads all three off the program's shape, the walk
+  over its steps with every number erased (`profile::path::shape`), and
+  evaluates nothing:
+  - a piece counts as drawn even where a `Zero` fit could suppress it;
+  - a joint is inside a run where the step order constructs a
+    continuation onto the incoming carrier (a straight continuation, a
+    station kept on a side, the joints of a split circle);
+  - every other joint is a corner, because a coincidence that puts its
+    two pieces on one carrier holds only at special values.
+
+  It judges each held name whole, and reports one that
+  denotes a piece, a run or a corner of the old partition and nothing of
+  the new: a kept leg whose run an inserted fillet joins, or a run a moved
+  fillet breaks. A piece a value leaves
   undrawn (a `Zero` fit) is no removal: its names resolve `Vanished` until the
-  values draw it again, whichever door wrote the value.
-- A value edit reports nothing: it can move which loop is outer, which way a
-  loop runs or how many segments a step draws, and none of those moves a
-  name.
+  values draw it again, whichever door wrote the value. Where the values
+  differ from the generic partition (a `Zero` fit, or a coincidence that
+  joins two runs), the body follows the values and resolution diagnoses
+  the difference as a predicate flip.
+- A value edit reports nothing. What it can move (which loop is outer,
+  which way a loop runs, how many segments a step draws, where a
+  coincidence joins a run) is a predicate flip, which resolution diagnoses.
 
 **The appearance store is the other carrier.** The report covers every
 reference the document holds under N5 semantics, not only the node payloads.

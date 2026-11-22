@@ -43,7 +43,10 @@ use geom_brep::curve_pair::{self, Span, SpanEnd};
 use geom_brep::props::LoopEdge;
 use geom_core::{Point3, Vec3};
 
-use super::{expand_split_uses, face_boundary_census, split_at_param, use_start, valences};
+use super::surgery::{
+    self, At, CutLine, Unlinked, boundary_census, split_at_point, use_end, use_start,
+};
+use super::valences;
 use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
 use crate::interpret::FileBand;
@@ -55,6 +58,8 @@ use crate::{FaceCensus, NormalizationKind, SingularityFound, StructureNormalizat
 enum Chart {
     /// A sphere: two poles, `[north, south]`.
     Sphere {
+        /// The stored frame, carried back by [`Chart::surface`].
+        frame: geom::Frame<f64>,
         center: Point3<f64>,
         radius: f64,
         axis: Vec3<f64>,
@@ -62,6 +67,8 @@ enum Chart {
     },
     /// A cone: the apex.
     Cone {
+        /// The stored frame, carried back by [`Chart::surface`].
+        frame: geom::Frame<f64>,
         apex: Point3<f64>,
         axis: Vec3<f64>,
         half_angle: f64,
@@ -72,28 +79,26 @@ enum Chart {
 impl Chart {
     fn of(surface: &Surface<f64>) -> Option<Self> {
         match *surface {
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Some(Self::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            }),
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Some(Self::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            }),
+            Surface::Sphere { frame, radius } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some(Self::Sphere {
+                    frame,
+                    center,
+                    radius,
+                    axis,
+                    u_ref,
+                })
+            }
+            Surface::Cone { frame, half_angle } => {
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some(Self::Cone {
+                    frame,
+                    apex,
+                    axis,
+                    half_angle,
+                    u_ref,
+                })
+            }
             _ => None,
         }
     }
@@ -118,31 +123,14 @@ impl Chart {
         }
     }
 
-    /// The surface the chart reads.
+    /// The surface the chart reads: its stored frame carried, not
+    /// squared again.
     fn surface(self) -> Surface<f64> {
         match self {
-            Self::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            },
+            Self::Sphere { frame, radius, .. } => Surface::Sphere { frame, radius },
             Self::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            },
+                frame, half_angle, ..
+            } => Surface::Cone { frame, half_angle },
         }
     }
 
@@ -330,7 +318,7 @@ fn inverted(id: u64) -> StepImportError {
 /// the face uses as a strut tip.
 fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, StepImportError> {
     let face = &solid.faces[fi];
-    if Chart::of(&face.surface).is_none() {
+    if Chart::of(solid.surface_of(face)).is_none() {
         return Ok(None);
     }
     let valence = valences(solid);
@@ -353,9 +341,15 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
         .collect();
     let images = image_edges(solid, fi);
     let images: Vec<&[LoopEdge<f64>]> = images.iter().map(Vec::as_slice).collect();
-    for (k, located) in home::locate(&face.surface, &views, &images, face.sense, read.band())
-        .into_iter()
-        .enumerate()
+    for (k, located) in home::locate(
+        solid.surface_of(face),
+        &views,
+        &images,
+        face.sense,
+        read.band(),
+    )
+    .into_iter()
+    .enumerate()
     {
         match located.lies.map_err(|why| read.unread(why, face.id))? {
             Lies::AtVertex { r#loop, edge } => {
@@ -462,12 +456,6 @@ fn strut_uses(solid: &SolidSpec, fi: usize, vertex: u64) -> Option<(usize, usize
     }
 }
 
-/// The vertex a use ENDS at.
-fn use_end(solid: &SolidSpec, use_: EdgeUse) -> u64 {
-    let spec = &solid.edges[&use_.edge];
-    if use_.forward { spec.end } else { spec.start }
-}
-
 /// Whether the singular point `k` of `chart` lies on the face's side of
 /// every one of its loops, the point being off them: the kernel's
 /// reading ([`geom_brep::chart_singularity::holds`]).
@@ -524,7 +512,7 @@ fn apply(
         | Action::StrutTip { fi, .. } => fi,
     };
     let face_id = solid.faces[fi].id;
-    let (entry_edges, entry_vertices) = face_boundary_census(solid, fi);
+    let (entry_edges, entry_vertices) = boundary_census(solid, &[fi]);
     let (found, faces) = match action {
         Action::InsideEdge { edge, t, point, .. } => {
             split_at_point(solid, edge, t, point, mint)?;
@@ -539,20 +527,7 @@ fn apply(
             strut_tip(solid, fi, vertex, read, mint)?,
         ),
     };
-    let (mut edges, mut vertices) = (
-        std::collections::BTreeSet::new(),
-        std::collections::BTreeSet::new(),
-    );
-    for face in &solid.faces[fi..fi + faces] {
-        for lp in &face.loops {
-            for u in &lp.uses {
-                edges.insert(u.edge);
-                let spec = &solid.edges[&u.edge];
-                vertices.insert(spec.start);
-                vertices.insert(spec.end);
-            }
-        }
-    }
+    let (edges, vertices) = boundary_census(solid, &(fi..fi + faces).collect::<Vec<_>>());
     sink.push(StructureNormalization {
         face: face_id,
         kind: NormalizationKind::ChartSingularityVertex { found },
@@ -563,38 +538,11 @@ fn apply(
         },
         kernel_census: FaceCensus {
             faces,
-            edges: edges.len(),
-            vertices: vertices.len(),
+            edges,
+            vertices,
         },
     });
     Ok(())
-}
-
-/// Splits `edge` at its interior parameter `t`, the new vertex placed
-/// at `point` exactly and both halves' intervals re-derived from their
-/// endpoints, as a re-import derives them; the split reaches every face
-/// that uses the edge. Answers the new vertex.
-fn split_at_point(
-    solid: &mut SolidSpec,
-    edge: u64,
-    t: f64,
-    point: Point3<f64>,
-    mint: &mut dyn FnMut() -> u64,
-) -> Result<u64, StepImportError> {
-    let (first, second, v) = split_at_param(solid, edge, t, mint);
-    solid.vertices.insert(v, point);
-    for half in [first, second] {
-        let Some(spec) = solid.edges.get_mut(&half) else {
-            unreachable!("a split half minted by `split_at_param` is in `solid.edges`")
-        };
-        let self_loop = spec.start == spec.end;
-        let (ps, pe) = (solid.vertices[&spec.start], solid.vertices[&spec.end]);
-        let (t0, t1) = crate::geometry::endpoint_params(half, &spec.carrier, ps, pe, self_loop)?;
-        spec.t0 = t0;
-        spec.t1 = t1;
-    }
-    expand_split_uses(solid, edge, first, second, &[]);
-    Ok(v)
 }
 
 /// A ray: a carrier walked from the parameter `from` in the direction
@@ -747,7 +695,7 @@ fn first_hit(
         let hit = match span.read(s, ray.from, read.band()) {
             Ok(curve_pair::Reading::On { t, .. }) => t,
             Ok(curve_pair::Reading::End(end)) => span.at(curve_pair::Hit::End(end)),
-            Ok(curve_pair::Reading::Carrier | curve_pair::Reading::Off) => continue,
+            Ok(curve_pair::Reading::Off(_)) => continue,
             Err(why) => return Err(span_refused(why, read, face.id)),
         };
         let delta = (hit - ray.from) * ray.sign;
@@ -793,7 +741,7 @@ fn landings(
             let at = match span.read(p, ray.from, read.band()) {
                 Ok(curve_pair::Reading::On { t, margin }) => curve_pair::Hit::On { t, margin },
                 Ok(curve_pair::Reading::End(end)) => curve_pair::Hit::End(end),
-                Ok(curve_pair::Reading::Carrier | curve_pair::Reading::Off) => continue,
+                Ok(curve_pair::Reading::Off(_)) => continue,
                 Err(why) => {
                     undecided = Some(span_refused(why, read, id));
                     continue;
@@ -960,6 +908,7 @@ fn mint_spoke(
             // A minted edge: the importer states its own
             // start → end, so there is no sense to compose.
             reversed: false,
+            curve: None,
         },
     );
     Ok((id, forward))
@@ -977,7 +926,7 @@ fn interior(
 ) -> Result<usize, StepImportError> {
     require_read_carriers(solid, fi)?;
     let face_id = solid.faces[fi].id;
-    let Some(chart) = Chart::of(&solid.faces[fi].surface) else {
+    let Some(chart) = Chart::of(solid.surface(fi)) else {
         unreachable!("the scan reads only sphere and cone faces")
     };
     let singular = chart.singular();
@@ -1058,7 +1007,7 @@ fn strut_tip(
     mint: &mut dyn FnMut() -> u64,
 ) -> Result<usize, StepImportError> {
     let face_id = solid.faces[fi].id;
-    let Some(chart) = Chart::of(&solid.faces[fi].surface) else {
+    let Some(chart) = Chart::of(solid.surface(fi)) else {
         unreachable!("the scan reads only sphere and cone faces")
     };
     let singular = chart.singular();
@@ -1121,7 +1070,8 @@ fn strut_tip(
 /// Cuts face `fi` along the spokes leaving `pole`, each an edge and
 /// whether it runs from the pole, and the seam `seam` the face already
 /// uses both ways at the pole. The face's loop and the spokes, each
-/// walked both ways, are re-linked into cycles: a spoke enters the face
+/// walked both ways, are re-linked into cycles ([`surgery::relink`]): a
+/// spoke enters the face
 /// where it meets the loop, each walk at the pole leaves along the
 /// other edge there, and a spoke whose far end is off the loop is
 /// walked out and back. Each cycle is a face. Answers how many.
@@ -1140,93 +1090,47 @@ fn cut(
              admits on no sphere or cone",
         ));
     };
-    let mut all: Vec<EdgeUse> = lp.uses.clone();
-    let n = all.len();
-    for &(edge, from_pole) in spokes {
-        // Out of the pole, then back.
-        all.push(EdgeUse {
-            edge,
-            forward: from_pole,
-        });
-        all.push(EdgeUse {
-            edge,
-            forward: !from_pole,
-        });
-    }
-    let start = |i: usize| use_start(solid, all[i]);
-    let end = |i: usize| use_end(solid, all[i]);
-    let loop_leaving = |v: u64| -> Result<usize, StepImportError> {
-        let found: Vec<usize> = (0..n).filter(|&i| start(i) == v).collect();
+    let loops = vec![lp.uses.clone()];
+    // Where a spoke's end meets the loop: the one use leaving its vertex.
+    let leaving = |v: u64| -> Result<Option<At>, StepImportError> {
+        let found: Vec<usize> = (0..loops[0].len())
+            .filter(|&i| use_start(solid, loops[0][i]) == v)
+            .collect();
         match found.as_slice() {
-            [i] => Ok(*i),
+            [] => Ok(None),
+            [i] => Ok(Some((0, *i))),
             _ => Err(internal(
                 "a pole-form meridian ends at a vertex the face's loop passes more than once; \
                  the cut there has no one reading",
             )),
         }
     };
-    // Spoke `s` leaves the pole as `n + 2s` and returns as `n + 2s + 1`.
-    let out = |s: usize| n + 2 * s;
-    let back = |s: usize| n + 2 * s + 1;
-    let far = |s: usize| end(out(s));
-    let link = |i: usize| -> Result<usize, StepImportError> {
-        let v = end(i);
-        Ok(if i < n {
-            if v == pole {
-                // The seam arriving at its tip leaves along the twin.
-                out(0)
-            } else if let Some(s) = (0..spokes.len()).find(|&s| far(s) == v) {
-                back(s)
-            } else {
-                (i + 1) % n
-            }
-        } else if (i - n).is_multiple_of(2) {
-            // A spoke arriving at its far end: into the loop, on along
-            // another spoke ending there, or back along itself.
-            let s = (i - n) / 2;
-            if (0..n).any(|j| start(j) == v) {
-                loop_leaving(v)?
-            } else if let Some(o) = (0..spokes.len()).find(|&o| o != s && far(o) == v) {
-                back(o)
-            } else {
-                back(s)
-            }
-        } else {
-            // A spoke arriving at the pole leaves along the other edge
-            // there: the other spoke, or the seam.
-            let s = (i - n) / 2;
-            match (seam, spokes.len()) {
-                (Some(_), 1) => loop_leaving(pole)?,
-                (None, 2) => out(1 - s),
-                _ => {
-                    return Err(internal(
-                        "internal: a pole vertex with other than two edges",
-                    ));
-                }
-            }
-        })
-    };
-    let next = (0..all.len()).map(link).collect::<Result<Vec<_>, _>>()?;
-    let mut seen = vec![false; all.len()];
-    let mut cycles: Vec<Vec<EdgeUse>> = Vec::new();
-    for s in 0..all.len() {
-        if seen[s] {
-            continue;
-        }
-        let mut cycle = Vec::new();
-        let mut i = s;
-        while !seen[i] {
-            seen[i] = true;
-            cycle.push(all[i]);
-            i = next[i];
-        }
-        if i != s {
-            return Err(internal(
-                "internal: a chart singularity cut's walk does not close",
-            ));
-        }
-        cycles.push(cycle);
+    let pole_edges = || internal("internal: a pole vertex with other than two edges");
+    if !matches!((seam, spokes.len()), (Some(_), 1) | (None, 2)) {
+        return Err(pole_edges());
     }
+    let mut cuts = Vec::with_capacity(spokes.len());
+    for &(edge, from_pole) in spokes {
+        let first = EdgeUse {
+            edge,
+            forward: from_pole,
+        };
+        // Out of the pole, then back: the pole is on the loop only as
+        // the tip of the seam the face uses both ways.
+        let far = leaving(use_end(solid, first))?;
+        let pole_at = match seam {
+            Some(_) => leaving(pole)?,
+            None => None,
+        };
+        cuts.push(CutLine {
+            first,
+            ends: [pole_at, far],
+        });
+    }
+    let cycles = surgery::relink(solid, &loops, &cuts, &[]).map_err(|why| match why {
+        Unlinked::Branch => pole_edges(),
+        Unlinked::Open => internal("internal: a chart singularity cut's walk does not close"),
+    })?;
     if cycles.len() > 2 {
         return Err(internal(
             "a sphere face whose pole-form meridians close round both poles without meeting \
@@ -1235,12 +1139,12 @@ fn cut(
         ));
     }
     let template = &solid.faces[fi];
-    let (surface, sense) = (template.surface.clone(), template.sense);
+    let (record, sense) = (template.record, template.sense);
     let faces: Vec<FaceSpec> = cycles
         .into_iter()
         .map(|uses| FaceSpec {
             id: face_id,
-            surface: surface.clone(),
+            record,
             sense,
             loops: vec![LoopSpec { outer: true, uses }],
             band: false,
@@ -1355,6 +1259,7 @@ mod side_through_a_pole {
             t0,
             t1,
             reversed: false,
+            curve: None,
         };
         let pi = core::f64::consts::PI;
         let edges = || {
@@ -1366,10 +1271,12 @@ mod side_through_a_pole {
         };
         let vertices = BTreeMap::from([(1, a), (2, n), (3, bb)]);
         let surface = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let use_ = |edge, forward| EdgeUse { edge, forward };
         let read = Read::of(crate::interpret::FileBand::with_run(1e-9, 1e-9, 10.0).unwrap());
@@ -1379,7 +1286,7 @@ mod side_through_a_pole {
                 id: 100,
                 faces: vec![FaceSpec {
                     id: 101,
-                    surface: surface.clone(),
+                    record: 900,
                     sense,
                     loops: vec![LoopSpec {
                         outer: true,
@@ -1389,6 +1296,7 @@ mod side_through_a_pole {
                 }],
                 edges: edges(),
                 vertices: vertices.clone(),
+                surfaces: crate::entities::records_of([(900, surface.clone())]),
                 band_seams: Default::default(),
             };
             assert_eq!(
@@ -1453,6 +1361,7 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
                     t0: 0.0,
                     t1: core::f64::consts::TAU,
                     reversed: false,
+                    curve: None,
                 },
             ),
             (
@@ -1464,6 +1373,7 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
                     t0: -0.5,
                     t1: 0.5,
                     reversed: false,
+                    curve: None,
                 },
             ),
         ]);
@@ -1488,18 +1398,24 @@ mod an_undecided_distance_ahead_of_an_unsettled_edge {
             id: 100,
             faces: vec![FaceSpec {
                 id: 101,
-                surface: Surface::Sphere {
-                    center: Point3::new(0.0, 0.0, 0.0),
-                    radius: 1.0,
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
-                },
+                record: 900,
                 sense: true,
                 loops,
                 band: false,
             }],
             edges,
             vertices,
+            surfaces: crate::entities::records_of([(
+                900,
+                Surface::Sphere {
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                    radius: 1.0,
+                },
+            )]),
             band_seams: Default::default(),
         }
     }
@@ -1579,13 +1495,14 @@ mod meetings_are_the_kernels {
             id: 100,
             faces: vec![FaceSpec {
                 id: 101,
-                surface,
+                record: 900,
                 sense: true,
                 loops,
                 band: false,
             }],
             edges: edges.into_iter().collect(),
             vertices: vertices.into_iter().collect(),
+            surfaces: crate::entities::records_of([(900, surface)]),
             band_seams: Default::default(),
         }
     }
@@ -1600,6 +1517,7 @@ mod meetings_are_the_kernels {
             t0: 0.0,
             t1: core::f64::consts::TAU,
             reversed: false,
+            curve: None,
         };
         ((id, spec), (v, at))
     }
@@ -1622,10 +1540,8 @@ mod meetings_are_the_kernels {
     fn a_landing_beside_a_vertex_is_decided_at_the_files_band() {
         let (z, x) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
         let sphere = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, x),
             radius: 1.0,
-            axis: z,
-            u_ref: x,
         };
         let Some(chart) = Chart::of(&sphere) else {
             unreachable!("a sphere has a chart")
@@ -1699,10 +1615,8 @@ mod meetings_are_the_kernels {
         );
         let half_angle = core::f64::consts::FRAC_PI_4;
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: z,
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, x),
             half_angle,
-            u_ref: x,
         };
         let Some(chart) = Chart::of(&cone) else {
             unreachable!("a cone has a chart")
@@ -1733,6 +1647,7 @@ mod meetings_are_the_kernels {
                         t0: 0.0,
                         t1: 1.0,
                         reversed: false,
+                        curve: None,
                     },
                 ),
                 rim,
@@ -1752,10 +1667,12 @@ mod meetings_are_the_kernels {
 
     fn unit_sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -1861,6 +1778,7 @@ mod meetings_are_the_kernels {
             t0: 0.0,
             t1: core::f64::consts::PI,
             reversed: false,
+            curve: None,
         };
         let south = Point3::new(0.0, 0.0, -1.0);
         let across = |offset: f64| {
@@ -1905,10 +1823,8 @@ mod meetings_are_the_kernels {
             Vec3::new(0.0, 0.0, 1.0),
         );
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: z,
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, x),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: x,
         };
         let Some(chart) = Chart::of(&cone) else {
             unreachable!("a cone has a chart")
@@ -1927,6 +1843,7 @@ mod meetings_are_the_kernels {
                     t0: 0.0,
                     t1: 1.0,
                     reversed: false,
+                    curve: None,
                 },
             )],
             vec![(1, line.eval(0.0)), (2, line.eval(1.0))],
@@ -1989,6 +1906,7 @@ mod meetings_are_the_kernels {
                         t0: 1.0,
                         t1: stop,
                         reversed: false,
+                        curve: None,
                     },
                 )],
                 vec![(1, meridian.eval(1.0)), (2, meridian.eval(stop))],

@@ -44,9 +44,10 @@ pub(crate) use anchor::{derive_naming, validated_naming};
 pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
-pub(crate) use framed::Frame;
+pub(crate) use framed::{Frame, GraftIn};
 pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
+pub(crate) use topo::Seat;
 pub use wire::DirectionRefusal;
 
 use std::collections::BTreeMap;
@@ -1730,12 +1731,13 @@ pub enum NodeErrorKind {
     /// tier 2 alone at the box scalars); the operation that takes it
     /// runs tier 3 on it ([`super::Held::finished`]).
     ///
-    /// Where the operation read the operand into another operand's frame
-    /// before taking it (a union's or an intersect's fold computes in one
-    /// member's frame and reads every other into it), `into` names the
-    /// operand whose frame that is: the image that does not finish is
-    /// `input`'s, carried through `into`'s placement. The subject is
-    /// still `input`; the frame is the context its findings were read in.
+    /// Where the operation placed the operand in another operand's frame
+    /// (a union's or an intersect's fold, or a subtract, computes in one
+    /// operand's frame and places the others in it), `into` names the
+    /// operand whose frame that is, and the findings are those of
+    /// `input`'s image there: the placed door's move refusing it at the
+    /// session box (`topo::Placed::taken`). The subject is still `input`;
+    /// the frame is the context its findings were read in.
     UnfinishedLeaf {
         /// The operand's node: the node whose value this operation took.
         input: RecipeNodeId,
@@ -3114,7 +3116,7 @@ pub(crate) mod leaf {
         /// The read, over the leaf's replay at `T`, with the clearance
         /// engine's door at `T`: every leaf lane is a certifying
         /// scalar, so the door is held rather than asked for.
-        fn at<T: geom_core::Decide + topo::AtRestPolicy>(
+        fn at<T: geom_core::Certifies + topo::AtRestPolicy>(
             self,
             ev: &Evaluation<T>,
             clearance: topo::ClearanceLane<T>,
@@ -3668,37 +3670,15 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         self.lo() == 0.0 && self.hi() == 0.0
     }
 
-    /// Across the negative `x` axis the principal branch's cut widens
-    /// the enclosure to the whole circle, so there the angle is read on
-    /// the branch about `π`: the solve reads an angle only through its
-    /// sine and cosine, which every branch encloses alike. An exact zero
-    /// `y` over a positive `x` is the angle zero exactly, which the
-    /// backend's `atan2` encloses as subnormal dust whose cosine is an
-    /// ulp wide.
     fn solve_atan2(y: Self, x: Self) -> Self {
-        use geom_core::Real;
-        match Self::atan2_branch(y, x) {
-            crate::mate::Atan2Branch::Zero => Self::zero(),
-            crate::mate::Atan2Branch::AboutPi => Self::pi() + (-y).atan2(-x),
-            crate::mate::Atan2Branch::Principal => y.atan2(x),
-        }
-    }
-
-    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
-        use geom_core::Bounds;
-        if y.lo() == 0.0 && y.hi() == 0.0 && x.lo() > 0.0 {
-            crate::mate::Atan2Branch::Zero
-        } else if x.hi() < 0.0 && y.lo() <= 0.0 && 0.0 <= y.hi() {
-            crate::mate::Atan2Branch::AboutPi
-        } else {
-            crate::mate::Atan2Branch::Principal
-        }
+        crate::mate::solve::box_atan2(y, x)
     }
 }
 
-/// The seed lane's solve: a refusal quotes the value channel — the
-/// `f64` lane's own number — and the angle's value channel is the
-/// `f64` lane's `atan2` with the dual's own tangent beside it.
+/// The seed lane's solve: a refusal quotes the value channel — its
+/// lane's own number — and the angle's value channel is its lane's
+/// `solve_atan2` (the platform's over `f64`, `box_atan2` over an
+/// interval) with the dual's own tangent beside it.
 impl<T: crate::mate::SolveScalar> crate::mate::SolveScalar for geom_core::Dual<T>
 where
     geom_core::Dual<T>: geom_core::Decide,
@@ -3728,10 +3708,6 @@ where
             deriv: angle.deriv,
         }
     }
-
-    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
-        T::atan2_branch(y.value, x.value)
-    }
 }
 
 /// The symbolic tier's solve: its lane scalar's quote, and the tier's
@@ -3760,20 +3736,8 @@ where
         T::spins_by_frames()
     }
 
-    /// On the branch its lane scalar reads ([`crate::mate::SolveScalar::atan2_branch`]),
-    /// so a box tier's angle near the cut is the lane's and not the
-    /// whole circle.
     fn solve_atan2(y: Self, x: Self) -> Self {
-        use geom_core::Real;
-        match T::atan2_branch(y.value, x.value) {
-            crate::mate::Atan2Branch::Zero => Self::zero(),
-            crate::mate::Atan2Branch::AboutPi => Self::pi() + (-y).atan2(-x),
-            crate::mate::Atan2Branch::Principal => y.atan2(x),
-        }
-    }
-
-    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
-        T::atan2_branch(y.value, x.value)
+        crate::mate::solve::box_atan2(y, x)
     }
 }
 

@@ -62,6 +62,7 @@ pub mod certify;
 pub mod chart_image;
 pub mod chart_singularity;
 pub mod conic_bend;
+pub mod curvature_arm;
 pub mod curve_face;
 pub mod curve_pair;
 pub(crate) mod descent;
@@ -76,6 +77,19 @@ pub mod enters;
 mod exact_q;
 pub mod extent;
 pub mod fitted_lane;
+
+/// The seal of the lane traits (`NurbsLaneOf`, `SplineFootOf`,
+/// `FittedLaneOf`, `OffsetFitLaneOf`, `SsiLaneOf`): each is implemented
+/// by its lane and by [`geom_core::NoLane`], and by nothing else.
+mod lane_seal {
+    pub trait Sealed {}
+    impl Sealed for geom_core::NoLane {}
+    impl<T: geom_core::Certifies> Sealed for crate::NurbsLane<T> {}
+    impl<T: geom_core::Certifies> Sealed for crate::SplineFoot<T> {}
+    impl<T: geom_core::Certifies> Sealed for crate::FittedLane<T> {}
+    impl<T: geom_core::Certifies> Sealed for crate::OffsetFitLane<T> {}
+    impl<T: geom_core::Certifies> Sealed for crate::SsiLane<T> {}
+}
 #[cfg(test)]
 mod grid_offsets;
 pub mod half_angle;
@@ -93,6 +107,7 @@ pub mod ladder {
     pub use geom_core::ladder::*;
 }
 pub mod locus;
+pub mod locus_certificate;
 pub mod mapped;
 pub(crate) mod memo;
 #[cfg(any(test, feature = "test-support"))]
@@ -105,6 +120,7 @@ pub mod offset_meters;
 pub mod order;
 pub mod pair_section;
 pub mod patch_bound;
+pub mod patch_carrier;
 pub mod pcurve;
 pub mod pcurve_cache;
 pub mod plane_eq;
@@ -133,11 +149,15 @@ pub use carrier_pose::{
 };
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
-    EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, RowRefusal,
-    SplineFoot, StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param,
-    schedule_param, side_row_certifies,
+    EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane,
+    NurbsLaneOf, RowRefusal, SplineFoot, SplineFootOf, StatedImage, StatedSpan, WindingReading,
+    folded_parallelism, sample_param, schedule_param, side_row_certifies,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
+pub use curvature_arm::{
+    circle_curvature_arm, curvature_lever_arm, parallel_curvature_arm, uniform_curvature_arm,
+    within_carrier_bend,
+};
 pub use description::{
     ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SharedRow,
     Structural, authority_of,
@@ -180,7 +200,7 @@ pub use extent::{
     edge_extent_inf, edge_extent_sup, edge_reach_bounds, points_diameter, points_lever_from,
     surface_anchored_at,
 };
-pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
+pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane, FittedLaneOf};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the
 /// doors above read it by the name they already use.
@@ -191,26 +211,27 @@ pub use implicit::{
     circle_sphere_harmonic, cone_elevation, conic_arc_residual_range, conic_cone_harmonics,
     conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual, conic_residual_extremes,
     conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit, conic_torus_jet,
-    conic_torus_residual, curvature_lever_arm, graph_acceleration, implicit_gradient,
-    implicit_graph_acceleration, implicit_hessian, implicit_hessian_form,
-    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
-    implicit_section_acceleration, min_radius_of_curvature, min_radius_of_curvature_toward,
-    ring_floor,
+    conic_torus_residual, graph_acceleration, implicit_gradient, implicit_graph_acceleration,
+    implicit_hessian, implicit_hessian_form, implicit_max_normal_curvature,
+    implicit_outward_normal, implicit_residual, implicit_section_acceleration,
+    min_radius_of_curvature, min_radius_of_curvature_toward, ring_floor,
 };
 pub use intersect::{
-    ApexFansMeeting, ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection,
-    OpenConic, OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection,
-    PlaneSite, PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane,
-    SectionRadius, SphereSphereSection, cone_cone_apex_meeting, cone_cylinder_section,
-    cone_plane_apex_extrema, cylinder_axes_coplanar, cylinder_axes_parallel,
-    cylinder_cylinder_section, parallel_axes_at, plane_cone_apex_extrema, plane_cone_section,
-    plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section, plane_torus_section,
-    route, route_pose, sphere_sphere_section, tilted_section_major,
+    ApexFansMeeting, ConeCylinderSection, ConeSphereSection, ConeTorusSection, ConicArcError,
+    ConicBranch, EqualCylinderSection, OpenConic, OpenConicSection, PairRoute, ParallelAxes,
+    PlaneConeSection, PlaneCylinderSection, PlaneSite, PlaneSphereSection, PlaneTorusSection, Rung,
+    SectionError, SectionPlane, SectionRadius, SphereSphereSection, cone_cone_apex_meeting,
+    cone_cylinder_section, cone_plane_apex_extrema, cone_sphere_section, cone_torus_section,
+    cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section, parallel_axes_at,
+    plane_cone_apex_extrema, plane_cone_section, plane_cylinder_section,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
+    sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
     TangentLocus, TangentLocusError, tangent_locus, tangent_locus_kinds, tangent_locus_of_faces,
 };
+pub use locus_certificate::{Certified, LocusCertificate};
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 #[cfg(any(test, feature = "test-support"))]
 pub use newell::{NewellError, newell_plane};
@@ -225,7 +246,7 @@ pub use offset_fit::{
     approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
-pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
+pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, OffsetFitLaneOf, ScalarList};
 pub use offset_meters::ChartArmRefusal;
 pub use pair_section::{
     ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CarryRefusal, CcDecision,
@@ -235,16 +256,17 @@ pub use pair_section::{
     NodeEnd, NodeEnds, NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal,
     RaySense, Reached, RegionPlacement, Ring, SectionComponent, SectionDecision, SectionNode,
     SectionPick, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose,
-    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
+    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT,
     TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
-    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,
-    tori_coincide,
+    ZeroKind, ZeroVerdict, axis_pose, coaxial_tangent_circle, line_tilt, pair_section,
+    spline_pair_section, square_part, tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.
 #[cfg(any(test, feature = "test-support"))]
 pub use pair_section::{CarryErrorKind, CarryRefusalKind};
+pub use patch_carrier::patch_distance_sup;
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
@@ -254,12 +276,12 @@ pub use pcurve_cache::{
     FocalImage, FramedCarrier, HeldLine, ISO_FAMILY_CLAUSE, IncidenceRead, IncidenceRefusal,
     IsoFamily, IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, NoHeldLine, NoSpeedBound,
     OffMargin, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind,
-    Period, ProjectedChart, ProjectedImage, Ruling, SectorChannel, SpiricImage, StoredSpan,
-    WalkStop, WallTorus, angle_rate, azimuth_lever_inf, chart_iso_family, chart_pcurve,
-    chart_pcurve_over, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
-    chart_sup_arms_at, harmonic_form_of, harmonic_range, incidence_ended_unwitnessed, iso_arc_skew,
-    iso_arc_spans, minted_refusal, read_edge_incidence, read_incidence, read_point_incidence,
-    ruling_miss,
+    Period, PoleEnd, ProjectedChart, ProjectedImage, Ruling, SectorChannel, SingularEnds,
+    SpiricImage, StoredSpan, WalkStop, WallTorus, angle_rate, azimuth_lever_inf, chart_iso_family,
+    chart_pcurve, chart_pcurve_over, chart_pcurve_over_ends, chart_stretch_inf, chart_stretch_sup,
+    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, harmonic_range,
+    incidence_ended_unwitnessed, iso_arc_skew, iso_arc_spans, minted_refusal, read_edge_incidence,
+    read_incidence, read_point_incidence, reads_singular_ends, ruling_miss,
 };
 pub use plane_eq::{PlaneDesc, PlaneRung, oriented_plane_eq};
 pub use polygon_orientation::PolygonOrientation;

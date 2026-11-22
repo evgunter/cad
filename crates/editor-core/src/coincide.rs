@@ -100,6 +100,8 @@ use crate::node::{Node, RecipeNodeId};
 mod replay;
 mod stated;
 
+pub(crate) use stated::meet_by_construction;
+
 pub use replay::with_replay_session;
 
 /// **What a contact record's positional input is**: the input a

@@ -2,10 +2,11 @@
 id: torus-face-region-reads-a-points-torus-chart-by-its-own-atan2
 kind: issue
 title: torus_face_region reads a point's torus chart coordinates by its own atan2, beside geom's chart reading
-status: open
+status: closed
 opened: 2026-10-24
 priority: P1
 cost: E
+closed: 2026-11-20
 ---
 
 
@@ -40,3 +41,7 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 - Banded P1: a second spelling of `ChartInverse::point`'s torus arm: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Priced `E`, the effort the body describes.
 - Moved to CHARTTAIL (`work/charttail/`) by `git mv`, id and body unchanged: which holds CHART's rows since CHART folded in today: chart readings and the region doors. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Closed (2026-11-20, CHARTTAIL triage)
+
+Gone on main `131457c3`: `torus_face_region` was rewritten to a chart-free method (its doc: nothing is read in the chart, and the torus's two periods never enter a reading). The only `atan2` left in `torus_region.rs` is in the test helper `villarceau_family`.

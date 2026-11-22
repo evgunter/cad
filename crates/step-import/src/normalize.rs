@@ -93,6 +93,9 @@ use crate::interpret::{FileBand, Read, STEP_BAND_RIM_COAXIAL, STEP_BAND_SEAM_VER
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 
 mod singularity;
+pub(crate) mod surgery;
+
+use surgery::{CutLine, boundary_census, split_at_point, use_start};
 
 /// The shell's vertex valences: how many edge ENDS meet each vertex (a
 /// self-loop contributes two).
@@ -103,97 +106,6 @@ fn valences(solid: &SolidSpec) -> BTreeMap<u64, usize> {
         *out.entry(spec.end).or_insert(0) += 1;
     }
     out
-}
-
-/// Replaces every use of `edge` in the shell, EXCEPT inside
-/// `skip_faces`, by the two halves it was split into.
-///
-/// `first` runs from the split edge's own start to the new midpoint
-/// vertex; `second` runs from the midpoint back to the end. A forward
-/// use therefore walks `first` then `second`; a reversed use walks
-/// `second` then `first`, each reversed.
-fn expand_split_uses(
-    solid: &mut SolidSpec,
-    edge: u64,
-    first: u64,
-    second: u64,
-    skip_faces: &[usize],
-) {
-    for (fi, face) in solid.faces.iter_mut().enumerate() {
-        if skip_faces.contains(&fi) {
-            continue;
-        }
-        for lp in &mut face.loops {
-            let mut out = Vec::with_capacity(lp.uses.len() + 1);
-            for u in &lp.uses {
-                if u.edge == edge {
-                    let (a, b) = if u.forward {
-                        (first, second)
-                    } else {
-                        (second, first)
-                    };
-                    out.push(EdgeUse {
-                        edge: a,
-                        forward: u.forward,
-                    });
-                    out.push(EdgeUse {
-                        edge: b,
-                        forward: u.forward,
-                    });
-                } else {
-                    out.push(*u);
-                }
-            }
-            lp.uses = out;
-        }
-    }
-}
-
-/// Splits `edge` at the interior carrier parameter `tm` (the caller
-/// guarantees `t0 < tm < t1`), minting the new vertex and the two
-/// halves. Answers `(first, second, new vertex)`, at an arbitrary
-/// parameter (M7-5: the band mint splits rims at the seam azimuth, not
-/// the midpoint).
-fn split_at_param(
-    solid: &mut SolidSpec,
-    edge: u64,
-    tm: f64,
-    mint: &mut dyn FnMut() -> u64,
-) -> (u64, u64, u64) {
-    let spec = &solid.edges[&edge];
-    let (t0, t1, start, end) = (spec.t0, spec.t1, spec.start, spec.end);
-    let carrier = spec.carrier.clone();
-    let mid_v = mint();
-    solid.vertices.insert(mid_v, carrier.eval(tm));
-    let (first, second) = (mint(), mint());
-    solid.edges.insert(
-        first,
-        EdgeSpec {
-            start,
-            end: mid_v,
-            carrier: carrier.clone(),
-            t0,
-            t1: tm,
-            // A minted edge: the importer states its own
-            // start → end, so there is no sense to compose.
-            reversed: false,
-        },
-    );
-    solid.edges.insert(
-        second,
-        EdgeSpec {
-            start: mid_v,
-            end,
-            carrier,
-            t0: tm,
-            t1,
-            // A minted edge: the importer states its own
-            // start → end, so there is no sense to compose.
-            reversed: false,
-        },
-    );
-    solid.edges.remove(&edge);
-    (first, second, mid_v)
 }
 
 /// Whether traversing `carrier` in its increasing parameter raises the
@@ -257,8 +169,8 @@ pub(crate) fn normalize_shell(
 /// imported surface as stated, where re-charting `u_ref` to dodge a
 /// split would mutate imported geometry beyond need. Where a rim
 /// has no vertex at that azimuth, the rim is split there
-/// ([`split_at_param`]) and the split propagates to EVERY face
-/// sharing the rim ([`expand_split_uses`]) — load-bearing for shared
+/// ([`split_at_point`]) and the split propagates to EVERY face
+/// sharing the rim — load-bearing for shared
 /// rims between adjacent bands.
 ///
 /// The winding is derived, never assumed (spec D2, the module's
@@ -306,28 +218,6 @@ fn band_seam(
     Ok(())
 }
 
-/// The vertex a use STARTS at.
-fn use_start(solid: &SolidSpec, use_: EdgeUse) -> u64 {
-    let spec = &solid.edges[&use_.edge];
-    if use_.forward { spec.start } else { spec.end }
-}
-
-/// The boundary census of one face's loops as they stand: distinct
-/// edges and distinct endpoint vertices.
-fn face_boundary_census(solid: &SolidSpec, fi: usize) -> (usize, usize) {
-    let mut edges = std::collections::BTreeSet::new();
-    let mut vertices = std::collections::BTreeSet::new();
-    for lp in &solid.faces[fi].loops {
-        for u in &lp.uses {
-            edges.insert(u.edge);
-            let spec = &solid.edges[&u.edge];
-            vertices.insert(spec.start);
-            vertices.insert(spec.end);
-        }
-    }
-    (edges.len(), vertices.len())
-}
-
 /// One tagged band face's re-mint ([`band_seam`] docs).
 fn mint_band(
     solid: &mut SolidSpec,
@@ -338,28 +228,27 @@ fn mint_band(
 ) -> Result<(), StepImportError> {
     let chart_band = Some(file.band());
     let face_id = solid.faces[fi].id;
-    let surface = solid.faces[fi].surface.clone();
+    let surface = solid.surface(fi).clone();
     let sense = solid.faces[fi].sense;
     // Detection tagged only these two chart kinds (spec D3).
     let (s_axis, s_u_ref, axis_point, torus) = match surface {
-        Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        } => (axis, u_ref, origin, None),
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (axis, u_ref, origin, None)
+        }
         Surface::Torus {
-            axis,
-            u_ref,
-            center,
+            frame,
             major_radius,
             minor_radius,
-        } => (
-            axis,
-            u_ref,
-            center,
-            Some((center, major_radius, minor_radius)),
-        ),
+        } => {
+            let (axis, u_ref, center) = (frame.axis(), frame.u_ref(), frame.origin());
+            (
+                axis,
+                u_ref,
+                center,
+                Some((center, major_radius, minor_radius)),
+            )
+        }
         _ => {
             return Err(StepImportError::Topology {
                 id: face_id,
@@ -368,7 +257,7 @@ fn mint_band(
             });
         }
     };
-    let (entry_edges, entry_vertices) = face_boundary_census(solid, fi);
+    let (entry_edges, entry_vertices) = boundary_census(solid, &[fi]);
     if solid.faces[fi].loops.len() != 2 {
         return Err(StepImportError::Topology {
             id: face_id,
@@ -413,15 +302,9 @@ fn mint_band(
         for (ui, u) in lp.uses.iter().enumerate() {
             let spec = &solid.edges[&u.edge];
             let coaxial = match spec.carrier {
-                Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: n,
-                            ..
-                        },
-                    radius,
-                }) => {
+                Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
+                    let (center, n) = (frame.origin(), frame.axis());
+                    let radius = circle.radius();
                     let off_axis = geom::Line {
                         origin: axis_point,
                         dir: s_axis,
@@ -539,6 +422,7 @@ fn mint_band(
             // A minted edge: the importer states its own
             // start → end, so there is no sense to compose.
             reversed: false,
+            curve: None,
         },
     );
     // The mint's whole point is D1's statement that this edge is the
@@ -553,30 +437,41 @@ fn mint_band(
     // seam vertex round its whole period, up the seam generator, round
     // the end rim, and back down the generator — both rims keep their
     // FILE-stated uses verbatim (the derived winding above is what
-    // certifies they already run the right way), merely rotated to
-    // start at their seam vertex.
-    let rotate = |solid: &SolidSpec, li: usize, at: u64| -> Result<Vec<EdgeUse>, StepImportError> {
+    // certifies they already run the right way): the face cut along
+    // the seam ([`surgery::relink`]), traced from the start rim's seam
+    // vertex.
+    let leaving = |li: usize| -> Result<(usize, usize), StepImportError> {
         let uses = &solid.faces[fi].loops[li].uses;
-        let k = uses.iter().position(|u| use_start(solid, *u) == at).ok_or(
-            StepImportError::Topology {
+        let k = uses
+            .iter()
+            .position(|u| use_start(solid, *u) == seam_v[li])
+            .ok_or(StepImportError::Topology {
                 id: face_id,
                 what: "internal: a band rim lost its seam vertex during the re-mint",
-            },
-        )?;
-        let mut out = uses.clone();
-        out.rotate_left(k);
-        Ok(out)
+            })?;
+        Ok((li, k))
     };
-    let mut uses = rotate(solid, ls, seam_v[ls])?;
-    uses.push(EdgeUse {
-        edge: gen_id,
-        forward: true,
-    });
-    uses.extend(rotate(solid, le, seam_v[le])?);
-    uses.push(EdgeUse {
-        edge: gen_id,
-        forward: false,
-    });
+    let (at_s, at_e) = (leaving(ls)?, leaving(le)?);
+    let loops: Vec<Vec<EdgeUse>> = solid.faces[fi]
+        .loops
+        .iter()
+        .map(|l| l.uses.clone())
+        .collect();
+    let seam = CutLine {
+        first: EdgeUse {
+            edge: gen_id,
+            forward: true,
+        },
+        ends: [Some(at_s), Some(at_e)],
+    };
+    let Ok(Ok([uses])) =
+        surgery::relink(solid, &loops, &[seam], &[at_s]).map(<[Vec<EdgeUse>; 1]>::try_from)
+    else {
+        return Err(StepImportError::Topology {
+            id: face_id,
+            what: "internal: a band's rims and seam did not close into one loop",
+        });
+    };
     solid.faces[fi].loops = vec![LoopSpec { outer: true, uses }];
     sink.push(StructureNormalization {
         face: face_id,
@@ -615,7 +510,7 @@ fn seam_vertex_on_loop(
 ) -> Result<u64, StepImportError> {
     let face_id = solid.faces[fi].id;
     let s_u_ref = match *surface {
-        Surface::Cylinder { u_ref, .. } | Surface::Torus { u_ref, .. } => u_ref,
+        Surface::Cylinder { frame, .. } | Surface::Torus { frame, .. } => frame.u_ref(),
         _ => {
             return Err(StepImportError::Topology {
                 id: face_id,
@@ -655,7 +550,8 @@ fn seam_vertex_on_loop(
             // circle; anything else lands in the typed refusal below.
             continue;
         };
-        let q = crate::signed_zero::plus_zero_point(circle.frame.origin + s_u_ref * circle.radius);
+        let q =
+            crate::signed_zero::plus_zero_point(circle.frame.origin() + s_u_ref * circle.radius());
         let t = circle
             .period()
             .above(geom::Conic::azimuth(circle, q).near(0.0), spec.t0);
@@ -665,41 +561,14 @@ fn seam_vertex_on_loop(
         }
     }
     if let Some((edge, t, q)) = crossing {
-        let (first, second, mid_v) = split_at_param(solid, edge, t, mint);
-        // The split vertex must be the EXACT crossing point `q` (rim
-        // centre + radius · u_ref, no trigonometry), not the carrier's
-        // trig evaluation at `t` — the evaluation carries up-to-a-ulp
-        // dust off the half-plane, and the dust would shift the
-        // re-derived parameters of a re-import (the writer round-trip
-        // must be a fixed point). For the same reason both halves'
-        // parameter intervals are re-derived from their endpoint
-        // POSITIONS through the exact convention a re-import applies
-        // (`geometry::endpoint_params`): a half whose minted interval
-        // crossed the period boundary would otherwise carry a
-        // parameter representative shifted by 2π from the one the
-        // re-import derives — the same arc, but not bit-identical
-        // under evaluation.
-        solid.vertices.insert(mid_v, q);
-        for half in [first, second] {
-            // ONE lookup serves both the reads and the load-bearing
-            // interval write (the comment above) — `edges` and
-            // `vertices` are disjoint fields, so the vertex reads
-            // borrow beside the spec. The half cannot miss: both were
-            // minted into `solid.edges` by `split_at_param` above.
-            let Some(spec) = solid.edges.get_mut(&half) else {
-                unreachable!("a split half minted by `split_at_param` is in `solid.edges`")
-            };
-            let self_loop = spec.start == spec.end;
-            let (ps, pe) = (solid.vertices[&spec.start], solid.vertices[&spec.end]);
-            let (t0, t1) =
-                crate::geometry::endpoint_params(half, &spec.carrier, ps, pe, self_loop)?;
-            spec.t0 = t0;
-            spec.t1 = t1;
-        }
-        // Patch EVERY face — including this band's own loops (the rim
-        // may be shared with the neighbouring face, or with another
-        // band whose mint runs later).
-        expand_split_uses(solid, edge, first, second, &[]);
+        // The split vertex is the EXACT crossing point `q` (rim centre
+        // + radius · u_ref, no trigonometry), and both halves' intervals
+        // are re-derived from their endpoints as a re-import derives
+        // them: the writer round-trip must be a fixed point. The split
+        // reaches EVERY face, this band's own loops included (the rim may
+        // be shared with the neighbouring face, or with another band
+        // whose mint runs later).
+        let mid_v = split_at_point(solid, edge, t, q, mint)?;
         *splits += 1;
         return Ok(mid_v);
     }
@@ -747,9 +616,12 @@ fn wall_inversion(
     chart_band: Option<geom_core::Band>,
 ) -> Result<(), StepImportError> {
     for face in &solid.faces {
-        let (Surface::Cylinder { axis, .. } | Surface::Cone { axis, .. }) = face.surface else {
+        let (Surface::Cylinder { frame, .. } | Surface::Cone { frame, .. }) =
+            *solid.surface_of(face)
+        else {
             continue;
         };
+        let axis = frame.axis();
         let [lp] = face.loops.as_slice() else {
             continue;
         };
@@ -759,25 +631,28 @@ fn wall_inversion(
         let mut readable = true;
         for use_ in &lp.uses {
             let spec = &solid.edges[&use_.edge];
-            let Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis: n_c, .. },
-                ..
-            }) = spec.carrier
-            else {
+            let Curve3::Circle(geom::Circle { frame, .. }) = spec.carrier else {
                 continue;
             };
+            let n_c = frame.axis();
             if n_c.dot(axis).abs() <= 0.5 {
                 continue;
             }
-            let Some(p) =
-                chart_direction(&face.surface, &spec.carrier, spec.t0, spec.t1, chart_band)
-            else {
+            let Some(p) = chart_direction(
+                solid.surface_of(face),
+                &spec.carrier,
+                spec.t0,
+                spec.t1,
+                chart_band,
+            ) else {
                 readable = false;
                 break;
             };
-            let Some(uv) =
-                crate::chart::uv_of(&face.surface, spec.carrier.eval(spec.t0), chart_band)
-            else {
+            let Some(uv) = crate::chart::uv_of(
+                solid.surface_of(face),
+                spec.carrier.eval(spec.t0),
+                chart_band,
+            ) else {
                 readable = false;
                 break;
             };
@@ -842,6 +717,7 @@ mod tests {
                 t0: 0.0,
                 t1: 2.0_f64.sqrt(),
                 reversed: false,
+                curve: None,
             },
         );
         edges.insert(
@@ -858,6 +734,7 @@ mod tests {
                 t0: 0.0,
                 t1: TAU,
                 reversed: false,
+                curve: None,
             },
         );
         let mut vertices = BTreeMap::new();
@@ -871,12 +748,7 @@ mod tests {
             id: 100,
             faces: vec![FaceSpec {
                 id: 101,
-                surface: Surface::Cone {
-                    apex,
-                    axis: Vec3::new(0.0, 0.0, -1.0),
-                    half_angle: std::f64::consts::FRAC_PI_4,
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
-                },
+                record: 900,
                 sense: true,
                 loops: vec![LoopSpec {
                     outer: true,
@@ -886,6 +758,17 @@ mod tests {
             }],
             edges,
             vertices,
+            surfaces: crate::entities::records_of([(
+                900,
+                Surface::Cone {
+                    frame: geom::Frame::new(
+                        apex,
+                        Vec3::new(0.0, 0.0, -1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                    half_angle: std::f64::consts::FRAC_PI_4,
+                },
+            )]),
             band_seams: Default::default(),
         };
         let mut minted = 0_u64;

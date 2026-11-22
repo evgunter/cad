@@ -132,9 +132,9 @@ fn a_rimless_lune_meshes_through_the_door_and_measures() {
     let surface = body.face_surface(sphere_face.0).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     assert_eq!(
-        geom_brep::props::require_iso_rectangle(surface, &outer, band),
-        Ok(()),
-        "a rimless lune is a chart rectangle"
+        geom_brep::props::iso_rectangle_sides(surface, &outer, band),
+        Ok(vec![geom_brep::IsoFamily::U; outer.len()]),
+        "a rimless lune is a chart rectangle, every side of it a meridian"
     );
     let volume = topo::test_support::pinned_volume(
         "the flux lane measures the lune by its meridian pair",
@@ -162,7 +162,7 @@ fn split_seam_donut(fracs: &[f64]) -> (topo::Body<f64>, (f64, f64)) {
         .certified()
         .unwrap();
     assert!(
-        matches!(curve.carrier(), geom::Curve3::Circle(geom::Circle { radius, .. }) if (*radius - 0.5).abs() < 1e-12),
+        matches!(curve.carrier(), geom::Curve3::Circle(k) if (k.radius() - 0.5).abs() < 1e-12),
         "the fixture's first edge is the seam minor circle"
     );
     let (t0, t1) = curve.params();
@@ -367,7 +367,7 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
         // traversed once in each direction; take its forward chain.
         let seam0 = outer0
             .iter()
-            .find(|e| e.forward && matches!(e.carrier, geom::Curve3::Circle(geom::Circle { radius, .. }) if (radius - 0.5).abs() < 1e-12))
+            .find(|e| e.forward && matches!(e.carrier, geom::Curve3::Circle(k) if (k.radius() - 0.5).abs() < 1e-12))
             .expect("the unsplit seam, forward");
         assert!(
             seam0.carrier_id.is_some(),

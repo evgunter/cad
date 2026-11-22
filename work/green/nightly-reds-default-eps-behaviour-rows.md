@@ -82,8 +82,8 @@ list above, each checked against the tree:
   slow-set step. The 1e-6 and 1e-12 rows are this lane's local runs.
 - Both nightlies since (43371638371, 43561237293) were searched for
   another test failing on an unmet measure: the census is the only one.
-- Filed: `work/tint/the-viewers-door-at-rest-rows-keep-by-hand-a-count-editor-core-owns.md`,
-  `work/tint/the-seam-split-census-builds-no-pose-at-1e-12-so-neither-of-its-claims-can-fail-there.md`,
+- Filed: `work/ciw/the-viewers-door-at-rest-rows-keep-by-hand-a-count-editor-core-owns.md`,
+  `work/ciw/the-seam-split-census-builds-no-pose-at-1e-12-so-neither-of-its-claims-can-fail-there.md`,
   `work/green/pins-a-green-lane-leaves-are-hand-kept-lists-keyed-by-name-or-float-tuple.md`,
   `work/ciw/an-extra-eps-step-that-selects-no-test-reads-green.md`.
 

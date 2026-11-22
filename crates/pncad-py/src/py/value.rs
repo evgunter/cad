@@ -33,7 +33,8 @@ use crate::py::{
 };
 use crate::tags::{
     export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
-    promoted_curve_kind_tag, promoted_kind_tag, singularity_found_tag, step_import_error_tag,
+    promoted_curve_kind_tag, promoted_kind_tag, singularity_found_tag, snap_relation_tag,
+    step_import_error_tag,
 };
 use crate::validation;
 use pncad::analysis as a;
@@ -2312,6 +2313,19 @@ impl StructureNormalization {
         }
     }
 
+    /// The snap catalogue's relation whose construction moved the surface
+    /// record `face` names (`coaxial`, `tangent`, `axis_normal`) — on
+    /// `snapped` alone.
+    #[getter]
+    fn relation(&self) -> Option<&'static str> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::Snapped { relation, .. } => {
+                Some(snap_relation_tag(relation))
+            }
+            _ => None,
+        }
+    }
+
     /// Where the file put the chart singularity import made a vertex —
     /// on `chart_singularity_vertex` alone.
     #[getter]
@@ -2338,12 +2352,19 @@ impl StructureNormalization {
 
     /// The move's bound (metres): how far building the frames moved a
     /// point of the session box on `placement_re_minted`, how far a face
-    /// on either record lies from the other's surface on `one_record`.
+    /// on either record lies from the other's surface on `one_record`,
+    /// how far the snap moved a point of the surface's faces on `snapped`,
+    /// how far the build moved a vertex from its printed point on
+    /// `vertex_built`, how far the printed carrier stands off the built one
+    /// on `carrier_built`.
     #[getter]
     fn moved_by(&self) -> Option<f64> {
         match &self.0.kind {
             pncad::step_import::NormalizationKind::PlacementReMinted { moved_by, .. }
-            | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. } => Some(*moved_by),
+            | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. }
+            | pncad::step_import::NormalizationKind::Snapped { moved_by, .. }
+            | pncad::step_import::NormalizationKind::VertexBuilt { moved_by }
+            | pncad::step_import::NormalizationKind::CarrierBuilt { moved_by } => Some(*moved_by),
             _ => None,
         }
     }
@@ -2621,15 +2642,6 @@ pub(crate) fn import_step(
     let defaults = pncad::step_import::ImportOptions::default();
     let options = pncad::step_import::ImportOptions {
         eps_in: eps_in.map(|e| e.0.meters()).or(defaults.eps_in),
-        // This door asks for no chart-coherence examination, because
-        // `ImportReport` has no field to report one on: asking would
-        // measure the body and drop the measurement. Written as the
-        // literal rather than read off `defaults`, so this line
-        // ENFORCES the sentence above it — a kernel-side default that
-        // flipped one crate away would otherwise turn the examination
-        // on here silently, and the comment would go quietly false.
-        // The surface census carries the decision as a `NotBound` row.
-        examine_chart_coherence: false,
     };
     let imported = pncad::step_import::import_step(text, &options, tol);
     let curve_promotions = imported
@@ -2642,10 +2654,6 @@ pub(crate) fn import_step(
             eps_in,
             normalizations,
             instances,
-            // `None` by construction: the options above ask for no
-            // examination, and `None` means NOT ASKED — which is the
-            // one thing an empty report would not say.
-            coherence: _,
             contacts,
             // The rows `contacts` cite: the body carries its records,
             // and the rows are the import's own decisions, which no

@@ -398,12 +398,13 @@ fn fixed_concave_arc_wall_sense_is_false() {
     let mut saw_concave = false;
     for &fk in &t.side_faces()[0] {
         let sk = t.body.get_face(fk).unwrap().surface;
-        let Surface::Cylinder { origin, radius, .. } = *t.body.get_surface(sk).unwrap() else {
+        let Surface::Cylinder { frame, radius, .. } = *t.body.get_surface(sk).unwrap() else {
             // Planar walls stay `true` (Newell-outward by
             // construction).
             assert!(t.body.get_face(fk).unwrap().sense);
             continue;
         };
+        let origin = frame.origin();
         // The region's interior probe, in the sketch plane.
         let d = Point2::new(1.0, 0.75) - Point2::new(origin.x, origin.y);
         if d.norm() > radius {
@@ -969,7 +970,10 @@ fn c_shape(dx: f64) -> Vec<ProfileLoop<f64>> {
 fn planar_caps(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey, f64, f64)> {
     body.faces()
         .filter_map(|(k, f)| match body.face_surface(k) {
-            Some(Surface::Plane { origin, normal, .. }) => Some((k, f.outer, origin.z, normal.z)),
+            Some(Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((k, f.outer, origin.z, normal.z))
+            }
             _ => None,
         })
         .filter(|&(_, l, _, _)| {
@@ -1063,8 +1067,9 @@ fn a_convex_arc_c_shape_partial_revolve_caps_point_out_and_certify() {
     let mut outward: Vec<[f64; 3]> = body
         .faces()
         .filter_map(|(fk, f)| match body.face_surface(fk) {
-            Some(Surface::Plane { normal, .. }) => {
-                let n = if f.sense { *normal } else { -*normal };
+            Some(Surface::Plane { frame, .. }) => {
+                let normal = frame.axis();
+                let n = if f.sense { normal } else { -normal };
                 Some([n.x, n.y, n.z])
             }
             _ => None,

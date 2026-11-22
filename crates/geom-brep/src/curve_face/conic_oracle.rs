@@ -27,12 +27,12 @@ pub fn unit(mut range: impl FnMut(f64, f64) -> f64) -> Vec3<f64> {
 /// conic rows build.
 pub fn torus(center: Point3<f64>, axis: Vec3<f64>, big: f64, small: f64) -> geom::Surface<f64> {
     let axis = axis.normalize();
+    let frame = geom::Frame::admitted(center, axis, axis.orthonormal_basis().0)
+        .unwrap_or_else(|| geom::Frame::new(center, axis, axis.orthonormal_basis().0));
     geom::Surface::Torus {
-        center,
-        axis,
+        frame,
         major_radius: big,
         minor_radius: small,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 
@@ -48,23 +48,22 @@ pub fn distance_from_anchor(
     from: impl Fn(Point3<f64>) -> Vec3<f64>,
 ) -> f64 {
     match *s {
-        geom::Surface::Sphere { center, radius, .. } => from(center).norm() - radius,
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            from(center).norm() - radius
+        }
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let q = from(origin);
             (q - axis * q.dot(axis)).norm() - radius
         }
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let q = from(center);
             let h = q.dot(axis);
             let rho = (q - axis * h).norm();
@@ -132,6 +131,25 @@ fn trough(v: &[f64], k: usize) -> Option<(usize, usize)> {
     let before = a == k || (kept(a) && v[k].abs() < v[a].abs());
     let after = b == k || (kept(b) && v[k].abs() <= v[b].abs());
     (before && after).then_some((a, b))
+}
+
+/// A circle of radius `rho` through the point `depth` off a surface at
+/// `on` along its unit `normal` there, tangent to it in the unit
+/// direction `tangent`, its centre toward `n̂ cos b + (n̂ × t̂) sin b` from
+/// that point, so `θ = 0` is that point.
+pub fn graze(
+    on: Point3<f64>,
+    normal: Vec3<f64>,
+    tangent: Vec3<f64>,
+    (rho, depth, b): (f64, f64, f64),
+) -> geom::Curve3<f64> {
+    let toward = (normal * b.cos() + normal.cross(tangent) * b.sin()).normalize();
+    geom::Curve3::circle(
+        on + normal * depth - toward * rho,
+        toward.cross(tangent).normalize(),
+        rho,
+        toward,
+    )
 }
 
 /// The sign changes of `f` on `[t0, t1]`, each bisected to the bit. A

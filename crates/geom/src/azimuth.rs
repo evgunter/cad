@@ -78,7 +78,7 @@ pub(crate) struct AzimuthFrame<T: Real> {
 /// [`AzimuthFrame`]'s fields.
 pub(crate) fn frame<T: Real>(frame: &Frame<T>, u: T) -> AzimuthFrame<T> {
     let ((s, c), v_ref) = basis(frame, u);
-    of_legs(frame.u_ref, v_ref, (s, c))
+    of_legs(frame.u_ref(), v_ref, (s, c))
 }
 
 /// [`frame`] over two legs a caller holds verbatim, `u_ref` and `v_ref`,
@@ -291,7 +291,10 @@ impl Azimuth<geom_core::Interval> {
     /// `θ` plus the turned pair's angle. The sector is decided here: the
     /// turned pair's along component must be certified positive, so the
     /// read is in the open half-plane `θ` faces, within a quarter turn of
-    /// `θ`, and so narrower than half a turn. `None` otherwise: a box
+    /// `θ` up to its own rounding, and so under a turn wide (at rounding
+    /// it may pass half a turn by ulps: a read `π + 1.2e-15` wide was
+    /// measured). Under a turn is what a reader of it needs: a read under
+    /// a turn wide holds at most one copy of each angle. `None` otherwise: a box
     /// that reaches the origin, or one wider than that half-plane.
     /// Interval `atan2` reads a box straddling its cut as a certified
     /// full-turn hull (decorated `Def`), and one holding the origin as an
@@ -300,7 +303,7 @@ impl Azimuth<geom_core::Interval> {
     /// cut reaches the origin too, and the closing certification ask
     /// refuses it; the positive-side ask says so first, and is what bounds
     /// the read within a quarter turn. Neither the full-turn hull nor a
-    /// read wider than half a turn is ever returned.
+    /// read a turn wide is ever returned.
     ///
     /// [`Azimuth::about`] reads about a whole number of quarter turns,
     /// exactly, with its branch decided by the caller; this reads about
@@ -503,6 +506,11 @@ impl Window {
     pub fn centre<T: Real>(self) -> T {
         T::pi() + self.start()
     }
+
+    /// The window's closed end, a whole turn past its start.
+    pub fn end<T: Real>(self) -> T {
+        self.centre::<T>() + T::pi()
+    }
 }
 
 /// The angle of `(x, y)` (M5 S13, shared by every chart's derivation
@@ -592,11 +600,12 @@ mod tests {
     /// only guard against a transposition.
     #[test]
     fn both_doors_are_bitwise_the_documented_formula() {
-        let axis = Vec3::new(0.31, -0.72, 0.61).normalize();
-        let u_ref = {
-            let raw = Vec3::new(0.83, 0.19, -0.52);
-            (raw - axis * raw.dot(axis)).normalize()
-        };
+        let placed = crate::Frame::new(
+            geom_core::Point3::origin(),
+            Vec3::new(0.31, -0.72, 0.61),
+            Vec3::new(0.83, 0.19, -0.52),
+        );
+        let (axis, u_ref) = (placed.axis(), placed.u_ref());
         let bits = |v: Vec3<f64>| (v.x.to_bits(), v.y.to_bits(), v.z.to_bits());
 
         for k in -400i32..400 {
@@ -604,18 +613,12 @@ mod tests {
             let (s, c) = Real::sin_cos(u);
             let v_ref = axis.cross(u_ref);
 
-            let ((bs, bc), bv) = basis(
-                &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
-                u,
-            );
+            let ((bs, bc), bv) = basis(&placed, u);
             assert_eq!(bs.to_bits(), s.to_bits(), "basis sin at {u}");
             assert_eq!(bc.to_bits(), c.to_bits(), "basis cos at {u}");
             assert_eq!(bits(bv), bits(v_ref), "basis v_ref at {u}");
 
-            let f = frame(
-                &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
-                u,
-            );
+            let f = frame(&placed, u);
             assert_eq!(
                 bits(f.radial.0),
                 bits(u_ref * c + v_ref * s),
@@ -626,7 +629,6 @@ mod tests {
                 bits(u_ref * (-s) + v_ref * c),
                 "tangential at {u}"
             );
-            let placed = crate::Frame::new(geom_core::Point3::origin(), axis, u_ref);
             assert_eq!(
                 bits(placed.radial(u)),
                 bits(f.radial.0),

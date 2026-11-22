@@ -63,9 +63,9 @@ pub(super) fn excess<T: Decide>(gap: T, slack: T) -> T {
 /// slack (metres; `0` within it): read high, for the closed decision,
 /// and low, for the open one. A lane whose gap is one value hands the
 /// same margin twice.
-pub(super) struct JunctionExcess<T> {
-    pub(super) hi: Margin<T>,
-    pub(super) lo: Margin<T>,
+pub(super) struct JunctionExcess<T, A = ()> {
+    pub(super) hi: Margin<T, A>,
+    pub(super) lo: Margin<T, A>,
 }
 
 fn escalated(cause: geom_core::Indeterminate) -> PropsError {
@@ -85,8 +85,8 @@ fn escalated(cause: geom_core::Indeterminate) -> PropsError {
 ///   gate — no gap the reading admits is within the slack and `Kε`;
 /// - **escalated** otherwise. A junction the reading cannot decide is
 ///   never measured.
-pub(super) fn require_junction_closed<T: Decide>(
-    gap: JunctionExcess<T>,
+pub(super) fn require_junction_closed<T: Decide, A: geom_core::MarginTerms>(
+    gap: JunctionExcess<T, A>,
     band: Band,
 ) -> Result<(), PropsError> {
     if decide("props_chart_junction_closed", gap.hi, band).map_err(escalated)? == Sign::Zero {
@@ -178,8 +178,8 @@ pub(super) fn interval_loop_turns<T: Decide, const N: usize>(
         let slack = j.slack + VERTEX_SLACK * band.zero();
         require_junction_closed(
             JunctionExcess {
-                hi: Margin::of(excess(certified_hi(gap), slack)).lift::<T>(),
-                lo: Margin::of(excess(lo_or_refuse(gap), slack)).lift::<T>(),
+                hi: Margin::<T>::bound_of(Margin::of(excess(certified_hi(gap), slack))),
+                lo: Margin::<T>::bound_of(Margin::of(excess(lo_or_refuse(gap), slack))),
             },
             band,
         )?;
@@ -305,10 +305,37 @@ pub(super) fn turn_about<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
 }
 
 /// [`turn_about`]'s cosine and sine arms: the dot and cross products about
-/// the unit `axis` of the offsets `a` and `b` less their parts along it.
+/// the unit `axis` of the offsets `a` and `b` less their parts along it,
+/// `a_p·b_p` and `(a_p × b_p)·axis`.
+///
+/// The cosine arm has two spellings of one real, each widening in its own
+/// regime at an enclosure, so an enclosure scalar meets them
+/// ([`Real::meet_readings`]) and a point scalar reads the first alone:
+///
+/// - **Projected**: the parts along the axis formed and subtracted, then
+///   the product. Subtracting them widens every component by the arm's
+///   length times the axis's width, which the product at the arm's length
+///   reads again: wide on arms far from the axis (a 990 m wall of 400
+///   arcs, `far_walls_of_many_arcs`).
+/// - **Product identity**: `a_p·b_p = a·b − (a·axis)(b·axis)` where
+///   `|axis| = 1`, which holds of the true axis an enclosure of a unit
+///   axis contains, so the enclosure evaluation encloses it. The axis's
+///   width enters only through the product of the two parts along it,
+///   but `a·b` and that product cancel: wide on arms whose parts along
+///   the axis dwarf their parts about it (a rim at height 1 about a
+///   cylinder narrower than `Kε`, `periodic_chart_closure`).
+///
+/// The sine arm is met the same way, its second spelling
+/// `(a_p × b_p)·axis = (a × b)·axis`, true for any axis since every cross
+/// term the parts along it add is square to it, so it reads no part.
+///
+/// A point scalar reads the projected spellings alone, so its bits are
+/// the ones it read before the meet.
 pub(super) fn turn_arms<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> (T, T) {
-    let (a, b) = (a - axis * a.dot(axis), b - axis * b.dot(axis));
-    (a.dot(b), a.cross(b).dot(axis))
+    let (a_p, b_p) = (a - axis * a.dot(axis), b - axis * b.dot(axis));
+    let dot = T::meet_readings(a_p.dot(b_p), || a.dot(b) - a.dot(axis) * b.dot(axis));
+    let cross = T::meet_readings(a_p.cross(b_p).dot(axis), || a.cross(b).dot(axis));
+    (dot, cross)
 }
 
 /// One closed-form loop: its edges' turns and its joints, in loop order.

@@ -229,7 +229,9 @@ use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
 
-use crate::predicate::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Sign, SizedPass};
+use crate::predicate::{
+    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, MarginTerms, Sign, SizedPass,
+};
 use crate::real::Real;
 // Only `Probe`'s impls name this.
 #[cfg(feature = "probe")]
@@ -277,10 +279,11 @@ thread_local! {
 /// one predicate is a choice where a reader builds from its sign and a
 /// check where a validator reads it off a body already built
 /// (`geom_brep::DIHEDRAL_SIGN` is both).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Role {
     /// Another sign can change what the node builds or names. The
     /// default: a decision is a choice unless its caller says otherwise.
+    #[default]
     Choice,
     /// Another sign can only make the node refuse: a reading taken off a
     /// body already built (the at-rest doors), or an instrument whose
@@ -387,14 +390,14 @@ pub fn answered(name: &'static str, sign: Sign) {
 /// after queries that handed on different candidates are not on one
 /// path, and the marks are what shows it (`editor_core::resolve`'s first
 /// turn reads them). Nothing where no frame is open.
-pub fn mark_candidates(name: &'static str, items: impl IntoIterator<Item = usize>) {
+pub fn mark_candidates(site: QuerySite, items: impl IntoIterator<Item = usize>) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             let role = current_role();
             let before = top.recorded.verdicts.len();
             let mark = |item| Mark {
                 before,
-                site: name,
+                site: site.0,
                 item,
                 role,
             };
@@ -416,13 +419,13 @@ pub fn mark_candidates(name: &'static str, items: impl IntoIterator<Item = usize
 /// `true` means is the site's, as a predicate's sign is), so two runs
 /// whose tests answered differently part there ([`mark_candidates`] for
 /// a query that hands on a list). Nothing where no frame is open.
-pub fn mark_outcome(name: &'static str, outcome: bool) -> bool {
+pub fn mark_outcome(site: TestSite, outcome: bool) -> bool {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             let before = top.recorded.verdicts.len();
             top.recorded.marks.push(Mark {
                 before,
-                site: name,
+                site: site.0,
                 item: MarkItem::Outcome(outcome),
                 role: current_role(),
             });
@@ -458,9 +461,9 @@ struct Frame {
 /// miss the other, and an outcome cannot reach one channel of the
 /// frame and miss the other: a definite sign is a [`Verdict`], an
 /// indeterminate one an [`Escalation`], in one decision order.
-fn classify<T: Decide>(
+fn classify<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: T,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
     // The name is SCOPED to this classification: it is restored on the
@@ -606,9 +609,9 @@ fn record_escalation(source: Indeterminate) -> Indeterminate {
 /// gate's escalation beside it. The verdict channel is therefore
 /// unchanged by gating, which is what keeps two runs' verdict logs
 /// comparable across this seam.
-fn classify_gated<T: Decide, R>(
+fn classify_gated<T: Decide, A: MarginTerms, R>(
     name: &'static str,
-    margin: T,
+    margin: Margin<T, A>,
     band: Band,
     passes: SizedPass,
     admits: fn(Sign) -> Option<R>,
@@ -618,9 +621,9 @@ fn classify_gated<T: Decide, R>(
 
 /// [`classify_gated`], keeping the reporting margin a passing verdict
 /// was decided on.
-fn classify_gated_reported<T: Decide, R>(
+fn classify_gated_reported<T: Decide, A: MarginTerms, R>(
     name: &'static str,
-    margin: T,
+    margin: Margin<T, A>,
     band: Band,
     passes: SizedPass,
     admits: fn(Sign) -> Option<R>,
@@ -776,7 +779,7 @@ pub fn check_unlogged<T: Decide>(
     band: Band,
     ledger_row: &'static str,
 ) -> Result<Sign, Indeterminate> {
-    unlogged(ledger_row, || classify(name, margin, band)).map(|d| d.sign)
+    unlogged(ledger_row, || classify(name, Margin::of(margin), band)).map(|d| d.sign)
 }
 
 /// The one classification funnel of the kernel: notes `name` for the
@@ -806,12 +809,12 @@ pub fn check_unlogged<T: Decide>(
 ///
 /// The [`Indeterminate`] from [`Decide::sign_within`], with `name`
 /// attached.
-pub fn decide<T: Decide>(
+pub fn decide<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    classify(name, margin.value(), band).map(|d| d.sign)
+    classify(name, margin, band).map(|d| d.sign)
 }
 
 /// **[`decide`] for a decision on a size the user may intend that
@@ -824,9 +827,9 @@ pub fn decide<T: Decide>(
 /// # Errors
 ///
 /// [`decide`]'s, its reading tagged with `passes`.
-pub fn decide_passing<T: Decide>(
+pub fn decide_passing<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
     passes: SizedPass,
 ) -> Result<Sign, Indeterminate> {
@@ -851,7 +854,10 @@ pub fn decide_passing<T: Decide>(
 /// # Errors
 ///
 /// [`decide`]'s, at the least band: an enclosure that holds zero.
-pub fn prove<T: Decide>(name: &'static str, margin: Margin<T>) -> Result<Sign, Indeterminate> {
+pub fn prove<T: Decide, A: MarginTerms>(
+    name: &'static str,
+    margin: Margin<T, A>,
+) -> Result<Sign, Indeterminate> {
     decide(name, margin, Band::least())
 }
 
@@ -902,8 +908,12 @@ pub enum Pick {
 /// band it is passed (F31's `Period::near` mark walk and
 /// `Azimuth::near`'s cut side) is the compound form: that reader runs
 /// inside [`unlogged`] under its row, at [`Band::least`].
-pub fn choose<T: Decide>(name: &'static str, margin: Margin<T>, ledger_row: &'static str) -> Pick {
-    match check_unlogged(name, margin.value(), Band::least(), ledger_row) {
+pub fn choose<T: Decide, A: MarginTerms>(
+    name: &'static str,
+    margin: Margin<T, A>,
+    ledger_row: &'static str,
+) -> Pick {
+    match unlogged(ledger_row, || classify(name, margin, Band::least())).map(|d| d.sign) {
         Ok(Sign::Positive) => Pick::Positive,
         Ok(Sign::Negative) => Pick::Negative,
         Ok(Sign::Zero) | Err(_) => Pick::Tie,
@@ -921,12 +931,12 @@ pub fn choose<T: Decide>(name: &'static str, margin: Margin<T>, ledger_row: &'st
 /// # Errors
 ///
 /// As [`decide`].
-pub fn decide_reported<T: Decide>(
+pub fn decide_reported<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
-    classify(name, margin.value(), band)
+    classify(name, margin, band)
 }
 
 /// The classify seam's **finding lane** — [`decide`] for a shipped
@@ -969,7 +979,7 @@ pub fn decide_flagged<T: Decide>(
     // from the source text by `geom-core/tests/flagged_census.rs`, which
     // is where a citation can be checked against the document it cites.
     let _ = ledger_row;
-    classify(name, margin, band).map(|d| d.sign)
+    classify(name, Margin::of(margin), band).map(|d| d.sign)
 }
 
 /// [`decide_flagged`], keeping the reporting margin the classifier
@@ -988,7 +998,7 @@ pub fn decide_flagged_reported<T: Decide>(
     ledger_row: &'static str,
 ) -> Result<Decided, Indeterminate> {
     let _ = ledger_row;
-    classify(name, margin, band)
+    classify(name, Margin::of(margin), band)
 }
 
 /// **The collapsed-arm gate**: [`decide`] for a predicate whose
@@ -1026,21 +1036,15 @@ pub fn decide_flagged_reported<T: Decide>(
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite non-positive sign, an [`Indeterminate`]
 /// carrying the decided margin under `name`.
-pub fn decide_positive<T: Decide>(
+pub fn decide_positive<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
-    classify_gated(
-        name,
-        margin.value(),
-        band,
-        SizedPass::Positive,
-        |sign| match sign {
-            Sign::Positive => Some(()),
-            Sign::Zero | Sign::Negative => None,
-        },
-    )
+    classify_gated(name, margin, band, SizedPass::Positive, |sign| match sign {
+        Sign::Positive => Some(()),
+        Sign::Zero | Sign::Negative => None,
+    })
 }
 
 /// **The mirrored gate**: [`decide_positive`] for a predicate whose
@@ -1056,21 +1060,15 @@ pub fn decide_positive<T: Decide>(
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite non-negative sign, an [`Indeterminate`]
 /// carrying the decided margin under `name`.
-pub fn decide_negative<T: Decide>(
+pub fn decide_negative<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(), Indeterminate> {
-    classify_gated(
-        name,
-        margin.value(),
-        band,
-        SizedPass::Negative,
-        |sign| match sign {
-            Sign::Negative => Some(()),
-            Sign::Zero | Sign::Positive => None,
-        },
-    )
+    classify_gated(name, margin, band, SizedPass::Negative, |sign| match sign {
+        Sign::Negative => Some(()),
+        Sign::Zero | Sign::Positive => None,
+    })
 }
 
 use crate::predicate::NonzeroSign;
@@ -1087,22 +1085,16 @@ use crate::predicate::NonzeroSign;
 /// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
 /// otherwise, for a definite `Zero`, an [`Indeterminate`] carrying the
 /// decided margin under `name`.
-pub fn decide_nonzero<T: Decide>(
+pub fn decide_nonzero<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<NonzeroSign, Indeterminate> {
-    classify_gated(
-        name,
-        margin.value(),
-        band,
-        SizedPass::NonZero,
-        |sign| match sign {
-            Sign::Positive => Some(NonzeroSign::Positive),
-            Sign::Negative => Some(NonzeroSign::Negative),
-            Sign::Zero => None,
-        },
-    )
+    classify_gated(name, margin, band, SizedPass::NonZero, |sign| match sign {
+        Sign::Positive => Some(NonzeroSign::Positive),
+        Sign::Negative => Some(NonzeroSign::Negative),
+        Sign::Zero => None,
+    })
 }
 
 /// [`decide_nonzero`], keeping the reporting margin the passing sign was
@@ -1112,22 +1104,16 @@ pub fn decide_nonzero<T: Decide>(
 /// # Errors
 ///
 /// As [`decide_nonzero`].
-pub fn decide_nonzero_reported<T: Decide>(
+pub fn decide_nonzero_reported<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(NonzeroSign, MarginDiag), Indeterminate> {
-    classify_gated_reported(
-        name,
-        margin.value(),
-        band,
-        SizedPass::NonZero,
-        |sign| match sign {
-            Sign::Positive => Some(NonzeroSign::Positive),
-            Sign::Negative => Some(NonzeroSign::Negative),
-            Sign::Zero => None,
-        },
-    )
+    classify_gated_reported(name, margin, band, SizedPass::NonZero, |sign| match sign {
+        Sign::Positive => Some(NonzeroSign::Positive),
+        Sign::Negative => Some(NonzeroSign::Negative),
+        Sign::Zero => None,
+    })
 }
 
 /// A definite sign a [`decide_magnitude`] decision can reach. `Negative`
@@ -1170,9 +1156,9 @@ pub enum Magnitude {
 /// # Panics
 ///
 /// On a definite `Negative`, which the precondition rules out.
-pub fn decide_magnitude<T: Decide>(
+pub fn decide_magnitude<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<Magnitude, Indeterminate> {
     decide_magnitude_reported(name, margin, band).map(|(magnitude, _)| magnitude)
@@ -1189,12 +1175,12 @@ pub fn decide_magnitude<T: Decide>(
 /// # Panics
 ///
 /// As [`decide_magnitude`].
-pub fn decide_magnitude_reported<T: Decide>(
+pub fn decide_magnitude_reported<T: Decide, A: MarginTerms>(
     name: &'static str,
-    margin: Margin<T>,
+    margin: Margin<T, A>,
     band: Band,
 ) -> Result<(Magnitude, MarginDiag), Indeterminate> {
-    let Decided { sign, margin } = classify(name, margin.value(), band)?;
+    let Decided { sign, margin } = classify(name, margin, band)?;
     match sign {
         Sign::Zero => Ok((Magnitude::Zero, margin)),
         Sign::Positive => Ok((Magnitude::Positive, margin)),
@@ -1356,12 +1342,84 @@ pub struct Mark {
     /// How many verdicts its frame held when it was recorded: it stands
     /// before the verdict at that index.
     pub before: usize,
-    /// The enumeration that examined it (a static name, as a predicate's).
-    pub site: &'static str,
+    /// The query or test that wrote it ([`Site`]).
+    pub site: Site,
     /// What it records ([`MarkItem`]).
     pub item: MarkItem,
     /// The role of the decisions the candidate feeds ([`checking`]).
     pub role: Role,
+}
+
+/// **Where a mark is written**: one query or one test, at the one call
+/// that asks it, so two callers of one door are two sites. `name` is
+/// routing, as a predicate's static name is; `words` say what is asked,
+/// for a sentence. Built through [`QuerySite`] or [`TestSite`], which
+/// set `kind` and are what the two mark doors take, so no mark is
+/// written without words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Site {
+    /// The static name (routing).
+    pub name: &'static str,
+    /// What the site asks: for a query, a noun phrase naming what it
+    /// searches for ("the faces whose boxes overlap the edge's box");
+    /// for a test, the clause it answers ("a cell is surely clear of
+    /// the band").
+    pub words: &'static str,
+    /// Which door writes it.
+    pub kind: SiteKind,
+}
+
+/// The door a [`Site`] writes through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SiteKind {
+    /// A query that hands on a list ([`mark_candidates`]).
+    Query,
+    /// A test that answers yes or no ([`mark_outcome`]).
+    Test,
+}
+
+/// **A query's [`Site`]**, the argument [`mark_candidates`] takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuerySite(Site);
+
+impl QuerySite {
+    /// The site `name`, searching for `words` (a noun phrase).
+    #[must_use]
+    pub const fn new(name: &'static str, words: &'static str) -> Self {
+        Self(Site {
+            name,
+            words,
+            kind: SiteKind::Query,
+        })
+    }
+
+    /// The site.
+    #[must_use]
+    pub const fn site(self) -> Site {
+        self.0
+    }
+}
+
+/// **A test's [`Site`]**, the argument [`mark_outcome`] takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TestSite(Site);
+
+impl TestSite {
+    /// The site `name`, answering whether `words` (a clause).
+    #[must_use]
+    pub const fn new(name: &'static str, words: &'static str) -> Self {
+        Self(Site {
+            name,
+            words,
+            kind: SiteKind::Test,
+        })
+    }
+
+    /// The site.
+    #[must_use]
+    pub const fn site(self) -> Site {
+        self.0
+    }
 }
 
 /// **What one [`Mark`] records**, by the kind of door that wrote it.
@@ -1664,12 +1722,73 @@ pub fn splice_superseded(recording: Detached) {
 /// The caller owes that knowledge at its own site, held by a row that
 /// runs the pass and compares the two logs. No margin is measured, so
 /// no sample reaches the sink.
+///
+/// **A certificate read by its support** is one such caller: it relogs,
+/// in place of the one derivation it stands for, that derivation's
+/// record as [`Replayable::here`] states it in this scope. That is not
+/// the double splice [`Detached`] guards against, which would move one
+/// recording onto a frame twice; a read relogs once, exactly where
+/// deriving would have recorded. The recording scalar (`Probe`) reads no
+/// certificate, so a read never stands for a derivation that would have
+/// sampled. Its row is geom-brep's `a_read_records_what_a_derivation_records`.
 pub fn relog(recorded: &Recorded) {
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             top.recorded.extend(recorded);
         }
     });
+}
+
+/// **A derivation's record, held with the role it was taken in**, for a
+/// certificate that stands for that derivation and replays it in its
+/// place ([`relog`]). A verdict's and a mark's role is the scope's it
+/// was taken in ([`checking`]), not the derivation's own, so a record is
+/// a derivation's in another scope only where the roles agree.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Replayable {
+    recorded: Recorded,
+    taken_as: Role,
+}
+
+/// `work`, run under its own frame, its record spliced where this
+/// thread's decisions go, and handed back with the role it was taken in
+/// for a certificate to keep and [`relog`] in place of deriving again.
+pub fn run_replayable<R>(work: impl FnOnce() -> R) -> (R, Replayable) {
+    let taken_as = current_role();
+    let (out, recording) = detached(work);
+    let record = Replayable {
+        recorded: recording.recorded().clone(),
+        taken_as,
+    };
+    splice(recording);
+    (out, record)
+}
+
+impl Replayable {
+    /// **This record as the derivation it stands for would record it
+    /// here, where that is exact**: verbatim in the role it was taken
+    /// in, and every verdict and mark a [`Role::Check`] inside a check
+    /// scope, which records every decision taken in it as a check.
+    /// `None` in a choice scope for a record taken in a check scope,
+    /// whose own checks a choice scope would not record as checks: a
+    /// reader there derives again.
+    #[must_use]
+    pub fn here(&self) -> Option<Recorded> {
+        match (current_role(), self.taken_as) {
+            (now, then) if now == then => Some(self.recorded.clone()),
+            (Role::Check, Role::Choice) => {
+                let mut checks = self.recorded.clone();
+                for v in &mut checks.verdicts {
+                    v.role = Role::Check;
+                }
+                for m in &mut checks.marks {
+                    m.role = Role::Check;
+                }
+                Some(checks)
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The one body behind [`splice`] and [`splice_superseded`]: they differ
@@ -1987,6 +2106,14 @@ impl core::ops::Neg for Probe {
 
 #[cfg(feature = "probe")]
 impl Real for Probe {
+    /// **Never the same**: the recording scalar's K samples are its
+    /// purpose, so no certificate is read by its support here; each is
+    /// derived where it is asked, and records its margins.
+    fn same_value(self, other: Self) -> bool {
+        let _ = (self, other);
+        false
+    }
+
     /// **INEXACT**, `f64`'s verbatim: the recording scalar's value
     /// channel IS an `f64` and every comparison it makes is that
     /// `f64`'s.
@@ -2002,6 +2129,10 @@ impl Real for Probe {
 
     fn from_computed(x: f64) -> Self {
         Self(x)
+    }
+
+    fn told_reading(&self) -> crate::told::Reading {
+        crate::told::Reading::value(self.0)
     }
 
     /// The recording scalar's value channel IS an `f64`, so the
@@ -2052,6 +2183,10 @@ impl Real for Probe {
     fn sin_cos(self) -> (Self, Self) {
         let (s, c) = Real::sin_cos(self.0);
         (Self(s), Self(c))
+    }
+
+    fn less_sin(self) -> Self {
+        Self(Real::less_sin(self.0))
     }
 
     fn tan(self) -> Self {

@@ -132,3 +132,5 @@ reduced by hand. A second set it matched and did not classify, all
 (also a hand `floor`), `geom_brep::curve_face::circle_torus`, `conic_quadric`,
 `ellipse_torus`, `section_cert_rows`, `curve_pair::meet_oracle`, and
 `step-import`'s `entities.rs:2070` and `normalize.rs:688`.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. `topo::coherence::wrapped` is gone; `mesh::walk` remains.

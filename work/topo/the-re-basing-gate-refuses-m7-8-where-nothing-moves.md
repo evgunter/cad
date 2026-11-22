@@ -4,8 +4,6 @@ kind: issue
 title: the re-basing gate refuses the plane x NURBS class even where the new vertex takes the old one's point
 status: closed
 opened: 2026-09-14
-parent: S93
-refs: [S93]
 priority: P0
 cost: H
 pr: 3156
@@ -228,5 +226,5 @@ the retirement, not a precedent — so nothing in the gate's docs cites
 it as a door, and the repair is carried on
 `work/tquery/rim-of-compares-point-bits-in-production-where-no-gate-looks.md`
 (the site) and
-`work/blind/the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds.md`
+`work/ciw/the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds.md`
 (the gate).

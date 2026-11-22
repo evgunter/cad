@@ -47,7 +47,7 @@ that what you need belongs at the root or below.
 |---|---|
 | Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/live.rs` |
 | Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/strut.rs` (a strut deleted from its face, for the merge and the Boolean's closing), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
-| Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/edge_wedge.rs` (an edge's wedge read whole, which check 4 and the constructors share), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
+| Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/edge_wedge.rs` (an edge's wedge read whole, which check 4 and the constructors share), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter `Candidates`, the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `ContactPair`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_pair.rs` (the face-pair door); the carrier ladder it reads is `geom_brep::carrier_eq` (kind-generalized) and `geom_brep::plane_eq` (its planar arm) |
@@ -1896,9 +1896,9 @@ already and reads no extent.
   it to consume, so it re-points the file's faces on its own reading of
   them, the file's band's Zero, and restates `[topo.one-record.act]`'s
   rule (each sense restated so its material side is unchanged) rather
-  than calling `Body::one_record`. Two records of one non-planar locus
-  stay two, filed
-  (`work/importgate/two-records-of-one-non-planar-surface-stay-two-at-import.md`).
+  than calling `Body::one_record`. Two records of one cylinder, cone,
+  sphere or torus become one by the same act, read where their faces
+  are (`step_import`'s `one_record` states how).
 - **`[topo.one-record.rest]` At rest no edge's locus reads values.**
   Where an edge rests is read off its sides by key (`rest_locus`): one
   record is its chart, two records are their pair. Two distinct records at rest

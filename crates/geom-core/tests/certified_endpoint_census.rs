@@ -357,7 +357,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "the mignitude, the curvature join and `cell_distance` refuse by name: a cell whose \
          partial does not certify is read at distance `0`, the vacuous lower bound",
     ),
-    ("crates/geom-brep/src/pair_section.rs", 4, 4, ""),
+    (
+        "crates/geom-brep/src/pair_section.rs",
+        6,
+        6,
+        "`farthest`'s 4, each side read only once both `is_certified()`, else `NaN`; and \
+         `TubeRun::of`'s 2, a side's ends read through `is_certified().then`, so a piece with a \
+         side that does not certify has no run",
+    ),
     ("crates/geom-brep/src/pair_section/ruling.rs", 3, 3, ""),
     (
         "crates/geom-brep/src/pair_section/spline_implicit.rs",
@@ -406,6 +413,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          answers `0` for a non-finite mean, so a refused input still yields a finite centre and \
          the reach about it reports the trouble",
     ),
+    ("crates/geom-brep/src/patch_carrier.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/pcurve_cache.rs",
         7,
@@ -436,10 +444,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/pcurve_cache/speed.rs",
-        38,
+        41,
         4,
-        "not yet dispositioned: the 34 that do not ask are \
-         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`",
+        "not yet dispositioned: the 37 that do not ask are \
+         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`, the \
+         three the carrier-frames merge added among them \
+         `work/onehome/the-endpoint-census-drifted-on-the-carrier-frames-merge`",
     ),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
     (
@@ -544,11 +554,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        25,
+        28,
         4,
         "the 4 that ask are the chart tube's span-hull window (`chart_tube_windows` refuses \
          either window hull by name before padding it — a refused hull is NaI, and its NaN ends \
-         name no window). The other 21 are `T: Bounds` reads on the evaluation scalar and not \
+         name no window). The other 24 are `T: Bounds` reads on the evaluation scalar and not \
          certification endpoints at all — blind spot 1: `nurbs_limbs`' 5 are its projection \
          seeds, limb 1's at each sample and the image-miss tell's at a refusing break, a \
          parameter the foot search starts from (structure; the carried distance stays honest \
@@ -558,8 +568,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          at each end, which selects the axis the end's slice is cut across (structure), \
          `probe_tube_pair`'s 8 are its reads of the two pcurves, their tangents (a direction the \
          probe refuses unless positive finite) and their end states (where an end's slice is \
-         cut, structure), and `exact`'s 2 and `analytic_limbs`' 1 are the same kind of \
-         evaluation read",
+         cut, structure), `exact`'s 2 and `analytic_limbs`' 1 are the same kind of \
+         evaluation read, `brackets`' 2 read a frame component for `frame_direction`, a NaN \
+         end or a width past rounding answering no direction (a refused bracket's NaN ends \
+         fail its width test, so it names none), and `FrameCharge::over`'s 1 is the upper end \
+         of its turn times reach read on the interval scalar from point brackets of `f64` \
+         payloads, finite or NaN, so it certifies or answers NaN, which no band admits",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
@@ -625,16 +639,30 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/section.rs", 5, 5, ""),
     (
         "crates/geom-core/src/interval.rs",
-        34,
-        8,
-        "the type's own body. The 8 that ask are the two refusal doors (`certified_bracket`, \
-         `sign_within`, 2 each) and the directed helpers `certified_hi`, `div_down`, `div_up` \
-         and `add_up` (1 each). The other 26 are not certification reads at all — blind spot 1: \
+        52,
+        18,
+        "the type's own body. The 18 that ask are the two refusal doors (`certified_bracket`, \
+         `sign_within`, 2 each), the directed helpers `certified_hi`, `div_down`, `div_up` \
+         and `add_up` (1 each), `stated_point`'s 2 (a frame's stated entries, taken as \
+         points only where the reading is certified and its ends are one bit pattern), \
+         and `meet_readings`' 8 (the four ends it meets, and the four \
+         its disjointness defect names), which refuses an uncertified reading by name before \
+         reading either. The other 34 are not certification reads at all — blind spot 1: \
          they are the evaluation scalar's own implementation reads of the `DInterval` it wraps \
          (the `Bounds` forwarders, `repr_bits`, `copysign`, the kink selectors, the two \
          `select_le_zero` arms, and `is_bounded`'s endpoint finiteness, which only refuses: a \
          mint that reads it refuses an unbounded enclosure and certifies nothing), which test \
-         NaI and empty themselves and carry the decoration forward rather than certifying",
+         NaI and empty themselves and carry the decoration forward rather than certifying; \
+         the polar enclosure's 5 (`enclose_rotation`'s `η`, determinant and remainder, \
+         `enclose_unit`'s `η` and remainder) bound a lift's width, and a refused bracket's NaN \
+         fails the comparisons they gate or widens the answer to NaI, which poisons. \
+         `less_sin`'s 1 is of that kind: the magnitude's upper end picks between two arms that \
+         each enclose `x − sin x` over the whole set and each carry the operand's decoration \
+         through their arithmetic, so no arm certifies what the operand did not, and a NaN end \
+         (NaI, empty) compares false and takes the difference, which propagates it \
+         (`less_sin_rows`). `told_reading`'s 2 hand both ends to `told::Reading::enclosure`, \
+         which has no accessor and only renders: a told reading of an enclosure's ends, not a \
+         certifying branch, and a NaN end reads as unreadable",
     ),
     (
         "crates/geom-core/src/interval/certification.rs",
@@ -646,7 +674,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
     ("crates/geom-core/src/spline/blossom.rs", 2, 2, ""),
-    ("crates/geom-core/src/spline/compose/patch.rs", 4, 4, ""),
+    ("crates/geom-core/src/spline/compose/patch.rs", 6, 6, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 5, 5, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
@@ -692,15 +720,28 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
+        "crates/step-import/src/on_built.rs",
+        24,
+        0,
+        "not yet dispositioned: the 24 reads arrived with the adopt-by-description merge into \
+         main and are `work/onehome/the-endpoint-census-drifted-on-the-carrier-frames-merge`",
+    ),
+    (
+        "crates/step-import/src/recognize_curve.rs",
+        5,
+        0,
+        "not yet dispositioned: the 5 reads arrived with the carrier-frames merge into \
+         main and are `work/onehome/the-endpoint-census-drifted-on-the-carrier-frames-merge`",
+    ),
+    (
         "crates/topo/src/clearance.rs",
-        56,
+        54,
         16,
         "the 16 that ask are `poisoned` (2), `iso_bounded_domain`'s knots and joins (12) and \
-         `extent_of` (2). Of the other 40, `split_axis`'s 4 and the `coincidence` and \
+         `extent_of` (2). Of the other 38, `split_axis`'s 4 and the `coincidence` and \
          `meeting_stations` seeds (2 and 4) are selections; `min_separation`'s admission (2), \
          `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation `poisoned` has \
-         passed; `window_of`'s windows (6), `boundary_of`'s span (2) and `row_of`'s parameters \
-         (2) read values `certified_lift` crossed, which refuses the face unless every crossing \
+         passed; `window_of`'s windows (6) and `row_of`'s parameters (2) read values `certified_lift` crossed, which refuses the face unless every crossing \
          certifies; `support_separation`'s 8 are the choice of direction (each cell's normal and \
          the line between the boxes' centres, read at their middles) and of orientation, and the \
          supports' gap it reads after `poisoned` has passed both, a lower bound along any \
@@ -711,10 +752,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        190,
-        92,
-        "the 92 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
-         `present_chart` (26), the pose's three (13, below), \
+        194,
+        96,
+        "the 96 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `present_chart` (26), the pose's four (17, below), \
          `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
@@ -752,7 +793,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `continues` reads its arcs' parameter spans outward (2), a parameter read, and its \
          directions' product at its lower end (1), which no ask covers: \
          `work/embed/continues-reads-its-directions-product-at-its-lower-end-without-asking`. \
-         The pose's three each read behind their own ask: `pose_frame` a norm's low end (1), \
+         The pose's four each read behind their own ask: `on_sphere` its residuals' ends \
+         against their rounding (2), only where they certify, and the radius's upper end and \
+         its square's (2), the scale those are read at; `pose_frame` a norm's low end (1), \
          taken positive only where it certifies; `posed_cell` the box's `Z/r` (2), behind its \
          ask and clamped to `[-1, 1]`, where every point of the sphere has it, and the placed \
          rectangle's latitude and azimuth (4), each certified; and `posed_extent` each row's \

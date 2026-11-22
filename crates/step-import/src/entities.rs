@@ -111,7 +111,7 @@ pub(crate) enum Shape {
     Solids(Vec<SolidRecord>),
     /// A `GEOMETRIC_CURVE_SET` wireframe (curve-only file): the
     /// reconstructed carriers, in set order.
-    Wireframe(Vec<Curve3<f64>>),
+    Wireframe(Vec<crate::WireframeCurve>),
 }
 
 /// The keywords a solid record is spelled with: a
@@ -162,6 +162,14 @@ pub(crate) struct SolidSpec {
     pub(crate) edges: BTreeMap<u64, EdgeSpec>,
     /// Every vertex referenced, keyed by `VERTEX_POINT` id.
     pub(crate) vertices: BTreeMap<u64, Point3<f64>>,
+    /// The shell's surface records, each worn by every face that names
+    /// it (`[import]`, "Records follow the file"): a surface entity the
+    /// file states, keyed by its entity id, or a record a normalization
+    /// mints, keyed by a minted id. While the shell is read it may hold a
+    /// record no face wears any more (one a join emptied, a split's
+    /// source); the finished shell holds exactly the records its faces
+    /// wear.
+    pub(crate) surfaces: BTreeMap<u64, SurfaceRecord>,
     /// Edge ids of seam generators MINTED by the band re-mint
     /// (M7-5): D1 states each one spatially as its surface's u_ref
     /// half-plane, so adoption must certify it as
@@ -171,6 +179,56 @@ pub(crate) struct SolidSpec {
     pub(crate) band_seams: std::collections::BTreeSet<u64>,
 }
 
+impl SolidSpec {
+    /// The surface face `fi` wears.
+    pub(crate) fn surface(&self, fi: usize) -> &Surface<f64> {
+        self.surface_of(&self.faces[fi])
+    }
+
+    /// The surface `face` wears.
+    pub(crate) fn surface_of(&self, face: &FaceSpec) -> &Surface<f64> {
+        &self.surfaces[&face.record].surface
+    }
+
+    /// Where record `record` stands in the file, the order "earlier"
+    /// reads: its position in the DATA section, then its id.
+    pub(crate) fn order(&self, record: u64) -> (usize, u64) {
+        (self.surfaces[&record].position, record)
+    }
+
+    /// A new record of `surface`, minted from record `from` under the
+    /// fresh id `id`: it stands where `from` stands in the file.
+    pub(crate) fn mint_record(&mut self, id: u64, from: u64, surface: Surface<f64>) {
+        let position = self.surfaces[&from].position;
+        self.surfaces
+            .insert(id, SurfaceRecord { surface, position });
+    }
+}
+
+/// A test shell's record table: each `(id, surface)` a record, standing
+/// in the file in the order given.
+#[cfg(test)]
+pub(crate) fn records_of(
+    stated: impl IntoIterator<Item = (u64, Surface<f64>)>,
+) -> BTreeMap<u64, SurfaceRecord> {
+    stated
+        .into_iter()
+        .enumerate()
+        .map(|(position, (id, surface))| (id, SurfaceRecord { surface, position }))
+        .collect()
+}
+
+/// One surface record of a shell ([`SolidSpec::surfaces`]).
+#[derive(Clone, Debug)]
+pub(crate) struct SurfaceRecord {
+    /// The interpreted kernel surface: its placement built by
+    /// `build_axes`.
+    pub(crate) surface: Surface<f64>,
+    /// Where its entity stands in the DATA section, the order "earlier"
+    /// reads; a minted record's is the record it was minted from.
+    pub(crate) position: usize,
+}
+
 /// One `ADVANCED_FACE`.
 #[derive(Debug)]
 pub(crate) struct FaceSpec {
@@ -178,10 +236,8 @@ pub(crate) struct FaceSpec {
     /// normalization's minted faces keep the id of the face they
     /// replace, so a reported census mapping names a real record).
     pub(crate) id: u64,
-    /// The interpreted kernel surface: its placement built by
-    /// `build_axes`, its record one with another of its locus where
-    /// interpretation made them one.
-    pub(crate) surface: Surface<f64>,
+    /// The surface record it wears, a key of [`SolidSpec::surfaces`].
+    pub(crate) record: u64,
     /// `same_sense`, honored verbatim as [`topo::Face::sense`].
     pub(crate) sense: bool,
     /// The bounds: outer first (`FACE_OUTER_BOUND`), rings after in
@@ -253,6 +309,11 @@ pub(crate) struct EdgeSpec {
     /// carrier is untouched; this bit composes into the orientation of
     /// every `ORIENTED_EDGE` that uses the edge.
     pub(crate) reversed: bool,
+    /// The curve entity the file states as the carrier, for an edge the
+    /// file states or a piece of one; `None` for an edge the import
+    /// mints. It keys the curve's promotion record, which the ledger
+    /// keeps only where the body holds the promoted carrier.
+    pub(crate) curve: Option<u64>,
 }
 
 /// The resolver: the parsed file plus typed accessors that turn
@@ -275,6 +336,9 @@ pub(crate) struct Resolver<'a> {
     /// one interpretation budget, spent by every reading that decides
     /// what the file means ([`interpret`]).
     budget: interpret::FileBand,
+    /// The run's tolerance, which the snap catalogue reads an exact
+    /// relation at ([`crate::snap`]).
+    tol: geom_core::Tol,
     /// The next unused entity id, for the structure normalizations that
     /// mint topology the file does not carry (Leg C's edge-free
     /// sphere). Seeded past every id in the file, so a minted vertex or
@@ -287,6 +351,30 @@ pub(crate) struct Resolver<'a> {
     /// so a carrier read once per incident edge records once
     /// ([`crate::CurvePromotion`]) — never silent.
     curve_promotions: std::cell::RefCell<BTreeMap<u64, CurvePromotion>>,
+    /// The promotions whose carrier covers PART of its analytic curve
+    /// (an open arc, a chord), keyed as `curve_promotions`: the
+    /// analytic curve's parameter range it covers, which bounds every
+    /// edge's trim on it ([`Self::edge`]) and is a wireframe curve's
+    /// span ([`Self::curve_set`]).
+    partial_promotions: std::cell::RefCell<BTreeMap<u64, (f64, f64)>>,
+    /// Each surface entity as interpretation reads it, keyed by entity
+    /// id: recognition acts on the record, once, whichever faces cite it.
+    interpreted: std::cell::RefCell<BTreeMap<u64, Interpreted>>,
+    /// The surface entities whose promotion is reported, once each,
+    /// against the first face citing it ([`NormalizationKind::SurfacePromotion`]).
+    promotions_reported: std::cell::RefCell<std::collections::BTreeSet<u64>>,
+}
+
+/// One surface entity as interpretation reads it: the kernel surface,
+/// and what stage-1 recognition made of a spline.
+#[derive(Clone, Debug)]
+struct Interpreted {
+    surface: Surface<f64>,
+    /// The promotion, its residual, and whether it turned the chart
+    /// over (composed into each citing face's sense).
+    promoted: Option<(recognize::PromotedKind, f64, bool)>,
+    /// The kind whose estimator declined, and its margin.
+    ill_conditioned: Option<(recognize::PromotedKind, f64)>,
 }
 
 impl<'a> Resolver<'a> {
@@ -544,13 +632,10 @@ impl<'a> Resolver<'a> {
         // vector's length is no distance for the file's band to read, so
         // only a vanishing one (a reference exactly along its axis) is
         // degenerate, and the move is the build's to report.
-        let stated = geom::Frame {
-            origin,
-            axis,
-            u_ref: reference,
-        };
-        if let Ok(rigid) = geom_core::RigidMotion::check_rigid(&stated_affine(stated)) {
-            return Ok((stated, rigid, None));
+        if let Ok(rigid) =
+            geom_core::RigidMotion::check_rigid(&stated_affine(origin, axis, reference))
+        {
+            return Ok((geom::Frame::of_motion(&rigid), rigid, None));
         }
         let built = geom_core::RigidMotion::from_axis_and_reference(
             origin,
@@ -565,18 +650,14 @@ impl<'a> Resolver<'a> {
                        whose reference direction is not parallel to its axis (a \
                        parallel pair states no frame)",
         })?;
-        let frame = geom::Frame::new(origin, built.w().get(), built.u().get());
+        let frame = geom::Frame::of_motion(&built);
         // A `direction` is a ratio vector, so dividing one by its length
         // is what it means, not a move: the move is measured from the
         // frame of the two directions normalized, and is none where that
         // frame is rigid within its rounding (a reference the build only
         // scaled).
         let unit = |v: Vec3<f64>| v.checked_direction().map_or(v, |(u, _)| u);
-        let normalized = stated_affine(geom::Frame {
-            origin,
-            axis: unit(axis),
-            u_ref: unit(reference),
-        });
+        let normalized = stated_affine(origin, unit(axis), unit(reference));
         let moved = geom_core::RigidMotion::check_rigid(&normalized)
             .is_err()
             .then(|| in_box_displacement(&built.to_affine(), &normalized));
@@ -628,15 +709,9 @@ impl<'a> Resolver<'a> {
                 let [_, placement] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin,
-                    axis: normal,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
+                    frame: carrier_frame,
                 })
             }
             "CYLINDRICAL_SURFACE" => {
@@ -644,16 +719,10 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Cylinder {
-                    origin,
-                    axis,
+                    frame: carrier_frame,
                     radius: self.root_length(id, radius, expected, CYLINDER_RADIUS)?,
-                    u_ref,
                 })
             }
             "CONICAL_SURFACE" => {
@@ -715,21 +784,18 @@ impl<'a> Resolver<'a> {
                         },
                     ));
                 }
-                let geom::Frame {
-                    origin: location,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
+                let (location, axis) = (carrier_frame.origin(), carrier_frame.axis());
                 let apex = if radius == 0.0 {
                     location
                 } else {
                     location - axis * (radius / half_angle.tan())
                 };
+                // The placement's own frame, moved to the apex: its axes
+                // as adopted, not squared again.
                 Ok(Surface::Cone {
-                    apex,
-                    axis,
+                    frame: carrier_frame.with_origin(apex),
                     half_angle,
-                    u_ref,
                 })
             }
             "SPHERICAL_SURFACE" => {
@@ -737,16 +803,10 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Sphere {
-                    center,
+                    frame: carrier_frame,
                     radius: self.root_length(id, radius, expected, SPHERE_RADIUS)?,
-                    axis,
-                    u_ref,
                 })
             }
             // Both radii are roots no construction takes unless
@@ -763,21 +823,15 @@ impl<'a> Resolver<'a> {
                 let [_, placement, major, minor] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                } = self.placement(id, as_ref(id, placement, expected)?)?;
+                let carrier_frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 let major_radius = self.root_length(id, major, expected, TORUS_MAJOR_RADIUS)?;
                 let minor_radius = self.root_length(id, minor, expected, TORUS_MINOR_RADIUS)?;
                 self.budget
                     .positive_length(id, TORUS_RING, major_radius - minor_radius)?;
                 Ok(Surface::Torus {
-                    center,
-                    axis,
+                    frame: carrier_frame,
                     major_radius,
                     minor_radius,
-                    u_ref,
                 })
             }
             "QUASI_UNIFORM_SURFACE" => {
@@ -1030,11 +1084,11 @@ impl<'a> Resolver<'a> {
                 // The kernel's deciding door, at the file's band, which
                 // reads the minor semi-axis the rule above has read.
                 Curve3::ellipse(
-                    frame.origin,
-                    frame.axis,
+                    frame.origin(),
+                    frame.axis(),
                     semi_u,
                     semi_v,
-                    frame.u_ref,
+                    frame.u_ref(),
                     self.budget.band(),
                 )
                 .map_err(|_| {
@@ -1233,19 +1287,32 @@ impl<'a> Resolver<'a> {
     /// `B_SPLINE_CURVE_WITH_KNOTS` arm, the `QUASI_UNIFORM_CURVE` arm,
     /// and the `RATIONAL_B_SPLINE_CURVE` complex), and each is tested
     /// for promotion to an analytic kind exactly as every NURBS
-    /// SURFACE is tested at [`Self::face`]. This is the right site for
-    /// the same reason that one is: it is upstream of everything that
-    /// asks a carrier what it IS — the adoption ladder's `MappedCurve`
-    /// rungs, `endpoint_params`' conic arm, the pcurve mint, the
-    /// re-export printer — so a promoted carrier is analytic
-    /// everywhere, with no second reading anywhere to disagree with
-    /// the first.
+    /// SURFACE is tested at [`Self::face`]: on the WHOLE carrier, before
+    /// the C⁰-knot split or any edge reads it, so every edge's printed
+    /// carrier is the promoted curve where it certifies, and an edge's
+    /// trim is read against the range it covers ([`Self::edge`]). The
+    /// build reads the printed carrier as evidence for the edge's
+    /// description, not as its carrier: each edge is built from its
+    /// description and the printed carrier read on it (`build::description_gap`:
+    /// certified by locus where `crate::on_built` has an arm for the pair,
+    /// sampled where it has none), so no build reader chooses its arm by
+    /// the promoted kind, though the certificate's tightness depends on
+    /// the kind pair. Where the build carries the edge on a wall's own column
+    /// (`build::column_match`), the body holds that spline, and the
+    /// curve's promotion record is dropped from the ledger.
+    ///
+    /// The promotion is read as a HINT by the passes that run before any
+    /// description is chosen, because each moves topology the selection
+    /// then reads: the C⁰-knot split (`crate::knot_split`; `[ev]` PR 6014,
+    /// promotion first, then the exact split), the seamless band's rim
+    /// re-mint and its rim classifier (`crate::normalize`), and the
+    /// singularity pass's cut of a line or circle (`normalize::singularity`).
     ///
     /// Promotion is verified-not-trusted ([`crate::recognize_curve`]):
-    /// it fires iff the certificate holds at ε_in, the file's own form
-    /// flag is never consulted, and a carrier that certifies nowhere
-    /// stays NURBS silently. It is reported as data through
-    /// [`crate::CurvePromotion`].
+    /// it fires iff the locus and coverage certificates hold at ε_in,
+    /// the file's own form flag is never consulted, and a carrier that
+    /// certifies nowhere stays NURBS silently. It is reported as data
+    /// through [`crate::CurvePromotion`].
     fn nurbs(
         &self,
         id: u64,
@@ -1260,7 +1327,11 @@ impl<'a> Resolver<'a> {
                         curve,
                         residual,
                         kind,
+                        covers,
                     } => {
+                        if let Some(covers) = covers {
+                            self.partial_promotions.borrow_mut().insert(id, covers);
+                        }
                         self.curve_promotions.borrow_mut().insert(
                             id,
                             CurvePromotion {
@@ -1299,6 +1370,47 @@ impl<'a> Resolver<'a> {
         self.point(id, as_ref(id, point, expected)?)
     }
 
+    /// Surface entity `surface_id` as interpretation reads it, cited by
+    /// face `face`: read and tested for promotion the first time a face
+    /// cites it, the same reading answered to every later one.
+    fn interpreted(&self, face: u64, surface_id: u64) -> Result<Interpreted, StepImportError> {
+        if let Some(known) = self.interpreted.borrow().get(&surface_id) {
+            return Ok(known.clone());
+        }
+        let surface = self.surface(face, surface_id)?;
+        let mut read = Interpreted {
+            surface,
+            promoted: None,
+            ill_conditioned: None,
+        };
+        if let Surface::Nurbs(ref patch) = read.surface
+            && !patch.is_placeholder()
+        {
+            match recognize::recognize(patch.as_ref(), self.budget) {
+                recognize::Recognition::Promoted {
+                    surface: promoted,
+                    residual,
+                    kind,
+                } => {
+                    let flipped = recognize::chart_flipped(patch.as_ref(), &promoted);
+                    read = Interpreted {
+                        surface: promoted,
+                        promoted: Some((kind, residual, flipped)),
+                        ill_conditioned: None,
+                    };
+                }
+                recognize::Recognition::StaysNurbs => {}
+                recognize::Recognition::IllConditioned { kind, margin } => {
+                    read.ill_conditioned = Some((kind, margin));
+                }
+            }
+        }
+        self.interpreted
+            .borrow_mut()
+            .insert(surface_id, read.clone());
+        Ok(read)
+    }
+
     /// One `ADVANCED_FACE`, its bounds and their loops, accumulating
     /// shared vertices/edges into the shell tables.
     ///
@@ -1319,6 +1431,7 @@ impl<'a> Resolver<'a> {
         id: u64,
         edges: &mut BTreeMap<u64, EdgeSpec>,
         vertices: &mut BTreeMap<u64, Point3<f64>>,
+        surfaces: &mut BTreeMap<u64, SurfaceRecord>,
     ) -> Result<Vec<FaceSpec>, StepImportError> {
         let args = self.simple(from, id, "ADVANCED_FACE")?;
         let expected = "ADVANCED_FACE(name, (bounds), #surface, same_sense)";
@@ -1326,7 +1439,11 @@ impl<'a> Resolver<'a> {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
         let surface_id = as_ref(id, surface_ref, expected)?;
-        let mut surface = self.surface(id, surface_id)?;
+        let Interpreted {
+            surface,
+            promoted,
+            ill_conditioned,
+        } = self.interpreted(id, surface_id)?;
         let mut sense = as_bool(id, same_sense, expected)?;
         let mut bound_specs = Vec::new();
         for bound in as_list(id, bounds, expected)? {
@@ -1352,40 +1469,41 @@ impl<'a> Resolver<'a> {
         // (census identity; the recorded residual bounds the motion),
         // and the face's `same_sense` composes with the chart
         // orientation so the promoted chart means what the NURBS chart
-        // meant.
-        let mut ill_conditioned = None;
-        if let Surface::Nurbs(ref patch) = surface
-            && !patch.is_placeholder()
-        {
-            match recognize::recognize(patch.as_ref(), self.budget) {
-                recognize::Recognition::Promoted {
-                    surface: promoted,
-                    residual,
-                    kind,
-                } => {
-                    if recognize::chart_flipped(patch.as_ref(), &promoted) {
-                        sense = !sense;
-                    }
-                    let census = bounds_census(&bound_specs, edges);
-                    self.normalizations
-                        .borrow_mut()
-                        .push(StructureNormalization {
-                            face: id,
-                            kind: NormalizationKind::SurfacePromotion { to: kind, residual },
-                            file_census: census,
-                            kernel_census: census,
-                        });
-                    surface = promoted;
-                }
-                recognize::Recognition::StaysNurbs => {}
-                recognize::Recognition::IllConditioned { kind, margin } => {
-                    ill_conditioned = Some((kind, margin));
-                }
+        // meant. The surface entity is read once ([`Self::interpreted`]),
+        // so every face citing it wears one record.
+        if let Some((kind, residual, flipped)) = promoted {
+            if flipped {
+                sense = !sense;
             }
+            if self.promotions_reported.borrow_mut().insert(surface_id) {
+                let census = bounds_census(&bound_specs, edges);
+                self.normalizations
+                    .borrow_mut()
+                    .push(StructureNormalization {
+                        face: id,
+                        kind: NormalizationKind::SurfacePromotion { to: kind, residual },
+                        file_census: census,
+                        kernel_census: census,
+                    });
+            }
+        }
+        if let std::collections::btree_map::Entry::Vacant(slot) = surfaces.entry(surface_id) {
+            let position = self.instance(id, surface_id)?.position;
+            slot.insert(SurfaceRecord {
+                surface: surface.clone(),
+                position,
+            });
         }
         // The edge-free closed face: one VERTEX_LOOP and nothing else.
         if bound_specs.iter().any(|b| b.vertex_loop.is_some()) {
-            return self.edge_free_face(id, surface, sense, &bound_specs, edges, vertices);
+            return self.edge_free_face(
+                id,
+                (surface_id, surface),
+                sense,
+                &bound_specs,
+                edges,
+                vertices,
+            );
         }
 
         let mut loops: Vec<LoopSpec> = bound_specs
@@ -1423,7 +1541,7 @@ impl<'a> Resolver<'a> {
             if is_periodic_band(&surface, &loops, edges, Some(self.budget.band())) {
                 return Ok(vec![FaceSpec {
                     id,
-                    surface,
+                    record: surface_id,
                     sense,
                     loops,
                     band: true,
@@ -1434,8 +1552,9 @@ impl<'a> Resolver<'a> {
             // this gate only AFTER promotion was tried: rings on
             // promoted PLANES have already left through the
             // plane-guard on this branch, so what refuses is rings on
-            // genuinely curved patches — promoted cylinders included
-            // (this crate adopts a ring on no curved chart yet) — and
+            // genuinely curved patches — promoted cylinders, cones,
+            // spheres and tori included (this crate adopts a ring on no
+            // curved chart yet) — and
             // rings on NURBS that certified as
             // no implemented analytic kind. Where the face could ONLY
             // import by promotion and the recognizer's estimator was
@@ -1453,10 +1572,11 @@ impl<'a> Resolver<'a> {
                 id,
                 what: "a curved ADVANCED_FACE with more than one bound that is not a \
                        recognized periodic band — an interior ring on a curved patch \
-                       (a promoted cylinder's, or a NURBS patch's that certified as no \
+                       (a promoted curved kind's, or a NURBS patch's that certified as no \
                        implemented analytic kind at ε_in — stage-1 recognition \
-                       promotes certified planes and cylinders, and rings on promoted \
-                       planes import; this reader adopts a ring on no curved chart \
+                       promotes certified planes, cylinders, cones, spheres and tori, \
+                       and rings on promoted planes import; this reader adopts a ring \
+                       on no curved chart \
                        yet) or a seamless periodic band on a chart \
                        the band re-mint does not cover (cylinder and torus bands \
                        normalize; a cone or sphere zone stated as its two rims \
@@ -1470,7 +1590,7 @@ impl<'a> Resolver<'a> {
         loops.swap(0, outer);
         Ok(vec![FaceSpec {
             id,
-            surface,
+            record: surface_id,
             sense,
             loops,
             band: false,
@@ -1616,7 +1736,7 @@ impl<'a> Resolver<'a> {
     fn edge_free_face(
         &self,
         id: u64,
-        surface: Surface<f64>,
+        (record, surface): (u64, Surface<f64>),
         sense: bool,
         bounds: &[BoundSpec],
         edges: &mut BTreeMap<u64, EdgeSpec>,
@@ -1635,13 +1755,7 @@ impl<'a> Resolver<'a> {
                 what: "internal: an edge-free face without its vertex loop",
             });
         };
-        let Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } = surface
-        else {
+        let Surface::Sphere { frame, radius } = surface else {
             return Err(StepImportError::Topology {
                 id,
                 what: "an ADVANCED_FACE bounded by a VERTEX_LOOP on a surface that is \
@@ -1650,6 +1764,7 @@ impl<'a> Resolver<'a> {
                        refuses rather than guessing a splitting",
             });
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         // The file's one statement about this closed face's boundary
         // must lie on its surface, read at the file's band.
         let p = self.vertex(id, vertex_id)?;
@@ -1695,6 +1810,7 @@ impl<'a> Resolver<'a> {
                     // A minted edge: the importer states its own
                     // start → end, so there is no sense to compose.
                     reversed: false,
+                    curve: None,
                 },
             );
             Ok(eid)
@@ -1705,7 +1821,7 @@ impl<'a> Resolver<'a> {
 
         let lune = |a: u64, a_fwd: bool, b: u64, b_fwd: bool| FaceSpec {
             id,
-            surface: surface.clone(),
+            record,
             sense,
             loops: vec![LoopSpec {
                 outer: true,
@@ -1931,8 +2047,17 @@ impl<'a> Resolver<'a> {
         };
         let p_start = resolve_point(start)?;
         let p_end = resolve_point(end)?;
-        let carrier = self.curve(id, as_ref(id, curve_ref, expected)?)?;
+        let curve_id = as_ref(id, curve_ref, expected)?;
+        let carrier = self.curve(id, curve_id)?;
         let (t0, t1) = geometry::endpoint_params(id, &carrier, p_start, p_end, start == end)?;
+        // A carrier promoted from a spline that covers part of its
+        // analytic curve: the edge's trim is the stated spline's only
+        // where it lies inside what the spline covers, in order.
+        let covers = self.partial_promotions.borrow().get(&curve_id).copied();
+        let (t0, t1) = match covers {
+            Some(covers) => geometry::trim_within(id, &carrier, (t0, t1), covers, self.budget)?,
+            None => (t0, t1),
+        };
         Ok(EdgeSpec {
             start,
             end,
@@ -1940,24 +2065,7 @@ impl<'a> Resolver<'a> {
             t0,
             t1,
             reversed: !same_sense,
-        })
-    }
-
-    /// The surface record an `ADVANCED_FACE` states, and where it stands
-    /// in the DATA section.
-    fn face_surface_record(
-        &self,
-        from: u64,
-        id: u64,
-    ) -> Result<crate::one_record::Record, StepImportError> {
-        let expected = "ADVANCED_FACE(name, (bounds), #surface, same_sense)";
-        let [_, _, surface_ref, _] = self.simple(from, id, "ADVANCED_FACE")? else {
-            return Err(StepImportError::MalformedRecord { id, expected });
-        };
-        let surface = as_ref(id, surface_ref, expected)?;
-        Ok(crate::one_record::Record {
-            position: self.instance(id, surface)?.position,
-            id: surface,
+            curve: Some(curve_id),
         })
     }
 
@@ -2038,10 +2146,11 @@ impl<'a> Resolver<'a> {
         };
         let mut edges = BTreeMap::new();
         let mut vertices = BTreeMap::new();
+        let mut surfaces = BTreeMap::new();
         let mut faces = Vec::new();
         for face_ref in as_list(shell_id, face_list, sexpected)? {
             let face_id = as_ref(shell_id, face_ref, sexpected)?;
-            faces.extend(self.face(shell_id, face_id, &mut edges, &mut vertices)?);
+            faces.extend(self.face(shell_id, face_id, &mut edges, &mut vertices, &mut surfaces)?);
         }
         if reversed {
             faces.iter_mut().for_each(reverse_face);
@@ -2078,23 +2187,27 @@ impl<'a> Resolver<'a> {
                 });
             }
         }
-        let records = faces
-            .iter()
-            .map(|face| self.face_surface_record(shell_id, face.id))
-            .collect::<Result<Vec<_>, _>>()?;
         let mut solid = SolidSpec {
             id,
             faces,
             edges,
             vertices,
+            surfaces,
             band_seams: std::collections::BTreeSet::new(),
         };
         // Two records the file's faces read as one locus become one,
         // before anything is built.
         crate::one_record::one_record(
             &mut solid,
-            &records,
             self.budget,
+            &mut self.normalizations.borrow_mut(),
+        )?;
+        // Each relation the file band reads Zero between two surfaces,
+        // made exact by the snap catalogue.
+        crate::snap::snap(
+            &mut solid,
+            self.budget,
+            self.tol,
             &mut self.normalizations.borrow_mut(),
         )?;
         // The reported structure normalizations for periodic faces the
@@ -2105,18 +2218,33 @@ impl<'a> Resolver<'a> {
             &mut || self.mint_id(),
             &mut self.normalizations.borrow_mut(),
         )?;
+        // A record a join or a split left unworn is no surface of the
+        // shell.
+        let worn: std::collections::BTreeSet<u64> = solid.faces.iter().map(|f| f.record).collect();
+        solid.surfaces.retain(|id, _| worn.contains(id));
         Ok(solid)
     }
 
-    /// A `GEOMETRIC_CURVE_SET`'s curves, in set order.
-    fn curve_set(&self, id: u64, args: &[Value]) -> Result<Vec<Curve3<f64>>, StepImportError> {
+    /// A `GEOMETRIC_CURVE_SET`'s curves, in set order, each with the span
+    /// of its carrier the file states.
+    fn curve_set(
+        &self,
+        id: u64,
+        args: &[Value],
+    ) -> Result<Vec<crate::WireframeCurve>, StepImportError> {
         let expected = "GEOMETRIC_CURVE_SET(name, (elements))";
         let [_, elements] = args else {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
+        // A carrier promoted to an analytic curve it covers part of
+        // carries that part: the bare curve would claim an extent the
+        // file did not state.
         let mut curves = Vec::new();
         for element in as_list(id, elements, expected)? {
-            curves.push(self.curve(id, as_ref(id, element, expected)?)?);
+            let curve_id = as_ref(id, element, expected)?;
+            let carrier = self.curve(id, curve_id)?;
+            let span = self.partial_promotions.borrow().get(&curve_id).copied();
+            curves.push(crate::WireframeCurve { carrier, span });
         }
         Ok(curves)
     }
@@ -2664,10 +2792,10 @@ type BuiltPlacement = (geom::Frame<f64>, geom_core::RigidMotion<f64>, Option<f64
 /// A placement frame as the file states it, as a map: its columns the
 /// reference direction, the axis crossed with it and the axis,
 /// unnormalized.
-fn stated_affine(stated: geom::Frame<f64>) -> Affine3<f64> {
+fn stated_affine(origin: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Affine3<f64> {
     Affine3::from_parts(
-        Mat3::from_cols(stated.u_ref, stated.axis.cross(stated.u_ref), stated.axis),
-        stated.origin - Point3::origin(),
+        Mat3::from_cols(u_ref, axis.cross(u_ref), axis),
+        origin - Point3::origin(),
     )
 }
 
@@ -3277,7 +3405,7 @@ fn resolve_shape(
     // `SHAPE_REPRESENTATION`) belongs to the FIRST namer in entity-id
     // order — the same one `referenced` already dedupes it to.
     let mut owners: std::collections::BTreeMap<u64, Vec<usize>> = std::collections::BTreeMap::new();
-    let mut wireframe: Option<(u64, Vec<Curve3<f64>>)> = None;
+    let mut wireframe: Option<(u64, Vec<crate::WireframeCurve>)> = None;
     let mut referenced: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
     for (&id, instance) in &file.data {
         let [(kw, args)] = instance.records.as_slice() else {
@@ -3387,15 +3515,19 @@ fn resolve_shape(
 /// A resolver over `file` with no unit knowledge yet — the unit pass's
 /// own instrument (it reads enumerations and one uncertainty literal,
 /// never a coordinate, so a unit scale of 1 is honest there).
-fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
+fn unit_pass_resolver(file: &StepFile, tol: geom_core::Tol) -> Resolver<'_> {
     Resolver {
         file,
         length_scale: 1.0,
         angle_scale: 1.0,
         budget: interpret::FileBand::unread(),
+        tol,
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
+        partial_promotions: std::cell::RefCell::new(BTreeMap::new()),
+        interpreted: std::cell::RefCell::new(BTreeMap::new()),
+        promotions_reported: std::cell::RefCell::new(std::collections::BTreeSet::new()),
     }
 }
 
@@ -3412,7 +3544,7 @@ pub(crate) fn resolve(
     eps_override: Option<f64>,
     tol: geom_core::Tol,
 ) -> Result<Model, StepImportError> {
-    let r = unit_pass_resolver(file);
+    let r = unit_pass_resolver(file, tol);
 
     // The header must declare a schema (Part 21's FILE_SCHEMA). The
     // subset does not pin the schema NAME — the entities themselves
@@ -3443,6 +3575,7 @@ pub(crate) fn resolve(
         // nothing to import, and `MissingUncertainty` is raised after
         // it, when a body really was on the table.
         budget: interpret::FileBand::of_import(eps_in, eps_override.is_some(), tol)?,
+        tol,
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(
             file.data
@@ -3454,6 +3587,9 @@ pub(crate) fn resolve(
         ),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
+        partial_promotions: std::cell::RefCell::new(BTreeMap::new()),
+        interpreted: std::cell::RefCell::new(BTreeMap::new()),
+        promotions_reported: std::cell::RefCell::new(std::collections::BTreeSet::new()),
     };
     let (shape, owners) = resolve_shape(&r, file)?;
     // The instance list is resolved for a SOLID model only: a
