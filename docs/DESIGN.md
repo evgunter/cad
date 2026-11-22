@@ -1343,7 +1343,8 @@ suits the slot.
   pose. It is defined only by minting: the world, `new_space()`, and
   each construction, whose body is born in a space of its own
   (`a.space`). A placement reads a space as its target, and the
-  values of placements into a space are the only readers of its axes.
+  values of placements into a space, a datum's included
+  ([placement.datums]), are the only readers of its axes.
 - *Selections* of a shape: one cell of a body (`Face`, `Edge`,
   `Vertex`), or the set of them a reader takes (`Faces`, `Edges`; a
   set kind exists only for a slot that reads one).
@@ -1372,8 +1373,8 @@ A name is also the mark that a value is wanted for itself.
 body's geometry (a face's plane, a carrier's axis or centre, a
 vertex's point, a face's flag along one of its edges); moved from another pose by a slide along, or a spin
 about, a direction or axis the definition reads; by a construction
-over other poses; as a pose of a copy; or as an output of an
-operation. So no pose is free and none is defined from nothing. A
+over other poses; as a pose of a copy; placed into a space by a datum
+([placement.datums]); or as an output of an operation. So no pose is free and none is defined from nothing. A
 construction reads poses as it reads any variable, only those of the
 space it is built in, and is in that space; relating two spaces is a
 placement's alone ([placement.spaces]).
@@ -1646,8 +1647,9 @@ never mated twice.
 
 **Mates.** `[placement.mates]` Each mate equates two poses of one
 kind, modulo that kind's symmetry: a pose read off the source's
-geometry with a pose read off a body in the target space that does
-not read this placement. A mate reads only bodies' geometry, never a
+geometry with a pose read off a body, or a datum's pose
+([placement.datums]), in the target space that does not read this
+placement. A mate reads only bodies' geometry and datums, never a
 space and never a frame standing for a part's coordinates, and no
 space has roles a mate can read. A mate states a physical relation; a
 placement whose source touches nothing has none, and its values state
@@ -1724,13 +1726,27 @@ two tilts `0`, and the slides and spin the author chooses). A
 placement is the only reader of a source's own coordinates, and reads
 them only through the freedoms its mates leave.
 
+**Datums.** `[placement.datums]` A datum is a placement of a pose:
+an operation that reads a target space and a bundle, as a placement
+does, and whose one output is a frame in that space. Its mates' near
+sides are the datum's own roles (its xy plane, its z axis, its
+origin); their far sides, and its slides and spins, read the target
+space as a placement's do, and its values chart the rest on the
+space's axes. A plane or an axis is read off a datum through a role,
+as a finer pose is read off any frame ([variables.poses]). An offset
+from a face is the mate's far side slid along its normal, as for a
+body ([placement.mates]); a datum has no number of its own beyond its
+values. A datum is a recipe object the author places, like a body:
+its output is shared unnamed, and a face read in place needs none.
+
 **The world** `[placement.world]` is a space like any other, the one
 every document holds and cannot delete: it sets the coordinates. Its
 axes chart the values of placements into it, and it is nothing else.
-It has no datum plane, origin or axis as a recipe object: a viewer
+It has no datum plane, origin or axis of its own: a viewer
 may draw its axes or a grid as a display aid, and a gesture that drops
 a part on the floor writes values; neither is a recipe object, and no
-mate or construction reads the world. Export and the viewer's drawing compose a body into
+mate or construction reads the world. An author may place a datum into
+it, as into any space ([placement.datums]). Export and the viewer's drawing compose a body into
 the coordinates of a space it reaches, the world's or any other shown
 space's, through one door that nothing else calls, and what they
 produce never re-enters the model. The **product** is the body the

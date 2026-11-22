@@ -32,43 +32,36 @@ The mirror is narrower than the split even before the general plane door exists.
 
 ## The design (2026-11-22)
 
-A plane or an axis the viewer authors is a pose variable: there is no
-separate plane object and no plane-construction gesture. The general
-door is **one editor for a pose definition**, over `PoseDef`'s family,
-filtered by the kind the seat reads (plane or axis).
+A plane or an axis the viewer authors that is not a face read in place
+is a **datum**, placed the way a body is placed (DESIGN
+`[placement.datums]`). A datum is a node: it reads a target space and a
+bundle of mates and values, and its one output is a frame in that
+space. Readers take a plane or an axis off it through a role (xy / yz /
+zx, x / y / z).
 
-- **Create, then edit.** Split and mirror insert on a picked face's
-  plane, or on a Plane or Frame variable named in the selection, as
-  today. The node's plane row then edits the definition, one undoable
-  edit each: offset along its normal (a length row, number or
-  formula), turn about a picked edge or axis (an angle row), flip, a
-  frame's xy / yz / zx plane, through an edge and a point, re-pick.
-  Wrapping is an edit of what the seat reads (the seat's plane P
-  becomes `Slide { P, … }`), and unwrapping points the seat back at P.
-- **Anonymous at its reader, named to share.** An unnamed pose is shown
-  under its one reader's row (VR2). Naming it on that row lists it in
-  the Variables pane, whose row is the same editor; editing it there
-  moves every reader. A second reader of an unnamed pose opens the
-  name field, as Place does for a shared source (VR7).
-- **Seen and picked.** A named plane or axis is drawn as a display glyph
-  in its space, toggled in the View pane like a body; an unnamed one is
-  drawn while its reader or its row is selected. Clicking it gives
-  `Selection::Variable`, which every plane and axis seat takes.
-- **Axes by the same door**: the mate's axis sides and the placement
-  values' slide-along and spin-about reads. The mate sides' own
-  lowering (`matetool::plane_of`, `MateReading`) becomes the editor's
-  base picks.
-- **Variables pane "New plane" / "New axis"**: sugar over the same
-  editor, asking for a name and a base pick (the GUI proposes no name),
-  built after the seat path.
-- **The editor exposes the whole of `PoseDef`'s family**, as structured
-  widgets rather than typed text (the reads inside a pose are picks).
-  A chain reads on the row as a flat list of steps, in stored order.
-- **The world stays unreadable** ([placement.world],
-  [variables.poses]): every plane is built from the body's own
-  geometry.
+- **New plane / New axis / New frame** inserts a datum into the
+  selected body's space (or the world, with nothing selected) at all
+  values zero and opens the placement editor on it (create, then
+  edit). Its mates' near sides are its own roles, so every pick fills
+  a far side.
+- **A datum is a node like a body.** It has a tree row, a label,
+  delete and selection. It is drawn as a display aid in its space and
+  is pickable, and a pick fills an open plane or axis seat. Its output
+  is shared unnamed (VR2), so a mirror and a split read one datum with
+  no naming step. Editing it moves every reader. Re-pointing a reader
+  at another datum is `no-viewer-row-re-points-a-live-nodes-read`.
+- **An offset from a face** is a mate whose far side is the face's
+  plane slid along its normal (`PoseDef::Slide`), as a body's standoff
+  is (`[placement.mates]`). No mate holds a gap. The placement editor
+  gains the "offset" row on a mate's far side, which bodies get too.
+- **Slide, Spin and Flip stay** as pose moves: a mate's sides are
+  spelled with them. `PoseDef::FaceChart`, a frame placed flush on a
+  face by a fixed one-mate bundle, folds into the datum.
+- **A face picked plainly** stays the inline read it is today; a
+  one-off face needs no datum.
 
-Kernel: `VarDecl` (`crates/editor-core/src/var.rs`) gains a pose arm,
-so `DeclareVar` and `DefineVar` can declare and redefine a pose
-variable. `no-viewer-row-re-points-a-live-nodes-read`'s plane slots are
-this editor's re-pick and are built with it.
+Kernel: a datum node sharing `mate::Constraint`'s far side, the bundle
+door and the solve with `Node::Place`. The near side is a role of the
+datum, not a read, so `Constraint` needs a type parameter or a sibling.
+`Node::Mirror` and `Node::Split` read a pose of their body's space,
+a datum's included.
