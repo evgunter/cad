@@ -402,10 +402,12 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 body: 0,
             },
         },
-        SessionOp::AddClearance {
-            a: viewer::session::ClearedSeat::Body(node.into()),
-            b: viewer::session::ClearedSeat::Body(node.into()),
-            bounds: pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+        SessionOp::AddAssertion {
+            a: viewer::session::AssertedSeat::Body(node.into()),
+            b: viewer::session::AssertedSeat::Body(node.into()),
+            claim: viewer::session::AssertedClaim::Clearance(
+                pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+            ),
         },
     ]
 }
@@ -528,7 +530,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // other one.
         SessionOp::RepointPlacements { .. } => (62, false),
         // An insert door, fenced with every other one.
-        SessionOp::AddClearance { .. } => (45, false),
+        SessionOp::AddAssertion { .. } => (45, false),
     }
 }
 
@@ -1038,7 +1040,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
-        | SessionOp::AddClearance { .. }
+        | SessionOp::AddAssertion { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }

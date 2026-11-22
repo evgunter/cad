@@ -23,7 +23,7 @@ use pncad::prelude::MM;
 use viewer::evalseam::{CertifyDone, CertifyRequest, CertifyService};
 use viewer::generation::Generation;
 use viewer::props::Notation;
-use viewer::session::{ClearedSeat, DocSession, SessionOp};
+use viewer::session::{AssertedSeat, DocSession, SessionOp};
 use viewer::test_support::{CLEARANCE_SIDE as SIDE, STEP_GAP as GAP, len, two_blocks_apart};
 use viewer::tree::{Certified, Readout, TreeRow};
 
@@ -63,10 +63,10 @@ fn requirement(
     right: RecipeNodeId,
     bounds: ClearanceBounds<Formula>,
 ) -> SessionOp {
-    SessionOp::AddClearance {
-        a: ClearedSeat::Body(left.into()),
-        b: ClearedSeat::Body(right.into()),
-        bounds,
+    SessionOp::AddAssertion {
+        a: AssertedSeat::Body(left.into()),
+        b: AssertedSeat::Body(right.into()),
+        claim: viewer::session::AssertedClaim::Clearance(bounds),
     }
 }
 
@@ -368,10 +368,10 @@ fn a_face_seat_reads_as_the_face_the_document_names() {
     let face = facing_wall(&session, left);
     let id = add(
         &mut session,
-        SessionOp::AddClearance {
-            a: ClearedSeat::Face(face.clone()),
-            b: ClearedSeat::Body(right.into()),
-            bounds: ClearanceBounds::AtLeast(len(0.005)),
+        SessionOp::AddAssertion {
+            a: AssertedSeat::Face(face.clone()),
+            b: AssertedSeat::Body(right.into()),
+            claim: viewer::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.005))),
         },
     );
     session.pump();
@@ -530,22 +530,28 @@ fn the_witness_is_offered_only_for_the_shown_documents_run() {
 
 /// **The create door writes each shape of bound**, through the
 /// document's own insert door: `≥`, `≤`, `=` and the band, each the
-/// clearance tool's choice, every end at the one length it is given; a
+/// assertion tool's choice for a clearance, every end at the one length it is given; a
 /// band's upper end is then moved at its own row.
 ///
 /// Red if a choice writes another shape, or the band's ends swap.
 #[test]
-fn the_clearance_tool_writes_each_shape_of_bound() {
-    use viewer::combine::{ClearanceBoundChoice, ClearanceTool};
+fn the_assertion_tool_writes_each_shape_of_clearance_bound() {
+    use viewer::combine::{
+        AssertionMeasureChoice, AssertionTool, ClearanceBoundChoice, RelationChoice,
+    };
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
     let wall = facing_wall(&session, left);
-    let mut tool = ClearanceTool::new();
+    let mut tool = AssertionTool::new();
     tool.seat_face(session.committed_doc(), wall.clone());
     assert!(tool.seat_body(session.committed_doc(), right).is_none());
     for (choice, _) in ClearanceBoundChoice::ALL {
         let op = tool
-            .op(choice.bounds(len(0.005)))
+            .op(AssertionMeasureChoice::Clearance.claim(
+                choice,
+                RelationChoice::default(),
+                len(0.005),
+            ))
             .expect("both seats are held");
         let id = add(&mut session, op);
         // A band's upper end moved apart at its own row, so ends that
@@ -691,14 +697,14 @@ fn a_clearances_bounds_are_rows_that_take_a_formula_and_round_trip() {
 /// Red if the tool seats a body the world draws more than once.
 #[test]
 fn a_body_drawn_twice_is_refused_at_the_pick_in_the_tools_words() {
-    use viewer::combine::{ClearanceEvent, ClearanceTool};
+    use viewer::combine::{AssertionEvent, AssertionTool};
     let tol = Tol::witness();
     let (doc, [left, _], _) = two_blocks_apart(tol);
     let (doc, _) = viewer::test_support::placed(&doc, left, tol);
-    let mut tool = ClearanceTool::new();
+    let mut tool = AssertionTool::new();
     let refused = tool.seat_body(&doc, left).expect("the pick is refused");
     assert!(
-        matches!(refused, ClearanceEvent::SeveralCopies { copies: 2, .. }),
+        matches!(refused, AssertionEvent::SeveralCopies { copies: 2, .. }),
         "{refused:?}"
     );
     let said = pncad::document::Said(&refused, pncad::document::Speaker::of(&doc)).to_string();
@@ -810,10 +816,10 @@ fn a_requirement_over_a_patterns_members_refuses_in_words() {
     let member_face = index.face_of(id).expect("a drawn patch is a named face");
     let by_face = add(
         &mut session,
-        SessionOp::AddClearance {
-            a: ClearedSeat::Face(member_face),
-            b: ClearedSeat::Body(right.into()),
-            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        SessionOp::AddAssertion {
+            a: AssertedSeat::Face(member_face),
+            b: AssertedSeat::Body(right.into()),
+            claim: viewer::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.02))),
         },
     );
     session.pump();
@@ -952,10 +958,10 @@ fn a_pattern_member_face_seat_is_witnessed_on_that_member() {
     let face = member_face(&index, drawn, 2);
     let requirement = add(
         &mut session,
-        SessionOp::AddClearance {
-            a: ClearedSeat::Face(face.clone()),
-            b: ClearedSeat::Body(right.into()),
-            bounds: ClearanceBounds::AtLeast(len(0.05)),
+        SessionOp::AddAssertion {
+            a: AssertedSeat::Face(face.clone()),
+            b: AssertedSeat::Body(right.into()),
+            claim: viewer::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.05))),
         },
     );
     session.pump();
@@ -995,10 +1001,10 @@ fn two_pattern_members_faces_are_witnessed_where_each_stands() {
     let (second, third) = (member_face(&index, drawn, 1), member_face(&index, drawn, 2));
     let requirement = add(
         &mut session,
-        SessionOp::AddClearance {
-            a: ClearedSeat::Face(second.clone()),
-            b: ClearedSeat::Face(third.clone()),
-            bounds: ClearanceBounds::AtLeast(len(0.2)),
+        SessionOp::AddAssertion {
+            a: AssertedSeat::Face(second.clone()),
+            b: AssertedSeat::Face(third.clone()),
+            claim: viewer::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.2))),
         },
     );
     session.pump();

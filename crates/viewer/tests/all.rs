@@ -66,6 +66,8 @@ mod fixture;
 mod assembly_display;
 #[path = "assembly_walk.rs"]
 mod assembly_walk;
+#[path = "assertion_tool.rs"]
+mod assertion_tool;
 #[path = "blend_authoring.rs"]
 mod blend_authoring;
 #[path = "bundle_editor.rs"]

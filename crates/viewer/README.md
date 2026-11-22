@@ -2110,7 +2110,15 @@ of the node they insert, or a pick.
   `body ∪ image` for every body, placed or not, and answers the image
   as what it made, so the image is labelled `Mirror N` and selected.
   The union takes no label.
-- **Clearance.** The form asks for the two seats and the bound's shape
+- **Assertion.** One tool authors every claim between two seats
+  (`SessionOp::AddAssertion`). The form asks for the two seats and the
+  measure: a clearance, a `Gap` or a `Distance`. A `Gap` or a
+  `Distance` is the measure node over the seats and a value assertion
+  over its output, inserted as one action; the form asks for its
+  relation (exactly, at least, at most), and the insert writes the
+  bound at contact, `0`. A `Gap = 0` over a coincidence's two cells is
+  what quiets it (`[assertions.quiet]`); a clearance quiets nothing.
+  A clearance's form asks for the bound's shape
   (at least, at most, exactly, between), which decides how many bound
   slots the requirement has. The insert writes every end at contact,
   `0`. Each end is then a slot row of the requirement,

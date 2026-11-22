@@ -35,8 +35,8 @@ use crate::seats::{
     FaceRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line,
 };
 use crate::session::{
-    BooleanSpec, ClearedSeat, FaceSelection, PartSelectSpec, PatternDirection, PatternRuleSpec,
-    SessionOp, SplitPlane,
+    AssertedClaim, AssertedSeat, BooleanSpec, FaceSelection, PartSelectSpec, PatternDirection,
+    PatternRuleSpec, SessionOp, SplitPlane, ValueMeasure,
 };
 use crate::tree::HeldPick;
 use crate::vocab::vocabulary;
@@ -822,7 +822,79 @@ impl ClearanceBoundChoice {
     }
 }
 
-/// **One seat of a clearance requirement, as the tool holds it**: a
+vocabulary! {
+    /// **What an assertion measures** — the assertion form's choice of
+    /// claim: a clearance, or a `Gap`'s or a `Distance`'s value.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum AssertionMeasureChoice {
+        /// `clearance(a, b)`, bounded by a [`ClearanceBoundChoice`].
+        #[default]
+        Clearance = "clearance",
+        /// The signed `Gap(a, b)`.
+        Gap = "gap",
+        /// The `Distance(a, b)`.
+        Distance = "distance",
+    }
+
+    /// Every choice with its button label — the form's radio row.
+    pub const ALL;
+}
+
+vocabulary! {
+    /// **How a measured value relates to its bound** — the assertion
+    /// form's choice for a `Gap` or a `Distance`.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum RelationChoice {
+        /// `value = bound`.
+        #[default]
+        Equal = "exactly",
+        /// `value ≥ bound`.
+        AtLeast = "at least",
+        /// `value ≤ bound`.
+        AtMost = "at most",
+    }
+
+    /// Every choice with its button label — the form's radio row.
+    pub const ALL;
+}
+
+impl RelationChoice {
+    /// The kernel's relation.
+    pub fn relation(self) -> pncad::document::AssertionRelation {
+        use pncad::document::AssertionRelation as R;
+        match self {
+            Self::Equal => R::Equal,
+            Self::AtLeast => R::AtLeast,
+            Self::AtMost => R::AtMost,
+        }
+    }
+}
+
+impl AssertionMeasureChoice {
+    /// **The claim this choice writes**, every bound at `at`: a
+    /// clearance in the shape `bounds` chooses, or the measure related
+    /// to `at` by `relation`. The insert writes contact (`0`); each
+    /// bound is then a slot row of the assertion.
+    pub fn claim(
+        self,
+        bounds: ClearanceBoundChoice,
+        relation: RelationChoice,
+        at: Formula,
+    ) -> AssertedClaim {
+        let value = |measure| AssertedClaim::Value {
+            measure,
+            relation: relation.relation(),
+            bound: at.clone(),
+        };
+        match self {
+            Self::Clearance => AssertedClaim::Clearance(bounds.bounds(at.clone())),
+            Self::Gap => value(ValueMeasure::Gap),
+            Self::Distance => value(ValueMeasure::Distance),
+        }
+    }
+}
+
+/// **One seat of an assertion, as the tool holds it**: a
 /// body (all of its faces), picked in the tree, or a face, picked in
 /// the picture.
 ///
@@ -830,47 +902,47 @@ impl ClearanceBoundChoice {
 /// between two parts is about the parts as they stand, so a seat is
 /// read where it is drawn, as every seated tool reads a pick
 /// ([`Seats::pick`]); the commit door also reads a tree pick of a
-/// construction on its world copy (`DocSession`'s `AddClearance` arm).
+/// construction on its world copy (`DocSession`'s `AddAssertion` arm).
 ///
 /// That redirect is why the seat is not a [`Seats`]: for a construction
 /// the world copies ONCE, a `Seats`-held body would land on the same
 /// copy, but a construction copied several times names no one copy —
 /// which part the author means is not in the pick — so the tool refuses
-/// such a pick itself ([`ClearanceEvent::SeveralCopies`]) and asks for
+/// such a pick itself ([`AssertionEvent::SeveralCopies`]) and asks for
 /// the copy in the picture, where `Seats` would seat the construction
 /// and leave the insert door to refuse two seats in different spaces.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum ClearancePick {
+enum AssertedPick {
     /// A body: the node picked, as the document last spoke it.
     Body(SpokenNode),
     /// A face, held as the mirror tool holds its plane.
     Face(HeldPick),
 }
 
-/// **The clearance tool**: a requirement's two seats, a body or a face
-/// each, committing one [`SessionOp::AddClearance`] with the bounds the
-/// form holds.
+/// **The assertion tool**: a claim's two seats, a body or a face each,
+/// committing one [`SessionOp::AddAssertion`] with the claim the form
+/// holds — a clearance, a `Gap` or a `Distance`.
 ///
 /// A pick fills the first open seat; with both full it replaces the
 /// second, the seats' pick rule ([`Seats::pick`]). A face picked in the
 /// picture seats that face, on the body the picture draws it on; a node
 /// picked in the tree seats its body.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ClearanceTool {
-    picks: [Option<ClearancePick>; 2],
+pub struct AssertionTool {
+    picks: [Option<AssertedPick>; 2],
 }
 
 /// **Seat `i`'s role**, as a body and as a face: the first seat, then
 /// the second.
-fn cleared(i: usize) -> (Seat, FaceRole) {
+fn asserted(i: usize) -> (Seat, FaceRole) {
     if i == 0 {
-        (Seat::ClearedFirst, FaceRole::ClearedFirst)
+        (Seat::AssertedFirst, FaceRole::AssertedFirst)
     } else {
-        (Seat::ClearedSecond, FaceRole::ClearedSecond)
+        (Seat::AssertedSecond, FaceRole::AssertedSecond)
     }
 }
 
-impl ClearanceTool {
+impl AssertionTool {
     /// A tool holding nothing.
     pub const fn new() -> Self {
         Self {
@@ -885,44 +957,44 @@ impl ClearanceTool {
 
     /// **Feed one node pick**: its body, in the next seat — or, for a
     /// body the world draws more than once, the refusal that names no
-    /// one copy ([`ClearanceEvent::SeveralCopies`]), the seat untouched.
+    /// one copy ([`AssertionEvent::SeveralCopies`]), the seat untouched.
     #[must_use = "a declined pick is only reported if its notice is shown"]
     pub fn seat_body(
         &mut self,
         doc: &Doc<ProfileProgram>,
         node: RecipeNodeId,
-    ) -> Option<ClearanceEvent> {
+    ) -> Option<AssertionEvent> {
         let copies = crate::world::world_copies_of_read(doc, &Operand::Node(node)).len();
         if copies > 1 {
-            return Some(ClearanceEvent::SeveralCopies {
+            return Some(AssertionEvent::SeveralCopies {
                 node: doc.spoken(node),
                 copies,
             });
         }
         let i = self.next();
-        self.picks[i] = Some(ClearancePick::Body(doc.spoken(node)));
+        self.picks[i] = Some(AssertedPick::Body(doc.spoken(node)));
         None
     }
 
     /// **Feed one face pick**: the face, in the next seat.
     pub fn seat_face(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
         let i = self.next();
-        self.picks[i] = Some(ClearancePick::Face(HeldPick::new(doc, face)));
+        self.picks[i] = Some(AssertedPick::Face(HeldPick::new(doc, face)));
     }
 
     /// The face seat `i` holds, if it holds one.
     pub fn face(&self, i: usize) -> Option<&FaceSelection> {
         match self.picks.get(i)? {
-            Some(ClearancePick::Face(held)) => Some(held.face()),
-            Some(ClearancePick::Body(_)) | None => None,
+            Some(AssertedPick::Face(held)) => Some(held.face()),
+            Some(AssertedPick::Body(_)) | None => None,
         }
     }
 
     /// The node seat `i` holds as a body, if it holds one.
     pub fn body(&self, i: usize) -> Option<RecipeNodeId> {
         match self.picks.get(i)? {
-            Some(ClearancePick::Body(node)) => Some(node.id()),
-            Some(ClearancePick::Face(_)) | None => None,
+            Some(AssertedPick::Body(node)) => Some(node.id()),
+            Some(AssertedPick::Face(_)) | None => None,
         }
     }
 
@@ -937,10 +1009,10 @@ impl ClearanceTool {
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         let mut events = Vec::new();
         for (i, pick) in self.picks.iter_mut().enumerate() {
-            let (seat, _) = cleared(i);
-            if let Some(ClearancePick::Body(node)) = pick
+            let (seat, _) = asserted(i);
+            if let Some(AssertedPick::Body(node)) = pick
                 && doc.node(node.id()).is_none()
-                && let Some(ClearancePick::Body(node)) = pick.take()
+                && let Some(AssertedPick::Body(node)) = pick.take()
             {
                 events.push(SeatEvent::PickLost { seat, node });
             }
@@ -955,11 +1027,11 @@ impl ClearanceTool {
         &mut self,
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-    ) -> Vec<ClearanceEvent> {
+    ) -> Vec<AssertionEvent> {
         let mut events = Vec::new();
         for (i, pick) in self.picks.iter_mut().enumerate() {
-            let (_, role) = cleared(i);
-            let Some(ClearancePick::Face(held)) = pick else {
+            let (_, role) = asserted(i);
+            let Some(AssertedPick::Face(held)) = pick else {
                 continue;
             };
             let face = held.face();
@@ -967,10 +1039,10 @@ impl ClearanceTool {
             if crate::session::select::resolves(&verdict) {
                 continue;
             }
-            let Some(ClearancePick::Face(face)) = pick.take() else {
+            let Some(AssertedPick::Face(face)) = pick.take() else {
                 unreachable!("the seat was just read as a face")
             };
-            events.push(ClearanceEvent::FaceLost {
+            events.push(AssertionEvent::FaceLost {
                 role,
                 face,
                 resolution: Box::new(verdict),
@@ -983,8 +1055,8 @@ impl ClearanceTool {
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         for pick in self.picks.iter_mut().flatten() {
             match pick {
-                ClearancePick::Body(node) => *node = node.respoken(doc),
-                ClearancePick::Face(held) => *held = held.respoken(doc),
+                AssertedPick::Body(node) => *node = node.respoken(doc),
+                AssertedPick::Face(held) => *held = held.respoken(doc),
             }
         }
     }
@@ -994,8 +1066,8 @@ impl ClearanceTool {
         self.picks
             .iter_mut()
             .filter_map(|pick| match pick {
-                Some(ClearancePick::Face(held)) => Some(crate::session::select::Held::One(held)),
-                Some(ClearancePick::Body(_)) | None => None,
+                Some(AssertedPick::Face(held)) => Some(crate::session::select::Held::One(held)),
+                Some(AssertedPick::Body(_)) | None => None,
             })
             .collect()
     }
@@ -1004,43 +1076,41 @@ impl ClearanceTool {
     /// as a seat says its node, a face as the chrome says a held pick.
     pub fn line(&self, by: Speaker<'_>) -> String {
         let said = |i: usize| match &self.picks[i] {
-            Some(ClearancePick::Body(node)) => Some(pick_said(by, node, &Port::ALONE)),
-            Some(ClearancePick::Face(held)) => Some(Said(held, by).to_string()),
+            Some(AssertedPick::Body(node)) => Some(pick_said(by, node, &Port::ALONE)),
+            Some(AssertedPick::Face(held)) => Some(Said(held, by).to_string()),
             None => None,
         };
         picks_line([
-            (cleared(0).1.name(), said(0)),
-            (cleared(1).1.name(), said(1)),
+            (asserted(0).1.name(), said(0)),
+            (asserted(1).1.name(), said(1)),
         ])
     }
 
-    /// **The one committed edit**: the requirement between the two
-    /// seats, within `bounds`.
+    /// **The one committed edit**: `claim` between the two seats.
     ///
     /// # Errors
     ///
     /// [`SeatError::Empty`] naming the first seat still open.
-    pub fn op(
-        &self,
-        bounds: pncad::document::ClearanceBounds<Formula>,
-    ) -> Result<SessionOp, SeatError> {
+    pub fn op(&self, claim: AssertedClaim) -> Result<SessionOp, SeatError> {
         let seat = |i: usize| match &self.picks[i] {
-            Some(ClearancePick::Body(node)) => Ok(ClearedSeat::Body(Operand::Node(node.id()))),
-            Some(ClearancePick::Face(held)) => Ok(ClearedSeat::Face(held.face().clone())),
-            None => Err(SeatError::Empty { seat: cleared(i).0 }),
+            Some(AssertedPick::Body(node)) => Ok(AssertedSeat::Body(Operand::Node(node.id()))),
+            Some(AssertedPick::Face(held)) => Ok(AssertedSeat::Face(held.face().clone())),
+            None => Err(SeatError::Empty {
+                seat: asserted(i).0,
+            }),
         };
-        Ok(SessionOp::AddClearance {
+        Ok(SessionOp::AddAssertion {
             a: seat(0)?,
             b: seat(1)?,
-            bounds,
+            claim,
         })
     }
 }
 
-/// A typed clearance-tool event the chrome renders: a face seat's drop.
+/// A typed assertion-tool event the chrome renders: a face seat's drop.
 /// A body seat's drop is a [`SeatEvent`].
 #[derive(Debug)]
-pub enum ClearanceEvent {
+pub enum AssertionEvent {
     /// A held face no longer resolves against the landed evaluation;
     /// the tool dropped it and the seat is open.
     FaceLost {
@@ -1062,7 +1132,7 @@ pub enum ClearanceEvent {
 }
 
 /// A node `by` does not hold is said as the tool kept it.
-impl Say for ClearanceEvent {
+impl Say for AssertionEvent {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::FaceLost { role, face, .. } => {
@@ -1083,7 +1153,7 @@ impl Say for ClearanceEvent {
 
 /// The sentence where no document is at hand: each node as the tool
 /// kept it.
-impl core::fmt::Display for ClearanceEvent {
+impl core::fmt::Display for AssertionEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::FaceLost { face, .. } => self.say(f, Speaker::held(face.said())),

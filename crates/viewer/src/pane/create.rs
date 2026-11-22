@@ -13,7 +13,9 @@ use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendKindChoice, FREEZE_NOTE};
-use crate::combine::{BooleanTool, ClearanceBoundChoice, PatternOutputChoice};
+use crate::combine::{
+    AssertionMeasureChoice, BooleanTool, ClearanceBoundChoice, PatternOutputChoice, RelationChoice,
+};
 use crate::drafts::{CommitFault, Drafts};
 use crate::forms::{COUNT_DRAG_SPEED, PatternLayoutChoice, boolean_op_label, split_half_label};
 use crate::frame::{self, Tone};
@@ -66,14 +68,28 @@ pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mu
     crate::widgets::message_toned(ui, PROJECTION_IS_PLACED, theme, Tone::Advisory);
 }
 
-/// **The clearance form's shape row**: which side the requirement
-/// bounds. Its bounds are inserted at contact and edited on the
-/// requirement's own rows.
-pub(crate) fn clearance_shape_row(ui: &mut egui::Ui, drafts: &mut Drafts) {
+/// **The assertion form's claim rows**: which measure it bounds, then
+/// a clearance's shape or a value's relation. Its bounds are inserted at
+/// contact and edited on the assertion's own rows.
+pub(crate) fn assertion_claim_rows(ui: &mut egui::Ui, drafts: &mut Drafts) {
     ui.horizontal(|ui| {
-        ui.label("clearance");
-        for (choice, label) in ClearanceBoundChoice::ALL {
-            ui.radio_value(&mut drafts.clearance_bound, choice, label);
+        ui.label("measure");
+        for (choice, label) in AssertionMeasureChoice::ALL {
+            ui.radio_value(&mut drafts.assertion_measure, choice, label);
+        }
+    });
+    ui.horizontal(|ui| match drafts.assertion_measure {
+        AssertionMeasureChoice::Clearance => {
+            ui.label("clearance");
+            for (choice, label) in ClearanceBoundChoice::ALL {
+                ui.radio_value(&mut drafts.clearance_bound, choice, label);
+            }
+        }
+        AssertionMeasureChoice::Gap | AssertionMeasureChoice::Distance => {
+            ui.label("value");
+            for (choice, label) in RelationChoice::ALL {
+                ui.radio_value(&mut drafts.assertion_relation, choice, label);
+            }
         }
     });
 }
@@ -587,24 +603,24 @@ impl ViewerBehavior<'_> {
         // The requirements: a recorded claim the geometry is checked
         // against, which makes no body.
         ui.collapsing(REQUIREMENTS, |ui| {
-            self.clearance_tool_ui(ui);
+            self.assertion_tool_ui(ui);
         });
         ui.separator();
     }
 
-    /// **The clearance tool's panel** — "add a clearance requirement":
-    /// its two seats, a body or a face each, held as picks
-    /// ([`crate::combine::ClearanceTool`]); which side the requirement
-    /// bounds; its one or two lengths; and the one committed edit, which
-    /// writes the assertion through the document's own door.
-    pub(crate) fn clearance_tool_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(tool) = self.tools.clearance().cloned() else {
-            return self.tool_door(ui, ToolKind::Clearance);
+    /// **The assertion tool's panel** — "add an assertion": its two
+    /// seats, a body or a face each, held as picks
+    /// ([`crate::combine::AssertionTool`]); the measure and how it is
+    /// bounded; and the one committed edit, which writes the claim
+    /// through the document's own door.
+    pub(crate) fn assertion_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.assertion().cloned() else {
+            return self.tool_door(ui, ToolKind::Assertion);
         };
         crate::widgets::message(
             ui,
-            ToolKind::Clearance.says(
-                &"add a clearance requirement: pick a face in the picture, or a body in the tree, for each of its two seats",
+            ToolKind::Assertion.says(
+                &"add an assertion: pick a face in the picture, or a body in the tree, for each of its two seats",
             ),
         );
         crate::widgets::message_toned(
@@ -613,10 +629,15 @@ impl ViewerBehavior<'_> {
             &self.theme,
             Tone::Advisory,
         );
-        clearance_shape_row(ui, self.drafts);
-        self.tool_commit_row(ui, ToolKind::Clearance, None, |drafts, notation| {
+        assertion_claim_rows(ui, self.drafts);
+        self.tool_commit_row(ui, ToolKind::Assertion, None, |drafts, notation| {
             let contact = notation.length_literal(0.0)?;
-            Ok(tool.op(drafts.clearance_bound.bounds(contact))?)
+            let claim = drafts.assertion_measure.claim(
+                drafts.clearance_bound,
+                drafts.assertion_relation,
+                contact,
+            );
+            Ok(tool.op(claim)?)
         });
     }
 
@@ -1782,7 +1803,7 @@ impl ViewerBehavior<'_> {
                 BlendKindChoice::Chamfer => "Chamfer",
             },
             ToolKind::Part => "Part",
-            ToolKind::Clearance => "Assertion",
+            ToolKind::Assertion => "Assertion",
         })
     }
 
