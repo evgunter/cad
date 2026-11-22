@@ -80,3 +80,7 @@ That row, closed into this one, asked for the EXACT signed distance (not `implic
 - sphere `|p − c| − r`: `contain.rs` `sphere_face_containment`.
 
 When the reading lands, check bit-identity per site: the torus copies (`solid_contain::torus_elevation` against `offset_axial::surface_residual`, spelled through `Vec3::norm`) differ in operation order.
+
+## The same readers over a box on a radius (2026-11-15, `boxfinish/radial-readers`)
+
+Evidence from another side. Where a spelling above reads a measured norm less a stored radius (`‖w‖ − R`) on a point built on the surface, it is `√(r²) − r` over a box on a radius `r` stored with no `abs`: not the zero form. `pcurve_cache::chart_distance`'s cylinder and sphere arms now read through the rationalized gap (`radius_gap`); the other spellings do not, and the tour's cut plate with the verbs storing `r` refuses next at one of them (`props/curved.rs` `cylinder_boundary`, `props_meridian_on_surface`). The sites and the measurement are on `work/boxfinish/a-measured-norm-less-a-stored-radius-is-read-raw-by-identity-readers-outside-the-pcurve-cache`, and the torus's on `work/boxfinish/a-torus-reader-takes-the-distance-from-the-axis-less-the-major-radius-inside-its-root`. The one reading this row owes is where a sign-free form would be written once.

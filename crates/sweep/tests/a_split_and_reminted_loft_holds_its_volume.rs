@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Bounds, Decide, Interval, Point2, Point3, Real, Tol};
+use geom_core::{Bounds, Decide, Interval, Point2, Point3, Tol};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, SketchPlane};
 use topo::construction::Construct;

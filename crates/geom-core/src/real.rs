@@ -1229,6 +1229,18 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
     !is_finite_length(len / witness)
 }
 
+/// **A measured norm less a stored radius**, `norm − radius`, spelled
+/// `(norm_sq − radius²) / (norm + radius)`: the same real wherever
+/// `norm + radius ≠ 0`, its one precondition. `norm_sq` is the measured
+/// vector's own dot product and `norm` its root, so the numerator is a
+/// polynomial in the vector's and the radius's data: for a vector built
+/// at the radius's length it is the zero form with nothing known of the
+/// radius's sign, where `√(radius²) − radius` is not. The sign is the
+/// difference's; a caller that wants the distance takes its `abs`.
+pub fn radius_gap<T: Real>(norm_sq: T, norm: T, radius: T) -> T {
+    (norm_sq - radius * radius) / (norm + radius)
+}
+
 /// Whether `x` is EXACTLY zero, of either sign: at the point scalars
 /// `x == 0.0` on the value, at the interval scalar only the degenerate
 /// hull `[−0, 0]`. An enclosure that merely contains zero, and poison,
@@ -1246,19 +1258,6 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 /// says at the call what an exact zero means there.
 pub fn is_exact_zero<T: Real>(x: T) -> bool {
     !(x * T::zero()).is_poison() && (x * (T::one() / x)).is_poison()
-}
-
-/// **A measured norm less a stored radius**, `norm − radius`, spelled
-/// `(norm_sq − radius²)/(norm + radius)`: the same real wherever the
-/// denominator is non-zero, with a numerator that is a polynomial in
-/// whatever the squared norm and the radius are polynomials in. For a
-/// point built at `centre + radius·x`, `x` a unit direction, the
-/// numerator is the zero form, and `√(radius²)` is never asked to be
-/// `radius`. `norm_sq` is the offset's own dot product, `norm` its
-/// root. The one spelling of a point's signed gap off a circle, a
-/// cylinder or a sphere.
-pub fn radius_gap<T: Real>(norm_sq: T, norm: T, radius: T) -> T {
-    (norm_sq - radius.powi(2)) / (norm + radius)
 }
 
 /// `x` with a zero of either sign stated as `+0.0`; every other value,

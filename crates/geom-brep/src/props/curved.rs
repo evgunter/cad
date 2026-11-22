@@ -2147,6 +2147,16 @@ pub fn closed_surface<T: Real>(
     })
 }
 
+/// **A segment's greatest distance from a cylinder of `radius`**, `q0`
+/// and `q1` its ends' offsets from the axis: the ends' residuals
+/// ([`geom_core::radius_gap`], zero forms for ends built on the wall),
+/// and how far the segment sags inside between them ([`radial_sag`]).
+fn segment_off_cylinder<T: Real>(q0: Vec3<T>, q1: Vec3<T>, radius: T) -> T {
+    let residual = |q: Vec3<T>| geom_core::radius_gap(q.dot(q), q.norm(), radius);
+    let (f0, f1) = (residual(q0), residual(q1));
+    f0.abs().max(f1.abs()).max(radial_sag(q0, q1) - f0.min(f1))
+}
+
 /// Classify a cylinder face's boundary into (rims, iso-levels) — the
 /// shared parse consumed by both the flux closed form and
 /// [`boundary_material_sign`].
@@ -2169,10 +2179,9 @@ fn cylinder_boundary<T: Decide>(
                 // segment sags inside between them ([`radial_sag`]).
                 let radial = |p: Point3<T>| geom::Line { origin, dir: axis }.offset(p);
                 let (q0, q1) = (radial(e.p0()), radial(e.p1()));
-                let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
                 require_zero(
                     "props_meridian_on_surface",
-                    Margin::of(f0.abs().max(f1.abs()).max(radial_sag(q0, q1) - f0.min(f1))),
+                    Margin::of(segment_off_cylinder(q0, q1, radius)),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -7208,5 +7217,108 @@ mod pole_climb_rows {
         };
         let got = sphere_region_material_sign(&region, band);
         assert!(matches!(got, Ok(MaterialSign::Encoded(_))), "{got:?}");
+    }
+}
+
+/// **A cylinder's ruling edge, built on the wall at a parameter radius,
+/// is on it with no sign asked of the radius**
+/// ([`segment_off_cylinder`]).
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod ruling_on_wall_rows {
+    use super::*;
+    use geom_core::{Interval, ParamSymbol, Sym, SymBudget, Tol};
+
+    /// A ruling's ends are both at `r·x` from the axis, `x` a unit
+    /// direction (a frame's own, or one at a boxed angle): over a box on
+    /// `r` their distance from the cylinder of radius `r` is the zero
+    /// form, and from the radius spelled `|r|` too.
+    ///
+    /// Red with `segment_off_cylinder`'s residual spelled
+    /// `q.norm() − radius` (run by hand): at the radius `r` the premise
+    /// reads `|√(r²) − r|`, as wide as the box.
+    #[test]
+    fn a_ruling_built_on_a_cylinder_is_on_it_over_a_box_on_the_radius() {
+        type S = Sym<Interval>;
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 64,
+        };
+        let boxed = |name: &str, lo: f64, hi: f64| -> S {
+            Sym::param_over(
+                ParamSymbol::new(test_utils::symbol_id(name)),
+                Interval::from_bounds(lo, hi),
+                lo,
+                hi,
+            )
+        };
+        geom_core::sym::with_session(budget, || {
+            let r = boxed("ruling_on_wall_radius", 0.2, 0.4);
+            let (s, c) = boxed("ruling_on_wall_angle", 0.3, 0.9).sin_cos();
+            let (zero, one) = (S::zero(), S::one());
+            let directions = [
+                ("u", Vec3::new(one, zero, zero)),
+                ("-v", Vec3::new(zero, zero - one, zero)),
+                ("at a boxed angle", Vec3::new(c, s, zero)),
+            ];
+            for (name, x) in directions {
+                for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
+                    let q = x * r;
+                    let d = geom_core::k_stats::decide_reported(
+                        "ruling_on_wall_row",
+                        Margin::of(segment_off_cylinder(q, q, radius)),
+                        band,
+                    )
+                    .unwrap_or_else(|e| panic!("along {name}, radius {spelling}: {e:?}"));
+                    assert_eq!(
+                        (d.sign, d.margin.proven()),
+                        (Sign::Zero, true),
+                        "along {name}, radius {spelling}"
+                    );
+                }
+            }
+        });
+    }
+
+    /// At `f64` the reading is the direct spelling's, the ends'
+    /// `‖q‖ − R` and the sag between them, to four ulps of the ends'
+    /// reach: for a ruling on the wall, a chord between two points of
+    /// the wall, a segment off it either side, one through the axis and
+    /// one far out.
+    ///
+    /// Red with `segment_off_cylinder` handing the gap the radius's
+    /// square for the radius (run by hand).
+    #[test]
+    fn a_segments_distance_from_a_cylinder_is_the_direct_reading_to_its_rounding() {
+        let direct = |q0: Vec3<f64>, q1: Vec3<f64>, radius: f64| {
+            let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
+            f0.abs().max(f1.abs()).max(radial_sag(q0, q1) - f0.min(f1))
+        };
+        let at = |angle: f64, reach: f64| Vec3::new(angle.cos() * reach, angle.sin() * reach, 0.0);
+        let mut read = 0_u32;
+        for radius in [0.7, 1.0e-3, 1.0e3] {
+            for (a0, a1) in [(0.4, 0.4), (0.4, 0.9), (-1.2, 2.5), (0.0, 3.1)] {
+                for (k0, k1) in [
+                    (1.0, 1.0),
+                    (1.0 + 1.0e-9, 1.0 - 1.0e-9),
+                    (0.5, 1.0),
+                    (2.0, 1.0),
+                    (0.0, 1.0),
+                    (1.0e6, 1.0),
+                ] {
+                    let (q0, q1) = (at(a0, radius * k0), at(a1, radius * k1));
+                    let (got, want) =
+                        (segment_off_cylinder(q0, q1, radius), direct(q0, q1, radius));
+                    let slack = 4.0 * f64::EPSILON * (q0.norm() + q1.norm() + radius);
+                    assert!(
+                        (got - want).abs() <= slack,
+                        "R = {radius}, angles ({a0}, {a1}), reaches ({k0}, {k1}): {got} against {want}"
+                    );
+                    read += 1;
+                }
+            }
+        }
+        assert_eq!(read, 3 * 4 * 6, "every row of the table read");
     }
 }

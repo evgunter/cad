@@ -6944,26 +6944,26 @@ fn rim_slant<T: Real>(h: T, radius: T, half_angle: T, nappe: Nappe) -> T {
     h * c_ha + radius * s_ha * nappe.value()
 }
 
-/// `|p − ‖q‖|`, a measured norm against a stored radius, spelled
-/// `|p² − q·q| / (p + ‖q‖)`: the same real wherever `p + ‖q‖ ≠ 0`, with
-/// a numerator that is a polynomial in the carrier's and the chart's
-/// data, so it is the zero form wherever `q` was built at length `p`
-/// and `√(p²) = p` is never asked of the arithmetic. `p_sq` is `p²` in
-/// the caller's own spelling; `p ≥ 0`.
+/// `|p − ‖q‖|`, spelled `|p² − q·q| / (p + ‖q‖)` so the numerator is a
+/// polynomial in the carrier's and the chart's data and `√(p²) = p` is
+/// never asked of the arithmetic: [`geom_core::radius_gap`]'s identity
+/// for a length `p` the caller holds with its square in another
+/// spelling (`p_sq`: a root's radicand, a magnitude's signed square).
+/// `p ≥ 0`.
 fn norm_gap<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
     (p_sq - q.dot(q)).abs() / (p + q.norm())
 }
 
 /// **A point's distance from a chart of radius `radius`**, `w` its offset
-/// from the chart's centre or axis: [`norm_gap`] at the stored radius,
-/// so a point built at `centre + radius·x`, `x` a unit direction, reads
-/// the zero form.
-fn radius_gap<T: Real>(radius: T, w: Vec3<T>) -> T {
+/// from the chart's centre or axis: `|‖w‖ − radius|` through
+/// [`geom_core::radius_gap`], so a point built at `centre + radius·x`,
+/// `x` a unit direction, reads the zero form.
+fn wall_distance<T: Real>(radius: T, w: Vec3<T>) -> T {
     #[cfg(test)]
     if mutants::distance_raw_norm() {
         return (w.norm() - radius).abs();
     }
-    norm_gap(radius, radius.powi(2), w)
+    geom_core::radius_gap(w.dot(w), w.norm(), radius).abs()
 }
 
 /// **A cylinder ruling's direction in the chart's angular frame**
@@ -13228,7 +13228,7 @@ const INCIDENCE_SAMPLES: u32 = 64;
 
 /// The exact distance of `p` from an analytic curved chart: the sphere's
 /// and the cylinder's `|‖w‖ − R|`, `w` the point's offset from the centre
-/// or the axis ([`radius_gap`]), the double cone's `|elevation|`
+/// or the axis ([`wall_distance`]), the double cone's `|elevation|`
 /// ([`crate::implicit::cone_elevation`], exact on the double cone), the
 /// torus's `|√((ρ − R)² + h²) − r|`. On a spindle sheet the torus's
 /// form is the distance from the sheet's whole revolved circle, which
@@ -13236,7 +13236,7 @@ const INCIDENCE_SAMPLES: u32 = 64;
 /// reading [`incidence_over_span_as`] decides.
 fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
     match *surface {
-        Surface::Sphere { frame, radius, .. } => radius_gap(radius, p - frame.origin()),
+        Surface::Sphere { frame, radius, .. } => wall_distance(radius, p - frame.origin()),
         Surface::Cone {
             frame, half_angle, ..
         } => {
@@ -13276,7 +13276,7 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
         Surface::Cylinder { frame, radius, .. } => {
             let (origin, axis) = (frame.origin(), frame.axis());
             let (_, w) = crate::implicit::axial_radial(p, origin, axis);
-            radius_gap(radius, w)
+            wall_distance(radius, w)
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("chart_distance: the incidence test reads an analytic chart")
