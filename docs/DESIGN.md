@@ -1155,13 +1155,17 @@ EdgeDescription =
 
 *From:* [pure-model], [unrepresentable].
 
-Plane / cylinder / cone / sphere / ring torus / spindle sheet are
-first-class variants alongside NURBS (as in Parasolid), not converted to
-NURBS. A spindle sheet is one sheet of a spindle or horn torus, the
-lemon or the apple, with a signed major radius choosing which. Most
+Plane / cylinder / cone / sphere / spheroid / ring torus / spindle
+sheet are first-class variants alongside NURBS (as in Parasolid), not
+converted to NURBS. A spindle sheet is one sheet of a spindle or horn
+torus, the lemon or the apple, with a signed major radius choosing
+which. A spheroid is a sphere stretched along one axis, with an
+equatorial and a polar radius that differ past the band; it is what a
+revolve mints from an ellipse arc centred on its axis with a principal
+direction along it, and a sphere stays its own kind. Most
 mechanical geometry is analytic; analytic×analytic intersections have
-closed forms, while NURBS×NURBS is a numerical marching problem. An
-eighth variant, `Approx`, is the certified approximating class
+closed forms, while NURBS×NURBS is a numerical marching problem. A
+further variant, `Approx`, is the certified approximating class
 (OFFSET-DESIGN O2): a fitted NURBS carrying the intensional description
 of what it approximates plus a certificate bounding the distance,
 re-derived per face and never trusted from storage.
@@ -1178,8 +1182,11 @@ net) the kind fixes the rule, not the points: a boundary iso of the net whose co
 points are all one stored point is a chart singularity at that point, decided on the
 stored values. A constructor that decides such a side collapsed at its band builds it
 exactly one point; a side that is tiny but not one point is a regular chart with a
-short edge. The `Nurbs` variant is the universal fallback: any exotic surface
-is at minimum representable. Same design for curves (line / circle /
+short edge. A swept locus earns a kind where it is a quadric or one of
+the torus's sheets, so that a line meets it in a closed form and a
+plane cuts it in a curve kind that exists. The `Nurbs` variant is the universal fallback: any exotic surface
+is at minimum representable, and a wall swept from a profile segment
+with no kind of its own is the exact rational `Nurbs` surface, never an `Approx`. Same design for curves (line / circle /
 ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
 
