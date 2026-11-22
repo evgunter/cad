@@ -1976,3 +1976,32 @@ fn a_run_canceled_in_the_census_places_nothing() {
         canceled.nodes.keys()
     );
 }
+
+/// **A part's fault keeps the part's mention** (review probe, OFFER fix
+/// pass): the instance's failure names the part's extrude as a mention
+/// stamped with the part's document, not spelled into the words.
+#[test]
+fn review_probe_a_part_fault_keeps_the_parts_mention() {
+    let tol = Tol::witness();
+    let mut store = StubStore::default();
+    let (part, extrude, _piece) = poisoned_part("review-probe-part");
+    let part_id = part.id();
+    let part_ref = store.insert(part, tol);
+    let (doc, ids) = assembly("review-probe-asm", &[part_ref]);
+    let opts = with_resolver(store);
+    let ev = run(&doc, &opts);
+    let Some(NodeResult::Failed(e)) = ev.result(ids[0]) else {
+        panic!("the instance fails");
+    };
+    let said = e.spoken(&doc, &ev);
+    let mentions: Vec<_> = said
+        .mentions()
+        .map(|m| (m.node().map(editor_core::SpokenNode::id), m.document()))
+        .collect();
+    assert!(
+        mentions
+            .iter()
+            .any(|(n, d)| *n == Some(extrude) && *d == Some(part_id)),
+        "the part's extrude is a mention in the part's document: {said} / {mentions:?}"
+    );
+}

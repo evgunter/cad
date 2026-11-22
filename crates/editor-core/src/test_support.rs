@@ -1694,6 +1694,52 @@ pub fn said_text<T: crate::Say + ?Sized>(value: &T) -> String {
         .to_string()
 }
 
+// --- the flattening detector ----------------------------------------
+
+/// **A mention spelled into a sentence's words**, if one is: the first
+/// words run that holds a node's or a variable's own spelling — a
+/// quoted label then ` (<tag>)`, or a capitalised kind then ` <tag>` —
+/// rather than the mention itself. A sentence that flattened a value
+/// with a sentence (`{value}` inside a `say` body) carries its mentions
+/// as such words, which the viewer cannot link; the law rows over the
+/// refusal corpora hold that none does. An absent node is words by
+/// design and is spelled lower-case (`node <tag>`), so it is not one.
+#[must_use]
+pub fn spelled_mention(said: &crate::Sentence) -> Option<String> {
+    said.runs().iter().find_map(|run| match run {
+        crate::Run::Words(words) if spells_a_mention(words) => Some(words.clone()),
+        _ => None,
+    })
+}
+
+/// Whether `words` holds `" (<12 hex>)"` or `"<Capitalised> <12 hex>"`
+/// with the tag a whole word.
+fn spells_a_mention(words: &str) -> bool {
+    let bytes = words.as_bytes();
+    let tag_at = |at: usize| {
+        bytes.len() >= at + 12
+            && bytes[at..at + 12]
+                .iter()
+                .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+            && bytes
+                .get(at + 12)
+                .is_none_or(|b| !b.is_ascii_alphanumeric())
+    };
+    (0..bytes.len()).any(|i| {
+        if bytes[i..].starts_with(b"\" (") && tag_at(i + 3) && bytes.get(i + 15) == Some(&b')') {
+            return true;
+        }
+        if bytes[i] == b' ' && tag_at(i + 1) {
+            let word_start = bytes[..i]
+                .iter()
+                .rposition(|b| !b.is_ascii_alphanumeric())
+                .map_or(0, |p| p + 1);
+            return word_start < i && bytes[word_start].is_ascii_uppercase();
+        }
+        false
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{axes_at, moves_at};

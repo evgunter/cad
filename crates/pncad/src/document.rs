@@ -507,7 +507,7 @@ pub use editor_core::{
 pub use editor_core::{
     AtRestEvidence, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows,
     CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
-    PinnedDoc, Route, Unlocalized,
+    PinnedDoc, Route, RouteHop, Unlocalized,
 };
 
 // Split, inline and flatten: the first-class

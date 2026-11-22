@@ -663,6 +663,25 @@ fn every_driver_carried_chain_ends_in_the_operators_own_recourse() {
     }
 }
 
+/// **No refusal spells a mention into its words** (DESIGN.md Band 1,
+/// "Node labels"): every node a node refusal names stays a mention of
+/// its sentence, forwarded payloads included, so the viewer can link
+/// it. A payload flattened into the words (`{payload}` in a `say` body)
+/// reads as a quoted label or a kind and its tag inside a words run;
+/// [`editor_core::test_support::spelled_mention`] finds that.
+#[test]
+fn no_node_refusal_spells_a_mention_into_its_words() {
+    let problems: Vec<String> = node_refusals()
+        .into_iter()
+        .filter_map(|(name, kind)| {
+            let said = editor_core::Said(&kind, editor_core::Speaker::TAG).sentence();
+            editor_core::test_support::spelled_mention(&said)
+                .map(|words| format!("{name}: a mention spelled as words: {words:?}"))
+        })
+        .collect();
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
 #[test]
 fn every_node_refusal_renders_within_the_budget() {
     let rows: Vec<(String, String)> = node_refusals()

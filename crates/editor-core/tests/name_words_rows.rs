@@ -733,8 +733,8 @@ fn a_strand_row_names_the_node_the_delete_took() {
     let applied = apply(&doc, &DocEdit::DeleteNode { id: cut }, tol).expect("the delete applies");
     let rows: Vec<String> = applied.maintenance.iter().map(|m| m.to_string()).collect();
     let deleted = format!(
-        "this edit deleted {}, which minted the name",
-        editor_core::test_support::node_text(&doc.spoken(cut))
+        "this edit deleted Subtract {}, which minted the name",
+        test_utils::refusal::tag(cut.0.digest())
     );
     assert!(
         !rows.is_empty() && rows.iter().all(|row| row.contains(&deleted)),
@@ -865,8 +865,8 @@ fn a_strand_row_names_a_deleted_union() {
     let applied = apply(&doc, &DocEdit::DeleteNode { id: union }, tol).expect("the delete applies");
     let rows: Vec<String> = applied.maintenance.iter().map(|m| m.to_string()).collect();
     let deleted = format!(
-        "this edit deleted {}, which minted the name",
-        editor_core::test_support::node_text(&doc.spoken(union))
+        "this edit deleted Union {}, which minted the name",
+        test_utils::refusal::tag(union.0.digest())
     );
     assert!(
         !rows.is_empty() && rows.iter().all(|row| row.contains(&deleted)),

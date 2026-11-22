@@ -2295,10 +2295,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 verb,
                 error,
                 edge: Some(edge),
-            } => write!(
+            } => say!(
                 f,
-                "the {verb} op refused at {edge}: {}",
-                error.render(geom_brep::recourse::Reading::Build)
+                format_args!("the {verb} op refused at "),
+                by.name(edge),
+                format_args!(": {}", error.render(geom_brep::recourse::Reading::Build))
             ),
             Self::Blend {
                 verb,

@@ -382,21 +382,22 @@ impl McReport {
         }
         for v in &self.values {
             if v.unmeasured == self.samples {
-                let _ = writeln!(
-                    s,
-                    "  {}: UNMEASURED — no sample had an f64 value for it   [{tag}]",
-                    doc.spoken_value(v.var)
+                let _ = say!(
+                    &mut s,
+                    "  ",
+                    doc.spoken_value(v.var),
+                    format_args!(": UNMEASURED — no sample had an f64 value for it   [{tag}]\n")
                 );
                 continue;
             }
-            let _ = writeln!(
-                s,
-                "  {}: mean {} σ {} min {} max {}   [{tag}]",
+            let _ = say!(
+                &mut s,
+                "  ",
                 doc.spoken_value(v.var),
-                v.mean,
-                v.sigma,
-                v.min,
-                v.max
+                format_args!(
+                    ": mean {} σ {} min {} max {}   [{tag}]\n",
+                    v.mean, v.sigma, v.min, v.max
+                )
             );
             if v.unmeasured > 0 {
                 let _ = writeln!(

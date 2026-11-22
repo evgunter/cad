@@ -1561,7 +1561,12 @@ impl Stackup {
         crate::spoken::assert_taken_of("this stackup", self.document, doc);
         let by = crate::Speaker::of(doc);
         let mut s = crate::Sentence::new();
-        let _ = writeln!(s, "stackup of {}", doc.spoken_value(self.measurement));
+        let _ = say!(
+            &mut s,
+            "stackup of ",
+            doc.spoken_value(self.measurement),
+            "\n"
+        );
         let _ = writeln!(
             s,
             "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \

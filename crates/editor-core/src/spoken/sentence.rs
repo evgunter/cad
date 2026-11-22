@@ -17,10 +17,14 @@ std::thread_local! {
     static SAYING: Cell<u32> = const { Cell::new(0) };
 }
 
-/// **Runs `say` as a sentence being said**: while it runs, spelling a
-/// sentence as text ([`flattening`]) is a kernel bug, and a debug
-/// assertion (on in every profile) says so.
-pub(crate) fn saying<R>(say: impl FnOnce() -> R) -> R {
+/// **Runs `say` as a sentence being written**: while it runs, spelling
+/// a sentence as text ([`flattening`]) is a kernel bug, and a debug
+/// assertion (on in every profile) says so. Every road into a sentence
+/// runs under it: a [`Say`] value said into one, a [`say!`](crate::say)
+/// or [`sentence!`](crate::sentence) and the pieces it evaluates, and a
+/// `write!` into a [`Sentence`].
+#[doc(hidden)]
+pub fn saying<R>(say: impl FnOnce() -> R) -> R {
     struct Depth;
     impl Drop for Depth {
         fn drop(&mut self) {
@@ -34,13 +38,15 @@ pub(crate) fn saying<R>(say: impl FnOnce() -> R) -> R {
 
 /// **The rule a sentence's text keeps** (DESIGN.md Band 1, "Node
 /// labels"): a sentence, and a [`Say`] value's sentence, becomes text
-/// only where no sentence is being said. Inside a `say` body a value
-/// with a sentence is written as a piece — `Said(&value, by)`, or the
-/// sentence itself — so its mentions are kept; spelling it into the
-/// words (`{value}`, `.to_string()`) would make each mention a word the
-/// viewer cannot link. `Arguments` erases the type a `{}` formats, so
-/// this cannot be refused at compile time; it is refused here, on the
-/// one road every such text takes ([`Sentence`]'s `Display`).
+/// only where no sentence is being written ([`saying`]). Inside one, a
+/// value with a sentence is written as a piece — `Said(&value, by)`, or
+/// the sentence itself — so its mentions are kept; spelling it into the
+/// words (`{value}`, `.to_string()`, a `String` piece) would make each
+/// mention a word the viewer cannot link. `Arguments` erases the type a
+/// `{}` formats, so this cannot be refused at compile time; it is
+/// refused here, on the one road every such text takes ([`Sentence`]'s
+/// `Display`, which every sentence-bearing value's `Display` reaches
+/// through [`super::display_said`]).
 fn flattening() {
     debug_assert!(
         SAYING.with(Cell::get) == 0,
@@ -269,8 +275,7 @@ impl Sentence {
     ///
     /// None; a sentence's write cannot fail.
     pub fn write_str(&mut self, words: &str) -> fmt::Result {
-        self.push_words(words);
-        Ok(())
+        fmt::Write::write_str(self, words)
     }
 
     /// Writes `args` as words: what `write!` calls.
@@ -279,7 +284,7 @@ impl Sentence {
     ///
     /// None; a sentence's write cannot fail.
     pub fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
-        fmt::Write::write_fmt(self, args)
+        saying(|| fmt::write(self, args))
     }
 
     /// `parts`, in order, with `between` written between each two.
@@ -316,10 +321,17 @@ impl Sentence {
     }
 }
 
+/// The road `write!` takes into a sentence, its inherent methods' own:
+/// words are pushed, and what the arguments format runs as a sentence
+/// being written ([`saying`]).
 impl fmt::Write for Sentence {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.push_words(s);
         Ok(())
+    }
+
+    fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
+        Sentence::write_fmt(self, args)
     }
 }
 
@@ -474,7 +486,7 @@ impl Put for String {
 
 impl Put for fmt::Arguments<'_> {
     fn put(self, out: &mut Sentence) {
-        let _ = fmt::Write::write_fmt(out, self);
+        let _ = out.write_fmt(self);
     }
 }
 
@@ -531,7 +543,9 @@ impl<T: Say + ?Sized> Put for Said<'_, T> {
 macro_rules! say {
     ($out:expr $(, $piece:expr)* $(,)?) => {{
         let out: &mut $crate::Sentence = $out;
-        $( $crate::Put::put($piece, &mut *out); )*
+        $crate::spoken::sentence::saying(|| {
+            $( $crate::Put::put($piece, &mut *out); )*
+        });
         ::core::result::Result::<(), ::core::fmt::Error>::Ok(())
     }};
 }

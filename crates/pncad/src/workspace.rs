@@ -41,6 +41,7 @@
 //!
 //! [`DocumentId::derive`]: crate::document::DocumentId::derive
 
+use editor_core::say;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -262,20 +263,28 @@ impl Staged for WorkspaceError {
                 ),
             },
             Self::Header { path, error } => {
-                let error = Labelled(&**error, labels);
-                write!(f, "`{}` refused: {error}", path.display())
+                say!(
+                    f,
+                    format_args!("`{}` refused: ", path.display()),
+                    Labelled(&**error, labels)
+                )
             }
             Self::UnknownId { id } => {
                 write!(f, "no document with id {id}")
             }
             Self::Load { path, error } => {
-                let error = Labelled(&**error, labels);
-                write!(f, "`{}` refused to load: {error}", path.display())
+                say!(
+                    f,
+                    format_args!("`{}` refused to load: ", path.display()),
+                    Labelled(&**error, labels)
+                )
             }
-            Self::Pin { path, error } => write!(
+            Self::Pin { path, error } => say!(
                 f,
-                "`{}` loaded but its content pin would not compute: {}",
-                path.display(),
+                format_args!(
+                    "`{}` loaded but its content pin would not compute: ",
+                    path.display()
+                ),
                 Labelled(&**error, labels)
             ),
             Self::PinMismatch {
@@ -290,8 +299,11 @@ impl Staged for WorkspaceError {
                 Recourse(PIN_MISMATCH_RECOURSE)
             ),
             Self::Save { id, error } => {
-                let error = Labelled(&**error, labels);
-                write!(f, "document {id} refused to save: {error}")
+                say!(
+                    f,
+                    format_args!("document {id} refused to save: "),
+                    Labelled(&**error, labels)
+                )
             }
             Self::SaveWouldDuplicateId {
                 id,

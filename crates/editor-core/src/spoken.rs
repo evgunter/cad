@@ -1914,9 +1914,9 @@ mod tests {
         );
         let by_tag = said(Speaker::TAG);
         assert_eq!(
-            by_tag.mentions().map(Mention::document).collect::<Vec<_>>(),
-            vec![None],
-            "said by tag, the mention names no document"
+            (by_tag.to_string(), by_tag.mentions().count()),
+            (format!("see node {t} now"), 0),
+            "said by tag, the node is words: no document holds it, so no mention"
         );
         let held = HeldNodes::of_nodes(labelled.id(), [labelled.spoken(id)]);
         let by_held = said(Speaker::held(&held));
