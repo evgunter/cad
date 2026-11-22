@@ -26,6 +26,16 @@ use super::revalue::Decision;
 use super::{Path, Rung, SESSION, SymId, ladder, reaches_free};
 use crate::predicate::Sign;
 
+/// **The most forms a retry attempt's memos may hold while the
+/// instrument asks**, below the session's own cap: a definite margin is
+/// rarely an identity and its forms are the large ones, so the retry
+/// memos of a document's whole definite population outgrow memory at
+/// the session's cap (R2's pad past 12 GB). An attempt whose memos are
+/// at it is not offered (`ladder`'s growth guard), which costs the
+/// instrument cancellations it would have found on the attempts' later
+/// margins, never a report it should not make.
+const RETRY_FORMS: usize = 20_000;
+
 /// **What contradicted what.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Event {
@@ -93,9 +103,14 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
             return None;
         }
         let counts = sess.counts;
+        let cap = sess.retry.max_forms;
+        sess.retry.max_forms = cap.min(RETRY_FORMS);
         let exact = matches!(sess.witness, Some(crate::Witness::Exact));
         let door = sess.rules.registered && sess.rules.early;
         let mut report = Report::default();
+        // One node is one question: a margin decided many times is asked
+        // once.
+        let mut asked = std::collections::HashMap::new();
         for (index, d) in decisions.iter().enumerate() {
             let Some(sign @ (Sign::Positive | Sign::Negative)) = d.sign else {
                 continue;
@@ -105,20 +120,23 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
                 continue;
             }
             report.checked += 1;
-            let found = match ladder(sess, d.node, Path::Algebra) {
-                Some(at) => Some((
-                    if exact {
-                        Event::Enclosure
-                    } else {
-                        Event::Rounded
-                    },
-                    at,
-                )),
-                None if door && !sess.registry.is_empty() => {
-                    ladder(sess, d.node, Path::Decision).map(|at| (Event::Registration, at))
-                }
-                None => None,
-            };
+            let found =
+                *asked
+                    .entry(d.node)
+                    .or_insert_with(|| match ladder(sess, d.node, Path::Algebra) {
+                        Some(at) => Some((
+                            if exact {
+                                Event::Enclosure
+                            } else {
+                                Event::Rounded
+                            },
+                            at,
+                        )),
+                        None if door && !sess.registry.is_empty() => {
+                            ladder(sess, d.node, Path::Decision).map(|at| (Event::Registration, at))
+                        }
+                        None => None,
+                    });
             if let Some((event, (rung, attempt))) = found {
                 report.contradictions.push(Contradiction {
                     index,
@@ -132,6 +150,7 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
             }
         }
         sess.counts = counts;
+        sess.retry.max_forms = cap;
         Some(report)
     });
     #[cfg(feature = "sym-profile-testing")]
