@@ -353,3 +353,36 @@ body has the reasons):
     - 7151, lever: session_013QoYWVRvFYKyod85TtCfsz.
   - **The runwall lane** resumed to merge main into 7150, which
     conflicts. Its 21 GB target was deleted when disk hit 5.7 GB free.
+- 2026-11-22 04:05 — **The three FULL reviews are in.** Summaries are
+  under the private reports.
+  - **7150 (runwall P0):** no MAJOR. Three MINORs went to the local
+    lane as a fix pass, the orchestrator reads it after:
+    - a circle's stations should continue;
+    - a two-edit net should judge against the start;
+    - the fuzzer reaches too few continuations.
+
+    Also NITs, style items, and the sweep-README "edit door" sentence,
+    which contradicts DM7 from the same ratified PR 7082.
+  - **7149 (Parted):** no MAJOR. It went back for a fix pass, then
+    the orchestrator's read:
+    - MINOR 1: the site is the BVH function name, shared by about 15
+      callers, not the query, so each caller now names its query;
+    - MINOR 2: the Display hides the site;
+    - plus coverage and prose items.
+
+    MINOR 3 (the group-size rows lose their cutter content) is
+    settled by N5's rank and goes to Ev as an FYI.
+  - **7151 (lever):** two MAJORs, both repro'd. A delta review by the
+    same reviewer follows the fix pass.
+    - `loops_reach` over-measures an arc;
+    - the traced faces' reach is read from the space origin.
+
+    Because the band is two-edged, too large is wrong too. The fix is
+    one tight reach reader, the copy's. The frame was held twice, so
+    the motion is now computed once with verdict-only carriages. The
+    Slide/Spin/Flip admission (MINOR 3) went past Ev's plan and is
+    dropped: the lane stops and asks if the turned-cylinder fixture
+    can't keep its exact proofs without it.
+- 2026-11-22 04:08 — **7330 merged** (`3f3c0a4`). The bounds roster
+  now admits `sure_below` as a `Selection`. `crossing` stays BAND's.
+  Its lane is archived.
