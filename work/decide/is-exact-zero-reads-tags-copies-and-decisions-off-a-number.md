@@ -60,4 +60,18 @@ variants, class 2 single storage or a named bit read, class 3
 decisions, and `is_exact_zero` is gone or private to the scalar impls.
 This is several units across `geom`, `geom-brep`, `topo` and `profile`;
 split it by owner when it is picked up.
+
+**A second door of the same kind, new on main (2026-11-22):**
+`Real::is_exact_zero_in_every_channel` (`geom-core` `real.rs`; `Dual`
+reads its derivative too; `Sym` forwards to its value), behind
+`UnitVec3::is_exactly`, whose callers are the least turn's identity
+(`rigid_motion.rs`), `mate/value.rs` and the sweep skin's still step
+(`sweep/skin.rs`, `!t.is_exactly(next)`, which gates a step and so
+looks like a branch that changes what is built). Three designers
+confirmed it by reading; none traced the callers. It is sorted with
+the rest: a spelling choice asks the expression (DESIGN `[scalars]`),
+a branch that changes what is built is a decision, and for each use
+say first what breaks without it. Also for this audit: a bulge leg
+that stores a sign nothing decided (`arc_bulge`, `literal_sign(b)`,
+and what its tie arm stores), found by BOXFINISH's signed-radius lane.
 (BOXFINISH orchestrator)

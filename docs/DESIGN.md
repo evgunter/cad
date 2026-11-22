@@ -416,22 +416,32 @@ curve pairs.
   conventions: f64 tangents are branch-consistent with the value
   channel (abs′(0) = +1, ties keep self); the interval instantiation
   carries the *Clarke subdifferential enclosure* (straddle hulls).
-- **The structural question**: whether a value is zero as a function
-  of the document's variables. Only a symbolic scalar can answer it:
-  `Sym` answers yes where the symbolic tier proves its expression the
-  zero function, by rules that read no value and a budget that no
-  session sets (ERROR-DESIGN E12), so the answer never comes from the
-  value channel and is the same at every valuation. `f64`, `Interval`
-  and `Dual` hold no expression and answer no: at a numeric scalar the
-  only zero is the band's ([verdicts]), and a zero that means
-  something is a variant, never a number read back
-  ([unrepresentable]). The question is not a decision: it reads no
-  sign and no band, counts and records nothing, and defers nothing.
-  Its answer may only choose between two spellings of one real value
-  (a lane choice, [verdicts.consumers]), so the general spelling is
-  always correct and a numeric lane always takes it; it never glues,
-  splits or refuses, and a branch that changes what is built is a
-  decision ([verdicts]).
+- **What only a symbolic scalar can do is asked of its expression.**
+  Each scalar declares the expression it carries
+  (`Real::Expression`): `Sym` its node in the document's expression
+  graph; every numeric scalar (`f64`, `Interval`, `Dual`) none, by a
+  type with no values ([unrepresentable]: a signature is a claim;
+  `crates/geom-core/README.md` DL5.3 is the same device for a dual's
+  lanes). So nothing that needs an expression can be asked of a
+  numeric scalar: such a call does not typecheck. Code that has a
+  meaning at every scalar takes the general spelling where there is no
+  expression, and code whose whole meaning is symbolic is bounded to
+  the symbolic scalar. **The structural question** is a method of the
+  expression: whether a value is zero as a function of the document's
+  variables, answered by the symbolic tier with rules that read no
+  value and a budget that no session sets (ERROR-DESIGN E12). The
+  answer never comes from the value channel: it is a function of the
+  expression alone, and the zero it proves holds at every parameter
+  value at which the build takes the decisions it took. Its answer is
+  a proof, and there is no answer that means "differs". It is not a
+  decision: it reads no sign and no band, counts and records nothing,
+  and defers nothing. The proof may only choose between two spellings
+  of one real value (a lane choice, [verdicts.consumers]), so the
+  general spelling is always correct; it never glues, splits or
+  refuses, and a branch that changes what is built is a decision
+  ([verdicts]). At a numeric scalar zero is the band's ([verdicts]),
+  and a zero that means something is a variant, never a number read
+  back ([unrepresentable]).
 - **Genericity boundary**: `Body<T>` = scalar-free topology arenas +
   `T`-valued geometry arenas; topology contains no `T` and never
   branches on it; keys are *body-lineage-scoped* (key identity across

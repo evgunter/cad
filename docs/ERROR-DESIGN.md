@@ -567,8 +567,8 @@ mass has no valid build" — is not sayable about any macroscopic box.
   (structural sharing is free and deterministic — D9). Float
   literals are atoms keyed by their bits. `Sym<T>` is one more scalar
   in the Real-generic pipeline, and no funnel site is edited; a
-  construction asks one thing of it beyond arithmetic and decisions,
-  the structural question below.
+  construction asks one thing of its expression beyond arithmetic and
+  decisions, the structural question below.
 - **The identity test, on demand.** A `decide` site first asks the
   DAG whether the margin's expression is identically zero: the
   node's POLYNOMIAL NORMAL FORM in the parameter symbols, with
@@ -592,9 +592,12 @@ mass has no valid build" — is not sayable about any macroscopic box.
   registered-identity door, whose entries are witnessed against
   values), under rules and a term budget that are kernel constants
   and not the session's, so it is a function of the expression DAG
-  alone: one document gets one answer at every valuation and in every
-  symbolic lane. A numeric scalar is never asked: it holds no
-  expression, and the general spelling is taken. A sign reading cannot
+  alone: one graph gets one answer, whatever the value channel reads
+  and in every symbolic lane, and the zero it proves holds at every
+  parameter value at which the build takes the decisions this replay
+  took. A numeric scalar carries no expression, so the question cannot
+  be put to it (`Real::Expression`, DESIGN [scalars]), and the general
+  spelling is taken. A sign reading cannot
   stand in for it: a decision
   reads the value first and asks the tier only where the value reads
   no definite sign, so `(x + w) − w − x` is asked about where it

@@ -184,3 +184,63 @@ next).
 off, a plain-`Interval` side between literal-equal coordinates stays
 as wide as rounding makes it; that lane already refuses identities
 over a box.
+
+## Revised on Ev's second answer (2026-11-22): the question is a method of the expression, and a type error at a numeric scalar
+
+Ev (2026-11-16): "re 'f64, Interval and Dual hold no expression and
+always answer no', is it possible to just make it sym only and a type
+error for these ones?" Each of the three designers, asked alone and
+reading current main, said yes; after three short rounds they
+recommend one shape (DESIGN `[scalars]` and E12 carry it).
+
+- **Each scalar declares the expression it carries**
+  (`Real::Expression`): `Sym` its node; every numeric scalar a type
+  with no values. This is the device `crates/geom-core/README.md`
+  DL5.3 ratifies for a dual's lanes (`geom_core::NoLane`), and it
+  passes DESIGN `[unrepresentable]`'s "a signature is a claim" (Ev,
+  2026-11-20): the accessor's sentence at a numeric scalar is "this
+  scalar carries no expression", and no impl chooses an answer.
+- **The question is a method of the expression** and returns a proof
+  only the tier mints. Written against an `f64`, an `Interval`, a
+  `Dual` or a generic `T`, it does not compile; no impl anywhere
+  answers "no".
+- **The mint stays one generic body**: where a component's expression
+  is proved zero, the axis signed by a reading of the other component;
+  otherwise the chord over its length. At a numeric scalar the axis
+  arms are unreachable by type, so the sign reading does not exist
+  there. `read_component`, `Component::UnprovenZero` / `Escalated` and
+  the `aside` go.
+- **Code whose whole meaning is symbolic is bounded** to a trait only
+  `Sym` implements (`register_equal` and `free_identity`, moved later:
+  not this change).
+- **The zero proved is E12's**: it holds at every parameter value at
+  which the build takes the decisions it took. "The same at every
+  valuation" overstated it; what is the same whatever the value
+  channel reads is whether a proof exists for one graph.
+- **Weighed and withdrawn by their proposers:** a spelling combinator
+  on the scalar trait (`spelled(x, closed, general)`: it is the old
+  "answers no" under another name, since `spelled(x, || true, || false)`
+  reads the answer back at `f64`, and it cannot serve a site that asks
+  about several values); a per-scalar item at each spelling site
+  bounded away from the numeric scalars (one trait and five impls per
+  site, and one function split in two against `[one-way]`).
+- **Not in the ratified text, for the unit:** a helper over the
+  expression that takes two spellings and returns one is the natural
+  way for most callers to honour the licence; `Dual<Sym<…>>` carries no
+  expression, `Sym<Dual<…>>` (instantiated in tests) does and the
+  closed spelling is right there; a check in the symbolic lanes that
+  the two spellings agree on the value channel.
+- **New on main since the audit:** `Real::is_exact_zero_in_every_channel`
+  behind `UnitVec3::is_exactly` (the least turn, `mate/value.rs`,
+  `sweep/skin.rs`), a second structural door read off numbers; added
+  to DECIDE's row.
+- **Still owed by the unit, unchanged:** how an escalation from the
+  closed spelling's sign reading reaches the subdivision driver.
+
+**What the doors-read lane measured meanwhile bears on the mint's
+value, not on this text:** a door that reads the minted axis on one
+wall against a `s/|s|` quotient on its partner loses identities that
+cancelled when both were quotients (five ring-seat rows; the row that
+carries it is the sweep doors' reading row). The mint's unit owes that
+measurement before any door reads its record on a line.
+
