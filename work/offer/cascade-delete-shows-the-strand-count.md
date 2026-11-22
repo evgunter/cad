@@ -5,7 +5,7 @@ title: The cascade-delete affordance shows the names a delete would strand, besi
 status: open
 opened: 2026-09-16
 priority: P1
-cost: D
+cost: M
 ---
 
 

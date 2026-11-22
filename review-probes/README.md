@@ -9,3 +9,12 @@ Not for merging.
 - `measure-branch-probes.diff`: applies to `origin/embed/vertex-bisector-measure` (5e10ad13a):
   `CV_X` (crossing dump), `CV_ZW` (the no-width quadrant probe), `CV_WHOLE_JET`
   (the wedge read off the whole rectangle's jet); `run.sh`, `summ.py`, `pop-*.filter` drive it.
+
+## Delta re-read (fix pass, code head 24f66a1d5)
+
+The branch now holds `origin/embed/vertex-bisector` (45d0e0256) merged in, the probe rows re-inserted,
+and the switches that still have a site: `RV_MUT=M1|M3|M4|M5|M7`, plus the selection mutants
+`S1` (heading plane for every pair, main's reading), `S2` (no plane where a face is not a quadrant),
+`S3` (corner axes read at the corner point), `S4` (heading plane as a fallback where the wedge plane is `None`).
+`RV_COUNT=1` prints `RV_TWO_LINE_GATED` per two-line-arm ask with readable headings; `RV_TWO_LINE_UNGATED` prints
+where they are unreadable (the asks the arm newly serves).
