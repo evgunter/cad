@@ -1690,7 +1690,18 @@ fn line_ends(e: &Rim, held: Axis) -> Option<[(VertexKey, Interval); 2]> {
 /// it, each its own row's, agreeing only to rounding, which no cell
 /// narrows. So the edges cover the line from the one's far end to the
 /// other's whatever the two readings are, and nothing is compared.
-/// That the readings agree is the lift's ([`crate::pcurves::Lift`]).
+///
+/// **What holds the two readings together** is tier 3, not this: each
+/// row's envelope bounds its image off its carrier over its whole span
+/// (`pcurve_envelope`, `geom_brep::PcurveCache`), and the edge
+/// certificate pins each carrier's ends to its vertices
+/// (`carrier_endpoint_start` / `_end`), so the two chart ends of a joint
+/// map within `4ε` of one another ([`crate::pcurves`]' `decide_joint`,
+/// read on every stored row by `validate_pcurves`). A body whose rows
+/// disagreed by more is not at rest.
+///
+/// **One continuation.** A vertex where two edges of the line begin, or
+/// two end, joins none of them: the line does not run on one way there.
 ///
 /// **On the closed-form charts only.** A spline chart may carry one
 /// point at two parameters of a line (a closed net), where a shared
@@ -1723,7 +1734,11 @@ fn joints(
             ));
         }
     }
-    out
+    let alone = |&(i, j, _): &(usize, usize, Interval)| {
+        out.iter().filter(|&&(a, _, _)| a == i).count() == 1
+            && out.iter().filter(|&&(_, b, _)| b == j).count() == 1
+    };
+    out.iter().copied().filter(alone).collect()
 }
 
 /// The edges of `on_line` joined to `ei`, end to end ([`joints`]),
@@ -7784,6 +7799,26 @@ mod presentation_rows {
             panic!("the line is the zero side: {:?}", p.zero)
         };
         assert!(along.on_edges);
+    }
+
+    /// **A vertex where two edges of the line begin joins none**
+    /// ([`joints`]' one continuation): a third edge of the line starts
+    /// at the joint's vertex too, short of the cell's far end. Red if
+    /// every pair that shares the vertex is joined.
+    #[test]
+    fn a_vertex_two_edges_of_the_line_begin_at_joins_none() {
+        let mut b = stepped([0.5, 0.5], [5, 5], 0.5);
+        b.edges
+            .push(rim(3, [5, 6], Axis::V, 0.5, (0.5, 0.5), (0.52, 0.5)));
+        let s = cylinder();
+        for cell in [BELOW, ABOVE] {
+            assert_ne!(
+                chart(&s, &b, &[0, 1, 2], cell.0, cell.1),
+                Read::Vacuous,
+                "{cell:?}"
+            );
+        }
+        assert_eq!(chart(&s, &b, &[0, 1, 2], BELOW.0, BELOW.1), Read::Local);
     }
 
     /// **Edges that share no vertex are not joined**: the two edges end
