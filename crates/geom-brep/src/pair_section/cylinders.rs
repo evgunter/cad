@@ -413,7 +413,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
             node,
             thinner,
         };
-        let placed = placement(ball, reach.ball(), band);
+        let placed = placement(Occupant::ball(ball), reach.ball(), band);
         Ok((stance, placed))
     }
 
@@ -611,16 +611,14 @@ pub(super) struct Occupant<T: Real> {
     radius: T,
 }
 
-impl<T: Real> From<ExtentBall<T>> for Occupant<T> {
-    fn from(ball: ExtentBall<T>) -> Self {
+impl<T: Real> Occupant<T> {
+    pub(super) fn ball(ball: ExtentBall<T>) -> Self {
         Self {
             center: ball.center(),
             radius: ball.radius(),
         }
     }
-}
 
-impl<T: Real> Occupant<T> {
     fn point(center: Point3<T>) -> Self {
         Self {
             center,
@@ -638,11 +636,10 @@ impl<T: Real> Occupant<T> {
 /// not a decision about the pair, so it reads the margins' signs without
 /// recording them.
 pub(super) fn placement<T: Decide>(
-    occupant: impl Into<Occupant<T>>,
+    Occupant { center, radius }: Occupant<T>,
     region: ExtentBall<T>,
     band: Band,
 ) -> RegionPlacement {
-    let Occupant { center, radius } = occupant.into();
     let apart = (center - region.center()).norm();
     let positive = |m: T| {
         matches!(
@@ -986,7 +983,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                     ];
                     let mut listed = Vec::new();
                     for ((curve, span), at) in arcs.into_iter().zip(ends) {
-                        let placed = against(closed_form_ball(curve).into());
+                        let placed = against(Occupant::ball(closed_form_ball(curve)));
                         if placed == RegionPlacement::Outside {
                             continue;
                         }

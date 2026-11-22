@@ -585,31 +585,25 @@ pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> Leve
 /// direction, so the widest of the thirteen widths is at least 0.8 of the
 /// set's diameter.
 fn width_directions<T: Real>() -> impl Iterator<Item = Vec3<T>> {
-    let (o, l) = (0.0, 1.0);
+    let (o, l) = (T::zero(), T::one());
+    let m = o - l;
     [
         [l, o, o],
         [o, l, o],
         [o, o, l],
         [l, l, o],
-        [l, -l, o],
+        [l, m, o],
         [l, o, l],
-        [l, o, -l],
+        [l, o, m],
         [o, l, l],
-        [o, l, -l],
+        [o, l, m],
         [l, l, l],
-        [l, l, -l],
-        [l, -l, l],
-        [l, -l, -l],
+        [l, l, m],
+        [l, m, l],
+        [l, m, m],
     ]
     .into_iter()
-    .map(|[x, y, z]: [f64; 3]| {
-        let len = (x * x + y * y + z * z).sqrt();
-        Vec3::new(
-            T::from_f64(x / len),
-            T::from_f64(y / len),
-            T::from_f64(z / len),
-        )
-    })
+    .map(|[x, y, z]| Vec3::new(x, y, z).normalize())
 }
 
 /// **The extent of several edges' point set, bounded from below**: no
