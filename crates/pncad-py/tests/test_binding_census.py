@@ -726,23 +726,6 @@ BOUND_AS = {
     "Constraint": "Doc.bundle",
     "ConstraintKind": "Doc.bundle",
     # An instance's value: its copies' bodies are `Value.bodies`.
-    # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
-    # `StepImport::Solid::coherence` hands a Rust caller the kernel's
-    # report whole and its discriminants are closed enums meant to be
-    # matched. Python receives the same facts through the OTHER
-    # consumer of the same kernel door — `CheckId::ChartCoherence`,
-    # whose evidence rows publish them — so each of the three below is
-    # the `NodeErrorKind` row's shape again, a curated type flattened
-    # onto its carrier's attributes.
-    #
-    # `CoherenceCondition` and `Unexaminable` share `chart_variant`
-    # because the tag alphabets are disjoint by construction and
-    # `tags.rs` says so; `CoherenceFinding`'s four numbers are four
-    # attributes of the same evidence row and `metres` is the one the
-    # claim is about.
-    "CoherenceCondition": "CheckEvidence.chart_variant",
-    "Unexaminable": "CheckEvidence.chart_variant",
-    "CoherenceFinding": "CheckEvidence.metres",
     "UnevaluatedReason": "Verdict.reason",
     "PI": "pi_rad",
     # `DistributionField` names WHICH offset of a distribution a fault
@@ -871,12 +854,12 @@ BOUND_AS = {
     # arrives BESIDE it rather than in place of it, `None` on every
     # other arm.
     #
-    # Two values, and they are two different next moves: `plane`
-    # declining is a flatness question at the file's tolerance,
+    # One word per promotable kind, and the kinds lead different places:
+    # `plane` declining is a flatness question at the file's tolerance,
     # `cylinder` declining is an ill-conditioned axis and wants more
-    # of the patch. The match that mints them is exhaustive, so a
-    # third promotable kind stops the bindings compiling instead of
-    # joining one of these.
+    # of the patch. The match that mints them is exhaustive, so a new
+    # promotable kind stops the bindings compiling instead of joining
+    # one of these.
     #
     # No Python test row: firing the arm needs a file with a
     # multi-bound curved face on an ill-conditioned NURBS surface,
@@ -923,7 +906,7 @@ BOUND_AS = {
     # value side's spelling: the carrier projects every field as an
     # attribute, so its discriminant is one of those fields — a word at
     # `kind`, with the one arm's payload beside it at `promoted_to`
-    # (which analytic kind certified, `PromotedKind`'s own two words)
+    # (which analytic kind certified, `PromotedKind`'s own words)
     # and `residual`, `None` on the other four arms. The word does NOT
     # fold the kind in: a caller reading "a patch was promoted" reads
     # `surface_promotion` whichever kind it was, and branches on the
@@ -936,6 +919,11 @@ BOUND_AS = {
     # (`interior`, `inside_edge`, `valence_one_vertex`; `None` on every
     # other arm), the way `promoted_to` carries `surface_promotion`'s.
     "SingularityFound": "StructureNormalization.singularity",
+    # `NormalizationKind::Snapped`'s payload, at the same spelling: which
+    # catalogue construction moved the surface, as `relation` beside the
+    # `kind` word (`coaxial`, `tangent`, `axis_normal`; `None` on every
+    # other arm).
+    "SnapRelation": "StructureNormalization.relation",
     # `CurvePromotion::kind`, the same rule one row over. Two words
     # (`circle`, `line` — the degree-1 follow-up, #388) and a map
     # rather than a literal because the recognizer's remaining named
@@ -1074,7 +1062,8 @@ BOUND_AS = {
     # `different-shape`, and that reading was true when written: the
     # persistence door carried one attribute, so there was no Python
     # shape to point at. There is one now. `SnapshotError`'s arms and
-    # `ProgramFault`'s two mint a word apiece from an exhaustive match,
+    # the profile door's `ProgramRefusal` (whose own mapping is the edit
+    # door's) mint a word apiece from an exhaustive match,
     # so a kernel arm added without one stops the bindings compiling,
     # and the word rides `inner_variant` beside
     # the stage's own. `NonFiniteSite` is the one that does NOT cross
@@ -1087,7 +1076,6 @@ BOUND_AS = {
     # snapshot refusal's node ids and counts are the snapshot door's
     # surface, not the persistence door's. A mapping here claims the
     # discriminant crosses, and nothing more.
-    "ProgramFault": "PersistError.inner_variant",
     "SnapshotError": "PersistError.inner_variant",
     "NonFiniteSite": "PersistError.site",
     # THE STL DOOR'S TWO OPTION REFUSALS. Both were `different-shape`
@@ -1664,6 +1652,19 @@ FAMILIES: dict[str, str] = {
         "entry, and one Python row asking a reversed loop for a step's "
         "edges and naming the wall each addresses."
     ),
+    # A PROFILE DRAWN ON A FACE arrived with its door: DOCTAIL's
+    # `a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face` landed
+    # `editor_core::draw_on_face` and the face's chart it draws on, and
+    # the binding is
+    # `work/pydoor/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`.
+    "B-DRAW-ON-FACE": (
+        "the drawn-on-face door — `draw_on_face`, its `OnFace` "
+        "(orientation, spin, two slides, traced faces) and its "
+        "`DrawnOnFace` outcome. Closing it needs a `Doc` method taking "
+        "the face, the loops and those four, a `pncad.pyi` entry, and "
+        "one Python row drawing on a bottom cap and extruding a boss "
+        "and a pocket."
+    ),
     # THE FIFTH ARRIVED WITH ITS DOOR TOO, and it is the one whose
     # PYTHON half is the measurement. EDIT's
     # `recorded-program-arguments-carry-no-notation` landed the kernel
@@ -1862,8 +1863,7 @@ FAMILIES: dict[str, str] = {
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
 #: `Filleted`, `AtRestBody`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
-#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `CurveSelector`, `Structural`,
-#: `ChartCoherenceLane`):
+#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `CurveSelector`, `Structural`):
 #: the document layer consumes them and Python receives a `Value`. The
 #: profile ladder's rungs (`Profile`, `ProfileLoop`,
 #: `ValidatedLoop`, `ValidatedProfile`, `SegmentKind`,
@@ -2330,6 +2330,7 @@ NOT_BOUND = {
     # slots share is a `Var` it names first (`DocEdit.rename_var`).
     "FreshEntry": SHAPE,
     "Uncarried": SHAPE,
+    "NamedUncarried": SHAPE,
     "Affine3": SHAPE,
     "Applied": SHAPE,
     "Axis3": SHAPE,
@@ -2338,17 +2339,6 @@ NOT_BOUND = {
     "BinaryOptions": SHAPE,
     "BlendRefusal": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
-    # The two CONTAINERS of the chart-coherence vocabulary whose three
-    # discriminants sit in `BOUND_AS` above. Python never holds
-    # either: the registry resident flattens the report into one
-    # `CheckFinding` per finding and one per unexamined loop, so the
-    # facts cross as rows of `ChecksReport.findings` rather than as a
-    # report object, and `Unexamined`'s face and loop are arena keys,
-    # which do not cross at all. The import door's own channel is
-    # unbound on the Python side for the reason `surface_census.rs`
-    # records against `examine_chart_coherence`.
-    "CoherenceReport": SHAPE,
-    "Unexamined": SHAPE,
     "CurveKindSet": SHAPE,
     "Dimension": SHAPE,
     # The sealed trait over the slot forms (`Formula`, `Expr`): a
@@ -2454,9 +2444,8 @@ NOT_BOUND = {
     "DocParamField": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
-    # Python's document keeps no edit log: `Doc.save` writes an empty
-    # log and `load` replays below the wrapper, so the replay door has
-    # no Python shape to bind.
+    # Python's document keeps no edit log and a save file holds none,
+    # so the replay door has no Python shape to bind.
     "apply_replayed": SHAPE,
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recording": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
@@ -2730,15 +2719,6 @@ NOT_BOUND = {
     "Reached": INTERIOR,
     "MemberEnv": INTERIOR,
     "Chamfered": INTERIOR,
-    # A lane trait, one registry over: a trait naming
-    # WHICH decision lanes carry a chart-coherence examination, written
-    # as a bound on the two registry doors. Python's `run_checks` is
-    # monomorphic at the `f64` lane, so a Python caller never chooses
-    # one and never needs to name the trait; what it does see is the
-    # lane's ANSWER, as the `chart_coherence` / `chart_coherence_
-    # unexamined` / `chart_coherence_unavailable` words on
-    # `CheckEvidence.variant`.
-    "ChartCoherenceLane": INTERIOR,
     "ContactRecords": INTERIOR,
     # What a contact record cites (D1 (ii)): its `ContactRecords`
     # carrier is interior, so the citation rides behind the same door.
@@ -2807,10 +2787,9 @@ NOT_BOUND = {
     # word), so its lever kind does not either.
     "TurnLever": INTERIOR,
     "ContentBits": INTERIOR,
-    # `BlendError::ConvexitySignFlip`'s payload and
-    # `UnsupportedCorner`'s, the other two of the blend four.
+    # `BlendError::ConvexitySignFlip`'s payload, and part of the
+    # run-out's odd edge (`OddEdge`).
     "Convexity": INTERIOR,
-    "CornerConfig": INTERIOR,
     "Curve3": INTERIOR,
     "ContactPair": INTERIOR,
     "GlueClass": INTERIOR,
@@ -2999,6 +2978,16 @@ NOT_BOUND = {
     "ArcShape": INTERIOR,
     "StepShape": INTERIOR,
     "TargetShape": INTERIOR,
+    # The same shape's readings, and the value-free pen-order judgement
+    # the doors and the editor ask over it: a Python caller meets their
+    # answer as a door's refusal (`EditError`/`PersistError`'s `trace`
+    # word), never the shape itself.
+    "PenRun": INTERIOR,
+    "PenStep": INTERIOR,
+    "pen_fault": INTERIOR,
+    "pen_run": INTERIOR,
+    "shape_of_recorded": INTERIOR,
+    "step_kernel": INTERIOR,
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
     # The loop the lattice constructed, carrying that provenance into
@@ -3026,9 +3015,11 @@ NOT_BOUND = {
     # `Evaluation.select` rather than by key. A key bundle has nothing
     # to project to a surface that holds names and never keys.
     "RevolvedKind": INTERIOR,
-    # `BlendError::UnsupportedCorner`'s second field, the policy
-    # `CornerConfig::policy` assigns (LIB-CUR4).
-    "RunOutPolicy": INTERIOR,
+    # `BlendError::UnbuiltEnd`'s payload, whose tag the blend's own tag
+    # reads one level in (`unbuilt_end_seam`, …), and the run-out's odd
+    # edge inside it.
+    "UnbuiltEnd": INTERIOR,
+    "OddEdge": INTERIOR,
     # `BlendError::WedgeUnsettled`'s payload, which the blend's tag
     # (`wedge_unsettled`) already names at the Python seam.
     "UnsettledWedge": INTERIOR,
@@ -3389,6 +3380,16 @@ NOT_BOUND = {
     # kernel-side: the door exists, succeeds, and answers a closed
     # four-variant tag.
     "edge_carrier_kind": f"{GAP}: B-EDGE-KIND the named edge's stored carrier tag",
+    # --- gap: a profile drawn on a face -----------------------------
+    # The editor-core door landed with DOCTAIL's face-chart unit; its
+    # Python binding is the pydoor unit that retires `Doc.sketch_on_face`
+    # for it.
+    "draw_on_face": f"{GAP}: B-DRAW-ON-FACE the drawn-on-face door",
+    "DrawnOnFace": f"{GAP}: B-DRAW-ON-FACE the door's outcome",
+    "OnFace": f"{GAP}: B-DRAW-ON-FACE where the profile stands on the face",
+    "chart_on_face": f"{GAP}: B-DRAW-ON-FACE the chart the door draws on, read before drawing",
+    "FaceUnread": f"{GAP}: B-DRAW-ON-FACE why no orientation reads off a face",
+    "nearest_to_face": f"{GAP}: B-DRAW-ON-FACE the orientation the door writes",
     # --- gap: assorted single doors -------------------------------
     # B-CANCEL IS GONE FROM THIS ROSTER, closed at LIB-B-CANCEL, and
     # the id is gone from `FAMILIES` with it. `CancelToken` is a
@@ -3587,6 +3588,11 @@ MEMBERS_BOUND_AS = {
     # a crossing carries no provenance); the shape that hid it is
     # listed in `ARMS_SPELLED_BY_A_PROPERTY`.
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
+    # --- a kind no edge presents ------------------------------------
+    # An edge on a periodic cubic (a closed fitted section loop) is read
+    # as its clamped view over the edge's span, a spline, so a selection
+    # by kind sees `Nurbs` and the periodic kind never reaches Python.
+    "CurveKind::Periodic": "CurveKind.Nurbs",
     # --- the placement model's members ------------------------------
     # The world is the node `Doc.world` answers; a constraint's id is
     # what `MateRef.constraint` answers.
@@ -3617,9 +3623,6 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::Unsupported": "CheckEvidence.variant",
     "CheckEvidence::NotAtRest": "CheckEvidence.variant",
     "CheckEvidence::StaleExpectation": "CheckEvidence.variant",
-    "CheckEvidence::ChartCoherence": "CheckEvidence.variant",
-    "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
-    "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
     "CheckEvidence::UnprovenCoincidence": "CheckEvidence.variant",
     "CheckEvidence::Unused": "CheckEvidence.variant",
     "ChecksError::Placement": "ChecksError.variant",
@@ -3878,7 +3881,6 @@ MEMBERS_BOUND_AS = {
     "PersistError::Parse": "PersistError.variant",
     "PersistError::Unreadable": "PersistError.variant",
     "PersistError::Dimension": "PersistError.variant",
-    "PersistError::EditReplay": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
@@ -3918,6 +3920,8 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartIdCollides": "SplitError.variant",
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::RemainderReadUncarried": "SplitError.variant",
+    "SplitError::ProductReadSevered": "SplitError.variant",
+    "SplitError::NamedReadUncarried": "SplitError.variant",
     "SplitError::NoMaterial": "SplitError.variant",
     "SplitError::UncutVarReference": "SplitError.variant",
     "SplitError::SpaceStraddlesCut": "SplitError.variant",
@@ -3943,20 +3947,24 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Structure": "StepImportError.variant",
     "StepImportError::MissingUncertainty": "StepImportError.variant",
     "StepImportError::InvalidEpsOverride": "StepImportError.variant",
+    "StepImportError::UnbandedUncertainty": "StepImportError.variant",
     "StepImportError::MalformedReal": "StepImportError.variant",
     "StepImportError::Topology": "StepImportError.variant",
     "StepImportError::Assembly": "StepImportError.variant",
     "StepImportError::Adoption": "StepImportError.variant",
-    "StepImportError::RimOffWallBoundary": "StepImportError.variant",
     "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
+    "StepImportError::Interpretation": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",
     "StepImportError::SingularitySideUndecided": "StepImportError.variant",
+    "StepImportError::SingularityMeetUnread": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
     "StepImportError::C0KnotUnsplit": "StepImportError.variant",
+    "StepImportError::NotYetSupported": "StepImportError.variant",
+    "StepImportError::BuildEscalated": "StepImportError.variant",
     "StepImportError::TierInvalid": "StepImportError.variant",
     "StlError::DegenerateTriangle": "StlError.variant",
     "StlError::IndexOutOfRange": "StlError.variant",
@@ -3967,7 +3975,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::UnsupportedNurbsFace": "TessellateError.variant",
     "TessellateError::UnsupportedCurve": "TessellateError.variant",
     "TessellateError::NullScaffoldEdge": "TessellateError.variant",
-    "TessellateError::RingOnCurvedFace": "TessellateError.variant",
+    "TessellateError::DomainUnread": "TessellateError.variant",
     "TessellateError::EmptyLoop": "TessellateError.variant",
     "TessellateError::MissingEntity": "TessellateError.variant",
     "TessellateError::ResolutionOverflow": "TessellateError.variant",
@@ -3977,6 +3985,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::PinchWedge": "TessellateError.variant",
+    "TessellateError::BoundaryBoundsNoRegion": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedDomain": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedShape": "TessellateError.variant",
     "TessellateError::MeridianFreeCurvedFace": "TessellateError.variant",
@@ -3984,8 +3993,12 @@ MEMBERS_BOUND_AS = {
     "TessellateError::Band": "TessellateError.variant",
     "TessellateError::TrimLoopOrientation": "TessellateError.variant",
     "TessellateError::FoldedTriangle": "TessellateError.variant",
-    "TessellateError::BoundaryEar": "TessellateError.variant",
+    "TessellateError::UnresolvedWinding": "TessellateError.variant",
+    "TessellateError::UnclearedSharedSide": "TessellateError.variant",
+    "TessellateError::OverusedSide": "TessellateError.variant",
     "TessellateError::SphereTrimShape": "TessellateError.variant",
+    "TessellateError::WrapStripTurn": "TessellateError.variant",
+    "TessellateError::LiftedColumnOff": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
     "UpdateError::AlreadyPinned": "UpdateError.variant",
     # The one door that reports MANY faults at once, so the word rides
@@ -4164,10 +4177,6 @@ MEMBERS_BOUND_AS = {
     # (`crates/pncad-py/src/py/refactor.rs`).
     "InlineOutcome::maintenance": "Doc.last_maintenance",
     "FlattenOutcome::maintenance": "Doc.last_maintenance",
-    # The replayed edit LIST crosses as its length; `Applied`/
-    # `EditRecord` are `different-shape` in `NOT_BOUND` and the records
-    # field is below with them.
-    "Loaded::edits": "Loaded.edit_count",
     # One patch at a time, by index, beside `patch_count`.
     "Mesh::patches": "Mesh.patch",
     # The entity-kind filter, named for what it does at the door.
@@ -4349,10 +4358,6 @@ MEMBERS_NOT_BOUND = {
     # `variant == "unplaced_below"`, its `parts` naming each.
     "Evaluation::epoch": INTERIOR,
     "Evaluation::appearance": SHAPE,
-    # `EditRecord` is `different-shape`: `Doc.apply` mutates in place and
-    # answers `Optional[NodeId]`, so there is no record list to hand
-    # back.
-    "Loaded::records": SHAPE,
     # The one recipe node kind with no Python constructor, and it is not
     # an omission: `wire_sweep` refuses unconditionally (U4/LQ3,
     # kernel-owned), so the door could not succeed. `sweep_body` carries

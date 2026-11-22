@@ -23,7 +23,9 @@
 # keyed by the nearest `fn` above it (the function the ladder runs in),
 # counted per (file, function). The register lists every (file, function, count) with
 # its disposition, `pin <test fn>` (that `fn` must exist under `crates/`)
-# or `row <id>` (that `work/**/<id>.md` must exist).
+# or `row <id>` (that `work/**/<id>.md` must exist), or `proof <slug>`
+# where no input reaches past a kept rung: the reason is stated at the
+# site, in a comment holding `any-climb-pins: proof <slug>` in that file.
 #
 # WHAT IT CANNOT SEE: a ladder whose `Answering` value is a variable, or
 # `Any` through `read_identity` (its own rows pin it); and whether a pin
@@ -114,8 +116,8 @@ with open(register) as fh:
         line = raw.split("#", 1)[0].split()
         if not line:
             continue
-        if len(line) != 5 or line[3] not in ("pin", "row"):
-            problems.append(f"{register}:{n}: want `<file> <fn> <count> pin|row <name>`: {raw.strip()}")
+        if len(line) != 5 or line[3] not in ("pin", "row", "proof"):
+            problems.append(f"{register}:{n}: want `<file> <fn> <count> pin|row|proof <name>`: {raw.strip()}")
             continue
         path, name, count, kind, ref = line
         want[(path, name)] += int(count)
@@ -123,6 +125,14 @@ with open(register) as fh:
             problems.append(f"{register}:{n}: pin `{ref}` names no #[test] or #[rstest] fn under crates/")
         if kind == "row" and ref not in rows:
             problems.append(f"{register}:{n}: row `{ref}` names no work/**/{ref}.md")
+        if kind == "proof":
+            marker = f"any-climb-pins: proof {ref}"
+            try:
+                quoted = marker in open(path, errors="replace").read()
+            except OSError:
+                quoted = False
+            if not quoted:
+                problems.append(f"{register}:{n}: proof `{ref}` is not stated at its site (no `{marker}` in {path})")
 for key in sorted(set(live) | set(want), key=lambda k: (k[0], k[1] or "")):
     if live[key] != want[key]:
         problems.append(f"{key[0]} {key[1]}: {live[key]} Any ladder(s) in the tree, {want[key]} registered")
@@ -183,6 +193,17 @@ plant_differing_on_a_row() {
   printf 'crates/planted/src/lib.rs mixed 1 row carrier\n' >> "$1/$REGISTER"
 }
 
+plant_proved() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn search() {\n    // any-climb-pins: proof ordered - a kept rung is never followed by an answer.\n    climb(Answering::Any, xs, f);\n}\n' > "$1/crates/planted/src/lib.rs"
+  printf 'crates/planted/src/lib.rs search 1 proof ordered\n' >> "$1/$REGISTER"
+}
+
+plant_proof_unstated() {
+  plant_unregistered "$1"
+  printf 'crates/planted/src/lib.rs search 1 proof ordered\n' >> "$1/$REGISTER"
+}
+
 plant_on_a_row() {
   plant_unregistered "$1"
   printf 'crates/planted/src/lib.rs search 1 row carrier\n' >> "$1/$REGISTER"
@@ -213,11 +234,13 @@ gate_selftest() {
   gate_selftest_case "$want" plant_row_gone
   gate_selftest_case "$want" plant_stale_entry
   gate_selftest_case "$want" plant_differing_unregistered
+  gate_selftest_case "$want" plant_proof_unstated
+  gate_selftest_passes "a ladder with its proof stated" plant_proved
   gate_selftest_passes "a differing ladder on a row" plant_differing_on_a_row
   gate_selftest_passes "a pinned ladder" plant_pinned
   gate_selftest_passes "a ladder on a row" plant_on_a_row
   gate_selftest_passes "a ladder in a test module" plant_in_a_test_module
-  printf '%s selftest OK: passes a clean tree, a pinned ladder, one on a row and one in a test module; fires on an unregistered ladder, a pin or row that names nothing, a pin that names a fn that is no test, a function with more ladders than registered, a register entry the tree no longer carries, and a call of an entry point that takes no Answering (read off ladder.rs) left unregistered, and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, a pinned ladder, one on a row, one with its proof stated and one in a test module; fires on an unregistered ladder, a pin or row that names nothing, a pin that names a fn that is no test, a function with more ladders than registered, a register entry the tree no longer carries, and a call of an entry point that takes no Answering (read off ladder.rs) left unregistered, a proof not stated at its site, and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

@@ -30,7 +30,7 @@ construction-time decision cannot be read off the closed form, `f64`
 reads it through the certified quadrature (`AtRestPolicy::quad_lane`,
 `Some` at every certifying scalar, `None` at `Dual`):
 
-- `crates/topo/src/boolean/solid_contain.rs` line 3902: a containment
+- `crates/topo/src/solid_contain.rs` line 3902: a containment
   whose closed-form volume is `VolumeUncertified` is re-read through
   `Measure::Quadrature` only `if T::quad_lane().is_some()`; at a dual the
   closed form's refusal stands.

@@ -448,7 +448,7 @@ fn the_partial_zone_refuses_through_its_own_gates() {
     )
     .map_err(|r| r.error)
     {
-        Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
+        Err(BlendError::UnsupportedChain { .. } | BlendError::UnbuiltEnd(_)) => {}
         other => panic!("the open arc refuses through its own gates, got {other:?}"),
     }
 }
@@ -472,10 +472,8 @@ fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
     let band_face = out.band_faces[0];
     let surface = out.body.face_surface(band_face).unwrap().clone();
     let Surface::Torus {
-        center,
-        axis,
+        frame: carrier_frame,
         major_radius,
-        u_ref,
         ..
     } = surface
     else {
@@ -487,14 +485,9 @@ fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
         band_face,
         FaceSurface::New {
             surface: Surface::Torus {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
-                // R − r lands at eps·√k — strictly inside the
-                // [eps, k·eps] escalation band, so the classification
-                // is not available at this tolerance.
                 minor_radius: major_radius - tol().eps() * tol().k().sqrt(),
-                u_ref,
             },
             sense: true,
         },

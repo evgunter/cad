@@ -28,6 +28,26 @@ fn census() -> test_utils::source::PredicateCensus {
     )
 }
 
+/// The gate table, declared to the census so the tree-wide coverage row
+/// reads profile's names where the table spells them.
+const CARRIERS: &[test_utils::source::NameCarrier] =
+    &[test_utils::source::NameCarrier::Table("gates!")];
+
+/// **The census reads the gate table as the type does**: the names a
+/// declared `Table("gates!")` reads off `gate.rs` are exactly
+/// `Gate::ALL`'s predicates, so the coverage row resolves a reference to
+/// a gate against the table itself.
+#[test]
+fn the_census_reads_the_gate_table_as_the_type_does() {
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    let census = test_utils::source::predicate_census(&src, CARRIERS);
+    let want: std::collections::BTreeSet<String> = Gate::ALL
+        .iter()
+        .map(|g| g.predicate().to_string())
+        .collect();
+    assert_eq!(census.names, want);
+}
+
 /// The escalation of `gate` at `margin`, against the band `(1e-9, 1e-8)`.
 fn at(gate: Gate, margin: MarginDiag) -> Indeterminate {
     Indeterminate {

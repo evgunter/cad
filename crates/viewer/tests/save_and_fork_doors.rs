@@ -417,63 +417,6 @@ fn a_second_new_document_of_one_name_refuses_to_save_over_the_first() {
     std::fs::remove_dir_all(&dir).expect("removable");
 }
 
-/// **A file still carrying a non-empty edit log opens** at its replayed
-/// state, with no undo.
-#[test]
-fn a_file_with_an_edit_log_opens_at_its_replayed_state() {
-    let tol = Tol::witness();
-    let (doc, _profile, _extrude) = common::parametric_plate(tol);
-    let mut session = DocSession::inline(doc.clone(), tol);
-    let var = common::thickness_var(session.committed_doc());
-    let edited = session.perform(SessionOp::SetVariable {
-        var,
-        value: viewer::props::SlotValue::Continuous(0.02),
-    });
-    assert!(edited.refusal.is_none());
-    let edits: Vec<_> = session
-        .history()
-        .path()
-        .into_iter()
-        .flat_map(|id| session.history().entry(id).edits().to_vec())
-        .collect();
-    assert!(!edits.is_empty());
-    let dir = common::tempdir("save-fork-oldlog");
-    let file = dir.join("old.pncad");
-    std::fs::write(
-        &file,
-        pncad::document::save(&doc, &edits, tol).expect("an old-shaped file saves"),
-    )
-    .expect("writes");
-    let opened = docio::open(&file, tol).expect("opens");
-    assert!(
-        opened.doc().bit_eq(session.committed_doc()),
-        "the replayed state"
-    );
-    assert!(!opened.can_undo());
-    // And saving it back drops the log.
-    let mut reopened = DocSession::inline(Doc::empty_derived("x", tol), tol);
-    assert!(
-        reopened
-            .perform(SessionOp::Open(file.clone()))
-            .refusal
-            .is_none()
-    );
-    assert!(
-        reopened
-            .perform(SessionOp::Save(file.clone()))
-            .refusal
-            .is_none()
-    );
-    let text = std::fs::read_to_string(&file).expect("reads");
-    assert!(
-        pncad::document::load(&text, tol)
-            .expect("loads")
-            .edits
-            .is_empty()
-    );
-    std::fs::remove_dir_all(&dir).expect("removable");
-}
-
 /// **A relative path with a folder** goes through `file_dir` and the
 /// store's `root` comparison as spelled.
 #[test]

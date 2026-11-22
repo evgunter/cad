@@ -536,9 +536,13 @@ the whole point of this machinery"). The E6 leaf protocol gains a
 SYMBOLIC tier ahead of the numeric one: beside every lane value the
 replay carries a handle into a hash-consed expression DAG over the
 document's continuous-parameter symbols, and a funnel margin whose
-expression is IDENTICALLY ZERO in the parameters decides `Zero`
-before any enclosure is consulted — for every parameter value, at
-any box width. Everything else decides numerically as today.
+expression is zero at every parameter value in the leaf's box at which
+the build takes the decisions this replay took decides `Zero` before
+any enclosure is consulted, at any box width. Those are the only
+values at which this body exists; a sign the construction never
+compared is not one of its decisions. Where the plain normal form is
+the zero polynomial, that is every parameter value. Everything else
+decides numerically as today.
 
 **The defect it closes** (measured by M10-3, pinned by
 `m10_3_driver_interval::a_macroscopic_box_refuses_all_of_its_mass_as_budget_today`).
@@ -650,7 +654,12 @@ number.
   **TAKEN (M10-9, 2026-09-06)**, on the family M10-7's census and
   M10-8's measurement showed: `geom_core::sym::Sym::register_equal`,
   a session-level record that two DAG NODES denote one function of the
-  parameters, made by the site that guarantees it. A zero through it
+  parameters — equal at every parameter value, not only where a
+  decision of the registrant came out as it did — made by the site
+  that guarantees it. A fact that holds only past a decision is not
+  registered: the construction spells that decision as a literal sign
+  (`4·atan(σ·b)`, a radius `σ·ρ`), and the fact is then an identity of
+  the expressions it built. A zero through it
   is counted with every other symbolic zero (`SymCounts::symbolic`,
   the K token `symbolic`), and what the registry buys a document
   is the differential with the door shut (`SymRules::registered`).

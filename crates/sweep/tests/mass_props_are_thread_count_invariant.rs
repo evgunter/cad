@@ -417,7 +417,9 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// [`the_walk_matches_the_serial_golden_at_four_threads`]: the two `Sym`
 /// bodies' `validate_geometric` lines at every ε row, and
 /// `arc_loft_1e9eps`' volume at 1e-12. They wait on
-/// `work/green/the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained.md`.
+/// `work/green/the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained.md`;
+/// their `frozen` counts' latest move (PR 7028, 14 and 12 to 16) waits on
+/// `work/sectarms/check-6s-spline-loop-winding-froze-more-sym-nodes-in-the-thread-count-golden.md`.
 /// And, read by `the_walk_matches_the_serial_golden_at_one_thread` and
 /// `the_walk_matches_the_serial_golden_at_four_threads` alike,
 /// `arc_loft_1e11eps`' two pads at 1e-12:

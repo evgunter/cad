@@ -4,10 +4,11 @@ kind: issue
 title: Tier 3 at every sweep leaf in a box-scalar replay multiplies the decisions about 4.4× and makes docm9 rows take minutes
 status: parked
 opened: 2026-11-02
-priority: P0
+priority: P1
 cost: H
 refs: [6371]
-blocked_on: [the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box]
+blocked_on: [the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision]
+design: true
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`
@@ -104,3 +105,115 @@ parked on the two rows that remove the forced bisection, and is
 measured again on the tree that has them. What is then left (the
 repeated body, the build's decisions made twice) is filed from that
 measurement, not from this one.
+
+## Un-parked (2026-11-15): the frames landed (PR 6972); being measured again
+
+Both repairs M1 substituted by hand are built: the aimed ray (PR 6958)
+and the frames (PR 6972). The measurement lane M4 re-takes this row's
+table on three trees (the frames' head with the switch on; the probe
+with main; the probe with the frames) and counts what still refuses at
+a finish, with the directions the doors still derive from a segment's
+ends counted apart (`the-sweep-doors-read-the-profiles-recorded-directions`,
+in flight). This row is re-stated from that measurement.
+
+## Measured again (2026-11-15, M4): the bisection is nearly gone; what is left is the finish itself
+
+M4 (`boxfinish/probe-switch-off`, `probe/M4-REPORT.md`), three trees,
+hand substitutions unset: the frames' head with the switch on
+(`9ee3c1ea`), the probe with main, the probe with the frames.
+
+| row | switch on | off, no frames | off, frames |
+|---|---|---|---|
+| m10_8 plain decisions | 460/504/0 | 10974/12684/100 | 2424/3151/192 |
+| docm9 `a_certified_side_stops_at_the_seeds_edge` | 0.048 s | 3.55 s | 0.48 s |
+| docm9 `a_parameter_field_boxes_directly` | 0.054 s | 3.39 s | 0.54 s |
+| docm9 `the_query_does_not_touch_the_input_document` | 0.046 s | 3.63 s | 0.72 s |
+| m10_3 `driving_writes_nothing` | 0.196 s | 5.41 s | 0.44 s |
+| m10_8 `a0_set_is_a0_alone` | 0.87 s | 6.76 s | 7.46 s |
+
+- **The frames remove all but one bisection level** on the ± 0.25
+  slab: 15 replays, every one refusing at the finish, become 3. The
+  level that remains is the rays on a slab boxed wider than ± 0.215 of
+  its depth, with the loose volume behind them
+  (`an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`,
+  `check-7s-volume-reading-is-loose-over-a-box`), which is why m10_8's
+  pin is 5.3× / 6.3× and not the 1.49× / 1.68× the hand substitution
+  read.
+- **What a finish costs when nothing refuses** is this row's own
+  content now:
+  - a planar slab leaf: 55 to 100 ms and 1.77× / 1.93× the decisions;
+    732 of the finish's 823 decisions (89%) carry a name and count the
+    door's build decided in the same leaf, and it freezes 96 forms
+    (the largest form 17 terms against a pinned 4);
+  - a cylinder-walled finish at the a0 set: 0.85 to 1.07 s each, four
+    finishes per leaf (the a0 row 0.87 → 7.46 s), the same without the
+    frames;
+  - a revolved circle's finish: 2.9 s;
+  - the tour: one plate finished 1023 times (92% of finishes repeat a
+    body); finishes are 35% of leaf time;
+  - seven fast rows cross 1.0 s with the switch off (the revolved
+    circle's row 3.40 s; six `editor-core` rows between 1.01 and
+    1.37 s).
+- **Corrections:** `revolve_washer::m10_9_…` is not a row on any tree;
+  the elbow and strut rows are `f64` and cost the same either way;
+  `frozen != 0` on the derived-frame row is there as built (192), not
+  an artefact of M1's hand constants; a plate with holes runs four
+  finishes per leaf, one per sweep door.
+
+**Re-banded P1** (was P0 from PR 6371's minutes-long rows, which are
+gone): on main, with the switch on, nothing here is slow; this row is
+what the switch's deletion (`delete-the-box-scalar-sweep-leaf-switch`,
+P1) waits on.
+
+**The test that says it is closed, re-stated.** With the box arm off:
+the seven rows above and the a0 row run within the 1.0 s budget or are
+in the slow set each for a stated reason; a finish does not repeat a
+decision the door's build took on the same body in the same leaf, or
+says why it must; a body a drive does not change is not finished again
+per leaf.
+
+**Next:** M5 decomposes a curved finish's time by check, says whether
+the repeated decisions are the same decisions, and whether the plate's
+1023 finishes are of one value. The fix is weighed from that.
+
+## Measured (2026-11-15, M5): where a finish spends its time when nothing refuses
+
+M5 (`boxfinish/probe-switch-off` at `2f37154e`, `BOXFINISH_TRACE=3`
+and `4`).
+
+- **A curved finish is slow in one place.** On a cylinder-walled body
+  82% of 842 ms is eight side-reader decisions
+  (`side_at_infinity_winding`, `side_at_infinity_denom`), each decided
+  numerically, each then walking the symbolic tier's whole ladder for
+  the check that the two channels do not contradict
+  (`sym::contradicts`, a debug assertion that ships on). The same on
+  the revolved circle, across the torus readings. That is the tier's,
+  and a design question:
+  `work/sym/the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision.md`.
+- **The decisions a finish repeats from the door's build are the same
+  decisions**: 732 of a slab finish's 824 carry the same symbolic node,
+  enclosure and band as one the build took in that leaf (the door asks
+  when it mints each edge through the scalar's edge door; the finish
+  asks again in check 2, which "never trusts the stored certificate",
+  and check 4's wedge fold). They cost 8.9 ms of 57: 89% of the
+  decisions, 15% of a slab finish's time, 1% of a curved one's.
+- **The 96 forms a slab finish freezes** are all in
+  `side_at_infinity_winding`, refused by the ring's guards, not the
+  budget.
+- **The tour's plate is one value finished 1023 times**: the same
+  boxes and the same symbolic nodes in every replay, while the leaf's
+  box varies only in variables it does not read. Each hole value is
+  finished about eight times.
+
+**So this row is now three things, in the order they cost:**
+1. the contradiction check on a curved body's ray decisions (SYM's
+   row above; this row is parked on it);
+2. a body a drive's leaf does not change is finished again per leaf
+   (the tour: 1023 finishes of one plate, 35% of leaf time): a design
+   question on what a leaf's finish may be keyed by, not yet weighed;
+3. the repeated edge-door decisions (15% of a slab finish): small, and
+   by design (check 2 re-derives).
+
+The ray-readings unit (`an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`)
+re-poses the two readings that are slowest here; what its change does
+to their cost is measured in its PR.

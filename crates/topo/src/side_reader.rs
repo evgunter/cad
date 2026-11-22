@@ -10,24 +10,24 @@
 //!   role gate ([`crate::census`]) and `classify_shells` read;
 //! - a solid's orientation, check 7 ([`fn@crate::validate`]);
 //! - the side of a point no schedule ray reaches, point containment's
-//!   missed-ray side ([`crate::boolean::solid_contain`]).
+//!   missed-ray side ([`crate::solid_contain`]).
 //!
 //! The rays it casts are point containment's
-//! ([`crate::boolean::solid_contain`]'s crossing walk), logged under their
+//! ([`crate::solid_contain`]'s crossing walk), logged under their
 //! own rows ([`AIMED_ROWS`]) so the two readers' verdicts stay apart.
 
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
 
 use crate::body::Body;
-use crate::boolean::SolidContainment;
-use crate::boolean::solid_contain::{
-    FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, ray_crossings,
-    selection_reach, side_before, uncrossable,
-};
 use crate::entity::{EntityId, FaceKey};
 use crate::live::proven;
 use crate::ray_walk::RayFault;
+use crate::solid_contain::SolidContainment;
+use crate::solid_contain::{
+    FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, ray_crossings,
+    selection_reach, side_before, uncrossable,
+};
 
 /// An aimed ray's rows ([`side_at_infinity`]).
 pub(crate) const AIMED_ROWS: RayRows = crate::rows::AIMED_RAY;
@@ -74,6 +74,19 @@ pub struct SetAside {
     pub why: SetAsideWhy,
 }
 
+/// Which in-band mark set a ray aside: a corner, a wedge, or a crossing
+/// the passage could not order (the point-in-solid door's marks, read
+/// into [`SetAsideWhy`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MarkKind {
+    /// [`SetAsideWhy::Corner`].
+    Corner,
+    /// [`SetAsideWhy::Wedge`].
+    Wedge,
+    /// [`SetAsideWhy::Order`].
+    Order,
+}
+
 /// Why an aimed ray read nothing ([`SetAside`]).
 ///
 /// **NOT carried to the façade's curated list, and that is a
@@ -110,6 +123,15 @@ pub enum SetAsideWhy {
         /// The ray's distance from the nearer edge met in band.
         gap: Indeterminate,
     },
+    /// It met a face at an edge where the passage's two crossings could
+    /// not be ordered at this tolerance, and reads nothing there: an
+    /// unordered crossing, never a pair.
+    Order {
+        /// The two faces of the edge.
+        faces: [FaceKey; 2],
+        /// The in-band reading of which crossing is nearer.
+        gap: Indeterminate,
+    },
     /// A crossing it could not place: in band of a face's boundary, or
     /// of a face it met tangentially.
     Crossing(PointInSolidError),
@@ -118,6 +140,32 @@ pub enum SetAsideWhy {
     /// A face it could not read, or a broken one: a limit, no tolerance
     /// moves.
     Limit(PointInSolidError),
+}
+
+impl SetAsideWhy {
+    /// **The set-aside a mark of `kind` reads**, at `faces` with its
+    /// margin `gap`: the one map from a mark's kind to its reason, which
+    /// [`Self::mark`] inverts.
+    pub(crate) const fn marked(kind: MarkKind, faces: [FaceKey; 2], gap: Indeterminate) -> Self {
+        match kind {
+            MarkKind::Corner => Self::Corner { faces, gap },
+            MarkKind::Wedge => Self::Wedge { faces, gap },
+            MarkKind::Order => Self::Order { faces, gap },
+        }
+    }
+
+    /// **The mark that set the ray aside**, if a mark in band did: its
+    /// kind, its two faces and its margin. The one list of the reasons a
+    /// mark gives, which every reader asking "was this ray set aside at a
+    /// mark" reads, so a kind added to [`MarkKind`] reaches each of them.
+    pub(crate) const fn mark(&self) -> Option<(MarkKind, [FaceKey; 2], Indeterminate)> {
+        match *self {
+            Self::Corner { faces, gap } => Some((MarkKind::Corner, faces, gap)),
+            Self::Wedge { faces, gap } => Some((MarkKind::Wedge, faces, gap)),
+            Self::Order { faces, gap } => Some((MarkKind::Order, faces, gap)),
+            Self::Crossing(_) | Self::Graze | Self::Limit(_) => None,
+        }
+    }
 }
 
 /// What [`side_at_infinity`] could not read.
@@ -204,6 +252,14 @@ impl core::fmt::Display for UnreadRays<'_> {
                     f,
                     ", it passed in band of two edges of {}, narrower than the band there \
                      (one of them shared with {}): {}",
+                    EntityId::Face(faces[0]),
+                    EntityId::Face(faces[1]),
+                    gap.payload()
+                )?,
+                SetAsideWhy::Order { faces, gap } => write!(
+                    f,
+                    ", it met the edge between {} and {} where its two crossings could not be \
+                     ordered: {}",
                     EntityId::Face(faces[0]),
                     EntityId::Face(faces[1]),
                     gap.payload()
@@ -346,7 +402,7 @@ fn aim_at<T: Decide>(
 /// ([`geom_core::GOLDEN_SECTION`]), stepped into the face along
 /// `normal × τ` ([`crate::stands::inward`]) by half a lower bound on `m`'s
 /// distance from every other edge of every loop
-/// ([`crate::boolean::solid_contain::edge_clearance`]), and
+/// ([`crate::solid_contain::edge_clearance`]), and
 /// by at most half its own arc's radius. The step's path meets no edge,
 /// so the aim lies in the face, off its middles and its boundary; a face
 /// narrower than the rounding there steps nowhere, and its aim only
@@ -365,22 +421,22 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
         body.edge_curve_linked(e, proven(&body.edges, e, EntityId::Edge))
             .certified()
     };
-    let (m, tau) = crate::boolean::solid_contain::along_half(
-        body,
-        first.half,
-        1.0 - geom_core::GOLDEN_SECTION,
-    )?;
+    let (m, tau) =
+        crate::solid_contain::along_half(body, first.half, 1.0 - geom_core::GOLDEN_SECTION)?;
     let half = T::from_f64(0.5);
     let mut step = match *curve(first.edge)?.carrier() {
         geom::Curve3::Line(_) => None,
-        geom::Curve3::Circle(geom::Circle { radius, .. }) => Some(radius * half),
+        geom::Curve3::Circle(circle) => {
+            let radius = circle.radius();
+            Some(radius * half)
+        }
         _ => return None,
     };
     for e in &edges {
         if e.edge == first.edge || e.across == face {
             continue;
         }
-        let room = crate::boolean::solid_contain::edge_clearance(body, e, m)? * half;
+        let room = crate::solid_contain::edge_clearance(body, e, m)? * half;
         step = Some(step.map_or(room, |s: T| s.min(room)));
     }
     let into = crate::stands::inward(normal, tau);
@@ -480,7 +536,7 @@ fn aim_turn() -> (f64, f64) {
 /// the side: a selection all of whose faces are cylinders or cones whose
 /// region cannot be read, or whose rays all grazed, met a limit, a
 /// corner or a wedge. A selection holding a face the ray test has no
-/// arm for ([`crate::boolean::solid_contain::ray_crosses`]: a spline) casts no ray at all: every ray
+/// arm for ([`crate::solid_contain::ray_crosses`]: a spline) casts no ray at all: every ray
 /// would fault on that face, whatever it aimed at, so the volume reads
 /// with it as the limit.
 /// An aimed ray read in band on two faces that do not meet refuses on
@@ -503,67 +559,51 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     band: Band,
     volume: impl FnOnce() -> Result<SolidContainment, V>,
 ) -> Result<Result<SolidContainment, SideUnread<V>>, PointInSolidError> {
-    let rays = geom_core::k_stats::in_family(FAMILY, || cast_aims(body, sel, band))?;
-    if geom_core::k_stats::probe_tally::on() {
-        eprintln!(
-            "[bf-side] scalar={} faces={} rays={}",
-            core::any::type_name::<T>(),
-            sel.faces().len(),
-            match &rays {
-                Rays::Side(side) => format!("Side({side:?})"),
-                Rays::InBand(pair) => format!("InBand({pair:?})"),
-                Rays::Unread { aimed, set_aside } => format!(
-                    "Unread aimed={aimed} set_aside={}{}",
-                    set_aside.len(),
-                    if *aimed == 0 {
-                        format!(" {set_aside:?}")
-                    } else {
-                        String::new()
-                    }
-                ),
-            }
-        );
-    }
-    match rays {
-        Rays::Side(side) => Ok(Ok(side)),
-        Rays::InBand(pair) => Ok(Err(SideUnread::InBand(pair))),
+    let read = match geom_core::k_stats::checking(|| cast_aims(body, sel, band))? {
+        Rays::Side(side) => Ok(side),
+        Rays::InBand(pair) => Err(SideUnread::InBand(pair)),
         Rays::Unread { aimed, set_aside } => {
-            let volume = volume();
-            if geom_core::k_stats::probe_tally::on() {
-                eprintln!(
-                    "[bf-side]   volume fallback -> {}",
-                    match &volume {
-                        Ok(side) => format!("Ok({side:?})"),
-                        Err(_) => "REFUSED".to_owned(),
-                    }
-                );
-            }
-            Ok(volume.map_err(|volume| SideUnread::Fallback {
+            geom_core::k_stats::checking(volume).map_err(|volume| SideUnread::Fallback {
                 volume,
                 aimed,
                 set_aside,
-            }))
+            })
         }
+    };
+    if let Ok(side) = read {
+        geom_core::k_stats::answered(SIDE, side_sign(side));
     }
+    Ok(read)
 }
 
-/// **The family the ray caster's decisions are recorded under**
-/// ([`geom_core::k_stats::in_family`]): every verdict [`cast_aims`]
-/// decides — the aimed rays' crossings, their pair's gap
-/// (`side_at_infinity_order`) and the in-face and region walks it reads
-/// them through. The volume the reader falls back on lies outside it,
-/// under its own names: it is the document's measurement, not the rays'.
+/// **The name the reader's answer is recorded under**: which side it
+/// read, once per reading, as its caller's choice
+/// ([`geom_core::k_stats::answered`]).
 ///
-/// **What a flip among them can and cannot do.** The side a ray reads
-/// is the same for every ray from outside the body, so where one ray
-/// reads and another reads differently is a tie-break the band forbids
-/// the instrument to represent (`[verdicts]`). One verdict is no
-/// tie-break: `side_at_infinity_order` is a pair's gap, geometry, and its
-/// flip moves a ray between reading and refusing on that pair. Either
-/// way a flip in this family changes whether the side is read, never
-/// which side: it surfaces as a refusal, never as a piece that moved,
-/// so N5's flip lane passes over the family (`editor_core::resolve`).
-pub const FAMILY: &str = "side_at_infinity_";
+/// **Why its rays and its volume are checks, and its answer is not.**
+/// The side a ray reads is the same for every ray from outside the body,
+/// so where one ray reads and another reads differently is a tie-break
+/// the band forbids the instrument to represent (`[verdicts]`). One
+/// verdict is no tie-break: `side_at_infinity_order` is a pair's gap,
+/// geometry, and its other sign moves a ray between reading and refusing
+/// on that pair. Either way another sign among the rays changes whether
+/// the side is read, never which side, and the volume reads the same side
+/// where it reads: each can only make the reader refuse, so
+/// [`side_at_infinity`] records them in a check scope. Which side it
+/// read is what its caller builds from (a shell's role sorts the pieces;
+/// a point's side keeps or drops a piece), and that answer is a function
+/// of those checks no verdict states, so it is recorded once, here.
+pub const SIDE: &str = "side_read";
+
+/// The side as a sign: inside the material negative, outside positive,
+/// on the boundary zero.
+const fn side_sign(side: SolidContainment) -> geom_core::Sign {
+    match side {
+        SolidContainment::In => geom_core::Sign::Negative,
+        SolidContainment::OnBoundary => geom_core::Sign::Zero,
+        SolidContainment::Out => geom_core::Sign::Positive,
+    }
+}
 
 /// What one aimed ray's count reads in band: a pair, or a corner or a
 /// wedge it meets ([`cast_aims`]).
@@ -864,12 +904,8 @@ fn aimed_ray_inner<T: Decide>(
                 })
             },
             |hits| {
-                RayHit::unread(hits, |wedge, faces, gap| {
-                    Unread::Mark(if wedge {
-                        SetAsideWhy::Wedge { faces, gap }
-                    } else {
-                        SetAsideWhy::Corner { faces, gap }
-                    })
+                RayHit::unread(hits, |kind, faces, gap| {
+                    Unread::Mark(SetAsideWhy::marked(kind, faces, gap))
                 })
             },
         ) {
@@ -1414,6 +1450,61 @@ mod pre_filter_tests {
         assert!(
             read.len() == 1 && read[0].starts_with("Ok(Unread { aimed: 2,"),
             "both faces are aimed at and no aim at a sheet reads a side: {read:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod mark_kind_rows {
+    use super::*;
+
+    const KINDS: [MarkKind; 3] = [MarkKind::Corner, MarkKind::Wedge, MarkKind::Order];
+
+    fn gap() -> Indeterminate {
+        Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-10),
+            band: Band::new(1e-9, 1e-8).unwrap_or_else(|_| unreachable!("a valid band")),
+            // UNDECIDED-NAME: a fixture's label; the row reads the mark's kind and margin, not the name
+            predicate: Some("ray_order"),
+            terminal_sliver: false,
+        }
+    }
+
+    /// **Every mark's kind reads back off its set-aside, and nothing
+    /// else reads as a mark**: [`SetAsideWhy::mark`] inverts
+    /// [`SetAsideWhy::marked`] kind by kind, so a reader asking whether a
+    /// ray was set aside at a mark (the shell classifier, the
+    /// point-in-solid evidence) meets every kind. Red if a kind is left
+    /// out of either.
+    #[test]
+    fn every_marks_kind_reads_back_off_its_set_aside() {
+        let faces = [FaceKey::default(); 2];
+        for kind in KINDS {
+            let why = SetAsideWhy::marked(kind, faces, gap());
+            assert_eq!(why.mark().map(|(k, _, _)| k), Some(kind), "{why:?}");
+        }
+        assert!(SetAsideWhy::Graze.mark().is_none(), "a graze is no mark");
+    }
+
+    /// **An unordered crossing says so, with its margin**: the set-aside
+    /// [`SetAsideWhy::Order`] names the edge's two faces, that its
+    /// crossings could not be ordered, and the reading's payload.
+    #[test]
+    fn an_unordered_crossing_says_so_with_its_margin() {
+        let set_aside = [SetAside {
+            aimed: FaceKey::default(),
+            aim: None,
+            why: SetAsideWhy::marked(MarkKind::Order, [FaceKey::default(); 2], gap()),
+        }];
+        let text = UnreadRays {
+            aimed: 1,
+            set_aside: &set_aside,
+        }
+        .to_string();
+        assert!(
+            text.contains("where its two crossings could not be ordered")
+                && text.contains(&gap().payload().to_string()),
+            "{text}"
         );
     }
 }

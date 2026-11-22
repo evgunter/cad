@@ -43,8 +43,8 @@
 use crate::common::{arc_arc, corners, grid_a, line_arc, on_circle, tol};
 use geom_core::{Point2, Tol};
 use profile::{
-    ArcSweep, Center, CornerReason, CornerRefusal, FilletLeg, Gate, LegFit, Open, PathError,
-    ProfileLoop, Start,
+    ArcSweep, Center, CornerReason, CornerRefusal, FilletLeg, Gate, Open, PathError, ProfileLoop,
+    Start,
 };
 use std::collections::BTreeMap;
 
@@ -301,8 +301,9 @@ fn refusal_name(e: &PathError<f64>) -> String {
 /// The sentence one entry renders, as an author reads it.
 fn sentence(entry: &CornerRefusal<f64>, radius: f64) -> String {
     PathError::NoCornerOfPair {
-        radius,
+        radius: geom_core::Told::given(&radius, geom_core::Dimension::Length),
         corners: vec![entry.clone()],
+        radius_lever_of: Some(0),
     }
     .to_string()
 }
@@ -438,16 +439,26 @@ fn analyse(
     let CornerReason::AnchorOutsideTrimmedExtent {
         legs,
         overrun,
-        fit_reach,
         radius_at_anchor,
     } = &entry.reason
     else {
         unreachable!("an anchor-fit entry")
     };
+    // The exact-fit reach: half the fit band's coincidence threshold.
+    let fit_reach = profile::test_support::exact_fit_reach(
+        geom_core::Band::linear(tol()).expect("the run's band"),
+    );
+    let legs = &[
+        crate::common::LegNumbers::from(&legs[0]),
+        crate::common::LegNumbers::from(&legs[1]),
+    ];
     let esc = escalate();
     let x = p(entry.at);
     let sigma = cross(inc.dir_at(x), out.dir_at(x)).signum();
-    let Some(lever) = *radius_at_anchor else {
+    let Some(lever) = radius_at_anchor
+        .as_ref()
+        .map(crate::common::LeverNumbers::from)
+    else {
         return cen.fail(n, format!("no radius at the anchor: {legs:?}"));
     };
     let bound = lever.boundary;
@@ -463,7 +474,7 @@ fn analyse(
             .collect()
     };
     let cands = cands_at(r);
-    let matches = |got: &[(f64, f64); 2], want: &[LegFit<f64>; 2]| {
+    let matches = |got: &[(f64, f64); 2], want: &[crate::common::LegNumbers; 2]| {
         got.iter().zip(want).all(|(&(sb, len), leg)| {
             (sb - leg.setback).abs() < 1e-9 * (1.0 + sb.abs())
                 && (len - leg.available).abs() < 1e-9 * (1.0 + len.abs())
@@ -798,6 +809,69 @@ fn grid_a_bounds_are_the_anchor_fit_boundary() {
     pin_typed("grid A", &cen, GRID_A_TYPED);
 }
 
+/// **A pair's radius lever is its largest corner bound, read off the
+/// door.** Over grid A's refusals with two anchor-fit corners: the entry
+/// the envelope names is the one whose bound is largest, and the radius
+/// the pair's sentence offers is that bound told from below, never the
+/// smaller corner's.
+#[test]
+fn a_pairs_radius_lever_is_its_largest_corner_bound() {
+    let (mut pairs, mut apart) = (0_usize, 0_usize);
+    grid_a(|n, _case, _r, out| {
+        let Err(
+            refused @ PathError::NoCornerOfPair {
+                corners,
+                radius_lever_of,
+                ..
+            },
+        ) = out
+        else {
+            return;
+        };
+        let bounds: Vec<(usize, f64)> = corners
+            .iter()
+            .enumerate()
+            .filter_map(|(k, c)| match &c.reason {
+                CornerReason::AnchorOutsideTrimmedExtent {
+                    radius_at_anchor: Some(lever),
+                    ..
+                } => Some((k, crate::common::told(lever))),
+                _ => None,
+            })
+            .collect();
+        let [(_, a), (_, b)] = bounds[..] else {
+            return;
+        };
+        pairs += 1;
+        let (largest, smaller) = (a.max(b), a.min(b));
+        let named = radius_lever_of.and_then(|k| bounds.iter().find(|(at, _)| *at == k));
+        assert_eq!(
+            named.map(|(_, bound)| *bound),
+            Some(largest),
+            "case {n}: the pair names {radius_lever_of:?} of {bounds:?}"
+        );
+        let said = refused.to_string();
+        let typed = number_after(&said, "use a radius of ", " m or less")
+            .unwrap_or_else(|| panic!("case {n}: the pair offers no radius: {said}"));
+        assert!(
+            typed <= largest,
+            "case {n}: offers {typed} for the bounds {bounds:?}: {said}"
+        );
+        if largest - smaller > 1e-9 {
+            apart += 1;
+            assert!(
+                typed > smaller,
+                "case {n}: offers the smaller bound: {said}"
+            );
+        }
+    });
+    eprintln!("grid A: {pairs} pairs of anchor-fit corners with levers, {apart} with bounds apart");
+    assert!(
+        apart > 0,
+        "grid A holds no pair whose two radius bounds differ ({pairs} pairs)"
+    );
+}
+
 /// Grid A's counts per ε row.
 /// Grid A's typed-back `(X, S)` that another gate refuses, per ε row.
 const GRID_A_TYPED: &[(&str, (usize, usize))] =
@@ -929,6 +1003,7 @@ fn authoring_3608_names_the_radius_that_ends_at_its_anchor() {
     else {
         panic!("{entry:?}")
     };
+    let lever = crate::common::LeverNumbers::from(&lever);
     assert!(
         (lever.boundary - 0.361_629_480_311_458).abs() < 1e-15,
         "boundary {}",

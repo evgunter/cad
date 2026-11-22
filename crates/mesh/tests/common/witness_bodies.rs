@@ -21,6 +21,16 @@ fn arc(circle: Curve3<f64>, t0: f64, t1: f64) -> EdgeCurveSpec<f64> {
     EdgeCurveSpec::arc_of_circle(circle, t0, t1).expect("a circle carrier has an arc spec")
 }
 
+/// `body` with its chart images minted and certified
+/// (`topo::mint_pcurves`), as every door that finishes a body stores
+/// them: the Euler doors that assemble these witnesses store none, and
+/// the trimmed lane reads a face's domain from them.
+#[allow(clippy::expect_used)]
+pub fn minted(mut body: Body<f64>) -> Body<f64> {
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the witness's images mint");
+    body
+}
+
 /// **The keyway**: the unit cylinder about +Z carrying ONE face whose
 /// loop is the U-shaped iso domain below, and a second face (the
 /// complement, on the same surface) closing the two-manifold. Vertices
@@ -75,10 +85,12 @@ pub fn keyway() -> (Body<f64>, FaceKey) {
         seed.face,
         FaceSurface::New {
             surface: Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -152,10 +164,12 @@ pub fn oblique_lens() -> (Body<f64>, FaceKey) {
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -218,10 +232,12 @@ pub fn slit() -> (Body<f64>, FaceKey) {
         seed.face,
         FaceSurface::New {
             surface: Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -309,10 +325,12 @@ pub fn pole_crossing_half_cap() -> (Body<f64>, FaceKey, FaceKey) {
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -376,10 +394,12 @@ pub fn apex_crossing_bowtie() -> (Body<f64>, FaceKey, FaceKey) {
         seed.face,
         FaceSurface::New {
             surface: Surface::Cone {
-                apex: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 half_angle: core::f64::consts::FRAC_PI_4,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },

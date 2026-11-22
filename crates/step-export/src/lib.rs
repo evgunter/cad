@@ -126,20 +126,19 @@
 //!   ratification, restated in `geom_brep::enters`). STEP has a field
 //!   that means exactly this, so the mapping is an identity and not a
 //!   conversion: `ADVANCED_FACE`'s `same_sense` is `Face::sense`,
-//!   emitted `.T.`/`.F.`. The surface's `AXIS2_PLACEMENT_3D` axis
+//!   emitted `.T.`/`.F.` — negated only on a face of a void's shell,
+//!   which is written reversed on purpose (below). The surface's
+//!   `AXIS2_PLACEMENT_3D` axis
 //!   stays the stored **chart** normal (with `ref_direction` the
 //!   stored `u_ref`, ⊥ normal by the same convention) — correct
 //!   precisely *because* `same_sense` carries the flip: the reversal
 //!   is stated once, in the field the schema provides for it, and the
-//!   exported surface stays the true surface. Since M5 S11 the sweep
-//!   constructors mint `sense: false` on walls whose material lies
-//!   against the chart normal — concave extrude walls, revolve's
+//!   exported surface stays the true surface. The sweep constructors
+//!   mint `sense: false` on walls whose material lies against the
+//!   chart normal — concave extrude walls, revolve's
 //!   bore/cone/sphere/torus bands, and the under-side annulus that
-//!   rides with them. Every such wall is curved or rides on a curved
-//!   body, so before M5 PR 13 no `.F.` could reach the emitter; with
-//!   the curved arms landed it does, and the planar goldens are
-//!   nevertheless byte-unchanged (no planar-only body at rest mints a
-//!   reversed face).
+//!   rides with them — and a boolean keeps a face on its operand's
+//!   plane record wherever that record's chart faces out of the result.
 //! - An edge's certified carrier parameter runs `start(he_plus) →
 //!   end(he_plus)` (the M2 forward contract on `Edge::he_plus`), so
 //!   every `EDGE_CURVE` has `same_sense = .T.` with its vertices taken
@@ -149,25 +148,48 @@
 //!   normal and rings clockwise (interior-left), which is precisely
 //!   STEP's convention for `FACE_OUTER_BOUND`/`FACE_BOUND` with
 //!   orientation `.T.` — the stored direction is emitted unchanged.
-//!   This holds for either face sense and the flag is never flipped:
-//!   the schema *composes* a bound's orientation with the owning
+//!   This holds for either face sense and the flag does not follow
+//!   it: the schema *composes* a bound's orientation with the owning
 //!   face's `same_sense`, so with the sense already emitted above, a
-//!   second flip here would double-count it.
+//!   second flip here would double-count it. The flag is `.F.` only on
+//!   a void's shell, every face of which is written reversed (below).
 //!
 //! # Solids, shells, and voids
 //!
-//! Each solid exports as one `CLOSED_SHELL` under its own
-//! `MANIFOLD_SOLID_BREP`. A solid at rest holds one `Outer` shell and
-//! any number of `Void`s (tier 3, check 10), so a solid with more than
-//! one shell holds a cavity: the writer reads its shells' roles off
-//! `topo::classify_shells_of`, the kernel's one shell-role reader, and
-//! **refuses** the first void with
-//! [`StepExportError::VoidShellUnsupported`] — `BREP_WITH_VOIDS` needs
-//! a void-to-containing-shell association the kernel does not yet
-//! record, and guessing it would be a silent lie. A shell whose volume
-//! the door cannot measure at its reporting target refuses as
-//! [`StepExportError::ShellUnclassified`]. Single-shell solids are
-//! never classified: the at-rest gate owns a lone shell's orientation.
+//! A solid at rest is one piece of material: one `Outer` shell and the
+//! `Void` shells of its cavities (tier 3, check 10). So the solid
+//! itself is the association ISO 10303-42's `brep_with_voids` states
+//! between a void and its outer shell, and each solid exports as one
+//! representation item:
+//!
+//! - a one-shell solid as a `MANIFOLD_SOLID_BREP` over its
+//!   `CLOSED_SHELL`;
+//! - a solid with cavities as `BREP_WITH_VOIDS(name, #outer, (voids…))`,
+//!   its `Outer` shell as the outer `CLOSED_SHELL` and each `Void`, in
+//!   stored order, as an `ORIENTED_CLOSED_SHELL('', *, #shell, .F.)`.
+//!
+//! **The void's orientation.** An `oriented_closed_shell` with
+//! orientation `.F.` *is* its `closed_shell_element` with every face
+//! reversed (Part 42, `oriented_closed_shell.cfs_faces`), and
+//! `brep_with_voids` takes its voids with orientation `.F.`: the
+//! element is written as a closed shell in its own right, its faces
+//! pointing out of the cavity it encloses (into the material), and the
+//! `.F.` turns them to face away from the material, the way every face
+//! of a solid does. A kernel `Void` shell already points its faces into
+//! its cavity, away from the material, so the element is that shell
+//! with every face reversed — `same_sense` negated and each bound
+//! `.F.` — and the `.F.` reverses it back. Open CASCADE writes and
+//! reads a void the same way (its writer reverses the void shell and
+//! states `.F.`; its reader reverses a `.F.` void back), so a foreign
+//! reader sees the cavity's material on the side the kernel does.
+//!
+//! The roles are read off `topo::classify_shells_of`, the kernel's one
+//! shell-role reader, for every multi-shell solid before anything is
+//! emitted; a shell whose volume the door cannot measure at its
+//! reporting target refuses as [`StepExportError::ShellUnclassified`].
+//! Single-shell solids are never classified: the at-rest gate owns a
+//! lone shell's orientation, and their records are the ones a
+//! `MANIFOLD_SOLID_BREP` always carried.
 //!
 //! # Determinism (D9)
 //!
@@ -202,7 +224,7 @@
 use std::collections::HashMap;
 
 use geom_core::Tol;
-use topo::{AtRestBody, EdgeKey, FaceKey, LoopKey, ShellKey};
+use topo::{AtRestBody, EdgeKey, FaceKey, LoopKey};
 
 mod real;
 mod writer;
@@ -281,19 +303,6 @@ pub enum StepExportError {
     /// with no shells) — an empty DATA section would be a conformance
     /// defect, so the writer refuses.
     NothingToExport,
-    /// A multi-shell solid contains a void shell (a cavity wall,
-    /// `topo::ShellRole::Void`). `BREP_WITH_VOIDS` needs the kernel's
-    /// void-to-outer-shell designation, which does not exist yet;
-    /// exporting the void as a solid would be silently wrong, so the
-    /// writer refuses.
-    VoidShellUnsupported {
-        /// The void shell.
-        shell: ShellKey,
-        /// The low end of its signed-volume enclosure (m³).
-        volume_lo: f64,
-        /// The high end of its signed-volume enclosure (m³).
-        volume_hi: f64,
-    },
     /// `topo::classify_shells_of` refused a shell of a multi-shell
     /// solid. On a body at rest its role reading is check 10's and
     /// cannot refuse here, so the refusal is the door's measurement of
@@ -365,17 +374,6 @@ impl StepExportError {
             Self::NothingToExport => {
                 f.write_str("step export: the body contains no exportable shell")
             }
-            Self::VoidShellUnsupported {
-                shell,
-                volume_lo,
-                volume_hi,
-            } => write!(
-                f,
-                "step export: shell {shell:?} of a multi-shell solid is a void cavity \
-                 (signed volume in [{volume_lo}, {volume_hi}] m\u{b3}); BREP_WITH_VOIDS export needs the \
-                 kernel's void-shell designation (future work), refusing rather than \
-                 exporting a void as material"
-            ),
             Self::ShellUnclassified { source } => write!(
                 f,
                 "step export: a shell of a multi-shell solid cannot be classified \
@@ -457,7 +455,7 @@ impl Default for StepOptions {
 /// # Errors
 ///
 /// [`StepExportError`] — out-of-subset geometry, mid-surgery bodies,
-/// non-finite values, void shells, corrupt structure. Finished planar
+/// non-finite values, corrupt structure. Finished planar
 /// bodies from the public construction APIs export cleanly.
 pub fn step_string(
     body: &AtRestBody<f64>,

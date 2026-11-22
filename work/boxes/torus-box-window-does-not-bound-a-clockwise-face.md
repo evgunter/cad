@@ -21,7 +21,7 @@ boundary pcurves into a chart rectangle. That rectangle bounds the patch
 the loop encloses in the chart. A face whose loop runs clockwise under
 its outward normal holds the other side of that loop, the rest of the
 torus. The window still answers the patch rectangle, so the box it
-yields does not contain the face. `boolean::torus_region`, which reads
+yields does not contain the face. `torus_region`, which reads
 the side from the loop's orientation, reads such a face as the
 complement (`solid_contain`'s `stated_periods_rows`, the clockwise wall
 `boxes::tests::torus_wall_clockwise`).

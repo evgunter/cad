@@ -42,7 +42,7 @@
 //! radius below ρ meets the carrier in one disc. With no vertex or edge of the face inside the
 //! ball, the face holds all of that disc or none of it, and the foot,
 //! placed `Out` of the face by its door
-//! ([`super::contain::curved_face_placement`]), says none. Every edge is
+//! ([`crate::contain::curved_face_placement`]), says none. Every edge is
 //! decided clear by a lower bound on its distance from the foot
 //! ([`edge_clear_of_ball`]).
 //!
@@ -56,10 +56,10 @@
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
 use super::BooleanError;
-use super::contain::{ContainError, CurvedPlacement, FaceContainment};
 use super::{BooleanDecision, reduce};
 use crate::body::Body;
 use crate::boxes;
+use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::live::BoundaryMember;
 use crate::validate::decide;
@@ -170,17 +170,14 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
         (a * h, off)
     };
     match *surface {
-        geom::Surface::Sphere { center, radius, .. } => {
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let w = q - center;
             let (w_hat, n) = w.direction_and_length();
             Some((n - radius, center + w * (radius / n), w_hat))
         }
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let (along, across) = split(origin, axis);
             let (across_hat, rho) = across.direction_and_length();
             Some((
@@ -190,19 +187,20 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
             ))
         }
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (_, across) = split(center, axis);
             let core = center + across * (major_radius / across.norm());
             let v = q - core;
             let (v_hat, d) = v.direction_and_length();
             Some((d - minor_radius, core + v * (minor_radius / d), v_hat))
         }
-        geom::Surface::Plane { origin, normal, .. } => {
+        geom::Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
             let n = normal.normalize();
             let d = (q - origin).dot(n);
             Some((d, q - n * d, n))
@@ -343,7 +341,7 @@ fn ball_off_face<T: Decide + Bounds>(
     }
     // OffCarrier → not clear (the foot is on the carrier by construction).
     let foot = crate::held::Held::constructed(foot, "the foot of the ball on the face's carrier");
-    match super::contain::placement_on_carrier(y, face, foot, band).map(|(at, _, _)| at) {
+    match crate::contain::placement_on_carrier(y, face, foot, band).map(|(at, _, _)| at) {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => Ok(true),
         Ok(_)
         | Err(
@@ -373,7 +371,7 @@ fn ball_off_face<T: Decide + Bounds>(
             },
             diag,
         }),
-        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(ContainError::StaleFace(face)) => crate::contain::driver_face_stale(face),
     }
 }
 

@@ -148,15 +148,12 @@ fn doc_param_edit_recomputes_the_param_cone() {
     assert_eq!(vol, 8.0 - 21.0 * 0.25 * 0.25 * 0.0625); // 7.91796875
 }
 
-/// **The negative-depth refusal is true whatever drives the depth.**
-/// Here a document parameter does, so there is no minus sign in the
-/// extrude to delete: the sentence quotes the value the depth
-/// evaluated to and says its sign comes from what drives it, and the
-/// recourse — the parameter made positive, the block's copy turned
-/// over — builds the block on the other side of the sketch plane.
+/// **A depth is signed, whatever drives it.** Here a document parameter
+/// does: at `−0.25` the block lies a quarter below its sketch plane, and
+/// made `+0.25` it lies a quarter above.
 #[test]
-fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
-    use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, NodeErrorKind, VarName};
+fn a_parameter_driven_depth_builds_on_the_side_its_sign_says() {
+    use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, VarName};
     let h = VarName::from_static("h");
     let mut r = fixture::Recorder::new();
     r.push(DocEdit::DeclareVar {
@@ -173,33 +170,22 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         profile: profile.into(),
         distance: Formula::named(h.clone(), Dimension::Length),
     });
-    let ev = run(&r.doc, None, false);
-    let text = match ev.nodes.get(&block) {
-        Some(NodeResult::Failed(e)) => {
-            assert!(
-                matches!(
-                    e.kind,
-                    NodeErrorKind::Extrude(sweep::ExtrudeError::NegativeDepth {
-                        side: sweep::ExtrudeSide::Along,
-                        ..
-                    })
-                ),
-                "{:?}",
-                e.kind
-            );
-            e.kind.to_string()
-        }
-        other => panic!("a negative depth refuses, got {other:?}"),
+    let heights = |doc: &ProfileDoc| {
+        let ev = run(doc, None, false);
+        let body = match &ev.value(block).expect("the block builds").payload {
+            ValuePayload::Body(b) => b,
+            other => panic!("expected a body, got {}", other.kind_name()),
+        };
+        let mut z: Vec<f64> = crate::fixture::in_space(body)
+            .vertex_points()
+            .map(|(_, p)| p.z)
+            .collect();
+        z.sort_by(f64::total_cmp);
+        z.dedup();
+        z
     };
-    for want in [
-        "evaluated to -0.25 m",
-        "a parameter",
-        "set the side to against the sketch normal",
-    ] {
-        assert!(text.contains(want), "{want:?} in: {text}");
-    }
-
-    let mended = r
+    assert_eq!(heights(&r.doc), [-0.25, 0.0], "a quarter below the plane");
+    let raised = r
         .doc
         .apply(
             &DocEdit::DefineVar {
@@ -209,28 +195,9 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
             },
             Tol::witness(),
         )
-        .expect("the recourse's edit")
+        .expect("the parameter is redefined")
         .doc;
-    // The block's copy turned over about its own x: its z reversed.
-    let (mended, turned) = fixture::against(
-        mended,
-        block,
-        block,
-        &fixture::axes_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
-    );
-    let ev = run(&mended, None, false);
-    let body = match &ev.value(turned).expect("the recourse builds").payload {
-        ValuePayload::Body(b) => b,
-        other => panic!("expected a body, got {}", other.kind_name()),
-    };
-    let mut z: Vec<f64> = crate::fixture::in_space(body)
-        .vertex_points()
-        .map(|(_, p)| p)
-        .map(|p| p.z)
-        .collect();
-    z.sort_by(f64::total_cmp);
-    z.dedup();
-    assert_eq!(z, [-0.25, 0.0], "below the sketch plane, a quarter deep");
+    assert_eq!(heights(&raised), [0.0, 0.25], "a quarter above the plane");
 }
 
 #[test]

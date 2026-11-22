@@ -152,17 +152,13 @@ fn the_azimuth_inf_arm_is_a_floor_per_kind() {
     let x = Vec3::new(1.0, 0.0, 0.0);
     let inf = |s: &Surface<f64>, lo: f64, hi: f64| super::super::azimuth_lever_inf(s, lo, hi).get();
     let cylinder = Surface::Cylinder {
-        origin: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         radius: 2.0,
-        u_ref: x,
     };
     assert_eq!(inf(&cylinder, -5.0, 5.0), 2.0, "a cylinder");
     let sphere = Surface::Sphere {
-        center: o,
+        frame: geom::Frame::new(o, z, x),
         radius: 2.0,
-        axis: z,
-        u_ref: x,
     };
     assert_eq!(
         inf(&sphere, -0.3, 0.1),
@@ -175,19 +171,15 @@ fn the_azimuth_inf_arm_is_a_floor_per_kind() {
     );
     assert!(inf(&sphere, 0.0, 7.0) < 1e-15, "past the pole");
     let torus = |major_radius, minor_radius| Surface::Torus {
-        center: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         major_radius,
         minor_radius,
-        u_ref: x,
     };
     assert_eq!(inf(&torus(3.0, 1.0), -1.0, 1.0), 2.0, "a ring torus");
     assert_eq!(inf(&torus(1.0, 3.0), -1.0, 1.0), 0.0, "a spindle torus");
     let cone = Surface::Cone {
-        apex: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         half_angle: 0.5,
-        u_ref: x,
     };
     assert_eq!(inf(&cone, 1.0, 2.0), 0.5_f64.sin(), "a cone off its apex");
     assert_eq!(
@@ -214,31 +206,25 @@ fn the_inf_arm_is_a_floor_at_f64_and_interval() {
     let kinds: [Kind; 3] = [
         (
             Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, z, x),
                 radius: 2.0,
-                axis: z,
-                u_ref: x,
             },
             |v: f64| 2.0 * v.cos().abs(),
             (-half, half),
         ),
         (
             Surface::Torus {
-                center: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 major_radius: 3.0,
                 minor_radius: 1.0,
-                u_ref: x,
             },
             |v: f64| (3.0 + v.cos()).abs(),
             (-4.0, 4.0),
         ),
         (
             Surface::Cone {
-                apex: o,
-                axis: z,
+                frame: geom::Frame::new(o, z, x),
                 half_angle: 0.5,
-                u_ref: x,
             },
             |v: f64| v.abs() * 0.5_f64.sin(),
             (-3.0, 3.0),
@@ -271,23 +257,29 @@ fn the_inf_arm_is_a_floor_at_f64_and_interval() {
         let f = Interval::from_f64;
         let si: Surface<Interval> = match *s {
             Surface::Sphere { .. } => Surface::Sphere {
-                center: Point3::new(f(0.0), f(0.0), f(0.0)),
+                frame: geom::Frame::new(
+                    Point3::new(f(0.0), f(0.0), f(0.0)),
+                    Vec3::new(f(0.0), f(0.0), f(1.0)),
+                    Vec3::new(f(1.0), f(0.0), f(0.0)),
+                ),
                 radius: f(2.0),
-                axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
-                u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
             },
             Surface::Torus { .. } => Surface::Torus {
-                center: Point3::new(f(0.0), f(0.0), f(0.0)),
-                axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
+                frame: geom::Frame::new(
+                    Point3::new(f(0.0), f(0.0), f(0.0)),
+                    Vec3::new(f(0.0), f(0.0), f(1.0)),
+                    Vec3::new(f(1.0), f(0.0), f(0.0)),
+                ),
                 major_radius: f(3.0),
                 minor_radius: f(1.0),
-                u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
             },
             _ => Surface::Cone {
-                apex: Point3::new(f(0.0), f(0.0), f(0.0)),
-                axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
+                frame: geom::Frame::new(
+                    Point3::new(f(0.0), f(0.0), f(0.0)),
+                    Vec3::new(f(0.0), f(0.0), f(1.0)),
+                    Vec3::new(f(1.0), f(0.0), f(0.0)),
+                ),
                 half_angle: f(0.5),
-                u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
             },
         };
         for (v0, v1) in [

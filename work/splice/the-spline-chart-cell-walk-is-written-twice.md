@@ -12,7 +12,7 @@ cost: M
 Filed by `pcert/spline-chart-incidence`. `geom-brep/src/pcurve_cache/spline_incidence.rs`
 (a carrier's incidence on a spline chart) and `topo/src/spline_trim.rs`
 (a point against a spline face's trim, and the cells the boolean's carrier walk
-in `topo/src/boolean/spline_region.rs` reads) each cut the chart into Bézier cells and walk them
+in `topo/src/spline_region.rs` reads) each cut the chart into Bézier cells and walk them
 by a hull lower bound and a chart-point upper bound. Differences worth one home:
 
 - Both cuts now refine the homogeneous net through the kernel's insertion plans
@@ -24,7 +24,7 @@ by a hull lower bound and a chart-point upper bound. Differences worth one home:
   rounding, and the charge is **written twice**: `splice/spline-region-charge`
   (`work/splice/spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor.md`)
   copied `Control`, `blend`, `refined`, `point_rounding` and the floor's
-  `rounding_charge` into `topo/src/boolean/spline_region.rs` (now `topo/src/spline_trim.rs`) instead of moving
+  `rounding_charge` into `topo/src/spline_region.rs` (now `topo/src/spline_trim.rs`) instead of moving
   them to one home, because a live PCERT branch
   (`pcert/spline-certificate-door`) was editing `spline_incidence.rs` at the
   time. topo's copy also charges the trim's pieces (`Piece::bbox`) and holds

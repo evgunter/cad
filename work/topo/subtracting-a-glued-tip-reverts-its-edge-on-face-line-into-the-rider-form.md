@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-14
 priority: P2
 cost: M
-refs: [revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet, census-passes-a-face-inside-an-edges-material-wedge]
+refs: [revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet]
 closed: 2026-10-26
 ---
 

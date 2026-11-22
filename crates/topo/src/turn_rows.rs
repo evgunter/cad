@@ -16,8 +16,8 @@ use geom_core::k_stats::decide;
 use geom_core::period::Extent;
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Sign, Tol};
 
-use crate::boolean::solid_contain::trim_window_short;
 use crate::chart_region::{ChartRegionError, cyl_wrap_whole, seam_span_over};
+use crate::solid_contain::trim_window_short;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).expect("the witness band")

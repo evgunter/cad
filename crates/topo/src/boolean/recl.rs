@@ -66,7 +66,7 @@ use geom_brep::CarrierRelation;
 /// - two planes, on `on`, the reading that put the first sector on the
 ///   second's plane ([`super::unglued_corner`]).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn require_same<T: Decide>(
+pub(super) fn require_same<T: crate::props::AtRestPolicy>(
     body1: &Body<T>,
     o1: super::Operand,
     s1: &BoolSector<T>,
@@ -133,7 +133,7 @@ fn cancel_uniform(r: &mut PairRecord) {
 /// from ([`super::sectors::germ_locus`]); a declared-`Tangent` record's
 /// is overwritten with its second-order reading.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn recl_sectors<T: Decide>(
+pub(super) fn recl_sectors<T: crate::props::AtRestPolicy>(
     records: &mut [PairRecord],
     first_read: &mut [PairRecord],
     a_sectors: &[BoolSector<T>],
@@ -588,7 +588,7 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 /// its two half-edges at this vertex, A's then B's, on `touches`, for
 /// the reduction's edge-edge row.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn recl_edges<T: Decide>(
+pub(super) fn recl_edges<T: crate::props::AtRestPolicy>(
     records: &mut Vec<PairRecord>,
     first_read: &mut Vec<PairRecord>,
     a_sectors: &[BoolSector<T>],
@@ -1486,7 +1486,7 @@ fn line_unread_of<T: Decide>(
 /// Returns the reading with each wedge's two flanks' membership in the
 /// other's material, A's then B's.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn resolve_edge_edge<T: Decide>(
+pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     a_body: &Body<T>,
@@ -1901,7 +1901,7 @@ fn edge_sector_crossing(
 /// the other solid's start-holder twin when the ray also grazes its
 /// bisector.
 #[allow(clippy::too_many_arguments)]
-fn resolve_edge_sector<T: Decide>(
+fn resolve_edge_sector<T: crate::props::AtRestPolicy>(
     records: &[PairRecord],
     first_read: &[PairRecord],
     a_sectors: &[BoolSector<T>],
@@ -2974,10 +2974,8 @@ mod tests {
         // Curved flanks: a unit cylinder along z resting on the plane
         // y = 0, tangent along the common line.
         let (ca, fca) = face_on(geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 1.0, 0.0),
-            axis: z,
+            frame: geom::Frame::new(Point3::new(0.0, 1.0, 0.0), z, x),
             radius: 1.0,
-            u_ref: x,
         });
         let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
         // Two skeletal faces, each a ruled carrier whose outer loop is a
@@ -3118,10 +3116,8 @@ mod tests {
         );
         let (pa, fa) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
         let bore = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, -1.0, 0.0),
-            axis: z,
+            frame: geom::Frame::new(Point3::new(0.0, -1.0, 0.0), z, y),
             radius: 1.0,
-            u_ref: y,
         };
         // A bore: the material outside the cylinder.
         let bend_b = crate::bound_side::FaceBend::at(&bore, false, o);
@@ -3129,8 +3125,7 @@ mod tests {
         // The bore's circle through the point, leaving along `x`.
         let circle = geom::Curve3::circle(Point3::new(0.0, -1.0, 0.0), -z, 1.0, y);
         let span = std::f64::consts::FRAC_PI_4;
-        let extent =
-            geom_brep::edge_extent_inf(&circle, 0.0, span, (circle.eval(0.0), circle.eval(span)));
+        let extent = geom_brep::edge_extent_inf(&circle, 0.0, span);
         let tangent = circle.deriv(0.0);
         let arc = (
             tangent.normalize() * extent.length(),

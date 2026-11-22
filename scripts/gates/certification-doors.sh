@@ -217,6 +217,7 @@ CERT_IMPORTERS=(
   crates/geom-brep/src/pair_section/spline_implicit/curved.rs
   crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs
   crates/geom-brep/src/patch_bound.rs
+  crates/geom-brep/src/patch_carrier.rs
   crates/geom-brep/src/pcurve_cache/speed.rs
   crates/geom-brep/src/props/bracket.rs
   crates/geom-brep/src/props/quad/area.rs
@@ -236,6 +237,7 @@ CERT_IMPORTERS=(
   crates/geom-brep/src/ssi/enclose.rs
   crates/geom-brep/src/ssi/exhaust.rs
   crates/geom-brep/src/ssi/four.rs
+  crates/geom-brep/src/ssi/node.rs
   crates/geom-brep/src/ssi/residual.rs
   crates/geom-brep/src/ssi/section.rs
   crates/geom-core/src/spline/algebra.rs
@@ -249,6 +251,8 @@ CERT_IMPORTERS=(
   crates/geom/src/curves/second_derivative.rs
   crates/mesh/src/chords.rs
   crates/mesh/src/nurbs_cert.rs
+  crates/step-import/src/on_built.rs
+  crates/step-import/src/recognize_curve.rs
   crates/topo/src/props/quad_lane.rs
 )
 

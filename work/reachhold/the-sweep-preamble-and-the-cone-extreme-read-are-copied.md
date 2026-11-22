@@ -22,7 +22,7 @@ first review (r1 Q1).
 - `reduce::conic_clearance`'s cone arm
   (`crates/topo/src/boolean/reduce.rs:2655-2671`) re-spells
   `conic_quadric::first_harmonic_arm`'s extreme read
-  (`crates/topo/src/boolean/conic_quadric/mod.rs:282`):
+  (`crates/geom-brep/src/curve_face/conic_quadric.rs`):
   `c₀ ∓ (A₁ + A₂ + noise)`.
 
 ## The fix owed

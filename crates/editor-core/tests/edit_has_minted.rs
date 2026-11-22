@@ -139,26 +139,23 @@ fn the_answer_survives_a_save_load_round_trip() {
     let (doc, scratch) = insert(doc, Node::Profile(desc(vec![square(4.0, 4.0, 1.0)])));
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: scratch });
 
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     let loaded = load(&text, Tol::witness()).expect("and loads");
 
     for id in [profile, extrude, scratch] {
         assert_eq!(
-            loaded.doc.has_minted(id),
+            loaded.has_minted(id),
             doc.has_minted(id),
             "the round trip changed the minting answer for {id:?}"
         );
-        assert!(
-            loaded.doc.has_minted(id),
-            "{id:?} was minted before the save"
-        );
+        assert!(loaded.has_minted(id), "{id:?} was minted before the save");
     }
     assert!(
-        loaded.doc.node(scratch).is_none(),
+        loaded.node(scratch).is_none(),
         "the deleted node did not come back"
     );
     assert!(
-        !loaded.doc.has_minted(next_mint(&doc)),
+        !loaded.has_minted(next_mint(&doc)),
         "and the load did not advance the mint past what was saved"
     );
 }

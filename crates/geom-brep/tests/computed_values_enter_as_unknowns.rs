@@ -60,7 +60,10 @@ fn the_plane_nurbs_lanes_computed_values_are_unknowns() {
             "ssi_tube_transversality",
         ]
         .map(|p| (p, revalued(p)));
-        let SsiTube::Chart { rung, pad_u, pad_v } = limbs.tube else {
+        let SsiTube::Chart {
+            rung, pad_u, pad_v, ..
+        } = limbs.tube
+        else {
             panic!(
                 "plane × NURBS proves its tube on the chart: {:?}",
                 limbs.tube

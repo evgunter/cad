@@ -370,8 +370,8 @@ fn a_polygonal_ring_beside_a_hole_rim_is_metered_against_its_trim_circle() {
         .filter(|k| {
             let e = body.get_edge(*k).unwrap();
             let g = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            matches!(*g.carrier(), geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. })
-                if (center.z - 1.0).abs() < 1e-9)
+            matches!(*g.carrier(), geom::Curve3::Circle(geom::Circle { frame, .. })
+                if (frame.origin().z - 1.0).abs() < 1e-9)
         })
         .collect();
     assert!(!rim.is_empty(), "the hole's top rim");
@@ -541,7 +541,8 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
         let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             shown.contains(
-                "an open chain link is not plane–plane, ruled, or a torus between two junctions"
+                "an open chain link is not plane–plane, ruled, or a band of revolution between \
+                 two junctions"
             ) && shown.contains(FILLET3_ASSEMBLY_RECOURSE),
             "{shown}"
         );
@@ -565,10 +566,10 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
     // segment so the OPEN clause's ruled cylinder link, which is a
     // different door, cannot satisfy it by accident.
     let closed_clause = FILLET3_ASSEMBLY_RECOURSE
-        .split_once("For a fillet, ")
+        .split_once("CAPS. ")
         .expect("the assembly sentence's closed clause opens with its verb condition")
         .1;
-    for want in ["coaxial surfaces of revolution", "latitude rim"] {
+    for want in ["whole latitude rim", "rings clear of the band's setback"] {
         assert!(
             closed_clause.contains(want),
             "the assembly recourse's closed clause must name the plane–cylinder rim \

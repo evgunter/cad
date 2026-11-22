@@ -3,7 +3,7 @@
 //! splitting engine's loop walk answers. It names both engines, so it
 //! lives at the root (`[topo.homes]`).
 
-use crate::boolean::ContainError;
+use crate::contain::ContainError;
 use crate::splitting::PointInLoopError;
 
 impl From<PointInLoopError> for ContainError {

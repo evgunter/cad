@@ -25,10 +25,12 @@ const R: f64 = 2.0;
 fn sphere(c: Vec3<f64>) -> Surface<f64> {
     let k = 1.0 / 3.0_f64.sqrt();
     Surface::Sphere {
-        center: p3(c.x, c.y, c.z),
+        frame: geom::Frame::new(
+            p3(c.x, c.y, c.z),
+            v3(k, k, -k),
+            v3(1.0, -1.0, 0.0) * (1.0 / 2.0_f64.sqrt()),
+        ),
         radius: R,
-        axis: v3(k, k, -k),
-        u_ref: v3(1.0, -1.0, 0.0) * (1.0 / 2.0_f64.sqrt()),
     }
 }
 
@@ -117,10 +119,8 @@ fn a_pole_free_tilted_cap_holds_its_sense_against_its_boundary() {
     use geom_brep::props::{MaterialSign, PropsError, boundary_material_sign};
     use geom_core::Sign;
     let sphere = Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: R,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rho = R * 0.75_f64.sqrt();
     let rim = |a: f64, b: f64| {
@@ -177,10 +177,8 @@ fn a_pole_free_tilted_cap_holds_its_sense_against_its_boundary() {
 #[test]
 fn holes_that_overlap_bound_no_face_under_either_bit() {
     let s = Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: 1.0,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let cap = |th: f64, forward: bool| {
         LoopEdge::hand_built(
@@ -233,10 +231,8 @@ fn the_sphere_less_two_caps_measures_under_its_encoded_side() {
     let (a, b) = (0.5_f64, 0.4_f64);
     let pole = v3(a.cos(), 0.0, a.sin());
     let s = Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), pole, v3(-a.sin(), 0.0, a.cos())),
         radius: R,
-        axis: pole,
-        u_ref: v3(-a.sin(), 0.0, a.cos()),
     };
     // A whole circle about `axis` at angular radius `th`, run clockwise
     // about it, so the cap it bounds is on its right.
@@ -316,10 +312,8 @@ fn a_thin_cap_in_a_general_pose_keeps_the_fans_absolute_floor() {
     let c = v3(0.3, -1.1, 0.7);
     let d = v3(0.8, 0.5, 0.33);
     let s = Surface::Sphere {
-        center: p3(c.x, c.y, c.z),
+        frame: geom::Frame::new(p3(c.x, c.y, c.z), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: R,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     for n in [1usize, 3, 7] {
         // From well clear of the area decide's band (`props_sphere_loop_area`,

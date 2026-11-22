@@ -149,14 +149,10 @@ fn a_plane_cutting_the_blades_loft_clears() {
         .collect();
     assert_eq!(walls.len(), 2, "the blade's two walls");
     let across = Surface::Plane {
-        origin: Point3::new(0.5, 0.0, 0.0),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(0.5, 0.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
     };
     let along = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, -0.01),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, -0.01), Vec3::unit_z(), Vec3::unit_x()),
     };
     for (what, plane) in [("across the spine", &across), ("lengthwise", &along)] {
         for (i, w) in walls.iter().enumerate() {
@@ -189,8 +185,10 @@ fn cap_and_walls(body: &Body<f64>) -> (Surface<f64>, Vec<Surface<f64>>) {
     let mut walls = Vec::new();
     for (fk, _) in body.faces() {
         match body.face_surface(fk) {
-            Some(s @ Surface::Plane { origin, normal, .. })
-                if normal.y.abs() < 1e-9 && normal.z.abs() < 1e-9 && origin.x.abs() < 1e-9 =>
+            Some(s @ Surface::Plane { frame, .. })
+                if frame.axis().y.abs() < 1e-9
+                    && frame.axis().z.abs() < 1e-9
+                    && frame.origin().x.abs() < 1e-9 =>
             {
                 cap = Some(s.clone());
             }
@@ -207,14 +205,10 @@ fn lilys_pairs(tol: Tol) -> Vec<(String, Surface<f64>, Surface<f64>)> {
     let (leaf_cap, leaf_walls) = cap_and_walls(&leaf);
     let (sheath_cap, sheath_walls) = cap_and_walls(&sheath);
     let across = Surface::Plane {
-        origin: Point3::new(0.5, 0.0, 0.0),
-        normal: Vec3::unit_x(),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(0.5, 0.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
     };
     let cut = |origin: Point3<f64>, normal: Vec3<f64>| Surface::Plane {
-        origin,
-        normal: normal * (1.0 / normal.norm()),
-        u_ref: Vec3::unit_y(),
+        frame: geom::Frame::new(origin, normal * (1.0 / normal.norm()), Vec3::unit_y()),
     };
     let cuts = [
         (
@@ -379,9 +373,7 @@ fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
         .expect("samples");
     let h = peak.z - 2e-3;
     let plane = Surface::Plane {
-        origin: Point3::new(peak.x, 0.0, h),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(peak.x, 0.0, h), Vec3::unit_z(), Vec3::unit_x()),
     };
     let Ok(geom_brep::SectionRead::Built(section)) = geom_brep::pair_section(
         &plane,
@@ -420,8 +412,8 @@ fn a_spline_witness_by_an_edge_is_placed_on_the_widened_band() {
         block
             .faces()
             .find_map(|(k, _)| match block.face_surface(k) {
-                Some(s @ Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && (origin.z - h).abs() < 1e-12 =>
+                Some(s @ Surface::Plane { frame, .. })
+                    if frame.axis().z.abs() > 0.5 && (frame.origin().z - h).abs() < 1e-12 =>
                 {
                     Some((k, s.clone()))
                 }

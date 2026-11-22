@@ -26,7 +26,7 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, Convexity, CornerConfig};
+use sweep::blend::{BlendError, Convexity, UnbuiltEnd};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary};
@@ -71,15 +71,10 @@ fn concave_carve() -> (Body<f64>, Vec<FaceKey>) {
 /// which for a sphere octant are exactly its corner points.
 fn chart_and_feet(body: &Body<f64>, face: FaceKey) -> (Vec3<f64>, Vec3<f64>, Vec<Vec3<f64>>) {
     let f = body.get_face(face).expect("a minted corner face");
-    let Surface::Sphere {
-        center,
-        axis,
-        u_ref,
-        ..
-    } = body.face_surface(face).expect("its surface")
-    else {
+    let Surface::Sphere { frame, .. } = body.face_surface(face).expect("its surface") else {
         panic!("a fillet corner patch is a sphere octant");
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let LoopBoundary::Cycle { first } = body.get_loop(f.outer).expect("an outer loop").boundary
     else {
         panic!("a minted face's boundary is a cycle");
@@ -94,10 +89,10 @@ fn chart_and_feet(body: &Body<f64>, face: FaceKey) -> (Vec3<f64>, Vec3<f64>, Vec
                 .get_vertex(vk)
                 .and_then(|x| body.get_point(x.point))
                 .expect("a boundary vertex's point");
-            (q - *center).normalize()
+            (q - center).normalize()
         })
         .collect();
-    (*axis, *u_ref, feet)
+    (axis, u_ref, feet)
 }
 
 // ------------------------------------------------------------------
@@ -223,11 +218,15 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
         let mut seen = 0usize;
         for face in corners {
             let f = body.get_face(face).expect("a minted corner face");
-            let Surface::Sphere { center, radius, .. } =
-                body.face_surface(face).expect("its surface")
+            let Surface::Sphere {
+                frame: carrier_frame,
+                radius,
+                ..
+            } = body.face_surface(face).expect("its surface")
             else {
                 panic!("a fillet corner patch is a sphere octant");
             };
+            let center = carrier_frame.origin();
             let LoopBoundary::Cycle { first } =
                 body.get_loop(f.outer).expect("an outer loop").boundary
             else {
@@ -240,24 +239,27 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
                     .get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
                     .expect("a corner arc is described and certified");
-                let Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: ac,
-                            axis: aa,
-                            u_ref: au,
-                        },
-                    radius: ar,
-                }) = *c.carrier()
+                let Curve3::Circle(
+                    circle @ geom::Circle {
+                        frame: carrier_frame_5,
+                        ..
+                    },
+                ) = *c.carrier()
                 else {
                     // A corner patch's cycle also meets the cove
                     // bands' straight trimlines at some fixtures;
                     // only the arcs are this row's subject.
                     continue;
                 };
+                let (ac, aa, au) = (
+                    carrier_frame_5.origin(),
+                    carrier_frame_5.axis(),
+                    carrier_frame_5.u_ref(),
+                );
+                let ar = circle.radius();
                 seen += 1;
                 assert!(
-                    (ac - *center).norm() < 1e-12,
+                    (ac - center).norm() < 1e-12,
                     "{tag}: a corner arc turns about the patch's own ball centre, \
                      got {ac:?} against {center:?}"
                 );
@@ -300,14 +302,14 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
 /// _it_did_before`) asserted its payload's `convex` count rather than
 /// the variant, and said in its own prose why: the variant alone
 /// stays green under a relabelling. Its replacement at the L-bracket
-/// matches `MixedConvexity { .. }` and drops the count, so the
-/// discipline the retired row articulated left the tree with it.
-/// This restores it at the surviving fixture: the bracket's reflex
-/// edge ends at corners where exactly two of three edges are convex,
-/// requested with one floor edge of its corner (all three build, the
-/// mixed corner).
+/// matched the mixed tag and dropped the count, so the discipline the
+/// retired row articulated left the tree with it. This restores it at
+/// the surviving fixture: the bracket's reflex edge ends at corners
+/// where exactly two of three edges are convex, requested with one floor
+/// edge of its corner (all three build, the mixed corner), and the
+/// run-out names the reflex edge as the odd one, concave.
 #[test]
-fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
+fn r2_the_mixed_corner_refusal_names_the_concave_odd_edge() {
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -338,11 +340,9 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
     )
     .expect_err("a mixed corner refuses");
     match refused.error {
-        BlendError::UnsupportedCorner {
-            corner: CornerConfig::MixedConvexity { convex },
-            ..
-        } => assert_eq!(
-            convex, 2,
+        BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: Some(odd), .. }) => assert_eq!(
+            (odd.edge, odd.convexity),
+            (odd_and_one[0], Convexity::Concave),
             "the reflex edge's ends have two convex edges of three"
         ),
         ref other => panic!("expected the corner-configuration refusal, got {other:?}"),

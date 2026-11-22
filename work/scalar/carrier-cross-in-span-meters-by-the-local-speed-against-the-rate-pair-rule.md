@@ -2,10 +2,11 @@
 id: carrier-cross-in-span-meters-by-the-local-speed-against-the-rate-pair-rule
 kind: issue
 title: bool_carrier_cross_in_span meters a root's gap by the carrier's local speed through Margin::of, where the rate-pair rule says Margin::metered with an InfSpeed
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
+closed: 2026-11-10
 ---
 
 
@@ -50,3 +51,7 @@ chord already put past the band, by the greatest speed. The pin was
 renamed `a_swept_spans_end_is_read_by_its_chord_to_the_meeting` and
 holds unchanged. The question stands for `bool_wall_root_in_span`
 alone.
+
+## Closed (2026-11-10, `onecopy/in-span-end-gap`)
+
+`bool_wall_root_in_span`, the last site the question stood for, is read as `carrier_cross`'s was: `reduce.rs`'s `wall_crossing` reads each root against its span by `geom_brep::curve_pair::Span::place_param`, which decides the chord to each end first, in metres, and the side of an end only where the chord puts it past the band. The row retires with it. Neither site meters a root's gap by a local speed through `Margin::of` any longer, so nothing of the question remains. No decision moved (`work/onecopy/an-in-span-read-meters-a-raw-end-margin-named-anywhere.md` holds the measurement).

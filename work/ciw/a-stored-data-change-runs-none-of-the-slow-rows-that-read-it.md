@@ -59,6 +59,15 @@ not give. A lane's local `--profile ci` run excludes the slow set too.
     `split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image`
     reads, left both red on main at every ε;
   - the gate ran neither.
+- **PR 6982** (`boxfinish/rectangle-runs`): its change to check 7's
+  rectangle certificate flipped two slow rows' pins in their bodies
+  (`encl_curved_loft_shell::shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row`,
+  from a refusal to a validated body holding its turned volume) and moved
+  what six faces of
+  `one_segment_loop::a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut`
+  read (refused to certified). The gate's slow-set step selected 0
+  tests on that head; only the lane's local slow-set differential ran
+  them.
 
 **What would close it.** One of, or both: the slow-set step selects by
 the crates a diff's changed SOURCE reaches (a `src` change to a crate
@@ -71,3 +80,5 @@ says what the gate does. The cost side is
 **Until then** an orchestrator whose unit changes stored data asks its
 lane for a head-against-merge-base differential of the slow set, as
 BOXFINISH now does.
+
+- 2026-11-15 — **what the gap costs once a program compensates for it** (BOXFINISH orchestrator). After its merges left slow rows red on main, BOXFINISH requires a head-against-merge-base run of the slow set before any merge. In a lane's 4-vCPU container that is 45 to 70 minutes per tree for `topo`, `sweep` and `editor-core`, twice for the differential, and again after each merge of main: three units paid it on 2026-11-15 (PRs 6979, 6982, 6990), and PR 6972 about three hours of it. A hosted slow-set job on PRs that touch kernel sources would take this off every lane.

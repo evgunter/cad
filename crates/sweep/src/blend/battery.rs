@@ -12,8 +12,8 @@
 //! two-tolerance shape (D4 ¶1 addendum), on every arm, including the
 //! definite ones. Predicate 5, each requested edge's wedge, is the one
 //! read through another door: the edge's wedge fold
-//! (`topo::edge_wedge_as`), which decides each corner's sign under the
-//! blend's own `fillet3_convexity_sign`, and whose in-band or mixed
+//! (`topo::edge_wedge`), which decides each corner's sign as a choice
+//! (`dihedral_sign`), and whose in-band or mixed
 //! reading refuses as [`super::BlendError::WedgeUnsettled`].
 //!
 //! # The ordering claim, stated so it can be attacked
@@ -45,18 +45,21 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_strip,
-    inward_unit, line_meet, offset_room, plane_plane_blend, plane_sphere_blend, plane_sphere_room,
+    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_feet,
+    chamfer_frustum, chamfer_setback_point, chamfer_strip, inward_unit, line_meet, offset_room,
+    plane_plane_blend, plane_sphere_blend, plane_sphere_room,
 };
 use super::build::fan_at;
+use super::junction::JUNCTION_NO_HOST;
 use super::open::end_face::CycleReading;
 use super::surgery::{
-    CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, strip_frame, strip_reading,
-    strip_ring, unbuilt_chain, unbuilt_geometry, unresolved, unwalked,
+    CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, invariant_broken, scaffolding,
+    strip_frame, strip_reading, strip_ring, unbuilt_chain, unbuilt_end, unbuilt_geometry,
+    unresolved, unwalked,
 };
 use super::{
-    BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, KnifeRefusal,
-    UnsettledWedge, classify, classify_positive, classify_reported,
+    BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, KnifeRefusal, OddEdge,
+    UnbuiltEnd, UnsettledWedge, classify, classify_positive, classify_reported,
 };
 
 /// **Does this scalar hold nondegenerate brackets?** — which is the
@@ -278,9 +281,9 @@ pub struct Link<T: Real> {
     pub convexity: Convexity,
     /// The margin that verdict was decided from, kept whole: the sign
     /// the edge's wedge fold decided at its first station
-    /// (`fillet3_convexity_sign`) on a crease, and on a knife link, whose
+    /// (`dihedral_sign`) on a crease, and on a knife link, whose
     /// faces meet smoothly, the end its convexity came from
-    /// (`fillet3_knife_end`).
+    /// (`material_cusp_side`).
     /// The chain's sign-consistency check refuses on a link whose
     /// verdict disagrees with the chain's, and the number that refusal
     /// owes its reader is THIS one — the reading the classifier
@@ -302,6 +305,16 @@ impl<T: Real> Link<T> {
     pub(crate) fn trim_on(&self, face: FaceKey) -> Option<&super::arms::Trim<T>> {
         (self.face_a == face || self.face_b == face)
             .then(|| self.blend.trims(self.face_a == face).0)
+    }
+
+    /// **This link's support across from `face`**: the other of its two
+    /// supports when `face` is one, `face_a` otherwise.
+    pub(crate) fn across(&self, face: FaceKey) -> FaceKey {
+        if self.face_a == face {
+            self.face_b
+        } else {
+            self.face_a
+        }
     }
 }
 
@@ -448,23 +461,22 @@ pub struct BatteryVerdict<T: Real> {
     /// Which band the request grafts — carried so the assembly reads
     /// it off the verdict instead of being told a second time.
     pub kind: BlendKind,
-    /// The open-chain ends predicate 6 classified
-    /// [`CornerConfig::EndFace`] — every end of every RULED link, and
+    /// The open-chain ends predicate 6 cut off ([`BandEnd::CutOff`]) —
+    /// every end of every RULED link, and
     /// every plane–plane end where the request names the link's edge
     /// alone — each with the section its end face cuts, sorted by
     /// vertex and deduplicated. The open bands' plans read a link's
     /// cut-off ends and their kinds off this list rather than
     /// re-deciding them;
     /// an end missing from it is a verdict the body disagrees with. The
-    /// uniform trihedra the corner patch carves are not listed: that
-    /// configuration has no tag of its own ([`corner_at`]).
+    /// corners the patch carves are not listed ([`corner_at`]).
     pub end_faces: Vec<(VertexKey, EndSection<T>)>,
     /// The junctions predicate 4 decided tangent, so one band runs
     /// through each: a [`topo::Relation::Tangent`] row between the two
     /// links' edges, in walk order.
     pub joints: Vec<topo::Coincidence>,
-    /// The open-chain ends predicate 6 classified
-    /// [`CornerConfig::Turn`], each decided a mitre once though two
+    /// The open-chain ends predicate 6 classified a turn
+    /// ([`BandEnd::Mitre`], [`BandEnd::Overrun`]), each decided once though two
     /// chains end there, sorted by vertex. The planar band's plan reads
     /// each turn off this list rather than re-reading the trihedron.
     pub turns: Vec<Turn<T>>,
@@ -499,16 +511,22 @@ impl<T: Real> BatteryVerdict<T> {
     }
 }
 
-/// What predicate 6 hands the plans at an end the surgery carves with
-/// something other than the corner patch.
-enum EndVerdict<T: Real> {
-    /// A cut-off, and the section its end face cuts.
-    Section(EndSection<T>),
-    /// A turn: its two requested links, in key order, and its
-    /// unrequested edge, for [`turn_at`] to decide once per vertex.
-    Turn(Box<[Link<T>; 2]>, EdgeKey),
-    /// A mixed corner with all three edges requested.
-    Mixed(MixedVertex),
+/// **How a band ends**: predicate 6's verdict at each end of an open
+/// chain, which the plans read rather than re-deciding it. The pair's
+/// chain through a mixed corner is a link, not an end, so that corner
+/// rides on the patch its three requested edges close.
+enum BandEnd<T: Real> {
+    /// All three edges of a trivalent vertex requested: the corner
+    /// patch, and at a vertex whose edges round both ways the mixed
+    /// corner, the odd band cut off in `E` and the pair's link through
+    /// it.
+    Patch(Option<MixedVertex>),
+    /// One edge requested: cut off in the section its end face cuts.
+    CutOff(EndSection<T>),
+    /// Two edges requested, their bands' feet on the third one point.
+    Mitre(Box<Turn<T>>),
+    /// Two edges requested, their bands' feet on the third apart.
+    Overrun(Box<Turn<T>>),
 }
 
 /// **A mixed corner predicate 6 admitted with all three edges
@@ -778,7 +796,10 @@ pub(crate) fn face_clearance_margin<T: Decide + Bounds>(
 /// the pip rims' circular spine of radius `s` it is `(1 − r/s)·r`,
 /// which is the ring-torus condition `s > r` in meters — so the
 /// torus constructor's degenerate case is REFUSED HERE, before the
-/// surface exists.
+/// surface is used. A spine's curvature is its radius's reciprocal,
+/// never negative: the coaxial arm mints its spine at `|s|` whichever
+/// side of the axis the ball centre lies ([`crate::blend::arms::Meridian::blend`]),
+/// so a spine the tube swallows is refused on either side.
 ///
 /// Note this is a different curvature from predicate 1's: predicate 1
 /// asks about the SUPPORTS' curvature (can the ball sit on them),
@@ -991,80 +1012,28 @@ pub fn chain_g1<T: Decide + Bounds>(
 // Predicate 6 — corner configuration.
 // ---------------------------------------------------------------
 
-/// **`fillet3_corner_independence`** — is a chain termination a corner
-/// configuration the corner patch builds (OQ6): a valence-three vertex
-/// whose three incident edges carry ONE convexity, either side, and whose
-/// three support normals are definitely independent?
+/// **`fillet3_corner_independence`** — are a trivalent chain end's
+/// three face normals definitely independent?
 ///
-/// Margin: `|det(n₁, n₂, n₃)|·r` in METERS at lever arm `r`. The
-/// determinant is what makes the corner ball's centre a well-posed
-/// solve (`c` is the unique point at distance `r` inside all three
-/// planes); at a dependent trihedron the three distance conditions do
-/// not determine a centre and no sphere octant exists.
+/// Margin: `|det(n₁, n₂, n₃)|·r` in METERS at lever arm `r`, the blend's
+/// radius. The determinant is what makes the corner ball's centre a
+/// well-posed solve (`c` is the unique point at distance `r` inside all
+/// three planes); at a dependent trihedron the three distance conditions
+/// do not determine a centre and no sphere octant exists. A ruled cap at
+/// an oblique end face reads it too ([`corner_at`]), where dependent
+/// normals are the cap nearly containing the ruling.
 ///
-/// Valence and convexity are COMBINATORIAL facts, so they are decided
-/// before any margin and reported with their own
-/// [`CornerConfig`] tag; each tag names the run-out policy that would
-/// handle it ([`CornerConfig::policy`]) — or says that none would —
-/// and nothing more: zero constructor surface, refusal-payload
-/// vocabulary only.
-///
-/// # What this predicate does NOT decide
-///
-/// It reads the CORNER and nothing about the request's verb. A
-/// UNIFORM trihedron — three edges of one convexity — is one
-/// configuration whichever side of the material it is on, and this
-/// predicate admits it on both, for both verbs: the chamfer's ruled
-/// strip and flat patch take no convexity argument, and the rolling
-/// ball's corner — its ball, its contact feet, its octant chart —
-/// folds the side as one verdict. A MIXED corner has no such patch,
-/// because the patch would change sides mid-corner: [`corner_at`] asks
-/// this predicate at a mixed vertex only where the request wants a rule
-/// that is not built, and reads the independence alone where a uniform
-/// rule's cut-off or mitre ends the band or all three edges build the
-/// mixed corner ([`mixed_corner_square`]).
+/// It reads the CORNER and nothing about the request or its verb. A
+/// UNIFORM trihedron is one configuration whichever side of the material
+/// it is on, and the patch carves it on both, for both verbs. Which
+/// requests a MIXED corner builds is [`corner_at`]'s reading, and the
+/// valence is decided there before any margin.
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedCorner`] with the tag and policy;
-/// [`BlendError::Escalated`] on an in-band determinant.
-pub fn corner_config<T: Decide + Bounds>(
-    vertex: VertexKey,
-    valence: usize,
-    convex: usize,
-    normals: [Vec3<T>; 3],
-    radius: T,
-    band: Band,
-) -> Result<(), BlendError> {
-    // Which run-out policy (if any) an out-of-scope configuration names
-    // is the TAG's own fact, so it is read from the tag rather than
-    // decided again here (`CornerConfig::policy`).
-    let refuse = |corner: CornerConfig| super::surgery::unbuilt_corner_config(vertex, corner);
-    if valence != 3 {
-        return Err(refuse(CornerConfig::NEdgeVertex { valence }));
-    }
-    // A uniform trihedron is a configuration the patch carves; a mixed
-    // one is not. Which of the two uniform sides the RUNNING band carves
-    // is decided by the caller that knows it.
-    if !matches!(convex, 0 | 3) {
-        return Err(refuse(CornerConfig::MixedConvexity { convex }));
-    }
-    corner_independence(vertex, normals, radius, band)
-}
-
-/// **`fillet3_corner_independence`** at a trivalent vertex: its three
-/// face normals are independent, margin `|det(n₁, n₂, n₃)|` levered at
-/// the blend's radius, the radius of curvature its carriers state. A
-/// plane–plane end reads it inside
-/// [`corner_config`]; a ruled cap at an oblique end face reads it alone
-/// ([`corner_at`]), where dependent normals are the cap nearly
-/// containing the ruling.
-///
-/// # Errors
-///
-/// [`BlendError::UnsupportedCorner`] ([`CornerConfig::DependentNormals`])
-/// on a non-positive margin; [`BlendError::Escalated`] in band.
-fn corner_independence<T: Decide>(
+/// [`BlendError::UnbuiltEnd`] ([`UnbuiltEnd::DependentNormals`]) on a
+/// non-positive margin; [`BlendError::Escalated`] in band.
+pub fn corner_independence<T: Decide>(
     vertex: VertexKey,
     normals: [Vec3<T>; 3],
     radius: T,
@@ -1079,10 +1048,7 @@ fn corner_independence<T: Decide>(
         band,
     )? {
         Sign::Positive => Ok(()),
-        Sign::Zero | Sign::Negative => Err(super::surgery::unbuilt_corner_config(
-            vertex,
-            CornerConfig::DependentNormals,
-        )),
+        Sign::Zero | Sign::Negative => Err(unbuilt_end(UnbuiltEnd::DependentNormals { vertex })),
     }
 }
 
@@ -1146,13 +1112,9 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     // It is the edge's wedge read whole, as tier 3 reads it: every
     // station's class, every corner's sign, and on a tangency its
     // pairing and end, levered at the faces' extent. The sign and the
-    // end pick the side the ball rests on, so they are recorded under
-    // the blend's own names (`geom_brep::DIHEDRAL_SIGN`'s docs).
-    let names = geom_brep::FoldNames {
-        sign: BlendDecision::ConvexitySign.predicate(),
-        end: BlendDecision::KnifeEnd.predicate(),
-    };
-    let wedge = topo::edge_wedge_as(body, edge, band, names).ok_or_else(broken)?;
+    // end pick the side the ball rests on, so the blend reads them as
+    // choices (`topo::edge_wedge` reads its side as one).
+    let wedge = topo::edge_wedge(body, edge, band).ok_or_else(broken)?;
     let unsettled = |wedge| BlendError::WedgeUnsettled { edge, wedge };
     // A face's stored sense bit read STRUCTURALLY, never re-derived
     // from a normal: for a sphere the chart normal is the outward
@@ -1166,7 +1128,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (convexity, convexity_margin, branch) = match wedge {
         geom_brep::WedgeVerdict::Crease { convexity, margin } => (
             convexity,
-            decided_as(names.sign, convexity, margin, band),
+            decided_as(geom_brep::DIHEDRAL_SIGN, convexity, margin, band),
             Branch::Rim,
         ),
         geom_brep::WedgeVerdict::Seam { margin, .. } => {
@@ -1178,11 +1140,13 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
             });
             return Ok(Resolved::Smooth(edge, margin));
         }
-        // The chamfer's one arm is plane–plane, and a knife's
-        // supports are not two planes on any valid body (two planes
-        // tangent along a line are coplanar, a lamina tier 3
-        // refuses), so a knife reaches the chamfer's one refusal for
-        // a pair its arm does not cover, as any curved pair does.
+        // The chamfer's arms are plane–plane and a cylinder meeting a
+        // plane square to its axis, and a knife's supports are neither
+        // on any valid body (two planes tangent along a line are
+        // coplanar, a lamina tier 3 refuses; a plane tangent to a
+        // cylinder touches it along a ruling, not a circle), so a knife
+        // reaches the chamfer's refusal for a pair its arms do not
+        // cover, as any other curved pair does.
         geom_brep::WedgeVerdict::End { .. } if matches!(kind, BlendKind::Chamfer) => {
             return Err(BlendError::ChamferArmUnsupported {
                 edge,
@@ -1204,7 +1168,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
             let toward = inward_unit(n_a, tau.normalize());
             (
                 convexity,
-                decided_as(names.end, convexity, margin, band),
+                decided_as(geom_brep::MATERIAL_CUSP_SIDE, convexity, margin, band),
                 Branch::Knife(toward),
             )
         }
@@ -1217,8 +1181,21 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         }
     };
     let (arm, blend, axis) = classify_arm(
-        &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, branch, edge,
-        kind, band,
+        &sa,
+        n_a,
+        &sb,
+        n_b,
+        senses,
+        &carrier,
+        p,
+        tau,
+        extent,
+        radius,
+        convexity,
+        branch,
+        (edge, (face_a, face_b)),
+        kind,
+        band,
     )?;
     let support_axis = axis.map(|(relation, margin)| {
         row(
@@ -1249,7 +1226,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
 /// inherits (never a coordinate-axis tie-break).
 fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
     match s {
-        Surface::Plane { u_ref, .. } => *u_ref,
+        Surface::Plane { frame, .. } => frame.u_ref(),
         _ => Vec3::new(T::zero(), T::zero(), T::zero()),
     }
 }
@@ -1263,9 +1240,9 @@ pub(super) const ARM_ROSTER: &str = "non-(plane–plane / plane–sphere / spher
      cone–cone / cylinder–cone / cylinder–sphere / cylinder–plane / cylinder–plane(∥) / \
      cylinder–cylinder)";
 
-/// What the chamfer's one refusal for an uncovered pair names: its one
-/// arm is plane–plane.
-const CHAMFER_SUPPORTS: &str = "non-(plane–plane)";
+/// What the chamfer's one refusal for an uncovered pair names: its arms
+/// are plane–plane and cylinder–plane square to the axis.
+const CHAMFER_SUPPORTS: &str = "non-(plane–plane / cylinder–plane)";
 
 /// The roster as data, for the arm-coverage row that keeps it honest.
 #[must_use]
@@ -1355,10 +1332,12 @@ fn support_coaxiality<T: Decide + Bounds>(
 /// is chosen by the RIM CARRIER's own stored shape — a coaxial pair
 /// meets in a circle, a ruled pair in a line.
 ///
-/// The chamfer's table is one row wide and refuses everything else,
-/// with the same shape and the same honesty: a curved support is a
-/// real chamfer whose arm is not built (VERBS-ARMS' machinery), not a
-/// geometry this kernel will approximate.
+/// The chamfer's table is two rows wide — the strip over two planes,
+/// the frustum over a cylinder and a plane square to its axis, decided
+/// coaxial as the fillet's curved rows are — and refuses everything
+/// else, with the same shape and the same honesty: another curved
+/// support is a real chamfer whose arm is not built, not a geometry this
+/// kernel will approximate.
 ///
 /// A curved row also returns the margin its coaxiality was decided on
 /// ([`support_coaxiality`]); the planar rows decide none.
@@ -1377,21 +1356,48 @@ fn classify_arm<T: Decide + Bounds>(
     radius: T,
     convexity: Convexity,
     branch: Branch<T>,
-    edge: EdgeKey,
+    // The edge and its two support faces, in `(sa, sb)` order.
+    (edge, faces): (EdgeKey, (FaceKey, FaceKey)),
     kind: BlendKind,
     band: Band,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
     if matches!(kind, BlendKind::Chamfer) {
-        return match (sa, sb) {
-            (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
+        let unsupported = || BlendError::ChamferArmUnsupported {
+            edge,
+            supports: CHAMFER_SUPPORTS,
+        };
+        use geom::SurfaceKind::{Cylinder, Plane};
+        let coaxial = |departure: T| {
+            support_coaxiality(edge, departure, band, CHAMFER_SUPPORTS).map_err(|e| match e {
+                BlendError::SpineUnsupported { .. } => unsupported(),
+                other => other,
+            })
+        };
+        // The frustum's plane trim against the rim (`frustum_arm`), on
+        // whichever support is the plane.
+        let plane = if sa.kind() == Plane { faces.0 } else { faces.1 };
+        let room = |trim: T, rim: T| face_clearance_margin(plane, trim, rim, false, band);
+        return match (sa.kind(), sb.kind(), carrier.as_circle()) {
+            (Plane, Plane, _) => Ok((
                 BlendArm::PlanePlaneStrip,
                 chamfer_strip(p, tau.normalize(), n_a, n_b, radius),
                 None,
             )),
-            _ => Err(BlendError::ChamferArmUnsupported {
-                edge,
-                supports: CHAMFER_SUPPORTS,
-            }),
+            // A circle where a cylinder meets a plane: the frustum, once
+            // the two are decided to share the circle's axis (the plane
+            // square to it), as the fillet's coaxial rows decide it.
+            (Plane, Cylinder, Some(circle)) | (Cylinder, Plane, Some(circle)) => frustum_arm(
+                (sa, sb),
+                (n_a, n_b),
+                senses,
+                circle,
+                (p, tau),
+                radius,
+                convexity,
+                (coaxial, room),
+                unsupported,
+            ),
+            _ => Err(unsupported()),
         };
     }
     // A knife's ball is read in a sheet, whichever its supports: two
@@ -1419,19 +1425,25 @@ fn classify_arm<T: Decide + Bounds>(
             None,
         )),
         (
-            Surface::Plane { origin, .. },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
             Surface::Sphere {
-                center, radius: r, ..
+                frame: sphere_frame,
+                radius: r,
+                ..
             },
         ) => {
-            let room = ball_room(*origin, n_a, *center, *r, senses.1)?;
+            let origin = plane_frame.origin();
+            let center = sphere_frame.origin();
+            let room = ball_room(origin, n_a, center, *r, senses.1)?;
             Ok((
                 BlendArm::PlaneSphereTorus,
                 room.plane_sphere(
-                    *origin,
+                    origin,
                     n_a,
                     plane_u(sa),
-                    *center,
+                    center,
                     *r,
                     radius,
                     senses.1,
@@ -1442,16 +1454,22 @@ fn classify_arm<T: Decide + Bounds>(
         }
         (
             Surface::Sphere {
-                center, radius: r, ..
+                frame: sphere_frame,
+                radius: r,
+                ..
             },
-            Surface::Plane { origin, .. },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
         ) => {
-            let room = ball_room(*origin, n_b, *center, *r, senses.0)?;
+            let center = sphere_frame.origin();
+            let origin = plane_frame.origin();
+            let room = ball_room(origin, n_b, center, *r, senses.0)?;
             let mut b = room.plane_sphere(
-                *origin,
+                origin,
                 n_b,
                 plane_u(sb),
-                *center,
+                center,
                 *r,
                 radius,
                 senses.0,
@@ -1465,6 +1483,69 @@ fn classify_arm<T: Decide + Bounds>(
         )
         .map(|(arm, blend, axis)| (arm, blend, Some(axis))),
     }
+}
+
+/// **The chamfer's frustum row**: a circle where a cylinder meets a
+/// plane, read in the meridian sheet through `p`; the two supports'
+/// departures from the circle's axis decided by `coaxial` (the caller's
+/// `fillet3_support_coaxiality`, as the fillet's coaxial rows decide
+/// theirs), and the frustum through the strip's feet minted
+/// ([`chamfer_frustum`]). A support the sheet does not trace is a pair
+/// the chamfer's table does not cover (`unsupported`).
+///
+/// **The plane trim stays off the axis, decided before the band is
+/// minted**: the plane support is a face reaching from the rim to the
+/// axis at most where it runs inward (a post's or a boss's top), so its
+/// trim circle's radius, the foot's distance from the axis along the
+/// sheet's radial (`R − s` inward, `R + s` outward), is the margin
+/// `room` decides (`fillet3_face_clearance` against the rim's radius
+/// `R`). Only a definitely positive one is a circle; zero is a cap
+/// consumed to a point and negative one consumed past the axis, and
+/// both refuse typed.
+#[allow(clippy::too_many_arguments)]
+fn frustum_arm<T: Real>(
+    (sa, sb): (&Surface<T>, &Surface<T>),
+    (n_a, n_b): (Vec3<T>, Vec3<T>),
+    senses: (bool, bool),
+    circle: &geom::Circle<T>,
+    (p, tau): (Point3<T>, Vec3<T>),
+    radius: T,
+    convexity: Convexity,
+    // The supports' coaxiality, and the plane trim's room (the
+    // caller's `fillet3_face_clearance` on the plane face).
+    (coaxial, room): (
+        impl FnOnce(T) -> Result<MarginDiag, BlendError>,
+        impl FnOnce(T, T) -> Result<(), BlendError>,
+    ),
+    unsupported: impl Fn() -> BlendError,
+) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
+    let sheet = Meridian {
+        axis: circle.frame.axis_line(),
+        rim: p,
+    };
+    let (Some((_, da)), Some((_, db))) = (
+        sheet.trace(sa, ball_side(convexity, senses.0)),
+        sheet.trace(sb, ball_side(convexity, senses.1)),
+    ) else {
+        return Err(unsupported());
+    };
+    let margin = coaxial(da.max(db))?;
+    let tau = tau.normalize();
+    let (foot_a, foot_b) = chamfer_feet(p, tau, n_a, n_b, radius);
+    let foot = if sa.kind() == geom::SurfaceKind::Plane {
+        foot_a
+    } else {
+        foot_b
+    };
+    room(
+        (foot - sheet.axis.origin).dot(sheet.radial()),
+        circle.radius(),
+    )?;
+    Ok((
+        BlendArm::CylinderPlaneCone,
+        chamfer_frustum(&sheet, tau, n_a, n_b, radius),
+        Some((topo::Relation::Coaxial, margin)),
+    ))
 }
 
 /// Which curved arm a support pair takes in each family, by stored
@@ -1925,16 +2006,20 @@ pub(crate) fn same_supports<T: Real>(
 }
 
 /// **`fillet3_chain_g1` over the BANDS at a junction between links on
-/// different supports**: the two links' balls at the junction rest in
-/// one section, margin the distance between their section centres in
-/// meters. Zero is the shared section along which the two bands meet
-/// G1; a definite distance is supports creasing at the junction, where
-/// the two bands share no section.
+/// different supports**: the two links' bands at the junction share one
+/// section. Two balls' margin is the distance between their section
+/// centres; two chamfers' the larger distance between their feet on one
+/// support, on the face they share and on their two others, in meters.
+/// Zero is the shared section along which the two bands meet G1 (the
+/// ball's circle, or the generator between the feet); a definite
+/// distance is supports creasing at the junction, where the two bands
+/// share no section.
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedChain`] on a definite distance or a band
-/// with no section, [`BlendError::Escalated`] in band.
+/// [`BlendError::UnsupportedChain`] on a definite distance, a band with
+/// no section, or chamfer links sharing no one face;
+/// [`BlendError::Escalated`] in band.
 fn band_g1<T: Decide>(
     body: &Body<T>,
     a: &Link<T>,
@@ -1947,26 +2032,54 @@ fn band_g1<T: Decide>(
         .and_then(|x| body.get_point(x.point))
         .copied()
         .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a junction"))?;
-    let (Some(ca), Some(cb)) = (BallSection::of(&a.blend, p), BallSection::of(&b.blend, p)) else {
-        return Err(unbuilt_chain(
-            a.edge,
-            "a chain's links meet on different supports where a band has no rolling-ball \
-             section",
-        ));
+    let margin = match (BallSection::of(&a.blend, p), BallSection::of(&b.blend, p)) {
+        (Some(ca), Some(cb)) => ca.centre.distance(cb.centre),
+        _ if a.arm.is_chamfer() && b.arm.is_chamfer() => feet_apart(a, b, p)?,
+        _ => {
+            return Err(unbuilt_chain(
+                a.edge,
+                "a chain's links meet on different supports where a band has no section",
+            ));
+        }
     };
     let site = BlendSite::Joint { vertex };
-    match classify(
-        site,
-        BlendDecision::ChainG1,
-        Margin::of(ca.centre.distance(cb.centre)),
-        band,
-    )? {
+    match classify(site, BlendDecision::ChainG1, Margin::of(margin), band)? {
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(unbuilt_chain(
             a.edge,
             "the supports crease at a junction, so its two bands share no section",
         )),
     }
+}
+
+/// Two chamfer links' feet through the junction point `p`, apart: the
+/// larger of the distance between their feet on the face they share and
+/// that between their feet on their two others ([`chamfer_setback_point`]).
+fn feet_apart<T: Real>(a: &Link<T>, b: &Link<T>, p: Point3<T>) -> Result<T, BlendError> {
+    let shared = [a.face_a, a.face_b]
+        .into_iter()
+        .find(|&f| f == b.face_a || f == b.face_b)
+        .ok_or_else(|| unbuilt_chain(a.edge, JUNCTION_NO_HOST))?;
+    let other = |l: &Link<T>| {
+        if l.face_a == shared {
+            l.face_b
+        } else {
+            l.face_a
+        }
+    };
+    let foot = |l: &Link<T>, f: FaceKey| {
+        l.trim_on(f)
+            .and_then(|(c, _)| chamfer_setback_point(c, p))
+            .ok_or_else(|| {
+                unbuilt_geometry(
+                    EntityId::Edge(l.edge),
+                    "a band's trim at a junction is neither a line nor a circle",
+                )
+            })
+    };
+    let host = foot(a, shared)?.distance(foot(b, shared)?);
+    let mate = foot(a, other(a))?.distance(foot(b, other(b))?);
+    Ok(host.max(mate))
 }
 
 /// **The chains the verdict carries**: each walked chain classified at
@@ -2128,7 +2241,6 @@ pub fn run_battery_for<T: Decide + Bounds>(
         .filter(|e| !smooth.iter().any(|(s, _)| s == e))
         .collect();
     let chains = walk_chains(links);
-
     // --- 1. radius vs curvature headroom, at every sample of every
     // link, on BOTH supports. A ball fact: not metered for a chamfer.
     if rolling_ball {
@@ -2147,7 +2259,9 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // --- 2. face clearance (the conservative screen — see
     // `face_clearance`), over every pair of boundary edges of every
     // support face the request touches. The setbacks are the ARM's, so
-    // the chamfer's screen runs on the chamfer's own setbacks.
+    // the chamfer's screen runs on the chamfer's own setbacks. A
+    // frustum's plane trim is screened earlier, when its arm is
+    // classified (`frustum_arm`), before its band is minted.
     consumption_sweep(body, &chains, band)?;
 
     // --- 3. spine regularity, per link. A ball fact: not metered for
@@ -2206,18 +2320,17 @@ pub fn run_battery_for<T: Decide + Bounds>(
         if let ChainClosure::Open { head, tail } = chain.closure {
             let last = chain.rest().last().unwrap_or(chain.first());
             for (v, link) in [(head, chain.first()), (tail, last)] {
-                match corner_at(body, v, link, &blended, r, band, kind)? {
-                    Some(EndVerdict::Section(section)) => end_faces.push((v, section)),
+                match corner_at(body, v, link, (&blended, &turns), r, band, kind)? {
+                    Some(BandEnd::CutOff(section)) => end_faces.push((v, section)),
                     // Both chains a turn ends reach it; it is one turn,
                     // decided once.
-                    Some(EndVerdict::Turn(links, third))
+                    Some(BandEnd::Mitre(turn) | BandEnd::Overrun(turn))
                         if !turns.iter().any(|t| t.vertex == v) =>
                     {
-                        let [l1, l2] = &*links;
-                        turns.push(turn_at(body, v, [l1, l2], third, r, band, kind)?);
+                        turns.push(*turn);
                     }
-                    Some(EndVerdict::Mixed(m)) if !mixed.contains(&m) => mixed.push(m),
-                    Some(EndVerdict::Turn(..) | EndVerdict::Mixed(..)) | None => {}
+                    Some(BandEnd::Patch(Some(m))) if !mixed.contains(&m) => mixed.push(m),
+                    Some(BandEnd::Mitre(_) | BandEnd::Overrun(_) | BandEnd::Patch(_)) | None => {}
                 }
             }
         }
@@ -2277,8 +2390,8 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 ///
 /// The surface is smooth through such a point: nothing about the
 /// geometry changes across a seam, only which chart names it. So it is
-/// not a corner, no run-out policy addresses it, and the door that does
-/// is the closed-rim one — which is what [`CornerConfig::SeamVertex`]
+/// not a corner, no end rule addresses it, and the door that does
+/// is the closed-rim one — which is what [`UnbuiltEnd::Seam`]
 /// says.
 ///
 /// # One rule, three readings, and which is the weakest
@@ -2349,18 +2462,6 @@ fn is_seam_vertex<T: Decide>(
         _ => false,
     }
 }
-
-/// The refusal for a request that stops where its edge runs on
-/// smoothly into an edge it does not name: part of a tangent run
-/// (`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`).
-/// Its recourse asks for the whole run.
-pub const PARTIAL_TANGENT_RUN: &str = "the request stops where its edge runs smoothly into an \
-     unrequested one, against a face tangent to its support";
-
-/// The refusal for a straight band — either open band — ending at a
-/// curved end face.
-pub const END_FACE_CURVED: &str = "a straight blend would have to stop against a curved \
-     face, which is not supported yet; it can stop against a flat face";
 
 /// **What a band's plane end face cuts from it**: a chord from a plane
 /// band, and from a cylinder band the kind [`cap_transverse`] picked —
@@ -2731,32 +2832,42 @@ pub(crate) fn turn_reading<T: Decide>(
     // is that band's plane; a fillet's is one for both, through the
     // axes' crossing, normal to `e₁ − e₂`.
     let mitre_plane = |k: usize| match (&links[k].blend.surface, &links[1 - k].blend.surface) {
-        (Surface::Plane { origin, normal, .. }, _) => Ok((*origin, *normal)),
+        (
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+            _,
+        ) => {
+            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
+            Ok((origin, normal))
+        }
         (
             Surface::Cylinder {
-                origin: c1,
-                axis: a1,
+                frame: cylinder_frame_2,
                 ..
             },
             Surface::Cylinder {
-                origin: c2,
-                axis: a2,
+                frame: cylinder_frame,
                 ..
             },
-        ) => Ok((
-            line_meet(
-                geom::Line {
-                    origin: *c1,
-                    dir: *a1,
-                },
-                geom::Line {
-                    origin: *c2,
-                    dir: *a2,
-                },
-                a1.cross(*a2),
-            ),
-            dirs[0] - dirs[1],
-        )),
+        ) => {
+            let (c1, a1) = (cylinder_frame_2.origin(), cylinder_frame_2.axis());
+            let (c2, a2) = (cylinder_frame.origin(), cylinder_frame.axis());
+            Ok((
+                line_meet(
+                    geom::Line {
+                        origin: c1,
+                        dir: a1,
+                    },
+                    geom::Line {
+                        origin: c2,
+                        dir: a2,
+                    },
+                    a1.cross(a2),
+                ),
+                dirs[0] - dirs[1],
+            ))
+        }
         _ => Err(unbuilt_geometry(
             EntityId::Edge(links[k].edge),
             "a turning band is neither a plane nor a cylinder",
@@ -2927,45 +3038,36 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
 }
 
 /// Predicate 6 at one termination vertex, beside the link that reaches
-/// it and against the `requested` edges, returning the CARVED
-/// configuration it classified: `Some` section for a
-/// [`CornerConfig::EndFace`], which the verdict carries for the open
-/// bands' plans to read, and for a [`CornerConfig::Turn`] its two
-/// requested links, which the caller hands [`turn_at`] once per
-/// vertex. A RULED link's end must be a plane cap, its
-/// section picked by [`cap_transverse`] — and where that is the
-/// ellipse, the cap's three face normals independent
-/// ([`corner_independence`]). Any other link's end is classified as a
-/// trivalent vertex with independent support normals, and then by how
-/// many of its three edges the request names: all three, the corner
-/// patch; two, the [`CornerConfig::Turn`], whose two bands' feet on the
-/// third edge [`turn_at`] decides one point or apart; one,
-/// [`CornerConfig::EndFace`] — its end face a plane, cutting a chord
-/// from a chamfer and from a fillet the section [`cap_transverse`]
-/// picks. The patch needs the vertex's three edges of one convexity;
-/// at a plane–plane end where they mix, one edge and the two that round
-/// alike end as they do at a uniform vertex, all three build the mixed
-/// corner where [`mixed_corner_square`] admits it, and the odd edge with
-/// one other refuses [`CornerConfig::MixedConvexity`] through
-/// [`corner_config`] ([`mixed_end_is_built`]). A curved link's end at a
-/// mixed vertex is judged as at a uniform one, short of all three: its
-/// open-chain door refuses it.
-/// The uniform trihedron returns `None`: the carved trihedral
-/// configuration has no tag of its own ([`CornerConfig::ThreeConvexEdges`]
-/// names the convex one, and by Ev's ruling on PR 1935 none names the
-/// concave one), so it is the ONE carved configuration the battery
-/// admits without tagging.
+/// it and against the `requested` edges: the [`BandEnd`] it classified,
+/// or `None` at a curved link's end, which is judged as a corner alone
+/// and left to its open-chain door. A RULED link's end must be a plane
+/// cap, cut off in the section [`cap_transverse`] picks — and where that
+/// is the ellipse, the cap's three face normals independent
+/// ([`corner_independence`]). A plane–plane link's end is a trivalent
+/// vertex with independent support normals, classified by how many of
+/// its three edges the request names: all three, the corner patch; two, the turn,
+/// whose two bands' feet on the third edge [`turn_at`] decides one point
+/// (the mitre) or apart (the overrun), once per vertex, `turns` holding
+/// those already decided; one, the cut-off — its end face a plane,
+/// cutting a chord from a chamfer and from a fillet the section
+/// [`cap_transverse`] picks.
+///
+/// Where the three edges mix convexity, one edge and the two that round
+/// alike end as they do at a uniform vertex; all three build the mixed
+/// corner where [`mixed_corner_square`] admits it, carried on the patch;
+/// the odd edge with one other chamfers there as a turn whose overrun
+/// cuts the other strip off in the odd strip's plane; and the fillet's
+/// odd edge with one other refuses the run-out ([`mixed_end_is_built`]).
 fn corner_at<T: Decide + Bounds>(
     body: &Body<T>,
     vertex: VertexKey,
     link: &Link<T>,
-    requested: &[EdgeKey],
+    (requested, turns): (&[EdgeKey], &[Turn<T>]),
     radius: T,
     band: Band,
     kind: BlendKind,
-) -> Result<Option<EndVerdict<T>>, BlendError> {
-    let indeterminate =
-        || super::surgery::unbuilt_corner_config(vertex, CornerConfig::Indeterminate);
+) -> Result<Option<BandEnd<T>>, BlendError> {
+    let refuse = |end: UnbuiltEnd| Err(unbuilt_end(end));
     // In key order, so the supports below are gathered — and their
     // normals reach the independence determinant — in an order that
     // does not depend on where the vertex's orbit starts.
@@ -2979,16 +3081,12 @@ fn corner_at<T: Decide + Bounds>(
     let valence = edges.len();
     // A chart seam crossing a smooth rim is NOT a corner, so it is
     // recognized before the valence is read as a corner configuration —
-    // otherwise the refusal describes a wedge that is not there and
-    // names a run-out policy that could not help.
+    // otherwise the refusal describes a wedge that is not there.
     let rim_lists = |seed: EdgeKey, arcs: &[EdgeKey]| {
         topo::query::rim_of(body, seed).is_ok_and(|listed| arcs.iter().all(|e| listed.contains(e)))
     };
     if is_seam_vertex(body, &edges, rim_lists) {
-        return Err(super::surgery::unbuilt_corner_config(
-            vertex,
-            CornerConfig::SeamVertex,
-        ));
+        return refuse(UnbuiltEnd::Seam { vertex });
     }
     // A ruled band terminates where its supports do, in a cap, not in
     // a corner: the classification is the cap's, and it is made before
@@ -3004,20 +3102,24 @@ fn corner_at<T: Decide + Bounds>(
                 "a ruled link's end, whose three faces do not meet as a cap",
             ));
         };
-        let Some(Surface::Plane { normal, .. }) = body.face_surface(cap) else {
-            return Err(super::surgery::unbuilt_run_out(
-                EntityId::Vertex(vertex),
-                END_FACE_CURVED,
+        let Some(Surface::Plane {
+            frame: carrier_frame,
+            ..
+        }) = body.face_surface(cap)
+        else {
+            return refuse(UnbuiltEnd::CurvedEndFace { vertex });
+        };
+        let normal = carrier_frame.axis();
+        // The ruling is the arm's own: a ruled arm's band is the
+        // cylinder about it (`Ruling::blend`).
+        let Surface::Cylinder { frame, .. } = link.blend.surface else {
+            return Err(invariant_broken(
+                EntityId::Edge(link.edge),
+                "a ruled link's band is not the cylinder about its ruling",
             ));
         };
-        // The ruling is the arm's own: a ruled arm's band is the
-        // cylinder about it (`Ruling::blend`), so anything else is a
-        // verdict that disagrees with itself, and the end cannot be
-        // classified from it.
-        let Surface::Cylinder { axis, .. } = link.blend.surface else {
-            return Err(indeterminate());
-        };
-        let section = cap_transverse(vertex, *normal, axis, radius, link.arm_len, band)?;
+        let axis = frame.axis();
+        let section = cap_transverse(vertex, normal, axis, radius, link.arm_len, band)?;
         if let EndSection::Ellipse(_) = section {
             let p = point_at(body, vertex)?;
             let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
@@ -3031,24 +3133,19 @@ fn corner_at<T: Decide + Bounds>(
             }
             corner_independence(vertex, normals, radius, band)?;
         }
-        return Ok(Some(EndVerdict::Section(section)));
+        return Ok(Some(BandEnd::CutOff(section)));
     }
     if valence != 3 {
-        return corner_config(
-            vertex,
-            valence,
-            0,
-            [Vec3::new(T::zero(), T::zero(), T::zero()); 3],
-            radius,
-            band,
-        )
-        .map(|()| None);
+        return refuse(UnbuiltEnd::Valence { vertex, valence });
     }
-    // A request that stops where its edge runs on smoothly: an edge at
-    // the end it does not name meets one of the link's supports
-    // smoothly, so the outline runs on past the end, tangentially, and
-    // the band would stop against a face tangent to its own support.
-    // That is the end's situation whatever the link's arm, and it is
+    // A request that stops where its edge runs on smoothly: a smooth
+    // edge at the end (a tangency seam, which no request carries) meets
+    // one of the link's supports, so the outline runs on past the end,
+    // tangentially, and the band would stop against a face tangent to its
+    // own support. The edge the run goes on into is the vertex's third,
+    // between the link's other support and the tangent face, and that is
+    // the edge the refusal names: the one whose request carries the band
+    // on. That is the end's situation whatever the link's arm, and it is
     // read before anything a cut-off or a corner would read.
     for e in edges.iter().filter(|e| !requested.contains(e)) {
         if let Ok(Resolved::Smooth(..)) = resolve_link(body, *e, radius, band, kind) {
@@ -3060,16 +3157,29 @@ fn corner_at<T: Decide + Bounds>(
             })?;
             let (f, g) = sides.faces();
             if [f, g].iter().any(|&x| x == link.face_a || x == link.face_b) {
-                return Err(super::surgery::unbuilt_run_out(
-                    EntityId::Vertex(vertex),
-                    PARTIAL_TANGENT_RUN,
-                ));
+                let Some(&next) = edges.iter().find(|&&x| x != link.edge && x != *e) else {
+                    return Err(invariant_broken(
+                        EntityId::Vertex(vertex),
+                        "a trivalent chain end carries no third edge beside its link and seam",
+                    ));
+                };
+                if requested.contains(&next) {
+                    return Err(invariant_broken(
+                        EntityId::Edge(next),
+                        "a chain ends where its run goes on smoothly into a requested edge",
+                    ));
+                }
+                return refuse(UnbuiltEnd::RunOut {
+                    vertex,
+                    unrequested: next,
+                    odd: None,
+                });
             }
         }
     }
     // Between planes, how many of the three edges the request names
     // decides the end; the link's own edge is one of them. Any other
-    // band's end is judged as a corner alone, and the surgery's door
+    // band's end is judged as a corner alone, and the open-chain door
     // says what it builds.
     let plane_plane = link.arm.is_plane_plane();
     let named = edges.iter().filter(|e| requested.contains(e)).count();
@@ -3087,13 +3197,11 @@ fn corner_at<T: Decide + Bounds>(
                 "a chain end's three faces do not meet as two supports and an end face",
             ));
         };
-        let Some(Surface::Plane { normal, .. }) = body.face_surface(end) else {
-            return Err(super::surgery::unbuilt_run_out(
-                EntityId::Vertex(vertex),
-                END_FACE_CURVED,
-            ));
+        let Some(Surface::Plane { frame, .. }) = body.face_surface(end) else {
+            return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
-        Some(*normal)
+        let normal = frame.axis();
+        Some(normal)
     } else {
         None
     };
@@ -3114,33 +3222,29 @@ fn corner_at<T: Decide + Bounds>(
                 }
                 resolved.push(l);
             }
-            // An edge at the corner whose own supports are out of the
-            // arms' scope makes the CORNER unclassifiable — reported
-            // as the corner situation, not as that edge's.
-            //
-            // **The fold is deliberate and it is lossy** (fix pass
-            // F6): a neighbour that REFUSED definitely and one that
-            // ESCALATED in band both land on
-            // `CornerConfig::Indeterminate`, so this arm does not
-            // carry the two-tolerance shape the six predicates do.
-            // The grounds: the user situation is the same either way
-            // — "this corner's configuration could not be read" — and
-            // the actionable recourse is the same sentence, so
-            // splitting it would give two errors for one situation
-            // (the inverse of the D4 ¶1 addendum's rule). What is
-            // genuinely lost is the neighbour's own margin, which a
-            // future corner taxonomy should carry as payload; it is
-            // not lost SILENTLY, because the tag says the
-            // configuration did not classify. A smooth neighbour is no
-            // wedge to count, and folds the same way.
+            // An edge at the end whose own supports are out of the arms'
+            // scope makes the end's configuration unreadable — reported
+            // as the end's situation, not as that edge's. A neighbour
+            // that refused definitely and one that escalated in band
+            // land here alike: the situation and its recourse are the
+            // same, and what is lost is the neighbour's own margin. A
+            // smooth neighbour is no wedge to count, and folds the same
+            // way. A link the open-chain door refuses wherever it ends
+            // is refused in the door's words instead, since no reading
+            // of this end would build it.
             Ok(Resolved::Smooth(..)) | Err(_) => {
-                return Err(indeterminate());
+                super::admit::open_link(link, false)?;
+                return refuse(UnbuiltEnd::Indeterminate { vertex });
             }
         }
     }
     let p = point_at(body, vertex)?;
+    // Three edges at a manifold vertex bound exactly three faces.
     if faces.len() != 3 {
-        return corner_config(vertex, faces.len(), convex, normals, radius, band).map(|()| None);
+        return Err(disagrees(
+            EntityId::Vertex(vertex),
+            "a trivalent chain end's three edges do not bound three faces",
+        ));
     }
     for (i, f) in faces.iter().enumerate() {
         normals[i] = outward(body, *f, p).ok_or_else(|| {
@@ -3151,61 +3255,93 @@ fn corner_at<T: Decide + Bounds>(
         })?;
     }
     // A mixed vertex wants the patch's uniformity only where the request
-    // asks for the patch or for the mixed corner's own rule; a curved
-    // link's end is judged as at a uniform vertex, where its open-chain
-    // door says what it builds. All three named is the mixed corner's
-    // own rule, built between planes where `E` is square to the odd edge.
+    // asks for the patch or for the mixed corner's own rule. All three
+    // named is the mixed corner's own rule, built where `E` is square to
+    // the odd edge; the chamfer's odd edge with one other cuts the other
+    // strip off in the odd strip's plane, which is the turn's overrun
+    // with the odd band the far one, built by the same reading of `E`.
     let odd_is_convex = convex == 1;
     let odd = resolved.iter().find(|l| {
         !matches!(convex, 0 | 3) && matches!(l.convexity, Convexity::Convex) == odd_is_convex
     });
     let mut mixed = None;
     match odd {
-        Some(odd) if named == 3 => {
-            let host = mixed_corner_square(
-                vertex,
-                odd,
-                &resolved,
-                &faces,
-                normals,
-                (radius, kind),
-                band,
-            )?;
+        Some(odd)
+            if named == 3
+                || (matches!(kind, BlendKind::Chamfer)
+                    && plane_plane
+                    && !mixed_end_is_built(&resolved, requested, odd.edge)) =>
+        {
+            let host = mixed_corner_square(vertex, odd, &resolved, &faces, normals, radius, band)?;
             corner_independence(vertex, normals, radius, band)?;
-            mixed = Some(MixedVertex {
+            if named == 3 {
+                mixed = Some(MixedVertex {
+                    vertex,
+                    odd: odd.edge,
+                    host,
+                });
+            }
+        }
+        // A curved link's end is judged as at a uniform vertex: its
+        // open-chain door says what it builds.
+        Some(_) if !plane_plane => corner_independence(vertex, normals, radius, band)?,
+        // The fillet's odd edge with one other: the other band would have
+        // to stop where its edge runs smoothly into the odd band's
+        // cut-off arc, short of the pair edge it does not name.
+        Some(odd) if !mixed_end_is_built(&resolved, requested, odd.edge) => {
+            let Some(unrequested) = edges.iter().find(|e| !requested.contains(e)) else {
+                return Err(invariant_broken(
+                    EntityId::Vertex(vertex),
+                    "an odd edge with one other names every edge of its vertex",
+                ));
+            };
+            return refuse(UnbuiltEnd::RunOut {
                 vertex,
-                odd: odd.edge,
-                host,
+                unrequested: *unrequested,
+                odd: Some(OddEdge {
+                    edge: odd.edge,
+                    convexity: odd.convexity,
+                }),
             });
         }
-        Some(odd) if !plane_plane || mixed_end_is_built(&resolved, requested, odd.edge) => {
-            corner_independence(vertex, normals, radius, band)?;
-        }
-        _ => corner_config(vertex, valence, convex, normals, radius, band)?,
+        _ => corner_independence(vertex, normals, radius, band)?,
     }
     if !plane_plane {
         return Ok(None);
     }
     match (named, end_normal) {
-        (3, _) => Ok(mixed.map(EndVerdict::Mixed)),
+        (3, _) => Ok(Some(BandEnd::Patch(mixed))),
         (2, _) => {
-            let mut requested_links = resolved.into_iter().filter(|l| requested.contains(&l.edge));
+            let mut requested_links = resolved.iter().filter(|l| requested.contains(&l.edge));
             let (Some(l1), Some(l2), None) = (
                 requested_links.next(),
                 requested_links.next(),
                 requested_links.next(),
             ) else {
-                return Err(indeterminate());
+                return Err(invariant_broken(
+                    EntityId::Vertex(vertex),
+                    "a turn's vertex does not resolve exactly the two requested links counted there",
+                ));
             };
             let Some(third) = edges.iter().find(|e| !requested.contains(e)) else {
-                return Err(indeterminate());
+                return Err(invariant_broken(
+                    EntityId::Vertex(vertex),
+                    "a turn's vertex has no unrequested edge though two of three are named",
+                ));
             };
-            Ok(Some(EndVerdict::Turn(Box::new([l1, l2]), *third)))
+            let turn = match turns.iter().find(|t| t.vertex == vertex) {
+                Some(decided) => decided.clone(),
+                None => turn_at(body, vertex, [l1, l2], *third, radius, band, kind)?,
+            };
+            Ok(Some(match turn.run_out {
+                TurnRunOut::Mitre(_) => BandEnd::Mitre(Box::new(turn)),
+                TurnRunOut::Overrun(_) => BandEnd::Overrun(Box::new(turn)),
+            }))
         }
         // A plane band's section by the end face is a chord at any
         // angle; a cylinder band's is the kind the picker decides.
         (1, Some(normal)) => cut_off_section(vertex, link, normal, radius, kind, band)
-            .map(|s| Some(EndVerdict::Section(s))),
+            .map(|section| Some(BandEnd::CutOff(section))),
         _ => Err(disagrees(
             EntityId::Vertex(vertex),
             "a chain end's edge fan does not carry the requested link that reaches it",
@@ -3213,57 +3349,63 @@ fn corner_at<T: Decide + Bounds>(
     }
 }
 
-/// **The mixed corner with all three edges requested** (a vertex whose
+/// **The mixed corner the pair's chain runs through** (a vertex whose
 /// three edges mix convexity): the odd band is cut off in `E`, the face
 /// the odd edge does not lie in, and the pair runs on through a link
 /// resting on `E` and on the odd band. Built where every link is
-/// plane–plane and `E` is square to the odd edge
-/// ([`cap_transverse`]'s circle), and returns `E`; an oblique `E`
-/// refuses, the fillet [`BlendError::SpineUnsupported`] (its link would
-/// be a canal surface) and the chamfer [`CornerConfig::MixedConvexity`]
-/// (`work/band/an-all-three-mixed-corner-chamfer-at-an-oblique-shared-face-refuses.md`),
-/// as does a curved link at the corner.
+/// plane–plane and `E` is square to the odd edge ([`cap_transverse`]'s
+/// circle), and returns `E`. The chamfer of the odd edge with one other
+/// is admitted, and refused, by the same reading.
 ///
 /// # Errors
 ///
-/// As above; [`BlendError::Escalated`] on an in-band tilt.
+/// [`BlendError::UnsupportedChain`] on the corner's link that is not
+/// between two planes, the open-chain door's own refusal of it
+/// ([`super::admit::open_link`]); [`BlendError::ObliqueMixedCorner`]
+/// where `E` leans off square to the odd edge; [`BlendError::Escalated`]
+/// on an in-band tilt.
 fn mixed_corner_square<T: Decide + Bounds>(
     vertex: VertexKey,
     odd: &Link<T>,
     links: &[Link<T>],
     faces: &[FaceKey],
     normals: [Vec3<T>; 3],
-    (radius, kind): (T, BlendKind),
+    radius: T,
     band: Band,
 ) -> Result<FaceKey, BlendError> {
-    let convex = links
-        .iter()
-        .filter(|l| matches!(l.convexity, Convexity::Convex))
-        .count();
-    let unbuilt =
-        || super::surgery::unbuilt_corner_config(vertex, CornerConfig::MixedConvexity { convex });
-    if links.len() != 3 || !links.iter().all(|l| l.arm.is_plane_plane()) {
-        return Err(unbuilt());
+    if !links.iter().all(|l| l.arm.is_plane_plane()) {
+        // A curved face bounds two of the corner's three edges, and at
+        // most one of them lies on a ruling, so the door refuses one.
+        for l in links {
+            super::admit::open_link(l, false)?;
+        }
+        return Err(disagrees(
+            EntityId::Vertex(vertex),
+            "a mixed corner has a link not between two planes, yet the open-chain door admits \
+             each of its links",
+        ));
     }
     let Some(slot) = faces
         .iter()
         .position(|f| *f != odd.face_a && *f != odd.face_b)
     else {
-        return Err(unbuilt());
+        return Err(invariant_broken(
+            EntityId::Vertex(vertex),
+            "a mixed corner's three faces include none the odd edge does not lie in",
+        ));
     };
     let Curve3::Line(spine) = &odd.blend.trim_a.0 else {
-        return Err(unbuilt());
+        return Err(invariant_broken(
+            EntityId::Edge(odd.edge),
+            "a plane–plane link's trimline is not a line",
+        ));
     };
     match cap_transverse(vertex, normals[slot], spine.dir, radius, odd.arm_len, band)? {
         EndSection::Circle => Ok(faces[slot]),
-        _ => match kind {
-            BlendKind::Fillet => Err(BlendError::SpineUnsupported {
-                edge: odd.edge,
-                supports: "plane–(cylinder band) at a mixed corner whose shared face is \
-                           oblique to the odd edge (a canal surface)",
-            }),
-            BlendKind::Chamfer => Err(unbuilt()),
-        },
+        _ => Err(BlendError::ObliqueMixedCorner {
+            vertex,
+            odd: odd.edge,
+        }),
     }
 }
 
@@ -3273,10 +3415,11 @@ fn mixed_corner_square<T: Decide + Bounds>(
 /// requested edge, odd or of the pair, ends in the cut-off; the pair
 /// alone meets in the mitre, which at the reflex sector of their shared
 /// face is a join over the corner's wedge. All three is the mixed
-/// corner ([`mixed_corner_square`]). The odd edge with one other refuses
-/// here: the fillet's for good, its partner's band having to stop where
-/// that edge runs smoothly into the cut-off arc, and the chamfer's until
-/// its own rule is built.
+/// corner ([`mixed_corner_square`]). The odd edge with one other is not
+/// built here: the chamfer's is the turn's overrun where
+/// [`mixed_corner_square`] admits its corner, and the fillet's refuses
+/// for good, its partner's band having to stop where that edge runs
+/// smoothly into the cut-off arc.
 fn mixed_end_is_built<T: Real>(links: &[Link<T>], requested: &[EdgeKey], odd: EdgeKey) -> bool {
     let mut named = links.iter().filter(|l| requested.contains(&l.edge));
     match (named.next(), named.next(), named.next()) {
@@ -3294,9 +3437,8 @@ fn mixed_end_is_built<T: Real>(links: &[Link<T>], requested: &[EdgeKey], odd: Ed
 ///
 /// # Errors
 ///
-/// [`cap_transverse`]'s; [`BlendError::UnsupportedCorner`]
-/// (`Indeterminate`) where a fillet's band is not a cylinder, the
-/// verdict disagreeing with itself.
+/// [`cap_transverse`]'s; [`BlendError::SurgeryInvariant`] where a
+/// fillet's band is not a cylinder, the verdict disagreeing with itself.
 fn cut_off_section<T: Decide + Bounds>(
     vertex: VertexKey,
     link: &Link<T>,
@@ -3308,12 +3450,13 @@ fn cut_off_section<T: Decide + Bounds>(
     match kind {
         BlendKind::Chamfer => Ok(EndSection::Chord),
         BlendKind::Fillet => {
-            let Surface::Cylinder { axis, .. } = link.blend.surface else {
-                return Err(super::surgery::unbuilt_corner_config(
-                    vertex,
-                    CornerConfig::Indeterminate,
+            let Surface::Cylinder { frame, .. } = link.blend.surface else {
+                return Err(invariant_broken(
+                    EntityId::Edge(link.edge),
+                    "a plane–plane fillet link's band is not a cylinder",
                 ));
             };
+            let axis = frame.axis();
             cap_transverse(vertex, normal, axis, radius, link.arm_len, band)
         }
     }
@@ -3334,7 +3477,7 @@ pub(super) enum JointVerdict {
     /// The links lie on different support faces.
     OtherFaces,
     /// The vertex carries edges other than the two links.
-    Valence(usize),
+    Valence,
     /// The vertex's edge orbit does not walk.
     OrbitBroken,
 }
@@ -3360,7 +3503,7 @@ pub(super) fn joint_verdict<T: Decide>(
     // fan, so the valence is two; checked, not inherited.
     match fan_at(body.edges_of_vertex(vertex)) {
         None => JointVerdict::OrbitBroken,
-        Some(es) if es.len() != 2 => JointVerdict::Valence(es.len()),
+        Some(es) if es.len() != 2 => JointVerdict::Valence,
         Some(_) => JointVerdict::Joint,
     }
 }
@@ -3835,6 +3978,187 @@ mod turn_verdict_rows {
                     assert_eq!(got, decision, "gap {gap:e}, chords {chords:?}");
                 }
                 other => panic!("gap {gap:e}, chords {chords:?}: escalates, got {other:?}"),
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod coaxial_spine_rows {
+    use super::*;
+    use crate::blend::arms::{Branch, Meridian, sheet_center};
+    use crate::test_support::{corners, finished, revolved_about_y, rim_arcs_at};
+    use geom_core::Tol;
+
+    /// **A ball centre past the axis mints its spine at its distance from
+    /// the axis** ([`super::super::arms::Meridian::blend`]): a flat
+    /// frustum's base rim, whose ball sits up the cone where the centre
+    /// crosses the axis (`s ≈ −0.12` at `r = 0.3`, `s ≈ −0.87` at
+    /// `r = 0.5`). The band surface is the ring-convention torus of major
+    /// `|s|`, every point of both trimlines lies on it, and predicate 3
+    /// refuses the spine the tube swallows (`|s| < r`) and passes the
+    /// other. The centre is read again here, off the rim's own sheet
+    /// ([`sheet_center`]), so the premise `s < 0` is the fixture's. The
+    /// torus is the signed form's surface chart for chart (its point at
+    /// `(u, π − v)` the signed form's at `(u, v)`), which reads the seam's
+    /// turn, and each trimline is the signed circle's parametrisation at
+    /// a positive radius. Red against the signed mint (negative major,
+    /// passing predicate 3 on either), an unturned seam, and the signed
+    /// trimlines.
+    #[test]
+    fn a_ball_centre_past_the_axis_mints_its_spine_at_its_distance() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let t30 = (core::f64::consts::PI / 6.0).tan();
+        let body = finished(
+            "body",
+            revolved_about_y(
+                corners(&[(0.1, 0.0), (1.0, 0.0), (0.2, 0.8 * t30), (0.1, 0.8 * t30)]),
+                crate::Revolution::Full,
+                tol,
+            ),
+            tol,
+        );
+        let edges = rim_arcs_at(&body, 1.0, 0.0);
+        assert!(!edges.is_empty(), "the base rim");
+        for (r, swallowed) in [(0.3, true), (0.5, false)] {
+            for &edge in &edges {
+                let Resolved::Link(link) = resolve_link(&body, edge, r, band, BlendKind::Fillet)
+                    .unwrap_or_else(|e| panic!("r = {r}: the link resolves, got {e:?}"))
+                else {
+                    panic!("r = {r}: the rim is a wedge, not a smooth seam");
+                };
+                let Surface::Torus {
+                    frame: carrier_frame,
+                    major_radius,
+                    minor_radius,
+                    ..
+                } = link.blend.surface
+                else {
+                    panic!("r = {r}: the coaxial arm's band is a torus");
+                };
+                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                assert!(
+                    major_radius > 0.0,
+                    "r = {r}: the spine's radius, {major_radius}"
+                );
+                // The centre, read off the rim's sheet as the arm reads it.
+                let (carrier, t0, t1) = carrier_of(&body, edge).unwrap();
+                let Curve3::Circle(rim) = carrier else {
+                    panic!("the base rim is a circle");
+                };
+                let p = carrier.eval(geom::mid_param(t0, t1));
+                let sheet = Meridian {
+                    axis: rim.frame.axis_line(),
+                    rim: p,
+                };
+                let radial = sheet.radial();
+                let side = |f: FaceKey| {
+                    let sense = body.get_face(f).unwrap().sense;
+                    let surface = body.face_surface(f).unwrap().clone();
+                    sheet
+                        .trace(&surface, ball_side(link.convexity, sense))
+                        .unwrap()
+                        .0
+                };
+                let (ta, tb) = (side(link.face_a), side(link.face_b));
+                let ball = sheet_center(p, sheet.sheet_normal(), ta, tb, r, Branch::Rim);
+                let s = (ball - sheet.axis.origin).dot(radial);
+                assert!(
+                    s < 0.0,
+                    "r = {r}: the premise, a centre past the axis (s = {s})"
+                );
+                assert!(
+                    (major_radius + s).abs() < 1e-12,
+                    "r = {r}: the spine at |s|"
+                );
+                // The signed form's surface, chart for chart.
+                let signed = Surface::Torus {
+                    frame: geom::Frame::new(center, axis, radial),
+                    major_radius: s,
+                    minor_radius,
+                };
+                for (i, j) in (0..6).flat_map(|i| (0..6).map(move |j| (i, j))) {
+                    let (u, v) = (f64::from(i) * 1.1, f64::from(j) * 1.1);
+                    let gap = (link.blend.surface.eval(u, core::f64::consts::PI - v)
+                        - signed.eval(u, v))
+                    .norm();
+                    assert!(
+                        gap < 1e-12,
+                        "r = {r}: the chart at ({u}, {v}) moved by {gap}"
+                    );
+                }
+                // Each trimline, the signed circle's parametrisation at a
+                // positive radius.
+                for (trim, _) in [&link.blend.trim_a, &link.blend.trim_b] {
+                    let Curve3::Circle(c) = trim else {
+                        panic!("r = {r}: a coaxial trimline is a circle");
+                    };
+                    assert!(
+                        c.radius() > 0.0,
+                        "r = {r}: a trimline's radius, {}",
+                        c.radius()
+                    );
+                    // The contact: where the circle crosses the rim's
+                    // sheet, at the ball's radius from its centre.
+                    let at = |x: f64| ((c.frame.origin() + radial * x) - ball).norm() - r;
+                    let rho = if at(c.radius()).abs() < at(-c.radius()).abs() {
+                        c.radius()
+                    } else {
+                        -c.radius()
+                    };
+                    assert!(
+                        at(rho).abs() < 1e-9,
+                        "r = {r}: the trimline holds the contact"
+                    );
+                    // The signed circle at `rho` is the circle of `|rho|`
+                    // seamed a half turn on: `(u·cos θ + v·sin θ)·(−r)` is
+                    // `((−u)·cos θ + (axis × −u)·sin θ)·r`.
+                    let signed = if rho > 0.0 {
+                        Curve3::circle(c.frame.origin(), axis, rho, radial)
+                    } else {
+                        Curve3::circle(c.frame.origin(), axis, -rho, -radial)
+                    };
+                    for k in 0..8 {
+                        let t = f64::from(k) * 0.8;
+                        let gap = (trim.eval(t) - signed.eval(t)).norm();
+                        assert!(gap < 1e-12, "r = {r}: a trimline at {t} moved by {gap}");
+                    }
+                }
+                assert!(
+                    (link.blend.spine_curvature - 1.0 / major_radius).abs() < 1e-12,
+                    "r = {r}: the spine's curvature is its radius's reciprocal"
+                );
+                // On the band: at the tube's radius from the spine circle's
+                // point in its own meridian half-plane, or, where the tube
+                // crosses the axis (a swallowed spine), in the other.
+                let on_torus = |p: Point3<f64>| {
+                    let w = p - center;
+                    let along = w.dot(axis);
+                    let rho = (w - axis * along).norm();
+                    let off = |s: f64| ((rho - s).powi(2) + along.powi(2)).sqrt() - minor_radius;
+                    let (near, far) = (off(major_radius), off(-major_radius));
+                    if near.abs() < far.abs() { near } else { far }
+                };
+                for (trim, _) in [link.blend.trim_a.clone(), link.blend.trim_b.clone()] {
+                    for k in 0..8 {
+                        let p = trim.eval(f64::from(k) * core::f64::consts::FRAC_PI_4);
+                        assert!(
+                            on_torus(p).abs() < 1e-9,
+                            "r = {r}: a trimline point off the band, by {}",
+                            on_torus(p)
+                        );
+                    }
+                }
+                assert_eq!(
+                    matches!(
+                        spine_regularity(link.blend.spine_curvature, r, band),
+                        Err(BlendError::SpineIrregular { .. })
+                    ),
+                    swallowed,
+                    "r = {r}: predicate 3 refuses exactly the swallowed spine (|s| = {major_radius})"
+                );
             }
         }
     }

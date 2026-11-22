@@ -46,9 +46,9 @@ use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
-use super::contain::{CurvedPlacement, FaceContainment, placement_on_carrier};
 use super::fate::{Holds, Leaving, corner_holds, departure};
 use crate::body::Body;
+use crate::contain::{CurvedPlacement, FaceContainment, placement_on_carrier};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::face_normal::NormalAtError;
 use crate::live::BoundaryMember;
@@ -546,7 +546,7 @@ fn half_plane<T: Decide>(
             let dd = carrier.deriv2(t);
             Some((dd - u * dd.dot(u)) / speed.powi(2))
         }
-        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => None,
     };
     // The piece from `p` to a vertex: the edge's start at `t0`, its end
     // at `t1`.
@@ -699,8 +699,8 @@ fn edge_witness<T: Decide>(
     band: Band,
     kept: &mut Evidence<OverlapRefusal>,
 ) -> Result<bool, OverlapRefusal> {
-    let boundary = super::carrier_cross::face_boundary(y.0, y.1)
-        .map_err(|e| OverlapRefusal::Boundary(Arc::new(e)))?
+    let boundary = crate::face_boundary::face_boundary(y.0, y.1)
+        .map_err(|e| OverlapRefusal::Boundary(Arc::new(e.into())))?
         .ok_or(OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge))?;
     if !boundary.lone.is_empty() {
         return Err(OverlapRefusal::Unread(OverlapUnread::LoneVertex));

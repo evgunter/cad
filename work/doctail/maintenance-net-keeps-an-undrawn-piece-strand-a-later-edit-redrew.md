@@ -2,11 +2,11 @@
 id: maintenance-net-keeps-an-undrawn-piece-strand-a-later-edit-redrew
 kind: issue
 title: MaintenanceNet keeps a SetProgram's undrawn-piece strand that a later edit of the same action draws again
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P4
 cost: M
-blocked_on: [a-reshapings-values-strand-what-a-value-edit-would-not]
+closed: 2026-11-18
 ---
 
 
@@ -39,3 +39,11 @@ carry, or the net to re-derive, which piece it was about.
 ## Re-homed at RECIPE's close (2026-10-11)
 
 Moved to DOCTAIL and parked on `a-reshapings-values-strand-what-a-value-edit-would-not`: whether a value-only undrawn piece strands at all decides which strands this survival test must re-derive.
+
+## Closed
+
+2026-11-18. `MaintenanceNet::finish` drops a `Took::Piece` strand whose
+pieces the end document's programs can all draw again
+(`drawable_again`, `crates/editor-core/src/edit.rs`). It reads no
+value, since the strand is now only ever about structure:
+`edit_set_program::an_actions_piece_strand_survives_until_a_later_reshaping_draws_it_again`.

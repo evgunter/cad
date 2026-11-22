@@ -268,21 +268,53 @@ impl<T: Real> Lattice for Covered<T> {
 #[derive(Clone, Debug)]
 pub struct Cover<T: Real>(Node<T>);
 
-/// The region's expression. A meet and a hull hold their operands in
-/// the order they were joined, at least two, and are read as the
-/// left-deep chain they were built as: `a.hull(b).hull(c)` is
-/// `Hull[a, b, c]`, read `(a ∪ b) ∪ c`, its readers folding the operands
-/// left to right. So a chain as long as the entities it joins (an
-/// operand's faces, a face's edges) is one node, not a tree that deep,
-/// and every walk over the expression, its clone and its drop among
-/// them, is as deep as the expression's nesting of kinds rather than its
-/// length.
+/// The region's expression. A meet and a hull are a [`Chain`] of their
+/// operands, read as the left-deep chain they were built as:
+/// `a.hull(b).hull(c)` is `Hull[a; b, c]`, read `(a ∪ b) ∪ c`, its
+/// readers folding the operands left to right. So a chain accumulated on
+/// the left, as every fold over covers accumulates (an operand's faces,
+/// a face's edges), is one node however long, and every walk over the
+/// expression, its clone and its drop among them, is as deep as the
+/// expression's nesting of kinds.
+///
+/// **A right operand of the chain's own kind stays one operand**:
+/// `a.hull(b.hull(c))` is `Hull[a; Hull[b; c]]`. The balls do not
+/// associate (`a ∪ (b ∪ c)`'s is not `(a ∪ b) ∪ c`'s; `cover::tests` pins
+/// it), so splicing it in would read another region bound. A fold that
+/// accumulates on the right is as deep as its length.
 #[derive(Clone, Debug)]
 enum Node<T: Real> {
     Piece(Piece<T>),
-    Meet(Vec<Node<T>>),
-    Hull(Vec<Node<T>>),
+    Meet(Chain<T>),
+    Hull(Chain<T>),
     Convex(Box<Node<T>>),
+}
+
+/// **A meet's or a hull's operands, in the order they were joined**: the
+/// first, and those joined after it, one or more where a combinator
+/// built it ([`Cover::meet`], [`Cover::hull`]).
+#[derive(Clone, Debug)]
+struct Chain<T: Real> {
+    first: Box<Node<T>>,
+    rest: Vec<Node<T>>,
+}
+
+impl<T: Real> Chain<T> {
+    fn of(first: Node<T>, second: Node<T>) -> Self {
+        Self {
+            first: Box::new(first),
+            rest: vec![second],
+        }
+    }
+
+    fn joined(mut self, next: Node<T>) -> Self {
+        self.rest.push(next);
+        self
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &Node<T>> {
+        core::iter::once(&*self.first).chain(&self.rest)
+    }
 }
 
 /// The closed set of shapes. A frame a piece holds is read as the
@@ -439,7 +471,7 @@ fn finite_vec<T: Real>(v: Vec3<T>) -> bool {
 }
 
 fn finite_frame<T: Real>(f: &Frame<T>) -> bool {
-    finite_point(f.origin) && finite_vec(f.axis) && finite_vec(f.u_ref)
+    finite_point(f.origin()) && finite_vec(f.axis()) && finite_vec(f.u_ref())
 }
 
 /// `√λ_max` of the Gram matrix of `x` and `y`: the longest
@@ -479,7 +511,7 @@ struct OffAxis<T: Real> {
 
 impl<T: Real> OffAxis<T> {
     fn of(frame: &Frame<T>, d: Vec3<T>) -> Self {
-        let (u, v) = (frame.u_ref, frame.v_ref());
+        let (u, v) = (frame.u_ref(), frame.v_ref());
         let (p, q) = (off_line(u, d), off_line(v, d));
         let (pp, qq, pq) = (p.norm_squared(), q.norm_squared(), p.dot(q));
         Self {
@@ -685,8 +717,8 @@ impl<T: Real> Cover<T> {
     /// `within`, that is not a finite number, an axis of zero length
     /// among them.
     pub fn wall(frame: &Frame<T>, radius: T, within: &Self) -> Option<Self> {
-        let axis = frame.axis.normalize();
-        let base = vec_of(frame.origin).dot(axis);
+        let axis = frame.axis().normalize();
+        let base = vec_of(frame.origin()).dot(axis);
         let (lo, hi) = within.range_along(axis);
         let window = ParamWindow::new(lo - base, hi - base);
         let (low, top) = OffAxis::of(frame, axis).off;
@@ -696,7 +728,7 @@ impl<T: Real> Cover<T> {
             .then(|| {
                 Self::piece(Piece::Slab(Slab {
                     axis: Line {
-                        origin: frame.origin,
+                        origin: frame.origin(),
                         dir: axis,
                     },
                     radius: outer,
@@ -722,18 +754,18 @@ impl<T: Real> Cover<T> {
     /// generators are not decided to climb (a denominator not decided
     /// positive).
     pub fn cone(frame: &Frame<T>, half_angle: T, within: &Self) -> Option<Self> {
-        let axis = frame.axis.normalize();
-        let base = vec_of(frame.origin).dot(axis);
+        let axis = frame.axis().normalize();
+        let base = vec_of(frame.origin()).dot(axis);
         let (lo, hi) = within.range_along(axis);
         let window = ParamWindow::new(lo - base, hi - base);
         let radial = OffAxis::of(frame, axis);
         let (sin, cos) = half_angle.sin_cos();
-        let climb = cos * frame.axis.norm() - sin.abs() * radial.tilt;
+        let climb = cos * frame.axis().norm() - sin.abs() * radial.tilt;
         let tan = climb.select_le_zero(geom_core::poison(), sin.abs() * radial.off.1 / climb);
         (finite_frame(frame) && finite_vec(axis) && finite(&[tan]) && window.finite()).then(|| {
             Self::piece(Piece::Frustum(Frustum {
                 axis: Line {
-                    origin: frame.origin,
+                    origin: frame.origin(),
                     dir: axis,
                 },
                 tan,
@@ -839,11 +871,8 @@ impl<T: Real> Cover<T> {
     #[must_use]
     pub fn meet(self, other: Self) -> Self {
         Self(match self.0 {
-            Node::Meet(mut all) => {
-                all.push(other.0);
-                Node::Meet(all)
-            }
-            first => Node::Meet(vec![first, other.0]),
+            Node::Meet(chain) => Node::Meet(chain.joined(other.0)),
+            first => Node::Meet(Chain::of(first, other.0)),
         })
     }
 
@@ -851,11 +880,8 @@ impl<T: Real> Cover<T> {
     #[must_use]
     pub fn hull(self, other: Self) -> Self {
         Self(match self.0 {
-            Node::Hull(mut all) => {
-                all.push(other.0);
-                Node::Hull(all)
-            }
-            first => Node::Hull(vec![first, other.0]),
+            Node::Hull(chain) => Node::Hull(chain.joined(other.0)),
+            first => Node::Hull(Chain::of(first, other.0)),
         })
     }
 
@@ -976,7 +1002,9 @@ impl<T: Bounds> Cover<T> {
     /// [`Cover::box_in`] at [`BoxAxes::World`] taken at its bracket's outer
     /// end, then [`Aabb::padded`]. A bound that is not a number in any
     /// lane makes the whole box the poison box ([`whole_poison`]), which
-    /// overlaps everything.
+    /// overlaps everything. **At a zero pad every side is still one ulp
+    /// out** ([`Aabb::padded`] steps): a reader that needs the cover's own
+    /// bounds reads [`Cover::box_in`].
     pub fn aabb(&self, pad: f64) -> Aabb {
         let (lo, hi) = self.box_in(&BoxAxes::World);
         whole_poison(Aabb {
@@ -1007,20 +1035,19 @@ fn whole_poison(b: Aabb) -> Aabb {
 /// **A chain's reading, folded left to right**: `read` of each operand,
 /// joined by `join` in the order they were built, `((x0 ⋅ x1) ⋅ x2) ⋅ …`,
 /// the left-deep form's own order ([`Node`]).
-fn fold<N, R>(all: &[N], read: impl Fn(&N) -> R, join: impl Fn(R, R) -> R) -> R {
-    let mut acc = read(&all[0]);
-    for n in &all[1..] {
-        acc = join(acc, read(n));
-    }
-    acc
+fn fold<T: Real, R>(chain: &Chain<T>, read: impl Fn(&Node<T>) -> R, join: impl Fn(R, R) -> R) -> R {
+    chain
+        .rest
+        .iter()
+        .fold(read(&chain.first), |acc, n| join(acc, read(n)))
 }
 
 impl<T: Real> Node<T> {
     fn support(&self, e: Vec3<T>) -> T {
         match self {
             Node::Piece(p) => p.support(e),
-            Node::Meet(all) => fold(all, |n| n.support(e), T::min),
-            Node::Hull(all) => fold(all, |n| n.support(e), T::max),
+            Node::Meet(chain) => fold(chain, |n| n.support(e), T::min),
+            Node::Hull(chain) => fold(chain, |n| n.support(e), T::max),
             Node::Convex(inner) => inner.support(e),
         }
     }
@@ -1032,13 +1059,13 @@ impl<T: Real> Node<T> {
     fn distance_range(&self, site: &Site<T>) -> (T, T) {
         match self {
             Node::Piece(p) => p.distance_range(site),
-            Node::Meet(all) => fold(
-                all,
+            Node::Meet(chain) => fold(
+                chain,
                 |n| n.distance_range(site),
                 |(n0, f0), (n1, f1)| (n0.max(n1), f0.min(f1)),
             ),
-            Node::Hull(all) => fold(
-                all,
+            Node::Hull(chain) => fold(
+                chain,
                 |n| n.distance_range(site),
                 |(n0, f0), (n1, f1)| (n0.min(n1), f0.max(f1)),
             ),
@@ -1061,8 +1088,8 @@ impl<T: Real> Node<T> {
     fn about(&self, sites: &mut Vec<Around<T>>) {
         match self {
             Node::Piece(p) => sites.extend(p.about()),
-            Node::Meet(all) => {
-                for n in all {
+            Node::Meet(chain) => {
+                for n in chain.iter() {
                     n.about(sites);
                 }
             }
@@ -1085,14 +1112,18 @@ impl<T: Real> Node<T> {
         let narrowed = |own, bx| (boxed(own, bx), bx);
         match self {
             Node::Piece(p) => narrowed(p.shape_ball(), p.world_box()),
-            Node::Meet(all) => fold(all, Node::ball_and_box, |(b0, x0), (b1, x1)| {
+            Node::Meet(chain) => fold(chain, Node::ball_and_box, |(b0, x0), (b1, x1)| {
                 narrowed(smaller(b0, b1), (x0.0.max(x1.0), x0.1.min(x1.1)))
             }),
-            Node::Hull(all) => fold(all, Node::ball_and_box, |((c0, r0), x0), ((c1, r1), x1)| {
-                let c = c0.mid(c1);
-                let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
-                narrowed((c, r), (x0.0.min(x1.0), x0.1.max(x1.1)))
-            }),
+            Node::Hull(chain) => fold(
+                chain,
+                Node::ball_and_box,
+                |((c0, r0), x0), ((c1, r1), x1)| {
+                    let c = c0.mid(c1);
+                    let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
+                    narrowed((c, r), (x0.0.min(x1.0), x0.1.max(x1.1)))
+                },
+            ),
             Node::Convex(inner) => inner.ball_and_box(),
         }
     }
@@ -1102,13 +1133,13 @@ impl<T: Real> Node<T> {
     fn circle_range(&self, core: &Core<T>) -> (T, T) {
         match self {
             Node::Piece(p) => p.circle_range(core),
-            Node::Meet(all) => fold(
-                all,
+            Node::Meet(chain) => fold(
+                chain,
                 |n| n.circle_range(core),
                 |(n0, f0), (n1, f1)| (n0.max(n1), f0.min(f1)),
             ),
-            Node::Hull(all) => fold(
-                all,
+            Node::Hull(chain) => fold(
+                chain,
                 |n| n.circle_range(core),
                 |(n0, f0), (n1, f1)| (n0.min(n1), f0.max(f1)),
             ),
@@ -1163,7 +1194,7 @@ impl<T: Real> Tube<T> {
     /// its core.
     fn shell_inner(&self) -> T {
         let (r, big) = (self.minor, self.major);
-        let (unit, alpha) = self.frame.axis.direction_and_length();
+        let (unit, alpha) = self.frame.axis().direction_and_length();
         let OffAxis {
             off: (low, top),
             tilt: tau,
@@ -1179,7 +1210,7 @@ impl<T: Real> Tube<T> {
     /// The site the tube is measured about ([`Hub`]).
     fn hub(&self) -> Around<T> {
         match self.hub {
-            Hub::Centre => Around::Point(self.frame.origin),
+            Hub::Centre => Around::Point(self.frame.origin()),
             Hub::Core => Around::Circle(self.core()),
         }
     }
@@ -1195,9 +1226,9 @@ impl<T: Real> Tube<T> {
     /// `e`'s components along `u_ref`, `v_ref` and the axis.
     fn components(&self, e: Vec3<T>) -> (T, T, T) {
         (
-            self.frame.u_ref.dot(e),
+            self.frame.u_ref().dot(e),
             self.frame.v_ref().dot(e),
-            self.frame.axis.dot(e),
+            self.frame.axis().dot(e),
         )
     }
 
@@ -1211,7 +1242,7 @@ impl<T: Real> Tube<T> {
         let (p, q, a) = self.components(e);
         let m = (p.powi(2) + q.powi(2)).sqrt();
         let reach = self.major * m + self.minor * (m.powi(2) + a.powi(2)).sqrt();
-        vec_of(self.frame.origin).dot(e) + reach
+        vec_of(self.frame.origin()).dot(e) + reach
     }
 
     /// The longest radial direction `|ρ(u)|`, and the longest tube offset
@@ -1220,7 +1251,7 @@ impl<T: Real> Tube<T> {
     /// `|ρ·axis| ≤ √((u_ref·a)² + (v_ref·a)²)`, in which the Gram bound is
     /// non-decreasing.
     fn reaches(&self) -> (T, T) {
-        let a = self.frame.axis;
+        let a = self.frame.axis();
         let OffAxis { top: rho, tilt, .. } = OffAxis::of(&self.frame, a);
         (rho, gram_top(rho.powi(2), a.norm_squared(), tilt))
     }
@@ -1228,7 +1259,7 @@ impl<T: Real> Tube<T> {
     fn ball(&self) -> Ball<T> {
         let (rho, off) = self.reaches();
         let r = self.major * rho + self.minor * off;
-        (self.frame.origin, r)
+        (self.frame.origin(), r)
     }
 
     /// The spine circle's range from a circle, read through the spine
@@ -1307,7 +1338,7 @@ impl<T: Real> Patch<T> {
         let b = ArcWindow::new(self.v.lo, self.v.hi)
             .extent(T::zero(), self.minor * m, self.minor * a)
             .1;
-        vec_of(t.frame.origin).dot(e) + self.major * m + b
+        vec_of(t.frame.origin()).dot(e) + self.major * m + b
     }
 }
 
@@ -1390,8 +1421,8 @@ impl<T: Real> Frustum<T> {
 impl<T: Real> Arc<T> {
     fn support(&self, e: Vec3<T>) -> T {
         let (_, hi) = ArcWindow::new(self.window.lo, self.window.hi).extent(
-            vec_of(self.frame.origin).dot(e),
-            self.semi_u * self.frame.u_ref.dot(e),
+            vec_of(self.frame.origin()).dot(e),
+            self.semi_u * self.frame.u_ref().dot(e),
             self.semi_v * self.frame.v_ref().dot(e),
         );
         hi
@@ -1426,15 +1457,15 @@ impl<T: Real> Arc<T> {
         match site {
             Site::Point(at) => {
                 let half = T::from_f64(0.5);
-                let (u_hat, u_len) = self.frame.u_ref.direction_and_length();
+                let (u_hat, u_len) = self.frame.u_ref().direction_and_length();
                 let v_off = self.frame.v_ref() - u_hat * self.frame.v_ref().dot(u_hat);
                 let v_hat = v_off.normalize();
                 let rho =
                     (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
-                let dp = self.frame.u_ref * self.semi_u - u_hat * rho;
+                let dp = self.frame.u_ref() * self.semi_u - u_hat * rho;
                 let dq = self.frame.v_ref() * self.semi_v - v_hat * rho;
                 let dev = gram_top(dp.norm_squared(), dq.norm_squared(), dp.dot(dq));
-                let w = *at - self.frame.origin;
+                let w = *at - self.frame.origin();
                 let (x, y, h) = (w.dot(u_hat), w.dot(v_hat), w.dot(u_hat.cross(v_hat)));
                 Circle {
                     b1: u_hat,
@@ -1449,7 +1480,7 @@ impl<T: Real> Arc<T> {
             }
             Site::Line(line) => {
                 let a = line.dir.normalize();
-                let p = site.direction(self.frame.u_ref * self.semi_u);
+                let p = site.direction(self.frame.u_ref() * self.semi_u);
                 let q = site.direction(self.frame.v_ref() * self.semi_v);
                 let half = T::from_f64(0.5);
                 let with = (p - a.cross(q)) * half;
@@ -1459,7 +1490,7 @@ impl<T: Real> Arc<T> {
                 let choose_vec = |x: Vec3<T>, y: Vec3<T>| {
                     Vec3::new(choose(x.x, y.x), choose(x.y, y.y), choose(x.z, y.z))
                 };
-                let w = -site.relative(vec_of(self.frame.origin));
+                let w = -site.relative(vec_of(self.frame.origin()));
                 Circle {
                     b1: choose_vec(against, with),
                     b2: choose_vec(-a.cross(against), a.cross(with)),
@@ -1533,7 +1564,7 @@ impl<T: Real> Arc<T> {
         let pieces = (0..4).fold(site.distance(point(lo)), |far, k| {
             let s0 = lo + quarter * T::from_f64(f64::from(k));
             let s1 = s0 + quarter;
-            let bulge = (point(s0 + quarter * T::from_f64(0.5)) - self.frame.origin) * shift;
+            let bulge = (point(s0 + quarter * T::from_f64(0.5)) - self.frame.origin()) * shift;
             let (x0, x1) = (point(s0), point(s1));
             [x0 + bulge, x1, x1 + bulge]
                 .into_iter()
@@ -1545,8 +1576,8 @@ impl<T: Real> Arc<T> {
     /// The arc's point at `t`.
     fn point(&self, t: T) -> Point3<T> {
         let (s, c) = t.sin_cos();
-        self.frame.origin
-            + self.frame.u_ref * (self.semi_u * c)
+        self.frame.origin()
+            + self.frame.u_ref() * (self.semi_u * c)
             + self.frame.v_ref() * (self.semi_v * s)
     }
 
@@ -1554,11 +1585,11 @@ impl<T: Real> Arc<T> {
     /// frame's two semi-axis vectors.
     fn ball(&self) -> Ball<T> {
         let (p, q) = (
-            self.frame.u_ref * self.semi_u,
+            self.frame.u_ref() * self.semi_u,
             self.frame.v_ref() * self.semi_v,
         );
         let r = gram_top(p.norm_squared(), q.norm_squared(), p.dot(q));
-        (self.frame.origin, r)
+        (self.frame.origin(), r)
     }
 }
 

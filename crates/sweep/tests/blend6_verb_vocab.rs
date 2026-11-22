@@ -23,7 +23,7 @@ use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
-use sweep::test_support::{cube, disc_of_arcs};
+use sweep::test_support::{cube, dome};
 use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, EdgeKey};
@@ -32,13 +32,6 @@ use topo::{Body, EdgeKey};
 const L: f64 = 1.0;
 /// The blend size (radius or setback), meters.
 const D: f64 = 0.1;
-
-/// A circular prism: two half-arc profile segments extruded, so every
-/// rim edge has a plane and a CYLINDER for supports — the homed
-/// `disc_of_arcs` at two arcs.
-fn cylinder(r: f64, h: f64) -> Body<f64> {
-    disc_of_arcs(2, r, h, Tol::witness())
-}
 
 /// **The chamfer-purity claim, in one place**: a chamfer refusal's
 /// text opens with the chamfer's verb and never says "fillet" —
@@ -83,7 +76,7 @@ fn assert_speaks_once_as_the_fillet(refusal: &BlendRefusal, label: &str) {
 }
 
 /// **THE HEADLINE ROW, flipped.** An edge ending at a curved end face,
-/// through `chamfer_edges`, refuses over the SHARED run-out arm; the
+/// through `chamfer_edges`, refuses over the SHARED unbuilt-end arm; the
 /// caller who asked for a chamfer reads `"chamfer: …"` with a recourse
 /// that speaks of the band rather than telling them to fillet. The
 /// suite's first commit measured the run-out reading
@@ -97,12 +90,12 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
         D,
         Tol::witness(),
     )
-    .expect_err("a curved end face is a run-out");
+    .expect_err("a curved end face is an unbuilt end");
     assert!(
-        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
-        "the shared run-out arm is what refused: {err:?}"
+        matches!(err.error, BlendError::UnbuiltEnd(_)),
+        "the shared end arm is what refused: {err:?}"
     );
-    assert_speaks_as_the_chamfer(&err, "run-out");
+    assert_speaks_as_the_chamfer(&err, "curved end face");
     let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains("end the blend at a flat-faced corner"),
@@ -139,7 +132,7 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_turn() {
 }
 
 /// The fillet caller's verb stays right, and renders ONCE: the same
-/// shared run-out arm through `fillet_edges` opens `"fillet: "` with
+/// shared unbuilt-end arm through `fillet_edges` opens `"fillet: "` with
 /// no second verb prefix anywhere in the composition.
 #[test]
 fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
@@ -150,27 +143,27 @@ fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
         D,
         Tol::witness(),
     )
-    .expect_err("a curved end face is a run-out");
+    .expect_err("a curved end face is an unbuilt end");
     assert!(
-        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
-        "the shared run-out arm is what refused: {err:?}"
+        matches!(err.error, BlendError::UnbuiltEnd(_)),
+        "the shared end arm is what refused: {err:?}"
     );
-    assert_speaks_once_as_the_fillet(&err, "run-out");
+    assert_speaks_once_as_the_fillet(&err, "curved end face");
 }
 
 /// The chamfer's own arm still speaks as the chamfer — through the
 /// wrapper now, with the verb rendered exactly once.
 #[test]
 fn the_chamfers_own_arm_speaks_as_the_chamfer_once() {
-    let cyl = cylinder(0.5, 1.0);
-    let edges = query::all_edges(&cyl);
+    let dome = dome(1.0, Tol::witness());
+    let edges = query::all_edges(&dome);
     let err = chamfer_edges(
-        &sweep::test_support::at_rest(&cyl, Tol::witness()),
+        &sweep::test_support::at_rest(&dome, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
     )
-    .expect_err("a curved support has no ruled strip");
+    .expect_err("a sphere support has no chamfer band");
     assert!(
         matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
         "the chamfer's own arm table is what refused: {err:?}"
@@ -219,21 +212,33 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     ));
     assert_speaks_as_the_chamfer(&clearance, "clearance");
 
-    // The shared corner-configuration vocabulary: the L-bracket's reflex
-    // edge with one floor edge of its corner, which the mixed corner's
-    // rule does not build — the corner CONFIGURATION case (distinct from
-    // the run-out row above, which is about the REQUEST's coverage).
+    // The oblique mixed corner: a mixed corner's odd edge with one other
+    // where the face the other two share leans off square to it, which
+    // the mixed corner's rule does not build (`ObliqueMixedCorner`).
+    // Square, as at the L-bracket's reflex edge with one floor edge, the
+    // request chamfers.
     let bracket = l_bracket();
     let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&bracket, (0.5, 0.5));
-    let corner = chamfer_edges(
+    chamfer_edges(
         &sweep::test_support::at_rest(&bracket, t),
         &odd_and_one,
         D,
         t,
     )
-    .expect_err("a mixed-convexity corner's odd edge with one other has no rule built");
-    assert!(matches!(corner.error, BlendError::UnsupportedCorner { .. }));
-    assert_speaks_as_the_chamfer(&corner, "corner-config");
+    .expect("a square mixed corner's odd edge with one other chamfers");
+    let leaning = crate::band_mixed_corner::leaning();
+    let corner = chamfer_edges(
+        &sweep::test_support::at_rest(&leaning, t),
+        &crate::band_mixed_corner::leaning_odd_and_one(&leaning),
+        D,
+        t,
+    )
+    .expect_err("an oblique mixed corner's odd edge with one other has no rule built");
+    assert!(matches!(
+        corner.error,
+        BlendError::ObliqueMixedCorner { .. }
+    ));
+    assert_speaks_as_the_chamfer(&corner, "oblique corner");
 }
 
 /// **Followability, per verb (the issue-1278 rule)**: a recourse is a
@@ -266,11 +271,8 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
 
     let (round, edge) = half_round_end();
     let run_out = chamfer_edges(&sweep::test_support::at_rest(&round, t), &[edge], D, t)
-        .expect_err("a curved end face is a run-out");
-    assert!(matches!(
-        run_out.error,
-        BlendError::UnsupportedRunOut { .. }
-    ));
+        .expect_err("a curved end face is an unbuilt end");
+    assert!(matches!(run_out.error, BlendError::UnbuiltEnd(_)));
     assert!(
         chamfer_edges(&sweep::test_support::at_rest(&body, t), &edges[..1], D, t).is_ok(),
         "one edge ending at plane end faces, which the recourse names, must build"
@@ -282,8 +284,8 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
 /// before the arm table, so a co-surface seam meridian (one sphere on
 /// both sides, sine exactly zero) is a smooth seam `chamfer_edges`
 /// leaves as it is, and a declared cusp's kiss reads as a knife there
-/// and then meets the chamfer's one refusal for a pair its plane–plane
-/// arm does not cover, `ChamferArmUnsupported` — the chamfer's own arm,
+/// and then meets the chamfer's one refusal for a pair its arms do not
+/// cover, `ChamferArmUnsupported` — the chamfer's own arm table,
 /// speaking as the chamfer.
 #[test]
 fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
@@ -468,4 +470,29 @@ fn l_bracket() -> Body<f64> {
     .expect("an L-bracket extrudes")
     .body
     .into_body()
+}
+
+/// **A plane–cylinder rim's refusals speak as the chamfer.** The
+/// chamfer's frustum reaches the closed-rim walks' own refusals, whose
+/// recourses the fillet's rims share: a post's top requested in part
+/// stops at a smooth seam vertex, and a boss's foot and top asked in one
+/// call share the boss's wall. Neither may speak as the fillet.
+#[test]
+fn a_plane_cylinder_rims_refusals_speak_as_the_chamfer() {
+    let t = Tol::witness();
+    let post = sweep::test_support::cylinder_of_arcs_at(2, 0.5, Point2::new(0.0, 0.0), 0.0, 1.0, t);
+    let top = sweep::test_support::circle_arcs_at_z(&post, 1.0);
+    let err = chamfer_edges(&sweep::test_support::at_rest(&post, t), &top[..1], D, t)
+        .expect_err("half a rim stops at a smooth vertex");
+    assert_speaks_as_the_chamfer(&err, "partial rim");
+
+    let boss = sweep::test_support::boss_of_arcs(2, 2.0, 0.4, 1.0, 2.0, t);
+    let rims = [
+        sweep::test_support::z_rim(&boss, 0.4, 2.0, true),
+        sweep::test_support::z_rim(&boss, 0.4, 3.0, true),
+    ]
+    .concat();
+    let err = chamfer_edges(&sweep::test_support::at_rest(&boss, t), &rims, D, t)
+        .expect_err("a boss's foot and top share its wall");
+    assert_speaks_as_the_chamfer(&err, "foot and top in one call");
 }

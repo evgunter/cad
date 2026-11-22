@@ -118,7 +118,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
         name: "vessel",
         about: "a revolved pot (foot, spherical belly, mouth) hollowed to a wall of 1/128 \
                 with its mouth opened",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(vessel),
         // π-valued closed forms are not dyadic — module docs.

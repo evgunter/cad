@@ -46,14 +46,14 @@ pub use orient::{Orientation, SignedAxis};
 pub use pin::{FrameMove, Placed, moved_frame, stand};
 pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach, part_reach_from};
 pub use solve::{
-    Atan2Branch, Composing, PoseRefusal, SolveScalar, SolvedPoses, in_space, mate_coset,
+    Composing, PoseRefusal, SolveScalar, SolvedPoses, in_space, mate_coset,
     relative_freedom_components, solve_document, solve_document_at,
 };
-pub use turn::{LeastTurn, at_pole, slides_across, slides_left_along, turn_onto};
+pub use turn::{SNAP_TURN, slides_across, slides_left_along, turn_onto};
 pub use unobservable::{Unobservable, unobservable};
 pub use value::{
-    ChainTurn, Charted, MatedDirection, MatedHold, chain_turns, flipped, mated_direction,
-    read_back, side_flipped, spin_as_chain_turn,
+    ChainTurn, Charted, MatedDirection, MatedHold, chain_turns, face_chart_slides, flipped,
+    mated_direction, read_back, side_flipped, spin_as_chain_turn,
 };
 
 /// Which side of a mate a diagnostic is about.

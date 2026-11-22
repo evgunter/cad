@@ -2,10 +2,11 @@
 id: an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice
 kind: issue
 title: A moving edge's line, the aim's step, the aimed face's advance, the loops' turn and a curved carrier's roots still carry a moving face's box twice
-status: open
+status: dispatched
 opened: 2026-11-14
-priority: P2
+priority: P1
 cost: M
+branch: boxfinish/ray-readings
 ---
 
 
@@ -84,3 +85,20 @@ its second.
 Item 2 changes how an aim is computed, not where it lands at `f64`;
 `work/sideties/` holds the rows about where aims land, and
 `side_reader.rs` is claimed by both programs.
+
+## Re-banded P1 (2026-11-15, M4): it holds the switch's deletion
+
+With the frames built (PR 6972) and the switch's box arm off, a slab
+boxed wider than ± 0.215 of its depth still loses every aimed ray and
+then the volume reading (`OrientationUndecided { reading: Volume {
+Enclosure{-0.9699, 2.9699} }, aimed: 6, set_aside: 6 }` at depth
+`[0.75, 1.25]`): 40 refusing finishes across the box studies, one
+extra bisection level, and two red rows (m10_8's decision pin; m10_3's
+`the_certification_width_is_no_longer_bounded_by_epsilon`, which
+settles at a half-width of 0.215 where it wants about 1). The stored
+normals are exact now; per ray the refusals are the caps'
+`side_at_infinity_winding` (`{-3.827, 13.758}`, `{-1.412, 8.154}`,
+raised by `turned_inside` / `crosses_by_turn`), `side_at_infinity_edge`
+(`{0, 0.177}` to `{0, 1.227}`) and `side_at_infinity_advance`
+(`{-1.199, 0.927}`). `delete-the-box-scalar-sweep-leaf-switch` is
+parked on this row, so it takes that row's band.
