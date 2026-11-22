@@ -4647,10 +4647,10 @@ mod one_reader_rows {
     use crate::pcurve_cache::{limb2_carrier_read, limb2_offset_sup};
 
     /// The segment from `a` to `b` as a degree-1 spline on `[0, 1]`.
-    fn segment<T: geom_core::Real>(a: Point3<T>, b: Point3<T>) -> Curve3<T> {
+    fn segment(a: Point3<f64>, b: Point3<f64>) -> Curve3<f64> {
         let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         Curve3::Nurbs(Arc::new(
-            NurbsCurve3::new(knots, vec![a, b], vec![T::one(); 2]).unwrap(),
+            NurbsCurve3::new(knots, vec![a, b], vec![1.0; 2]).unwrap(),
         ))
     }
 
@@ -4705,10 +4705,8 @@ mod one_reader_rows {
             ),
         };
         let at = |z: f64| {
-            segment(
-                Point3::new(p(0.0), p(0.0), p(z)),
-                Point3::new(p(2.0), p(0.0), p(z)),
-            )
+            segment(Point3::new(0.0, 0.0, z), Point3::new(2.0, 0.0, z))
+                .map_scalar(Interval::from_f64)
         };
         let mut refused = super::Refused::default();
         let (_, sup) =
