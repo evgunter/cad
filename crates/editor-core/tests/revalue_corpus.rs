@@ -453,7 +453,25 @@ fn holds(
 /// and no decision before it flips. The floor counts the choices' margins
 /// that moved: the checks align apart ([`streams`]). Past it the row says nothing, which
 /// the document's in-step row covers.
-fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting: &str, item: &str) {
+///
+/// `floors` is one per ε row (`1e-6`, `1e-9`, `1e-12`): the builds take
+/// the same decisions at every row, but a margin that is a tolerance less
+/// a residual at rounding level (a carrier on its surface, a map's
+/// residual, an incidence read) moves under the `100·ε` step at one ε
+/// and keeps its bits at another, so how many move is the row's own.
+fn holds_until_parting(
+    name: &str,
+    floors: [usize; 3],
+    owed: &[(&str, &str)],
+    parting: &str,
+    item: &str,
+) {
+    let eps = Tol::witness().eps();
+    let floor = [1.0e-6, 1.0e-9, 1.0e-12]
+        .iter()
+        .position(|&e| (eps / e - 1.0).abs() < 1.0e-3)
+        .map(|row| floors[row])
+        .unwrap_or_else(|| panic!("{name}: no floor at eps = {eps:e}: measure one and add it"));
     let cd = corpus::documents()
         .into_iter()
         .find(|cd| cd.name == name)
@@ -507,7 +525,7 @@ fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting:
 fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
-        1993,
+        [1955, 1993, 1802],
         &[],
         "point_in_loop_arm",
         "work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md",
@@ -524,7 +542,7 @@ fn revalue_plate_param_apart_to_its_parting() {
 fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
-        1462,
+        [1414, 1462, 1402],
         &[],
         // PCERT E1c (every mint reads incidence first, PR 5889): the apart move now parts
         // at the read every mint makes first, before the radial decision.
