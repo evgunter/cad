@@ -844,11 +844,7 @@ impl Say for PlaneEvent {
             Self::PlaneLost { role, plane, .. } => {
                 crate::matetool::pick_lost(f, role.name(), plane, by)
             }
-            Self::DefinedLost { role, var } => write!(
-                f,
-                "the {} pick ({var}) is no longer in the document; the tool dropped it",
-                role.name()
-            ),
+            Self::DefinedLost { role, var } => crate::seats::pick_gone(f, role.name(), var),
             Self::NotAPlane { role, var } => write!(
                 f,
                 "{var} is neither a plane nor a frame, so it is not taken as the {}",

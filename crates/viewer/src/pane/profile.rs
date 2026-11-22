@@ -1400,7 +1400,7 @@ mod tests {
         let geometry = Err(PreviewError::Geometry {
             loop_: 0,
             step: 1,
-            kind: PathErrorKind::JunctionTangent,
+            kind: PathErrorKind::JunctionTurnWithinTolerance,
             rendered: "the leg has no answer".into(),
         });
         for refused in [ill_typed, geometry] {
