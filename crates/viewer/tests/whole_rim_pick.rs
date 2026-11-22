@@ -63,12 +63,8 @@ fn drawn(index: &PickIndex, node: RecipeNodeId, body: u32) -> Vec<EdgeSelection>
         .collect()
 }
 
-fn is_rim_arc(name: &StableName, pi: bool) -> bool {
-    match name.path.as_slice() {
-        [.., RoleSeg::BandRim(_)] => !pi,
-        [.., RoleSeg::BandRimPi(_)] => pi,
-        _ => false,
-    }
+fn is_rim(name: &StableName) -> bool {
+    matches!(name.path.as_slice(), [.., RoleSeg::BandRim(_)])
 }
 
 fn click(
@@ -171,7 +167,7 @@ fn loading_every_edge_counts_each_drawn_circle_once() {
     let node = common::drawn_node(session.committed_doc(), node);
     let index = plate_index(&session);
     let edges = drawn(&index, node, 0);
-    let rims = edges.iter().filter(|e| is_rim_arc(&e.name, false)).count();
+    let rims = edges.iter().filter(|e| is_rim(&e.name)).count();
     assert_eq!(rims, 2, "two cap circles: {edges:?}");
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
@@ -201,7 +197,7 @@ fn an_unindexed_arc_pick_is_refused_and_an_indexed_one_holds_the_circle() {
     let edges = drawn(&index, node, 0);
     let a = edges
         .iter()
-        .find(|e| is_rim_arc(&e.name, false))
+        .find(|e| is_rim(&e.name))
         .expect("an arc");
     let whole = index.whole_edge(a).expect("the index answers the rim");
     let b = edges
@@ -271,7 +267,7 @@ fn a_held_rim_through_an_edit_that_makes_the_revolve_partial() {
     let edges = drawn(&index, node, 0);
     let a = edges
         .iter()
-        .find(|e| is_rim_arc(&e.name, false))
+        .find(|e| is_rim(&e.name))
         .expect("an arc");
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
@@ -325,7 +321,7 @@ fn a_held_rim_through_an_undo_that_removes_the_body() {
     let edges = drawn(&index, node, 0);
     let a = edges
         .iter()
-        .find(|e| is_rim_arc(&e.name, false))
+        .find(|e| is_rim(&e.name))
         .expect("an arc");
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
@@ -481,7 +477,7 @@ fn the_teapot_lids_three_rims_roll_from_one_click_each() {
     assert_the_old_walk_agrees(&session, &index);
     let mut arcs: Vec<EdgeSelection> = drawn(&index, node, 0)
         .into_iter()
-        .filter(|e| is_rim_arc(&e.name, false))
+        .filter(|e| is_rim(&e.name))
         .collect();
     // Authored order: the rims at meridian vertices 1, 2, 3, 4.
     arcs.sort_by(|a, b| a.name.cmp(&b.name));

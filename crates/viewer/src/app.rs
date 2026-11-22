@@ -11770,7 +11770,7 @@ mod properties_pane_tests {
         let is_rim = |name: &pncad::prelude::StableName| {
             matches!(
                 name.path.as_slice(),
-                [.., RoleSeg::BandRim(_) | RoleSeg::BandRimPi(_)]
+                [.., RoleSeg::BandRim(_)]
             )
         };
         let aimed = {

@@ -154,7 +154,6 @@ enum RunRole {
     Lateral,
     RimEdge(CapEnd),
     Band,
-    BandPi,
     Meridian(MeridianEnd),
     AxisEdge,
 }
@@ -166,7 +165,6 @@ impl RunRole {
             Self::Lateral => RoleSeg::Lateral(run),
             Self::RimEdge(end) => RoleSeg::RimEdge(end, run),
             Self::Band => RoleSeg::Band(run),
-            Self::BandPi => RoleSeg::BandPi(run),
             Self::Meridian(end) => RoleSeg::Meridian(end, run),
             Self::AxisEdge => RoleSeg::AxisEdge(run),
         }
@@ -179,7 +177,6 @@ fn run_foot(foot: &StableName) -> Option<(RunRole, &PieceRun)> {
         [RoleSeg::Lateral(run)] => Some((RunRole::Lateral, run)),
         [RoleSeg::RimEdge(end, run)] => Some((RunRole::RimEdge(*end), run)),
         [RoleSeg::Band(run)] => Some((RunRole::Band, run)),
-        [RoleSeg::BandPi(run)] => Some((RunRole::BandPi, run)),
         [RoleSeg::Meridian(end, run)] => Some((RunRole::Meridian(*end), run)),
         [RoleSeg::AxisEdge(run)] => Some((RunRole::AxisEdge, run)),
         _ => None,
@@ -188,7 +185,7 @@ fn run_foot(foot: &StableName) -> Option<(RunRole, &PieceRun)> {
 
 /// The one-piece walls (or rim or meridian edges) a run of two or more
 /// pieces stands for — its `Lateral`, `RimEdge(end, ·)`, `Band`,
-/// `BandPi`, `Meridian(end, ·)` or `AxisEdge` segment spelled once per
+/// `Meridian(end, ·)` or `AxisEdge` segment spelled once per
 /// piece — read through its descent wrappers
 /// and re-wrapped by that same chain, or `None` when the name, peeled
 /// to its foot, holds no such run. A run wall is not a merge: it holds
@@ -649,7 +646,7 @@ mod tests {
             ]
         );
         assert!(row_covers(&run, &meridian(MeridianEnd::Seam, &[8])));
-        assert!(!row_covers(&run, &meridian(MeridianEnd::Pi, &[8])));
+        assert!(!row_covers(&run, &meridian(MeridianEnd::Start, &[8])));
         let rows = [run.clone()];
         assert_eq!(
             offers(&meridian(MeridianEnd::Seam, &[7]), rows.iter()),

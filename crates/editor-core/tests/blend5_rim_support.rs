@@ -338,13 +338,8 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     // The BASE rim (disk meets the lower cone): the one whose two
     // links disagree on slot order, and which has a planar support.
     let pv = crate::fixture::vpiece(&doc, revolve, 0, 1);
-    // The rim WHOLE: both of its arcs, which is the only request the
-    // surgery accepts here (one alone terminates at a seam vertex).
-    let mut selection = vec![
-        editor_core::band_rim(revolve, pv),
-        editor_core::band_rim_pi(revolve, pv),
-    ];
-    selection.sort();
+    // The rim WHOLE: one full-period circle on the one-band revolve.
+    let selection = vec![editor_core::band_rim(revolve, pv)];
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {

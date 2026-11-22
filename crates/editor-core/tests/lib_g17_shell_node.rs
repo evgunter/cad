@@ -379,10 +379,7 @@ fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
     assert_eq!(body.faces().count(), 8, "3 outer + 2 band + 3 cavity");
     let table = ev.table_at(shell).expect("evaluated");
     let cap = fixture::piece(&doc, pot, 0, vessel::SEG_CAP as usize);
-    for (which, name) in [
-        ("the u = 0 half", editor_core::band(pot, cap)),
-        ("the u = π half", editor_core::band_pi(pot, cap)),
-    ] {
+    for (which, name) in [("the cap", editor_core::band(pot, cap))] {
         let rim = shelled(shell, EntityKind::Face, RoleSeg::Rim(name.into()));
         assert!(
             matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
