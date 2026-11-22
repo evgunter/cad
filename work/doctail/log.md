@@ -478,3 +478,13 @@ body has the reasons):
 
   7149's corrupt-input red is gone on `c1296f6`, and its other jobs are
   queued on the runners.
+- 2026-11-22 07:35 — **7149 merged** (`ee54b13`): `Diagnosis::Parted`.
+  The fix pass, read by the orchestrator:
+  - every mark names its caller through typed `QuerySite`/`TestSite`
+    parameters, mandatory at each call (bvh, topo, sweep);
+  - the parting is said in words, true for Outcome marks too;
+  - coverage rows pin the real scenes.
+
+  The corrupt-input red was a random fuzz seed of CHARTTAIL's open row
+  `a-split-reduce-on-a-torn-body-panics-at-pcurves-unreachable-own-loop`,
+  which reproduces on main. The lane added its seed there. Lane archived.
