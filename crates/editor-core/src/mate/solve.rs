@@ -583,7 +583,7 @@ fn frame_of<T: SolveScalar>(
 
 /// **Where a pose's frame stands** ([`frame_of`]'s origin), read with no
 /// frame built.
-fn pose_origin<T: SolveScalar>(pose: &PoseValue<T>) -> geom_core::linalg::Point3<T> {
+pub(crate) fn pose_origin<T: SolveScalar>(pose: &PoseValue<T>) -> geom_core::linalg::Point3<T> {
     match *pose {
         PoseValue::Point { position } => position,
         PoseValue::Direction { .. } => geom_core::linalg::Point3::origin(),
@@ -1109,7 +1109,7 @@ pub(crate) fn fold_bundle<T: SolveScalar>(
 
 /// **Mates' cosets, met** ([`fold_bundle`]), each mate read as its two
 /// poses: `None` where two do not meet transversally. What a
-/// placement's fold and a face's chart ([`super::value::face_chart`])
+/// placement's fold and a face's chart ([`super::value::FaceChart`])
 /// both meet.
 ///
 /// # Errors
@@ -1242,7 +1242,7 @@ pub(crate) fn bundle_arm<T: SolveScalar>(
 
 /// **[`bundle_arm`] over mates read as their two poses**, its refusal
 /// naming no mate: what a placement's fold and a face's chart
-/// ([`super::value::face_chart`]) both lever their chart over.
+/// ([`super::value::FaceChart`]) both lever their chart over.
 ///
 /// # Errors
 ///

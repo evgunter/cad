@@ -1,8 +1,9 @@
 //! **A finished body can wear one chart with both senses within one
-//! solid, and `shell` refuses it `ChartSenseMixed`.** The import adopts
-//! surfaces by bit signature per solid and keeps each face's own
-//! `same_sense`, so a file whose two faces cite one plane, one of them
-//! reversed, imports as one surface key worn both ways. The Z-step
+//! solid, and `shell` refuses it `ChartSenseMixed`.** The import gives
+//! every face of one shell citing one surface entity that entity's one
+//! record, and keeps each face's own `same_sense`, so a file whose two
+//! faces cite one plane, one of them reversed, imports as one surface
+//! key worn both ways. The Z-step
 //! prism's two faces on y = 0 face opposite ways; written on separate
 //! planes it shells, and written on one plane it is still a finished
 //! body, which the verb takes and refuses typed: a chart moves as one,
@@ -14,7 +15,7 @@ use std::collections::BTreeMap;
 use geom_core::Tol;
 use step_export::{StepOptions, step_string};
 use step_import::{ImportOptions, StepImport, import_step};
-use topo::{Body, FaceKey, ShellError};
+use topo::{Body, ShellError};
 
 /// The Z-step profile, counterclockwise: `[0,2]×[−1,0] ∪ [1,3]×[0,1]`.
 const Z_STEP: [(f64, f64); 8] = [
@@ -97,16 +98,6 @@ fn imported(text: &str) -> Body<f64> {
     }
 }
 
-/// The charts of `body` worn by more than one face, each wearer with
-/// its sense.
-fn shared_charts(body: &Body<f64>) -> Vec<Vec<(FaceKey, bool)>> {
-    let mut by: BTreeMap<_, Vec<(FaceKey, bool)>> = BTreeMap::new();
-    for (k, f) in body.faces() {
-        by.entry(f.surface).or_default().push((k, f.sense));
-    }
-    by.into_values().filter(|w| w.len() > 1).collect()
-}
-
 #[test]
 fn a_chart_worn_both_ways_is_finished_and_shell_refuses_it() {
     let tol = Tol::witness();
@@ -118,12 +109,15 @@ fn a_chart_worn_both_ways_is_finished_and_shell_refuses_it() {
     .unwrap();
 
     let apart = imported(&text);
-    assert!(shared_charts(&apart).is_empty(), "control: no chart shared");
+    assert!(
+        crate::common::shared_surfaces(&apart).is_empty(),
+        "control: no chart shared"
+    );
     let apart = topo::finish(apart, tol).expect("control: the Z-step is finished");
     topo::shell(&apart, 0.1, tol).expect("control: the Z-step on two planes shells");
 
     let shared = imported(&share_the_y0_plane(&text));
-    let charts = shared_charts(&shared);
+    let charts = crate::common::shared_surfaces(&shared);
     assert!(
         charts.len() == 1 && charts[0].len() == 2 && charts[0][0].1 != charts[0][1].1,
         "one chart, worn by the two y = 0 faces with opposite senses: {charts:?}"
@@ -204,7 +198,7 @@ fn a_face_restated_on_an_antiparallel_record_still_faces_its_own_way() {
     assert_ne!(restated, text, "the restatement applies");
     let body = imported(&restated);
     assert!(
-        shared_charts(&body).is_empty(),
+        crate::common::shared_surfaces(&body).is_empty(),
         "the two y = 0 faces stay on two records"
     );
     let body = topo::finish(body, tol).expect("the restated Z-step is finished");

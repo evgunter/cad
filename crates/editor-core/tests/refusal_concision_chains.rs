@@ -1025,7 +1025,8 @@ mod kernel {
 test_utils::f6_variants! {
     /// `Diagnosis`'s arms, for the `SelectResolve/Vanished(…)` rows.
     const DIAGNOSIS: Diagnosis = [
-        PredicateFlip, BorderDelta, GroupResized, StructuralParam, IndexCount, RecipeEdit, Cascade,
+        PredicateFlip, BorderDelta, GroupResized, Parted, StructuralParam, IndexCount, RecipeEdit,
+        Cascade,
         WitnessBifurcation, Upstream,
     ];
 }
@@ -2300,7 +2301,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "CrossingEscalated",
             R::CrossingEscalated {
                 edge,
-                fault: topo::ConicRootFault::CrossingInterior(diag()),
+                fault: topo::CrossWhy::Method {
+                    door: geom_brep::curve_face::Door::PlaneCrossing,
+                    fault: geom_brep::curve_pair::MeetFault::Escalated(diag()),
+                },
             },
         ),
         (
@@ -5255,6 +5259,18 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     was: 2,
                     now: 1,
                     cutters: editor_core::GroupCutters::NotSeamBounded,
+                }),
+            ),
+            (
+                "Vanished(Parted)",
+                vanished(Diagnosis::Parted {
+                    node: at,
+                    site: geom_core::k_stats::QuerySite::new(
+                        "refusal_rows_query",
+                        "the faces whose boxes meet a face's",
+                    )
+                    .site(),
+                    step: 19,
                 }),
             ),
             (

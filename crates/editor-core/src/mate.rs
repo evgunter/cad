@@ -1168,6 +1168,10 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
         "whether the mated direction lies opposite to where the orientation puts the copy's",
     ),
     (
+        value::FACE_CHART_SELECTION_POLE,
+        "whether a face's chart's least turn has an answer over the session box, before what it carries is read",
+    ),
+    (
         "mate_chart_slides_span",
         "whether a placement's slides span what its mate leaves",
     ),

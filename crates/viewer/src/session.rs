@@ -99,7 +99,7 @@ pub use author::{BooleanSpec, PartSelectSpec, PatternDirection, PatternRuleSpec}
 pub use delete::DeleteAffordance;
 pub use op::{
     AssertedClaim, AssertedSeat, CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome,
-    PlaceTarget, PlacementBase, SessionOp, SplitPlane, ValueGestureName, measured,
+    PlaceTarget, PlacementBase, SessionOp, ToolPlane, ValueGestureName, measured,
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
@@ -3572,13 +3572,12 @@ impl DocSession {
     }
 
     /// **`face`'s trace on `on`, for display**
-    /// ([`pncad::trace::sketch_trace`]): on the datum the form's profile
-    /// on `on` stands on, inserted into a scratch copy of the landed
-    /// document by the door the commit draws through
-    /// ([`pncad::document::datum_on_face`], [`the_forms_chart`]) and
-    /// evaluated from the landed evaluation, read as that profile would
-    /// read it, and sampled across a square the traced body spans.
-    /// Nothing is written.
+    /// ([`pncad::trace::sketch_trace`]), against the landed evaluation:
+    /// on the chart the form's profile on `on` stands on, read by the
+    /// door the commit draws through ([`pncad::document::chart_on_face`],
+    /// [`the_forms_chart`]), read as that
+    /// profile would read it, and sampled across a square the traced
+    /// body spans. Nothing is written.
     ///
     /// # Errors
     ///
@@ -3596,39 +3595,18 @@ impl DocSession {
         };
         let traced = pick_read(doc, Some(ev), face).ok_or_else(|| picked(face))?;
         let (body, name) = picked_body(doc, Some(ev), on).ok_or_else(|| picked(on))?;
-        let (scratch, datum) = pncad::document::datum_on_face(
+        let frame = pncad::document::chart_on_face(
             doc,
             Some(ev),
             body,
             name,
             &the_forms_chart(vec![traced.clone()]),
-            self.tol,
-        )
-        .map_err(|e| SketchTraceFault::Picked(Arc::new(Refusal::Edit(Box::new(e)))))?;
-        let mut landed = pncad::document::evaluate(
-            &scratch,
-            Some(ev),
-            &pncad::document::CancelToken::new(),
-            &self.eval_options(),
-            self.tol,
         );
-        // A datum that does not place (the face is no plane) refuses in
-        // its own words, the words the committed profile's badge says.
-        if landed.node_error(datum).is_some()
-            && let Some(pncad::document::NodeResult::Failed(refused)) = landed.nodes.remove(&datum)
-        {
-            return Err(SketchTraceFault::Trace(Arc::new(
-                pncad::trace::SketchTraceError::Read(Box::new(refused.kind)),
-            )));
-        }
         let half = TRACE_WINDOW_MARGIN * body_reach(ev, face.node).unwrap_or(1.0);
         pncad::trace::sketch_trace(
-            &scratch,
-            &landed,
-            Operand::Output {
-                node: datum,
-                port: 0,
-            },
+            doc,
+            ev,
+            frame,
             traced,
             (pncad::geom_core::Point2::origin(), half),
             SKETCH_TRACE_RAYS,
@@ -3804,29 +3782,18 @@ impl DocSession {
     }
 
     /// Insert one split of an existing body ([`SessionOp::AddSplit`]):
-    /// its tool the plane it is handed, a picked face read as its plane
-    /// on the body it was picked on, as the mirror reads its plane.
-    /// Where something reads the target along a seen path, `above ⊔
-    /// below` takes it over there ([`Takeover`]), so each `⊔` and the
-    /// product show the two halves where they showed the body. Where
+    /// its tool the plane it is handed ([`Self::tool_plane`]). Where
+    /// something reads the target along a seen path, `above ⊔ below`
+    /// takes it over there ([`Takeover`]), so each `⊔` and the product
+    /// show the two halves where they showed the body. Where
     /// placements read the target, `above ⊔ below` is written as well:
     /// the new body the split makes, onto which they can be re-pointed
     /// ([`SessionOp::RepointPlacements`]), as onto a fillet.
-    fn add_split(&self, target: Operand, plane: &SplitPlane) -> Result<Creating, Refusal> {
+    fn add_split(&self, target: Operand, plane: &ToolPlane) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
         let target = as_body(doc, target);
         self.require_read(&target, NodeKindWanted::Body)?;
-        let tool = match plane {
-            SplitPlane::Face(face) => {
-                let (on, name) = picked_body(doc, self.evaluation(), face).ok_or_else(|| {
-                    Refusal::PickedMember {
-                        node: doc.spoken(face.node),
-                    }
-                })?;
-                RoleRead::plain(crate::matetool::plane_of(Operand::select(on, vec![name])))
-            }
-            SplitPlane::Read(read) => read.clone(),
-        };
+        let tool = self.tool_plane(plane)?;
         let takeover = self.takeover(&target)?;
         // Where placements read the body, the `⊔` is written too: what
         // they would be re-pointed onto ([`SessionOp::RepointPlacements`]).
@@ -3854,22 +3821,40 @@ impl DocSession {
         }))
     }
 
-    /// **Mirror a body across the plane of a picked face**
-    /// ([`SessionOp::AddMirror`]): the image, and the symmetric part,
+    /// **The plane a split or a mirror reads** ([`ToolPlane`]): a picked
+    /// face read as its plane on the body it was picked on, or the read
+    /// as written. A face on a member of a pattern no node holds refuses
+    /// [`Refusal::PickedMember`].
+    fn tool_plane(&self, plane: &ToolPlane) -> Result<RoleRead<Operand>, Refusal> {
+        match plane {
+            ToolPlane::Face(face) => {
+                let doc = self.committed_doc();
+                let (on, name) = picked_body(doc, self.evaluation(), face).ok_or_else(|| {
+                    Refusal::PickedMember {
+                        node: doc.spoken(face.node),
+                    }
+                })?;
+                Ok(RoleRead::plain(crate::matetool::plane_of(Operand::select(
+                    on,
+                    vec![name],
+                ))))
+            }
+            ToolPlane::Read(read) => Ok(read.clone()),
+        }
+    }
+
+    /// **Mirror a body across a plane** ([`SessionOp::AddMirror`],
+    /// [`Self::tool_plane`]): the image, and the symmetric part,
     /// the body and its image unioned, taking over what reads the body
     /// along a seen path ([`Takeover`]). The made node is the mirror,
     /// which the gesture's noun names: its label and the selection land
     /// there, and its rows hold what the gesture read.
-    fn add_mirror(&self, body: Operand, plane: &FaceSelection) -> Result<Creating, Refusal> {
+    fn add_mirror(&self, body: Operand, plane: &ToolPlane) -> Result<Creating, Refusal> {
         let body = as_body(self.committed_doc(), body);
         self.require_read(&body, NodeKindWanted::Body)?;
-        let doc = self.committed_doc();
-        let (on, face) =
-            picked_body(doc, self.evaluation(), plane).ok_or_else(|| Refusal::PickedMember {
-                node: doc.spoken(plane.node),
-            })?;
+        let plane = self.tool_plane(plane)?;
         let takeover = self.takeover(&body)?;
-        let node = combine::mirror_node(body.clone(), on, face);
+        let node = Node::mirror(body.clone(), plane);
         Ok(taking_over(takeover, move |run| {
             let image = run.insert(node)?;
             // The body FIRST: a union keeps its first member's carrier
@@ -6311,8 +6296,7 @@ pub enum SketchTraceFault {
     /// has no closed form, or a read refused (the face drawn on is no
     /// plane, so it has no chart).
     Trace(Arc<pncad::trace::SketchTraceError>),
-    /// A pick is read in no one body ([`Refusal::PickedMember`]), or the
-    /// datum the trace is read on does not write.
+    /// A pick is read in no one body ([`Refusal::PickedMember`]).
     Picked(Arc<Refusal>),
 }
 
