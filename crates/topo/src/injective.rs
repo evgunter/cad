@@ -12711,6 +12711,7 @@ mod presentation_rows {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod margin_rows {
     //! The departure's margin: a sine levered at the faces' reach.
     use super::*;
@@ -12955,12 +12956,12 @@ mod margin_rows {
         );
     }
 
-    /// A boundary of line edges `(key, from, to)` over the vertices
-    /// `vertices`.
-    fn boundary(
-        edges: &[(u64, Option<([f64; 3], [f64; 3])>, [u64; 2])],
-        vertices: &[(u64, [f64; 3])],
-    ) -> Boundary {
+    /// A line edge: its key, its ends' points (`None` for null
+    /// scaffolding) and its ends' keys.
+    type LineEdge = (u64, Option<([f64; 3], [f64; 3])>, [u64; 2]);
+
+    /// A boundary of line edges over the vertices `vertices`.
+    fn boundary(edges: &[LineEdge], vertices: &[(u64, [f64; 3])]) -> Boundary {
         Boundary {
             sense: true,
             edges: edges
