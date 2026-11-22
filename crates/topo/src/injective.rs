@@ -5400,7 +5400,7 @@ impl Psi {
                 };
                 unit(line.offset(p)).dot(square_to(axis, v)) * cos - axis.dot(v) * (nappe * sin)
             }
-            Self::Graph { m, t, slope, .. } => m.dot(v) - t.dot(v) * slope,
+            Self::Graph { m, t, slope, .. } => (m - t * slope).dot(v),
         }
     }
 
@@ -6485,7 +6485,12 @@ mod presentation_rows {
 
     /// A box around a ruling's segment 1.2e-5 long, `r` off a tilted axis
     /// through `o` and `along` metres up it, and the segment's direction.
-    fn on_a_ruling(o: Vec3<f64>, d: Vec3<f64>, along: f64, r: f64) -> (Point3<Interval>, Vec3<Interval>) {
+    fn on_a_ruling(
+        o: Vec3<f64>,
+        d: Vec3<f64>,
+        along: f64,
+        r: f64,
+    ) -> (Point3<Interval>, Vec3<Interval>) {
         let off = Vec3::new(0.8, 0.6, 0.0);
         let c = Point3::origin() + o + d * along + off * r;
         let h = 6e-6;

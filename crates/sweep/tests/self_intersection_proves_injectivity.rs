@@ -3194,7 +3194,11 @@ fn a_notched_rod_holds_across_its_reflex_corners_in_every_pose() {
     ];
     for (what, pose) in poses {
         let body = moved(&notched_rod::<f64>(), &pose).into_body();
-        assert_eq!(embedding_of(&body), Embedding::Embedded, "{what}: the verdict door");
+        assert_eq!(
+            embedding_of(&body),
+            Embedding::Embedded,
+            "{what}: the verdict door"
+        );
         let twin = moved(&notched_rod::<Interval>(), &pose).into_body();
         assert_eq!(
             embedding_of(&twin),
@@ -3220,12 +3224,8 @@ fn a_ball_through_the_wall_beside_a_reflex_corner_reads_violated() {
     let (x, z) = (0.3_f64, 0.45);
     let ball = topo::transform_rigid(
         &revolved_about_y_at::<f64>(vec![p(-rho, 1.0), p(rho, 0.0)], Revolution::Full, tol()),
-        &geom_core::RigidMotion::translation(geom_core::Vec3::new(
-            x,
-            (1.0 - x * x).sqrt(),
-            z,
-        ))
-        .expect("a translation"),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(x, (1.0 - x * x).sqrt(), z))
+            .expect("a translation"),
     )
     .expect("the ball moves");
     topo::graft_disjoint_all_keyed(&mut body, &ball).expect("the ball grafts");
