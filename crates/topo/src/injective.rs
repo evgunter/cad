@@ -2230,23 +2230,30 @@ fn convex(b: &Boundary, c: &Clip, d: &Clip) -> bool {
         .all(|v| ok(c, d, v) && ok(d, c, v))
 }
 
-/// **A chart presentation's zero** ([`Zero`]), from its clips:
+/// **A chart presentation's zero** ([`Zero`]), from its clips.
 ///
-/// - the clips whose every edge is shared, or a collapsed side at a
-///   shared vertex: one side, or two at a corner;
-/// - a shared vertex no such side holds, at the one corner of two clips:
-///   a point;
-/// - a shared vertex on one clip and on no corner, where the pair shares
-///   no edge in reach: that clip's side, through the vertex
+/// **The clips whose every edge is shared, or a collapsed side at a
+/// shared vertex, name it**: one side, or two at a corner. Where there
+/// is none, a shared vertex no such side holds (a loose one) may:
+///
+/// - the one corner of two clips at a loose vertex: a point;
+/// - a lone loose vertex on one clip and on no corner, where the pair
+///   shares no edge in reach: that clip's side, through the vertex
 ///   ([`Zero::Through`]). It names one edge of the clip at the vertex:
 ///   the side's chart line is that edge's own line or circle
 ///   ([`Along::of`]), and is not read otherwise;
-/// - nothing shared on any clip, or a shared vertex on no corner and no
-///   one such side: none. [`Zero::None`] names no point of the rectangle
-///   as shared and is read by the separator's value over all of it
-///   ([`sign_on`]), so it signs only a rectangle that holds no point of
-///   the shared cell: a vertex in reach of the cell's ball and off the
-///   face's part of it, as the far end of a clip's edge a turn away is.
+/// - anything else: none.
+///
+/// **A loose vertex adds a zero and never forbids one.** Every zero is
+/// read by a derivative over the whole rectangle, or by the separator's
+/// value over all of it ([`Zero::None`]), so a reading decides only where
+/// the separator has one strict sign at every point it does not name. A
+/// shared vertex in the rectangle that the zero does not name is then
+/// strictly on this face's side, and the partner, which holds the same
+/// point, is not signed to the other. So an unnamed vertex costs a
+/// reading and cannot forge one, and a vertex in reach of the cell's
+/// ball that is off the face's part of it (the far end of a clip's edge
+/// a turn away, across a gap narrower than the ball) costs nothing.
 ///
 /// A clip that holds a shared edge beside one that is not shared in
 /// reach has no zero here: [`partial_zero`] reads it.
@@ -2282,8 +2289,7 @@ fn zero_of(
         v.extend(c.collapsed);
         v
     };
-    // A shared vertex the zero sides do not hold must be a corner of two
-    // clips, read as a point.
+    // The shared vertices the zero sides do not hold.
     let loose: Vec<VertexKey> = near_vertices
         .iter()
         .filter(|v| !zeros.iter().any(|c| ends_of(c).contains(v)))
@@ -2296,49 +2302,45 @@ fn zero_of(
     let touched = clips
         .iter()
         .any(|c| c.edges.iter().any(|e| near_edges.contains(e)));
-    match (zeros.as_slice(), loose.as_slice()) {
-        ([], []) if touched => Err(Unpresented::Local),
-        ([], []) => Ok(Zero::None),
-        ([c], []) => Ok(Zero::Side(c.side, along(c))),
-        ([c, d], []) if c.side.axis() != d.side.axis() => {
-            Ok(Zero::Corner((c.side, along(c)), (d.side, along(d))))
-        }
-        ([], [v]) => {
-            // The ONE corner of two clips the vertex is: a second pair
-            // holding it too would leave the point ambiguous.
-            let mut corners = Vec::new();
-            for (i, c) in clips.iter().enumerate() {
-                for d in clips.iter().skip(i + 1) {
-                    if c.side.axis() != d.side.axis()
-                        && ends_of(c).contains(v)
-                        && ends_of(d).contains(v)
-                    {
-                        corners.push(Zero::Point(c.side, d.side, *v));
-                    }
+    // The corners of two clips at a loose vertex, and the one clip's side
+    // a lone loose vertex lies on.
+    let mut points: Vec<Zero> = Vec::new();
+    for v in &loose {
+        for (i, c) in clips.iter().enumerate() {
+            for d in clips.iter().skip(i + 1) {
+                if c.side.axis() != d.side.axis()
+                    && ends_of(c).contains(v)
+                    && ends_of(d).contains(v)
+                {
+                    points.push(Zero::Point(c.side, d.side, *v));
                 }
             }
-            let on: Vec<&Clip> = clips.iter().filter(|c| ends_of(c).contains(v)).collect();
-            let through = match on.as_slice() {
-                [c] if corners.is_empty() && near_edges.is_empty() && c.collapsed.is_none() => c
-                    .edges
-                    .iter()
-                    .copied()
-                    .find(|&i| b.edges.get(i).is_some_and(|e| e.ends.contains(v)))
-                    .map(|e| Along::of(surface, b, &[e]))
-                    .filter(|a| a.whole)
-                    .map(|a| Zero::Through(c.side, a)),
-                _ => None,
-            };
-            match (corners.as_slice(), through) {
-                ([one], _) => Ok(one.clone()),
-                (_, Some(zero)) => Ok(zero),
-                _ if touched => Err(Unpresented::Local),
-                // On no corner and no one side: none of the rectangle is
-                // named as shared, and a separator is signed only where
-                // its value over the whole rectangle is, which a
-                // rectangle holding the vertex does not give.
-                _ => Ok(Zero::None),
-            }
+        }
+    }
+    let through = |v: &VertexKey| {
+        let on: Vec<&Clip> = clips.iter().filter(|c| ends_of(c).contains(v)).collect();
+        match on.as_slice() {
+            [c] if near_edges.is_empty() && c.collapsed.is_none() => c
+                .edges
+                .iter()
+                .copied()
+                .find(|&i| b.edges.get(i).is_some_and(|e| e.ends.contains(v)))
+                .map(|e| Along::of(surface, b, &[e]))
+                .filter(|a| a.whole)
+                .map(|a| Zero::Through(c.side, a)),
+            _ => None,
+        }
+    };
+    match zeros.as_slice() {
+        [] if touched => Err(Unpresented::Local),
+        [] => Ok(match (points.as_slice(), loose.as_slice()) {
+            ([one], _) => one.clone(),
+            ([], [v]) => through(v).unwrap_or(Zero::None),
+            _ => Zero::None,
+        }),
+        [c] => Ok(Zero::Side(c.side, along(c))),
+        [c, d] if c.side.axis() != d.side.axis() => {
+            Ok(Zero::Corner((c.side, along(c)), (d.side, along(d))))
         }
         _ => Err(Unpresented::Local),
     }
@@ -7926,6 +7928,48 @@ mod presentation_rows {
         assert!(
             none(&[clip_of(Side::YHi, &[2])], &[]),
             "a vertex on no clip"
+        );
+    }
+
+    /// **A loose vertex adds a zero and never forbids one**: a shared
+    /// vertex the zero does not name leaves a wholly shared side the
+    /// zero, and of two loose vertices the one at a corner of two clips
+    /// is the point. Red if a second shared vertex in reach, off the
+    /// rectangle, leaves the cell unpresented at every depth (the far end
+    /// of an edge across a gap narrower than the cell's ball).
+    #[test]
+    fn a_loose_vertex_adds_a_zero_and_never_forbids_one() {
+        let (s, b) = (cylinder(), joined_rulings());
+        let clips = [clip_of(Side::XLo, &[0]), clip_of(Side::YHi, &[2])];
+        let k = b.edges[2].key;
+        assert!(
+            matches!(
+                zero_of(&s, &b, &clips, &[2], &[vertex(5)]),
+                Ok(Zero::Side(Side::YHi, a)) if a.edges == [k]
+            ),
+            "a shared side, and a shared vertex off it"
+        );
+        assert!(
+            matches!(
+                zero_of(&s, &b, &clips, &[], &[vertex(2), vertex(9)]),
+                Ok(Zero::None)
+            ),
+            "two loose vertices, neither at a corner"
+        );
+        let corner = [clip_of(Side::XLo, &[1]), clip_of(Side::YHi, &[2])];
+        assert!(
+            matches!(
+                zero_of(&s, &b, &corner, &[], &[vertex(2), vertex(1)]),
+                Ok(Zero::Point(Side::XLo, Side::YHi, v)) if v == vertex(2)
+            ),
+            "two loose vertices, one at the corner of two clips"
+        );
+        assert!(
+            matches!(
+                zero_of(&s, &b, &corner, &[], &[vertex(2), vertex(5)]),
+                Ok(Zero::Point(Side::XLo, Side::YHi, v)) if v == vertex(2)
+            ),
+            "the corner, beside a vertex on one clip alone"
         );
     }
 
