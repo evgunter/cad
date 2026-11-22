@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-22
 priority: P1
 cost: M
-blocked_on: [7151]
+blocked_on: [7353]
 refs: [a-face-charts-turn-is-levered-over-none-of-what-it-carries]
 ---
 
@@ -21,4 +21,4 @@ The frame origin in the face's space is foot + Σ sᵢ·S·eᵢ, which needs the
 
 ## Done when
 
-The design fork `tracecarry` (two designers, then an `[ev]` PR that this row is then parked on) rules how the traced faces are carried. That ruling is built, with rows that pin the traced carriage against a placement on both edges.
+The design fork `tracecarry` (two designers, then `[ev]` PR 7353) rules how the traced faces are carried. That ruling is built, with rows that pin the traced carriage against a placement on both edges.

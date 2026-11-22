@@ -399,3 +399,26 @@ body has the reasons):
   `a-traced-faces-carriage-reads-its-reach-about-the-space-origin-not-the-frames`
   (P1 M), parked on the fork. 7151 goes ahead with everything else,
   leaving the traced reach as-is with an "Open" section in its body.
+- 2026-11-22 05:00 — **`tracecarry` converged after 3 rounds; to Ev as
+  `[ev]` 7353.** The designers started on opposite answers (round 1: (c)
+  versus the seat rule) and each crossed to the other on one point.
+  - **The traced faces are not carried.** The turn never moves them;
+    they are read like a mate's target.
+  - **A pre-trace pole-only selection over the box** keeps Re-posing.
+  - **The loops' carriage covers the trace,** once the trace step
+    decides nothing past the crossing it takes (`ray_crossings` /
+    `circle_crossings`, and arcs past their window, since 7151 makes the
+    arc reach tight). That also fixes a turn-free spurious Grazing.
+
+  The diff drops the traced faces from `[placement]`'s list (agent text
+  from 86491c3) and adds a Re-posing selection clause.
+- 2026-11-22 05:00 — **`movedchart`, both designers: refuse,** which is
+  Ev's approved 7122 plan, so no ruling is needed. The 7151 lane
+  re-spells `turned_cylinder` as a placement into the box's space, or as
+  Spin(Through) by a symbolic angle. If the exact proofs fail, it files
+  a tangency-prover defect against `[placement.placement]` and pins the
+  four rows to it.
+- 2026-11-22 05:00 — **Filed**
+  `a-least-turns-arm-is-read-about-the-copys-origin-plus-the-slides-not-about-the-seat`
+  (P2 H, a design question for Ev, separate from 7353). The traced-
+  carriage row is re-parked on 7353.
