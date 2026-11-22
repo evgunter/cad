@@ -1,0 +1,107 @@
+name: probe nightly build (temporary, green/nightly-build)
+
+# A measurement vehicle for the nightly's full-suite build job; it never
+# reaches main. Variant `baseline` is nightly.yml's build step as it stands,
+# instrumented; the others change one thing.
+on:
+  push:
+    branches: [green/nightly-build]
+    paths: [.github/workflows/zz-probe-nightly-build.yml]
+
+env:
+  NEXTEST_VERSION: "0.9.140"
+
+jobs:
+  build:
+    name: probe (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: baseline
+            leaf_opt: ''
+          - variant: leaf-opt1
+            leaf_opt: '1'
+          - variant: leaf-opt0
+            leaf_opt: '0'
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      RUSTC_WORKSPACE_WRAPPER: /tmp/unitlog.sh
+      CAD_UNITLOG: /tmp/units.log
+    steps:
+      - uses: actions/checkout@v4
+      - run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: nightly-opt2
+          save-if: false
+      - name: install cargo-nextest
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
+      - name: unit logger and variant config
+        env:
+          LEAF_OPT: ${{ matrix.leaf_opt }}
+        run: |
+          cat > "$RUSTC_WORKSPACE_WRAPPER" <<'EOF'
+          #!/usr/bin/env bash
+          rustc=$1; shift
+          name=; lvl=; kind=lib; prev=
+          for a in "$@"; do
+            case $prev in --crate-name) name=$a ;; -C) case $a in opt-level=*) lvl=${a#opt-level=} ;; esac ;; esac
+            [ "$a" = --test ] && kind=test
+            prev=$a
+          done
+          s=$(date +%s)
+          "$rustc" "$@"; rc=$?
+          [ -z "$name" ] || echo "$(date -u +%H:%M:%S) $name $kind opt=$lvl $(( $(date +%s) - s ))s" >> "$CAD_UNITLOG"
+          exit $rc
+          EOF
+          chmod +x "$RUSTC_WORKSPACE_WRAPPER"
+          : > "$CAD_UNITLOG"
+          if [ -n "$LEAF_OPT" ]; then
+            mkdir -p ~/.cargo
+            for p in viewer pncad pncad-py; do
+              for prof in dev test; do
+                printf '[profile.%s.package."%s"]\nopt-level = %s\n' "$prof" "$p" "$LEAF_OPT"
+              done
+            done >> ~/.cargo/config.toml
+            cat ~/.cargo/config.toml
+          fi
+      - name: build and archive every test binary
+        id: build
+        run: |
+          scripts/ci-resource-sampler.sh 30 &
+          sampler=$!
+          ( n=0; while sleep 30; do m=$(wc -l < "$CAD_UNITLOG"); [ "$m" -gt "$n" ] && sed -n "$((n+1)),${m}p" "$CAD_UNITLOG" | sed 's/^/[unit] /'; n=$m; done ) &
+          tailer=$!
+          rc=0
+          cargo nextest archive --workspace --timings --archive-file "$RUNNER_TEMP/full-suite.tar.zst" || rc=$?
+          sleep 31; kill $sampler $tailer
+          du -sh target; df -m /
+          exit $rc
+      - name: upload timings and unit log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-${{ matrix.variant }}
+          path: |
+            target/cargo-timings/
+            /tmp/units.log
+          retention-days: 7
+      - name: leaf crates' tests at default eps (what the opt change costs to run)
+        if: steps.build.outcome == 'success'
+        run: |
+          time cargo nextest run --archive-file "$RUNNER_TEMP/full-suite.tar.zst" \
+            --workspace-remap "$GITHUB_WORKSPACE" --profile ci --ignore-default-filter --no-fail-fast \
+            -E 'package(viewer) | package(pncad) | package(pncad-py)' || true
+      - name: doc-tests (rebuild check)
+        if: steps.build.outcome == 'success'
+        run: time cargo test --doc --workspace --no-fail-fast
