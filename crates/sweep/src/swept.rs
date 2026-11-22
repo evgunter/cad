@@ -2306,6 +2306,7 @@ pub(crate) mod undecided_fixtures {
 /// a collapsed run — so a mutant on `Traversed::backward` or
 /// `Traversed::continued` reds here even while no door reads them.
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod review_doors_read_carried_directions {
     use super::tests::{arc_from, line_from};
     use super::*;
