@@ -183,9 +183,11 @@ pub enum DecisionSite {
     /// radius whose axes meet, cut by each other in the two
     /// bisector-plane ellipses.
     CrossingCylinders,
-    /// A split's ON verdict at a vertex whose neighbourhood leaves it
+    /// A split's ON verdict: at a vertex whose neighbourhood leaves it
     /// with two or more runs on one side, so pieces of one side touch
-    /// there.
+    /// there; or of an operand edge lying in the plane that a slit runs
+    /// over, read at its two ends' verdicts, so one side touches itself
+    /// along the slit's two edges.
     SplitOn,
     /// The blend battery's turn whose two bands' feet on its third edge
     /// are one point (`fillet3_turn_feet_gap` and

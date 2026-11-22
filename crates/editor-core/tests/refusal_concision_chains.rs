@@ -68,6 +68,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/Desync(SectionLoops)",
     "Split/Finish/Desync(LoopNotACycle)",
     "Split/Finish/Desync(NoShell)",
+    "Split/Finish/Desync(CoincidentUnheld)",
     "Split/Finish/Carve",
     "Split/Finish/LineageRow",
     "Split/Finish/TornComponent",
@@ -958,7 +959,7 @@ mod kernel {
         /// `JoinError`'s arms, for the rows of each engine that wraps it:
         /// `Split/Join/` and `Boolean/Join/`.
         pub(super) const JOIN_ERROR: JoinError = [
-            OrderEscalated, Escalated, DegenerateSection, CurvedSlitTrace, RingHoming,
+            OrderEscalated, Escalated, DegenerateSection, RingHoming,
             RingHomingAmbiguous, UnpairedLooseEnds, SingleSiteSectionLoop,
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
             Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
@@ -2495,7 +2496,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             ),
             ("Escalated", J::Escalated { face, diag: diag() }),
             ("DegenerateSection", J::DegenerateSection { face }),
-            ("CurvedSlitTrace", J::CurvedSlitTrace { face }),
             (
                 "RingHoming",
                 J::RingHoming(topo::PointInLoopError::RayExhausted {
@@ -2765,6 +2765,12 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "Desync(SolidsUnmerged)",
             F::Desync(D::SolidsUnmerged { solids: 2 }),
+        ),
+        (
+            "Desync(CoincidentUnheld)",
+            F::Desync(D::CoincidentUnheld {
+                edges: [topo::EdgeKey::default(); 2],
+            }),
         ),
         (
             "Carve",

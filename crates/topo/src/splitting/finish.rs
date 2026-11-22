@@ -55,6 +55,8 @@
 //! as a ring of the section face of its side containing it
 //! (`nest_slit`), so that side carries each edge as two coincident
 //! distinct edges of a zero-area ring (`crates/topo/README.md`, tier 3).
+//! Every slit's two edges, an area polygon's or a trace's, straight or
+//! curved, are recorded on their side ([`Sides::minted_contacts`]).
 //!
 //! # Maximal faces (F7)
 //!
@@ -158,30 +160,56 @@ mod raw {
         pub(in crate::splitting) below: RawPart<T>,
         pub(in crate::splitting) naming: SplitNaming,
         coincidences: Vec<crate::Coincidence>,
+        coincident: Vec<super::Coincident>,
     }
 
     impl<T: Real> RawSplit<T> {
-        /// The split's two sides and naming, recording `rows`.
+        /// The split's two sides and naming, recording `rows`, and the
+        /// coincident edge pairs it minted, each citing its row there.
         pub(in crate::splitting) fn from_reduction(
             rows: ReducedRows,
             (above, below): (RawPart<T>, RawPart<T>),
             naming: SplitNaming,
+            coincident: Vec<super::Coincident>,
         ) -> Self {
             Self {
                 above,
                 below,
                 naming,
                 coincidences: rows.0,
+                coincident,
             }
         }
 
-        /// Its sides, naming and record.
+        /// Its sides, naming, record and coincident edge pairs.
         pub(in crate::splitting) fn into_parts(
             self,
-        ) -> (RawPart<T>, RawPart<T>, SplitNaming, Vec<crate::Coincidence>) {
-            (self.above, self.below, self.naming, self.coincidences)
+        ) -> (
+            RawPart<T>,
+            RawPart<T>,
+            SplitNaming,
+            Vec<crate::Coincidence>,
+            Vec<super::Coincident>,
+        ) {
+            (
+                self.above,
+                self.below,
+                self.naming,
+                self.coincidences,
+                self.coincident,
+            )
         }
     }
+}
+
+/// **Two coincident edges the split minted** (a slit's,
+/// [`super::join::CoincidentPair`]), in the scratch body's keys, which
+/// its sides keep, and the row of the operand edge ON the plane they lie
+/// over ([`super::ReducedRows::edge_on`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::splitting) struct Coincident {
+    pub(in crate::splitting) edges: [EdgeKey; 2],
+    pub(in crate::splitting) row: u32,
 }
 
 /// The result of a plane split: both sides, functionally.
@@ -195,8 +223,9 @@ pub struct SplitResult<T: crate::props::AtRestPolicy> {
     /// wiring facts the naming layer consumes — never reconstructed
     /// by post-hoc inspection.
     pub naming: SplitNaming,
-    /// The coincidences the split decided from values (its pinches), in
-    /// the operand's keys ([`crate::coincidence`]).
+    /// The coincidences the split decided from values (its pinches, and
+    /// the operand edges ON the plane its slits lie over), in the
+    /// operand's keys ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
 }
 
@@ -290,6 +319,65 @@ impl<T: crate::props::AtRestPolicy> Sides<'_, T> {
 
 impl<'a, T: Real> Sides<'a, T> {
     /// The sides that hold material, each with its body.
+    /// **The records of the coincident edge pairs the split minted**
+    /// (`coincident`, a slit's two edges over an operand edge ON the
+    /// plane): on the side that holds both, each edge read through that
+    /// side's joins, an edge–edge record citing the row of the edge they
+    /// lie over. A pair a side's coplanar merge killed an edge of is no
+    /// pair there.
+    ///
+    /// # Errors
+    ///
+    /// [`FinishDesync::CoincidentUnheld`] for a pair no side holds.
+    pub(in crate::splitting) fn minted_contacts(
+        &self,
+        coincident: &[Coincident],
+    ) -> Result<SplitContacts, FinishDesync> {
+        let mut out = SplitContacts::default();
+        for pair in coincident {
+            let mut held = false;
+            for (side, body) in self.listed() {
+                let joined = |mut e: EdgeKey| {
+                    while let Some(&(_, j)) = self
+                        .naming
+                        .edge_joins
+                        .iter()
+                        .find(|&&(s, j)| s == side && j.gone == e)
+                    {
+                        e = j.kept;
+                    }
+                    e
+                };
+                let [a, b] = pair.edges.map(joined);
+                let merged = |e: EdgeKey| {
+                    self.naming
+                        .merge_groups
+                        .iter()
+                        .any(|(s, g)| *s == side && g.killed_edges.contains(&e))
+                };
+                if merged(a) || merged(b) {
+                    held = true;
+                    continue;
+                }
+                if body.get_edge(a).is_none() || body.get_edge(b).is_none() {
+                    continue;
+                }
+                let contact = crate::Contact::new(body, Cell::Edge(a), Cell::Edge(b))
+                    .map_err(|_| FinishDesync::CoincidentUnheld { edges: pair.edges })?;
+                let list = match side {
+                    PlaneSide::Above => &mut out.above,
+                    _ => &mut out.below,
+                };
+                list.push(crate::Cited::new(contact, crate::Cites::decided(pair.row)));
+                held = true;
+            }
+            if !held {
+                return Err(FinishDesync::CoincidentUnheld { edges: pair.edges });
+            }
+        }
+        Ok(out)
+    }
+
     fn listed(&self) -> Vec<(PlaneSide, &'a Body<T>)> {
         [
             (PlaneSide::Above, self.above),
@@ -799,6 +887,12 @@ pub enum FinishDesync {
         /// How many it holds.
         solids: usize,
     },
+    /// No side holds both of a slit's two coincident edges, each read
+    /// through the joins its side ended with, and no merge killed either.
+    CoincidentUnheld {
+        /// The two edges, in the scratch body's keys.
+        edges: [EdgeKey; 2],
+    },
 }
 
 impl core::fmt::Display for FinishDesync {
@@ -833,6 +927,10 @@ impl core::fmt::Display for FinishDesync {
                 f,
                 "the body being cut holds {solids} solids where its shells were filed \
                  under one"
+            ),
+            Self::CoincidentUnheld { edges } => write!(
+                f,
+                "no side of the cut holds both of the slit's coincident edges {edges:?}"
             ),
         }
     }
@@ -1396,7 +1494,27 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // tier-1 sweep over the reassembled body before it is carved into
     // the two sides. The guard owns the borrow, so a refusal on the
     // way closes the scope by dropping it.
-    let rows = red.coincidences;
+    let mut rows = red.coincidences;
+    // A tree edge's end is a copy a null edge made of the operand vertex
+    // the vertex sweep decided ON, or that vertex.
+    let original = |mut v: VertexKey| {
+        while let Some(r) = red
+            .null_edges
+            .iter()
+            .find(|r| r.at_vertex != v && r.attr.copy_at(r.at_vertex) == Some(v))
+        {
+            v = r.at_vertex;
+        }
+        v
+    };
+    let coincident: Vec<Coincident> = completed
+        .iter()
+        .flat_map(|section| &section.coincident)
+        .map(|pair| Coincident {
+            edges: pair.edges,
+            row: rows.edge_on(pair.on, pair.ends.map(original)),
+        })
+        .collect();
     let mut reassembled = red.body;
     let mut body = reassembled.begin_surgery();
     let solid = operand_solid(&body)?;
@@ -1414,6 +1532,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             rows,
             sides,
             SplitNaming::default(),
+            coincident,
         ));
     }
     let mut naming = SplitNaming {
@@ -1634,6 +1753,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         rows,
         (RawPart::Body(above), RawPart::Body(below)),
         naming,
+        coincident,
     ))
 }
 
