@@ -608,7 +608,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 ///
 /// [`BooleanError::CurvedPairUnsupported`] for a germ pair with no arm;
 /// [`first_unsupported_pair`]'s.
-pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
+pub(super) fn gate_operand_pairs<T: crate::props::AtRestPolicy + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     declared: &super::GluedPairs<T>,
@@ -872,7 +872,7 @@ fn face_tree<T: Decide + Bounds>(
 /// edge is one a declaration settles (the declared cover spends the
 /// declaration, and an undeclared pair's refusal is the same pose's),
 /// so the door admits no class that would.
-fn edge_face_read<T: geom_core::Real>(
+fn edge_face_read<T: crate::props::AtRestPolicy>(
     x: &Body<T>,
     x_is: Operand,
     edge: &crate::entity::Edge,
@@ -890,6 +890,12 @@ fn edge_face_read<T: geom_core::Real>(
     .collect();
     declared.read(&pairs, question, &[])
 }
+
+/// [`sweep_direction`]'s query.
+const REDUCE_EDGE_FACES: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "bool_reduce_edge_faces",
+    "the faces whose boxes meet an edge's, read for the sweep direction",
+);
 
 #[allow(clippy::too_many_arguments)] // one parameter per named duty (bodies, orientation, declarations, sinks, band, strategy, plant, trace)
 pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
@@ -943,14 +949,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // preserved pair-for-pair.
         #[cfg(feature = "sweep-testing")]
         let candidates: Vec<usize> = match &tree {
-            Some(t) => t.overlapping(&boxes::edge_box(x, edge_key, pad)),
+            Some(t) => t.overlapping(REDUCE_EDGE_FACES, &boxes::edge_box(x, edge_key, pad)),
             // The idealized reference's candidate set: every face, in
             // arena order. Reachable only through the gated
             // `SweepStrategy::Idealized`, and compiled out with it.
             None => (0..faces.len()).collect(),
         };
         #[cfg(not(feature = "sweep-testing"))]
-        let candidates: Vec<usize> = tree.overlapping(&boxes::edge_box(x, edge_key, pad));
+        let candidates: Vec<usize> =
+            tree.overlapping(REDUCE_EDGE_FACES, &boxes::edge_box(x, edge_key, pad));
         let mut ci = 0;
         'faces: while let Some(&j) = candidates.get(ci) {
             ci += 1;
@@ -1199,16 +1206,12 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // from the offset along the OUTWARD normal only by the
                     // face's sense bit, so whether an end is ON the plane
                     // reads the same either way.
-                    let &geom::Surface::Plane {
-                        origin: chart_origin,
-                        normal: chart_normal,
-                        ..
-                    } = y.proven_face(face).surface()
-                    else {
+                    let &geom::Surface::Plane { frame, .. } = y.proven_face(face).surface() else {
                         return Err(BooleanError::ClassificationInvariant {
                             what: "planar lane: the face's plane resolved above",
                         });
                     };
+                    let (chart_origin, chart_normal) = (frame.origin(), frame.axis());
                     let side = |w: VertexKey, p: Point3<T>| {
                         vertex_face_side(
                             (x, tips),
@@ -1238,44 +1241,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // A line: the endpoint lane below owns it.
                     None => {}
                     Some(ConicPlaneMeet::Miss) => continue,
-                    // The conic's plane is parallel to the face's: off
-                    // it, a miss; in it, the line lane's `(Zero, Zero)`
-                    // posture — both endpoints through
-                    // `vertex_on_face`, the interior left to the
-                    // neighbour faces.
-                    Some(ConicPlaneMeet::Parallel { offset }) => {
-                        let on = match geom_core::k_stats::decide_reported(
-                            "bool_conic_face_plane_offset",
-                            Margin::of(offset),
-                            band,
-                        ) {
-                            Ok(geom_core::Decided {
-                                sign: Sign::Positive | Sign::Negative,
-                                ..
-                            }) => continue,
-                            Ok(geom_core::Decided {
-                                sign: Sign::Zero,
-                                margin,
-                            }) => margin,
-                            Err(diag) => {
-                                return Err(BooleanError::coincidence(
-                                    Coincide::EdgeOnPlane,
-                                    edge_face_read(
-                                        x,
-                                        x_is,
-                                        &edge,
-                                        face,
-                                        declared,
-                                        Coincide::EdgeOnPlane,
-                                    ),
-                                    diag,
-                                ));
-                            }
-                        };
+                    // The conic lies in the face's plane (the pose's
+                    // `Lies`): the line lane's `(Zero, Zero)` posture —
+                    // both endpoints through `vertex_on_face`, the
+                    // interior left to the neighbour faces.
+                    Some(ConicPlaneMeet::InPlane) => {
                         let mut hit =
-                            vertex_on_face(x_is, y, u, pu, face, on, contacts, band, tol)?;
+                            vertex_on_face(x_is, y, u, pu, face, None, contacts, band, tol)?;
                         if v != u {
-                            hit |= vertex_on_face(x_is, y, v, pv, face, on, contacts, band, tol)?;
+                            hit |= vertex_on_face(x_is, y, v, pv, face, None, contacts, band, tol)?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
                             tr.accept_last();
@@ -1290,7 +1264,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         };
                         let (first_end, on) = first_end;
                         let (w, pw) = if first_end { (u, pu) } else { (v, pv) };
-                        if vertex_on_face(x_is, y, w, pw, face, on, contacts, band, tol)?
+                        if vertex_on_face(x_is, y, w, pw, face, Some(on), contacts, band, tol)?
                             && let Some(tr) = trace.as_deref_mut()
                         {
                             tr.accept_last();
@@ -1581,12 +1555,30 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                     let mut hit = false;
                     if za == Sign::Zero {
-                        hit |=
-                            vertex_on_face(x_is, y, u, pu, face, d1.margin, contacts, band, tol)?;
+                        hit |= vertex_on_face(
+                            x_is,
+                            y,
+                            u,
+                            pu,
+                            face,
+                            Some(d1.margin),
+                            contacts,
+                            band,
+                            tol,
+                        )?;
                     }
                     if zb == Sign::Zero {
-                        hit |=
-                            vertex_on_face(x_is, y, v, pv, face, d2.margin, contacts, band, tol)?;
+                        hit |= vertex_on_face(
+                            x_is,
+                            y,
+                            v,
+                            pv,
+                            face,
+                            Some(d2.margin),
+                            contacts,
+                            band,
+                            tol,
+                        )?;
                     }
                     if hit && let Some(tr) = trace.as_deref_mut() {
                         tr.accept_last();
@@ -2077,7 +2069,7 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
 /// The one-sided covers an edge's parent faces hold against `face`
 /// ([`super::GluedPairs::cover`]), one per covering parent.
-fn edge_covers<T: Decide>(
+fn edge_covers<T: crate::props::AtRestPolicy>(
     x: &Body<T>,
     x_is: Operand,
     edge: &crate::entity::Edge,
@@ -2847,15 +2839,12 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     chart: None,
                     on_edge: None,
                 }),
-                // A constant residual cannot be zero at one end and
-                // definite at the other, and a definite miss cannot
-                // hold a zero endpoint: both CONTRADICT the endpoint
+                // A span lying on the surface cannot be off it at one
+                // end, and a definite miss cannot hold a zero endpoint:
+                // both CONTRADICT the endpoint
                 // rows that routed here, and a contradiction between
                 // two certified predicates keeps the door.
-                SpanVerdict::Constant
-                | SpanVerdict::LiesOn
-                | SpanVerdict::Miss
-                | SpanVerdict::Unsettled => Err(frontier()),
+                SpanVerdict::LiesOn | SpanVerdict::Miss | SpanVerdict::Unsettled => Err(frontier()),
                 SpanVerdict::AtApex => Err(at_apex()),
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::OffFace => {
                     // UNDECLARED: the undeclared `NoInterior` rule
@@ -2951,9 +2940,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, m2, contacts, band, tol)?;
                     Placement::undeclared_no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
                 }
-                SpanVerdict::LiesOn | SpanVerdict::Constant
-                    if parents_distinct_from(x, edge, y, face, band) =>
-                {
+                SpanVerdict::LiesOn if parents_distinct_from(x, edge, y, face, band) => {
                     let arc = ArcOnCarrier {
                         x,
                         x_is,
@@ -3065,9 +3052,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 | SpanVerdict::Elsewhere
                 | SpanVerdict::Miss
                 | SpanVerdict::OffFace => Ok(CurvedEvent::None),
-                SpanVerdict::Constant | SpanVerdict::LiesOn | SpanVerdict::Unsettled => {
-                    Err(frontier())
-                }
+                SpanVerdict::LiesOn | SpanVerdict::Unsettled => Err(frontier()),
                 SpanVerdict::AtApex => Err(at_apex()),
             }
         }
@@ -3123,7 +3108,8 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // f″ per kind (the residual's second derivative along the
             // ray, constant for these kinds).
             let f2 = match surface {
-                geom::Surface::Cylinder { axis, radius, .. } => {
+                geom::Surface::Cylinder { frame, radius, .. } => {
+                    let axis = frame.axis();
                     let d_ax = dir.dot(axis);
                     (dir.norm_squared() - d_ax.powi(2)) / radius
                 }
@@ -3203,7 +3189,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         // verdict, levered by the selection's reach,
                         // because its pre-pass has put `q` definitely off
                         // the wall.)
-                        SpanVerdict::Constant | SpanVerdict::LiesOn => Err(frontier()),
+                        SpanVerdict::LiesOn => Err(frontier()),
                         SpanVerdict::AtApex => Err(at_apex()),
                         // Covered, the edge lies in one closed side of
                         // the carrier, so a root set the lane cannot
@@ -3263,12 +3249,10 @@ fn conic_clearance<T: Decide>(
     band: Band,
 ) -> Option<Result<Sign, geom_core::Indeterminate>> {
     if let geom::Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
+        frame, half_angle, ..
     } = *surface
     {
+        let (apex, axis) = (frame.origin(), frame.axis());
         let h = geom_brep::conic_cone_harmonics(
             conic,
             geom::Line {
@@ -3307,7 +3291,7 @@ fn conic_clearance<T: Decide>(
 /// that carrier lies on it. `Tangent` licenses nothing of the kind — a
 /// tangent pair shares a locus, not a carrier — and an undeclared pair
 /// is never read as coincident by value (CONTACT-DESIGN C2/C4).
-fn on_declared_shared_carrier<T: Decide>(
+fn on_declared_shared_carrier<T: crate::props::AtRestPolicy>(
     x: &Body<T>,
     x_is: Operand,
     edge: &crate::entity::Edge,
@@ -3764,7 +3748,7 @@ impl<T: geom_core::Real> Interior<T> {
 /// to either side there. There both edges are split, as a vertex there
 /// would split them.
 #[allow(clippy::too_many_arguments)]
-fn interior<T: Decide>(
+fn interior<T: crate::props::AtRestPolicy>(
     on_carrier: bool,
     (x, edge_key, edge): (&Body<T>, EdgeKey, &crate::entity::Edge),
     y: &Body<T>,
@@ -3879,7 +3863,7 @@ fn interior<T: Decide>(
 /// a cone's apex, on a degenerate torus or a spline crease, or `p` off
 /// the face's surface); the [`Coincide::Sectors`] coincidence where the
 /// cosine is in band.
-fn sheets_part<T: Decide>(
+fn sheets_part<T: crate::props::AtRestPolicy>(
     (x, x_is, edge): (&Body<T>, Operand, &crate::entity::Edge),
     (y, face, at): (&Body<T>, FaceKey, FaceContainment),
     declared: &super::GluedPairs<T>,
@@ -4385,10 +4369,8 @@ mod spline_off_carrier_rows {
 
     fn cylinder() -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -4422,11 +4404,9 @@ mod spline_off_carrier_rows {
             1,
         );
         let torus = |major_radius: f64| Surface::Torus {
-            center: Point3::new(0.0, 0.0, 10.0),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 10.0), Vec3::unit_z(), Vec3::unit_x()),
             major_radius,
             minor_radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let b = band();
         assert!(
@@ -4541,11 +4521,9 @@ mod spline_off_carrier_review_rows {
     #[test]
     fn a_sheet_on_a_spindle_across_its_apex_stays_unread() {
         let spindle = Surface::Spindle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 0.5,
             minor_radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let (c, s) = (0.5_f64, 0.0_f64);
         let at = |deg: f64| {
@@ -4581,9 +4559,7 @@ mod spline_off_carrier_review_rows {
     fn a_plane_a_sphere_and_a_ring_torus_read_a_sheet_off_them_and_not_one_on_them() {
         let w = core::f64::consts::FRAC_1_SQRT_2;
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.5),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), Vec3::unit_x()),
         };
         let flat = revolved(&[(1.0, 0.5, 1.0), (2.0, 0.5, 1.0)]);
         let raised = revolved(&[(1.0, 1.0, 1.0), (2.0, 1.0, 1.0)]);
@@ -4591,10 +4567,8 @@ mod spline_off_carrier_review_rows {
         assert!(spline_off_carrier(&raised, &plane, band()));
 
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
-            axis: Vec3::unit_z(),
         };
         let cap = revolved(&[(1.0, 0.0, 1.0), (1.0, 1.0, w), (0.0, 1.0, 1.0)]);
         let wall = revolved(&[(1.0, 0.0, 1.0), (1.0, 1.0, 1.0)]);
@@ -4602,11 +4576,9 @@ mod spline_off_carrier_review_rows {
         assert!(spline_off_carrier(&wall, &sphere, band()));
 
         let torus = Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         let tube = revolved(&[(2.5, 0.0, 1.0), (2.5, 0.5, w), (2.0, 0.5, 1.0)]);
         let above = revolved(&[(2.0, 1.0, 1.0), (2.0, 2.0, 1.0)]);
@@ -4622,10 +4594,8 @@ mod spline_off_carrier_review_rows {
         let d = 0.5 * b.escalate();
         assert!(b.zero() < d, "the band has room between its edges");
         let cylinder = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let s = revolved(&[(1.0 + d, 0.0, 1.0), (1.0 + d, 1.0, 1.0)]);
         assert!(!spline_off_carrier(&s, &cylinder, b));
@@ -4636,10 +4606,8 @@ mod spline_off_carrier_review_rows {
     #[test]
     fn a_sheet_on_the_cones_mirror_nappe_stays_unread() {
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::unit_x(),
         };
         let mirror = revolved(&[(1.0, -1.0, 1.0), (2.0, -2.0, 1.0)]);
         assert!(!spline_off_carrier(&mirror, &cone, band()));
@@ -4700,19 +4668,13 @@ pub(super) enum SpanVerdict<T: geom_core::Real> {
     /// `NoInterior` with no such root cannot keep it, and that
     /// contradiction still keeps the door.
     Elsewhere,
-    /// The line is parallel to the axis, so its residual is CONSTANT
-    /// along the span. Nothing about the span's interior differs from
-    /// its endpoints — which makes it a clearance answer for a caller
-    /// whose endpoints are definitely off the wall, and a ruling lying
-    /// on the wall for one whose endpoints are on it.
-    Constant,
-    /// The conic LIES on the surface: its residual is a zero constant,
-    /// decided exactly on by its root door
-    /// ([`geom_brep::roots::Roots::On`]; in band it
-    /// escalates there). Unlike [`Self::Constant`] this is a verdict
-    /// on the side as well as the shape.
+    /// The span LIES on the surface, the curve × face pose's `Lies`: a
+    /// conic whose residual is a zero constant, a ruling of a wall or a
+    /// generator of a cone ([`geom_brep::roots::Roots::On`]; in band it
+    /// escalates there).
     LiesOn,
-    /// The line definitely misses the wall entirely.
+    /// The span definitely misses the surface, the pose's `Apart`: a line
+    /// parallel to a wall's axis off it included.
     Miss,
     /// The roots did not settle, or read in band, and every touch of the
     /// span with the carrier is certified off this face
@@ -5147,13 +5109,11 @@ fn wall_crossing<T: Decide + Bounds>(
     };
     let found = match *carrier {
         geom::Curve3::Line(line) => {
-            use geom_brep::curve_face::line_quadric::{LineRoots, line_quadric_roots};
+            use geom_brep::curve_face::line_quadric::line_quadric_roots;
             match line_quadric_roots(line, (t0, t1), surface, band)
                 .map_err(BooleanError::of_line_quadric_refusal)
             {
-                Ok(Some(LineRoots::Roots(found))) => Some(found),
-                Ok(Some(LineRoots::Constant)) => return Ok(SpanVerdict::Constant),
-                Ok(None) => None,
+                Ok(found) => found,
                 Err(refusal) => return door_escalated(refusal),
             }
         }
@@ -5218,9 +5178,8 @@ fn wall_crossing<T: Decide + Bounds>(
     };
     let found = match found {
         CircleRoots::Certified(found) => found,
-        // A conic ON the surface: its residual is a zero constant — the
-        // circle or ellipse that lies on a sphere, wall or torus. (A
-        // ruling on a wall is the line door's `Constant`, above.)
+        // The pose's `Lies`: a circle or an ellipse on a sphere, a wall,
+        // a cone or a torus, a ruling of a wall, a generator of a cone.
         CircleRoots::On(_) => return Ok(SpanVerdict::LiesOn),
         CircleRoots::Miss => return Ok(SpanVerdict::Miss),
     };
@@ -5801,18 +5760,25 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     vx: VertexKey,
     px: Point3<T>,
     face: FaceKey,
-    on_plane: MarginDiag,
+    on_plane: Option<MarginDiag>,
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
 ) -> Result<bool, BooleanError> {
-    let (placement, on, _) = crate::contain::placement_on_carrier(
-        y,
-        face,
-        crate::held::Held::decided(px, on_plane),
-        band,
-    )
-    .map_err(|e| esc(e, x_is.other(), face))?;
+    // Decided on the plane at its margin, or a vertex of an edge the
+    // curve × face pose read lying in the plane (`None`).
+    let held = on_plane.map_or_else(
+        || {
+            crate::held::Held::constructed(
+                px,
+                "a vertex of an edge whose carrier the curve × face pose read lying in the \
+                 face's plane",
+            )
+        },
+        |margin| crate::held::Held::decided(px, margin),
+    );
+    let (placement, on, _) = crate::contain::placement_on_carrier(y, face, held, band)
+        .map_err(|e| esc(e, x_is.other(), face))?;
     let at = match placement {
         // OffCarrier → fault: the caller decided `px` on the plane, and a
         // plane answers neither it nor `Trim(None)`.
@@ -5825,7 +5791,7 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     };
     match at {
         FaceContainment::Out => return Ok(false),
-        FaceContainment::In => push_vf(contacts, x_is, vx, face, Some(on_plane)),
+        FaceContainment::In => push_vf(contacts, x_is, vx, face, on_plane),
         FaceContainment::OnEdge(ey) => {
             let wy = split_other_at_point(
                 y,
@@ -6193,7 +6159,7 @@ fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
     if on.sign != Sign::Zero {
         return Ok(false);
     }
-    vertex_on_face(x_is, y, w, p, face, on.margin, contacts, band, tol)
+    vertex_on_face(x_is, y, w, p, face, Some(on.margin), contacts, band, tol)
 }
 
 /// The swept solid `x`, its slit tips at rest, which operand it is, and
@@ -7098,8 +7064,8 @@ mod declaration_order_rows {
                     Some(super::CurveGeom::Certified(g))
                         if matches!(
                             g.carrier(),
-                            geom::Curve3::Circle(geom::Circle { frame: geom::Frame { axis: a, origin: center, .. }, .. })
-                                if a.z.abs() > 0.9 && center.z > 0.1
+                            geom::Curve3::Circle(geom::Circle { frame, .. })
+                                if frame.axis().z.abs() > 0.9 && frame.origin().z > 0.1
                         )
                 )
             })
@@ -7146,7 +7112,7 @@ mod declaration_order_rows {
             BooleanDecision::ArcTorusRoots,
             "the lane's own decision"
         );
-        assert_eq!(diag.predicate, Some("circle_torus_plane_height"));
+        assert_eq!(diag.predicate, Some("curve_face_pose_torus_plane_height"));
         let text = got.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.starts_with(
@@ -7265,10 +7231,12 @@ mod wall_root_tests {
         let mid = (b.zero() + b.escalate()) / 2.0;
         let d = (1.0 - 2.0 * mid).sqrt();
         let wall = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let got = line_quadric_roots(
             geom::Line {
@@ -7287,7 +7255,7 @@ mod wall_root_tests {
             panic!("the lane escalates: {err:?}");
         };
         assert_eq!(decision, BooleanDecision::WallRoots(WallRung::Discriminant));
-        assert_eq!(diag.predicate, Some("line_quadric_cylinder_disc"));
+        assert_eq!(diag.predicate, Some("curve_face_pose_disc"));
         let text =
             BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
@@ -7315,17 +7283,20 @@ mod edge_span_tests {
     /// by `δ` per unit of its parameter, over two runs: `[−2, 2]`, where
     /// `4δ` is past the band, so the roots are found and lie far outside
     /// the run; and `[1000, 1001]`, where `δ` is inside the zero band, so
-    /// the residual is constant over the run. A lever of `1` reads the
-    /// first in band; a lever of the far end, or of the run's distance
-    /// from the line's origin, reads the second past it.
+    /// the residual is one value over the run, a metre off the wall: the
+    /// pose reads it apart. A lever of `1` reads the first in band; a
+    /// lever of the far end, or of the run's distance from the line's
+    /// origin, reads the second past it.
     #[test]
     fn the_axis_parallel_rung_reads_the_edges_own_span() {
         let band = Band::linear(Tol::witness()).expect("the witness band");
         let wall = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let y = Body::<f64>::new();
         let crossing = |delta: f64, (t0, t1): (f64, f64)| {
@@ -7349,8 +7320,8 @@ mod edge_span_tests {
         );
         let far = crossing(0.5 * band.zero(), (1000.0, 1001.0));
         assert!(
-            matches!(far, Ok(SpanVerdict::Constant)),
-            "drifting inside the band over [1000, 1001], the residual is constant: {far:?}"
+            matches!(far, Ok(SpanVerdict::Miss)),
+            "drifting inside the band over [1000, 1001], the line is apart: {far:?}"
         );
     }
     /// **A root's distance from an end is metered at the carrier's speed
@@ -7916,18 +7887,20 @@ mod clearance_rows {
             0.207_528_397_062_063_02,
         ));
         let s = geom::Surface::Sphere {
-            center: Point3::new(
-                -0.426_972_420_046_788_4,
-                -0.567_049_134_604_379_2,
-                -0.732_997_401_751_036_8,
+            frame: geom::Frame::new(
+                Point3::new(
+                    -0.426_972_420_046_788_4,
+                    -0.567_049_134_604_379_2,
+                    -0.732_997_401_751_036_8,
+                ),
+                axis,
+                Vec3::new(
+                    0.272_625_811_677_447_04,
+                    -0.320_994_777_005_651_3,
+                    0.906_993_671_390_437_7,
+                ),
             ),
             radius: 2.466_073_624_731_285_6e-5,
-            axis,
-            u_ref: Vec3::new(
-                0.272_625_811_677_447_04,
-                -0.320_994_777_005_651_3,
-                0.906_993_671_390_437_7,
-            ),
         };
         let conic = e.conic().unwrap();
         let v = 3.0 * FRAC_PI_2;
@@ -8002,19 +7975,15 @@ mod clearance_rows {
                 let kind = rng.below(3);
                 let s = match kind {
                     0 => geom::Surface::Sphere {
-                        center: hub,
+                        frame: geom::Frame::new(hub, n, (x - n * x.dot(n)).normalize()),
                         radius: r,
-                        axis: n,
-                        u_ref: (x - n * x.dot(n)).normalize(),
                     },
                     1 => {
                         let v = unit(|lo, hi| rng.range(lo, hi));
                         let w = (v - outward * v.dot(outward)).normalize();
                         geom::Surface::Cylinder {
-                            origin: hub,
-                            axis: w,
+                            frame: geom::Frame::new(hub, w, outward),
                             radius: r,
-                            u_ref: outward,
                         }
                     }
                     _ => {
@@ -8023,11 +7992,13 @@ mod clearance_rows {
                         let ring = r * rng.range(1.5, 10.0);
                         let axis = outward.cross(w).normalize();
                         geom::Surface::Torus {
-                            center: hub + outward * ring,
-                            axis,
+                            frame: geom::Frame::new(
+                                hub + outward * ring,
+                                axis,
+                                (x - axis * x.dot(axis)).normalize(),
+                            ),
                             major_radius: ring,
                             minor_radius: r,
-                            u_ref: (x - axis * x.dot(axis)).normalize(),
                         }
                     }
                 };
@@ -8312,7 +8283,7 @@ mod esc_tests {
                 VertexKey::default(),
                 Point3::new(1.0, 0.0, 0.0),
                 seed.face,
-                geom_core::MarginDiag::value(0.0),
+                Some(geom_core::MarginDiag::value(0.0)),
                 &mut ContactAcc::default(),
                 band,
                 tol,
@@ -8477,10 +8448,8 @@ mod arc_end_rows {
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
         let reach = (q - geom_core::Point3::origin()).norm();
         let sphere = geom::Surface::Sphere {
-            center: geom_core::Point3::origin(),
+            frame: geom::Frame::new(geom_core::Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: reach,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let line = geom::Curve3::line(
             geom_core::Point3::origin(),
@@ -8566,7 +8535,7 @@ mod spline_face_rows {
                 let Some(CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
                     return false;
                 };
-                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if (center.z - z).abs() < 1e-12)
+                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if (frame.origin().z - z).abs() < 1e-12)
             })
             .map(|(k, _)| k)
             .expect("the rim")
@@ -9194,9 +9163,7 @@ mod spline_face_rows {
                 seed.face,
                 crate::construction::FaceSurface::New {
                     surface: Surface::Plane {
-                        origin: p,
-                        normal: (q - p).cross(x_hat).normalize(),
-                        u_ref: x_hat,
+                        frame: geom::Frame::new(p, (q - p).cross(x_hat).normalize(), x_hat),
                     },
                     sense: true,
                 },
@@ -9300,13 +9267,10 @@ mod spline_face_rows {
                 panic!("a certified rim")
             };
             let carrier = curve.carrier().clone();
-            let Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis, .. },
-                ..
-            }) = carrier
-            else {
+            let Curve3::Ellipse(geom::Ellipse { frame, .. }) = carrier else {
                 panic!("an ellipse")
             };
+            let axis = frame.axis();
             for t in [0.4, 1.3, 2.9] {
                 let (p, d) = carrier.ders1(t);
                 let p = p + axis.cross(d).normalize() * (0.5 * z);
@@ -9484,10 +9448,12 @@ mod line_root_lane_tests {
         let band = Band::linear(Tol::witness()).expect("the witness band");
         let d = (1.0 - 2.0 * in_the_gap(band)).sqrt();
         let sphere = geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
         };
         let line = geom::Line {
             origin: Point3::new(d, -2.0, 0.0),
@@ -9505,10 +9471,12 @@ mod line_root_lane_tests {
     fn the_cone_root_lane_escalates_as_its_own_decision() {
         let band = Band::linear(Tol::witness()).expect("the witness band");
         let cone = geom::Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let line = geom::Line {
             origin: Point3::new(in_the_gap(band), -1.0, 0.0),
@@ -9527,7 +9495,7 @@ mod conic_root_lane_tests {
     //! Each surface arm of the conic × quadric door escalates as its own
     //! decision ([`BooleanError::of_conic_quadric_refusal`]): a circle
     //! coaxial with the surface, whose residual is a constant the band
-    //! reads in its gap at its extremes (`conic_quadric_first_extreme`).
+    //! reads in its gap at its extremes (`curve_face_pose_extreme`).
 
     use super::{BooleanDecision, BooleanError};
     use geom_brep::curve_face::conic_quadric::conic_quadric_roots;
@@ -9567,17 +9535,19 @@ mod conic_root_lane_tests {
     #[test]
     fn the_sphere_arc_lane_escalates_as_its_own_decision() {
         let sphere = geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let rho = (1.0 + 2.0 * in_the_gap()).sqrt();
         assert_eq!(
             escalated_as(rho, 0.0, &sphere),
             (
                 BooleanDecision::ArcSphereRoots,
-                Some("conic_quadric_first_extreme")
+                Some("curve_face_pose_constant")
             )
         );
     }
@@ -9586,17 +9556,19 @@ mod conic_root_lane_tests {
     #[test]
     fn the_cylinder_arc_lane_escalates_as_its_own_decision() {
         let wall = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let rho = (1.0 + 2.0 * in_the_gap()).sqrt();
         assert_eq!(
             escalated_as(rho, 0.0, &wall),
             (
                 BooleanDecision::ArcCylinderRoots,
-                Some("conic_quadric_first_extreme")
+                Some("curve_face_pose_constant")
             )
         );
     }
@@ -9607,17 +9579,19 @@ mod conic_root_lane_tests {
     #[test]
     fn the_cone_arc_lane_escalates_as_its_own_decision() {
         let cone = geom::Surface::Cone {
-            apex: Point3::new(0.0, 0.0, -1.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, -1.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let rho = 1.0 + core::f64::consts::SQRT_2 * in_the_gap();
         assert_eq!(
             escalated_as(rho, 0.0, &cone),
             (
                 BooleanDecision::ArcConeRoots,
-                Some("conic_quadric_first_extreme")
+                Some("curve_face_pose_constant")
             )
         );
     }
@@ -9634,11 +9608,13 @@ mod review_5993_rows {
 
     fn torus() -> geom::Surface<f64> {
         geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: geom_core::Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 1.0, 0.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 1.0,
             minor_radius: 0.9,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         }
     }
 

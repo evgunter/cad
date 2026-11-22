@@ -64,4 +64,9 @@ left there is nothing to read.
 
 Every carrier's directions and frame are `UnitVec3` / `RigidMotion`, and
 check 1 has no frame half. The sites above are gone or re-worded, and
-the turning-frame row's case builds.
+check 1 decides on the turning-frame row's case at every width (its
+2026-11-21 table). That case still does not build or finish: what stands
+behind check 1 is
+`a-sweep-on-a-boxed-turned-sketch-plane-refuses-its-ends-at-first-order-in-the-box`
+and
+`a-body-moved-by-a-boxed-turn-refuses-its-edges-and-pcurves-at-first-order-in-the-box`.

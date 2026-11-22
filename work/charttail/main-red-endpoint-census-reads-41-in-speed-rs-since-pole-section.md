@@ -38,3 +38,5 @@ Disposition the three reads, either argued at the site or behind an `is_certifie
     cargo nextest run -p geom-core --ignore-default-filter -E 'test(every_production_endpoint_read)'
 
 Signed: (EXCH orchestrator)
+
+- 2026-11-21 — **a second unlisted file on the same red** (EMBED, lane rational-window): on main `cfa12b7ad` the census also finds `("crates/step-import/src/recognize_curve.rs", 5, 0)`, a file its roster does not list (EXCH's ground; `work/exch/curve-recognition-roots-its-certified-sups-to-nearest.md` cites that file's bound endpoints). Measured with `cargo nextest run -p geom-core --test all -E 'test(=certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned)'`.

@@ -269,10 +269,12 @@ fn r1_e2e_direct_door_over_one_of_two_with_an_unmintable_neighbour() {
         victim,
         topo::construction::FaceSurface::New {
             surface: geom::Surface::Cylinder {
-                origin: Point3::new(10.5, 0.5, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(10.5, 0.5, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 0.5,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },

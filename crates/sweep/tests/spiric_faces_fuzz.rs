@@ -98,10 +98,11 @@ fn every_spiric_face_reads_near_and_far_against_a_dense_boundary() {
         for face in spiric_faces {
             faces += 1;
             let data = cavity.get_face(face).expect("face");
-            let Some(geom::Surface::Plane { normal, .. }) = body_surface(&cavity, data.surface)
+            let Some(geom::Surface::Plane { frame, .. }) = body_surface(&cavity, data.surface)
             else {
                 unreachable!()
             };
+            let normal = frame.axis();
             let origin = loop_vertex(&cavity, data.outer);
             let across = normal.cross(Vec3::new(0.3, 0.5, 0.7)).normalize();
             let up = normal.cross(across);

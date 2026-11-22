@@ -585,10 +585,8 @@ mod tests {
                 seed.face,
                 FaceSurface::New {
                     surface: geom::Surface::Cone {
-                        apex: Point3::origin(),
-                        axis: Vec3::unit_z(),
+                        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                         half_angle: alpha,
-                        u_ref: Vec3::unit_x(),
                     },
                     sense: true,
                 },
@@ -604,9 +602,7 @@ mod tests {
             )
             .expect("the first generator");
         let plane = body.add_surface(geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         });
         let rim = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {

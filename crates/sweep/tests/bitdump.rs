@@ -335,10 +335,10 @@ fn bitdump_shell_open_box_corpus() {
         b.faces()
             .filter(|(fk, _)| {
                 matches!(b.face_surface(*fk),
-                    Some(Surface::Plane { origin, normal, .. })
-                        if (origin.z - z).abs() < 1e-12
-                            && normal.x.abs() < 1e-9
-                            && normal.y.abs() < 1e-9)
+                    Some(Surface::Plane { frame, .. })
+                        if (frame.origin().z - z).abs() < 1e-12
+                            && frame.axis().x.abs() < 1e-9
+                            && frame.axis().y.abs() < 1e-9)
             })
             .map(|(k, _)| k)
             .collect()

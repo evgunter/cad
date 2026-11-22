@@ -411,40 +411,32 @@ mod tests {
     }
 
     /// **A planar face's normal is levered at the face's extent from
-    /// below.** The unit cube's top: its edges are 1 long, its points
-    /// stand up to `√2` apart, and its normal stored `s` long reads `s` at
-    /// each unit of arm, a direction only past the band's escalation `e`.
-    /// At `s = 1.03·e` the edges' extent reads a direction, where half of
-    /// it would not; at `s = 0.97·e` it reads none, where the face's
-    /// diameter from above would read one.
+    /// below**, its longest certified boundary edge's extent. The unit
+    /// cube's top: its edges are 1 long and its points stand up to `√2`
+    /// apart, so the arm is 1, not the face's diameter, and not less.
+    ///
+    /// The arm cannot turn a built face's verdict: a plane's normal is
+    /// unit by construction, and an edge shorter than the band's
+    /// escalation does not certify, so `|n|·arm` clears the band on every
+    /// face there is. The row pins the arm.
     #[test]
     fn a_planar_faces_normal_is_levered_at_its_extent_from_below() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let top_at = |length: f64| {
-            let mut body = geometric_cube::<f64>(tol).body;
-            let top = body
-                .faces()
-                .map(|(k, _)| k)
-                .find(|&k| {
-                    matches!(*body.proven_face(k).surface(),
-                        Surface::Plane { normal, .. } if normal.z > 0.5)
-                })
-                .unwrap();
-            let key = body.get_face(top).unwrap().surface;
-            if let Some(Surface::Plane { normal, .. }) = body.surfaces.get_mut(key) {
-                *normal = *normal * length;
-            }
-            planar_axis(&body, top, band)
-        };
-        let e = band.escalate();
+        let body = geometric_cube::<f64>(tol).body;
+        let top = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&k| {
+                matches!(body.proven_face(k).surface(),
+                    Surface::Plane { frame } if frame.axis().z > 0.5)
+            })
+            .unwrap();
+        let arm = crate::cover::face_extent_below(&body, top).unwrap().length();
         assert!(
-            top_at(1.03 * e).is_some(),
-            "the top's edges read the short normal as a direction"
+            (arm - 1.0).abs() < 1e-12,
+            "the top's arm is its edges' extent, 1, got {arm}"
         );
-        assert!(
-            top_at(0.97 * e).is_none(),
-            "the top's edges read the shorter normal as none"
-        );
+        assert!(planar_axis(&body, top, band).is_some(), "the top reads its normal");
     }
 }

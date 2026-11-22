@@ -134,8 +134,9 @@
 //! hyperbola, and the edge is its exact rational-quadratic arc between
 //! the moved corners, on the branch the old edge's middle stands beside
 //! ([`geom_brep::ConicBranch::arc`]); it rests where the plane×cone
-//! section states the bounds that retire its tube, and an arc that does
-//! not certify refuses as [`ReplaceFaceError::TogetherConicArc`]. The kind is the
+//! section states the bounds that retire its tube or where that tube
+//! certifies, and an arc whose tube cannot certify it refuses as
+//! [`ReplaceFaceError::TogetherConicArc`]. The kind is the
 //! section's, whatever the old carrier's was: a cavity's cap offset off
 //! the axis turns a meridian circle into a spiric, and the lift that
 //! puts it back turns the spiric into a circle. The old carrier
@@ -1140,6 +1141,17 @@ fn axial_frame<T: Decide>(
     })
 }
 
+/// A chart's alignment with the frame's axis, and its straddle row
+/// ([`classify`]).
+const ALIGNMENT: (&str, &str) = ("offset_axial_alignment", "offset_axial_alignment_straddle");
+
+/// A plane's normal standing perpendicular to the frame's axis, and its
+/// straddle row ([`classify`]).
+const AXIS_PARALLEL: (&str, &str) = (
+    "offset_axial_axis_parallel",
+    "offset_axial_axis_parallel_straddle",
+);
+
 /// `surface`'s constraint on a corner, or the typed refusal that says
 /// the chart is not expressible in this axial frame.
 ///
@@ -1160,115 +1172,101 @@ fn classify<T: Decide>(
     let not_axial = |what: &'static str| ReplaceFaceError::TogetherNotAxial { face, what };
     // A direction's misalignment is a SINE, levered by how far the scope
     // reaches from the point the chart's datum is read at: the length a
-    // tilt pinned there moves a point of the scope by. A Zero names the
-    // chart aligned and any other sign refuses, so the reach is read
-    // from above.
-    let sine = |x: T, at: Point3<T>, what: &'static str| -> Result<bool, ReplaceFaceError<T>> {
-        let lever = frame.region.reach_from(at).above();
-        match decide(what, Margin::levered(x, lever), band) {
-            Ok(Sign::Zero) => Ok(true),
-            Ok(_) => Ok(false),
-            Err(source) => Err(ReplaceFaceError::Escalated { source }),
-        }
-    };
-    // A plane's normal acts on every sign: a Zero names it a station, any
-    // other sign sends it on to the axis-parallel read. So it is read at
-    // both bounds of the reach and acted on where they agree, a straddle
-    // (`offset_axial_alignment_straddle`) refused as an in-band reading.
-    let sine_both = |x: T, at: Point3<T>| -> Result<bool, ReplaceFaceError<T>> {
-        crate::validate::decide_levered(
-            ("offset_axial_alignment", "offset_axial_alignment_straddle"),
-            x,
-            frame.region.reach_from(at),
-            band,
-        )
-        .map(|sign| sign == Sign::Zero)
-        .map_err(|source| ReplaceFaceError::Escalated { source })
+    // tilt pinned there moves a point of the scope by. Every sign is acted
+    // on. Inside the door a Zero names the chart aligned and any other
+    // sign either sends a plane on to the axis-parallel read or refuses.
+    // The gate (`is_axial_in`) reads that refusal as "not axial", which
+    // chooses the general door. So the sine is read at both bounds of the
+    // reach and acted on where they agree. A straddle escalates under the
+    // predicate's own straddle row, at the door and at the gate alike.
+    let sine = |x: T,
+                at: Point3<T>,
+                names: (&'static str, &'static str)|
+     -> Result<bool, ReplaceFaceError<T>> {
+        crate::validate::decide_levered(names, x, frame.region.reach_from(at), band)
+            .map(|sign| sign == Sign::Zero)
+            .map_err(|source| ReplaceFaceError::Escalated { source })
     };
     let on_axis = |p: Point3<T>| {
         centre_on_axis(frame, p, band).map_err(|source| ReplaceFaceError::Escalated { source })
     };
     let parallel = |v: Vec3<T>| v.normalize().cross(frame.axis.dir).norm();
     Ok(match surface {
-        Surface::Plane { origin, normal, .. } => {
+        Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } => {
+            let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
             let n = normal.normalize();
-            if sine_both(parallel(n), *origin)? {
-                Constraint::Station(frame.station(*origin))
+            if sine(parallel(n), origin, ALIGNMENT)? {
+                Constraint::Station(frame.station(origin))
             } else {
                 // A plane whose normal is PERPENDICULAR to the axis is
                 // parallel to it, through it or beside it. Anything
                 // else cuts the body obliquely to its own axis of
                 // revolution — a corner this reduction has no
                 // coordinates for.
-                if !sine(
-                    n.dot(frame.axis.dir).abs(),
-                    *origin,
-                    "offset_axial_axis_parallel",
-                )? {
+                if !sine(n.dot(frame.axis.dir).abs(), origin, AXIS_PARALLEL)? {
                     return Err(not_axial(
                         "a plane neither normal to the axis nor parallel to it",
                     ));
                 }
                 Constraint::AxisParallel {
                     m: n,
-                    c: n.dot(vec_of(*origin)),
+                    c: n.dot(vec_of(origin)),
                 }
             }
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
-            if !sine(parallel(*axis), *origin, "offset_axial_alignment")? || !on_axis(*origin)? {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            if !sine(parallel(axis), origin, ALIGNMENT)? || !on_axis(origin)? {
                 return Err(not_axial("a cylinder that is not coaxial with the body"));
             }
             Constraint::Wall(*radius)
         }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
             ..
         } => {
-            if !sine(parallel(*axis), *apex, "offset_axial_alignment")? || !on_axis(*apex)? {
+            let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            if !sine(parallel(axis), apex, ALIGNMENT)? || !on_axis(apex)? {
                 return Err(not_axial("a cone that is not coaxial with the body"));
             }
             let (sin_a, cos_a) = half_angle.sin_cos();
             Constraint::Generator {
-                h_apex: frame.station(*apex),
+                h_apex: frame.station(apex),
                 sin_a,
                 cos_a,
             }
         }
         Surface::Sphere {
-            center,
-            axis,
+            frame: carrier_frame,
             radius,
             ..
         } => {
-            if !sine(parallel(*axis), *center, "offset_axial_alignment")? || !on_axis(*center)? {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            if !sine(parallel(axis), center, ALIGNMENT)? || !on_axis(center)? {
                 return Err(not_axial("a sphere whose centre is off the body's axis"));
             }
             Constraint::Ball {
-                h_c: frame.station(*center),
+                h_c: frame.station(center),
                 r: *radius,
             }
         }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             ..
         } => {
-            if !sine(parallel(*axis), *center, "offset_axial_alignment")? || !on_axis(*center)? {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            if !sine(parallel(axis), center, ALIGNMENT)? || !on_axis(center)? {
                 return Err(not_axial("a torus whose centre is off the body's axis"));
             }
             Constraint::Torus {
                 major: *major_radius,
-                h_c: frame.station(*center),
+                h_c: frame.station(center),
                 minor: *minor_radius,
             }
         }
@@ -1351,8 +1349,10 @@ fn corner_arms<T: Decide>(
 /// being shifted by a vector that does not exist.
 fn rigid_shift<T: Real>(old: &Surface<T>, new: &Surface<T>) -> Option<Vec3<T>> {
     match (old, new) {
-        (Surface::Plane { origin: a, .. }, Surface::Plane { origin: b, .. })
-        | (Surface::Cone { apex: a, .. }, Surface::Cone { apex: b, .. }) => Some(*b - *a),
+        (Surface::Plane { frame: a, .. }, Surface::Plane { frame: b, .. })
+        | (Surface::Cone { frame: a, .. }, Surface::Cone { frame: b, .. }) => {
+            Some(b.origin() - a.origin())
+        }
         _ => None,
     }
 }
@@ -2223,12 +2223,12 @@ fn mint_carrier<T: Decide>(
     // certifies its own posture.
     if ca.old_key == cb.old_key {
         if let Curve3::Circle(geom::Circle {
-            frame: circle @ geom::Frame { axis, u_ref, .. },
-            ..
+            frame: seam_frame, ..
         }) = old
-            && latitude_posture(frame, circle.axis_line(), band)?.is_none()
+            && latitude_posture(frame, seam_frame.axis_line(), band)?.is_none()
         {
-            return Ok(latitude_circle(frame, p_start, *axis, *u_ref));
+            let (axis, u_ref) = (seam_frame.axis(), seam_frame.u_ref());
+            return Ok(latitude_circle(frame, p_start, axis, u_ref));
         }
         return match (&ca.old, old) {
             // A plane's and a cone's offsets are rigid translations, so
@@ -2262,23 +2262,25 @@ fn mint_carrier<T: Decide>(
             // plane, radius moved by the chart's distance. Not a
             // translation, and not pretended to be one.
             (
-                Surface::Sphere { center, .. },
+                Surface::Sphere {
+                    frame: sphere_frame,
+                    ..
+                },
                 Curve3::Circle(
                     circle @ geom::Circle {
-                        frame:
-                            geom::Frame {
-                                origin: cc,
-                                axis,
-                                u_ref,
-                            },
-                        ..
+                        frame: seam_frame, ..
                     },
                 ),
             ) => {
+                let cc = seam_frame.origin();
+                let center = sphere_frame.origin();
                 let radius = circle.radius();
-                let off = cc.distance(*center);
+                let off = cc.distance(center);
                 match decide("offset_axial_seam_concentric", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::circle(*cc, *axis, radius + ca.distance, *u_ref)),
+                    Ok(Sign::Zero) => Ok(Curve3::Circle(geom::Circle::new(
+                        *seam_frame,
+                        radius + ca.distance,
+                    ))),
                     Ok(_) => Err(refuse(
                         "a sphere seam that is not a great circle about the sphere's own centre",
                     )),
@@ -2296,26 +2298,25 @@ fn mint_carrier<T: Decide>(
             // half-plane.
             (
                 Surface::Torus {
-                    center,
+                    frame: torus_frame,
                     major_radius,
                     ..
                 },
                 Curve3::Circle(
                     circle @ geom::Circle {
-                        frame:
-                            geom::Frame {
-                                origin: cc,
-                                axis,
-                                u_ref,
-                            },
-                        ..
+                        frame: seam_frame, ..
                     },
                 ),
             ) => {
+                let cc = seam_frame.origin();
+                let center = torus_frame.origin();
                 let radius = circle.radius();
-                let off = tube_centre_offset(frame, *cc, *center, *major_radius);
+                let off = tube_centre_offset(frame, cc, center, *major_radius);
                 match decide("offset_axial_seam_meridian", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::circle(*cc, *axis, radius + ca.distance, *u_ref)),
+                    Ok(Sign::Zero) => Ok(Curve3::Circle(geom::Circle::new(
+                        *seam_frame,
+                        radius + ca.distance,
+                    ))),
                     Ok(_) => Err(refuse(
                         "a torus seam that is neither a latitude circle nor a meridian circle \
                          about the tube's own centre",
@@ -2506,9 +2507,19 @@ fn mint_carrier<T: Decide>(
         // on a meridian rim, and never less than `R − r` in size).
         let chosen = match (minus, &wall.new, &cap.new) {
             (None, ..) => plus,
-            (Some(minus), Surface::Torus { center, axis, .. }, Surface::Plane { normal, .. }) => {
+            (
+                Some(minus),
+                Surface::Torus {
+                    frame: torus_frame, ..
+                },
+                Surface::Plane {
+                    frame: plane_frame, ..
+                },
+            ) => {
+                let (center, axis) = (torus_frame.origin(), torus_frame.axis());
+                let normal = plane_frame.axis();
                 let q_mid = old.mid_point(old_span.0, old_span.1);
-                let side = axis.cross(*normal).dot(q_mid - *center);
+                let side = axis.cross(normal).dot(q_mid - center);
                 match decide("offset_axial_rim_side", Margin::of(side), band) {
                     Ok(Sign::Positive) => plus,
                     Ok(Sign::Negative) => minus,
@@ -2531,15 +2542,12 @@ fn mint_carrier<T: Decide>(
         // the two normals says whether the parameter runs the old way.
         // A cosine of unit vectors, levered at the body's extent.
         let normal_of = |c: &Curve3<T>| match c {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis, .. },
-                ..
-            })
-            | Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis, .. },
-                ..
-            }) => Some(axis.normalize()),
-            Curve3::Spiric { u_ref, .. } => Some(u_ref.normalize()),
+            Curve3::Circle(geom::Circle { frame, .. })
+            | Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(frame.axis().normalize()),
+            Curve3::Spiric { frame, .. } => {
+                let u_ref = frame.u_ref();
+                Some(u_ref.normalize())
+            }
             Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
         };
         let Some(old_normal) = normal_of(old) else {
@@ -2599,15 +2607,16 @@ fn mint_carrier<T: Decide>(
             Ok(Curve3::line(*origin + delta, *dir))
         }
         Curve3::Circle(geom::Circle {
-            frame: circle @ geom::Frame { axis, u_ref, .. },
+            frame: circle @ carrier_frame,
             ..
         }) => {
+            let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             // A LATITUDE circle: coaxial with the body, so its centre
             // stays on the axis and its radius is the corner's own.
             if let Some(what) = latitude_posture(frame, circle.axis_line(), band)? {
                 return Err(refuse(what));
             }
-            Ok(latitude_circle(frame, p_start, *axis, *u_ref))
+            Ok(latitude_circle(frame, p_start, axis, u_ref))
         }
         _ => Err(refuse(
             "an edge between two different surfaces whose curve is neither a line nor a circle",
@@ -2616,11 +2625,12 @@ fn mint_carrier<T: Decide>(
 }
 
 /// A re-chart refused because an arc this door minted on a cone does not
-/// certify, read as the door's own refusal: the re-chart names the edge
-/// whose re-description does not certify, and an arc's tube is retired
-/// only where the plane×cone section states the bounds (C2) — a cone has
-/// no tube enclosure otherwise — so the arc it names refuses as
-/// [`ReplaceFaceError::TogetherConicArc`]. Any other refusal stands.
+/// certify at its uniqueness tube, read as the door's own refusal: the
+/// re-chart names the edge whose re-description does not certify, and an
+/// arc whose plane×cone section states no bounds (C2) owes the tube, so
+/// the arc it names refuses as [`ReplaceFaceError::TogetherConicArc`]
+/// where the tube decided it could not certify the arc ([`tube_failed`]).
+/// Any other refusal stands with its own ending.
 fn uncertified_arc<T: Real>(
     error: ReplaceFaceError<T>,
     arcs: &[(EdgeKey, geom_brep::OpenConic)],
@@ -2629,12 +2639,7 @@ fn uncertified_arc<T: Real>(
         error:
             crate::EulerOpError::RechartFalsifies {
                 edge,
-                error:
-                    geom_brep::CertifyError::AnalyticRung3(
-                        geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
-                            operand: geom::SurfaceKind::Cone,
-                        },
-                    ),
+                error: geom_brep::CertifyError::AnalyticRung3(refusal),
                 ..
             },
         ..
@@ -2642,9 +2647,40 @@ fn uncertified_arc<T: Real>(
     else {
         return error;
     };
+    if !tube_failed(refusal) {
+        return error;
+    }
     match arcs.iter().find(|(arc, _)| arc == edge) {
         Some(&(edge, conic)) => ReplaceFaceError::TogetherConicArc { edge, conic },
         None => error,
+    }
+}
+
+/// **Whether an edge's tube refusal says the tube could not certify the
+/// arc**: no enclosure of an operand, every rung's enclosure refused
+/// somewhere, a decided straddle, or a decided one-arc shortfall. A
+/// band escalation (`Escalated`, a one-arc proof left undecided) is the
+/// input's ambiguity at the tolerance and keeps its own ending, and so
+/// do an empty ladder (the extent's recourse), a silent ladder with
+/// nothing refused and a degenerate tube, which are no reading of the arc.
+fn tube_failed(refusal: &geom_brep::AnalyticRung3Refusal) -> bool {
+    use geom_brep::AnalyticRung3Refusal as A;
+    use geom_brep::edge_nurbs::TubeRefusal;
+    match refusal {
+        A::NoTubeEnclosure { .. } | A::TubeStraddles { .. } => true,
+        A::TubeNotOneArc { cause, .. } => {
+            !matches!(cause, geom_brep::ssi::OneArcRefusal::Undecided(_))
+        }
+        A::Tube(TubeRefusal::ProbeSilent { refused, .. }) => *refused > 0,
+        A::Tube(TubeRefusal::LadderEmpty { .. } | TubeRefusal::Degenerate(_))
+        | A::Escalated { .. }
+        | A::Limb { .. }
+        | A::KernelLimit { .. }
+        | A::Stalled { .. }
+        | A::NoOffsetBound { .. }
+        | A::CarrierEnclosure(_)
+        | A::Unsupported { .. }
+        | A::OutsideVocabulary => false,
     }
 }
 
@@ -2791,12 +2827,20 @@ fn latitude_posture<T: Decide>(
             "a circular edge between two charts whose centre is off the axis",
         ));
     }
-    // A Zero names the posture held, so the scope's reach from the
-    // circle's centre is read from above.
+    // The tilt is levered by the scope's reach from the circle's centre.
+    // A Zero names the posture held. Any other sign is acted on as well:
+    // the rim reader refuses it, and the seam reader goes on to the seams
+    // that are not latitudes, where a sphere's mints a great circle. So
+    // the reach is read at both bounds and acted on where they agree, a
+    // straddle escalating under `offset_axial_latitude_tilt_straddle`.
     let tilt = axis.normalize().cross(frame.axis.dir).norm();
-    match decide(
-        "offset_axial_latitude_tilt",
-        Margin::levered(tilt, frame.region.reach_from(center).above()),
+    match crate::validate::decide_levered(
+        (
+            "offset_axial_latitude_tilt",
+            "offset_axial_latitude_tilt_straddle",
+        ),
+        tilt,
+        frame.region.reach_from(center),
         band,
     ) {
         Ok(Sign::Zero) => Ok(None),
@@ -2913,18 +2957,11 @@ fn param_on<T: Decide>(
     let t = match carrier {
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            ..
-        }) => {
+        Curve3::Circle(geom::Circle { frame, .. }) => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let n = axis.normalize();
             let axis_line = geom::Line {
-                origin: *center,
+                origin: center,
                 dir: n,
             };
             let ray = |x: Point3<T>| axis_line.offset(x);
@@ -3079,35 +3116,47 @@ fn keep_turn<T: Decide>(
 /// norm minus a radius.
 fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T>) -> T {
     match surface {
-        Surface::Plane { origin, normal, .. } => geom::plane_offset(*origin, *normal, p),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            geom::plane_offset(origin, normal, p)
+        }
         Surface::Cylinder { radius, .. } => frame.radial(p).norm() - *radius,
-        Surface::Sphere { center, radius, .. } => p.distance(*center) - *radius,
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            p.distance(center) - *radius
+        }
         // The double cone's elevation about the frame's own axis line
         // (`frame.axis.dir` is the cone's axis up to sign, and the
         // double-cone reading is symmetric in it).
         Surface::Cone {
-            apex, half_angle, ..
-        } => geom_brep::cone_elevation(
-            geom::Line {
-                origin: *apex,
-                dir: frame.axis.dir,
-            },
-            *half_angle,
-            None,
-            p,
-        ),
+            frame: carrier_frame,
+            half_angle,
+            ..
+        } => {
+            let apex = carrier_frame.origin();
+            geom_brep::cone_elevation(
+                geom::Line {
+                    origin: apex,
+                    dir: frame.axis.dir,
+                },
+                *half_angle,
+                None,
+                p,
+            )
+        }
         // The torus's own meridian distance, in the same `(ρ, h)`
         // half-plane the corner solve works in. Without it the
         // edge-on-surface meter would read `zero` on every torus chart
         // and certify an edge it never measured.
         Surface::Torus {
-            center,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let center = carrier_frame.origin();
             let rho = frame.radial(p).norm();
-            let h = frame.station(p) - frame.station(*center);
+            let h = frame.station(p) - frame.station(center);
             Vec3::new(rho - *major_radius, h, T::zero()).norm() - *minor_radius
         }
         // No edge is moved with a spindle sheet (the offset door mints
@@ -3168,19 +3217,14 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
-                        let Curve3::Circle(
-                            circle @ geom::Circle {
-                                frame: geom::Frame { origin: center, .. },
-                                ..
-                            },
-                        ) = carrier
-                        else {
+                        let Curve3::Circle(circle @ geom::Circle { frame, .. }) = carrier else {
                             return Err(refuse(
                                 "a sketch arc with no moved circle to be redrawn about",
                             ));
                         };
+                        let center = frame.origin();
                         let radius = circle.radius();
-                        let centre = flat(*center);
+                        let centre = flat(center);
                         let (u, v) = (a - centre, b - centre);
                         let covered = range.span().map_or(was.sweep, |span| was.sweep * span);
                         geom_brep::SketchSegment::Arc {
@@ -3368,7 +3412,10 @@ fn vec_of<T: Real>(p: Point3<T>) -> Vec3<T> {
 /// A plane surface's stored normal and origin.
 fn plane_of<T: Real>(s: &Surface<T>) -> Option<(Vec3<T>, Point3<T>)> {
     match s {
-        Surface::Plane { origin, normal, .. } => Some((*normal, *origin)),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some((normal, origin))
+        }
         _ => None,
     }
 }
@@ -3405,6 +3452,134 @@ mod tests {
     use super::*;
     use crate::test_support_fixtures::geometric_cube;
 
+    /// **A cone arc's tube refusal reads as the door's own only where the
+    /// tube could not certify the arc** ([`tube_failed`]): each refusal
+    /// handed to [`uncertified_arc`] on an edge the door minted, which
+    /// becomes [`ReplaceFaceError::TogetherConicArc`] or stands as handed.
+    /// Red if a band escalation, an empty or silent-unrefused ladder, or
+    /// a degenerate tube is folded into the conic arc's not-yet, or if a
+    /// refused or straddling tube is not; and the edge must be one the
+    /// door minted.
+    #[test]
+    fn a_cone_arcs_tube_refusal_is_the_doors_own_only_where_the_tube_failed() {
+        use geom_brep::AnalyticRung3Refusal as A;
+        use geom_brep::edge_nurbs::TubeRefusal;
+        use geom_brep::recourse::Refused;
+        use geom_brep::ssi::OneArcRefusal;
+        use geom_core::{Indeterminate, MarginDiag};
+        let undecided = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            // UNDECIDED-NAME: the in-band cause this row's escalations carry
+            predicate: Some("ssi_tube_one_arc"),
+            terminal_sliver: false,
+        };
+        let straddle = Refused::Negative {
+            margin: MarginDiag::value(-1e-3),
+        };
+        let rows = [
+            (
+                "no enclosure",
+                A::NoTubeEnclosure {
+                    operand: SurfaceKind::Cone,
+                },
+                true,
+            ),
+            (
+                "every rung refused",
+                A::Tube(TubeRefusal::ProbeSilent {
+                    rungs: 3,
+                    refused: 3,
+                }),
+                true,
+            ),
+            (
+                "a decided straddle",
+                A::TubeStraddles {
+                    verdict: straddle,
+                    boxes: 4,
+                },
+                true,
+            ),
+            (
+                "a decided one-arc shortfall",
+                A::TubeNotOneArc {
+                    rungs: 1,
+                    cause: OneArcRefusal::Short,
+                },
+                true,
+            ),
+            (
+                "an undecided one-arc proof",
+                A::TubeNotOneArc {
+                    rungs: 1,
+                    cause: OneArcRefusal::Undecided(undecided),
+                },
+                false,
+            ),
+            (
+                "a tube escalation",
+                A::Escalated {
+                    operand: None,
+                    limb: geom_brep::Rung3Limb::Tube,
+                    cause: undecided,
+                },
+                false,
+            ),
+            (
+                "an empty ladder",
+                A::Tube(TubeRefusal::LadderEmpty {
+                    extent: 1e-9,
+                    floor: 1e-8,
+                }),
+                false,
+            ),
+            (
+                "a silent ladder with nothing refused",
+                A::Tube(TubeRefusal::ProbeSilent {
+                    rungs: 3,
+                    refused: 0,
+                }),
+                false,
+            ),
+        ];
+        let arc = EdgeKey::default();
+        let arcs = [(arc, geom_brep::OpenConic::Hyperbola)];
+        for (name, refusal, conic) in rows {
+            let refused = |edge| ReplaceFaceError::<f64>::Op {
+                edge: None,
+                error: crate::EulerOpError::RechartFalsifies {
+                    door: crate::euler::RechartDoor::SetFaceSurface,
+                    edge,
+                    error: geom_brep::CertifyError::AnalyticRung3(refusal),
+                },
+            };
+            let got = uncertified_arc(refused(arc), &arcs);
+            assert_eq!(
+                matches!(got, ReplaceFaceError::TogetherConicArc { .. }),
+                conic,
+                "{name}: {got:?}"
+            );
+        }
+        let other = uncertified_arc(
+            ReplaceFaceError::<f64>::Op {
+                edge: None,
+                error: crate::EulerOpError::RechartFalsifies {
+                    door: crate::euler::RechartDoor::SetFaceSurface,
+                    edge: EdgeKey::default(),
+                    error: geom_brep::CertifyError::AnalyticRung3(A::NoTubeEnclosure {
+                        operand: SurfaceKind::Cone,
+                    }),
+                },
+            },
+            &[],
+        );
+        assert!(
+            matches!(other, ReplaceFaceError::Op { .. }),
+            "an edge the door did not mint stands: {other:?}"
+        );
+    }
+
     /// The unit cube re-charted as a quarter-revolve wedge about `z`:
     /// `x = 0` and `y = 0` contain the axis, the caps are normal to it,
     /// and the `x = 1` and `y = 1` walls sit on one coaxial cylinder.
@@ -3412,10 +3587,12 @@ mod tests {
         let cube = geometric_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let wall = body.add_surface(Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         for side in [cube.mefs[2].face, cube.mefs[3].face] {
             body.get_face_mut(side).expect("a cube wall").surface = wall;
@@ -3526,9 +3703,11 @@ mod tests {
             .map(|(k, f)| (k, f.surface))
             .expect("a wall on the cylinder");
         let dead = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         });
         body.surfaces.remove(dead);
         body.get_face_mut(face).unwrap().surface = dead;
@@ -4104,9 +4283,11 @@ mod keep_turn_rows {
         use geom_core::Vec3;
         let band = Band::linear(Tol::witness()).unwrap();
         let carrier = Curve3::Spiric {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 2.0,
             minor_radius: 1.0,
             offset: 0.5,
@@ -4198,7 +4379,7 @@ mod frame_extent_rows {
         }
         let torus = body.solids().map(|(k, _)| k).next().unwrap();
         let top = match sphere {
-            Surface::Sphere { center, radius, .. } => center + Vec3::unit_z() * radius,
+            Surface::Sphere { frame, radius } => frame.origin() + Vec3::unit_z() * radius,
             _ => unreachable!("the second solid is a sphere"),
         };
         let seed = body.mvfs(top, true).unwrap();
@@ -4216,10 +4397,8 @@ mod frame_extent_rows {
 
     fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
         Surface::Sphere {
-            center,
+            frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
             radius,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -4324,20 +4503,24 @@ mod frame_extent_rows {
         );
     }
 
-    /// **An alignment is decided at the scope's reach from above.** A
-    /// cylinder on the frame's axis at the origin, tilted by
-    /// `sin θ = 0.5·ε`: levered at the vertices' 1 m it would read
-    /// aligned, and the cover's 100 m reads it off the axis.
+    /// **A chart's alignment is read at both bounds of the scope's
+    /// reach.** A cylinder on the frame's axis at the origin, tilted by
+    /// `sin θ = 0.5·ε`: levered at the vertices' 1 m it reads aligned, and
+    /// at the cover's 100 m off the axis. The door would build it on the
+    /// first and the gate would send the body to the general door on the
+    /// second, so the two disagreeing is a straddle, and it escalates.
     #[test]
-    fn an_alignment_is_decided_at_the_scopes_reach_from_above() {
+    fn a_charts_alignment_straddling_its_reach_escalates() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let theta = 0.5 * band.zero();
         let wall = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
+                Vec3::unit_y(),
+            ),
             radius: 1.0,
-            u_ref: Vec3::unit_y(),
         };
         let got = classify(
             FaceKey::default(),
@@ -4346,8 +4529,125 @@ mod frame_extent_rows {
             band,
         );
         assert!(
-            matches!(got, Err(ReplaceFaceError::TogetherNotAxial { .. })),
-            "the tilted wall is not coaxial over the scope's reach from above"
+            matches!(got, Err(ReplaceFaceError::Escalated { .. })),
+            "the tilted wall straddles its reach and escalates"
+        );
+    }
+
+    /// **A plane standing along the axis is read at both bounds.** A plane
+    /// through the origin whose normal is perpendicular to the axis but
+    /// for `sin θ = 0.5·ε`: its alignment reads tilted at both bounds, so
+    /// it goes on to the axis-parallel read, which reads parallel at the
+    /// vertices' 1 m and tilted at the cover's 100 m. It escalates.
+    #[test]
+    fn an_axis_parallel_plane_straddling_its_reach_escalates() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let theta = 0.5 * band.zero();
+        let side = Surface::Plane {
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new((1.0 - theta * theta).sqrt(), 0.0, theta),
+                Vec3::unit_y(),
+            ),
+        };
+        let got = classify(
+            FaceKey::default(),
+            &side,
+            &short_vertices_long_cover(),
+            band,
+        );
+        assert!(
+            matches!(got, Err(ReplaceFaceError::Escalated { .. })),
+            "the plane along the axis straddles its reach and escalates"
+        );
+    }
+
+    /// The axis line through `center` tilted by `sin θ` from `z` in the
+    /// `xz` plane: a circle's.
+    fn tilted_axis(center: Point3<f64>, theta: f64) -> geom::Line<f64> {
+        geom::Line {
+            origin: center,
+            dir: Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
+        }
+    }
+
+    /// **A latitude's posture is read at both bounds.** A circle centred
+    /// on the axis at the origin whose plane is tilted by
+    /// `sin θ = 0.5·ε`: at the vertices' 1 m it holds the posture and at
+    /// the cover's 100 m it does not. The seam reader would mint a latitude
+    /// on the first and go on to the non-latitude seams on the second, so
+    /// it escalates.
+    #[test]
+    fn a_latitudes_posture_straddling_its_reach_escalates() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let axis = tilted_axis(Point3::origin(), 0.5 * band.zero());
+        let got = latitude_posture(&short_vertices_long_cover(), axis, band);
+        assert!(
+            matches!(got, Err(ReplaceFaceError::Escalated { .. })),
+            "the tilted circle straddles its reach and escalates"
+        );
+    }
+
+    /// **A latitude's tilt is levered about the circle's centre.** A scope
+    /// 1 m about the frame's axis point, and a circle centred on the axis
+    /// 100 m up it, tilted by `sin θ = 0.5·ε`: from its centre the scope
+    /// reaches about 100 m, so the tilt reads off the posture. Levered from
+    /// the frame's axis point it would read 1 m, and the posture held.
+    #[test]
+    fn a_latitudes_tilt_is_levered_about_its_centre() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let axis = tilted_axis(Point3::new(0.0, 0.0, 100.0), 0.5 * band.zero());
+        let frame = Frame {
+            axis: geom::Line {
+                origin: Point3::origin(),
+                dir: Vec3::unit_z(),
+            },
+            region: ScopeRegion {
+                cover: geom::cover::Cover::segment(
+                    Point3::new(-1.0, 0.0, 0.0),
+                    Point3::new(1.0, 0.0, 0.0),
+                ),
+                vertices: vec![Point3::new(-1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+            },
+        };
+        let got = latitude_posture(&frame, axis, band);
+        assert!(
+            matches!(got, Ok(Some(_))),
+            "the circle 100 m off the scope is out of the posture"
+        );
+    }
+
+    /// **A pole station is levered about the frame's axis point**, where
+    /// the profile's coordinates are read. A frame whose axis point stands
+    /// 100 m up `z`, its scope 1 m about it, and an axial component of
+    /// half the band's zero: from the axis point it reads Zero. Levered
+    /// from the world's origin, 100 m off, it would read Positive.
+    #[test]
+    fn a_pole_station_is_levered_about_the_frames_axis_point() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let up = Point3::new(0.0, 0.0, 100.0);
+        let frame = Frame {
+            axis: geom::Line {
+                origin: up,
+                dir: Vec3::unit_z(),
+            },
+            region: ScopeRegion {
+                cover: geom::cover::Cover::segment(
+                    up + Vec3::new(-1.0, 0.0, 0.0),
+                    up + Vec3::new(1.0, 0.0, 0.0),
+                ),
+                vertices: vec![
+                    up + Vec3::new(-1.0, 0.0, 0.0),
+                    up + Vec3::new(1.0, 0.0, 0.0),
+                ],
+            },
+        };
+        let got = pole_station(0.5 * band.zero(), &frame, band).unwrap();
+        assert_eq!(
+            got,
+            Sign::Zero,
+            "read from the axis point, the component is Zero"
         );
     }
 
@@ -4363,9 +4663,11 @@ mod frame_extent_rows {
         let band = Band::linear(tol).unwrap();
         let theta = 0.5 * band.zero();
         let cap = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
+                Vec3::unit_y(),
+            ),
         };
         let got = classify(FaceKey::default(), &cap, &short_vertices_long_cover(), band);
         assert!(
@@ -4400,10 +4702,12 @@ mod frame_extent_rows {
             },
         };
         let wall = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 100.0),
-            axis: Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 100.0),
+                Vec3::new(theta, 0.0, (1.0 - theta * theta).sqrt()),
+                Vec3::unit_y(),
+            ),
             radius: 1.0,
-            u_ref: Vec3::unit_y(),
         };
         let got = classify(FaceKey::default(), &wall, &frame, band);
         assert!(

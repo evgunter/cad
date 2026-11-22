@@ -191,7 +191,7 @@ pub(super) type Bisector<T> = (geom_core::Point3<T>, geom_core::Vec3<T>);
 /// two planes' distances (`reduce::factored_crossing`). `None` where the
 /// pair's section, held by the operation's table, is not the bisector
 /// pose, or refused.
-pub(super) fn bisectors<T: Decide>(
+pub(super) fn bisectors<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (x, x_is, wall): (&Body<T>, Operand, crate::entity::FaceKey),
     (y, face): (&Body<T>, crate::entity::FaceKey),
@@ -337,11 +337,16 @@ pub(super) fn bisector_datum<T: Decide>(
             });
         }
     };
-    let &geom::Surface::Cylinder { origin, axis, .. } = pierced else {
+    let &geom::Surface::Cylinder {
+        frame: carrier_frame,
+        ..
+    } = pierced
+    else {
         return Err(BooleanError::ClassificationInvariant {
             what: "an equal cylinder pair's pierced face is no cylinder",
         });
     };
+    let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
     // The pierced wall's residual grows radially, away from its axis.
     let radial = geom::Line { origin, dir: axis }.offset(p);
     let (radial_hat, _) = radial.direction_and_length();
@@ -373,10 +378,8 @@ mod tests {
         let (a1, a2) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0));
         let o = Point3::new(0.0, 0.0, 0.0);
         let wall = |axis| geom::Surface::Cylinder {
-            origin: o,
-            axis,
+            frame: geom::Frame::new(o, axis, Vec3::new(1.0, 0.0, 0.0)),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         (
             [(o, (a1 - a2).normalize()), (o, (a1 + a2).normalize())],
@@ -401,9 +404,10 @@ mod tests {
             Operand::A => &walls[1],
             Operand::B => &walls[0],
         };
-        let &geom::Surface::Cylinder { axis, .. } = pierced else {
+        let &geom::Surface::Cylinder { frame, .. } = pierced else {
             unreachable!()
         };
+        let axis = frame.axis();
         let w = p - Point3::new(0.0, 0.0, 0.0);
         let radial = w - axis * w.dot(axis);
         let out = geom_brep::OutwardNormal::from_chart(radial, rod);
@@ -473,13 +477,14 @@ mod tests {
     fn a_node_mints_a_germ_at_each_arc_end_and_runs_through_bs_sectors_inside_a() {
         let o = Point3::new(0.0, 0.0, 0.0);
         let wall = |axis: Vec3<f64>| geom::Surface::Cylinder {
-            origin: o,
-            axis,
+            frame: geom::Frame::new(o, axis, axis.orthonormal_basis().0.normalize()),
             radius: 1.0,
-            u_ref: axis.orthonormal_basis().0.normalize(),
         };
         let axis_of = |s: &geom::Surface<f64>| match s {
-            geom::Surface::Cylinder { axis, .. } => axis.normalize(),
+            geom::Surface::Cylinder { frame, .. } => {
+                let axis = frame.axis();
+                axis.normalize()
+            }
             _ => unreachable!(),
         };
         for angle in [0.5_f64, 1.2, 2.3] {
@@ -490,7 +495,13 @@ mod tests {
             for (label, x, y) in [("a, b", &wa, &wb), ("b, a", &wb, &wa)] {
                 let label = format!("{angle} rad, {label}");
                 let region = geom_brep::ExtentBall::fixture(o, 3.0);
-                let section = match geom_brep::pair_section(x, y, Some(region), None, band()) {
+                let section = match geom_brep::pair_section(
+                    x,
+                    y,
+                    Some(region),
+                    None::<geom_core::NoLane>,
+                    band(),
+                ) {
                     Ok(geom_brep::SectionRead::Built(section)) => section,
                     other => panic!("{label}: {other:?}"),
                 };

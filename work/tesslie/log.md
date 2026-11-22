@@ -54,3 +54,34 @@ Units, branch, tier and its reason:
   - **The trimmed lane's shared-side rule reads neighbour identity, which neither the memo key nor the ratified per-face purity invariant (`lib.rs`, PR #32) includes.** The 7198 fix pass files it as a P1 row. A replay can refuse where a fresh run meshes; it can never return a wrong Ok, since the census re-runs. It is to be weighed by two designers, since its answer may touch a ratified invariant.
 - 2026-11-20 22:30 — (GERM orchestrator, seam note) **Main is red on `scripts/gates/pin-cites-an-open-row.sh`.** `crates/sweep/tests/a_cylinder_through_a_hole_tangent_to_its_wall.rs` (around line 134) pins on `work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`, which is now closed. Every PR's lint job fails on it, GERM's log-only state PR 7216 included. Owed by the lane that closed the row: lift the pin, or point it at the open row that owns the fix.
 - 2026-11-21 — (TESSLIE orchestrator) **Ev ruled on PR 7224: the chart-coherence examination retires** ("nice find, sounds great!"). The two designers agreed in round 2, after a census: an exact iso reading leaves only the ε–2ε fringe on a tier-3 body. PRs 7197 and 7224 close unmerged, superseded. The coherence lane takes `tesslie/retire-coherence` after its mesh-iso-family PR; once mesh stops calling it, `classify_kind` has no consumer and goes too. Also merged this sitting: 7195, 7196, 7198 (the P0), 7200, 7202, 7211, 7213 (main's pin-cite red, mine), 7240.
+
+## 2026-11-21 — sitting closed; track handed back
+
+(TESSLIE orchestrator) Every dispatchable P0 and P1 row is done, so the track returns to `ready`. The one P1 left, `mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers`, is parked on CHARTTAIL's `a-horns-cusp-reads-as-its-upper-apex-so-a-face-below-it-turns-the-wrong-way`. It was measured: 21,527 calls agree with the lift, and none reach a pole junction off the closing side.
+
+Merged this sitting:
+- 7195: slit in a curved face routes to trimmed; the curved lane refuses a pinch as a router defect.
+- 7196: a face whose boundary bounds no region refuses on its parity; the short-loop chord floor.
+- 7198 (the P0): shared-side rule on every trimmed arm, plus the over-use census at the fold.
+- 7200: one UV location per branch for a vertex met again.
+- 7202: `wrap_strip` reads its period off the lift.
+- 7211: `topo::loop_points`, the one home for the pinch reading.
+- 7213: main's pin-cite red, which this program caused.
+- 7235: mesh reads the shape door's per-edge family.
+- 7241: the memo key folds the face across and the trimmed lane's sense.
+- 7303: the rimless band reads its columns off the lift. It fixed a live wrong-region Ok on split wide bands.
+- 7307: the chart-coherence examination retired, on Ev's ruling in PR 7224.
+- 7197 and 7224 closed unmerged, superseded.
+
+Notes for a successor:
+- The sitting ran Opus only, at Ev's instruction (no Fable capacity). No experiment rows were recorded, and dual tiers ran as two Opus reviewers.
+- Lanes ran as cloud sessions.
+- Friction, all logged:
+  - Cross-session messages arrived 30–80 minutes late several times.
+  - Runners queued for about 30 minutes at once.
+  - A weekly usage limit stopped every lane for about 17 hours.
+- Main reds that belong to other programs, reported:
+  - ORBIT's `offer_rows`, noted on their log.
+  - `topo::recourse_roster`'s stale `tangent_sector_order2`.
+  - nist_ftc_09's refusal drift, which keeps the render lane red, so the tour frames await the nightly.
+- 2026-11-22 — (GREEN orchestrator) Filed `main-red-a-cylinder-wall-through-a-prism-corner-union-is-volume-uncomputable-at-1e-12` (P1) here: red at ε 1e-12 on GREEN's PR 7399 gate, whose diff cannot reach it; not on the 11-21 nightly's failure list. Not bisected.
