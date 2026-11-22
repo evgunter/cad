@@ -1,0 +1,56 @@
+## For Ev
+
+**Recommendation** (`likely` as a whole; each part rated below). Build no new cache. The drive should use the evaluator's existing per-node memo, each leaf taking its parent box's replay as its prior, and three things that stop that working at the symbolic scalar should be fixed. Separately, a box should be split only along variables that the undecided node reads.
+
+Terms. A *replay* is one evaluation of the document at the box scalar over one box of the bisection tree. A *node* is a recipe node (one sweep, one boolean); its *content key* is the evaluator's hash of its op, its evaluated slot values and its inputs' keys. A node's *read set* is the variables it reads, directly or through its inputs. A *session* is the symbolic tier's per-replay state: the table from expression id to expression, the registered identities, counters and caps.
+
+**Premise check.** The item asks what a drive may key a finish by. The tree already has the answer one level up, and it is ratified: a node's result is a function of its content key, "the key is the correctness proof" (`[determinism]`, content-keyed cache transfer), and `[scalars]` says the box lanes ride "the same memoization ... no parallel path". The drive passes no prior (`drive::lane_opts`: "and no memo"), and `eval::leaf::LeafPrior` says why: a symbolic value is an id into a table that dies with its replay, so a value served into another replay is meaningless there. So the issue is evidence of this: **a symbolic value is not a self-contained value; its meaning lives in ambient per-replay state.** The repeated finish is one symptom. The build outside the finish (two thirds of leaf time) is the same symptom, and a finish-only cache would leave it.
+
+Two corrections to the measurements as stated:
+- The measured tour certifies nothing: every one of its 1,023 replays refuses at the holes (the probe's M4 and M7 reports say so). The 22 s / 50 s split is of an all-refusing drive, not of the tour once the holes finish. The structure (the plate rebuilt per replay) will remain.
+- "Same nodes or equal expressions rebuilt" has a definite answer: expression ids are content hashes, so they are the same ids, with the table entries rebuilt per replay. The one exception is the opaque unknown, below.
+
+**The design, as a final state.**
+
+1. *The unit is the node, identified by its content key.* A leaf's replay takes its parent box's replay as prior. A node whose read set was not split has the same key and is served whole: its body, its finish (a sweep door's finish is inside its node), its verdict rows, escalations and marks. The plate is built once at the root. A hole's value is built once per distinct box of its own variables. The prior is the parent only, so no shared mutable map exists and the result cannot depend on the schedule. (`sure` that this is the right unit; a finish cache keyed by a body fingerprint is a second mechanism, covers a third of the cost, and its key is not a proof.)
+
+2. *Three changes make a symbolic value mean the same thing in any replay of one drive.*
+   - The expression table belongs to the drive, not the replay. It is content-addressed syntax, the same argument by which the drive already shares normal forms (`sym::DriveMemo`); a replay publishes its new entries once, at its end, as it does today for forms. (`sure` it is sound.)
+   - An opaque unknown (a number with no tracked expression) is keyed by the node that minted it and its ordinal there, not by a per-replay counter. Today two replays can give one counter value to two different numbers. That is harmless while nothing crosses replays; with reuse, a served value's unknown could collide with a fresh one and prove a false zero. (`sure` this is required.)
+   - What a node writes to the session is part of its value: the identities it registered and its decision counts travel with it, as its verdict rows already do. Per-replay caps (the retry ladder stops "for the rest of the leaf" after a count of forms) become per-node, so a node's result depends on its inputs alone. (`likely`; I read the cap's text, not every path.)
+
+3. *The content key at the symbolic scalar hashes both channels.* Today it hashes the number only (`eval::memo`, "provenance is not content"). But a symbolic decision depends on the expression, so two inputs with equal numbers and different expressions can give different results under one key. Inside one drive the document is fixed, so this cannot bite; as a general statement of "same key, same output" it is false, and `Dual` already hashes both channels for the same reason. (`sure` of the logic; `likely` that nothing compares symbolic keys with numeric ones.)
+
+4. *A refusal is served like a value.* Today the memo serves only nodes that built. A node's refusal is equally a function of its key, and its escalation log is its record. (`sure`.)
+
+5. *Bisection splits only what can help.* When a replay is undecided at node N, the box is split along the widest axis in N's read set. Splitting any other axis reproduces the same undecided N in both halves, by point 2. If N reads no varying variable, no split can help: the box is refused at once with a reason of its own that names N, instead of bisecting to the budget. (`sure` it is sound, since any partition is; `likely` it is the larger saving: on the measured tour the tree over the holes' variables is about 127 boxes, not 1,023.)
+
+**What a leaf's record says.** Nothing changes for the verdict vector: a served node's rows are its record, which the memo's hit path already asserts. A leaf's receipt counts what its certificate rests on, served or computed, as the `frozen` column already does ("its need, not what it computed"); how many nodes were served is a separate count the evaluation already keeps. Receipts are then the same with the memo on or off, which keeps the memo a performance dial checkable by differential.
+
+**Why reuse is sound.** A node's result is over the box of the variables it reads, and that box is identical in both replays. Its symbolic zeros hold "at every parameter value at which the build takes the decisions this replay took" (E12), and a served node took the same decisions. Nothing flows from the `f64` witness, so `[scalars]` ("a choice, never a claim") is untouched: every claim is still built at the box scalar from its own inputs.
+
+**Ratified text.** `docs/DESIGN.md`: no new text; `[scalars]` and `[determinism]` already say this, and the code does not yet do it. `docs/ERROR-DESIGN.md` E6 changes in two places: the split rule ("max relative width, ties to lowest index" becomes that rule among the axes the undecided node reads), and the refusal vocabulary gains the reason in point 5. E6's "leaves are independent" still holds between siblings; a leaf's result is still self-contained. I could not establish who wrote the split rule: the checkout is shallow.
+
+**The alternatives.**
+- *A finish cache in `topo`, keyed by body.* Rejected above.
+- *Hoist the nodes that read no varying variable and build them once.* Gets the plate, misses each hole's eightfold repeat, and is the content key's special case with a dependency analysis added.
+- *A drive-wide map from key to result* instead of the parent prior. Also catches the same value arising in two branches of the tree, but needs shared mutable state and an argument that the result does not depend on which leaf ran first. Point 5 removes most of those repeats. Easy to add later if measured.
+- *Point 5 alone, no memo.* Cuts the replay count but still rebuilds the plate in each. *The memo alone* keeps 1,023 replays that are mostly hits. They are independent and both wanted.
+
+**Not established.** That the a0 row comes under 1.0 s: the memo removes its blank's finish per leaf, not the other three. How much of the non-finish build is of unmoved nodes. Memory: each box keeps its parent's replay alive until both children finish.
+
+## For the orchestrator
+
+- **Errors in the brief.** (a) The measured tour is the all-refusing one (`probe/M4-REPORT.md` line 49, "exit 101 ... 2046 URef length"; M7 section 4, "still 0 certified"). The 215 s and its split should not be read as the certifying tour's. (b) "Whether an unmoved body's nodes are the same nodes" is answerable from the code: `sym.rs` "Node ids are CONTENT HASHES"; the table is per session; `Opaque` is the exception (`sym/memo.rs`, "the opaque sequence governs the hit rate, not soundness", an argument that holds for plain forms only and not for served values).
+- **The evidence for the premise correction:** `drive::lane_opts` doc; `drive::classify` calls `evaluate(doc, None, ..)`; `eval::leaf::LeafPrior` ("The symbolic lane has none, deliberately"); the hit site in `eval/mod.rs` (`prior` is `Option<&NodeValue<T>>`, so a `Failed` node is never served); `eval/memo.rs` `ContentBits for Sym` feeds `self.value` only.
+- **Claims I did not check.**
+  - That every path a registration takes can be recorded per node (I read `Session`'s fields and E12, not `Real::register_equal`'s callers).
+  - That `SymRetry::max_forms` is the only per-replay cap; grep `Session` for others (`reductions_held`, the early and door memos are caches and safe).
+  - That no consumer compares a symbolic lane's content keys with a numeric lane's (`CertifiedLeaf.results.node_keys`, `stackup.rs`, `ParamBoxVerdict::content_key`).
+  - That `Sym::param_over` records brackets per replay regardless of which nodes are served (the decision read needs them).
+  - That an undecided node's independent siblings are still evaluated in the same replay (I inferred it from `NodeResult::Poisoned` being per dependent).
+- **Point 5's read set** is static: `[intent.statements]`, "dependency is reading a variable ... nothing else carries dependency". `classify_replay` already names the node whose escalation speaks first; the read set is of that node. Note its comment that "nothing downstream depends on which cause wins": after point 5 the split axis does, so the order rule becomes load-bearing and should say so.
+- **A measurement worth taking before building:** with `BOXFINISH_TRACE`, per replay, the content keys of each node, counted distinct over the drive. That gives the memo's hit rate and the non-finish share directly, and the read-set tree size for point 5, with no design work.
+- **Follow-ons that fall out:** `LeafPrior::Symbolic` becomes real, so the certified-leaf consumers (`replay_leaf`, clearance) get a prior too; `DriveConfig::plain_memo` and the new sharing are one dial, not two. The taint and "unrecorded node" branches in `sym/memo.rs` exist because a table can lack a node whose id it holds; with a drive-scoped table that state is gone, and `work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order` likely closes.
+- **Off the question:** the `ContentBits for Sym` point is a latent defect on its own (any future prior at `Sym` across an edit that swaps one variable for another of equal value). It belongs to SYM or the evaluator; I filed nothing, being a read-only lane.
+- I did not read fork 288 in `docs/DESIGN-FORK-LOG.md` (my grep for its heading found nothing) nor ONEHOME's `a-later-finish-could-carry-facts-whose-data-is-bit-identical-to-a-finished-inputs`; the latter is the finish-level cache this report argues against as the unit, so check it for a conflict.
