@@ -131,8 +131,40 @@ store; then the split rule with its refusal. Each step is
 verdict-neutral against today's receipts except the drive's totals and
 the replay counts, which are meant to fall.
 
-**Not established:** how much of the build outside the finishes
-repeats, and the read-set tree's size (M8, running); the store's
-memory on wide documents; whether a leaf waiting on another's entry
-can stall the thread pool.
+**Measured after the designers agreed (M8,
+`probe/M8-REPORT.md` on `boxfinish/probe-switch-off` at `d89e28745d`;
+the switch's box arm off, the check after a definite sign removed):**
 
+- **The split rule is the larger saving.** On the tour's study the
+  deciding node is the first hole's extrude in every bisected replay,
+  and 292 of the 511 splits (57%) are on the one variable it does not
+  read. Collapsing the traced tree to the splits it does read leaves
+  127 replays of 1,023. On a two-variable drive, 3 of 15 splits and 23
+  replays of 31; on a one-variable drive, nothing.
+- **Most node time is on a result the drive already has.** Tour, time
+  inside node ops (134 s of 215 s of leaf time): 71.1 of 81.4 s of
+  build outside finishes (87%) and 48.0 of 52.6 s of finishes (91%) are
+  on a content key already seen. The plate has one key in 1,023
+  replays; each hole 127.
+- **A served refusal is most of it here.** The holes refuse every time,
+  so a memo that keeps only a built value saves 9.8 s of build and
+  15.5 s of finish; keeping a refusal under its key adds 61.3 s and
+  32.5 s. (Whether two refusals under one key carry the same payload
+  was not compared.)
+- **The parent's replay against the whole drive, under today's split
+  rule:** a prior handed from parent to child catches 4,818 of 6,650
+  repeats and misses 1,832, all of them the holes'. Under the new split
+  rule this drive's tree is the first hole's alone, so it does not
+  separate the two; a document with two features that both refine is
+  still the measurement that would.
+- **No live instance of the key's gap at the symbolic scalar:** no two
+  replays hold a node with equal content keys and different symbolic
+  ids in its result (5,115 results over 257 keys on the tour), and no
+  result holds a value with no expression. The fix is owed by the
+  argument, not by an observed wrong answer.
+
+**Not established:** the 81 s of the tour's leaf time outside node ops
+(the session, the classification, each node's work before its key); the
+certifying tour, since this one refuses at the holes in every replay;
+the store's memory on wide documents; whether a leaf waiting on
+another's entry can stall the thread pool.
