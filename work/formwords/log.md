@@ -88,3 +88,5 @@ and its DESIGN.md diff writes the frame-only reading.
 A class finding with no home: the placement editor never writes a slid
 far side. Filed as P0 on DOORS:
 `the-placement-editor-cannot-author-an-offset-from-a-face`.
+
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7376 (held-pick) merged after a full review and a fix pass, on the fix pass's green jobs and the orchestrator's read. It closes `a-creation-forms-held-pick-survives-a-document-swap` and the claimed `the-drafts-keep-held-slot-ids-across-a-document-replacement`.
