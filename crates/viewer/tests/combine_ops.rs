@@ -3090,7 +3090,8 @@ fn body_seat_candidates(tol: Tol) -> (Doc<ProfileProgram>, Vec<(&'static str, Re
     doc = next;
     let (next, body_b) = crate::fixture::slid(doc, body, extruded_b, [0.1, 0.0, 0.0]);
     doc = next;
-    let (next, other) = crate::fixture::slid(doc, body, body, [0.01, 0.002, 0.002]);
+    // Offset so the subtraction leaves walls a shell of them can hollow.
+    let (next, other) = crate::fixture::slid(doc, body, body, [0.01, 0.005, 0.004]);
     doc = next;
     // The split's tool: a plane read off the body's own geometry.
     let plane = crate::fixture::plane_on(&doc, body, [0.0, 0.0, 0.005], [0.0, 0.0, 1.0]);
@@ -3170,8 +3171,10 @@ fn body_seat_candidates(tol: Tol) -> (Doc<ProfileProgram>, Vec<(&'static str, Re
                 members: Bodies::Spelled(vec![body.into(), body_b.into()]),
             },
         ),
+        // Its members stand clear of each other, so it is the typed
+        // empty boolean: a body at the seat, ∅ under these values.
         (
-            "intersect",
+            "empty intersect",
             Node::Intersect {
                 members: Bodies::Spelled(vec![body.into(), body_b.into()]),
             },
@@ -3304,14 +3307,17 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     }
 }
 
-/// **What the body seat admits evaluates as a body where a body slot
-/// reads it**: each candidate of
-/// `the_body_seat_is_the_operand_doors_body_slot` the seat admits is
-/// shelled, the document evaluated once, and no shell's operand VALUE
-/// is refused (`WrongOperand`) — a seat the evaluator disagrees with is
-/// the lie that row names, met one step later. A candidate's own
-/// refusal (the sweep's frontier) reaches its shell as that
-/// candidate's, which is no disagreement about the seat.
+/// **What the body seat admits evaluates where a body slot reads it**:
+/// each candidate of `the_body_seat_is_the_operand_doors_body_slot` the
+/// seat admits is shelled, the document evaluated once without a panic,
+/// and each candidate evaluates and its shell receives it as a body.
+/// The two exceptions are the candidate's own, and exact: the sweep
+/// refuses at its frontier and poisons its shell, and the empty
+/// intersection is the typed ∅, which its shell refuses as an empty
+/// operand. A shell that received a body may still refuse its own
+/// geometry (`NodeErrorKind::Shell`, a loft's faces say); any other
+/// refusal of a shell is a seat the evaluator disagrees with, the lie
+/// that row names, met one step later.
 #[test]
 fn the_body_seats_admissions_evaluate_as_bodies() {
     let tol = Tol::witness();
@@ -3321,33 +3327,69 @@ fn the_body_seats_admissions_evaluate_as_bodies() {
         if viewer::session::admits(&doc, candidate, NodeKindWanted::Body) {
             let applied =
                 shelled(&doc, candidate, tol).expect("the door takes what the seat admits");
-            shells.push((
-                name,
-                applied.record.minted.expect("an insert mints its node"),
-            ));
+            let shell = applied.record.minted.expect("an insert mints its node");
+            shells.push((name, candidate, shell));
             doc = applied.doc;
         }
     }
-    assert!(
-        shells
-            .iter()
-            .any(|&(name, _)| name == "transform of a pattern"),
-        "the seat admits a transform of a pattern"
-    );
-    let mut landed = DocSession::inline(doc, tol);
-    landed.pump();
-    let eval = landed.evaluation().expect("the inline seam landed");
-    for (name, shell) in shells {
-        let refused = eval.result(shell).and_then(NodeResult::error);
+    for wanted in ["transform of a pattern", "empty intersect", "sweep"] {
         assert!(
-            !matches!(
-                refused,
-                Some(NodeError {
-                    kind: NodeErrorKind::WrongOperand { .. },
-                    ..
-                })
-            ),
-            "the seat admits a {name} whose value evaluation refuses: {refused:?}"
+            shells.iter().any(|&(name, _, _)| name == wanted),
+            "the seat admits the {wanted}"
+        );
+    }
+    let mut landed = DocSession::inline(doc, tol);
+    let pumped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| landed.pump()));
+    assert!(pumped.is_ok(), "evaluating what the seat admitted panicked");
+    let eval = landed.evaluation().expect("the inline seam landed");
+    let said = |result: Option<&NodeResult<f64>>| {
+        result.map(|result| match result {
+            NodeResult::Ok(_) => "Ok".to_string(),
+            NodeResult::Failed(error) => format!("{:?}", error.kind),
+            NodeResult::Poisoned { through } => format!("poisoned through {through:?}"),
+        })
+    };
+    for (name, candidate, shell) in shells {
+        let (own, read) = (eval.result(candidate), eval.result(shell));
+        let as_expected = match name {
+            "sweep" => {
+                matches!(
+                    own,
+                    Some(NodeResult::Failed(NodeError {
+                        kind: NodeErrorKind::CurvedSolidFrontier { .. },
+                        ..
+                    }))
+                ) && matches!(read, Some(NodeResult::Poisoned { through }) if *through == candidate)
+            }
+            "empty intersect" => {
+                matches!(own, Some(NodeResult::Ok(_)))
+                    && matches!(
+                        read,
+                        Some(NodeResult::Failed(NodeError {
+                            kind: NodeErrorKind::EmptyOperand { input },
+                            ..
+                        })) if *input == candidate
+                    )
+            }
+            _ => {
+                matches!(own, Some(NodeResult::Ok(_)))
+                    && matches!(
+                        read,
+                        Some(
+                            NodeResult::Ok(_)
+                                | NodeResult::Failed(NodeError {
+                                    kind: NodeErrorKind::Shell(_),
+                                    ..
+                                })
+                        )
+                    )
+            }
+        };
+        assert!(
+            as_expected,
+            "the seat admits a {name} that evaluates as {:?}, its shell as {:?}",
+            said(own),
+            said(read)
         );
     }
 }
@@ -4863,10 +4905,11 @@ fn a_pick_on_a_pattern_of_a_world_copy_seats_the_pattern() {
 /// **A transform of a pattern is a body at every body seat, and
 /// evaluation takes what the seat admitted**: box → pattern × 2 →
 /// transform, a pick on the transform's member 1 offered to each seat
-/// wanting a body. A placement of a family reaches the family's index,
-/// so it is evaluated once per member and each consumer meets one body
-/// per member, never the family whole — red if the seat admits a read
-/// the evaluator then refuses `WrongOperand` (`expected: "body"`).
+/// wanting a body, through the gate its commit asks. A placement of a
+/// family reaches the family's index, so it is evaluated once per
+/// member, and each of these seats' operations meets one body per
+/// member — red if the gate refuses the transform, or admits a read
+/// the evaluator then refuses.
 #[test]
 fn a_transform_of_a_pattern_seats_where_evaluation_takes_it() {
     let tol = Tol::witness();
@@ -4876,6 +4919,10 @@ fn a_transform_of_a_pattern_seats_where_evaluation_takes_it() {
         pattern,
         pattern,
         [0.0, A[1] * 2.0, 0.0],
+    );
+    assert!(
+        viewer::session::admits(&doc, moved, NodeKindWanted::Body),
+        "the body gate admits the transform named alone"
     );
     for seat in Seat::ALL {
         if seat.wants() != NodeKindWanted::Body {
@@ -4892,6 +4939,18 @@ fn a_transform_of_a_pattern_seats_where_evaluation_takes_it() {
             moved.into()
         };
         assert_eq!(read, want, "the {} seat reads the transform", seat.name());
+        // The gate its commit asks of that read: a member's read is
+        // gated as a family, a whole read as a body.
+        let gate = if read.is_indexed() {
+            NodeKindWanted::Instances
+        } else {
+            NodeKindWanted::Body
+        };
+        assert!(
+            viewer::session::admits_read(&doc, &read.read, gate),
+            "the {} seat's {gate:?} gate admits its read",
+            seat.name()
+        );
         let mut session = crate::common::inline_without_door(doc.clone(), tol);
         let op = match seat {
             Seat::Member => SessionOp::AddBoolean {
@@ -4918,7 +4977,7 @@ fn a_transform_of_a_pattern_seats_where_evaluation_takes_it() {
             // value: `work/doors/the-split-mirror-and-pattern-seats-read-a-picked-members-whole-family.md`.
             // The mirror's plane and the clearance seats' faces are
             // picks of their own; their body seat is the same gate.
-            Seat::PatternBody | Seat::MirrorBody | Seat::ClearedFirst | Seat::ClearedSecond => {
+            Seat::PatternBody | Seat::MirrorBody | Seat::AssertedFirst | Seat::AssertedSecond => {
                 continue;
             }
             Seat::PartInstance => unreachable!("not a body seat"),

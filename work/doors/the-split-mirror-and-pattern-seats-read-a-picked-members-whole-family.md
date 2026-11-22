@@ -34,7 +34,9 @@ one, because a family by repetition is a body at the gate
 evaluated once per member. `SessionOp::AddPattern` with such an input
 then refuses at the edit door, `IndicesUnrelated` between the family's
 index and the new pattern's fresh one — measured on
-`combine_ops::box_and_pattern`'s pattern and on its transform. So today
+`combine_ops::box_and_pattern`'s pattern and on its transform.
+`SessionOp::AddFusedPattern` over the same pattern refuses the same
+way, `IndicesUnrelated` between the two indices. So today
 the seat steers a pick the commit refuses, which `admits`' doc says one
 answer for both exists to prevent. Reading a member at this seat, as
 this row asks, removes the family from the input and the refusal with
