@@ -376,6 +376,7 @@ pub fn mass_props_error_tag(err: &pncad::topo::MassPropsError) -> &'static str {
         M::RingOnCurvedFace { .. } => "ring_on_curved_face",
         M::Corrupt { .. } => "corrupt",
         M::NullScaffoldEdge { .. } => "null_scaffold_edge",
+        M::NoOutline(_) => "no_outline",
         M::ResolutionFinerThanEps { .. } => "resolution_finer_than_eps",
         M::EmptyContains => "empty_contains",
         M::Poisoned { .. } => "poisoned",
