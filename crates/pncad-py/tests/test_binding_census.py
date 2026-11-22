@@ -2391,6 +2391,22 @@ NOT_BOUND = {
     # A space as a refusal speaks it: the world, its name, or the node
     # whose space it is. Python reads a refusal's spaces in its message.
     "SpokenSpace": SHAPE,
+    # A sentence as a value: its words and mentions, the pieces a door
+    # writes it from, and the one spelling of a mention. Python reads a
+    # refusal's sentence as the message text, each mention spelled; a
+    # mention's node rides as the payload's `NodeId`.
+    "Mention": SHAPE,
+    "Mentioned": SHAPE,
+    "Phrase": SHAPE,
+    "Put": SHAPE,
+    "Run": SHAPE,
+    "SaidName": SHAPE,
+    "SaidNode": SHAPE,
+    "SaidVar": SHAPE,
+    "Sentence": SHAPE,
+    "say": SHAPE,
+    "sentence": SHAPE,
+    "spell": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     # The names a deciding predicate's decisions are recorded under:
     # each `Settle` constructor fixes its own, which its docstring
@@ -2450,6 +2466,9 @@ NOT_BOUND = {
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recording": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recorded": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
+    # What a stranded name's row says holds it: Python reads a stranded
+    # name in the maintenance row's own message and payload.
+    "NameCarrier": SHAPE,
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.
