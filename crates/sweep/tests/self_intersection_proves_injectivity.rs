@@ -3343,3 +3343,156 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }
+
+// ------------------------------------------ two wedges at a vertex alone
+
+/// The verdict door's answer for every face of `body`, at the default
+/// budget.
+fn door<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::Embedding {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: BUDGET,
+    };
+    topo::clearance::embedded(&side, band(), budgets).verdict
+}
+
+/// **A triangular prism standing on its corner**: its cap the triangle
+/// the origin and the edges `e1`, `e2` span, extruded `1` along
+/// `e1 × e2`, at `T`.
+fn corner_prism<T: Scalar>(e1: [f64; 3], e2: [f64; 3]) -> topo::AtRestBody<T> {
+    use geom_core::{RigidMotion, Vec3};
+    let (a, b) = (
+        Vec3::new(e1[0], e1[1], e1[2]),
+        Vec3::new(e2[0], e2[1], e2[2]),
+    );
+    let n = a.cross(b);
+    let n = n * (1.0 / n.dot(n).sqrt());
+    let u = a * (1.0 / a.dot(a).sqrt());
+    let v = n.cross(u);
+    let plane = SketchPlane::from_frame(RigidMotion::squared(Point3::origin(), n, u));
+    let at = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    sweep::test_support::finished(
+        "the corner prism",
+        sweep::test_support::prism_on(
+            plane_at::<T>(&plane),
+            vec![at(0.0, 0.0), at(a.dot(u), 0.0), at(b.dot(u), b.dot(v))],
+            T::one(),
+            tol(),
+        ),
+        tol(),
+    )
+}
+
+/// The block `(0, 4)² × (−1, 0)`, its top face's corner at the origin.
+fn floor_block<T: Scalar>() -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished};
+    finished(
+        "the block",
+        brick::<T>((0.0, 4.0), (0.0, 4.0), (-1.0, 0.0), tol()),
+        tol(),
+    )
+}
+
+/// **The deep keel** (`a_keel_tree_in_the_plane.rs`'s): the block
+/// `0..4 × 0..4 × 0..2` less a V-groove of half-width `0.3` from outside
+/// the face `x = 0` to `x = 2`, then a wider one, `0.5`, on to `x = 3`,
+/// both their floors on the line `y = 1`, `z = 1`; then moved by `m`.
+/// Where the floors meet at `(2, 1, 1)` each narrow flank shares that
+/// vertex alone with each wide one, every face there a convex quadrant.
+fn deep_keel<T: Scalar>(m: &geom_core::Affine3<f64>) -> Body<T> {
+    use geom_core::RigidMotion;
+    use sweep::test_support::{block, finished, prism_on};
+    let groove = |x0: f64, w: f64, len: f64| {
+        let at = |u: f64, v: f64| (Point2::new(T::from_f64(u), T::from_f64(v)), T::zero());
+        let plane = SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(x0, 0.0, 0.0)));
+        finished(
+            "a groove",
+            prism_on(
+                plane_at::<T>(&plane),
+                vec![at(1.0 - w, 2.5), at(1.0, 1.0), at(1.0 + w, 2.5)],
+                T::from_f64(len),
+                tol(),
+            ),
+            tol(),
+        )
+    };
+    let block = finished("the block", block::<T>(4.0, 4.0, 2.0, tol()), tol());
+    let narrow = built(topo::subtract(&block, &groove(-1.0, 0.3, 3.0), tol()));
+    let keel = built(topo::subtract(&narrow, &groove(2.0, 0.5, 1.0), tol()));
+    moved(&keel, m).into_body()
+}
+
+/// **Two plane faces at a vertex they share alone hold where a plane
+/// parts their wedges** ([`deep_keel`]): at the keel's joint each narrow
+/// flank and each wide one are convex quadrants there, and the plane
+/// across the presentations' middles leaves them split to the depth
+/// floor, `Departure` at the vertex; the plane leaning furthest from
+/// all four edges parts them. Embedded at `f64` and at `Interval`, at
+/// the origin, turned `0.7` about `(1, 2, 3)` through `(0.3, −0.2, 0.1)`,
+/// and moved `(100, −100, 100)`. Red where the vertex-alone separator is
+/// taken from the rectangles' middles alone.
+#[test]
+fn a_deep_keels_joint_is_embedded_in_every_pose() {
+    use geom_core::{Affine3, Vec3};
+    let poses = [
+        ("at the origin", Affine3::identity()),
+        (
+            "turned",
+            Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(1.0, 2.0, 3.0),
+                0.7,
+            ),
+        ),
+        (
+            "a hundred out",
+            Affine3::translation(Vec3::new(100.0, -100.0, 100.0)),
+        ),
+    ];
+    for (what, m) in poses {
+        for (scalar, verdict) in [
+            ("f64", door(&deep_keel::<f64>(&m))),
+            ("Interval", door(&deep_keel::<Interval>(&m))),
+        ] {
+            assert!(
+                matches!(verdict, topo::clearance::Embedding::Embedded),
+                "the deep keel, {what}, at {scalar}: {verdict:?}"
+            );
+        }
+    }
+}
+
+/// **A roof folded down across the block's corner crosses it**: the
+/// [`corner_prism`] on `(1, 1, 1)` and `(1, 1, −1)`, whose cap holds the
+/// ray `(1, 1, 0)` of the block's top face, grafted beside
+/// [`floor_block`] as a solid of its own, so the cap runs through the
+/// top face along the diagonal from the corner. `Crosses` at `f64` and
+/// at `Interval`, never `Embedded`. The two solids share nothing in M,
+/// so the pair is decided by distance and the vertex-alone plane is not
+/// asked: the kernel builds no body whose faces cross while sharing a
+/// vertex, and that reading's crossing wedges are `injective`'s
+/// `two_plane_wedges_at_a_vertex_alone_certify_only_where_a_plane_parts_them`.
+/// Red if two coincident vertices of two solids were read as one shared
+/// cell, or the crossing were certified apart.
+#[test]
+fn a_roof_folded_across_a_blocks_corner_crosses_it() {
+    fn folded<T: Scalar>() -> Body<T> {
+        let mut body = floor_block::<T>().into_body();
+        let roof = corner_prism::<T>([1.0, 1.0, 1.0], [1.0, 1.0, -1.0]);
+        topo::graft_disjoint(&mut body, &roof).expect("the roof grafts");
+        body
+    }
+    for (scalar, verdict) in [
+        ("f64", door(&folded::<f64>())),
+        ("Interval", door(&folded::<Interval>())),
+    ] {
+        assert!(
+            matches!(verdict, topo::clearance::Embedding::Crosses(_)),
+            "the folded roof at {scalar}: {verdict:?}"
+        );
+    }
+}

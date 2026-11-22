@@ -82,8 +82,11 @@ of the two wedges' bisectors. The candidate was asked through the same
 - In 7 it did not certify them all: `holes_meeting_at_a_vertex` (5,
   for example 0 of 233 and 7 of 388), `union_pinch_member_order::holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_order`
   (8 of 381) and `split_through_an_apex::a_split_through_an_apex_closes_each_corner_of_its_section`
-  (1 of 106). The bisector difference does not separate the wedges
-  there, and why is untraced.
+  (1 of 106). In 6 of the 7 the bisector difference does not part
+  wedges that a plane does part, and the hull's nearest point does (the
+  section below); in `split_through_an_apex` a rectangle with no width
+  across one axis is decided by no plane
+  (`a-vertex-alone-quadrant-a-cell-holds-along-one-edge-has-no-width-to-depart-across`).
 
 So the candidate this row asks for closes most of the planar instances,
 and the rest want a candidate chosen against both wedges' edges (a
@@ -110,3 +113,68 @@ describes. That the plane leans along the long side is not printed, so
 the match is unchecked. Assigned here by shape, 14 tests: the vertex,
 plane/cone bucket (4: the chamfers, three at `Interval`), plane/sphere
 (9) and sphere/plane (1). Two traced. Valid bodies.
+
+## 2026-11-21: the wedge plane (embed/vertex-bisector)
+
+**What separates two quadrants at a vertex.** Each face presented as a
+quadrant at the vertex leaves it into the cone of its two corner axes,
+`a₁, a₂` and `b₁, b₂`. A plane through the vertex with
+`n·aᵢ > 0 > n·bⱼ` exists exactly where the origin is not in the hull of
+`{a₁, a₂, −b₁, −b₂}` (Gordan), which is where the cones share no ray,
+and the hull's point nearest the origin is such an `n`, the one that
+maximises the least cosine to the four axes. The bisector difference
+is the hull's centroid, which a separable pair need not have on that
+side (a thin wedge laid across a thin one, a roof over a floor whose
+edges reach past the floor's). `planes_through` now tries that plane
+first (`wedges_apart`, `parting_normal`, `nearest_in_hull`: an exact
+pass over the hull's vertices, edges and triangles), then the heading
+plane. The heading plane is kept: on plane/curved pairs of the curved
+tests below it certifies 3 cell pairs the wedge plane does not
+(`blend_per_shell_carry` 2, `corner_patch_chart_poles` 1), and the
+wedge plane certifies 75 it does not. `opposite` still decides each
+face's sign at the band, so a plane that parts nothing certifies
+nothing.
+
+**Measured** on `embed/vertex-bisector-measure` (main `9bc9d6517` with
+`embed/gate-measure` merged and a `CV_NO_WEDGE` switch for the before),
+the gate asking, over the census's 101 vertex plane/plane tests (100
+ran; `boolean::holdings_rows::every_brick_booleans_face_holds_only_member_faces_on_its_plane`
+is in `topo`'s lib binary, which the run's filter missed):
+
+- Before, exactly 24 refuse first at a pair presented `Zero::Point` on
+  both faces: the 24 this row holds.
+- After, of those 24: 3 pass (`emit_union_borders::a_wall_through_a_notch_apex_names_alike_in_every_order`,
+  `split_edge_on_faces_poses::an_edge_at_the_zero_bands_edge_refuses_typed_and_its_lever_builds`,
+  `union_pinch_member_order::two_wedges_overlapping_about_one_line_publish_their_apex_rows`);
+  7 go on to a `Crosses` (both keel trees at the split, a slit by
+  their own account, the door holding no record; `coincidence_door`,
+  two of `union_pinch_member_order` and two of
+  `three_solids_on_one_line` at a Boolean, five of them over records the
+  door holds; the census already holds crossings of these shapes in
+  the same families, as class `1-not-embedded?` and `3-in-solid`); 6 go
+  on to `Uncertified { Departure }` at an edge (two `band_mixed_vertex`,
+  three `holes_meeting_at_a_vertex`,
+  `union_pinch_member_order::holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_member_order`);
+  2 go on to the depth budget (two `holes_meeting_at_a_vertex`); 2 go on
+  to a vertex pair not presented `Zero::Point` on both
+  (`a_flank_touch_at_a_shared_corner`, `join_reflex_wedge_probes`); and
+  4 still refuse on a `Zero::Point` pair with a parting plane found,
+  each with a rectangle of no width across one axis, filed as
+  `a-vertex-alone-quadrant-a-cell-holds-along-one-edge-has-no-width-to-depart-across`.
+  Every test that moved refuses at a later ask than before; none of the
+  100 refuses earlier.
+- The other 76 refuse first at a vertex pair not presented
+  `Zero::Point` on both, before and after: not this row's.
+
+**The curved half** (`embed/apex-separator`'s). Over the 11 `sweep`
+tests of the 14 (plane/cone 4, plane/sphere 5, sphere/plane 1,
+cone/plane 1), the wedge plane is asked at every `Zero::Point` pair and
+found at `f64` at every one; at the refusing pairs it parts neither
+face at the band, as the heading plane does not. Each of the 11
+refuses at the same ask and on the same shape before and after.
+
+
+**The tour walk**, all 85 stops, main `a29fd3695` against this branch:
+78 of 85 hold on both, every verdict alike. Three stops certify in
+fewer splits: `snowman_lens` 417 → 345, `snowman_bitten` 481 → 449,
+`lily_lantern` 20,297 → 20,293 (still refused on the same edge).

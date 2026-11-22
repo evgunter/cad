@@ -6331,6 +6331,84 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
     unit(pmid(p.image((x, x), (y, y))) - q)
 }
 
+/// **The normal of a plane through a vertex that parts two faces each
+/// presented as a quadrant there** ([`Zero::Point`]), from their wedges:
+/// each face leaves the vertex into the cone its two corner axes span,
+/// `a₁, a₂` and `b₁, b₂` (the jet's columns at the corner, turned into
+/// the rectangle). A plane through the vertex parts the cones strictly,
+/// `n·aᵢ > 0 > n·bⱼ`, exactly where no point of the hull of
+/// `{a₁, a₂, −b₁, −b₂}` is the origin (Gordan), which is where the
+/// cones share no ray. The hull's point nearest the origin is then such
+/// an `n`, the one that leans furthest from all four axes; the
+/// difference of the wedges' bisectors is the hull's centroid, which a
+/// separable pair of thin wedges set at a wide angle to it need not have
+/// on that side. `None` for any other presentation, or where `n` parts
+/// nothing at `f64`.
+///
+/// It chooses a direction and decides nothing: [`sign_on`] reads each
+/// face's sign at the band, so a plane that does not part the faces
+/// certifies nothing, and a poor `n` costs a certificate, never a wrong
+/// one.
+fn wedges_apart(px: &Presented<'_>, py: &Presented<'_>) -> Option<Vec3<f64>> {
+    let axes = |p: &Presented<'_>| {
+        let Zero::Point(s, t, _) = p.zero else {
+            return None;
+        };
+        let (su, sv) = if s.axis() == Axis::U { (s, t) } else { (t, s) };
+        let (x, y) = (p.bound(su), p.bound(sv));
+        let (fx, fy, _) = p.jet_on((x, x), (y, y));
+        Some([unit(vmid(fx) * su.into())?, unit(vmid(fy) * sv.into())?])
+    };
+    parting_normal(axes(px)?, axes(py)?)
+}
+
+/// **The unit normal parting the cones of `a` and of `b` that leans
+/// furthest from all four**, `None` where none parts them at `f64`
+/// ([`wedges_apart`]).
+fn parting_normal([a1, a2]: [Vec3<f64>; 2], [b1, b2]: [Vec3<f64>; 2]) -> Option<Vec3<f64>> {
+    let g = [a1, a2, -b1, -b2];
+    let n = nearest_in_hull(&g)?;
+    g.iter().all(|d| n.dot(*d) > 0.0).then(|| unit(n)).flatten()
+}
+
+/// **The point of the hull of `g` nearest the origin**, `None` for an
+/// empty `g`: the nearest point of each vertex, edge and triangle of
+/// `g` that lies on it, the least of them. The nearest point of the hull
+/// lies inside one of its faces, where it is that face's own nearest
+/// point. A hull holding the origin has none of its faces nearest, so
+/// what this returns there is a face's, which the caller's sign test
+/// rejects.
+fn nearest_in_hull(g: &[Vec3<f64>]) -> Option<Vec3<f64>> {
+    let mut best: Option<Vec3<f64>> = None;
+    let mut keep = |p: Vec3<f64>| {
+        if best.is_none_or(|b| p.dot(p) < b.dot(b)) {
+            best = Some(p);
+        }
+    };
+    for (i, &a) in g.iter().enumerate() {
+        keep(a);
+        for (j, &b) in g.iter().enumerate().skip(i + 1) {
+            let e = b - a;
+            let t = -a.dot(e) / e.dot(e);
+            if t > 0.0 && t < 1.0 {
+                keep(a + e * t);
+            }
+            for &c in g.iter().skip(j + 1) {
+                let f = c - a;
+                let (ee, ef, ff) = (e.dot(e), e.dot(f), f.dot(f));
+                let (ae, af) = (a.dot(e), a.dot(f));
+                let det = ee * ff - ef.powi(2);
+                let s = (ef * af - ff * ae) / det;
+                let t = (ef * ae - ee * af) / det;
+                if s > 0.0 && t > 0.0 && s + t < 1.0 {
+                    keep(a + e * s + f * t);
+                }
+            }
+        }
+    }
+    best
+}
+
 /// **The planes through the shared cell, built from the shared edges'
 /// own carriers**, each with the cells it vanishes on ([`On`]):
 ///
@@ -6345,13 +6423,15 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
 /// - through two line edges with a common end, at a shared vertex: `n`
 ///   their stored directions' cross product, `q` a point of the first.
 ///   It lists both and their ends;
-/// - at a shared vertex alone, through the vertex, `n` across the faces'
-///   two headings. It lists the vertex.
+/// - at a shared vertex alone, through the vertex: where both faces are
+///   presented as quadrants there, `n` the plane leaning furthest from
+///   both wedges ([`wedges_apart`]); then `n` across the faces' two
+///   headings. Each lists the vertex.
 ///
 /// Every value is computed at the lane scalar from the stored carrier,
 /// so each member of a family has its own `n` and `q` in these
 /// enclosures, normal to its own edge and on it: the plane vanishes on
-/// the listed cells for every member. The headings and the bisector only
+/// the listed cells for every member. The headings, the bisector and the wedges only
 /// choose a direction; any direction is exact. A shared vertex off the
 /// lines a plane was built through is not listed.
 fn planes_through(
@@ -6413,44 +6493,48 @@ fn planes_through(
     let plane = || {
         let lines = lines?;
         let q0 = pmid(anchor(x, near)?);
-        let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
+        let headings = || Some((heading(px, q0)?, heading(py, q0)?));
         match (lines.as_slice(), rims.as_slice()) {
             ([], []) => {
                 let v = *near.vertices.first()?;
-                let on = On {
-                    edges: Vec::new(),
-                    vertices: vec![v],
-                    whole: true,
-                };
                 let q = *b.vertices.get(&v)?;
-                Some((
-                    Psi::Linear {
-                        n: lift(unit(hx - hy)?),
-                        q,
-                    },
-                    on,
-                ))
+                let at_vertex = |n: Vec3<f64>| {
+                    let on = On {
+                        edges: Vec::new(),
+                        vertices: vec![v],
+                        whole: true,
+                    };
+                    (Psi::Linear { n: lift(n), q }, on)
+                };
+                Some(
+                    wedges_apart(px, py)
+                        .into_iter()
+                        .chain(headings().and_then(|(hx, hy)| unit(hx - hy)))
+                        .map(at_vertex)
+                        .collect(),
+                )
             }
             ([(q, d)], [r]) => {
+                let (hx, hy) = headings()?;
                 let m = lift(bisector(hx, hy, unit(vmid(*d))?)?);
                 let n = m - *d * (m.dot(*d) / d.dot(*d));
-                Some((Psi::Linear { n, q: *q }, through(&[*r])))
+                Some(vec![(Psi::Linear { n, q: *q }, through(&[*r]))])
             }
             ([(q, d), (_, e)], [r, s])
                 if !near.vertices.is_empty() && r.ends.iter().any(|v| s.ends.contains(v)) =>
             {
-                Some((
+                Some(vec![(
                     Psi::Linear {
                         n: d.cross(*e),
                         q: *q,
                     },
                     through(&[*r, *s]),
-                ))
+                )])
             }
             _ => None,
         }
     };
-    plane().into_iter().collect()
+    plane().unwrap_or_default()
 }
 
 /// **Whether two planar conics' stored frames hold one plane, as one
@@ -9884,6 +9968,265 @@ mod presentation_rows {
                 parts,
                 "{what}: {got:?}"
             );
+        }
+    }
+
+    /// **A plane face's wedge at the origin** (vertex 1): the plane the
+    /// origin, `d1` and `d2` span, its face the convex wedge from `d1`
+    /// round to `d2` about `d1 × d2`, bounded by the lines out to
+    /// vertices `n + 1` (along `d1`) and `n + 2` (along `d2`).
+    fn plane_wedge(n: u64, d1: [f64; 3], d2: [f64; 3]) -> (Surface<Interval>, Boundary) {
+        let v = |d: [f64; 3]| Vec3::new(iv0(d[0]), iv0(d[1]), iv0(d[2]));
+        let (f1, f2) = (
+            Vec3::new(d1[0], d1[1], d1[2]),
+            Vec3::new(d2[0], d2[1], d2[2]),
+        );
+        let normal = unit(f1.cross(f2)).expect("a wedge spans a plane");
+        let along = unit(f1).expect("a direction");
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(origin(), lift(normal), lift(along)),
+        };
+        let line = |d: [f64; 3], far: u64, plus: bool| Rim {
+            stated: None,
+            key: edge(far),
+            arc: Some((Curve3::line(origin(), v(d)), (iv0(0.0), iv0(1.0)))),
+            ends: [vertex(1), vertex(far)],
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let b = Boundary {
+            sense: true,
+            edges: vec![line(d2, n + 2, false), line(d1, n + 1, true)],
+            vertices: BTreeMap::from([
+                (vertex(1), origin()),
+                (vertex(n + 1), Point3::origin() + v(d1)),
+                (vertex(n + 2), Point3::origin() + v(d2)),
+            ]),
+            extent: None,
+        };
+        (plane, b)
+    }
+
+    /// **Two plane wedges at a vertex they share alone** ([`certify_pair`]
+    /// through [`wedges_apart`]), each face presented as its quadrant
+    /// there, a floor `A` from `a₁` round to `a₂` against a wedge `B`:
+    ///
+    /// - the keel's joint (`a_deep_keels_joint_is_embedded_in_every_pose`'s
+    ///   pair, its cells as long and thin as the keel's): each wedge holds
+    ///   an edge in the other's plane, so neither carrier parts them, and
+    ///   the plane across the rectangles' middles leaves `B`'s edges on
+    ///   `A`'s side;
+    /// - a wedge through the floor's plane, each straddling the other's
+    ///   plane, its cell long along its first edge: parted by no
+    ///   difference of bisectors (`−0.013` on its second edge) and not by
+    ///   the rectangles' middles;
+    /// - a roof over the floor, its edges `(3, −1, 1)` and `(−1, 3, 1)`
+    ///   past the floor's two, parted by no difference of bisectors (the
+    ///   floor's carrier parts it);
+    /// - a roof folded onto the floor's diagonal, holding its ray
+    ///   `(1, 1, 0)`: the faces cross there, and no plane parts them.
+    ///
+    /// Red on a vertex-alone separator taken from the bisectors or the
+    /// rectangles' middles, or if a plane that does not part the wedges
+    /// were read as one.
+    #[test]
+    fn two_plane_wedges_at_a_vertex_alone_certify_only_where_a_plane_parts_them() {
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+        };
+        let square = ((-0.02, 0.02), (-0.02, 0.02));
+        type Wedge = ([f64; 3], [f64; 3], ((f64, f64), (f64, f64)));
+        let cases: [(Wedge, Wedge, bool, &str); 4] = [
+            (
+                (
+                    [0.351_123_441_588_391_76, 0.936_329_177_569_044_4, 0.0],
+                    [0.0, 0.0, -1.0],
+                    ((-0.0035, 0.0035), (-0.025, 0.025)),
+                ),
+                (
+                    [0.0, 1.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    ((-0.028, 0.028), (-0.018, 0.018)),
+                ),
+                true,
+                "the keel's joint",
+            ),
+            (
+                ([1.0, 0.0, 0.0], [0.122, 0.993, 0.0], square),
+                (
+                    [-0.662, -0.735, 0.147],
+                    [0.496, 0.0, -0.868],
+                    ((-0.03, 0.03), (-0.005, 0.005)),
+                ),
+                true,
+                "a wedge through the floor's plane",
+            ),
+            (
+                ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], square),
+                ([3.0, -1.0, 1.0], [-1.0, 3.0, 1.0], square),
+                true,
+                "the roof",
+            ),
+            (
+                ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], square),
+                ([1.0, 1.0, 1.0], [1.0, 1.0, -1.0], square),
+                false,
+                "the folded roof",
+            ),
+        ];
+        for ((a1, a2, ca), (b1, b2, cb), parts, what) in cases {
+            let (floor, fb) = plane_wedge(10, a1, a2);
+            let (wedge, wb) = plane_wedge(20, b1, b2);
+            let a = quadrant_piece(&floor, &fb, &local, 1, ca);
+            let b = quadrant_piece(&wedge, &wb, &local, 2, cb);
+            let presented = |p: &Piece<'_>| {
+                matches!(present(p, &[], &near.vertices, band()),
+                    Ok(Presentation::Of(q)) if matches!(q.zero, Zero::Point(..)))
+            };
+            assert!(
+                presented(&a) && presented(&b),
+                "{what}: both faces are their quadrants at the vertex"
+            );
+            let got = certify_pair(&a, &b, &near, band());
+            assert_eq!(
+                matches!(got, Outcome::Certified { .. }),
+                parts,
+                "{what}: {got:?}"
+            );
+        }
+    }
+
+    /// **The wedge plane turns each corner axis into its rectangle**
+    /// ([`wedges_apart`]): on [`floor`]'s own chart, the third quadrant
+    /// presented by its rectangle's high corner (`Zero::Point(XHi, YHi)`)
+    /// against the first presented by its low one. They are parted by the
+    /// plane normal to `(−1, −1, 0)`. Red if an axis is read off the jet's
+    /// column unturned: the third quadrant's wedge is then the first's,
+    /// and no plane parts them.
+    #[test]
+    fn the_wedge_plane_turns_each_corner_axis_into_its_rectangle() {
+        let s = floor();
+        let quadrant = |x: (f64, f64), y: (f64, f64), zero: Zero| Presented {
+            surface: &s,
+            map: Map::Chart,
+            x,
+            y,
+            zero,
+            corner: false,
+            cache: Cache::default(),
+        };
+        let third = quadrant(
+            (-0.02, 0.0),
+            (-0.02, 0.0),
+            Zero::Point(Side::XHi, Side::YHi, vertex(1)),
+        );
+        let first = quadrant(
+            (0.0, 0.02),
+            (0.0, 0.02),
+            Zero::Point(Side::XLo, Side::YLo, vertex(1)),
+        );
+        let n = wedges_apart(&third, &first).expect("the quadrants part");
+        let want = unit(Vec3::new(-1.0, -1.0, 0.0)).expect("a direction");
+        assert!(
+            (n - want).dot(n - want) < 1e-24,
+            "the plane leans furthest from both: {n:?}"
+        );
+    }
+
+    /// **[`parting_normal`] finds a parting plane exactly where the two cones
+    /// share no ray**, wherever the hull's nearest point falls: on an
+    /// edge (two quadrants of one plane, a thin wedge below the other's
+    /// diagonal) or inside a triangle (the roof of the row above, a wide
+    /// wedge just above, a thin wedge laid across a thin one; the roof
+    /// and the last are parted by no difference of bisectors). Wedges crossing along a
+    /// ray, sharing an edge, holding the other's axis or crossing through
+    /// it are parted by none. Each `n` found parts the axes strictly. Red
+    /// if the search skips a kind of face of the hull, or returns a face's
+    /// point where the hull holds the origin.
+    #[test]
+    fn parting_normal_parts_two_cones_exactly_where_they_share_no_ray() {
+        let d = |x: f64, y: f64, z: f64| unit(Vec3::new(x, y, z)).expect("a direction");
+        let (x, y) = (d(1.0, 0.0, 0.0), d(0.0, 1.0, 0.0));
+        for (a, b, parts, what) in [
+            (
+                [x, y],
+                [d(3.0, -1.0, 1.0), d(-1.0, 3.0, 1.0)],
+                true,
+                "the roof",
+            ),
+            (
+                [x, y],
+                [d(-1.0, -1.0, 0.1), d(-1.0, -1.0, -0.1)],
+                true,
+                "a thin wedge below the diagonal",
+            ),
+            (
+                [x, y],
+                [d(-1.0, 0.0, 0.0), d(0.0, -1.0, 0.0)],
+                true,
+                "the opposite quadrant of one plane",
+            ),
+            (
+                [x, y],
+                [d(1.0, -0.01, 1.0), d(-0.01, 1.0, 1.0)],
+                true,
+                "a wide wedge just above",
+            ),
+            (
+                [x, d(1.0, 1.0, 0.0)],
+                [d(-1.0, 1.0, 0.0), d(-1.0, 0.0, 0.0)],
+                true,
+                "two thin wedges of one plane",
+            ),
+            (
+                [x, y],
+                [d(1.0, 1.0, 1.0), d(1.0, 1.0, -1.0)],
+                false,
+                "across the diagonal",
+            ),
+            (
+                [x, y],
+                [y, d(-1.0, 0.0, 0.0)],
+                false,
+                "the next quadrant, an edge shared",
+            ),
+            (
+                [x, y],
+                [d(1.0, 1.0, 0.0), d(0.0, 0.0, 1.0)],
+                false,
+                "an axis inside the other",
+            ),
+            (
+                [x, d(1.0, 0.2, 0.0)],
+                [d(1.0, -0.2, 0.05), d(1.0, 0.4, 0.05)],
+                true,
+                "a thin wedge laid across a thin one",
+            ),
+            (
+                [x, y],
+                [d(1.0, 0.0, 1.0), d(1.0, 0.0, -1.0)],
+                false,
+                "a wedge through an edge",
+            ),
+        ] {
+            let got = parting_normal(a, b);
+            assert_eq!(got.is_some(), parts, "{what}: {got:?}");
+            if let Some(n) = got {
+                assert!(
+                    a.iter().all(|v| n.dot(*v) > 0.0) && b.iter().all(|v| n.dot(*v) < 0.0),
+                    "{what}: n parts the axes strictly: {n:?}"
+                );
+            }
         }
     }
 
