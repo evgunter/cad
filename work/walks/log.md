@@ -17,3 +17,7 @@ unchanged. Band 6600-6699 claimed in this commit
 
 TOPO's PR 3160 (`half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`) retires one premise of the convention — `mev`, `mef` and `mekr` no longer leave a complete face half-minted — and appends that to the row. All thirteen calls stay and the row's finding is unchanged. No file of this program's moved.
 - 2026-10-11 — From TOPO's second cut: `face-boundary-walks-spell-the-linked-prelude-by-hand` moved here, because the linked prelude is one relation spelled by hand. (`work/topo/log.md`)
+
+## 2026-11-22 — sitting opened (WALKS orchestrator)
+
+Track claimed (`status: active`). Ev, in chat: Fable usage is out, so every lane runs on Opus 5.5, and a dual review or design weighing uses two Opus agents. The model-compare draws are therefore not taken this sitting; any reviewed unit's row records the forced arms as a relaxation (protocol rule 8) and is not counted. Ev also flagged that several rows look stale, so the sitting opens with a read-only staleness audit of all 12 rows (four Opus auditors, by theme) before any dispatch.
