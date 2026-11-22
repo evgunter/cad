@@ -466,3 +466,12 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - a slow row run on CI by putting it on a branch whose diff selects it;
   - bisects as one throwaway branch per candidate merge, all pushed at once (`ci.yml`'s concurrency group is per ref, so they run in parallel), deleted once read.
   - U7 is told to take GREEN's own runs out of the latency median.
+- 2026-11-22 — U7 reported: PR 7364, head `be9424e5f7`; its gate is red only on the inherited python census (PR 7346, fixed on main by PR 7377).
+  - **Measured: PR CI's latency is queue, not run time.** The wall median rose from 15.7 to 26.7 min between 11-15 and 11-21, while active time went only 15.4 → 17.1. The 20-job concurrency cap was saturated for hours (at 06:30Z on 11-22: 20 running, 76 queued). PR runs went from about 90 a day to 200 or more, and a quarter of the job-minutes are runs cancelled by a newer push.
+  - The PR's change moves the python and mesh-budget jobs to the test profile (opt 1, debug assertions on) with cache-prime's key. That saves about 17 job-minutes per run seeding both; it is demand, not the median.
+  - Filed:
+    - `pr-runs-queue-behind-the-twenty-job-cap` (P2; it holds the alarm question);
+    - `the-gates-step-rescans-the-tree-once-per-gate` (P2; 7.6 min on every run, docs-only included);
+    - `pr-only-jobs-rust-cache-is-never-saved` (P3).
+  - FULL review (Opus) dispatched on the frozen head.
+  - Recorded for the CI-first direction: every GREEN bisect branch is more queue for every program. Lanes are to prefer one branch per batch of candidates over one per merge where a run can test several.
