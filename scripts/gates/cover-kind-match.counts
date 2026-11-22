@@ -94,7 +94,7 @@ arm 1 crates/topo/src/torus_region.rs
 arm 1 crates/topo/src/boolean/trace.rs
 whole 1 crates/topo/src/boolean/trace.rs
 whole 1 crates/topo/src/boxes.rs
-arm 2 crates/topo/src/cell_region.rs
+arm 1 crates/topo/src/cell_region.rs
 ball 1 crates/topo/src/census.rs
 arm 1 crates/topo/src/census/in_plane.rs
 arm 1 crates/topo/src/chart_region.rs

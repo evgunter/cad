@@ -685,7 +685,7 @@ fn a_collapsed_side_the_band_cannot_clear_refuses() {
     );
     let got = section(0.5 * z);
     assert!(
-        matches!(&got, Ok(_)),
+        got.is_ok(),
         "a side half a band wide is no collapsed side: {got:?}"
     );
 }

@@ -107,7 +107,7 @@ fn divergence_volume(l: &Lofted<f64>) -> f64 {
     let (g, w) = gauss3();
     for (fk, face) in body.faces() {
         let sign = if face.sense { 1.0 } else { -1.0 };
-        match body.get_surface(face.surface).unwrap() {
+        match body.face_surface(fk).unwrap() {
             geom::Surface::Plane { .. } => {
                 let ps: Vec<Vec3<f64>> = body
                     .face(fk)
@@ -219,7 +219,7 @@ fn close(what: &str, got: f64, want: f64, slack: f64) {
 fn collapsed_sides(l: &Lofted<f64>) -> usize {
     l.body
         .faces()
-        .filter_map(|(_, f)| l.body.get_surface(f.surface))
+        .filter_map(|(fk, _)| l.body.face_surface(fk))
         .map(|s| {
             singular_points(s)
                 .iter()
@@ -499,10 +499,7 @@ fn a_collapsed_side_inside_an_edge_is_refused_at_rest() {
         "the wedge as built"
     );
     let wall = lofted.side_faces[0][0][0].unwrap();
-    let surface = lofted
-        .body
-        .get_surface(lofted.body.get_face(wall).unwrap().surface);
-    let Some(geom::Surface::Nurbs(net)) = surface.cloned() else {
+    let Some(geom::Surface::Nurbs(net)) = lofted.body.face_surface(wall).cloned() else {
         panic!("wall 0 is a spline wall")
     };
     let (_, nv) = net.control_counts();
