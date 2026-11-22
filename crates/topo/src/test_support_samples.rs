@@ -632,6 +632,26 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::SessionBoxUnshown {
             margin: geom_core::MarginDiag::value(-75.0),
         },
+        // An edge with no cover, one per cause class: a limit (an
+        // unbounded locus), a stored-data fault, and an end that is not
+        // a finite point.
+        CertifyError::SessionBoxUncovered {
+            why: geom_brep::session_box::UncoveredCause::Carrier {
+                kind: "line",
+                what: geom::cover::Unknown::Unbounded,
+                unbounded_only: true,
+            },
+        },
+        CertifyError::SessionBoxUncovered {
+            why: geom_brep::session_box::UncoveredCause::Carrier {
+                kind: "nurbs",
+                what: geom::cover::Unknown::PoisonedNet,
+                unbounded_only: false,
+            },
+        },
+        CertifyError::SessionBoxUncovered {
+            why: geom_brep::session_box::UncoveredCause::Ends,
+        },
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
         CertifyError::IntervalNotForward {

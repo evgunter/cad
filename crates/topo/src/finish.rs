@@ -742,7 +742,9 @@ impl FindingFamily {
     /// where the family decides a fact of the shape up to isometry (a
     /// distance, an angle, a side or an incidence of the body with
     /// itself, or a fact of the run), so the image keeps the verdict; the
-    /// question where it does not. Only the session box is asked again.
+    /// question where it does not. Only the session box is asked again,
+    /// and an edge's certification refused by the box is the box's
+    /// finding ([`ValidationError::family`]).
     /// A new family states its answer here.
     const fn under_isometry(self) -> Option<AskedAgain> {
         match self {
@@ -883,9 +885,19 @@ impl ValidationError {
     pub const fn family(&self) -> FindingFamily {
         use FindingFamily as F;
         match self {
+            // An edge's certification refused by the session box is the
+            // box's finding, read at its first door: whether the edge
+            // stands in the box is no fact of the shape up to isometry.
             Self::OutsideSessionBox { .. }
             | Self::SessionBoxUnshown { .. }
-            | Self::SessionBoxUncovered { .. } => F::SessionBox,
+            | Self::SessionBoxUncovered { .. }
+            | Self::EdgeCertification {
+                error:
+                    geom_brep::CertifyError::OutsideSessionBox { .. }
+                    | geom_brep::CertifyError::SessionBoxUnshown { .. }
+                    | geom_brep::CertifyError::SessionBoxUncovered { .. },
+                ..
+            } => F::SessionBox,
             Self::Band { .. } => F::Tolerance,
             Self::DanglingTopology { .. }
             | Self::DanglingGeometry { .. }

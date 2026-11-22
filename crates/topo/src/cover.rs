@@ -1272,7 +1272,9 @@ pub(crate) fn edge_cover_of<T: SpanLocate>(
 
 /// **[`edge_cover_of`]'s construction**, from a carrier, its span and
 /// the edge's two ends: the carrier's cover over the span hulled with
-/// the ends. Read alone where there is no certified edge record to read
+/// the ends, built at its one home
+/// (`geom_brep::session_box::edge_cover`, which certification's session
+/// box ask reads too). Read alone where there is no certified edge record to read
 /// it from: rows whose near-fold sector `mev`'s witness certification
 /// refuses.
 ///
@@ -1282,17 +1284,15 @@ pub(crate) fn edge_cover_of<T: SpanLocate>(
 pub(crate) fn edge_cover_over<T: SpanLocate>(
     carrier: &geom::Curve3<T>,
     span: (T, T),
-    (a, b): (Point3<T>, Point3<T>),
+    ends: (Point3<T>, Point3<T>),
 ) -> Result<Cover<T>, EdgeUncovered> {
-    let arc = arc_cover(carrier, span)?;
-    let ends = Cover::points(vec![a, b]).ok_or(EdgeUncovered::Ends)?;
-    Ok(arc.hull(ends))
+    geom_brep::session_box::edge_cover(carrier, span, ends).map_err(EdgeUncovered::from)
 }
 
 /// **The carrier's half of an edge's cover**: its cover over the span
-/// ([`geom::Curve3::cover_over`]), with no ends. The one place topo
-/// reads a carrier over an edge's span; [`edge_cover_over`] hulls it
-/// with the ends. Read alone by a reader that holds a lifted carrier and
+/// ([`geom::Curve3::cover_over`]), with no ends. An edge's own cover is
+/// built in geom-brep, with its ends ([`edge_cover_over`],
+/// `geom_brep::session_box::edge_cover`). Read alone by a reader that holds a lifted carrier and
 /// span with no edge record behind them (`cell_region`'s boundary arcs,
 /// through `splitting::containment::arc_distance_floor`, and the
 /// clearance sweep's face boundary, `clearance::boundary_of`), which
@@ -1441,41 +1441,46 @@ pub enum EdgeUncovered {
 
 impl EdgeUncovered {
     /// **This refusal's standing, by its cause**
-    /// ([`geom_core::ladder::Refusal`]): null scaffolding, and a carrier
-    /// whose every unknown is an unbounded locus, are readings not built
-    /// (row 2), a limit; a control net carrying poison, a datum that is
-    /// not a finite number and an end vertex that is not a finite point
-    /// are stored-data faults (row 4), and a carrier refusal that mixes
-    /// the two classes aborts until it is split.
+    /// ([`geom_core::ladder::Refusal`]): null scaffolding is a reading
+    /// not built (row 2), a limit; a certified edge's refusal stands as
+    /// its own cause gives it
+    /// ([`geom_brep::session_box::EdgeUncovered::refusal`]).
     ///
     /// # Errors
     ///
     /// [`geom_core::ladder::Aborts`] for a stored-data fault and a mixed
     /// carrier refusal.
     pub(crate) fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
-        use geom::cover::Unknown;
-        use geom_core::ladder::{Aborts, Refusal};
+        match self.certified() {
+            None => Ok(geom_core::ladder::Refusal::Limit),
+            Some(why) => why.refusal(),
+        }
+    }
+
+    /// The certified edge's own refusal, or `None` for null scaffolding.
+    fn certified(&self) -> Option<geom_brep::session_box::EdgeUncovered> {
         match self {
-            Self::Scaffold => Ok(Refusal::Limit),
-            Self::Carrier(why)
-                if why
-                    .unknowns()
-                    .iter()
-                    .all(|(_, what)| matches!(what, Unknown::Unbounded)) =>
-            {
-                Ok(Refusal::Limit)
-            }
-            Self::Carrier(_) | Self::Ends => Err(Aborts),
+            Self::Scaffold => None,
+            Self::Carrier(why) => Some(geom_brep::session_box::EdgeUncovered::Carrier(why.clone())),
+            Self::Ends => Some(geom_brep::session_box::EdgeUncovered::Ends),
+        }
+    }
+}
+
+impl From<geom_brep::session_box::EdgeUncovered> for EdgeUncovered {
+    fn from(why: geom_brep::session_box::EdgeUncovered) -> Self {
+        match why {
+            geom_brep::session_box::EdgeUncovered::Carrier(why) => Self::Carrier(why),
+            geom_brep::session_box::EdgeUncovered::Ends => Self::Ends,
         }
     }
 }
 
 impl core::fmt::Display for EdgeUncovered {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Scaffold => f.write_str("the edge is null scaffolding"),
-            Self::Carrier(why) => write!(f, "the edge's carrier has {why}"),
-            Self::Ends => f.write_str("an end vertex of the edge is not a finite point"),
+        match self.certified() {
+            None => f.write_str("the edge is null scaffolding"),
+            Some(why) => write!(f, "{why}"),
         }
     }
 }

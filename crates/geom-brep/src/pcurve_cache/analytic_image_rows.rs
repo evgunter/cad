@@ -936,7 +936,8 @@ fn a_wrong_image_through_its_pcurve_door_ends_as_its_miss() {
 /// band, its lever, never a miss
 /// (`work/pcert/a-correct-stated-image-far-from-the-origin-reads-in-band-at-a-fine-band.md`).
 /// At 1 km and 10 km out the edges stand past the session box, and every
-/// door refuses them there, by the box, before any image is read.
+/// door refuses them there, by the box, before any image is read; the
+/// lever is read inside it at ε 1e-12, at 600 m.
 #[test]
 fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
     let fi = Interval::from_f64;
@@ -1023,6 +1024,15 @@ fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
         "a correct image far out: {levers} read in band at ε {:e}",
         band().zero()
     );
+    // The lever is reached inside the box at the finest band only: at
+    // ε 1e-12 one reading at 600 m reads in band (at 1e-9 and 1e-6 none
+    // does); so at that band the lever's half of this row is read.
+    if band().zero() <= 1e-12 {
+        assert!(
+            levers > 0,
+            "at ε 1e-12 a correct image 600 m out reads in band"
+        );
+    }
 }
 
 /// **A route decided once** (the review's interval iso line): an iso

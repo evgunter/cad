@@ -48,7 +48,7 @@
 //! `work/oneround/the-session-boxs-undecided-margins-admit.md`'s.
 
 use geom::Surface;
-use geom::cover::{BoxAxes, Cover};
+use geom::cover::Cover;
 use geom_brep::session_box::{BoxRefusal, cover_reach};
 use geom_core::{Band, Decide, Point3};
 use slotmap::SecondaryMap;
@@ -162,8 +162,10 @@ fn edge_cover_where<T: Decide>(
 /// and `surface_of` carry it into the space it is read in: each vertex's
 /// placed point; each certified edge's cover `cover_of_edge` of the edge
 /// with its two placed ends ([`edge_cover_where`] in every caller but a
-/// row's), and its largest `|coordinate|` over its span read from below
-/// off it (`geom_brep::edge_coordinate_reach_below`); and each face's
+/// row's), and its largest `|coordinate|` read from below off its ends
+/// and its points over its span (`geom_brep::session_box::edge_points_reach`,
+/// the edge's one inside read, which certification's ask reads too);
+/// and each face's
 /// region bounded by its placed carrier and its boundary, the hull of
 /// those edges' covers and its placed points
 /// (`cover::face_cover_unproven`). `curve_of` and `surface_of` give the
@@ -192,10 +194,11 @@ fn reach_of<T: Decide, E>(
         let end = |he, which| place(crate::cover::edge_end_point(body, e, he, which));
         let ends = (end(data.he_plus, "he_plus"), end(data.he_minus, "he_minus"));
         let cover = cover_of_edge(curve, ends);
-        points = points.max(geom_brep::edge_coordinate_reach_below(
+        points = points.max(geom_brep::session_box::edge_points_reach(
             curve.carrier(),
             curve.params(),
-            cover.as_ref().ok().map(|c| c.box_in(&BoxAxes::World)),
+            ends,
+            cover.as_ref().ok(),
         ));
         covers.insert(e, cover);
     }
@@ -599,7 +602,7 @@ mod tests {
                     c.params(),
                     edge_cover_where(c, ends)
                         .ok()
-                        .map(|c| c.box_in(&BoxAxes::World)),
+                        .map(|c| c.box_in(&geom::cover::BoxAxes::World)),
                 )
             };
             let placed = reach(&placed_edge(&iso, &curve).unwrap());

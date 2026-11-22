@@ -3633,6 +3633,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::SessionBoxUnshown { .. } => {
             "the kernel cannot bound it inside the session box"
         }
+        CertifyError::SessionBoxUncovered { .. } => {
+            "it has no cover, so the kernel cannot show it inside the session box"
+        }
         CertifyError::StatedImageMissed { .. } => {
             "the chart image it states does not follow its carrier"
         }
@@ -3831,6 +3834,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::OutsideSessionBox { .. }
             | CertifyError::SessionBoxUnshown { .. }
+            | CertifyError::SessionBoxUncovered { .. }
             | CertifyError::ChartImageUnavailable { .. }
             | CertifyError::StatedImageMissed { .. }
             | CertifyError::StatedImageUnsettled

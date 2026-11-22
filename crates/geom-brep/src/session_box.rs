@@ -31,8 +31,8 @@ pub const SESSION_BOX_RECOURSE: &str =
     "Recourse: place the geometry nearer the origin, or model it at a smaller size";
 
 /// **Why a region is not shown in the session box.** `U` names what has
-/// no cover: a face of a body, or nothing for an edge, which is one
-/// region.
+/// no cover and why: a face of a body with its cover's refusal, or an
+/// edge's own refusal ([`EdgeUncovered`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BoxRefusal<U> {
     /// A point known to lie on the region is definitely past the box.
@@ -46,8 +46,12 @@ pub enum BoxRefusal<U> {
         /// The box's extent less the cover's reach, metres (negative).
         margin: MarginDiag,
     },
-    /// Part of the region has no cover, and no point known to lie on it
-    /// is past the box: a limit.
+    /// Part of the region has no cover, and no point read on it is
+    /// definitely past the box. Its standing is `U`'s cause: a limit
+    /// where the reading is not built, a defect where the data is not
+    /// finite. A point that is not finite reads nothing, so a region one
+    /// such point leaves uncovered is still refused as past the box by
+    /// any other point of it that is.
     Uncovered(U),
 }
 
@@ -93,48 +97,198 @@ pub fn region_in_box<T: Decide, U>(
 }
 
 /// The largest `|coordinate|` of a cover: of its box along the world
-/// axes.
+/// axes ([`crate::box_reach`]).
 #[must_use]
 pub fn cover_reach<T: Decide>(cover: &Cover<T>) -> T {
-    let origin = Point3::origin();
-    let (lo, hi) = cover.box_in(&BoxAxes::World);
-    (lo - origin).norm_inf().max((hi - origin).norm_inf())
+    crate::box_reach(cover.box_in(&BoxAxes::World))
 }
 
-/// **An edge's region in the box**: `carrier` over `span` with its two
-/// `ends`, read from outside as the carrier's cover over the span hulled
-/// with the ends (topo's `cover::edge_cover_over`), and from inside off
-/// the ends and the carrier's own points over the span
-/// ([`crate::edge_coordinate_reach_below`]).
+/// **Why an edge's region has no cover** ([`edge_cover`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EdgeUncovered {
+    /// The carrier's own reading over the span refused.
+    Carrier(geom::cover::Uncovered),
+    /// An end is not a finite point.
+    Ends,
+}
+
+impl EdgeUncovered {
+    /// The refusal's cause, as a value: what certification's refusal
+    /// carries ([`crate::CertifyError::SessionBoxUncovered`]).
+    #[must_use]
+    pub fn cause(&self) -> UncoveredCause {
+        use geom::cover::{Entity, Unknown};
+        match self {
+            Self::Carrier(why) => {
+                let unknowns = why.unknowns();
+                let kind = unknowns
+                    .first()
+                    .map_or("unknown", |(entity, _)| match entity {
+                        Entity::Surface(kind) => kind.name(),
+                        Entity::Curve(kind) => kind.name(),
+                    });
+                let what = unknowns
+                    .first()
+                    .map_or(Unknown::NonFinite, |&(_, what)| what);
+                UncoveredCause::Carrier {
+                    kind,
+                    what,
+                    unbounded_only: unknowns
+                        .iter()
+                        .all(|(_, what)| matches!(what, Unknown::Unbounded)),
+                }
+            }
+            Self::Ends => UncoveredCause::Ends,
+        }
+    }
+
+    /// **This refusal's standing, by its cause** ([`UncoveredCause::refusal`]).
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] for a stored-data fault and a mixed
+    /// carrier refusal.
+    pub fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        self.cause().refusal()
+    }
+}
+
+impl core::fmt::Display for EdgeUncovered {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Carrier(why) => write!(f, "the edge's carrier has {why}"),
+            Self::Ends => f.write_str("an end vertex of the edge is not a finite point"),
+        }
+    }
+}
+
+/// **Why an edge has no cover, as a value** ([`EdgeUncovered::cause`]):
+/// the carrier's kind and the first thing not known of it, or an end
+/// that is not a finite point.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UncoveredCause {
+    /// The carrier's reading over the span refused.
+    Carrier {
+        /// The carrier's kind, by name.
+        kind: &'static str,
+        /// The first thing not known about it.
+        what: geom::cover::Unknown,
+        /// Whether every unknown is an unbounded locus.
+        unbounded_only: bool,
+    },
+    /// An end is not a finite point.
+    Ends,
+}
+
+impl UncoveredCause {
+    /// **The standing of an edge with no cover, by its cause**
+    /// ([`geom_core::ladder::Refusal`]): a carrier whose every unknown is
+    /// an unbounded locus is a reading not built (row 2), a limit; a
+    /// control net carrying poison, a datum that is not a finite number
+    /// and an end that is not a finite point are stored-data faults
+    /// (row 4), and a carrier refusal that mixes the two classes aborts
+    /// until it is split.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] for a stored-data fault and a mixed
+    /// carrier refusal.
+    pub fn refusal(self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        match self {
+            Self::Carrier {
+                unbounded_only: true,
+                ..
+            } => Ok(geom_core::ladder::Refusal::Limit),
+            Self::Carrier { .. } | Self::Ends => Err(geom_core::ladder::Aborts),
+        }
+    }
+}
+
+impl core::fmt::Display for UncoveredCause {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use geom::cover::Unknown;
+        match self {
+            Self::Carrier { kind, what, .. } => {
+                let what = match what {
+                    Unknown::Unbounded => "its locus is unbounded",
+                    Unknown::PoisonedNet => "its control net bounds no region",
+                    Unknown::NonFinite => "a datum of it is not a finite number",
+                };
+                write!(
+                    f,
+                    "the edge's {kind} carrier has no cover over its span: {what}"
+                )
+            }
+            Self::Ends => f.write_str("an end vertex of the edge is not a finite point"),
+        }
+    }
+}
+
+/// **An edge's region, read from outside**: `carrier`'s cover over
+/// `span` hulled with the two `ends`. The one construction of an edge's
+/// cover: certification's ask ([`edge_in_box`]) and topo's every reader
+/// of an edge's cover (`topo::cover::edge_cover_over`) build it here.
 ///
 /// # Errors
 ///
-/// The [`BoxRefusal`]; [`BoxRefusal::Uncovered`] where the carrier or an
-/// end is no finite cover, which certification leaves to its checks.
-pub fn edge_in_box<T: Decide>(
+/// [`EdgeUncovered`]: the carrier's reading refused, or an end is not a
+/// finite point.
+pub fn edge_cover<T: geom_core::spline::SpanLocate>(
     carrier: &Curve3<T>,
     (t0, t1): (T, T),
     (a, b): (Point3<T>, Point3<T>),
-    band: Band,
-) -> Result<(), BoxRefusal<()>> {
-    let cover = carrier
+) -> Result<Cover<T>, EdgeUncovered> {
+    let arc = carrier
         .cover_over(ParamWindow::new(t0, t1))
-        .ok()
-        .zip(Cover::points(vec![a, b]))
-        .map(|(arc, ends)| arc.hull(ends));
-    let reach = cover.as_ref().map(cover_reach).ok_or(());
+        .map_err(EdgeUncovered::Carrier)?;
+    let ends = Cover::points(vec![a, b]).ok_or(EdgeUncovered::Ends)?;
+    Ok(arc.hull(ends))
+}
+
+/// **An edge's region, read from inside**: the largest `|coordinate|`
+/// of points known to lie on it, its two `ends` and its carrier's own
+/// points over `span` ([`crate::edge_coordinate_reach_below`], which
+/// reads `cover`'s box where it is the edge's own). A point that is not
+/// finite reads nothing, so it never hides another point past the box;
+/// with none finite the reach is zero, past nothing. The one inside read
+/// of an edge: certification's ask and the finished-body fold
+/// (`topo::session_box`) read it here.
+#[must_use]
+pub fn edge_points_reach<T: Decide>(
+    carrier: &Curve3<T>,
+    span: (T, T),
+    (a, b): (Point3<T>, Point3<T>),
+    cover: Option<&Cover<T>>,
+) -> T {
+    let origin = Point3::origin();
+    let on_it =
+        crate::edge_coordinate_reach_below(carrier, span, cover.map(|c| c.box_in(&BoxAxes::World)));
+    [on_it, (a - origin).norm_inf(), (b - origin).norm_inf()]
+        .into_iter()
+        .filter(|&x| geom_core::is_finite_length(x))
+        .fold(T::zero(), T::max)
+}
+
+/// **An edge's region in the box**: `carrier` over `span` with its two
+/// `ends`, read from outside as its cover ([`edge_cover`]) and from
+/// inside off the points known to lie on it ([`edge_points_reach`]).
+///
+/// # Errors
+///
+/// The [`BoxRefusal`]: [`BoxRefusal::Point`] where a finite point of the
+/// edge is past the box, whether or not the edge has a cover;
+/// [`BoxRefusal::Uncovered`] with its cause where it has none and no
+/// finite point of it is past the box.
+pub fn edge_in_box<T: Decide>(
+    carrier: &Curve3<T>,
+    span: (T, T),
+    ends: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<(), BoxRefusal<EdgeUncovered>> {
+    let cover = edge_cover(carrier, span, ends);
     region_in_box(
-        reach,
-        || {
-            let origin = Point3::origin();
-            crate::edge_coordinate_reach_below(
-                carrier,
-                (t0, t1),
-                cover.as_ref().map(|c| c.box_in(&BoxAxes::World)),
-            )
-            .max((a - origin).norm_inf())
-            .max((b - origin).norm_inf())
-        },
+        cover.as_ref().map(cover_reach).map_err(Clone::clone),
+        || edge_points_reach(carrier, span, ends, cover.as_ref().ok()),
         band,
     )
 }

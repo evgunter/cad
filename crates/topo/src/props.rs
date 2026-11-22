@@ -9210,7 +9210,11 @@ mod exact_enclosure_rows {
     /// **The enclosure holds the vertex polyhedron's exact volume, and
     /// decides its sign**, on turned needles `10.5ε` and `30ε` across in
     /// four poses, at the origin, at `(37, −21, 13)` and at
-    /// `(1234.5, −987.25, 3333)`, either way out.
+    /// `(734.5, −587.25, 933)`, either way out: every one of the 48
+    /// readings is taken. The far centre stands inside the session box,
+    /// which refuses an edge past it at its certification; it stood at
+    /// `(1234.5, −987.25, 3333)` before, whose needles that refusal left
+    /// unbuilt.
     #[test]
     fn the_enclosure_holds_the_vertex_polyhedrons_exact_volume() {
         let tol = Tol::witness();
@@ -9228,7 +9232,7 @@ mod exact_enclosure_rows {
         let centres = [
             [0.0, 0.0, 0.0],
             [37.0, -21.0, 13.0],
-            [1234.5, -987.25, 3333.0],
+            [734.5, -587.25, 933.0],
         ];
         let mut read = 0;
         for m in [10.5, 30.0] {
@@ -9308,7 +9312,7 @@ mod exact_enclosure_rows {
                 }
             }
         }
-        assert!(read > 0, "a needle built");
+        assert_eq!(read, 48, "every needle builds and is read, either way out");
     }
 }
 
