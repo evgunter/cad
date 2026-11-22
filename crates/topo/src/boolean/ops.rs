@@ -127,7 +127,7 @@ use super::shell_witness::{
 use super::voids;
 use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 
-mod interior_rings;
+mod interior_cuts;
 use super::{BooleanDecision, LineWedgeFault};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
@@ -1559,82 +1559,21 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // entity's key (`crate::carve::carve`), so those
         // names still hold on `a2` and `b2`.
         let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
-        // The re-entry's operands are not finished (the cut-ins leave
-        // joinable vertices), but they hold tiers 1 and 2: carved, turned,
-        // grafted and cut from finished operands by operators that each
-        // keep both. A finding here is a kernel defect.
-        for (what, body) in [("A", &a2), ("B", &b2)] {
-            debug_assert_eq!(
-                crate::validate_closed(body),
-                Ok(()),
-                "re-cut operand {what} fails tier 1 or 2, though every operator that made it \
-                 keeps both on a finished operand (kernel bug)"
-            );
-        }
-        let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
-        if let BooleanResult::Body(out) = &mut result {
-            // A row names the cells of the op's inputs, not of the
-            // cut operands ([`crate::coincidence`]), through the one
-            // door ([`spell`]).
-            respell_through_cuts(&mut out.coincidences, &cuts, &recharted)?;
-            // The cut-ins divided faces before the join did, in the
-            // operand keys the join's rows are in.
-            let n = &mut out.naming;
-            for ((made, joined), edges) in cuts
-                .into_iter()
-                .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
-                .zip(&mut n.chart_cuts)
-            {
-                *joined = crate::lineage::FaceDivisions::from_rows(
-                    made.divisions
-                        .into_iter()
-                        .chain(joined.rows().iter().copied()),
-                )?;
-                edges.extend(made.edges);
-            }
-            *n.recharted = recharted;
-        }
+        let result = reenter_recut(op, (&a2, &b2), decls, strategy, cuts, recharted, tol)?;
         return Ok(Joined::Answered(Box::new(result)));
     }
 
     let interior_loops = interior_loop_verdict(op, a, b, &red, &glued, band);
+    // An interior loop the guard proves on a sphere face is cut in as
+    // the no-crossings path cuts one in ([`interior_cuts`]), and the
+    // pipeline re-enters once on the cut operands.
     if recut && interior_loops.is_err() {
         let pairs = crossings_section_pairs(a, b, &red, &glued, band, false)?;
-        if std::env::var("LATHE_CUTIN").is_ok()
-            && let Some(cut_ins) = interior_rings::plan_cut_ins(a, b, &pairs, band)?
-        {
+        if let Some(cut_ins) = interior_cuts::cut_ins(a, b, &pairs, band)? {
             let (mut a2, mut b2) = (a.clone(), b.clone());
             let cuts = apply_cut_ins(&mut a2, &mut b2, &cut_ins, band, tol)?;
-            let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
-            if let BooleanResult::Body(out) = &mut result {
-                respell_through_cuts(&mut out.coincidences, &cuts, &Default::default())?;
-                let n = &mut out.naming;
-                for ((made, joined), edges) in cuts
-                    .into_iter()
-                    .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
-                    .zip(&mut n.chart_cuts)
-                {
-                    *joined = crate::lineage::FaceDivisions::from_rows(
-                        made.divisions.into_iter().chain(joined.rows().iter().copied()),
-                    )?;
-                    edges.extend(made.edges);
-                }
-            }
-            return Ok(Joined::Answered(Box::new(result)));
-        }
-        if std::env::var("LATHE_RECHART").is_ok()
-            && let Some(recharts) = interior_rings::plan_recharts(a, b, &pairs, band)?
-        {
-            let (a2, b2, recharted) = apply_recuts(a, b, &recharts, tol)?;
-            let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
-            if let BooleanResult::Body(out) = &mut result {
-                respell_through_cuts(&mut out.coincidences, &Default::default(), &recharted)?;
-                *out.naming.recharted = recharted;
-            }
-            return Ok(Joined::Answered(Box::new(result)));
-        }
-        if let Some(rings) = interior_rings::plan(a, b, &pairs, band)? {
-            return through_interior_rings(op, a, b, decls, strategy, &rings, tol)
+            let recharted = RechartsPerOperand::default();
+            return reenter_recut(op, (&a2, &b2), decls, strategy, cuts, recharted, tol)
                 .map(|result| Joined::Answered(Box::new(result)));
         }
     }
@@ -1670,48 +1609,58 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     })
 }
 
-/// **The crossings path re-entered on operands whose interior loops are
-/// built as rings** ([`interior_rings`]): each R-loop circle the guard
-/// found is a ring of its sphere face, and the op runs once more, its
-/// rows and face fragments read back through the rings to the op's
-/// inputs, as a cut-in's are.
+/// **The pipeline re-entered once on re-cut operands** `a2` and `b2`,
+/// what the re-charts and cut-ins made read back to the op's inputs:
+/// each row's cells through [`respell_through_cuts`], the cut-ins'
+/// divisions ahead of the join's, their meridians as chart cuts (which
+/// the output stage glues away with the pieces they divide).
 ///
 /// # Errors
 ///
-/// The rings' and the re-entered op's refusals.
-fn through_interior_rings<T: Decide + Bounds + crate::props::AtRestPolicy>(
+/// The re-entered op's refusals, and the respelling's.
+fn reenter_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
-    a: &Body<T>,
-    b: &Body<T>,
+    (a2, b2): (&Body<T>, &Body<T>),
     decls: &Glue<T>,
     strategy: SweepStrategy,
-    rings: &[interior_rings::InteriorRing<T>],
+    cuts: CutsPerOperand,
+    recharted: RechartsPerOperand,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    let (mut a2, mut b2) = (a.clone(), b.clone());
-    let cuts = interior_rings::apply(&mut a2, &mut b2, rings, tol)?;
-    for (what, body) in [("A", &a2), ("B", &b2)] {
+    // The re-entry's operands are not finished (the cut-ins leave
+    // joinable vertices), but they hold tiers 1 and 2: carved, turned,
+    // grafted and cut from finished operands by operators that each
+    // keep both. A finding here is a kernel defect.
+    for (what, body) in [("A", a2), ("B", b2)] {
         debug_assert_eq!(
             crate::validate_closed(body),
             Ok(()),
-            "ringed operand {what} fails tier 1 or 2, though a ring of a face keeps both on a \
-             finished operand (kernel bug)"
+            "re-cut operand {what} fails tier 1 or 2, though every operator that made it \
+             keeps both on a finished operand (kernel bug)"
         );
     }
-    let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
+    let mut result = boolean_op_recut(op, a2, b2, decls, strategy, false, tol)?;
     if let BooleanResult::Body(out) = &mut result {
-        respell_through_cuts(&mut out.coincidences, &cuts, &Default::default())?;
+        // A row names the cells of the op's inputs, not of the
+        // cut operands ([`crate::coincidence`]), through the one
+        // door ([`spell`]).
+        respell_through_cuts(&mut out.coincidences, &cuts, &recharted)?;
+        // The cut-ins divided faces before the join did, in the
+        // operand keys the join's rows are in.
         let n = &mut out.naming;
-        for (made, joined) in cuts
+        for ((made, joined), edges) in cuts
             .into_iter()
             .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
+            .zip(&mut n.chart_cuts)
         {
             *joined = crate::lineage::FaceDivisions::from_rows(
                 made.divisions
                     .into_iter()
                     .chain(joined.rows().iter().copied()),
             )?;
+            edges.extend(made.edges);
         }
+        *n.recharted = recharted;
     }
     Ok(result)
 }
@@ -7529,10 +7478,50 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 .across(&meridian, band)
                 {
                     Ok(geom_brep::curve_pair::on_surface::CoSurface::Roots(roots)) => roots,
-                    Ok(
-                        geom_brep::curve_pair::on_surface::CoSurface::InPlane
-                        | geom_brep::curve_pair::on_surface::CoSurface::Touch,
-                    ) => return Err(uncertified()),
+                    // An arc lying in the meridian's plane on the far
+                    // half-plane, a seam of the chart the cut is on (a
+                    // full revolve's wrap edge runs there pole to pole),
+                    // meets the half-meridian at most at a pole it ends
+                    // at. Its middle and both its ends read off the half
+                    // say so: an arc of the plane reaching the half
+                    // between its ends holds the whole half, middle and
+                    // all.
+                    Ok(geom_brep::curve_pair::on_surface::CoSurface::InPlane) => {
+                        let end = proven(&body.half_edges, hd.next, EntityId::HalfEdge).start;
+                        let mut poles = Vec::new();
+                        for v in [hd.start, end] {
+                            let q = body.resolve_vertex_point(v, crate::live::Proven);
+                            if sign_as(
+                                "bool_sphere_cut_pole",
+                                Margin::of(axis.cross(q - cut.center).norm()),
+                            )? == Sign::Zero
+                            {
+                                poles.push((v, q));
+                            } else if meridian
+                                .section_of(q, "bool_sphere_cut_half", band)
+                                .map_err(esc)?
+                                != Sign::Negative
+                            {
+                                return Err(uncertified());
+                            }
+                        }
+                        if meridian
+                            .section_of(carrier.mid_point(t0, t1), "bool_sphere_cut_half", band)
+                            .map_err(esc)?
+                            != Sign::Negative
+                        {
+                            return Err(uncertified());
+                        }
+                        hits.extend(poles.into_iter().map(|(v, q)| Hit {
+                            s: latitude(q),
+                            vertex: Some(v),
+                            split: None,
+                        }));
+                        continue;
+                    }
+                    Ok(geom_brep::curve_pair::on_surface::CoSurface::Touch) => {
+                        return Err(uncertified());
+                    }
                     // A stretch of the arc read in band: the cut-in's own
                     // question, on its margin where it has one.
                     Err(geom_brep::curve_pair::on_surface::AcrossRefusal::Windows(refusal)) => {
@@ -7932,16 +7921,12 @@ struct ChartCuts {
     /// `(new vertex, new edge, split edge)` for each arc a cut's end
     /// split, in mint order.
     arc_splits: Vec<(VertexKey, EdgeKey, EdgeKey)>,
-    /// `(vertex, closed edge, face)` for each interior ring
-    /// ([`interior_rings`]): its two cells and the face it was built in.
-    rings: Vec<(VertexKey, EdgeKey, FaceKey)>,
 }
 
 impl ChartCuts {
     /// The input cell `cell` of the cut operand lies in: a division's
-    /// face is the face it was cut from, a meridian or a ring and its
-    /// vertex the face it runs in, and an arc split's vertex or second
-    /// piece the arc it split.
+    /// face is the face it was cut from, a meridian the face it runs
+    /// in, and an arc split's vertex or second piece the arc it split.
     fn input_cell(&self, mut cell: Cell) -> Cell {
         // One step at a time to a fixed point, so a cell a later cut
         // made of an earlier cut's (an arc split of a meridian) reads
@@ -7969,13 +7954,7 @@ impl ChartCuts {
                     .iter()
                     .find(|&&(w, _, _)| w == v)
                     .map(|&(_, _, split)| Cell::Edge(split)),
-            }
-            .or_else(|| {
-                self.rings
-                    .iter()
-                    .find(|&&(v, e, _)| cell == Cell::Vertex(v) || cell == Cell::Edge(e))
-                    .map(|&(_, _, f)| Cell::Face(f))
-            });
+            };
             match next {
                 Some(next) => cell = next,
                 None => return cell,

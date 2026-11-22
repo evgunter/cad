@@ -9,8 +9,15 @@ fn report(label: &str, r: Result<topo::boolean::BooleanResult<f64>, topo::boolea
     match r {
         Err(e) => eprintln!("PROBE {label}: ERR {e:?}"),
         Ok(res) => {
-            let b = &res.body().unwrap().body;
+            let out = res.body().unwrap();
+            eprintln!("  skipped={:?}", out.naming.merge_skipped);
+            let b = &out.body;
             eprintln!("PROBE {label}: OK faces={}", b.faces().count());
+            let pts: std::collections::BTreeMap<_, _> = b.vertex_points().collect();
+            for (e, _) in b.edges() {
+                let (v0, v1) = b.edge_vertices(e).unwrap();
+                eprintln!("    edge {e:?} {:?} {:?} -> {:?}", topo::query::edge_carrier_kind(b, e), pts[&v0], pts[&v1]);
+            }
             for (k, f) in b.faces() {
                 let n = topo::props::loop_edges(b, f.outer).map(|l| l.0.len()).unwrap_or(999);
                 eprintln!("  face {k:?} kind={:?} outer_edges={n} rings={}", topo::query::face_surface_kind(b, k), f.rings.len());
