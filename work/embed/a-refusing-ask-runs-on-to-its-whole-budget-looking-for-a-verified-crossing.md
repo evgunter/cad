@@ -198,17 +198,22 @@ The two columns line up exactly: every straddle between faces that share a
 cell descends from a failed touching pair, and no straddle between faces
 that share nothing does.
 
-**The faces that share nothing come within a cell of each other.** On the
-dearest asks, 52 such face pairs straddle. The least upper end of their
-separations is 3.1e-3 m: an upper bound, so they come at least that close.
-At their deepest straddling split (depth 16 to 40) the separation's lower
-end is exactly 0 in all 52. A box trace of three of them
-(`faces-sharing-nothing-within-a-cell-of-each-other-are-not-parted-by-the-depth-floor`)
-shows each cell's box equal to its sampled extent and halving with it,
-and the closest sampled points 0.14 to 0.54 mm apart, below the cell size
-the depth floor reaches. So it is not enclosure looseness; the faces are
-that close, and box distance cannot part them at any depth the floor
-allows.
+**The faces that share nothing are centimetres apart; their carriers
+cross in the cells the walk keeps.** On the dearest asks, 52 such face
+pairs straddle. At their deepest straddling split (depth 16 to 40) the
+separation's lower end is exactly 0 in all 52. A box trace of three of
+them, followed by a certified minimisation
+(`share-nothing-face-pairs-are-halved-over-their-carriers-crossing-off-the-faces`),
+shows:
+- each cell's box equals its sampled extent;
+- the faces are 1.4 to 5.5 cm apart (torus × sphere certified at least
+  1.38e-2 m);
+- the 0.14 to 0.54 mm closest sampled points are carrier points in
+  cells that hold the two carriers' crossing and no point of one face.
+
+The region reader drops none of those cells: the sphere and torus region
+readings read no face a spline edge bounds. So it is neither enclosure
+looseness nor faces that close.
 
 **Descendants of a failed touching pair, by its reason** (dearest; the
 nearest touching ancestor): one part `Local` in `unread` 77,915, in
@@ -227,4 +232,4 @@ certificate split, by its reason**
 So refusing a touching pair by its reason, descendants included, would
 save about a quarter on the dearest asks and most of the depth-floor
 sample's; the dearest asks' other three quarters are faces that share
-nothing and come within a fraction of a millimetre of each other.
+nothing, halved over their carriers' crossing off the faces.
