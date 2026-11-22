@@ -1724,8 +1724,10 @@ impl Doc {
     /// The chart's `z` is the face's outward normal; its `x` and origin
     /// are the space's under `orient`, carried onto the face by the
     /// least turn, then turned `spin` about the normal and moved by the
-    /// two `slides`. `orient=None` writes the orientation nearest the
-    /// face, read off the face as it evaluates under `resolver=`.
+    /// two `slides`. The slides run along the space's own axes: the two
+    /// other than the one `orient` puts the chart's `z` most along, in
+    /// `x`, `y`, `z` order. `orient=None` writes the orientation nearest
+    /// the face, read off the face as it evaluates under `resolver=`.
     ///
     /// One action, answering the profile's id; `label=` labels it. A
     /// boss is `Node.extrude(profile, d)` and a union with `body`, a
@@ -1752,10 +1754,16 @@ impl Doc {
             Some(spin) => super::pose::scalar_at(py, d::Dimension::Angle, &spin, "spin")?,
             None => d::Formula::zero(d::Dimension::Angle),
         };
-        let slide =
-            |s: &super::expr::SlotArg| super::pose::scalar_at(py, d::Dimension::Length, s, "slide");
+        let slide = |s: &super::expr::SlotArg, at: usize| {
+            super::pose::scalar_at(
+                py,
+                d::Dimension::Length,
+                s,
+                &format!("slide at slides[{at}]"),
+            )
+        };
         let slides = match slides {
-            Some((a, b)) => [slide(&a)?, slide(&b)?],
+            Some((a, b)) => [slide(&a, 0)?, slide(&b, 1)?],
             None => [
                 d::Formula::zero(d::Dimension::Length),
                 d::Formula::zero(d::Dimension::Length),
@@ -2771,7 +2779,12 @@ fn loops_on_face(
         if let Ok(closed) = item.cast::<super::path::ClosedLoop>() {
             return super::path::loop_program(py, &closed.borrow());
         }
-        let chain: super::trace::Chain = item.extract()?;
+        let Ok(chain) = item.extract::<super::trace::Chain>() else {
+            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                "outline[{at}] is a {}, neither a ClosedLoop nor a Chain",
+                item.get_type().name()?
+            )));
+        };
         let mut loops = pncad::trace::chain_loops(vec![chain.0]).map_err(|err| {
             let err = match err {
                 d::EditError::SlotDimensionMismatch {
@@ -2798,7 +2811,12 @@ fn loops_on_face(
     if is_one {
         return Ok(vec![one(0, outline)?]);
     }
-    let items: Vec<Bound<'_, PyAny>> = outline.extract()?;
+    let Ok(items) = outline.extract::<Vec<Bound<'_, PyAny>>>() else {
+        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+            "the outline is a {}, neither a ClosedLoop, a Chain nor a list of them",
+            outline.get_type().name()?
+        )));
+    };
     items
         .iter()
         .zip(0..)

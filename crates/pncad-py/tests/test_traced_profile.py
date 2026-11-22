@@ -28,6 +28,7 @@ from pncad import (
     evaluate,
     m,
 )
+from measuring import pinned
 
 R = 0.5
 
@@ -47,6 +48,11 @@ def frame_and_wall(doc, cyl):
     )
     base = min(ev.all_vertices(cyl), key=lambda v: ev.vertex_position(cyl, v)[2].meters)
     return PoseDef.through(PoseDef.axis(cyl, wall), PoseDef.point(cyl, base)), wall
+
+
+def volume(ev, node):
+    """`node`'s body's volume, pinned."""
+    return pinned(ev.value(node).body()).volume
 
 
 def caps(ev, cyl):
@@ -109,6 +115,19 @@ class TracedProfileTest(unittest.TestCase):
                 self.assertAlmostEqual(min(p[2].meters for p in at), low, delta=1e-12)
                 self.assertAlmostEqual(max(p[2].meters for p in at), high, delta=1e-12)
                 self.assertEqual(doc.space(boss), doc.space(cyl), "the boss is in the cylinder's space")
+                # Outward the boss shares no material with the cylinder,
+                # so it unites whole; up the wall it is a pocket's tool,
+                # and the pocket and what it takes make the cylinder.
+                if depth > 0:
+                    combined = doc.insert(Node.union([cyl, boss]))
+                    want = volume(ev, cyl) + volume(ev, boss)
+                else:
+                    combined = doc.insert(Node.subtract(cyl, boss))
+                    taken = doc.insert(Node.intersect([cyl, boss]))
+                    ev = evaluate(doc)
+                    want = volume(ev, cyl) - volume(ev, taken)
+                    self.assertGreater(volume(ev, taken), 0.0, "the pocket takes material")
+                self.assertAlmostEqual(volume(evaluate(doc), combined), want, delta=1e-9)
 
     def test_a_face_to_trace_with_no_axis_is_drawn_and_refuses_as_its_trace(self):
         """The chart is read off the face drawn on, never off a traced
@@ -154,21 +173,33 @@ class TracedProfileTest(unittest.TestCase):
     def test_a_chain_drawn_on_a_face_beside_a_loop_is_checked_at_its_place(self):
         """The door takes closed loops and chains in one list, and checks
         each chain's arguments at its own place in it: an angle written
-        for the third loop's start refuses naming loop 2, and nothing
-        lands."""
+        for a chain's start refuses naming that loop, first, middle or
+        last, and nothing lands."""
+        hole = Chain.at(0 * m, 1 * deg).line_to(Start)
+        for at in range(3):
+            with self.subTest(at=at):
+                doc = Doc()
+                cyl = cylinder(doc)
+                bottom, wall = bottom_and_wall(doc, cyl)
+                outline = [footprint(), circle((0.5 * m, 0 * m), 0.05 * m), footprint()]
+                outline[at] = hole
+                before = doc.node_count
+                with self.assertRaises(EditError) as caught:
+                    doc.draw_on_face(cyl, bottom, outline, traced=[(cyl, wall)])
+                refusal = caught.exception
+                self.assertEqual(refusal.variant, "slot_dimension_mismatch")
+                named = [i for i in range(3) if f"loop {i}" in str(refusal)]
+                self.assertEqual(named, [at], str(refusal))
+                self.assertEqual(doc.node_count, before)
+
+    def test_an_outline_item_that_is_neither_kind_names_both(self):
         doc = Doc()
         cyl = cylinder(doc)
-        bottom, wall = bottom_and_wall(doc, cyl)
-        hole = Chain.at(0 * m, 1 * deg).line_to(Start)
-        before = doc.node_count
-        with self.assertRaises(EditError) as caught:
-            doc.draw_on_face(
-                cyl, bottom, [footprint(), circle((0.5 * m, 0 * m), 0.05 * m), hole], traced=[(cyl, wall)]
-            )
-        refusal = caught.exception
-        self.assertEqual(refusal.variant, "slot_dimension_mismatch")
-        self.assertIn("loop 2", str(refusal))
-        self.assertEqual(doc.node_count, before)
+        bottom, _ = bottom_and_wall(doc, cyl)
+        with self.assertRaisesRegex(TypeError, r"outline\[1\] is a str, neither a ClosedLoop nor a Chain"):
+            doc.draw_on_face(cyl, bottom, [footprint(), "a loop"])
+        with self.assertRaisesRegex(TypeError, "neither a ClosedLoop, a Chain nor a list of them"):
+            doc.draw_on_face(cyl, bottom, 1.0)
 
     def test_the_words_a_chain_takes(self):
         with self.assertRaises(ValueError):

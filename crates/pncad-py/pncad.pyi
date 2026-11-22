@@ -4149,12 +4149,14 @@ class Doc:
         The chart's `z` is the face's outward normal; its `x` and
         origin are the space's under `orient`, carried onto the face by
         the least turn, then turned `spin` about the normal and moved
-        by the two `slides`, each zero when `None`. `orient=None`
-        writes the orientation nearest the face, read off it as it
-        evaluates under `resolver=`; one putting `z` opposite the
-        normal refuses at `evaluate` (`pose_degenerate`,
-        `face_chart_backwards`), naming the orientation to write. A
-        face that is no plane refuses there too.
+        by the two `slides`, each zero when `None`. The slides run
+        along the space's own axes: the two other than the one `orient`
+        puts the chart's `z` most along, in `x`, `y`, `z` order.
+        `orient=None` writes the orientation nearest the face, read off
+        it as it evaluates under `resolver=`; one putting `z` opposite
+        the normal refuses at `evaluate` (`pose_degenerate`,
+        `face_chart_backwards`), naming the orientation to write. A face
+        that is no plane refuses there too.
 
         One action, answering the profile's id; `label=` labels it. A
         boss is `Node.extrude(profile, d)` united with `body`; a pocket

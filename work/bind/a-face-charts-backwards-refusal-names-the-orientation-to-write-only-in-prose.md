@@ -11,7 +11,7 @@ cost: E
 
 
 Found by the VSEAM lane that bound `Doc.draw_on_face`
-(`work/pydoor/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`).
+(`work/vseam/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`).
 
 A profile drawn on a bottom cap with `orient=Orientation.identity()`
 refuses at `evaluate` as `PoseConstruction::FaceChartBackwards { orient,
