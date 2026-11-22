@@ -33,8 +33,13 @@ edges, so they fail it at every depth:
   (the section at the end); the others are not.
 - **a reflex corner**. Both leans are negative. That the arm does not
   present a reflex corner as its quadrant is right, and
-  `a_planes_reflex_corner_of_two_lines_is_not_its_wedge` holds it. But
-  no other presentation reads that corner either.
+  `a_planes_reflex_corner_of_two_lines_is_not_its_wedge` holds it. No
+  other presentation reads that corner either, which is true and is not
+  the defect (`embed/iso-end`, 2026-11-22): a reflex face is read
+  through its own carrier, by the carrier arm, which reads the PARTNER's
+  presentation. So a pair at a reflex corner refuses where the partner
+  is not presented, or is presented as a sliver. An exactly straight
+  corner on the partner is one such exit, and is read since 2026-11-22.
 
 When the pair's shared cell is that vertex, or an edge ending there, the
 pair is `Split { Departure }` down to the depth floor and the walk
@@ -177,15 +182,14 @@ leans are a rounding wide. A mutant reading the run at the band's
   separator that holds them only within the band. It changes what `On`
   promises (membership, exact) and adds a reader of a band-scale drop,
   so it is a design question, with the sliver's and the margin's.
-- **The reflex corner** (78 tests exit only there). The face at any
-  two-line corner is the sector from one edge to the other, and a ray
-  into the face from the vertex splits it into two convex sectors, each
-  the image of a rectangle under `Map::Affine`, for a reflex, straight
-  or convex corner alike. That is two presentations of one face's part:
-  `Presentation` gains a pair, and `departure`, its carrier arm,
-  `opposite`, `planes_through`' headings, `graph_of`, `cusp` and
-  `stuck` each read one today. A straight corner cannot be closed this
-  way where the vertex alone is shared: a plane through the vertex has
-  to be strictly positive along both edges, which leave it opposite
-  ways.
-
+- **The reflex corner** (78 of the 179 still-refusing tests have their
+  only two-line lean exits there, both leans negative, at
+  `present_plane`'s lean gate, which is unchanged: a lean decided
+  `Negative` meets the same gate and the same `Unpresented::Local` as
+  before). It is `embed/iso-end`'s, on a plane and on a curved chart as
+  one reading. That lane argues no reading of the reflex face closes
+  these pairs and that the partner's presentation does; this lane did
+  not check which of the 78 have a partner the straight run now
+  presents. Not built here: a ray into the face from the vertex splits
+  any two-line corner into two convex sectors, each the image of a
+  rectangle under `Map::Affine`.
