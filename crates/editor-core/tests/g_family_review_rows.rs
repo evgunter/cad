@@ -218,7 +218,7 @@ fn cut_family_n(overlap_kept_first: bool, product_plain: bool, n: i64) -> usize 
         doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(asm)),
-            tool: BodyRead::plain(Operand::Node(tools)),
+            tool: BodyRead::plain(Operand::Node(tools)).into(),
         },
     );
     if product_plain {
@@ -318,7 +318,7 @@ fn one_node_reads_a_family_plainly_at_one_seat_and_indexed_at_another() {
         doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(row)),
-            tool: BodyRead::indexed(row, vec![Formula::count(1)]),
+            tool: BodyRead::indexed(row, vec![Formula::count(1)]).into(),
         },
     );
     let ev = run(&doc);

@@ -17,16 +17,17 @@
 //! a second place for it to drift.
 //!
 //! A union's or an intersect's member list is not seats: it holds any
-//! number of picks, each appended, so the boolean tool keeps it beside
-//! its subtraction's [`Seats`] (`crate::combine::BooleanTool`) and says
-//! its drops and its empty refusal in this module's words, naming
-//! [`Seat::Member`].
+//! number of picks, each appended, and so does a subtraction's tool list
+//! beside its body kept; the boolean tool keeps both
+//! (`crate::combine::BooleanTool`) and says their drops and their empty
+//! refusals in this module's words, naming [`Seat::Member`],
+//! [`Seat::SubtractFrom`] and [`Seat::SubtractTool`].
 //!
 //! # The picks are ROLES
 //!
 //! A seat means a particular thing, and no pair here is symmetric — not
-//! even a subtraction's two operands, whose order is the difference
-//! between `A ∖ B` and `B ∖ A`. So seats fill in order, a further pick
+//! even a subtraction's body kept and a tool, whose order is the
+//! difference between `A ∖ B` and `B ∖ A`. So seats fill in order, a further pick
 //! replaces the LAST one, and a drop empties the seat it was in without
 //! promoting the survivor: moving a node between seats that mean
 //! different things is not a correction, it is a different edit.
@@ -187,6 +188,23 @@ impl Seat {
         match self {
             Self::Member | Self::SubtractFrom | Self::SubtractTool => true,
             Self::SplitTarget
+            | Self::PatternBody
+            | Self::PartInstance
+            | Self::MirrorBody
+            | Self::AssertedFirst
+            | Self::AssertedSecond => false,
+        }
+    }
+
+    /// **Whether the seat takes a family read whole as every member at
+    /// once** (a `Bodies` seat: a union's member, a subtraction's tool),
+    /// where a `Body` seat makes its operation once per member (D10
+    /// `[repetition]`).
+    pub fn takes_every(self) -> bool {
+        match self {
+            Self::Member | Self::SubtractTool => true,
+            Self::SubtractFrom
+            | Self::SplitTarget
             | Self::PatternBody
             | Self::PartInstance
             | Self::MirrorBody
@@ -526,14 +544,17 @@ pub(crate) fn member_said(at: &[i64]) -> String {
 
 /// **A pick as the panel says it**: the node said by `by`, a node `by`
 /// does not hold as the tool kept it (`kept`, its last label), the
-/// member it reads (`[1]`, or every member), and the half it reads or
-/// still waits for.
-pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: &Port) -> String {
+/// member it reads (`[1]`, or the family whole), and the half it reads
+/// or still waits for. A family read whole at `seat` is "every member"
+/// where the seat takes them all at once ([`Seat::takes_every`]) and
+/// "each member" where the operation is made once per member.
+pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: &Port, seat: Seat) -> String {
     let held: HeldNodes = [kept.clone()].into_iter().collect();
     let node_said = by.or_held(&held).node(kept.id()).to_string();
     let member = match &port.members {
         Members::One(at) => member_said(at),
-        Members::Every => ", every member".to_owned(),
+        Members::Every if seat.takes_every() => ", every member".to_owned(),
+        Members::Every => ", each member".to_owned(),
         Members::Plain => String::new(),
     };
     let half = match port.output {
@@ -560,31 +581,6 @@ impl Seats {
     /// `Option`'s worth of state because only the first is ever set).
     pub const fn one(role: Seat) -> Self {
         Self::new([role, role])
-    }
-
-    /// Two seats in their roles, holding `held` as already spoken — the
-    /// door a tool re-seating picks it already holds goes through (the
-    /// boolean tool's change of operation), so nothing is re-read.
-    pub(crate) fn holding(roles: [Seat; 2], held: [Option<(SpokenNode, Port)>; 2]) -> Self {
-        let [a, b] = held;
-        let port =
-            |pick: &Option<(SpokenNode, Port)>| pick.as_ref().map_or(Port::ALONE, |p| p.1.clone());
-        let ports = [port(&a), port(&b)];
-        Self {
-            roles,
-            held: [a.map(|p| p.0), b.map(|p| p.0)],
-            ports,
-            // Re-seated, not picked: no copy was aimed at.
-            through: [None, None],
-        }
-    }
-
-    /// Each filled seat's pick as last spoken, with the port it reads,
-    /// in seat order (what [`Seats::holding`] takes back).
-    pub(crate) fn spoken(&self) -> Vec<(SpokenNode, Port)> {
-        (0..2)
-            .filter_map(|i| Some((self.held[i].clone()?, self.ports[i].clone())))
-            .collect()
     }
 
     /// The pick in seat `i` (0 or 1).
@@ -642,7 +638,7 @@ impl Seats {
     /// item [`seat_line`] composes; `None` for an open seat.
     pub(crate) fn said(&self, by: Speaker<'_>, i: usize) -> Option<String> {
         let kept = self.held[i].as_ref()?;
-        Some(pick_said(by, kept, &self.ports[i]))
+        Some(pick_said(by, kept, &self.ports[i], self.roles[i]))
     }
 
     /// Seat `i`'s role.

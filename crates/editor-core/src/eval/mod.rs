@@ -1128,16 +1128,15 @@ pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// result. The family's one output names each body at its member's
     /// place, and names nothing at an empty one.
     ///
-    /// **Who takes it, and who refuses.** A reader of the same index
-    /// reads one member, never this value. A member seat (a union's,
-    /// an intersect's or an assemble's) takes every member, and refuses
-    /// an empty one [`NodeErrorKind::EmptyMember`]; an indexed read
-    /// takes one member out of it by its tuple, the empty value at an
-    /// empty member; the product gather takes every body at its place.
-    /// Any other body seat that meets it whole takes ONE body and
-    /// refuses it typed (`WrongOperand`): a boolean of N bodies is N
-    /// booleans or one union of them, and the recipe does not guess
-    /// which.
+    /// **Who takes it.** A `Bodies` seat (a union's, an intersect's or
+    /// an assemble's member, a subtract's tool) takes every member, and
+    /// refuses an empty one [`NodeErrorKind::EmptyMember`]; an indexed
+    /// read takes one member out of it by its tuple, the empty value at
+    /// an empty member; a placement copies it whole; the product gather
+    /// takes every body at its place. A `Body` seat never meets it
+    /// whole: its read reaches the family's index, so its operation is
+    /// evaluated once per member and reads that member (D10
+    /// `[repetition]`), as every reader of the same index does.
     Instances(Vec<Option<Framed<T>>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
@@ -6453,10 +6452,13 @@ where
             constraints,
         } => feed_bundle(&mut h, defs, constraints),
         Node::World | Node::Space => {}
-        // The operands and the members are input edges.
-        Node::Subtract { from: _, tool: _ } => {}
-        Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
-            h.write_tag(match members {
+        // The operands and the members are input edges; a list's shape
+        // is not.
+        Node::Subtract { from: _, tool: list }
+        | Node::Union { members: list }
+        | Node::Intersect { members: list }
+        | Node::Assemble { members: list } => {
+            h.write_tag(match list {
                 crate::Bodies::Family(_) => tag::bodies::FAMILY,
                 crate::Bodies::Spelled(_) => tag::bodies::SPELLED,
             });

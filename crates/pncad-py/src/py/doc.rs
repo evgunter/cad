@@ -992,7 +992,8 @@ impl BodyArg {
     }
 }
 
-/// **A union's or an intersect's members as Python writes them**: ONE
+/// **A union's or an intersect's members, or a subtract's tools, as
+/// Python writes them**: ONE
 /// operand, a family read whole (a pattern's output), or a sequence of
 /// reads, each on its own (an operand, or a member `op[i]`) — the
 /// kernel's `Bodies`. Whether a read in a sequence is itself a family
@@ -1007,6 +1008,16 @@ pub(crate) enum MembersArg {
 }
 
 impl MembersArg {
+    /// The authored argument at a subtract's tool: one read is spelled
+    /// on its own, a body or a family read whole as its every member
+    /// (`Bodies::one`), so a single tool needs no family.
+    pub(crate) fn tools(self) -> d::Bodies<d::BodyRead<d::Formula>> {
+        match self {
+            Self::Family(read) => d::Bodies::one(read.read()),
+            spelled @ Self::Spelled(_) => spelled.bodies(),
+        }
+    }
+
     /// The authored argument.
     pub(crate) fn bodies(self) -> d::Bodies<d::BodyRead<d::Formula>> {
         match self {
@@ -3362,20 +3373,23 @@ impl Node {
         })
     }
 
-    /// **The subtract**: `from_` with the material of `tool` cut away.
+    /// **The subtract**: `from_` with the material of every tool cut
+    /// away.
     ///
     /// The one pair node: difference neither commutes nor associates,
     /// so its two operands are named slots (`from`, spelled `from_`
-    /// here because `from` is a Python keyword, and `tool`). Several
-    /// tools are one subtract of their union,
-    /// `Node.subtract(body, Node.union([t1, t2]))`. A body cut by
-    /// itself, `Node.subtract(a, a)`, is the typed empty body.
+    /// here because `from` is a Python keyword, and `tool`). `tool` is
+    /// read as `Node.union`'s members are: one operand — a body, or a
+    /// family read whole, which is every member — or a list of them, and
+    /// the cut is the fold `from − t₁ − … − tₙ`, which fuses no tool
+    /// with another. A body cut by itself, `Node.subtract(a, a)`, is the
+    /// typed empty body.
     #[staticmethod]
-    fn subtract(from_: BodyArg, tool: BodyArg) -> PyResult<Self> {
+    fn subtract(from_: BodyArg, tool: MembersArg) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Subtract {
                 from: from_.read(),
-                tool: tool.read(),
+                tool: tool.tools(),
             },
         })
     }

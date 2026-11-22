@@ -260,8 +260,10 @@ pub enum OperandSlot {
     Tool,
     /// The body a subtract cuts.
     From,
-    /// The body a subtract cuts away.
-    Cut,
+    /// Tool `i` of a subtract's spelled tool list.
+    Cut(usize),
+    /// The family a subtract's tool reads whole.
+    Cuts,
     /// Member `i` of a union's or an intersect's spelled list.
     Member(usize),
     /// The family a union or an intersect reads whole.
@@ -318,7 +320,8 @@ impl OperandSlot {
             Self::Measured(_, i) | Self::Cleared(i) => format!("reference {}", u16::from(i) + 1),
             Self::Tool => "tool".to_owned(),
             Self::From => "from".to_owned(),
-            Self::Cut => "tool".to_owned(),
+            Self::Cut(i) => format!("tool {}", ordinal(i)),
+            Self::Cuts => "tools".to_owned(),
             Self::Member(i) => format!("member {}", ordinal(i)),
             Self::Members => "members".to_owned(),
             Self::Input => "input".to_owned(),
@@ -337,10 +340,10 @@ impl OperandSlot {
             Self::Axis => SlotKind::Is(VarKind::Axis),
             Self::Frame => SlotKind::Is(VarKind::Frame),
             Self::Tool | Self::Plane => SlotKind::Is(VarKind::Plane),
-            Self::Target | Self::From | Self::Cut | Self::Member(_) | Self::Body => {
+            Self::Target | Self::From | Self::Cut(_) | Self::Member(_) | Self::Body => {
                 SlotKind::Is(VarKind::Body)
             }
-            Self::Members | Self::Of => SlotKind::Is(VarKind::Bodies),
+            Self::Members | Self::Cuts | Self::Of => SlotKind::Is(VarKind::Bodies),
             Self::Space => SlotKind::Is(VarKind::Space),
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
@@ -477,7 +480,8 @@ impl From<crate::SitedFace> for Operand {
 }
 
 /// **A `Bodies` argument** (REFERENCES DM4; D10): the one argument a
-/// union and an intersect take, defined by index or by enumeration.
+/// union, an intersect and an assemble take, and a subtract's tool,
+/// defined by index or by enumeration.
 /// Every reader of a `Bodies` takes either form, and a mix cannot be
 /// written: a `Bodies` read in a member's place is ill-typed at the door
 /// (`SlotVarKind`).
@@ -491,27 +495,77 @@ pub enum Bodies<R> {
     Spelled(Vec<R>),
 }
 
+/// **The seats a [`Bodies`] argument's reads sit in**: the one a family
+/// read whole sits in, and the one spelled read `i` sits in. A union's,
+/// an intersect's and an assemble's are [`Self::MEMBERS`]; a subtract's
+/// tool's are [`Self::CUTS`].
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Seats {
+    whole: OperandSlot,
+    each: fn(usize) -> OperandSlot,
+}
+
+impl Seats {
+    /// A union's, an intersect's and an assemble's members.
+    pub(crate) const MEMBERS: Self = Self {
+        whole: OperandSlot::Members,
+        each: OperandSlot::Member,
+    };
+    /// A subtract's tools.
+    pub(crate) const CUTS: Self = Self {
+        whole: OperandSlot::Cuts,
+        each: OperandSlot::Cut,
+    };
+
+    /// The seat under `self` of the read [`Self::MEMBERS`] seats at
+    /// `member`.
+    pub(crate) fn of(self, member: OperandSlot) -> OperandSlot {
+        match member {
+            OperandSlot::Member(i) => (self.each)(i),
+            _ => self.whole,
+        }
+    }
+}
+
 impl<R> Bodies<R> {
-    /// The reads, with the operand slot each sits in, in list order.
+    /// One read spelled on its own: a body, or a family read whole as
+    /// its every member.
+    pub fn one(read: R) -> Self {
+        Self::Spelled(vec![read])
+    }
+
+    /// The reads, with the operand slot each sits in, in list order,
+    /// at a union's, an intersect's or an assemble's member seats.
     pub fn rows(&self) -> Vec<(OperandSlot, &R)> {
+        self.rows_in(Seats::MEMBERS)
+    }
+
+    /// The reads, with the operand slot each sits in under `seats`, in
+    /// list order.
+    pub(crate) fn rows_in(&self, seats: Seats) -> Vec<(OperandSlot, &R)> {
         match self {
-            Self::Family(read) => vec![(OperandSlot::Members, read)],
+            Self::Family(read) => vec![(seats.whole, read)],
             Self::Spelled(reads) => reads
                 .iter()
                 .enumerate()
-                .map(|(i, read)| (OperandSlot::Member(i), read))
+                .map(|(i, read)| ((seats.each)(i), read))
                 .collect(),
         }
     }
 
     /// [`Self::rows`], writable.
     pub fn rows_mut(&mut self) -> Vec<(OperandSlot, &mut R)> {
+        self.rows_mut_in(Seats::MEMBERS)
+    }
+
+    /// [`Self::rows_in`], writable.
+    pub(crate) fn rows_mut_in(&mut self, seats: Seats) -> Vec<(OperandSlot, &mut R)> {
         match self {
-            Self::Family(read) => vec![(OperandSlot::Members, read)],
+            Self::Family(read) => vec![(seats.whole, read)],
             Self::Spelled(reads) => reads
                 .iter_mut()
                 .enumerate()
-                .map(|(i, read)| (OperandSlot::Member(i), read))
+                .map(|(i, read)| ((seats.each)(i), read))
                 .collect(),
         }
     }
@@ -525,23 +579,36 @@ impl<R> Bodies<R> {
         family.into_iter().chain(spelled)
     }
 
-    /// The same argument, each read mapped through `f`, in list order;
-    /// the first error stops it.
+    /// The same argument, each read mapped through `f` with its member
+    /// seat, in list order; the first error stops it.
     ///
     /// # Errors
     ///
     /// Whatever `f` refuses first.
     pub fn try_map<Q, E>(
         &self,
+        f: impl FnMut(OperandSlot, &R) -> Result<Q, E>,
+    ) -> Result<Bodies<Q>, E> {
+        self.try_map_in(Seats::MEMBERS, f)
+    }
+
+    /// [`Self::try_map`], each read with its seat under `seats`.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses first.
+    pub(crate) fn try_map_in<Q, E>(
+        &self,
+        seats: Seats,
         mut f: impl FnMut(OperandSlot, &R) -> Result<Q, E>,
     ) -> Result<Bodies<Q>, E> {
         Ok(match self {
-            Self::Family(read) => Bodies::Family(f(OperandSlot::Members, read)?),
+            Self::Family(read) => Bodies::Family(f(seats.whole, read)?),
             Self::Spelled(reads) => Bodies::Spelled(
                 reads
                     .iter()
                     .enumerate()
-                    .map(|(i, read)| f(OperandSlot::Member(i), read))
+                    .map(|(i, read)| f((seats.each)(i), read))
                     .collect::<Result<_, _>>()?,
             ),
         })
@@ -688,6 +755,39 @@ impl<S: crate::expr::Slot> core::fmt::Debug for BodyRead<S> {
             .finish()
     }
 }
+
+/// **One read is a `Bodies` of it spelled alone** ([`Bodies::one`]): a
+/// body, or a family read whole as its every member.
+impl<S: crate::expr::Slot> From<BodyRead<S>> for Bodies<BodyRead<S>> {
+    fn from(read: BodyRead<S>) -> Self {
+        Self::one(read)
+    }
+}
+
+/// A node, a variable or an operand read plainly, spelled alone
+/// ([`Bodies::one`]).
+impl<S: crate::expr::Slot> From<&RecipeNodeId> for Bodies<BodyRead<S>>
+where
+    S::Read: From<RecipeNodeId>,
+{
+    fn from(node: &RecipeNodeId) -> Self {
+        Self::one(node.into())
+    }
+}
+
+macro_rules! one_read {
+    ($($t:ty),*) => {$(
+        impl<S: crate::expr::Slot> From<$t> for Bodies<BodyRead<S>>
+        where
+            BodyRead<S>: From<$t>,
+        {
+            fn from(read: $t) -> Self {
+                Self::one(read.into())
+            }
+        }
+    )*};
+}
+one_read!(VarId, RecipeNodeId, Operand);
 
 impl<S: crate::expr::Slot> From<VarId> for BodyRead<S>
 where

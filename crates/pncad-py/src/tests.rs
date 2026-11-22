@@ -2445,9 +2445,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::DefinesNothing {
             input: sp(2),
-            slot: SlotId::Operand(OperandSlot::Cut),
+            slot: SlotId::Operand(OperandSlot::Cut(0)),
         },
-        &["input", "slot"],
+        &["input", "slot", "index"],
     );
 
     // A constraint's address answers with the ids it was given: the
@@ -4104,6 +4104,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "value_spin"
                         | "section"
                         | "member"
+                        | "cut"
                         | "index"
                         | "measured"
                         | "cleared"

@@ -1814,7 +1814,7 @@ mod picked_name {
             &doc,
             Node::Subtract {
                 from: read(place),
-                tool: read(block_copy),
+                tool: read(block_copy).into(),
             },
         );
         let evaluation = evaluated(&doc);

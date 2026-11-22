@@ -2408,18 +2408,24 @@ class Node:
         result keeps each piece's meet as a piece."""
 
     @staticmethod
-    def subtract(from_: _BodyArg, tool: _BodyArg) -> Node:
-        """The SUBTRACT: `from_` with the material of `tool` cut away.
+    def subtract(from_: _BodyArg, tool: Sequence[_BodyArg] | _BodyArg) -> Node:
+        """The SUBTRACT: `from_` with the material of every tool cut away.
 
         The one pair node — difference neither commutes nor associates
         — so its operands are named slots: `from` (spelled `from_`,
         since `from` is a Python keyword; its slot word is `from`) and
-        `tool` (slot word `cut`). Several tools are one subtract of
-        their union, `Node.subtract(body, Node.union([t1, t2]))`. A
-        body cut by itself, `Node.subtract(a, a)`, is the typed empty
-        body. A `from_` that is an `assemble`, or a copy of one, is cut
-        piece by piece, and the result keeps each piece's cut as a
-        piece; a piece the cut empties drops out."""
+        `tool`, read as `union`'s members are: one operand (a body, or a
+        family read whole, which is every member — a pattern's output),
+        or a sequence of reads, each on its own (an operand, or one
+        member `xs[i]`; slot word `cut`, completed by its position, and
+        `cuts` for a family read whole). The cut is the fold
+        `from − t1 − … − tn`, order-free in the tools, and fuses no tool
+        with another, so two tools that overlap each cut where they
+        stand. `Node.subtract(body, Node.union([t1, t2]))` cuts by their
+        union, as before. A body cut by itself, `Node.subtract(a, a)`,
+        is the typed empty body. A `from_` that is an `assemble`, or a
+        copy of one, is cut piece by piece, and the result keeps each
+        piece's cut as a piece; a piece the cut empties drops out."""
 
     @staticmethod
     def linear_pattern(

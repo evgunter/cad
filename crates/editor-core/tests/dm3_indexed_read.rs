@@ -31,7 +31,7 @@ fn family(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn subtract(from: BodyRead<Formula>, xs: RecipeNodeId) -> editor_core::AuthoredNode {
     Node::Subtract {
         from,
-        tool: member(xs, 0),
+        tool: member(xs, 0).into(),
     }
 }
 
@@ -159,7 +159,7 @@ fn an_indexed_read_at_a_body_seat_reads_that_member() {
         doc,
         Node::Subtract {
             from: member(xs, 1),
-            tool: member(xs, 0),
+            tool: member(xs, 0).into(),
         },
     );
     let ev = eval(&doc);
@@ -194,7 +194,7 @@ fn an_index_out_of_range_refuses_typed_and_an_index_edit_restores_it() {
         doc,
         Node::Subtract {
             from: member(xs, 5),
-            tool: member(xs, 0),
+            tool: member(xs, 0).into(),
         },
     );
     let ev = eval(&doc);
@@ -291,7 +291,7 @@ fn an_indexed_read_round_trips_persistence() {
         doc,
         Node::Subtract {
             from: member(xs, 2),
-            tool: member(xs, 0),
+            tool: member(xs, 0).into(),
         },
     );
     let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
@@ -463,14 +463,14 @@ fn a_subtract_of_two_overlapping_members_of_one_family_builds_as_two_parts_do() 
         doc,
         Node::Subtract {
             from: member(xs, 1),
-            tool: member(xs, 0),
+            tool: member(xs, 0).into(),
         },
     );
     let (doc, reversed) = insert(
         doc,
         Node::Subtract {
             from: member(xs, 0),
-            tool: member(xs, 1),
+            tool: member(xs, 1).into(),
         },
     );
     let ev = eval(&doc);

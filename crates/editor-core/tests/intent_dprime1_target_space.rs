@@ -289,7 +289,7 @@ fn a_re_point_across_two_spaces_refuses_at_the_door() {
     refused(
         DocEdit::SetParam {
             node: cut,
-            slot: SlotId::Operand(OperandSlot::Cut),
+            slot: SlotId::Operand(OperandSlot::Cut(0)),
             value: SlotValue::Read(Operand::from(b)),
             fresh: Vec::new(),
         },

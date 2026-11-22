@@ -149,7 +149,7 @@ enum Read {
     Folded {
         node: RecipeNodeId,
         steps: Vec<BTreeMap<StableName, Vec<Count>>>,
-        published: BTreeMap<StableName, Vec<Count>>,
+        published: Option<BTreeMap<StableName, Vec<Count>>>,
         by_fold: BTreeSet<StableName>,
     },
 }
@@ -267,7 +267,7 @@ impl FragmentGroups {
     pub(crate) fn folded(
         node: RecipeNodeId,
         steps: &[Arc<GroupRecord>],
-        published: &Rederived,
+        published: Option<&Rederived>,
     ) -> Self {
         let mut counted: Vec<BTreeMap<StableName, Vec<Count>>> = vec![BTreeMap::new(); steps.len()];
         // Each entity of the step after the current one → the published
@@ -304,8 +304,8 @@ impl FragmentGroups {
         Self(Read::Folded {
             node,
             steps: counted,
-            published: counts(&published.groups),
-            by_fold: published.by_fold.clone(),
+            published: published.map(|p| counts(&p.groups)),
+            by_fold: published.map(|p| p.by_fold.clone()).unwrap_or_default(),
         })
     }
 
@@ -334,7 +334,9 @@ impl FragmentGroups {
         let counts = match &self.0 {
             Read::Minted(m) => m.get(base).cloned().unwrap_or_default(),
             Read::Folded {
-                published, by_fold, ..
+                published: Some(published),
+                by_fold,
+                ..
             } if rederived(base) && !by_fold.contains(base) => {
                 published.get(base).cloned().unwrap_or_default()
             }
@@ -429,11 +431,11 @@ mod tests {
         let spelled = [Arc::new(spelled)];
         let unspelled = [Arc::new(GroupRecord::new())];
         for (what, steps) in [("spelled", &spelled), ("unspelled", &unspelled)] {
-            let read = FragmentGroups::folded(union, steps, &published);
+            let read = FragmentGroups::folded(union, steps, Some(&published));
             assert_eq!(read.sizes(&base), Some(vec![1]), "{what}");
         }
         published.by_fold.insert(base.clone());
-        let read = FragmentGroups::folded(union, &spelled, &published);
+        let read = FragmentGroups::folded(union, &spelled, Some(&published));
         assert_eq!(read.sizes(&base), Some(vec![2]), "left to the fold");
     }
 }

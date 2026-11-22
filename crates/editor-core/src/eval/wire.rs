@@ -532,13 +532,15 @@ where
             tol,
         ),
         Node::Subtract { from, tool } => {
-            let each = project_each(&[(O::From, from.read), (O::Cut, tool.read)])?;
-            let [ra, rb] = [&each[0], &each[1]].map(|p| p.as_ref().unwrap_or(unprojected));
+            let each = project_each(&[(O::From, from.read)])?;
+            let ra = each[0].as_ref().unwrap_or(unprojected);
+            let from = distribute::Operand::read(ra, at(O::From, from.read)?, from.read, doc, tol)?;
+            let tools = cut_tools((node, tool), (unprojected, vals, env.lane.params), doc, tol)?;
             wire_subtract(
                 &crate::verbs::boolean::boolean(),
                 id,
-                (from.read, at(O::From, from.read)?, ra),
-                (tool.read, at(O::Cut, tool.read)?, rb),
+                from,
+                &tools,
                 doc,
                 env.boolean_sweep,
                 tol,
@@ -3583,37 +3585,124 @@ impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
 // The TWO-OPERAND lowering, kept apart from `wire_blend`'s: two operand
 // tables, the contact-record carry and the typed empty success would
 // otherwise become runtime arity.
-/// **The subtract's lowering** (DM4): `from` cut by `tool`, through the
-/// pair verb, each seat's entities named by its read
-/// ([`names::RoleSeg::From`]). A `from` that holds pieces is cut piece
-/// by piece ([`distribute`]).
+/// **The subtract's lowering** (DM4): `from` cut by every tool, the
+/// fold `from − t₁ − … − tₙ` through the pair verb, each seat's entities
+/// named by its read ([`names::RoleSeg::From`]). One tool is one pair
+/// run; several are folded ([`fold_cuts`]); none leave `from` as it is
+/// ([`lone_member`]). A `from` that holds pieces is cut piece by piece
+/// ([`distribute`]).
 fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
-    (a_read, a, results_a): (crate::VarId, RecipeNodeId, &Results<T>),
-    (b_read, b, results_b): (crate::VarId, RecipeNodeId, &Results<T>),
+    from: distribute::Operand<T>,
+    tools: &[distribute::Operand<T>],
     doc: &crate::doc::Doc<ProfileProgram>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
-    let from = distribute::Operand::read(results_a, a, a_read, doc, tol)?;
-    let tool = distribute::Operand::read(results_b, b, b_read, doc, tol)?;
     // A body with pieces is taken piece by piece.
     let body_a = match from.carry.pieces {
         None => Some(from.taken(tol)?),
         Some(_) => None,
     };
-    // The tool taken in its own frame, once: read as it stands wherever a
-    // cut computes in that frame.
-    let body_b = tool.taken(tol)?;
-    subtract_from(
-        verb,
-        id,
-        (&from, body_a),
-        (&tool, &body_b),
-        boolean_sweep,
-        tol,
-    )
+    match tools {
+        [] => {
+            let body = match body_a {
+                Some(body) => body,
+                None => from.taken(tol)?,
+            };
+            lone_member(
+                id,
+                &Member {
+                    read: from.read,
+                    framed: from.body.clone(),
+                    body,
+                    table: Arc::clone(&from.table),
+                    carry: from.carry.clone(),
+                },
+            )
+        }
+        // The tool taken in its own frame, once: read as it stands
+        // wherever a cut computes in that frame.
+        [tool] => subtract_from(
+            verb,
+            id,
+            (&from, body_a),
+            (tool, &tool.taken(tol)?),
+            boolean_sweep,
+            tol,
+        ),
+        _ => {
+            let own_read = doc.output(id, 0).unwrap_or_else(|| {
+                unreachable!(
+                    "subtract {id:?} defines no output variable, though the doors that insert \
+                     an operation define its outputs with it"
+                )
+            });
+            let taken = tools
+                .iter()
+                .map(|t| t.taken(tol))
+                .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+            fold_cuts(
+                verb,
+                (id, own_read),
+                (&from, body_a),
+                (tools, &taken),
+                boolean_sweep,
+                tol,
+            )
+        }
+    }
+}
+
+/// **A subtract's tools, each an operand where it stands**, in list
+/// order: a spelled read is its body, or every member of the family it
+/// reads whole (D10 `[repetition]`, as a union's member is); a family
+/// read whole is every member, in index order, each named by its index
+/// under the one read and carrying its own records.
+fn cut_tools<T: Decide + topo::AtRestPolicy>(
+    (node, tool): (
+        &Node<ProfileProgram>,
+        &crate::Bodies<crate::BodyRead<crate::VarId>>,
+    ),
+    (results, vals, params): (&Results<T>, &SlotValues<T>, &crate::expr::VarEnv<T>),
+    doc: &crate::doc::Doc<ProfileProgram>,
+    tol: Tol,
+) -> Result<Vec<distribute::Operand<T>>, NodeErrorKind> {
+    let mut out = Vec::new();
+    for (seat, read) in tool.rows_in(crate::operand::Seats::CUTS) {
+        let at = super::read_at(doc, seat, read.read)?;
+        let projected = reads_projected(node, &[(seat, read.read)], doc, (results, vals, params))?;
+        let results = projected.as_ref().unwrap_or(results);
+        let value = value_of(results, at)?.whole();
+        let whole = seat == crate::OperandSlot::Cuts
+            || (value.members.is_some() && !read.is_member());
+        if !whole {
+            out.push(distribute::Operand::read(results, at, read.read, doc, tol)?);
+            continue;
+        }
+        let Some(bodies) = whole_bodies(value, at)? else {
+            return Err(wrong_operand(value, at, super::family::INSTANCES));
+        };
+        for (i, body) in bodies.into_iter().enumerate() {
+            let index =
+                names::narrow(i, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)?;
+            let table = read_table(value)
+                .project(index)
+                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+            names::check_total(&table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
+            out.push(distribute::Operand {
+                node: at,
+                read: read.read,
+                body: body.clone(),
+                table: Arc::new(table),
+                carry: value.carry.member(i).kept(doc, tol),
+                seat: read.read,
+                wraps: Vec::new(),
+            });
+        }
+    }
+    Ok(out)
 }
 
 /// `from` cut by `tool`, by piece where `from` holds pieces. Each cut
@@ -3743,6 +3832,260 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             )
         }
     }
+}
+
+/// **`from` cut by two or more tools**: the fold `from − t₁ − … − tₙ`,
+/// one pair run per tool in list order, each cutting what the one
+/// before it left. No tool is fused with another, so two tools that
+/// overlap each cut where they stand. A `from` that holds pieces is
+/// folded piece by piece ([`distribute`]).
+///
+/// The names are the union fold's (`names::emit_union`): every operand
+/// enters keyed by its read ([`names::member_view`]), each step's two
+/// sides are the fold's own reads, and the last table collapses to one
+/// `From { read }` per entity, whatever the step that reached it. The
+/// records cite `from` as input 0 and tool `k` as input `k + 1`; the
+/// rows are every step's, in fold order, spelled as the member cells
+/// that meet.
+fn fold_cuts<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
+    (id, own_read): (RecipeNodeId, crate::VarId),
+    (from, body_a): (&distribute::Operand<T>, Option<Arc<T::Finished>>),
+    (tools, taken): (&[distribute::Operand<T>], &[Arc<T::Finished>]),
+    boolean_sweep: topo::SweepStrategy,
+    tol: Tol,
+) -> OpResult<T> {
+    if from.carry.pieces.is_some() {
+        let outs = from
+            .units()?
+            .iter()
+            .map(|unit| {
+                let out = fold_cuts(
+                    verb,
+                    (id, own_read),
+                    (unit, None),
+                    (tools, taken),
+                    boolean_sweep,
+                    tol,
+                )?;
+                Ok((unit.read, out))
+            })
+            .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+        return distribute::assembled(id, outs, tol);
+    }
+    let body_a = match body_a {
+        Some(body) => body,
+        None => from.taken(tol)?,
+    };
+    let computing = super::Framed::computing_among(
+        core::iter::once(&from.body).chain(tools.iter().map(|t| &t.body)),
+    )
+    .unwrap_or(&from.body)
+    .frame()
+    .clone();
+    let view = |read, table: &NameTable| {
+        names::member_view(id, read, table)
+            .map(Arc::new)
+            .map_err(NodeErrorKind::Naming)
+    };
+    let spelled = from.spelled()?;
+    let mut acc_table = view(from.read, &spelled)?;
+    let mut acc_body: Arc<T::Finished> = Arc::clone(&body_a);
+    let mut acc_framed = from.body.clone();
+    let mut acc_kernel = from.carry.contacts.carried();
+    // The accumulation's records in the node's terms.
+    let mut acc_records = Arc::new(from.carry.contacts.carried_from(0));
+    let mut kind = None;
+    let mut coincidences = Vec::new();
+    let mut step_groups = Vec::with_capacity(tools.len());
+    for (k, (tool, tool_body)) in tools.iter().zip(taken).enumerate() {
+        let member =
+            names::narrow(k + 1, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)?;
+        let step = names::narrow(k, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)?;
+        let placed_a = acc_framed
+            .placed_in(&computing, &acc_body)
+            .map_err(NodeErrorKind::Motion)?;
+        let placed_b = tool.placed_in(&computing, tool_body)?;
+        let inputs = BooleanInputs {
+            records_a: acc_kernel.clone(),
+            records_b: tool.carry.contacts.carried(),
+        };
+        let verbs::PlacedPairOut {
+            out,
+            a: read_a,
+            b: read_b,
+        } = (verb.build)(BooleanOp::Subtract, inputs)
+            .run_pair(placed_a, placed_b, boolean_sweep, tol)
+            .map_err(|refusal| match refusal {
+                verbs::VerbError::Placed { operand, findings } => {
+                    let (input, into) = match operand {
+                        topo::Operand::A => (from.node, tool.node),
+                        topo::Operand::B => (tool.node, from.node),
+                    };
+                    NodeErrorKind::unfinished_in(input, Some(into))(findings)
+                }
+                refusal => verb_refused(refusal),
+            })?;
+        let out = match out {
+            verbs::PairOut::Empty => return Ok(OpOut::empty()),
+            verbs::PairOut::Out(out) => out,
+        };
+        let crate::verbs::boolean::BooleanRecord {
+            kind: step_kind,
+            contacts,
+            naming,
+            holdings,
+        } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
+        let tool_view = view(tool.read, &tool.table)?;
+        // The step's rows, named in the node's own space, then spelled
+        // as the member cells that meet.
+        let acc_named = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
+        let tool_named = names::collapse_table(id, &tool_view).map_err(NodeErrorKind::Naming)?;
+        let named = crate::coincide::name_rows(
+            &out.coincidences,
+            &crate::coincide::RowInputs {
+                a: (own_read, &acc_named),
+                b: Some((own_read, &tool_named)),
+                tool: None,
+            },
+        )
+        .map_err(NodeErrorKind::Naming)?;
+        let base = coincidences.len();
+        for row in named {
+            coincidences.push(cut_row_in_member_space(row, own_read, step).map_err(NodeErrorKind::Naming)?);
+        }
+        let decided = coincidences.len() - base;
+        let held = Arc::clone(&acc_records);
+        let recited = contacts
+            .clone()
+            .recited(|b| match b {
+                topo::Backing::Decided(j) if (j as usize) < decided => {
+                    vec![topo::Backing::Decided(
+                        names::narrow(base + j as usize, names::Numbered::Row)
+                            .unwrap_or_else(|_| unreachable!("a row index the fold returned fits")),
+                    )]
+                }
+                topo::Backing::Decided(j) => unreachable!(
+                    "subtract {id:?}'s fold step {k} cites its row {j}, though it decided \
+                     {decided}: a step's records cite the rows it returned"
+                ),
+                topo::Backing::Carried { input: 0, record } => held
+                    .rows()
+                    .get(record as usize)
+                    .map(|c| c.cites.iter().collect())
+                    .unwrap_or_else(|| {
+                        unreachable!(
+                            "subtract {id:?}'s fold step {k} carries accumulation record \
+                             {record}, which the fold does not hold"
+                        )
+                    }),
+                topo::Backing::Carried { record, .. } => vec![topo::Backing::Carried {
+                    input: member,
+                    record,
+                }],
+            })
+            .unwrap_or_else(|j| {
+                unreachable!(
+                    "subtract {id:?}'s fold step {k}'s record {j} cites nothing once carried, \
+                     though every citation maps to one or more"
+                )
+            });
+        let emitted = (verb.emitter)(
+            id,
+            BooleanOp::Subtract,
+            &out.body,
+            &naming,
+            &holdings,
+            &names::OperandCtx {
+                node: id,
+                read: names::FOLD_A,
+                table: &acc_table,
+                body: &read_a,
+            },
+            &names::OperandCtx {
+                node: id,
+                read: names::FOLD_B,
+                table: &tool_view,
+                body: &read_b,
+            },
+            tol,
+        )
+        .map_err(NodeErrorKind::Naming)?;
+        acc_kernel = contacts.carried();
+        acc_records = Arc::new(recited);
+        acc_table = emitted.table;
+        step_groups.push(emitted.groups);
+        acc_body = Arc::new(out.body);
+        acc_framed = super::Framed::in_frame(Arc::clone(&acc_body), computing.clone());
+        kind = Some(step_kind);
+    }
+    let Some(kind) = kind else {
+        unreachable!("subtract {id:?} folds two or more tools, so it ran a step")
+    };
+    let table = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
+    names::check_total(&table, &acc_body, 0).map_err(NodeErrorKind::Naming)?;
+    Ok(OpOut::plain(
+        ValuePayload::Boolean(BooleanValue::Body {
+            body: acc_framed,
+            kind,
+        }),
+        Arc::new(table),
+    )
+    .grouped(Arc::new(names::FragmentGroups::folded(
+        id,
+        &step_groups,
+        None,
+    )))
+    .with_coincidences(coincidences)
+    .holding(
+        acc_records,
+        core::iter::once(from.read)
+            .chain(tools.iter().map(|t| t.read))
+            .map(crate::coincide::CitedInput::Read)
+            .collect(),
+    ))
+}
+
+/// **A subtract fold step's row in member space**: each cell, named in
+/// the node's own space, spelled as the member cells it is made of. A
+/// cell made of one member cell is that cell; a row any of whose cells
+/// is made of several (a seam an earlier step cut) is the meeting of
+/// every member cell they are made of, as a union's point on a cell is
+/// ([`in_member_space`]).
+fn cut_row_in_member_space(
+    row: crate::coincide::NamedCoincidence,
+    own_read: crate::VarId,
+    step: u32,
+) -> Result<crate::coincide::NamedCoincidence, names::NamingError> {
+    use crate::coincide::NamedCell;
+    let spelled: Vec<Vec<(crate::VarId, names::StableName)>> = row
+        .cells
+        .iter()
+        .map(|cell| match cell {
+            NamedCell::Entity { input, name } if *input == own_read => names::member_cells(name),
+            _ => unreachable!(
+                "subtract fold step {step}'s row names {cell:?}, outside the node's own read \
+                 {own_read:?}, though a fold step's rows are named in its two operands' tables, \
+                 both keyed by that read"
+            ),
+        })
+        .collect();
+    let entity =
+        |(input, name): (crate::VarId, names::StableName)| NamedCell::Entity { input, name };
+    let origin = crate::coincide::RowOrigin::Fold { step };
+    if row.relation != topo::Relation::Meet && spelled.iter().all(|cells| cells.len() == 1) {
+        return Ok(crate::coincide::NamedCoincidence {
+            cells: spelled.into_iter().flatten().map(entity).collect(),
+            origin,
+            ..row
+        });
+    }
+    crate::coincide::NamedCoincidence::meet(
+        spelled.into_iter().flatten().map(entity).collect(),
+        row.site,
+        (row.margin, row.discharge),
+        origin,
+    )
 }
 
 /// **One row a fold step returned**, until the records are recited.
@@ -4647,7 +4990,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     .grouped(Arc::new(names::FragmentGroups::folded(
         id,
         &step_groups,
-        &published_groups,
+        Some(&published_groups),
     )))
     .with_coincidences(coincidences)
     // The records may cite the members' own, each by its place in the

@@ -214,7 +214,8 @@ fn reads_as_body(seat: OperandSlot) -> bool {
         | OperandSlot::Target
         | OperandSlot::Body
         | OperandSlot::From
-        | OperandSlot::Cut
+        | OperandSlot::Cut(_)
+        | OperandSlot::Cuts
         | OperandSlot::Member(_)
         | OperandSlot::Members
         | OperandSlot::Selection

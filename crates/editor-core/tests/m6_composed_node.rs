@@ -129,7 +129,7 @@ fn tool_read(
     subtract: editor_core::RecipeNodeId,
 ) -> editor_core::VarId {
     match doc.node(subtract) {
-        Some(Node::Subtract { tool, .. }) => tool.read,
+        Some(Node::Subtract { tool, .. }) => tool.reads().next().expect("a subtract with one tool").read,
         other => panic!("{subtract} is a subtract, got {other:?}"),
     }
 }

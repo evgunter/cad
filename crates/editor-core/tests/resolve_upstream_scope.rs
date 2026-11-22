@@ -202,7 +202,7 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
         if ev2.table_at(cut1).unwrap().lookup(name).is_some()
             || matches!(
                 name.path.first(),
-                Some(RoleSeg::From { read, .. }) if *read == tool_read.read
+                Some(RoleSeg::From { read, .. }) if tool_read.reads().any(|tool| *read == tool.read)
             )
         {
             continue;
