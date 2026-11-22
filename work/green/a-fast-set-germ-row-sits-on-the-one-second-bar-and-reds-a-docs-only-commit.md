@@ -49,3 +49,13 @@ took 1.024 s against its 1.0 s bar in run 44309772803 (PR 7120's head
 and adds rows; nothing on the STL export or the extrude path). Every
 test in the run passed; the kernel job failed on the bar alone. The
 PR's previous run (44279494043, head `c1e39531a`) was green.
+
+## A fourth sighting, a row new on main (EMBED, 2026-11-22)
+
+`step-import::all an_edge_is_read_on_its_description_whatever_recognition_says::a_straight_rim_recognition_declines_is_carried_on_its_column`
+took 1.314 s against its 1.0 s bar in run 44967278913 (PR 7120's head
+`6cf518d0f`, a merge of main that brought the row in with
+`e79727d30`; PR 7120 touches nothing in `step-import`). Every test in
+the run passed, 12,649 at the default ε and 6,985 at each of 1e-6 and
+1e-12; the kernel job failed on the bar alone. At 31% over the bar this
+row is not jitter: it wants the slow set.
