@@ -3147,29 +3147,27 @@ impl<P, S: Slot> Node<P, S> {
             Node::Mirror { plane, .. } => vec![(O::Plane, plane.role)],
             Node::Place { constraints, .. }
             | Node::InstantiatePart { constraints, .. }
-            | Node::Datum { constraints, .. } => {
-                constraints
-                    .iter()
-                    .flat_map(|c| match &c.kind {
-                        crate::mate::ConstraintKind::Mate(m) => {
-                            let side = |side| O::Side {
-                                constraint: c.id,
-                                side,
-                            };
-                            vec![
-                                (side(crate::mate::MateSide::On), m.on.role),
-                                (side(crate::mate::MateSide::To), m.to.role),
-                            ]
-                        }
-                        crate::mate::ConstraintKind::Value(v) => v
-                            .coord
-                            .read()
-                            .map(|read| (v.coord.seat(c.id), read.role))
-                            .into_iter()
-                            .collect(),
-                    })
-                    .collect()
-            }
+            | Node::Datum { constraints, .. } => constraints
+                .iter()
+                .flat_map(|c| match &c.kind {
+                    crate::mate::ConstraintKind::Mate(m) => {
+                        let side = |side| O::Side {
+                            constraint: c.id,
+                            side,
+                        };
+                        vec![
+                            (side(crate::mate::MateSide::On), m.on.role),
+                            (side(crate::mate::MateSide::To), m.to.role),
+                        ]
+                    }
+                    crate::mate::ConstraintKind::Value(v) => v
+                        .coord
+                        .read()
+                        .map(|read| (v.coord.seat(c.id), read.role))
+                        .into_iter()
+                        .collect(),
+                })
+                .collect(),
             _ => Vec::new(),
         }
     }
@@ -3196,10 +3194,12 @@ impl<P, S: Slot> Node<P, S> {
                     (crate::mate::ConstraintKind::Value(v), O::Along { .. } | O::About { .. }) => {
                         v.coord.read_mut()
                     }
-                    (crate::mate::ConstraintKind::Mate(m), O::Side { side, .. }) => Some(match side {
-                        crate::mate::MateSide::On => &mut m.on,
-                        crate::mate::MateSide::To => &mut m.to,
-                    }),
+                    (crate::mate::ConstraintKind::Mate(m), O::Side { side, .. }) => {
+                        Some(match side {
+                            crate::mate::MateSide::On => &mut m.on,
+                            crate::mate::MateSide::To => &mut m.to,
+                        })
+                    }
                     _ => None,
                 })
                 .map(|read| &mut read.role),

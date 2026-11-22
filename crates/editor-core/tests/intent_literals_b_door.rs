@@ -60,7 +60,8 @@ fn on_the_world(body: RecipeNodeId) -> editor_core::Mate<Formula> {
         on: crate::fixture::plane(crate::fixture::head(crate::fixture::fname(
             body,
             RoleSeg::Cap(CapEnd::Start),
-        ))).into(),
+        )))
+        .into(),
         to: moved(body, len(0.3)).into(),
         orient: editor_core::Orientation::IDENTITY,
     }

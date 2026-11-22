@@ -263,7 +263,10 @@ pub fn side_flipped<P>(
     side: &crate::pose::RoleRead<crate::Operand>,
 ) -> bool {
     use crate::pose::{PoseDef, PoseRole};
-    if !matches!(side.role, None | Some(PoseRole::Normal | PoseRole::Direction)) {
+    if !matches!(
+        side.role,
+        None | Some(PoseRole::Normal | PoseRole::Direction)
+    ) {
         return false;
     }
     match &side.read {

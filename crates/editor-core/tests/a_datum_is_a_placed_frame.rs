@@ -51,7 +51,9 @@ fn frame(doc: &ProfileDoc, datum: RecipeNodeId) -> ([f64; 3], [f64; 3]) {
     let ev = fixture::run(doc, &editor_core::EvalOptions::default());
     match ev.nodes.get(&datum) {
         Some(NodeResult::Ok(v)) => {
-            let m = v.motion.expect("the datum is placed off its space's origin");
+            let m = v
+                .motion
+                .expect("the datum is placed off its space's origin");
             (m.origin().to_array(), m.w().get().to_array())
         }
         other => panic!("the datum did not evaluate: {other:?}"),
@@ -111,7 +113,11 @@ fn a_datum_flush_on_a_face_follows_the_face() {
     };
     let (doc, _) = fixture::mated(doc, datum, mate, &[]);
     let (origin, z) = frame(&doc, datum);
-    assert_eq!(z, [0.0, 0.0, 1.0], "the datum's z is the cap's outward normal");
+    assert_eq!(
+        z,
+        [0.0, 0.0, 1.0],
+        "the datum's z is the cap's outward normal"
+    );
     assert_eq!(origin[2], 1.0, "the datum stands on the cap");
     let (doc, _) = fixture::step(
         doc,

@@ -842,25 +842,11 @@ where
             constraint: c.id,
             side,
         };
-        let on = pose::eval_pose(
-            doc,
-            on_results,
-            seat(MateSide::On),
-            m.on,
-            params,
-            tol,
-        )
-        .map_err(|kind| unevaluated(MateSide::On, kind))?;
+        let on = pose::eval_pose(doc, on_results, seat(MateSide::On), m.on, params, tol)
+            .map_err(|kind| unevaluated(MateSide::On, kind))?;
         let on = crate::mate::solve::tightened(on);
-        let to = pose::eval_pose(
-            doc,
-            to_results,
-            seat(MateSide::To),
-            m.to,
-            params,
-            tol,
-        )
-        .map_err(|kind| unevaluated(MateSide::To, kind))?;
+        let to = pose::eval_pose(doc, to_results, seat(MateSide::To), m.to, params, tol)
+            .map_err(|kind| unevaluated(MateSide::To, kind))?;
         let to = crate::mate::solve::tightened(to);
         charted.push((
             mate,
