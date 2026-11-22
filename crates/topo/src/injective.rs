@@ -8241,6 +8241,20 @@ mod presentation_rows {
                 "a hole's two sides, {shared:?} shared, are no strip"
             );
         }
+        // Two sides whose face lies above both: the lower one stands off
+        // the upper's face side, so they bound no region between them,
+        // and the rectangle they would cap has no height.
+        let (plane, stacked) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (3, (0.0, -w), (l, -w), [3, 4]),
+        ]);
+        assert!(
+            matches!(
+                present_in(&plane, &stacked, cell, &holding(&[0, 1], &[]), &[0]),
+                Err(Unpresented::Local)
+            ),
+            "a side below the shared one, its face above it, caps nothing"
+        );
         // A slit from the origin along `x`: its two sides meet at its tip.
         let (plane, slit) = segments(&[
             (1, (l, 0.0), (0.0, 0.0), [2, 1]),
