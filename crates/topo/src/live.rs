@@ -402,6 +402,129 @@ pub(crate) enum BoundaryMember<'a, T: Real> {
 /// the boolean's `ContainError::EmptyLoop` answer it.
 pub(crate) const LONE_LOOP_REFUSAL: geom_brep::ladder::Refusal = geom_brep::ladder::Refusal::Limit;
 
+/// **A loop of a face that is a cycle**, resolved and checked once: the
+/// handle every per-loop reader of a region takes (a loop's edges, its
+/// carriers, its corners, its pcurve rows). Only this module builds one,
+/// at [`FaceView::area_loops`] (a face's loops that bound area) and
+/// [`Body::cycle_loop`] (a loop key a caller passed), so a reader
+/// holding one has no lone-vertex arm and no torn arm to write.
+#[derive(Clone, Copy)]
+pub struct CycleLoop<'a, T: Real> {
+    body: &'a Body<T>,
+    key: LoopKey,
+    record: &'a Loop,
+    first: HalfEdgeKey,
+}
+
+impl<'a, T: Real> CycleLoop<'a, T> {
+    /// The loop's key.
+    pub fn key(self) -> LoopKey {
+        self.key
+    }
+
+    /// The body the loop was resolved in.
+    pub(crate) fn body(self) -> &'a Body<T> {
+        self.body
+    }
+
+    /// The face the loop bounds, a link its record holds.
+    pub(crate) fn face(self) -> FaceKey {
+        self.record.face
+    }
+
+    /// The loop's first half-edge, where its walks start.
+    pub(crate) fn first(self) -> HalfEdgeKey {
+        self.first
+    }
+
+    /// The loop's half-edges in `next` order. The walk closes on the
+    /// half-edges that claim the loop (tier 1 at rest,
+    /// [`OPERATORS_KEEP_LINKS`] mid-operation); one that does not panics
+    /// naming the loop ([`crate::body::Walk::closed_in`]).
+    #[track_caller]
+    pub(crate) fn cycle(self) -> Vec<HalfEdgeKey> {
+        self.body
+            .loop_walk_of(self.first, self.key)
+            .closed_in(self.key, self.first)
+    }
+
+    /// The loop's members ([`FaceView::boundary`]'s, every one an edge).
+    #[track_caller]
+    pub(crate) fn members(self) -> Vec<BoundaryMember<'a, T>> {
+        self.body.loop_members_linked(self.key, self.record)
+    }
+}
+
+/// **The region a face bounds, read from its loops**
+/// ([`FaceView::area_loops`]): its outer cycle, its ring cycles, and the
+/// vertices of its lone-vertex rings, which bound no area and are points
+/// of the face's boundary.
+pub struct AreaLoops<'a, T: Real> {
+    outer: CycleLoop<'a, T>,
+    rings: Vec<(usize, CycleLoop<'a, T>)>,
+    lone: Vec<LoneRing<T>>,
+}
+
+/// A lone-vertex ring of a face ([`AreaLoops::lone_rings`]): a point on
+/// the face's boundary that bounds no area.
+#[derive(Clone, Copy, Debug)]
+pub struct LoneRing<T: Real> {
+    /// The ring.
+    pub r#loop: LoopKey,
+    /// Its vertex.
+    pub vertex: VertexKey,
+    /// The vertex's point.
+    pub point: Point3<T>,
+}
+
+impl<'a, T: Real> AreaLoops<'a, T> {
+    /// The outer cycle.
+    pub fn outer(&self) -> CycleLoop<'a, T> {
+        self.outer
+    }
+
+    /// The ring cycles, each with its index in [`Face::rings`].
+    pub fn rings(&self) -> impl Iterator<Item = (usize, CycleLoop<'a, T>)> + '_ {
+        self.rings.iter().copied()
+    }
+
+    /// Every cycle bounding the region, the outer first, each with its
+    /// role.
+    pub fn cycles(&self) -> impl Iterator<Item = (CycleLoop<'a, T>, LoopRole)> + '_ {
+        core::iter::once((self.outer, LoopRole::Outer))
+            .chain(self.rings().map(|(i, ring)| (ring, LoopRole::Ring(i))))
+    }
+
+    /// Each lone-vertex ring: a point on the face's boundary that
+    /// bounds no area.
+    pub fn lone_rings(&self) -> &[LoneRing<T>] {
+        &self.lone
+    }
+}
+
+/// **A face whose outer loop is a lone vertex** (an mvfs skeleton): a
+/// face with no outline, so no region to ask a question of. Every area
+/// question refuses it here, once, with [`LONE_LOOP_REFUSAL`]'s
+/// standing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NoOutline {
+    /// The face.
+    pub face: FaceKey,
+    /// Its outer loop.
+    pub r#loop: LoopKey,
+    /// The loop's lone vertex.
+    pub vertex: VertexKey,
+}
+
+/// What [`Body::cycle_loop`] found for a loop key that is no cycle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoCycle {
+    /// The key does not resolve: the caller's to refuse.
+    Stale,
+    /// The loop is a lone vertex: it bounds no area.
+    Lone(VertexKey),
+}
+
 /// One loop of a face as [`Body::unchecked_face_boundary`] reads it: a
 /// mirror of [`LoopBoundary`], whose discards `loop-boundary-discards.sh`
 /// reads off this declaration's variants. [loop-boundary-mirror]
@@ -470,6 +593,11 @@ impl<'a, T: Real> FaceView<'a, T> {
         self.key
     }
 
+    /// The body the face was resolved in.
+    pub(crate) fn body(self) -> &'a Body<T> {
+        self.body
+    }
+
     /// The face's record.
     pub(crate) fn record(self) -> &'a Face {
         self.record
@@ -531,6 +659,58 @@ impl<'a, T: Real> FaceView<'a, T> {
             return None;
         };
         Some(self.body.loop_walk_of(first, lk).closed_in(lk, first))
+    }
+
+    /// **The region the face bounds**, the one reading of what a loop
+    /// that is not a cycle means to an area question: the outer cycle and
+    /// each ring cycle ([`CycleLoop`]); a lone-vertex ring bounds no area
+    /// and is yielded as a boundary point ([`AreaLoops::lone_rings`]); a
+    /// lone-vertex outer loop is a face with no outline, [`NoOutline`].
+    /// Every hop is a link, and a torn one panics as
+    /// [`FaceView::loops`]' does; a cycle's walk is read by its readers
+    /// ([`CycleLoop::cycle`]).
+    ///
+    /// # Errors
+    ///
+    /// [`NoOutline`] where the outer loop is a lone vertex.
+    #[track_caller]
+    pub fn area_loops(self) -> Result<AreaLoops<'a, T>, NoOutline> {
+        let body = self.body;
+        let mut outer = None;
+        let mut rings = Vec::new();
+        let mut lone = Vec::new();
+        for (lk, l, role) in self.loops() {
+            match (l.boundary, role) {
+                (LoopBoundary::Cycle { first }, _) => {
+                    let cycle = CycleLoop {
+                        body,
+                        key: lk,
+                        record: l,
+                        first,
+                    };
+                    match role {
+                        LoopRole::Outer => outer = Some(cycle),
+                        LoopRole::Ring(i) => rings.push((i, cycle)),
+                    }
+                }
+                (LoopBoundary::Empty { vertex }, LoopRole::Outer) => {
+                    return Err(NoOutline {
+                        face: self.key,
+                        r#loop: lk,
+                        vertex,
+                    });
+                }
+                (LoopBoundary::Empty { vertex }, LoopRole::Ring(_)) => lone.push(LoneRing {
+                    r#loop: lk,
+                    vertex,
+                    point: body.linked_vertex_point(vertex, EntityId::Loop(lk), "boundary"),
+                }),
+            }
+        }
+        let Some(outer) = outer else {
+            unreachable!("a face's loops start with its outer loop")
+        };
+        Ok(AreaLoops { outer, rings, lone })
     }
 
     /// [`FaceView::boundary`] a loop at a time: each loop's key, its
@@ -714,6 +894,27 @@ impl<T: Real> Body<T> {
             key: face,
             record,
         })
+    }
+
+    /// **Loop `lk`, a key a caller passed, as a cycle**: the door for a
+    /// per-loop reader handed a bare key ([`crate::point_in_loop`]).
+    /// [`NoCycle::Stale`] where it does not resolve, [`NoCycle::Lone`]
+    /// where it is a lone vertex; a foreign key is not caught.
+    ///
+    /// # Errors
+    ///
+    /// [`NoCycle`].
+    pub fn cycle_loop(&self, lk: LoopKey) -> Result<CycleLoop<'_, T>, NoCycle> {
+        let record = self.loops.get(lk).ok_or(NoCycle::Stale)?;
+        match record.boundary {
+            LoopBoundary::Cycle { first } => Ok(CycleLoop {
+                body: self,
+                key: lk,
+                record,
+                first,
+            }),
+            LoopBoundary::Empty { vertex } => Err(NoCycle::Lone(vertex)),
+        }
     }
 
     /// **Every face of the body**, in arena order.

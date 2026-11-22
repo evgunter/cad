@@ -49,7 +49,8 @@ type Receipt = (
 fn receipts(body: &Body<f64>) -> Vec<Receipt> {
     body.faces()
         .map(|(fk, f)| {
-            let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
+            let (outer, _) =
+                topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
             let s = body.face_surface(fk).unwrap();
             (
                 format!("{fk:?}"),

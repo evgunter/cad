@@ -1059,6 +1059,11 @@ fn mass_props_errors() -> Vec<MassPropsError> {
         MassPropsError::NullScaffoldEdge {
             edge: EdgeKey::default(),
         },
+        MassPropsError::NoOutline(crate::NoOutline {
+            face,
+            r#loop: crate::entity::LoopKey::default(),
+            vertex: crate::entity::VertexKey::default(),
+        }),
         MassPropsError::ResolutionFinerThanEps {
             resolution: 1e-10,
             eps: 1e-9,

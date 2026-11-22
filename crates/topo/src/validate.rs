@@ -407,6 +407,7 @@ use crate::contact::{ContactPair, ContactRefusal};
 use crate::contain::ContainError;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
+use crate::live::{AreaLoops, FaceView};
 use crate::null::CurveGeom;
 
 use crate::entity::{
@@ -4065,6 +4066,7 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             reading("its structure is incomplete", DEFECT.into())
         }
+        M::NoOutline(_) => reading(LONE_LOOP, DEFECT.into()),
         M::ResolutionFinerThanEps { .. } => reading(
             "a measurement was asked for finer than the tolerance",
             "Recourse: ask for a resolution of at least the tolerance".into(),
@@ -7709,6 +7711,25 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 // availability differs by caller: bundling them into one struct would
 // hide behind a single name exactly the thing each parameter is here to
 // make the caller state.
+/// The premise every tier-3 reader of a face's region stands on: tier 2
+/// refuses a lone-vertex loop at rest
+/// ([`ValidationError::ScaffoldingEmptyLoop`]), and tier 3 runs only
+/// after it.
+const TIER_2_BANS_LONE_LOOPS: &str = "tier 2 refuses a lone-vertex loop at rest (ScaffoldingEmptyLoop), and tier 3 runs only after it";
+
+/// `face`'s region for a tier-3 reader ([`FaceView::area_loops`]), every
+/// loop a cycle by [`TIER_2_BANS_LONE_LOOPS`].
+#[track_caller]
+pub(crate) fn at_rest_area<T: geom_core::Real>(face: FaceView<'_, T>) -> AreaLoops<'_, T> {
+    match face.area_loops() {
+        Ok(area) if area.lone_rings().is_empty() => area,
+        Ok(_) | Err(_) => unreachable!(
+            "face {:?} holds a lone-vertex loop: {TIER_2_BANS_LONE_LOOPS}",
+            face.key()
+        ),
+    }
+}
+
 pub(crate) fn tier3_local_checks_marked<
     'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
@@ -7979,31 +8000,14 @@ pub(crate) fn tier3_local_checks_marked<
     // S10 CATEGORY C (orientation-free): a distance from the plane does
     // not depend on which side the material is.
     // ------------------------------------------------------------------
-    for (face_key, face) in body.faces.iter() {
-        let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(face.surface) else {
+    for face in body.face_views() {
+        let face_key = face.key();
+        let plane @ Surface::Plane { .. } = face.surface() else {
             continue;
         };
-        for loop_key in face.loop_keys() {
-            let Some(loop_) = body.loops.get(loop_key) else {
-                continue;
-            };
-            let LoopBoundary::Cycle { first } = loop_.boundary else {
-                continue; // tier 2 banned empty loops; unreachable
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue;
-            };
-            for he in cycle {
-                let Some(he_data) = body.half_edges.get(he) else {
-                    continue;
-                };
-                let vertex = he_data.start;
-                let Some(vertex_data) = body.vertices.get(vertex) else {
-                    continue;
-                };
-                let Some(&point) = body.points.get(vertex_data.point) else {
-                    continue;
-                };
+        for (lp, _) in at_rest_area(face).cycles() {
+            for member in lp.members() {
+                let (vertex, point) = (member.vertex(), body.member_point(&member));
                 match geom_brep::read_point_incidence(point, plane, band)
                     .map_err(|e| geom_brep::IncidenceRead::of(&e))
                 {
@@ -8367,9 +8371,9 @@ pub(crate) fn tier3_local_checks_marked<
         // its whole boundary's chart Green form, rings included, as its
         // flux does, each loop that bounds area.
         let sheet = matches!(surface, Surface::Spindle { .. });
-        let Ok(full) = face
-            .loop_keys()
-            .map(|l| crate::props::loop_edges(body, l))
+        let Ok(full) = at_rest_area(body.proven_face(face_key))
+            .cycles()
+            .map(|(lp, _)| crate::props::loop_edges(lp))
             .collect::<Result<FlatLoops<T>, _>>()
         else {
             if sheet {
@@ -9823,9 +9827,13 @@ fn ring_outer_meeting<T: Decide>(
     };
 
     // ---- Arm 4: two whole circles. ----
+    let cycle = |lk: LoopKey| {
+        body.cycle_loop(lk)
+            .unwrap_or_else(|_| unreachable!("loop {lk:?}: {TIER_2_BANS_LONE_LOOPS}"))
+    };
     if let (Ok(Some(o)), Ok(Some(r))) = (
-        crate::contain::loop_circle(body, outer, band),
-        crate::contain::loop_circle(body, ring, band),
+        crate::contain::loop_circle(cycle(outer), band),
+        crate::contain::loop_circle(cycle(ring), band),
     ) {
         return match circle_pair(
             circles_of(o.frame.origin(), o.radius(), r.frame.origin(), r.radius()),
@@ -15825,7 +15833,10 @@ mod tests {
             let rp = vertex_point(&body, body.get_half_edge(first).unwrap().start).unwrap();
             assert_eq!(
                 crate::splitting::containment::point_in_vertex_polygon(
-                    &body, outer_loop, normal, rp, band
+                    body.cycle_loop(outer_loop).expect("a cycle"),
+                    normal,
+                    rp,
+                    band
                 )
                 .unwrap(),
                 crate::splitting::LoopContainment::Out,
@@ -16111,7 +16122,7 @@ mod tests {
         recarry_loop(&mut body, outer_loop, Point3::new(0.0, 0.0, 0.0), tol);
         assert!(
             matches!(
-                crate::contain::loop_circle(&body, outer_loop, band),
+                crate::contain::loop_circle(body.cycle_loop(outer_loop).expect("a cycle"), band),
                 Ok(Some(_))
             ),
             "three arcs of one circle are the disc class"
@@ -16201,7 +16212,7 @@ mod tests {
         let f = body.get_face(face).unwrap();
         assert!(
             matches!(
-                crate::contain::loop_circle(&body, f.outer, band),
+                crate::contain::loop_circle(body.cycle_loop(f.outer).expect("a cycle"), band),
                 Ok(Some(_))
             ),
             "one circle on every outer edge is the disc class"

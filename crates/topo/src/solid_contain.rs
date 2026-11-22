@@ -1767,26 +1767,22 @@ pub(crate) fn point_in_face<T: Decide>(
     let f = body
         .face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let region = |lk| -> Result<LoopContainment, PointInSolidError> {
-        point_in_loop_projected(body, lk, normal, p, band).map_err(|e| match e {
+    let area = f.area_loops().map_err(no_outline)?;
+    // A lone ring vertex bounds no area and is a point of the boundary:
+    // a hit on it, or in its band, is a graze.
+    for lone in area.lone_rings() {
+        if !matches!(crate::contain::one_vertex_at(p, lone.point, band), Ok(None)) {
+            return Ok(None);
+        }
+    }
+    for (lp, role) in area.cycles() {
+        let read = point_in_loop_projected(lp, normal, p, band).map_err(|e| match e {
             PointInLoopError::Uncrossable(cause) => {
                 PointInSolidError::EdgeCarrierUnsupported { face, cause }
             }
             e => PointInSolidError::Loop(e),
-        })
-    };
-    for (lk, l, role) in f.loops() {
-        let outer = role.is_outer();
-        if let LoopBoundary::Empty { .. } = l.boundary {
-            // An empty outer loop bounds no region (mid-op scaffolding
-            // never reaches this query; treat as no-hit); a lone ring
-            // vertex excludes no area.
-            if outer {
-                return Ok(Some(false));
-            }
-            continue;
-        }
-        match (region(lk)?, outer) {
+        })?;
+        match (read, role.is_outer()) {
             (LoopContainment::OnBoundary, _) => return Ok(None),
             (LoopContainment::Out, true) | (LoopContainment::In, false) => {
                 return Ok(Some(false));
@@ -1795,6 +1791,13 @@ pub(crate) fn point_in_face<T: Decide>(
         }
     }
     Ok(Some(true))
+}
+
+/// **A face with no outline, refused** ([`crate::NoOutline`]): its outer
+/// loop is a lone vertex, which the loop walk refuses as
+/// [`PointInLoopError::LoneLoop`], the crate's one lone-loop standing.
+pub(crate) fn no_outline(no: crate::NoOutline) -> PointInSolidError {
+    PointInSolidError::Loop(PointInLoopError::LoneLoop { r#loop: no.r#loop })
 }
 
 /// Trilean containment of `q` in `body`'s material (module docs).
@@ -4605,6 +4608,7 @@ fn volume_refusal(
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             PointInSolidError::CorruptFace { face: first }
         }
+        M::NoOutline(no) => no_outline(no),
         M::Band { .. }
         | M::RingOnCurvedFace { .. }
         | M::Face { .. }

@@ -4965,15 +4965,28 @@ fn boundary_crossings<T: Decide>(
     use crate::splitting::containment::carrier_loop;
     let refused =
         |r: CrossRefusal, errors: &mut Vec<ValidationError>| refuse_crossing(f.key, r, errors);
-    let Some(face) = body.get_face(f.key) else {
+    let Some(face) = body.face(f.key) else {
         census_fault(
             format_args!("face {:?} does not resolve", f.key),
             NAMES_ONLY_LIVE,
         )
     };
+    // A lone ring holds no edge to cross; a face with no outline has no
+    // boundary edge to read.
+    let area = match face.area_loops() {
+        Ok(area) => area,
+        Err(no) => {
+            refused(
+                CrossRefusal::Unsupported(ContainError::EmptyLoop(no.r#loop)),
+                errors,
+            );
+            return None;
+        }
+    };
     let mut cuts = Vec::new();
-    for lk in face.loop_keys() {
-        let lp = match carrier_loop(body, lk, EF_CROSS_CONIC, band) {
+    for (cycle, _) in area.cycles() {
+        let lk = cycle.key();
+        let lp = match carrier_loop(cycle, EF_CROSS_CONIC, band) {
             Ok(lp) => lp,
             Err(err) => {
                 let r = match ContainError::from(err) {
