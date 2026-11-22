@@ -1065,7 +1065,7 @@ impl<T: Real> RuledCone<T> {
         let two = T::from_f64(2.0);
         let q = self.quadratic(cell);
         let mid = self.quadratic(&Cell::at(cell.mid()));
-        let half = T::from_f64(0.5 * cell.width());
+        let half = T::from_computed(0.5 * cell.width());
         let e = mid.e.size() + q.de.size() * half;
         let value = e / (T::from_f64(4.0) * q.p2.abs().lo);
         let value = value + rounding_charge(value);
@@ -2996,7 +2996,7 @@ mod tests {
                 },
                 r,
             ),
-            lever: geom_core::Lever::of_consumed_extent(10.0),
+            lever: ExtentBall::fixture(Point3::origin(), 10.0).lever(),
         };
         let at = Cell::at(FRAC_PI_2);
         let graze = cone((0.0, 0.0, 1.0), FRAC_1_SQRT_2).form_ceiling(&at);
