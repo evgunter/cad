@@ -22,6 +22,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::AuthoredNode;
+use pncad::document::say;
 use pncad::document::{
     Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, Operand, ProfileProgram, RecipeNodeId,
     Said, Say, Speaker, SpokenNode, held_by,
@@ -487,8 +488,8 @@ impl PlaneSeats {
     fn line(&self, by: Speaker<'_>) -> String {
         let body = self.seats.said(by, 0);
         let plane = self.plane.as_ref().map(|plane| match plane {
-            HeldPlane::Face(held) => Said(held, by).to_string(),
-            HeldPlane::Defined { var, .. } => var.to_string(),
+            HeldPlane::Face(held) => Said(held, by).sentence().to_string(),
+            HeldPlane::Defined { var, .. } => crate::tree::spelled_var(var),
         });
         picks_line([(self.seat.name(), body), (self.role.name(), plane)])
     }
@@ -760,10 +761,11 @@ impl Say for PlaneEvent {
             Self::PlaneLost { role, plane, .. } => {
                 crate::matetool::pick_lost(f, role.name(), plane, by)
             }
-            Self::DefinedLost { role, var } => write!(
+            Self::DefinedLost { role, var } => say!(
                 f,
-                "the {} pick ({var}) is no longer in the document; the tool dropped it",
-                role.name()
+                format_args!("the {} pick (", role.name()),
+                by.var(&var),
+                ") is no longer in the document; the tool dropped it"
             ),
         }
     }
@@ -774,8 +776,12 @@ impl Say for PlaneEvent {
 impl core::fmt::Display for PlaneEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PlaneLost { plane, .. } => self.say(f, Speaker::held(plane.said())),
-            Self::DefinedLost { .. } => self.say(f, Speaker::TAG),
+            Self::PlaneLost { plane, .. } => write!(
+                f,
+                "{}",
+                pncad::document::Said(self, Speaker::held(plane.said())).sentence()
+            ),
+            Self::DefinedLost { .. } => write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence()),
         }
     }
 }
@@ -1005,7 +1011,7 @@ impl ClearanceTool {
     pub fn line(&self, by: Speaker<'_>) -> String {
         let said = |i: usize| match &self.picks[i] {
             Some(ClearancePick::Body(node)) => Some(pick_said(by, node, &Port::ALONE)),
-            Some(ClearancePick::Face(held)) => Some(Said(held, by).to_string()),
+            Some(ClearancePick::Face(held)) => Some(Said(held, by).sentence().to_string()),
             None => None,
         };
         picks_line([
@@ -1069,12 +1075,14 @@ impl Say for ClearanceEvent {
                 crate::matetool::pick_lost(f, role.name(), face, by)
             }
             Self::SeveralCopies { node, copies } => {
-                let held: HeldNodes = [node.clone()].into_iter().collect();
-                write!(
+                let held = HeldNodes::of_nodes(by.document(), [node.clone()]);
+                say!(
                     f,
-                    "{} stands in the world {copies} times, so it names no one part — pick a \
-                     face of the copy you mean in the picture",
-                    by.or_held(&held).node(node.id())
+                    by.or_held(&held).node(node.id()),
+                    format_args!(
+                        " stands in the world {copies} times, so it names no one part — pick a \
+                     face of the copy you mean in the picture"
+                    )
                 )
             }
         }
@@ -1086,10 +1094,18 @@ impl Say for ClearanceEvent {
 impl core::fmt::Display for ClearanceEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::FaceLost { face, .. } => self.say(f, Speaker::held(face.said())),
+            Self::FaceLost { face, .. } => write!(
+                f,
+                "{}",
+                pncad::document::Said(self, Speaker::held(face.said())).sentence()
+            ),
             Self::SeveralCopies { node, .. } => {
-                let held: HeldNodes = [node.clone()].into_iter().collect();
-                self.say(f, Speaker::held(&held))
+                let held = HeldNodes::of_nodes(None, [node.clone()]);
+                write!(
+                    f,
+                    "{}",
+                    pncad::document::Said(self, Speaker::held(&held)).sentence()
+                )
             }
         }
     }
@@ -1594,25 +1610,32 @@ impl StepClearFault {
             Self::NoValue { standing, held } => write!(
                 f,
                 "there is no body to copy: {}",
-                Said(standing, Speaker::held(held))
+                Said(standing, Speaker::held(held)).sentence()
             ),
             Self::NotOneBody { input } => write!(
                 f,
                 "{input}'s value is several bodies; a step clears ONE — project the one you \
-                 mean first"
+                 mean first",
+                input = crate::tree::spelled(&input)
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,
                 "{input}'s {} half holds no material: its plane misses the body on that side",
-                half.name()
+                half.name(),
+                input = crate::tree::spelled(&input)
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
                 "{input}'s body could not be measured for the copy's step: {}",
-                pncad::geom_brep::recourse::read_at(error, at)
+                pncad::geom_brep::recourse::read_at(error, at),
+                input = crate::tree::spelled(&input)
             ),
             Self::NoExtent { input } => {
-                write!(f, "{input}'s body has no width to step a copy by")
+                write!(
+                    f,
+                    "{input}'s body has no width to step a copy by",
+                    input = crate::tree::spelled(&input)
+                )
             }
         }
     }

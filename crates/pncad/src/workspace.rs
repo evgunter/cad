@@ -237,7 +237,7 @@ impl core::fmt::Display for WorkspaceError {
 impl Staged for WorkspaceError {
     const STAGE: &'static str = "workspace";
 
-    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
+    fn fmt_labelled(&self, f: &mut editor_core::Sentence, labels: Labels) -> core::fmt::Result {
         match self {
             Self::Io { path, message, .. } => match labels {
                 Labels::Kept => write!(f, "io error at `{}`: {message}", path.display()),

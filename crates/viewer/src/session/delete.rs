@@ -62,7 +62,7 @@ impl DeleteAffordance {
         let dependents = cascade.len().saturating_sub(1);
         if dependents == 0 {
             return Self {
-                label: format!("Delete {spoken}"),
+                label: format!("Delete {spoken}", spoken = crate::tree::spelled(&spoken)),
                 hover: None,
                 cascade,
             };
@@ -74,7 +74,10 @@ impl DeleteAffordance {
         };
         let census = kind_census(doc, &cascade[..dependents]);
         Self {
-            label: format!("Delete {spoken} and {dependents} dependent feature{plural}"),
+            label: format!(
+                "Delete {spoken} and {dependents} dependent feature{plural}",
+                spoken = crate::tree::spelled(&spoken)
+            ),
             hover: Some(format!(
                 "Also deletes {dependents} feature{plural} that {depend} on it: {census}"
             )),

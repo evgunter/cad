@@ -140,13 +140,14 @@ pub use editor_core::{
     Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached, SourceFault,
 };
 
-// How a sentence names a node: the kind noun and tag a person reads, the
-// speaker a refusal holding bare ids is said by, the nodes a door kept
-// beside a refusal it carries whole, and the full-width id a machine
-// channel prints.
+// How a sentence names a node: a sentence of words and mentions, the
+// one spelling of a mention, the speaker a refusal holding bare ids is
+// said by, the nodes a door kept beside a refusal it carries whole, and
+// the full-width id a machine channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
-    SpokenVar, held_by, node_kind_noun, spoken_by, spoken_within,
+    FullId, HeldNodes, Mention, Mentioned, NameTables, Phrase, Put, Run, Said, SaidName, SaidNode,
+    SaidVar, Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, held_by,
+    node_kind_noun, say, sentence, spell, spoken_by, spoken_within,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the

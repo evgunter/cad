@@ -302,6 +302,7 @@ impl core::fmt::Display for SeatEvent {
                 f,
                 "the {} pick ({node}) is no longer in the document; the tool dropped it",
                 seat.name(),
+                node = crate::tree::spelled(&node),
             ),
         }
     }
@@ -516,8 +517,8 @@ pub(crate) fn member_said(at: &[i64]) -> String {
 /// member it reads (`[1]`, or every member), and the half it reads or
 /// still waits for.
 pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: &Port) -> String {
-    let held: HeldNodes = [kept.clone()].into_iter().collect();
-    let node_said = by.or_held(&held).node(kept.id()).to_string();
+    let held = HeldNodes::of_nodes(by.document(), [kept.clone()]);
+    let node_said = pncad::document::sentence!(by.or_held(&held).node(kept.id())).to_string();
     let member = match &port.members {
         Members::One(at) => member_said(at),
         Members::Every => ", every member".to_owned(),

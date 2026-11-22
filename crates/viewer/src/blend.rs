@@ -64,6 +64,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::say;
 use std::collections::BTreeSet;
 
 use pncad::document::{
@@ -241,22 +242,24 @@ pub enum BlendEvent {
 impl Say for BlendEvent {
     fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::OtherTarget { held, picked } => write!(
+            Self::OtherTarget { held, picked } => say!(
                 f,
-                "the held edges are on {}, so {} was not taken; cancel to start on another body",
+                "the held edges are on ",
                 Said(held, by),
-                Said(&PickedName::edge(picked), by)
+                ", so ",
+                Said(&PickedName::edge(picked), by),
+                " was not taken; cancel to start on another body"
             ),
             Self::NoEdgesOnTarget { target } => {
-                write!(f, "{} has no edges to select", Said(target, by))
+                say!(f, Said(target, by), " has no edges to select")
             }
             Self::EdgesUnnamed { refused } => {
-                write!(f, "the tool loaded no edges: {}", Said(refused, by))
+                say!(f, "the tool loaded no edges: ", Said(refused, by))
             }
-            Self::TargetHasNoValue { target, standing } => write!(
+            Self::TargetHasNoValue { target, standing } => say!(
                 f,
-                "{} has no edges to select: {}",
                 Said(target, by),
+                " has no edges to select: ",
                 Said(standing, by.about(target.node()))
             ),
             Self::TargetLost {
@@ -265,11 +268,13 @@ impl Say for BlendEvent {
                 edges,
             } => {
                 // The node is gone, so it is said as the tool kept it.
-                let kept: HeldNodes = [node.clone()].into_iter().collect();
-                write!(
+                let kept = HeldNodes::of_nodes(by.document(), [node.clone()]);
+                say!(
                     f,
-                    "{} is no longer in the document; the tool dropped all {edges} picked edges",
-                    Said(target, Speaker::held(&kept))
+                    Said(target, Speaker::held(&kept)),
+                    format_args!(
+                        " is no longer in the document; the tool dropped all {edges} picked edges"
+                    )
                 )
             }
             Self::EdgesLost {
@@ -277,18 +282,21 @@ impl Say for BlendEvent {
                 names: _,
                 picks,
                 kept,
-            } => write!(
+            } => say!(
                 f,
-                "an edit removed all or part of {picks} of the picked edges from {}; the tool \
-                 dropped what went and still holds {kept}",
-                Said(target, by)
+                format_args!("an edit removed all or part of {picks} of the picked edges from "),
+                Said(target, by),
+                format_args!(
+                    "; the tool \
+                 dropped what went and still holds {kept}"
+                )
             ),
             Self::Unindexed { picked, why } => {
-                write!(
+                say!(
                     f,
-                    "{} was not taken: without a pick index the tool cannot tell a whole edge \
-                     from one arc of a circle; ",
-                    Said(&PickedName::edge(picked), by)
+                    Said(&PickedName::edge(picked), by),
+                    " was not taken: without a pick index the tool cannot tell a whole edge \
+                     from one arc of a circle; "
                 )?;
                 match why {
                     NotIndexed::Building => {
@@ -306,7 +314,7 @@ impl Say for BlendEvent {
                 }
             }
             Self::RimUnanswered { fault } => {
-                write!(f, "the edge was not taken: {}", Said(fault, by))
+                say!(f, "the edge was not taken: ", Said(fault, by))
             }
         }
     }
@@ -315,7 +323,7 @@ impl Say for BlendEvent {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for BlendEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
     }
 }
 

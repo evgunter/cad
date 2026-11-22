@@ -1016,7 +1016,7 @@ impl OutOfBudget {
     pub fn said(&self, doc: &Doc<ProfileProgram>) -> String {
         format!(
             "ran out of the member budget at {} ({} of {} listing steps held before it); {}",
-            doc.spoken(self.at),
+            crate::tree::spelled(&doc.spoken(self.at)),
             self.held,
             self.budget,
             pncad::document::RAISE_THE_MEMBER_BUDGET
@@ -1276,17 +1276,16 @@ impl DocSession {
     /// selection.
     fn spoken_now(&self, selection: &Selection) -> HeldNodes {
         let landed = self.landed_pair().map(|(doc, _)| doc);
-        selection
-            .nodes()
-            .into_iter()
-            .map(|id| {
+        HeldNodes::of_nodes(
+            self.doc().id(),
+            selection.nodes().into_iter().map(|id| {
                 let shown = self.doc().spoken(id);
                 match landed {
                     Some(landed) if shown.kind().is_none() => landed.spoken(id),
                     Some(_) | None => shown,
                 }
-            })
-            .collect()
+            }),
+        )
     }
 
     /// One picked name's verdict against the run a name question is

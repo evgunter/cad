@@ -69,6 +69,7 @@
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
 //! boundaries). It names no driver type and no `app`-only crate.
 
+use pncad::document::say;
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::resolve::RimNameFault;
@@ -453,11 +454,11 @@ pub enum PickIndexError {
 impl Say for IdMapError {
     fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Duplicate { key } => write!(
+            Self::Duplicate { key } => say!(
                 f,
-                "patch {} of {} was offered twice; an id assignment is a bijection",
-                key.patch,
-                Said(&DrawnBody::new(key.node, key.body), by)
+                format_args!("patch {} of ", key.patch),
+                Said(&DrawnBody::new(key.node, key.body), by),
+                " was offered twice; an id assignment is a bijection"
             ),
             Self::TooManyPatches { patches } => write!(
                 f,
@@ -470,7 +471,7 @@ impl Say for IdMapError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for IdMapError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
     }
 }
 
@@ -484,10 +485,10 @@ impl Say for PickIndexError {
     fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Ids(error) => error.say(f, by),
-            Self::DrawnTwice { node, body } => write!(
+            Self::DrawnTwice { node, body } => say!(
                 f,
-                "{} is drawn by two parts; one drawn body is one part",
-                Said(&DrawnBody::new(*node, *body), by)
+                Said(&DrawnBody::new(*node, *body), by),
+                " is drawn by two parts; one drawn body is one part"
             ),
             Self::Names(error) => error.say(f, by),
         }
@@ -497,7 +498,7 @@ impl Say for PickIndexError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickIndexError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
     }
 }
 
@@ -533,10 +534,10 @@ impl Say for UndrawnBody {
     /// The node is this layer's contribution; why is the payload's to
     /// say.
     fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
-        write!(
+        say!(
             f,
-            "{} is not drawn: {}",
             by.node_as(self.node, "node"),
+            " is not drawn: ",
             Said(&self.error, by.about(self.node))
         )
     }
@@ -545,7 +546,7 @@ impl Say for UndrawnBody {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for UndrawnBody {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
     }
 }
 
@@ -3286,7 +3287,7 @@ impl Say for PatchNameFault {
             Self::Nothing => f.write_str("nothing"),
             Self::Unassigned { id } => write!(f, "id {id}, which this index never assigned"),
             Self::Unnamed { id, error } => {
-                write!(f, "id {id}, a drawn patch: {}", Said(error, by))
+                say!(f, format_args!("id {id}, a drawn patch: "), Said(error, by))
             }
         }
     }
@@ -3295,7 +3296,7 @@ impl Say for PatchNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PatchNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
     }
 }
 
@@ -3336,23 +3337,27 @@ impl Say for EdgeNameFault {
     /// the naming layer named that failure.
     fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::NotDrawn { node, body } => write!(
+            Self::NotDrawn { node, body } => say!(
                 f,
-                "this picture draws no {}, so it draws none of its edges",
-                Said(&DrawnBody::new(*node, *body), by)
+                "this picture draws no ",
+                Said(&DrawnBody::new(*node, *body), by),
+                ", so it draws none of its edges"
             ),
             Self::OutOfRange {
                 node,
                 body,
                 boundary,
                 drawn,
-            } => write!(
+            } => say!(
                 f,
-                "edge {boundary} of {}: that body draws {drawn} edges, so this address was not \
-                 one this index handed out",
-                Said(&DrawnBody::new(*node, *body), by)
+                format_args!("edge {boundary} of "),
+                Said(&DrawnBody::new(*node, *body), by),
+                format_args!(
+                    ": that body draws {drawn} edges, so this address was not \
+                 one this index handed out"
+                )
             ),
-            Self::Unnamed(error) => write!(f, "a drawn edge has no name: {}", Said(error, by)),
+            Self::Unnamed(error) => say!(f, "a drawn edge has no name: ", Said(error, by)),
         }
     }
 }
@@ -3360,7 +3365,7 @@ impl Say for EdgeNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for EdgeNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
     }
 }
 
@@ -3409,11 +3414,14 @@ impl Say for EdgeNamesRefused {
             named,
             refused,
         } = self;
-        write!(
+        say!(
             f,
-            "the index names {named} of the {} edges it draws on {}; the first it cannot: {}",
-            named.saturating_add(*refused),
+            format_args!(
+                "the index names {named} of the {} edges it draws on ",
+                named.saturating_add(*refused)
+            ),
             Said(&DrawnBody::new(*node, *body), by),
+            "; the first it cannot: ",
             Said(&EdgeNameFault::Unnamed(*first), by.about(*node))
         )
     }
@@ -3422,7 +3430,7 @@ impl Say for EdgeNamesRefused {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for EdgeNamesRefused {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
     }
 }
 
@@ -3456,11 +3464,14 @@ impl Say for VertexNamesRefused {
             named,
             refused,
         } = self;
-        write!(
+        say!(
             f,
-            "the index names {named} of the {} vertices it draws on {}; the first it cannot: {}",
-            named.saturating_add(*refused),
+            format_args!(
+                "the index names {named} of the {} vertices it draws on ",
+                named.saturating_add(*refused)
+            ),
             Said(&DrawnBody::new(*node, *body), by),
+            "; the first it cannot: ",
             Said(first, by.about(*node))
         )
     }
@@ -3469,7 +3480,7 @@ impl Say for VertexNamesRefused {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for VertexNamesRefused {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
     }
 }
 
@@ -3484,9 +3495,9 @@ impl Say for PickError {
     fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Camera(error) => write!(f, "the cursor names no ray: {error}"),
-            Self::HitTest(error) => write!(f, "the hit test refused: {}", Said(error, by)),
+            Self::HitTest(error) => say!(f, "the hit test refused: ", Said(error, by)),
             Self::EdgeName(fault) => {
-                write!(f, "the picked edge has no name: {}", Said(fault, by))
+                say!(f, "the picked edge has no name: ", Said(fault, by))
             }
             Self::VertexName(fault) => write!(f, "the picked vertex has no name: {fault}"),
         }
@@ -3496,7 +3507,7 @@ impl Say for PickError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
     }
 }
 

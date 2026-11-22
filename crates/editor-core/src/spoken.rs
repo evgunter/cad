@@ -967,10 +967,14 @@ impl NodeFact {
 }
 
 impl HeldNodes {
-    /// `nodes`, each as it was spoken from the document `document`; of
-    /// two for one id, the first.
+    /// `nodes`, each as it was spoken from the document `document`
+    /// (`None` where none is known, a hold said by tag); of two for one
+    /// id, the first.
     #[must_use]
-    pub fn of_nodes(document: DocumentId, nodes: impl IntoIterator<Item = SpokenNode>) -> Self {
+    pub fn of_nodes(
+        document: impl Into<Option<DocumentId>>,
+        nodes: impl IntoIterator<Item = SpokenNode>,
+    ) -> Self {
         let mut held: Vec<SpokenNode> = Vec::new();
         for node in nodes {
             if held.iter().all(|kept| kept.id() != node.id()) {
@@ -978,7 +982,7 @@ impl HeldNodes {
             }
         }
         Self {
-            document: Some(document),
+            document: document.into(),
             nodes: held.into_boxed_slice(),
             vars: Box::default(),
             facts: Box::default(),
