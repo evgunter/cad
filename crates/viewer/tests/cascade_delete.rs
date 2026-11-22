@@ -262,17 +262,21 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     );
 
     // A fillet continues its input, so its reader is handed over and
-    // nothing goes with it.
+    // nothing goes with it; the reader selects an edge the fillet
+    // minted, which no hand-over can return to the chain.
     let inner = session.delete_affordance(die.fillets[0]);
     assert_eq!(
         inner.label,
         format!(
-            "Delete Fillet {}",
+            "Delete Fillet {}, stranding 1 name",
             test_utils::refusal::tag(die.fillets[0].0.digest())
         ),
         "the outer fillet is handed to the chain, not deleted"
     );
-    assert_eq!(inner.hover, None);
+    assert_eq!(
+        inner.hover.as_deref(),
+        Some("Strands 1 name that the document keeps and that resolves to nothing until rebound")
+    );
 
     // Singular reads as singular: a pip's cut continues its target once
     // the pip goes, so the cut alone goes with it.
