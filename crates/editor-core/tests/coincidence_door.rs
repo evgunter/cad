@@ -2784,14 +2784,9 @@ fn two_cells(row: &NamedCoincidence) -> [(VarId, &StableName); 2] {
     }
 }
 
-/// Whether `name` is a face a revolve sweeps (either half of a curved
-/// wall).
+/// Whether `name` is a face a revolve sweeps.
 fn a_band(name: &StableName) -> bool {
-    name.kind == EntityKind::Face
-        && matches!(
-            name.path.as_slice(),
-            [RoleSeg::Band(_) | RoleSeg::BandPi(_)]
-        )
+    name.kind == EntityKind::Face && matches!(name.path.as_slice(), [RoleSeg::Band(_)])
 }
 
 /// **A pin seated in a bore records no row, and the census says it
@@ -2869,7 +2864,7 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
             name = of;
         }
         match name.path.as_slice() {
-            [RoleSeg::Band(run) | RoleSeg::BandPi(run)] => run
+            [RoleSeg::Band(run)] => run
                 .pieces()
                 .first()
                 .and_then(|p| p.step())

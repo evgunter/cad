@@ -4535,8 +4535,6 @@ class SegTag:
     LoftSectionVertex: Final[SegTag]
     Band: Final[SegTag]
     BandRim: Final[SegTag]
-    BandRimPi: Final[SegTag]
-    BandPi: Final[SegTag]
     Meridian: Final[SegTag]
     MeridianVertex: Final[SegTag]
     RevolveCap: Final[SegTag]
@@ -4605,7 +4603,6 @@ class MeridianEnd:
     Start: Final[MeridianEnd]
     End: Final[MeridianEnd]
     Seam: Final[MeridianEnd]
-    Pi: Final[MeridianEnd]
 
 class RimSupport:
     """Which support of a rim blend, by its ROLE in the carve
@@ -4758,8 +4755,8 @@ class GeomPred:
 # composes by naming a ROLE, never by assembling the serialization.
 
 def band(node: NodeId, piece: Piece) -> str:
-    """The `[0, pi)` band face swept from the profile piece `piece` on
-    the revolve at `node`.
+    """The band face swept from the profile piece `piece` on the revolve
+    at `node`: on a full revolve, the whole turn's one face.
 
     `piece` is a `Piece`, from `Doc.piece`: the step that drew a
     segment, by its minted id, and its role in that step's list — so
@@ -4768,24 +4765,10 @@ def band(node: NodeId, piece: Piece) -> str:
     the field a hand-written name gets wrong silently until emission
     refuses it."""
 
-def band_pi(node: NodeId, piece: Piece) -> str:
-    """The `[pi, 2pi)` band face swept from the profile piece `piece` —
-    `band`'s twin, where a full revolve emits a CURVED segment as two
-    faces. A planar segment sweeps whole, one face, its `band`, and has
-    no `band_pi`. A face, as `band` is."""
-
 def band_rim(node: NodeId, piece: Piece) -> str:
     """The latitude rim at the vertex the profile piece `piece` starts
     at — the edge between the band of the piece ending there and the
     piece's own. An edge."""
-
-def band_rim_pi(node: NodeId, piece: Piece) -> str:
-    """The `[pi, 2pi)` latitude rim at the vertex the profile piece
-    `piece` starts at — `band_rim`'s twin, where a full revolve of a
-    profile touching the axis emits each rim as two half-arcs between
-    the seam vertices, so a blend over the whole rim names both. An
-    annular profile's rim is one edge, its `band_rim`. An edge, as
-    `band_rim` is."""
 
 def meridian_vertex(end: MeridianEnd, node: NodeId, piece: Piece) -> str:
     """The meridian vertex at `end`: the copy of the vertex the profile
