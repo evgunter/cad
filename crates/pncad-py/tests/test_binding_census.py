@@ -3888,6 +3888,9 @@ MEMBERS_BOUND_AS = {
     "PathError::Structure": "PathError.variant",
     "PathError::UnderdeterminedLeg": "PathError.variant",
     "PathError::OverdeterminedJunction": "PathError.variant",
+    # A refusal a later step raises about an earlier one: `variant` is
+    # its refusal's tag, and the message names the step that raised it.
+    "PathError::Deferred": "PathError.variant",
     "PersistError::NonFinite": "PersistError.variant",
     "PersistError::ProfileProgram": "PersistError.variant",
     "PersistError::Distribution": "PersistError.variant",

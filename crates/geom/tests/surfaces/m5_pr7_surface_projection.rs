@@ -300,14 +300,14 @@ fn opaques(profile: &geom_core::sym::profile::SymProfile) -> u64 {
     profile.opaque_ids.iter().map(|s| s.len() as u64).sum()
 }
 
-/// The seeding sweep's samples and Newton's stagnation step feed only
-/// `mid` comparisons, so no payload carries them; each still enters `T`
-/// as its own unknown, which the session profile counts at the
-/// session's end. The sweep
-/// mints one per `u` row and one per sample; each Newton pass mints two
-/// for its jet and two for its step, and an accepted foot two more.
+/// The seeding sweep's samples feed only `mid` comparisons, so no
+/// payload carries them; each still enters `T` as its own unknown, which
+/// the session profile counts at the session's end. The sweep mints one
+/// per `u` row and one per sample; each Newton pass mints two for its
+/// jet, and an accepted foot two more. The stagnation step is a length
+/// decided at `f64` and mints none.
 #[test]
-fn the_sweep_and_the_stagnation_step_mint_their_unknowns() {
+fn the_sweep_and_the_newton_jets_mint_their_unknowns() {
     use geom::PROJECT_SEEDS_PER_SPAN;
     use geom_core::sym::profile::{start_profile, take_profile};
     use geom_core::sym::with_session;
@@ -344,8 +344,8 @@ fn the_sweep_and_the_stagnation_step_mint_their_unknowns() {
         assert!(iterations > 0, "{label}: the fixture takes a Newton step");
         assert_eq!(
             atoms,
-            n + n * n + 4 * iterations as u64 + 2,
-            "{label}: the sweep's samples, every pass's jet and step, and the accepted foot are unknowns"
+            n + n * n + 2 * iterations as u64 + 2,
+            "{label}: the sweep's samples, every pass's jet, and the accepted foot are unknowns"
         );
     }
 }
