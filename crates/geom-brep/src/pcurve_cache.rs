@@ -3724,8 +3724,7 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
             radius: cross(radius),
         },
         Surface::Cone { half_angle, .. } => {
-            let (s, c) = half_angle.sin_cos();
-            let (s, c) = (cross(s), cross(c));
+            let (s, c) = cross(half_angle).sin_cos();
             CanonicalSurface::Cone {
                 cos2: c.powi(2),
                 sin2: s.powi(2),
@@ -3879,7 +3878,6 @@ fn spans_of(
                 f_sup,
                 (rho_lo, rho_hi),
                 z,
-                projected::ConeLocus::Nappe,
                 |lever| lower(lever, true),
                 |m| upper(m, true),
             );
@@ -4015,10 +4013,10 @@ mod span_memo {
             Meters::Sphere { radius } => scalars(&mut k, 2, &[radius]),
             Meters::Cone { sin, cos, nappe } => scalars(
                 &mut k,
-                if nappe == crate::offset::Nappe::Opening {
-                    3
-                } else {
-                    5
+                match nappe {
+                    Some(crate::offset::Nappe::Opening) => 3,
+                    Some(crate::offset::Nappe::Mirror) => 5,
+                    None => 7,
                 },
                 &[sin, cos],
             ),
@@ -4083,7 +4081,12 @@ mod span_memo {
 ///
 /// The reading carries the size of the net it stopped on
 /// ([`projected::NetSize`]): the carrier's own enclosure width there,
-/// below which no composite of it can bound anything, and its extent.
+/// below which no composite of it can bound anything, and its extent;
+/// and the parts that did not clear the band, for a search's refinement.
+///
+/// The edge reads a cone against its face's nappe, taken from the
+/// window's middle ([`Limb2Locus::Face`]); a search reads it against the
+/// double cone ([`limb2_carrier_read`]).
 ///
 /// # Errors
 ///
@@ -4096,16 +4099,58 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     surface: &Surface<T>,
     band: Band,
 ) -> Result<projected::OffsetRead<T>, PcurveCertifyError> {
+    limb2_read(carrier, window, surface, Limb2Locus::Face, band)
+}
+
+/// [`limb2_offset_sup`] against the surface's whole carrier: a pair's
+/// section is a section of carriers, which no face's extent enters
+/// (C5), so a search reads a cone as the double cone it is.
+///
+/// # Errors
+///
+/// As [`limb2_offset_sup`].
+pub(crate) fn limb2_carrier_read<
+    T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
+>(
+    carrier: &Curve3<T>,
+    window: (T, T),
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<projected::OffsetRead<T>, PcurveCertifyError> {
+    limb2_read(carrier, window, surface, Limb2Locus::Carrier, band)
+}
+
+/// Which locus limb 2 reads a cone against.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Limb2Locus {
+    /// An edge's face: the nappe the carrier's middle over the window
+    /// lies on.
+    Face,
+    /// The surface's carrier: the double cone.
+    Carrier,
+}
+
+/// Limb 2's one reader ([`limb2_offset_sup`]'s docs), against `locus`.
+fn limb2_read<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &Curve3<T>,
+    window: (T, T),
+    surface: &Surface<T>,
+    locus: Limb2Locus,
+    band: Band,
+) -> Result<projected::OffsetRead<T>, PcurveCertifyError> {
     let Some((origin, e)) = projected::chart_frame(surface) else {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: surface.kind(),
         });
     };
-    let nappe = projected::nappe_at(
-        surface,
-        || (carrier.mid_point(window.0, window.1) - origin).dot(e[2]),
-        band,
-    )?;
+    let nappe = match locus {
+        Limb2Locus::Face => projected::nappe_at(
+            surface,
+            || (carrier.mid_point(window.0, window.1) - origin).dot(e[2]),
+            band,
+        )?,
+        Limb2Locus::Carrier => None,
+    };
     let twin = orthonormal_chart(surface);
     let Some((o, te)) = projected::chart_frame(&twin) else {
         unreachable!("an analytic chart has a frame")
@@ -4168,7 +4213,7 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
             Ok((hull, size))
         };
     let round_hull = |cuts: &[f64]| round_over(&grid, cuts, per_span);
-    let key = limb2_memo::Key::of(carrier, window, surface, band);
+    let key = limb2_memo::Key::of(carrier, window, surface, band).on(nappe);
     let rounds_key = key.with(per_span);
     // A curved closed form is read first on its dyadic spans, each
     // enclosed alone (`limb2_quick`); a reading that clears is the
@@ -4283,6 +4328,12 @@ mod limb2_memo {
         /// The key of the same inputs read with each span in `parts`.
         pub(super) fn with(&self, parts: super::Parts) -> Self {
             Self(format!("{}|{:x}", self.0, parts.key()))
+        }
+
+        /// The key of the same inputs read against `nappe` (`None` off
+        /// the cone, and on the double cone).
+        pub(super) fn on(self, nappe: Option<crate::offset::Nappe>) -> Self {
+            Self(format!("{}|{nappe:?}", self.0))
         }
     }
 

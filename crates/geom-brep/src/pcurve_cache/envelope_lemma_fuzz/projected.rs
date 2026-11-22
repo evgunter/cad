@@ -628,7 +628,7 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
                             Meters::Cone {
                                 sin: iv(sin),
                                 cos: iv(cos),
-                                nappe: Nappe::Opening,
+                                nappe: Some(Nappe::Opening),
                             },
                             Box::new(move |p: Vec3<Interval>| {
                                 iv(cos).powi(2) * (p.x.powi(2) + p.y.powi(2))

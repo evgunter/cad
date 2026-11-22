@@ -1897,35 +1897,19 @@ pub(crate) fn part_reach(
     (rho, far, z)
 }
 
-/// Which locus a cone part's metres bound is read against
-/// ([`Meters::part_bound`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ConeLocus {
-    /// The stored nappe: the generator lever's reading, and the apex root
-    /// only where that lever does not read ([`Meters::certified`]), since
-    /// the root bounds the distance from the DOUBLE cone and must not
-    /// undercut the nappe's own reading.
-    Nappe,
-    /// The double cone (the carrier's complete locus): both readings bound
-    /// its distance, so the lesser is taken.
-    Double,
-}
-
 impl Meters<geom_core::Interval> {
     /// **A part's metres bound** — the one cell-to-metres step: a part
     /// whose `|f|` is at most `f_sup`, whose `ρ` ranges over
     /// `(rho_lo, rho_hi)` and whose `z` over `z`, read through
     /// [`Self::certified`] with each lever decided positive where its
-    /// `lower` end is, and its reading's `upper` end taken. On a cone read
-    /// against [`ConeLocus::Double`] the apex root is a second bound, and
-    /// the lesser holds. `NaN` where an input is not finite, `+∞` where no
-    /// reading reads (a torus or sheet lever not decided positive).
+    /// `lower` end is, and its reading's `upper` end taken. `NaN` where an
+    /// input is not finite, `+∞` where no reading reads (a torus or sheet
+    /// lever not decided positive).
     pub(crate) fn part_bound(
         self,
         f_sup: f64,
         (rho_lo, rho_hi): (f64, f64),
         z: (f64, f64),
-        locus: ConeLocus,
         lower: impl Fn(geom_core::Interval) -> f64,
         upper: impl Fn(geom_core::Interval) -> f64,
     ) -> f64 {
@@ -1938,18 +1922,12 @@ impl Meters<geom_core::Interval> {
             return f64::NAN;
         }
         let point = |x: f64| geom_core::Interval::from_bounds(x, x);
-        let f = point(f_sup);
-        let read = self
-            .certified(f, (point(rho_lo), point(rho_hi)), z, |lever| {
-                lower(lever) > 0.0
-            })
-            // `+∞` off the cone and the sheet only: on them the apex
-            // reading always reads.
-            .map_or(f64::INFINITY, &upper);
-        match (locus, self.apex_root(f)) {
-            (ConeLocus::Double, Some(root)) => geom_core::interval::min_bound(read, upper(root)),
-            _ => read,
-        }
+        self.certified(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
+            lower(lever) > 0.0
+        })
+        // `+∞` off the cone and the sheet only: on them the apex reading
+        // always reads.
+        .map_or(f64::INFINITY, upper)
     }
 }
 
@@ -2047,13 +2025,14 @@ pub(super) fn hull_sector<T: Decide>(
     Ok(())
 }
 
-/// `(σz)_min` over a part whose `z` ranges over `z`, on `nappe`: a
-/// bound the hull walk computed, so at `Sym` an unknown.
-fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
-    if nappe == Nappe::Opening {
-        T::from_computed(z.0)
-    } else {
-        T::zero() - T::from_computed(z.1)
+/// `(σz)_min` over a part whose `z` ranges over `z`, on `nappe`, and
+/// `|z|_min` on the double cone (`None`): a bound the hull walk
+/// computed, so at `Sym` an unknown.
+fn axial_floor<T: Real>(z: (f64, f64), nappe: Option<Nappe>) -> T {
+    match nappe {
+        Some(Nappe::Opening) => T::from_computed(z.0),
+        Some(Nappe::Mirror) => T::zero() - T::from_computed(z.1),
+        None => T::from_computed(abs_z(z).0),
     }
 }
 
@@ -2096,21 +2075,29 @@ pub(crate) enum Lever {
 
 /// A chart's conversion between its canonical form's magnitude `|f|`
 /// and the distance from it in metres ([`net_incidence`]'s list), at
-/// scalar `S`: the twin's own scalars, and on a cone the stored nappe.
+/// scalar `S`: the twin's own scalars, and on a cone the nappe read
+/// against, `None` for the double cone (a section of carriers, C5).
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Meters<S> {
     Plane,
     Cylinder { radius: S },
     Sphere { radius: S },
-    Cone { sin: S, cos: S, nappe: Nappe },
+    Cone {
+        sin: S,
+        cos: S,
+        nappe: Option<Nappe>,
+    },
     Torus { major: S, minor: S },
     Spindle { major: S, minor: S },
 }
 
 impl<S: Real> Meters<S> {
     /// The conversion for `twin`, its scalars crossed into `S` by
-    /// `cross`, on a cone of the stored `nappe`; `None` off an analytic
-    /// chart.
+    /// `cross`, on a cone against `nappe` (`None`: the double cone);
+    /// `None` off an analytic chart. The cone's half-angle is crossed
+    /// before its sine and cosine are taken, so at an enclosure `S` they
+    /// enclose the stored angle's, never a lane scalar's rounding of
+    /// them.
     pub(crate) fn of<U: Real>(
         twin: &Surface<U>,
         nappe: Option<Nappe>,
@@ -2125,15 +2112,8 @@ impl<S: Real> Meters<S> {
                 radius: cross(radius),
             },
             Surface::Cone { half_angle, .. } => {
-                let Some(nappe) = nappe else {
-                    unreachable!("a cone's conversion is read on a nappe")
-                };
-                let (sin, cos) = half_angle.sin_cos();
-                Self::Cone {
-                    sin: cross(sin),
-                    cos: cross(cos),
-                    nappe,
-                }
+                let (sin, cos) = cross(half_angle).sin_cos();
+                Self::Cone { sin, cos, nappe }
             }
             Surface::Torus {
                 major_radius,
@@ -2176,9 +2156,11 @@ impl<S: Real> Meters<S> {
     /// - on a sheet, the least of [`Self::over`], [`Self::sheet_at_height`]
     ///   and [`Self::sheet_apex_reach`] that read, each a bound on the
     ///   part's distance from this sheet; the apex reach always reads;
+    /// - on the double cone the lesser of [`Self::over`] and
+    ///   [`Self::apex_root`], both bounds on its distance;
     /// - elsewhere [`Self::over`], else [`Self::apex_root`]; `None` where
     ///   neither reads. The cone's apex reading is the double cone's
-    ///   distance, which must not undercut the nappe's own reading away
+    ///   distance, which must not undercut a nappe's own reading away
     ///   from the apex.
     pub(crate) fn certified(
         self,
@@ -2205,6 +2187,10 @@ impl<S: Real> Meters<S> {
                         |least, d| least.min(d),
                     ),
             ),
+            Self::Cone { nappe: None, .. } => {
+                let root = f.sqrt();
+                Some(over.map_or(root, |over| over.min(root)))
+            }
             _ => over.or_else(|| self.apex_root(f)),
         }
     }
@@ -3780,7 +3766,7 @@ mod tests {
             )
             .expect("the plane's part is certified");
             let z = [Nappe::Opening, Nappe::Mirror]
-                .map(|nappe| revalue(axial_floor::<S>((0.5, 2.0), nappe).node(), &none));
+                .map(|nappe| revalue(axial_floor::<S>((0.5, 2.0), Some(nappe)).node(), &none));
             (
                 sector,
                 revalue(incidence.node(), &none),

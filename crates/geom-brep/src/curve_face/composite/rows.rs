@@ -402,7 +402,7 @@ fn the_divisor_is_a_pointwise_factor_of_the_form() {
             Meters::Cone {
                 sin,
                 cos,
-                nappe: crate::offset::Nappe::Opening,
+                nappe: None,
             },
             &|rho, z| {
                 let (one, other) = (rho * cos - z * sin, rho * cos + z * sin);

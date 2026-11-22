@@ -45,9 +45,9 @@
 //!
 //! The cone's locus is the DOUBLE cone ([`geom::Surface::Cone`]'s
 //! complete locus), so both of its readings bound the distance and the
-//! lesser is taken ([`ConeLocus::Double`]): the opening nappe's lever away
-//! from the apex, the apex root near it, where `|f|` is small and the
-//! lever is not. A patch on the other nappe reads the apex root alone.
+//! lesser is taken (`projected::Meters::Cone` with no nappe): the lever
+//! `ρ cos α + |z| sin α` away from the apex, the apex root near it, where
+//! `|f|` is small and the lever is not.
 //!
 //! # Refusal
 //!
@@ -64,21 +64,31 @@ use geom_core::spline::compose::tensor::SurfaceCertData;
 use geom_core::{Bounds, Interval};
 
 use crate::curve_face::composite::framed_form;
-use crate::pcurve_cache::projected::{ConeLocus, part_reach};
+use crate::offset::Nappe;
+use crate::pcurve_cache::projected::{Meters, part_reach};
 
 /// A certified upper bound in metres on the distance of every point of
 /// `patch` from `surface`'s locus (module docs); `NaN` where none is
 /// certified.
 #[must_use]
 pub fn patch_distance_sup(patch: &NurbsSurface<f64>, surface: &Surface<f64>) -> f64 {
-    distance_sup_on(patch, surface, ConeLocus::Double)
+    distance_sup_on(patch, surface, None)
 }
 
-/// [`patch_distance_sup`] with a cone's metres read against `locus`.
-fn distance_sup_on(patch: &NurbsSurface<f64>, surface: &Surface<f64>, locus: ConeLocus) -> f64 {
+/// [`patch_distance_sup`] with a cone's metres read against `nappe`
+/// (`None`: the double cone).
+fn distance_sup_on(
+    patch: &NurbsSurface<f64>,
+    surface: &Surface<f64>,
+    nappe: Option<Nappe>,
+) -> f64 {
     let point = |x: f64| Interval::from_bounds(x, x);
     let Ok((coords, form, meters)) = framed_form(surface, patch.control(), &point) else {
         return f64::NAN;
+    };
+    let meters = match meters {
+        Meters::Cone { sin, cos, .. } => Meters::Cone { sin, cos, nappe },
+        other => other,
     };
     let Ok(data) = SurfaceCertData::new(
         patch.knots_u_f64_interim(),
@@ -118,7 +128,6 @@ fn distance_sup_on(patch: &NurbsSurface<f64>, surface: &Surface<f64>, locus: Con
                 f_sup,
                 (lower(rho), upper(far)),
                 (lower(z.0), upper(z.1)),
-                locus,
                 lower,
                 upper,
             );
@@ -460,8 +469,8 @@ mod tests {
     fn the_double_cones_reading_beats_the_nappes_near_the_apex() {
         let patch = flat((0.1, 0.2), (0.0, 0.1), -0.999);
         let surface = cone(80.0_f64.to_radians(), Point3::new(0.0, -1.0, 0.0));
-        let double = distance_sup_on(&patch, &surface, ConeLocus::Double);
-        let nappe = distance_sup_on(&patch, &surface, ConeLocus::Nappe);
+        let double = distance_sup_on(&patch, &surface, None);
+        let nappe = distance_sup_on(&patch, &surface, Some(Nappe::Opening));
         let truth = dense_sup(&patch, &surface);
         assert!(
             truth <= double && double < nappe,

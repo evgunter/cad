@@ -384,11 +384,10 @@ pub(crate) fn framed_form<T: geom_core::Certifies>(
                     cos2: cos.powi(2),
                     sin2: sin.powi(2),
                 },
-                // The divisor is the double cone's and reads no nappe.
                 Meters::Cone {
                     sin,
                     cos,
-                    nappe: crate::offset::Nappe::Opening,
+                    nappe: None,
                 },
             )
         }
