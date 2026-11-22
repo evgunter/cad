@@ -49,12 +49,12 @@
 //!
 //! # The ε concessions
 //!
-//! A presentation drops points of the face in six places, each stated
+//! A presentation drops points of the face in seven places, each stated
 //! where it is decided. Every point dropped lies within a few ulps, in
 //! the chart, of a line the face's boundary or extent is placed on, or
 //! within a few ulps, in the curve's parameter, of a closed edge's
-//! vertex, or within the band, in metres, of a shared edge's image or
-//! of a corner's other edge:
+//! vertex, or within the band, in metres, of a shared edge's image, of
+//! a corner's other edge or of a vertex two edges of one line meet at:
 //!
 //! - **the sliver** ([`SELF_INTERSECTION_SLIVER`], [`present_chart`],
 //!   [`present_line_corner`], [`present_plane_corner`]): a rectangle
@@ -71,6 +71,33 @@
 //!   run on past a corner it makes with a line on the other axis, to
 //!   that line's far bound ([`run_on`]): structure, not a concession,
 //!   as the corner is on both.)
+//! - **the joint** ([`joints`], read by [`vacuous`], [`run_on`] and
+//!   [`present_chart`]'s merge and zero side): two edges of one family
+//!   of coordinate lines, the face on the same side of each, the one
+//!   ending at the vertex the other begins at, by key, are one line and
+//!   cover it end to end. What is bridged is the range between the two
+//!   rows' stored readings of that vertex along the line, and across
+//!   it, the hull of the two rows' held values. Nothing compares them;
+//!   two certified checks bound them: each row's envelope
+//!   (`pcurve_envelope`, within ε of its carrier over its span) and the
+//!   edge certificate's end pins (`carrier_endpoint_start` / `_end`,
+//!   within ε of the vertex), so the two readings map within `4ε` of
+//!   one another in metres. In the chart that is `4ε` over the chart's
+//!   speed there, so on a parallel a few ε from a pole or an apex it
+//!   may be a large part of a turn of azimuth while still `4ε` of
+//!   boundary. A face that truly came through a gap that narrow goes
+//!   unread by the cover. The distance arm reads it: pieces of the
+//!   boundary that share no cell are more than the band apart, or the
+//!   pair is `Violated`.
+//!
+//!   **The bound is the body's, not this module's.** A row is stored
+//!   only where its mint certified it, and a body at rest has had every
+//!   row read again by tier 3 (`validate_pcurves`). The document door
+//!   and the at-rest gate ask bodies at rest. The shell's cavity gate
+//!   (`shell::cavity_embedded`) asks the moved clone before it is
+//!   grafted, construction state, whose rows are those its producers'
+//!   closing mints certified; [`crate::clearance::Side`] takes any
+//!   body, so nothing in the signature says which.
 //! - **the join** ([`present_curved`], [`present_wall`]): a closed
 //!   edge's periodic chart curve is read through its vertex by its
 //!   closed form, past a span
@@ -1714,17 +1741,10 @@ fn line_ends(e: &Rim, held: Axis) -> Option<[(VertexKey, Interval); 2]> {
 /// evaluation of one line and one point, and which is larger by a
 /// rounding is no fact of the body.
 ///
-/// **That is an ε concession** (the module docs list them): what lies
-/// between the two readings is read as boundary. No check decides how
-/// far apart they are; two certified ones bound it. Each row's envelope
-/// holds its image within ε of its carrier over its whole span
-/// (`pcurve_envelope`, `geom_brep::PcurveCache`), and the edge
-/// certificate pins each carrier's ends within ε of its vertices
-/// (`carrier_endpoint_start` / `_end`), so the two rows' chart points at
-/// the vertex map within `4ε` of one another in space
-/// ([`crate::pcurves`]' loop walk derives it). A row is stored only
-/// certified, and at rest tier 3 reads every one again
-/// (`validate_pcurves`).
+/// **That is an ε concession** (the module docs give its bound and
+/// who holds it): what lies between the two readings is read as
+/// boundary, within `4ε` in metres by two certified checks, neither of
+/// them made here.
 ///
 /// **One continuation.** A vertex where two of the edges begin, or two
 /// end, joins none of them: the line does not run on one way there.

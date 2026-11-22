@@ -1626,28 +1626,51 @@ fn filleted_arc_disc<T: Scalar>() -> Result<topo::AtRestBody<T>, String> {
         .map_err(|e| format!("{:?}", e.error))
 }
 
-/// [`filleted_arc_disc`] moved by `m`; `Err` where it is not built, or
-/// the moved body is not a finished one.
-fn posed_arc_disc<T: Scalar>(
-    m: Option<&geom_core::Affine3<f64>>,
-) -> Result<topo::AtRestBody<T>, String> {
+/// A pose of [`filleted_arc_disc`].
+#[derive(Clone, Copy)]
+enum Pose {
+    AsBuilt,
+    /// Moved rigidly.
+    Moved(geom_core::Affine3<f64>),
+    /// Mirrored across the plane through a point with a normal.
+    Mirrored([f64; 3], [f64; 3]),
+}
+
+/// [`filleted_arc_disc`] in `pose`; `Err` where it, or its pose, is not
+/// built.
+fn posed_arc_disc<T: Scalar>(pose: Pose) -> Result<Body<T>, String> {
     let home = filleted_arc_disc::<T>()?;
-    let Some(m) = m else {
-        return Ok(home);
-    };
-    let rigid = geom_core::test_support::rigid(&m.map(T::from_f64), tol());
-    T::finish(topo::transform_rigid(&home, &rigid).unwrap(), tol()).map_err(|e| format!("{e:?}"))
+    let at = T::from_f64;
+    match pose {
+        Pose::AsBuilt => Ok(home.into_body()),
+        Pose::Moved(m) => {
+            let rigid = geom_core::test_support::rigid(&m.map(at), tol());
+            T::finish(topo::transform_rigid(&home, &rigid).unwrap(), tol())
+                .map(topo::AtRestBody::into_body)
+                .map_err(|e| format!("{e:?}"))
+        }
+        Pose::Mirrored(p, n) => {
+            let across = topo::Reflection::across(
+                Point3::new(at(p[0]), at(p[1]), at(p[2])),
+                geom_core::Vec3::new(at(n[0]), at(n[1]), at(n[2])),
+                tol(),
+            )
+            .map_err(|e| format!("{e:?}"))?;
+            topo::mirror_body(&home.into_body(), &across, tol()).map_err(|e| format!("{e:?}"))
+        }
+    }
 }
 
 /// A rigid turn of one radian about a generic axis through a point off
-/// the origin, and a placement a hundred units from the origin.
-fn generic_poses() -> [(&'static str, Option<geom_core::Affine3<f64>>); 3] {
+/// the origin, a placement a hundred units from the origin, and a
+/// mirror across a generic plane.
+fn generic_poses() -> [(&'static str, Pose); 4] {
     use geom_core::{Affine3, Vec3};
     [
-        ("as built", None),
+        ("as built", Pose::AsBuilt),
         (
             "turned about a generic axis",
-            Some(Affine3::rotation_about_axis(
+            Pose::Moved(Affine3::rotation_about_axis(
                 Point3::new(0.3, -0.2, 0.1),
                 Vec3::new(0.48, -0.6, 0.64),
                 1.0,
@@ -1655,44 +1678,76 @@ fn generic_poses() -> [(&'static str, Option<geom_core::Affine3<f64>>); 3] {
         ),
         (
             "a hundred units from the origin",
-            Some(Affine3::translation(Vec3::new(60.0, -80.0, 0.0))),
+            Pose::Moved(Affine3::translation(Vec3::new(60.0, -80.0, 0.0))),
+        ),
+        (
+            "mirrored across a generic plane",
+            Pose::Mirrored([0.3, -0.2, 0.1], [0.48, -0.6, 0.64]),
         ),
     ]
 }
 
+/// **Whether an `Interval` twin's refusal is the one this file skips
+/// on**: at ε = 1e-12, a pcurve envelope that escalates where the body
+/// is built or finished
+/// (`work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`).
+/// Any other refusal, or that one at another ε, is a failure.
+fn envelope_at_the_tightest_eps(refusal: &str) -> bool {
+    band().zero() < 1e-11 && refusal.contains("pcurve_envelope")
+}
+
 /// **A rim band whose foot parallel is split at the wall's seams holds
 /// across the joints.** On the band's chart the parallel is three edges
-/// of one line, each ending at the vertex the next starts at, their
-/// stored ends at a joint two readings of one point (equal at one joint
-/// of the body as built, an ulp apart at another). A cell beside the
-/// line across a joint is covered by the two edges together: below the
-/// parallel it holds none of the band, above it the parallel is its
-/// side. Holds as built, turned about a generic axis and a hundred
-/// units from the origin, at `f64` and, in one verdict class, at
-/// `Interval` wherever the `Interval` twin builds: at ε = 1e-12 its
-/// fillet refuses (a pcurve envelope escalates), and the row asks that
-/// pose at `f64` alone and says so. Red if a side is read against one
-/// edge of its line alone (the wall against the band then runs out of
-/// depth at a joint), or if two edges are joined only where their
-/// stored ends agree.
+/// of one line, each ending at the vertex the next starts at. Their
+/// stored ends at a joint are two readings of one point (equal at one
+/// joint of the body as built, an ulp apart at another), and in a frame
+/// that is not the chart's their rows hold the parallel's own value a
+/// rounding apart (mirrored across a generic plane: `0` and `4.0e-16`).
+/// A cell beside the line across a joint is covered by the two edges
+/// together: below the parallel it holds none of the band, above it the
+/// parallel is its side. Holds as built, turned about a generic axis, a
+/// hundred units from the origin and mirrored across a generic plane,
+/// at `f64` and, in one verdict class, at `Interval`, but for the
+/// mirrored twin, which runs out of depth off the cover and is pinned
+/// there. At ε = 1e-12 the
+/// `Interval` twin's pcurve envelope escalates
+/// ([`envelope_at_the_tightest_eps`]) and the row asks that pose at
+/// `f64` alone and says so. Red if a side is read against one edge of
+/// its line alone (the wall against the band then runs out of depth at
+/// a joint), if two edges are joined only where their stored ends
+/// agree, or if two rows are one line only where their values agree
+/// (the mirrored pose).
 #[test]
 fn a_three_arc_discs_filleted_rim_holds_across_its_joints() {
-    for (what, m) in generic_poses() {
+    for (what, pose) in generic_poses() {
         let what = format!("the three-arc disc's filleted rim, {what}");
-        let body = posed_arc_disc::<f64>(m.as_ref())
-            .expect("the f64 body builds")
-            .into_body();
-        match posed_arc_disc::<Interval>(m.as_ref()) {
+        let body = posed_arc_disc::<f64>(pose).expect("the f64 body builds");
+        match posed_arc_disc::<Interval>(pose) {
+            // The mirrored twin runs out of depth in the distance arm, off
+            // the cover: a wall cell that stops short of the rim against a
+            // band cell past the foot parallel, which do not touch
+            // (`work/embed/the-mirrored-rim-band-at-interval-runs-out-of-depth-in-the-distance-arm`).
+            Ok(twin) if matches!(pose, Pose::Mirrored(..)) => {
+                let report = injective(&body, None, BUDGET);
+                assert_holds(&what, &report, &body);
+                let twin = injective(&twin, None, BUDGET);
+                assert!(
+                    format!("{:?}", twin.verdict).starts_with("Refused(Budget(Depth"),
+                    "{what} at Interval: {:?}",
+                    twin.verdict
+                );
+            }
             Ok(twin) => {
-                let [report, _] = holds_at_both(&what, body, twin.into_body());
+                let [report, _] = holds_at_both(&what, body, twin);
                 println!("[joint] {what}: {:?}", report.receipt);
             }
-            Err(refusal) => {
+            Err(refusal) if envelope_at_the_tightest_eps(&refusal) => {
                 println!(
                     "SKIPPED: {what} is asked at f64 alone, its Interval twin unbuilt: {refusal}"
                 );
                 assert_holds(&what, &injective(&body, None, BUDGET), &body);
             }
+            Err(refusal) => panic!("{what}: the Interval twin builds: {refusal}"),
         }
     }
 }
@@ -1723,9 +1778,10 @@ fn two_filleted_discs_through_each_other_at_a_joint_read_violated() {
     let report = injective(&folded, None, BUDGET);
     match folded_at::<Interval>() {
         Ok(twin) => same_class("the folded discs", &report, &injective(&twin, None, BUDGET)),
-        Err(refusal) => println!(
+        Err(refusal) if envelope_at_the_tightest_eps(&refusal) => println!(
             "SKIPPED: the folded discs are asked at f64 alone, their Interval twin unbuilt: {refusal}"
         ),
+        Err(refusal) => panic!("the folded discs' Interval twin builds: {refusal}"),
     }
     let BoundVerdict::Violated(w) = report.verdict else {
         panic!("the two discs cross: {:?}", report.verdict)

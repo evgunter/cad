@@ -733,7 +733,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        185,
+        181,
         79,
         "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `present_chart` (26), \
@@ -764,10 +764,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          same parameters its curve already carries, the read behind \
          `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, `narrowed`, \
          `leaves_graph`, `leaves_line`, `copy_misses`) and `run_on`'s, behind `along`'s and \
-         the placement asks, are sound. `joints`' 4 take the hull of a joint's two stored ends, \
-         read outward, each an end `line_ends` hands it only behind `forward`'s ask of their \
-         difference; `vacuous`'s 4 ask whether two of its lines hold a common value, lines \
-         `present_chart` passes it only once each `is_certified()`. The rest read the window's carrier and the face's boundary, which \
+         the placement asks, are sound. `joints`' 4 are the hull of a joint's two readings, \
+         behind `forward`'s ask in `line_ends`. The rest read the window's carrier and the face's boundary, which \
          `clearance`'s `window_of` admits only where every lifted value certifies; \
          `present_wall`'s wall-image reads, `speeds`' jet bound and the two corner \
          presentations' speed bounds also read an enclosure computed from them that may clamp, \
