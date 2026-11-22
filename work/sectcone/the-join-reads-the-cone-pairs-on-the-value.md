@@ -7,7 +7,7 @@ opened: 2026-11-22
 priority: P1
 cost: H
 parent: cone-germ-pairs-against-a-curved-face-have-no-section-frame
-blocked_on: [the-section-certificate-reads-the-cone-pairs-on-the-value, the-search-certificate-reads-limb-two-through-the-edge-reader]
+blocked_on: [the-section-certificate-reads-the-cone-pairs-on-the-value]
 ---
 
 
