@@ -8140,7 +8140,7 @@ mod properties_pane_tests {
                 .perform_batch(vec![SessionOp::DeleteNode { node: extrude() }]);
         };
         let plinth = format!(
-            "Extrude \"plinth\" ({})",
+            "\"plinth\" ({})",
             test_utils::refusal::tag(extrude().0.digest())
         );
 
@@ -8950,7 +8950,7 @@ mod properties_pane_tests {
             .map(|(text, _)| text)
             .collect();
         let base = format!(
-            "Place \"base\" ({})",
+            "\"base\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
         // Both picks are caps of the one copy, so the panel names the

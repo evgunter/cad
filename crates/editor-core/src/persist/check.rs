@@ -2963,7 +2963,7 @@ mod tests {
                 assert_eq!(node.label().map(crate::Label::as_str), Some("outline"));
                 let said = e.to_string();
                 assert!(
-                    said.contains(&format!("Profile \"outline\" ({profile})'s program: ")),
+                    said.contains(&format!("\"outline\" ({profile})'s program: ")),
                     "{said}"
                 );
             }
@@ -3005,7 +3005,7 @@ mod tests {
                 let said = e.to_string();
                 assert!(
                     said.contains(&format!(
-                        "metadata \"swatch\" on the face of Profile \"outline\" \
+                        "metadata \"swatch\" on the face of \"outline\" \
                          ({profile})"
                     )),
                     "{said}"

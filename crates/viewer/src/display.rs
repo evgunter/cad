@@ -113,9 +113,9 @@ use crate::world::{Drawn, Shown};
 /// # Each arm names its subject through the spoken node
 ///
 /// The rule over the whole enum, not a property of one arm: an arm
-/// says its subject as [`SpokenNode`] says it — always the node's kind
-/// as the document holds it, with its label beside it when it has one
-/// (`InstantiatePart N`, `Place "shelf" (N)`) — and never writes the
+/// says its subject as [`SpokenNode`] says it — its label and tag when
+/// it has a label, its kind as the document holds it and tag when it has
+/// none (`"shelf" (N)`, `InstantiatePart N`) — and never writes the
 /// subject's kind in its own words. A frame's withdrawal names the
 /// node whose probe moved it and its space, said as [`SpokenSpace`]
 /// says it ([`AdmissionFault::NoSuchSpace`], [`AdmissionFault::NotShown`]),

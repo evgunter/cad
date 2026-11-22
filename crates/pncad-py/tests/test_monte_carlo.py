@@ -164,7 +164,7 @@ class TestTheDialsAreRecorded(unittest.TestCase):
         for line in numbered:
             self.assertIn("ADVISORY", line)
             self.assertIn("32 samples", line)
-            self.assertIn('Measure "height" (', line)
+            self.assertIn('"height" (', line)
         self.assertIn("ADVISORY", repr(monte_carlo(doc, box, config)))
 
 

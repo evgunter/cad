@@ -552,7 +552,7 @@ impl CheckEvidence {
 /// caller's `Severity` and the caller's `enforce_checks` call.
 ///
 /// `str()` renders it the way the library renders a finding, recourse
-/// included, each placement spoken (kind, label and tag) from the document
+/// included, each placement spoken (its label and tag, or its kind and tag with no label) from the document
 /// the checks ran over, the one the evaluation is of; `repr()` keeps
 /// the full id. Two findings are equal when they are the same finding
 /// over the same document; labels are not compared.

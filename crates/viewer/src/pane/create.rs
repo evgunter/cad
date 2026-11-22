@@ -2659,7 +2659,7 @@ mod sketch_face_said {
             "the landed run lost the block"
         );
         let by = crate::frame::landed_speaker(session.landed_pair());
-        let last = format!("the end cap of Extrude \"plinth\" ({t})");
+        let last = format!("the end cap of \"plinth\" ({t})");
         assert_eq!(
             [&drafts.on_face, &drafts.trace_face]
                 .map(|held| crate::drafts::latch_said(held.as_ref(), by)),
@@ -2747,7 +2747,7 @@ mod tools_respeak {
             landed.node(block).is_none(),
             "the landed run lost the block"
         );
-        (session, tools, format!("Extrude \"plinth\" ({t})"))
+        (session, tools, format!("\"plinth\" ({t})"))
     }
 
     /// The tool's drops, as the survival step reports them.
@@ -2898,7 +2898,7 @@ mod tools_respeak {
             said.first().map(String::as_str),
             Some(
                 format!(
-                    "mate tool: the mate 1 to pick (the end cap of Extrude \"plinth\" ({t})) no \
+                    "mate tool: the mate 1 to pick (the end cap of \"plinth\" ({t})) no \
                      longer resolves; the tool dropped it"
                 )
                 .as_str()

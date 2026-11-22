@@ -549,7 +549,7 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     assert_eq!(
         own.spoken(&outer, &ev),
         format!(
-            "InstantiatePart \"outer top\" ({tt}) failed: the mate solve refused: this node's \
+            "\"outer top\" ({tt}) failed: the mate solve refused: this node's \
              each of constraints 1, 5 fixes an equation {}",
             own.to_string()
                 .split_once(" fixes an equation ")
@@ -569,7 +569,7 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     assert!(
         own.spoken(&renamed, &ev)
             .to_string()
-            .starts_with(&format!("InstantiatePart \"outer renamed\" ({tt}) failed")),
+            .starts_with(&format!("\"outer renamed\" ({tt}) failed")),
         "the memoized refusal holds the id, so a rename shows with nothing re-evaluated: {}",
         own.spoken(&renamed, &ev)
     );
@@ -726,7 +726,7 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
     assert!(
         in_outer
             .to_string()
-            .contains(&format!("Place \"inner block\" ({t})"))
+            .contains(&format!("\"inner block\" ({t})"))
             && !in_outer.to_string().contains("outer block"),
         "a part's refusal says the part's label, never the outer document's for its id: \
          {in_outer}"
@@ -775,7 +775,7 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
     let said = err.to_string();
     assert!(
         said.starts_with(&format!(
-            "InstantiatePart \"leg\" ({t}) is refused by the solve on its own datum: \
+            "\"leg\" ({t}) is refused by the solve on its own datum: \
              constraint "
         )) && said.contains(" of this node's `on` pose reads geometry other than the copy")
             && node.id() == leg,

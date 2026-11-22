@@ -1357,7 +1357,7 @@ impl<'a> Speaker<'a> {
     }
 
     /// **The speaker inside a sentence that has already named `id`**
-    /// (`Mate "seat" (3fa9c1d2a0b1) failed: …`): where the inner
+    /// (`"seat" (3fa9c1d2a0b1) failed: …`): where the inner
     /// sentence names that node by what it is ([`Speaker::node_as`]),
     /// it says `this <noun>` rather than name it a second time.
     #[must_use]
@@ -2275,7 +2275,7 @@ mod tests {
         );
         assert_eq!(
             said(Speaker::of(&empty).or_held(&kept), id),
-            format!("Tube \"floor\" ({t})"),
+            format!("\"floor\" ({t})"),
             "the document does not hold it, so it is said as kept"
         );
         assert_eq!(

@@ -1368,8 +1368,8 @@ mod tests {
         let id = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
         let row = |answer| TreeRow {
             readout: Some(Readout::Clearance(Cleared {
-                a: "Extrude \"left\" (0009)".to_owned(),
-                b: "Extrude \"right\" (000a)".to_owned(),
+                a: "\"left\" (0009)".to_owned(),
+                b: "\"right\" (000a)".to_owned(),
                 bounds: ClearanceBounds::AtLeast(Bound::Value(crate::props::Computed {
                     canonical: 0.02,
                     dimension: pncad::document::Dimension::Length,
@@ -1386,7 +1386,7 @@ mod tests {
             face_b: pncad::topo::FaceKey::default(),
             bodies: [(id, 0); 2],
         }));
-        let equation = "clearance(Extrude \"left\" (0009), Extrude \"right\" (000a)) ≥ 0.02 m";
+        let equation = "clearance(\"left\" (0009), \"right\" (000a)) ≥ 0.02 m";
         for (answer, state, detail, loud) in [
             (
                 violated,

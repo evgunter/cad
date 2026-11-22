@@ -2829,7 +2829,7 @@ mod verdict_tests {
             body: 0,
         });
         let labelled = format!(
-            "Extrude \"base block\" ({})",
+            "\"base block\" ({})",
             test_utils::refusal::tag(block.0.digest())
         );
         let by_tag = format!("node {}", test_utils::refusal::tag(block.0.digest()));
@@ -2930,7 +2930,7 @@ mod verdict_tests {
         session.perform(SessionOp::Select(face));
         assert_eq!(
             crate::tree::spelled(&session.selection_said().spoken(block)),
-            format!("Extrude \"base block\" ({t})"),
+            format!("\"base block\" ({t})"),
             "the landed run still held the block, so the pick keeps its label"
         );
     }
@@ -3016,7 +3016,7 @@ mod verdict_tests {
                     session.selection_said(),
                     block,
                 ),
-                format!("Extrude \"{after}\" ({t})"),
+                format!("\"{after}\" ({t})"),
                 "{what}: the deleted node is said by its last label"
             );
         }
@@ -3046,7 +3046,7 @@ mod verdict_tests {
                 session.selection_said(),
                 block,
             ),
-            format!("Extrude \"landed\" ({t})"),
+            format!("\"landed\" ({t})"),
             "the heading waits for the rename to land"
         );
     }
