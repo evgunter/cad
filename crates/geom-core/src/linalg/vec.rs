@@ -271,11 +271,13 @@ impl<T: SpanLocate> Vec2<T> {
 impl<T: Real> Vec2<T> {
     /// **This vector's length less a locus's radius**
     /// ([`crate::radius_gap`], which says what it claims and where): the
-    /// gap's numerator formed from this vector's own dot product and its
-    /// denominator from that product's root, so no caller pairs a norm
-    /// with a square that is not its own.
+    /// gap's numerator formed from this vector's own squared norm and
+    /// its denominator from that square's root, the very form
+    /// [`Self::norm`] takes its root of, so no caller pairs a norm with
+    /// a square that is not its own and the symbolic tier builds the
+    /// square once.
     pub fn radius_gap(self, radius: T) -> T {
-        crate::radius_gap(self.dot(self), self.norm(), radius)
+        crate::radius_gap(self.norm_squared(), self.norm(), radius)
     }
 
     /// Builds a vector from its components. A `const fn` (the doctest
@@ -518,11 +520,13 @@ impl<T: SpanLocate> Vec3<T> {
 impl<T: Real> Vec3<T> {
     /// **This vector's length less a locus's radius**
     /// ([`crate::radius_gap`], which says what it claims and where): the
-    /// gap's numerator formed from this vector's own dot product and its
-    /// denominator from that product's root, so no caller pairs a norm
-    /// with a square that is not its own.
+    /// gap's numerator formed from this vector's own squared norm and
+    /// its denominator from that square's root, the very form
+    /// [`Self::norm`] takes its root of, so no caller pairs a norm with
+    /// a square that is not its own and the symbolic tier builds the
+    /// square once.
     pub fn radius_gap(self, radius: T) -> T {
-        crate::radius_gap(self.dot(self), self.norm(), radius)
+        crate::radius_gap(self.norm_squared(), self.norm(), radius)
     }
 
     /// Builds a vector from its components. A `const fn` (the doctest
