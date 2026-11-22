@@ -48,12 +48,11 @@
 //!    the frontier, the difference for the approach). Halvings that
 //!    decide nothing at four successive widths are in ground undecided
 //!    at every width: a coincidence or failure zone, or the ε band at a
-//!    boundary. That end is then settled to within a sixteenth of the
-//!    width that last moved it ([`Unsettled::Stalled`]). The frontier
-//!    of a side that has proven nothing yet has no such bound, because
-//!    the first proof can sit many halvings down, and halves to
-//!    [`RangeBudget::max_depth`].
-//!
+//!    boundary. That end is then settled ([`Unsettled::Stalled`]):
+//!    what it gives up lies inside an interval a sixteenth the width of
+//!    the one that last moved it. The frontier of a side that has
+//!    proven nothing yet has no such bound, because the first proof can
+//!    sit many halvings down, and halves to [`RangeBudget::max_depth`].
 //! 5. While a side has no difference proven and its frontier is
 //!    settled (at its floor, or stalled), the undecided intervals past
 //!    the frontier are halved, widest first, down to [`STALL_LEVELS`]
