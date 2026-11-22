@@ -2126,8 +2126,9 @@ impl<T: Real> ApexFan<T> {
     /// [`PlaneConeSection::ApexTangentLine`]'s readers rely on it.
     fn ruling(&self, phi: T) -> UnitVec3<T> {
         let (s, c) = phi.sin_cos();
-        // The squared frame's axes are bare vectors (`SquareFrame`), so the
-        // swing over them is checked, not typed by its frame.
+        // Over the squared frame's `a`, `u` (Gram–Schmidt in interval
+        // arithmetic) and `v = a × u`, weighted by one angle's sine and
+        // cosine: an enclosure of a unit vector by that construction.
         UnitVec3::checked(self.a * self.cos_a + (self.u * c + self.v * s) * self.sin_a)
     }
 }
@@ -2542,7 +2543,8 @@ pub fn plane_cone_section<T: Decide>(
     let arm = geom::cover::Cover::circle(geom::cover::Core {
         axis: geom::Line {
             origin: apex + a * t,
-            // The square frame's axis, `a/|a|`, a bare vector: checked.
+            // The square frame's axis, `a/|a|`: a normalization, so in
+            // interval arithmetic it encloses the unit axis.
             dir: UnitVec3::checked(a),
         },
         radius: rim_r,
@@ -3214,7 +3216,8 @@ fn coaxial_cone_sphere<T: Decide>(
     }
     let axis = geom::Line {
         origin: apex,
-        // The square frame's axis, `a/|a|`, a bare vector: checked.
+        // The square frame's axis, `a/|a|`: a normalization, so in
+        // interval arithmetic it encloses the unit axis.
         dir: UnitVec3::checked(a),
     };
     match decide("kos_coaxial", Margin::of(axis.distance(center)), band)
@@ -3366,7 +3369,8 @@ fn coaxial_cone_torus<T: Decide>(
     }
     let cone_axis = geom::Line {
         origin: apex,
-        // The square frame's axis, `a/|a|`, a bare vector: checked.
+        // The square frame's axis, `a/|a|`: a normalization, so in
+        // interval arithmetic it encloses the unit axis.
         dir: UnitVec3::checked(a),
     };
     let off_axis = [
@@ -3666,7 +3670,8 @@ pub fn cone_cylinder_section<T: Decide>(
     let (cone_axis, cylinder_axis) = (
         geom::Line {
             origin: apex,
-            // The square frame's axis, `a/|a|`, a bare vector: checked.
+            // The square frame's axis, `a/|a|`: a normalization, so in
+            // interval arithmetic it encloses the unit axis.
             dir: UnitVec3::checked(a),
         },
         geom::Line { origin: o, dir: b },

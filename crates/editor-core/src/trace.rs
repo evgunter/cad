@@ -519,10 +519,12 @@ fn lift_vec<T: Decide>(v: Vec2<T>) -> Vec3<T> {
     Vec3::new(v.x, v.y, T::zero())
 }
 
-/// A pen's heading in the body's coordinates: the sketch heading, unit by
-/// the pen's convention and so checked ([`geom_core::UnitVec3::checked`]),
-/// carried by the face's rigid sketch frame
-/// ([`geom_core::UnitVec3::through_isometry`]).
+/// A pen's heading in the body's coordinates: the sketch heading,
+/// checked ([`geom_core::UnitVec3::checked`]), then carried by the face's
+/// rigid sketch frame ([`geom_core::UnitVec3::through_isometry`]). The
+/// heading is a `profile::path::Dir` the replay minted, a normalization
+/// (or a literal axis), so in interval arithmetic it encloses a unit
+/// vector.
 fn heading_in_body<T: Decide>(face: &TracedFace<T>, heading: Vec2<T>) -> geom_core::UnitVec3<T> {
     geom_core::UnitVec3::checked(lift_vec(heading))
         .through_isometry(face.sketch_to_body.linear())

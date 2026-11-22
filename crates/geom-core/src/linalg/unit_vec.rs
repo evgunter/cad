@@ -43,10 +43,15 @@
 //!   are kept, past it the value is squared (so a chain of rounded
 //!   images does not drift off unit, and the door reports the length it
 //!   divided by for a parameter that runs along the direction), and past
-//!   any rounding, or not finite, it is poison. At an enclosure kind the
-//!   construction's argument covers every value enclosed, and an
-//!   enclosure that holds no unit vector is poison. The check runs in a
-//!   release build as in a debug one.
+//!   any rounding, or not finite, it is poison. The check runs in a
+//!   release build as in a debug one. **At an enclosure kind the doors
+//!   rely on the caller's construction**: its argument, that every value
+//!   the inputs enclose makes a unit vector, is what makes the result an
+//!   enclosure of one. The doors refute only a box whose bracket of
+//!   `v·v − 1` excludes zero; a point box of a rounded unit vector, which
+//!   encloses none, usually passes that test, so a caller lifting an
+//!   `f64` direction lifts it as a direction ([`UnitVec3::map_scalar`]),
+//!   never entry by entry.
 //! - [`UnitVec3::checked`] — that measurement for a vector whose
 //!   construction has no door of its own (a frame squared into bare
 //!   vectors, a fixture's literal).
@@ -84,10 +89,12 @@
 //! theirs; the field is private to this module, so no door but those
 //! listed writes it.
 //!
-//! **No door adopts a vector on trust.** A caller holding a bare vector
-//! it believes is unit has a construction to name, whose door measures
-//! it, or a decision to record, and then the normalizing mint is exactly
-//! that decision.
+//! **No door adopts a point value on trust.** A caller holding a bare
+//! vector it believes is unit has a construction to name, whose door
+//! measures it at a point scalar, or a decision to record, and then the
+//! normalizing mint is exactly that decision. At an enclosure kind the
+//! construction doors rely on the caller's construction (above), and
+//! each call site states its enclosure argument.
 //!
 //! # What is NOT this type
 //!
@@ -725,11 +732,17 @@ impl<T: Real> UnitVec3<T> {
     /// Unit over the reals for every orthogonal `linear`, so at an
     /// enclosure kind the image keeps its bits; at a point scalar the
     /// rounding of the product is measured, and an image a chain of maps
-    /// has carried past its rounding is squared (the module docs' measurement). The
-    /// second value is the length the image was divided by, `one` where
-    /// its bits are kept: a line carried by the map scales its parameter
-    /// by it. A `linear` that is no isometry's is refuted, and the image
-    /// answered poisoned.
+    /// has carried past its rounding is squared (the module docs'
+    /// measurement). The second value is the length the image was divided
+    /// by, `one` where its bits are kept: a line carried by the map scales
+    /// its parameter by it.
+    ///
+    /// **It accepts any [`Mat3`]**, and only its callers' types keep a
+    /// non-isometry out: a `RigidMotion`'s linear part, a `Reflection`'s.
+    /// A `linear` off orthogonal by more than any rounding (past `√ε`) is
+    /// refuted, the image answered poisoned; one off by less is read as a
+    /// stretch, so `(1 + 1e-9)·I` returns its image squared and a stretch
+    /// of `1 + 1e-9`, not a refusal.
     #[must_use]
     pub fn through_isometry(self, linear: Mat3<T>) -> (Self, T) {
         Self::kept_or_squared(linear * self.0)
@@ -747,14 +760,27 @@ impl<T: Real> UnitVec3<T> {
 
     /// **The unit chord along `v`, and its length**: `v / |v|` and `|v|`
     /// ([`Vec3::direction_and_length`], read through its one prescale),
-    /// unit over the reals wherever `v` is not zero. A zero chord has no
-    /// direction: its quotient is `0/0`, the totality policy's poison,
-    /// which the predicate layer catches. Nothing is decided and nothing
-    /// measured, so no band and no refusal.
+    /// unit over the reals wherever `v` is not zero. Nothing is decided
+    /// and nothing measured, so no band and no refusal: a chord with no
+    /// direction is poison, the direction and its length both, in a
+    /// release build as in a debug one. That is a zero chord (`0/0`), a
+    /// chord with an entry that is not finite, and a finite one whose
+    /// length overflows the format: a component's value read as
+    /// unbounded or no number poisons all three and the length, never
+    /// one of them.
     #[must_use]
     pub fn chord(v: Vec3<T>) -> (Self, T) {
         let (d, len) = v.direction_and_length();
-        (Self(d), len)
+        let finite = |x: T| {
+            x.told_reading()
+                .ends()
+                .is_some_and(|(lo, hi)| lo.is_finite() && hi.is_finite())
+        };
+        if finite(len) && finite(d.x) && finite(d.y) && finite(d.z) {
+            (Self(d), len)
+        } else {
+            (Self::poisoned(), crate::poison())
+        }
     }
 
     /// **This direction reversed, its zeros positive**: `0 − u`, exact at
@@ -776,14 +802,22 @@ impl<T: Real> UnitVec3<T> {
     }
 
     /// **A direction unit to rounding, checked**: the construction doors'
-    /// measurement of `v` (module docs), its bits kept within its rounding, squared past it
-    /// within `√ε`, and poisoned beyond or where it is not
+    /// measurement of `v` (module docs), its bits kept within its rounding,
+    /// squared past it within `√ε`, and poisoned beyond or where it is not
     /// finite, in a release build as in a debug one. The door for a
     /// vector whose unit length is a premise none of the typed doors
     /// names (a frame squared into bare vectors, a fixture's literal); a
     /// caller that can name its construction calls that construction's
-    /// door, and one with a vector it merely holds has a decision to
-    /// make ([`UnitVec3::new`]).
+    /// door, and one with a vector it merely holds has a decision to make
+    /// ([`UnitVec3::new`]).
+    ///
+    /// **At an enclosure kind it relies on the caller's construction**:
+    /// it keeps any box whose bracket of `v·v − 1` holds zero, which a
+    /// point box of a rounded unit vector, enclosing no unit vector,
+    /// usually does. Each caller at an enclosure scalar states why its
+    /// box encloses a unit vector: a normalization or a Gram–Schmidt
+    /// step run in interval arithmetic, an orthonormal frame's axes
+    /// weighted by a sine and cosine, a witness's sign turned.
     #[must_use]
     pub fn checked(v: Vec3<T>) -> Self {
         Self::kept_or_squared(v).0
@@ -1491,15 +1525,21 @@ mod stated_rows {
 
     /// **A checked direction keeps its bits at every scalar**: a
     /// construction unit over the reals passes the door as it was made,
-    /// at `f64`, at `Interval` and at `Dual`, its tangent channel
-    /// included, and the length it reports is exactly one. Red under the
-    /// door squaring what it keeps.
+    /// at `f64`, at `Interval` (an enclosure of a unit vector, the polar
+    /// lift of a stated one) and at `Dual`, its tangent channel included,
+    /// and the length it reports is exactly one. Red under the door
+    /// squaring what it keeps.
     #[test]
     fn a_checked_direction_keeps_its_bits_at_every_scalar() {
         let (s, c) = 0.3_f64.sin_cos();
         let v = Vec3::new(s, 0.0, c);
         assert_eq!(bits(UnitVec3::checked(v).get()), bits(v), "f64");
-        let iv = v.map(Interval::from_f64);
+        // At `Interval` from a genuine enclosure: the polar lift of the
+        // stated direction, which a point box of its entries is not.
+        let iv = UnitVec3::stated(v)
+            .unwrap()
+            .map_scalar(Interval::from_f64)
+            .get();
         let got = UnitVec3::checked(iv).get();
         assert!(
             [got.x, got.y, got.z]
@@ -1523,8 +1563,10 @@ mod stated_rows {
     /// **A refuted direction is poison in every build**: a chord of
     /// length 5, a NaN entry, and an enclosure that holds no unit vector
     /// each come out of the door poisoned, never a direction carried on,
-    /// with no debug assertion between. Red under the door adopting a
-    /// value its measurement refutes.
+    /// with no debug assertion between; and a chord with no direction (its
+    /// length overflowed, an entry infinite, or zero) is poison whole, its
+    /// length too. Red under the door adopting a value its measurement
+    /// refutes, and under the chord keeping a half-poisoned direction.
     #[test]
     fn a_refuted_direction_is_poison_in_every_build() {
         let poisoned = |u: UnitVec3<f64>| {
@@ -1539,6 +1581,17 @@ mod stated_rows {
             poisoned(UnitVec3::checked(Vec3::new(f64::NAN, 0.0, 1.0))),
             "NaN"
         );
+        for (v, what) in [
+            (
+                Vec3::new(1.7e308, 1.7e308, 0.0),
+                "a chord whose length overflows",
+            ),
+            (Vec3::new(f64::INFINITY, 1.0, 0.0), "an infinite entry"),
+            (Vec3::new(0.0, 0.0, 0.0), "a zero chord"),
+        ] {
+            let (d, len) = UnitVec3::chord(v);
+            assert!(poisoned(d) && len.is_nan(), "{what}: {d:?}, {len}");
+        }
         let far = Vec3::new(1.0, 0.0, 0.0).map(|x| Interval::from_bounds(x + 0.5, x + 0.6));
         let got = UnitVec3::checked(far).get();
         assert!(

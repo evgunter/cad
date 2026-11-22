@@ -22,8 +22,13 @@
 //! Every certificate is **carried**, never re-derived. A certificate
 //! states distances (an edge's `{samples, max_residual}`, a pcurve
 //! row's norms, an offset fit's limbs) and a turn in the carrier's own
-//! parameter, and an isometry keeps every distance and every
-//! parameter, so each certificate of the source is one of the image.
+//! parameter, and an isometry keeps every distance, so each certificate
+//! of the source is one of the image. It keeps every parameter too, but
+//! for one rescale rounding forces: a line whose image direction a chain
+//! of maps carried past its rounding is squared, and its parameter, arc
+//! length, stretched by the length divided by. That edge's span, its
+//! description's chart image and its half-edges' pcurve rows are read on
+//! the stretched parameter ([`map_carrier_stretched`]).
 //! The map decides nothing: [`transform_rigid`] and [`crate::mirror`]
 //! return construction state, which the finish that follows decides,
 //! and a finished body's own door ([`crate::FinishedBody::moved`])
@@ -398,11 +403,10 @@ fn map_approx<T: Real>(
     }
 }
 
-/// The carrier `map ∘ c` on `c`'s own parameter, under either hand: a
-/// carrier has no outward side, and keeping its parameter keeps every
-/// edge's range and its forward half-edge. A caller holding a span on
-/// the carrier takes [`map_carrier_stretched`], which names the one
-/// rescale rounding can force.
+/// The carrier `map ∘ c`, under either hand, its stretch dropped
+/// ([`map_carrier_stretched`]): the rows that read a mapped carrier's
+/// kind and form, not a span on it.
+#[cfg(test)]
 pub(crate) fn map_carrier<T: Real>(
     iso: &Isometry<T>,
     c: &Curve3<T>,
@@ -410,11 +414,14 @@ pub(crate) fn map_carrier<T: Real>(
     map_carrier_stretched(iso, c).map(|(c, _)| c)
 }
 
-/// [`map_carrier`], with the factor the image's parameter is the old
-/// one's times: `one`, but for a line whose image direction a chain of
-/// maps carried past its rounding and the door squared
-/// ([`geom_core::UnitVec3::through_isometry`]), where arc length along the squared
-/// direction is the old parameter times the length divided by.
+/// The carrier `map ∘ c` under either hand, and the factor its parameter
+/// is the old one's times. A carrier has no outward side, so the map
+/// keeps its parameter, every edge's range and its forward half-edge, but
+/// for one rescale rounding can force: a line whose image direction a
+/// chain of maps carried past its rounding, which the door squares
+/// ([`geom_core::UnitVec3::through_isometry`]), so arc length along the
+/// squared direction is the old parameter times the length divided by.
+/// The factor is `one` everywhere else.
 pub(crate) fn map_carrier_stretched<T: Real>(
     iso: &Isometry<T>,
     c: &Curve3<T>,
@@ -535,8 +542,13 @@ pub fn surface_at<T: Real>(
     map_surface(&motion.to_affine(), Hand::Proper, Some(motion), s)
 }
 
-/// **One curve carrier read at a rigid motion**: `motion ∘ c` on `c`'s
-/// own parameter, as [`surface_at`] reads a surface.
+/// **One curve carrier read at a rigid motion**: `motion ∘ c`, as
+/// [`surface_at`] reads a surface, with the factor its parameter is
+/// `c`'s times ([`map_carrier_stretched`]): `one`, but for a line whose
+/// image direction the door squared, where a point at `c`'s parameter
+/// `t` is the image's at `t` times the stretch. A reader holding a span
+/// on `c` scales it by the stretch, as [`transform_rigid`] scales an
+/// edge's.
 ///
 /// # Errors
 ///
@@ -544,8 +556,8 @@ pub fn surface_at<T: Real>(
 pub fn carrier_at<T: Real>(
     motion: &RigidMotion<T>,
     c: &Curve3<T>,
-) -> Result<Curve3<T>, TransformError> {
-    map_carrier(&Isometry::Proper(*motion), c)
+) -> Result<(Curve3<T>, T), TransformError> {
+    map_carrier_stretched(&Isometry::Proper(*motion), c)
 }
 
 /// The chart image `image` on `surface` of `body` under a map of `hand`:
@@ -731,6 +743,26 @@ pub(crate) fn map_isometry<T: Decide>(
         let (param_start, param_end) = old.params();
         let (carrier, stretch) = map_carrier_stretched(iso, old.stored_carrier())?;
         let (param_start, param_end) = (param_start * stretch, param_end * stretch);
+        // A squared line's parameter is stretched: its chart images, the
+        // description's and each half-edge's pcurve row, are read on the
+        // new one ([`geom_brep::Pcurve::stretched`]). Every image a line
+        // carries is affine in its parameter, so one that is not is no
+        // image a door builds.
+        let stretched = stretch.structure_bracket() != Some((1.0, 1.0));
+        const UNSTRETCHED: &str = "a line's chart image is not affine in its parameter";
+        if stretched {
+            let edge = out.edges.get(ek).ok_or(TransformError::Corrupt {
+                found: "an edge vanished mid-walk",
+            })?;
+            for he in [edge.he_plus, edge.he_minus] {
+                if let Some(row) = out.pcurves.get(he) {
+                    let row = row
+                        .stretched(stretch)
+                        .ok_or(TransformError::Corrupt { found: UNSTRETCHED })?;
+                    out.pcurves.insert(he, row);
+                }
+            }
+        }
         let description = match old.description() {
             EdgeDescription::Intersection { pair, selector } => EdgeDescription::Intersection {
                 pair: *pair,
@@ -767,7 +799,16 @@ pub(crate) fn map_isometry<T: Decide>(
             // reflection the image is restated with its chart.
             EdgeDescription::Chart(c) => EdgeDescription::Chart(geom_brep::ChartCurve {
                 surface: c.surface,
-                pcurve: mapped_image(body, c.surface, &c.pcurve, hand)?,
+                pcurve: {
+                    let image = mapped_image(body, c.surface, &c.pcurve, hand)?;
+                    if stretched {
+                        image
+                            .stretched(stretch)
+                            .ok_or(TransformError::Corrupt { found: UNSTRETCHED })?
+                    } else {
+                        image
+                    }
+                },
                 wrap: c.wrap,
             }),
             EdgeDescription::Scaffold(mc) => {
@@ -1312,12 +1353,12 @@ mod chain_rows {
     /// what it should square (the frames fail the door), under the line
     /// door the same, and under a squared line keeping its span: a line
     /// is squared every second move or so, and its ends then stand about
-    /// `3e-12 m` off their vertices.
+    /// `2e-12 m` off their vertices.
     #[test]
     fn a_brick_moved_by_a_motion_off_rigid_keeps_its_frames_and_its_ends() {
         // Each move translates the brick; a small step keeps a thousand
         // of them inside the session box.
-        use super::{Body, Curve3, CurveGeom, RigidMotion, transform_rigid};
+        use super::{Curve3, CurveGeom, RigidMotion, transform_rigid};
         use geom_core::{Affine3, Point3, UnitVec3};
         let tol = Tol::witness();
         let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.3, -0.7, 0.64), 0.83);

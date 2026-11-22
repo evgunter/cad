@@ -87,12 +87,14 @@ impl<'b, T: geom_core::Real> Seat<'b, T> {
         }
     }
 
-    /// A curve carrier of the body, in the reader's frame
-    /// ([`crate::transform::carrier_at`]); `None` where the map refuses.
+    /// A curve carrier of the body, in the reader's frame, with the
+    /// factor its parameter is the body's times
+    /// ([`crate::transform::carrier_at`]): a span on the body's carrier
+    /// is the image's scaled by it. `None` where the map refuses.
     #[must_use]
-    pub fn curve(&self, c: &geom::Curve3<T>) -> Option<geom::Curve3<T>> {
+    pub fn curve(&self, c: &geom::Curve3<T>) -> Option<(geom::Curve3<T>, T)> {
         match &self.at {
-            None => Some(c.clone()),
+            None => Some((c.clone(), T::one())),
             Some(m) => crate::transform::carrier_at(m, c).ok(),
         }
     }

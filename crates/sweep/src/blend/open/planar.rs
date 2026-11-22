@@ -386,27 +386,26 @@ pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
         BlendKind::Fillet => {
             let axis_of = |l: &Link<T>| match l.blend.surface {
                 Surface::Cylinder { frame, .. } => {
-                    let (origin, axis) = (frame.origin(), frame.axis());
-                    Ok((origin, axis.normalize()))
+                    Ok((frame.origin(), geom_core::UnitVec3::squared(frame.axis())))
                 }
                 _ => Err(disagrees(
                     EntityId::Vertex(vertex),
                     "a mixed corner's plane–plane fillet band is not a cylinder",
                 )),
             };
-            let (o_odd, a_odd) = axis_of(odd)?;
+            let (o_odd, a_odd_unit) = axis_of(odd)?;
+            let a_odd = a_odd_unit.get();
             // The odd band's axis pierces `E` at `p_e`; the rests lie in
             // the plane `r` off `E` on the pair balls' side.
             let p_e = o_odd + a_odd * ((p - o_odd).dot(n_e) / a_odd.dot(n_e));
             let toward = signed(p1.convexity, radius);
             let q = p_e - n_e * toward;
-            let section = |l: &Link<T>, centre: Point3<T>, normal: Vec3<T>| {
+            let section = |l: &Link<T>, centre: Point3<T>, normal: geom_core::UnitVec3<T>| {
                 (
                     l.edge,
                     BallSection {
                         centre,
-                        // A plane band's axis, normalized: checked.
-                        normal: geom_core::UnitVec3::checked(normal),
+                        normal,
                         radius,
                     },
                 )
@@ -414,7 +413,7 @@ pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
             // Each pair ball's rest, where its axis passes nearest `q`.
             let rest = |l: &Link<T>| -> Result<(EdgeKey, BallSection<T>), BlendError> {
                 let (o, a) = axis_of(l)?;
-                Ok(section(l, o + a * (q - o).dot(a), a))
+                Ok(section(l, o + a.get() * (q - o).dot(a.get()), a))
             };
             let rests = [rest(p1)?, rest(p2)?];
             for (l, (_, r)) in [p1, p2].into_iter().zip(rests) {
@@ -425,7 +424,7 @@ pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
             let two_r = radius + radius;
             (
                 CornerArcs::Mixed {
-                    sections: [rests[0], rests[1], section(odd, q, a_odd)],
+                    sections: [rests[0], rests[1], section(odd, q, a_odd_unit)],
                     host: (p_e, two_r),
                 },
                 Surface::Torus {

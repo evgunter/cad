@@ -3449,26 +3449,30 @@ impl<T: Real> EdgeCurve<T> {
 
     /// **This edge under an isometry, its certificate carried**: the
     /// mapped `carrier`, `description` and `authority` on this edge's
-    /// own interval, with its turn and certificate verbatim.
-    ///
-    /// The certificate is `{samples, max_residual}`, a distance between
-    /// the description and its carrier at the schedule's parameters, and
-    /// the turn is the interval against one period. An isometry keeps
-    /// both, and a map keeps the carrier's parameter, so both are the
-    /// image's. That holds only where the three arguments are this
-    /// edge's data under one isometry, or under the family of isometries
-    /// a boxed motion encloses: then the data encloses the edge's image
-    /// under each member, every member keeps the distance and the turn,
-    /// and the carried certificate is each image's. Keeping that is the
-    /// caller's, and `topo`'s data map (`map_isometry`) is the one caller.
-    #[must_use]
+    /// interval scaled by `stretch`, with its turn and certificate
+    /// verbatim.
     ///
     /// `stretch` is the factor the map scaled the carrier's parameter by:
     /// `one` for every carrier but a line whose image direction was
     /// squared ([`geom_core::UnitVec3::through_isometry`]), whose
     /// parameter, arc length along the squared direction, is the old one
     /// times the length the image was divided by. The span is scaled to
-    /// match, so the edge's ends stay where its vertices are.
+    /// match, so the edge's ends stay where its vertices are, and the
+    /// description's chart image is read on the same new parameter (the
+    /// caller's, [`crate::Pcurve::stretched`]).
+    ///
+    /// The certificate is `{samples, max_residual}`, a distance between
+    /// the description and its carrier at the schedule's parameters, and
+    /// the turn is the interval against one period. An isometry keeps
+    /// both. Under a stretch the schedule's parameters are the same
+    /// points, read on the stretched parameter, so both are the image's.
+    /// That holds only where the arguments are this edge's data under one
+    /// isometry, or under the family of isometries a boxed motion
+    /// encloses: then the data encloses the edge's image under each
+    /// member, every member keeps the distance and the turn, and the
+    /// carried certificate is each image's. Keeping that is the caller's,
+    /// and `topo`'s data map (`map_isometry`) is the one caller.
+    #[must_use]
     pub fn carried(
         &self,
         carrier: Curve3<T>,

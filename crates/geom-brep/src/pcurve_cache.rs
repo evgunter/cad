@@ -1580,6 +1580,47 @@ impl<T: Real> Pcurve<T> {
 }
 
 impl<T: SpanLocate> Pcurve<T> {
+    /// **This image read on a parameter `k` times its carrier's**:
+    /// `q(s) = p(s/k)`, for a line carrier whose image direction a map
+    /// squared and whose parameter it stretched by `k`
+    /// (`topo::transform`'s stretch). Exact where the image is affine in
+    /// its parameter, which every image a line carries is:
+    ///
+    /// - a [`Pcurve::Harmonic`] channel with no period (a constant
+    ///   angle, or a free channel with no `cos`/`sin` term) has its rate
+    ///   divided by `k`;
+    /// - a [`Pcurve::IsoLine`] has its velocity divided by `k`, its stated
+    ///   ends, chart points, kept.
+    ///
+    /// `None` for every other image (one with a period, an arc's, a
+    /// spiric's, a focal section's, a projected or a 2-D NURBS image):
+    /// no line carries one, and a map that met one would refuse it
+    /// rather than drift it off its parameter.
+    #[must_use]
+    pub fn stretched(&self, k: T) -> Option<Self> {
+        let zero = |x: T| x.structure_bracket() == Some((0.0, 0.0));
+        let channel = |c: &Channel<T>| match *c {
+            Channel::Angle { phase, winding: 0 } => Some(Channel::Angle { phase, winding: 0 }),
+            Channel::Angle { .. } => None,
+            Channel::Free { c, a, b, l } if zero(a) && zero(b) => {
+                Some(Channel::Free { c, a, b, l: l / k })
+            }
+            Channel::Free { .. } => None,
+        };
+        match self {
+            Pcurve::Harmonic { u, v } => Some(Pcurve::Harmonic {
+                u: channel(u)?,
+                v: channel(v)?,
+            }),
+            Pcurve::IsoLine { p0, pl, ends } => Some(Pcurve::IsoLine {
+                p0: *p0,
+                pl: *pl / k,
+                ends: *ends,
+            }),
+            _ => None,
+        }
+    }
+
     /// The chart points at the two ends of `span`, the span of the edge
     /// this image is stored on: an [`Pcurve::IsoLine`]'s stated `ends`
     /// where it holds them, the map's value at the span's ends
@@ -5225,6 +5266,26 @@ impl<T: Real> ChartImage<T> {
             Self::Image { pcurve, .. } | Self::Stated { pcurve, .. } => pcurve,
             Self::Certified(cache) => cache.pcurve,
         }
+    }
+}
+
+impl<T: SpanLocate> PcurveCache<T> {
+    /// **This row on a carrier whose parameter a map stretched by `k`**
+    /// ([`Pcurve::stretched`]): its image read on the new parameter and
+    /// its span scaled by `k`, so the row and its edge share one span. Its
+    /// certificate states distances, which the map keeps, and is carried;
+    /// its support, read at the old parameter, is dropped, so a door
+    /// asking its checks derives them. `None` where the image cannot be
+    /// read on a stretched parameter.
+    #[must_use]
+    pub fn stretched(&self, k: T) -> Option<Self> {
+        Some(Self {
+            pcurve: self.pcurve.stretched(k)?,
+            param_start: self.param_start * k,
+            param_end: self.param_end * k,
+            certificate: self.certificate,
+            support: None,
+        })
     }
 }
 
@@ -17955,5 +18016,72 @@ mod row_support_rows {
             (clamped.lo(), clamped.hi()) == (plain.lo(), plain.hi()) && !plain.same_value(clamped),
             "one enclosure, two decorations: {clamped:?} against {plain:?}"
         );
+    }
+}
+
+/// A chart image read on a stretched parameter ([`Pcurve::stretched`]).
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod stretched_rows {
+    use super::{Channel, Pcurve};
+    use geom_core::{Point2, Vec2};
+
+    /// **An affine image reads the same point at the stretched
+    /// parameter, and a periodic one refuses**: an iso line and a
+    /// harmonic image with a constant angle and a linear free channel,
+    /// stretched by `k = 1 + 20ε`, read at `k·t` the point they read at
+    /// `t`, to rounding; a free channel with a `cos` term and a winding
+    /// angle answer `None`. Red under the stretch multiplying the rate
+    /// by `k` (the points move by `2·k·t·ε`-scale), and under it keeping
+    /// a periodic image.
+    #[test]
+    fn an_affine_image_reads_its_point_at_the_stretched_parameter() {
+        let k = 1.0 + 20.0 * f64::EPSILON;
+        let iso = Pcurve::IsoLine {
+            p0: Point2::new(0.3, -1.2),
+            pl: Vec2::new(0.8, -0.6),
+            ends: None,
+        };
+        let harmonic = Pcurve::Harmonic {
+            u: Channel::fixed_angle(0.7),
+            v: Channel::Free {
+                c: 2.0,
+                a: 0.0,
+                b: 0.0,
+                l: 1.5,
+            },
+        };
+        for image in [iso, harmonic] {
+            let moved = image.stretched(k).unwrap();
+            for t in [0.0, 1.0, 37.5, 400.0] {
+                let (p, q) = (image.eval(t), moved.eval(k * t));
+                let off = (p.x - q.x).abs().max((p.y - q.y).abs());
+                assert!(off <= 4.0 * f64::EPSILON * (1.0 + t), "at {t}: {off:e}");
+            }
+            let wrong = image.eval(400.0 * k);
+            let read = moved.eval(400.0 * k);
+            assert!(
+                (wrong.y - read.y).abs() > 1e3 * f64::EPSILON,
+                "the stretch moves what the old image reads at the new parameter"
+            );
+        }
+        let periodic = Pcurve::Harmonic {
+            u: Channel::Angle {
+                phase: 0.0,
+                winding: 1,
+            },
+            v: Channel::constant(0.5),
+        };
+        assert!(periodic.stretched(k).is_none(), "a winding angle");
+        let conic = Pcurve::Harmonic {
+            u: Channel::fixed_angle(0.0),
+            v: Channel::Free {
+                c: 0.0,
+                a: 1.0,
+                b: 0.0,
+                l: 0.0,
+            },
+        };
+        assert!(conic.stretched(k).is_none(), "a cos term");
     }
 }

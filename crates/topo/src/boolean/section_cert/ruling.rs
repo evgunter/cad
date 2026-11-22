@@ -484,8 +484,10 @@ impl<T: Real> Chart<T> {
     fn line(&self, theta: T) -> geom::Line<T> {
         geom::Line {
             origin: self.base + self.offset.at(theta),
-            // The chart's ruling swing, an axis and its square pair
-            // weighted by `cos`, `sin`, held as bare vectors: checked.
+            // The chart's ruling swing, `a·c + u_ref·s` or the wall's
+            // `(a × u_ref)·s` over a squared frame, weighted by one
+            // angle's cosine and sine: an enclosure of a unit vector by
+            // that construction.
             dir: geom_core::UnitVec3::checked(self.dir.at(theta)),
         }
     }

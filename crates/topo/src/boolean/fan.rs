@@ -672,7 +672,7 @@ mod rows {
         for sense in [true, false] {
             let apex = ConeApex {
                 apex: o,
-                axis: Vec3::new(0.0, 1.0, 0.0),
+                axis: geom_core::UnitVec3::exact_y(),
                 half_angle: h,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
                 sense,
@@ -730,7 +730,7 @@ mod rows {
         let start = down * half.cos() + side * half.sin();
         let apex = ConeApex {
             apex: Point3::new(0.0, 1.0, 0.0),
-            axis: down * -1.0,
+            axis: geom_core::UnitVec3::checked(down * -1.0),
             half_angle: half,
             u_ref: side,
             sense: true,

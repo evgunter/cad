@@ -130,11 +130,6 @@ impl<T: Real> Placing<T> {
         })
     }
 
-    /// A direction turned by the turn, `None` when there is none.
-    pub(crate) fn turn_vec(self, v: Vec3<T>) -> Option<Vec3<T>> {
-        self.turn.map(|turn| turn.anchored.transform_vec(v))
-    }
-
     /// Whether a turn follows the placement.
     pub(crate) fn is_turned(self) -> bool {
         self.turn.is_some()
@@ -156,18 +151,24 @@ impl<T: Real> Placing<T> {
     /// re-derived from placed points.
     pub(crate) fn direction(self, d: Unit2<T>) -> Unit3<T> {
         let Unit2(d) = d;
-        // A rigid carry of a normalized sketch direction, a bare `Vec2`
-        // unit by its normalization: checked ([`UnitVec3::checked`]).
-        Unit3(UnitVec3::checked(
-            self.carry(self.place.linear * Vec3::new(d.x, d.y, T::zero())),
-        ))
+        // The sketch direction is a normalization (`sketch_direction`), a
+        // bare `Vec2`, so it is checked; its two rigid carries are the
+        // rigid image's door ([`RigidMotion::turn`]), the placement's
+        // linear part the same as `place`'s.
+        let placed = self
+            .motion
+            .turn(UnitVec3::checked(Vec3::new(d.x, d.y, T::zero())));
+        Unit3(match self.turn {
+            None => placed,
+            Some(turn) => turn.anchored.turn(placed),
+        })
     }
 
     /// **The station's frame**: the rigid frame this placing's
     /// placement is ([`RigidMotion::to_affine`] of it), carried by the
     /// turn where there is one ([`RigidMotion::carried_by`]). A rigid
-    /// image of a rigid frame, so nothing is decided and nothing is
-    /// re-squared.
+    /// image of a rigid frame, so nothing is decided; the image is
+    /// measured, and re-squared only past its rounding.
     pub(crate) fn frame(self) -> RigidMotion<T> {
         self.carry_frame(self.motion)
     }
@@ -177,8 +178,8 @@ impl<T: Real> Placing<T> {
     /// of the sketch vector `d` ([`RigidMotion::spun_toward`], which
     /// normalizes `d` once, as [`sketch_direction`] does), then carried
     /// by the turn. Its `u` is [`Self::direction`] of that sketch
-    /// direction, its `w` the station's normal, and nothing is decided
-    /// or re-squared.
+    /// direction, its `w` the station's normal, and nothing is decided:
+    /// the frame is measured, and re-squared only past its rounding.
     pub(crate) fn frame_toward(self, d: Vec2<T>) -> RigidMotion<T> {
         self.carry_frame(self.motion.spun_toward(d))
     }
@@ -190,12 +191,6 @@ impl<T: Real> Placing<T> {
             None => frame,
             Some(turn) => frame.carried_by(turn.anchored),
         }
-    }
-
-    /// A placed direction turned by the turn, or as it is when there is
-    /// none.
-    pub(crate) fn carry(self, v: Vec3<T>) -> Vec3<T> {
-        self.turn_vec(v).unwrap_or(v)
     }
 
     /// A sketch point placed, then turned.
@@ -849,7 +844,8 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
 ///
 /// An arc's carrier is `place`'s frame turned onto the arc's start
 /// radial ([`Placing::frame_toward`]) and run back where the turn
-/// negates the axis: rigid by construction, nothing re-squared. Where
+/// negates the axis: rigid by construction, re-squared only past its
+/// rounding. Where
 /// `radial` is given the copy is the fixed one turned a half turn about
 /// an axis through its centre and its start radial, which turns its
 /// plane's normal over and keeps the radial: its carrier is the fixed
@@ -962,8 +958,8 @@ pub(crate) enum CapEnd {
 /// [`Placing::frame`]), and the cap is that frame as it stands, run back
 /// ([`RigidMotion::reversed`]) where the normal is negated: every cap
 /// vertex, being a sketch point placed by that frame, lies on the
-/// plane. Nothing is fitted to the vertices and the frame is not
-/// re-squared, so nothing is decided here.
+/// plane. Nothing is fitted to the vertices and the frame is taken as it
+/// stands, so nothing is decided here.
 pub(crate) fn cap_plane<T: Real>(
     station: RigidMotion<T>,
     reversed: bool,

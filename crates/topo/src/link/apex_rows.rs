@@ -25,6 +25,12 @@ fn v<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
     Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
 }
 
+/// A unit direction `(x, y, z)`, checked at `f64` and lifted into `T` as
+/// a direction ([`geom_core::UnitVec3::map_scalar`]).
+fn unit<T: Real>(x: f64, y: f64, z: f64) -> geom_core::UnitVec3<T> {
+    geom_core::UnitVec3::checked(Vec3::new(x, y, z)).map_scalar(T::from_f64)
+}
+
 /// `(x, y, z)` turned a third of a turn about `(1, 1, 1)` to `(z, x, y)`,
 /// as `lens_rows::v` turns its own: the boss's floor and the plate's top,
 /// square to `z` here, then span the apex's `y` and `z`.
@@ -64,7 +70,7 @@ const ALPHA: f64 = core::f64::consts::FRAC_PI_6;
 fn cone<T: Real>(p: Point3<T>, sense: bool) -> crate::sector_face::ConeApex<T> {
     crate::sector_face::ConeApex {
         apex: p,
-        axis: v(0.0, 1.0, 0.0),
+        axis: geom_core::UnitVec3::exact_y(),
         half_angle: T::from_f64(ALPHA),
         u_ref: v(1.0, 0.0, 0.0),
         sense,
@@ -137,7 +143,7 @@ fn whole<T: Decide>(p: Point3<T>, m: Vec3<T>) -> TangentPiece<T> {
 fn tipped_cone<T: Real>(p: Point3<T>, gamma: f64, off: Vec3<T>) -> crate::sector_face::ConeApex<T> {
     crate::sector_face::ConeApex {
         apex: p + off,
-        axis: v(gamma.sin(), -gamma.cos(), 0.0),
+        axis: unit(gamma.sin(), -gamma.cos(), 0.0),
         half_angle: T::from_f64(ALPHA),
         u_ref: v(0.0, 0.0, 1.0),
         sense: false,
@@ -569,7 +575,7 @@ fn a_nappe_is_read_only_beside_a_rest_and_no_horn<T: Decide>() {
         let lobe = TangentPiece::Apex(ApexLobe {
             cone: crate::sector_face::ConeApex {
                 apex: p,
-                axis: v(c, -s, 0.0),
+                axis: unit(c, -s, 0.0),
                 half_angle: T::from_f64(ALPHA),
                 u_ref: v(0.0, 0.0, 1.0),
                 sense: false,
@@ -839,7 +845,7 @@ fn nappe_by<T: Real>(
         cone: crate::sector_face::ConeApex {
             apex: p + off,
             // The carrier's axis points off the nappe, as a tipped cone's does.
-            axis: v(-gamma.sin(), gamma.cos(), 0.0),
+            axis: unit(-gamma.sin(), gamma.cos(), 0.0),
             half_angle: T::from_f64(alpha),
             u_ref: v(0.0, 0.0, 1.0),
             sense,

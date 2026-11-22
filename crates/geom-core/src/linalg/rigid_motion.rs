@@ -688,6 +688,14 @@ impl<T: Real> RigidMotion<T> {
     /// rounding is measured and squared at a point scalar, and a pair
     /// `(c, s)` off the unit circle is refuted, poisoned
     /// ([`UnitVec3::through_isometry`]'s measurement).
+    ///
+    /// **It measures the swing's length, not its angle.** A frame whose
+    /// `u` is off square to `w` by `δ` swings a unit-to-rounding
+    /// direction `δ·s` off its angle, and nothing here sees that: the
+    /// frame's own mint answers for it. A frame squared about `w` from a
+    /// `u` nearly parallel to it ([`RigidMotion::squared_about`], `u` at
+    /// an angle `θ` off `w`) is square only to about `ε/sin θ`: at
+    /// `θ ≈ 1e-3`, about `1000ε` in `cos α`.
     #[must_use]
     pub fn swing(self, c: T, s: T) -> UnitVec3<T> {
         UnitVec3::kept_or_squared(self.w.get() * c + self.u.get() * s).0
