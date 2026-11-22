@@ -36,3 +36,25 @@ Open question: what a viewer seat should do when it is handed a family
 whole. Designers first. Adjacent:
 `work/doors/the-split-mirror-and-pattern-seats-read-a-picked-members-whole-family.md`
 (a picked member read as the whole family).
+
+## The design (2026-11-22)
+
+A subtract's tool is a `Bodies` seat, as union's, intersect's and
+assemble's members are (DESIGN `[repetition]`, REFERENCES DM4).
+`subtract(a, holes)` cuts `a` by every member, as the fold
+`a − t₁ − … − tₙ`; `subtract(a, holes[k])` cuts member by member. What a
+seat does with a family read whole then follows from the seat's kind, in
+the recipe, and no viewer seat needs a rule of its own:
+- **A `Bodies` seat** (union, intersect, assemble, a subtract's tool)
+  takes every member.
+- **A `Body` seat** (a subtract's kept body, split, mirror, fillet,
+  chamfer, shell, placement source, pattern input) is evaluated once
+  per member, and its result is a family.
+- **An indexed read `xs[k]`** is one member at any seat. A viewport pick
+  on a drawn member writes it (DOORS'
+  `the-split-mirror-and-pattern-seats-read-a-picked-members-whole-family`,
+  widened to every body seat).
+
+The intersect's `Empty` over a pattern of disjoint copies and a cutter is
+the true meet, not a defect. The held-picks label says "every member" at
+a `Bodies` seat and "each member" at a `Body` seat.

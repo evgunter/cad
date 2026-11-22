@@ -2301,7 +2301,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "CrossingEscalated",
             R::CrossingEscalated {
                 edge,
-                fault: topo::ConicRootFault::CrossingInterior(diag()),
+                fault: topo::CrossWhy::Method {
+                    door: geom_brep::curve_face::Door::PlaneCrossing,
+                    fault: geom_brep::curve_pair::MeetFault::Escalated(diag()),
+                },
             },
         ),
         (

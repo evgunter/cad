@@ -5322,6 +5322,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart",
             "face_chart_backwards",
             "face_chart_unleverable",
+            "face_chart_unseated",
             "meet",
             "through",
         ],

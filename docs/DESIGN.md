@@ -421,11 +421,15 @@ curve pairs.
   branches on it; keys are *body-lineage-scoped* (key identity across
   same-history builds is what lets an interval replay share topology
   with the f64 build). The certified-lane pattern is **f64 structure +
-  `T` payload**: candidate generation (`ssi::jet`/`march`/`system`, the
-  analytic composite's implicit form) is `f64`-only and untrusted, and
-  the certificate is derived and carried at `T` (`SsiCertificate<T>`,
-  `FittedLane`) — so a WIDENED analytic operand refuses typed
-  rather than picking a representative surface out of the family.
+  `T` payload**: candidate generation (`ssi::jet`/`march`/`system`)
+  is `f64`-only and untrusted, and the certificate is derived and
+  carried at `T` (`SsiCertificate<T>`, `FittedLane`). The analytic
+  composite's coefficients are enclosures built at the lane scalar, so
+  a WIDENED analytic operand is certified as the family it is rather
+  than represented by a surface picked out of it. The one reading that
+  still holds an analytic operand as `f64` structure is the chart
+  tube's partner form (`ssi::certify::chart_partner_form`), which
+  refuses a widened partner typed (`CHART_TUBE_PARTNER_INEXACT`).
 - **What a lane scalar takes from `f64` is a choice, never a claim,
   and the same across the box.** This holds of every scalar that is
   not `f64`, a `Dual` and a `Sym` as much as an `Interval`: at a
@@ -1232,11 +1236,12 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    touch by value.
 
 **Records follow the file.** A surface entity the file states is one
-surface record, worn by every face of one shell that cites it; two
-entities are two records unless healing's reported one-record act joins
-them (step 3); each face is certified against its record; and the writer
-emits one surface entity per surface record. No comparison of printed
-values decides which record a face wears.
+surface record, worn by every face of one shell that cites it, and a
+record a normalization mints (a knot split's sub-patch) is a record of
+its own; two entities are two records unless healing's reported
+one-record act joins them (step 3); each face is certified against its
+record; and the writer emits one surface entity per surface record. No
+comparison of printed values decides which record a face wears.
 
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
 *input tolerance* ε_in — defaulted from the STEP file's declared
@@ -1336,7 +1341,11 @@ suits the slot.
   the profile's own axes (an extrude's signed depth, above or below the
   profile's plane, and its slant) or a point and a heading (a revolve's axis line). A
   profile drawn on a `Frame` may read traces in its plane
-  ("Constructing a coincidence").
+  ("Constructing a coincidence"). A profile drawn on a face's chart
+  may also hold that face's boundary loops as loops of its own: the
+  outline, or the hole through a named edge. Such a loop stores names
+  and no number, and is the face's boundary as it is at each
+  evaluation, as a shell's open face is.
 - *Spaces:* `Space`, a coordinate system ([placement.spaces]). A
   space holds nothing and contains nothing: no pose, no number, no
   member list, and no origin, axis or plane that a reader takes as a
@@ -1499,8 +1508,9 @@ no pattern operation. A variable defined by reading `k` is, to a
 reader that reaches the same `k`, its member at the same value, and to
 every other reader the whole family: `xs[i, j]` reads one member, and
 `union`, `intersect` and `assemble` take a `Bodies`: a family, or its
-members spelled as reads; a subtract's tool is one `Body`, so cutting by a family is
-`subtract(a, union(holes))`.
+members spelled as reads; so does a subtract's tool, so
+`subtract(a, holes)` cuts `a` by every member, and `subtract(a, holes[k])`
+cuts it member by member.
 Lockstep is one index read twice. An index enters a placement as a value, a slide or a
 spin that is a `Length` or `Angle` expression over it, or through a
 mate whose target is a member of another family
