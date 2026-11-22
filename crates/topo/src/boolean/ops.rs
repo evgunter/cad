@@ -7460,8 +7460,13 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                             .find_map(|w| w.why.diag())
                             .map_or_else(uncertified, esc));
                     }
-                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::NoPlane) => {
-                        unreachable!("the cut-in reads its arcs across the meridian's plane")
+                    Err(
+                        geom_brep::curve_pair::on_surface::AcrossRefusal::NoPlane
+                        | geom_brep::curve_pair::on_surface::AcrossRefusal::AgainstTheTable,
+                    ) => {
+                        unreachable!(
+                            "the table reads a circle edge across a sphere meridian's plane"
+                        )
                     }
                     // Every piece inherits the cut face's record (the
                     // `mef` below): a piece on another is a fault here.

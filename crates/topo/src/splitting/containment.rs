@@ -2015,8 +2015,8 @@ pub(crate) fn arc_crossings<T: Decide>(
         Err(AcrossRefusal::OffRecord { edge, curve }) => {
             unreachable!("the walk keys its arc and its ray by one face: {edge:?}, {curve:?}")
         }
-        Err(AcrossRefusal::NoPlane) => {
-            unreachable!("the walk reads its arc across the ray's plane")
+        Err(AcrossRefusal::NoPlane | AcrossRefusal::AgainstTheTable) => {
+            unreachable!("the table reads every edge across the walk's ray's square plane")
         }
     };
     let mut crossings = 0;
