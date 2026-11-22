@@ -2,10 +2,11 @@
 id: a-drive-finishes-a-body-again-in-every-leaf-whose-box-does-not-move-it
 kind: issue
 title: A drive builds and finishes a body again in every leaf, though the leaf's box moves none of its inputs: a third of the tour's leaf time
-status: open
+status: parked
 opened: 2026-11-22
 priority: P1
 cost: H
+blocked_on: [a-drive-splits-a-box-along-a-variable-its-undecided-node-does-not-read, a-nodes-content-key-at-the-symbolic-scalar-hashes-the-number-and-not-the-expression, a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state, a-drive-keeps-no-node-result-from-one-leaf-to-the-next]
 ---
 
 
@@ -185,3 +186,10 @@ the split rule divides it with the replay count.
 the holes in every replay; a drive in which a retry runs; the store's
 memory on wide documents; whether a leaf waiting on another's entry
 can stall the thread pool.
+
+**Ev's answer (PR 7368, 2026-11-22): "this sounds great!"** Built as
+four units, this row parked on them: the split rule
+(`a-drive-splits-a-box-along-a-variable-its-undecided-node-does-not-read`),
+the key (`a-nodes-content-key-at-the-symbolic-scalar-hashes-the-number-and-not-the-expression`),
+the session's state (`a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state`)
+and the store (`a-drive-keeps-no-node-result-from-one-leaf-to-the-next`).
