@@ -112,7 +112,7 @@ fn span(at: Point2<f64>, a: Point2<f64>, b: Point2<f64>) -> f64 {
 
 /// A short discriminant of an entry's reason, for the mixed-reason
 /// count: two entries "mix" when these differ.
-fn reason_kind(reason: &CornerReason<f64>) -> &'static str {
+fn reason_kind(reason: &CornerReason) -> &'static str {
     match reason {
         CornerReason::OutsideAnchors(_) => "OA",
         CornerReason::NoTangentCircle(_) => "NT",
@@ -324,10 +324,17 @@ fn c3_the_envelope_radius_is_the_authored_one_on_every_arm() {
     for r in [0.25, 0.3, 0.35, 0.4] {
         let err =
             arc_arc(0.0, 0.2, -1.0, 0.3, 1.2, 0.2, -1.0, 0.3, r).expect_err("r swallows a carrier");
-        let PathError::NoCornerOfPair { radius, corners } = &err else {
+        let PathError::NoCornerOfPair {
+            radius, corners, ..
+        } = &err
+        else {
             panic!("expected the envelope, got {err:?}")
         };
-        assert_eq!(*radius, r, "the envelope renamed the radius");
+        assert_eq!(
+            radius.as_given(),
+            Some(r),
+            "the envelope renamed the radius"
+        );
         assert!(
             corners
                 .iter()

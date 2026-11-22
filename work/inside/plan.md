@@ -23,7 +23,7 @@ points against 30 with its P0 units landed or parked (PRs 4363, 4368,
 | P2 | `point-in-solid-refuses-a-ringed-cylinder-wall` | M | point_in_solid's wall outline refuses any ringed cylinder wall, so a later union member's containment probe stops on a pierced boss |
 | P2 | `the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start` | M | The census's collinear edge-edge lane reads two edges' line offset at the second edge's start, so its overlap verdict depends on arena order: a body whose edges part by 21 bands reads an undeclared overlap |
 | P2 | `the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided` | M | The census material probe reads only an inner solid's vertices, so a solid nested flush on every side its vertices touch is CensusUndecidable(AllOn) where a face interior would decide it |
-| P2 | `torus-split-lead-escalates-a-legitimately-small-resolvent-root` | D | line_torus_roots' rung 3 (bool_ray_torus_split_lead) escalates every ray whose odd coefficient is small but decided nonzero, not only a rounding-scale contradiction |
+| P2 | `torus-split-lead-escalates-a-legitimately-small-resolvent-root` | D | line_torus_roots' rung 3 (line_quadric_torus_split_lead) escalates every ray whose odd coefficient is small but decided nonzero, not only a rounding-scale contradiction |
 | P3 | `cone-chart-trim-reads-a-tilted-section-as-its-vertex-window` | M | cone_chart_trim folds the slant window over boundary vertices with no edge-class check, so a cone face bounded by a tilted planar section would be misread; no door builds one today |
 
 ## Order

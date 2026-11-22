@@ -76,14 +76,10 @@ impl<T: Decide, F: Flavor> OntoTarget<T, F> for ArrivesTangent {
 /// A fillet arrival's bare anchor has no departure to leave from: its
 /// arrival is authored WITH the fillet that trims it, as for `arc_to`.
 fn refuse_open_fillet<T: Real>(core: &Core<T>) -> Result<(), PathError<T>> {
-    if core.pending.is_some() {
-        return Err(PathError::ArcLegOnOpenFillet {
-            site: "an arc that arrives along a direction from a fillet's arrival anchor is the \
-                   fillet's ARC ARRIVAL — fillet_arc(r, spec) / arc_fillet_arc(spec, r, spec2) \
-                   — not an arc_onto leg from an already-positioned arrival point",
-        });
-    }
-    Ok(())
+    Ok(super::order::arc_leg_leaves_no_open_fillet(
+        core.pending.is_some(),
+        super::order::site::ARC_ONTO,
+    )?)
 }
 
 /// `arc_onto(p)`: the target is bound and the ONE director that names
@@ -211,16 +207,13 @@ fn close<T: Decide>(
         site: "close before the entry position is bound",
     })?;
     let pos = tip_pos(tip)?;
+    // The first leg binds the start direction, so it is bound exactly
+    // where a leg was drawn.
+    super::order::a_closing_arc_leaves_its_entry(core.start_ang.is_some())?;
     let (how, arrival) = match (arrival, core.start_ang) {
         (Some(arrival), _) => (SeamArrival::Undeclared, arrival),
         (None, Some(start_ang)) => (SeamArrival::Supplied, start_ang),
-        // `Start`'s direction is unbound only while the tip IS the
-        // entry, so the chord the token would close is the zero one.
-        (None, None) => {
-            return Err(PathError::DegenerateArcChord {
-                chord: (start_pos - pos.at).norm_squared().sqrt(),
-            });
-        }
+        (None, None) => unreachable!("a leg was drawn, so the start direction is bound"),
     };
     let (g, departure) = onto_arc_geom(pos.at, arrival, start_pos, tol)?;
     let start_ang = depart(&mut core, pos, departure, tol)?;

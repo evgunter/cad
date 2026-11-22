@@ -293,15 +293,11 @@ pub(super) fn apply_rule_a<T: Decide>(
                     // WHOLE-FACE extent, which decides a bend more
                     // readily than the contact's own arm would —
                     // arm-policy question, own unit.
-                    let so_margin = Margin::sagitta(kappa, extent.length());
+                    let so_margin = Margin::sagitta(kappa, extent);
                     match decide("tangent_sector_osculation", so_margin, band) {
                         Ok(Sign::Positive) => {
                             let bend = geom_brep::bends_into_material(
-                                surface,
-                                p_base,
-                                n_face,
-                                extent.length(),
-                                band,
+                                surface, p_base, n_face, extent, band,
                             )
                             .map_err(|e| match e {
                                 geom_brep::WallBendError::Indefinite(kind) => unreachable!(

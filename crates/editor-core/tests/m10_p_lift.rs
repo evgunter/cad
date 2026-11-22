@@ -113,10 +113,7 @@ fn an_f64_profile_log_and_an_interval_one_diff_to_no_flip() {
             }
             compared += 1;
             if let Some(delta) = flips.nodes.get(&id) {
-                parted.push(format!(
-                    "{} {id:?}: flips {:?} diverged {:?}",
-                    doc.name, delta.flips, delta.diverged
-                ));
+                parted.push(format!("{} {id:?}: flip {:?}", doc.name, delta.flip));
             }
         }
     }

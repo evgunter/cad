@@ -79,11 +79,9 @@ pub(super) struct Ring {
 impl Ring {
     pub(super) fn surface(&self) -> Surface<f64> {
         Surface::Torus {
-            center: self.c,
-            axis: self.a,
+            frame: geom::Frame::new(self.c, self.a, self.b1),
             major_radius: self.big_r,
             minor_radius: self.r,
-            u_ref: self.b1,
         }
     }
 
@@ -123,10 +121,8 @@ impl Wall {
 
     pub(super) fn surface(&self) -> Surface<f64> {
         Surface::Cylinder {
-            origin: self.o,
-            axis: self.d,
+            frame: geom::Frame::new(self.o, self.d, self.e1),
             radius: self.rc,
-            u_ref: self.e1,
         }
     }
 }

@@ -1781,7 +1781,7 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
             // side's R and its offset radius is the row's own negative
             // ρ, re-derived here from the drawn geometry rather than
             // read back from the construction.
-            Err(ref err @ PathError::NoCornerOfPair { radius, .. }) => {
+            Err(ref err @ PathError::NoCornerOfPair { ref radius, .. }) => {
                 // WHICH corner: the drawn one, alone — the envelope
                 // names the corner the table authored and nothing else.
                 crate::common::assert_corners(
@@ -1798,7 +1798,11 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
                          envelope carries none: {err:?}"
                     )
                 };
-                assert_eq!(radius, case.r, "{name}: the refusal renamed the radius");
+                assert_eq!(
+                    radius.as_given(),
+                    Some(case.r),
+                    "{name}: the refusal renamed the radius"
+                );
                 // Every table row swallows BOTH carriers, so the refusal
                 // says so rather than picking a side.
                 assert_eq!(
@@ -2221,6 +2225,8 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
             margin,
             ..
         }) => {
+            let [offset_radius, least_lever, margin] =
+                [offset_radius, least_lever, margin].map(|x| crate::common::told(&x));
             assert_eq!(side, profile::FilletLeg::Outgoing);
             assert!(
                 (offset_radius - rho).abs() < 1e-15,
@@ -2295,7 +2301,7 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         // enclosing-class variant on every shipped band (measured at
         // 1e-6 / 1e-9 / 1e-12), naming a swallowed side whose carrier
         // radius bounds the fillet and whose rho is negative.
-        Err(ref err @ PathError::NoCornerOfPair { radius, .. }) => {
+        Err(ref err @ PathError::NoCornerOfPair { ref radius, .. }) => {
             crate::common::assert_corners(err, &[(corner.x, corner.y)], "the mined corner");
             let Some((side, carrier_radius, offset_radius, largest_tangent_radius)) =
                 crate::common::enclosing(err)
@@ -2305,7 +2311,7 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
                      (crates/profile/README.md); the envelope carries none: {err:?}"
                 )
             };
-            assert_eq!(radius, r, "the refusal renamed the radius");
+            assert_eq!(radius.as_given(), Some(r), "the refusal renamed the radius");
             assert_eq!(side, None, "this corner swallows BOTH carriers");
             assert!(
                 (carrier_radius - r1.min(r2)).abs() < 1e-15,
@@ -2500,6 +2506,9 @@ fn a_collapsed_offset_lever_refuses_typed_at_every_band() {
             least_lever,
             margin,
         }) => {
+            let [carrier_radius, offset_radius, least_lever, margin] =
+                [carrier_radius, offset_radius, least_lever, margin]
+                    .map(|x| crate::common::told(&x));
             // The lever gate's own definite arm (ε = 1e-12 and
             // tighter): naming the exposed leg and carrying the lever,
             // the threshold and the shortfall.

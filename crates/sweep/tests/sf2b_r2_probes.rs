@@ -75,12 +75,10 @@ fn cone_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
 fn describe_cones(what: &str, body: &Body<f64>) {
     for (k, f) in body.faces() {
         if let Some(Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         }) = body.face_surface(k)
         {
+            let (apex, axis) = (frame.origin(), frame.axis());
             // Which nappe: the sum of the face's own corner stations.
             println!(
                 "[r2] {what}: {k:?} sense={} apex={:?} axis={:?} alpha={half_angle}",
@@ -243,6 +241,16 @@ fn r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges() {
             Ok(()),
             "conical wedge {what}: tier 3"
         );
+        // The cavity's caps are bounded by the hyperbolic arcs, rational
+        // quadratics: each face's window is read off its edges' covers,
+        // so every face of the hollow has one.
+        let side = topo::clearance::Side {
+            body: &hollow,
+            faces: hollow.faces().map(|(k, _)| k).collect(),
+        };
+        if let Err(e) = side.windows(topo::clearance::Which::First) {
+            panic!("conical wedge {what}: every face has a window, got {e:?}");
+        }
         let arcs = hollow
             .edges()
             .filter(|(_, edge)| {
@@ -457,7 +465,7 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         .faces()
         .filter(|(fk, _)| {
             matches!(pot.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - y_mouth).abs() < 1e-15)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - y_mouth).abs() < 1e-15)
         })
         .map(|(k, _)| k)
         .collect();
@@ -510,7 +518,7 @@ fn r2_stepped_vase_lift_branch() {
         .faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - 8.0 / 64.0).abs() < 1e-15)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - 8.0 / 64.0).abs() < 1e-15)
         })
         .map(|(k, _)| k)
         .collect();

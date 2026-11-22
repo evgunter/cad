@@ -135,9 +135,9 @@ pub fn rest_pair_verdict<T: Decide>(
         // torus first (`ValidationError::DegenerateTorus`), so no row
         // reaches this arm through one; at a dual, `Replay`'s "A tier-3
         // premise at a dual".
-        Err(CarrierEqError::OffRing { refusal, .. }) => Err(match refusal.verdict {
-            geom_brep::TorusVerdict::Undecided(diag) => ContactRefusal::Escalated { diag },
-            geom_brep::TorusVerdict::Refused(_) => ContactRefusal::NotCertifiable {
+        Err(CarrierEqError::OffRing { refusal, .. }) => Err(match refusal.standing() {
+            geom_brep::TorusStanding::Ranked(diag) => ContactRefusal::Escalated { diag },
+            geom_brep::TorusStanding::InvalidInput(_) => ContactRefusal::NotCertifiable {
                 what: "a recorded face's torus is outside the ring convention (a horn or \
                        spindle torus, or one with no tube), which no carrier is compared on",
             },
@@ -155,7 +155,7 @@ pub fn rest_pair_verdict<T: Decide>(
 /// - **must-verify-DEFINITE**: the two surfaces touch, their
 ///   separation along the shared normal within ε (`touching`, and the
 ///   span line after the loop); the witness lies within ε of each
-///   surface (`on_surface`); and the two outward normals are parallel
+///   surface (`on_surface_as`); and the two outward normals are parallel
 ///   within the derived angle at lever arm `1/κ_rel`, the C7 threshold
 ///   verbatim, and definitely OPPOSED;
 /// - **rules out** ([`TangentVerdict::Ruled`]): definite separation or
@@ -334,7 +334,7 @@ fn tangent_table<T: Decide>(
     // parallel reading's Zero is what verifies the contact. (The edge
     // certifier levers the same pair at its faces' extent; this table
     // has no faces.)
-    let extent = geom_brep::edge_extent_sup(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)));
+    let extent = geom_brep::edge_extent_sup(carrier, t0, t1);
     let mut halvings = 0;
     loop {
         let samples = (CERT_SAMPLES - 1) * (1 << halvings) + 1;
@@ -488,7 +488,7 @@ fn tangent_pass<T: Decide>(
         let separation = touching(r1, sense1, r2, sense2 != agree, band)?;
         gap_max = gap_max.max(separation.abs());
         // The witness on both surfaces, read across the spans each
-        // sample bounds ([`on_surface`]).
+        // sample bounds ([`on_surface_as`]).
         for (side, r) in [(PairSide::First, r1), (PairSide::Second, r2)] {
             let on = match side {
                 PairSide::First => CONTACT_TANGENT_ON_1,
@@ -516,7 +516,7 @@ fn tangent_pass<T: Decide>(
         // second-order margin is therefore computed first and ACTED ON
         // last — computing it early must not let it refuse before the
         // first-order test (which can rule the pair out) has spoken.
-        let so = Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm.length());
+        let so = Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm);
         // Both readings run detached so the second-order one's
         // escalation reaches the frame's log only where the outcome
         // rests on it (`k_stats::splice_superseded`, below).
@@ -566,7 +566,7 @@ fn tangent_pass<T: Decide>(
             let (at, log) = geom_core::k_stats::detached(|| {
                 crate::validate::decide(
                     "contact_tangent_second_order_at",
-                    Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
+                    Margin::sagitta(jet.kappa_rel.abs(), arm),
                     band,
                 )
             });
@@ -624,10 +624,8 @@ fn tangent_pass<T: Decide>(
                 sign: Sign::Positive,
                 ..
             }) if claim == Claim::Contact => {
-                let crescent = Margin::sagitta(
-                    geom_brep::material_kappa_rel(jet.kappa_rel, sense1),
-                    arm.length(),
-                );
+                let crescent =
+                    Margin::sagitta(geom_brep::material_kappa_rel(jet.kappa_rel, sense1), arm);
                 match crate::validate::decide_reported("contact_tangent_overlap", crescent, band) {
                     Ok(Decided {
                         sign: Sign::Negative,
@@ -800,9 +798,11 @@ mod tests {
 
     fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::from_array(o),
-            normal: Vec3::from_array(n),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::from_array(o),
+                Vec3::from_array(n),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
     }
 
@@ -816,10 +816,12 @@ mod tests {
     #[test]
     fn cylinder_on_plane_verifies_definite_through_the_jet_loop() {
         let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            axis: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let ruling = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
@@ -836,10 +838,12 @@ mod tests {
     #[test]
     fn definite_normal_independence_rules_the_contact_out() {
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let equator = geom::Curve3::circle(
@@ -878,10 +882,12 @@ mod tests {
     #[test]
     fn perpendicular_normals_over_a_collapsed_locus_refuse() {
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let equator = geom::Curve3::circle(
@@ -922,10 +928,12 @@ mod tests {
     #[test]
     fn outside_the_lane_refuses_typed_rather_than_sampling() {
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 2.0),
-            axis: Vec3::new(0.0, 0.0, -1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 2.0),
+                Vec3::new(0.0, 0.0, -1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let along = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
@@ -1021,7 +1029,6 @@ mod tests {
                     Want::Off
                 }
                 Err(Unsettled::Sag(Some(diag))) => {
-                    // UNDECIDED-NAME: a row on_surface takes in a tuple the census does not open
                     assert_eq!(diag.predicate, Some("probe_on"), "{why}: the far side's");
                     Want::SagInBand
                 }
@@ -1077,11 +1084,13 @@ mod tests {
         // one the finest schedule's bounds end inside it and escalate.
         let b = Band::linear_at(Tol::witness(), 1e-9).unwrap();
         let torus = |x: f64| Surface::Torus {
-            center: Point3::new(x, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(x, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 1.0,
             minor_radius: 0.1,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (near, far) = (torus(0.0), torus(2.0));
         let meridian = geom::Curve3::circle(
@@ -1195,11 +1204,9 @@ mod tests {
         let torus = |c: Point3<f64>, a: Vec3<f64>, big: f64, r: f64| {
             let a = a.normalize();
             Surface::Torus {
-                center: c,
-                axis: a,
+                frame: geom::Frame::new(c, a, a.orthonormal_basis().0),
                 major_radius: big,
                 minor_radius: r,
-                u_ref: a.orthonormal_basis().0,
             }
         };
         let first = torus(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 2.0, 0.5);
@@ -1255,10 +1262,12 @@ mod tests {
     /// and the witness's place are set apart.
     fn lifted_cylinder_on_plane(gap: f64, witness: f64) -> TangentVerdict {
         let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0 + gap),
-            axis: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0 + gap),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let along = line([0.0, 0.0, witness], [1.0, 0.0, 0.0]);
@@ -1338,10 +1347,12 @@ mod tests {
     fn pin_in_bore(so_in_eps: f64, phi: f64) -> (Surface<f64>, Surface<f64>, geom::Curve3<f64>) {
         let b = band();
         let cyl = |c: [f64; 3], radius: f64| Surface::Cylinder {
-            origin: Point3::from_array(c),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::from_array(c),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         // `κ_rel = 1 − 1/R₂` across the touch, levered at the pin's
         // unit radius: the sagitta is `κ_rel / 2`.
@@ -1435,10 +1446,12 @@ mod tests {
     fn the_door_reads_any_sense_and_any_crescent() {
         let b = band();
         let cyl = |cx: f64, radius: f64| Surface::Cylinder {
-            origin: Point3::new(cx, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(cx, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (fat, small) = (cyl(0.0, 2.0), cyl(1.0, 1.0));
         let at_two = line([2.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
@@ -1532,11 +1545,9 @@ mod tests {
         let m = Vec3::new(-tilt.sin(), 0.0, tilt.cos());
         let mirror = |v: Vec3<f64>| v - m * (2.0 * v.dot(m));
         let torus = |axis: Vec3<f64>, u_ref: Vec3<f64>| Surface::Torus {
-            center: Point3::origin(),
-            axis,
+            frame: geom::Frame::new(Point3::origin(), axis, u_ref),
             major_radius: big,
             minor_radius: small,
-            u_ref,
         };
         let (z, x) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
         let circle = geom::Curve3::circle(

@@ -1605,7 +1605,7 @@ fn the_persisted_spelling_of_the_program_is_pinned() {
 /// **Lift-then-erase is erase-then-lift**: a recorded program lifted
 /// to its document form and then value-erased
 /// ([`LoopProgram::shape`]) is the recording value-erased directly
-/// ([`editor_core::StepShape::of_recorded`]), over every verb, mode,
+/// ([`editor_core::shape_of_recorded`]), over every verb, mode,
 /// target form and structural tag the corpus reaches. So an address an
 /// authoring call derives from its recording binds in the program the
 /// recording lifts to.
@@ -1615,10 +1615,8 @@ fn lifting_then_erasing_is_erasing_the_recording() {
     let resolved = program.resolve(&env).expect("the corpus resolves at f64");
     for (l, steps) in resolved.iter().enumerate() {
         let lifted = LoopProgram::from_recorded(steps).expect("a literal recording lifts");
-        let erased: Vec<editor_core::StepShape> = steps
-            .iter()
-            .map(editor_core::StepShape::of_recorded)
-            .collect();
+        let erased: Vec<editor_core::StepShape> =
+            steps.iter().map(editor_core::shape_of_recorded).collect();
         assert_eq!(lifted.shape(), erased, "loop {l}: lift then erase");
         assert_eq!(
             program.loops[l].shape(),

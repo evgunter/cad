@@ -49,7 +49,7 @@ step is argued here, and this one joins it). For the torus
 `P = ((R + r cos φ) cos θ, (R + r cos φ) sin θ, r sin φ)`:
 `‖P_θθ‖ = R + r cos φ ≤ R + r`, `‖P_φφ‖ = r`, `‖P_θφ‖ = r|sin φ| ≤ r`,
 over the face's actual φ window where that is tighter (a face is an
-iso-rectangle in (θ, φ), `curved::require_iso_rectangle_face`, so the
+iso-rectangle in (θ, φ), `curved::iso_rectangle_shape`, so the
 window is known).
 
 Choose `h_u`, `h_v` to meet `dev ≤ δ_s` with a documented split of the

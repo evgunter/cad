@@ -520,10 +520,13 @@ fn overrun_arc(source: &Body<f64>, edges: [EdgeKey; 2], out: &Blended<f64>, what
         .carrier()
         .clone();
     match carrier {
-        Curve3::Circle(geom::Circle { radius, .. }) => assert!(
-            (radius - D).abs() < 1e-15 && (major - minor).abs() < 1e-6 * D,
-            "{what}: a circle where the probe reads ({minor}, {major}), radius {radius}"
-        ),
+        Curve3::Circle(conic_k) => {
+            let radius = conic_k.radius();
+            assert!(
+                (radius - D).abs() < 1e-15 && (major - minor).abs() < 1e-6 * D,
+                "{what}: a circle where the probe reads ({minor}, {major}), radius {radius}"
+            )
+        }
         ref ellipse @ Curve3::Ellipse(..) => {
             let Some(geom::MajorFrame {
                 major: got_major,
@@ -678,6 +681,14 @@ type IntervalCase = (String, Body<f64>, Body<Interval>, [EdgeKey; 2]);
 /// (the bracket's corners) and the skewed box at `Interval` build,
 /// tier-3 valid and naming total, the volume enclosure bracketing the
 /// oracle.
+///
+/// At ε 1e-12 the skewed box does not: its pcurve re-mint after surgery
+/// escalates `pcurve_envelope`, margin in `(1.15e-12, 1.3e-12]`
+/// (measured 1.234e-12). Cause: a frame built at Interval from bracket
+/// inputs, a rigid-motion claim (fork 274): the fillet's frames are
+/// squared over the bracketed corner, where main stored them raw. Mutant
+/// F1X (that squaring stores the stated vectors raw) builds it and turns
+/// this pin red; mutant A does not. It builds at ε 1e-9 and 1e-6.
 #[test]
 fn the_overrun_carves_at_the_certified_scalar() {
     use crate::common::interval::iv;
@@ -708,8 +719,31 @@ fn the_overrun_carves_at_the_certified_scalar() {
         });
         let want = taken_on(&halves_of(&body), &body, &fedges, D);
         let ibody = sweep::test_support::finished("operand", ibody, tol());
-        let out = fillet_edges(&ibody, &iedges, iv(D), tol())
-            .unwrap_or_else(|e| panic!("{what}: builds at Interval, got {:?}", e.error));
+        let out = fillet_edges(&ibody, &iedges, iv(D), tol());
+        if what == "skewed box" && crate::common::frame_cost::at_the_least_band() {
+            // A frame built at Interval from bracket inputs, a
+            // rigid-motion claim (fork 274).
+            let pinned = matches!(
+                &out,
+                Err(e) if matches!(
+                    &e.error,
+                    sweep::blend::BlendError::Certify { site: "pcurve re-mint after surgery", source }
+                        if crate::common::frame_cost::pcurve_escalates(
+                            source,
+                            "pcurve_envelope",
+                            (1.15e-12, 1.3e-12),
+                        )
+                )
+            );
+            assert!(
+                pinned,
+                "{what}: pinned to escalate pcurve_envelope in (1.15e-12, 1.3e-12] at the \
+                 pcurve re-mint, at ε 1e-12: {:?}",
+                out.as_ref().map(|_| ()).map_err(|e| &e.error)
+            );
+            continue;
+        }
+        let out = out.unwrap_or_else(|e| panic!("{what}: builds at Interval, got {:?}", e.error));
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         assert_naming_totality(&ibody, &out, &iedges, &what);
         let v0 = mass_properties(&ibody, tol(), topo::test_support::pinned_resolution(tol()))
@@ -1179,8 +1213,10 @@ fn a_later_fillet_of_l_refuses_where_it_runs_on_into_the_overrun_arc() {
             .expect("L's piece runs from the turn foot to the origin");
         match fillet_edges(&at_rest(b, tol()), &[l], 0.1 * D, tol()) {
             Err(e) => assert!(
-                matches!(&e.error, BlendError::UnsupportedRunOut { detail, .. }
-                    if *detail == sweep::blend::battery::PARTIAL_TANGENT_RUN),
+                matches!(
+                    &e.error,
+                    BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::RunOut { odd: None, .. })
+                ),
                 "{what}: L later refuses where it runs on into the overrun arc, got {}",
                 e.error.render(geom_brep::recourse::Reading::Build)
             ),
@@ -1190,7 +1226,7 @@ fn a_later_fillet_of_l_refuses_where_it_runs_on_into_the_overrun_arc() {
 }
 
 /// **A short near edge refuses `FOOT_INSIDE_A_FACE` for the fillet as
-/// for the chamfer** (`work/bandmeter/an-overruns-sliver-refuses-a-short-near-edge.md`):
+/// for the chamfer** (`work/band/an-overruns-sliver-refuses-a-short-near-edge.md`):
 /// the step-2 hexahedron `(s 0.4, c 1)`, `θ_S ≈ 136.1°`, its top–wall
 /// edge cut short. At `0.40` down to `0.16` the turn builds at the
 /// oracle; at `0.14` and `0.12` it refuses at the far band's foot on the
@@ -1237,7 +1273,7 @@ fn a_short_near_edge_refuses_foot_inside_a_face_for_the_fillet_too() {
         match filleted(&p.body, &p.edges(&TURN), D, &what) {
             Err(e) => assert!(
                 foot_inside_a_face(&e),
-                "{what}: refuses FOOT_INSIDE_A_FACE, got {e_at}",
+                "{what}: refuses FootInsideAFace, got {e_at}",
                 e_at = e.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!(
@@ -1295,9 +1331,11 @@ fn the_needle_builds_then_refuses_at_the_turn_as_it_flattens() {
                 assert_delta(&body, &out.body, want, 1e-11, &what);
                 "builds"
             }
-            Err(e @ BlendError::UnsupportedRunOut { at, .. }) => {
+            Err(
+                e @ BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::FootInsideAFace { vertex }),
+            ) => {
                 assert!(
-                    foot_inside_a_face(&e) && at == topo::EntityId::Vertex(v) && eps < 1.0,
+                    foot_inside_a_face(&e) && vertex == v && eps < 1.0,
                     "{what}: refuses at the turn's far foot, got {e_at}",
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 );

@@ -368,12 +368,22 @@ pub enum SplitReduceError {
     /// names.
     KnifeEdge(KnifeEdge),
     /// Whether a vertex lies on the plane is undecided (F6): its distance
-    /// from the plane, or from a section the plane ends at it
-    /// ([`crate::vertex_section`]), lies in the ambiguity band, beyond ε,
-    /// or cannot be read. No snapping — resolution is an explicit
-    /// repair/adoption op (D7 machinery).
+    /// from the plane lies in the ambiguity band, beyond ε, or cannot be
+    /// read. No snapping — resolution is an explicit repair/adoption op
+    /// (D7 machinery).
     SliverVertex {
         /// The offending vertex.
+        vertex: VertexKey,
+        /// The escalation diagnostics.
+        diag: Indeterminate,
+    },
+    /// Whether a vertex on the plane lies on the section the plane cuts
+    /// in a face at it is undecided ([`crate::vertex_section`]): its
+    /// reading against that section, margin `δ / sin ψ`, lies in the
+    /// ambiguity band. The split's twin of the Boolean's
+    /// `Coincide::VertexOnSection`; no snapping.
+    SliverSection {
+        /// The vertex on the plane.
         vertex: VertexKey,
         /// The escalation diagnostics.
         diag: Indeterminate,
@@ -692,6 +702,13 @@ impl SplitReduceError {
             Self::SliverVertex { diag, .. } => diag
                 .undecided(
                     "whether a vertex lies on the split plane",
+                    diag.lever_ending(SPLIT_COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
+            Self::SliverSection { diag, .. } => diag
+                .undecided(
+                    "whether a vertex on the split plane lies on the section that plane cuts \
+                     in a face at the vertex",
                     diag.lever_ending(SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),

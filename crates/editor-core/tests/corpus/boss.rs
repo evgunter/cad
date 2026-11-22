@@ -71,7 +71,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "boss_union",
         about: "M5 shape (ii): cylinder boss ∪ plate — the first transverse curved boolean",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(union),
         pin: None, // π volume is not dyadic; the doc probe pins the closed form

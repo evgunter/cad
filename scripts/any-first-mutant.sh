@@ -11,8 +11,12 @@
 # kept rung. So this builds with `--cfg any_first_mutant`, under which
 # `geom_core::ladder::climb_evidence` refuses an `Any` ladder at its first
 # kept rung (as `climb_agreeing` and `climb_differing` do), runs every
-# registered pin, and fails on each one that passes (it does not pin its
-# site) or that no package ran (it names no test). A control run of the
+# registered pin with the mutant restricted to that pin's own registered
+# functions (the plan `AFM_PLAN`, `<pin>=<file>:<lo>-<hi>,…`, compiled into
+# the mutant build; the climb's caller read through `#[track_caller]`, the
+# running test through its thread's name), and fails on each one that
+# passes (it does not pin its site; a pin red only for another site it
+# passes through stays green here) or that no package ran (it names no test). A control run of the
 # same pins without the mutant comes first, and a pin red there fails too:
 # a red with another cause (a main red) says nothing about the mutant.
 #
@@ -42,12 +46,40 @@ for pin in pins:
             if pat.search(fh.read()):
                 with open("/".join(p.split("/")[:2]) + "/Cargo.toml", "rb") as m:
                     packages.add(tomllib.load(m)["package"]["name"])
+# Each pin's sites: the line range of every registered function that
+# names it, `<file>:<lo>-<hi>`, comma-separated (the plan, `AFM_PLAN`). A
+# range runs from the `fn` line to the next item at its indentation or
+# shallower (a fn, a `mod`, an attribute, an `impl` or a type), so the last
+# fn before a test module does not take the module in.
+FN = re.compile(r"^(\s*)(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?(?:async\s+)?fn\s+([A-Za-z_0-9]+)")
+END = re.compile(r"^(\s*)(?:#\[|(?:pub(?:\([^)]*\))?\s+)?(?:mod|impl|struct|enum|trait|type|const|static)\b)")
+sites = {}
+with open(sys.argv[1]) as fh:
+    for raw in fh:
+        line = raw.split("#", 1)[0].split()
+        if len(line) != 5 or line[3] != "pin":
+            continue
+        path, name, pin = line[0], line[1], line[4]
+        src = open(path, errors="replace").read().split("\n")
+        for i, l in enumerate(src):
+            m = FN.match(l)
+            if not m or m.group(2) != name:
+                continue
+            indent, hi = len(m.group(1)), len(src)
+            for j in range(i + 1, len(src)):
+                n = FN.match(src[j]) or END.match(src[j])
+                if n and len(n.group(1)) <= indent:
+                    hi = j
+                    break
+            sites.setdefault(pin, []).append(f"{path}:{i + 1}-{hi}")
 print(" ".join(sorted(packages)))
 print(" ".join(pins))
+print(" ".join(f"{pin}={','.join(sites.get(pin, []))}" for pin in pins))
 PY
 )
 packages=$(sed -n 1p <<<"$plan")
 pins=$(sed -n 2p <<<"$plan")
+sites=$(sed -n 3p <<<"$plan")
 if [ -z "$pins" ]; then
   echo "any-first-mutant: $REGISTER names no pin" >&2
   exit 1
@@ -74,8 +106,13 @@ run() { # run NAME [RUSTFLAGS…]: every pin; its log and junit report to $work/
 # some other reason (a main red), so its red under the mutant says
 # nothing about the mutant; it fails here instead.
 run control
-# The mutant, in its own target dir so it does not rebuild the plain one.
-CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}/any-first-mutant" run mutant --cfg any_first_mutant
+# The mutant, in its own target dir so it does not rebuild the plain one,
+# built with the plan (`AFM_PLAN`, read by `geom_core::ladder` at compile
+# time): each pin's own registered sites, so a pin fires the mutant only
+# there, and one red only for another site it passes through stays green
+# and fails.
+plan=$(tr ' ' ';' <<<"$sites")
+AFM_PLAN="$plan" CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}/any-first-mutant" run mutant --cfg any_first_mutant
 
 python3 - "$work" $pins <<'PY'
 import os, sys, xml.etree.ElementTree as ET

@@ -1,21 +1,23 @@
-//! **A saddle cut by its tangent plane refuses before the join.** The
+//! **A saddle cut by its tangent plane refuses at its side wall's chord.** The
 //! block `x, z ∈ [−1, 1]`, `−2 ≤ y ≤ x·z`, lofted along `z`, has the
 //! hyperbolic paraboloid `y = x·z` for its top wall; the half-space
 //! `y ≥ 0` is tangent to it at the origin and cuts it along the lines
 //! `x = 0` and `z = 0`, a straight section of two lines crossing at a
 //! point. Two smooth carriers meet in two crossing lines only at a
 //! tangency, so the pair is a spline × plane section with a node at the
-//! origin, which no lane builds yet: each op refuses typed at the spline
-//! × plane pair, in the join, where its section's carry lists the four
-//! arcs to the node and carries none of them
-//! (`GermSectionUnbuilt`, `NoCarrier::NodeArc`; the unit
-//! `a-spline-implicit-arc-is-carried-to-its-node` carries them). Its closed
+//! origin. The join carries its four arcs to the node, and each op
+//! refuses typed at the at-rest certificate of the plane's chord across
+//! the block's side wall `x = −1`: a lofted wall whose chart is not
+//! affine along the section `y = 0` (its `u` reads `y` across a side
+//! whose far end moves with `z`), which the plane × spline lane's
+//! degree-1 image misses between its feet
+//! (`work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`).
+//! No chord to the node is reached. Its closed
 //! forms (the block `8`, its part above the plane `1/2`) are the row
 //! `work/splice/a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form.md`
 //! asks for.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::SurfaceKind::{Nurbs, Plane};
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{finished, stacked_at};
@@ -55,87 +57,43 @@ fn above() -> AtRestBody<f64> {
     )
 }
 
-/// The saddle's top wall: the NURBS face whose net lies on `y = x·z`.
-fn saddle_wall(s: &AtRestBody<f64>) -> topo::FaceKey {
-    let walls: Vec<_> = s
-        .faces()
-        .filter(|(fk, _)| match s.face_surface(*fk) {
-            Some(geom::Surface::Nurbs(n)) => {
-                n.control().iter().all(|p| (p.y - p.x * p.z).abs() < 1e-12)
-            }
-            _ => false,
-        })
-        .map(|(f, _)| f)
-        .collect();
-    assert_eq!(walls.len(), 1, "one saddle wall: {walls:?}");
-    walls[0]
-}
-
-/// The half-space's face on `y = 0`.
-fn cut_face(h: &AtRestBody<f64>) -> topo::FaceKey {
-    let faces: Vec<_> = h
-        .faces()
-        .filter(|(fk, _)| {
-            matches!(
-                h.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if origin.y.abs() < 1e-12 && normal.y.abs() > 1.0 - 1e-12
-            )
-        })
-        .map(|(f, _)| f)
-        .collect();
-    assert_eq!(faces.len(), 1, "one face on y = 0: {faces:?}");
-    faces[0]
-}
-
-/// **Every op, either way round, refuses at the spline × plane pair**:
-/// in the join, where the carry of the saddle's wall against the
-/// half-space's face `y = 0` lists the arcs to its node and carries none,
-/// the two faces named by identity in the operands' order.
+/// **Every op, either way round, refuses at the side wall's chord at
+/// rest**: the join carries the saddle's four arcs to the node, and the
+/// edge certificate of the plane's chord along `x = −1` refuses its
+/// chart image, limb 2 reading the image's miss of the carrier past the
+/// band at a break of its composite (`SsiLimb::ImageMiss`). The
+/// refusal names no face.
 /// Its held pierce reads first: the block's corner edges pierce the
 /// plane at `(±1, 0, ±1)`, a unit off the wall, which reads them off
 /// its carrier.
 #[test]
 fn a_saddle_cut_by_its_tangent_plane_refuses_at_its_node_arcs_under_every_op() {
     let (s, h) = (saddle_block(), above());
-    let (wall, cut) = (saddle_wall(&s), cut_face(&h));
-    // The A face first: the saddle's wall in `s ∪ h`, the cut face in
-    // `h ∪ s`.
-    let frame = |r: &Result<topo::BooleanResult<f64>, BooleanError>, saddle_first: bool| {
-        let (a, b) = if saddle_first {
-            (wall, cut)
-        } else {
-            (cut, wall)
-        };
-        let (a_kind, b_kind) = if saddle_first {
-            (Nurbs, Plane)
-        } else {
-            (Plane, Nurbs)
+    let frame = |r: &Result<topo::BooleanResult<f64>, BooleanError>| {
+        let Err(BooleanError::Join(join)) = r else {
+            return false;
         };
         matches!(
-            r,
-            Err(BooleanError::GermSectionUnbuilt {
-                a_face,
-                a_kind: ak,
-                b_face,
-                b_kind: bk,
-                why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::Unminted(
-                    geom_brep::NoCarrier::NodeArc
-                )),
-            }) if (*a_face, *ak, *b_face, *bk) == (a, a_kind, b, b_kind)
+            join.error(),
+            topo::JoinError::Euler(topo::EulerOpError::Certification {
+                error: geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                    limb: geom_brep::SsiLimb::ImageMiss,
+                    ..
+                }),
+            })
         )
     };
-    for (op, r, saddle_first) in [
-        ("s ∩ h", intersect(&s, &h, tol()), true),
-        ("h ∩ s", intersect(&h, &s, tol()), false),
-        ("s ∖ h", subtract(&s, &h, tol()), true),
-        ("h ∖ s", subtract(&h, &s, tol()), false),
-        ("s ∪ h", union(&s, &h, tol()), true),
-        ("h ∪ s", union(&h, &s, tol()), false),
+    for (op, r) in [
+        ("s ∩ h", intersect(&s, &h, tol())),
+        ("h ∩ s", intersect(&h, &s, tol())),
+        ("s ∖ h", subtract(&s, &h, tol())),
+        ("h ∖ s", subtract(&h, &s, tol())),
+        ("s ∪ h", union(&s, &h, tol())),
+        ("h ∪ s", union(&h, &s, tol())),
     ] {
         assert!(
-            frame(&r, saddle_first),
-            "{op}: refuses typed at the spline × plane pair, not {r:?}"
+            frame(&r),
+            "{op}: refuses at the side wall's chord at rest, not {r:?}"
         );
     }
 }

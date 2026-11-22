@@ -11,7 +11,7 @@ cost: M
 ## What
 
 The region skeleton's leg courses are hand-written carriers beside the
-`geom::Curve3` variants they restate (`crates/topo/src/boolean/region.rs`):
+`geom::Curve3` variants they restate (`crates/topo/src/region.rs`):
 
 - `Round` (`:681`) is a circle: `Round::at` (`:690`) evaluates
   `center + radius·(e1 cos s + e2 sin s)` by `sin_cos`, and

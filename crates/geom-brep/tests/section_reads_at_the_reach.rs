@@ -25,9 +25,7 @@ const STORED: [f64; 5] = [0.0, 10.0, -10.0, 1000.0, -1000.0];
 
 fn plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     }
 }
 
@@ -35,10 +33,12 @@ fn plane() -> Surface<f64> {
 /// (unit), its origin stored `along` metres from there.
 fn cylinder(through: Point3<f64>, axis: Vec3<f64>, along: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: through + axis * along,
-        axis,
+        frame: geom::Frame::new(
+            through + axis * along,
+            axis,
+            Vec3::unit_z().cross(axis).normalize(),
+        ),
         radius: 1.0,
-        u_ref: Vec3::unit_z().cross(axis).normalize(),
     }
 }
 
@@ -195,7 +195,7 @@ fn the_tilt_is_levered_from_the_nearer_foot() {
 /// Zero and the walls' two rulings were served.
 #[test]
 fn a_measured_lever_reaches_the_pivots_distance() {
-    let reach = Reach::of_frame(Point3::new(0.0, -10.0, 0.0), (1.0, 1.0));
+    let reach = Reach::fixture(Point3::new(0.0, -10.0, 0.0), 1.0);
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 0.0);
     let c2 = cylinder(Point3::new(0.0, 0.5, 0.0), tilted(Vec3::unit_y()), 0.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
@@ -223,31 +223,28 @@ fn a_measured_lever_reaches_the_pivots_distance() {
 fn cone_cylinder_reads_one_verdict_at_every_stored_origin() {
     let alpha: f64 = 0.5;
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
         half_angle: alpha,
-        u_ref: Vec3::unit_y(),
     };
     let axis = tilted(Vec3::unit_y());
     let big_r = 0.25;
     let station = big_r / alpha.tan();
     for along in STORED {
         let cyl = Surface::Cylinder {
-            origin: Point3::origin() + axis * along,
-            axis,
+            frame: geom::Frame::new(Point3::origin() + axis * along, axis, Vec3::unit_z()),
             radius: big_r,
-            u_ref: Vec3::unit_z(),
         };
         match cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band()) {
             Ok(ConeCylinderSection::CoaxialCircles { c1, c2 }) => {
                 for (c, want) in [(c1, station), (c2, -station)] {
                     let geom::Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { origin: center, .. },
+                        frame: carrier_frame,
                         ..
                     }) = c
                     else {
                         panic!("stored {along} m along: a circle");
                     };
+                    let center = carrier_frame.origin();
                     assert!(
                         (center - Point3::new(want, 0.0, 0.0)).norm() < 1e-12,
                         "stored {along} m along: a circle at the station {want}: {center:?}"
@@ -268,15 +265,11 @@ fn wall_cut(
     reach: &Reach<f64>,
 ) -> Result<PlaneCylinderSection<f64>, geom_brep::SectionError> {
     let wall = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        u_ref: Vec3::unit_x(),
     };
     let cut = Surface::Plane {
-        origin: through,
-        normal,
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(through, normal, Vec3::unit_x()),
     };
     plane_cylinder_section(&cut, &wall, reach, band())
 }
@@ -392,7 +385,7 @@ fn a_tangent_cut_turns_about_its_rulings_hinge_not_its_foot() {
 /// escalation over its zero). Each pose puts one reading's datum `q` at
 /// half the band's zero, so `q·below` reads Zero and `q·above` reads past
 /// twice the escalation; the station pose puts the station between the
-/// two bounds. The rows that act on a Positive (the three convention
+/// two bounds. The rows that act on a Positive (the two aperture
 /// guards, the station admission) read the bound from below and refuse;
 /// `coc_axes_parallel`, which acts on its Zero, reads the bound from
 /// above and routes the tilt to the general rung. Reading any of them at
@@ -408,22 +401,18 @@ fn cone_cylinder_rows_each_read_their_side_of_the_extent() {
         above: fixture_lever(4.0 * k),
     };
     let cone = |half_angle: f64, u_ref: Vec3<f64>| Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), u_ref),
         half_angle,
-        u_ref,
     };
     let cyl = |axis: Vec3<f64>, radius: f64| Surface::Cylinder {
-        origin: Point3::origin(),
-        axis,
+        frame: geom::Frame::new(Point3::origin(), axis, Vec3::unit_z()),
         radius,
-        u_ref: Vec3::unit_z(),
     };
     let coaxial = cyl(Vec3::unit_x(), 0.25);
     let degenerate =
         |what: &str, got: Result<ConeCylinderSection<f64>, SectionError>, says| match got {
-            Err(SectionError::DegenerateOperand { what: w }) if w.contains(says) => {}
-            other => panic!("{what}: refused as degenerate ({says}), got {other:?}"),
+            Err(SectionError::ConeAtTheBand { what: w }) if w.contains(says) => {}
+            other => panic!("{what}: refused at the band ({says}), got {other:?}"),
         };
     // `coc_aperture_sin`: sin α = q.
     degenerate(
@@ -441,13 +430,6 @@ fn cone_cylinder_rows_each_read_their_side_of_the_extent() {
             b,
         ),
         "cot α",
-    );
-    // `coc_seam_off_axis`: the seam leaves the axis by q.
-    let seam = Vec3::new((1.0 - q * q).sqrt(), q, 0.0);
-    degenerate(
-        "a seam along the axis",
-        cone_cylinder_section(&cone(0.5, seam), &coaxial, extent, b),
-        "seam",
     );
     // `coc_station_reach`: the station stands between the two bounds.
     let station = 0.25 / 0.5_f64.tan();

@@ -84,6 +84,7 @@ use geom::{Conic, Surface};
 use geom_core::rounding_charge;
 use geom_core::{Mat3, Point3, Real, Rounded, Vec3};
 
+use crate::curvature_arm::curvature_lever_arm;
 use crate::enters::OutwardNormal;
 use crate::harmonic::harmonic_sup_scalar;
 
@@ -166,53 +167,53 @@ pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
 
 /// The linearized implicit residual of `p` against `s`, in meters (the
 /// module-doc table). Zero on the surface; agrees with the signed
-/// distance to first order near it. Total: poison in, poison out;
-/// [`Surface::Nurbs`] yields poison.
+/// distance to first order near it. Total: poison in, poison out; a
+/// carrier with no implicit form (not [`crate::edge_nurbs::is_analytic`])
+/// yields poison.
 pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let two = T::from_f64(2.0);
     match *s {
-        Surface::Plane { origin, normal, .. } => geom::plane_offset(origin, normal, p),
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            geom::plane_offset(origin, normal, p)
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let d2 = (p - center).norm_squared();
             (d2 - radius.powi(2)) / (two * radius)
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let (_, w) = axial_radial(p, origin, axis);
             (w.norm_squared() - radius.powi(2)) / (two * radius)
         }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => cone_elevation(
-            geom::Line {
-                origin: apex,
-                dir: axis,
-            },
-            half_angle,
-            None,
-            p,
-        ),
+            frame, half_angle, ..
+        } => {
+            let apex = frame.origin();
+            cone_elevation(
+                geom::Line {
+                    origin: apex,
+                    dir: frame.axis(),
+                },
+                half_angle,
+                None,
+                p,
+            )
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         }
         | Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (h, w) = axial_radial(p, center, axis);
             let rho = w.norm();
             let d = rho - major_radius;
@@ -243,23 +244,20 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
 /// (cone apex / cone axis, torus axis) and for [`Surface::Nurbs`].
 pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
     match *s {
-        Surface::Plane { normal, .. } => normal,
-        Surface::Sphere { center, radius, .. } => (p - center) / radius,
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Plane { frame, .. } => frame.axis(),
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            (p - center) / radius
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let (_, w) = axial_radial(p, origin, axis);
             w / radius
         }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (s_a, c_a) = half_angle.sin_cos();
             let (h, w) = axial_radial(p, apex, axis);
             // w/ρ poisons on the axis (0/0) — including the apex, where
@@ -268,19 +266,18 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
             w_hat * c_a - axis * s_a.copysign(h)
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         }
         | Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (h, w) = axial_radial(p, center, axis);
             let (w_hat, rho) = w.direction_and_length();
             (w_hat * (rho - major_radius) + axis * h) / minor_radius
@@ -323,47 +320,6 @@ pub fn implicit_outward_normal<T: Real>(
     p: Point3<T>,
 ) -> OutwardNormal<T> {
     OutwardNormal::from_chart(implicit_gradient(s, p).normalize(), sense)
-}
-
-/// The local curvature lever arm of `s` at `p` (module docs): the
-/// chart's own length scale, `f64::MAX` for a plane (the practical
-/// `min` identity — see the module docs for why not `+∞`), poison for
-/// [`Surface::Nurbs`].
-///
-/// Per kind: sphere/cylinder — the radius; cone — the radial distance
-/// ρ of `p` from the axis; torus — the tube radius `r`. It is the scale
-/// the implicit forms are normalized by (`|∇F| − 1` is the elevation
-/// over it for all four), which is how its readers use it: to meter a
-/// dimensionless residual or a relative curvature as a length at the
-/// chart's own scale (`face_normal`'s on-chart certificate, the
-/// dihedral fold, the contact and SSI jet checks). Each value is a
-/// principal radius of curvature at `p` (the torus's along its
-/// meridian), so it is minted as a curvature arm
-/// ([`geom_core::Lever::curvature_radius`]).
-///
-/// **It is NOT a bound on the curvature on a fat torus.** On a ring
-/// with `R < 2r` the inner equator bends at `1/(R − r)`, harder than
-/// the tube's `1/r`. A reader that charges a SAGITTA against the
-/// tightest bend wants [`min_radius_of_curvature`] instead, and the two
-/// must not be swapped: a smaller value here LOOSENS the readers above
-/// (their margins shrink toward Zero), while a smaller radius of
-/// curvature tightens a sagitta charge.
-pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> geom_core::Lever<T> {
-    geom_core::Lever::curvature_radius(match *s {
-        Surface::Plane { .. } => T::from_f64(f64::MAX),
-        Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. } => radius,
-        Surface::Cone { apex, axis, .. } => {
-            let (_, w) = axial_radial(p, apex, axis);
-            w.norm()
-        }
-        Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => minor_radius,
-        // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
-        // carrier has no implicit form — foot-point machinery (C2.1,
-        // M5 PR 4) owns that story, not this module.
-        // As `Nurbs`: the stand-in is a spline, so no implicit form —
-        // and the offset description has no closed lever arm to lend.
-        Surface::Nurbs(_) | Surface::Approx(_) => poison(),
-    })
 }
 
 /// **The smallest radius of curvature of `s`**, for a reader that
@@ -465,7 +421,8 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
         // F = (|q|² − r²)/2r: ∇²F = I/r.
         Surface::Sphere { radius, .. } => d.norm_squared() / radius,
         // F = (|w|² − r²)/2r, w = q − a(q·a): ∇²F = (I − aaᵀ)/r.
-        Surface::Cylinder { axis, radius, .. } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let axis = frame.axis();
             let d_ax = d.dot(axis);
             (d.norm_squared() - d_ax.powi(2)) / radius
         }
@@ -473,11 +430,9 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
         // linear; ∇²(|w|) = (I − aaᵀ − ŵŵᵀ)/ρ. Poison on the axis
         // (ρ = 0), as the gradient already is.
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (_, c_a) = half_angle.sin_cos();
             let (_, w) = axial_radial(p, apex, axis);
             let (w_hat, rho) = w.direction_and_length();
@@ -488,19 +443,18 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
         // F = ((ρ − R)² + h² − r²)/2r: ∇²F = ((I − aaᵀ − ŵŵᵀ)·(ρ − R)/ρ
         // + ŵŵᵀ + aaᵀ)/r. Poison on the axis (ρ = 0).
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         }
         | Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (_, w) = axial_radial(p, center, axis);
             let (w_hat, rho) = w.direction_and_length();
             let d_ax = d.dot(axis);
@@ -729,24 +683,30 @@ fn harmonic_curvature_bound<T: Real>(h: &ResidualHarmonics<T>) -> T {
 fn sample_rounding<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<T> {
     let two = T::from_f64(2.0);
     let a = conic.speed_hi();
-    let at = (conic.frame().origin - Point3::origin()).norm() + a;
-    let offset = |o: Point3<T>| (conic.frame().origin - o).norm() + a;
+    let at = (conic.frame().origin() - Point3::origin()).norm() + a;
+    let offset = |o: Point3<T>| (conic.frame().origin() - o).norm() + a;
     Some(match *s {
-        Surface::Plane { origin, .. } => rounding_charge(at + offset(origin)),
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Plane { frame, .. } => {
+            let origin = frame.origin();
+            rounding_charge(at + offset(origin))
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let d = offset(center);
             rounding_charge(two * d * at + d.powi(2) + radius.powi(2)) / (two * radius)
         }
-        Surface::Cylinder { origin, radius, .. } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let origin = frame.origin();
             let d = offset(origin);
             rounding_charge(two * d * at + d.powi(2) + radius.powi(2)) / (two * radius)
         }
         Surface::Torus {
-            center,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let center = frame.origin();
             let d = offset(center) + major_radius;
             let four = T::from_f64(4.0);
             rounding_charge(four * d * (at + d) + two * d.powi(2) + minor_radius.powi(2))
@@ -802,11 +762,10 @@ struct ArcScan<T> {
 
 fn scan_arc<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>, t0: T, t1: T) -> ArcScan<T> {
     let hub = match *s {
-        Surface::Torus {
-            center: tc,
-            axis: tn,
-            ..
-        } => Some((tc, tn)),
+        Surface::Torus { frame, .. } => {
+            let (tc, tn) = (frame.origin(), frame.axis());
+            Some((tc, tn))
+        }
         _ => None,
     };
     let at = |k: usize| {
@@ -907,7 +866,7 @@ pub fn conic_residual_extremes<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) ->
         let reach = h.a1 + h.a2 + h.noise;
         return Some((h.c0 - reach, h.c0 + reach));
     }
-    conic_arc_residual_range(s, conic, T::zero(), T::tau())
+    conic_arc_residual_range(s, conic, T::zero(), geom::conic_period::<T>().length())
 }
 
 /// [`conic_residual_extremes`] on a circle.
@@ -917,11 +876,12 @@ pub fn circle_residual_extremes<T: Real>(
     circle: &geom::Circle<T>,
 ) -> Option<(T, T)> {
     if let Surface::Sphere {
-        center: sc,
+        frame: carrier_frame,
         radius: r,
         ..
     } = *s
     {
+        let sc = carrier_frame.origin();
         // The factored extremes, each charged its own running bound and
         // the frame's defect (`CircleSphereHarmonic`).
         let h = circle_sphere_harmonic(circle, sc, r);
@@ -958,7 +918,7 @@ pub fn circle_residual_curvature_bound<T: Real>(
     s: &Surface<T>,
     circle: &geom::Circle<T>,
 ) -> Option<T> {
-    arc_curvature_bound(s, circle, T::zero(), T::tau())
+    arc_curvature_bound(s, circle, T::zero(), circle.period().length())
 }
 
 /// [`circle_residual_curvature_bound`]'s arc-scoped form, on any
@@ -1023,7 +983,7 @@ fn torus_curvature_bound<T: Real>(
     scan: &ArcScan<T>,
 ) -> Option<T> {
     let Surface::Torus {
-        axis: tn,
+        frame,
         major_radius,
         minor_radius,
         ..
@@ -1031,6 +991,7 @@ fn torus_curvature_bound<T: Real>(
     else {
         return None;
     };
+    let tn = frame.axis();
     let two = T::from_f64(2.0);
     // `a` bounds `|C′|` and `|C″|` over the whole carrier ([`Conic`]).
     let a = conic.speed_hi();
@@ -1093,13 +1054,12 @@ pub struct ConicHarmonics<T> {
     /// scale their rounding is charged against.
     ///
     /// **Every charge here reads the semi-axes through
-    /// [`Conic::speed_hi`]**, the larger stored one, and that is
-    /// `max(|a|, |b|)` because a conic's semi-axes are positive lengths:
-    /// the edge certificate refuses a stored semi-axis that is not a
-    /// finite number or is definitely negative
-    /// (`CertifyError::SemiAxisNotFinite`, `CertifyError::SemiAxisNegative`)
-    /// before any charge reads it, and its span check reads a zero one
-    /// as a collapsed length (`CertifyError::StatedInterval`). This is
+    /// [`Conic::speed_hi`]**, which is `max(|a|, |b|)`: a stored
+    /// semi-axis is a finite length never definitely negative
+    /// (`geom::Ellipse::new`), and the reader holds the bound over an
+    /// enclosure that reaches below zero. The edge certificate's span
+    /// check reads a zero one as a collapsed length
+    /// (`CertifyError::StatedInterval`). This is
     /// the invariant's one statement for this module's charges: these
     /// terms, the cone's reach in [`conic_cone_harmonics`] and
     /// [`conic_axis_distance_floor`]'s terms each read it.
@@ -1126,9 +1086,9 @@ fn quadric_harmonics<T: Real>(
     let two = T::from_f64(2.0);
     let half = T::from_f64(0.5);
     let (a, b) = conic.semi_axes();
-    let d = conic.frame().origin - origin;
+    let d = conic.frame().origin() - origin;
     let e = perp(d);
-    let (up, vp) = (perp(conic.frame().u_ref), perp(conic.frame().v_ref()));
+    let (up, vp) = (perp(conic.frame().u_ref()), perp(conic.frame().v_ref()));
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
     let per = two * r;
     #[cfg(test)]
@@ -1217,8 +1177,8 @@ pub fn conic_cone_harmonics<T: Real>(
     let (sin_a, cos_a) = half_angle.sin_cos();
     let (cc, ss) = (cos_a.powi(2), sin_a.powi(2));
     let (a, b) = conic.semi_axes();
-    let (u, v) = (conic.frame().u_ref, conic.frame().v_ref());
-    let d = conic.frame().origin - apex;
+    let (u, v) = (conic.frame().u_ref(), conic.frame().v_ref());
+    let d = conic.frame().origin() - apex;
     let perp = |x: Vec3<T>| {
         let along = c_axis.dot(x);
         x - c_axis * along
@@ -1286,7 +1246,7 @@ pub fn conic_cone_harmonics<T: Real>(
     // its radius.
     let abs_dot =
         |x: Vec3<T>, y: Vec3<T>| (x.x * y.x).abs() + (x.y * y.y).abs() + (x.z * y.z).abs();
-    let (n, uu_ref) = (conic.frame().axis, conic.frame().u_ref);
+    let (n, uu_ref) = (conic.frame().axis(), conic.frame().u_ref());
     let v_abs = Vec3::new(
         (n.y * uu_ref.z).abs() + (n.z * uu_ref.y).abs(),
         (n.z * uu_ref.x).abs() + (n.x * uu_ref.z).abs(),
@@ -1356,44 +1316,46 @@ pub(crate) fn conic_form_sup<T: Real>(
         rounding: T::from_f64(2.0) * rounding_charge(h.terms),
     };
     Some(match *surface {
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             quadric(conic_sphere_harmonics(conic, center, radius))
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => quadric(conic_cylinder_harmonics(
-            conic,
-            geom::Line { origin, dir: axis },
-            radius,
-        )),
+        Surface::Cylinder { frame, radius, .. } => {
+            let origin = frame.origin();
+            quadric(conic_cylinder_harmonics(
+                conic,
+                geom::Line {
+                    origin,
+                    dir: frame.axis(),
+                },
+                radius,
+            ))
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => quadric(conic_cone_harmonics(
-            conic,
-            geom::Line {
-                origin: apex,
-                dir: axis,
-            },
-            half_angle,
-        )),
+            frame, half_angle, ..
+        } => {
+            let apex = frame.origin();
+            quadric(conic_cone_harmonics(
+                conic,
+                geom::Line {
+                    origin: apex,
+                    dir: frame.axis(),
+                },
+                half_angle,
+            ))
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let center = frame.origin();
             let h = conic_torus_harmonics(
                 conic,
                 geom::Line {
                     origin: center,
-                    dir: axis,
+                    dir: frame.axis(),
                 },
                 major_radius,
                 minor_radius,
@@ -1445,10 +1407,10 @@ pub(crate) fn conic_axis_distance_floor<T: Real>(conic: &dyn Conic<T>, axis: geo
         let along = axis.dot(x);
         x - axis * along
     };
-    let d = conic.frame().origin - origin;
+    let d = conic.frame().origin() - origin;
     let (e, up, vp) = (
         perp(d),
-        perp(conic.frame().u_ref),
+        perp(conic.frame().u_ref()),
         perp(conic.frame().v_ref()),
     );
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
@@ -1625,8 +1587,8 @@ pub fn conic_torus_harmonics<T: Real>(
     } = torus;
     let (two, half) = (T::from_f64(2.0), T::from_f64(0.5));
     let (a, b) = conic.semi_axes();
-    let (u, v) = (conic.frame().u_ref, conic.frame().v_ref());
-    let w = conic.frame().origin - t_center;
+    let (u, v) = (conic.frame().u_ref(), conic.frame().v_ref());
+    let w = conic.frame().origin() - t_center;
     let (aa, bb) = (a.powi(2) * u.norm_squared(), b.powi(2) * v.norm_squared());
     let rr = major_radius.powi(2);
     let k = rr - minor_radius.powi(2);
@@ -1710,12 +1672,19 @@ pub fn conic_torus_harmonics<T: Real>(
 /// rounding is relative.
 #[must_use]
 pub fn ring_floor<T: Real>(ring: geom::RingTorus<T>) -> T {
-    ring_floor_of(ring.major_radius(), ring.minor_radius())
+    floor_formula(ring.major_radius(), ring.minor_radius())
 }
 
 /// [`ring_floor`]'s formula on radii no witness holds: the floor rows'
-/// reading of radii the band does not certify.
+/// reading of radii the band does not certify. Test builds only, so in
+/// production the floor is read through the witness alone.
+#[cfg(test)]
 pub(crate) fn ring_floor_of<T: Real>(major_radius: T, minor_radius: T) -> T {
+    floor_formula(major_radius, minor_radius)
+}
+
+/// The floor's one formula ([`ring_floor`]).
+fn floor_formula<T: Real>(major_radius: T, minor_radius: T) -> T {
     T::from_f64(2.0)
         * minor_radius
         * ((major_radius - minor_radius) * (major_radius + minor_radius))
@@ -1816,14 +1785,14 @@ pub fn conic_torus_jet<T: Real>(
         (Rounded::exact(a), Rounded::exact(b))
     };
     let (n, u) = (
-        exact_vec(conic.frame().axis),
-        exact_vec(conic.frame().u_ref),
+        exact_vec(conic.frame().axis()),
+        exact_vec(conic.frame().u_ref()),
     );
     let v = cross(n, u);
     let c = exact_vec(Vec3::new(
-        conic.frame().origin.x,
-        conic.frame().origin.y,
-        conic.frame().origin.z,
+        conic.frame().origin().x,
+        conic.frame().origin().y,
+        conic.frame().origin().z,
     ));
     let tc = exact_vec(Vec3::new(t_center.x, t_center.y, t_center.z));
     let (ac, bs, as_, bc) = (a * cos, b * sin, a * sin, b * cos);
@@ -1990,15 +1959,9 @@ pub fn circle_sphere_harmonic<T: Real>(
     s_center: Point3<T>,
     s_radius: T,
 ) -> CircleSphereHarmonic<T> {
-    let geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        radius,
-    } = *circle;
+    let conic_k @ geom::Circle { frame, .. } = *circle;
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let radius = conic_k.radius();
     use geom_core::running::{cross, dot, exact_vec, unit_defect};
     let two = T::from_f64(2.0);
     let [cx, cy, cz] = exact_vec(Vec3::new(center.x, center.y, center.z));
@@ -2053,8 +2016,12 @@ fn conic_residual_harmonics<T: Real>(
 ) -> Option<ResidualHarmonics<T>> {
     let amp = |a: T, b: T| (a.powi(2) + b.powi(2)).sqrt();
     let (h, r) = match *s {
-        Surface::Plane { origin, normal, .. } => {
-            let d = conic.frame().origin - origin;
+        Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } => {
+            let (origin, normal) = (carrier_frame.origin(), carrier_frame.axis());
+            let d = conic.frame().origin() - origin;
             return Some(ResidualHarmonics {
                 c0: d.dot(normal),
                 a1: {
@@ -2066,18 +2033,24 @@ fn conic_residual_harmonics<T: Real>(
                 noise: rounding_charge(d.norm() + conic.speed_hi()),
             });
         }
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             (conic_sphere_harmonics(conic, center, radius), radius)
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => (
-            conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
-            radius,
-        ),
+        Surface::Cylinder { frame, radius, .. } => {
+            let origin = frame.origin();
+            (
+                conic_cylinder_harmonics(
+                    conic,
+                    geom::Line {
+                        origin,
+                        dir: frame.axis(),
+                    },
+                    radius,
+                ),
+                radius,
+            )
+        }
         // `Approx` joins the no-closed-form group: the fit is a spline
         // and the description's offset locus has no harmonic residual.
         Surface::Cone { .. }
@@ -2176,20 +2149,6 @@ mod tests {
         fn le(&self, o: &Self) -> bool {
             let k = self.k.min(o.k);
             self.at(k) <= o.at(k)
-        }
-
-        /// `self / o` as an `f64`, `o ≠ 0`.
-        fn ratio(&self, o: &Self) -> f64 {
-            let k = self.k.min(o.k);
-            let (a, b) = (self.at(k), o.at(k));
-            let shift = b.bits().saturating_sub(60);
-            let to = |x: num_bigint::BigInt| {
-                (x >> usize::try_from(shift).unwrap())
-                    .to_string()
-                    .parse::<f64>()
-                    .unwrap()
-            };
-            to(a) / to(b)
         }
 
         /// `⌊√x⌋` and `⌈√x⌉` at `2⁻²⁰⁰` resolution, `x ≥ 0`.
@@ -2337,129 +2296,6 @@ mod tests {
         }
     }
 
-    /// **The frame charge bounds the gap between the circle the stored
-    /// frame evaluates and the factored form, and is attained.** The
-    /// literal residual `|e + ρ(û cos θ + (n̂ × û) sin θ)|² − r²` and the
-    /// form's `P + e_n² + ρ² − r² + 2ρ(e_u cos θ + e_v sin θ)` differ, at
-    /// every rational point `(a, b)/c` of the unit circle tried, by no
-    /// more than `2r·frame_error` — exactly, in dyadic arithmetic scaled
-    /// by `c²`. Two defective frames: `n̂` tilted off `û`'s normal plane
-    /// by `2⁻²⁸`, and `û` stretched by `2⁻³⁰` with `n̂` shrunk by as
-    /// much and the sphere's centre on the axis, where at `θ = 0` the
-    /// gap is the bound to first order — so a charge of half the bound
-    /// misses there. An exactly orthonormal frame is charged nothing.
-    #[test]
-    fn the_frame_charge_bounds_the_literal_circle() {
-        let flat = circle_sphere_harmonic(
-            &geom::Circle::new(
-                geom::Frame::new(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::new(0.0, 0.0, -1.0),
-                    Vec3::new(0.0, 1.0, 0.0),
-                ),
-                1.0,
-            ),
-            Point3::new(1.7, 0.3, 0.2),
-            0.75,
-        );
-        assert_eq!(flat.frame_error, 0.0, "an exact frame is charged nothing");
-        let tight = 2f64.powi(-30);
-        let frames = [
-            (
-                [0.3, -0.2, 0.1],
-                [1.1, 0.4, -0.7],
-                [2f64.powi(-28), 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-            ),
-            (
-                [0.0, 0.0, 0.0],
-                [0.0, 0.0, -0.6],
-                [0.0, 0.0, 1.0 - tight],
-                [1.0 + tight, 0.0, 0.0],
-            ),
-        ];
-        for (k, (c, sc, n, ur)) in frames.into_iter().enumerate() {
-            let (rho, r) = (1.3, 0.9);
-            let h = circle_sphere_harmonic(
-                &geom::Circle::new(
-                    geom::Frame::new(
-                        Point3::from_array(c),
-                        Vec3::new(n[0], n[1], n[2]),
-                        Vec3::new(ur[0], ur[1], ur[2]),
-                    ),
-                    rho,
-                ),
-                Point3::from_array(sc),
-                r,
-            );
-            assert!(
-                h.frame_error > 1e-10,
-                "frame {k}: the defect is charged: {}",
-                h.frame_error
-            );
-            let e: [Dyadic; 3] = core::array::from_fn(|i| Dyadic::of(c[i]).sub(&Dyadic::of(sc[i])));
-            let (dn, du) = (dyadic_vec(n), dyadic_vec(ur));
-            let dv = dyadic_cross(&dn, &du);
-            let (eu, ev, en) = (
-                dyadic_dot(&e, &du),
-                dyadic_dot(&e, &dv),
-                dyadic_dot(&e, &dn),
-            );
-            let (dr, drho) = (Dyadic::of(r), Dyadic::of(rho));
-            let bound = Dyadic::of(2.0 * r * h.frame_error);
-            let mut widest = 0.0_f64;
-            for (a, b, cc) in [
-                (1, 0, 1),
-                (0, 1, 1),
-                (3, 4, 5),
-                (-5, 12, 13),
-                (-8, -15, 17),
-                (20, -21, 29),
-            ] {
-                let (a, b, cc) = (Dyadic::int(a), Dyadic::int(b), Dyadic::int(cc));
-                let c2 = cc.mul(&cc);
-                // `c·(e + ρ(û a + v̂ b)/c)`, squared, against `c²·(…)`.
-                let w: [Dyadic; 3] = core::array::from_fn(|i| {
-                    cc.mul(&e[i])
-                        .add(&drho.mul(&du[i].mul(&a).add(&dv[i].mul(&b))))
-                });
-                let literal = dyadic_dot(&w, &w).sub(&c2.mul(&dr.mul(&dr)));
-                let form = c2
-                    .mul(
-                        &eu.mul(&eu)
-                            .add(&ev.mul(&ev))
-                            .add(&en.mul(&en))
-                            .add(&drho.mul(&drho))
-                            .sub(&dr.mul(&dr)),
-                    )
-                    .add(
-                        &Dyadic::int(2)
-                            .mul(&drho)
-                            .mul(&cc)
-                            .mul(&eu.mul(&a).add(&ev.mul(&b))),
-                    );
-                let gap = literal.sub(&form);
-                let limit = c2.mul(&bound);
-                let neg = Dyadic {
-                    m: -limit.m.clone(),
-                    k: limit.k,
-                };
-                assert!(
-                    neg.le(&gap) && gap.le(&limit),
-                    "frame {k}: the literal circle leaves the form by more than the frame charge {}",
-                    h.frame_error
-                );
-                widest = widest.max(gap.ratio(&limit).abs());
-            }
-            if k == 1 {
-                assert!(
-                    widest > 0.99,
-                    "frame {k}: the bound is attained, got {widest}"
-                );
-            }
-        }
-    }
-
     /// **The torus's smallest radius of curvature bounds every bend, on
     /// a fat ring too.** It is read as a radius a sagitta is charged
     /// against, so it must not exceed `1/|κ|` for any normal curvature
@@ -2473,11 +2309,13 @@ mod tests {
     fn the_torus_min_radius_of_curvature_bounds_every_normal_curvature() {
         for (big_r, r) in [(0.8, 0.5), (2.0, 0.5), (1.2, 0.3)] {
             let s = Surface::Torus {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 1.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 major_radius: big_r,
                 minor_radius: r,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
             // Around the tube at 24 minor angles, both principal
             // directions: along the parallel (z) and across the tube.
@@ -2511,11 +2349,13 @@ mod tests {
     #[test]
     fn the_torus_chart_scale_and_its_curvature_bound_are_different_quantities() {
         let torus = |big_r: f64, r: f64| Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: big_r,
             minor_radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let fat = torus(0.8, 0.5);
         for (v, delta) in [(0.4_f64, 1e-3), (2.9, -2e-3), (3.1, 5e-4)] {
@@ -2556,29 +2396,21 @@ mod tests {
     fn all_curved() -> Vec<Surface<f64>> {
         vec![
             Surface::Cylinder {
-                origin: t_center(),
-                axis: t_axis(),
+                frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
                 radius: 2.5,
-                u_ref: t_uref(),
             },
             Surface::Cone {
-                apex: t_center(),
-                axis: t_axis(),
+                frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
                 half_angle: FRAC_PI_6,
-                u_ref: t_uref(),
             },
             Surface::Sphere {
-                center: t_center(),
+                frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
                 radius: 2.5,
-                axis: t_axis(),
-                u_ref: t_uref(),
             },
             Surface::Torus {
-                center: t_center(),
-                axis: t_axis(),
+                frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
                 major_radius: 3.0,
                 minor_radius: 1.25,
-                u_ref: t_uref(),
             },
         ]
     }
@@ -2599,7 +2431,7 @@ mod tests {
                 let g = implicit_gradient(&s, p);
                 prop_assert!((g.norm() - 1.0).abs() <= 1e-12, "{s:?}: |grad| {}", g.norm());
             }
-            let plane = Surface::Plane { origin: t_center(), normal: t_axis(), u_ref: t_uref() };
+            let plane = Surface::Plane { frame: geom::Frame::new(t_center(), t_axis(), t_uref()) };
             let p = plane.eval(u, v);
             prop_assert!(implicit_residual(&plane, p).abs() <= 1e-12);
         }
@@ -2644,10 +2476,8 @@ mod tests {
     #[test]
     fn cone_residual_covers_both_nappes_and_apex() {
         let cone = Surface::Cone {
-            apex: t_center(),
-            axis: t_axis(),
+            frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
             half_angle: FRAC_PI_6,
-            u_ref: t_uref(),
         };
         // Mirror nappe (v < 0) is on the locus too.
         let p = cone.eval(1.0, -0.75);
@@ -2664,9 +2494,7 @@ mod tests {
     #[test]
     fn plane_arm_is_max_finite_and_nurbs_poisons() {
         let plane: Surface<f64> = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         // The practical min identity — finite so the interval lane's
         // enclosure stays well-formed (module docs).
@@ -2685,10 +2513,8 @@ mod tests {
         // A unit-ish sphere: a point 0.1 outside reports ≈ +0.1 (the
         // linearized form is (d² − r²)/2r = (d − r)(d + r)/2r).
         let s = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 2.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let p = Point3::new(2.1, 0.0, 0.0);
         let r = implicit_residual(&s, p);
@@ -2713,21 +2539,27 @@ mod tests {
         };
         let kinds: Vec<Surface<f64>> = vec![
             Surface::Plane {
-                origin: Point3::new(0.1, 0.0, 0.0),
-                normal: Vec3::new(0.2, -1.0, 0.4).normalize(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(
+                    Point3::new(0.1, 0.0, 0.0),
+                    Vec3::new(0.2, -1.0, 0.4).normalize(),
+                    Vec3::unit_x(),
+                ),
             },
             Surface::Sphere {
-                center: Point3::new(1.5, 0.3, -0.2),
+                frame: geom::Frame::new(
+                    Point3::new(1.5, 0.3, -0.2),
+                    Vec3::unit_z(),
+                    Vec3::unit_x(),
+                ),
                 radius: 0.9,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             Surface::Cylinder {
-                origin: Point3::new(-0.5, 1.0, 0.2),
-                axis: Vec3::new(0.3, 0.1, 1.0).normalize(),
+                frame: geom::Frame::new(
+                    Point3::new(-0.5, 1.0, 0.2),
+                    Vec3::new(0.3, 0.1, 1.0).normalize(),
+                    Vec3::unit_x(),
+                ),
                 radius: 0.6,
-                u_ref: Vec3::unit_x(),
             },
         ];
         for s in &kinds {
@@ -2759,11 +2591,9 @@ mod tests {
         // door stands in for one over the whole turn, and that what
         // it returns encloses.
         let torus = Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         let (lo, hi) = circle_residual_extremes(
             &torus,
@@ -2790,10 +2620,8 @@ mod tests {
         // The cone keeps the frontier door: no harmonic form and no
         // curvature bound either.
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::unit_x(),
         };
         assert!(
             circle_residual_extremes(
@@ -2858,10 +2686,8 @@ mod arc_clearance_tests {
             case(
                 "cylinder, tilted circle (A2 large)",
                 Surface::Cylinder {
-                    origin: Point3::new(-1.0, 0.0, 0.0),
-                    axis: z,
+                    frame: geom::Frame::new(Point3::new(-1.0, 0.0, 0.0), z, x),
                     radius: 1.6,
-                    u_ref: x,
                 },
                 Point3::new(0.0, 0.0, 0.0),
                 tilt,
@@ -2871,10 +2697,8 @@ mod arc_clearance_tests {
             case(
                 "cylinder, steeply tilted circle",
                 Surface::Cylinder {
-                    origin: Point3::new(0.4, -0.3, 0.0),
-                    axis: z,
+                    frame: geom::Frame::new(Point3::new(0.4, -0.3, 0.0), z, x),
                     radius: 0.9,
-                    u_ref: x,
                 },
                 Point3::new(0.2, 0.1, 0.0),
                 steep,
@@ -2884,10 +2708,8 @@ mod arc_clearance_tests {
             case(
                 "cylinder, coaxial circle (A2 = 0)",
                 Surface::Cylinder {
-                    origin: Point3::new(-1.0, 0.0, 0.0),
-                    axis: z,
+                    frame: geom::Frame::new(Point3::new(-1.0, 0.0, 0.0), z, x),
                     radius: 1.6,
-                    u_ref: x,
                 },
                 Point3::new(0.0, 0.0, 0.0),
                 z,
@@ -2897,10 +2719,8 @@ mod arc_clearance_tests {
             case(
                 "sphere",
                 Surface::Sphere {
-                    center: Point3::new(-1.0, 0.0, 0.0),
+                    frame: geom::Frame::new(Point3::new(-1.0, 0.0, 0.0), z, x),
                     radius: 1.2,
-                    axis: z,
-                    u_ref: x,
                 },
                 Point3::new(0.0, 0.0, 0.0),
                 z,
@@ -2910,9 +2730,11 @@ mod arc_clearance_tests {
             case(
                 "plane",
                 Surface::Plane {
-                    origin: Point3::new(0.0, 0.0, 0.1),
-                    normal: Vec3::new(0.3, 0.0, 1.0).normalize(),
-                    u_ref: x,
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.1),
+                        Vec3::new(0.3, 0.0, 1.0).normalize(),
+                        x,
+                    ),
                 },
                 Point3::new(0.0, 0.0, 0.0),
                 z,
@@ -2932,11 +2754,9 @@ mod arc_clearance_tests {
             case(
                 "torus, coplanar offset circle",
                 Surface::Torus {
-                    center: Point3::new(0.0, 0.0, 0.0),
-                    axis: z,
+                    frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, x),
                     major_radius: 1.0,
                     minor_radius: 0.25,
-                    u_ref: x,
                 },
                 Point3::new(1.7, 0.0, 0.0),
                 z,
@@ -2946,11 +2766,9 @@ mod arc_clearance_tests {
             case(
                 "torus, tilted circle (a_h large)",
                 Surface::Torus {
-                    center: Point3::new(0.1, -0.2, 0.0),
-                    axis: z,
+                    frame: geom::Frame::new(Point3::new(0.1, -0.2, 0.0), z, x),
                     major_radius: 1.2,
                     minor_radius: 0.3,
-                    u_ref: x,
                 },
                 Point3::new(0.3, 0.4, 0.2),
                 tilt,
@@ -2960,11 +2778,9 @@ mod arc_clearance_tests {
             case(
                 "torus, near-axis circle",
                 Surface::Torus {
-                    center: Point3::new(0.0, 0.0, 0.0),
-                    axis: z,
+                    frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, x),
                     major_radius: 0.9,
                     minor_radius: 0.2,
-                    u_ref: x,
                 },
                 Point3::new(0.66, 0.0, 0.35),
                 steep,
@@ -3103,10 +2919,12 @@ mod arc_clearance_tests {
     #[test]
     fn a_short_arc_clears_a_carrier_that_straddles() {
         let s = Surface::Cylinder {
-            origin: Point3::new(-1.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(-1.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.6,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (c, axis, r, u) = (
             Point3::new(0.0, 0.0, 0.0),
@@ -3160,11 +2978,9 @@ mod arc_clearance_tests {
     #[test]
     fn a_through_axis_circle_encloses_infinitely_rather_than_branching() {
         let s = Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 1.0,
             minor_radius: 0.25,
-            u_ref: Vec3::unit_x(),
         };
         // A circle in the ring plane whose centre stands exactly its
         // own radius from the axis: it MEETS the axis, at `t = π`.
@@ -3206,11 +3022,13 @@ mod arc_clearance_tests {
         use geom_core::Interval;
         let i = Interval::from_f64;
         let s = Surface::Torus {
-            center: Point3::new(i(0.0), i(0.0), i(0.0)),
-            axis: Vec3::new(i(0.0), i(0.0), i(1.0)),
+            frame: geom::Frame::new(
+                Point3::new(i(0.0), i(0.0), i(0.0)),
+                Vec3::new(i(0.0), i(0.0), i(1.0)),
+                Vec3::new(i(1.0), i(0.0), i(0.0)),
+            ),
             major_radius: i(1.0),
             minor_radius: i(0.25),
-            u_ref: Vec3::new(i(1.0), i(0.0), i(0.0)),
         };
         let center = Point3::new(i(0.5), i(0.0), i(0.0));
         let (lo, hi) = circle_arc_residual_range(
@@ -3317,8 +3135,7 @@ mod arc_clearance_tests {
         /// The composed residual's exact `F″` at one parameter.
         fn g2(c: &TorusArcCase, t: f64) -> f64 {
             let Surface::Torus {
-                center: tc,
-                axis: tn,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
@@ -3326,6 +3143,7 @@ mod arc_clearance_tests {
             else {
                 unreachable!("torus fixture")
             };
+            let (tc, tn) = (frame.origin(), frame.axis());
             let v = c.axis.cross(c.u_ref);
             let (st, ct) = t.sin_cos();
             let p = c.center + c.u_ref * (c.radius * ct) + v * (c.radius * st);
@@ -3437,11 +3255,9 @@ mod arc_clearance_tests {
         let minor = big_r * rng.range(0.05, 0.6);
         let t_u = random_perp(rng, tn);
         let surface = Surface::Torus {
-            center: tc,
-            axis: tn,
+            frame: geom::Frame::new(tc, tn, t_u),
             major_radius: big_r,
             minor_radius: minor,
-            u_ref: t_u,
         };
         let t0 = rng.range(0.0, TAU);
         let span = 10f64.powf(rng.range(-3.0, TAU.log10()));
@@ -3493,78 +3309,6 @@ mod conic_tests {
 
     use super::*;
 
-    /// **The carrier-wide ceiling charges the frame's defect.** On a
-    /// frame whose `û` is 1.3 long and not square to its axis — the
-    /// struct says a frame need not be orthonormal — the carrier reaches
-    /// past `max(|a|, |b|)`, and `Q = |F|/(2r|res|)` along it reaches
-    /// 1.53 times `(|C₀ − c| + max(|a|, |b|) + R)²`. Read off the Gram
-    /// matrix, the ceiling holds with room (`Q` peaks at 0.97 of it).
-    /// Every point within `r` of the torus, sampled over the tube, stays
-    /// under [`ConicTorusHarmonics::f_per_metre_surface`].
-    #[test]
-    fn the_carrier_ceiling_charges_the_frame_defect() {
-        let conic = geom::Ellipse::new(
-            geom::Frame::new(
-                Point3::new(0.006_142_65, 0.035_256_44, 0.010_196_55),
-                Vec3::new(0.758_923_11, 0.041_698_83, -0.649_843_76),
-                Vec3::new(-0.631_128_01, 0.979_226_32, -0.574_074_24),
-            ),
-            1.779_300_934_408_354,
-            0.988_632_635_923_187_6,
-        );
-        let (c, ax) = (
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(-0.441_532_65, -0.871_819_51, -0.212_084_08).normalize(),
-        );
-        let (big, small) = (0.267_368_886_091_117, 0.162_217_785_042_628_35);
-        let h = conic_torus_harmonics(&conic, geom::Line { origin: c, dir: ax }, big, small);
-        let q_at = |p: Point3<f64>| {
-            let q = p - c;
-            let along = q.dot(ax);
-            let rho = (q - ax * along).norm();
-            (rho + big).powi(2) + along.powi(2) - small.powi(2)
-        };
-        let q_max = (0..4000)
-            .map(|j| q_at(conic.point_at(TAU * f64::from(j) / 4000.0)))
-            .fold(0.0, f64::max);
-        let stated = (conic.frame().origin - c).norm() + conic.speed_hi() + big;
-        assert!(
-            2.0 * small * q_max > 1.5 * 2.0 * small * stated.powi(2),
-            "the pose reaches past the semi-axes' reach: Q {q_max} against {}",
-            stated.powi(2)
-        );
-        assert!(
-            2.0 * small * q_max <= h.f_per_metre_hi,
-            "2rQ {} over the carrier ceiling {}",
-            2.0 * small * q_max,
-            h.f_per_metre_hi
-        );
-        // Points within `r` of the surface: offsets up to `r` along the
-        // tube's own normal, over the whole tube.
-        let (e1, e2) = {
-            let x = Vec3::new(1.0, 0.0, 0.0);
-            let e1 = (x - ax * x.dot(ax)).normalize();
-            (e1, ax.cross(e1))
-        };
-        for i in 0..90 {
-            for j in 0..45 {
-                for off in [-1.0, -0.5, 0.0, 0.5, 1.0] {
-                    let (su, cu) = (TAU * f64::from(i) / 90.0).sin_cos();
-                    let (sv, cv) = (TAU * f64::from(j) / 45.0).sin_cos();
-                    let radial = e1 * cu + e2 * su;
-                    let normal = radial * cv + ax * sv;
-                    let p = c + radial * big + normal * (small * (1.0 + off));
-                    assert!(
-                        2.0 * small * q_at(p) <= h.f_per_metre_surface,
-                        "2rQ {} past the surface ceiling {}",
-                        2.0 * small * q_at(p),
-                        h.f_per_metre_surface
-                    );
-                }
-            }
-        }
-    }
-
     /// **The running residuals are the plain ones, bit for bit.** The
     /// torus's ([`conic_torus_residual`]), the cone's
     /// ([`conic_cone_residual`]) and the sphere's and wall's
@@ -3583,13 +3327,11 @@ mod conic_tests {
             .into_iter()
             .map(|e| Box::new(e) as Box<dyn Conic<f64>>)
             .collect();
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame {
-                u_ref: Vec3::new(1.0, 0.3, 0.1),
-                ..first.frame
-            },
-            ..first
-        }));
+        conics.push(Box::new(first.with_frame(geom::Frame::new(
+            first.frame.origin(),
+            first.frame.axis(),
+            Vec3::new(1.0, 0.3, 0.1),
+        ))));
         for (c, n, r) in [
             ([0.2, 0.1, -0.1], [0.0, 0.6, 0.8], 0.7),
             ([1.0, -2.0, 0.5], [2.0, 2.0, 1.0], 1.3),
@@ -3601,38 +3343,25 @@ mod conic_tests {
                 r,
             )));
         }
-        let (c, ax) = (
-            Point3::new(0.3, -0.1, 0.4),
-            Vec3::new(0.2, 1.0, -0.3).normalize(),
-        );
+        // The axis the surfaces' frames hold, so the running and plain
+        // forms read one vector.
+        let c = Point3::new(0.3, -0.1, 0.4);
+        let frame = geom::Frame::new(c, Vec3::new(0.2, 1.0, -0.3), Vec3::new(1.0, 0.0, 0.0));
+        let ax = frame.axis();
         let (big, small) = (1.1, 0.35);
         let (apex, half) = (Point3::new(-0.2, 0.5, -1.0), 0.6);
         let surfaces = [
             Surface::Torus {
-                center: c,
-                axis: ax,
+                frame,
                 major_radius: big,
                 minor_radius: small,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             Surface::Cone {
-                apex,
-                axis: ax,
+                frame: frame.with_origin(apex),
                 half_angle: half,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
-            Surface::Sphere {
-                center: c,
-                radius: 0.9,
-                axis: ax,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
-            Surface::Cylinder {
-                origin: c,
-                axis: ax,
-                radius: 0.8,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
+            Surface::Sphere { frame, radius: 0.9 },
+            Surface::Cylinder { frame, radius: 0.8 },
         ];
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for s in &surfaces {
@@ -3714,13 +3443,11 @@ mod conic_tests {
             0.7,
         )));
         let first = ellipses()[0];
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame {
-                u_ref: Vec3::new(1.0, 0.003, 0.0),
-                ..first.frame
-            },
-            ..first
-        }));
+        conics.push(Box::new(first.with_frame(geom::Frame::new(
+            first.frame.origin(),
+            first.frame.axis(),
+            Vec3::new(1.0, 0.003, 0.0),
+        ))));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
                 let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);
@@ -3741,11 +3468,9 @@ mod conic_tests {
                     );
                     let res = implicit_residual(
                         &Surface::Torus {
-                            center: c,
-                            axis: ax,
+                            frame: geom::Frame::new(c, ax, Vec3::new(1.0, 0.0, 0.0)),
                             major_radius: big,
                             minor_radius: small,
-                            u_ref: Vec3::new(1.0, 0.0, 0.0),
                         },
                         conic.point_at(t),
                     );
@@ -3812,13 +3537,11 @@ mod conic_tests {
             0.7,
         )));
         let first = ellipses()[0];
-        conics.push(Box::new(geom::Ellipse {
-            frame: geom::Frame {
-                u_ref: Vec3::new(1.0, 0.003, 0.0),
-                ..first.frame
-            },
-            ..first
-        }));
+        conics.push(Box::new(first.with_frame(geom::Frame::new(
+            first.frame.origin(),
+            first.frame.axis(),
+            Vec3::new(1.0, 0.003, 0.0),
+        ))));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
                 let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);
@@ -3927,23 +3650,25 @@ mod conic_tests {
         let x = Vec3::new(1.0, 0.0, 0.0);
         vec![
             Surface::Sphere {
-                center: Point3::new(0.2, 0.1, 0.3),
+                frame: geom::Frame::new(Point3::new(0.2, 0.1, 0.3), z, x),
                 radius: 0.45,
-                axis: z,
-                u_ref: x,
             },
             Surface::Cylinder {
-                origin: Point3::new(0.0, 0.3, 0.0),
-                axis: Vec3::new(0.2, 0.0, 1.0).normalize(),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.3, 0.0),
+                    Vec3::new(0.2, 0.0, 1.0).normalize(),
+                    Vec3::new(1.0, 0.0, -0.2).normalize(),
+                ),
                 radius: 0.5,
-                u_ref: Vec3::new(1.0, 0.0, -0.2).normalize(),
             },
             Surface::Torus {
-                center: Point3::new(0.1, 0.0, 0.2),
-                axis: Vec3::new(0.0, 0.3, 1.0).normalize(),
+                frame: geom::Frame::new(
+                    Point3::new(0.1, 0.0, 0.2),
+                    Vec3::new(0.0, 0.3, 1.0).normalize(),
+                    x,
+                ),
                 major_radius: 0.8,
                 minor_radius: 0.25,
-                u_ref: x,
             },
         ]
     }
@@ -3956,15 +3681,14 @@ mod conic_tests {
         for (i, conic) in ellipses().iter().enumerate() {
             for s in &surfaces()[..2] {
                 let h = match *s {
-                    Surface::Sphere { center, radius, .. } => {
+                    Surface::Sphere { frame, radius, .. } => {
+                        let center = frame.origin();
                         conic_sphere_harmonics(conic, center, radius)
                     }
-                    Surface::Cylinder {
-                        origin,
-                        axis,
-                        radius,
-                        ..
-                    } => conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
+                    Surface::Cylinder { frame, radius, .. } => {
+                        let (origin, axis) = (frame.origin(), frame.axis());
+                        conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius)
+                    }
                     _ => unreachable!(),
                 };
                 for k in 0..360 {
@@ -4035,23 +3759,29 @@ mod conic_tests {
             let spine = rng.range(0.5, 2.0);
             let s = match i % 3 {
                 0 => Surface::Torus {
-                    center: Point3::new(rng.range(-0.5, 0.5), 0.0, 0.0),
-                    axis: n,
+                    frame: geom::Frame::new(
+                        Point3::new(rng.range(-0.5, 0.5), 0.0, 0.0),
+                        n,
+                        (x - n * x.dot(n)).normalize(),
+                    ),
                     major_radius: spine,
                     minor_radius: spine * rng.range(0.05, 0.6),
-                    u_ref: (x - n * x.dot(n)).normalize(),
                 },
                 1 => Surface::Sphere {
-                    center: Point3::new(0.0, rng.range(-0.5, 0.5), 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, rng.range(-0.5, 0.5), 0.0),
+                        n,
+                        (x - n * x.dot(n)).normalize(),
+                    ),
                     radius: spine,
-                    axis: n,
-                    u_ref: (x - n * x.dot(n)).normalize(),
                 },
                 _ => Surface::Cylinder {
-                    origin: Point3::new(0.0, 0.0, rng.range(-0.5, 0.5)),
-                    axis: n,
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, rng.range(-0.5, 0.5)),
+                        n,
+                        (x - n * x.dot(n)).normalize(),
+                    ),
                     radius: spine,
-                    u_ref: (x - n * x.dot(n)).normalize(),
                 },
             };
             let t0 = rng.range(0.0, TAU);

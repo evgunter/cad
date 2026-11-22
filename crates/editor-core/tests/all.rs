@@ -67,8 +67,8 @@ mod a_bore_taken_alone_is_smooth_at_its_seams_interval;
 mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
-#[path = "a_turned_discs_union_names_its_unfinished_member.rs"]
-mod a_turned_discs_union_names_its_unfinished_member;
+#[path = "a_turned_discs_union_refuses_on_the_widened_copy.rs"]
+mod a_turned_discs_union_refuses_on_the_widened_copy;
 #[path = "aligned_overlap_quiets.rs"]
 mod aligned_overlap_quiets;
 #[path = "asm1_identity_pins.rs"]
@@ -173,6 +173,8 @@ mod docm6_seam_declarations;
 mod docm8_flat_merged;
 #[path = "docm9_range.rs"]
 mod docm9_range;
+#[path = "door_step_order.rs"]
+mod door_step_order;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
@@ -183,6 +185,8 @@ mod e6_drive_over_a_loft_at_interval;
 mod edit_blend_canonical;
 #[path = "edit_blend_one_box_of_two.rs"]
 mod edit_blend_one_box_of_two;
+#[path = "edit_bore_chamfer.rs"]
+mod edit_bore_chamfer;
 #[path = "edit_bore_two_rims.rs"]
 mod edit_bore_two_rims;
 #[path = "edit_concave_bar.rs"]
@@ -237,6 +241,8 @@ mod eval9_nominal_in_the_key;
 mod every_predicate_name_is_minted_once;
 #[path = "f64_lane_validates_once.rs"]
 mod f64_lane_validates_once;
+#[path = "face_chart_and_signed_depth.rs"]
+mod face_chart_and_signed_depth;
 #[path = "face_face_touch_carry.rs"]
 mod face_face_touch_carry;
 #[path = "fillet_step_walk.rs"]
@@ -363,6 +369,8 @@ mod m10_4_r1_probes_interval;
 mod m10_4_seed;
 #[path = "maintenance_net.rs"]
 mod maintenance_net;
+#[path = "meet_by_construction.rs"]
+mod meet_by_construction;
 #[path = "member_budget.rs"]
 mod member_budget;
 #[path = "msolve10_door_admission.rs"]
@@ -904,8 +912,8 @@ mod intent_s5_c_quietable;
 mod intent_s6_c_trace;
 #[path = "intent_s6_d_tangency.rs"]
 mod intent_s6_d_tangency;
-#[path = "intent_s6_e_traced_frame.rs"]
-mod intent_s6_e_traced_frame;
+#[path = "intent_s6_e_traced_on_a_face.rs"]
+mod intent_s6_e_traced_on_a_face;
 #[path = "intent_unused_check.rs"]
 mod intent_unused_check;
 #[path = "intent_value_chart_orientation.rs"]

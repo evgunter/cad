@@ -21,10 +21,12 @@ fn an_odd_cone_circle_mints_or_is_a_finding_never_excused() {
     let band = Band::linear(tol).unwrap();
     let alpha = 0.5_f64;
     let cone = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: alpha,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let (h, tau) = (1.0_f64, core::f64::consts::TAU);
     let tilts = core::iter::once(0.0)
@@ -38,7 +40,14 @@ fn an_odd_cone_circle_mints_or_is_a_finding_never_excused() {
             h * alpha.tan(),
             Vec3::new(1.0, 0.0, 0.0),
         );
-        match analytic_derive(&circle, 0.0, tau, &cone, band, HalfEdgeKey::default()) {
+        match analytic_derive(
+            &circle,
+            (0.0, tau),
+            geom_brep::SingularEnds::default(),
+            &cone,
+            band,
+            HalfEdgeKey::default(),
+        ) {
             Ok(image) => {
                 assert!(
                     tilt < 0.3,

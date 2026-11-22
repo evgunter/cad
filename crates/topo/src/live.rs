@@ -1710,7 +1710,6 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
             ("entity.rs", "the order's home"),
             ("live.rs", "the walks' home"),
             ("validate.rs", "the validator reports every miss"),
-            ("coherence.rs", "the chart coherence check reports a miss"),
             (
                 "census.rs",
                 "the tier-3 census hands an unwalkable loop back",
@@ -1724,6 +1723,10 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
                 "find_half_edge is total by its contract; site_face reads keys only",
             ),
             ("fixtures.rs", "the torn-body fixtures report a dead loop"),
+            (
+                "splitting/section_cones.rs",
+                "each loop goes to `loop_points::loop_corners`, whose miss is a desync",
+            ),
             (
                 "review_m0_pr7.rs",
                 "a census of a body the validator has not certified",

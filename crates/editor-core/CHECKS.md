@@ -5,7 +5,7 @@ that produce findings and never change a body (DESIGN
 `[intent.checked]`). The registry and its residents are
 `src/checks.rs` and `src/checks/` (`run_checks`, `enforce_checks`,
 `CheckId`, `CheckKind`, `Severity`, `Advisory`); the sink is
-`src/finding.rs`. The residents are `Connectedness`, `ChartCoherence`,
+`src/finding.rs`. The residents are `Connectedness`,
 `Unused`, DESIGN `[operations]`'s finding of what the person made and
 nothing uses, `UnprovenCoincidence`, DESIGN `[coincidence.door]`'s
 lint, and `AtRest`, DESIGN `[assertions]`'s at-rest check.

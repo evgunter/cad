@@ -65,7 +65,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "cone_on_sphere",
         about: "a revolved cone whose generator is typed tangent to a sphere, unioned with it",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(whole),
         pin: None, // revolved: π-valued

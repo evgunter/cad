@@ -296,7 +296,7 @@ pub fn lune(tol: Tol) -> ProfileLoop<f64> {
 /// **Whether a blend read a requested edge as tangent**: the edge's
 /// wedge fold read some requested edge's faces meeting smoothly — a
 /// smooth seam the verbs leave silently, a knife (a cusp or slit) whose
-/// link's convexity is the end the fold read (`fillet3_knife_end`)
+/// link's convexity is the end the fold read (`material_cusp_side`)
 /// rather than a corner's sign, or a lamina the blend refuses — or the
 /// request (`outcome`) refused at a knife's room or at a lamina. A row
 /// that guards a transverse corner against a false tangency asks this
@@ -648,7 +648,7 @@ pub fn one_edge_rim_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
 /// corner**: the edge of `body` standing at plan point `(x, y)` and the
 /// edge in the floor `z = 0` from that corner along `y = const`, each
 /// matched within `1e-9`. The pair is the mixed corner's odd edge with
-/// one other, the request its rule does not build.
+/// one other, which the chamfer builds and the fillet refuses.
 ///
 /// # Panics
 ///
@@ -715,13 +715,11 @@ pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey
     body.edges()
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
-            let geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: center, .. },
-                radius,
-            }) = *c.carrier()
-            else {
+            let geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = *c.carrier() else {
                 return None;
             };
+            let center = frame.origin();
+            let radius = conic_k.radius();
             if !near(radius, rim_r) || !near(center.y, rim_y) {
                 return None;
             }
@@ -2042,8 +2040,8 @@ fn circle_arcs_where(
                 body.get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, axis, .. }, radius }))
-                    if pick(*center, *radius, *axis)
+                Some(geom::Curve3::Circle(c))
+                    if pick(c.frame.origin(), c.radius(), c.frame.axis())
             )
         })
         .map(|(k, _)| k)

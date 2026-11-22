@@ -6,7 +6,9 @@
 //! extensions overlap in — `d³/3` for a chamfer and `(5/3 − π/2)·r³` for
 //! a fillet at right angles, removed past a convex pair and filled past
 //! a concave one. The odd edge requested with one other edge there
-//! refuses `MixedConvexity`; all three build the mixed corner
+//! chamfers, the other strip cut off in the odd strip's plane
+//! (`band_mixed_corner_odd_plus_one`), and refuses the fillet's
+//! run-out (`UnbuiltEnd::RunOut`); all three build the mixed corner
 //! (`band_mixed_corner`).
 //!
 //! The section a band takes from (or adds to) a right dihedral is
@@ -18,7 +20,7 @@
 
 use geom_core::{Band, Bounds, Interval, Point3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
-use sweep::blend::{BlendError, CornerConfig, FILLET3_MIXED_CORNER_RECOURSE};
+use sweep::blend::{BlendError, FILLET3_MIXED_CORNER_RECOURSE, UnbuiltEnd};
 use sweep::test_support::{assert_naming_totality, corners, finished, prism_at, realized};
 use topo::boolean::BooleanOp;
 use topo::{Body, SolidContainment, VertexKey, point_in_solid, validate_geometric};
@@ -50,7 +52,7 @@ fn l_bar<T: geom_core::Decide + topo::AtRestPolicy>() -> Body<T> {
 /// standing to z = 2, its low side at `x = inset` (flush with the
 /// plate's `x = 0` side at `inset = 0`). Each vertex where the boss
 /// meets the plate mixes convexity.
-fn plate_boss(inset: f64) -> Body<f64> {
+pub(crate) fn plate_boss(inset: f64) -> Body<f64> {
     let plate = prism_at(
         corners(&[(0.0, 0.0), (6.0, 0.0), (6.0, 4.0), (0.0, 4.0)]),
         0.0,
@@ -115,7 +117,7 @@ fn a_curved_link_alone_at_a_mixed_vertex_refuses_as_at_a_uniform_one() {
     }
 }
 
-fn vertex_at(body: &Body<f64>, q: [f64; 3]) -> VertexKey {
+pub(crate) fn vertex_at(body: &Body<f64>, q: [f64; 3]) -> VertexKey {
     body.vertices()
         .find(|(_, v)| {
             let p = body.get_point(v.point).unwrap();
@@ -270,12 +272,9 @@ fn a_flush_pair_whose_feet_stand_apart_refuses_at_its_overrun() {
     let turn = vertex_at(&body, [0.0, 0.5, 0.5]);
     for verb in [Verb::Chamfer, Verb::Fillet] {
         match verb.run(&body, &[rim, up]) {
-            Err(BlendError::UnsupportedRunOut {
-                at: topo::EntityId::Vertex(v),
-                detail,
-            }) => assert!(
-                v == turn && detail.contains("foot lands inside a face"),
-                "{verb:?}: at the turn, a foot inside a face: {detail}"
+            Err(BlendError::UnbuiltEnd(UnbuiltEnd::FootInsideAFace { vertex })) => assert!(
+                vertex == turn,
+                "{verb:?}: at the turn, a foot inside a face: {vertex:?}"
             ),
             got => panic!(
                 "{verb:?}: the overrun refuses typed, got {:?}",
@@ -315,12 +314,9 @@ fn the_inset_root_rim_fills_the_mirror_wedge_at_each_corner() {
         let rec = out.naming.as_ref().expect("births");
         assert_eq!(rec.mitres.len(), 4, "{verb:?}: four mitres");
         match verb.run(&body, &[front, side]) {
-            Err(BlendError::UnsupportedRunOut {
-                at: topo::EntityId::Vertex(v),
-                detail,
-            }) => assert!(
-                far_ends.contains(&v) && detail.contains("foot lands inside a face"),
-                "{verb:?}: at a far end, a foot inside a face: {detail}"
+            Err(BlendError::UnbuiltEnd(UnbuiltEnd::FootInsideAFace { vertex })) => assert!(
+                far_ends.contains(&vertex),
+                "{verb:?}: at a far end, a foot inside a face: {vertex:?}"
             ),
             got => panic!(
                 "{verb:?}: two root edges refuse at a far foot, got {:?}",
@@ -330,11 +326,15 @@ fn the_inset_root_rim_fills_the_mirror_wedge_at_each_corner() {
     }
 }
 
-/// **The odd edge with one other edge of its corner refuses**, both
-/// verbs, at both fixtures: `MixedConvexity` at the corner, naming no
-/// run-out policy, its recourse the mixed corner's unbuilt rule (all
-/// three build, `band_mixed_corner`). The flush odd edge is the concave root, the inset one
-/// the convex vertical.
+/// **The odd edge with one other edge of its corner refuses**: the
+/// fillet at both fixtures, and the chamfer where the face the other two
+/// share leans off square to the odd edge
+/// (`band_mixed_corner::leaning`): the fillet's run-out and the
+/// chamfer's `ObliqueMixedCorner` at the corner, each with the mixed
+/// corner's rule for its recourse. The
+/// flush odd edge is the concave root, the inset one the convex
+/// vertical; square, the chamfer builds
+/// ([`the_odd_edge_with_one_other_chamfers_at_the_flush_fixture`]).
 #[test]
 fn the_odd_edge_with_another_edge_of_its_corner_refuses() {
     let flush = plate_boss(0.0);
@@ -361,26 +361,68 @@ fn the_odd_edge_with_another_edge_of_its_corner_refuses() {
             ],
         ),
     ];
-    for (what, body, at, edges) in rows {
+    let leaning = crate::band_mixed_corner::leaning();
+    let oblique = crate::band_mixed_corner::leaning_odd_and_one(&leaning).to_vec();
+    let rows = rows
+        .into_iter()
+        .map(|(what, body, at, edges)| (what, body, at, edges, Verb::Fillet))
+        .chain([(
+            "oblique root and vertical",
+            &leaning,
+            [0.5, 0.0, 0.0],
+            oblique,
+            Verb::Chamfer,
+        )]);
+    for (what, body, at, edges, verb) in rows {
         let corner = vertex_at(body, at);
-        for verb in [Verb::Chamfer, Verb::Fillet] {
-            let err = verb.run(body, &edges).map(|_| ()).unwrap_err();
-            assert!(
-                matches!(
+        let err = verb.run(body, &edges).map(|_| ()).unwrap_err();
+        assert!(
+            match verb {
+                Verb::Fillet => matches!(
                     err,
-                    BlendError::UnsupportedCorner {
-                        vertex,
-                        corner: CornerConfig::MixedConvexity { .. },
-                        policy: None,
-                    } if vertex == corner
+                    BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { vertex, odd: Some(_), .. })
+                        if vertex == corner
                 ),
-                "{what} ({verb:?}): refuses MixedConvexity at the corner, got {err:?}"
-            );
-            let shown = err.render(geom_brep::recourse::Reading::Build);
-            assert!(
-                shown.contains(FILLET3_MIXED_CORNER_RECOURSE) && !shown.contains("feather"),
-                "{what} ({verb:?}): {shown}"
-            );
-        }
+                Verb::Chamfer => matches!(
+                    err,
+                    BlendError::ObliqueMixedCorner { vertex, .. } if vertex == corner
+                ),
+            },
+            "{what} ({verb:?}): refuses at the corner, got {err:?}"
+        );
+        let shown = err.render(geom_brep::recourse::Reading::Build);
+        assert!(
+            shown.contains(FILLET3_MIXED_CORNER_RECOURSE) && !shown.contains("feather"),
+            "{what} ({verb:?}): {shown}"
+        );
     }
+}
+
+/// **The odd edge with one other edge of its corner chamfers**
+/// (`band_mixed_corner_odd_plus_one`): at the flush fixture's corner
+/// `(0, 0.5, 0.5)` the root (odd, `L = 0.5`) with the vertical
+/// (`Y = 1.5`), the pair strip cut off in the odd strip's plane, which
+/// adds `(s²/2)(L − Y) + (2/3)s³`. The root's far end is an inset
+/// corner, where a concave root alone would land its foot inside the
+/// plate, so the boss's other two roots are requested with it: they
+/// meet it and each other in the inset corners' mitres, each filling
+/// its wedge `s³/3`, and the last is cut off alone in the flush side.
+#[test]
+fn the_odd_edge_with_one_other_chamfers_at_the_flush_fixture() {
+    let flush = plate_boss(0.0);
+    let f = |a, b| edge(&flush, a, b);
+    let edges = [
+        f([0.0, 0.5, 0.5], [0.5, 0.5, 0.5]),
+        f([0.0, 0.5, 0.5], [0.0, 0.5, 2.0]),
+        f([0.5, 0.5, 0.5], [0.5, 3.5, 0.5]),
+        f([0.0, 3.5, 0.5], [0.5, 3.5, 0.5]),
+    ];
+    let added = D * D / 2.0 * (0.5 - 1.5 + 3.0 + 0.5) + (2.0 / 3.0 + 2.0 / 3.0) * D.powi(3);
+    carve(
+        &flush,
+        &edges,
+        Verb::Chamfer,
+        -added,
+        "flush root and vertical, with the other roots",
+    );
 }

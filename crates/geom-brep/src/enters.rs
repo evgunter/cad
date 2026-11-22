@@ -578,7 +578,7 @@ pub fn enters_material_order2<T: Decide>(
     deriv2: Vec3<T>,
     speed_sq: T,
     reference_normal: ReferenceNormal<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
     // The parting against a plane (`κ_b = 0`), normalized for speed after
@@ -612,7 +612,7 @@ pub fn enters_material_order2<T: Decide>(
 /// wall-against-floor readings, each deciding the margin under its own
 /// predicate.
 #[must_use]
-pub fn parting<T: Real>(bend: Vec3<T>, u: Vec3<T>, l: T) -> Margin<T> {
+pub fn parting<T: Real>(bend: Vec3<T>, u: Vec3<T>, l: geom_core::Lever<T>) -> Margin<T> {
     Margin::sagitta(bend.dot(u), l)
 }
 
@@ -630,7 +630,7 @@ pub fn parting<T: Real>(bend: Vec3<T>, u: Vec3<T>, l: T) -> Margin<T> {
 pub fn parting_side<T: Decide>(
     bend: Vec3<T>,
     reference_normal: ReferenceNormal<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
     decide_order2(parting(bend, reference_normal.vec(), arm), arm, band)
@@ -641,10 +641,10 @@ pub fn parting_side<T: Decide>(
 /// (`"tangent_sector_order2"`).
 fn decide_order2<T: Decide>(
     margin: Margin<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
-    parting_arm(arm, band)?;
+    parting_arm(arm.length(), band)?;
     Ok(
         match crate::dihedral::decide("tangent_sector_order2", margin, band)
             .map_err(LeverEscalation::reading)?
@@ -698,7 +698,7 @@ pub fn tied_germ_turn<T: Decide>(
     normal: Vec3<T>,
     t: Vec3<T>,
     bends: [T; 2],
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Sign, TiedGermsError> {
     let bend = bends[1] - bends[0];
@@ -790,7 +790,7 @@ pub fn bends_into_material<T: Decide>(
     surface: &geom::Surface<T>,
     p: geom_core::Point3<T>,
     outward_normal: OutwardNormal<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<WallBend, WallBendError> {
     match surface.kind() {
@@ -803,7 +803,7 @@ pub fn bends_into_material<T: Decide>(
             return Err(WallBendError::Indefinite(kind));
         }
     }
-    crate::dihedral::decide_positive("wall_bend_order2_arm", Margin::of(arm), band)
+    crate::dihedral::decide_positive("wall_bend_order2_arm", Margin::of(arm.length()), band)
         .map_err(|d| WallBendError::Lever(LeverEscalation::arm(d)))?;
     let g = crate::implicit_gradient(surface, p);
     let (g_hat, g_norm) = g.direction_and_length();
@@ -1006,49 +1006,39 @@ mod tests {
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     radius: 0.5,
-                    u_ref: x,
                 },
                 Point3::new(0.0, 0.5, 0.3),
             ),
             (
                 "cone, the apex below",
                 Surface::Cone {
-                    apex: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     half_angle: half,
-                    u_ref: x,
                 },
                 Point3::new(0.0, 0.5, 1.0),
             ),
             (
                 "cone, the mirror nappe",
                 Surface::Cone {
-                    apex: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     half_angle: half,
-                    u_ref: x,
                 },
                 Point3::new(0.5, 0.0, -1.0),
             ),
             (
                 "sphere",
                 Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, z, x),
                     radius: 2.0,
-                    axis: z,
-                    u_ref: x,
                 },
                 Point3::new(0.0, 2.0, 0.0),
             ),
             (
                 "plane",
                 Surface::Plane {
-                    origin: o,
-                    normal: z,
-                    u_ref: x,
+                    frame: geom::Frame::new(o, z, x),
                 },
                 Point3::new(0.3, 0.2, 0.0),
             ),
@@ -1066,25 +1056,42 @@ mod tests {
                     want
                 };
                 let n_out = OutwardNormal::from_chart(g, sense);
-                let got = bends_into_material(surface, p, n_out, 1.0, band());
+                let got = bends_into_material(
+                    surface,
+                    p,
+                    n_out,
+                    geom_core::test_support::fixture_lever(1.0),
+                    band(),
+                );
                 assert_eq!(got, Ok(want), "{label}, sense {sense}");
             }
         }
         let torus = Surface::Torus {
-            center: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: x,
         };
         let p = Point3::new(2.5, 0.0, 0.0);
         let n_out = OutwardNormal::from_chart(x, true);
         assert_eq!(
-            bends_into_material(&torus, p, n_out, 1.0, band()),
+            bends_into_material(
+                &torus,
+                p,
+                n_out,
+                geom_core::test_support::fixture_lever(1.0),
+                band()
+            ),
             Err(WallBendError::Indefinite(geom::SurfaceKind::Torus))
         );
         let (_, cylinder, p) = &walls[0];
-        let err = bends_into_material(cylinder, *p, n_out, 0.0, band()).unwrap_err();
+        let err = bends_into_material(
+            cylinder,
+            *p,
+            n_out,
+            geom_core::test_support::fixture_lever(0.0),
+            band(),
+        )
+        .unwrap_err();
         let WallBendError::Lever(e) = err else {
             panic!("a collapsed arm is a lever escalation: {err:?}");
         };
@@ -1109,20 +1116,16 @@ mod tests {
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     radius: i(0.5),
-                    u_ref: x,
                 },
                 Point3::new(i(0.0), i(0.5), i(0.3)),
             ),
             (
                 "cone, the mirror nappe",
                 Surface::Cone {
-                    apex: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     half_angle: i(0.5).atan(),
-                    u_ref: x,
                 },
                 Point3::new(i(0.5), i(0.0), i(-1.0)),
             ),
@@ -1134,7 +1137,13 @@ mod tests {
                 (false, WallBend::OutOfMaterial),
             ] {
                 let n_out = OutwardNormal::from_chart(g, sense);
-                let got = bends_into_material(surface, *p, n_out, i(1.0), band());
+                let got = bends_into_material(
+                    surface,
+                    *p,
+                    n_out,
+                    geom_core::test_support::fixture_lever(i(1.0)),
+                    band(),
+                );
                 assert_eq!(got, Ok(want), "{label}, sense {sense}");
             }
         }

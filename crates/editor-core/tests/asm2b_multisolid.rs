@@ -282,8 +282,8 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
             }),
         },
     );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("loads");
     assert!(
         loaded.appearance().keys().any(|k| k.name == name),
         "a doubly-wrapped name survives the wire verbatim"
@@ -446,8 +446,8 @@ fn row5_the_single_solid_path_is_bit_identical_across_the_lift() {
 
     let ev = run(&doc, &opts);
     let body = product(&doc, &ev, Tol::witness()).expect("gathers");
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("loads");
     assert!(loaded.bit_eq(&doc), "the assembly round-trips");
 
     let eps = Tol::witness().eps();

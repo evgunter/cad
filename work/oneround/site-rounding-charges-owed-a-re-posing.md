@@ -49,10 +49,10 @@ re-posing that empties a file lowers or drops its row in the same change.
   `rounding_charge(|p₀| + len·|t|)`, a world-origin term that grows with
   the edge's distance from the origin rather than with what it sums
   (PR 6638's review).
-- `topo::boolean::solid_contain`: the ray–plane crossing's `slack`, over
+- `topo::solid_contain`: the ray–plane crossing's `slack`, over
   `denom` (a near-grazing ray), the wall roots' `over_root_slope`, and the
   torus roots' slack.
-- `topo::boolean::conic_quadric::mod`, `ellipse_torus`, `circle_torus`,
+- `geom_brep::curve_face::conic_quadric`, `ellipse_torus`, `circle_torus`,
   `reduce` (harmonic rungs): `rounding_charge(h.terms) / h.per`, a
   harmonic residual's noise over its per-metre rate.
 - `geom_brep::pair_section::gap` (`e_r1`, `e_r2` over `rho`) and
@@ -95,6 +95,12 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `geom_brep::extent::turn_lever`: the axial offset's rounding.
 - `geom_brep::intersect` (`plane_cone_section`'s gap and axis charges,
   `pair_bound`'s seam).
+- `geom_brep::ssi::certify::frame_direction` (`FRAME_ROUNDING`, `pose`):
+  a frame direction lifted to an enclosure is read at its midpoint where
+  each component is at most 16 ulps wide, and refused as a family past
+  that; owed with the midpoint read itself, which goes when the ring
+  composite takes enclosure-valued coefficients
+  (`work/onehome/composite-form-takes-enclosure-valued-coefficients.md`).
 - `geom_brep::pair_section::spline_implicit::bracket`,
   `pair_section::torus` (`decide`, `sphere_gap`),
   `pair_section::torus_arms` (`square_pose`, `square_folds`).

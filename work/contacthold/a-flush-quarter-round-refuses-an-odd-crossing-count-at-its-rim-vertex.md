@@ -48,7 +48,7 @@ Before INTENT's E unit (PR 4496) the undeclared postures refused
 `Rest + Tangent` was already this refusal (main 493bf8b).
 
 Possibly related, not checked against this fixture:
-`work/sector/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide.md`,
+`work/contacthold/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide.md`,
 `work/tang/two-discs-kissing-externally-refuse-classification-invariant.md`.
 
 ## Measured

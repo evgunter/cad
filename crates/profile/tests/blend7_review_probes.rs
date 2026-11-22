@@ -105,7 +105,9 @@ fn tag(e: &PathError<f64>) -> String {
         // The enclosing payload names the TIGHTEST class bound (a `None`
         // side meaning both carriers are swallowed) and carries the
         // existence bound the message endorses, so both numbers show.
-        PathError::NoCornerOfPair { radius, corners } => {
+        PathError::NoCornerOfPair {
+            radius, corners, ..
+        } => {
             let entries: Vec<String> = corners.iter().map(|c| entry_tag(&c.reason)).collect();
             format!("Pair(r={radius},[{}])", entries.join(" "))
         }
@@ -116,7 +118,7 @@ fn tag(e: &PathError<f64>) -> String {
 }
 
 /// One envelope entry's reason, tagged.
-fn entry_tag(reason: &CornerReason<f64>) -> String {
+fn entry_tag(reason: &CornerReason) -> String {
     match reason {
         CornerReason::EnclosesLegCarrier {
             side,
