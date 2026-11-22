@@ -168,6 +168,8 @@ Ev's standing instructions for implementation work:
   A render is `render.yml`'s own `render(<lane>)` commit, `[skip ci]` on
   a branch whose `[render]` commit is the green one. A commit that
   reaches code re-earns the gate.
+- **Merge over a running CI when the risk is low** (Ev, 2026-11-22),
+  such as after resolving a straightforward conflict with main.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
   unit's branch, **LAST, after every review is delivered** (an experiment row

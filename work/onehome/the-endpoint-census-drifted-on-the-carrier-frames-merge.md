@@ -1,7 +1,7 @@
 ---
 id: the-endpoint-census-drifted-on-the-carrier-frames-merge
 kind: issue
-title: The certified endpoint census drifted on the carrier-frames merge: speed.rs and recognize_curve.rs read more than their rows pin
+title: The certified endpoint census drifted on main: four files read more than their rows pin
 status: open
 priority: P2
 cost: C
@@ -21,21 +21,31 @@ two rows no lane of EMBED touches:
   them asking; its row pins 38 / 4.
 - `crates/step-import/src/recognize_curve.rs` reads 5, none asking, and
   has no row (it is listed among the census's holders).
-- **Again at main `e44e34003`** (2026-11-22, merged at `embed/lune`'s
-  `19dbfe621`): `crates/step-import/src/on_built.rs` reads 24 endpoints,
-  none asking, and has no row. It arrived with the adopt-by-description
-  merge (`a5ab84e64`; the file is `92f8deba0`'s and `1259b698b`'s). The
-  two rows above were still unpinned on that main.
 
 Both arrived with the carrier-frames merges into main (`c67c03e20`,
 `b3520c8dd`): `speed.rs`'s determinant read without `Real` and
 `recognize_curve`'s reversed-circle row through `Frame::reversed`.
 
-**What the lane did:** re-counted both rows, so its PR's gate (which runs
-the census, the lane editing it) reads green: `speed.rs` 41 / 4 with its
-disposition unchanged, and `recognize_curve.rs` 5 / 0 as "not yet
-dispositioned", pointing here, and `on_built.rs` 24 / 0 the same way.
-**What remains:** the three new reads in `speed.rs`, the five in
-`recognize_curve.rs` and the 24 in `on_built.rs` dispositioned by the
-program that wrote them, and the merge gate that let a red census land
-looked at.
+- **Again at main `e44e34003`** (2026-11-22): `crates/step-import/src/on_built.rs`
+  reads 24 endpoints, none asking, and has no row. It arrived with the
+  adopt-by-description merge (`a5ab84e64`; the file is `651aed96e` to
+  `1259b698b`'s). The two rows above were still unpinned on that main.
+- **Again at main `a3d5ce89c`** (2026-11-22):
+  `crates/geom-brep/src/pair_section/ruling.rs` reads 9, all asking,
+  against its pinned 3 / 3: the cone coverage walk's six (`96b964110`).
+
+The attribution, per file, read off each file's history:
+
+- `speed.rs`: `pole_azimuth_speed`'s three, from `bfc94c915` (two,
+  rewritten in `fa3cd6593`) and `0593c7cfb` (the determinant's sign);
+- `recognize_curve.rs`: five present since `603e36843`, never given a
+  row;
+- `on_built.rs`: a new file; 8 reads at `4e5a0eb32`, 24 by `1259b698b`;
+- `ruling.rs`: six, `96b964110`.
+
+**What was done:** each row re-counted with its dispositions carried, and
+each new read argued safe at its site in its row's note (PR
+`embed/census-main-drift` to main; the lane `embed/lune` first carried
+the count on its own branch). **What remains:** the merge gate that let a
+red census land on main, four times, looked at; and `speed.rs`'s older 34
+reads, which stay `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`.

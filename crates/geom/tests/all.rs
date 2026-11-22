@@ -108,6 +108,8 @@ mod curves_m5_pr7_speed_meter;
 mod curves_m8_14_long_turn_meter;
 #[path = "curves/n1r1_c24_dump.rs"]
 mod curves_n1r1_c24_dump;
+#[path = "depth_gap_rounding.rs"]
+mod depth_gap_rounding;
 #[path = "r2_turn_probes.rs"]
 mod r2_turn_probes;
 #[path = "recourse_roster.rs"]
@@ -222,6 +224,8 @@ mod surfaces_span_window_pairing;
 mod surfaces_stretch_floor;
 #[path = "surfaces/stretch_sup.rs"]
 mod surfaces_stretch_sup;
+#[path = "surfaces/value_views.rs"]
+mod surfaces_value_views;
 
 test_utils::every_suite_file_is_aggregated!();
 #[path = "curves/n3r2_c24_meter.rs"]

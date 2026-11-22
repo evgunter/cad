@@ -220,7 +220,7 @@ enum Outcome {
 }
 
 fn outcome(built: Result<ConstructedLoop<f64>, PathError<f64>>) -> Outcome {
-    match built {
+    match built.map_err(|e| e.refusal().clone()) {
         Err(PathError::FilletArcFlattenedInStorage {
             predicate, margin, ..
         }) => Outcome::DoorStoredForm(predicate, crate::common::told(&margin)),
