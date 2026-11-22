@@ -109,10 +109,11 @@
 //!    an open chain's curved link has no built end (`UnsupportedChain`
 //!    on the rim arc, wall 2).
 //! 4. **Neither join can start** (walls 3, 4). `union` and `subtract`
-//!    stop at one place (`wall3_pinned`): the join's germ pair of the
-//!    bulb's cone and the loop's spline wall has no section arm to frame
-//!    it (`GermFrameUnsupported`). Every op reads the pair through the
-//!    same doors, so the subtract stops where the union does. So the
+//!    stop at one place (`wall3_pinned`): a seam of the loop, between
+//!    two of its spline walls, meets the bulb's neck cylinder within the
+//!    band of the cylinder's own edge (`CurvedPierceEscalated`,
+//!    `Crossing(OnEdge)`). Every op reads the pair through the same
+//!    doors, so the subtract stops where the union does. So the
 //!    bottle cannot be one
 //!    body, and the self-intersection — the neck piercing the bulb,
 //!    the one place a Klein bottle MUST cross itself in 3-space —
@@ -596,32 +597,42 @@ pub fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     }
 }
 
-/// Wall 3's pinned refusal: a germ pair of the bulb's cone face and the
-/// loop's spline wall, whose section has no arm to name the frame its
-/// germ line turns in (the NURBS × cone section). The loop's start-cap
-/// rim arc, which lies on the bulb's neck cylinder beside the loop's
-/// spline wall, is taken before it. Both faces are pinned by key and by
-/// their surfaces' kinds as the two operands hold them. Shared with
-/// `verbs_gate_r1_probes`, so the two cannot drift.
+/// Wall 3's pinned refusal: a seam of the loop, between two of its
+/// spline walls, meets the bulb's neck cylinder within the band of the
+/// cylinder face's own edge, and the curve-pair reading of the meeting
+/// against that edge stays in band (`Crossing(OnEdge)`). The loop's
+/// walls are cut at their sections' sub-arc joints, so its seams lie in
+/// the seam plane `y = 0` where the neck's own edge does. Its edge and
+/// face are pinned by key, and by kind as the two operands hold them: a
+/// spline edge of the loop between two of its spline walls, and the
+/// bulb's cylinder. Shared with `verbs_gate_r1_probes`, so the two
+/// cannot drift.
 pub fn wall3_pinned<S: Scalar>(
     e: &BooleanError,
     bulb: &AtRestBody<S>,
     top: &AtRestBody<S>,
 ) -> bool {
-    let BooleanError::GermFrameUnsupported {
-        a_face,
-        a_kind: SurfaceKind::Cone,
-        b_face,
-        b_kind: SurfaceKind::Nurbs,
+    let BooleanError::CurvedPierceEscalated {
+        operand,
+        face,
+        edge,
+        decision,
+        ..
     } = e
     else {
         return false;
     };
     let kind_of = |body: &AtRestBody<S>, f| body.face_surface(f).map(|s| s.kind());
-    format!("{a_face:?}") == "FaceKey(6v1)"
-        && format!("{b_face:?}") == "FaceKey(4v1)"
-        && kind_of(bulb, *a_face) == Some(SurfaceKind::Cone)
-        && kind_of(top, *b_face) == Some(SurfaceKind::Nurbs)
+    let between_walls = pncad::topo::readback::edge_sides(top, *edge).is_ok_and(|sides| {
+        let (a, b) = sides.faces();
+        kind_of(top, a) == Some(SurfaceKind::Nurbs) && kind_of(top, b) == Some(SurfaceKind::Nurbs)
+    });
+    format!("{operand:?}") == "B"
+        && format!("{decision:?}") == "Crossing(OnEdge)"
+        && format!("{face:?}") == "FaceKey(4v1)"
+        && format!("{edge:?}") == "EdgeKey(10v1)"
+        && kind_of(bulb, *face) == Some(SurfaceKind::Cylinder)
+        && between_walls
 }
 
 /// Wall 4's pinned refusal: wall 3's (`wall3_pinned`), and the same
@@ -1076,8 +1087,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
     // annular faces — the REST mate — and the union refuses past them,
-    // at the join: the loop's spline wall against the bulb's cone has
-    // no section arm to frame its germ line.
+    // at the join: a seam of the loop meets the bulb's neck cylinder in
+    // the band of the cylinder's own edge.
     crate::walls::wall(
         "bottle",
         3,

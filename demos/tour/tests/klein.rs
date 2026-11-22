@@ -138,8 +138,8 @@ mod verbs_gate_r1_probes {
         println!("klein wall 3: {joined:?}");
         assert!(
             wall3_pinned(&joined, &bulb_body, &top),
-            "wall 3 must refuse the bulb's cone against the loop's spline wall at the germ frame: \
-             {joined:?}"
+            "wall 3 must refuse a seam of the loop meeting the bulb's neck cylinder in the band of \
+             its edge: {joined:?}"
         );
 
         let trimmed = pncad::topo::subtract(&bulb_body, &top, tol)
@@ -147,8 +147,7 @@ mod verbs_gate_r1_probes {
         println!("klein wall 4: {trimmed:?}");
         assert!(
             wall4_pinned(&trimmed, &joined, &bulb_body, &top),
-            "wall 4 must refuse wall 3's rim arc of the loop on the bulb's neck cylinder: \
-             {trimmed:?}"
+            "wall 4 must refuse at wall 3's meeting: {trimmed:?}"
         );
     }
 }
