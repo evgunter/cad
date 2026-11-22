@@ -138,8 +138,9 @@ impl Default for KeyHasher {
 /// The bit representation of an evaluated scalar, fed to content keys
 /// (spec D4: "evaluated expression values AS BITS"). Implemented for
 /// the scalars evaluation instantiates at (f64, Interval, the
-/// K-telemetry `Probe`, and `Dual` over any of them); a new scalar
-/// joins by stating its exact representation here.
+/// K-telemetry `Probe`, and `Dual` and `Sym` over any of them); a new
+/// scalar joins by stating its exact representation here: everything
+/// of the value a node's op can read.
 ///
 /// # `Dual` feeds BOTH channels — the memo's seed-soundness law
 ///
@@ -171,6 +172,7 @@ pub trait ContentBits: Real {
     fn feed(&self, h: &mut KeyHasher);
 }
 
+/// The float's 64 bits: all an `f64` is.
 impl ContentBits for f64 {
     fn feed(&self, h: &mut KeyHasher) {
         h.write_f64_bits(*self);
@@ -192,17 +194,27 @@ where
     }
 }
 
-/// **The symbolic tier feeds the VALUE's bits only** (E12): provenance
-/// is not content. Two builds that computed the same numbers by
-/// different routes memoize the same entry — which is what a content
-/// key is for — and a DAG node id, which is a fact about how a number
-/// was written rather than about the number, never enters one.
+/// **The wrapped scalar's representation, then the expression** (E12):
+/// a symbolic value's exact representation is the number it carries and
+/// the expression it was written as, and a node reads both — the
+/// expression is what its decisions are proved over — so two inputs
+/// with one number and two expressions are two inputs. The expression
+/// feeds as its DAG node id, a content hash of the expression's syntax
+/// (`geom_core::sym`), the same in every session; a value with no
+/// expression feeds the name it was minted under
+/// (`geom_core::sym::mint`). The id is the one `Sym` carries, whatever
+/// it wraps: under a `Dual` each channel is a symbolic value and feeds
+/// its own, and over a `Dual` the tangent has no expression and is the
+/// wrapped scalar's bits.
 impl<T: ContentBits> ContentBits for geom_core::Sym<T>
 where
     geom_core::Sym<T>: Real,
 {
     fn feed(&self, h: &mut KeyHasher) {
         self.value().feed(h);
+        let id = self.node().bits();
+        h.write_u64(id as u64);
+        h.write_u64((id >> 64) as u64);
     }
 }
 
@@ -219,6 +231,8 @@ impl ContentBits for geom_core::Probe {
     }
 }
 
+/// The two endpoints' bits and the decoration: all an enclosure is.
+///
 /// RETIREMENT-SCHEDULED bit-identity consumer (DESIGN.md M4; the
 /// ci.yml tripwire allowlists this file): unlike the coincidence
 /// checkers the retirement targets, this site HASHES the exact

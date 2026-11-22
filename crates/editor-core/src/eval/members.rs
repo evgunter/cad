@@ -366,6 +366,7 @@ pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
                 witness: None,
                 pass_two: op_env.lane.pass_two,
             },
+            mints: op_env.mints,
         };
         let over = overlay(results, &bound);
         let prior_member = prior_members.and_then(|m| m.at(&narrow));
@@ -569,6 +570,7 @@ mod tests {
                 witness: None,
                 pass_two: crate::eval::PassTwo::SkippedAtF64,
             },
+            mints: geom_core::sym::MintScope::current(),
         };
         let evaluated = Cell::new(0usize);
         let id = RecipeNodeId::new(0, test_utils::refusal::tagged(1));

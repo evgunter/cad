@@ -4417,6 +4417,21 @@ where
             Some((_, refused)) => (None, Some(refused)),
             None => (prior, None),
         };
+    // The scope this document's nodes mint inside: the caller's, and
+    // for an instantiated document its pin under that, because two
+    // documents' node ids are minted apart and can coincide.
+    let mints = geom_core::sym::MintScope::current();
+    let mints = match &reached {
+        Some((_, pin)) => {
+            let words: Vec<u64> = pin
+                .0
+                .chunks(8)
+                .map(|bytes| bytes.iter().fold(0, |word, &b| (word << 8) | u64::from(b)))
+                .collect();
+            mints.child(&words)
+        }
+        None => mints,
+    };
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
@@ -4627,6 +4642,7 @@ where
             witness: witness.as_ref(),
             pass_two,
         },
+        mints,
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
@@ -5193,6 +5209,28 @@ fn bookkeep<T: topo::AtRestPolicy + Decide>(
     }
 }
 
+/// **The mint scope of one node's evaluation**
+/// ([`geom_core::sym::mint`]): inside the evaluation's scope, the node's
+/// id and the member it is evaluated as. One node is one scope in every
+/// replay of its document, so the k-th value it mints with no
+/// expression has one name in all of them; two members of a family are
+/// two scopes, because one replay holds both.
+fn node_mints(
+    inside: geom_core::sym::MintScope,
+    id: RecipeNodeId,
+    at: &[(crate::VarId, i64)],
+) -> geom_core::sym::MintScope {
+    let word = |id: crate::MintId| [u64::from(id.ordinal()), id.digest()];
+    let words: Vec<u64> = word(id.0)
+        .into_iter()
+        .chain(
+            at.iter()
+                .flat_map(|&(var, index)| word(var.0).into_iter().chain([index.cast_unsigned()])),
+        )
+        .collect();
+    inside.child(&words)
+}
+
 /// Evaluates one node against the results so far: poison propagation,
 /// slot evaluation with (node, slot) context, content key, memo
 /// lookup, and the op wiring.
@@ -5224,6 +5262,10 @@ where
     // nodes open and close their own frames ABOVE this one, so theirs
     // land on their own nodes and this frame receives only this node's.
     let bracket = geom_core::k_stats::Bracket::open();
+    // A value with no expression minted on this node's behalf, in its
+    // slots or its op, is named by the node and its place in the
+    // node's own walk.
+    let _mints = node_mints(op_env.mints, id, at).enter();
     // A failure carries what the frame recorded on the way to it,
     // whether or not the op ran.
     let fail = |bracket: geom_core::k_stats::Bracket, kind: NodeErrorKind| NodeStep {
