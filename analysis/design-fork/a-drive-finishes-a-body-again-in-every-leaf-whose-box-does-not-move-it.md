@@ -36,3 +36,7 @@ Both designers, each in its own session, shown both first reports verbatim by la
 - **Both:** ONEHOME's finish-carry row is another axis (facts between nodes inside one build, by lineage) and no conflict; B cautions that row's "bit-identical" criterion.
 
 **After round 1:** a crossing (each took the other's first position on where the memo lives). Still open: the store against the parent prior; what a drive's total counts and what `k_stats` takes; which refusals are new. Round 2 shows each the other's round-1 reply.
+
+## Round 2 (dispatched 05:45 UTC)
+
+Both designers shown both round-1 replies verbatim by label (`boxfinish/fork-refinish-reports` at `f196e31d`, `probe/fork-refinish/round1/`). Identical message but for the label: the crossing stated (each side's argument in a sentence, my words); what round 1 agreed; five open points put directly: store or parent (B's two-feature product against A's determinism point, and what keys a store); what the drive's total counts; what population `k_stats` sees; which refusal is new (an empty read set only, or also a read set at its depth budget); who discharges a served node's deferred decisions. Each asked for a final `For Ev` section with E6's replacement text.
