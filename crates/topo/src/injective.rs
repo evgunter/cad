@@ -6288,6 +6288,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
                     Zero::Corner(..) => "Corner".into(),
                     Zero::Curve(s, c) => format!("Curve({s:?},past={:?})", c.past),
                     Zero::Point(..) => "Point".into(),
+                    Zero::Through(s, _) => format!("Through({s:?})"),
                 },
                 q.x,
                 q.y
@@ -6350,12 +6351,24 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         return split;
     };
     crate::gate_measure::clear_margin();
-    let opposite = |(psi, on): (Psi, On)| match (
-        sign_on(&psi, Some(&on), qx, Some(qy), band),
-        sign_on(&psi, Some(&on), qy, Some(qx), band),
-    ) {
-        (Some(a), Some(b)) => a == flip(b),
-        _ => false,
+    let opposite = |(psi, on): (Psi, On)| {
+        let signs = (
+            sign_on(&psi, Some(&on), qx, Some(qy), band),
+            sign_on(&psi, Some(&on), qy, Some(qx), band),
+        );
+        if std::env::var_os("CV_TRACE").is_some() {
+            eprintln!(
+                "CVS {} on.edges={} on.vertices={} whole={} signs={signs:?}",
+                if matches!(psi, Psi::Graph { .. }) { "graph" } else { "plane" },
+                on.edges.len(),
+                on.vertices.len(),
+                on.whole
+            );
+        }
+        match signs {
+            (Some(a), Some(b)) => a == flip(b),
+            _ => false,
+        }
     };
     let corner = qx.corner || qy.corner;
     if planes_through(x, y, near, qx, qy).into_iter().any(opposite) {
