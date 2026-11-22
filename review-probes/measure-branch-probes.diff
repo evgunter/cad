@@ -1,0 +1,62 @@
+diff --git a/crates/topo/src/injective.rs b/crates/topo/src/injective.rs
+index 70af7ca5c..749b84c54 100644
+--- a/crates/topo/src/injective.rs
++++ b/crates/topo/src/injective.rs
+@@ -6002,6 +6002,25 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
+         let axes = |p: &Presented<'_>| { let Zero::Point(s, t, _) = p.zero else { return None }; let (su, sv) = if s.axis() == Axis::U { (s, t) } else { (t, s) }; let (xx, yy) = (p.bound(su), p.bound(sv)); let (fx, fy, _) = p.jet_on((xx, xx), (yy, yy)); Some([unit(vmid(fx) * su.into())?, unit(vmid(fy) * sv.into())?]) };
+         eprintln!("CVW {}/{} {:?}/{:?} v={:?} wedge={:?} oks={:?} ax={:?} bx={:?} sx={:?}x{:?} sy={:?}x{:?}", kind(x.surface), kind(y.surface), x.face, y.face, near.vertices, w, oks, axes(qx), axes(qy), qx.x, qx.y, qy.x, qy.y);
+     }
++    // REVIEW PROBE (CV_ZW): the no-width quadrant row's own probe.
++    if std::env::var_os("CV_ZW").is_some()
++        && near.edges.is_empty()
++        && matches!(qx.zero, Zero::Point(..))
++        && matches!(qy.zero, Zero::Point(..))
++    {
++        let all = planes_through(x, near, qx, qy);
++        let certified = all.iter().cloned().any(opposite);
++        eprintln!("CVZ pair {:?}/{:?} v={:?} certified={certified} planes={}", x.face, y.face, near.vertices, all.len());
++        for (name, pc, q) in [("x", x, qx), ("y", y, qy)] {
++            eprintln!("CVZ  {name} face={:?} cell u={:?} v={:?} rect x={:?} y={:?} zero={:?} map={:?} local.edges={:?} local.vertices={:?}", pc.face, pc.u, pc.v, q.x, q.y, q.zero, q.map, pc.local.edges, pc.local.vertices);
++            let (fx, fy, _) = q.jet();
++            for (k, (psi, on)) in all.iter().enumerate() {
++                let g = psi.gradient(q.whole());
++                let (du, dv) = (g.dot(fx), g.dot(fy));
++                eprintln!("CVZ   plane{k} grad.Phi_x=[{:e},{:e}] span_x={:e} grad.Phi_y=[{:e},{:e}] span_y={:e} |Phi_x|~{:e} |Phi_y|~{:e} sign_on={:?}", du.lo(), du.hi(), q.span(Axis::U), dv.lo(), dv.hi(), q.span(Axis::V), vmid(fx).dot(vmid(fx)).sqrt(), vmid(fy).dot(vmid(fy)).sqrt(), sign_on(psi, Some(on), q, None, band));
++            }
++        }
++    }
+     if planes_through(x, near, qx, qy).into_iter().any(opposite) {
+         return Outcome::Certified { corner };
+     }
+@@ -6094,7 +6113,7 @@ fn wedges_apart(px: &Presented<'_>, py: &Presented<'_>) -> Option<Vec3<f64>> {
+         };
+         let (su, sv) = if s.axis() == Axis::U { (s, t) } else { (t, s) };
+         let (x, y) = (p.bound(su), p.bound(sv));
+-        let (fx, fy, _) = p.jet_on((x, x), (y, y));
++        let (fx, fy, _) = if std::env::var_os("CV_WHOLE_JET").is_some() { p.jet() } else { p.jet_on((x, x), (y, y)) };
+         Some([unit(vmid(fx) * su.into())?, unit(vmid(fy) * sv.into())?])
+     };
+     let ([a1, a2], [b1, b2]) = (axes(px)?, axes(py)?);
+diff --git a/crates/topo/src/validate.rs b/crates/topo/src/validate.rs
+index 6e3fca423..554bc4cc1 100644
+--- a/crates/topo/src/validate.rs
++++ b/crates/topo/src/validate.rs
+@@ -10971,6 +10971,18 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
+         else {
+             unreachable!("the engine names faces of the body it was asked about")
+         };
++        // REVIEW PROBE (CV_X): the crossing's two faces, for an independent check.
++        if std::env::var_os("CV_X").is_some() {
++            eprintln!("CVX crossing faces={a:?}/{b:?} stations={:?} distance={:e} pa={pa:?} pb={pb:?} solids={:?}/{:?}", crossing.stations, crossing.distance, body.solid_of_face(a), body.solid_of_face(b));
++            for f in [a, b] {
++                eprintln!("CVX face {f:?} surface={:?} sense={:?}", body.face_surface(f), body.get_face(f).map(|x| x.sense));
++                for (k, he) in body.half_edges() {
++                    if body.face_of_half_edge(k) == Some(f) {
++                        eprintln!("CVX  he {k:?} loop={:?} next={:?} start={:?} edge={:?} at={:?}", he.parent_loop, he.next, he.start, he.edge, body.half_edge_start_point(k));
++                    }
++                }
++            }
++        }
+         let unverified = |what: &str, width| ValidationError::EmbeddingUncertified {
+             refusal: EngineRefusal::WitnessUnverified {
+                 what: what.to_owned(),
