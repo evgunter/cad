@@ -595,10 +595,12 @@ impl ConeReading {
 /// the gate on `h` a box near the apex holds points of both nappes
 /// without reaching the axis, and a proof of one solution of one
 /// nappe's system would stand where the other nappe passes through the
-/// box. The gate on `|w|` names the axis, where `ρ` has no derivative;
-/// it refuses no box the division by `ρ` would not refuse anyway, and
-/// stands as that refusal's explicit spelling. The apex itself, where
-/// `∇g` vanishes, is C5's node.
+/// box. The gate on `|w|` names the axis, where `ρ` has no derivative.
+/// The division by `ρ` would refuse both enclosures there anyway; what
+/// the gate adds is the routing: a box it refuses is read by the
+/// quadric for its sign ([`implicit_sign_enclosure`]), where a box past
+/// it would read the refused elevation and never be excluded. The apex
+/// itself, where `∇g` vanishes, is C5's node.
 struct Elevation {
     parts: ConeParts,
     rho: Interval,
@@ -3761,8 +3763,12 @@ pub(super) mod tests {
     /// `h`'s straddle refuses it; on each slice `y = const` it holds two
     /// of the system's solutions, and a uniqueness proof over it would
     /// be false. Red if the gate on `h` is dropped. The gate on `|w|`
-    /// has no red here: a box reaching the axis refuses at the division
-    /// by `ρ` without it (`cos α/ρ` over an enclosure holding zero).
+    /// has no red here, since a box reaching the axis refuses both
+    /// enclosures at the division by `ρ` without it; its reds are the
+    /// sign rows' (`the_cone_sign_enclosure_excludes_far_cells_off_the_gate`,
+    /// `exhaust`'s `a_cone_sweep_ends_across_its_apex_plane`), where
+    /// without it an axis box reads the refused elevation instead of
+    /// the quadric.
     #[test]
     fn a_cone_box_holding_both_nappes_refuses_both_enclosures() {
         let c = cone([0.0; 3], [0.0, 0.0, 1.0], core::f64::consts::FRAC_PI_4);

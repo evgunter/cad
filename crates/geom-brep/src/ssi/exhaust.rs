@@ -1538,7 +1538,10 @@ mod tests {
                 p.x.abs() < 0.1 && (p.y.abs() - p.z.abs()).abs() < 0.15,
                 "a seed off the rulings: {p:?}"
             );
-            if p.y.abs().max(p.z.abs()) < 0.1 {
+            // The eight floor cells about the apex are the only ones
+            // within this of it, and each is off the gate (its `h`
+            // reaches zero), so only the quadric reads them.
+            if (*p - Point3::origin()).norm() < 0.05 {
                 apex = true;
             } else if p.y.abs().max(p.z.abs()) > 0.5 {
                 rays[usize::from(p.y > 0.0) + 2 * usize::from(p.z > 0.0)] = true;
