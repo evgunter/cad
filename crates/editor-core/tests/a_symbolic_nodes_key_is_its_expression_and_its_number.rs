@@ -27,9 +27,18 @@ fn toleranced(name: &'static str) -> DocEdit<ProfileProgram> {
             dim: Dimension::Length,
             value: 1.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
-            distribution: Some(Distribution::Uniform { lo: -0.1, hi: 0.1 }),
+            distribution: Some(Distribution::Uniform {
+                lo: -half_width(),
+                hi: half_width(),
+            }),
         }),
     }
+}
+
+/// A tolerance narrow enough that the slab builds over its box at
+/// plain `Interval`, which sees through no identity.
+fn half_width() -> f64 {
+    Tol::witness().eps() / 64.0
 }
 
 fn reads(name: &'static str) -> Formula {
@@ -71,7 +80,7 @@ fn slab_by_b(doc: ProfileDoc, extrude: RecipeNodeId) -> ProfileDoc {
     .0
 }
 
-/// The whole tolerance box of `doc`: both variables over `1 ± 0.1`.
+/// The whole tolerance box of `doc`: both variables over `1 ± ε/64`.
 fn over_the_box(doc: &ProfileDoc) -> EvalOptions {
     EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed_box(

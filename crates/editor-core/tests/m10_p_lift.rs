@@ -521,8 +521,10 @@ fn at_sym(
 /// **A box that varies nothing is the build at `Sym` too.** A `Fixed`
 /// axis HOLDS its variable at the nominal, which at `Sym` binds a
 /// constant, not a parameter symbol (`analysis::var_env_over`), so every
-/// node is the unboxed build's: same content key, same profile verdict
-/// log.
+/// node decides as the unboxed build's does: the same profile verdict
+/// log. Its content keys are its own: a held axis is written
+/// `nominal + 0`, the same number as the build's `nominal` under
+/// another expression, and at `Sym` the key hashes the expression.
 #[test]
 fn at_sym_a_fixed_box_is_the_build() {
     use editor_core::analysis::{BoxAxis, ParamBox};
@@ -538,11 +540,16 @@ fn at_sym_a_fixed_box_is_the_build() {
         |axis: BoxAxis| ParamBox::from_axes(continuous.iter().map(|&id| (id, axis)).collect());
     let fixed = over(BoxAxis::Fixed);
 
-    let build = at_sym(&doc, None);
+    let (build_keys, build_log) = at_sym(&doc, None);
+    let (held_keys, held_log) = at_sym(&doc, Some(fixed.clone()));
     assert_eq!(
-        at_sym(&doc, Some(fixed.clone())),
-        build,
-        "an all-Fixed box at Sym is the build, node for node"
+        held_log, build_log,
+        "an all-Fixed box at Sym decides as the build does"
+    );
+    assert_eq!(held_keys.len(), build_keys.len());
+    assert_ne!(
+        held_keys, build_keys,
+        "a held axis is `nominal + 0`: the build's number under another expression"
     );
     // And it binds no symbol: every margin the held run decides re-values
     // to its own value with every parameter symbol moved, which a margin
