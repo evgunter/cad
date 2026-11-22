@@ -1496,7 +1496,10 @@ mod tests {
             FloorKind::Seeding,
         )
         .unwrap();
-        let seeds = super::seed_r3(&cone, &cut, floor).expect("the sweep ends");
+        let seeds = match super::seed_r3(&cone, &cut, floor) {
+            Ok(seeds) => seeds,
+            Err(e) => panic!("the sweep ends, not {e:?}"),
+        };
         assert!(!seeds.is_empty(), "the circle is seeded");
         for p in &seeds {
             let rho = p.x.hypot(p.y);
