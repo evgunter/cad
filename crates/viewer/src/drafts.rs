@@ -88,6 +88,13 @@ pub(crate) struct Drafts {
     /// The placement editor's value fields being typed in, by freedom:
     /// the text, until the field loses focus and the draft takes it.
     pub(crate) mate_value_edits: Vec<(pncad::document::Coord<pncad::document::Operand>, String)>,
+    /// The placement editor's offset fields being typed in, by the
+    /// placement the editor edits and the mate row within its draft: the
+    /// text, until the field loses focus and the draft takes it. Keyed by
+    /// placement as well as row, so every editor drawing
+    /// `pane::create::mate_offset_row` over this one buffer reads only
+    /// its own rows' text.
+    pub(crate) mate_offset_edits: Vec<((pncad::document::RecipeNodeId, usize), String)>,
     /// The door the value edits were typed under: a different door, or
     /// the same one over another bundle (a reload), drops them.
     pub(crate) mate_value_door: Option<crate::matetool::PlaceDoor>,
@@ -1101,6 +1108,7 @@ impl Default for Drafts {
             new_variable_value: 0.0,
             new_variable_offer: None,
             mate_value_edits: Vec::new(),
+            mate_offset_edits: Vec::new(),
             mate_value_door: None,
             new_doc_name: None,
             on_face_open: false,
@@ -1589,19 +1597,37 @@ impl Drafts {
         }
     }
 
-    /// **Keep the placement editor's value edits to its draft**: dropped
-    /// when the editor closes (`door` is `None`), opens on another door
-    /// or reloads its bundle, and each edit whose freedom the draft no
-    /// longer lists (`coords`) dropped with its row.
+    /// **Keep the placement editor's value and offset edits to its
+    /// draft**: [`Self::sync_mate_door`], then
+    /// [`Self::retain_mate_values`].
     pub(crate) fn sync_mate_edits(
         &mut self,
         door: Option<&crate::matetool::PlaceDoor>,
         coords: &[pncad::document::Coord<pncad::document::Operand>],
     ) {
+        self.sync_mate_door(door);
+        self.retain_mate_values(coords);
+    }
+
+    /// **Drop the placement editor's value and offset edits when its
+    /// door changes**: the editor closed (`door` is `None`), opened on
+    /// another door, or reloaded its bundle. Called before any of the
+    /// editor's fields is drawn, so a field never shows or commits text
+    /// typed under another draft.
+    pub(crate) fn sync_mate_door(&mut self, door: Option<&crate::matetool::PlaceDoor>) {
         if self.mate_value_door.as_ref() != door {
             self.mate_value_edits.clear();
+            self.mate_offset_edits.clear();
             self.mate_value_door = door.cloned();
         }
+    }
+
+    /// **Drop each value edit whose freedom the draft no longer lists**
+    /// (`coords`), with its row.
+    pub(crate) fn retain_mate_values(
+        &mut self,
+        coords: &[pncad::document::Coord<pncad::document::Operand>],
+    ) {
         self.mate_value_edits
             .retain(|(coord, _)| coords.contains(coord));
     }
