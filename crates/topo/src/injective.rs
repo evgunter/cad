@@ -5971,23 +5971,13 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         return split;
     };
     // Every piece of one face against every piece of the other, each
-    // pair under a separator of its own, through what that pair shares.
+    // pair under a separator of its own. A separator through a shared
+    // edge lists the edge's ends, so it holds the corner of a piece off
+    // that edge.
     let (qxs, qys) = (px.pieces(), py.pieces());
-    let split_at = (qxs.len() > 1, qys.len() > 1);
     let mut corner = false;
     for qx in &qxs {
         for qy in &qys {
-            // A separator through what the faces' cells share, or through
-            // what this piece pair does: a piece off a shared edge is
-            // cornered at its end, which a plane through the edge's line
-            // holds, and where that plane is zero along the piece too (a
-            // straight corner) only one through the vertex parts it.
-            let held = pieces_share(near, x.boundary, split_at, qx, qy);
-            let nears = if held.edges.len() == near.edges.len() {
-                vec![&held]
-            } else {
-                vec![near, &held]
-            };
             let opposite = |(psi, on): (Psi, On)| match (
                 sign_on(&psi, Some(&on), qx, Some(qy), band),
                 sign_on(&psi, Some(&on), qy, Some(qx), band),
@@ -5996,68 +5986,18 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
                 _ => false,
             };
             corner |= qx.corner || qy.corner;
-            if nears.iter().any(|&near| {
-                planes_through(x, near, qx, qy).into_iter().any(opposite)
-                    || graph_of(x, y, near, qx, qy, band).is_some_and(opposite)
-            }) {
+            if planes_through(x, near, qx, qy).into_iter().any(opposite)
+                || graph_of(x, y, near, qx, qy, band).is_some_and(opposite)
+            {
                 continue;
             }
-            if let Some(shared) = nears
-                .iter()
-                .find_map(|&near| cusp(x, near, qx, qy, y.boundary.sense, band))
-            {
+            if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
                 return Outcome::Cusp { shared };
             }
             return split;
         }
     }
     Outcome::Certified { corner }
-}
-
-/// **What two pieces share of what their faces' cells are near**: a
-/// shared edge only where each face that is cut in two has its piece on
-/// that edge (the edge is that piece's zero side), and the shared
-/// vertices, a piece's corner among them (a shared edge's end, which
-/// the other face's cell need not be near). A face in one piece holds
-/// every edge its cell is near.
-///
-/// [`departure`] builds a separator through this as well as through
-/// what the faces' cells share: a plane through one edge of a straight
-/// corner is zero along the other piece's edge too, so it parts nothing
-/// there, and one through the vertex does.
-fn pieces_share(
-    near: &Near,
-    x: &Boundary,
-    (cut_x, cut_y): (bool, bool),
-    px: &Presented<'_>,
-    py: &Presented<'_>,
-) -> Near {
-    let on = |cut: bool, p: &Presented<'_>, key: EdgeKey| {
-        !cut || matches!(&p.zero, Zero::Side(_, a) if a.edges.contains(&key))
-    };
-    Near {
-        edges: near
-            .edges
-            .iter()
-            .copied()
-            .filter(|&(i, _)| {
-                x.edges
-                    .get(i)
-                    .is_some_and(|e| on(cut_x, px, e.key) && on(cut_y, py, e.key))
-            })
-            .collect(),
-        vertices: near
-            .vertices
-            .iter()
-            .copied()
-            .chain([px, py].into_iter().filter_map(|p| match p.zero {
-                Zero::Point(_, _, v) => Some(v),
-                _ => None,
-            }))
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect(),
-    }
 }
 
 /// **Whether a face's part of a cell pair is refused as unreadable**:
