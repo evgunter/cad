@@ -44,7 +44,7 @@ Blinding: I read no other `embed/remeter-review-*` branch and no PR comment.
 **Claim 4, pole and apex: HELD.**
 - The bound is right: `Φ_x(·, y₀) = 0`, so `Φ_x = ∫Φ_xy`, `n·Φ_x ≥ Δy·min n·Φ_xy`, `|Φ_x| ≤ Δy·max|Φ_xy|`; the interval quotient reads it from below. On a sphere and a cone it is tight (`Φ_xy ∥ Φ_x`).
 - Unit: cone apex, 6 half-angles (1e-3 to 1.5697) × 3 poses (plain, turned, 1,000 units off) × 3 widths × 8 planes through the ruling, against 200 sampled sines each: 432 asked, 359 answered, **0 wrong signs**. 19 one-signed cases go unanswered, all in the turned frame (enclosure width; a loss). Sphere pole, 4 radii/centres × 9 cells: all Positive.
-- Body: cones r/h from 0.01 to 100 and quarter cones, as built, turned, 100 units off, both scalars: `Embedded`, except r = 1, h = 1e-4 turned (pair budget). Balls r = 1, 1e-3, 30: `Embedded` except the full ball turned at `f64`, which refuses `Uncertified/Departure/Edge`. That refusal is identical under main's margin (M1), so it is not this PR's (pole pins it).
+- Body: cones r/h from 0.01 to 1e4 and quarter cones, as built, turned, 100 units off, both scalars: `Embedded`, except the flattest (r = 1, h = 1e-4) turned, which runs out of pairs. Balls r = 1, 1e-3, 30: `Embedded` except the full ball turned at `f64`, which refuses `Uncertified/Departure/Edge`. That refusal is identical under main's margin (M1), so it is not this PR's (pole pins it).
 
 **Claim 5, the sliver is gone: HELD.**
 - Sites, constant, module-doc entry, audit row, roster name: removed; no `sliver` reader left in `crates/`. `Vacuous` returns remain at 1843, 1949, 2018, 2409, 2497, each a cell off the face; I found none declaring a face absent from a cell it is in.
