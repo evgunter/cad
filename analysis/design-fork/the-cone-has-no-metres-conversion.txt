@@ -1,0 +1,6 @@
+fork: the-cone-has-no-metres-conversion (SECTCONE P0 the-cone-has-no-implicit-enclosure-or-metres-conversion: the cone's implicit enclosure and metres conversion, and how its half-angle enters exactly)
+drawn: 2026-11-22T02:22Z, od -An -tu1 -N2 /dev/urandom
+bytes: 171 76
+arm: 2 designers
+mapping: A = Opus designer, B = Fable designer
+protocol: ddd201f411
