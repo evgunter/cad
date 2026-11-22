@@ -4,3 +4,7 @@ arm byte: 33 (< 86: three designers)
 label byte: 154 (154 mod 3 = 1: Fable is B)
 mapping: A = Opus designer, B = Fable designer, C = Opus designer
 protocol: d327ffb520
+tokens (harness subagent_tokens): A first 154829 / total 195800; B first 144846 / total 163528 (plus a first B dispatch 2026-11-17 that died at once on the Fable limit, count not reported); C first 168073 / total 204190
+B model: Fable (version per harness: claude-fable-5-2 configured; dispatched 2026-11-22)
+A, C model: Opus 5.5
+B exposure: B read the item's "design fork, in flight" section (written by the orchestrator 2026-11-18), which summarised A's and C's split; it saw no report text. Its first report is not fully independent.
