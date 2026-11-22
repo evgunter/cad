@@ -315,22 +315,30 @@ fn eps_row(eps: f64) -> usize {
 /// start, half the segment's length along its direction, half the sweep):
 /// `Plain/Decision` 7778 → 8308 forms over the same calls, the forms of
 /// that middle, and its digest; nothing else moves.
+///
+/// **Moved with the carriers holding their frames as rigid motions**
+/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): the walls
+/// and caps are the sketch frame turned and stored, and a surface's
+/// evaluation reads its stored frame, so the walks build fewer forms over
+/// the same calls (at every ε row `Plain/Decision` 8308 → 7727,
+/// `Plain/Assertion` 2572 → 2554, `Early/Assertion` 3001 → 2878), with
+/// their digests; `Early/Decision` does not move.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 936 forms 8308 frozen 0 digest ebddfff107d3206a0c4b78d656c9b7ba\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest 05926a76790cbf1f6b2eb3d922f4a4b5\n\
+     Plain/Decision calls 936 forms 7727 frozen 0 digest 7dd354c68900f9bd2642e7867aa7117d\n\
+     Plain/Assertion calls 992 forms 2554 frozen 0 digest d06777ecab62fd486c6cf3d10ffa4292\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest 88997ebd42bafb7f7281f34aa07cc09d",
+     Early/Assertion calls 992 forms 2878 frozen 0 digest e261649c69c74804b353deb36837b75e",
     "\
-     Plain/Decision calls 936 forms 8308 frozen 0 digest 45b5180c8276b923878b23c0a88dd5b6\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest c2778ce893923cc5baf928828a4a5e5a\n\
+     Plain/Decision calls 936 forms 7727 frozen 0 digest 25ebd6ec55ec27aac257c5ae03962bd8\n\
+     Plain/Assertion calls 992 forms 2554 frozen 0 digest fed7a07a0b2a1819fbca55e6034725c4\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest 12694967b282815a08535eab2eff4e8c",
+     Early/Assertion calls 992 forms 2878 frozen 0 digest 3852450066b87648d9a47dabcbf4b3c6",
     "\
-     Plain/Decision calls 936 forms 8308 frozen 0 digest 9af3c2a47bf454282f13404027438701\n\
-     Plain/Assertion calls 992 forms 2572 frozen 0 digest 3886f7e664853234cb584c3502b1732d\n\
+     Plain/Decision calls 936 forms 7727 frozen 0 digest 0e443c7d8ad35608774883e83ff66472\n\
+     Plain/Assertion calls 992 forms 2554 frozen 0 digest 38013c4c51f3bafaf35bcb087fe3f8f2\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 3001 frozen 0 digest a8c5c56f6a96335393e0ed723dda6b81",
+     Early/Assertion calls 992 forms 2878 frozen 0 digest 82f29cc0f25c0a1ecead88a1ad9741a0",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -475,111 +483,14 @@ const PLATE_MAX_TERMS: usize = 38;
 /// freezing is not monotone in reach, so a form frozen past the degree
 /// budget can flip a verdict elsewhere.
 ///
-/// **Moved with ONEHOME's composed placements** (`mate::solve::admitted`
-/// removed: a solved placement is composed as motions and decides no
-/// rigidity margin): the two holes' placements no longer decide their seven
-/// rigidity margins, so `Plain/Decision` loses those 14 calls (1203 →
-/// 1189) and the nine forms they built (55907 → 55898). No other line
-/// moves.
-///
-/// **Moved with ONEHOME's moved copy** (a move carries its verdict,
-/// `Held::moved`): the cut reads each hole into the plate's frame with
-/// its certificates and rows carried, so neither hole's rims are
-/// certified again there. Every walk loses that copy's share: `Plain`
-/// 1189 → 1015 decisions and 824 → 669 assertions, `Early` 412 → 308
-/// and 824 → 669, `Door` 557 → 402. The largest form holds at 38.
-///
-/// **Moved with the move's session-box ask** (`Replay::moved_by`: every
-/// move asks the box of its image): one assertion per walk more, the
-/// box's margin, a form over every vertex's and edge's reach of the
-/// moved hole: `Plain` 669 → 670 assertions (forms 6963 → 9047),
-/// `Early` 669 → 670 (8611 → 10422), `Door` 402 → 403 decisions (9906 →
-/// 11719). `Plain/Decision`'s forms fall 42005 → 41501 with its
-/// calls unchanged, and that is the memo, not a decision: the Plain walk
-/// keeps one memo for both origins, and a form is charged to the origin
-/// that first builds it (`sym::profile`'s per-`(walk, origin)` entry).
-/// The box ask's assertion runs at the move, before the decisions over
-/// the moved hole, and builds 504 of the vertex- and edge-reach forms
-/// those decisions built before; they now hit the memo. So
-/// `Plain/Assertion` gains 2084 forms, those 504 and the 1580 the
-/// assertion alone needs, and Decision plus Assertion grows by 1580.
-///
-/// PCERT's closed-form bound (a stated harmonic image bounded by its
-/// residual's coefficients, main's `4121c920`), and its slack (`closed_bound.rs`
-/// `Residual::bound`'s `+ slack`, one more form per bound, main's
-/// `b8f04c55`), move none of these counts: the stated images sit on moved
-/// copies whose certificates are carried, so no bound is built again in
-/// the measuring frame.
-///
-/// **Moved with the constructors' whole-wedge reads**: the extrude and
-/// revolve read each edge they write by its whole wedge, the arm, the
-/// wedge and a corner's sign at each of its 7 interior stations, where
-/// they read the class at one witness. The assertions 670 → 1050 calls
-/// on both walks (`Plain` 9047 → 13400 forms, frozen 137 → 245; `Early`
-/// 10422 → 14775), `Door/Decision` 403 → 555 calls (11719 → 15037
-/// forms), and `Plain/Decision` and `Early/Decision` keep their calls
-/// over fewer forms (41501 → 40761, 28904 → 28232).
-///
-/// **Moved when a validated segment began recording its directions**:
-/// validation's mint reads the plate's side chords' components and signs
-/// exactly and outside the log (audit row F43); the circles' radials are
-/// recorded by the verb and read nothing. `Plain/Decision` 1015 → 1019
-/// and both `Assertion` rows 1050 → 1054 calls, no form, frozen count or
-/// digest moving, at every ε row.
-///
-/// **Moved with a line rim's span and direction stated from its sketch
-/// segment** (PR 6953, [`SLAB_LEDGER`]'s note), calls unchanged and the
-/// `Door/Decision` walk main's: `Plain/Assertion` 13400 → 13305 (13293
-/// with the span alone), `Early/Decision` 28232 → 28205, and two rises,
-/// `Plain/Decision` 40761 → 40813 (+52) and `Early/Assertion` 14775 →
-/// 14807 (+32). The rises are the direction's (the span alone moved only
-/// `Plain/Assertion`), and which reads build the new forms is not traced:
-/// on the slab the placed unit chord folds to its sketch components,
-/// and on the plate the walks build more forms over it than they did over
-/// `q_to − q_from`.
-/// **Moved with the sweeps keeping their sketch frames**: the extrudes'
-/// caps and walls fit no plane, so the Newell sums and their residuals
-/// are built nowhere: `Plain/Decision` 1019 → 979 calls (40813 → 39644
-/// forms), the assertions 1054 → 1048 on both walks (`Plain` 13305 →
-/// 12913 forms, frozen 245 → 0; `Early` 14807 → 13378), `Door/Decision`
-/// 555 → 551 (15037 → 13477), and every digest; `Early/Decision` keeps
-/// its calls, its forms 28205 → 28232 (+27, not traced).
-///
-/// **Then moved with the decided least-turn mint** (fork 270), the two
-/// decision lines unmoved. A pair that is one direction exactly turns by
-/// the identity with no pole verdict (its chord is 2), and the plate's two
-/// mate charts are identities: the assertions 1048 → 1046 on both walks
-/// (`Plain` 12913 → 12902 forms, `Early` 13378 → 13367) and
-/// `Door/Decision` 551 → 549 (13477 → 13466), with their digests. Measured
-/// before main's sketch-frame change came in, by undoing each cause: the
-/// identity's calls and forms, and the pole chord read as `|a + b|`
-/// rather than `√(2(1 + c))`, which moved those three digests with no
-/// count moving.
-///
-/// **Then moved by the session box's move from the readers to the
-/// placing doors** (PR 7088). The plate's measure between the two placed
-/// holes' walls reads the second through its seat (`topo::Seat`): the
-/// hole is not moved whole, and no session box is asked of its image. Each
-/// of the two placements asks the box of where its hole stands
-/// (`topo::session_box_at`, the image's reach read off the hole's own
-/// data sent through its motion). So the assertions 1046 → 1047 on both
-/// walks and `Door/Decision` 549 → 550, one ask per placement where the
-/// measure asked one, and the walks build the forms those two asks read
-/// (each mapped vertex and edge reach): `Plain/Assertion` 12902 → 14592,
-/// `Early/Assertion` 13367 → 15162, `Door/Decision` 13466 → 15356, and
-/// `Plain/Decision` 39644 → 39703, its 979 calls unmoved. Measured by
-/// dropping the placements' ask, which gives the ledger with no session
-/// box asked anywhere on the plate (`Plain/Decision` 39847,
-/// `Plain/Assertion` 1045 calls 10872 forms, `Early/Assertion` 1045 calls
-/// 11571 forms, `Door/Decision` 548 calls 11668 forms).
-///
-/// Besides the session box's asks, every walk makes the calls it made.
+/// The pinned lines are main's reading; each move of them, with its
+/// cause, is recorded on the work row that re-pinned it.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 39703 frozen 54 digest 7efda4b66066a94e596eb7fa2f430a65\n\
-     Plain/Assertion calls 1047 forms 14592 frozen 0 digest e6c6e5c3cd56ef78f91f2c7626f73670\n\
-     Early/Decision calls 308 forms 28232 frozen 0 digest 10ed8def872f6c15f2ccd18ea920e1f7\n\
-     Early/Assertion calls 1047 forms 15162 frozen 0 digest c7fd707ed0a699ee0a5d3f1d55c1fa69\n\
-     Door/Decision calls 550 forms 15356 frozen 0 digest 032cdcf5efa6396ea7a39bf7b7a8f1ab";
+     Plain/Decision calls 979 forms 33088 frozen 36 digest 2e82fe8fa43fb62fa0d4e6e57e62412f\n\
+     Plain/Assertion calls 1047 forms 12224 frozen 0 digest 60d5dc286b65a810dedda6cba84213dc\n\
+     Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
+     Early/Assertion calls 1047 forms 12674 frozen 0 digest 39cefb42a8a949bb6fc643ee9c474a35\n\
+     Door/Decision calls 550 forms 12366 frozen 0 digest 75aa7cd508fc1005ee274141b4e539c1";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

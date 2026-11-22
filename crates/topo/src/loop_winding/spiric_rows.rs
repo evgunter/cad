@@ -25,9 +25,7 @@ fn oval(
     offset: f64,
 ) -> Curve3<f64> {
     Curve3::Spiric {
-        center: c,
-        axis,
-        u_ref,
+        frame: geom::Frame::new(c, axis, u_ref),
         major_radius: big_r,
         minor_radius: r,
         offset,
@@ -160,20 +158,20 @@ fn oval_faces(d: f64) -> (Body<f64>, [LoopKey; 2]) {
             seed.face,
             FaceSurface::New {
                 surface: geom::Surface::Plane {
-                    origin: Point3::new(d, 0.0, 0.0),
-                    normal: Vec3::unit_x(),
-                    u_ref: Vec3::unit_y(),
+                    frame: geom::Frame::new(
+                        Point3::new(d, 0.0, 0.0),
+                        Vec3::unit_x(),
+                        Vec3::unit_y(),
+                    ),
                 },
                 sense: true,
             },
         )
         .unwrap();
     let torus = body.add_surface(geom::Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_x(),
     });
     let spec = |(t0, t1): (f64, f64)| geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {

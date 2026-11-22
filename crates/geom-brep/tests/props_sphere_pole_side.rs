@@ -587,10 +587,8 @@ mod interval_lane {
 fn half_cap_with_a_pole_off_its_equator(th: f64, off: f64) -> (Surface<f64>, Vec<LoopEdge<f64>>) {
     let axis = v3(0.0, off.cos(), -off.sin());
     let s = Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), axis, v3(1.0, 0.0, 0.0)),
         radius: RS,
-        axis,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let equator = LoopEdge::hand_built(
         Curve3::circle(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), RS, v3(1.0, 0.0, 0.0)),

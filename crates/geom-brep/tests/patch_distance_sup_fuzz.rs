@@ -85,60 +85,75 @@ impl Motion {
     fn surface(&self, s: &Surface<f64>) -> Surface<f64> {
         match *s {
             Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => Surface::Plane {
-                origin: self.point(origin),
-                normal: self.rot(normal),
-                u_ref: self.rot(u_ref),
-            },
+                frame: carrier_frame,
+            } => {
+                let (origin, normal, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Plane {
+                    frame: geom::Frame::new(self.point(origin), self.rot(normal), self.rot(u_ref)),
+                }
+            }
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: carrier_frame,
                 radius,
-                u_ref,
-            } => Surface::Cylinder {
-                origin: self.point(origin),
-                axis: self.rot(axis),
-                radius,
-                u_ref: self.rot(u_ref),
-            },
+            } => {
+                let (origin, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Cylinder {
+                    frame: geom::Frame::new(self.point(origin), self.rot(axis), self.rot(u_ref)),
+                    radius,
+                }
+            }
             Surface::Sphere {
-                center,
+                frame: carrier_frame,
                 radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                center: self.point(center),
-                radius,
-                axis: self.rot(axis),
-                u_ref: self.rot(u_ref),
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Sphere {
+                    frame: geom::Frame::new(self.point(center), self.rot(axis), self.rot(u_ref)),
+                    radius,
+                }
+            }
             Surface::Cone {
-                apex,
-                axis,
+                frame: carrier_frame,
                 half_angle,
-                u_ref,
-            } => Surface::Cone {
-                apex: self.point(apex),
-                axis: self.rot(axis),
-                half_angle,
-                u_ref: self.rot(u_ref),
-            },
+            } => {
+                let (apex, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Cone {
+                    frame: geom::Frame::new(self.point(apex), self.rot(axis), self.rot(u_ref)),
+                    half_angle,
+                }
+            }
             Surface::Torus {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => Surface::Torus {
-                center: self.point(center),
-                axis: self.rot(axis),
-                major_radius,
-                minor_radius,
-                u_ref: self.rot(u_ref),
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Torus {
+                    frame: geom::Frame::new(self.point(center), self.rot(axis), self.rot(u_ref)),
+                    major_radius,
+                    minor_radius,
+                }
+            }
             ref o => panic!("{o:?}"),
         }
     }
@@ -152,20 +167,22 @@ fn rho_h(p: Point3<f64>, o: Point3<f64>, a: Vec3<f64>) -> (f64, f64) {
 
 fn true_distance(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
     match *surface {
-        Surface::Plane { origin, normal, .. } => (p - origin).dot(normal).abs(),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => (rho_h(p, origin, axis).0 - radius).abs(),
-        Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (p - origin).dot(normal).abs()
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            (rho_h(p, origin, axis).0 - radius).abs()
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            ((p - center).norm() - radius).abs()
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (rho, h) = rho_h(p, apex, axis);
             let (s, c) = half_angle.sin_cos();
             let ray = |dir: (f64, f64)| {
@@ -179,12 +196,12 @@ fn true_distance(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
             ray((s, c)).min(ray((s, -c)))
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let (rho, h) = rho_h(p, center, axis);
             ((rho - major_radius).hypot(h) - minor_radius).abs()
         }
@@ -371,46 +388,36 @@ fn kinds(r: &mut Rng) -> Vec<(&'static str, Surface<f64>)> {
         (
             "plane",
             Surface::Plane {
-                origin: Point3::new(0.0, 0.0, r.range(-0.5, 0.5)),
-                normal: axis,
-                u_ref,
+                frame: geom::Frame::new(Point3::new(0.0, 0.0, r.range(-0.5, 0.5)), axis, u_ref),
             },
         ),
         (
             "cylinder",
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis,
+                frame: geom::Frame::new(Point3::origin(), axis, u_ref),
                 radius: r.range(0.05, 2.0),
-                u_ref,
             },
         ),
         (
             "sphere",
             Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), axis, u_ref),
                 radius: r.range(0.05, 2.0),
-                axis,
-                u_ref,
             },
         ),
         (
             "cone",
             Surface::Cone {
-                apex: Point3::origin(),
-                axis,
+                frame: geom::Frame::new(Point3::origin(), axis, u_ref),
                 half_angle: r.range(0.02, 1.5),
-                u_ref,
             },
         ),
         ("torus", {
             let minor = r.range(0.05, 1.0);
             Surface::Torus {
-                center: Point3::origin(),
-                axis,
+                frame: geom::Frame::new(Point3::origin(), axis, u_ref),
                 major_radius: minor + r.range(0.01, 2.0),
                 minor_radius: minor,
-                u_ref,
             }
         }),
     ]
@@ -476,10 +483,8 @@ fn near_locus_patches_of_every_kind_are_bounded() {
                         start,
                     ),
                     Surface::Cylinder {
-                        origin: Point3::origin(),
-                        axis,
+                        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
                         radius: rad,
-                        u_ref,
                     },
                 )
             }
@@ -505,10 +510,8 @@ fn near_locus_patches_of_every_kind_are_bounded() {
                         start,
                     ),
                     Surface::Cone {
-                        apex: Point3::origin(),
-                        axis,
+                        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
                         half_angle: a,
-                        u_ref,
                     },
                 )
             }
@@ -531,10 +534,8 @@ fn near_locus_patches_of_every_kind_are_bounded() {
                 (
                     revolved(&profile, &pw, pk, 2, turns, start),
                     Surface::Sphere {
-                        center: Point3::origin(),
+                        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
                         radius: rad,
-                        axis,
-                        u_ref,
                     },
                 )
             }
@@ -561,11 +562,9 @@ fn near_locus_patches_of_every_kind_are_bounded() {
                         start,
                     ),
                     Surface::Torus {
-                        center: Point3::origin(),
-                        axis,
+                        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
                         major_radius: major,
                         minor_radius: minor,
-                        u_ref,
                     },
                 )
             }
@@ -586,9 +585,7 @@ fn near_locus_patches_of_every_kind_are_bounded() {
                 (
                     NurbsSurface::new(k.clone(), k, control, weights).unwrap(),
                     Surface::Plane {
-                        origin: Point3::origin(),
-                        normal: axis,
-                        u_ref,
+                        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
                     },
                 )
             }
@@ -611,51 +608,67 @@ fn near_locus_patches_of_every_kind_are_bounded() {
         // the carrier itself off by a little
         let off = match surf {
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: carrier_frame,
                 radius,
-                u_ref,
-            } => Surface::Cylinder {
-                origin,
-                axis,
-                radius: radius * (1.0 + r.range(-0.05, 0.05)),
-                u_ref,
-            },
+            } => {
+                let (origin, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Cylinder {
+                    frame: geom::Frame::new(origin, axis, u_ref),
+                    radius: radius * (1.0 + r.range(-0.05, 0.05)),
+                }
+            }
             Surface::Cone {
-                apex,
-                axis,
+                frame: carrier_frame,
                 half_angle,
-                u_ref,
-            } => Surface::Cone {
-                apex,
-                axis,
-                half_angle: half_angle * (1.0 + r.range(-0.05, 0.05)),
-                u_ref,
-            },
+            } => {
+                let (apex, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Cone {
+                    frame: geom::Frame::new(apex, axis, u_ref),
+                    half_angle: half_angle * (1.0 + r.range(-0.05, 0.05)),
+                }
+            }
             Surface::Sphere {
-                center,
+                frame: carrier_frame,
                 radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                center: center + Vec3::new(r.range(-0.05, 0.05), 0.0, 0.0),
-                radius,
-                axis,
-                u_ref,
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Sphere {
+                    frame: geom::Frame::new(
+                        center + Vec3::new(r.range(-0.05, 0.05), 0.0, 0.0),
+                        axis,
+                        u_ref,
+                    ),
+                    radius,
+                }
+            }
             Surface::Torus {
-                center,
-                axis,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius: minor_radius * (1.0 + r.range(-0.05, 0.05)),
-                u_ref,
-            },
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Surface::Torus {
+                    frame: geom::Frame::new(center, axis, u_ref),
+                    major_radius,
+                    minor_radius: minor_radius * (1.0 + r.range(-0.05, 0.05)),
+                }
+            }
             other => other,
         };
         check(&mut t, "off carrier", &exact, &off);

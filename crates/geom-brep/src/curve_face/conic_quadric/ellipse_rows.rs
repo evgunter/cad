@@ -20,10 +20,12 @@ fn band() -> Band {
 
 fn sphere(c: [f64; 3], r: f64) -> geom::Surface<f64> {
     geom::Surface::Sphere {
-        center: Point3::from_array(c),
+        frame: geom::Frame::new(
+            Point3::from_array(c),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: r,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -31,10 +33,12 @@ fn wall(o: [f64; 3], axis: [f64; 3], r: f64) -> geom::Surface<f64> {
     let axis = Vec3::from_array(axis).normalize();
     let x = Vec3::new(1.0, 0.0, 0.0);
     geom::Surface::Cylinder {
-        origin: Point3::from_array(o),
-        axis,
+        frame: geom::Frame::new(
+            Point3::from_array(o),
+            axis,
+            (x - axis * x.dot(axis)).normalize(),
+        ),
         radius: r,
-        u_ref: (x - axis * x.dot(axis)).normalize(),
     }
 }
 
@@ -164,7 +168,8 @@ fn a_wall_s_own_tilted_section_is_on_it() {
 /// - crossing (`|r − ρ| < offset < r + ρ`): two certified roots, at the
 ///   oracle's crossings;
 /// - tangent inside (`offset = r − ρ`): not a crossing at any order the
-///   door sees, and neither a `Miss` nor certified roots;
+///   door sees, and neither a `Miss` nor certified roots over the whole
+///   turn; over an arc clear of the touch, the arc's `Miss`;
 /// - coaxial (`offset = 0`): its own wall `On` (a constant zero
 ///   residual, which the ladder cannot read), a wider one a `Miss`.
 #[test]
@@ -211,9 +216,22 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
                 "{label}: inside a coaxial wider wall"
             );
         } else {
+            // Over the whole turn the touch is on the span; over
+            // `[-0.5, 0.5]` the span stands clear of it, its distance
+            // one-signed past the band's escalation, and is apart.
+            let whole = conic_quadric_roots(&section, 0.0, TAU, &w, band);
             assert!(
-                matches!(got, Ok(Err(Unsettled::Tangency))),
-                "{label}: a tangency is no certified answer, got {got:?}"
+                matches!(whole, Ok(Err(Unsettled::Tangency))),
+                "{label}: a tangency is no certified answer, got {whole:?}"
+            );
+            let (_, near) = conic_oracle::extremes(|t| distance(&w, section.eval(t)), -0.5, 0.5);
+            assert!(
+                near < -band.escalate(),
+                "{label}: the span clears the wall, {near:e}"
+            );
+            assert!(
+                matches!(got, Ok(Ok(CircleRoots::Miss))),
+                "{label}: the span clear of the touch is apart, got {got:?}"
             );
         }
     }
@@ -314,18 +332,20 @@ fn the_subdivision_reads_its_pieces_at_the_top_speed() {
     );
     let radius = 0.00021405666180469222;
     let s = geom::Surface::Sphere {
-        center,
+        frame: geom::Frame::new(
+            center,
+            Vec3::new(
+                -0.018144408265784995,
+                0.9651190040905697,
+                -0.2611820981459323,
+            ),
+            Vec3::new(
+                0.9998353766739225,
+                0.017514396513495407,
+                -0.004739774897982686,
+            ),
+        ),
         radius,
-        axis: Vec3::new(
-            -0.018144408265784995,
-            0.9651190040905697,
-            -0.2611820981459323,
-        ),
-        u_ref: Vec3::new(
-            0.9998353766739225,
-            0.017514396513495407,
-            -0.004739774897982686,
-        ),
     };
     let got = conic_quadric_roots(&e, 3.511343352233997, 7.298353179068743, &s, band);
     let Ok(Ok(CircleRoots::Certified(found))) = got else {
@@ -476,17 +496,21 @@ mod fuzz_rows {
                 let x = Vec3::new(1.0, 0.0, 0.0);
                 let s = if i % 2 == 0 {
                     geom::Surface::Cylinder {
-                        origin: through + unit(|lo, hi| rng.range(lo, hi)).cross(w).normalize() * r,
-                        axis: w,
+                        frame: geom::Frame::new(
+                            through + unit(|lo, hi| rng.range(lo, hi)).cross(w).normalize() * r,
+                            w,
+                            (x - w * x.dot(w)).normalize(),
+                        ),
                         radius: r,
-                        u_ref: (x - w * x.dot(w)).normalize(),
                     }
                 } else {
                     geom::Surface::Sphere {
-                        center: through + unit(|lo, hi| rng.range(lo, hi)) * r,
+                        frame: geom::Frame::new(
+                            through + unit(|lo, hi| rng.range(lo, hi)) * r,
+                            w,
+                            (x - w * x.dot(w)).normalize(),
+                        ),
                         radius: r,
-                        axis: w,
-                        u_ref: (x - w * x.dot(w)).normalize(),
                     }
                 };
                 let t0 = rng.range(0.0, TAU);
@@ -627,17 +651,13 @@ mod graze_rows {
                 let x = Vec3::new(1.0, 0.0, 0.0);
                 let s = if rng.below(2) == 0 {
                     geom::Surface::Sphere {
-                        center: hub,
+                        frame: geom::Frame::new(hub, n, (x - n * x.dot(n)).normalize()),
                         radius: r,
-                        axis: n,
-                        u_ref: (x - n * x.dot(n)).normalize(),
                     }
                 } else {
                     geom::Surface::Cylinder {
-                        origin: hub,
-                        axis: wall_axis,
+                        frame: geom::Frame::new(hub, wall_axis, outward),
                         radius: r,
-                        u_ref: outward,
                     }
                 };
                 let (t0, t1) = (vertex - 0.5, vertex + 0.5);

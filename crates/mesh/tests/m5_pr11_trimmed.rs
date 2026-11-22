@@ -70,10 +70,10 @@ fn halves_of(r: f64) -> (Body<f64>, Body<f64>) {
 fn assert_cylinder_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
     for patch in &mesh.patches {
         let face = body.get_face(patch.face).unwrap();
-        let geom::Surface::Cylinder { origin, axis, .. } = *body.face_surface(patch.face).unwrap()
-        else {
+        let geom::Surface::Cylinder { frame, .. } = *body.face_surface(patch.face).unwrap() else {
             continue;
         };
+        let (origin, axis) = (frame.origin(), frame.axis());
         for tri in &patch.triangles {
             let [a, b, c] = tri.map(|i| mesh.positions[i as usize]);
             let centroid = a + ((b - a) + (c - a)) / 3.0;

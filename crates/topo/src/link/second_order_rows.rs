@@ -28,9 +28,7 @@ fn edges(n: usize) -> Vec<EdgeKey> {
 /// off a direction no normal here lies along.
 fn plane<T: Real>(p: Point3<T>, n: Vec3<T>) -> geom::Surface<T> {
     geom::Surface::Plane {
-        origin: p,
-        normal: n,
-        u_ref: n.cross(v::<T>(1.0, 0.3, 0.7)).normalize(),
+        frame: geom::Frame::new(p, n, n.cross(v::<T>(1.0, 0.3, 0.7)).normalize()),
     }
 }
 
@@ -669,10 +667,8 @@ fn wedge_over_a_sheet<T: Decide>(
             frame: [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
         };
         let ball = geom::Surface::Sphere {
-            center: p - n * T::from_f64(r),
+            frame: geom::Frame::new(p - n * T::from_f64(r), n, turned(1.0, 0.0, 0.0)),
             radius: T::from_f64(r.abs()),
-            axis: n,
-            u_ref: turned(1.0, 0.0, 0.0),
         };
         FaceSector::tangent(ball, r > 0.0, n, p, fan, band()).expect("a sphere's plane")
     } else {

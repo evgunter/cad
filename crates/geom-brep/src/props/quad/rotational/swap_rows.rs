@@ -55,10 +55,8 @@ impl Chart {
 
     fn surface(self) -> Surface<f64> {
         Surface::Cylinder {
-            origin: self.o,
-            axis: self.axis,
+            frame: geom::Frame::new(self.o, self.axis, self.u_ref),
             radius: self.r,
-            u_ref: self.u_ref,
         }
     }
 

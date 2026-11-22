@@ -25,14 +25,18 @@ fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
     let band = band();
     let (keys, resolve) = table(vec![
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         },
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         },
     ]);
     let carrier = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
