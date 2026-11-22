@@ -78,22 +78,29 @@ embedding with a tangent corner on the wall.
 
 ## What a fix needs
 
-Not a presentation of the corner (measured and argued by `embed/iso-end`,
-2026-11-22, below). The cylinder's cell is refused at
-`sides_are_the_faces` rightly, and no presentation of it would be read:
-every separator but the face's own carrier holds the shared edge's
-carrier and departs at first order (`planes_through`, `graph_of`, the
-partner's carrier), so it vanishes on that edge's chart line past the
-corner, which is the face's interior, and the face's part of the cell
-lies on both sides of it; at a vertex alone, a separator through it cuts
-the face along a curve one of whose rays enters the 270°. The corner is
-read by the face's own carrier in the departure arm's carrier separator,
-which reads only the partner's presentation. That read is what failed:
-`Psi`'s gradient over the cell's image was a box enclosure of the
-cylinder's radial unit, dotted with the chart direction, and along a
-ruling the direction is the axis, against which the box's slop is all
-the dot reads. A face with no carrier implicit has no reading at such a
-corner (`a-reflex-corner-of-a-face-with-no-implicit-carrier-has-no-reading`).
+Not a presentation of the corner where the carrier arm reads it (measured
+and argued by `embed/iso-end`, 2026-11-22, below). The cylinder's cell is
+refused at `sides_are_the_faces` rightly. No one presentation of the
+face's part, the cell less a quadrant, is signed by a first-order
+separator holding the shared edge's carrier (`planes_through`,
+`graph_of`, the partner's carrier): it vanishes on that edge's chart line
+past the corner, the face's interior, and the part lies on both sides of
+it. Nor by one through the vertex alone. The carrier arm reads the corner
+with the face's own carrier against the partner's presentation where (i)
+the face has a carrier implicit, (ii) the partner is presented and (iii)
+the partner lies on one side of the face's whole carrier in the cell.
+Across a shared edge with a transverse partner (iii) holds for a valid
+body; at a vertex alone (four or more faces there) a valid partner may
+cross the carrier in the quadrant the face lacks, and that pair is
+refused at every depth. There, and where (i) fails, the reading is the
+cell cut at the vertex into two convex pieces each certified alone
+(`embed/corner-pieces` for a plane;
+`a-reflex-corner-of-a-face-with-no-implicit-carrier-has-no-reading`).
+
+What failed in this row's tests was the carrier arm's read: `Psi`'s
+gradient over the cell's image was a box enclosure of the cylinder's
+radial unit, dotted with the chart direction, and along a ruling the
+direction is the axis, against which the box's slop is all the dot reads.
 
 The lone clip's tests are not this read (below): tangent contacts and
 partners unread.
@@ -177,8 +184,11 @@ then the landed reading) makes every ask of the tee `Embedded`.
 
 **What landed.** `Psi::rate(box, v)` replaces the gradient: a cylinder's
 radial unit is dotted with `v` less its part along the axis
-(`square_to`), and a cone's radial term likewise; the sphere, plane,
-linear and graph arms read the old gradient against `v`. No
+(`square_to`), and a cone's radial term likewise, its axial term over
+the unit axis as its value reads the height; the sphere reads
+`(w·v)/|w|` and the graph `m·v − (t·v)·γ′`, each naming a quantity once
+where the old dot named it per component; plane and linear read `n·v`.
+`rate`'s doc says which spelling each arm uses and why. No
 presentation changed. The argument that no presentation of the corner
 would be signed is at What a fix needs, and at `present_chart`'s
 refusal.
@@ -190,10 +200,11 @@ buckets of the census (Departure/Edge plane/cyl, cyl/plane, cyl/cyl:
 236 tests; 5 `intent_s6_*` names no longer exist):
 
 - before: 230 refuse, 1 passes; after: 183 refuse, 48 pass; none worse.
-  One more, `reach_wall_chord_rows::an_x_bar_sunk_into_either_cap_answers_its_closed_form`,
-  passes where the graph arm's rate is spelled `m·v − (t·v)·slope`
-  (naming the slope once), and reads `Budget(Depth)` with the graph's
-  rate spelled as before, which landed.
+  `reach_wall_chord_rows::an_x_bar_sunk_into_either_cap_answers_its_closed_form`
+  passed on an earlier harness (`c691709cb`, main `45023f4e3`) and reads
+  `Budget(Depth { 40 })` on this one with either spelling of the graph
+  arm's rate (the review's switch, same receipt): the difference was the
+  base, not the spelling.
 - **reflex shape** (two clips uncovered, the corner not convex; 66 of
   the 199 tests ≤ 30 s, classed by the trace run): 43 pass, 19 now
   refuse at another pair (a partner's exit), 4 stay where both faces are

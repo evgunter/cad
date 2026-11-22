@@ -97,7 +97,7 @@ Cheapest edge reproducer:
 
 ## Census tests whose partner stops at the lean gate (EMBED lane `embed/iso-end`, 2026-11-22)
 
-Plane faces' reflex corners need no presentation: the corner is read by the face's own carrier in the carrier arm, against the partner's presentation, and no other separator signs the face's part there (`a-cell-past-an-iso-edges-end-is-clipped-by-its-whole-line`, What a fix needs). The reflex half of this row is answered by that argument, and its census refusals are partner readings.
+A plane face's reflex corner is read by the face's own carrier in the carrier arm, against the partner's presentation, where the partner is presented and lies on one side of the face's plane in the cell; no other first-order separator signs the face's part there (`a-cell-past-an-iso-edges-end-is-clipped-by-its-whole-line`, What a fix needs). Across a shared edge that holds for a valid body; at a vertex alone a valid partner may cross the plane in the quadrant the face lacks, and there the reflex half of this row stands (`embed/corner-pieces`). The census refusals below are partner readings.
 
 **Cylinder bucket, 6 tests.** The cylinder's pair now certifies, and the test refuses at a plane pair whose face exits at `present_plane`'s lean gate:
 

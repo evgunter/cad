@@ -29,9 +29,9 @@ holds **`records=0`**. It reads
 `Crosses(Crossing { faces: (3v1, 7v1), stations: [(0.5, 1.28), (−0.2121, 0.655)], distance: 1.29e-15 })`,
 
 where 3v1 is the rod's cylinder wall, 7v1 a plane side of the square,
-and the station on the wall is the ruling at height `z = 1.28`, inside
-the contact's span (the rod over `z ∈ [0.5, 2]`, the square over
-`[0.44, 1.81]`). The pocket, at bearing 2 rad, does not reach the
+and the station on the wall is the ruling at chart height 1.28 above the
+rod's base, world `z = 1.78`, inside the contact's span (the rod over
+`z ∈ [0.5, 2]`, the square over `[0.44, 1.81]`). The pocket, at bearing 2 rad, does not reach the
 ruling.
 
 So the witness is the pair's line contact, a true touch, not a false
