@@ -2,11 +2,11 @@
 id: a-carried-sites-foot-is-certified-at-the-reading
 kind: unit
 title: A carried site's foot is decided at the reading: CarriedComponent::reads certifies the along-residual Zero, so the foot is the site's orthogonal foot, not a witness
-status: parked
+status: dispatched
 opened: 2026-11-22
 priority: P1
 cost: M
-blocked_on: [the-plane-and-sphere-conic-pairs-on-the-section-value]
+branch: sectcone/certified-foot
 ---
 
 
@@ -27,4 +27,4 @@ The join orders a germ's partners by their feet on the carried section (`bool_jo
 
 Rejected by both designers: an along-reach carried on `SiteFoot` and charged with `band.padded` everywhere a foot is read (one fact spelled at every consumer), and any `cot ψ`-style slack (the uncertainty does not exist on a foot).
 
-Parked on the conic-pairs unit because both edit `along_sign` / `Along`. It is dispatched once that merges.
+It waited on the conic-pairs unit because both edit `along_sign` / `Along`; that merged in PR 7354.
