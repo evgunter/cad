@@ -7950,6 +7950,278 @@ mod presentation_rows {
         }
     }
 
+    /// **A plane face cornered at vertex 1**, the origin: the sector from
+    /// `d1` round to `d2`, counter-clockwise about `normal`. Rim 0 runs
+    /// along `d2` into the vertex (key `k2`), rim 1 along `d1` out of it
+    /// (key `k1`); each is the line from the origin over `(0, 4)`.
+    fn sector_at_vertex_1(
+        normal: [f64; 3],
+        d1: [f64; 3],
+        d2: [f64; 3],
+        (k1, k2): (u64, u64),
+    ) -> (Surface<Interval>, Boundary) {
+        let v3 = |[x, y, z]: [f64; 3]| Vec3::new(iv0(x), iv0(y), iv0(z));
+        let rim = |key: u64, d: [f64; 3], plus: bool| Rim {
+            stated: None,
+            key: edge(key),
+            arc: Some((Curve3::line(origin(), v3(d)), (iv0(0.0), iv0(4.0)))),
+            ends: [vertex(1), vertex(key + 100)],
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        (
+            Surface::Plane {
+                frame: geom::Frame::new(origin(), v3(normal), v3(d1)),
+            },
+            Boundary {
+                sense: true,
+                edges: vec![rim(k2, d2, false), rim(k1, d1, true)],
+                vertices: BTreeMap::from([(vertex(1), origin())]),
+                extent: None,
+            },
+        )
+    }
+
+    fn both_rims_and_vertex_1() -> Local {
+        Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        }
+    }
+
+    fn cell_of<'a>(
+        s: &'a (Surface<Interval>, Boundary),
+        local: &'a Local,
+        u: (f64, f64),
+        v: (f64, f64),
+    ) -> Piece<'a> {
+        Piece {
+            face: FaceKey::default(),
+            surface: &s.0,
+            whole: false,
+            boundary: &s.1,
+            u,
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        }
+    }
+
+    /// Whether the two faces' cells about vertex 1 are certified, asked
+    /// either way, sharing `edges` (rim indices in each) and the vertex.
+    fn parted_at_vertex_1(
+        f: &(Surface<Interval>, Boundary),
+        g: &(Surface<Interval>, Boundary),
+        edges: &[(usize, usize)],
+    ) -> bool {
+        let local = both_rims_and_vertex_1();
+        let about = (-0.5, 0.5);
+        let (x, y) = (
+            cell_of(f, &local, about, about),
+            cell_of(g, &local, about, about),
+        );
+        let near = |edges: Vec<(usize, usize)>| Near {
+            edges,
+            vertices: vec![vertex(1)],
+        };
+        let one = |o: Outcome| match o {
+            Outcome::Certified { .. } => true,
+            Outcome::Split { .. } | Outcome::Cusp { .. } => false,
+            other => panic!("certified, split or cusp: {other:?}"),
+        };
+        let a = one(departure(&x, &y, &near(edges.to_vec()), band(), true));
+        let b = one(departure(
+            &y,
+            &x,
+            &near(edges.iter().map(|&(i, j)| (j, i)).collect()),
+            band(),
+            true,
+        ));
+        assert_eq!(a, b, "either face first");
+        a
+    }
+
+    const PX: [f64; 3] = [1.0, 0.0, 0.0];
+    const MX: [f64; 3] = [-1.0, 0.0, 0.0];
+    const PY: [f64; 3] = [0.0, 1.0, 0.0];
+    const MY: [f64; 3] = [0.0, -1.0, 0.0];
+    const PZ: [f64; 3] = [0.0, 0.0, 1.0];
+    const MZ: [f64; 3] = [0.0, 0.0, -1.0];
+
+    /// **`present_plane`, two line edges: two pieces that cover the
+    /// sector.** The half `y ≥ 0` of [`floor`]'s plane, its edge the `x`
+    /// axis split at the origin (a straight corner). About the vertex it
+    /// is two pieces, each with its own zero: its edge where the pair
+    /// shares it, else its corner at the vertex where the pair shares the
+    /// vertex or the other piece's edge (whose end the vertex is), else
+    /// none. A cell on one edge's side, clear of the other piece's part,
+    /// is that edge's piece alone; a cell across the edges holds none of
+    /// the face. Red if a piece is dropped that the other does not cover,
+    /// kept where it is a sliver the other covers, or given a zero off
+    /// the shared cell.
+    #[test]
+    fn a_two_line_corner_is_two_pieces_that_cover_its_sector() {
+        let f = sector_at_vertex_1(PZ, PX, MX, (1, 2));
+        let local = both_rims_and_vertex_1();
+        let zeros = |u, v, edges: &[usize], vertices: &[VertexKey]| -> Vec<&'static str> {
+            match present_plane(&cell_of(&f, &local, u, v), edges, vertices, band()) {
+                Ok(p) => p
+                    .pieces()
+                    .iter()
+                    .map(|q| match &q.zero {
+                        Zero::None => "none",
+                        Zero::Side(Side::YLo, a) if a.edges.len() == 1 && a.whole => "edge",
+                        Zero::Point(Side::XLo, Side::YLo, _) => "corner",
+                        _ => "another",
+                    })
+                    .collect(),
+                Err(_) => vec!["refused"],
+            }
+        };
+        let about = (-0.5, 0.5);
+        let v1 = [vertex(1)];
+        assert_eq!(zeros(about, about, &[], &v1), ["corner", "corner"]);
+        assert_eq!(zeros(about, about, &[], &[]), ["none", "none"]);
+        assert_eq!(
+            zeros(about, about, &[1], &v1),
+            ["corner", "edge"],
+            "rim 1 shared: its piece's side, the other's corner"
+        );
+        assert_eq!(
+            zeros(about, about, &[1], &[]),
+            ["corner", "edge"],
+            "the partner's cell clear of the vertex: still the edge's end"
+        );
+        assert_eq!(zeros(about, about, &[0, 1], &v1), ["edge", "edge"]);
+        assert_eq!(
+            zeros((0.5, 1.0), (0.01, 0.1), &[], &v1),
+            ["corner"],
+            "a cell low along rim 1: that piece alone"
+        );
+        assert_eq!(
+            zeros((-1.0, -0.5), (0.01, 0.1), &[], &v1),
+            ["corner"],
+            "a cell low along rim 0: that piece alone"
+        );
+        assert_eq!(
+            zeros(about, (-0.5, -0.1), &[], &v1),
+            Vec::<&str>::new(),
+            "a cell across the edges: vacuous"
+        );
+    }
+
+    /// **The ray is decided strictly inside the sector, or the corner is
+    /// refused.** A spike (the two edges a nanoradian apart, the face
+    /// between them) and a slit (the face everything but that) have no
+    /// ray inside with both pieces under a half turn. A corner kinked off
+    /// straight by less than the band, either way, or inside it, is cut
+    /// as any other: its side of straight is never asked. Red if the ray
+    /// is not decided at the band, or a lean is.
+    #[test]
+    fn a_spike_or_a_slit_within_the_band_is_not_cut() {
+        let local = both_rims_and_vertex_1();
+        let about = (-0.5, 0.5);
+        let read_of = |d2: [f64; 3]| {
+            let f = sector_at_vertex_1(PZ, PX, d2, (1, 2));
+            read(present_plane(
+                &cell_of(&f, &local, about, about),
+                &[],
+                &[vertex(1)],
+                band(),
+            ))
+        };
+        assert_eq!(read_of([1.0, 1e-10, 0.0]), Read::Local, "a spike");
+        assert_eq!(read_of([1.0, -1e-10, 0.0]), Read::Local, "a slit");
+        for (d2, what) in [
+            ([-1.0, -0.225e-9, 0.0], "convex by 0.9 ε at the far end"),
+            ([-1.0, 0.225e-9, 0.0], "reflex by 0.9 ε"),
+            ([-1.0, -0.75e-9, 0.0], "convex by 3 ε"),
+            ([-1.0, 0.75e-9, 0.0], "reflex by 3 ε"),
+        ] {
+            assert_eq!(read_of(d2), Read::Pair, "{what}");
+        }
+    }
+
+    /// **Two faces that share a vertex alone are parted piece pair by
+    /// piece pair.** `F` lies in `x = 0`, from `+y` round through `-z` to
+    /// `far`: exactly straight, off straight by 1e-13 either way, reflex
+    /// at 207° and at 260°. Against the half `z ≥ 0` of `y = 0` and
+    /// against a reflex face there, it is certified; against the half
+    /// `x ≥ 0` of `y = 0`, whose edge runs down `F`, it is not.
+    /// Red if a face pair is certified with a piece pair unparted, or a
+    /// corner is read as one sector.
+    #[test]
+    fn faces_sharing_a_vertex_alone_are_parted_piece_by_piece() {
+        let g = sector_at_vertex_1(MY, PX, MX, (20, 21));
+        let reflex = sector_at_vertex_1(MY, PX, [-1.0, 0.0, -0.5], (20, 21));
+        let along = sector_at_vertex_1(PY, PZ, MZ, (20, 21));
+        for (what, far) in [
+            ("exactly straight", MY),
+            ("convex by 1e-13", [0.0, -1.0, -1e-13]),
+            ("reflex by 1e-13", [0.0, -1.0, 1e-13]),
+            ("reflex, 207 degrees", [0.0, -1.0, 0.5]),
+            ("reflex, 260 degrees", [0.0, -0.17, 1.0]),
+        ] {
+            let f = sector_at_vertex_1(MX, PY, far, (2, 3));
+            assert!(
+                parted_at_vertex_1(&f, &g, &[]),
+                "{what}: a straight partner"
+            );
+            assert!(
+                parted_at_vertex_1(&f, &reflex, &[]),
+                "{what}: a reflex partner"
+            );
+            assert!(
+                !parted_at_vertex_1(&f, &along, &[]),
+                "{what}: a partner whose edge runs down the face"
+            );
+        }
+    }
+
+    /// **Faces that share an edge of the corner.**
+    /// - A split shared edge: the half `y ≥ 0` of `z = 0` and the half
+    ///   `z ≤ 0` of `y = 0`, their common `x` axis split at the vertex:
+    ///   certified.
+    /// - The same partner folded onto the face: not certified.
+    /// - A reflex floor (three quadrants of `z = 0`) and a wall's
+    ///   quadrant standing on its edge `+x`: certified.
+    /// - The hazard: a wall, the half `z ≥ 0` of `y = 0`, on that floor,
+    ///   sharing `+x` only, its other edge `-x` lying in the floor's
+    ///   interior. The wall's carrier cannot sign the floor's pieces and
+    ///   the floor's carrier is zero along the wall's other edge: not
+    ///   certified. Red if a piece off the shared edge is read as clear
+    ///   of a carrier its own edge lies in.
+    #[test]
+    fn faces_sharing_an_edge_of_the_corner_are_parted_or_refused() {
+        let f = sector_at_vertex_1(PZ, PX, MX, (1, 2));
+        let g = sector_at_vertex_1(MY, MX, PX, (2, 1));
+        assert!(
+            parted_at_vertex_1(&f, &g, &[(1, 0), (0, 1)]),
+            "both halves near"
+        );
+        let folded = sector_at_vertex_1(MZ, MX, PX, (2, 1));
+        assert!(
+            !parted_at_vertex_1(&f, &folded, &[(1, 0), (0, 1)]),
+            "a partner folded onto the face"
+        );
+        let floor = sector_at_vertex_1(PZ, PX, MY, (1, 4));
+        let quadrant = sector_at_vertex_1(PY, PZ, PX, (5, 1));
+        assert!(
+            parted_at_vertex_1(&floor, &quadrant, &[(1, 0)]),
+            "a wall's quadrant on a reflex floor's edge"
+        );
+        let wall = sector_at_vertex_1(PY, MX, PX, (3, 1));
+        assert!(
+            !parted_at_vertex_1(&floor, &wall, &[(1, 0)]),
+            "a wall whose other edge lies in the floor"
+        );
+    }
+
     /// **`edge_piece`**: the hull of an edge's parameters whose points the
     /// boxes may hold, narrowed to them from both ends.
     #[test]
