@@ -1,0 +1,1380 @@
+{
+ "population": {
+  "rows": 73,
+  "implementer_fair": {
+   "Opus 5.5": 39,
+   "Fable 5.2": 30
+  },
+  "implementer_excluded": [
+   [
+    6862,
+    "implementer arm not drawn: dispatched on the default model (arm chosen, not drawn); row says UNFAIR, excluded from the implementer question (rule 8)"
+   ],
+   [
+    6865,
+    "not drawn: dispatched without this protocol's draws (checklist pointed at paused dual-review protocol); both arms excluded (rule 8)"
+   ],
+   [
+    6873,
+    "implementer not drawn (dispatched before the protocol's draws; checklist pointed at paused dual-review protocol); excluded under rule 8"
+   ],
+   [
+    6990,
+    "not a fresh draw: PR 6963's implementer arm continued (its byte there 122, Opus); the row excludes it from the implementer question"
+   ]
+  ],
+  "reviews_fair": {
+   "Opus 5.5": 49,
+   "Fable 5.2": 40
+  },
+  "by_letter_impl": {
+   "H": {
+    "Opus 5.5": 11,
+    "Fable 5.2": 9
+   },
+   "M": {
+    "Opus 5.5": 22,
+    "Fable 5.2": 17
+   },
+   "S": {
+    "Opus 5.5": 6,
+    "Fable 5.2": 4
+   }
+  },
+  "by_mode": {
+   "single": 39,
+   "dual-sequential": 15,
+   "dual-concurrent": 19
+  },
+  "cells": {
+   "Opus  impl / Opus  rev": 26,
+   "Opus  impl / Fable rev": 21,
+   "Fable impl / Opus  rev": 22,
+   "Fable impl / Fable rev": 17
+  },
+  "orchestrator": {
+   "Opus 5.5": 30,
+   "Fable 5.2": 43
+  }
+ },
+ "draws": {
+  "n": 122,
+  "even": 70,
+  "note": "every recorded byte matches its model (even -> Opus)"
+ },
+ "implementer": {
+  "MAJORs per review": {
+   "Opus 5.5": {
+    "n": 47,
+    "total": 26,
+    "mean": 0.5531914893617021
+   },
+   "Fable 5.2": {
+    "n": 39,
+    "total": 21,
+    "mean": 0.5384615384615384
+   },
+   "adjusted_rate_ratio_fable_over_opus": {
+    "est": 0.9649388306282731,
+    "lo": 0.5223750963426771,
+    "hi": 1.8040799453360543,
+    "p_fable_higher": 0.4645
+   }
+  },
+  "DEMONSTRATED MAJORs per review": {
+   "Opus 5.5": {
+    "n": 47,
+    "total": 24,
+    "mean": 0.5106382978723404
+   },
+   "Fable 5.2": {
+    "n": 39,
+    "total": 16,
+    "mean": 0.41025641025641024
+   },
+   "adjusted_rate_ratio_fable_over_opus": {
+    "est": 0.7915453914146924,
+    "lo": 0.41423573365117466,
+    "hi": 1.4633885514910707,
+    "p_fable_higher": 0.2645
+   }
+  },
+  "MINORs per review": {
+   "Opus 5.5": {
+    "n": 47,
+    "total": 185,
+    "mean": 3.9361702127659575
+   },
+   "Fable 5.2": {
+    "n": 39,
+    "total": 161,
+    "mean": 4.128205128205129
+   },
+   "adjusted_rate_ratio_fable_over_opus": {
+    "est": 1.033415478726078,
+    "lo": 0.8799537896639232,
+    "hi": 1.2098559520520311,
+    "p_fable_higher": 0.63575
+   }
+  },
+  "unit drew a NOT-MERGEABLE verdict [all]": {
+   "fable": "4/30",
+   "opus": "8/39",
+   "fable_rate": 0.13333333333333333,
+   "opus_rate": 0.20512820512820512,
+   "diff_median": -0.06461368586262671,
+   "lo": -0.2090864284505857,
+   "hi": 0.08647038812940097,
+   "p_fable_higher": 0.235245
+  },
+  "unit drew a NOT-MERGEABLE verdict [single+sequential (one review)]": {
+   "fable": "1/21",
+   "opus": "5/31",
+   "fable_rate": 0.047619047619047616,
+   "opus_rate": 0.16129032258064516,
+   "diff_median": -0.0953193867166062,
+   "lo": -0.23733432477133837,
+   "hi": 0.05077410265073962,
+   "p_fable_higher": 0.13158
+  },
+  "unit drew a NOT-MERGEABLE verdict [concurrent (two reviews)]": {
+   "fable": "3/9",
+   "opus": "3/8",
+   "fable_rate": 0.3333333333333333,
+   "opus_rate": 0.375,
+   "diff_median": -0.035434342571143,
+   "lo": -0.37111477227824413,
+   "hi": 0.2993870175668112,
+   "p_fable_higher": 0.43054
+  },
+  "unit drew any MAJOR [all]": {
+   "fable": "12/30",
+   "opus": "14/39",
+   "fable_rate": 0.4,
+   "opus_rate": 0.358974358974359,
+   "diff_median": 0.04020949430208076,
+   "lo": -0.14517762266690112,
+   "hi": 0.22683655578890896,
+   "p_fable_higher": 0.63683
+  },
+  "unit drew any MAJOR [single+sequential (one review)]": {
+   "fable": "6/21",
+   "opus": "9/31",
+   "fable_rate": 0.2857142857142857,
+   "opus_rate": 0.2903225806451613,
+   "diff_median": -0.0005247454467932344,
+   "lo": -0.1978023361138579,
+   "hi": 0.20514263637712793,
+   "p_fable_higher": 0.498325
+  },
+  "unit drew any MAJOR [concurrent (two reviews)]": {
+   "fable": "6/9",
+   "opus": "5/8",
+   "fable_rate": 0.6666666666666666,
+   "opus_rate": 0.625,
+   "diff_median": 0.035970008818032195,
+   "lo": -0.29794277478322445,
+   "hi": 0.3714291060633746,
+   "p_fable_higher": 0.56835
+  },
+  "hosted CI red on the branch's own row at the first pushed head": {
+   "fable": "2/22",
+   "opus": "7/37",
+   "fable_rate": 0.09090909090909091,
+   "opus_rate": 0.1891891891891892,
+   "diff_median": -0.08261093688090641,
+   "lo": -0.22701810844578213,
+   "hi": 0.0755311219733746,
+   "p_fable_higher": 0.18343,
+   "unknown_or_not_run": {
+    "Opus 5.5": 2,
+    "Fable 5.2": 8
+   }
+  },
+  "at least one SILENT spec deviation": {
+   "fable": "16/24",
+   "opus": "25/31",
+   "fable_rate": 0.6666666666666666,
+   "opus_rate": 0.8064516129032258,
+   "diff_median": -0.13381040086536194,
+   "lo": -0.3238509504085553,
+   "hi": 0.05358198317587385,
+   "p_fable_higher": 0.121565
+  },
+  "rubric (1-5, the reviewer's)": {
+   "idiom": {
+    "Opus 5.5": {
+     "n": 37,
+     "mean": 3.3513513513513513
+    },
+    "Fable 5.2": {
+     "n": 27,
+     "mean": 3.685185185185185
+    },
+    "diff_fable_minus_opus": {
+     "est": 0.3338338338338338,
+     "lo": 0.13155655655655688,
+     "hi": 0.5295295295295293
+    }
+   },
+   "tests": {
+    "Opus 5.5": {
+     "n": 37,
+     "mean": 2.972972972972973
+    },
+    "Fable 5.2": {
+     "n": 27,
+     "mean": 3.1481481481481484
+    },
+    "diff_fable_minus_opus": {
+     "est": 0.17517517517517556,
+     "lo": -0.0960960960960957,
+     "hi": 0.4429429429429428
+    }
+   },
+   "docs": {
+    "Opus 5.5": {
+     "n": 37,
+     "mean": 2.9864864864864864
+    },
+    "Fable 5.2": {
+     "n": 27,
+     "mean": 3.0925925925925926
+    },
+    "diff_fable_minus_opus": {
+     "est": 0.10610610610610616,
+     "lo": -0.10460460460460475,
+     "hi": 0.3268268268268266
+    }
+   }
+  },
+  "fix pass": {
+   "Opus 5.5": {
+    "lines": {
+     "n": 18,
+     "median": 835.5,
+     "mean": 1043.0555555555557,
+     "geo": 788.3656241888525
+    },
+    "findings_taken": {
+     "n": 28,
+     "median": 12.5,
+     "mean": 12.678571428571429,
+     "geo": 11.937832946624638
+    }
+   },
+   "Fable 5.2": {
+    "lines": {
+     "n": 11,
+     "median": 795.0,
+     "mean": 1017.9090909090909,
+     "geo": 879.0635411054586
+    },
+    "findings_taken": {
+     "n": 25,
+     "median": 16.0,
+     "mean": 14.2,
+     "geo": 12.711219413012769
+    }
+   }
+  },
+  "implementation wall clock (ms)": {
+   "Opus 5.5": {
+    "n": 29,
+    "median": 11018000.0,
+    "mean": 10934612.620689655,
+    "geo": 8157519.070844308
+   },
+   "Fable 5.2": {
+    "n": 21,
+    "median": 11040000.0,
+    "mean": 13344990.42857143,
+    "geo": 10841740.253306601
+   },
+   "letter_adjusted_ratio_fable_over_opus": {
+    "ratio": 1.1127461019612026,
+    "lo": 0.8059969372073976,
+    "hi": 1.536720617573693,
+    "p_fable_higher": 0.69375
+   }
+  },
+  "implementation cost (USD, where given)": {
+   "Opus 5.5": {
+    "n": 12,
+    "median": 22.115000000000002,
+    "mean": 26.741666666666664,
+    "geo": 20.879456934770964
+   },
+   "Fable 5.2": {
+    "n": 9,
+    "median": 15.18,
+    "mean": 18.880000000000003,
+    "geo": 16.203068129570326
+   },
+   "letter_adjusted_ratio_fable_over_opus": {
+    "ratio": 0.822557277231915,
+    "lo": 0.5553906561379811,
+    "hi": 1.256032877686375,
+    "p_fable_higher": 0.232
+   }
+  },
+  "implementation tokens (harness total, where given)": {
+   "Opus 5.5": {
+    "n": 13,
+    "median": 394375.0,
+    "mean": 414534.07692307694,
+    "geo": 353864.64106402453
+   },
+   "Fable 5.2": {
+    "n": 8,
+    "median": 492138.0,
+    "mean": 524768.875,
+    "geo": 495433.9202855871
+   },
+   "letter_adjusted_ratio_fable_over_opus": {
+    "ratio": 1.0982929741481653,
+    "lo": 0.8171269695745066,
+    "hi": 1.4477389121809232,
+    "p_fable_higher": 0.72525
+   }
+  }
+ },
+ "reviewer": {
+  "MAJORs raised": {
+   "Opus 5.5": {
+    "n": 49,
+    "total": 15,
+    "mean": 0.30612244897959184
+   },
+   "Fable 5.2": {
+    "n": 40,
+    "total": 34,
+    "mean": 0.85
+   },
+   "adjusted_rate_ratio_fable_over_opus": {
+    "est": 2.441329920517252,
+    "lo": 1.4957383770309909,
+    "hi": 4.478440581994543,
+    "p_fable_higher": 0.9985
+   }
+  },
+  "DEMONSTRATED MAJORs raised": {
+   "Opus 5.5": {
+    "n": 49,
+    "total": 13,
+    "mean": 0.2653061224489796
+   },
+   "Fable 5.2": {
+    "n": 40,
+    "total": 29,
+    "mean": 0.725
+   },
+   "adjusted_rate_ratio_fable_over_opus": {
+    "est": 2.3826032210848265,
+    "lo": 1.4253712362917887,
+    "hi": 4.609802318910117,
+    "p_fable_higher": 0.99775
+   }
+  },
+  "MINORs raised": {
+   "Opus 5.5": {
+    "n": 49,
+    "total": 180,
+    "mean": 3.673469387755102
+   },
+   "Fable 5.2": {
+    "n": 40,
+    "total": 182,
+    "mean": 4.55
+   },
+   "adjusted_rate_ratio_fable_over_opus": {
+    "est": 1.1855126687775426,
+    "lo": 1.0555347915545112,
+    "hi": 1.3414702702064516,
+    "p_fable_higher": 0.991
+   }
+  },
+  "NOTEs raised": {
+   "Opus 5.5": {
+    "n": 49,
+    "total": 172,
+    "mean": 3.510204081632653
+   },
+   "Fable 5.2": {
+    "n": 40,
+    "total": 161,
+    "mean": 4.025
+   },
+   "adjusted_rate_ratio_fable_over_opus": {
+    "est": 1.1169516333410616,
+    "lo": 0.9906966575177955,
+    "hi": 1.2616222197721685,
+    "p_fable_higher": 0.93775
+   }
+  },
+  "verdict NOT-MERGEABLE-AS-IS": {
+   "fable": "11/40",
+   "opus": "4/49",
+   "fable_rate": 0.275,
+   "opus_rate": 0.08163265306122448,
+   "diff_median": 0.1864493045339087,
+   "lo": 0.05764543171022096,
+   "hi": 0.3216453393633285,
+   "p_fable_higher": 0.991845
+  },
+  "raised at least one MAJOR": {
+   "fable": "20/40",
+   "opus": "12/49",
+   "fable_rate": 0.5,
+   "opus_rate": 0.24489795918367346,
+   "diff_median": 0.24629836054301435,
+   "lo": 0.08276959060573304,
+   "hi": 0.4038412760769675,
+   "p_fable_higher": 0.993505
+  },
+  "review wall clock (ms)": {
+   "Opus 5.5": {
+    "n": 39,
+    "median": 2210607.0,
+    "mean": 2651443.9487179485,
+    "geo": 2065000.5829950615
+   },
+   "Fable 5.2": {
+    "n": 34,
+    "median": 3356910.5,
+    "mean": 3568712.8235294116,
+    "geo": 3107803.422159885
+   },
+   "letter_adjusted_ratio_fable_over_opus": {
+    "ratio": 1.3610998210448901,
+    "lo": 1.0946979376208414,
+    "hi": 1.671033559465163,
+    "p_fable_higher": 0.98975
+   }
+  },
+  "review cost (USD, where given)": {
+   "Opus 5.5": {
+    "n": 23,
+    "median": 4.72,
+    "mean": 5.463043478260869,
+    "geo": 4.685559094318518
+   },
+   "Fable 5.2": {
+    "n": 18,
+    "median": 10.745000000000001,
+    "mean": 12.025555555555554,
+    "geo": 10.723846708557298
+   },
+   "letter_adjusted_ratio_fable_over_opus": {
+    "ratio": 2.031767593948126,
+    "lo": 1.6697195118436587,
+    "hi": 2.5205136756718054,
+    "p_fable_higher": 1.0
+   }
+  },
+  "review tokens (harness total, where given)": {
+   "Opus 5.5": {
+    "n": 14,
+    "median": 257427.5,
+    "mean": 253712.7857142857,
+    "geo": 242930.02913786235
+   },
+   "Fable 5.2": {
+    "n": 15,
+    "median": 280862.0,
+    "mean": 277212.13333333336,
+    "geo": 273234.55572704395
+   },
+   "letter_adjusted_ratio_fable_over_opus": {
+    "ratio": 1.0276390893660918,
+    "lo": 0.9232823634038935,
+    "hi": 1.1348420393434209,
+    "p_fable_higher": 0.7125
+   }
+  },
+  "paired (concurrent units)": {
+   "n_pairs": 18,
+   "majors": {
+    "n": 18,
+    "fable_more": 8,
+    "opus_more": 3,
+    "ties": 7,
+    "mean_diff": 0.4444444444444444,
+    "lo": 0.05555555555555555,
+    "hi": 0.8333333333333334,
+    "fable_total": 16.0,
+    "opus_total": 8.0
+   },
+   "findings": {
+    "n": 18,
+    "fable_more": 10,
+    "opus_more": 4,
+    "ties": 4,
+    "mean_diff": 1.7222222222222223,
+    "lo": 0.6111111111111112,
+    "hi": 2.8333333333333335,
+    "fable_total": 187.0,
+    "opus_total": 156.0
+   },
+   "unilateral_findings": {
+    "n": 12,
+    "fable_more": 11,
+    "opus_more": 0,
+    "ties": 1,
+    "mean_diff": 6.416666666666667,
+    "lo": 4.7458333333333345,
+    "hi": 8.083333333333334,
+    "fable_total": 140.0,
+    "opus_total": 63.0
+   },
+   "unilateral_majors": {
+    "n": 18,
+    "fable_more": 5,
+    "opus_more": 0,
+    "ties": 13,
+    "mean_diff": 0.3888888888888889,
+    "lo": 0.16666666666666666,
+    "hi": 0.6666666666666666,
+    "fable_total": 8.0,
+    "opus_total": 1.0
+   },
+   "time_ratio": {
+    "n": 17,
+    "fable_more": 14,
+    "opus_more": 3,
+    "ties": 0,
+    "mean_diff": 0.23202983551449688,
+    "lo": 0.039076379688584365,
+    "hi": 0.41689633815168176,
+    "ratio": 1.2611573555455846,
+    "ratio_lo": 1.0398499040289115,
+    "ratio_hi": 1.5172452243385053
+   },
+   "cost_ratio": {
+    "n": 9,
+    "fable_more": 9,
+    "opus_more": 0,
+    "ties": 0,
+    "mean_diff": 0.752324887600658,
+    "lo": 0.6175448010188131,
+    "hi": 0.8999735581783966,
+    "ratio": 2.1219275294391506,
+    "ratio_lo": 1.8543696018403875,
+    "ratio_hi": 2.459538075630102
+   },
+   "token_ratio": {
+    "n": 9,
+    "fable_more": 7,
+    "opus_more": 2,
+    "ties": 0,
+    "mean_diff": 0.08107024179066791,
+    "lo": -0.04401361617613746,
+    "hi": 0.1805487879807253,
+    "ratio": 1.0844470673954398,
+    "ratio_lo": 0.9569409275081157,
+    "ratio_hi": 1.1978745619359181
+   },
+   "not_mergeable": {
+    "fable": 6,
+    "opus": 2
+   },
+   "rows": [
+    {
+     "pr": 6858,
+     "letter": "H",
+     "impl": "Fable 5.2",
+     "impl_fair": true,
+     "f_major": 1,
+     "o_major": 0,
+     "f_find": 12,
+     "o_find": 12,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 759216,
+     "o_time": 2079439,
+     "f_cost": 7.83,
+     "o_cost": 4.41,
+     "f_tok": null,
+     "o_tok": null,
+     "uni_f": 12,
+     "uni_o": 2,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": 13,
+     "tally": "none (no unilateral MAJOR)"
+    },
+    {
+     "pr": 6862,
+     "letter": "H",
+     "impl": "Opus 5.5",
+     "impl_fair": false,
+     "f_major": 1,
+     "o_major": 0,
+     "f_find": 11,
+     "o_find": 11,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 2486730,
+     "o_time": 1794762,
+     "f_cost": null,
+     "o_cost": null,
+     "f_tok": 264526,
+     "o_tok": 406938,
+     "uni_f": null,
+     "uni_o": null,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": 10,
+     "tally": "none; borderline flagged: whether JoinDesync abort is separate from the escalation (coded as one cause, orchestrator concurs)"
+    },
+    {
+     "pr": 6878,
+     "letter": "H",
+     "impl": "Fable 5.2",
+     "impl_fair": true,
+     "f_major": 0,
+     "o_major": 0,
+     "f_find": 5,
+     "o_find": 5,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 4567781,
+     "o_time": 6455292,
+     "f_cost": null,
+     "o_cost": null,
+     "f_tok": 251648,
+     "o_tok": 233521,
+     "uni_f": null,
+     "uni_o": null,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": null,
+     "tally": "none (no MAJOR on either side; orchestrator concurs)"
+    },
+    {
+     "pr": 6879,
+     "letter": "H",
+     "impl": "Fable 5.2",
+     "impl_fair": true,
+     "f_major": 0,
+     "o_major": 0,
+     "f_find": 10,
+     "o_find": 10,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 4115590,
+     "o_time": 3208371,
+     "f_cost": null,
+     "o_cost": null,
+     "f_tok": 284152,
+     "o_tok": 250381,
+     "uni_f": null,
+     "uni_o": null,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": 15,
+     "tally": "none (no MAJOR either side); nearest miss B's (R1) rim excursion, unilateral demonstrated MINOR, claim-only"
+    },
+    {
+     "pr": 6887,
+     "letter": "H",
+     "impl": "Opus 5.5",
+     "impl_fair": true,
+     "f_major": 1,
+     "o_major": 0,
+     "f_find": 6,
+     "o_find": 8,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 4262621,
+     "o_time": 4160415,
+     "f_cost": null,
+     "o_cost": null,
+     "f_tok": 336490,
+     "o_tok": 283272,
+     "uni_f": 8,
+     "uni_o": 7,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": 6,
+     "tally": "0 on the loose reading (bilateral 6); 1 R2->R1 on the strict reading (bilateral 5), the touch-rule MAJOR; coder flags this as the deciding ambiguity; readout should report both"
+    },
+    {
+     "pr": 6890,
+     "letter": "H",
+     "impl": "Opus 5.5",
+     "impl_fair": true,
+     "f_major": 0,
+     "o_major": 1,
+     "f_find": 14,
+     "o_find": 11,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 2564418,
+     "o_time": 3946062,
+     "f_cost": 9.64,
+     "o_cost": 4.19,
+     "f_tok": null,
+     "o_tok": null,
+     "uni_f": 10,
+     "uni_o": 4,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": 9,
+     "tally": "none (no unilateral MAJOR)"
+    },
+    {
+     "pr": 6897,
+     "letter": "H",
+     "impl": "Opus 5.5",
+     "impl_fair": true,
+     "f_major": 1,
+     "o_major": 2,
+     "f_find": 11,
+     "o_find": 10,
+     "f_nm": true,
+     "o_nm": true,
+     "f_time": 3395194,
+     "o_time": 2858843,
+     "f_cost": null,
+     "o_cost": null,
+     "f_tok": 336531,
+     "o_tok": 282175,
+     "uni_f": null,
+     "uni_o": null,
+     "umaj_f": 1,
+     "umaj_o": 0,
+     "bilateral": 10,
+     "tally": "A's (R1) M1 edge-through-node certifies at rest: unilateral MAJOR demonstrated; coder flagged borderline (B's holds_node NOTE states enabling fact as behaviour); orchestrator concurs UNILATERAL"
+    },
+    {
+     "pr": 6900,
+     "letter": "H",
+     "impl": "Fable 5.2",
+     "impl_fair": true,
+     "f_major": 2,
+     "o_major": 0,
+     "f_find": 16,
+     "o_find": 14,
+     "f_nm": true,
+     "o_nm": false,
+     "f_time": 3814448,
+     "o_time": 1755530,
+     "f_cost": 14.59,
+     "o_cost": 7.31,
+     "f_tok": null,
+     "o_tok": null,
+     "uni_f": 10,
+     "uni_o": 6,
+     "umaj_f": 2,
+     "umaj_o": 0,
+     "bilateral": 12,
+     "tally": "A's (R1) MAJOR-1 near-pole regression: unilateral, contradicted by B, settled by execution at merge base"
+    },
+    {
+     "pr": 6943,
+     "letter": "H",
+     "impl": "Opus 5.5",
+     "impl_fair": true,
+     "f_major": 0,
+     "o_major": 0,
+     "f_find": 8,
+     "o_find": 9,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 3302000,
+     "o_time": 1390000,
+     "f_cost": 9.33,
+     "o_cost": 6.27,
+     "f_tok": null,
+     "o_tok": null,
+     "uni_f": 14,
+     "uni_o": 6,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": 17,
+     "tally": "none (no MAJOR from either); 18 bilateral if two style items on one duplication count as one"
+    },
+    {
+     "pr": 6950,
+     "letter": "H",
+     "impl": "Opus 5.5",
+     "impl_fair": true,
+     "f_major": 2,
+     "o_major": 1,
+     "f_find": 11,
+     "o_find": 6,
+     "f_nm": true,
+     "o_nm": false,
+     "f_time": 2697000,
+     "o_time": 1199000,
+     "f_cost": 10.73,
+     "o_cost": 4.78,
+     "f_tok": null,
+     "o_tok": null,
+     "uni_f": 16,
+     "uni_o": 4,
+     "umaj_f": 1,
+     "umaj_o": 0,
+     "bilateral": 13,
+     "tally": "one: B's (R2) MAJOR on zero-area apex triangles (unilateral, A states the opposite, code defect, demonstrated); coding the 64 eps as two defects (scale vs pose trigger) would make the tally three"
+    },
+    {
+     "pr": 6960,
+     "letter": "H",
+     "impl": "Opus 5.5",
+     "impl_fair": true,
+     "f_major": 0,
+     "o_major": 0,
+     "f_find": 10,
+     "o_find": 4,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 1843000,
+     "o_time": 1519000,
+     "f_cost": 10.95,
+     "o_cost": 5.44,
+     "f_tok": null,
+     "o_tok": null,
+     "uni_f": 17,
+     "uni_o": 9,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": 6,
+     "tally": "none (no MAJOR); coder lists 4 demonstrated unilateral MINORs and 2 NOTEs, all R2's"
+    },
+    {
+     "pr": 6965,
+     "letter": "H",
+     "impl": "Fable 5.2",
+     "impl_fair": true,
+     "f_major": 1,
+     "o_major": 1,
+     "f_find": 6,
+     "o_find": 3,
+     "f_nm": true,
+     "o_nm": false,
+     "f_time": 4789000,
+     "o_time": 2804000,
+     "f_cost": 10.28,
+     "o_cost": 6.51,
+     "f_tok": null,
+     "o_tok": null,
+     "uni_f": 11,
+     "uni_o": 7,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": 11,
+     "tally": "none (only MAJOR bilateral); nearest miss B's (R1) axis-term under-report, unilateral demonstrated MINOR"
+    },
+    {
+     "pr": 6972,
+     "letter": "H",
+     "impl": "Opus 5.5",
+     "impl_fair": true,
+     "f_major": 3,
+     "o_major": 2,
+     "f_find": 17,
+     "o_find": 9,
+     "f_nm": true,
+     "o_nm": true,
+     "f_time": null,
+     "o_time": null,
+     "f_cost": 34.05,
+     "o_cost": 9.91,
+     "f_tok": null,
+     "o_tok": null,
+     "uni_f": 11,
+     "uni_o": 4,
+     "umaj_f": 1,
+     "umaj_o": 1,
+     "bilateral": 16,
+     "tally": "2 or 0 turning on one dedup ruling: 2 on the coder's reading (each reviewer's disjoint red slow rows, unilateral MAJOR demonstrated), 0 if treated as one defect; coder uncertain; readout should report both"
+    },
+    {
+     "pr": 7043,
+     "letter": "H",
+     "impl": "Fable 5.2",
+     "impl_fair": true,
+     "f_major": 0,
+     "o_major": 1,
+     "f_find": 9,
+     "o_find": 5,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 7194000,
+     "o_time": 3318000,
+     "f_cost": 13.84,
+     "o_cost": 4.72,
+     "f_tok": null,
+     "o_tok": null,
+     "uni_f": 14,
+     "uni_o": 6,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": 9,
+     "tally": "none (only MAJOR is bilateral); A's two surviving mutants are the demonstrated unilateral test gaps (MINOR)"
+    },
+    {
+     "pr": 7050,
+     "letter": "H",
+     "impl": "Opus 5.5",
+     "impl_fair": true,
+     "f_major": 0,
+     "o_major": 0,
+     "f_find": 6,
+     "o_find": 4,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 1995389,
+     "o_time": 1320648,
+     "f_cost": null,
+     "o_cost": null,
+     "f_tok": 253483,
+     "o_tok": 194255,
+     "uni_f": null,
+     "uni_o": null,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": 3,
+     "tally": "none; orchestrator pre-note had coded R2's causal-claim NOTE and R1's zero-width pin as bilateral, coder kept them apart, orchestrator concurs"
+    },
+    {
+     "pr": 7052,
+     "letter": "H",
+     "impl": "Fable 5.2",
+     "impl_fair": true,
+     "f_major": 0,
+     "o_major": 0,
+     "f_find": 8,
+     "o_find": 9,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 4014995,
+     "o_time": 3247963,
+     "f_cost": null,
+     "o_cost": null,
+     "f_tok": 318980,
+     "o_tok": 344492,
+     "uni_f": 5,
+     "uni_o": 5,
+     "umaj_f": 0,
+     "umaj_o": 0,
+     "bilateral": 3,
+     "tally": "none (neither review raised a MAJOR)"
+    },
+    {
+     "pr": 7159,
+     "letter": "H",
+     "impl": "Fable 5.2",
+     "impl_fair": true,
+     "f_major": 1,
+     "o_major": 0,
+     "f_find": 13,
+     "o_find": 16,
+     "f_nm": false,
+     "o_nm": false,
+     "f_time": 5704000,
+     "o_time": 4159000,
+     "f_cost": null,
+     "o_cost": null,
+     "f_tok": 333293,
+     "o_tok": 272293,
+     "uni_f": 12,
+     "uni_o": 3,
+     "umaj_f": 1,
+     "umaj_o": 0,
+     "bilateral": 20,
+     "tally": "one: A's (R2) ArcLen MAJOR, unilateral, code, demonstrated; orchestrator's pre-note named the same"
+    },
+    {
+     "pr": 7190,
+     "letter": "H",
+     "impl": "Fable 5.2",
+     "impl_fair": true,
+     "f_major": 3,
+     "o_major": 0,
+     "f_find": 14,
+     "o_find": 10,
+     "f_nm": true,
+     "o_nm": false,
+     "f_time": 2555000,
+     "o_time": 2400000,
+     "f_cost": null,
+     "o_cost": null,
+     "f_tok": 280994,
+     "o_tok": 225634,
+     "uni_f": null,
+     "uni_o": null,
+     "umaj_f": 2,
+     "umaj_o": 0,
+     "bilateral": null,
+     "tally": "one: the sixteen by-value interiors (unilateral MAJOR by R2, demonstrated by compile probe), contested by R1; orchestrator's pre-note named the same"
+    }
+   ]
+  },
+  "sequential units": [
+   {
+    "pr": 6854,
+    "first": "Fable 5.2",
+    "first_major": 0,
+    "second": null,
+    "second_major": null,
+    "second_unique": null
+   },
+   {
+    "pr": 6869,
+    "first": "Fable 5.2",
+    "first_major": 0,
+    "second": null,
+    "second_major": null,
+    "second_unique": null
+   },
+   {
+    "pr": 6909,
+    "first": "Opus 5.5",
+    "first_major": 0,
+    "second": null,
+    "second_major": null,
+    "second_unique": null
+   },
+   {
+    "pr": 6913,
+    "first": "Opus 5.5",
+    "first_major": 1,
+    "second": "Fable 5.2",
+    "second_major": 0,
+    "second_unique": "knife end also builds and was left on tier 3's material_cusp_side (same class as the MAJOR); two guard holes (bare edge_wedge( call, cfg(test) blanking swallowing code after out-of-line mod); four docs still naming dihedral_sign; untrue recourse on the bend rung; stale retired-symbol refs"
+   },
+   {
+    "pr": 6929,
+    "first": "Opus 5.5",
+    "first_major": 0,
+    "second": null,
+    "second_major": null,
+    "second_unique": null
+   },
+   {
+    "pr": 6935,
+    "first": "Opus 5.5",
+    "first_major": 0,
+    "second": null,
+    "second_major": null,
+    "second_unique": null
+   },
+   {
+    "pr": 6958,
+    "first": "Fable 5.2",
+    "first_major": 1,
+    "second": "Opus 5.5",
+    "second_major": 0,
+    "second_unique": "searches lack power over their class (MINOR-1, demonstrated by mutant); Ray's start spelled two ways; Sym DAG change in boolean::trace; inert second lookup with dead arm; unreproduced f64 bits claim"
+   },
+   {
+    "pr": 6963,
+    "first": "Opus 5.5",
+    "first_major": 0,
+    "second": null,
+    "second_major": null,
+    "second_unique": null
+   },
+   {
+    "pr": 6979,
+    "first": "Opus 5.5",
+    "first_major": 0,
+    "second": null,
+    "second_major": null,
+    "second_unique": null
+   },
+   {
+    "pr": 6982,
+    "first": "Opus 5.5",
+    "first_major": 0,
+    "second": null,
+    "second_major": null,
+    "second_unique": null
+   },
+   {
+    "pr": 7038,
+    "first": "Fable 5.2",
+    "first_major": 0,
+    "second": null,
+    "second_major": null,
+    "second_unique": null
+   },
+   {
+    "pr": 7041,
+    "first": "Fable 5.2",
+    "first_major": 1,
+    "second": "Opus 5.5",
+    "second_major": 0,
+    "second_unique": "re-raised two of the first's findings in narrower form (door classes; D9 re-baseline); four MINORs on code the first also read: torus classification escalation read as a class, memo-hit K-stream docs, memo-hit path 1.5-2.5x slower, a row that cannot go red"
+   },
+   {
+    "pr": 7044,
+    "first": "Fable 5.2",
+    "first_major": 0,
+    "second": null,
+    "second_major": null,
+    "second_unique": null
+   },
+   {
+    "pr": 7086,
+    "first": "Opus 5.5",
+    "first_major": 1,
+    "second": "Fable 5.2",
+    "second_major": 1,
+    "second_unique": "the cone-nappe MAJOR; line corner's Vacuous arm dead code (first review's 'one fact two refusal kinds' was about code that never ran); face_extent meets unpinned; ball pin missing from tree; overloaded Option; no typed refusal for contradicted extent; body-level planted-extent differential"
+   },
+   {
+    "pr": 7229,
+    "first": "Opus 5.5",
+    "first_major": 0,
+    "second": null,
+    "second_major": null,
+    "second_unique": null
+   }
+  ]
+ },
+ "escapes": [
+  {
+   "pr": 6959,
+   "impl": "Opus 5.5",
+   "reviewers": [
+    "Opus 5.5"
+   ],
+   "lines": [
+    "Two slow sweep rows left red on main (split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image; m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image), found 2026-11-15 nightly 43680833019, repaired by PR 6984; committed rows the unit left false, not kernel defects; implementer Opus 5.5, reviewer Opus 5.5; raised by a review: no",
+    "Golden line arc_loft_1e11eps left red on main at eps 1e-12 (mass_props_are_thread_count_invariant at one and four threads; pads widened by the fix pass's off_map envelope term), found 2026-11-15, repaired by PR 6987; honest move of a pinned bit not re-cut; implementer Opus 5.5, reviewer Opus 5.5; raised by a review: no"
+   ]
+  },
+  {
+   "pr": 6963,
+   "impl": "Opus 5.5",
+   "reviewers": [
+    "Opus 5.5"
+   ],
+   "lines": [
+    "five revalue_corpus slow rows red on main after merge (direction mint stored a constant axis on a value that read zero); repaired by PR 6990; implementer Opus 5.5, reviewer Opus 5.5; NOT raised by the review (mechanism named, held sound by inspection, not built)",
+    "sym11_exact_channel_rows symbolic/numeric columns rose on four documents (mint's two readings per direction), accounted in PR 6990; not raised by the review as a moved baseline"
+   ]
+  },
+  {
+   "pr": 7143,
+   "impl": "Fable 5.2",
+   "reviewers": [
+    "Fable 5.2"
+   ],
+   "lines": [
+    "2026-11-21 red on main (fix PR 7238): the unit's '# from ...implicit.rs' split credit in scripts/gates/cover-kind-match.counts made the gate read a rise on every PR after merge; implementer Fable 5.2, reviewer Fable 5.2; no review raised it (not visible by execution before merge)",
+    "2026-11-21 second red on main (fix PR 7246): renaming CoaxialWith::holds' argument rim->circle broke topo's slow-set recourse_roster row that lists the site by source text; implementer Fable 5.2, reviewer Fable 5.2; no review raised it (PR gate does not select the roster row; reviewer's 275 slow rows excluded it)"
+   ]
+  },
+  {
+   "pr": 7146,
+   "impl": "Fable 5.2",
+   "reviewers": [
+    "Opus 5.5"
+   ],
+   "lines": [
+    "2026-11-20 red on main (work/oneround/main-red-endpoint-census-moves-interval-rs-on-less-sin.md): Interval less_sin reads an enclosure's upper end unrostered in certified_endpoint_census; implementer Fable 5.2, reviewer Opus 5.5; neither review nor delta raised it; fix PR 7223 found the read sound, only unrostered (a roster the unit did not update, not a defect)"
+   ]
+  }
+ ],
+ "sensitivity": {
+  "embed_rows": [
+   [
+    7071,
+    "Opus 5.5",
+    [
+     "Opus 5.5"
+    ]
+   ],
+   [
+    7080,
+    "Opus 5.5",
+    [
+     "Opus 5.5"
+    ]
+   ],
+   [
+    7086,
+    "Opus 5.5",
+    [
+     "Opus 5.5"
+    ]
+   ],
+   [
+    7089,
+    "Opus 5.5",
+    [
+     "Opus 5.5"
+    ]
+   ],
+   [
+    7093,
+    "Opus 5.5",
+    [
+     "Opus 5.5"
+    ]
+   ],
+   [
+    7105,
+    "Opus 5.5",
+    [
+     "Opus 5.5"
+    ]
+   ],
+   [
+    7120,
+    "Opus 5.5",
+    [
+     "Opus 5.5"
+    ]
+   ]
+  ],
+  "no-embed major rate ratio (impl F/O, rev F/O)": [
+   {
+    "est": 1.0242554067338037,
+    "lo": 0.5449244125871288,
+    "hi": 1.9269262540978422
+   },
+   {
+    "est": 2.701345621276521,
+    "lo": 1.6154408114378178,
+    "hi": 5.159354332418166
+   }
+  ],
+  "no-embed minor rate ratio (impl F/O, rev F/O)": [
+   {
+    "est": 0.9975038430906519,
+    "lo": 0.8451122607084564,
+    "hi": 1.1834338771510444
+   },
+   {
+    "est": 1.1576369299455294,
+    "lo": 1.0276730747758733,
+    "hi": 1.3184789819497456
+   }
+  ]
+ },
+ "cells": {
+  "Opus impl / Opus rev": {
+   "n": 26,
+   "majors": 11,
+   "major_per_review": 0.4230769230769231,
+   "minor_per_review": 3.3461538461538463
+  },
+  "Opus impl / Fable rev": {
+   "n": 21,
+   "majors": 15,
+   "major_per_review": 0.7142857142857143,
+   "minor_per_review": 4.666666666666667
+  },
+  "Fable impl / Opus rev": {
+   "n": 22,
+   "majors": 4,
+   "major_per_review": 0.18181818181818182,
+   "minor_per_review": 3.909090909090909
+  },
+  "Fable impl / Fable rev": {
+   "n": 17,
+   "majors": 17,
+   "major_per_review": 1.0,
+   "minor_per_review": 4.411764705882353
+  },
+  "interaction (log rate ratio of the reviewer gap on Fable code vs Opus code)": {
+   "ratio": 3.505535799571766,
+   "lo": 1.1965791266304613,
+   "hi": 13.492100505819783,
+   "p_gt1": 0.974
+  }
+ },
+ "design_fork": {
+  "5.2 / two designers": {
+   "n": 35,
+   "match": {
+    "all": 16,
+    "fable only": 7,
+    "fable+opus (not all)": 1,
+    "opus only": 7,
+    "none": 3,
+    "undecided": 1
+   },
+   "first_reports_agree": {
+    "yes": 9,
+    "partial": 25,
+    "no": 1
+   }
+  },
+  "5.2 / three designers": {
+   "n": 15,
+   "match": {
+    "all": 6,
+    "opus only": 2,
+    "undecided": 1,
+    "none": 2,
+    "fable only": 3,
+    "fable+opus (not all)": 1
+   },
+   "first_reports_agree": {
+    "yes": 3,
+    "partial": 5,
+    "no": 7
+   }
+  },
+  "spans / two designers": {
+   "n": 1,
+   "match": {
+    "opus only": 1
+   },
+   "first_reports_agree": {
+    "partial": 1
+   }
+  },
+  "spans / three designers": {
+   "n": 1,
+   "match": {
+    "undecided": 1
+   },
+   "first_reports_agree": {
+    "partial": 1
+   }
+  },
+  "unknown / two designers": {
+   "n": 2,
+   "match": {
+    "opus only": 1,
+    "undecided": 1
+   },
+   "first_reports_agree": {
+    "no": 2
+   }
+  },
+  "unknown / three designers": {
+   "n": 1,
+   "match": {
+    "opus only": 1
+   },
+   "first_reports_agree": {
+    "no": 1
+   }
+  },
+  "5.1 / two designers": {
+   "n": 2,
+   "match": {
+    "all": 2
+   },
+   "first_reports_agree": {
+    "yes": 2
+   }
+  },
+  "two-designer discordant: P(Ev sided with Fable)": {
+   "fable": 7,
+   "opus": 7,
+   "median": 0.5000101684989047,
+   "lo": 0.2996917767195629,
+   "hi": 0.7001021722334801
+  }
+ }
+}

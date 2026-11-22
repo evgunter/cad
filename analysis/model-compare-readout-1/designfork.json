@@ -1,0 +1,2977 @@
+[
+ {
+  "table": "three",
+  "num": 261,
+  "date": "2026-11-09",
+  "protocol": "d05675f9ad",
+  "fork": "work/placing/the-mate-editor-asks-before-moving-a-copy-into-the-targets-space.md (P1), [ev] PR (this); Ev's decision cites PR 6600",
+  "pr": 6600,
+  "fable_label": "A",
+  "opus_labels": [
+   "B",
+   "C"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "unknown",
+  "first_reports": {
+   "A": {
+    "answer": "Place asks where (second pick naming destination space); target an editor field; old-space mates held by solving door; stranded reads admitted+reported",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Place lands in body's own space; target an editor seat; old-space mates' `to` emptied and held; stranded reads held; alt 'asks where' (unsure between)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "C": {
+    "answer": "Place lands in body's own space; target editor's first row; one re-target rule: old-space mates struck, stranded reads admitted; one undo",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "no",
+  "agree_text": "no: own space (B, C) against asks where (A); hold against auto-strike; hold against admit for stranded reads",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1: A->own space (B,C) and B's emptied seats; B->admit stranded reads, A's door-held mates; C auto-strike->hold. R2: B moved on combine refusal; A and C moved to kept-row form",
+  "to_Ev": "Agreed: Place lands in body's own space, target explicit on SessionOp::Place, editor first row; old-space mates kept+held; stranded reads admitted; D10 unchanged",
+  "ev_decision": "Approved 2026-11-12 (PR 6600): 'this sounds like a good plan'",
+  "ev_decided": true,
+  "match_text": "All three (the agreed recommendation; B's and C's first reports on Place's default, after A moved)",
+  "match_labels": [
+   "B",
+   "C"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "A 162668 / 189751; B 132103 / 153299; C 133799 / 156876",
+  "blinding_or_deviation_notes": "No Notes-section entry; mapping: bytes 59 (three), 255 then 96 (mod 3 = 0): Fable = A, Opus = B and C",
+  "notes": "Match column says 'All three' (agreed rec) but qualifies that on the main question (Place's default) B's and C's first reports (Opus) were taken, after A (Fable) moved. Counting as all-three if agreed-rec reading, Opus-only if first-report reading. Dated 2026-11-09, no version named -> era unknown/spans. Row # 261 duplicated (also three-table 2026-11-11 gauge row).",
+  "match_labels_column_literal": [
+   "A",
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 65
+ },
+ {
+  "table": "three",
+  "num": 265,
+  "date": "2026-11-13",
+  "protocol": "ddd201f411",
+  "fork": "work/sectarms/a-ring-on-a-planar-face-closed-by-carried-chords-has-no-winding.md (P1 M), [ev] PR (this); decision cites PR 6896",
+  "pr": 6896,
+  "fable_label": "A",
+  "opus_labels": [
+   "B",
+   "C"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Complete the planar winding sum with a spline edge term from geom_brep::props; all five readers alike; Unwound::Spline deleted; pad means nothing",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Complete the sum from props' per-edge terms; reading chosen by face surface not germ lane; Unwound keeps only Uncertified; pad does not enter",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "C": {
+    "answer": "Complete the sum (non-rational exact, rational via rational_rim); Unwound::Spline retires; plane closure from its kind; pad's normal part drops out",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "y: all three on completing the shared sum from props' terms, the plane's reading chosen by its surface, the pad not charged",
+  "reconciliation_rounds": 0,
+  "who_moved": "none",
+  "to_Ev": "The agreed recommendation",
+  "ev_decision": "Approved 2026-11-13 (PR 6896) after confirming it is 'add a spline case like other special cases'",
+  "ev_decided": true,
+  "match_text": "All three (the agreed recommendation)",
+  "match_labels": [
+   "A",
+   "B",
+   "C"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "A 162876 / 162876; B 162111 / 162111; C 143901 / 143901",
+  "blinding_or_deviation_notes": "None in Notes section; mapping bytes 58 (three), 75 (mod 3 = 0): Fable = A, Opus = B and C",
+  "notes": "Mapping names model families only (no version) despite protocol rule; dated >=11-10 so era 5.2 by rule.",
+  "match_labels_column_literal": [
+   "A",
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 66
+ },
+ {
+  "table": "three",
+  "num": 258,
+  "date": "2026-11-10",
+  "protocol": "2126b860b6",
+  "fork": "work/onehome/a-rigid-map-admitted-on-the-metre-band-mints-frames-check-1-refuses.md (P1, stage 1 of rigid-motion unit, PR 6717); not to Ev (an application)",
+  "pr": null,
+  "fable_label": "A",
+  "opus_labels": [
+   "B",
+   "C"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "spans",
+  "first_reports": {
+   "A": {
+    "answer": "Premise wrong: no document holds a frame; motions minted by construction; generic check_rigid and solve::admitted go; one f64-only door within rounding; no heal door until an importer states matrices",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Same premise correction; mate solve carries RigidMotion<T>; check_rigid f64-only in two doors (strict + import adoption door re-minting within levered band, reported)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "C": {
+    "answer": "Same premise correction; check_rigid at any scalar within rounding, Undecided to solve's re-witness; new f64-only `nearest` heal door for STEP",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "Yes on the core: no document matrix, no up door, within-rounding admission, healing only at f64 with a report. Split on (i) the mate solve typed as motions (A, B) against a within-rounding check at T (C), and (ii) a STEP heal door now (B, C) against none (A)",
+  "reconciliation_rounds": 0,
+  "who_moved": "None by rounds; orchestrator settled both splits by fact check: (ii) for B,C (heal needed), (i) for A,B",
+  "to_Ev": "Not sent (no DESIGN clause changes; ruling A holds); applied by orchestrator",
+  "ev_decision": "— (not asked)",
+  "ev_decided": false,
+  "match_text": "—",
+  "match_labels": null,
+  "match_full_or_partial": "n/a",
+  "tokens": "A 148021 / 148021; B 148536 / 148536; C 146912 / 146912 (subagent tokens as the harness reported them, first report / last)",
+  "blinding_or_deviation_notes": "No Notes entry; mapping bytes 36 (three), 48 (mod 3 = 0): Fable = A, Opus = B and C",
+  "notes": "Not an Ev fork (not sent). Instrument note names row 258 explicitly as NEAR/SPANNING until analysis-branch record names version; row names no version.",
+  "match_labels_column_literal": null,
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 69
+ },
+ {
+  "table": "three",
+  "num": 259,
+  "date": "2026-11-11",
+  "protocol": "2126b860b6",
+  "fork": "PR 6820's full review (stage 2 of a-rigid-motion-rewrites-and-recertifies-every-edge), MAJOR 1; [ev] PR (this); decision cites PR 6824",
+  "pr": 6824,
+  "fable_label": "A",
+  "opus_labels": [
+   "B",
+   "C"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Supports-carry: a later finish keeps facts whose support is bit-equal and derives only what its door built; O5 narrows",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Measured: not frame-dependence; (1) leaf finished in own frame then moved, (2) every bound a function of shape (widen [tolerance.residuals]), (3) undecided reported as undecided; O5 kept; carry rejected",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "Measured: Interval decorrelation; F1 every bound a function of geometry (widen [tolerance.residuals]); F2 undecided not defect; O5 kept; carry rejected",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "Partly: B and C on keeping O5 with (2) and (3); A on a carry",
+  "reconciliation_rounds": 1,
+  "who_moved": "A moved to B and C's final state; C adopted B's (1); B held. Converged on (1)-(3) and O5; carry deferred",
+  "to_Ev": "Agreed: (1) leaf finished before it moves (later reverted at box scalars), (2) [tolerance.residuals] widened to every bound, (3) undecided as undecided; O5 kept; carry filed for later",
+  "ev_decision": "Approved 2026-11-12 (PR 6824), asking to lead with 'any function of the geometry'",
+  "ev_decided": true,
+  "match_text": "All (the agreed recommendation)",
+  "match_labels": [
+   "B",
+   "C"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "A 138777 / 143222; B 193887 / 200514; C 169933 / 175106 (subagent tokens as the harness reported them, first report / last)",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 24 (three), 231 (mod 3 = 0): Fable = A, Opus = B and C",
+  "notes": "Match column says 'All' for the agreed recommendation, but A's (Fable) first report (supports-carry, O5 narrowed) differed and A moved to B and C; first-report match is B and C (Opus). Column-literal: all.",
+  "match_labels_column_literal": [
+   "A",
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 70
+ },
+ {
+  "table": "three",
+  "num": 260,
+  "date": "2026-11-10",
+  "protocol": "2126b860b6",
+  "fork": "work/seal/a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections.md (P1), [ev] PR (this); decision cites PR 6765",
+  "pr": 6765,
+  "fable_label": "A",
+  "opus_labels": [
+   "B",
+   "C"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "A cut reads its tool as material: fuse tool pieces on recorded pairs at cut's door, then cut; ToolSeatCrossed deleted; one DESIGN sentence",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Same final state: cut door fuses tool along area seats, then cuts; one DESIGN sentence",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "Same final state: unite tool's pieces where ⊔ recorded meetings, then cut; one DESIGN sentence",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "yes (all three: the tool read as material at the cut's door)",
+  "reconciliation_rounds": 0,
+  "who_moved": "none",
+  "to_Ev": "Agreed: one sentence in [operations.operators] (cut reads tool as material), ToolSeatCrossed deleted",
+  "ev_decision": "Approved 2026-11-12 (PR 6765) but not as DESIGN text: architecture note in crates/topo/README.md, DESIGN.md unchanged",
+  "ev_decided": true,
+  "match_text": "Partial: the final state matches all three; the home matches none (all three proposed a DESIGN sentence)",
+  "match_labels": [
+   "A",
+   "B",
+   "C"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "A 150,071; B 215,211; C 215,145 (first report = total)",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 10 (three), 150 (mod 3 = 0): Fable = A, Opus = B and C",
+  "notes": "Dated 2026-11-10, no version named; era 5.2 by caller's rule but within instrument-note window (dispatched possibly 11-09/11-10).",
+  "match_labels_column_literal": [
+   "A",
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 71
+ },
+ {
+  "table": "three",
+  "num": 261,
+  "date": "2026-11-11",
+  "protocol": "2126b860b63",
+  "fork": "work/gauge/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md (P1; lane's ## Read, PR 6828), no [ev] PR: decided by orchestrator",
+  "pr": null,
+  "fable_label": "C",
+  "opus_labels": [
+   "A",
+   "B"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Pair by the pose along the shared solid's In arcs; match finish's seams per corner by pair record",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Pair along the shared solid's In arcs (everywhere or shared only: unsure); key finish correspondence per corner",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "C": {
+    "answer": "Pair along lead vertex's inside arcs; retire finish's vertex-set shape check; measured 5,190/5,190 sound",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "Yes (a per-corner guard or none is a spec detail; C's measurement shows the guard is not needed for the build)",
+  "reconciliation_rounds": 2,
+  "who_moved": "Reopened after build PR 6832 failed; R2 split (A clear side/Out default, B unshared solid's kept arcs, C main's start+turning); R3 converged on kept-side start, blocked pairs take other start, turning retires, B withdrew placement",
+  "to_Ev": "none (decided by orchestrator)",
+  "ev_decision": "(not asked)",
+  "ev_decided": false,
+  "match_text": "(not asked)",
+  "match_labels": null,
+  "match_full_or_partial": "n/a",
+  "tokens": "first reports A 211,859, B 255,096, C 189,829; totals A 889,695, B 1,062,308, C 711,155",
+  "blinding_or_deviation_notes": "No Notes entry; arm byte 75 (<86, three), label byte 206 (mod 3 = 2): C = Fable, A and B = Opus",
+  "notes": "Not an Ev fork. Duplicate # 261 (also 2026-11-09 placing row). Rounds counted as 2 (rounds 2 and 3 after reopen; no round 1 named).",
+  "match_labels_column_literal": null,
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 72
+ },
+ {
+  "table": "three",
+  "num": 272,
+  "date": "2026-11-15",
+  "protocol": "ddd201f411",
+  "fork": "work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md (P1), with work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md; [ev] PR (this) = PR 6993",
+  "pr": 6993,
+  "fable_label": "A",
+  "opus_labels": [
+   "B",
+   "C"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "One structural door on the scalar trait ('zero at every point this scalar speaks for'; f64 at 0, Interval at [0,0], Sym by identity test) replacing is_exact_zero; mint branches on it",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Value-free tier query identically_zero answering no at f64/Interval/Dual; line_to verb mints; is_exact_zero narrowed to stored literals",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "Decide::identity(x) -> Option<Identity>, proof token only the tier creates, None at f64/Interval/Dual; is_exact_zero split",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "y on a question that is not a decision, answered from the expression, licensed only to choose between spellings of one real, with the mint branching on it and the sign a kept decision, and on rejecting PR 6990's spelling...; n on what the plain scalars answer and whether it is one door with is_exact_zero, on box-certified reads, on where the mint lives, on the readers of 'proven'",
+  "reconciliation_rounds": 5,
+  "who_moved": "R1 A->B,C on box reads; A,C->B on mint home; R2 B,C->A on lint; R3 all toward each other, B,C to one door; R4 A->B,C on one function; R5 B to fixed budget. Then two post-Ev revision rounds (each asked alone), B moved to expression type",
+  "to_Ev": "One rec: is_exact_zero becomes structural question answered at every scalar; revised twice after Ev's comments to: Sym-only via Real::Expression type, numeric scalar call does not typecheck",
+  "ev_decision": "Three answers (PR 6993): 11-15 uncomfortable with numeric tiers; 11-16 'make it sym only and a type error'; 11-22 approved with DESIGN additions cut (no DESIGN.md change)",
+  "ev_decided": true,
+  "match_text": "no as first sent, by any of the three: Ev moved the recommendation twice (off the numeric scalars; then to a type error), and cut its DESIGN text. Yes on what all three recommended from the first reports on: a question that is not a decision, answered from the expression, licensed only to choose between two spellings of one real. Of the first reports, B's is nearest the landed shape...",
+  "match_labels": [
+   "A",
+   "B",
+   "C"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "A 3827883 / 21663856; B 4543143 / 27411681; C 2832135 / 23424903 (from each session's result events, per-turn figures summed, cache reads included: the first report / in total, over twelve or thirteen turns...)",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 79 (three), 129 (mod 3 = 0): Fable 5.2 = A, Opus 5.5 = B and C, each configured and served (analysis/design-fork/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero)",
+  "notes": "Ev overrode the as-sent recommendation twice; match is 'no' as sent, partial on a shared core of all three. Match text says B's first report is nearest the landed shape, but the parenthetical description ('a proof token only the tier creates, None at f64...') is C's first report text -- label ambiguity. Token figures include cache reads (different basis from other rows).",
+  "match_labels_column_literal": [
+   "A",
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 73
+ },
+ {
+  "table": "three",
+  "num": 271,
+  "date": "2026-11-15",
+  "protocol": "ddd201f411",
+  "fork": "work/boxfinish/an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends.md (P1), [ev] PR (this) = PR 6975",
+  "pr": 6975,
+  "fable_label": "A",
+  "opus_labels": [
+   "B",
+   "C"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Row stored by its two end values with per-end kind (Row/Inside); map derived; certificate reads four lines and corners",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "No ends; fixed coordinate a tag naming a chart knot line (Knot(k)/Measured(T)); moving coordinate one map; certificate reads side tags",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "C": {
+    "answer": "No ends; one variant Iso{held, at, moving}; corner is meet of two held lines read from the lift; certificate reads four alternating runs",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "y on deleting the stored ends and StoredSpan and on the certificate reading four lines and their corners; n on what an image stores (two ends with kinds; a knot-line tag; an exact held value)",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1: A and B to C's form; C to B's tag. R2: C back to the value; all three agree (identity in the period shift)",
+  "to_Ev": "Agreed: image stores its held line (one value) and its map, no ends; corner is meet of held lines; closed chart period held as domain ends; [one-way.places] row gains joint's chart point",
+  "ev_decision": "Approved as recommended (2026-11-15, PR 6975): 'i think this makes sense'",
+  "ev_decided": true,
+  "match_text": "all three on the agreed recommendation as sent. Of the first reports, C's is the one it most nearly is (no ends; the held line and one map; a corner is the meet of two held lines, read from the lift); B's had no ends and a knot-line tag where the held value now stands; A's kept two ends with a kind each",
+  "match_labels": [
+   "C"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "A 3629502 / 7481674; B 3581537 / 7708953; C 3608882 / 6750514 (from each session's result events, cache reads included: the first report / in total)",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 58 (three), 117 (mod 3 = 0): Fable 5.2 = A, Opus 5.5 = B and C (analysis/design-fork/an-iso-line-states-its-ends-twice)",
+  "notes": "Match column: 'all three on the agreed recommendation as sent', but of first reports C's (Opus) is nearest; A's (Fable) furthest. match_labels gives first-report reading (C); agreed-rec reading would be all three.",
+  "match_labels_column_literal": [
+   "A",
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 74
+ },
+ {
+  "table": "three",
+  "num": 275,
+  "date": "2026-11-16",
+  "protocol": "ddd201f411",
+  "fork": "work/onehome/the-curve-pair-walks-stop-verdict-rests-on-which-heuristic-foot-it-polishes.md (P1, design); [ev] PR (this) = PR 7025",
+  "pr": 7025,
+  "fable_label": "A",
+  "opus_labels": [
+   "B",
+   "C"
+  ],
+  "fable_version": "unknown",
+  "opus_version": "unknown",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Stop reads its pair as a pair, polish held to carriers' domains then refined; Curve3::foot split, sampled search deleted; measured no verdict moves",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Stop reads polished pair held to two spans, no foot; sampled search retires; one-sided floor at held end retires past_by",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "Stop reads no foot (polish held to domains and window); ring prunes a point not a window; half-tangent window at found meeting",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "no",
+  "agree_text": "no: all three agree on the pair read and retiring the sampled search, and differ on what the polish is held to, on the ring, and on the rule's home",
+  "reconciliation_rounds": 3,
+  "who_moved": "R1: B to C on ring and to [one-way.places]; C to span hold and [one-way.readings]; A to span hold, certify-or-escalate. R2: B,C take containment cert, B to [one-way.readings]; A holds travel term. R3 (after orchestrator probe): all drop containment cert, per-piece curvature bound",
+  "to_Ev": "Agreed design (pair read held to spans, no foot, sampled search retires, ring cleared by window or escalates, in C5) plus fork: (i) accept walked tangent touches escalate, or (ii) ratify in-band stretch accounts for pieces (all lean against)",
+  "ev_decision": "Approved (2026-11-16, PR 7025) after questions; withdrew [one-way.readings] rule; chose (i)",
+  "ev_decided": true,
+  "match_text": "all three (A, B, C) on the design and on (i); none on a new `[one-way.readings]` rule, which Ev withdrew",
+  "match_labels": [
+   "A",
+   "B",
+   "C"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "A 261,507 / 297,921; B 281,819 / 299,411; C 235,757 / 262,820",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 44 (three), 252 (mod 3 = 0): Fable = A, Opus = B and C; exact versions unknown (dispatched 2026-11-16 by the aliases `fable` and `opus`)",
+  "notes": "Versions explicitly 'unknown' (alias dispatch 2026-11-16); era 5.2 by date rule (post-release; nothing contradicts). match_full_or_partial 'partial' because Ev withdrew the proposed [one-way.readings] rule (which was a reconciliation outcome; first reports differed on home).",
+  "match_labels_column_literal": [
+   "A",
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 75
+ },
+ {
+  "table": "three",
+  "num": 278,
+  "date": "2026-11-14",
+  "protocol": "ddd201f411",
+  "fork": "work/tesslane/a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area.md (P1, design: true, filed on PR 6960); [ev] PR (this) = PR 6966",
+  "pr": 6966,
+  "fable_label": "C",
+  "opus_labels": [
+   "A",
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Decide flatness where triangles are emitted (flat triangle with mesher-placed corner under band -> drop corners, rebuild face); fork to Ev on the scale (eps or rounding allowance)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Lattice gives way to boundary by the cell: node not laid if a chord point/side passes through its cell; no eps, no constant",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "C": {
+    "answer": "Lattice keeps c steps clear of every side/crease; one definition of 'triangle has area' read by census, check_mesh, STL; fork to Ev on c (1/16 leaned, 1/2 alternative)",
+    "confidence": "sure on the missing relation, unsure on c",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "no",
+  "agree_text": "no: B and C agreed on the mechanism and differed on its size; A put the decision at emission and left the lattice alone",
+  "reconciliation_rounds": 4,
+  "who_moved": "R1: A withdrew eps-at-emission, took clearance; B withdrew half a cell (C's table); C narrowed promise. R2: all take 1/16 named constant + 3-way winding verdict. R3: A to rounding/refusing; B to refusing; C withdrew an inference, built bodies. R4: B withdrew eps; all place refusal where faces join mesh",
+  "to_Ev": "Agreed: (1) lattice lays no node within 1/16 step of boundary as named quality constant, no eps in mesher; (2) every triangle's winding resolved above rounding, one definition where faces join mesh, unresolved refuses typed",
+  "ev_decision": "Approved both rules, constant made temporary (2026-11-16, PR 6966): 1/16 landed as a debt going to 1/2",
+  "ev_decided": true,
+  "match_text": "All three on both rules. None on the constant's standing: the designers recommended 1/16 as a named quality constant and rejected 1/2; Ev made the value temporary with 1/2 as where it ends",
+  "match_labels": [
+   "A",
+   "B",
+   "C"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "A 200501 / 268377; B 220956 / 294678; C 318459 / 470718 (subagent tokens as the harness reported them, first report / last of four rounds)",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 73 (three), 20 (mod 3 = 2): Fable 5.2 = C, Opus 5.5 = A and B",
+  "notes": "Match 'all three' is on the agreed rules; first reports differed (A's emission-flatness differs most; C's (Fable) clearance + 1/16 is nearest the landed state, but match column does not single it out).",
+  "match_labels_column_literal": [
+   "A",
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 76
+ },
+ {
+  "table": "three",
+  "num": 279,
+  "date": "2026-11-17",
+  "protocol": "ddd201f411",
+  "fork": "work/tesslane/a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it.md (P1, design: true; on PR 7043's head); [ev] PR (this) = PR 7046",
+  "pr": 7046,
+  "fable_label": "C",
+  "opus_labels": [
+   "A",
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Mesh ruled faces (cone/cylinder) as strips between rulings in chart lane, partner edges; interim route apex cone faces with split side to chart lane",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Mesh every cone face in the development in the chart lane with strip argument as a cone-chart rule; interim PR 7043's refusal stands (routing optional)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "Class is every ruled face with split straight side; strip held by constraint in chart lane; interim route those faces to chart lane, delete fallback lattice; [mesh.sizing] sentence: triangulation constrained to its theorem",
+    "confidence": "likely; sure on the cause",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "no",
+  "agree_text": "no: one cause and one end state in kind from all three, but B scoped it to cones and kept the refusal alone meanwhile, A routed only cones through an apex, C routed every ruled face with a split side",
+  "reconciliation_rounds": 3,
+  "who_moved": "R2: A and B moved to C's scope and interim answer; C took A's lemma. R3: A withdrew partner edges for B's walk; C withdrew single held edge for the walk; B held. Agreement",
+  "to_Ev": "Agreed: (1) [mesh.sizing] principle (triangulation built to what its theorem assumes); (2) row-walk meshing of two-row two-ruling faces; (3) unit 6 after build; (4) interim routing not asked",
+  "ev_decision": "Declined (1) and the principle choosing (2) (2026-11-17, PR 7046); no [mesh.sizing] text; unit 4c recast to measure three cures; (3) kept; interim built as PR 7049",
+  "ev_decided": true,
+  "match_text": "None on (1) and on the form of (2): all three recommended the principle and, on it, the walk; one had proposed \"no rows, one held edge\" in round two and withdrew it in round three on the principle's sentence alone. All three on (3) and on the interim route",
+  "match_labels": [
+   "A",
+   "B",
+   "C"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "A 165119 / 204954; B 159025 / 195029; C 286347 / 353067 (subagent tokens as the harness reported them, first report / last of three rounds)",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 10 (three), 110 (mod 3 = 2): Fable 5.2 = C, Opus 5.5 = A and B",
+  "notes": "Ev rejected the main recommendation; match only on minor items (3) and interim route (all three). The 'one held edge' alternative Ev kept as a cure to measure was C's (Fable) round-2 proposal, not a first report. Could be counted as 'none' on the main question.",
+  "match_labels_column_literal": [
+   "A",
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 77
+ },
+ {
+  "table": "three",
+  "num": 283,
+  "date": "2026-11-17",
+  "protocol": "ddd201f411",
+  "fork": "work/band/a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds.md (P0, cut 3), raised by vocabulary lane's measure step; [ev] PR (this)",
+  "pr": null,
+  "fable_label": "B",
+  "opus_labels": [
+   "A",
+   "C"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Existing chain frontier UnsupportedChain on the odd edge for all three; two detail texts; refreshed chain roster as recourse",
+    "confidence": "likely",
+    "rejected_framing": false,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "UnsupportedChain naming the blocking edge (curved E to curved-end-face tag)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "C": {
+    "answer": "New variant outside UnbuiltEnd, UnbuiltMixedCorner{...}; oblique-E fillet off SpineUnsupported; recourse mixed-corner menu",
+    "confidence": "likely",
+    "rejected_framing": false,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "no",
+  "agree_text": "no: A and B the chain frontier, C a new variant; all rejected a ninth tag",
+  "reconciliation_rounds": 4,
+  "who_moved": "R2: B and C moved to a split (curved link->UnsupportedChain, leaning E->new refusal); A to one new refusal. R3: A to UnsupportedChain; edge: A,B to arc, C to odd edge. R4: crossed again. R5 (A only): A conceded. Unanimous",
+  "to_Ev": "Unanimous: curved-link corners refuse UnsupportedChain on the arc; leaning E refuses one new variant outside UnbuiltEnd with mixed-corner recourse; no ninth tag",
+  "ev_decision": "Approved 2026-11-17 ('sure, i have no strong opinions on the exact error strategy...')",
+  "ev_decided": true,
+  "match_text": "None of the first reports: each first report's final state differs (A and B put the leaning corner on `UnsupportedChain` and kept the oblique fillet on `SpineUnsupported`; C put the curved corners in its new variant)",
+  "match_labels": [],
+  "match_full_or_partial": "none",
+  "tokens": "A 155,855 / 212,509; B 133,760 / 180,134; C 141,398 / 195,768",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 84 211; A Opus 5.5, B Fable 5.2, C Opus 5.5",
+  "notes": "Rounds numbered R2-R5 (four rounds; R5 A only). PR number not stated in row. Ev approved the reconciled recommendation (decided), but it matched no first report. Row's cell count parses irregularly with a naive splitter (pipes in code) but aligns with the header.",
+  "match_labels_column_literal": [],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 78
+ },
+ {
+  "table": "three",
+  "num": 285,
+  "date": "2026-11-17",
+  "protocol": "d327ffb520",
+  "fork": "work/embed/the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause.md (P1), [ev] PR (this) = PR 7095",
+  "pr": 7095,
+  "fable_label": "B",
+  "opus_labels": [
+   "A",
+   "C"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Keep the sliver and type it (Vacuous splits into Empty and OnShared(line)); one sentence on Zero in [topology.tiers]",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Retire the sliver, no refusal in its place; meter the departure rate at the faces' reach not the cell; no Zero from a cell bound",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "Sliver is a Zero reading; name it in DESIGN, own Presentation variant built from proven presentation",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "no",
+  "agree_text": "y on the premise (the threshold is ε, not K·ε) and that refusing at the sliver is wrong; n on keeping it (A and C: keep, typed) against retiring it (B)",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1: A and C moved to B's answer (retire and re-meter); B held. R2 (with measurement): all hold; agreed",
+  "to_Ev": "Agreed: retire the sliver, no refusal; departure reading metered at faces' reach; choices: band vs exact sign (all lean band); retire last reader's sliver once drum holds vs now; B's named concession fallback",
+  "ev_decision": "Answered 2026-11-19..21 (PR 7095): retire it; band kept, unified with tier 3's wedge check; drum test retired, all three sites retire at once",
+  "ev_decided": true,
+  "match_text": "All three on retiring it with no refusal in its place and on re-metering at the faces' reach; all three on the band (their lean), which Ev kept, adding what none proposed: that it be one reading with tier 3's wedge check. None on the drum: A and C leaned to retiring the last site with the drum's fix and B offered a named concession as a fallback; Ev retired all three at once...",
+  "match_labels": [
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "first report A 131,692, B 271,038, C 133,731; total A 174,824, B 375,792, C 179,915",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 76 (three), 196 (mod 3 = 1): Opus 5.5 = A, Fable 5.2 = B, Opus 5.5 = C (analysis/design-fork/embed-sliver). Match column records the orchestrator recommended the strict sign against the designers for an hour on a misreading, then withdrew it",
+  "notes": "Match column says 'All three' on retiring, but that is the reconciled recommendation; per first reports only B (Fable) retired the sliver (A, C kept it). Column-literal: all three (partial, none on drum).",
+  "match_labels_column_literal": [
+   "A",
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 79
+ },
+ {
+  "table": "three",
+  "num": 284,
+  "date": "2026-11-17",
+  "protocol": "ddd201f411",
+  "fork": "work/importgate/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation.md with step-import-eps-in-ambient-two-dial-strand.md, PR (this) = PR 7074",
+  "pr": 7074,
+  "fable_label": "B",
+  "opus_labels": [
+   "A",
+   "C"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Two stages joined by a type: interpret at eps_in into descriptions, build every cache by kernel constructions at eps; no file-curve fallback (lean refuse); D7 stands as written",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Evidence -> description -> build; eps_in only at interpretation (Zero->snap, in band->ambiguity); for Ev which root moves in a snap, closed snap catalogue, no file-curve fallback; D7 step 2 reworded",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "Three stages one tolerance each; interpretation at eps_in produces a reading; native constructors at eps; build_axes for every placement; no fallback",
+    "confidence": "Likely (shape), sure (no file carrier as cache)",
+    "rejected_framing": null,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on the evidence/description/build shape, the build at ε and no file-curve fallback; apart on whether surfaces move (snaps, B only), on D7's wording (A: stands) and on units and packaging",
+  "reconciliation_rounds": 1,
+  "who_moved": "R1 (shown orchestrator's summary of others' For Ev + five divergences): A moved to snaps, rewording D7, build_axes; B moved to A's vertex rule, build_axes, D7 edit; C moved to snaps, joint solving. Converged",
+  "to_Ev": "Converged: evidence->description->build; Zero relations snapped by closed catalogue; no file value as cache; D7 steps 1-3 reworded to eps_in; questions: which surface moves, closed catalogue, no fallback",
+  "ev_decision": "Took all three (2026-11-18, PR 7074): no file value becomes a cache; snaps from a closed catalogue; earlier record stays; step 2 wording fixed",
+  "ev_decided": true,
+  "match_text": "B's first report on all three; A's and C's on decision 1 (neither first proposed snaps or a which-moves rule)",
+  "match_labels": [
+   "B"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "A 156 304 / 163 846; B 160 734 / 167 670; C 155 131 / 164 618",
+  "blinding_or_deviation_notes": "No Notes entry; reconciliation R1 showed the orchestrator's SUMMARY of others' For Ev sections plus five named divergences (not full reports). bytes 69 (three), 253 (mod 3 = 1, B = Fable); A = Opus 5.5, B = Fable 5.2, C = Opus 5.5",
+  "notes": "C's framing rejected 'partly' (null). Fork column says 'PR (this)' without [ev]; Ev answered on PR 7074. B full match on all three decisions; A and C partial (decision 1 only).",
+  "match_labels_column_literal": [
+   "B"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 80
+ },
+ {
+  "table": "three",
+  "num": 288,
+  "date": "2026-11-17",
+  "protocol": "ddd201f411",
+  "fork": "work/partframes/the-boolean-reads-each-operand-in-its-own-coordinates.md (P1, fork 274 decision 2's build), stopped by lane's survey; [ev] PR (this)",
+  "pr": null,
+  "fable_label": "A",
+  "opus_labels": [
+   "B",
+   "C"
+  ],
+  "fable_version": "unknown",
+  "opus_version": "unknown",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Frame tree in the body; kernel takes other operand as body+relative motion; result keeps survivors bit for bit under own frame; minted point on its lowest-dim carrier's frame; aggregates framed grafts; staged",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Placed-operand type in topo; minted points in computing frame; result one body in computing frame with lineage carry (frames-in-body named and leaned against); aggregates pieces only",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "Parts in the body, frame table per geometry entry, one aligning door; survivors in own coordinates, minted in computing frame; aggregates graft with frame; motions via nearest common frame",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "no",
+  "agree_text": "no: A and C frames in the body, B a one-frame result carried by lineage; on minted points A the carrier's frame, B and C the computing frame; on aggregates B pieces only, A and C framed grafts",
+  "reconciliation_rounds": 3,
+  "who_moved": "R1: B to frames in body; A to staging and computing frame for minted points; C to carrier's frame. R2: crossed again (A back to carrier's frame; B,C to computing frame). R3: B and C to carrier's frame; A holds; unanimous",
+  "to_Ev": "Unanimous: body holds parts in built frames as tree; one aligning door; Boolean result keeps survivors under own frame; minted point in its carrier's frame; aggregates framed grafts; two stages",
+  "ev_decision": "Approved 2026-11-18 ('sounds good!') after rewording on 'holds' and cached moved copies",
+  "ev_decided": true,
+  "match_text": "A (frames in the body, survivors under their own frames, a minted point in its carrier's frame, aggregates as framed grafts)",
+  "match_labels": [
+   "A"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "A 165,453 / 200,282; B 203,240 / 224,421; C 198,101 / 231,241",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 41 105; A Fable, B Opus, C Opus (dispatched 2026-11-17 by the aliases fable and opus; versions not recorded)",
+  "notes": "Versions not recorded (alias dispatch 2026-11-17); era 5.2 by date rule. PR number not stated.",
+  "match_labels_column_literal": [
+   "A"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 81
+ },
+ {
+  "table": "three",
+  "num": 291,
+  "date": "2026-11-19",
+  "protocol": "ddd201f411",
+  "fork": "work/scalar/patherror-display-renders-float-noise.md (P1), [ev] PR (this); decision cites PR 7154",
+  "pr": 7154,
+  "fable_label": "B",
+  "opus_labels": [
+   "A",
+   "C"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Rule by provenance carried by payload type: Written exact, Computed grid (finer of eps/10 and 4 figures), Offer rounded; derived non-margin values not quoted; units later",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "One opaque said-quantity type in geom-core held by payloads; derived lengths finer of eps/10 and relative 1e-9; Real gains one projection, #990 amended; units second question",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "A Said vocabulary built at render time from raw payloads behind a say! form; 4 figures (unsure); Readable kept; refusals in working notation decided now",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes that the missing thing is a type keyed by the number's role and that the row's 'home for a helper' is the wrong question; no on figures (4 against 1e-9), on what a payload field holds (told type, MarginDiag or nothing, raw scalar), on enforcement (field gate against say!) and on whether units are decided now",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1: A to B's opaque type and #990 amendment; B from 1e-9 to 4 figures; C to type in field and declaration gate. R2: A and C adopted B's spacing floor. Same final state",
+  "to_Ev": "Converged: one opaque told-quantity type in geom-core held by refusal payload field, 4 figures, eps/10 cap for lengths, #990 restated; second Q (all lean yes): refusal said in reader's notation",
+  "ev_decision": "Took the rules but not in DESIGN.md: moved to crates/geom-core/README.md (PR 7154, 2026-11-20)",
+  "ev_decided": true,
+  "match_text": "none of the first reports as delivered (each held part of it: A the roles and four figures, B the opaque type in the field and the #990 amendment, C the compared and offered roles); all three after reconciliation",
+  "match_labels": [],
+  "match_full_or_partial": "none",
+  "tokens": "A 131661 / 160397; B 118788 / 151115; C 108497 / 137881",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 26 (three), 88 (mod 3 = 1); A = Opus 5.5, B = Fable 5.2, C = Opus 5.5, each as the dispatch's model alias named it",
+  "notes": "Versions given 'as the dispatch's model alias named it' (not harness-reported). Each first report held part; 'none' as delivered.",
+  "match_labels_column_literal": [],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 82
+ },
+ {
+  "table": "three",
+  "num": 297,
+  "date": "2026-11-22",
+  "protocol": "d327ffb520",
+  "fork": "work/export/step-import-discards-the-entity-ids-that-are-its-identity-channel.md (P1), [ev] PR (this) = PR 7331",
+  "pr": 7331,
+  "fable_label": "B",
+  "opus_labels": [
+   "A",
+   "C"
+  ],
+  "fable_version": "unknown",
+  "opus_version": "unknown",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Close as superseded: stamp channel retired; importer's bit-equal surface dedup already shares more than entity ids would",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "No token; file's references decide which surface record a face wears; distinct entities join only via one_record's reported act; surface_sig deleted; one [import] sentence",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "No token; faces citing one entity share one record, distinct entities stay distinct; surface_sig replaced; one [import] sentence",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "no",
+  "agree_text": "no (B and C agree, A differs)",
+  "reconciliation_rounds": 3,
+  "who_moved": "R1: A moved to B's and C's state; C adopted B's joining clause and record table; B unchanged. R2 (on Ev's comment): all answer no import-only state. R3: B drops filter; C withdraws 'import-only'",
+  "to_Ev": "Agreed: no import-only state; records follow the file within one shell; surface_sig deleted; exporter one entity per key; one [import] paragraph; maximal-faces gap filed separately",
+  "ev_decision": "Approved (PR 7331, 2026-11-22): 'the new state seems good... this can merge'",
+  "ev_decided": true,
+  "match_text": "B, C (and A after round 1)",
+  "match_labels": [
+   "B",
+   "C"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "A 154829 / 268989; B 144846 / 208106; C 168073 / 281492 (a first B dispatch on 2026-11-17 died at once on the Fable usage limit, count not reported)",
+  "blinding_or_deviation_notes": "Exposure: B read the item's in-flight section, which summarised A's and C's split (no report text) -- B not fully blind to the others. A and C (Opus) dispatched 2026-11-17, B (Fable) re-dispatched 2026-11-22 after a first B dispatch died on the Fable usage limit (not concurrent). Mapping: arm byte 33, label byte 154 (mod 3 = 1: Fable is B); harness reported no version for any",
+  "notes": "Fable B saw a summary of A/C's split before reporting -> its first report not independent; may need excluding/flagging. Versions unknown (aliases opus / fable).",
+  "match_labels_column_literal": [
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 83
+ },
+ {
+  "table": "two",
+  "num": 260,
+  "date": "2026-11-10",
+  "protocol": "f7004ca480",
+  "fork": "work/band/a-fillet-leaves-the-kiss-of-two-touching-solids-as-it-is-with-no-refusal.md (P1), [ev] PR (this); decision cites PR 6807",
+  "pr": 6807,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "A blend site is an edge or a recorded line contact; contact blend fills every void crescent; edge request at contact stays identity (sub-fork, unsure: typed refusal); restate [assemblies.document] fusion clause",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Union and edge request right; valley gets its own contact-blend request filling every crescent into one solid; optional lint; add a clause to [assemblies.document]",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "y on the final state (a contact site, every crescent filled, the edge request unchanged, the fusion clause restated, the rename); n only in emphasis on the edge-request sub-fork (A: identity, or a typed refusal; B: identity plus a lint)",
+  "reconciliation_rounds": 0,
+  "who_moved": "none",
+  "to_Ev": "The agreed rule, with the edge-request sub-fork stated",
+  "ev_decision": "Approved 2026-11-12 (PR 6807): 'this plan sounds good'; [assemblies.document] edit dropped; edge request keeps identity",
+  "ev_decided": true,
+  "match_text": "Both (the agreed recommendation), except the restated fusion clause both proposed, which was not taken",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; mapping: bytes 143 (two designers), 156 (mod 2 = 0): Opus = A, Fable = B (analysis/design-fork/band-kiss-of-two-solids)",
+  "notes": "MISALIGNED ROW (14 cells): Ev column empty; Ev's decision sits in the match column, the match text in the A/B column, the mapping in an extra 14th cell. Duplicate # 260 (also three-table seal row 2026-11-10, two-table clear row 2026-11-11, two-table placing row 2026-11-09). Era 5.2 by date rule (dated 11-10, no version).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 135
+ },
+ {
+  "table": "two",
+  "num": 262,
+  "date": "2026-11-12",
+  "protocol": "ddd201f411",
+  "fork": "work/onedoor/three-walks-of-a-loops-chart-images-each-claim-to-be-the-one.md (P1, design), [ev] PR (this) = PR 6851",
+  "pr": 6851,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "A loop's position is its lift; decide_joint the one reading; stored rows a certified cache; chart_window stops walking; pole/apex joint stores face-side branch",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "The lift, one decision, one Lift type built two ways; element is record of decision, image the cache; turn at a pole a layered reading (P1 lean) over recording (P2)",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "Partly: the lift, one decision, a derived lift mid-operation, chart_window's walk deleted; split on the pole (recorded vs layered) and on cache vs record",
+  "reconciliation_rounds": 1,
+  "who_moved": "R2 (labelled R2): B moved to A on the pole; A moved to B on record vs cache and withdrew derive-on-miss fallback. Converged",
+  "to_Ev": "Agreed: decide_joint one decision incl. at pole (face-side turn); one Lift type; chart_window pin and mesh area search deleted; C4's pole reset becomes face-side turn",
+  "ev_decision": "Approved 2026-11-12 (PR 6851): 'i don't want to keep reset'; went past agreed state: no reset anywhere, JointElement::Reset retires, typed refusals",
+  "ev_decided": true,
+  "match_text": "A and B (the converged recommendation). The apex and spindle extension and the spline refusal are the orchestrator's, from the probes; both designers had leaned towards the apex extension without showing it",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 177 (two designers), 52 (even): Opus = A, Fable = B (analysis/design-fork/onedoor-2026-11-12)",
+  "notes": "Column credits both (converged rec); first reports each prevailed on one split point (A on pole, B on record vs cache). Ev extended beyond agreed state (no reset anywhere).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 136
+ },
+ {
+  "table": "two",
+  "num": 266,
+  "date": "2026-11-12",
+  "protocol": "2126b860b6",
+  "fork": "work/onehome/a-skin-stations-turn-crosses-up-from-f64-through-computed-at.md (P1), raised by skin-turn lane's measured stop; [ev] PR (this) = PR 6912",
+  "pr": 6912,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Keep the chain at T, nothing crosses; widening is Moore's wrapping effect, owed a Lohner composition; pin five rows meanwhile; reject frozen roll",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Measured: select roll at f64 as one reference vector per station crossing as data; mint each frame alone at T; width flat ~1.4e-13, all five rows pass",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "no",
+  "agree_text": "No",
+  "reconciliation_rounds": 3,
+  "who_moved": "R1 crossed (A to B, B to A); R2 crossed again; probe lane measured; R3 both on B's state",
+  "to_Ev": "Converged: roll selected at f64 while path is a model constant, one reference vector per station as data; each frame minted at T alone; Crossing scalars sentence; residual door for the reference left to measurement",
+  "ev_decision": "Approved 2026-11-14 (PR 6912) as a broader [scalars] principle (lane scalar takes a choice from f64, never a claim)",
+  "ev_decided": true,
+  "match_text": "Both (the converged state), restated as a general principle at Ev's request",
+  "match_labels": [
+   "B"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 155 (two designers), 186 (even): Opus = A, Fable = B",
+  "notes": "Column says 'Both (the converged state)'; but converged state is B's first-report state (both ended on B's state in R3), so first-report match = B (Fable). Column-literal: both.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 137
+ },
+ {
+  "table": "two",
+  "num": 268,
+  "date": "2026-11-14",
+  "protocol": "ddd201f411",
+  "fork": "work/boxfinish/the-extrude-mints-its-plane-normals-and-a-cylinders-u-ref-through-arithmetic-over-the-box.md (P0), raised by BOXFINISH's M1 measurement; [ev] PR (this) = PR 6936",
+  "pr": 6936,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "(1) sweep doors keep handed sketch frame, never re-derive direction from placed points; (2) carrier stores witness, check 1 stops asking frame length (the fork)",
+    "confidence": "sure (1) / likely (2)",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "One rule: each carrier datum built from construction inputs and rigid motions, never re-fitted; profile records each segment's unit direction; second change not to be opened here",
+    "confidence": "likely",
+    "rejected_framing": false,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on the first change; no on whether a second (what a carrier stores, what check 1 asks) is recommended now",
+  "reconciliation_rounds": 1,
+  "who_moved": "B withdrew δ²/2 claim, dropped tight unit map, second change as own question; A took profile recording, demoted second change to its own row. Both moved and met",
+  "to_Ev": "Agreed: (1) stored direction/frame built from construction inputs, never fitted to placed points, in [edges] + sweep README; (2) profile format records unit directions; check-1 question separate",
+  "ev_decision": "Approved with rule's text cut down (2026-11-14, PR 6936): one sentence in [intent.stored] (cache never flows back toward description)",
+  "ev_decided": true,
+  "match_text": "both (A and B) on the two changes; neither on the rule's text: A's new `[edges]` clause and B's sweep-README-only home both gave way to one sentence in `[intent.stored]`, with the sweep README stating its instance",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 93 (two designers), 179 (odd): Fable 5.2 = A, Opus 5.5 = B",
+  "notes": "Change (2) (profile records directions) was in B's first report only; A adopted it in R1. Column credits both.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 138
+ },
+ {
+  "table": "two",
+  "num": 269,
+  "date": "2026-11-14",
+  "protocol": "ddd201f411",
+  "fork": "work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval.md (P1); first judged not an [ev] fork; README rewording then went to Ev on PR 6953",
+  "pr": 6953,
+  "fable_label": "C",
+  "opus_labels": [
+   "A",
+   "B"
+  ],
+  "fable_version": "unknown",
+  "opus_version": "unknown",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Take swept line's span from sketch segment's own length; reword geom-brep clause (bounds from defining quantity, vertices certify); measured all three rows pass",
+    "confidence": "sure/likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Read an edge by its own fraction s in [0,1] with ends stored; chord-parameterized lines as stopgap",
+    "confidence": "likely",
+    "rejected_framing": null,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "Two halves: (1) carry span from construction (sketch length); (2) affine chart image stores its two chart ends read at a fraction (not run)",
+    "confidence": "sure/likely",
+    "rejected_framing": null,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "Partly: A and C on the sketch-length span; B on a fraction contract; all on exact chart ends being owed",
+  "reconciliation_rounds": 1,
+  "who_moved": "R1: A moved to C's two halves plus reading ends by name; B withdrew fraction contract and chord lines, adopted sketch-length span + A's rewording + C's stored ends. Agreed",
+  "to_Ev": "The sketch-length span and the geom-brep rewording, asked on PR 6953 with narrow and general wordings named",
+  "ev_decision": "Answered 2026-11-15 (PR 6953): 'ok nice this sounds much better!' -> the general rewording",
+  "ev_decided": true,
+  "match_text": "A's first report (the span and the rewording); C's first half",
+  "match_labels": [
+   "A",
+   "C"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "A 206758 / 221210; B 183858 / 205520; C 181718 / 202711",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 13 (three designers), 101 (mod 3 = 2) (analysis/design-fork/edge-span): Fable = C, Opus = A and B; model versions not reported by the harness: unknown (dispatched 2026-11-14 with fable and opus aliases)",
+  "notes": "THREE-DESIGNER fork filed in the TWO-designer table; cells shifted: header 'agree' holds C, 'reconciliation' holds agree, 'to Ev' holds reconciliation, 'Ev' holds to-Ev, 'match' holds Ev, 'A/B' holds match, two extra cells hold tokens and mapping. Match: A (Opus) full, C (Fable) partial (first half). B and C framing 'partly' (null). Initially not an [ev] fork.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 139
+ },
+ {
+  "table": "two",
+  "num": 270,
+  "date": "2026-11-14",
+  "protocol": "ddd201f411",
+  "fork": "work/onehome/a-mates-carried-axes-near-the-least-turns-pole-are-conditioned-u-over-delta.md (P1, filed on PR 6962's branch), [ev] PR (this) = PR 6964",
+  "pr": 6964,
+  "fable_label": "A",
+  "opus_labels": [
+   "B",
+   "C"
+  ],
+  "fable_version": "unknown",
+  "opus_version": "unknown",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "One decided least-turn mint in geom-core refusing where lever 2*arm/chord passes rounding reach at run's eps, replacing mate_chart_pole; LeastTurn retires",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Keep decision at mate_chart_pole, refusing where arm/chord passes session box (eps-free); eps-aware band rejected",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "C": {
+    "answer": "Keep the pole verdict and add a conditioning test via a geom-core door beside admissible, asked by Chart::of",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "y on the premise (one question; spin error moves the shape; width from the admission rule, no site charge; refusal stays Backwards); n on which ε, replace or add, and the home",
+  "reconciliation_rounds": 1,
+  "who_moved": "R1: B moved to run's eps, to add, to one mint; A moved to add and adopted C's door; C moved to one mint. Agreed",
+  "to_Ev": "Agreed: one geom-core least-turn mint taking its arm, refusing typed where Keps pole verdict fails or lever passes run's rounding reach (stated once in Tolerance); [placement.values] gives band width",
+  "ev_decision": "Approved 2026-11-15 (PR 6964) after three clarifying questions: 'ok this sounds good!'",
+  "ev_decided": true,
+  "match_text": "All three (the agreed recommendation; each first report had the one-question framing, none its final combination)",
+  "match_labels": [
+   "A",
+   "B",
+   "C"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "A 203457 / 214097; B 173394 / 186919; C 165975 / 182884",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 31 (three designers), 180 (mod 3 = 0) (analysis/design-fork/pole-conditioning): Fable = A, Opus = B and C; versions not reported by harness: unknown (dispatched 2026-11-14 with aliases)",
+  "notes": "THREE-DESIGNER fork filed in the TWO-designer table, cells shifted as in row 269 (C in 'agree' col, tokens and mapping in extra cells). None of the first reports had the final combination.",
+  "match_labels_column_literal": [
+   "A",
+   "B",
+   "C"
+  ],
+  "designer_arm": "three",
+  "log_line_at_e44e340032": 140
+ },
+ {
+  "table": "two",
+  "num": 273,
+  "date": "2026-11-15",
+  "protocol": "ddd201f411",
+  "fork": "work/boxfinish/a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided.md (P0); build decided by orchestrator; E12's wording on [ev] PR (this) = PR 7003",
+  "pr": 7003,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Radius carries its decided sign as a literal (r, σ·ρ), never a magnitude; nothing told to tier; registrations retire (Ev's route B applied)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": "wording only (E12)"
+   },
+   "B": {
+    "answer": "Session records each sign a decision proved definite and tier's abs/sqrt folds read it; arcs store authored r; no registration",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on storing the authored r, retiring register_radials and rejecting a registration of |r| ≡ r; no on where the sign lives (the spelling, or the tier)",
+  "reconciliation_rounds": 3,
+  "who_moved": "R1: B moved to A's answer (record kept in reserve); A withdrew 'second source of sign'. Closing round after measurements: both held, B dropped reserve. E12 wording (each alone): split on registration sentence, after one round B moved to strict",
+  "to_Ev": "E12's Decision paragraph: symbolic Zero holds at every parameter value where build takes same decisions; registration sentence strict. Build (signed radius) not put to Ev",
+  "ev_decision": "Approved as recommended (2026-11-15, PR 7003): 'i think this is good'",
+  "ev_decided": true,
+  "match_text": "both (A and B) on E12's wording as sent: the Zero conditional, a registration strict. On the way there A held the final text for the Zero from its first wording answer and for a registration throughout; B began at a conditional registration and moved. On the build, A's first answer (the spelling) is the one built; B's (the tier reads decided signs) is filed and not built",
+  "match_labels": [
+   "A"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 126 (two designers), 241 (odd): Fable 5.2 = A, Opus 5.5 = B",
+  "notes": "Column literal: both on E12 wording (what went to Ev); but A held the final text from first answer and B moved; and on the (orchestrator-decided) build A's first answer was built. First-report reading: A (Fable). challenged_ratified for A recorded as 'wording only (E12)'. Rounds count approximate (R1, closing round, E12 wording round).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 141
+ },
+ {
+  "table": "two",
+  "num": 279,
+  "date": "2026-11-16",
+  "protocol": "ddd201f411",
+  "fork": "work/sectarms/a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses.md (P0, filed by TESSLANE's reach measurement), [ev] PR (this) = PR 7042",
+  "pr": 7042,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "A closed spline on R/LZ as a fit-local type that never reaches Curve3; seating opens it into a clamped cubic re-certified once; rotated goes",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "A periodic cubic as a Curve3::Nurbs carrier kind with period(), seated by span, no re-certification; proposed an [edges] principle sentence",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on the diagnosis, the periodic fit and the rejections; no on where periodicity lives (fit-local vs a carrier kind)",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1 crossed: B to fit-local, A to carrier kind. R2: both on the carrier kind with chords as spans. Converged",
+  "to_Ev": "Agreed: closed fitted loop is a periodic cubic, own Curve3 arm with a period, seated by span; C11 changed; separate: chords as spans (filed), optional [edges] sentence",
+  "ev_decision": "Approved (2026-11-17, PR 7042): 'i think this is good!'; optional [edges] sentence not answered",
+  "ev_decided": true,
+  "match_text": "Both (the agreed recommendation)",
+  "match_labels": [
+   "B"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 101 (two designers), 125 (odd): A = Fable 5.2, B = Opus 5.5",
+  "notes": "Column says 'Both'; the converged state (carrier kind, own Curve3 arm) is B's (Opus) first-report position, which A moved to in R1 (B had crossed to A then back). First-report reading: B. Duplicate # 279 (also three-table cone row 2026-11-17).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 142
+ },
+ {
+  "table": "two",
+  "num": 280,
+  "date": "2026-11-17",
+  "protocol": "ddd201f411",
+  "fork": "work/sectarms/a-rim-arcs-pad-is-its-widest-certifying-rung.md (P1, stopped on by implementer lane), [ev] PR (this) = PR 7045",
+  "pr": 7045,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Read pad off tube cells partner's form does not clear of band, refined until carry's question resolves (PR 5574's predicate stop); marched-loop door same reader",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Read pad off tube windows cut to knot rectangle less excluded cells, cells halved to fixed 1/4 of the rung; carry only; prototyped",
+    "confidence": "sure on the split, likely on the constant",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on the diagnosis, the exclusion read, carry only, PadsMeet kept, C2's sentence rewritten; no on the stopping rule and on the marched-loop door's scope",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1 crossed (A to fixed 1/4, B to predicate stop); R2 crossed again (B back to fixed, A back to predicate stop). Ended split",
+  "to_Ev": "Agreed core + split: refine (A) until arcs read apart with work bound, or (B) fixed 1/4 of rung",
+  "ev_decision": "PR 7045, 2026-11-17: 'let's do (A)'",
+  "ev_decided": true,
+  "match_text": "A (its first recommendation and its final one; it crossed to B's rule in round 1 and back in round 2)",
+  "match_labels": [
+   "A"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 192 (two designers), 192 (even): A = Opus 5.5, B = Fable 5.2",
+  "notes": "MISALIGNED ROW (14 cells): Ev column empty; Ev's decision in match column; match text in A/B column; mapping in extra 14th cell. Ended split; Ev chose A (Opus).",
+  "match_labels_column_literal": [
+   "A"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 143
+ },
+ {
+  "table": "two",
+  "num": 281,
+  "date": "2026-11-17",
+  "protocol": "ddd201f411",
+  "fork": "work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md (P1), [ev] PR (this) = PR 7056",
+  "pr": 7056,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Limb 3 asks for samples before it has a tube (located straddle); one-point reading on quadric pairs; pad its own claim (narrowest proving rung or direct bound)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Limb 3 halves its own cover with breaks recorded; refine_for_tube retires; pad a per-slice location bound, narrowest rung fallback; one-point margin for every kind",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on decoupling tube from pad and on giving limb 3 resolution where a box is wide against its rung; no on where the resolution comes from, on the enclosure's scope, and on the pad mechanism",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1 crossed: A to B's cover halving (kept one point on quadratics); B conceded one point for every kind, adopted narrowest proving rung. R2 crossed on storage (record vs derive). Agreed design, storage left to build",
+  "to_Ev": "Agreed: one-point reading on plane/sphere/cylinder pairs, torus two; limb 3 halves own cover; refine_for_tube retires; pad narrowest proving rung's reach; storage left to build",
+  "ev_decision": "PR 7056, 2026-11-17: 'ok this plan sounds good!'",
+  "ev_decided": true,
+  "match_text": "neither first recommendation whole: B's first on the mechanism (limb 3 halves its own cover, `refine_for_tube` retires), A's first on the enclosure (one point on quadratic forms only) and on the pad (the narrowest proving rung); the agreed final",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 98 (two designers), 179 (odd): A = Fable 5.2, B = Opus 5.5",
+  "notes": "MISALIGNED ROW (14 cells): Ev column empty; Ev's decision in match column; match text in A/B column; mapping in extra cell. Neither first report whole; each partly.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 144
+ },
+ {
+  "table": "two",
+  "num": 274,
+  "date": "2026-11-15",
+  "protocol": "ddd201f411",
+  "fork": "work/onehome/check-1-reads-a-turning-frames-length-off-its-bracket.md (P1), weighed with work/onehome/a-later-finish-could-carry-facts-whose-data-is-bit-identical-to-a-finished-inputs.md; [ev] PR (this) = PR 7006",
+  "pr": 7006,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "unknown",
+  "opus_version": "unknown",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "(1) carrier holds frame as witness, check 1's frame half goes; (2) moved body keeps coordinates and holds motion as placement, readings between parts via relative motion (carry bit-identical findings as cheaper alt)",
+    "confidence": "likely (1) / likely on direction, unsure on cost (2)",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "(1) carrier holds witness, check 1's frame half deleted at every scalar; (2) lean W2: motion not applied to data, body holds placement; W1 carry defensible",
+    "confidence": "sure on the home / likely on details (1), unsure (2)",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "yes: the frame witness, and the placement held rather than applied as the lean, with carrying bit-identical facts as the named alternative",
+  "reconciliation_rounds": 0,
+  "who_moved": "none",
+  "to_Ev": "Two decisions: (1) carrier holds witness types, check 1 frame reading goes (new [one-way.places] row + [scalars] sentence); (2) move not applied to body data, placement held",
+  "ev_decision": "Approved both (2026-11-16, PR 7006), text moved into clarifications of [scalars] and [placement.frame] instead of new rows",
+  "ev_decided": true,
+  "match_text": "both (A and B) on the two decisions; neither on where the text lives",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 149 (two designers), 70 (even): Opus = A, Fable = B; exact versions unknown (dispatched 2026-11-15 by the aliases opus and fable)",
+  "notes": "Versions explicitly unknown (alias dispatch 2026-11-15); era 5.2 by date rule. Duplicate # 274 (also a 2026-11-10 onecopy row).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 145
+ },
+ {
+  "table": "two",
+  "num": 282,
+  "date": "2026-11-16",
+  "protocol": "ddd201f411",
+  "fork": "work/sectarms/a-node-arcs-chord-misses-its-at-rest-chart-image.md (P1, filed by PR 6897's fix pass) with two other sectarms items, [ev] PR (this) = PR 7032",
+  "pr": 7032,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "One partner-blind image function: wall's foot path interpolated in carrier's own spline space, refined by knot insertion; rest and mint both call it; trace's own fit leaned against (unsure)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Rest derives no image: traced edge keeps the trace's fitted pcurve (Pcurve::Fitted) read as it stands; mint projects only for carriers with none",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on the diagnosis (the trace certifies carrier and pcurve together and the join drops the pcurve), one partner-blind rule, node ends and spline pairs included, rewriting the C2 sentences; no on whether a traced edge's image is the trace's fit or a derived one",
+  "reconciliation_rounds": 4,
+  "who_moved": "Crossed four times (R1 A to stored fit, B to derived; R2 crossed again; R3 again; R4 A to derived, B to stored fit). Ended split",
+  "to_Ev": "Agreed core + split: (A) one derived function with stored fit as measured fallback, or (B) trace's own fitted pcurve stored as Fitted",
+  "ev_decision": "PR 7032, 2026-11-17: (1) [A's], 'i certainly don't want to introduce a fake cache like (2) has'; stored-fit fallback not taken",
+  "ev_decided": true,
+  "match_text": "A (its first recommendation and its final one; it crossed to B's state in round 1 and back by round 4)",
+  "match_labels": [
+   "A"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 98 (two designers), 66 (even): A = Opus 5.5, B = Fable 5.2. Renumbered from 278, which a TESSLANE row took on main first",
+  "notes": "MISALIGNED ROW (14 cells): Ev column empty; Ev decision in match column; match text in A/B column; mapping in extra cell. Ended split; Ev chose A (Opus).",
+  "match_labels_column_literal": [
+   "A"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 146
+ },
+ {
+  "table": "two",
+  "num": 286,
+  "date": "2026-11-18",
+  "protocol": "d327ffb52",
+  "fork": "work/embed/the-at-rest-gate-certifies-embedding.md (P0), raised by gate lane's census; [ev] PR (this) = PR 7101",
+  "pr": 7101,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "One fact per pair of faces kept on finished body; finish compares exactly, carries matched pairs, asks rest; each carried fact records its spend against one per-body budget",
+    "confidence": "likely (soundness...; saving in sweep: unsure)",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Gate asks only pairs the finishing door made, carries rest from finished operands by comparison; second step carries pieces; budget per face pair",
+    "confidence": "likely (meeting the CI bar alone: unsure)",
+    "rejected_framing": "in part",
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "y on the core (pair facts carried from finished operands by exact comparison, never the door's word; leaves in full; the promise not narrowed); n on the budget's unit (A: per body, charged; B: per face pair) and on carrying pieces (B only)",
+  "reconciliation_rounds": 5,
+  "who_moved": "Crossed on budget unit through R1-R4 (A per body <-> per pair; B per pair <-> per body); B dropped pieces R1; R5 neither moved. Split stands",
+  "to_Ev": "Agreed core (pair facts carried, compare exactly, no pieces...) + split on budget unit: A constant per body with ledger; B constant per face pair",
+  "ev_decision": "PR 7101, 2026-11-18: carry yes; budget: constant per ask, not stored (neither lean)",
+  "ev_decided": true,
+  "match_text": "Both on the carry. Neither on the budget: Ev kept today's constant per ask with no ledger. A's lean (per body, with a ledger of each fact's spend) and B's (per face pair) both rested on the same body getting the same budget verdict by any route, which both took as a requirement and Ev did not want",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 204 (two designers), 232 (even): Opus 5.5 = A, Fable 5.2 = B (analysis/design-fork/embed-price)",
+  "notes": "B's framing_rejected recorded as 'in part'. Ev took the shared core; rejected both on the split.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 147
+ },
+ {
+  "table": "two",
+  "num": 287,
+  "date": "2026-11-17",
+  "protocol": "d327ffb52",
+  "fork": "work/embed/the-at-rest-gate-certifies-embedding.md (P0; lane C, item 3), raised by gate lane; [ev] PR (this) = PR 7068",
+  "pr": 7068,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Each solid against itself, never two solids' faces (between solids is census's at ⊔); AtRestBody holds its records; in-solid record is a meeting place",
+    "confidence": "likely (the pinch reading: unsure)",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Gate handed door's records and arrival partition; certificate asks self-pairs and pairs within one arrival minus recorded pairs; AtRestBody holds records",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "y that the whole body is the wrong subject, that certifying after the gate is wrong and that the finished body holds its records; n on whether two solids of one door's result are asked against each other, and on what an in-solid record does",
+  "reconciliation_rounds": 6,
+  "who_moved": "R1 both moved (A added between-solids at finish; B dropped arrival scope, took meeting place); R2 agreed four parts; R3 A took B's rule. After Ev's questions: R4 differed; R5 crossed (B took A's rule); R6 agreed",
+  "to_Ev": "Agreed: certificate per solid; body holds records, gate confirms; point/edge record in one solid is a meeting place; carried cells between pieces keep their meeting; choices: fillet reaching neighbour reported or refused (lean reported); in-solid record refuse typed meanwhile",
+  "ev_decision": "PR 7068, 2026-11-18: parts 1, 2 yes; between-solids as first sent withdrawn, rewritten rule approved; fillet: interference finding no refusal; in-solid record refuse for now",
+  "ev_decided": true,
+  "match_text": "Both on parts 1 and 2 and on refusing an in-solid record meanwhile (the meeting-place reading both recommended for the long run is left open by Ev); neither on the between-solids part as first sent, which both dropped once Ev asked; both on the rule as rewritten and on the fillet (both leaned: reported)",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 254 (two designers), 127 (odd): Fable 5.2 = A, Opus 5.5 = B (analysis/design-fork/embed-records)",
+  "notes": "Reconciliation continued after Ev's comments (R4-R6), designers resumed on Ev's questions. Part 1 (per solid) was A's first report; B's first had per-arrival scope; column credits both.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 148
+ },
+ {
+  "table": "two",
+  "num": 289,
+  "date": "2026-11-19",
+  "protocol": "ddd201f41",
+  "fork": "work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md (P1) with a-body-past-the-session-box-refuses-... (P2) as evidence, [ev] PR (this) = PR 7140",
+  "pr": 7140,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Box is a predicate of a region read through its cover, faces included; sound direction admission; asked where a region comes to exist (vertex, curved edge, faces at gate, placing door); lean ask every mapped value",
+    "confidence": "sure on the region, likely on the rest",
+    "rejected_framing": "partly",
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Region's reach decided on both sides (refuse/admit/straddle undecided); read per kind of face; asked by EdgeCurve::certify, gate, placing door",
+    "confidence": "likely",
+    "rejected_framing": "partly",
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "yes on the final state (two-sided, regions, certification asks first, the gate and the placing door); no on a vertex ask, on [tolerance.units]' wording, and on replacing the placing doors' hand-kept list by a uniform ask",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1: A dropped vertex ask, uniform ask to a row; B added vertex ask, took A's wording. R2: B withdrew vertex ask, uniform ask to own row; A held. Agreed",
+  "to_Ev": "Session box one predicate over a region (cover from outside, points from inside), admitted only where cover in cube; asked by edge certification, gate, placing door; [tolerance.units] unchanged; hand-kept list to own row",
+  "ev_decision": "Approved as recommended (2026-11-20, PR 7140), without a view of its own",
+  "ev_decided": true,
+  "match_text": "both (the first reports already shared the final state; the two points they parted on were settled in reconciliation, not by Ev)",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 218 (two designers), 121 (odd): Fable 5.2 = A, Opus 5.5 = B (claude-fable-5-2 and claude-opus-5-5, the only model in each designer's transcript; analysis/design-fork/session-box-reach)",
+  "notes": "Agree column 'yes on the final state' with residual differences; framing rejected 'partly' for both.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 149
+ },
+ {
+  "table": "two",
+  "num": 290,
+  "date": "2026-11-19",
+  "protocol": "ddd201f41",
+  "fork": "work/oneround/unsourced-levers-await-a-source.md (P1, design), [ev] PR (this) = PR 7141",
+  "pr": 7141,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "No fourth source; delete door and pin; 66 sites classified; contract gains five items; one fork on profile (lean profile as extent home)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Keep three sources, no fourth, delete both doors and pin; sites re-posed by role (six roles); SsiDomain::extent a Lever; point reads move to geom-core; one clarifying sentence",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on no fourth source, deleting the doors and the pin, and re-posing by role; no on profile, on what a record holds, and on how much text the README gains",
+  "reconciliation_rounds": 4,
+  "who_moved": "R1 crossed (A took B's point-read lowering, dropped profile fork; B took never-carried rule). R2 crossed on records rule. R3: B adopted A's records sentence; A withdrew it for a two-question test. R4: both on the two-question test. Agreed",
+  "to_Ev": "No fourth source; unsourced doors and counts deleted; sites re-posed by role; records rule; point reads to geom-core; README two sentences + one clause (separable)",
+  "ev_decision": "Approved as recommended (2026-11-19, PR 7141): 'sounds great! i am less sure about the records thing...'",
+  "ev_decided": true,
+  "match_text": "both, after reconciliation; neither first report alone (A's had the records rule and the which-bound sentence, B's the `profile` answer and the roles)",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 204 (two designers), 111 (odd): Fable 5.2 = A, Opus 5.5 = B (claude-fable-5-2 and claude-opus-5-5, the only model in each designer's transcript; analysis/design-fork/unsourced-levers)",
+  "notes": "Neither first report alone; each contributed parts.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 150
+ },
+ {
+  "table": "two",
+  "num": 292,
+  "date": "2026-11-19",
+  "protocol": "ddd201f411",
+  "fork": "work/scalar/dl5-has-no-arm-for-a-selection-whose-result-is-the-payload.md (P1), [ev] PR (this) = PR 7155",
+  "pr": 7155,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "One criterion in place of a list of arms (no certification, nothing frozen that moves); clause names wrong quantity; census Payload widened, Selection->Branch; home geom-core README",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Two rules at two doors: read rule beside Bounds and freeze condition on Real::from_computed; census Payload/Choice/Freeze/Carries; home real.rs",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes that no third arm is added, that the clause names the wrong quantity and that its provenance is an agent fix pass; no on where the freeze condition attaches, the census variants and the home",
+  "reconciliation_rounds": 10,
+  "who_moved": "R1-R3 home changed hands every round (orchestrator ended); R4-R5 after Ev's premise question both dropped per-site condition; R6-R7 after Ev's second question; R8-R10 after Ev's row-by-row answers; both converged each time (A withdrew Placed<T>, B withdrew zero door)",
+  "to_Ev": "Agreed (final): no third arm; DL5.1; DL5.2 (no door from runtime f64 to free T in dual-reachable code...); DL5.3 (Certifies bound granting no bracket); census by destination",
+  "ev_decision": "Approved in stages on PR 7155 (2026-11-20) after three rounds of questions that each changed the recommendation; solved-value and CertifiedEnclosure lift held for a new PR",
+  "ev_decided": true,
+  "match_text": "neither first report, and not the first reconciled recommendation: the designers put a per-site validity condition, then an unknown tangent with a zero door, and Ev's questions (is re-entry needed at all; is a dual excluded by type; is an unknown tangent a runtime exclusion) moved both each time. The final state is the designers' after those questions; the no-third-arm finding stood from the first reports",
+  "match_labels": [],
+  "match_full_or_partial": "none",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; reconciliation rounds 4, 6, 8 showed designers Ev's comments (not the other's answer). bytes 196 (two designers), 250 (even): Opus 5.5 = A, Fable 5.2 = B (claude-opus-5-5 and claude-fable-5-2, only model in each transcript; analysis/design-fork/scalar-dl5-selection)",
+  "notes": "Ev's questions reshaped the recommendation three times; 'none' except the shared no-third-arm finding (could be 'partial, both').",
+  "match_labels_column_literal": [],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 151
+ },
+ {
+  "table": "two",
+  "num": 293,
+  "date": "2026-11-20",
+  "protocol": "ddd201f411",
+  "fork": "work/scalar/from-computed-claims-a-zero-tangent-at-a-dual.md (P1), [ev] PR (this) = PR 7176; question Ev split off PR 7155 (row 292), same two designers, labels redrawn",
+  "pr": 7176,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Search proposes, a check at T admits; one door admits a candidate by running site's check (needs only Decide), dual half not built; no site needs the lift",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "A scalar operation over the certified bracket and residual (box at Interval, implicit-function tangent at dual); no site needs the lift",
+    "confidence": "Likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes that no conversion is valid by itself, that a closed form stays in T, and that no site needs the lift; no on the door",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1: B withdrew bracket op, took A's admit door bounded Certifies; A took B's bracket as second form. R2: A dropped bracket form, took Certifies bound; B kept bracket as recorded extension. Same final state",
+  "to_Ev": "Agreed: closed form stays in T; one door admits an f64 candidate by the check at T, bounded Certifies, sole caller of from_computed; nothing at dual; no lift; bracket form recorded as extension",
+  "ev_decision": "Approved on PR 7176 (2026-11-20): 'this broadly sounds good'; text extended after questions; 'leaving it at A is definitely fine for now although B might be needed' (state A/B, not labels)",
+  "ev_decided": true,
+  "match_text": "the reconciled recommendation, with its text extended on Ev's second question; Ev disputes one designer's \"not needed by any consumer\" for the bracket form: over a box wider than the tolerance the crossings rarely meet at one place",
+  "match_labels": [
+   "A"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; same two designers as row 292 re-asked; labels redrawn: byte 171 (odd): Fable 5.2 = A, Opus 5.5 = B (claude-fable-5-2 and claude-opus-5-5; analysis/design-fork/scalar-solved-value). Only one byte recorded (arm inherited)",
+  "notes": "Match column names no label ('the reconciled recommendation'); the reconciled door is A's (Fable) first-report door (B withdrew its bracket operation and took A's door), so first-report reading = A. Ev's 'state A'/'B' in Ev cell are states, not designer labels. Same designers as row 292 (not independent fork).",
+  "match_labels_column_literal": "reconciled recommendation (no label named)",
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 152
+ },
+ {
+  "table": "two",
+  "num": 294,
+  "date": "2026-11-20",
+  "protocol": "ddd201f41",
+  "fork": "work/oneround/the-section-table-admits-a-curve-on-its-resolution.md (P1, H; unit oneround/anchored-conic), raised by building lane's measurement; [ev] PR (this) = PR 7194",
+  "pr": 7194,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "One stored form: every circle/ellipse stored anchored, parameter zero at anchor (+phase); centre derived never a field; nothing records birth, nothing cached",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "One stored form, anchored, for every conic; anchor's parameter θ0 stored, parameter stays principal-axis; centre derived on demand",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on one anchored form for every conic, the centre derived, no stored birth and no cache; no on the parameter (zero at the anchor against the principal-axis parameter with a stored θ₀)",
+  "reconciliation_rounds": 1,
+  "who_moved": "R1: B conceded to A's parameter (zero at anchor), took README naming; A held, withdrew README edit. Agreed",
+  "to_Ev": "Every conic stored anchored, parameter zero at anchor, centre derived; retires PR 4812's 'born form' text; consequences stated",
+  "ev_decision": "Approved as recommended (2026-11-21, PR 7194): 'i think this plan works, then'",
+  "ev_decided": true,
+  "match_text": "both, after one round: the first reports agreed on one stored form with the centre derived and differed on the parameter (A: zero at the anchor, with a phase; B: the parameter left as it was), and B came over to A's",
+  "match_labels": [
+   "A"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 227 (two designers), 85 (odd): Fable 5.2 = A, Opus 5.5 = B (claude-fable-5-2 and claude-opus-5-5, only model in each transcript; analysis/design-fork/conic-born-form)",
+  "notes": "Column says 'both, after one round' but B came over to A's parameter; first-report reading A (Fable); column-literal both.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 153
+ },
+ {
+  "table": "two",
+  "num": 296,
+  "date": "2026-11-18",
+  "protocol": "d327ffb52",
+  "fork": "work/embed/a-refusing-ask-runs-on-to-its-whole-budget-looking-for-a-verified-crossing.md (P1), raised by gate lane's census; [ev] PR (this) = PR 7309",
+  "pr": 7309,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Face pair is the unit; a pair settled by its first finding (crossing or refusal), remaining cells dropped, walk goes on; alt defensible: stop whole ask at first finding",
+    "confidence": "likely (the seconds each saves: unsure)",
+    "rejected_framing": "in part",
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Each face pair ends apart, crossing or unread; engine stops reading a pair at first settling reading; same alternative defensible; smaller budget after refusal rejected",
+    "confidence": "likely (the seconds: unsure)",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "y at first, on a state both later abandoned",
+  "reconciliation_rounds": 3,
+  "who_moved": "After measurement went against shared rec: R2 both withdrew 'refusal settles its pair' (A to stop-the-ask final; B to three-part final with stop first). R3 each moved toward the other's R2. R4 A signed joint statement; B signed with three amendments. Agreed",
+  "to_Ev": "Now: embedding ask ends at its first finding; beside it a defect/unit; later rule (ask ends only at verified crossing once refusals cheap); Ev asked (a) stop now, (b) rule later rule now",
+  "ev_decision": "PR 7309, 2026-11-21: 'sounds great!' yes to both; no DESIGN.md text (drafted [topology.tiers] sentence withdrawn)",
+  "ev_decided": true,
+  "match_text": "Both on the stop now and on the later rule (both recommended yes to each); neither on the text: both proposed a sentence in `[topology.tiers]` (A the stop now and a second change later; B the later rule with a named exception), and Ev wanted none. The state both recommended in their first reports (one finding per pair of faces) was not put to Ev: both left it in round 2 on the measurement",
+  "match_labels": [],
+  "match_full_or_partial": "none",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 247 (two designers), 90 (even): Opus 5.5 = A, Fable 5.2 = B (analysis/design-fork/embed-refusal)",
+  "notes": "First-report state (one finding per face pair) abandoned in reconciliation and never put to Ev; Ev's decision (stop at first finding) was the 'alternative called defensible' in both first reports. Column-literal: both (on what went to Ev), neither on text. Duplicate # 296 (also 2026-11-21 charttail row).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 154
+ },
+ {
+  "table": "two",
+  "num": 295,
+  "date": "2026-11-18",
+  "protocol": "ddd201f411",
+  "fork": "work/onehome/carrier-frames-the-types-and-the-lift.md (row (i)), [ev] PR 7131",
+  "pr": 7131,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "unknown",
+  "opus_version": "unknown",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Read the f64 entries as points, uncharged, admission floor covering frame's rounding; premise correction (sure)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Re-mint at Interval (point box holds no unit vector); same premise correction (sure)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "no on the read (points against a re-mint); yes on the premise, and that ruling A covers every frame",
+  "reconciliation_rounds": 1,
+  "who_moved": "Round 2 (labelled R2; shown polar build and measurements): A moved to B; both chose polar factor over Gram-Schmidt and removing GS lift into Dual/Sym",
+  "to_Ev": "Agreed: (1) Interval read of an f64-stored frame is enclosure of its polar factor; (2) ruling A covers every frame, two reads take a frame out, nothing lifts into Dual/Sym",
+  "ev_decision": "Approved on PR 7131 (2026-11-20): 'yep that's no problem'",
+  "ev_decided": true,
+  "match_text": "B's first report; A's after round 2",
+  "match_labels": [
+   "B"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "(in A/B column) tokens (first report / total): A 177,143 / 182,679, B 175,332 / 180,291",
+  "blinding_or_deviation_notes": "No Notes entry; no urandom bytes recorded in the row; Fable = A, Opus = B, dispatched by the aliases fable and opus, versions not recorded",
+  "notes": "Mapping lacks the urandom bytes. Versions not recorded; era 5.2 by date. Duplicate # 295 (also 2026-11-21 scalar row). Agree column 'no on the read; yes on premise' -> partial.",
+  "match_labels_column_literal": [
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 155
+ },
+ {
+  "table": "two",
+  "num": 301,
+  "date": "2026-11-22",
+  "protocol": "ddd201f411",
+  "fork": "work/sym/the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision.md (P1, H), filed by BOXFINISH; [ev] PR (this) = PR 7337",
+  "pr": 7337,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Move check onto the answer shipped: symbolic Zero at Sym<Interval> asserted in every profile; definite numeric sign asks nothing; old cross-check a test-only cargo feature run nightly; four SymCounts columns go",
+    "confidence": "likely",
+    "rejected_framing": "in part",
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Take cross-check out of decide path; make it an instrument via a dial on the drive (default left to Ev); free half stays on every run; columns move to instrument report",
+    "confidence": "likely",
+    "rejected_framing": "in part",
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on the decide path, the always-on enclosure assertion and the four columns leaving the receipt; no on where the old cross-check lives (a test-only feature against a run-time dial on the drive with a default for Ev)",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1: B withdrew dial and default; A took instrument carries all events and runs per PR. R2: A accepted B's soundness points; agreed",
+  "to_Ev": "Agreed: definite numeric sign asks tier nothing; symbolic Zero asserted against enclosure in every build (free_identity excluded); old cross-check a test instrument no shipped build contains; four receipt columns go; one E12 sentence",
+  "ev_decision": "Approved in three comments on PR 7337 (2026-11-22), with one change: plain assertion made a debug_assert!",
+  "ev_decided": true,
+  "match_text": "both, on the agreed recommendation, but for the assertion's mechanism: both designers recommended a plain assertion in every build (on `[failure]`'s load-bearing check) and Ev ruled a `debug_assert`. Of the first reports, A's is nearest (a test-only feature, no dial); B's proposed a run-time dial with its default left to Ev, withdrawn in round 1",
+  "match_labels": [
+   "A"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 243 (two designers), 16 (even): Opus 5.5 = A, Fable 5.2 = B, each configured and served",
+  "notes": "Column-literal: both (agreed rec, except assertion mechanism); of first reports A's (Opus) nearest.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 156
+ },
+ {
+  "table": "two",
+  "num": 253,
+  "date": "2026-11-08",
+  "protocol": "d05675f9ad",
+  "fork": "work/placing/a-place-into-the-bodys-own-space-is-no-copy-to-the-gesture-vocabulary.md (P1), [ev] PR (this) = PR 6580",
+  "pr": 6580,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.1",
+  "first_reports": {
+   "A": {
+    "answer": "Every placement is a copy wherever its target is; retire copy_spaces; Place stays in body's own space",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Every placement is a copy whatever space; delete copy-space carve-out; Place stays in body's own space",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "yes: one final state",
+  "reconciliation_rounds": 0,
+  "who_moved": "none",
+  "to_Ev": "Agreed: every placement is a copy; copy_spaces retires; Place stays in body's own space; built inside the 6353 unit",
+  "ev_decision": "Approved 2026-11-09 (PR 6580); reserved judgement on Place landing in body's own space (moved to target-space row, three-table #261)",
+  "ev_decided": true,
+  "match_text": "Both (the agreed recommendation)",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 233 (two designers), 163 (odd): Fable = A, Opus = B",
+  "notes": "Dated 2026-11-08 -> before the mark per instrument note (Fable 5.1 era). Ev's reservation on 'Place stays in own space' means part was not taken (it went to three-table #261, where Ev approved own space).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 397
+ },
+ {
+  "table": "two",
+  "num": 260,
+  "date": "2026-11-09",
+  "protocol": "d05675f9ad",
+  "fork": "work/placing/placements-of-a-body-share-a-named-variable-the-re-point-redefines.md (P1), [ev] PR (this) = PR 6672",
+  "pr": 6672,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "unknown",
+  "first_reports": {
+   "A": {
+    "answer": "A body alias (VarDef::Alias); lone placement reads B directly; output exemption retreats for placement sources; second Place asks a name",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "A source (VarDef::Source) every placement's source slot reads, anonymous when alone; VR2 names it at second Place; exemption unchanged; on sides select source",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "no",
+  "agree_text": "no: the same concept; the structure differs (a direct lone read against a source per placement), as do the on sides and the GUI route",
+  "reconciliation_rounds": 1,
+  "who_moved": "R1: A moved to B on structure, on sides and GUI route; B adopted A's Place on a copy and typed refusal. Converged",
+  "to_Ev": "Agreed: every placement reads a source, anonymous when alone, named at second Place by VR2; re-point redefines; on sides select source; three DESIGN clauses + [placement.placement] change",
+  "ev_decision": "Approved 2026-11-12 (PR 6672): 'you should go ahead, but i'm not totally sure...'; source paragraph moved to VARIABLES VR4; Place on a copy not built",
+  "ev_decided": true,
+  "match_text": "Both (the agreed recommendation; B's first report)",
+  "match_labels": [
+   "B"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 100 (two designers), 205 (odd): Fable = A, Opus = B",
+  "notes": "Dated 2026-11-09 (release day), no version -> era unknown/spans. Column: 'Both (agreed; B's first report)'; first-report reading B (Opus). Duplicate # 260.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 399
+ },
+ {
+  "table": "two",
+  "num": 257,
+  "date": "2026-11-08",
+  "protocol": "2126b860b6",
+  "fork": "work/onehome/run-loops-of-split-and-pierce-are-twins.md (P1, topo::star stage 2), raised by stage-2 lane's stop; [ev] PR 6585",
+  "pr": 6585,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.1",
+  "first_reports": {
+   "A": {
+    "answer": "Entry is a side-free ray with sector between rays; verb enters only as datums; D1,D2,D3, conic reach, D5 the star's, D4 the verb's; one cut rule",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Entry holds geometry only; D1,D2,D3,D5, conic reach the star's, D4 the verb's; sectors convex; one side reader",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "Yes",
+  "reconciliation_rounds": 0,
+  "who_moved": "none",
+  "to_Ev": "An edit of [one-way.places]'s topo::star row stating the agreed walk",
+  "ev_decision": "Declined the edit (2026-11-10, PR 6585): no decision changed; design recorded on row and star.rs docs; PR closed",
+  "ev_decided": true,
+  "match_text": "Both (agreed), as an application, not a ratification",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 206 (two designers), 211 (odd): Fable = A, Opus = B",
+  "notes": "Dated 2026-11-08 -> before the mark (5.1 era). Ev declined the DESIGN text edit (an application, not a ratification); the design itself stood. Instrument note's row 257 is this row.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 400
+ },
+ {
+  "table": "two",
+  "num": 256,
+  "date": "2026-11-09",
+  "protocol": "2126b860b6",
+  "fork": "work/onehome/a-rigid-motion-rewrites-and-recertifies-every-edge.md (P1, design, filed at Ev's request on PR 6329) with placement-primitives-take-and-return-construction-state; [ev] PR (this) = PR 6589",
+  "pr": 6589,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "spans",
+  "first_reports": {
+   "A": {
+    "answer": "Isometry's image keeps verdict and re-asks session box; one moved door over topo::Isometry; ReadIn goes; check_rigid must re-mint an admitted matrix (Gram-Schmidt)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Same core; admitted motion's verdict taken as fact or import finishing after the map",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "Partly: the core yes; split on an admitted motion",
+  "reconciliation_rounds": 1,
+  "who_moved": "R1: B conceded the admitted motion (to A's re-mint); A adopted B's 'one place a verdict is derived' and isometry rule; B adopted A's P2 edit and FindingFamily declaration. Converged",
+  "to_Ev": "Agreed: finish the one constructor and one place a verdict is derived; isometry image finished, box re-asked; admitted motion re-minted at its door; text trimmed after PR 6585 ruling",
+  "ev_decision": "Approved 2026-11-10 (PR 6589): 'this sounds good overall'; check_rigid admission 'seems like a real problem' -> own row (three-table #258)",
+  "ev_decided": true,
+  "match_text": "Both (the agreed recommendation)",
+  "match_labels": [
+   "A"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 209 (two designers), 212 (even): Opus = A, Fable = B",
+  "notes": "Instrument note names row 256 explicitly as NEAR/SPANNING (dated 2026-11-09). Column: 'Both'; shared core from both first reports, split (admitted motion) resolved to A's (Opus) first report, B conceded. Column-literal both.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 401
+ },
+ {
+  "table": "two",
+  "num": 260,
+  "date": "2026-11-11",
+  "protocol": "2126b860b63",
+  "fork": "work/clear/clearance-cell-enclosures-are-typed-as-the-interval-scalar.md (P0, Ev's question on PR 6308), [ev] PR 6821",
+  "pr": 6821,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Keep Interval and [x,x]; faults are four Zero places re-deciding tier 3's facts and refusals not naming width; one crossing owned by lane",
+    "confidence": "likely",
+    "rejected_framing": false,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Keep one arithmetic and [x,x] but give cell bound its own type (CellBound, no Decide, never logged); point readings at T",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "Partly: f64, band, one crossing, Sym and the rewording yes; the type no",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1 crossed (A to the type + no-equality rule; B to no type + engine door owning unlogged scope). R2: both to the door, type as alternative",
+  "to_Ev": "Converged: one crossing held by lane; no second reading; refusals name width with point readings at T; engine entry points own unlogged scope; [topology.tiers] reworded; alternative delegating CellBound",
+  "ev_decision": "Approved 2026-11-12 (PR 6821): 'ok! this sounds good!'; engine's door not CellBound; Ev's wording for [topology.tiers] sentence",
+  "ev_decided": true,
+  "match_text": "Both (the converged recommendation)",
+  "match_labels": [
+   "A"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "(in A/B column) tokens A 213,136 / 254,329, B 204,182 / 228,963 (first report / total)",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 154 (two designers), 20 (even): Opus = A, Fable = B",
+  "notes": "Column: 'Both (converged)'. On the split (own type), A's (Opus) no-type first report prevailed; the engine-door element arose in B's R1. Column-literal both. Duplicate # 260 (four rows numbered 260).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 403
+ },
+ {
+  "table": "two",
+  "num": 262,
+  "date": "2026-11-11",
+  "protocol": "2126b860b6",
+  "fork": "work/sectarms/the-join-reads-a-spline-implicit-section.md (P0 H, two open node questions from NURBS stage 3b), [ev] PR (this) = PR 6829",
+  "pr": 6829,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Carry each arc to node; certify in-box stretch by polar blow-up psi=phi/r^2 on sectors, retiring ray_of; narrow C3's Hoffmann sentence",
+    "confidence": "likely",
+    "rejected_framing": "partly",
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Carry each arc to node; certify with ordinary C2 tube graded toward node ending in micron last box re-derived at rest; sqrt(eps R) disc where site escalates",
+    "confidence": "likely",
+    "rejected_framing": "partly",
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "y on carrying to the node, rejecting a stop at the box, and the box's claim not sufficing; n on the certificate",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1 crossed (A to graded tube; B to sector reading). R2: B moved to one mechanism (graded tube) and withdrew C3 narrowing; A held. Converged",
+  "to_Ev": "Agreed: carrier runs to node; limb 3's tube graded per box to last box holding node; ray as sector of last boxes checked vs end tangent (ray_of retires); C2/C5 amended; C3 kept",
+  "ev_decision": "Approved 2026-11-12 (PR 6829): 'sounds broadly reasonable'",
+  "ev_decided": true,
+  "match_text": "Both (the agreed recommendation)",
+  "match_labels": [
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 145 (two designers), 0 (even): Opus = A, Fable = B",
+  "notes": "Column: 'Both'. On the split (certificate), the graded tube is B's (Fable) first-report mechanism; ray-from-sector element came from A. Column-literal both. Duplicate # 262.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 404
+ },
+ {
+  "table": "two",
+  "num": 263,
+  "date": "2026-11-12",
+  "protocol": "ddd201f411",
+  "fork": "work/restread/a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread.md (P1), [ev] PR (this) = PR 6847",
+  "pr": 6847,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Refuse: every undecided self-touch point becomes BoundaryCrossesItselfUndecided with cause; SelfTouch and skip go; in-band sign reports InBand",
+    "confidence": "sure (refuse) / likely (follow-ons)",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Refuse: same final state, SelfTouch deleted; decided overlap reports a Crossing; in-band sign InBand",
+    "confidence": "sure (refuse) / likely (follow-ons)",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "yes (refuse, SelfTouch removed, in-band → InBand); the follow-ons differ only in scope and are compatible",
+  "reconciliation_rounds": 0,
+  "who_moved": "none",
+  "to_Ev": "Refuse every undecided self-touch point with its cause; remove skip and SelfTouch; InBand; decided overlap a Crossing; lune filed",
+  "ev_decision": "Refuse, as recommended (2026-11-12, PR 6847: 'this sounds good')",
+  "ev_decided": true,
+  "match_text": "both (A and B)",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 168 (two designers), 180 (even): Opus 5.5 = A, Fable 5.2 = B",
+  "notes": "",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 405
+ },
+ {
+  "table": "two",
+  "num": 264,
+  "date": "2026-11-13",
+  "protocol": "ddd201f411",
+  "fork": "work/clear/the-at-rest-gate-certifies-embedding.md (P0), lane B (change 2 of PR 6821), raised by lane B's stop; [ev] PR (this) = PR 6893",
+  "pr": 6893,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "The verdict is the strict question's input: tier 3 keeps wedge class and singular vertex on AtRestBody, embedded takes that value; Side stays for metric; cusp reads End; build tier 3 facts now",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "No hand-over: tier 3's verdict is the injectivity input type built only by local battery; embedded takes it; separators carry cells; build only engine's separators now, rest with C",
+    "confidence": "likely (sure on the cusp mark)",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "yes on the final state (the verdict as the question's input, Side for metric questions, separators built per member, the cusp off End, the shell's check into the gate); they differ on whether tier 3 keeps its facts before C (A: now; B: with C, as an unread value is dead code)",
+  "reconciliation_rounds": 0,
+  "who_moved": "none (sequencing difference taken by orchestrator: B's)",
+  "to_Ev": "Verdict as strict question's input built only by tier 3's battery; embedded takes it; separators per member; apex/cusp from verdict; separators now, rest with C; one [topology.tiers] sentence",
+  "ev_decision": "Approved 2026-11-13 (PR 6893), broadened: AtRestBody the one bundle of body and verdict, keeps tier 3's per-entity facts",
+  "ev_decided": true,
+  "match_text": "both (A and B), broadened",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 173 (two designers), 28 (even): Opus 5.5 = A, Fable 5.2 = B",
+  "notes": "Sequencing split resolved by orchestrator to B's (not Ev). Ev broadened (AtRestBody keeps tier 3 facts -- closer to A's 'tier 3 keeps facts on AtRestBody').",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 406
+ },
+ {
+  "table": "two",
+  "num": 269,
+  "date": "2026-11-14",
+  "protocol": "ddd201f411",
+  "fork": "work/boxes/a-reachs-pivot-is-chosen-per-kind.md (P1), [ev] PR (this) = PR 6968",
+  "pr": 6968,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "unknown",
+  "opus_version": "unknown",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "A region question: new Cover::ball_on(line) (least line-centred ball: centre pivot, radius lever); Reach::Region(Cover)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Reach is the cover's; datum read at middle of Cover::range_along's window, levered by far distance; Reach::Region(Cover); no new least-distance method",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on Reach::Region(Cover) and deleting reading_point/span_points; no on the pivot rule (A: least-distance method; B: window's middle)",
+  "reconciliation_rounds": 3,
+  "who_moved": "R1 crossed (A to midpoint, B to ball_on). R2 crossed back. R3 A conceded to midpoint; B held, adopted A's d remedy. Converged",
+  "to_Ev": "The middle of the window: Reach::Region(Cover), foot_on midpoint of range_along, lever cover's far distance; no new cover method; one geom-core README sentence",
+  "ev_decision": "Approved as recommended (2026-11-15, PR 6968): 'certainly no need to try to find a point that's better than the midpoint right now'",
+  "ev_decided": true,
+  "match_text": "both (after reconciliation; B's first report)",
+  "match_labels": [
+   "B"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 112 (two designers), 242 (even): Opus = A, Fable = B, dispatched 2026-11-14 by alias (opus, fable); the harness reported no version",
+  "notes": "Versions unknown (alias dispatch 2026-11-14), era 5.2 by date. Column-literal 'both (after reconciliation)'; first report B (Fable). Duplicate # 269 (also onehome path-sweeps row 2026-11-14).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 407
+ },
+ {
+  "table": "two",
+  "num": 267,
+  "date": "2026-11-14",
+  "protocol": "ddd201f411",
+  "fork": "work/clear/signed-penetration-depth.md (P1), [ev] PR (this) = PR 6922",
+  "pr": 6922,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "No depth/signed overlap from engine; overlap is census's finding, Gap its signed quantity; row closes; new row for buried body; lean body reference means its material (change E3's sentence)",
+    "confidence": "likely (the false Holds) / unsure (the choice)",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "No depth from engine; close row; clearance metric between faces; overlap census's at each ⊔; one clarifying E3 sentence; whole-body nesting leaned against",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on the main question (no depth; the row closes); split on the buried body (A: material; B: faces-only)",
+  "reconciliation_rounds": 1,
+  "who_moved": "R1: B moved to material meaning (a selection is a point set); A kept material at lower confidence. Converged",
+  "to_Ev": "No depth from engine, row closes; a selection is a point set (body ref = material), buried body violates >= c; new row for buried body",
+  "ev_decision": "Approved as recommended (2026-11-14, PR 6922: 'sounds good!')",
+  "ev_decided": true,
+  "match_text": "both (A and B, A's material meaning after round 1)",
+  "match_labels": [
+   "A"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 246 (two designers), 174 (even): Opus 5.5 = A, Fable 5.2 = B",
+  "notes": "Column 'both'; main question both, split (buried body) resolved to A's (Opus) material meaning after B moved. First-report reading A; column-literal both.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 408
+ },
+ {
+  "table": "two",
+  "num": 266,
+  "date": "2026-11-13",
+  "protocol": "5e5fec6d0a",
+  "fork": "work/placing/a-declined-re-point-offer-stays-as-a-button.md (P2), [ev] PR (this) = PR 6915 (follow-up PR 6917)",
+  "pr": 6915,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "A derived fact with its edit beside it; nothing declines, nothing recorded; stands while true, should reach any depth (today lapses at second feature)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Keep offer derived, no decline, nothing recorded; claimed offer shows only on chain's tip (wrong), row closes by design with README sentence",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "yes on the final state; no on one fact about main (A: lapses at the second feature; B: moves to the tip)",
+  "reconciliation_rounds": 1,
+  "who_moved": "R1 (with orchestrator's reading of world.rs = A's): B adopted A's any-depth rule and lapse, withdrew 'by design'; A adopted B's sentence shape and README sentence. Converged",
+  "to_Ev": "Agreed: offer a derived fact with its button, stands at any depth on a body built on a placed body, nothing declines/recorded; depth walk built",
+  "ev_decision": "Approved 2026-11-14 (PR 6915): 'this seems reasonable!'; follow-up on PR 6917 approved ('built on' = reads as a body)",
+  "ev_decided": true,
+  "match_text": "Both (the agreed recommendation; A's first report, B's after round 1)",
+  "match_labels": [
+   "A"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; reconciliation round showed both designers the orchestrator's reading of world.rs (which matched A's). bytes 234 (two designers), 193 (odd): Fable 5.2 = A, Opus 5.5 = B (analysis/design-fork/placing-declined-offer)",
+  "notes": "Column: both; first-report reading A (Fable). Duplicate # 266 (also onehome skin-turn row 2026-11-12).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 409
+ },
+ {
+  "table": "two",
+  "num": 274,
+  "date": "2026-11-10",
+  "protocol": "7f7c233d86",
+  "fork": "work/onecopy/boolean-standing-leftovers-crease-apex-outside-the-home-and-unscheduled-splits.md item 3 (P3), [ev] PR (this)",
+  "pr": null,
+  "fable_label": null,
+  "opus_labels": [],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Make row 2 a type: Unsupported(<Type>Unbuilt) per error type plus Refusal::Unbuilt; premise correction (Limit merges row 2 with 1(b))",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Make row 2 a typed standing: Refusal::Unbuilt stated per variant in each type's exhaustive refusal(); retire naming rule, no renames",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "y on Refusal::Unbuilt, narrowing Limit to 1(b) and retiring the naming rule; n on nesting row 2 into one variant per type",
+  "reconciliation_rounds": 3,
+  "who_moved": "R1 crossed (A to flat standing; B to nested type). R2 crossed again. R3 A conceded to flat standing; B held. Agreed",
+  "to_Ev": "Agreed (likely): row 2 a typed standing, Refusal::Unbuilt per variant in one exhaustive standing per type via Standing trait; Limit narrowed to 1(b); runner-up nested type",
+  "ev_decision": "(blank: not yet decided)",
+  "ev_decided": false,
+  "match_text": "",
+  "match_labels": null,
+  "match_full_or_partial": "n/a",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; A/B mapping blank (not yet decided)",
+  "notes": "UNDECIDED: Ev, match and A/B columns empty; label->model mapping not filled, so Fable label unknown. Era 5.2 by date rule only. Duplicate # 274.",
+  "match_labels_column_literal": null,
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 410
+ },
+ {
+  "table": "two",
+  "num": 276,
+  "date": "2026-11-09",
+  "protocol": "7f7c233d86",
+  "fork": "work/onecopy/a-carriers-branches-within-the-band-of-each-other.md (P2), [ev] PR (this)",
+  "pr": null,
+  "fable_label": null,
+  "opus_labels": [],
+  "fable_version": "not stated",
+  "opus_version": "not stated",
+  "era": "unknown",
+  "first_reports": {
+   "A": {
+    "answer": "The edge is defective: EdgeCurve::certify gains 'an embedded arc at the band'; On carries premise and refuses at K<2",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Build nothing new: hairpin is a body defect whose home is the ratified at-rest embedding gate; row folds into P0 unit; doc fixes only",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "no",
+  "agree_text": "n (edge certificate vs the existing body gate)",
+  "reconciliation_rounds": 3,
+  "who_moved": "R1: A moved to B's home, named three engine defects; B held. R2: B conceded whole-edge Near defect; A withdrew items. R3: B conceded waist defect; A withdrew conditional edge check. Agreed on all but K",
+  "to_Ev": "Agreed: home is ratified at-rest embedding gate, no new mechanism; three defects added to P0 unit; split for Ev on K's floor (A: raise to 2; B: record beside K's doc)",
+  "ev_decision": "(blank: not yet decided)",
+  "ev_decided": false,
+  "match_text": "",
+  "match_labels": null,
+  "match_full_or_partial": "n/a",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; A/B mapping blank (not yet decided)",
+  "notes": "UNDECIDED: Ev, match, A/B columns empty; mapping not filled. Dated 2026-11-09 -> era unknown/spans.",
+  "match_labels_column_literal": null,
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 411
+ },
+ {
+  "table": "two",
+  "num": 295,
+  "date": "2026-11-21",
+  "protocol": "ddd201f411",
+  "fork": "work/scalar/a-number-in-a-unit-is-rounded-once.md (P1, raised by PR 7229's review), [ev] PR (this) = PR 7261",
+  "pr": 7261,
+  "fable_label": "A",
+  "opus_labels": [
+   "B"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Text door rounds twice; N unit = float nearest N x exact factor (deg via stored constant); fallback goes; teller carries notation, Told has no Display; equality on what is held; float doors shortest-decimal (unsure)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Text door rounds twice; exact factors with true pi, typed(decimal, unit); Told loses Display; equality when every unit spells alike (unsure); field shows exact positional spelling",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "Core agreed (round once over exact factors; no fallback; no Display on a told number; the field); differed on the degree factor, equality, the sentence's mechanism, and the float doors (one silent)",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1: A to true pi and shortest-decimal doors; B to teller and shortest-decimal doors. R2 (equality only): B to held equality; A held. Agreed",
+  "to_Ev": "Agreed: rounded once over exact factor (true pi), shortest-decimal float doors; teller, no Display; equality on held reading; field shows exact positional spelling",
+  "ev_decision": "Ratified all four, 2026-11-21 (PR 7261)",
+  "ev_decided": true,
+  "match_text": "The agreed recommendation. Of the first reports: A's on equality (held) and the sentence (the teller); B's on the degree factor (true π); both on the core",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 238 (two designers), 91 (odd): A = Fable 5.2, B = Opus 5.5",
+  "notes": "Split credit: A (Fable) on two sub-points (equality, teller), B (Opus) on one (true pi), both on core. Duplicate # 295 (also onehome carrier-frames row 2026-11-18).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 413
+ },
+ {
+  "table": "two",
+  "num": 296,
+  "date": "2026-11-21",
+  "protocol": "d9031eeb2",
+  "fork": "work/charttail/a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint.md (P1), [ev] PR (this)",
+  "pr": null,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Exact and derived from net: boundary iso whose control points are one stored point is singular, one home singular_points(&Surface); loft writes pinned point exactly; import heals near-collapse",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "Exact and derived from net, never declared; constructors build it exact; slivers stay slivers; closure same rule (separable)",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "yes",
+  "reconciliation_rounds": 0,
+  "who_moved": "none",
+  "to_Ev": "Agreed (exact, derived from the net, one home), with B's closure rule as a separable question",
+  "ev_decision": "2026-11-21 on PR: exact comparison accepted (decisions 1, 2); closure undecided, exact periodicity acceptable for now, filed as own row",
+  "ev_decided": true,
+  "match_text": "A and B (both first recommendations)",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "full",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 180 / 178: two designers; A = Opus 5.5, B = Fable 5.2",
+  "notes": "B's separable closure rule left undecided by Ev (filed as own row). PR number not stated. Duplicate # 296 (also embed refusing-ask row 2026-11-18).",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 414
+ },
+ {
+  "table": "two",
+  "num": 298,
+  "date": "2026-11-22",
+  "protocol": "3a6220f722",
+  "fork": "work/offer/certify-affordance-on-the-bounds-panel.md (P1), [ev] PR (this)",
+  "pr": null,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Kernel first: resumable search refining toward current value; prove button on probe reading seeded to probe's invalid ends; stop keeps answer; keep four answer arms",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Kernel first: stepwise outward search; prove on sampled reading seeded to valid ends; stop keeps answer; rebuild answer type into three kinds",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "partly (kernel search and control agreed; seed and answer type split)",
+  "reconciliation_rounds": 3,
+  "who_moved": "R1: A to B on type and seed; B to A on split-at-current-value and seed (swap). R2 swapped back. Further designer C (rule 5, Fable 5.2) shown all six reports: valid-end seed + replaying schedule. Final round: A and B both moved to C",
+  "to_Ev": "Agreed (kernel search first, partition schedule, three-kind answer, valid-end seed), with what 'replaces' means put to Ev",
+  "ev_decision": "2026-11-22 on PR: sampled range? can be deleted; fix certified_range and use it for a real range? button; 'replaces' question dissolves",
+  "ev_decided": true,
+  "match_text": "A and B on the kernel search (both first recommendations). Ev rejected the shared viewer framing, a prove button layered on the probe, which every designer took from the row and the 2026-09-13 summary. A framing nobody questioned",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; further designer C (rule 5): byte 101, Fable 5.2 -- named in the row's A/B column (protocol says a further designer's model goes in the analysis-branch record, not the row, until Ev decides; here filled after decision). bytes 251 / 116: two designers; A = Opus 5.5, B = Fable 5.2 (dispatched as opus and fable, 2026-11-22)",
+  "notes": "Two-designer arm plus a further (rule-5) Fable 5.2 designer C in reconciliation; C's first report is not a rule-2 first report. PR number not stated.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 415
+ },
+ {
+  "table": "two",
+  "num": 300,
+  "date": "2026-11-22",
+  "protocol": "3a6220f722",
+  "fork": "work/offer/a-node-name-the-viewer-shows-is-not-a-link-to-it.md (P1) with work/vnews/the-viewer-spells-a-node-as-its-kind-before-its-name.md (P1), [ev] PR (this)",
+  "pr": null,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "A sentence value of words and mentions (id, kind, label, document); SpokenNode loses Display; one viewer link widget; plain text \"label\" (tag); Properties gains reads/read-by",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   },
+   "B": {
+    "answer": "A typed sentence of runs; SpokenNode loses Display; one widget draws node runs as links; plain text \"label\" (tag); Properties shows operand slots and used-by",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "yes",
+  "agree_text": "yes",
+  "reconciliation_rounds": 1,
+  "who_moved": "R1: B moved to A on four points; A moved to B on one-type sink, read_sites, operand_rows, dropping kind from shared label. Left split on shared-label screen reading",
+  "to_Ev": "Agreed recommendation + Band 1 replacement with sub-choices (shared label on screen A/B; plain-text spelling; tree rows; tree scroll)",
+  "ev_decision": "2026-11-22, four comments: keep tag, drop kind where label exists on every surface; 'this looks good!' accepting mentions as links, reads/read-by, tree scroll",
+  "ev_decided": true,
+  "match_text": "A and B on the mechanism (both first recommendations). On spelling, Ev took the plain-text lean both designers shared (`\"label\" (tag)`) for every surface, screen included, which neither had proposed for the screen",
+  "match_labels": [
+   "A",
+   "B"
+  ],
+  "match_full_or_partial": "partial",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; bytes 215 / 36: two designers; A = Opus 5.5, B = Fable 5.2 (dispatched as opus and fable, 2026-11-22)",
+  "notes": "Agree 'yes' yet reconciliation run and a split left on screen spelling. PR number not stated.",
+  "match_labels_column_literal": [
+   "A",
+   "B"
+  ],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 416
+ },
+ {
+  "table": "two",
+  "num": 299,
+  "date": "2026-11-22",
+  "protocol": "3a6220f722",
+  "fork": "work/offer/a-refusal-offers-no-action-in-the-viewer.md (P1) with work/offer/a-check-offers-no-way-to-add-the-assertion-it-asks-for.md (P1), [ev] PR (this)",
+  "pr": null,
+  "fable_label": "B",
+  "opus_labels": [
+   "A"
+  ],
+  "fable_version": "Fable 5.2",
+  "opus_version": "Opus 5.5",
+  "era": "5.2",
+  "first_reports": {
+   "A": {
+    "answer": "Where a recourse fully determines an edit, kernel hands it over as data (quieting: Option<Quieting>); one Offer read fresh each frame; general add-assertion tool; Commit act carries session Generation",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": false
+   },
+   "B": {
+    "answer": "Kernel carries the act in finding's payload; one viewer offers function; doors Do / Fill / Not here; withhold offers while run outstanding; add one DESIGN sentence",
+    "confidence": "likely",
+    "rejected_framing": true,
+    "challenged_ratified": true
+   }
+  },
+  "agree_first": "partial",
+  "agree_text": "yes on the core (kernel value, one function, the assertion door first); split on the missing door, staleness and the DESIGN sentence",
+  "reconciliation_rounds": 2,
+  "who_moved": "R1 swapped (A to B on Not here, withholding, sentence; B to A on two kinds, generation stamp, sentence optional). Further designer C (rule 5, Fable 5.2) shown all four reports: offer-claims frame. Final round: A and B both moved to C on every point",
+  "to_Ev": "Agreed recommendation (C's frame) with three things: sign the [one-way.places] sentence, order (Assert first), plain words for a missing door",
+  "ev_decision": "2026-11-22 on PR: 'this all sounds good'; accepted agreed final state and every lean",
+  "ev_decided": true,
+  "match_text": "the reconciled recommendation (C's frame). Neither first report matched it: A's first had no plain-words statement and a generation stamp; B's first had a third door kind and withholding",
+  "match_labels": [],
+  "match_full_or_partial": "none",
+  "tokens": "",
+  "blinding_or_deviation_notes": "No Notes entry; further designer C (rule 5): byte 217, Fable 5.2, named in the row. bytes 167 / 226: two designers; A = Opus 5.5, B = Fable 5.2 (dispatched as opus and fable, 2026-11-22)",
+  "notes": "Ev's decision took the further Fable 5.2 designer C's frame (not a rule-2 first report); neither A nor B first report matched. PR number not stated.",
+  "match_labels_column_literal": [],
+  "designer_arm": "two",
+  "log_line_at_e44e340032": 417
+ }
+]

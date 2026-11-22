@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model comparison readout 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: one reading column (~70ch) for prose; charts and tables may run to 960px. Summary first, then each question, then the caveats. */
+:root {
+  color-scheme: light;
+  --bg: #f7f8f9;
+  --surface: #ffffff;
+  --ink: #101418;
+  --ink-2: #4a5360;
+  --ink-3: #7a8491;
+  --rule: #dde1e6;
+  --grid: #eceff2;
+  --opus: #2a78d6;
+  --fable: #eb6834;
+  --accent: #1d4f8c;
+  --warn-bg: #fff6e5;
+  --warn-ink: #7a4b00;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121519; --surface: #1a1e23; --ink: #eef1f4; --ink-2: #b9c1cb; --ink-3: #8a94a0;
+    --rule: #2e343b; --grid: #252a30; --opus: #3987e5; --fable: #d95926; --accent: #8db8ef;
+    --warn-bg: #2b2210; --warn-ink: #f0c36d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121519; --surface: #1a1e23; --ink: #eef1f4; --ink-2: #b9c1cb; --ink-3: #8a94a0;
+  --rule: #2e343b; --grid: #252a30; --opus: #3987e5; --fable: #d95926; --accent: #8db8ef;
+  --warn-bg: #2b2210; --warn-ink: #f0c36d;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--font-body); }
+.page { max-width: 960px; margin: 0 auto; padding: 40px 20px 80px; display: grid; gap: 40px; }
+.prose { max-width: 70ch; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: 2.1rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.5rem; padding-top: 8px; border-top: 2px solid var(--ink); }
+h3 { font-size: 1.12rem; margin-top: 8px; }
+p { margin: 0; }
+section { display: grid; gap: 16px; }
+.meta { color: var(--ink-2); font-size: 0.9rem; display: grid; gap: 4px; }
+.mono, .num, code { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+code { font-size: 0.86em; background: var(--grid); padding: 0 4px; border-radius: 3px; }
+.ci { color: var(--ink-3); font-size: 0.86em; }
+.banner { background: var(--warn-bg); color: var(--warn-ink); border-left: 4px solid currentColor; padding: 10px 14px; font-size: 0.92rem; border-radius: 0 4px 4px 0; }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.88rem; color: var(--ink-2); align-items: center; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.sw.opus { background: var(--opus); } .sw.fable { background: var(--fable); }
+.verdicts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.verdict { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
+.verdict .q { font-family: var(--font-display); font-weight: 600; font-size: 1.02rem; }
+.pill { justify-self: start; font-family: var(--font-mono); font-size: 0.74rem; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.pill.yes { color: #1a7f4b; } .pill.thin { color: #a86400; } .pill.no { color: #b3261e; }
+:root[data-theme="dark"] .pill.yes { color: #5fd197; } :root[data-theme="dark"] .pill.thin { color: #f0b35a; } :root[data-theme="dark"] .pill.no { color: #ff8a80; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pill.yes { color: #5fd197; } :root:not([data-theme="light"]) .pill.thin { color: #f0b35a; } :root:not([data-theme="light"]) .pill.no { color: #ff8a80; } }
+.verdict p { font-size: 0.92rem; color: var(--ink-2); }
+ol.findings { margin: 0; padding-left: 1.3em; display: grid; gap: 10px; max-width: 74ch; }
+.chart { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 14px 8px; position: relative; overflow-x: auto; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart svg text { fill: var(--ink-2); font-family: var(--font-body); font-size: 12px; }
+.chart svg .lbl { fill: var(--ink); font-size: 12.5px; }
+.chart svg .grp { fill: var(--ink-3); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+.chart svg .grid { stroke: var(--grid); }
+.chart svg .ref { stroke: var(--ink-3); stroke-dasharray: 3 3; }
+.cap { font-size: 0.86rem; color: var(--ink-2); max-width: 78ch; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 0.8rem; padding: 6px 9px; border-radius: 4px; max-width: 280px; opacity: 0; transition: opacity .08s; z-index: 2; }
+@media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+thead th { font-weight: 600; color: var(--ink-2); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+td.num { white-space: nowrap; }
+.cells { display: grid; grid-template-columns: auto 1fr 1fr; max-width: 520px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; font-size: 0.92rem; }
+.cells > div { padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+.cells .h { color: var(--ink-2); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.cells .v { font-family: var(--font-mono); font-size: 1.2rem; }
+.cells .v small { font-size: 0.72rem; color: var(--ink-3); display: block; }
+ul.caveats { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; max-width: 76ch; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main class="page">
+
+<header class="prose" style="display:grid;gap:12px">
+  <h1>Opus 5.5 vs Fable 5.2: model comparison readout 1</h1>
+  <div class="meta">
+    <span>Rows on main at <code>e44e340032</code> (2026-11-22): {{N_ROWS}} model-compare rows (PRs 6854–7346, 2026-11-12 to 11-22) and the Fable-5.2-era rows of the design-fork log.</span>
+    <span>Branch <code>analysis/model-compare/readout-1</code>, directory <code>analysis/model-compare-readout-1/</code>.</span>
+  </div>
+  <p class="banner">Off-file readout (protocol rule 11). An orchestrator with a dispatch or a design fork in flight should not read this page.</p>
+</header>
+
+<section>
+  <h2>Is there enough data?</h2>
+  <p class="prose">I checked this before fitting anything. The answer differs by question.</p>
+  <div class="verdicts">
+    <div class="verdict"><span class="q">Fable vs Opus as reviewers</span><span class="pill yes">enough</span>
+      <p>{{REV_F}} Fable and {{REV_O}} Opus fair reviews, including {{N_PAIRS}} concurrent units where both models read the same frozen head. The pairs carry the result, and they are all H-lettered units.</p></div>
+    <div class="verdict"><span class="q">Fable vs Opus as implementers</span><span class="pill thin">enough to rule out a large gap</span>
+      <p>{{IMP_F}} Fable and {{IMP_O}} Opus fair implementer halves. Wide intervals; and the measurement depends on which model reviewed (see the interaction below).</p></div>
+    <div class="verdict"><span class="q">Token cost</span><span class="pill no">not yet comparable</span>
+      <p>Tokens are recorded in about a third of phases, in three incompatible forms (per-turn, cumulative per agent, per session). Dollar cost and wall clock are usable; token volume is descriptive only.</p></div>
+    <div class="verdict"><span class="q">Design-fork designers (5.2 era)</span><span class="pill thin">thin</span>
+      <p>{{DF_N2}} two-designer and {{DF_N3}} three-designer forks since the release. Ev took both designers' shared answer in most; only {{DF_F}} + {{DF_O}} two-designer forks discriminate.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>What the rows say</h2>
+  <ol class="findings">
+    <li><strong>Fable 5.2 is the more thorough reviewer.</strong> Per review it raises about {{MAJ_RR}} times the MAJORs Opus 5.5 does ({{MAJ_F}} vs {{MAJ_O}} in total), adjusted for the implementer and the letter, and the excess holds for DEMONSTRATED MAJORs alone. It returns NOT-MERGEABLE-AS-IS on {{NM_F}} reviews against Opus's {{NM_O}}.</li>
+    <li><strong>On the same code, Fable finds what Opus misses, rarely the reverse.</strong> In the {{UNI_N}} concurrent pairs with a correspondence count, Fable raised more unilateral findings in {{UNI_WIN}}: {{UNI_F}} against {{UNI_O}} in total. Unilateral MAJORs: {{UMAJ_F}} Fable, {{UMAJ_O}} Opus. Fable also grades a little harder: where both raised one finding at different severities, Fable put it higher in 9 units and Opus in 4 (5 against 3 at the MAJOR line). But in the pairs Fable's MAJOR excess is 16 against 8, and 7 of those 8 come from findings Opus never raised, so the gap is mostly coverage.</li>
+    <li><strong>Fable's review costs more.</strong> About 1.4× the wall clock (median {{RV_T_F}} vs {{RV_T_O}} min) and about 2× the dollars (median ${{RV_C_F}} vs ${{RV_C_O}}), for roughly the same token volume: the dollar gap is price per token, not reading more. Within pairs: time ×{{PT_RATIO}}, cost ×{{PC_RATIO}} (n={{PC_N}}), tokens ×{{PTOK_RATIO}} (n={{PTOK_N}}).</li>
+    <li><strong>As implementers, no difference shows.</strong> MAJORs received per review: Fable/Opus {{IMP_MAJ_RR}}. Time and cost intervals straddle 1. Fable's code scores slightly higher on the reviewer's idiom rubric, the only implementer interval that clears zero.</li>
+    <li><strong>But the implementer comparison depends on who reviews.</strong> Opus reviewers raised almost no MAJORs on Fable's code; Fable reviewers raised the most on it. Judged by Opus reviews, Fable writes the cleaner code; judged by Fable reviews, Opus does. This is post hoc and the cells are small; it says the implementer question cannot be read off pooled MAJOR counts.</li>
+    <li><strong>Design forks: even.</strong> Where Ev's decision matched only one designer's first report on a two-designer fork, it was Fable {{DF_F}} times and Opus {{DF_O}} (90% interval for Fable's share {{DF_LO}}–{{DF_HI}}).</li>
+  </ol>
+</section>
+
+<section>
+  <h2>As reviewers</h2>
+  <p class="prose">Each row is a Fable/Opus ratio with its 90% interval, from a unit-clustered bootstrap. Counts are Poisson fits with the implementer's model and the letter as covariates; time and cost are log-scale fits with the letter. Right of the dashed line means Fable is higher.</p>
+  <div class="legend"><span><span class="sw fable"></span>Fable higher</span><span><span class="sw opus"></span>Opus higher</span><span>Hollow: interval crosses 1</span></div>
+  <div class="chart" id="rev-forest"></div>
+  <p class="cap">One record per fair primary review (single, first-of-sequential, or either slot of a concurrent pair). Re-reviews and second-of-sequential reviews are left out, as rule 2 counts a sequential unit through its first review. Cost and tokens cover only the reviews that report them.</p>
+
+  <h3 id="pairs-h">The concurrent pairs: same head, both models</h3>
+  <p class="prose">Unilateral findings are those the blind coder matched to nothing in the other review. Units whose row gives the correspondence only as lists, without counts, are left out of this chart.</p>
+  <div class="legend"><span><span class="sw fable"></span>Fable reviewer</span><span><span class="sw opus"></span>Opus reviewer</span></div>
+  <div class="chart" id="pairs"></div>
+  <p class="cap">Every concurrent unit is H-lettered, so the paired result is a result about hard units. Implementer of each unit in brackets.</p>
+</section>
+
+<section>
+  <h2>As implementers</h2>
+  <p class="prose">Same form as the reviewer chart: Fable/Opus ratios of what the unit's reviews raised against the implementation, adjusted for the reviewer's model and the letter, and of what the implementation took.</p>
+  <div class="chart" id="imp-forest"></div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Measure</th><th>Fable 5.2</th><th>Opus 5.5</th><th>Fable − Opus, 90% interval</th><th>Note</th></tr></thead>
+      <tbody>{{PROP_ROWS}}{{RUB_ROWS}}</tbody>
+    </table>
+  </div>
+  <p class="cap">Proportions: Beta(1,1) posteriors. Rubric: the reviewer's 1–5 scores, mean difference by bootstrap. The CI row has far more unknowns on the Fable side, so its apparent advantage should not be read.</p>
+
+  <h3 id="cells-h">MAJORs per review, by implementer and reviewer</h3>
+  <div class="cells" role="table" aria-label="MAJORs per review by implementer and reviewer model">
+    <div class="h" role="columnheader"></div><div class="h" role="columnheader">Opus reviewer</div><div class="h" role="columnheader">Fable reviewer</div>
+    <div class="h" role="rowheader">Opus code</div><div class="v">{{C_OO}}<small>n={{N_OO}}</small></div><div class="v">{{C_OF}}<small>n={{N_OF}}</small></div>
+    <div class="h" role="rowheader" style="border-bottom:0">Fable code</div><div class="v" style="border-bottom:0">{{C_FO}}<small>n={{N_FO}}</small></div><div class="v" style="border-bottom:0">{{C_FF}}<small>n={{N_FF}}</small></div>
+  </div>
+  <p class="cap">Fable's reviewer excess is about {{INTER}}× larger on Fable code than on Opus code (interaction rate ratio, 90% interval {{INTER_LO}}–{{INTER_HI}}). Two readings fit: Fable recognises its own failure modes, or Opus is lenient with Fable's. The rows cannot tell them apart; escapes (rule 10) could, once there are more than four.</p>
+</section>
+
+<section>
+  <h2>Design forks since the Fable 5.2 release</h2>
+  <p class="prose">Which designers' first reports Ev's decision took, rows dated 2026-11-10 on with a Fable 5.2 (or unversioned, post-release) designer. Rows the instrument note marks as spanning the release, and the 11-09 rows, are left out.</p>
+  <div class="legend" id="df-legend"></div>
+  <div class="chart" id="df"></div>
+  <p class="cap">On three-designer forks two of the three are Opus, so "Opus only" there has twice the chances; compare across models within the two-designer bar only. This tally reads the log's free-text match column as written; it is not the blinded two-pass coding of design-fork readout 1, which covered the 5.1 era.</p>
+</section>
+
+<section>
+  <h2>Caveats</h2>
+  <ul class="caveats">
+    <li><strong>Severity is the reviewer's own label.</strong> A MAJOR is what the review called a MAJOR. DEMONSTRATED narrows that to findings backed by a probe, a mutant, a compile probe or a red row, and the result survives it; the orchestrator's TAKEN/ARGUED DOWN calls are unblinded and argued down 2.5% of Opus's and 4% of Fable's findings, so they do not discriminate.</li>
+    <li><strong>Orchestrators differ.</strong> {{ORCH_F}} rows were run by a Fable 5.2 orchestrator and {{ORCH_O}} by Opus 5.5. Briefs, adjudication and row-writing pass through that orchestrator; it is the same for both arms within a unit, but it is not constant across units.</li>
+    <li><strong>Extraction.</strong> The rows are free-form; four agents extracted them to <code>rows.json</code> under <code>SCHEMA.md</code>, and I spot-checked rows against the source. Every recorded byte matches its model (even → Opus); {{DRAWS_E}} of {{DRAWS_N}} bytes are even, unremarkable for 1:1 draws.</li>
+    <li><strong>EMBED drew Opus thirteen times running</strong> (bytes on <code>analysis/model-compare/embed-2026-11-17</code>; about 1 in 8,000 by chance). Its later draws are mixed and the bytes are recorded, so its seven rows stay in. Dropping them leaves the reviewer MAJOR ratio at 2.6 and the implementer ratio at 1.0.</li>
+    <li><strong>Many comparisons, small n.</strong> Intervals are per-estimand. The reviewer gap clears 1 on several correlated measures; the interaction and the rubric difference are single post-hoc estimates.</li>
+    <li><strong>Escapes are too few to use.</strong> Four rows carry later escapes (6959 and 6963 Opus/Opus, 7143 Fable/Fable, 7146 Fable code under an Opus review, the last a roster entry rather than a defect). None was raised by its review.</li>
+    <li><strong>Waits are not subtracted</strong> from wall clock (slow-set runs, CI polls, usage-limit outages). Rows written before the 2026-11-17 outage rule recorded outage interruptions as either-arm-alike and stay counted.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Reproduce</h2>
+  <p class="prose"><code>demos/.venv/bin/python analyze.py .</code>, then <code>python3 report.py .</code>, from <code>analysis/model-compare-readout-1/</code>. Inputs: <code>rows.json</code> (model compare), <code>designfork.json</code> (design fork, 5.2 era). Output: <code>results.json</code> and this page. Seeded, numpy only.</p>
+</section>
+
+</main>
+<script>
+const DATA = {{DATA_JSON}};
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function tipFor(host) {
+  const t = document.createElement("div"); t.className = "tip"; host.appendChild(t);
+  return {
+    show(ev, text) { t.textContent = text; t.style.opacity = 1; const r = host.getBoundingClientRect();
+      let x = ev.clientX - r.left + host.scrollLeft + 12, y = ev.clientY - r.top + 12;
+      if (x + 290 > host.clientWidth + host.scrollLeft) x -= 300; t.style.left = x + "px"; t.style.top = y + "px"; },
+    hide() { t.style.opacity = 0; }
+  };
+}
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+function forest(id, rows) {
+  const host = document.getElementById(id); host.innerHTML = "";
+  const W = Math.max(host.clientWidth - 28, 520), labelW = Math.min(250, W * 0.38), right = 24;
+  const rowH = 30, groups = [...new Set(rows.map(r => r.group))];
+  const H = rows.length * rowH + groups.length * 22 + 36;
+  const svg = el("svg", {viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Fable over Opus ratios with 90% intervals"}, host);
+  const lo = 0.25, hi = 8, x0 = labelW + 12, x1 = W - right;
+  const sx = v => x0 + (Math.log(Math.min(Math.max(v, lo), hi)) - Math.log(lo)) / (Math.log(hi) - Math.log(lo)) * (x1 - x0);
+  const ticks = [0.25, 0.5, 1, 2, 4, 8];
+  for (const t of ticks) {
+    el("line", {x1: sx(t), x2: sx(t), y1: 4, y2: H - 26, class: t === 1 ? "ref" : "grid"}, svg);
+    el("text", {x: sx(t), y: H - 8, "text-anchor": "middle"}, svg, (t < 1 ? t : t + "") + "×");
+  }
+  const tip = tipFor(host);
+  let y = 8;
+  for (const g of groups) {
+    el("text", {x: 0, y: y + 12, class: "grp"}, svg, g === "quality" ? "What it raised / received" : "What it took");
+    y += 22;
+    for (const r of rows.filter(r => r.group === g)) {
+      const cy = y + rowH / 2, fableHi = r.lo > 1, opusHi = r.hi < 1, clear = fableHi || opusHi;
+      const col = r.est >= 1 ? css("--fable") : css("--opus");
+      el("text", {x: 0, y: cy + 4, class: "lbl"}, svg, r.label);
+      el("line", {x1: sx(r.lo), x2: sx(r.hi), y1: cy, y2: cy, stroke: col, "stroke-width": 2, "stroke-linecap": "round"}, svg);
+      el("circle", {cx: sx(r.est), cy, r: 5.5, fill: clear ? col : css("--surface"), stroke: col, "stroke-width": 2}, svg);
+      const hit = el("rect", {x: 0, y: y, width: W, height: rowH, fill: "transparent"}, svg);
+      const txt = `${r.label}: ${r.est.toFixed(2)}× [${r.lo.toFixed(2)}–${r.hi.toFixed(2)}], ${r.n}`;
+      hit.addEventListener("mousemove", e => tip.show(e, txt)); hit.addEventListener("mouseleave", () => tip.hide());
+      y += rowH;
+    }
+  }
+}
+
+function pairsChart() {
+  const host = document.getElementById("pairs"); host.innerHTML = "";
+  const rows = DATA.pairs.filter(p => p.uf !== null && p.uo !== null).sort((a, b) => (b.uf - b.uo) - (a.uf - a.uo));
+  const W = Math.max(host.clientWidth - 28, 480), labelW = 120, right = 30, rowH = 26;
+  const H = rows.length * rowH + 40;
+  const max = Math.max(...rows.map(r => Math.max(r.uf, r.uo))) + 1;
+  const svg = el("svg", {viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Unilateral findings per concurrent pair"}, host);
+  const x0 = labelW, x1 = W - right, sx = v => x0 + v / max * (x1 - x0);
+  for (let t = 0; t <= max; t += 5) {
+    el("line", {x1: sx(t), x2: sx(t), y1: 0, y2: H - 26, class: "grid"}, svg);
+    el("text", {x: sx(t), y: H - 8, "text-anchor": "middle"}, svg, t);
+  }
+  el("text", {x: x1, y: H - 8, "text-anchor": "end"}, svg, "unilateral findings");
+  const tip = tipFor(host);
+  rows.forEach((r, i) => {
+    const cy = 6 + i * rowH + rowH / 2;
+    el("text", {x: 0, y: cy + 4, class: "lbl"}, svg, `PR ${r.pr} `);
+    el("text", {x: 58, y: cy + 4}, svg, `(${r.impl})`);
+    el("line", {x1: sx(Math.min(r.uf, r.uo)), x2: sx(Math.max(r.uf, r.uo)), y1: cy, y2: cy, stroke: css("--rule"), "stroke-width": 3}, svg);
+    el("circle", {cx: sx(r.uo), cy, r: 6, fill: css("--opus"), stroke: css("--surface"), "stroke-width": 2}, svg);
+    el("circle", {cx: sx(r.uf), cy, r: 6, fill: css("--fable"), stroke: css("--surface"), "stroke-width": 2}, svg);
+    const hit = el("rect", {x: 0, y: cy - rowH / 2, width: W, height: rowH, fill: "transparent"}, svg);
+    const txt = `PR ${r.pr} (${r.impl} implementer): unilateral Fable ${r.uf}, Opus ${r.uo}; MAJORs Fable ${r.mf}, Opus ${r.mo}`;
+    hit.addEventListener("mousemove", e => tip.show(e, txt)); hit.addEventListener("mouseleave", () => tip.hide());
+  });
+}
+
+function dfChart() {
+  const host = document.getElementById("df"); host.innerHTML = "";
+  const cats = [["all", "All designers' shared answer", "--ink-3"], ["fable only", "Fable only", "--fable"],
+                ["fable+opus (not all)", "Fable + one Opus", "--accent"], ["opus only", "Opus only", "--opus"],
+                ["none", "No first report", "--rule"], ["undecided", "Not decided by Ev", "--grid"]];
+  const leg = document.getElementById("df-legend"); leg.innerHTML = "";
+  for (const [, name, v] of cats) { const s = document.createElement("span"); const d = document.createElement("span");
+    d.className = "sw"; d.style.background = css(v); d.style.borderRadius = "2px"; s.appendChild(d); s.appendChild(document.createTextNode(name)); leg.appendChild(s); }
+  const W = Math.max(host.clientWidth - 28, 480), labelW = 230, rowH = 46, H = DATA.df.length * rowH + 10;
+  const svg = el("svg", {viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Design-fork match outcomes"}, host);
+  const tip = tipFor(host);
+  DATA.df.forEach((row, i) => {
+    const total = cats.reduce((s, [k]) => s + (row[k] || 0), 0);
+    const y = 6 + i * rowH, x1 = W - 8; let x = labelW;
+    el("text", {x: 0, y: y + 20, class: "lbl"}, svg, row.label);
+    el("text", {x: 0, y: y + 36}, svg, `${total} forks`);
+    for (const [k, name, v] of cats) {
+      const n = row[k] || 0; if (!n) continue;
+      const w = n / total * (x1 - labelW);
+      const r = el("rect", {x: x + 1, y, width: Math.max(w - 2, 1), height: 30, rx: 3, fill: css(v)}, svg);
+      if (w > 22) el("text", {x: x + w / 2, y: y + 19, "text-anchor": "middle", style: `fill:${k === "all" || k === "fable only" || k === "opus only" || k === "fable+opus (not all)" ? "#fff" : css("--ink")}`}, svg, n);
+      r.addEventListener("mousemove", e => tip.show(e, `${row.label}: ${name}, ${n} of ${total}`)); r.addEventListener("mouseleave", () => tip.hide());
+      x += w;
+    }
+  });
+}
+function drawAll() { forest("rev-forest", DATA.rev_forest); forest("imp-forest", DATA.imp_forest); pairsChart(); dfChart(); }
+drawAll();
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
+new MutationObserver(drawAll).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+</script>
+</body>
+</html>
