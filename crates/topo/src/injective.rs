@@ -6580,6 +6580,19 @@ mod presentation_rows {
                 rate.hi() - rate.lo() < 1e-15 && rate.lo() <= 0.0 && 0.0 <= rate.hi(),
                 "cylinder, {along} m up: rate {rate:?}"
             );
+            // The same carrier about an axis twice as long: `square_to`
+            // removes the axial part for any `|axis|` (red where it divides
+            // by `|axis|`, not its square).
+            let long = Psi::Carrier(Implicit::Cylinder {
+                o: Point3::origin() + o.map(iv0),
+                axis: (d * 2.0).map(iv0),
+                r: iv0(0.006),
+            });
+            let rate = long.rate(b, v);
+            assert!(
+                rate.hi() - rate.lo() < 1e-15 && rate.lo() <= 0.0 && 0.0 <= rate.hi(),
+                "cylinder about a long axis, {along} m up: rate {rate:?}"
+            );
             let (sin, cos) = (0.6, 0.8);
             let cone = Psi::Carrier(Implicit::Cone {
                 apex: Point3::origin() + o.map(iv0),
