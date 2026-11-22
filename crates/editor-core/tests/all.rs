@@ -806,6 +806,8 @@ mod a_keel_ring_names_its_two_edges;
 mod a_mate_on_a_full_turn_bore_names;
 #[path = "a_mirror_is_a_construction.rs"]
 mod a_mirror_is_a_construction;
+#[path = "a_subtract_cuts_by_every_tool.rs"]
+mod a_subtract_cuts_by_every_tool;
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
 #[path = "decide_3_split_rows_interval.rs"]

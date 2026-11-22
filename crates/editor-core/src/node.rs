@@ -1412,9 +1412,10 @@ impl SitedFace {
 /// ([`crate::SelectionFault`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputFault {
-    /// A union's or an intersect's family argument carries an index
-    /// ([`crate::BodyRead`]): the argument reads the family whole, and
-    /// one member read by index is a `Body`, spelled in a list.
+    /// A union's or an intersect's family argument, or a subtract's
+    /// tools read as a family, carries an index ([`crate::BodyRead`]):
+    /// the argument reads the family whole, and one member read by index
+    /// is a `Body`, spelled in a list.
     IndexedFamily,
     /// An indexed read carries a number of indices other than its
     /// family's rank: a family is keyed by the indices its definer
@@ -2582,7 +2583,9 @@ impl<P> Node<P> {
     {
         // An indexed read carries its family's rank of indices, and a
         // family argument none.
-        if let Node::Union { members, .. } | Node::Intersect { members, .. } = self
+        if let Node::Union { members, .. }
+        | Node::Intersect { members, .. }
+        | Node::Subtract { tool: members, .. } = self
             && let crate::Bodies::Family(read) = members
             && read.is_member()
         {

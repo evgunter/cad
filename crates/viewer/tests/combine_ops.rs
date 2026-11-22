@@ -2404,17 +2404,17 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     boolean.pick(session.committed_doc(), a);
     assert_eq!(boolean.picks(), [a, b, a], "every pick appends");
 
-    // The subtraction's two seats: the first is the body KEPT, and a
-    // further pick replaces the SECOND, so the kept body stays where it
-    // was put. Changing the operation re-seats the first two members.
+    // The subtraction's seats: the first is the body KEPT, and every
+    // further pick appends a tool, so the kept body stays where it was
+    // put. Changing the operation re-seats the members in pick order.
     boolean.set_operation(BooleanOp::Subtract);
     assert_eq!(
         boolean.picks(),
-        [a, b],
-        "re-seated from the first two members"
+        [a, b, a],
+        "re-seated: the first member kept, the rest tools"
     );
+    boolean.clear();
     boolean.pick(session.committed_doc(), a);
-    assert_eq!(boolean.picks(), [a, a]);
     boolean.pick(session.committed_doc(), b);
     assert!(matches!(
         boolean.op(),
@@ -2426,8 +2426,8 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
         }) if first == BodyRead::from(a) && second == [BodyRead::from(b)]
     ));
 
-    // Deleting the REMOVED body's node empties that seat and leaves
-    // the kept one where it is — no promotion between roles.
+    // Deleting the REMOVED body's node drops that tool and leaves the
+    // kept one where it is — no promotion between roles.
     assert!(
         session
             .perform(SessionOp::DeleteNode { node: b })
@@ -2452,8 +2452,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
             seat: Seat::SubtractTool
         })
     ));
-    // The next pick refills the empty seat rather than displacing the
-    // held one.
+    // The next pick is a tool rather than displacing the held body.
     boolean.pick(session.committed_doc(), a);
     assert_eq!(boolean.picks(), [a, a]);
 
@@ -2740,9 +2739,9 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
 }
 
 /// The routing is NARROW: a pick both seats admit follows the plain
-/// rule, so a subtraction's operands still fill in order and a third
-/// pick still replaces the second — which is what makes `A ∖ B`'s
-/// kept body stay where it was put.
+/// rule, so a subtraction's operands fill in order and a third pick is
+/// a second tool — which is what makes `A ∖ B`'s kept body stay where
+/// it was put.
 ///
 /// The other half of the same narrowness: a pick NEITHER seat admits
 /// is not steered anywhere. It lands where the plain rule puts it and
@@ -2760,8 +2759,8 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
     boolean.pick(doc, a);
     assert_eq!(
         boolean.picks(),
-        [a, a],
-        "two body seats: the third pick replaces the second, as before",
+        [a, b, a],
+        "the body kept, then a tool per pick",
     );
 
     // A profile is no body, so the split tool has no seat to steer it

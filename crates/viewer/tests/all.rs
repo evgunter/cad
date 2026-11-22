@@ -223,6 +223,8 @@ mod story_assembly;
 mod story_authoring;
 #[path = "story_parametric.rs"]
 mod story_parametric;
+#[path = "subtract_tool_seat.rs"]
+mod subtract_tool_seat;
 #[path = "takeovers.rs"]
 mod takeovers;
 #[path = "theme.rs"]

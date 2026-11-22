@@ -3675,8 +3675,8 @@ fn cut_tools<T: Decide + topo::AtRestPolicy>(
         let projected = reads_projected(node, &[(seat, read.read)], doc, (results, vals, params))?;
         let results = projected.as_ref().unwrap_or(results);
         let value = value_of(results, at)?.whole();
-        let whole = seat == crate::OperandSlot::Cuts
-            || (value.members.is_some() && !read.is_member());
+        let whole =
+            seat == crate::OperandSlot::Cuts || (value.members.is_some() && !read.is_member());
         if !whole {
             out.push(distribute::Operand::read(results, at, read.read, doc, tol)?);
             continue;
@@ -3901,7 +3901,8 @@ fn fold_cuts<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     for (k, (tool, tool_body)) in tools.iter().zip(taken).enumerate() {
         let member =
             names::narrow(k + 1, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)?;
-        let step = names::narrow(k, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)?;
+        let step =
+            names::narrow(k, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)?;
         let placed_a = acc_framed
             .placed_in(&computing, &acc_body)
             .map_err(NodeErrorKind::Motion)?;
@@ -3952,7 +3953,8 @@ fn fold_cuts<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .map_err(NodeErrorKind::Naming)?;
         let base = coincidences.len();
         for row in named {
-            coincidences.push(cut_row_in_member_space(row, own_read, step).map_err(NodeErrorKind::Naming)?);
+            coincidences
+                .push(cut_row_in_member_space(row, own_read, step).map_err(NodeErrorKind::Naming)?);
         }
         let decided = coincidences.len() - base;
         let held = Arc::clone(&acc_records);

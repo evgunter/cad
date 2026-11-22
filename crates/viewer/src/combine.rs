@@ -261,7 +261,12 @@ impl BooleanTool {
         // A pick is read as the drawn body it lands on
         // ([`crate::world::seat_read`]).
         let read = crate::world::seat_read(doc, node, body);
-        let pick = |seat| (doc.spoken(read.0), Port::at_seat(doc, node, read, body, seat));
+        let pick = |seat| {
+            (
+                doc.spoken(read.0),
+                Port::at_seat(doc, node, read, body, seat),
+            )
+        };
         match &mut self.held {
             BooleanPicks::Members(members) => members.push(pick(Seat::Member)),
             BooleanPicks::Cut { from, tools } => match from {
@@ -340,7 +345,9 @@ impl BooleanTool {
             BooleanPicks::Members(members) => lost(members, Seat::Member),
             BooleanPicks::Cut { from, tools } => {
                 let mut events = Vec::new();
-                if from.as_ref().is_some_and(|(node, _)| doc.node(node.id()).is_none())
+                if from
+                    .as_ref()
+                    .is_some_and(|(node, _)| doc.node(node.id()).is_none())
                     && let Some((node, _)) = from.take()
                 {
                     events.push(SeatEvent::PickLost {
@@ -1152,7 +1159,9 @@ impl AssertionTool {
     /// as a seat says its node, a face as the chrome says a held pick.
     pub fn line(&self, by: Speaker<'_>) -> String {
         let said = |i: usize| match &self.picks[i] {
-            Some(AssertedPick::Body(node)) => Some(pick_said(by, node, &Port::ALONE, asserted(i).0)),
+            Some(AssertedPick::Body(node)) => {
+                Some(pick_said(by, node, &Port::ALONE, asserted(i).0))
+            }
             Some(AssertedPick::Face(held)) => Some(Said(held, by).to_string()),
             None => None,
         };

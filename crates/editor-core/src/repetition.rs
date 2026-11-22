@@ -271,14 +271,18 @@ impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
 }
 
 /// Whether `node` reads the variable at `seat` as a family whole: a
-/// member of a `Bodies` argument, or an indexed read.
+/// member of a `Bodies` argument (a union's, an intersect's or an
+/// assemble's members, a subtract's tools), or an indexed read.
 pub(crate) fn takes_whole<P: crate::ProfilePayload>(
     node: &crate::Node<P>,
     seat: crate::OperandSlot,
 ) -> bool {
     matches!(
         seat,
-        crate::OperandSlot::Members | crate::OperandSlot::Member(_)
+        crate::OperandSlot::Members
+            | crate::OperandSlot::Member(_)
+            | crate::OperandSlot::Cuts
+            | crate::OperandSlot::Cut(_)
     ) || node
         .body_read(seat)
         .is_some_and(crate::BodyRead::is_indexed)

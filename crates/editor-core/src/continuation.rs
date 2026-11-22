@@ -709,25 +709,23 @@ fn fate<P: crate::ProfilePayload + Clone>(
             .into_iter()
             .enumerate()
             .filter(|(i, _)| !lost.contains(&seat_of(*i)))
-            .map(
-                |(i, (stored, written))| match rewritten(seat_of(i)) {
-                    Some(Seat {
-                        read: Operand::Var(var),
-                        at,
-                    }) => {
-                        let at = at.clone().unwrap_or(written.at);
-                        (
-                            *var,
-                            !at.is_empty(),
-                            BodyRead {
-                                read: Operand::Var(*var),
-                                at,
-                            },
-                        )
-                    }
-                    _ => (stored.read, stored.is_indexed(), written),
-                },
-            )
+            .map(|(i, (stored, written))| match rewritten(seat_of(i)) {
+                Some(Seat {
+                    read: Operand::Var(var),
+                    at,
+                }) => {
+                    let at = at.clone().unwrap_or(written.at);
+                    (
+                        *var,
+                        !at.is_empty(),
+                        BodyRead {
+                            read: Operand::Var(*var),
+                            at,
+                        },
+                    )
+                }
+                _ => (stored.read, stored.is_indexed(), written),
+            })
             .collect();
         let census: Vec<(VarId, bool)> = kept
             .iter()

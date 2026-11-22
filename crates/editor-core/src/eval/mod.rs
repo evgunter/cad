@@ -6454,7 +6454,10 @@ where
         Node::World | Node::Space => {}
         // The operands and the members are input edges; a list's shape
         // is not.
-        Node::Subtract { from: _, tool: list }
+        Node::Subtract {
+            from: _,
+            tool: list,
+        }
         | Node::Union { members: list }
         | Node::Intersect { members: list }
         | Node::Assemble { members: list } => {
