@@ -315,6 +315,95 @@ fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
     }
 }
 
+/// **[`composite_sup`] over the part of `curve`'s domain inside `trim`**:
+/// the composite is cut at the trim's ends ([`CurveCertData::with_breaks`],
+/// exact in ℝ, no control re-rounded), and the sup is the largest over
+/// the spans that lie inside `trim`. `NaN` where no span lies inside it,
+/// and on every refusal [`composite_sup`] refuses.
+fn composite_sup_within(
+    curve: &NurbsCurve3<f64>,
+    surface: &ImplicitSurface,
+    (t0, t1): (f64, f64),
+) -> f64 {
+    let coords = curve.certified_coords();
+    let cuts = [t0, t1];
+    let Ok(data) = CurveCertData::new(curve.knots_f64_interim(), curve.weights(), &coords) else {
+        return f64::NAN;
+    };
+    let Ok(form) = compose::implicit_composite(&data.with_breaks(&cuts), surface) else {
+        return f64::NAN;
+    };
+    let at = form.num.breaks();
+    let (mut worst, mut any) = (0.0_f64, false);
+    // Fixed ascending span order (D9).
+    for (i, sup) in form.span_sup_bounds().into_iter().enumerate() {
+        let (Some(&lo), Some(&hi)) = (at.get(i), at.get(i + 1)) else {
+            return f64::NAN;
+        };
+        if lo >= t0 && hi <= t1 {
+            worst = geom_core::interval::max_bound(worst, sup);
+            any = true;
+        }
+    }
+    if any { worst } else { f64::NAN }
+}
+
+/// **INV-C1 and INV-C2's conversion**, at `Interval` and read outward:
+/// the plane composite's sup (metres, for a unit normal) and the sphere
+/// composite's (metres²) into one bound on the distance from the circle
+/// `plane ∩ sphere` of radius `radius`. A NaN sup is NaI here, and its
+/// bound NaN.
+fn circle_distance_of(plane_sup: f64, sphere_sup: f64, radius: f64) -> Interval {
+    // Meters² → meters divided by the radius (the smallest the divisor
+    // `|P−c| + r` can be), then the two into one distance-to-the-circle
+    // bound. The lower-bound branch is valid only for `r − δ_s ≥ 0`
+    // (invariant docs); where `δ_s` passes `r` the root's radicand no
+    // longer bounds anything — it may even be positive again, past `2r`
+    // — so the lower bound is taken only while `r − δ_s` is certified
+    // positive, and otherwise is `0`, which makes `m ≥ r`: refusal at
+    // every band, not a silent wrong number.
+    let r = Interval::point(radius);
+    let delta_p = Interval::point(plane_sup.abs());
+    let delta_s = Interval::point(sphere_sup.abs()) / r;
+    let gap = r - delta_s;
+    let inner = gap.sqr() - delta_p.sqr();
+    let lower = if gap.lo() > 0.0 && inner.lo() > 0.0 {
+        inner.sqrt().lo()
+    } else {
+        0.0
+    };
+    let m = delta_s.mag().max((r - Interval::point(lower)).mag());
+    (Interval::point(m).sqr() + delta_p.sqr()).sqrt()
+}
+
+/// **The certified sup of the distance of `curve`'s part inside `trim`
+/// from the circle about `center` in the plane normal to the unit `axis`,
+/// of radius `radius`** (INV-C1, INV-C2; the circle read as exact, as
+/// the promotion reads its own). `NaN` where none is certified.
+pub(crate) fn circle_locus_within(
+    curve: &NurbsCurve3<f64>,
+    (center, axis, radius): (Point3<f64>, Vec3<f64>, f64),
+    trim: (f64, f64),
+) -> f64 {
+    let plane_sup = composite_sup_within(
+        curve,
+        &ImplicitSurface::Plane {
+            point: center.to_array(),
+            normal: axis.to_array(),
+        },
+        trim,
+    );
+    let sphere_sup = composite_sup_within(
+        curve,
+        &ImplicitSurface::Sphere {
+            center: center.to_array(),
+            radius,
+        },
+        trim,
+    );
+    circle_distance_of(plane_sup, sphere_sup, radius).mag()
+}
+
 /// A spline's chord from its first control to its last ([`chord_of`]).
 struct Chord {
     first: Point3<f64>,
@@ -586,28 +675,9 @@ pub(crate) fn arc_residual(
             radius,
         },
     );
-    // INV-C1 and INV-C2 at `Interval`, read outward: meters² → meters
-    // divided by the radius (the smallest the divisor `|P−c| + r` can
-    // be), then the two into one distance-to-the-circle bound. The
-    // lower-bound branch is valid only for `r − δ_s ≥ 0` (invariant
-    // docs); where `δ_s` passes `r` the root's radicand no longer bounds
-    // anything — it may even be positive again, past `2r` — so the lower
-    // bound is taken only while `r − δ_s` is certified positive, and
-    // otherwise is `0`, which makes `m ≥ r`: refusal at every band this
-    // estimator admits, not a silent wrong number. A NaN sup is NaI here,
-    // and its residual NaN fails every band.
+    // INV-C1 and INV-C2 at `Interval`, read outward.
     let r = Interval::point(radius);
-    let delta_p = Interval::point(plane_sup.abs());
-    let delta_s = Interval::point(sphere_sup.abs()) / r;
-    let gap = r - delta_s;
-    let inner = gap.sqr() - delta_p.sqr();
-    let lower = if gap.lo() > 0.0 && inner.lo() > 0.0 {
-        inner.sqrt().lo()
-    } else {
-        0.0
-    };
-    let m = delta_s.mag().max((r - Interval::point(lower)).mag());
-    let locus = (Interval::point(m).sqr() + delta_p.sqr()).sqrt();
+    let locus = circle_distance_of(plane_sup, sphere_sup, radius);
     let Turning { total, low, high } = turning(curve, center, axis, u_ref)?;
     let residual = if closed {
         if !one_turn(total) {

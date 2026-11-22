@@ -718,14 +718,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
         "crates/topo/src/clearance.rs",
-        56,
+        54,
         16,
         "the 16 that ask are `poisoned` (2), `iso_bounded_domain`'s knots and joins (12) and \
-         `extent_of` (2). Of the other 40, `split_axis`'s 4 and the `coincidence` and \
+         `extent_of` (2). Of the other 38, `split_axis`'s 4 and the `coincidence` and \
          `meeting_stations` seeds (2 and 4) are selections; `min_separation`'s admission (2), \
          `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation `poisoned` has \
-         passed; `window_of`'s windows (6), `boundary_of`'s span (2) and `row_of`'s parameters \
-         (2) read values `certified_lift` crossed, which refuses the face unless every crossing \
+         passed; `window_of`'s windows (6) and `row_of`'s parameters (2) read values `certified_lift` crossed, which refuses the face unless every crossing \
          certifies; `support_separation`'s 8 are the choice of direction (each cell's normal and \
          the line between the boxes' centres, read at their middles) and of orientation, and the \
          supports' gap it reads after `poisoned` has passed both, a lower bound along any \
@@ -736,16 +735,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        177,
-        79,
-        "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+        178,
+        80,
+        "the 80 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `present_chart` (26), \
-         `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
+         `present_plane` (12), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
-         `is_certified()` and finiteness ask; `present_plane`'s 3 beyond its `y` are a side's \
+         `is_certified()` and finiteness ask; `present_plane`'s 4 beyond its `y` are a side's \
          chart range handed to `segment_params` (2) and a corner's far coordinate (1), read \
-         behind the same SPAN and CORNER funnels as its rectangle. `present_chart` asks each clip line where it is placed, so 16 of its \
+         behind the same SPAN and CORNER funnels as its rectangle, and a straight run's \
+         opposite-ways product (1), read behind its own `is_certified()` ask. `present_chart` asks each clip line where it is placed, so 16 of its \
          reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \
          lines; its other 10 read a sphere pole's clip line at `±π/2`, a constant never handed \
          to the ask, so they count as asking only because the census reads a whole function, \

@@ -1,6 +1,6 @@
-//! **R2 review probes for MESH-8** (issue 868, the coherence-detector
-//! relocation). Independent instruments, written to falsify the PR's
-//! claims rather than to re-assert them.
+//! **R2 review probes for MESH-8** (issue 868, which moved three
+//! input-quality detectors out of the walk). Independent instruments,
+//! written to falsify the PR's claims rather than to re-assert them.
 //!
 //! Every row here PRINTS what it measured; the assertions are only on
 //! the parts a reviewer is confident about, so a row that goes red is
@@ -16,20 +16,15 @@
 // there. A marker's own file is implicit; a sibling helper module is not.
 test_utils::gated_to![
     "crates/mesh/src/",
-    "crates/topo/src/coherence.rs",
     "crates/topo/src/splitting/",
     "crates/mesh/tests/common/",
 ];
 
 use crate::common;
-use common::witness_bodies::{keyway, oblique_lens, slit};
 use common::*;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::ExtrudeSide;
-use sweep::{Extrusion, extrude};
+use geom_core::{Point3, Tol, Vec3};
 use topo::Body;
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite, MevSite};
@@ -106,182 +101,6 @@ fn r2r_independent_byte_digest() {
 }
 
 // ---------------------------------------------------------------
-// The examination on a WIDER corpus than the unit's 14 (claim 6)
-// ---------------------------------------------------------------
-
-/// A tilted split of a cylinder: the section is an ELLIPSE, so both
-/// halves mesh through the pcurve-driven trimmed lane rather than
-/// through the iso walk. `m5_pr11_trimmed` pins that they tessellate
-/// watertight at every δ.
-fn tilted_halves() -> (Body<f64>, Body<f64>) {
-    let lp = bulge_loop(vec![
-        (Point2::new(-1.0, 0.0), 1.0),
-        (Point2::new(1.0, 0.0), 1.0),
-    ]);
-    let disc = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let cylinder = extrude(
-        &disc,
-        Extrusion::Distance {
-            depth: 2.5,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .unwrap()
-    .body;
-    let cylinder = topo::test_support::finished("the cylinder", cylinder, Tol::witness());
-    let plane = topo::test_support::split_plane(
-        Point3::new(0.0, 0.0, 1.25),
-        Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
-        geom_core::Tol::witness(),
-    );
-    let r = topo::splitting::split(&cylinder, &plane, Tol::witness()).unwrap();
-    let (topo::splitting::SplitPart::Body(a), topo::splitting::SplitPart::Body(b)) =
-        (&r.above, &r.below)
-    else {
-        panic!("both sides carry material");
-    };
-    (Body::clone(a), Body::clone(b))
-}
-
-/// **Does the examination stay quiet on bodies that MESH CLEANLY but
-/// are not in the unit's 14-body corpus?** The corpus row asserts
-/// `0 findings, 0 unexamined` over bodies the iso walk handles; the
-/// examination has no shape door in front of it, so it also reads
-/// faces the walk never walks.
-///
-/// This row PRINTS rather than asserts: a nonzero count here is a
-/// finding about the report's reach, not necessarily a defect.
-#[test]
-fn r2r_the_examination_on_bodies_outside_the_units_corpus() {
-    let tol = Tol::witness();
-    let (above, below) = tilted_halves();
-    let corpus: Vec<(&str, Body<f64>)> = vec![
-        ("tilted_half_above", above),
-        ("tilted_half_below", below),
-        ("keyway", keyway().0),
-        ("oblique_lens", oblique_lens().0),
-        ("slit", slit().0),
-    ];
-    for (name, body) in &corpus {
-        let report = topo::examine_chart_coherence(body, tol);
-        let meshes = mesh::tessellate(body, 0.05, tol).is_ok();
-        println!(
-            "WIDER {name}: meshes={meshes} findings={} unexamined={}",
-            report.findings.len(),
-            report.unexamined.len()
-        );
-        for f in &report.findings {
-            println!("   finding {:?} metres={:e}", f.condition, f.metres);
-        }
-        for u in &report.unexamined {
-            println!("   unexamined {:?}", u.why);
-        }
-    }
-}
-
-// ---------------------------------------------------------------
-// The behaviour change: what was loud, what is now quiet (claim 8)
-// ---------------------------------------------------------------
-
-/// The `nist_ftc_09` shape at an arbitrary scale: a cylinder sliver
-/// whose meridian side is a LINE whose two endpoints the source states
-/// non-co-azimuthally, opening `metres` of arc at the closure.
-///
-/// Same construction as the unit's `chord_wobble`, re-derived here so
-/// the two are independent instruments over one shape.
-fn wobbled_sliver(metres: f64) -> Option<Body<f64>> {
-    let tol = Tol::witness();
-    let rr = 0.05_f64;
-    let theta = 2.0 * metres / rr;
-    let a = Point3::new(rr, 0.0, 0.0);
-    let b = Point3::new(rr * theta.cos(), rr * theta.sin(), 0.0);
-    let rim = Curve3::circle(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        rr,
-        Vec3::new(1.0, 0.0, 0.0),
-    );
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a, true).unwrap();
-    body.set_face_surface(
-        seed.face,
-        FaceSurface::New {
-            surface: Surface::Cylinder {
-                frame: geom::Frame::new(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::new(0.0, 0.0, 1.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                ),
-                radius: rr,
-            },
-            sense: true,
-        },
-    )
-    .unwrap();
-    let arc = EdgeCurveSpec::arc_of_circle(rim, 0.0, theta)?;
-    let e = body
-        .mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            b,
-            arc,
-            tol,
-        )
-        .ok()?;
-    body.mef(
-        MefSite::Chords {
-            he1: e.he_minus,
-            he2: e.he_plus,
-        },
-        EdgeCurveSpec::line_between(b, a),
-        FaceSurface::Inherit,
-        tol,
-    )
-    .ok()?;
-    Some(body)
-}
-
-/// **Is there a body the deleted assertion caught that nothing catches
-/// now?** Sweep the closure gap from just over the band to 1024 ε and
-/// print, per scale, whether `tessellate` succeeds and what the
-/// examination says.
-///
-/// At the merge base the same row shows what the mesh-side
-/// `debug_assert` did on each of those bodies — run it at both
-/// revisions and read the two outputs side by side.
-#[test]
-fn r2r_the_wobble_scale_sweep() {
-    let tol = Tol::witness();
-    let eps = tol.eps();
-    for k in [1.0f64, 2.0, 8.0, 64.0, 1024.0, 65536.0] {
-        let Some(body) = wobbled_sliver(k * eps) else {
-            println!("WOBBLE k={k} eps={eps:e} NOT CONSTRUCTIBLE (the arc does not certify)");
-            continue;
-        };
-        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            mesh::tessellate(&body, 0.01, tol)
-        }));
-        let mesh_says = match &outcome {
-            Ok(Ok(m)) => format!(
-                "Ok({} tris)",
-                m.patches.iter().map(|p| p.triangles.len()).sum::<usize>()
-            ),
-            Ok(Err(e)) => format!("{e:?}"),
-            Err(_) => "PANIC".to_string(),
-        };
-        let report = topo::examine_chart_coherence(&body, tol);
-        println!(
-            "WOBBLE k={k} eps={eps:e} tessellate={mesh_says} findings={}",
-            report.findings.len()
-        );
-    }
-}
-
-// ---------------------------------------------------------------
 // Issue 1571's body through `tessellate` — the BEFORE/AFTER row
 // (claims 5 and 8)
 // ---------------------------------------------------------------
@@ -290,22 +109,15 @@ fn r2r_the_wobble_scale_sweep() {
 /// at `z = 0.5` and ONE great-circle arc from the rim's `u = π` end
 /// OVER the north pole to its `u = 0` end.
 ///
-/// **Citation corrected (MESH-11):** this used to call itself "one of
-/// four declared copies" and point at an ADOPTION NOTE in
-/// `topo/tests/mesh8_coherence.rs` giving the reason there is no
-/// single home. No such note exists there — the pointer was to a
-/// document that was never written. What is true, and countable: the
-/// body is declared as a `Body` in three places — `mesh/tests/common/
-/// witness_bodies.rs` (the shared home MESH-11 made, which
-/// `mesh7r1_probes` and `mesh11_arc_branch` both use), this file's
-/// copy, and `topo/tests/mesh8_coherence.rs`'s — plus twice as
+/// The body is declared as a `Body` here and in
+/// `mesh/tests/common/witness_bodies.rs` (the shared home, which
+/// `mesh7r1_probes` and `mesh11_arc_branch` both use), plus twice as
 /// hand-built `LoopEdge` loops for the props doors
 /// (`geom-brep/tests/cert1_sphere_polar.rs`,
-/// `geom-brep/tests/mesh11_arc_branch.rs`), which are a different
-/// thing and cannot share the `Body` home. The reason THIS copy stays
-/// separate is the reviewer's own and is stated where it belongs: an
-/// independent instrument that re-derives its subject is evidence in
-/// a way one that imports it is not.
+/// `geom-brep/tests/mesh11_arc_branch.rs`), which cannot share the
+/// `Body` home. This copy stays separate because an independent
+/// instrument that re-derives its subject is evidence in a way one that
+/// imports it is not.
 fn pole_crossing_half_cap() -> Body<f64> {
     let tol = Tol::witness();
     let rim_r = (1.0f64 - 0.25).sqrt();
@@ -378,9 +190,6 @@ fn pole_crossing_half_cap() -> Body<f64> {
 /// deletion leaves — an `Ok` mesh, a typed refusal, or a panic from a
 /// DIFFERENT guard (the issue-897 census). Run it with debug
 /// assertions on and off.
-///
-/// It also prints what the relocated examination reports on the same
-/// body, so the two halves of the relocation are read side by side.
 #[test]
 fn r2r_the_1571_body_through_tessellate() {
     let tol = Tol::witness();
@@ -412,17 +221,5 @@ fn r2r_the_1571_body_through_tessellate() {
             }
         };
         println!("W1571 delta={d} eps={:e} {says}", tol.eps());
-    }
-    let report = topo::examine_chart_coherence(&body, tol);
-    println!(
-        "W1571 examination: findings={} unexamined={}",
-        report.findings.len(),
-        report.unexamined.len()
-    );
-    for f in &report.findings {
-        println!(
-            "   {:?} gap={} lever={} metres={} eps={:e}",
-            f.condition, f.gap, f.lever, f.metres, f.eps
-        );
     }
 }

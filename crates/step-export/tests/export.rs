@@ -607,7 +607,7 @@ fn committed_fixtures_are_byte_golden() {
 /// actionable if some site assumes BITWISE membership of a vertex in a
 /// surface, and a search of the kernel finds none — the bitwise
 /// comparisons that exist are surface-to-surface (`surface_sig`'s
-/// dedup), curve-to-curve (`bitwise_iso_match`) and vertex-to-vertex
+/// dedup), curve-to-curve (`step_import::on_built::bitwise_twin`) and vertex-to-vertex
 /// (the boolean zip's coincidence requirement). This row is the
 /// record.
 #[test]

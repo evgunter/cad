@@ -1709,9 +1709,8 @@ fn a_flap_through_a_run_at_its_vertex_never_holds() {
         use topo::test_support::plane;
 
         let mut body = flush_union::<T>().into_body();
-        let at = |x: f64, y: f64, z: f64| {
-            Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
-        };
+        let at =
+            |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
         let v_at = at(1.0, 0.25, 1.0);
         let v = body
             .vertices()
@@ -2108,6 +2107,35 @@ fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
         report.receipt
     );
     assert_eq!(report.receipt.refused, 210, "{:?}", report.receipt);
+}
+
+/// **A drum whose splits fall a rounding off its half-circle runs out of
+/// depth**: the same drum at radius 0.7, whose half-annulus cells beside
+/// the disc's half-circle are read by no presentation
+/// (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
+/// Red when it holds, and that row's reading has landed.
+#[test]
+fn a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
+    use crate::common::latitude_seam::ring_on_cap;
+    use sweep::test_support::{corners, revolved_about_y};
+    let (r, h) = (0.7, 2.0);
+    let mut drum = revolved_about_y(
+        corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)]),
+        Revolution::Full,
+        Tol::witness(),
+    );
+    ring_on_cap(&mut drum, h, r, r / 2.0);
+    let report = injective(&drum, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(_))
+        ),
+        "the drum runs out of depth: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    assert!(report.receipt.refused > 0, "{:?}", report.receipt);
 }
 
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
