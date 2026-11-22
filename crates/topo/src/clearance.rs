@@ -1705,7 +1705,7 @@ impl Sweep {
                         }
                         Err(r) => {
                             receipt.refused += 1;
-                            if q.refuse_below(r).is_break() {
+                            if site_gate("bykind", q.refuse_below(r)).is_break() {
                                 ended_at = Some(k);
                                 break;
                             }
@@ -1768,6 +1768,21 @@ impl Sweep {
                 decided,
             }
         })
+    }
+}
+
+/// REVIEW PROBE: the mutant named by `REVIEW_MUTANT`, read once.
+fn review_mutant() -> &'static str {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("REVIEW_MUTANT").unwrap_or_default())
+}
+
+/// REVIEW PROBE: a site whose `Break` is ignored under its mutant.
+fn site_gate(site: &str, cf: ControlFlow<()>) -> ControlFlow<()> {
+    if review_mutant() == site {
+        ControlFlow::Continue(())
+    } else {
+        cf
     }
 }
 
@@ -2075,6 +2090,18 @@ impl<W, F> Bound<'_, W, F> {
     /// site's: a split the walk refused has counted it, and every other
     /// site lands it in its [`Bucket`].
     fn refuse_below(&mut self, refusal: EngineRefusal) -> ControlFlow<()> {
+        match review_mutant() {
+            "never" => {
+                self.keep_below(refusal);
+                return ControlFlow::Continue(());
+            }
+            "metric" => {
+                self.keep_below(refusal);
+                return ControlFlow::Break(());
+            }
+            "nokeep" if self.at_refusal == AtRefusal::End => return ControlFlow::Break(()),
+            _ => {}
+        }
         self.keep_below(refusal);
         match self.at_refusal {
             AtRefusal::End => ControlFlow::Break(()),
@@ -2148,7 +2175,7 @@ impl<W, F> Bound<'_, W, F> {
                         a: at.x.face,
                         b: at.y.face,
                     };
-                    if self.refuse_below(refusal).is_break() {
+                    if site_gate("witness", self.refuse_below(refusal)).is_break() {
                         return ControlFlow::Break(Bucket::Refused);
                     }
                 }
@@ -2421,7 +2448,11 @@ where
         // ends at a refusal.
         let mut bucket = match self.settle(&r, &at) {
             ControlFlow::Break(bucket) => {
-                bucket.count(&mut walk.receipt);
+                if review_mutant() == "pairbucket" {
+                    walk.receipt.violated += 1;
+                } else {
+                    bucket.count(&mut walk.receipt);
+                }
                 return ControlFlow::Break(());
             }
             ControlFlow::Continue(bucket) => bucket,
@@ -2473,7 +2504,7 @@ where
             match Self::terminal(source, x.face, y.face) {
                 Some(refusal) => {
                     bucket = Bucket::Refused;
-                    if self.refuse_below(refusal).is_break() {
+                    if site_gate("terminal", self.refuse_below(refusal)).is_break() {
                         bucket.count(&mut walk.receipt);
                         return ControlFlow::Break(());
                     }

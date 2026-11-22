@@ -3565,3 +3565,40 @@ fn two_bricks_a_band_apart_refuse_as_a_sliver_and_end_the_ask() {
     let r = report.receipt;
     assert!(r.refused == 1 && r.abandoned > 0, "{r:?}");
 }
+
+/// Review probe (delta): the far placements the row skips below ε 1e-9,
+/// asked anyway at each scalar, each caught.
+#[test]
+fn review_probe_far_placements_at_this_eps() {
+    use topo::clearance::Embedding;
+    fn one<T: Scalar + geom_core::Certifies>(o: [f64; 3], mirror: bool, from: usize, rev: bool) -> String {
+        let body = void_touching_plate_at::<T>(o, mirror, from).into_body();
+        let mut faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        if rev {
+            faces.reverse();
+        }
+        let r = topo::clearance::embedded(
+            &Side { body: &body, faces },
+            band(),
+            Budgets { max_cell_depth: DEFAULT_MAX_CELL_DEPTH, max_cell_pairs: BUDGET },
+        );
+        match r.verdict {
+            Embedding::Embedded => "embedded".into(),
+            Embedding::Crosses(_) => "crosses".into(),
+            Embedding::Refused(e) => format!("refused:{}", e.name()),
+        }
+    }
+    for o in [[1.0, 1.0, 1.0], [3.0, 3.0, 3.0], [10.0, 10.0, 10.0], [10.0, 0.0, 0.0]] {
+        for mirror in [false, true] {
+            for from in 0..3 {
+                for rev in [false, true] {
+                    let f = std::panic::catch_unwind(|| one::<f64>(o, mirror, from, rev))
+                        .unwrap_or_else(|_| "PANIC".into());
+                    let i = std::panic::catch_unwind(|| one::<Interval>(o, mirror, from, rev))
+                        .unwrap_or_else(|_| "PANIC".into());
+                    println!("[far] eps {} o={o:?} m={mirror} from={from} rev={rev}: f64 {f} | Interval {i}", tol().eps());
+                }
+            }
+        }
+    }
+}
