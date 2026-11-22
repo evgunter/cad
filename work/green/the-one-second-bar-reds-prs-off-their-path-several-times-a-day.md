@@ -6,7 +6,6 @@ status: dispatched
 opened: 2026-11-22
 priority: P1
 cost: M
-design: true
 ---
 
 
