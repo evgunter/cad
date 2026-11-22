@@ -495,7 +495,10 @@ pub enum Bodies<R> {
 /// **One entry of a spelled list** ([`Bodies::Spelled`]): one body, or
 /// a family spliced in whole, `…xs` (D10 `[repetition]`), its members in
 /// index order at the splice's place.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+///
+/// Serialized as the bare read for one body, and as `{"All": …}` for a
+/// splice, so a list of single bodies is spelled as a list of reads.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Spell<R> {
     /// One body.
     One(R),
@@ -533,6 +536,41 @@ impl<R> Spell<R> {
         Ok(match self {
             Self::One(read) => Spell::One(f(read)?),
             Self::All(read) => Spell::All(f(read)?),
+        })
+    }
+}
+
+impl<R: serde::Serialize> serde::Serialize for Spell<R> {
+    fn serialize<Z: serde::Serializer>(&self, ser: Z) -> Result<Z::Ok, Z::Error> {
+        use serde::ser::SerializeMap as _;
+        match self {
+            Self::One(read) => read.serialize(ser),
+            Self::All(read) => {
+                let mut map = ser.serialize_map(Some(1))?;
+                map.serialize_entry("All", read)?;
+                map.end()
+            }
+        }
+    }
+}
+
+impl<'de, R: serde::Deserialize<'de>> serde::Deserialize<'de> for Spell<R> {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct All<R> {
+            #[serde(rename = "All")]
+            all: R,
+        }
+        #[derive(serde::Deserialize)]
+        #[serde(untagged)]
+        enum Either<R> {
+            All(All<R>),
+            One(R),
+        }
+        Ok(match Either::<R>::deserialize(de)? {
+            Either::All(All { all }) => Self::All(all),
+            Either::One(read) => Self::One(read),
         })
     }
 }

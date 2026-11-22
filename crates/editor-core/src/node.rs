@@ -3074,6 +3074,18 @@ impl<P, S: Slot> Node<P, S> {
         if let Some(role) = self.seat_role(seat) {
             return crate::SlotKind::Is(role.of());
         }
+        // A splice, `…xs`, reads a family whole (D10 `[repetition]`).
+        if let (
+            Node::Union { members, .. }
+            | Node::Intersect { members, .. }
+            | Node::Assemble { members, .. },
+            crate::OperandSlot::Member(i),
+        ) = (self, seat)
+            && let crate::Bodies::Spelled(entries) = members
+            && entries.get(i).is_some_and(crate::Spell::is_splice)
+        {
+            return crate::SlotKind::Is(crate::VarKind::Bodies);
+        }
         self.body_read(seat)
             .map_or_else(|| seat.kind(), |read| read.kind(seat))
     }

@@ -1524,12 +1524,27 @@ pub fn assemble_world_copies_edits(
             doc.var(copy)
                 .is_some_and(|v| v.kind() == crate::VarKind::Body)
         })
+        // A copy inside a binder is read outside it only as what the
+        // binder yields (D10 `[repetition]`).
+        .filter(|&copy| doc.yielding(copy).is_some() || doc.var_reach(copy).is_none())
         .collect();
+    // A family the binder yields is spliced in whole.
+    let entry = |doc: &ProfileDoc, copy: crate::VarId| {
+        let read = crate::BodyRead::plain(crate::Operand::Var(copy));
+        if doc.yielding(copy).is_some() {
+            crate::Spell::All(read)
+        } else {
+            crate::Spell::One(read)
+        }
+    };
     let spelled = |copies: &[crate::VarId]| {
-        crate::Bodies::spelled(
+        crate::Bodies::Spelled(
             copies
                 .iter()
-                .map(|&copy| crate::BodyRead::plain(copy))
+                .map(|&copy| match entry(&doc, copy) {
+                    crate::Spell::All(_) => crate::Spell::All(crate::BodyRead::plain(copy)),
+                    crate::Spell::One(_) => crate::Spell::One(crate::BodyRead::plain(copy)),
+                })
                 .collect(),
         )
     };
@@ -1553,17 +1568,19 @@ pub fn assemble_world_copies_edits(
         several => {
             let insert = crate::DocEdit::InsertNode {
                 node: Box::new(Node::Assemble {
-                    members: crate::Bodies::spelled(
-                        several
-                            .iter()
-                            .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))
-                            .collect(),
+                    members: crate::Bodies::Spelled(
+                        several.iter().map(|&copy| entry(&doc, copy)).collect(),
                     ),
                 }),
                 fresh: Vec::new(),
             };
-            let outcome = crate::apply(&doc, &insert, tol)
-                .unwrap_or_else(|e| panic!("the world's copies assemble: {e}"));
+            let outcome = crate::apply(&doc, &insert, tol).unwrap_or_else(|e| {
+                let dbg: Vec<_> = several
+                    .iter()
+                    .map(|&c| (c, doc.yielding(c), doc.var(c).map(crate::Var::kind)))
+                    .collect();
+                panic!("the world's copies assemble: {e} DBG {dbg:?} {insert:?}")
+            });
             log.push(insert);
             doc = outcome.doc;
             crate::Operand::Node(outcome.record.minted.expect("an insert mints its node"))

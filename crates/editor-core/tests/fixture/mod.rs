@@ -1609,6 +1609,84 @@ pub fn value_bump(
     }
 }
 
+/// **A placement of a pattern's copy, as the fixture writes it** (D10
+/// `[repetition]`): it places each member, reading `xs[k]` at the
+/// pattern binder's indices, `{k in xs: place(xs[k])}`, so it joins the
+/// binder. Any other node as it is.
+fn member_placement(doc: &ProfileDoc, node: AuthoredNode) -> AuthoredNode {
+    // A placement of a pattern's copy places each member (D10
+    // `[repetition]`): it reads `xs[k]` at the pattern binder's indices,
+    // `{k in xs: place(xs[k])}`, so it joins the binder, which yields it.
+    match node {
+        Node::Place {
+            source,
+            target,
+            constraints,
+        } if !source.is_member() => {
+            let indexed = operand_var(doc, &source.read)
+                .and_then(|var| doc.yielding(var))
+                .map(|binder| {
+                    doc.binder_indices(binder)
+                        .into_iter()
+                        .map(|index| Formula::var(index, editor_core::Dimension::Count))
+                        .collect::<Vec<_>>()
+                });
+            let source = match (indexed, source.read.clone()) {
+                (Some(at), editor_core::Operand::Source(body)) => {
+                    editor_core::BodyRead::plain(editor_core::Operand::Source(Box::new(
+                        editor_core::BodyRead::indexed(body.read, at),
+                    )))
+                }
+                (Some(at), read) => editor_core::BodyRead::plain(editor_core::Operand::Source(
+                    Box::new(editor_core::BodyRead::indexed(read, at)),
+                )),
+                (None, _) => source,
+            };
+            Node::Place {
+                source,
+                target,
+                constraints,
+            }
+        }
+        other => other,
+    }
+}
+
+/// **The yield a pattern adds to its binder**, as the façade's pattern
+/// writers write it: a placement `id` reading an index is yielded by
+/// that index's binder. `None` for any other node.
+fn pattern_yield(doc: &ProfileDoc, id: RecipeNodeId) -> Option<DocEdit<ProfileProgram>> {
+    let reached = doc.node_reach(id);
+    let (Some(Node::Place { .. }), Some([first, ..])) = (doc.node(id), reached.chain()) else {
+        return None;
+    };
+    let out = doc.output(id, 0)?;
+    let binder = doc.binder_of(*first)?;
+    if doc.yields(binder).contains(&out) {
+        return None;
+    }
+    let mut yields: Vec<editor_core::VarRef> =
+        doc.yields(binder).iter().map(|&y| y.into()).collect();
+    yields.push(out.into());
+    Some(DocEdit::SetYields {
+        binder: binder.into(),
+        yields,
+    })
+}
+
+/// **The variable an operand reads**, where it names one by node, port,
+/// id or name.
+fn operand_var(doc: &ProfileDoc, read: &editor_core::Operand) -> Option<VarId> {
+    match read {
+        editor_core::Operand::Node(id) => doc.outputs(*id).first().copied(),
+        editor_core::Operand::Output { node, port } => doc.output(*node, *port),
+        editor_core::Operand::Var(var) => Some(*var),
+        editor_core::Operand::Name(name) => doc.var_named(name.as_str()),
+        editor_core::Operand::Source(body) if !body.is_member() => operand_var(doc, &body.read),
+        _ => None,
+    }
+}
+
 /// **The id `doc`'s next insert would mint**, read by making that
 /// insert on a copy: an id no node of `doc` holds, whatever the mint.
 pub fn next_mint(doc: &ProfileDoc) -> RecipeNodeId {
@@ -1631,6 +1709,7 @@ pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
 }
 
 pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
+    let node = member_placement(&doc, node);
     let (doc, minted) = step(
         doc,
         DocEdit::InsertNode {
@@ -1639,15 +1718,9 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
         },
     );
     let id = minted.unwrap();
-    // A placement reading an index is a pattern, which its binder yields
-    // (D10 `[repetition]`), as the façade's pattern writers write it.
-    let doc = match (doc.node(id), doc.node_reach(id).chain()) {
-        (Some(Node::Place { .. }), Some([first, ..])) => {
-            let out = doc.output(id, 0).expect("a placement defines its copy");
-            let binder = doc.binder_of(*first).expect("an index has a binder");
-            yield_more(doc, binder, &[out])
-        }
-        _ => doc,
+    let doc = match pattern_yield(&doc, id) {
+        Some(edit) => step(doc, edit).0,
+        None => doc,
     };
     // The fixture's product is the world's copies, which a placement
     // into the world joins.
@@ -2413,12 +2486,16 @@ impl Recorder {
     /// world writes the product anew as the world's copies
     /// ([`Self::assemble_world_copies`]).
     pub fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
+        let node = member_placement(&self.doc, node);
         let at = self
             .push(DocEdit::InsertNode {
                 node: Box::new(node),
                 fresh: Vec::new(),
             })
             .expect("minted id");
+        if let Some(edit) = pattern_yield(&self.doc, at) {
+            self.push(edit);
+        }
         if self.doc.node_space(at) == Some(editor_core::VarId::WORLD) {
             self.assemble_world_copies();
         }

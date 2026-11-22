@@ -1943,8 +1943,12 @@ fn lower_source_decl<P: crate::ProfilePayload>(
         true => VarKind::Bodies,
         false => VarKind::Body,
     });
-    if let Some(crate::doc::ReadFault::Kind { found }) =
-        doc.read_fault(read, held, expected, Reader::Constructs)
+    // A source reading a family whole is that family to its readers,
+    // each of which reads it whole or by member (D10 `[repetition]`).
+    let family = !body.is_indexed() && doc.family_through_sources(read);
+    if !family
+        && let Some(crate::doc::ReadFault::Kind { found }) =
+            doc.read_fault(read, held, expected, Reader::Constructs)
     {
         return Err(refused(SourceFault::Kind { found }));
     }
@@ -8333,28 +8337,21 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     let family_faults = new.family_read_faults();
     if !family_faults.is_empty() {
         let before = doc.family_read_faults();
-        if let Some(fault) = family_faults.into_iter().find(|f| !before.contains(f)) {
-            return Err(match fault {
-                crate::repetition::FamilyReadFault::Seat {
-                    node,
-                    slot,
-                    var,
-                    found,
-                } => EditError::SlotVarKind {
-                    var: Box::new(new.spoken_var(var)),
-                    node: spoken_before_else_after(doc, &new, node),
-                    slot: SlotId::Operand(slot),
-                    found,
-                    expected: new
-                        .node(node)
-                        .map_or_else(|| slot.kind(), |held| held.seat_kind(slot)),
-                },
-                crate::repetition::FamilyReadFault::Source { source, found, .. } => {
-                    EditError::SourceRead {
-                        var: new.spoken_var(source),
-                        fault: SourceFault::Kind { found },
-                    }
-                }
+        if let Some(crate::repetition::FamilyReadFault::Seat {
+            node,
+            slot,
+            var,
+            found,
+        }) = family_faults.into_iter().find(|f| !before.contains(f))
+        {
+            return Err(EditError::SlotVarKind {
+                var: Box::new(new.spoken_var(var)),
+                node: spoken_before_else_after(doc, &new, node),
+                slot: SlotId::Operand(slot),
+                found,
+                expected: new
+                    .node(node)
+                    .map_or_else(|| slot.kind(), |held| held.seat_kind(slot)),
             });
         }
     }
@@ -10439,7 +10436,7 @@ impl core::fmt::Display for ProductReadFault {
 /// the read (it resolves to nothing, to another kind, or picks no
 /// piece); any other refusal (an index formula of a source written in
 /// place) is the lowering's own.
-fn product_read<P: crate::ProfilePayload>(
+fn product_read<P: Clone + crate::ProfilePayload>(
     doc: &mut Doc<P>,
     read: &crate::Operand,
 ) -> Result<VarId, EditError> {
@@ -10455,15 +10452,28 @@ fn product_read<P: crate::ProfilePayload>(
         return Err(refused(ProductReadFault::Unresolved));
     }
     // The product reads one body, or a family a binder yields whole.
-    let body = crate::SlotKind::Placeable;
-    let var = lower_read(
-        doc,
-        &|| SpokenNode::absent(RecipeNodeId::WORLD),
-        SlotId::Operand(crate::OperandSlot::Source),
-        read,
-        body,
-        Reader::of(body),
-    )
+    let lower = |doc: &mut Doc<P>, kind: VarKind| {
+        let body = crate::SlotKind::Is(kind);
+        lower_read(
+            doc,
+            &|| SpokenNode::absent(RecipeNodeId::WORLD),
+            SlotId::Operand(crate::OperandSlot::Source),
+            read,
+            body,
+            Reader::of(body),
+        )
+    };
+    let mut trial = doc.clone();
+    let var = match lower(&mut trial, VarKind::Body) {
+        Err(EditError::SlotVarKind {
+            found: VarKind::Bodies,
+            ..
+        }) => lower(doc, VarKind::Bodies),
+        written => {
+            *doc = trial;
+            written
+        }
+    }
     .map_err(|error| match error {
         EditError::UnresolvedInput { .. }
         | EditError::DefinesNothing { .. }

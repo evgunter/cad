@@ -362,6 +362,14 @@ impl<P: crate::ProfilePayload> Doc<P> {
         })
     }
 
+    /// **Whether `var` is, through its sources, a family a binder
+    /// yields**, read whole.
+    #[must_use]
+    pub fn family_through_sources(&self, var: VarId) -> bool {
+        let read = self.through_sources(var);
+        !read.is_indexed() && self.yielding(read.read).is_some()
+    }
+
     /// **The binder of the index `index`**, by its first index; `None`
     /// for a variable that is no index.
     #[must_use]
@@ -478,7 +486,7 @@ impl<P: crate::ProfilePayload> Doc<P> {
 
 /// **A read whose kind a yield decides, refused** (D10 `[repetition]`):
 /// a yield at a seat that takes one body, or a member read of a variable
-/// no binder yields.
+/// no binder yields. A source is no such reader: it is what it reads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum FamilyReadFault {
     /// An operation's seat.
@@ -492,20 +500,11 @@ pub(crate) enum FamilyReadFault {
         /// The kind it is read as.
         found: crate::VarKind,
     },
-    /// A source's read.
-    Source {
-        /// The source.
-        source: VarId,
-        /// The variable it reads.
-        read: VarId,
-        /// The kind it is read as.
-        found: crate::VarKind,
-    },
 }
 
 impl<P: crate::ProfilePayload> Doc<P> {
     /// **Every read a binder's yields make ill-typed**, in id order: the
-    /// seat and source reads [`Doc::read_fault`] refuses. What the edit
+    /// seat reads [`Doc::read_fault`] refuses. What the edit
     /// door holds against the document before an edit, so writing a
     /// binder's yields refuses where an existing reader would read a
     /// family at a seat for one body. Empty in a document with no index.
@@ -529,24 +528,6 @@ impl<P: crate::ProfilePayload> Doc<P> {
                         found,
                     });
                 }
-            }
-        }
-        for (&source, var) in &self.vars {
-            let Some(body) = var.def().source() else { continue };
-            let Some(held) = self.var(body.read) else { continue };
-            let expected = crate::SlotKind::Is(if body.is_indexed() {
-                crate::VarKind::Bodies
-            } else {
-                crate::VarKind::Body
-            });
-            if let Some(crate::doc::ReadFault::Kind { found }) =
-                self.read_fault(body.read, held, expected, crate::doc::Reader::Constructs)
-            {
-                out.push(FamilyReadFault::Source {
-                    source,
-                    read: body.read,
-                    found,
-                });
             }
         }
         out

@@ -952,8 +952,11 @@ pub(crate) fn source_read_fault<P: crate::ProfilePayload>(
         true => crate::VarKind::Bodies,
         false => crate::VarKind::Body,
     });
-    if let Some(crate::doc::ReadFault::Kind { found }) =
-        snapshot.read_fault(body.read, held, expected, crate::doc::Reader::Constructs)
+    // A source reading a family whole is that family to its readers.
+    let family = !body.is_indexed() && snapshot.family_through_sources(body.read);
+    if !family
+        && let Some(crate::doc::ReadFault::Kind { found }) =
+            snapshot.read_fault(body.read, held, expected, crate::doc::Reader::Constructs)
     {
         return Some(SnapshotError::SourceReadKind { var: var(), found });
     }

@@ -2563,11 +2563,7 @@ impl<P> Doc<P> {
             let read = self.through_sources(var);
             !read.is_indexed() && self.yielding(read.read).is_some()
         };
-        if held.kind() == crate::VarKind::Body
-            && expected != crate::SlotKind::Placeable
-            && expected.admits(held)
-            && yielded()
-        {
+        if held.kind() == crate::VarKind::Body && expected.admits(held) && yielded() {
             return Some(ReadFault::Kind {
                 found: crate::VarKind::Bodies,
             });
