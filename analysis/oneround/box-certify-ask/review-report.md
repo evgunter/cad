@@ -242,8 +242,13 @@ of the decision and false of the region the decision is asked of.
   `unsure`.
 - **N7 (C8).** Per ask, this build: line 1.7 µs, circle 9.6, ellipse 9.3,
   spiric 5.3, a 3-point rational spline 29, a 20-point cubic 186, a refused
-  far line 2.9. Consistent with the author's 6.1 µs mean; I did not
-  reproduce the 1 ms donut figure (see the addendum for the on/off timing).
+  far line 2.9. Consistent with the author's 6.1 µs mean; On the
+  author's worst case, one pair of runs with the ask on and switched off in
+  the same binary (integration binaries at opt-level 0 here, so absolute
+  times differ from the author's): `two_donuts_in_general_pose…` 341.0 s on,
+  337.4 s off (+1.1%, one pair, inside run-to-run noise);
+  `the_bracket_fillets_all_round…` 0.59 s on, 0.54 s off. Not contradicted;
+  I did not count asks, so the 1 ms-per-ask figure is unverified.
 - **N8, premise in the brief.** The brief's reds "not the unit's"
   (`germ_tilted_rod`, the censuses, `nist_ftc_09`, the rosters, …) did not
   appear: the fast set is fully green at `34c966f6`. The brief names the
