@@ -63,3 +63,13 @@ sweeps the torus's meridian circle in the `xy` plane, and its two cones
 cross the tube there. The join builds. `ops.rs` `interior_loop_verdict`
 then refuses `CurvedPairUnsupported { site: InteriorLoopGuard }` on the
 torus × cone pair: a cone × torus pair in general pose, this row's.
+
+## Weighed (2026-11-21, two designers)
+
+The premise was wrong. The cone already has a metres conversion: the edge certificate's limb-2 reader (`pcurve_cache::limb2_offset_sup`, `projected::Meters::Cone`) converts the canonical composite `cos²α·ρ² − sin²α·z²` by a lever, as C2 describes. Only the search certificate's second limb-2 pipeline (`ssi::certify` `composite_form` → `geom_core` `ImplicitSurface` → `ToMeters`) never learned the cone. "Exact" is not owed: limb 2 owes a certified upper bound on distance, which is what the lever gives. The cone's limb-1 residual is in metres (`cone_elevation`), so `pair_section::traced_in_r3`'s cone exclusion rests on a false note.
+
+Both designers agree on the final state:
+
+1. **One limb-2 reader.** The search reads limbs 1–2 through the edge reader. That reader reports its uncleared parts for `ssi/refine.rs`. `ToMeters`, `composite_form`, `ImplicitSurface` and the torus's search-side conversion retire.
+2. **The tube's cone arm.** `implicit_enclosure` / `implicit_gradient_enclosure` read limb 1's own function, the double cone's elevation `g = ρ cos α − |h| sin α`, whose gradient `ŵ cos α − sgn(h)·â sin α` is unit. It is enclosed by the mean-value form met with the direct form, and gated on `h` and `|w|` excluding zero, which is the analogue of the torus's `A > 0`. A box at the apex refuses, and C5's node clause owns the point. Exclusion reads the quadric's sign where the gate fails.
+3. **What the cone stores** is the question for Ev: its slope `k = tan α`, or its half-angle in radians. Items 1 and 2 do not wait on it. They cross `sin α`, `cos α` on the lane at `Interval`, as `curve_face/composite.rs` does.
