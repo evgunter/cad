@@ -1856,7 +1856,7 @@ pub(crate) fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: Recip
     let affordance = session.delete_affordance(node);
     let refusal = session
         .delete_refusal(node)
-        .map(|refusal| crate::shown(&refusal));
+        .map(|refusal| crate::shown(&*refusal));
     gated_button(
         ui,
         egui::Button::new(affordance.label),

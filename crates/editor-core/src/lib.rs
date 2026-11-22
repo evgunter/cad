@@ -129,8 +129,8 @@ pub use coincide::{
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, Unused,
-    VarName,
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, NameCarrier,
+    Unused, VarName,
 };
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
