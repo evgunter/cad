@@ -21,7 +21,7 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
+                Some(geom::Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()
@@ -32,8 +32,8 @@ fn plane_chart_at_z(body: &Body<f64>, z: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if (origin.z - z).abs() < 1e-12 && normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9)
+                Some(geom::Surface::Plane { frame, .. })
+                    if (frame.origin().z - z).abs() < 1e-12 && frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .collect()

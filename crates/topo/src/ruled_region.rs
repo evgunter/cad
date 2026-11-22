@@ -93,7 +93,9 @@
 //! - `bool_ruled_region_component`: which of a ruling leg's plane's
 //!   curves a root lies on, and an edge's offset from a leg's plane it is
 //!   parallel to.
-//! - `plane_crossing_*`: the roots, the plane door's own rows.
+//! - `curve_face_pose_*` and `curve_face_cross_*`: the roots, the
+//!   plane door's class and their places (the curve × face pose's and
+//!   crossing's rows).
 //! - `bool_ruled_region_arc_*` and `bool_ruled_region_edge{,_length}`:
 //!   the boundary readings' rows.
 //!
@@ -116,7 +118,6 @@ use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
-use crate::null::Scaffolding;
 use crate::ray_walk::{self, RayFault, SegmentRows};
 use crate::region::{
     self, End, Fault, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
@@ -177,28 +178,24 @@ impl<T: Decide> Ruled<T> {
     /// surface.
     fn of(surface: &geom::Surface<T>) -> Option<Self> {
         Some(match *surface {
-            geom::Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => Self::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            },
-            geom::Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Self::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            },
+            geom::Surface::Cylinder { frame, radius } => {
+                let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Self::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    u_ref,
+                }
+            }
+            geom::Surface::Cone { frame, half_angle } => {
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Self::Cone {
+                    apex,
+                    axis,
+                    half_angle,
+                    u_ref,
+                }
+            }
             _ => return None,
         })
     }
@@ -320,7 +317,7 @@ pub(crate) fn ruled_face_region<T: Decide>(
         geom::CurveKind::Circle,
         geom::CurveKind::Ellipse,
     ];
-    let Some(edges) = region::boundary(body, face, Scaffolding::Skipped, &ruled)? else {
+    let Some(edges) = region::boundary(body, face, &ruled)? else {
         return Ok(None);
     };
     let covers: Vec<_> = edges

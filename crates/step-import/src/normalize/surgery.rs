@@ -139,6 +139,8 @@ pub(crate) fn split_edge(
                     // increasing parameter, so there is no sense to
                     // compose.
                     reversed: false,
+                    // A piece of the split edge: its carrier is the file's.
+                    curve: spec.curve,
                 },
             );
             e
@@ -369,6 +371,7 @@ mod tests {
             t0: 0.0,
             t1: 1.0,
             reversed: false,
+            curve: None,
         };
         let mut edges: BTreeMap<u64, EdgeSpec> = [(10, 1, 2), (11, 2, 3), (12, 3, 4), (13, 4, 1)]
             .into_iter()
@@ -472,9 +475,11 @@ mod tests {
         let face = |id, forward| FaceSpec {
             id,
             surface: geom::Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
             },
             sense: true,
             loops: vec![LoopSpec {
@@ -495,6 +500,7 @@ mod tests {
                     t0,
                     t1,
                     reversed: false,
+                    curve: None,
                 },
             )]),
             vertices: BTreeMap::from([(1, circle.eval(t0)), (2, circle.eval(t1))]),

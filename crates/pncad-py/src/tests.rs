@@ -2924,6 +2924,9 @@ fn promoted_kind_tags_are_stable() {
     for (kind, word) in [
         (pncad::step_import::PromotedKind::Plane, "plane"),
         (pncad::step_import::PromotedKind::Cylinder, "cylinder"),
+        (pncad::step_import::PromotedKind::Cone, "cone"),
+        (pncad::step_import::PromotedKind::Sphere, "sphere"),
+        (pncad::step_import::PromotedKind::Torus, "torus"),
     ] {
         assert_eq!(promoted_kind_tag(&kind), word);
         assert_eq!(
@@ -3017,7 +3020,13 @@ fn import_report_row_tags_are_stable() {
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
-    for kind in [PromotedKind::Plane, PromotedKind::Cylinder] {
+    for kind in [
+        PromotedKind::Plane,
+        PromotedKind::Cylinder,
+        PromotedKind::Cone,
+        PromotedKind::Sphere,
+        PromotedKind::Torus,
+    ] {
         assert_eq!(
             normalization_kind_tag(&NormalizationKind::SurfacePromotion {
                 to: kind,
@@ -4581,9 +4590,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "at_rest",
             "carried_coincidence",
             "carried_interference",
-            "chart_coherence",
-            "chart_coherence_unavailable",
-            "chart_coherence_unexamined",
             "connectedness",
             "escalated",
             "interference",
@@ -4603,15 +4609,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "evaluation_of_another_document",
             "placement_without_value",
             "product_unavailable",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "coherence_condition_tag",
-        values: &[
-            "meridian_closure",
-            "meridian_continuation",
-            "rim_continuation",
         ],
         delegates: &[],
     },
@@ -5612,7 +5609,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "promoted_kind_tag",
-        values: &["cylinder", "plane"],
+        values: &["cone", "cylinder", "plane", "sphere", "torus"],
         delegates: &[],
     },
     TagEntry {
@@ -6097,15 +6094,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "tessellate_error_tag",
         values: &[
-            "boundary_ear",
+            "boundary_bounds_no_region",
             "certificate_exceeded",
             "domain_unread",
             "empty_loop",
             "folded_triangle",
             "invalid_chordal_tolerance",
+            "lifted_column_off",
             "meridian_free_curved_face",
             "missing_entity",
             "null_scaffold_edge",
+            "overused_side",
             "pinch_wedge",
             "resolution_overflow",
             "rounding_unresolved",
@@ -6116,12 +6115,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tolerance_band_unformable",
             "triangulation",
             "trim_loop_orientation",
+            "uncleared_shared_side",
             "unresolved_winding",
             "unsupported_curve",
             "unsupported_curved_domain",
             "unsupported_curved_shape",
             "unsupported_nurbs_face",
             "unsupported_surface",
+            "wrap_strip_turn",
         ],
         delegates: &[],
     },
@@ -6181,16 +6182,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unbuilt_end_run_out",
             "unbuilt_end_seam",
             "unbuilt_end_valence",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "unexaminable_tag",
-        values: &[
-            "corrupt",
-            "empty_loop",
-            "non_iso_carrier",
-            "null_scaffold_edge",
         ],
         delegates: &[],
     },
@@ -6419,7 +6410,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // other, so no pin is owed.
     ("coaxial", 2),
     ("containment", 2),
-    ("corrupt", 3),
+    ("corrupt", 2),
     ("cosurface_escalated", 2),
     // One fact (VR3) at the edit and load doors: a definition that
     // reads its own variable back.
@@ -6458,10 +6449,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty", 2),
     ("empty_boolean", 2),
     // Shared by coincidence: the profile validator's word for a loop
-    // authored with no vertex. Shared as one fact: the tessellator and the
-    // coherence check each name a body face's lone-vertex (scaffolding)
-    // loop with it.
-    ("empty_loop", 3),
+    // authored with no vertex, and the tessellator's for a body face's
+    // lone-vertex (scaffolding) loop.
+    ("empty_loop", 2),
     // One fact: the extrude, the revolve and the loft or path sweep each
     // refuse a profile with no loops at their own door;
     // `an_empty_profile_is_one_word_at_every_sweep` pins them.
@@ -6528,7 +6518,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // result: an operation's node, and the extrude, revolve, loft and
     // blend doors, each refusing a result whose finish found findings.
     ("not_finished", 5),
-    ("null_scaffold_edge", 3),
+    ("null_scaffold_edge", 2),
     // A coincidence: a coincidence record's relation of a point lying
     // on a carrier, and a sketch piece lying on the carrier it would
     // cross (`trace_step_fault_tag`).
@@ -6621,6 +6611,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit door and in the skin: a loft through fewer
     // than two sections.
     ("too_few_sections", 2),
+    // A coincidence: the kind a NURBS patch was promoted to, and a trace
+    // step's fault on a torus carrier.
+    ("torus", 2),
     // One fact at two doors: a step reading a face's trace refused
     // (`TraceRefusal`), carried by the evaluation's node error and by
     // the program's own check alike.
@@ -8120,7 +8113,7 @@ enum Holder {
 /// 2026-09-15 over every literal passed to the two `&'static str` door
 /// parameters under `src/py/`), every one minted at a call site and
 /// read by no instrument —
-/// `work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`
+/// `work/bind/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`
 /// is that row, and it is not this one. A SECOND such field arrives
 /// with this census silent, which
 /// `the_errors_mint_census_cannot_see_a_word_channel_that_is_not_a_declaration`
@@ -8165,7 +8158,7 @@ enum Holder {
 /// answers less well. They stay because `crates/test-utils/*` is
 /// another program's territory and widening its grammar is a filed row
 /// rather than one taken here —
-/// `work/census/the-mint-reader-hosts-three-lexer-operations-of-its-own.md`.
+/// `work/bind/the-mint-reader-hosts-three-lexer-operations-of-its-own.md`.
 ///
 /// What is about THIS census and nothing else is the
 /// `(self type, trait, item name)` key, the attribution of a literal
@@ -8227,7 +8220,7 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
         held_by: &[Holder::Outside(
             "nothing: its `op` parameter's twelve words are minted at call sites \
              under `src/py/` and no instrument reads them, which is \
-             `work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`",
+             `work/bind/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`",
         )],
     },
     MintingItem {
@@ -9729,7 +9722,7 @@ fn tracker_row_exists(id: &str) -> bool {
 /// (`rg ': Final$' crates/pncad-py/pncad.pyi` is empty, 2026-09-15),
 /// so the divergence was latent and the fixture below now holds one.
 /// That is the instance closed and not the class:
-/// `work/census/one-stub-convention-has-two-readers-in-two-languages.md`
+/// `work/bind/one-stub-convention-has-two-readers-in-two-languages.md`
 /// carries the pair. This check stays in Rust because its other half
 /// is `crate::errors::EvalReason::ATTRIBUTES` — a Rust const read as a
 /// const, which a Python copy would have to re-spell, and re-spelling
@@ -10189,7 +10182,7 @@ fn the_errors_mint_census_reds_by_name_on_a_map_that_spells_no_literal() {
 /// and interpolated into the class's message. Twelve words arrive that
 /// way today, every one of them minted at a call site under `src/py/`
 /// and read by no instrument
-/// (`work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`,
+/// (`work/bind/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`,
 /// measured 2026-09-15). A SECOND such field would arrive with this
 /// census silent, and that is what this executes.
 ///

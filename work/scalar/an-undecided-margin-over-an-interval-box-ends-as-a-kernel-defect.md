@@ -4,6 +4,8 @@ kind: issue
 title: An undecided margin over an interval box ends 'this is a kernel defect; report it': recourse::Reading has no box-replay reading
 status: open
 opened: 2026-10-12
+priority: P2
+cost: M
 ---
 
 ## What

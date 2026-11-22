@@ -333,8 +333,12 @@ fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [Interval; 3] {
 pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Box3) -> Interval {
     let two = Interval::point(2.0);
     match *surface {
-        Surface::Plane { origin, normal, .. } => dot(&subp(b, origin), &constv(normal)),
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            dot(&subp(b, origin), &constv(normal))
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             // `sqr`, never `r * r`: the radius enclosure is one
             // operand, and squaring it as two independent ones widens
             // it (the interval-square rule). One crossing, bound once,
@@ -342,12 +346,8 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
             let r = Interval::from_certified(radius);
             (norm_sq(&subp(b, center)) - r.sqr()) / (two * r)
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let q = subp(b, origin);
             let a = constv(axis);
             let h = dot(&q, &a);
@@ -369,12 +369,12 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
             (norm_sq(&w) - r.sqr()) / (two * r)
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let at = |b: Box3| Quartic::over(b, center, axis, major_radius, minor_radius);
             let c = b.center();
             let mid = Box3::between(c, c);
@@ -402,18 +402,18 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
 ) -> [Interval; 3] {
     let refused = [Interval::refused(); 3];
     match *surface {
-        Surface::Plane { normal, .. } => constv(normal),
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            constv(normal)
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let q = subp(b, center);
             let r = Interval::from_certified(radius);
             [q[0] / r, q[1] / r, q[2] / r]
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             // The exact derivative of [`implicit_enclosure`]'s own form
             // `(|w|² − r²)/2r`, `w = q − â h`, `h = q·â`:
             // `(q − â h (2 − |â|²))/r`. An `f64` unit axis is not exactly
@@ -431,12 +431,14 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
             ]
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => Quartic::over(b, center, axis, major_radius, minor_radius).gradient(),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            Quartic::over(b, center, axis, major_radius, minor_radius).gradient()
+        }
         Surface::Cone { .. } | Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             refused
         }
@@ -1808,19 +1810,23 @@ pub(super) mod tests {
 
     fn sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.2, -0.1, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.2, -0.1, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn cylinder() -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::new(0.5, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.5, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 0.6,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -2729,9 +2735,7 @@ pub(super) mod tests {
             Vec3::new(0.0, 1.0, 0.0)
         };
         super::super::residual::ImplicitForm::of(&Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: n,
-            u_ref,
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), n, u_ref),
         })
         .expect("a plane has a form")
     }
@@ -2766,10 +2770,12 @@ pub(super) mod tests {
                 std::f64::consts::FRAC_PI_3.cos(),
             );
             let sphere = Surface::Sphere {
-                center: Point3::new(0.5 - radius * c, 0.5, -radius * s),
+                frame: geom::Frame::new(
+                    Point3::new(0.5 - radius * c, 0.5, -radius * s),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
             let form = super::super::residual::ImplicitForm::of(&sphere).expect("a sphere");
             chart_transverse_margin(
@@ -2817,10 +2823,12 @@ pub(super) mod tests {
         let square = NurbsSurface::new(k.clone(), k, control, vec![1.0; 4]).expect("square");
         let boxes = NurbsBoxes::new(&square);
         let sphere = Surface::Sphere {
-            center: Point3::new(-1.0, 0.5, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(-1.0, 0.5, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.2,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let form = super::super::residual::ImplicitForm::of(&sphere).expect("a sphere");
         let m = chart_transverse_margin(
@@ -3040,10 +3048,12 @@ pub(super) mod tests {
     #[test]
     fn unsupported_kinds_refuse_rather_than_guess() {
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, -2.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, -2.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: 0.4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let b = Box3::around(Point3::new(0.8, 0.0, 0.0), 0.1);
         assert!(!implicit_enclosure(&cone, b).is_certified());
@@ -3057,26 +3067,27 @@ pub(super) mod tests {
         let axis = Vec3::new(a[0], a[1], a[2]).normalize();
         let u_ref = axis.cross(Vec3::new(0.3, -0.7, 0.2)).normalize();
         Surface::Torus {
-            center: Point3::new(c[0], c[1], c[2]),
-            axis,
+            frame: geom::Frame::new(Point3::new(c[0], c[1], c[2]), axis, u_ref),
             major_radius: big,
             minor_radius: small,
-            u_ref,
         }
     }
 
     /// The torus point at `(u, v)`: `u` about the axis, `v` about the tube.
     pub(in crate::ssi) fn on_torus(s: &Surface<f64>, u: f64, v: f64) -> Point3<f64> {
         let Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         } = *s
         else {
             unreachable!("a torus fixture")
         };
+        let (center, axis, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         let e2 = axis.cross(u_ref);
         let radial = u_ref * u.cos() + e2 * u.sin();
         center + radial * (major_radius + minor_radius * v.cos()) + axis * (minor_radius * v.sin())
@@ -3085,8 +3096,7 @@ pub(super) mod tests {
     /// `g = F/(4rA)` at a point, in `f64`.
     fn torus_g(s: &Surface<f64>, p: Point3<f64>) -> f64 {
         let Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius: big,
             minor_radius: small,
             ..
@@ -3094,6 +3104,7 @@ pub(super) mod tests {
         else {
             unreachable!("a torus fixture")
         };
+        let (center, axis) = (frame.origin(), frame.axis());
         let q = p - center;
         let h = q.dot(axis);
         let w = q - axis * h;
@@ -3203,9 +3214,10 @@ pub(super) mod tests {
             let lift = small * rng.log_uniform(1e-6, 0.1);
             let p =
                 on + implicit_gradient(&t, on) * (lift * if rng.unit() < 0.5 { -1.0 } else { 1.0 });
-            let Surface::Torus { center, axis, .. } = t else {
+            let Surface::Torus { frame, .. } = t else {
                 unreachable!("a torus")
             };
+            let (center, axis) = (frame.origin(), frame.axis());
             let q = p - center;
             let rho2 = (q - axis * q.dot(axis)).norm_squared();
             let a = Interval::point(q.norm_squared()) + super::torus_a_shift(big, small);
@@ -3272,9 +3284,10 @@ pub(super) mod tests {
                 big,
                 small,
             );
-            let Surface::Torus { center, axis, .. } = t else {
+            let Surface::Torus { frame, .. } = t else {
                 unreachable!("a torus")
             };
+            let (center, axis) = (frame.origin(), frame.axis());
             let e = axis.cross(Vec3::new(0.3, -0.7, 0.2)).normalize();
             let jitter = |rng: &mut fuzz::Rng, s: f64| {
                 Vec3::new(rng.range(-s, s), rng.range(-s, s), rng.range(-s, s))
@@ -3367,22 +3380,28 @@ pub(super) mod tests {
     #[test]
     fn the_enclosure_roster_is_the_enclosures_own() {
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, -2.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, -2.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: 0.4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let torus = Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 1.0,
             minor_radius: 0.2,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let b = Box3::around(Point3::new(0.8, 0.2, 0.1), 0.05);
         let mut seen = Vec::new();
@@ -3520,10 +3539,12 @@ pub(super) mod tests {
         /// every other entry point uses.
         fn sphere(c: Interval) -> Surface<Interval> {
             Surface::Sphere {
-                center: Point3::new(c, h(0.0), h(0.0)),
+                frame: geom::Frame::new(
+                    Point3::new(c, h(0.0), h(0.0)),
+                    Vec3::new(h(0.0), h(0.0), h(1.0)),
+                    Vec3::new(h(1.0), h(0.0), h(0.0)),
+                ),
                 radius: h(1.0),
-                axis: Vec3::new(h(0.0), h(0.0), h(1.0)),
-                u_ref: Vec3::new(h(1.0), h(0.0), h(0.0)),
             }
         }
 

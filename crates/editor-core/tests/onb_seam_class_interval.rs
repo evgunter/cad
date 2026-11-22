@@ -126,11 +126,14 @@ fn a_chamfer_face_decides_and_its_frame_is_a_unit_direction() {
             (1.0, dz, 1.0 + dy),
             (0.0, dz, 1.0 + dy),
         ];
-        let Ok(Surface::Plane { normal, u_ref, .. }) =
-            newell_plane::<Interval>(&quad::<Interval>(corners), along_x(), band())
+        let Ok(Surface::Plane {
+            frame: carrier_frame,
+            ..
+        }) = newell_plane::<Interval>(&quad::<Interval>(corners), along_x(), band())
         else {
             panic!("{name}: newell_plane refused at Interval");
         };
+        let (normal, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
         let d = normal.z.abs() - normal.x.abs().max(normal.y.abs()) * Interval::from_f64(0.5);
         assert!(
             d.hi() <= 0.0 || d.lo() > 0.0,
@@ -198,11 +201,14 @@ fn the_seam_hulls_over_a_minted_normal_and_decides_at_a_point() {
         (0.0, 1.0, -2.0),
     ];
     let r = 2.0 / 5f64.sqrt();
-    let Ok(Surface::Plane { normal, u_ref, .. }) =
-        newell_plane::<Interval>(&quad::<Interval>(corners), along_x(), band())
+    let Ok(Surface::Plane {
+        frame: carrier_frame,
+        ..
+    }) = newell_plane::<Interval>(&quad::<Interval>(corners), along_x(), band())
     else {
         panic!("newell_plane refused at Interval");
     };
+    let (normal, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
     UnitVec3::new(u_ref, POSE_UNIT_NORM, band())
         .expect("the stored frame is the caller's reference, a unit direction off the seam");
     let (u_ref, _) = normal.orthonormal_basis();

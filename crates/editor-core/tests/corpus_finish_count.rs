@@ -67,6 +67,17 @@ fn the_corpus_runs_its_pinned_count_of_finishes() {
 /// aggregate finishes once, so no mapped f64 leaf is finished on its
 /// image at the gather: 466 -> 445 (heat_sink 44 -> 39, declared_tangency
 /// 6 -> 4, kitchen_sink 21 -> 15, part_select 8 -> 6, pin_in_bore
-/// 12 -> 6).
+/// 12 -> 6). Then the n-ary fold and the at-rest intersection take placed
+/// operands (`topo::nary_placed`, `topo::boolean_placed`): a member, or a
+/// copy, is finished in its own frame and the door moves the finished
+/// body, carrying its verdict, so no mapped f64 leaf is finished again on
+/// its image there: 445 -> 390, the fold 50 (die_composed_tour 94 -> 74,
+/// die_tool 27 -> 22, heat_sink 39 -> 34, corner_table 23 -> 19,
+/// heat_sink_fins 10 -> 6, nested_islands_106_depth2 12 -> 10, kiss_carry
+/// 13 -> 11, and one each in nested_islands_105, nested_islands_106_depth1,
+/// kitchen_sink, boss_union, face_sketch, plate_param, axis_projection and
+/// blocks_on_one_floor) and the localization 5 (heat_sink 34 -> 29).
+/// Moving each member's leaf before its take again puts back 440, and the
+/// copies' as well, 445.
 #[cfg(debug_assertions)]
-const PINNED: u64 = 445;
+const PINNED: u64 = 390;

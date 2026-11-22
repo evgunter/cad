@@ -594,7 +594,7 @@ mod composed {
     /// against, and nothing is lit.
     ///
     /// The seated tools hold NODES, and no mark draws a held node
-    /// (`work/held/a-seated-tools-held-node-is-drawn-nowhere`).
+    /// (`work/doors/a-seated-tools-held-node-is-drawn-nowhere`).
     ///
     /// A clearance row's witness pair is marked while the row is the
     /// selection or `row_hovered` names it ([`marks::witness`]).
@@ -4079,7 +4079,12 @@ mod tests {
             "refused at step 1: nothing is drawn: {drawn:?}"
         );
         let said = crate::pane::headless::painted_text(|ui| {
-            crate::pane::profile::preview_verdict(ui, crate::theme::Theme::DEFAULT, Some(&preview));
+            crate::pane::profile::preview_verdict(
+                ui,
+                crate::theme::Theme::DEFAULT,
+                crate::props::Notation::DEFAULT,
+                Some(&preview),
+            );
         });
         assert!(
             said.contains(&refusal.to_string()),

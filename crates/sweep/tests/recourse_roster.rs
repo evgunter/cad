@@ -281,6 +281,13 @@ fn site_census() -> PredicateCensus {
 /// spelled through a `geom_brep` const ([`GEOM_BREP_ARMS`]), are exactly
 /// the three types' `ALL` predicates, so the coverage row resolves a
 /// reference to one against the table itself or geom-brep's census.
+/// Whether `text` ends by offering to tighten below `exact`, the
+/// deciding tolerance `|m|/K`, told as a bound.
+fn offers(text: &str, exact: f64) -> bool {
+    geom_core::test_support::offered_tolerance(text)
+        .is_some_and(|offered| geom_core::test_support::is_told_offer_of(offered, exact))
+}
+
 #[test]
 fn the_census_reads_the_decision_tables_as_the_types_do() {
     let tables: Vec<NameCarrier> = CARRIERS
@@ -654,12 +661,10 @@ fn the_convexity_sign_offer_names_the_wedge_opening() {
     }
     .render(geom_brep::recourse::Reading::Build);
     assert!(
-        text.ends_with(&format!(
-            "Recourse: {}, or, if this wedge opening is intended, tighten the tolerance below \
-             {:e} m",
+        text.contains(&format!(
+            "Recourse: {}, or, if this wedge opening is intended, tighten the tolerance below ",
             sweep::blend::FILLET3_WEDGE_RECOURSE,
-            mid / (b.escalate() / b.zero())
-        )),
+        )) && offers(&text, mid / (b.escalate() / b.zero())),
         "{text}"
     );
 }
@@ -680,11 +685,10 @@ fn the_material_side_offer_names_the_margin_it_carries() {
     ] {
         let text = rendered(BlendDecision::MaterialSide, Some(name));
         assert!(
-            text.ends_with(&format!(
-                "Recourse: {}, or, if this {size} is intended, tighten the tolerance below \
-                 {below:e} m",
+            text.contains(&format!(
+                "Recourse: {}, or, if this {size} is intended, tighten the tolerance below ",
                 BlendDecision::MaterialSide.lever(),
-            )),
+            )) && offers(&text, below),
             "{name}: {text}"
         );
     }
@@ -734,11 +738,12 @@ fn the_split_param_escalation_reads_whole_through_the_blend_door() {
     let below = (band.zero() + band.escalate()) / 2.0 / (band.escalate() / band.zero());
     assert!(
         text.contains("whether a crossing lands strictly inside its edge is undecided: margin ")
-            && text.ends_with(&format!(
+            && text.contains(
                 "Recourse: move the geometry so the crossing lands clearly away from the edge's \
                  ends, or, if this distance from the edge's end is intended, tighten the \
-                 tolerance below {below:e} m",
-            ))
+                 tolerance below "
+            )
+            && offers(&text, below)
             && !text.contains("declare"),
         "{text}"
     );

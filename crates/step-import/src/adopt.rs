@@ -498,7 +498,8 @@ fn must_carry_rung(
 /// translation to its end, a circular arc its start point's
 /// trajectory under the rotation through the derived angle — honest
 /// pushforward data (the same shapes native constructions store),
-/// exact for the parsed carrier. Ellipse/NURBS carriers have no
+/// exact for the parsed carrier except a Nurbs-adjacent line rim's
+/// (below). Ellipse/NURBS carriers have no
 /// mapped form (none exists in `geom_brep::MappedCurve`'s vocabulary,
 /// and no exported body puts one inside a single surface); the edge
 /// then refuses typed.
@@ -519,9 +520,11 @@ fn must_carry_rung(
 /// the native builder's segment lives in sketch coordinates under the
 /// cap placement, while the synthesized one is the carrier's own
 /// interval on its own axis (`a = (t0, 0)`, `b = (t1, 0)` under a
-/// rigid frame whose x-axis is the carrier direction) — an
-/// equivalent parameterization of the same locus, exact up to the
-/// placement arithmetic (the sketch plane never crosses the STEP
+/// rigid frame whose x-axis is the carrier direction normalized) — so
+/// the point at `t` is `origin + normalize(dir)·t`, not the carrier's
+/// `origin + dir·t` bit for bit: for the unit-within-rounding direction
+/// the reader keeps, the two differ by about `2.8e-16·|t|`, an
+/// equivalent parameterization of the same locus up to that (the sketch plane never crosses the STEP
 /// wire, so the native payload is not recoverable; review F5 pinned
 /// the honest statement to class level). Arc rims stay
 /// `RevolvedPoint` in both cases — on a rational wall nothing mints
@@ -554,50 +557,40 @@ fn mapped_self_description(
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
         })),
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
+        Curve3::Circle(geom::Circle { frame, .. }) => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            Some(MappedCurve::whole(MappedSource::RevolvedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: Affine3::translation(p_start - Point3::origin()),
+                axis: geom::Line {
                     origin: center,
-                    axis,
-                    ..
+                    dir: axis,
                 },
-            ..
-        }) => Some(MappedCurve::whole(MappedSource::RevolvedPoint {
-            point: Point2::new(0.0, 0.0),
-            place: Affine3::translation(p_start - Point3::origin()),
-            axis: geom::Line {
-                origin: *center,
-                dir: *axis,
-            },
-            angle: t1 - t0,
-        })),
+                angle: t1 - t0,
+            }))
+        }
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
             None
         }
     }
 }
 
-/// A rigid frame whose x-axis is the (unit) line direction, placed at
-/// the line's origin — the `PlacedSegment` placement for a
-/// Nurbs-adjacent rim ([`mapped_self_description`]). The y/z columns
-/// complete an orthonormal frame (they never move a segment point —
-/// every sketch point has `y = 0` — but a placement claims rigidity
-/// as conventional data, so honest perpendiculars are minted).
+/// A rigid frame whose x-axis is the line direction normalized, placed
+/// at the line's origin — the `PlacedSegment` placement for a Nurbs-adjacent
+/// rim ([`mapped_self_description`]). The y/z columns complete an
+/// orthonormal frame (they never move a segment point — every sketch
+/// point has `y = 0` — but a placement claims rigidity as conventional
+/// data, so honest perpendiculars are minted).
 ///
-/// The seed axis is the coordinate axis of the direction's SMALLEST
-/// component magnitude: for a unit-ish direction that axis is at
-/// least `1/√3` from parallel, so the projection step below is always
-/// well-conditioned. The old first-coordinate-axis pick (`|x| < 1.0`)
-/// was executed into a fail-loud violation by the M7-3 review (F2): a
-/// DIRECTION one ulp under unit and x-parallel, which the line reader
-/// keeps as stated (`entities::unit_line_direction` keeps a triple that
-/// is unit within its own rounding bit for bit), satisfied `|x| < 1.0`
-/// and minted `y ∥ dir`, `z = 0` — a det-0 claimed-rigid placement
-/// inside a certified body. Belt and braces on top of the conditioning
-/// argument: a frame that still cannot be completed (non-finite or
-/// zero direction) answers `None`, the conventional rung is WITHHELD,
-/// and the edge refuses typed — never a silent
-/// degenerate placement.
+/// The frame is [`geom_core::RigidMotion::gram_schmidt`] of the
+/// direction and the coordinate axis of its SMALLEST component
+/// magnitude, which is at least `1/√3` from parallel to a unit-ish
+/// direction, so the residual is well conditioned. A direction is no
+/// distance for the file's band to read, so both lengths are decided at
+/// the least band: a frame that still cannot be completed (a vanishing
+/// or non-finite direction) answers `None`, the conventional rung is
+/// WITHHELD, and the edge refuses typed — never a silent degenerate
+/// placement.
 fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<f64>> {
     let (ax, ay, az) = (dir.x.abs(), dir.y.abs(), dir.z.abs());
     let candidate = if ax <= ay && ax <= az {
@@ -607,20 +600,15 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
     } else {
         geom_core::Vec3::new(0.0, 0.0, 1.0)
     };
-    // The projection coefficient, bound by name so the subtraction
-    // reads as "remove the axial part" — and so the expression is not
-    // the `v * v`-shaped text the interval-square tripwire watches
-    // for (there is no square here: `dir` scales a dot of two
-    // DIFFERENT vectors — the `Resolver::placement` precedent,
-    // verbatim).
-    let along = dir.dot(candidate);
-    let perpendicular = candidate - dir * along;
-    let (y, _) = perpendicular.checked_direction().ok()?;
-    let z = dir.cross(y);
-    Some(Affine3::from_parts(
-        geom_core::Mat3::from_cols(dir, y, z),
-        origin - Point3::origin(),
-    ))
+    geom_core::RigidMotion::gram_schmidt(
+        origin,
+        dir,
+        candidate,
+        crate::interpret::STEP_RIM_LINE_FRAME,
+        geom_core::Band::least(),
+    )
+    .ok()
+    .map(geom_core::RigidMotion::to_affine)
 }
 
 #[cfg(test)]
@@ -797,15 +785,19 @@ mod tests {
         let mut keys = slotmap::SlotMap::<geom_brep::SurfaceKey, ()>::with_key();
         let (kp, kc) = (keys.insert(()), keys.insert(()));
         let plane = |normal| Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal,
-            u_ref: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                normal,
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+            ),
         };
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(0.0, 1.0, 0.0),
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 1.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
         let floor = plane(geom_core::Vec3::new(0.0, 1.0, 0.0));
         let carrier = Curve3::line(

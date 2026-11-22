@@ -209,6 +209,14 @@ impl<T: Real> Isometry<T> {
         }
     }
 
+    /// The map as a rigid motion, where it is one.
+    fn motion(&self) -> Option<&RigidMotion<T>> {
+        match self {
+            Self::Proper(motion) => Some(motion),
+            Self::Improper(_) => None,
+        }
+    }
+
     /// Whether the map keeps orientation.
     fn hand(&self) -> Hand {
         match self {
@@ -246,81 +254,92 @@ impl Hand {
 /// crosses as `−M·n`, already inside out, and its `sense` is kept.
 /// [`crate::Body::revert`]'s map then reverses every loop's cycle and
 /// every outward side once ([`crate::mirror`]).
+///
+/// `motion` is the map as the rigid motion it is, where it is one: an
+/// analytic frame is then that frame moved ([`geom::Frame::moved`]), a
+/// rigid image of a rigid frame, as [`map_carrier`] moves a conic's. A
+/// reflection, or a map handed only as an affine, maps the frame's three
+/// data and squares them ([`geom::Frame::new`]), the plane's normal as
+/// the axial image.
+/// **A carrier's frame under the map**: under a proper motion the
+/// frame's own image ([`geom::Frame::moved`]); under a reflection its
+/// mapped data squared ([`geom::Frame::new`]), the axis as the axial
+/// image where `axial` (a plane's normal, a conic's axis, so the image
+/// keeps its side and its parameter) and as a plain vector elsewhere.
+fn map_frame<T: Real>(
+    map: &Affine3<T>,
+    hand: Hand,
+    motion: Option<&RigidMotion<T>>,
+    f: &geom::Frame<T>,
+    axial: bool,
+) -> geom::Frame<T> {
+    match motion {
+        Some(motion) => f.moved(motion),
+        None => geom::Frame::new(
+            map.transform_point(f.origin()),
+            if axial {
+                hand.axial(map, f.axis())
+            } else {
+                map_vec(map, f.axis())
+            },
+            map_vec(map, f.u_ref()),
+        ),
+    }
+}
+
 fn map_surface<T: Real>(
     map: &Affine3<T>,
     hand: Hand,
+    motion: Option<&RigidMotion<T>>,
     s: &Surface<T>,
 ) -> Result<Surface<T>, TransformError> {
+    let mapped = |f: &geom::Frame<T>, axial: bool| map_frame(map, hand, motion, f, axial);
     Ok(match *s {
         // The normal is the face's outward side, so the inside-out
         // image's is the axial one; the chart is then `M∘S` exactly.
         Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } => Surface::Plane {
-            origin: map.transform_point(origin),
-            normal: hand.axial(map, normal),
-            u_ref: map_vec(map, u_ref),
+            frame: mapped(&carrier_frame, true),
         },
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
         } => Surface::Cylinder {
-            origin: map.transform_point(origin),
-            axis: map_vec(map, axis),
+            frame: mapped(&carrier_frame, false),
             radius,
-            u_ref: map_vec(map, u_ref),
         },
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
-            u_ref,
         } => Surface::Cone {
-            apex: map.transform_point(apex),
-            axis: map_vec(map, axis),
+            frame: mapped(&carrier_frame, false),
             half_angle,
-            u_ref: map_vec(map, u_ref),
         },
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
-            u_ref,
         } => Surface::Sphere {
-            center: map.transform_point(center),
+            frame: mapped(&carrier_frame, false),
             radius,
-            axis: map_vec(map, axis),
-            u_ref: map_vec(map, u_ref),
         },
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => Surface::Torus {
-            center: map.transform_point(center),
-            axis: map_vec(map, axis),
+            frame: mapped(&carrier_frame, false),
             major_radius,
             minor_radius,
-            u_ref: map_vec(map, u_ref),
         },
         Surface::Spindle {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => Surface::Spindle {
-            center: map.transform_point(center),
-            axis: map_vec(map, axis),
+            frame: mapped(&carrier_frame, false),
             major_radius,
             minor_radius,
-            u_ref: map_vec(map, u_ref),
         },
         // A DESCRIBED net maps by its control points, weights and
         // knots untouched — the exact image, not a re-fit, so there is
@@ -389,14 +408,11 @@ pub(crate) fn map_carrier<T: Real>(
     let (map, hand) = (&iso.to_affine(), iso.hand());
     // A conic's frame: the frame's own image under a motion, and under a
     // reflection the axial axis, so the image keeps its parameter.
-    let frame = |f: &geom::Frame<T>| match iso {
-        Isometry::Proper(motion) => f.moved(motion),
-        Isometry::Improper(_) => geom::Frame::new(
-            map.transform_point(f.origin),
-            hand.axial(map, f.axis),
-            map_vec(map, f.u_ref),
-        ),
+    let motion = match iso {
+        Isometry::Proper(motion) => Some(motion),
+        Isometry::Improper(_) => None,
     };
+    let frame = |f: &geom::Frame<T>| map_frame(map, hand, motion, f, true);
     Ok(match *c {
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(map.transform_point(origin), map_vec(map, dir))
@@ -405,37 +421,40 @@ pub(crate) fn map_carrier<T: Real>(
         // the ellipse's axis ordering transfers unchanged, so no
         // re-decision is needed (the constructor decided at mint; this is
         // evaluation-lane data motion).
-        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
-            frame: frame(&c.frame),
-            ..c
-        }),
-        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
-            frame: frame(&e.frame),
-            ..e
-        }),
+        Curve3::Circle(c) => Curve3::Circle(c.with_frame(frame(&c.frame))),
+        Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(frame(&e.frame))),
         // The same argument: a rigid map preserves both radii, the
         // stand-off and the frame's orthonormality, so the two-oval
         // regime and the carried side transfer unchanged — no
         // re-decision (the mint decided; this is data motion).
         Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             offset,
         } => {
+            let (center, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
             // `(axis, u_ref, offset)` and `(−axis, −u_ref, −offset)` name
             // one oval; under a reflection the image keeps its `v` with
             // `axis` mapped and the plane's side negated.
-            let (u_ref, offset) = match hand {
-                Hand::Proper => (map_vec(map, u_ref), offset),
-                Hand::Improper => (-map_vec(map, u_ref), -offset),
+            // Under a motion the frame is moved, as a conic's is.
+            let (frame, offset) = match iso {
+                Isometry::Proper(motion) => (carrier_frame.moved(motion), offset),
+                Isometry::Improper(_) => (
+                    geom::Frame::new(
+                        map.transform_point(center),
+                        map_vec(map, axis),
+                        -map_vec(map, u_ref),
+                    ),
+                    -offset,
+                ),
             };
             Curve3::Spiric {
-                center: map.transform_point(center),
-                axis: map_vec(map, axis),
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
@@ -492,7 +511,7 @@ pub fn surface_at<T: Real>(
     motion: &RigidMotion<T>,
     s: &Surface<T>,
 ) -> Result<Surface<T>, TransformError> {
-    map_surface(&motion.to_affine(), Hand::Proper, s)
+    map_surface(&motion.to_affine(), Hand::Proper, Some(motion), s)
 }
 
 /// **One curve carrier read at a rigid motion**: `motion ∘ c` on `c`'s
@@ -657,7 +676,7 @@ pub(crate) fn map_isometry<T: Decide>(
     }
     let mut mapped_surfaces = Vec::new();
     for (k, s) in &out.surfaces {
-        mapped_surfaces.push((k, map_surface(map, hand, s)?));
+        mapped_surfaces.push((k, map_surface(map, hand, iso.motion(), s)?));
     }
     for (k, s) in mapped_surfaces {
         out.surfaces[k] = s;
@@ -906,7 +925,7 @@ mod tests {
     #[test]
     fn the_surface_placeholder_is_what_refuses() {
         assert!(matches!(
-            map_surface(&aside(), Hand::Proper, &Surface::nurbs_placeholder()),
+            map_surface(&aside(), Hand::Proper, None, &Surface::nurbs_placeholder()),
             Err(TransformError::NurbsPlaceholder)
         ));
     }
@@ -926,7 +945,7 @@ mod tests {
     fn a_described_surface_maps_by_its_control_points() {
         let map = aside();
         let before = described_surface();
-        let after = map_surface(&map, Hand::Proper, &before).expect("a described net maps");
+        let after = map_surface(&map, Hand::Proper, None, &before).expect("a described net maps");
         let (Surface::Nurbs(b), Surface::Nurbs(a)) = (&before, &after) else {
             panic!("the variant changed under the map");
         };
@@ -994,9 +1013,7 @@ mod tests {
             (
                 "spiric",
                 Curve3::Spiric {
-                    center: c,
-                    axis: a,
-                    u_ref: u,
+                    frame: geom::Frame::new(c, a, u),
                     major_radius: 2.0,
                     minor_radius: 0.5,
                     offset: 0.2,
@@ -1029,56 +1046,47 @@ mod tests {
             (
                 "plane",
                 Surface::Plane {
-                    origin: o,
-                    normal: a,
-                    u_ref,
+                    frame: geom::Frame::new(o, a, u_ref),
                 },
                 1.0,
             ),
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: o,
-                    axis: a,
+                    frame: geom::Frame::new(o, a, u_ref),
                     radius: 0.7,
-                    u_ref,
                 },
                 -1.0,
             ),
             (
                 "cone",
                 Surface::Cone {
-                    apex: o,
-                    axis: a,
+                    frame: geom::Frame::new(o, a, u_ref),
                     half_angle: 0.4,
-                    u_ref,
                 },
                 -1.0,
             ),
             (
                 "sphere",
                 Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, a, u_ref),
                     radius: 0.7,
-                    axis: a,
-                    u_ref,
                 },
                 -1.0,
             ),
             (
                 "torus",
                 Surface::Torus {
-                    center: o,
-                    axis: a,
+                    frame: geom::Frame::new(o, a, u_ref),
                     major_radius: 2.0,
                     minor_radius: 0.5,
-                    u_ref,
                 },
                 -1.0,
             ),
         ];
         for (kind, surface, azimuth) in kinds {
-            let image = map_surface(&m, Hand::Improper, &surface).expect("an analytic surface");
+            let image =
+                map_surface(&m, Hand::Improper, None, &surface).expect("an analytic surface");
             for k in 0..9 {
                 let (s, t) = (f64::from(k) * 0.61 - 2.0, f64::from(k) * 0.17 - 0.6);
                 let want = m.transform_point(surface.eval(azimuth * s, t));

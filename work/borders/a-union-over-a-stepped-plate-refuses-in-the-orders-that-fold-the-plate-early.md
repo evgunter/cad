@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-19
 priority: P1
 cost: M
-refs: [a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere, coincident-faces-are-not-imprinted-on-each-other-before-the-lump]
+refs: [a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere]
 ---
 
 

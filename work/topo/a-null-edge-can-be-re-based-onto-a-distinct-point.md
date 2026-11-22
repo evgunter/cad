@@ -4,8 +4,6 @@ kind: issue
 title: the re-basing gate skips null scaffolding, so a fan mev can leave a null edge whose two ends are distinct points
 status: closed
 opened: 2026-09-14
-parent: S93
-refs: [S93]
 priority: P0
 cost: H
 pr: 3148

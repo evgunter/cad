@@ -67,8 +67,12 @@ Pinned:
 - `crates/sweep/tests/tilted_sphere_pair.rs`:
   - `a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`:
     `ChordBudget` at 1e-4 and 1e-5, δ 1e-2;
-  - `a_circle_near_the_pole_folds_at_a_coarse_delta`: 1e-3 meshes at
-    δ 1e-2 and refuses `FoldedTriangle` at 4e-2;
+  - `a_circle_near_the_pole_meshes_at_a_coarse_delta`: 1e-3 meshes at
+    δ 1e-2 and 4e-2. At 4e-2 the boundary-only fold is a triangle with a
+    side the other ball's face may make too, so the trimmed lane's
+    shared-side cure (carried to the sphere arm by
+    `work/tesslie/a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles.md`)
+    splits it, and the fold goes with it;
   - `a_section_near_a_pole_meshes_at_every_delta`: the (1, 0.8, 0)
     pose at every δ from 0.1 to 1e-3.
 - `crates/sweep/tests/spheres_crossing_off_every_edge.rs`,

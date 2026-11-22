@@ -187,7 +187,7 @@ enum Against {
 /// `(ε, pose, t)`: each refuses at its row in every op and order. At
 /// ε = 1e-12 none reaches the join in band: the square box builds at
 /// `t = ε`, and the slab refuses downstream
-/// (`work/honepose/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md`).
+/// (`work/hone/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md`).
 const BOOLEANS: [(f64, Against, f64); 6] = [
     (1e-9, Against::SquareBox, 1e-9),
     (1e-9, Against::WallTilt { dd: -5e-8 }, 1e-9),
@@ -217,7 +217,7 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_l
         println!(
             "SKIPPED at this ε: no Boolean pose reaches the join in band at 1e-12; the square \
              box builds and the slab refuses downstream \
-             (work/honepose/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md)"
+             (work/hone/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md)"
         );
         return;
     }
@@ -334,6 +334,25 @@ const AXIAL_PAST: [(f64, u8, f64, f64); 8] = [
     (0.95, 4, 1e-6, 0.3),
 ];
 
+/// The two [`AXIAL`] poses whose ends join at ε = 1e-12, so the cut is
+/// made and its result is read instead: the result's face escalates
+/// `props_chart_junction_open` at margin exactly 0 (a junction the band
+/// can call neither closed nor open). Cause: a frame squared at `f64`
+/// from stated directions, a rigid-motion claim (fork 274): the section
+/// pieces' frames are squared at `f64`, where main stored them raw.
+/// Mutant F1F (squaring at `f64` stores the stated vectors raw) refuses
+/// them at their ends as the other [`AXIAL`] poses do, and turns this
+/// pin red; mutants A and F1X do not.
+const JUNCTION_OPEN: [(f64, u8, f64, f64); 2] = [(0.7, 3, 3e-4, 0.3), (0.95, 3, 3e-4, 0.5)];
+
+/// The [`AXIAL`] pose whose cut is made at ε = 1e-12 and whose section
+/// pcurve then escalates `pcurve_map_residual`, margin in `(3.5e-12,
+/// 3.8e-12]` (measured 3.638e-12). Cause, as [`JUNCTION_OPEN`]'s: a frame
+/// squared at `f64` from stated directions (fork 274); mutant F1F turns
+/// this pin red, and A and F1X do not. It shows with the section ellipse's
+/// quarter turn on the merge base's bits (`quarter_turned_where`).
+const MAP_RESIDUAL: [(f64, u8, f64, f64); 1] = [(0.7, 2, 3e-5, 0.3)];
+
 /// The cause an in-band end pin on an unresolved carrier states, then
 /// D4 ¶1 (i)'s last resort, and no lever.
 const UNRESOLVED: &str = "The section curve's own rounding over this edge is too coarse to read this miss as the model's.";
@@ -346,7 +365,10 @@ const WITHIN: &str = "The section curve's own rounding over this edge can accoun
 /// refuses as a reading of the input. At ε = 1e-12 each [`AXIAL`] pose
 /// refuses with an in-band end pin on a carrier that cannot resolve it,
 /// and each [`AXIAL_PAST`] pose with a definite end miss the carrier's
-/// rounding covers: each a kernel limitation, in exactly its words.
+/// rounding covers: each a kernel limitation, in exactly its words. The
+/// two [`JUNCTION_OPEN`] poses are cut there instead, and their result
+/// refuses on its junction, and the [`MAP_RESIDUAL`] pose's section
+/// pcurve escalates (the frame cost, PR 7131).
 #[test]
 fn a_section_ends_own_rounding_is_a_kernel_limitation() {
     let tol = Tol::witness();
@@ -362,6 +384,46 @@ fn a_section_ends_own_rounding_is_a_kernel_limitation() {
             continue;
         }
         let past = AXIAL_PAST.contains(&pose);
+        if MAP_RESIDUAL.contains(&pose) {
+            // A frame squared at f64 from stated directions (fork 274).
+            let pinned = matches!(
+                &got,
+                Err(SplitError::Pcurves(topo::PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::Escalated { check: geom_brep::PcurveCheck::MapResidual, cause, .. },
+                    ..
+                })) if crate::common::frame_cost::escalated(cause, "pcurve_map_residual", (3.5e-12, 3.8e-12))
+            );
+            if !pinned {
+                wrong.push(format!(
+                    "{pose:?}: pinned to escalate pcurve_map_residual in (3.5e-12, 3.8e-12] at the \
+                     pcurve pass: {:?}",
+                    got.as_ref().err()
+                ));
+            }
+            continue;
+        }
+        if JUNCTION_OPEN.contains(&pose) {
+            // A frame squared at f64 from stated directions (fork 274).
+            let pinned = matches!(
+                &got,
+                Err(SplitError::Finish(topo::splitting::SplitFinishError::ResultNotAtRest {
+                    findings,
+                    ..
+                })) if crate::common::frame_cost::volume_escalates(
+                    findings.as_slice(),
+                    "props_chart_junction_open",
+                    (-f64::MIN_POSITIVE, 0.0),
+                )
+            );
+            if !pinned {
+                wrong.push(format!(
+                    "{pose:?}: pinned to cut, then escalate props_chart_junction_open at margin 0 \
+                     in the result: {:?}",
+                    got.as_ref().err()
+                ));
+            }
+            continue;
+        }
         let want = match &got {
             Err(SplitError::Join(JoinError::SectionUnresolved {
                 miss:

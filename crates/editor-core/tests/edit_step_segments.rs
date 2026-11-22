@@ -90,7 +90,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// anchor and the per-edge radii derived from the record, but not the
 /// record, so from outside the crate there is no path to the one the
 /// geometry was actually made from. That is exactly the gap
-/// `work/wirehold/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`
+/// `work/doctail/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`
 /// records, and the same one that keeps the door from having a caller
 /// outside these rows and the in-crate one that reads those radii. So
 /// these rows read a rebuilt structure, and the door reads its anchor
