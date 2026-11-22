@@ -1232,11 +1232,12 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    touch by value.
 
 **Records follow the file.** A surface entity the file states is one
-surface record, worn by every face of one shell that cites it; two
-entities are two records unless healing's reported one-record act joins
-them (step 3); each face is certified against its record; and the writer
-emits one surface entity per surface record. No comparison of printed
-values decides which record a face wears.
+surface record, worn by every face of one shell that cites it, and a
+record a normalization mints (a knot split's sub-patch) is a record of
+its own; two entities are two records unless healing's reported
+one-record act joins them (step 3); each face is certified against its
+record; and the writer emits one surface entity per surface record. No
+comparison of printed values decides which record a face wears.
 
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
 *input tolerance* ε_in — defaulted from the STEP file's declared
@@ -1372,8 +1373,8 @@ A name is also the mark that a value is wanted for itself.
 body's geometry (a face's plane, a carrier's axis or centre, a
 vertex's point, a face's flag along one of its edges); moved from another pose by a slide along, or a spin
 about, a direction or axis the definition reads; by a construction
-over other poses; as a pose of a copy; or as an output of an
-operation. So no pose is free and none is defined from nothing. A
+over other poses; as a pose of a copy; as the frame a placement
+places ([placement.datums]); or as an output of an operation. So no pose is free and none is defined from nothing. A
 construction reads poses as it reads any variable, only those of the
 space it is built in, and is in that space; relating two spaces is a
 placement's alone ([placement.spaces]).
@@ -1554,10 +1555,15 @@ is the face's outward normal, and its x and origin are the space's
 under the orientation the gesture writes nearest the face, carried
 onto the face by the least turn, then turned by the written spin and
 moved by the two written slides ([placement.values]). The frame alone
-decides nothing: what stands in it (the profile's own loops, each
-sweep of the profile, and the faces the profile traces) is carried by
-the placement's own fold over its own reach, as a placement's copy is, and within the band about
-the orientation's pole it refuses, naming the orientation to write. Nothing about the face's cells chooses it:
+decides nothing: each use of its turn is decided by the placement's own
+fold over the points the turn is used at, as a placement's copy is (the
+profile's own loops, and each sweep of the profile over its body), and
+within the band about the orientation's pole it refuses, naming the
+orientation to write. A trace uses the turn only at the crossing a piece
+takes, which is a point of the loops: it reads the traced face, which
+the turn never moves (as a placement never moves its mate's target),
+through the turn once that turn's pole is decided, and decides nothing
+past that crossing. Nothing about the face's cells chooses it:
 a sketch that should sit at a corner says so in its slides. The sketch
 may trace faces of that space ("Constructing a coincidence"): a profile
 on a face is one act whether or not it traces, and a sweep of it is
@@ -1646,10 +1652,10 @@ never mated twice.
 
 **Mates.** `[placement.mates]` Each mate equates two poses of one
 kind, modulo that kind's symmetry: a pose read off the source's
-geometry with a pose read off a body in the target space that does
-not read this placement. A mate reads only bodies' geometry, never a
-space and never a frame standing for a part's coordinates, and no
-space has roles a mate can read. A mate states a physical relation; a
+geometry with a pose that something placed or built in the target space
+defines and that does not read this placement. A mate reads only
+such poses, never a space and never a frame standing for a part's
+coordinates, and no space has roles a mate can read. A mate states a physical relation; a
 placement whose source touches nothing has none, and its values state
 the whole motion. A mate holds no number of its own, and its sense is
 a construction (`Flip`) on one side (a flag's `Flip` keeps its side:
@@ -1724,13 +1730,26 @@ two tilts `0`, and the slides and spin the author chooses). A
 placement is the only reader of a source's own coordinates, and reads
 them only through the freedoms its mates leave.
 
+**Datums.** `[placement.datums]` A placement's source is a body or
+nothing. With nothing, it is a **datum**: what it places is a bare
+frame, its one output, and the rules of spaces, bundles and values
+hold of it as written.
+Its mates' near sides are that frame's own roles (its xy plane, its z
+axis, its origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
+as a finer pose is read off any frame ([variables.poses]). An offset
+from a face is the mate's far side slid along its normal, as for a
+body ([placement.mates]); a datum has no number of its own beyond its
+values. A datum is a recipe object the author places, like a body:
+its output is shared unnamed, and a face read in place needs none.
+
 **The world** `[placement.world]` is a space like any other, the one
 every document holds and cannot delete: it sets the coordinates. Its
 axes chart the values of placements into it, and it is nothing else.
-It has no datum plane, origin or axis as a recipe object: a viewer
+It has no datum plane, origin or axis of its own: a viewer
 may draw its axes or a grid as a display aid, and a gesture that drops
 a part on the floor writes values; neither is a recipe object, and no
-mate or construction reads the world. Export and the viewer's drawing compose a body into
+mate or construction reads the world. An author may place a datum into
+it, as into any space ([placement.datums]). Export and the viewer's drawing compose a body into
 the coordinates of a space it reaches, the world's or any other shown
 space's, through one door that nothing else calls, and what they
 produce never re-enters the model. The **product** is the body the
