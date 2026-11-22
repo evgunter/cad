@@ -475,3 +475,9 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
     - `pr-only-jobs-rust-cache-is-never-saved` (P3).
   - FULL review (Opus) dispatched on the frozen head.
   - Recorded for the CI-first direction: every GREEN bisect branch is more queue for every program. Lanes are to prefer one branch per batch of candidates over one per merge where a run can test several.
+- 2026-11-22 — PR 7364's review is in (FULL, Opus): APPROVE-WITH-FIXES. All six claims were confirmed from run records: no detection lost, the cache restores at a full match, python 29.8 → 15.4 min and mesh-budget 12.1 → 7.5 min.
+  - MINORs:
+    - the branch conflicts with main in three rows PR 7371 closed, so it gets no run;
+    - four CI env blocks must stay equal by hand, and a drift is silently slow (the fix minted another copy of the defect it measured);
+    - the job-minute share is quoted two ways.
+  - Fix pass sent: all taken but Q6 (timings in a PR body) and the scope note (state-sync rows from the orchestrator branch). The env-block equality gets one source or a gate; a sibling cancellation row and the GIL-release row go to BIND.
