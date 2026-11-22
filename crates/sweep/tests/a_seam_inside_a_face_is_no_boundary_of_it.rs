@@ -140,7 +140,7 @@ fn a_turned_tube_reads_its_side_in_its_seam_plane() {
                 let counts = topo::test_support::ray_counts(
                     &body,
                     face,
-                    &geom::Ray::new(q, d),
+                    &geom::Ray::new(q, geom::stated_direction(d)),
                     band,
                     (0, false),
                 )

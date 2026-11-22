@@ -274,7 +274,7 @@ fn pairs_among(body: &Body<f64>, pick: impl Fn(&Curve3<f64>) -> bool) -> (usize,
 /// along the extrusion direction (`+z`). Its cap rims are the profile
 /// segments, which lie in the sketch plane.
 fn is_strut(c: &Curve3<f64>) -> bool {
-    matches!(c, Curve3::Line(geom::Line { dir, .. }) if dir.z.abs() > 0.5)
+    matches!(c, Curve3::Line(geom::Line { dir, .. }) if dir.get().z.abs() > 0.5)
 }
 
 /// The bored ring's smooth latitude join: the one circle at the bore
@@ -505,7 +505,7 @@ fn out_of_lane_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let plane = Surface::Plane {
         frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), normal, Vec3::new(0.0, 1.0, 0.0)),
     };
-    let carrier = Curve3::line(Point3::new(dir.x, 0.0, dir.z), dir);
+    let carrier = Curve3::line(Point3::new(dir.x, 0.0, dir.z), geom::stated_direction(dir));
     (plane, cone, carrier)
 }
 
@@ -563,7 +563,7 @@ fn resting_cylinder() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
         ),
         radius: MERIDIAN_R,
     };
-    let ruling = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let ruling = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
     (plane, cylinder, ruling)
 }
 
@@ -649,7 +649,7 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
             Vec3::new(cos_theta, sin_theta, 0.0),
         ),
     };
-    let axis_line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let axis_line = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
     let (a, b) = both_orders(&flat, &tilted, &axis_line, extent, extent);
     for (order, verdict) in [("flat first", a), ("tilted first", b)] {
         match verdict {

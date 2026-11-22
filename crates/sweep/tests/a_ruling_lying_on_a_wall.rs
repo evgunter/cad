@@ -630,7 +630,7 @@ fn across_a_wall(
         let mid = c.carrier().mid_point(t0, t1);
         if c.authority().is_declared() {
             let ruling = match c.carrier() {
-                geom::Curve3::Line(line) => line.dir.dot(Vec3::unit_z()).abs() >= 1.0 - 1e-9,
+                geom::Curve3::Line(line) => line.dir.get().dot(Vec3::unit_z()).abs() >= 1.0 - 1e-9,
                 _ => false,
             };
             let on_seam = seams

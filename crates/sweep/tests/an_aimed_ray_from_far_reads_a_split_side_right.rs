@@ -344,7 +344,7 @@ fn a_far_rays_wall_crossings_hold_their_true_roots() {
     let d = Vec3::new(0.6, 0.8, 0.0);
     let exact = [-1.150_772_888_012_841, 0.790_772_887_912_552_7];
     let crossings =
-        topo::test_support::ray_counts(&body, face, &geom::Ray::new(q, d), band, (0, false))
+        topo::test_support::ray_counts(&body, face, &geom::Ray::new(q, geom::stated_direction(d)), band, (0, false))
             .expect("the ray reads its crossings");
     let walls: Vec<_> = crossings.iter().filter(|c| c.2 != 0).collect();
     assert_eq!(walls.len(), 2, "two wall crossings: {crossings:?}");

@@ -782,7 +782,7 @@ mod tests {
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),
         );
-        let line = geom::Curve3::Line(geom::Line { origin: o, dir: x });
+        let line = geom::Curve3::Line(geom::Line { origin: o, dir: geom_core::UnitVec3::constructed(x) });
         let circle = geom::Curve3::circle(o, z, 1.0, x);
         let ellipse =
             geom::Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), 1.0, 0.5));

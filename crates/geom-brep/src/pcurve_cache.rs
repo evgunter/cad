@@ -6928,7 +6928,7 @@ pub fn ruling_miss<T: Real>(
             let off = |t: T| (origin + dir.get() * t - apex).cross(g).norm();
             #[cfg(test)]
             if mutants::ruling_unplaced() {
-                return Margin::of(off(T::zero()) + dir.cross(g).norm() * (t1 - t0).abs());
+                return Margin::of(off(T::zero()) + dir.get().cross(g).norm() * (t1 - t0).abs());
             }
             Margin::of(off(t0).max(off(t1)))
         }
@@ -14674,7 +14674,7 @@ mod tests {
     fn meridian_line_on_cylinder_is_the_u_const_line() {
         let r = 0.5;
         let cyl = cylinder(r);
-        let carrier = Curve3::line(Point3::new(r, 0.0, 0.0), Vec3::unit_z());
+        let carrier = Curve3::line(Point3::new(r, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
         let Some((p0, pa, pb, pl)) = p.harmonic_form() else {
             panic!("the closed-form lane stores harmonic images")
@@ -14696,7 +14696,7 @@ mod tests {
     fn a_seam_edge_carries_two_different_branches_of_one_surface() {
         let r = 0.5;
         let cyl = cylinder(r);
-        let carrier = Curve3::line(Point3::new(r, 0.0, 0.0), Vec3::unit_z());
+        let carrier = Curve3::line(Point3::new(r, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let base = chart_pcurve(&carrier, &cyl, band()).unwrap();
         let wrapped = base.shift_branch(1, Period::new(TAU));
         let wrapped_for_shift = wrapped.clone();
@@ -14819,7 +14819,7 @@ mod tests {
         use geom_core::Interval;
         let f = Interval::from_f64;
         let rim = Curve3::circle(Point3::origin(), Vec3::unit_z(), 0.5, Vec3::unit_x());
-        let seam = Curve3::line(Point3::new(0.5, 0.0, 0.0), Vec3::unit_z());
+        let seam = Curve3::line(Point3::new(0.5, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         for (name, carrier, derived) in [("rim", rim, 1), ("seam", seam, 0)] {
             let Pcurve::Harmonic {
                 u: Channel::Angle { phase, winding },
@@ -15397,7 +15397,7 @@ mod tests {
                 half_angle: 0.5,
             }
             .map_scalar(&at);
-            let line = Curve3::line(Point3::origin(), Vec3::unit_x()).map_scalar(&at);
+            let line = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()).map_scalar(&at);
             let half = 0.1 * band().zero();
             chart_pcurve_over(&line, at(-half), at(half), &cone, band())
                 .expect_err("the apex plane meets the cone only at the apex")
@@ -15459,7 +15459,7 @@ mod tests {
             (
                 "a line in the cone's apex plane",
                 "the line's points are not on the chart",
-                Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_y()),
+                Curve3::line(Point3::new(1.0, 0.0, 0.0), geom_core::UnitVec3::exact_y()),
                 &cone,
             ),
             (
@@ -15487,7 +15487,7 @@ mod tests {
             (
                 "a line through the sphere's centre",
                 "the line's points are not on the chart",
-                Curve3::line(Point3::origin(), Vec3::unit_x()),
+                Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
                 &sphere,
             ),
             (
@@ -16032,7 +16032,7 @@ mod tests {
 
     /// A `Curve3::Line` from `origin` along `dir` (already unit here).
     fn ruling_line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Line(geom::Line { origin, dir })
+        Curve3::Line(geom::Line { origin, dir: geom::stated_direction(dir) })
     }
 
     /// The positive row: a promoted LINE carrier on the wall's `u = 0`
@@ -16444,7 +16444,7 @@ mod fitted_lane_tests {
     }
 
     fn line(lift: f64) -> Curve3<f64> {
-        Curve3::line(Point3::new(0.0, 0.5, lift), Vec3::new(1.0, 0.0, 0.0))
+        Curve3::line(Point3::new(0.0, 0.5, lift), geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)))
     }
 
     /// **A line carrier enters as its exact net, against the chart
@@ -16567,7 +16567,7 @@ mod iso_family {
         let line = |tilt: f64| {
             Curve3::line(
                 Point3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, tilt, 1.0).normalize(),
+                geom_core::UnitVec3::squared(Vec3::new(0.0, tilt, 1.0)),
             )
         };
         let rim = Curve3::circle(
@@ -16709,7 +16709,7 @@ mod off_chart_class_rows {
         }
         let mid = 0.5 * (band().zero() + band().escalate());
         let dir = Vec3::new(0.0, 1.0, 0.3).normalize();
-        let line = |origin: Point3<f64>| Curve3::Line(geom::Line { origin, dir });
+        let line = |origin: Point3<f64>| Curve3::Line(geom::Line { origin, dir: geom::stated_direction(dir) });
         let at_mid = Point3::new(1.0, 0.0, mid);
         let (u, v) = (Vec3::unit_y(), Vec3::new(mid, 0.0, 1.0).normalize());
         let tilted_circle =
@@ -17790,7 +17790,7 @@ mod row_support_rows {
     fn line(y: f64) -> Curve3<f64> {
         Curve3::Line(geom::Line {
             origin: Point3::new(1.0, y, 0.0),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         })
     }
 

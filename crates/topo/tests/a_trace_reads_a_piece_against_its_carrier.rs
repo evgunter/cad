@@ -60,7 +60,7 @@ fn a_line_enters_and_leaves_a_ball_in_the_faces_sense() {
         ray_crossings(
             &sphere(),
             sense,
-            &geom::Ray::new(Point3::new(-2.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+            &geom::Ray::new(Point3::new(-2.0, 0.0, 0.0), geom::stated_direction(Vec3::new(1.0, 0.0, 0.0))),
             4.0,
             band(),
         )
@@ -119,7 +119,7 @@ fn a_piece_on_or_tangent_to_a_carrier_refuses() {
     let on = ray_crossings(
         &floor(),
         true,
-        &geom::Ray::new(Point3::origin(), Vec3::new(1.0, 0.0, 0.0)),
+        &geom::Ray::new(Point3::origin(), geom::stated_direction(Vec3::new(1.0, 0.0, 0.0))),
         1.0,
         band(),
     );
@@ -127,7 +127,7 @@ fn a_piece_on_or_tangent_to_a_carrier_refuses() {
     let grazing = ray_crossings(
         &sphere(),
         true,
-        &geom::Ray::new(Point3::new(-2.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+        &geom::Ray::new(Point3::new(-2.0, 1.0, 0.0), geom::stated_direction(Vec3::new(1.0, 0.0, 0.0))),
         4.0,
         band(),
     );
@@ -212,7 +212,7 @@ fn a_piece_through_a_cones_apex_refuses_at_the_apex() {
     let line = ray_crossings(
         &cone,
         true,
-        &geom::Ray::new(Point3::new(-2.0, 0.0, 0.3), Vec3::new(1.0, 0.0, -0.15)),
+        &geom::Ray::new(Point3::new(-2.0, 0.0, 0.3), geom::stated_direction(Vec3::new(1.0, 0.0, -0.15))),
         4.0,
         band(),
     );

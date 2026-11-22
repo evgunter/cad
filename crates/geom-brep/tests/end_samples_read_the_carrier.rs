@@ -46,7 +46,7 @@ fn certify_pose(r: f64, s: f64, reversed: bool) -> (SurfaceKey, Result<(), Certi
         (near, far, near, far_vertex)
     };
     let len = (b - a).norm();
-    let carrier = Curve3::line(a, (b - a) / len);
+    let carrier = Curve3::line(a, geom::stated_direction((b - a) / len));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),

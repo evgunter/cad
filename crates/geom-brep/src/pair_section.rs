@@ -3929,7 +3929,7 @@ mod wiring {
                 pad_box(0.5, 1.0, None),
             ],
             runs: Vec::new(),
-            carrier: geom::Curve3::line(Point3::origin(), Vec3::unit_x()),
+            carrier: geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
             span: (0.0, 1.0),
             shape: super::ComponentShape::Open {
                 ends: super::ComponentEnds::default(),
@@ -3985,7 +3985,7 @@ mod wiring {
             witness: Point3::new(0.5, 0.0, 0.0),
             boxes: vec![pad_box(0.4, 0.6, 1e-3), pad_box(0.45, 0.55, 5e-3)],
             runs: Vec::new(),
-            carrier: geom::Curve3::line(Point3::origin(), Vec3::unit_x()),
+            carrier: geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
             span: (0.0, 1.0),
             shape: super::ComponentShape::Open {
                 ends: super::ComponentEnds::default(),
@@ -4836,7 +4836,7 @@ mod end_at_rows {
         CarriedComponent {
             carrier: Curve3::Line(Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(1.0, 0.0, 0.0),
+                dir: geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
             }),
             span: (0.0, 1.0),
             shape: ComponentShape::Open {

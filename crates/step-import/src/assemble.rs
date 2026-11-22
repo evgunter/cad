@@ -1162,7 +1162,7 @@ mod tests {
                     start: VERTEX,
                     end: VERTEX,
                     description: crate::build::Description::Wrap,
-                    carrier: Curve3::line(Point3::new(x, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+                    carrier: Curve3::line(Point3::new(x, 0.0, 0.0), geom_core::UnitVec3::exact_x()),
                     t0: 0.0,
                     t1: 1.0,
                 },

@@ -5001,7 +5001,7 @@ mod per_solid_entry_tests {
             let d = Vec3::new(0.5, 0.3, -1.0).normalize();
             let q = Point3::new(1.0 + 0.5 * g, 0.5, 1.0) - d * 2.0;
             let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
-            let got = cast_ray(&body, &geos, &geom::Ray::new(q, d), reach, band);
+            let got = cast_ray(&body, &geos, &geom::Ray::new(q, geom::stated_direction(d)), reach, band);
             assert!(
                 !matches!(
                     &got,
@@ -5050,7 +5050,7 @@ mod per_solid_entry_tests {
                 let d = Vec3::new(1.0, 0.05, -slope).normalize();
                 let q = Point3::new(1.0, 0.5, 1.0 + 3.0 * tol.eps() * slope) - d * 0.3;
                 let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
-                let got = cast_ray(&body, &geos, &geom::Ray::new(q, d), reach, band);
+                let got = cast_ray(&body, &geos, &geom::Ray::new(q, geom::stated_direction(d)), reach, band);
                 let pair = matches!(
                     &got,
                     Err(RayFault::InBand(PointInSolidError::Escalated { diag, .. }))
@@ -5077,7 +5077,7 @@ mod per_solid_entry_tests {
             .collect();
         let cast = |q: Point3<f64>, d: Vec3<f64>| {
             let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
-            cast_ray(&body, &geos, &geom::Ray::new(q, d.normalize()), reach, band)
+            cast_ray(&body, &geos, &geom::Ray::new(q, geom_core::UnitVec3::squared(d)), reach, band)
         };
         let inside = Point3::new(0.5, 0.5, 0.5);
         assert!(matches!(
@@ -5701,11 +5701,11 @@ mod reach_tests {
             let off = 10f64.powf(-8.0 + f64::from(i) * 0.02);
             let m = met(off);
             let margin =
-                reach_margin(&body, face, &geom::Ray::new(q, d), &m, root).expect("a carrier");
+                reach_margin(&body, face, &geom::Ray::new(q, geom::stated_direction(d)), &m, root).expect("a carrier");
             let reached = reaches_root_in_band(
                 &body,
                 face,
-                &geom::Ray::new(q, d),
+                &geom::Ray::new(q, geom::stated_direction(d)),
                 &m,
                 root,
                 band,
@@ -5777,7 +5777,7 @@ mod cone_ray_rows {
         let (g, n) = (Vec3::new(s, 0.0, s), Vec3::new(s, 0.0, -s));
         let d = g * 0.01f64.cos() + Vec3::new(0.0, 1.0, 0.0) * 0.01f64.sin();
         for (label, off, two) in [("outward", 1e-6, false), ("inward", -1e-6, true)] {
-            let ray = geom::Ray::new(Point3::new(1.0, 0.0, 1.0) + n * off - d * 0.5, d);
+            let ray = geom::Ray::new(Point3::new(1.0, 0.0, 1.0) + n * off - d * 0.5, geom::stated_direction(d));
             let (roots, missed) = match carrier_roots(&geos, &ray, 4.0, band, SCHEDULE_ROWS) {
                 Ok(got) => got,
                 Err(fault) => panic!("{label}: decided, got {fault:?}"),

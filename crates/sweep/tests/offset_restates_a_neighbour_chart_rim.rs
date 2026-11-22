@@ -163,7 +163,7 @@ fn a_declared_rim_in_the_caps_chart_is_restated_as_the_section_too() {
             place: Affine3::identity(),
             axis: geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 1.0, 0.0),
+                dir: geom_core::UnitVec3::exact_y(),
             },
             angle: std::f64::consts::PI,
         })));

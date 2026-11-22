@@ -111,7 +111,7 @@ fn refused<T: Decide + AtRestPolicy + Bounds>(declared: bool) -> CertifyError {
         } else {
             description
         },
-        carrier: Curve3::line(start, (end - start) / len),
+        carrier: Curve3::line(start, geom_core::UnitVec3::constructed((end - start) / len)),
         param_start: T::zero(),
         param_end: len,
     };

@@ -18316,7 +18316,7 @@ mod tests {
                 .edges
                 .iter()
                 .find(|e| {
-                    let ends = [e.p0, e.p0 + e.dir * e.len];
+                    let ends = [e.p0, e.p0 + e.dir.get() * e.len];
                     ends.iter().all(|p| p.y == 0.30 && p.z == 0.5) && close(e.len, 0.9)
                 })
                 .expect("the shelf's y = 0.30 underside edge")
@@ -18336,7 +18336,7 @@ mod tests {
             let f = planar_face(&geo, face).unwrap();
             let mut errors = Vec::new();
             let cuts = boundary_crossings(body, e, f, band(), &mut errors);
-            let at_x = |c: Cut<f64>| ((e.p0 + e.dir * c.s).x, c.at);
+            let at_x = |c: Cut<f64>| ((e.p0 + e.dir.get() * c.s).x, c.at);
             (cuts.map(|c| c.into_iter().map(at_x).collect()), errors)
         }
 
@@ -18365,7 +18365,7 @@ mod tests {
             let got: Vec<_> = cells
                 .iter()
                 .map(|c| {
-                    let x = |cut: Cut<f64>| (e.p0 + e.dir * cut.s).x;
+                    let x = |cut: Cut<f64>| (e.p0 + e.dir.get() * cut.s).x;
                     (x(c.lo), c.lo.at, x(c.hi), c.hi.at, c.mid)
                 })
                 .collect();
@@ -18588,7 +18588,7 @@ mod tests {
                 .edges
                 .iter()
                 .find(|e| {
-                    let ends = [e.p0, e.p0 + e.dir * e.len];
+                    let ends = [e.p0, e.p0 + e.dir.get() * e.len];
                     ends.iter().all(|p| p.y == 0.5 && p.z == 0.0)
                 })
                 .expect("the cube's y = 0.5 bottom edge")
@@ -18676,7 +18676,7 @@ mod tests {
                     .edges
                     .iter()
                     .find(|e| {
-                        let ends = [e.p0, e.p0 + e.dir * e.len];
+                        let ends = [e.p0, e.p0 + e.dir.get() * e.len];
                         ends.iter().all(|p| p.y == 0.0 && p.z == 0.0)
                     })
                     .expect("the plate's resting edge");
@@ -18736,7 +18736,7 @@ mod tests {
                     .edges
                     .iter()
                     .find(|e| {
-                        let ends = [e.p0, e.p0 + e.dir * e.len];
+                        let ends = [e.p0, e.p0 + e.dir.get() * e.len];
                         e.f_plus != cap && ends.iter().all(|p| p.x == 0.5 && p.z == z0)
                     })
                     .expect("a cube edge in the cap's plane")
@@ -18777,7 +18777,7 @@ mod tests {
             assert!(!cuts.is_empty(), "the straddling edge is cut");
             for cut in &cuts {
                 assert!(matches!(cut.at, CutAt::CurvedCrossing(_)), "{cuts:?}");
-                let q = e.p0 + e.dir * cut.s;
+                let q = e.p0 + e.dir.get() * cut.s;
                 let off = (0..=4096)
                     .map(|i| {
                         let v =
@@ -18868,7 +18868,7 @@ mod tests {
                 p0: a,
                 p1: b,
                 points: [None; 2],
-                dir: (b - a).normalize(),
+                dir: geom_core::UnitVec3::squared(b - a),
                 len: (b - a).norm(),
                 ..*any
             }
@@ -18887,7 +18887,7 @@ mod tests {
             let f = planar_face(&geo, face).unwrap();
             let mut errors = Vec::new();
             let cells = ef_overlap_cells(body, e, f, &geo, band(), &mut errors);
-            let y = |c: Cut<f64>| (e.p0 + e.dir * c.s).y;
+            let y = |c: Cut<f64>| (e.p0 + e.dir.get() * c.s).y;
             (
                 cells
                     .iter()
@@ -20742,7 +20742,7 @@ mod two_carrier_records {
             ) -> Result<bool, Vec<usize>> {
                 let carrier = geom::Curve3::Line(geom::Line {
                     origin: geom_core::Point3::new(0.0, y, z),
-                    dir: geom_core::Vec3::unit_x(),
+                    dir: geom_core::UnitVec3::exact_x(),
                 });
                 crate::boolean::line_through_both_faces(
                     faces,
@@ -21633,7 +21633,7 @@ mod edge_pairs_as_segments {
         for at in [AT_1E12, AT_1E9] {
             assert!(
                 span_charge(
-                    on_one_line(ea.dir, (ea.p0, ea.p1), (eb.p0, eb.p1), 0.0).noise,
+                    on_one_line(ea.dir.get(), (ea.p0, ea.p1), (eb.p0, eb.p1), 0.0).noise,
                     band(at)
                 )
                 .is_some()
@@ -21787,7 +21787,7 @@ mod edge_pairs_as_segments {
         let (sa, sb) = (segment((a0, a1)), segment((b0, b1)));
         assert!(
             span_charge(
-                on_one_line(sa.dir, (a0, a1), (b0, b1), 0.0).noise,
+                on_one_line(sa.dir.get(), (a0, a1), (b0, b1), 0.0).noise,
                 band(AT_1E12)
             )
             .is_none()
@@ -21877,7 +21877,7 @@ mod edge_pairs_as_segments {
                 continue;
             }
             read_pairs += 1;
-            let noise = on_one_line(sa.dir, (a0, a1), (b0, b1), 0.0).noise;
+            let noise = on_one_line(sa.dir.get(), (a0, a1), (b0, b1), 0.0).noise;
             charged += usize::from(span_charge(noise, band(AT_1E12)).is_some());
             let none = matches!(read, Some(None));
             assert!(
@@ -23304,13 +23304,13 @@ mod line_pass_rows {
         let (key, edge) = line_edges(&body)
             .into_iter()
             .map(|e| (e.key, e))
-            .find(|(_, e)| e.dir.z.abs() < 0.5 && e.p0.z > 0.5)
+            .find(|(_, e)| e.dir.get().z.abs() < 0.5 && e.p0.z > 0.5)
             .expect("a brick has a top edge");
         let moved = edge.points[1].expect("an edge of a body sits on points");
         body.points.get_mut(moved).expect("the point resolves").z += 1e-3;
-        let middle = edge.p0 + edge.dir * (0.5 * edge.len);
-        let across = edge.dir.cross(Vec3::new(0.0, 0.0, 1.0));
-        let passes = line_passes(&body, (middle - across, across, 2.0), |k, _, _| k == key);
+        let middle = edge.p0 + edge.dir.get() * (0.5 * edge.len);
+        let across = edge.dir.get().cross(Vec3::new(0.0, 0.0, 1.0));
+        let passes = line_passes(&body, (middle - across, geom::stated_direction(across), 2.0), |k, _, _| k == key);
         let [pass] = &passes[..] else {
             panic!("the one edge kept: {} passes", passes.len());
         };

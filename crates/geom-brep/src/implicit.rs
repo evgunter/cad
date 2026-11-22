@@ -1190,7 +1190,7 @@ pub fn conic_cone_harmonics<T: Real>(
     let (h0, hu, hv) = (d.dot(c_axis.get()), a * u.dot(c_axis.get()), b * v.dot(c_axis.get()));
     #[cfg(test)]
     let (c2_bb, c2_hv) = if crate::pcurve_cache::mutants::ellipse_term_dropped() {
-        (a.powi(2) * vp.norm_squared(), a * v.dot(c_axis))
+        (a.powi(2) * vp.norm_squared(), a * v.dot(c_axis.get()))
     } else {
         (bb, hv)
     };
@@ -1227,7 +1227,7 @@ pub fn conic_cone_harmonics<T: Real>(
     let (b_c, hv_c) = (b, hv);
     #[cfg(test)]
     let (b_c, hv_c) = if crate::pcurve_cache::mutants::charge_circular() {
-        (a, a * v.dot(c_axis))
+        (a, a * v.dot(c_axis.get()))
     } else {
         (b_c, hv_c)
     };
@@ -3370,7 +3370,7 @@ mod conic_tests {
                     let r = match *s {
                         Surface::Torus { .. } => conic_torus_residual(
                             conic,
-                            geom::Line { origin: c, dir: ax },
+                            geom::Line { origin: c, dir: geom::stated_direction(ax) },
                             big,
                             small,
                             t,
@@ -3379,7 +3379,7 @@ mod conic_tests {
                             conic,
                             geom::Line {
                                 origin: apex,
-                                dir: ax,
+                                dir: geom::stated_direction(ax),
                             },
                             half,
                             t,
@@ -3388,7 +3388,7 @@ mod conic_tests {
                             conic_quadric_residual(conic, (c, None, radius), t)
                         }
                         Surface::Cylinder { radius, .. } => {
-                            conic_quadric_residual(conic, (c, Some(ax), radius), t)
+                            conic_quadric_residual(conic, (c, Some(geom::stated_direction(ax)), radius), t)
                         }
                         _ => unreachable!(),
                     };
@@ -3450,7 +3450,7 @@ mod conic_tests {
         ))));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
-                let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);
+                let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: geom::stated_direction(ax) }, big, small);
                 let noise = rounding_charge(h.terms);
                 for j in 0..64 {
                     let t = TAU * f64::from(j) / 64.0;
@@ -3544,12 +3544,12 @@ mod conic_tests {
         ))));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
-                let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);
+                let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: geom::stated_direction(ax) }, big, small);
                 let noise = rounding_charge(h.terms);
                 for i in 0..64 {
                     let t = TAU * f64::from(i) / 64.0;
                     let jet =
-                        conic_torus_jet(conic, geom::Line { origin: c, dir: ax }, big, small, t);
+                        conic_torus_jet(conic, geom::Line { origin: c, dir: geom::stated_direction(ax) }, big, small, t);
                     for (j, got) in jet.iter().enumerate() {
                         let want = (1..5).fold(if j == 0 { h.cos[0] } else { 0.0 }, |acc, m| {
                             let mf = f64::from(m);
@@ -3587,11 +3587,11 @@ mod conic_tests {
         );
         let (c, ax) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let noise = rounding_charge(
-            conic_torus_harmonics(&graze, geom::Line { origin: c, dir: ax }, big, small).terms,
+            conic_torus_harmonics(&graze, geom::Line { origin: c, dir: geom::stated_direction(ax) }, big, small).terms,
         );
         assert!(noise > 1e-4, "the harmonics' noise at ρ = {rho}: {noise}");
         for t in [0.0, 1e-4, -2e-3] {
-            let jet = conic_torus_jet(&graze, geom::Line { origin: c, dir: ax }, big, small, t);
+            let jet = conic_torus_jet(&graze, geom::Line { origin: c, dir: geom::stated_direction(ax) }, big, small, t);
             for (j, got) in jet.iter().enumerate() {
                 let scale = (big + small).powi(4) * rho.powi(j as i32);
                 assert!(
@@ -3687,7 +3687,7 @@ mod conic_tests {
                     }
                     Surface::Cylinder { frame, radius, .. } => {
                         let (origin, axis) = (frame.origin(), frame.axis());
-                        conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius)
+                        conic_cylinder_harmonics(conic, geom::Line { origin, dir: geom::stated_direction(axis) }, radius)
                     }
                     _ => unreachable!(),
                 };

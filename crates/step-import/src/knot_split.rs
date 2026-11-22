@@ -1287,7 +1287,7 @@ mod tests {
                 let spec = EdgeSpec {
                     start: 30 + i,
                     end: 30 + (i + 1) % 4,
-                    carrier: Curve3::line(a, b - a),
+                    carrier: Curve3::line(a, geom::stated_direction(b - a)),
                     t0: 0.0,
                     t1: 1.0,
                     reversed: false,
@@ -1344,7 +1344,7 @@ mod tests {
                 .unwrap(),
             ))
         };
-        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, b - a);
+        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, geom::stated_direction(b - a));
         let corners =
             [(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)].map(|(x, y)| Point3::new(x, y, 0.0));
         let carriers = [
@@ -1436,7 +1436,7 @@ mod tests {
                             EdgeSpec {
                                 start: v,
                                 end,
-                                carrier: Curve3::line(a, b - a),
+                                carrier: Curve3::line(a, geom::stated_direction(b - a)),
                                 t0: 0.0,
                                 t1: 1.0,
                                 reversed: false,
@@ -1864,7 +1864,7 @@ mod tests {
                 solid.vertices[&(300 + k)],
                 solid.vertices[&(300 + (k + 1) % n)],
             );
-            solid.edges.get_mut(&(200 + k)).unwrap().carrier = Curve3::line(a, b - a);
+            solid.edges.get_mut(&(200 + k)).unwrap().carrier = Curve3::line(a, geom::stated_direction(b - a));
         }
         solid.faces[0].surface = Surface::Nurbs(Arc::new(s));
         solid
@@ -2213,7 +2213,7 @@ mod tests {
                     }
                     let spl = build(hi);
                     let max_x = max_x(&spl);
-                    let back = Curve3::line(Point3::new(0.3, 0.8, 0.0), Vec3::new(0.0, -0.6, 0.0));
+                    let back = Curve3::line(Point3::new(0.3, 0.8, 0.0), geom::stated_direction(Vec3::new(0.0, -0.6, 0.0)));
                     let s = face(
                         chart([0.0, 0.5, 1.0]),
                         vec![(Curve3::Nurbs(Arc::new(spl)), 0.0, 1.0), (back, 0.0, 1.0)],

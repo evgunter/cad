@@ -6529,7 +6529,7 @@ mod presentation_rows {
             stated: None,
             key: edge(n),
             arc: Some((
-                Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
+                Curve3::line(origin(), geom_core::UnitVec3::exact_x()),
                 (iv0(0.0), iv0(1.0)),
             )),
             ends: ends.map(vertex),
@@ -7659,7 +7659,7 @@ mod presentation_rows {
                 stated: None,
                 key: edge(1),
                 arc: Some((
-                    Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
+                    Curve3::line(origin(), geom_core::UnitVec3::exact_x()),
                     (iv0(0.0), iv0(4.0)),
                 )),
                 ends: [vertex(1), vertex(2)],
@@ -7721,7 +7721,7 @@ mod presentation_rows {
         let line = |d: Vec3<Interval>, far: u64, plus: bool| Rim {
             stated: None,
             key: edge(far),
-            arc: Some((Curve3::line(origin(), d), (iv0(0.0), iv0(4.0)))),
+            arc: Some((Curve3::line(origin(), geom_core::UnitVec3::constructed(d)), (iv0(0.0), iv0(4.0)))),
             ends: [vertex(1), vertex(far)],
             uses: vec![Use {
                 plus,
@@ -7781,7 +7781,7 @@ mod presentation_rows {
     /// boxes may hold, narrowed to them from both ends.
     #[test]
     fn edge_piece_narrows_to_the_parameters_the_boxes_hold() {
-        let line = Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)));
+        let line = Curve3::line(origin(), geom_core::UnitVec3::exact_x());
         let bx = |a: f64, b: f64| {
             Point3::new(
                 Interval::from_bounds(a, b),
@@ -7987,7 +7987,7 @@ mod presentation_rows {
             arc: Some((
                 Curve3::line(
                     p(from),
-                    Vec3::new(iv0(to.0 - from.0), iv0(to.1 - from.1), iv0(0.0)),
+                    geom_core::UnitVec3::constructed(Vec3::new(iv0(to.0 - from.0), iv0(to.1 - from.1), iv0(0.0))),
                 ),
                 (iv0(0.0), iv0(1.0)),
             )),
@@ -8035,7 +8035,7 @@ mod presentation_rows {
         for e in core::iter::once(&other).chain(&extra) {
             if let Some((Curve3::Line(geom::Line { origin, dir }), _)) = &e.arc {
                 vertices.entry(e.ends[0]).or_insert(*origin);
-                vertices.entry(e.ends[1]).or_insert(*origin + *dir);
+                vertices.entry(e.ends[1]).or_insert(*origin + dir.get());
             }
         }
         Boundary {
@@ -8453,7 +8453,7 @@ mod presentation_rows {
         );
         let cylinder = Psi::Carrier(Implicit::Cylinder {
             o: origin(),
-            axis: z,
+            axis: geom_core::UnitVec3::constructed(z),
             r: iv0(1.0),
         });
         assert_eq!(
@@ -9084,7 +9084,7 @@ mod presentation_rows {
             arc: Some((
                 Curve3::line(
                     Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    geom_core::UnitVec3::exact_x(),
                 ),
                 (iv0(t.0), iv0(t.1)),
             )),
@@ -9122,7 +9122,7 @@ mod presentation_rows {
             stated: None,
             key: edge(10),
             arc: Some((
-                Curve3::line(on_cyl(1.0, 0.5), Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0))),
+                Curve3::line(on_cyl(1.0, 0.5), geom_core::UnitVec3::exact_z()),
                 (iv0(0.0), iv0(0.5)),
             )),
             ends: [vertex(1), vertex(2)],
@@ -9146,7 +9146,7 @@ mod presentation_rows {
         for e in &extra {
             if let Some((Curve3::Line(geom::Line { origin, dir }), _)) = &e.arc {
                 vertices.entry(e.ends[0]).or_insert(*origin);
-                vertices.entry(e.ends[1]).or_insert(*origin + *dir);
+                vertices.entry(e.ends[1]).or_insert(*origin + dir.get());
             }
         }
         Boundary {
@@ -9255,7 +9255,7 @@ mod presentation_rows {
             stated: None,
             key: edge(n),
             arc: Some((
-                Curve3::line(on_cyl(1.0, 0.5), Vec3::new(iv0(0.0), iv0(0.0), iv0(dv))),
+                Curve3::line(on_cyl(1.0, 0.5), geom_core::UnitVec3::constructed(Vec3::new(iv0(0.0), iv0(0.0), iv0(dv)))),
                 (iv0(0.0), iv0(0.5)),
             )),
             ends: [vertex(1), vertex(2)],
@@ -9701,7 +9701,7 @@ mod presentation_rows {
             arc: Some((
                 Curve3::line(
                     Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    geom_core::UnitVec3::exact_x(),
                 ),
                 (iv0(0.0), iv0(1.0)),
             )),
@@ -9861,7 +9861,7 @@ mod presentation_rows {
             arc: Some((
                 Curve3::line(
                     Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    geom_core::UnitVec3::exact_x(),
                 ),
                 (iv0(0.0), iv0(1.0)),
             )),
@@ -9884,7 +9884,7 @@ mod presentation_rows {
             arc: Some((
                 Curve3::line(
                     Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    geom_core::UnitVec3::exact_x(),
                 ),
                 (iv0(0.0), iv0(1.0)),
             )),
@@ -10069,7 +10069,7 @@ mod presentation_rows {
                 stated: None,
                 key: edge(12),
                 arc: Some((
-                    Curve3::line(on_cyl(1.015, -0.5), Vec3::new(iv0(0.0), iv0(0.0), iv0(2.0))),
+                    Curve3::line(on_cyl(1.015, -0.5), geom_core::UnitVec3::constructed(Vec3::new(iv0(0.0), iv0(0.0), iv0(2.0)))),
                     (iv0(0.0), iv0(1.0)),
                 )),
                 ends: [vertex(5), vertex(6)],
@@ -10112,7 +10112,7 @@ mod presentation_rows {
         let Surface::Cylinder { frame, radius, .. } = cyl else {
             unreachable!()
         };
-        let (origin, axis) = (frame.origin(), frame.axis());
+        let (origin, axis) = (frame.origin(), frame.axis_unit());
         let psi = Psi::Carrier(Implicit::Cylinder {
             o: origin,
             axis,
@@ -10302,7 +10302,7 @@ mod presentation_rows {
             stated: None,
             key: edge(2),
             arc: Some((
-                Curve3::line(lip(0.0502), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
+                Curve3::line(lip(0.0502), geom_core::UnitVec3::exact_x()),
                 (iv0(0.0), iv0(1e-4)),
             )),
             ends: [vertex(2), vertex(3)],
@@ -10357,7 +10357,7 @@ mod presentation_rows {
         let carrier = |r: f64| {
             Psi::Carrier(Implicit::Cylinder {
                 o: origin(),
-                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                axis: geom_core::UnitVec3::exact_z(),
                 r: iv0(r),
             })
         };
@@ -10586,7 +10586,7 @@ mod presentation_rows {
     fn turning(w: f64) -> (Surface<Interval>, Surface<Interval>, Boundary, Boundary) {
         let s = Interval::from_bounds(-w, w);
         let d = Vec3::new(iv0(1.0), s, iv0(0.0));
-        let line = Curve3::line(origin(), d);
+        let line = Curve3::line(origin(), geom_core::UnitVec3::constructed(d));
         let face = |sense: bool| Boundary {
             sense,
             edges: vec![Rim {
@@ -12021,7 +12021,7 @@ mod presentation_rows {
         let cylinder = |r| {
             Psi::Carrier(Implicit::Cylinder {
                 o: origin(),
-                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                axis: geom_core::UnitVec3::exact_z(),
                 r,
             })
         };
@@ -12053,7 +12053,7 @@ mod presentation_rows {
                 stated: None,
                 key: edge(1),
                 arc: Some((
-                    Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
+                    Curve3::line(origin(), geom_core::UnitVec3::exact_x()),
                     (iv0(0.0), end),
                 )),
                 ends: [vertex(1), vertex(2)],

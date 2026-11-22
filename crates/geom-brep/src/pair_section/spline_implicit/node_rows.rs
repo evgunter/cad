@@ -1367,7 +1367,7 @@ fn two_arcs_of_one_node_are_held_apart_outside_its_box() {
             witness: None,
             pad: 0.0,
             carrier: ClassCarrier::Fitted(Box::new(Ok(CarriedComponent {
-                carrier: geom::Curve3::line(pt(0.0, 0.0, 0.0), Vec3::unit_x()),
+                carrier: geom::Curve3::line(pt(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_x()),
                 span: (0.0, 1.0),
                 shape,
                 certificate: None,

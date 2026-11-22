@@ -1141,7 +1141,7 @@ fn the_turn_foot_lies_on_both_trimlines_within_the_band() {
                     let geom::Curve3::Line(geom::Line { origin, dir }) = line else {
                         panic!("{what} ({kind:?}): a plane band's trimline is a line");
                     };
-                    let miss = (turn.foot - *origin).cross(*dir).norm() / dir.norm();
+                    let miss = (turn.foot - *origin).cross(dir.get()).norm() / dir.get().norm();
                     assert!(
                         miss <= band.zero() / 2.0,
                         "{what} ({kind:?}): the foot misses a trimline by {miss:e}, \

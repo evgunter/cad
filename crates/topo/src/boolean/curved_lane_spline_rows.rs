@@ -90,7 +90,7 @@ pub(super) fn spline_sheet(
         },
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(plane),
-            carrier: Curve3::line(p1, -u_ref),
+            carrier: Curve3::line(p1, geom::stated_direction(-u_ref)),
             param_start: 0.0,
             param_end: (p1 - p0).norm(),
         },

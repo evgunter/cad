@@ -904,10 +904,10 @@ mod wall_root_rows {
     fn roots(q: Point3<f64>, d: Vec3<f64>, r: f64, span: f64) -> WallRoots<f64> {
         let z = Vec3::new(0.0, 0.0, 1.0);
         line_wall_roots(
-            geom::Line { origin: q, dir: d },
+            geom::Line { origin: q, dir: geom::stated_direction(d) },
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: z,
+                dir: geom::stated_direction(z),
             },
             r,
             span,
@@ -973,11 +973,11 @@ mod wall_root_rows {
                 let got = line_wall_roots(
                     geom::Line {
                         origin: Point3::new(qx, qy, 0.0),
-                        dir: d,
+                        dir: geom::stated_direction(d),
                     },
                     geom::Line {
                         origin: Point3::new(0.0, 0.0, 0.0),
-                        dir: z,
+                        dir: geom::stated_direction(z),
                     },
                     r,
                     span,
@@ -1016,8 +1016,8 @@ mod wall_root_rows {
             let o = Point3::new(0.0, 0.0, 0.0);
             let read = |about| {
                 line_wall_roots(
-                    geom::Line { origin: q, dir: d },
-                    geom::Line { origin: o, dir: z },
+                    geom::Line { origin: q, dir: geom::stated_direction(d) },
+                    geom::Line { origin: o, dir: geom::stated_direction(z) },
                     r,
                     4.0 * big,
                     band(),
@@ -1056,7 +1056,7 @@ mod wall_root_rows {
         let got = line_sphere_roots(
             geom::Line {
                 origin: Point3::new(x0, -big, 0.0),
-                dir: d,
+                dir: geom::stated_direction(d),
             },
             Point3::new(0.0, 0.0, 0.0),
             r,
@@ -1077,11 +1077,11 @@ mod wall_root_rows {
         let cone = line_cone_quadratic(
             geom::Line {
                 origin: Point3::new(0.6, -big, 1.0),
-                dir: d,
+                dir: geom::stated_direction(d),
             },
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             },
             core::f64::consts::FRAC_PI_4,
             (0.0, 2.0 * big),
@@ -1146,12 +1146,12 @@ mod line_cone_rows {
         let found = line_cone_roots(
             geom::Line {
                 origin: Point3::from_array(origin),
-                dir: Vec3::from_array(dir),
+                dir: geom::stated_direction(Vec3::from_array(dir)),
             },
             (
                 geom::Line {
                     origin: tip,
-                    dir: Vec3::new(0.0, 0.0, 1.0),
+                    dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
                 },
                 core::f64::consts::FRAC_PI_4,
             ),
@@ -1268,14 +1268,14 @@ mod line_cone_rows {
         let cone = (
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             },
             core::f64::consts::FRAC_PI_4,
         );
         for (label, off, two) in [("outward", 1e-6, false), ("inward", -1e-6, true)] {
             let line = geom::Line {
                 origin: Point3::new(1.0, 0.0, 1.0) + n * off,
-                dir,
+                dir: geom::stated_direction(dir),
             };
             let near = line.param(cone.0.origin);
             let got = line_cone_roots(line, cone, (near - 1.0, near + 1.0), band);
@@ -1295,7 +1295,7 @@ mod line_cone_rows {
     fn bits_line(q: [u64; 3], d: [u64; 3]) -> geom::Line<f64> {
         geom::Line {
             origin: Point3::from_array(q.map(f64::from_bits)),
-            dir: Vec3::from_array(d.map(f64::from_bits)),
+            dir: geom::stated_direction(Vec3::from_array(d.map(f64::from_bits))),
         }
     }
 
@@ -1304,7 +1304,7 @@ mod line_cone_rows {
         (
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             },
             alpha,
         )
@@ -1587,11 +1587,11 @@ mod line_cone_rows {
                             .filter(inside)
                             .collect();
                         match line_cone_roots(
-                            geom::Line { origin, dir: axis },
+                            geom::Line { origin, dir: geom::stated_direction(axis) },
                             (
                                 geom::Line {
                                     origin: apex,
-                                    dir: axis,
+                                    dir: geom::stated_direction(axis),
                                 },
                                 alpha,
                             ),
@@ -1676,7 +1676,7 @@ pub mod fixtures {
     pub fn oblique_through_the_tube(rr: f64, rm: f64) -> geom::Line<f64> {
         geom::Line {
             origin: Point3::new(rr + 3.0 * rm, 2.0 * rm, -0.7 * rm),
-            dir: Vec3::new(-0.8, -0.33, 0.31).normalize(),
+            dir: geom_core::UnitVec3::squared(Vec3::new(-0.8, -0.33, 0.31)),
         }
     }
 }

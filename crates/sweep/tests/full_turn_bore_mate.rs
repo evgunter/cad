@@ -273,7 +273,7 @@ fn split_collar() -> Body<f64> {
         })
         .expect("the bore's seam ruling");
     let w = c
-        .split_edge(seam, (1.5 - origin.y) / dir.y, tol)
+        .split_edge(seam, (1.5 - origin.y) / dir.get().y, tol)
         .unwrap()
         .vertex;
     // The circle: the lower rim's carrier, lifted to `y = 1.5`.

@@ -1153,7 +1153,7 @@ mod tests {
         assert!(reach < geom_core::tolerance::SESSION_BOX_EXTENT);
         let line = Curve3::Line(geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, 1.0, 0.0).normalize(),
+            dir: geom_core::UnitVec3::squared(Vec3::new(1.0, 1.0, 0.0)),
         });
         let reach = edge_coordinate_reach_below(&line, (0.0, 1200.0), None);
         assert!(
@@ -1522,7 +1522,7 @@ mod tests {
             let beta = c.atan2(cos);
             let n = Vec3::new(cos, 0.0, c);
             let lever = face
-                .turn_lever(Point3::new(0.0, 0.0, 0.0), (n, a), c, cos)
+                .turn_lever(Point3::new(0.0, 0.0, 0.0), (n, geom::stated_direction(a)), c, cos)
                 .length();
             let want = c / (1.0 + cos);
             assert!(
@@ -1545,7 +1545,7 @@ mod tests {
             ExtentBall::point(Point3::origin()).lever(),
         );
         let lever = leaning
-            .turn_lever(Point3::origin(), (tilted, tilted), c, cos)
+            .turn_lever(Point3::origin(), (tilted, geom::stated_direction(tilted)), c, cos)
             .length();
         let want = c / (1.0 + cos);
         assert!(
@@ -1556,7 +1556,7 @@ mod tests {
         let n = Vec3::new(0.0, 0.0, 1.0);
         assert_eq!(
             measured
-                .turn_lever(Point3::new(0.0, 0.0, 0.0), (n, a), 1.0, 0.0)
+                .turn_lever(Point3::new(0.0, 0.0, 0.0), (n, geom::stated_direction(a)), 1.0, 0.0)
                 .length(),
             0.0
         );
@@ -1651,14 +1651,14 @@ mod tests {
                 "across its plane through its middle",
                 Line {
                     origin: Point3::new(r, 0.5, 0.0),
-                    dir: Vec3::new(0.0, 0.0, 1.0),
+                    dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
                 },
             ),
             (
                 "in its plane through the circle's centre",
                 Line {
                     origin: Point3::origin(),
-                    dir: Vec3::new(1.0, 0.0, 0.0),
+                    dir: geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
                 },
             ),
         ] {
@@ -1699,7 +1699,7 @@ mod tests {
         let reach = Reach::of_span(&spline, (0.0, 0.1)).expect("the span is covered");
         let axis = Line {
             origin: Point3::new(0.0, 0.0, -3.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
         };
         let (foot, lever) = pivot_and_lever(&reach, axis);
         assert!((foot.z - 0.5).abs() < 1e-12, "the pivot stands at {foot:?}");
@@ -1733,7 +1733,7 @@ mod tests {
         let reach = Reach::of_span(&polyline, (0.0, 1.0)).expect("the span is covered");
         let axis = Line {
             origin: Point3::new(0.0, 0.0, 5.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
         };
         let (foot, lever) = pivot_and_lever(&reach, axis);
         let want = (1.8_f64.powi(2) + 1.0).sqrt();
@@ -1778,7 +1778,7 @@ mod tests {
         };
         let axis = Line {
             origin: Point3::new(-0.5, 0.2, 0.0),
-            dir: Vec3::new(0.1, 0.3, 1.0).normalize(),
+            dir: geom_core::UnitVec3::squared(Vec3::new(0.1, 0.3, 1.0)),
         };
         let here = Reach::of_span(&spline(control.to_vec()), (0.2, 0.9)).expect("covered");
         let there =
@@ -1786,7 +1786,7 @@ mod tests {
         let (foot, lever) = pivot_and_lever(&here, axis);
         let turned_axis = Line {
             origin: turn(axis.origin),
-            dir: turn_v(axis.dir),
+            dir: geom::stated_direction(turn_v(axis.dir.get())),
         };
         let (turned_foot, turned_lever) = pivot_and_lever(&there, turned_axis);
         assert!(
@@ -1808,22 +1808,22 @@ mod tests {
     /// read 3.61.
     #[test]
     fn a_parallel_pairs_gap_is_read_at_one_station() {
-        let segment = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(3.0, 0.0, 4.5));
+        let segment = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom::stated_direction(Vec3::new(3.0, 0.0, 4.5)));
         let reach = Reach::of_span(&segment, (0.0, 1.0)).expect("the span is covered");
         let z = Vec3::new(0.0, 0.0, 1.0);
         let l1 = Line {
             origin: Point3::new(0.0, 0.0, -7.0),
-            dir: z,
+            dir: geom::stated_direction(z),
         };
         let l2 = Line {
             origin: Point3::new(3.0, 0.0, 11.0),
-            dir: z,
+            dir: geom::stated_direction(z),
         };
         for (what, (a, b)) in [("in order", (l1, l2)), ("swapped", (l2, l1))] {
             let axes = crate::intersect::parallel_axes_at(&reach, a, b);
             assert!((axes.d - 3.0).abs() < 1e-12, "{what}: d = {}", axes.d);
             assert!(
-                (axes.d_vec.norm() - 3.0).abs() < 1e-12 && axes.d_vec.dot(a.dir).abs() < 1e-12,
+                (axes.d_vec.norm() - 3.0).abs() < 1e-12 && axes.d_vec.dot(a.dir.get()).abs() < 1e-12,
                 "{what}: d_vec = {:?}",
                 axes.d_vec
             );
@@ -1849,11 +1849,11 @@ mod tests {
         let reach = Reach::of_span(&arc, (0.0, 1.0)).expect("the span is covered");
         let l1 = Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
         };
         let l2 = Line {
             origin: Point3::new(3.0, 0.0, 0.0),
-            dir: Vec3::new(0.02_f64.sin(), 0.0, 0.02_f64.cos()),
+            dir: geom::stated_direction(Vec3::new(0.02_f64.sin(), 0.0, 0.02_f64.cos())),
         };
         let (f1, f2) = (reach.foot_on(l1), reach.foot_on(l2));
         let want = l2.distance(f1).max(l1.distance(f2));

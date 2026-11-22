@@ -229,7 +229,7 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     let cone_face = vec![edge(
         Curve3::line(
             Point3::<f64>::new(0.0, 0.0, 0.0),
-            Vec3::<f64>::new(s2, 0.0, s2),
+            geom::stated_direction(Vec3::<f64>::new(s2, 0.0, s2)),
         ),
         -1.0,
         1.0,
@@ -241,7 +241,7 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     let cylinder_face = vec![edge(
         Curve3::line(
             Point3::<f64>::new(1.0, 0.0, 0.0),
-            Vec3::<f64>::new(0.0, 0.0, 1.0),
+            geom::stated_direction(Vec3::<f64>::new(0.0, 0.0, 1.0)),
         ),
         -5.0,
         5.0,

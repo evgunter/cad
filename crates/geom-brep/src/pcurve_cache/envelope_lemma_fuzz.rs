@@ -238,7 +238,7 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             let (chart, radius, v0) = cylinder(s);
             (
                 chart,
-                Curve3::line(at + r * radius + axis * v0, axis * s.range(-3.0, 3.0)),
+                Curve3::line(at + r * radius + axis * v0, geom::stated_direction(axis * s.range(-3.0, 3.0))),
             )
         }
         Class::CylinderMeridianCircle => {
@@ -284,7 +284,7 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
                 chart,
                 Curve3::line(
                     at + generator * v0,
-                    generator * (sign(s) * s.range(0.2, 3.0)),
+                    geom::stated_direction(generator * (sign(s) * s.range(0.2, 3.0))),
                 ),
             )
         }
@@ -543,7 +543,7 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
     };
     match *carrier {
         Curve3::Line(geom::Line { origin, dir }) => {
-            Curve3::line(origin + nudge(s, 1), dir + nudge(s, 3) * dir.norm())
+            Curve3::line(origin + nudge(s, 1), geom::stated_direction(dir.get() + nudge(s, 3) * dir.get().norm()))
         }
         Curve3::Circle(
             conic_k @ geom::Circle {
@@ -1684,12 +1684,12 @@ fn the_incidence_terms_read_the_carriers_departure() {
         ),
         (
             EnvelopeTerm::Radius,
-            Curve3::line(Point3::new(1.0 + d, 0.0, 0.0), Vec3::unit_z()),
+            Curve3::line(Point3::new(1.0 + d, 0.0, 0.0), geom_core::UnitVec3::exact_z()),
             (0.0, 1.0),
         ),
         (
             EnvelopeTerm::Line,
-            Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::new(d, 0.0, 1.0)),
+            Curve3::line(Point3::new(1.0, 0.0, 0.0), geom::stated_direction(Vec3::new(d, 0.0, 1.0))),
             (0.0, 1.0),
         ),
     ];

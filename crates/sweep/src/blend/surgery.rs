@@ -6814,7 +6814,7 @@ mod tests {
         );
         // A segment: the nearest point is the clamped foot, not the
         // carrier's.
-        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_x());
         let (near, far) =
             piece_distance(&line, (1.0, 2.0), Point3::new(0.0, 1.0, 0.0)).expect("line");
         close(near, 2.0_f64.sqrt(), "a segment's near is its clamped foot");
@@ -6914,7 +6914,7 @@ mod tests {
             // `x + y = −8e-9`: `8e-9` below `x ≥ 0`'s part, in band, and
             // its window between the edges empty by `1.13e-8`, past it.
             let s = 0.5_f64.sqrt();
-            let diagonal = Curve3::line(p(0.0, -8e-9), v(s, -s));
+            let diagonal = Curve3::line(p(0.0, -8e-9), geom_core::UnitVec3::constructed(v(s, -s)));
             close(
                 margin(
                     &one,
@@ -6928,7 +6928,7 @@ mod tests {
             );
             // Along the edge `x = 0`, 0.05 off the strip's end there: the
             // half of the strip's width, the layer it clears by.
-            let along = Curve3::line(p(-3e-9, -4e-9), v(-0.2, 1.0).normalize());
+            let along = Curve3::line(p(-3e-9, -4e-9), geom_core::UnitVec3::squared(v(-0.2, 1.0)));
             close(
                 margin(
                     &one,
@@ -6976,7 +6976,7 @@ mod tests {
                 (1e-10, band),
                 (1e-7, Band::new(1e-6, 1e-5).expect("the band at ε 1e-6")),
             ] {
-                let below = Curve3::line(p(-0.2, -0.27), v(1.0, 0.0));
+                let below = Curve3::line(p(-0.2, -0.27), geom_core::UnitVec3::constructed(v(1.0, 0.0)));
                 let w = (T::zero(), T::from_f64(0.2 - short));
                 close(
                     margin(&one, &below, w, band, "below"),
@@ -6991,7 +6991,7 @@ mod tests {
                 d - 0.4,
                 "a touch of one wedge beside a refusal in the next, at the refusal's depth",
             );
-            let to_edge = Curve3::line(p(-0.2, 0.1), v(1.0, 0.0));
+            let to_edge = Curve3::line(p(-0.2, 0.1), geom_core::UnitVec3::constructed(v(1.0, 0.0)));
             let w = (T::zero(), T::from_f64(0.2));
             close(
                 margin(&one, &to_edge, w, band, "to the edge"),

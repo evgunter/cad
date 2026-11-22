@@ -613,7 +613,7 @@ pub(crate) fn prism_patch_across_the_seam() -> Result<(Body<f64>, FaceKey), supe
                     ends: None,
                 },
             ),
-            carrier: Curve3::line(p, q - p),
+            carrier: Curve3::line(p, geom::stated_direction(q - p)),
             param_start: 0.0,
             param_end: 1.0,
         }
@@ -773,7 +773,7 @@ pub(crate) fn prism_patch_across_the_v_seam() -> Result<(Body<f64>, FaceKey), su
                     ends: None,
                 },
             ),
-            carrier: Curve3::line(p, q - p),
+            carrier: Curve3::line(p, geom::stated_direction(q - p)),
             param_start: 0.0,
             param_end: 1.0,
         }

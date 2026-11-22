@@ -1160,7 +1160,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
 /// circle's reach from its centre.
 #[cfg(test)]
 fn rim_diameter(rim: Rim<f64>) -> geom_core::Lever<f64> {
-    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
     geom_brep::ExtentBall::of_covered(circle.cover().as_ref().ok()).twice_lever_from(rim.center)
 }
 
@@ -1185,7 +1185,7 @@ mod cover_rows {
         let face = body.faces().next().map(|(k, _)| k).unwrap();
         let line = Locus::Line(geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, 0.0, 0.0),
+            dir: geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
         });
         let at = |rides: Vec<(f64, f64, geom_core::Sign)>| {
             FaceOnLocus {
@@ -1248,7 +1248,7 @@ mod redfirst {
     fn circle(center: [f64; 3], axis: [f64; 3], radius: f64) -> Rim<f64> {
         Rim {
             center: Point3::from_array(center),
-            axis: Vec3::from_array(axis),
+            axis: geom::stated_direction(Vec3::from_array(axis)),
             radius,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
@@ -1361,7 +1361,7 @@ mod redfirst {
         };
         let equator = Rim {
             center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            axis: geom_core::UnitVec3::exact_z(),
             radius: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
@@ -1423,7 +1423,7 @@ mod redfirst {
         };
         let rim = Rim {
             center: Point3::new(0.0, 0.0, 0.6),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            axis: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             radius: 0.8,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
@@ -1480,7 +1480,7 @@ mod r2_probes {
     fn cut_rim() -> Rim<f64> {
         Rim {
             center: Point3::new(0.0, 0.0, 0.6),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            axis: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             radius: 0.8,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
@@ -1643,7 +1643,7 @@ mod arc_end_rows {
         );
         let locus = Locus::Line(geom::Line {
             origin: q,
-            dir: Vec3::unit_x(),
+            dir: geom_core::UnitVec3::exact_x(),
         });
         let got = departures(&body, cap, &block.body, block.top_face, locus, narrow);
         assert!(
@@ -1675,7 +1675,7 @@ mod boundary_midpoint_rows {
         let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
         let t = Vec3::new(theta.sin(), -theta.cos(), 0.0);
         (
-            Locus::Line(geom::Line { origin: p, dir: t }),
+            Locus::Line(geom::Line { origin: p, dir: geom::stated_direction(t) }),
             move |u, v| p + t * u + n * v,
         )
     }
@@ -1871,7 +1871,7 @@ mod boundary_midpoint_rows {
         let zero = band.zero();
         let rim = Rim {
             center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            axis: geom_core::UnitVec3::exact_z(),
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
@@ -1881,7 +1881,7 @@ mod boundary_midpoint_rows {
             let (a, fa) = arc_cap(small, (-1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), tol);
             let got = GAPS.map(|gap| {
                 let beta = (2.0 * gap * zero).sqrt();
-                let unit = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+                let unit = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
                 let (b, fb) = arc_cap(
                     unit,
                     (alpha - 1.0, alpha + 2.0 * beta),
@@ -1943,7 +1943,7 @@ mod unplaced_rows {
         ringed.body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let locus = Locus::Line(geom::Line {
             origin: Point3::new(0.0, 0.25, 0.0),
-            dir: Vec3::unit_x(),
+            dir: geom_core::UnitVec3::exact_x(),
         });
         for (side, got) in [
             (

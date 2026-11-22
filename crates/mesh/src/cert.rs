@@ -2165,7 +2165,7 @@ mod tests {
             };
             let line = geom::Line {
                 origin: frame.o,
-                dir: axis,
+                dir: geom::stated_direction(axis),
             };
             let dev = deepest(tri, &|q| r - line.offset(q).norm());
             assert!(

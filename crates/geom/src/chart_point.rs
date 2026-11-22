@@ -635,7 +635,7 @@ mod tests {
         let Some(axis) = surface.axis_line() else {
             return Vec::new();
         };
-        let a = axis.dir.normalize();
+        let a = axis.dir.get().normalize();
         let (e1, e2) = a.orthonormal_basis();
         let mut out = Vec::new();
         for k in 0..12 {

@@ -233,7 +233,7 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
     let sheet = Meridian {
         axis: geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 1.0, 0.0),
+            dir: geom_core::UnitVec3::exact_y(),
         },
         rim: Point3::new(RIM_R, 0.0, 0.0),
     };

@@ -7034,9 +7034,9 @@ mod ruling_scale_rows {
         let shift = (band().zero() * sin_a / cos_a / cos_a).sqrt();
         for (shift, generator) in [(0.0, true), (shift, false)] {
             for k in [1.0, 1e-3, 1e3] {
-                let carrier = Curve3::line(apex + g + Vec3::new(0.0, shift, 0.0), g * k);
+                let carrier = Curve3::line(apex + g + Vec3::new(0.0, shift, 0.0), geom::stated_direction(g * k));
                 let e = LoopEdge::hand_built(carrier, 0.0, 1.0 / k, true, 0, 1);
-                let read = require_cone_generator(apex, axis, sin_a, cos_a, g * k, &e, band());
+                let read = require_cone_generator(apex, geom_core::UnitVec3::constructed(axis), sin_a, cos_a, geom_core::UnitVec3::constructed(g * k), &e, band());
                 match (generator, &read) {
                     (true, Ok(())) => {}
                     (

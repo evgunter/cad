@@ -1056,7 +1056,7 @@ pub mod fixtures {
     pub fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
         CarrierDesc::Cylinder {
             origin: Point3::from_array(o),
-            axis: Vec3::from_array(a),
+            axis: geom::stated_direction(Vec3::from_array(a)),
             radius: r,
             outward,
         }
@@ -1073,7 +1073,7 @@ pub mod fixtures {
     ) -> CarrierDesc<f64> {
         CarrierDesc::Torus {
             center: Point3::from_array(c),
-            axis: Vec3::from_array(a),
+            axis: geom::stated_direction(Vec3::from_array(a)),
             major_radius: major,
             minor_radius: minor,
             outward,
@@ -1085,7 +1085,7 @@ pub mod fixtures {
     pub fn cone(apex: [f64; 3], a: [f64; 3], half_angle: f64, outward: bool) -> CarrierDesc<f64> {
         CarrierDesc::Cone {
             apex: Point3::from_array(apex),
-            axis: Vec3::from_array(a),
+            axis: geom::stated_direction(Vec3::from_array(a)),
             half_angle,
             outward,
         }

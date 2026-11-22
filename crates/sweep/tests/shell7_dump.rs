@@ -273,7 +273,7 @@ fn split_seam(body: &mut Body<f64>, on_axis: bool) {
                 .and_then(|g| g.certified())
                 .unwrap();
             matches!(c.carrier(), Curve3::Line(geom::Line { origin, dir })
-                if dir.y.abs() > 0.5 && (if on_axis { origin.x.abs() <= 1e-15 && origin.z.abs() <= 1e-15 } else { same && origin.x > 0.0 }))
+                if dir.get().y.abs() > 0.5 && (if on_axis { origin.x.abs() <= 1e-15 && origin.z.abs() <= 1e-15 } else { same && origin.x > 0.0 }))
         })
         .map(|(e, _)| e)
         .expect("the seam");

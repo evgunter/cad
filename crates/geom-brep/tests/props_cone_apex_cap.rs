@@ -75,7 +75,7 @@ fn generator(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     topo::edge(
         Curve3::line(
             p3(0.0, 0.0, 0.0),
-            v3(u.cos() * SIN_A, u.sin() * SIN_A, SIN_A),
+            geom::stated_direction(v3(u.cos() * SIN_A, u.sin() * SIN_A, SIN_A)),
         ),
         t0,
         t1,

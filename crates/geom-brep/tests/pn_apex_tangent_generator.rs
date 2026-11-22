@@ -75,7 +75,7 @@ fn served<T: Decide + Bounds>(
     let Ok(PlaneConeSection::ApexTangentLine(Curve3::Line(geom::Line { dir, .. }))) = got else {
         return None;
     };
-    Some([dir.x, dir.y, dir.z].map(|x| (x.lo(), x.hi())))
+    Some([dir.get().x, dir.get().y, dir.get().z].map(|x| (x.lo(), x.hi())))
 }
 
 #[test]

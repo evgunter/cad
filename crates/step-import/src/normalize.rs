@@ -705,7 +705,7 @@ mod tests {
             EdgeSpec {
                 start: apex_v,
                 end: base_v,
-                carrier: Curve3::line(apex, Vec3::new(1.0, 0.0, -1.0) * 0.5_f64.sqrt()),
+                carrier: Curve3::line(apex, geom::stated_direction(Vec3::new(1.0, 0.0, -1.0) * 0.5_f64.sqrt())),
                 t0: 0.0,
                 t1: 2.0_f64.sqrt(),
                 reversed: false,

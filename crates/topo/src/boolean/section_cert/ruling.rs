@@ -967,7 +967,7 @@ mod tests {
         let partner = Quadric::Cylinder {
             axis: geom::Line {
                 origin: Point3::new(3.0, 0.0, 0.0),
-                dir: Vec3::new(s, 0.0, c),
+                dir: geom::stated_direction(Vec3::new(s, 0.0, c)),
             },
             r: 1.0,
         };

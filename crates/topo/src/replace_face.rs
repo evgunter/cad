@@ -5198,7 +5198,7 @@ mod pose_reach_rows {
             ),
             half_angle: alpha,
         };
-        let edge = Curve3::line(Point3::new(2.0, -2.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let edge = Curve3::line(Point3::new(2.0, -2.0, 0.0), geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)));
         let tight = 8.0_f64.sqrt();
         let reach = span(&edge, (0.0, 4.0));
         assert!((reach.lever_from(Point3::origin()).length() - tight).abs() < 1e-12);
@@ -5258,7 +5258,7 @@ mod pose_reach_rows {
             ),
             radius: 0.1,
         };
-        let edge = Curve3::line(Point3::new(1.0, 0.0, 0.2), Vec3::unit_z());
+        let edge = Curve3::line(Point3::new(1.0, 0.0, 0.2), geom_core::UnitVec3::exact_z());
         let general = rod(Vec3::new(0.3, 0.4, 1.0).normalize());
         for (label, a, b) in [
             ("cyl, torus", &general, &torus),
@@ -5315,7 +5315,7 @@ mod pose_reach_rows {
         let cyl = cylinder(stored, Vec3::new(theta.sin(), 0.0, theta.cos()));
         let off = 1000.0 * theta.sin();
         let parallel = cylinder(Point3::new(-off, 0.0, 0.0), Vec3::unit_z());
-        let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), Vec3::unit_z());
+        let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), geom_core::UnitVec3::exact_z());
         let refusal = |cyl: &Surface<f64>| match geom_brep::cone_cylinder_section(
             &cone,
             cyl,
@@ -5353,7 +5353,7 @@ mod pose_reach_rows {
     /// refuses both.
     #[test]
     fn a_cone_cylinder_tilt_is_levered_at_the_edges_distance_from_the_apex() {
-        let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), Vec3::unit_z());
+        let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), geom_core::UnitVec3::exact_z());
         let lever = (Point3::new(1.0, 0.0, 1.1_f64) - Point3::origin()).norm();
         let cone = Surface::Cone {
             frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
@@ -5481,7 +5481,7 @@ mod pose_reach_rows {
             frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
         };
-        let edge = Curve3::line(Point3::new(1.0, 0.0, -1.0), Vec3::unit_z());
+        let edge = Curve3::line(Point3::new(1.0, 0.0, -1.0), geom_core::UnitVec3::exact_z());
         for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
             let theta: f64 = k * eps / 2.0_f64.sqrt();
             let c2 = Surface::Cylinder {
@@ -5667,7 +5667,7 @@ mod read_ends_rows {
     fn a_corner_off_the_derived_carrier_is_a_disagreement() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let line = Curve3::line(Point3::origin(), Vec3::unit_x());
+        let line = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         let off = Point3::new(0.5, 1e-3, 0.0);
         let mut p = plan(line.clone());
         let got = read_ends(
@@ -5754,7 +5754,7 @@ mod pair_over_its_span_rows {
         let Curve3::Line(geom::Line { dir, .. }) = l1 else {
             unreachable!("a line of the pair")
         };
-        let to = 1.0 / dir.z;
+        let to = 1.0 / dir.get().z;
         for (label, from, kept) in [
             ("from twice the start", 2.0 * start, true),
             ("from the apex", 0.0, false),
@@ -5840,7 +5840,7 @@ mod pair_over_its_span_rows {
                     },
                     carrier: l1.clone(),
                     param_start: 0.0,
-                    param_end: 1.0 / dir.z,
+                    param_end: 1.0 / dir.get().z,
                 },
                 start: VertexKey::default(),
                 end: VertexKey::default(),

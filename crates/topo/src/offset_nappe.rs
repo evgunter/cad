@@ -311,7 +311,7 @@ mod torn_hop_rows {
         let face = body.faces().next().unwrap().0;
         let axis = geom::Line {
             origin: Point3::new(0.0, 0.0, -1.0),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         };
         let (lo, hi) = corner_stations(&body, body.proven_face(face), axis);
         assert!(lo <= hi, "ordered stations");

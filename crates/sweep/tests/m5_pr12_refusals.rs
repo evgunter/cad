@@ -477,7 +477,7 @@ fn plane(normal: Vec3<f64>) -> geom::Surface<f64> {
 /// sides' material on their normals' far side, walked along `+z`.
 fn plane_wedge(na: Vec3<f64>, nb: Vec3<f64>) -> geom_brep::WedgeVerdict {
     let (a, b) = (plane(na), plane(nb));
-    let axis = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let axis = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
     let side = |surface| geom_brep::SideFace {
         surface,
         sense: true,

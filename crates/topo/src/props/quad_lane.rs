@@ -1802,7 +1802,7 @@ mod tests {
             let line = LoopEdge::hand_built(
                 Curve3::line(
                     Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    geom_core::UnitVec3::exact_x(),
                 ),
                 iv(0.0),
                 iv(1.0),
@@ -1872,7 +1872,7 @@ mod tests {
 
         fn line(a: Point3<Interval>, b: Point3<Interval>, tags: (u32, u32)) -> LoopEdge<Interval> {
             LoopEdge::hand_built(
-                Curve3::line(a, b - a),
+                Curve3::line(a, geom_core::UnitVec3::constructed(b - a)),
                 iv(0.0),
                 iv(1.0),
                 true,

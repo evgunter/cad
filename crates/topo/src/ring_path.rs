@@ -2482,7 +2482,7 @@ mod tests {
         for u in [0.5, 1.0] {
             let ruling = geom::Curve3::Line(geom::Line {
                 origin: at(u, 0.0),
-                dir: Vec3::unit_z(),
+                dir: geom_core::UnitVec3::exact_z(),
             });
             for (t0, t1) in cuts(0.3, 0.7) {
                 arcs.push(LoopArc::of(&ruling, (t0, t1)).unwrap());

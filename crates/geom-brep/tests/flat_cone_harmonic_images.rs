@@ -76,13 +76,13 @@ fn ruling(alpha: f64, (v0, v1): (f64, f64), d: f64) -> (Curve3<f64>, f64) {
     let a = Point3::new(r0 * v0.signum(), 0.0, h0);
     let b = Point3::new(r1 * v1.signum(), 0.0, h1);
     let len = (b - a).norm();
-    let line = Curve3::line(a, (b - a) / len);
+    let line = Curve3::line(a, geom::stated_direction((b - a) / len));
     (line, len)
 }
 
 fn size(carrier: &Curve3<f64>, t1: f64) -> f64 {
     match carrier {
-        Curve3::Line(geom::Line { origin, dir }) => (*origin + *dir * t1 - Point3::origin()).norm(),
+        Curve3::Line(geom::Line { origin, dir }) => (*origin + dir.get() * t1 - Point3::origin()).norm(),
         Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
             let center = frame.origin();
             let radius = circle.radius();

@@ -397,7 +397,7 @@ mod tests {
     fn z_axis() -> Around<f64> {
         Around::Line(geom::Line {
             origin: p(0.0, 0.0, 0.0),
-            dir: v(0.0, 0.0, 2.0),
+            dir: geom::stated_direction(v(0.0, 0.0, 2.0)),
         })
     }
 
@@ -405,7 +405,7 @@ mod tests {
         Around::Circle(geom::cover::Core {
             axis: geom::Line {
                 origin: p(0.0, 0.0, 0.0),
-                dir: v(0.0, 0.0, 1.0),
+                dir: geom::stated_direction(v(0.0, 0.0, 1.0)),
             },
             radius,
         })
@@ -614,7 +614,7 @@ mod tests {
         let (ra, rb) = (read(a), read(b));
         let axis = ra.cover.about()[0];
         assert!(
-            matches!(axis, Around::Line(geom::Line { origin, dir }) if origin.equals_exactly(p(0.0, 0.0, 0.0)) && dir.cross(v(0.0, 0.0, 1.0)).norm() == 0.0),
+            matches!(axis, Around::Line(geom::Line { origin, dir }) if origin.equals_exactly(p(0.0, 0.0, 0.0)) && dir.get().cross(v(0.0, 0.0, 1.0)).norm() == 0.0),
             "about its axis: {axis:?}"
         );
         assert_eq!(ra.cover.range_about(&axis), (1.0, 1.0), "the inner wall");
@@ -725,7 +725,7 @@ mod tests {
     }
     fn arc(c: Point3<f64>, n: Vec3<f64>, from: Point3<f64>, to: Point3<f64>) -> Proposed<f64> {
         Proposed {
-            depth: Around::Line(geom::Line { origin: c, dir: n }),
+            depth: Around::Line(geom::Line { origin: c, dir: geom::stated_direction(n) }),
             source: Source::Arc(from, to),
         }
     }
@@ -803,7 +803,7 @@ mod tests {
             }))])
         };
         let y = v(0.0, 1.0, 0.0);
-        let parallel = dirs(&wall(p(0.0, 0.0, 0.0), y), &wall(p(1.0, 0.7, 1.0), y * 2.0));
+        let parallel = dirs(&wall(p(0.0, 0.0, 0.0), geom::stated_direction(y)), &wall(p(1.0, 0.7, 1.0), geom::stated_direction(y * 2.0)));
         assert_eq!(parallel.len(), 2, "two offsets");
         assert!(
             parallel

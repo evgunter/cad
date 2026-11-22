@@ -1619,8 +1619,8 @@ mod meetings_are_the_kernels {
         let Curve3::Line(generator) = ray.carrier else {
             unreachable!("a cone's ray is its generator line")
         };
-        let g = generator.dir * beta.cos() + y * beta.sin();
-        let graze = Curve3::line(crossing - g * 0.5, g);
+        let g = generator.dir.get() * beta.cos() + y * beta.sin();
+        let graze = Curve3::line(crossing - g * 0.5, geom::stated_direction(g));
         let (s, h) = half_angle.sin_cos();
         let (rim, rim_vertex) = closed(
             12,
@@ -1750,7 +1750,7 @@ mod meetings_are_the_kernels {
         let seam_carrier = geom::pole_form::sphere_meridian(origin, 1.0, z, x);
         let Some(twin) = geom::pole_form::half_turn_curve(
             &seam_carrier,
-            geom::Line { origin, dir: z },
+            geom::Line { origin, dir: geom::stated_direction(z) },
             crate::signed_zero::plus_zero_point,
             crate::signed_zero::plus_zero,
         ) else {
@@ -1823,7 +1823,7 @@ mod meetings_are_the_kernels {
         };
         let [ray, _] = meridian_rays(chart, 0, x, 1.0);
         let crossing = ray.carrier.eval(2.0);
-        let line = Curve3::line(crossing - y * 1e-3, y * 2e-3);
+        let line = Curve3::line(crossing - y * 1e-3, geom::stated_direction(y * 2e-3));
         let solid = face(
             cone,
             vec![(

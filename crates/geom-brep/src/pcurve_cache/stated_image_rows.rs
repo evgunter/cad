@@ -339,7 +339,7 @@ fn on_the_wall<T: Decide>(edge: Edge<T>) {
         let (foot, _) = wall.column_at();
         let line = Curve3::line(
             Point3::new(T::from_f64(foot[0]), T::from_f64(foot[1]), T::zero()),
-            Vec3::new(T::zero(), T::zero(), T::one()),
+            geom_core::UnitVec3::exact_z(),
         );
         let flat = Bump {
             height: 0.0,

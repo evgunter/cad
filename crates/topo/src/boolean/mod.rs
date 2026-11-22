@@ -9130,7 +9130,7 @@ mod tests {
         let a = sheet(Point3::origin(), -Vec3::unit_y(), near);
         let b_in = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), near);
         let b_short = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), (2.2, 3.0));
-        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
+        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let kind = geom::SurfaceKind::Cylinder;
         for (what, b, want) in [
             ("both trims hold the ruling", &b_in, true),
@@ -9177,7 +9177,7 @@ mod tests {
         };
         let a = sheet(Point3::origin(), -Vec3::unit_y());
         let b_apart = sheet(Point3::new(2.5, 0.0, 0.0), Vec3::unit_y());
-        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
+        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let kind = geom::SurfaceKind::Cylinder;
         let got = locus_through_both_faces(
             [

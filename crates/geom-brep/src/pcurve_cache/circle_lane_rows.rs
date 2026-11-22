@@ -758,7 +758,7 @@ pub(super) fn cone_coefficient_excess(
         conic,
         geom::Line {
             origin: apex,
-            dir: axis,
+            dir: geom::stated_direction(axis),
         },
         half_angle,
     );
@@ -1203,7 +1203,7 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 } else {
                     off(&mut s)
                 } * sign(&mut s);
-                let carrier = Curve3::line(world(&surface, g * (h / ca)), world_dir(&surface, g));
+                let carrier = Curve3::line(world(&surface, g * (h / ca)), geom::stated_direction(world_dir(&surface, g)));
                 (surface, carrier)
             }
         };
@@ -1363,7 +1363,7 @@ fn a_lane_choices_envelope_refusal_ends_not_yet() {
     let normal = Vec3::new(ca * phi.cos(), ca * phi.sin(), -sa);
     let line = Curve3::line(
         world(&apex, g * (in_band() / ca) + normal * (0.13 * zero())),
-        world_dir(&apex, g),
+        geom::stated_direction(world_dir(&apex, g)),
     );
     let span = (0.0009067415940370447, 2.4187216369829954);
     let image = chart_pcurve_over(&line, span.0, span.1, &apex, band())
@@ -1409,7 +1409,7 @@ fn a_lane_choices_envelope_refusal_ends_not_yet() {
     let a = (1.0 - 0.6 * zero()).acos();
     let (sa, ca) = a.sin_cos();
     let (q0, q1) = (Vec3::new(ca, -sa, 0.1), Vec3::new(ca, sa, 0.4));
-    let chord = Curve3::line(world(&wall, q0), world_dir(&wall, q1 - q0));
+    let chord = Curve3::line(world(&wall, q0), geom::stated_direction(world_dir(&wall, q1 - q0)));
     for (scalar, got) in
         ["f64", "Interval"]
             .into_iter()
@@ -1447,7 +1447,7 @@ fn a_stored_rows_envelope_refusal_keeps_its_term() {
     let a = (1.0 - 0.6 * zero()).acos();
     let (sa, ca) = a.sin_cos();
     let (q0, q1) = (Vec3::new(ca, -sa, 0.1), Vec3::new(ca, sa, 0.4));
-    let chord = Curve3::line(world(&wall, q0), world_dir(&wall, q1 - q0));
+    let chord = Curve3::line(world(&wall, q0), geom::stated_direction(world_dir(&wall, q1 - q0)));
     let span = (0.0, 1.0);
     for (scalar, got) in ["f64", "Interval"]
         .into_iter()
@@ -1526,7 +1526,7 @@ fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, angle: f64) -> Curve3<f
             let radius = conic_k.radius();
             Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x))
         }
-        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(o + turn(origin - o), turn(dir)),
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(o + turn(origin - o), geom::stated_direction(turn(dir.get()))),
         _ => unreachable!("the rows' carriers are circles and lines"),
     }
 }
@@ -1548,7 +1548,7 @@ fn a_foreign_stored_row_never_ends_not_yet() {
     let cone = cone(1.1);
     let (sa, ca) = 1.1_f64.sin_cos();
     let g = Vec3::new(sa * 0.7_f64.cos(), sa * 0.7_f64.sin(), ca);
-    let ruling = Curve3::line(world(&cone, g * (in_band() / ca)), world_dir(&cone, g));
+    let ruling = Curve3::line(world(&cone, g * (in_band() / ca)), geom::stated_direction(world_dir(&cone, g)));
     let tau = cone_tilt_for(&cone, 1.1, 2.0, 0.4 * zero());
     let rows = [
         (
@@ -1681,7 +1681,7 @@ fn torus_coefficients_excess(
         conic,
         geom::Line {
             origin: at,
-            dir: axis,
+            dir: geom::stated_direction(axis),
         },
         big,
         small,
@@ -2028,7 +2028,7 @@ pub(super) fn other_charts_within(
                 conic,
                 geom::Line {
                     origin: at,
-                    dir: axis,
+                    dir: geom::stated_direction(axis),
                 },
                 r,
             )

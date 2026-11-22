@@ -121,7 +121,7 @@ fn a_line_ellipse_or_spiric_on_a_surface_it_cannot_lie_on_is_off_it() {
     let off = Err(PropsError::OffSurface {
         what: "props_carrier_on_surface",
     });
-    let chord = |a: geom_core::Point3<f64>, b: geom_core::Point3<f64>| Curve3::line(a, b - a);
+    let chord = |a: geom_core::Point3<f64>, b: geom_core::Point3<f64>| Curve3::line(a, geom::stated_direction(b - a));
     assert_eq!(
         door(
             &surf::sphere(1.0),
@@ -204,7 +204,7 @@ fn a_rim_whose_incidence_the_band_cannot_decide_escalates_on_the_torus() {
 /// than a fold dropping it and reading the finite samples alone.
 #[test]
 fn a_carrier_that_evaluates_to_no_finite_point_escalates() {
-    let line = Curve3::line(p3(1.0, 0.0, 0.0), v3(-1.0, f64::NAN, 0.0));
+    let line = Curve3::line(p3(1.0, 0.0, 0.0), geom_core::UnitVec3::constructed(v3(-1.0, f64::NAN, 0.0)));
     let got = door(&surf::sphere(1.0), line);
     assert!(
         matches!(&got, Err(PropsError::Escalated { cause, .. }) if cause.predicate == Some("props_carrier_on_surface")),

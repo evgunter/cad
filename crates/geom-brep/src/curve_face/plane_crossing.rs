@@ -652,7 +652,7 @@ mod tests {
     fn each_carrier_kind_lands_on_its_own_lane() {
         let plane = plane_y(0.5);
         for (carrier, want) in [
-            (Curve3::line(Point3::origin(), Vec3::unit_y()), "line"),
+            (Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_y()), "line"),
             (circle(), "conic"),
             (
                 Curve3::Ellipse(geom::Ellipse::new(
@@ -807,7 +807,7 @@ mod tests {
     #[test]
     fn a_line_crosses_a_plane_at_its_affine_root() {
         use super::{SpanEnds, SpanPlaneMeet, span_plane_meet};
-        let line = Curve3::line(Point3::origin(), Vec3::unit_x());
+        let line = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         let at = |x: f64| {
             span_plane_meet(
                 &line,

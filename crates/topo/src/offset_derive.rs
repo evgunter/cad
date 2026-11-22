@@ -1725,7 +1725,7 @@ mod square {
                 "plane beside a plane holding its normal",
                 plane(o, z, x),
                 plane(o, x, y),
-                line(o, y),
+                line(o, geom::stated_direction(y)),
                 (0.0, 1.0),
             ),
             (
@@ -1746,7 +1746,7 @@ mod square {
                 "cylinder beside a plane holding its axis",
                 cylinder.clone(),
                 plane(o, x, y),
-                line(Point3::new(0.0, 1.0, 0.0), z),
+                line(Point3::new(0.0, 1.0, 0.0), geom::stated_direction(z)),
                 (0.0, 1.0),
             ),
             (
@@ -1766,7 +1766,7 @@ mod square {
                     half_angle: std::f64::consts::FRAC_PI_4,
                 },
                 plane(o, x, y),
-                line(o, Vec3::new(0.0, s, s)),
+                line(o, geom::stated_direction(Vec3::new(0.0, s, s))),
                 (0.5, 1.5),
             ),
             (
@@ -1889,7 +1889,7 @@ mod regions {
     #[test]
     fn a_corner_region_refuses_by_the_corner() {
         let wall = net(&|i, j| 0.5 * (i + j) as f64);
-        let old = Curve3::line(Point3::origin(), Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt());
+        let old = Curve3::line(Point3::origin(), geom_core::UnitVec3::constructed(Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt()));
         let got = plane_wall_section(
             &ground(),
             Wall {
@@ -1946,7 +1946,7 @@ mod rational_carriers {
         let plane = Surface::Plane {
             frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
-        let old = Curve3::line(Point3::new(0.0, 0.05, 0.0), Vec3::unit_x());
+        let old = Curve3::line(Point3::new(0.0, 0.05, 0.0), geom_core::UnitVec3::exact_x());
         let row = match plane_wall_section(
             &plane,
             Wall {

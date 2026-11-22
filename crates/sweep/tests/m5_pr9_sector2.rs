@@ -216,7 +216,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
             geom_brep::MappedSource::ExtrudedPoint {
                 point: Point2::new(origin.x, origin.y),
                 place: geom_core::Affine3::identity(),
-                vec: dir * (t1 - t0),
+                vec: dir.get() * (t1 - t0),
             },
         )),
         carrier: geom::Curve3::Line(geom::Line { origin, dir }),

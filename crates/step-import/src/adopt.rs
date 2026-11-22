@@ -802,7 +802,7 @@ mod tests {
         let floor = plane(geom_core::Vec3::new(0.0, 1.0, 0.0));
         let carrier = Curve3::line(
             Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            geom_core::UnitVec3::exact_z(),
         );
         let rung = |a: &Surface<f64>, b: &Surface<f64>, sagitta: f64| {
             let reach = geom_brep::points_lever_from(

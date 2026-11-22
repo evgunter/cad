@@ -6448,7 +6448,7 @@ mod travel_rows {
                 turn: Turn::facing(
                     geom::Line {
                         origin: Point3::origin(),
-                        dir: Vec3::unit_z(),
+                        dir: geom_core::UnitVec3::exact_z(),
                     },
                     (germ, Vec3::unit_x()),
                     (site, tangent),
@@ -6520,7 +6520,7 @@ mod travel_rows {
             let turn = Turn::facing(
                 geom::Line {
                     origin: Point3::origin(),
-                    dir: Vec3::unit_z(),
+                    dir: geom_core::UnitVec3::exact_z(),
                 },
                 (germ, dir * -1.0),
                 (site, tangent),
@@ -6593,7 +6593,7 @@ mod self_check_rows {
         let err = super::germs_face_each_other(
             Some(&super::SectionLoops::conic(geom::Line {
                 origin: o,
-                dir: z,
+                dir: geom::stated_direction(z),
             })),
             &germ(Vec3::new(1.0, w, 0.0)),
             &germ(Vec3::new(0.0, 1.0, 0.0)),
@@ -7710,7 +7710,7 @@ mod frame_dispatch_tests {
             };
             // a = (d² + r₁² − r₂²)/2d = d/2 at equal radii.
             assert!((center - Point3::new(1.25, 0.0, 0.0)).norm() < 1e-12);
-            assert!(axis.dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999_999_999);
+            assert!(axis.get().dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999_999_999);
         }
         // Separated, tangent, and one sphere given twice: no locus, so
         // no frame — and never the straight-chord `None`.
@@ -7745,7 +7745,7 @@ mod rulings_lane_rows {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = |n: u64| FaceKey::from(KeyData::from_ffi(n));
         let (fa, fb) = (face(3), face(7));
-        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)));
         let circle = geom::Curve3::circle(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
@@ -8109,7 +8109,7 @@ mod first_pair_rows {
 
         let frame = geom::Line {
             origin: Point3::origin(),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         };
         let germ = (Point3::new(1.0, 0.0, 0.0), Vec3::unit_y());
         let turn = |t: f64| {
@@ -8271,7 +8271,7 @@ mod first_pair_rows {
     ) -> Result<Vec<(usize, usize)>, BooleanError> {
         let frame = geom::Line {
             origin: Point3::origin(),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         };
         let site = |t: f64| Point3::new(10.0 * t.cos(), t.sin(), 0.0);
         let dir = |(t, ccw): (f64, bool)| {

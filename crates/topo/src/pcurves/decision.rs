@@ -1538,8 +1538,8 @@ pub(super) fn decide_plain_joint<T: Decide>(
         }
         Err(_) => geom_core::Vec3::unit_x(),
     };
-    let arrived = geom::Curve3::line(vertex, along(prev.x));
-    let leaving = geom::Curve3::line(vertex, along(image.eval(entry_t).x));
+    let arrived = geom::Curve3::line(vertex, geom_core::UnitVec3::constructed(along(prev.x)));
+    let leaving = geom::Curve3::line(vertex, geom_core::UnitVec3::constructed(along(image.eval(entry_t).x)));
     let reach = || Some(geom_core::Lever::curvature_radius(T::one()));
     decide_joint(
         chart,

@@ -510,7 +510,7 @@ mod tests {
         Posed::Cylinder {
             axis: geom::Line {
                 origin,
-                dir: dir.normalize(),
+                dir: geom_core::UnitVec3::squared(dir),
             },
             radius,
             convex,

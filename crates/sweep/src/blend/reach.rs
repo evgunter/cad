@@ -3467,7 +3467,7 @@ mod tests {
     fn leaning<T: geom_core::Real>(t: f64) -> geom::Line<T> {
         geom::Line {
             origin: Point3::new(T::zero(), T::zero(), T::zero()),
-            dir: Vec3::new(T::from_f64(t.sin()), T::zero(), T::from_f64(t.cos())),
+            dir: geom_core::UnitVec3::constructed(Vec3::new(T::from_f64(t.sin()), T::zero(), T::from_f64(t.cos()))),
         }
     }
 
@@ -3908,7 +3908,7 @@ mod tests {
                                     read!(sheet_clip(
                                         &body,
                                         f,
-                                        geom::Line { origin: o, dir: a },
+                                        geom::Line { origin: o, dir: geom::stated_direction(a) },
                                         band
                                     )),
                                 ),
@@ -3919,7 +3919,7 @@ mod tests {
                                         fi,
                                         geom::Line {
                                             origin: oi,
-                                            dir: ai
+                                            dir: geom_core::UnitVec3::constructed(ai)
                                         },
                                         band
                                     )),
@@ -3994,7 +3994,7 @@ mod tests {
                     for (scalar, clip) in [
                         (
                             "f64",
-                            read!(sheet_clip(&body, f, geom::Line { origin: o, dir: a }, band)),
+                            read!(sheet_clip(&body, f, geom::Line { origin: o, dir: geom::stated_direction(a) }, band)),
                         ),
                         (
                             "Interval",
@@ -4003,7 +4003,7 @@ mod tests {
                                 fi,
                                 geom::Line {
                                     origin: oi,
-                                    dir: ai
+                                    dir: geom_core::UnitVec3::constructed(ai)
                                 },
                                 band
                             )),
@@ -4156,7 +4156,7 @@ mod tests {
                     };
                     for s in [cylinder, plane] {
                         for (lo, hi) in boxes {
-                            let axis = geom::Line { origin: o, dir: a };
+                            let axis = geom::Line { origin: o, dir: geom_core::UnitVec3::constructed(a) };
                             let Some((g, slack)) = sheet_fn(&s, axis, (lo, hi)) else {
                                 continue;
                             };
@@ -4266,7 +4266,7 @@ mod tests {
         let sheet = Bound::Sheet {
             axis: geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom_core::UnitVec3::exact_z(),
             },
             f: SheetFn::Line {
                 alpha: 1.0,

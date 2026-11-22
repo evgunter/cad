@@ -6891,7 +6891,7 @@ mod tests {
         let seam = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::wrap(keys[0]),
-                carrier: Curve3::line(p0, Vec3::unit_z()),
+                carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
                 param_start: 0.0,
                 param_end: 3.0,
             },
@@ -6918,7 +6918,7 @@ mod tests {
         let iso = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, 0.0, len),
-                carrier: Curve3::line(q0, (q1 - q0) / len),
+                carrier: Curve3::line(q0, geom::stated_direction((q1 - q0) / len)),
                 param_start: 0.0,
                 param_end: len,
             },
@@ -6994,7 +6994,7 @@ mod tests {
         let derived = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::wrap(keys[0]),
-                carrier: Curve3::line(p0, Vec3::unit_z()),
+                carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
                 param_start: 0.0,
                 param_end: 3.0,
             },
@@ -7034,7 +7034,7 @@ mod tests {
         let (p0, p1) = (Point3::new(r + d, 0.0, 0.0), Point3::new(r + d, 0.0, 3.0));
         let seam_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::wrap(keys[0]),
-            carrier: Curve3::line(p0, Vec3::unit_z()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
             param_start: 0.0,
             param_end: 3.0,
         };
@@ -7145,7 +7145,7 @@ mod tests {
         let off = Vec3::zero();
         let iso_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, anchor, t1),
-            carrier: Curve3::line(q0 + off - dir * anchor, dir),
+            carrier: Curve3::line(q0 + off - dir * anchor, geom::stated_direction(dir)),
             param_start: anchor,
             param_end: t1,
         };
@@ -7511,13 +7511,13 @@ mod tests {
     #[test]
     fn a_lines_span_is_forward_in_metres_where_its_dir_is_zero() {
         use geom_core::{Affine3, Interval, Point2};
-        fn along<T: Decide>(dir: Vec3<T>, param_end: T) -> EdgeCurveSpec<T> {
+        fn along<T: Decide>(dir: UnitVec3<T>, param_end: T) -> EdgeCurveSpec<T> {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
                     crate::mapped::MappedSource::ExtrudedPoint {
                         point: Point2::new(T::zero(), T::zero()),
                         place: Affine3::translation(Vec3::new(T::zero(), T::zero(), T::zero())),
-                        vec: dir * param_end,
+                        vec: dir.get() * param_end,
                     },
                 )),
                 carrier: Curve3::line(Point3::new(T::zero(), T::zero(), T::zero()), dir),
@@ -7555,22 +7555,22 @@ mod tests {
                 }
             )
         };
-        let err = certify(along(Vec3::zero(), 1.0), Point3::origin()).unwrap_err();
+        let err = certify(along(geom::stated_direction(Vec3::zero()), 1.0), Point3::origin()).unwrap_err();
         assert!(zero_refusal(&err), "{err:?}");
         let fast = Vec3::new(2.0, 0.0, 0.0);
-        assert!(certify(along(fast, 0.5), Point3::new(1.0, 0.0, 0.0)).is_ok());
+        assert!(certify(along(geom::stated_direction(fast), 0.5), Point3::new(1.0, 0.0, 0.0)).is_ok());
 
         let iv = Interval::from_f64;
         let origin = Point3::new(iv(0.0), iv(0.0), iv(0.0));
         let flat = Vec3::new(iv(0.0), iv(0.0), iv(0.0));
-        let err = certify_interval(along(flat, iv(1.0)), origin).unwrap_err();
+        let err = certify_interval(along(geom_core::UnitVec3::constructed(flat), iv(1.0)), origin).unwrap_err();
         assert!(zero_refusal(&err), "[0, 0]: {err:?}");
         // A straddle past the escalation of the band in force, so its
         // metred span reads neither zero nor positive at every ε.
         let reach = 2.0 * band().escalate();
         let wide = Interval::from_bounds(-reach, reach);
         let straddling = Vec3::new(wide, iv(0.0), iv(0.0));
-        let err = certify_interval(along(straddling, iv(1.0)), origin).unwrap_err();
+        let err = certify_interval(along(geom_core::UnitVec3::constructed(straddling), iv(1.0)), origin).unwrap_err();
         assert!(
             matches!(
                 err,
@@ -7592,7 +7592,7 @@ mod tests {
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let mut spec = line_spec(p0, p1);
         let off = 100.0 * eps();
-        spec.carrier = Curve3::line(Point3::new(0.0, off, 0.0), Vec3::unit_x());
+        spec.carrier = Curve3::line(Point3::new(0.0, off, 0.0), geom_core::UnitVec3::exact_x());
         let err = EdgeCurve::certify(
             spec.clone(),
             p0,
@@ -7616,7 +7616,7 @@ mod tests {
         );
         // An in-band offset (3·ε) escalates instead of passing.
         let mut spec = line_spec(p0, p1);
-        spec.carrier = Curve3::line(Point3::new(0.0, 3.0 * eps(), 0.0), Vec3::unit_x());
+        spec.carrier = Curve3::line(Point3::new(0.0, 3.0 * eps(), 0.0), geom_core::UnitVec3::exact_x());
         let err = EdgeCurve::certify(
             spec.clone(),
             p0,
@@ -7671,7 +7671,7 @@ mod tests {
                 pair: SurfacePair::new(src_keys[0], src_keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -7772,7 +7772,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -7792,7 +7792,7 @@ mod tests {
         let mut bad = spec.clone();
         bad.carrier = Curve3::Line(geom::Line {
             origin: Point3::new(0.0, 0.5, 0.0), // on z = 0, off y = 0
-            dir: Vec3::unit_x(),
+            dir: geom_core::UnitVec3::exact_x(),
         });
         let err = EdgeCurve::certify(
             bad,
@@ -7911,7 +7911,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -7949,7 +7949,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -7990,7 +7990,7 @@ mod tests {
         let p1 = Point3::new(r, 0.0, 3.0);
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::wrap(keys[0]),
-            carrier: Curve3::line(p0, Vec3::unit_z()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
             param_start: 0.0,
             param_end: 3.0,
         };
@@ -8008,7 +8008,7 @@ mod tests {
         let q0 = Point3::new(-r, 0.0, 0.0);
         let q1 = Point3::new(-r, 0.0, 3.0);
         let mut antipode = spec.clone();
-        antipode.carrier = Curve3::line(q0, Vec3::unit_z());
+        antipode.carrier = Curve3::line(q0, geom_core::UnitVec3::exact_z());
         let cut = EdgeCurve::certify(
             antipode,
             q0,
@@ -8034,7 +8034,7 @@ mod tests {
             Point3::new(r + 1.0, 0.0, 3.0),
         );
         let mut off = spec.clone();
-        off.carrier = Curve3::line(o0, Vec3::unit_z());
+        off.carrier = Curve3::line(o0, geom_core::UnitVec3::exact_z());
         assert!(
             EdgeCurve::certify(
                 off,
@@ -8213,7 +8213,7 @@ mod tests {
                     place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
                     axis: geom::Line {
                         origin: center,
-                        dir: Vec3::unit_z(),
+                        dir: geom_core::UnitVec3::exact_z(),
                     },
                     angle: TAU,
                 },
@@ -10372,7 +10372,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(p0 + dir * (reach / 2.0)),
             },
-            carrier: Curve3::Line(geom::Line { origin: p0, dir }),
+            carrier: Curve3::Line(geom::Line { origin: p0, dir: geom::stated_direction(dir) }),
             param_start: 0.0,
             param_end: 2.0 * reach,
         };
@@ -10663,7 +10663,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(on + Vec3::unit_z() * 0.5),
             },
-            carrier: Curve3::line(on, Vec3::unit_z()),
+            carrier: Curve3::line(on, geom_core::UnitVec3::exact_z()),
             param_start: 0.0,
             param_end: 1.0,
         };

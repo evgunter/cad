@@ -2731,12 +2731,12 @@ mod one_line_rows {
         let a = (p(0.0, 0.0), p(1.0, 0.0));
         let la = geom::Line {
             origin: a.0,
-            dir: Vec3::new(1.0, 0.0, 0.0),
+            dir: geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
         };
         let b = (p(0.0, 3e-9), p(1.0, 1.0 + 3e-9));
         let lb = geom::Line {
             origin: b.0,
-            dir: (b.1 - b.0).normalize(),
+            dir: geom_core::UnitVec3::squared(b.1 - b.0),
         };
         let first = lb.distance(a.0);
         assert!(

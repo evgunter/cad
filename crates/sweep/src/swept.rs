@@ -2072,9 +2072,9 @@ mod tests {
         );
         let scale = q_to.x.abs().max(q_to.y.abs()).max(q_to.z.abs());
         assert!(
-            (line.dir.norm() - 1.0).abs() <= 4.0 * f64::EPSILON,
+            (line.dir.get().norm() - 1.0).abs() <= 4.0 * f64::EPSILON,
             "the direction is unit: {}",
-            line.dir.norm()
+            line.dir.get().norm()
         );
         let miss = (line.at(spec.param_end) - q_to).norm();
         assert!(
@@ -2174,7 +2174,7 @@ pub(crate) mod must_carry_fixtures {
     }
 
     fn z_axis() -> Curve3<f64> {
-        Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0))
+        Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_z())
     }
 }
 

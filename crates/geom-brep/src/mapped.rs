@@ -438,7 +438,7 @@ mod tests {
             place: Affine3::identity(),
             axis: geom::Line {
                 origin: Point3::origin(),
-                dir: Vec3::unit_y(),
+                dir: geom_core::UnitVec3::exact_y(),
             },
             angle: PI,
         });

@@ -951,7 +951,7 @@ fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
             [0.0, 0.0],
         );
         let o = plane.eval(p0[0], p0[1]);
-        let line = Curve3::line(o, plane.eval(p0[0] + pl[0], p0[1] + pl[1]) - o);
+        let line = Curve3::line(o, geom::stated_direction(plane.eval(p0[0] + pl[0], p0[1] + pl[1]) - o));
         let cylinder = Surface::Cylinder {
             frame: geom::Frame::new(Point3::new(far, far, -far), n, u),
             radius: 0.5 * far,

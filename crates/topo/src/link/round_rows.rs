@@ -427,7 +427,7 @@ fn the_dual_lane_at_the_axis_reads_the_radius_and_refuses_a_point_moved_across()
     let pin = Round::cylinder(
         geom::Line {
             origin: cp(o),
-            dir: cv(a),
+            dir: geom_core::UnitVec3::constructed(cv(a)),
         },
         Dual::variable(1.0),
         true,
@@ -460,7 +460,7 @@ fn the_dual_lane_at_the_axis_reads_the_radius_and_refuses_a_point_moved_across()
     let fixed = Round::cylinder(
         geom::Line {
             origin: cp(o),
-            dir: cv(a),
+            dir: geom_core::UnitVec3::constructed(cv(a)),
         },
         c(1.0),
         true,
@@ -515,7 +515,7 @@ fn a_corner_meeting_a_bores_wall_again_within_reach_crosses() {
     let bore = Round::cylinder(
         geom::Line {
             origin: Point3::origin(),
-            dir: v(0.0, 0.0, 1.0),
+            dir: geom_core::UnitVec3::exact_z(),
         },
         1.0,
         false,

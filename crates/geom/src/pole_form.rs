@@ -136,7 +136,7 @@ mod tests {
             &sphere_meridian(center, radius, axis, u_ref),
             crate::Line {
                 origin: center,
-                dir: axis,
+                dir: crate::stated_direction(axis),
             },
             |p| p,
             |w| w,
@@ -163,7 +163,7 @@ mod tests {
             let g = cone_generator(
                 crate::Line {
                     origin: apex,
-                    dir: frame.axis(),
+                    dir: frame.axis_unit(),
                 },
                 alpha,
                 d,

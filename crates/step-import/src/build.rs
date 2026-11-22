@@ -2821,7 +2821,7 @@ mod tests {
             (
                 1,
                 (1, 2),
-                Curve3::line(p, z),
+                Curve3::line(p, geom::stated_direction(z)),
                 (0.0, 1.0),
                 Point3::new(0.5, 0.0, 2.0),
             ),

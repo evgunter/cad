@@ -291,7 +291,7 @@ mod wrap_rims_holds_rows {
         let rims = WrapRims {
             axis: geom::Line {
                 origin: Point3::origin(),
-                dir: Vec3::unit_z(),
+                dir: geom_core::UnitVec3::exact_z(),
             },
         };
         let rim = |center: Point3<f64>| {

@@ -835,7 +835,7 @@ mod lever_rows {
         else {
             panic!("two cylinder walls read as cylinders")
         };
-        let levered = a1.cross(a2).norm() * arm;
+        let levered = a1.get().cross(a2.get()).norm() * arm;
         assert!(
             band().zero() < levered && levered < band().escalate(),
             "the tilt at the arm is in band: {levered:e}"
@@ -915,7 +915,7 @@ mod lever_rows {
         };
         assert_eq!(
             data.tilt.value(),
-            a1.cross(a2).norm() * arm,
+            a1.get().cross(a2.get()).norm() * arm,
             "the tilt at the arm"
         );
         assert_eq!(data.radius.value(), r1 - r2, "the radii's difference");

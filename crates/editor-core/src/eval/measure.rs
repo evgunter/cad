@@ -1599,7 +1599,7 @@ mod tests {
         };
         let axis = geom::Line {
             origin: p(0.0, 0.0, 0.0),
-            dir: v(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(v(0.0, 0.0, 1.0)),
         };
         let cylinder = |convex| Carrier::Cylinder {
             axis,
@@ -1704,7 +1704,7 @@ mod tests {
         radius: f64,
         convex: bool,
     ) -> Carrier<'static, f64> {
-        let axis = geom::Line { origin, dir: axis };
+        let axis = geom::Line { origin, dir: geom::stated_direction(axis) };
         Carrier::Cylinder {
             axis,
             radius,

@@ -1359,14 +1359,14 @@ mod tests {
                 self.sliver::<f64>().line_clearance(
                     geom::Line {
                         origin: at(a.0, a.1),
-                        dir,
+                        dir: geom::stated_direction(dir),
                     },
                     (0.0, 1.0),
                 ),
                 self.sliver::<Interval>().line_clearance(
                     geom::Line {
                         origin: Point3::new(iv(a.0), iv(a.1), iv(0.0)),
-                        dir: Vec3::new(iv(dir.x), iv(dir.y), iv(0.0)),
+                        dir: geom_core::UnitVec3::constructed(Vec3::new(iv(dir.x), iv(dir.y), iv(0.0))),
                     },
                     (iv(0.0), iv(1.0)),
                 ),
@@ -1512,7 +1512,7 @@ mod tests {
                     }
                     let carrier = Curve3::line(
                         Point3::new(a.0, a.1, 0.0),
-                        Vec3::new(b.0 - a.0, b.1 - a.1, 0.0),
+                        geom::stated_direction(Vec3::new(b.0 - a.0, b.1 - a.1, 0.0)),
                     );
                     let whole = region.sliver::<f64>().whole_clearance(&carrier, (0.0, 1.0));
                     handed_over += usize::from(m > 1e-3 && whole.is_some_and(|w| w <= 0.0));
@@ -1689,7 +1689,7 @@ mod tests {
         let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
         let v = |x: f64, y: f64| Vec3::new(x, y, 0.0);
         let rim = |o: Point3<f64>, d: Vec3<f64>| {
-            (Curve3::Line(geom::Line { origin: o, dir: d }), (0.0, 1.0))
+            (Curve3::Line(geom::Line { origin: o, dir: geom::stated_direction(d) }), (0.0, 1.0))
         };
         CapSliver {
             cap: FaceKey::default(),

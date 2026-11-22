@@ -1389,7 +1389,7 @@ mod tests {
             Some((0.0, a.distance(b))),
             "a chord covers its segment"
         );
-        assert!((dir.x - 1.0).abs() < 1e-15, "dir {dir:?}");
+        assert!((dir.get().x - 1.0).abs() < 1e-15, "dir {dir:?}");
         let reversed = NurbsCurve3::new(knots, vec![b, a], vec![1.0, 1.0]).unwrap();
         let CurveRecognition::Promoted {
             curve: Curve3::Line(geom::Line { dir: rdir, .. }),
@@ -1398,7 +1398,7 @@ mod tests {
         else {
             panic!("the reversed chord certifies too");
         };
-        assert!((rdir.x + 1.0).abs() < 1e-15, "reversed dir {rdir:?}");
+        assert!((rdir.get().x + 1.0).abs() < 1e-15, "reversed dir {rdir:?}");
     }
 
     /// L2: **the segment obligation and the map, each pinned at its
@@ -1512,7 +1512,7 @@ mod tests {
                         residual,
                         ..
                     } => (
-                        [origin.x, origin.y, origin.z, dir.x, dir.y, dir.z].map(f64::to_bits),
+                        [origin.x, origin.y, origin.z, dir.get().x, dir.get().y, dir.get().z].map(f64::to_bits),
                         residual,
                     ),
                     other => panic!("weights [{w}; 3] at ε = {eps:e} must promote: {other:?}"),
@@ -1590,7 +1590,7 @@ mod tests {
         else {
             panic!("the re-timing is 0.05/3, inside a 0.02 budget");
         };
-        assert!((dir.x - 1.0).abs() < 1e-15);
+        assert!((dir.get().x - 1.0).abs() < 1e-15);
         assert!(
             (residual - 0.05 / 3.0).abs() < 1e-12,
             "the residual IS the re-timing hull: {residual:e}"
@@ -1658,8 +1658,8 @@ mod tests {
             let mut worst = 0.0f64;
             for k in 0..=4096 {
                 let p = curve.eval(d0 + (d1 - d0) * f64::from(k) / 4096.0);
-                let t = (p - origin).dot(dir).clamp(0.0, len);
-                worst = worst.max(p.distance(origin + dir * t));
+                let t = (p - origin).dot(dir.get()).clamp(0.0, len);
+                worst = worst.max(p.distance(origin + dir.get() * t));
             }
             assert!(
                 worst <= residual,

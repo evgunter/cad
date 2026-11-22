@@ -933,8 +933,12 @@ impl Line<f64> {
     }
 }
 
-/// [`UnitVec3::stated`], failing loud ([`Line::stated`]).
-fn stated_direction(dir: Vec3<f64>) -> UnitVec3<f64> {
+/// **A stated `f64` direction as the witness, failing loud**:
+/// [`UnitVec3::stated`]'s bits where `dir` is unit to rounding, and
+/// otherwise a debug assertion, and in a release build the direction
+/// poisoned ([`Line::stated`]).
+#[must_use]
+pub fn stated_direction(dir: Vec3<f64>) -> UnitVec3<f64> {
     UnitVec3::stated(dir).unwrap_or_else(|| {
         debug_assert!(
             false,
@@ -2073,12 +2077,12 @@ mod tests {
         let band = Band::linear(geom_core::Tol::witness()).unwrap();
         let (origin, dir) = (Point3::new(1.0, 2.0, 3.0), Vec3::new(0.0, 0.0, 1.0));
         let ahead = |ray: Ray<f64>, at: f64| ray.ahead(at, "ray_start_row", band).unwrap();
-        let started = Ray::starting(origin, dir, -2.0);
+        let started = Ray::starting(origin, crate::stated_direction(dir), -2.0);
         assert_eq!(started.start(), -2.0);
         assert_eq!(ahead(started, -1.0), Sign::Positive);
         assert_eq!(ahead(started, -3.0), Sign::Negative);
         assert_eq!(ahead(started, -2.0), Sign::Zero);
-        let plain = Ray::new(origin, dir);
+        let plain = Ray::new(origin, crate::stated_direction(dir));
         assert_eq!(plain.start(), 0.0);
         assert_eq!(ahead(plain, -1.0), Sign::Negative);
         assert_eq!(ahead(plain, 1.0), Sign::Positive);
@@ -2112,7 +2116,7 @@ mod tests {
         let open = [
             Curve3::Line(Line {
                 origin: frame.origin(),
-                dir: frame.axis(),
+                dir: frame.axis_unit(),
             }),
             Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder())),
         ];
@@ -2130,11 +2134,11 @@ mod tests {
     fn two_lines_closest_approach_is_their_common_perpendicular() {
         let x = Line {
             origin: Point3::new(-2.0, 0.0, 0.0),
-            dir: Vec3::new(2.0, 0.0, 0.0),
+            dir: crate::stated_direction(Vec3::new(2.0, 0.0, 0.0)),
         };
         let y = Line {
             origin: Point3::new(3.0, 5.0, 1.0),
-            dir: Vec3::new(0.0, -0.5, 0.0),
+            dir: crate::stated_direction(Vec3::new(0.0, -0.5, 0.0)),
         };
         let pair = x.closest_params(&y);
         assert_eq!(
@@ -2150,12 +2154,12 @@ mod tests {
         );
         let tilted = Line {
             origin: Point3::new(0.3, -1.0, 2.0),
-            dir: Vec3::new(1.0, 2.0, -0.5),
+            dir: crate::stated_direction(Vec3::new(1.0, 2.0, -0.5)),
         };
         let pair = x.closest_params(&tilted);
         let (p, q) = (x.at(pair.s), tilted.at(pair.t));
         assert!(
-            (p - q).dot(x.dir).abs() < 1e-12 && (p - q).dot(tilted.dir).abs() < 1e-12,
+            (p - q).dot(x.dir.get()).abs() < 1e-12 && (p - q).dot(tilted.dir.get()).abs() < 1e-12,
             "the joining vector is square to both lines: {p:?} {q:?}"
         );
         let expected = 1.0 - (2.0_f64 / (2.0 * 5.25_f64.sqrt())).powi(2);
@@ -2166,12 +2170,12 @@ mod tests {
         );
         let parallel = Line {
             origin: Point3::new(0.0, 1.0, 0.0),
-            dir: Vec3::new(-3.0, 0.0, 0.0),
+            dir: crate::stated_direction(Vec3::new(-3.0, 0.0, 0.0)),
         };
         assert_eq!(x.closest_params(&parallel).sin2, 0.0, "parallel lines");
         let point = Line {
             origin: Point3::new(0.0, 1.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 0.0),
+            dir: crate::stated_direction(Vec3::new(0.0, 0.0, 0.0)),
         };
         assert!(x.closest_params(&point).sin2.is_nan(), "a zero direction");
     }
@@ -2180,7 +2184,7 @@ mod tests {
     fn a_lines_offset_and_square_foot_read_a_non_unit_dir() {
         let l = Line {
             origin: Point3::new(1.0, 2.0, 3.0),
-            dir: Vec3::new(0.0, 0.0, 4.0),
+            dir: crate::stated_direction(Vec3::new(0.0, 0.0, 4.0)),
         };
         let p = Point3::new(4.0, 6.0, 11.0);
         let xyz = |v: Vec3<f64>| (v.x, v.y, v.z);
@@ -2205,11 +2209,11 @@ mod tests {
         for scale in [1.0, 0.25, 3.0] {
             let line = Line {
                 origin,
-                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
+                dir: crate::stated_direction(Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale),
             };
             let foot = line.foot(p);
             assert!(
-                (p - foot).dot(line.dir).abs() < 1e-12,
+                (p - foot).dot(line.dir.get()).abs() < 1e-12,
                 "|dir| = {scale}: the way to the foot is square to the line"
             );
         }
@@ -2225,11 +2229,11 @@ mod tests {
         for scale in [0.25, 3.0] {
             let line = Line {
                 origin,
-                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
+                dir: crate::stated_direction(Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale),
             };
             let t = Curve3::Line(line).param_near(p, 0.0).unwrap();
             assert!(
-                (line.origin + line.dir * t - line.foot(p)).norm() < 1e-12,
+                (line.origin + line.dir.get() * t - line.foot(p)).norm() < 1e-12,
                 "|dir| = {scale}: param_near's point is the foot"
             );
         }
@@ -2246,7 +2250,7 @@ mod tests {
         let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
         let c = Point3::new(0.5, -1.0, 2.0);
         let curves = [
-            Curve3::Line(Line { origin: c, dir: u }),
+            Curve3::Line(Line { origin: c, dir: crate::stated_direction(u) }),
             Curve3::circle(c, n, 0.7, u),
             Curve3::Ellipse(crate::Ellipse::new(crate::Frame::new(c, n, u), 0.9, 0.4)),
             Curve3::Spiric {
@@ -2308,7 +2312,7 @@ mod tests {
 
     #[test]
     fn line_evaluates_exactly_on_dyadic_data() {
-        let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), Vec3::new(0.0, 0.0, 1.0));
+        let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), crate::stated_direction(Vec3::new(0.0, 0.0, 1.0)));
         let p = line.eval(3.25);
         assert_eq!((p.x, p.y, p.z), (1.0, -2.0, 3.75));
         let d = line.deriv(3.25);
@@ -2421,7 +2425,7 @@ mod tests {
         /// chain rule multiplies dir by the seed, both single products).
         #[test]
         fn line_deriv_matches_dual_of_eval(t in -1.0e3..1.0e3f64) {
-            let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0));
+            let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), crate::stated_direction(Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0)));
             let ld: Curve3<Dual64> = line.map_scalar(Dual::constant);
             let p = ld.eval(Dual::variable(t));
             let d = line.deriv(t);
@@ -2529,7 +2533,7 @@ mod tests {
             );
         }
         assert!(
-            Curve3::<f64>::line(Point3::origin(), Vec3::unit_x())
+            Curve3::<f64>::line(Point3::origin(), crate::stated_direction(Vec3::unit_x()))
                 .major_frame()
                 .is_none()
         );
@@ -3562,7 +3566,7 @@ mod tests {
     /// fixtures, at parameters that are not special to any of them.
     #[test]
     fn analytic_ders1_is_eval_and_deriv_bit_for_bit() {
-        let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), Vec3::new(0.3, -0.4, 1.2));
+        let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), crate::stated_direction(Vec3::new(0.3, -0.4, 1.2)));
         for (kind, c) in [
             ("line", line),
             ("circle", tilted_circle()),
@@ -3636,7 +3640,7 @@ mod tests {
         let (jp, jd) = c.ders1(f64::NAN);
         assert!(jp.x.is_nan() && jp.y.is_nan() && jp.z.is_nan());
         assert!(jd.x.is_nan() && jd.y.is_nan() && jd.z.is_nan());
-        let line = Curve3::line(Point3::origin(), Vec3::unit_x());
+        let line = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         let lp = line.eval(f64::NAN);
         assert!(lp.x.is_nan() && lp.y.is_nan() && lp.z.is_nan());
         // The line's deriv is parameter-independent — NaN t does not
@@ -3718,7 +3722,7 @@ mod tests {
         fn line_encloses_f64_evaluation() {
             let line = Curve3::line(
                 Point3::new(1.0, -2.0, 0.5),
-                Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0),
+                crate::stated_direction(Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0)),
             );
             let li = line.map_scalar(Interval::from_f64);
             for t in [0.0, 1.75, -3.5e2, 1234.5678] {
