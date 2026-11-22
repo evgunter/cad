@@ -56,3 +56,19 @@ same bits finished bare split as before. The consumption rule this row
 asks for would retire that record (the touch lies in the cut plane).
 
 Moved from WIREHOLD to DOCTAIL on 2026-11-20, by `git mv`, when WIREHOLD merged into DOCTAIL: WIREHOLD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one DOCTAIL carries.
+
+## A recorded slit cut along its line (2026-11-22, HELDRECORDS split-on)
+
+`heldrecords/split-on` records a slit's two coincident edges (the split's
+own edge–edge record, citing the `SplitOn` row of the operand edge under
+them), so a later cut along a slit now parts a record. Witness:
+`crates/topo/tests/a_keel_wrapped_at_both_ends_splits_as_a_ring.rs`
+`a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip`, the
+ring's side cut by `y = 2`, upright along the ring: each of the ring's
+two edges lies in the plane and goes to its own side, bounding no face
+of the cut there, and the split refuses `Carry { Parted }`, where it
+built `7.85 | 7.85` while the ring held no record. The consumption rule
+this row asks for (a touch lying in the cut plane retires) would build
+it again. Every recorded coincident pair a later cut runs along reaches
+this, curved ones included, so the rule now gates the slit forms'
+reuse as well as the union pinch.
