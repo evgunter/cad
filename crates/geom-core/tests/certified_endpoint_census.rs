@@ -735,19 +735,19 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        183,
-        85,
-        "the 85 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+        182,
+        84,
+        "the 84 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `present_chart` (26), \
-         `present_plane` (17), `present_plane_corner` (7), `present_vertex_corner` (12), \
+         `present_plane` (16), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
-         `is_certified()` and finiteness ask; `present_plane`'s 17 are its cell's placement off a \
+         `is_certified()` and finiteness ask; `present_plane`'s 16 are its cell's placement off a \
          line's face side (3, wholly off, `y` and a corner's `x`); a side's chart range handed \
          to `segment_params` (3); its rectangle's bounds, the cell's reach and a cap's height \
-         (9), each an enclosure's outer end, so the rectangle holds more of the plane and \
+         (8), each an enclosure's outer end, so the rectangle holds more of the plane and \
          never less; and a cap's run along its frame (2), whose two ends decide its direction \
-         behind the cap's own `is_certified()` ask. All 17 count as asking because \
+         behind the cap's own `is_certified()` ask. All 16 count as asking because \
          `present_plane` names `is_certified()` and its readings are closures inside it: the \
          census asks of the enclosing `fn`, and the dispositions here are each read's own. `present_chart` asks each clip line where it is placed, so 16 of its \
          reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \

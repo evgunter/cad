@@ -2349,9 +2349,8 @@ fn partial_zero(
 
 /// The planar presentation: the plane's chart through an affine map in
 /// which one line edge is `y = 0` and the face `y ≥ 0`, or two line edges
-/// at a convex corner are the positive axes, and a further line edge
-/// across the face from them, where the cell holds one, caps the
-/// rectangle: a strip between two lines, or a strip's end.
+/// at a convex corner are the positive axes; at a strip's end, the end's
+/// other neighbour across the face caps the rectangle.
 fn present_plane<'a>(
     piece: &Piece<'a>,
     near_edges: &[usize],
@@ -2443,13 +2442,13 @@ fn present_plane<'a>(
     // intersection of the half-planes of the line edges the cell holds,
     // read inside a parallelogram `R` two of whose sides lie on one edge
     // or on a corner's two edges (the frame), and whose far sides are the
-    // cell's reach or a further edge of the cell across the face from
-    // them (the cap). Every point of `R` off the face is a point of the
-    // plane `R`'s reading holds too, so `R` need only hold the face's
-    // part. The face is convex in the cell where each corner in it is
-    // convex and the cap and the edge it caps stand on each other's face
-    // side over the reach: every vertex and every other edge is clear of
-    // the cell's ball, so the plane's disk inside the ball meets the
+    // cell's reach or, at a strip's end, the end's other neighbour across
+    // the face from them (the cap). Every point of `R` off the face is a
+    // point of the plane `R`'s reading holds too, so `R` need only hold
+    // the face's part. The face is convex in the cell where each corner in
+    // it is convex and the cap and the edge it caps stand on each other's
+    // face side over the reach: every vertex and every other edge is clear
+    // of the cell's ball, so the plane's disk inside the ball meets the
     // boundary only in these edges' whole chords, and the region between
     // them, on each one's face side, is the face's part of the disk.
     //
@@ -2457,6 +2456,11 @@ fn present_plane<'a>(
     // included: a cell off the frame's face side holds none of the face
     // only where nothing else in the cell bounds the face, so a cap is
     // read, and its leans decided, before the cell is placed.
+    //
+    // Two lines with no common end (a strip's middle) are not read: of
+    // two plane faces along an edge one is presented and the other's
+    // carrier separates them, and a thin face's partner reads at its own
+    // end, so no measured body asks a strip's middle of both faces.
     //
     // **The cap**: `f`, a line across the face from the frame's base line
     // `o + x·a` (face side `n`), over the reach `x`: the highest its line
@@ -2488,9 +2492,8 @@ fn present_plane<'a>(
         }
         Ok(h.hi())
     };
-    // One line edge `e` as `y = 0`, the face `y ≥ 0`; `far`, a line the
-    // cell holds with no end in it, across the face from `e` (a strip).
-    let along = |e: usize, far: Option<usize>| -> Result<Presentation<'a>, Unpresented> {
+    // One line edge `e` as `y = 0`, the face `y ≥ 0`.
+    let along = |e: usize| -> Result<Presentation<'a>, Unpresented> {
         if !piece.local.vertices.is_empty() {
             return Err(Unpresented::Local);
         }
@@ -2501,10 +2504,6 @@ fn present_plane<'a>(
         let d = [cell_u - p.x, cell_v - p.y];
         let x = (d[0] * a[0] + d[1] * a[1]) / len2;
         let y = (d[0] * bv[0] + d[1] * bv[1]) / len2;
-        let top = match far {
-            None => y.hi(),
-            Some(f) => capped(f, (p, a, bv), bv, x)?.min(y.hi()),
-        };
         // Wholly on the edge's non-face side holds none of the face: the
         // disk's half off the face side is all outside the face. The cell
         // lies in that half. A `len2` holding zero leaves `y`
@@ -2535,7 +2534,7 @@ fn present_plane<'a>(
                 b: bv,
             },
             x: (x.lo(), x.hi()),
-            y: (0.0, top),
+            y: (0.0, y.hi()),
             zero,
             corner: false,
             cache: Cache::default(),
@@ -2677,28 +2676,11 @@ fn present_plane<'a>(
         r.ends.iter().find(|v| s.ends.contains(v)).copied()
     };
     match *edges.as_slice() {
-        [e] => along(e, None),
-        [e1, e2] => {
-            // Across the face from each other, anchored on the shared one.
-            let strip = || match (near_edges.contains(&e1), near_edges.contains(&e2)) {
-                (true, true) => Err(Unpresented::Local),
-                (false, true) => along(e2, Some(e1)),
-                _ => along(e1, Some(e2)),
-            };
-            match meet(e1, e2) {
-                // A wedge whose tip is clear of the cell is a strip there:
-                // its corner's frame, its sides at a small angle, holds the
-                // cell only in coordinates as wide as the angle is small.
-                // Each reading decides its own convexity, so the strip is
-                // read wherever the corner refuses, for any reason.
-                Some(vtx) => corner(e1, e2, vtx, None).or_else(|why| {
-                    let clear =
-                        !piece.local.vertices.contains(&vtx) && !near_vertices.contains(&vtx);
-                    if clear { strip() } else { Err(why) }
-                }),
-                None => strip(),
-            }
-        }
+        [e] => along(e),
+        [e1, e2] => match meet(e1, e2) {
+            Some(vtx) => corner(e1, e2, vtx, None),
+            None => Err(Unpresented::Local),
+        },
         // An edge `m` with a neighbour at each end, the one of a sliver
         // triangle's three whose ends the cell holds: read at either of
         // `m`'s corners whose other neighbour, the cap, is not shared.
@@ -8040,46 +8022,26 @@ mod presentation_rows {
         ])
     }
 
-    /// **`present_plane`, a strip**: a cell across a thin face, holding
-    /// both its long sides and no end, presents the strip between them,
-    /// anchored on the shared side and capped at the other: its
-    /// rectangle's image reaches no further across than the face's width,
-    /// where the cell reaches twice as far. Red on a planar arm that
-    /// reads two lines with no common end as `Local`, or caps nothing.
+    /// **`present_plane` does not read a strip's middle**: a cell across a
+    /// thin face, holding both its long sides and no end, is `Local`
+    /// whichever side is shared. A cell holding one side and a lone
+    /// vertex is `Local`: the side's chord is not all the boundary there.
+    /// Red if a strip's middle is presented again without a body that
+    /// needs it (`work/embed/a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width.md`).
     #[test]
-    fn a_cell_across_a_thin_face_presents_the_strip_between_its_sides() {
+    fn a_strip_middle_is_not_read() {
         let (plane, b) = thin_face();
         let cell = ((4.0, 5.0), (-1e-3, 2e-3));
-        for (shared, key) in [(0, 1), (2, 3)] {
-            match present_in(&plane, &b, cell, &holding(&[0, 2], &[]), &[shared]) {
-                Ok(Presentation::Of(q)) => {
-                    assert!(
-                        matches!(&q.zero, Zero::Side(Side::YLo, a) if a.edges == [edge(key)] && a.on_edges),
-                        "edge {key} shared: it is the zero side, on its edge"
-                    );
-                    let across = q.whole().y;
-                    assert!(
-                        -1e-12 < across.lo() && across.hi() < 1e-3 + 1e-12,
-                        "edge {key} shared: the image is the strip, not the cell: {across:?}"
-                    );
-                }
-                _ => panic!("edge {key} shared: the strip is presented"),
-            }
+        let pair = holding(&[0, 2], &[]);
+        for shared in [&[][..], &[0], &[2], &[0, 2]] {
+            assert!(
+                matches!(
+                    present_in(&plane, &b, cell, &pair, shared),
+                    Err(Unpresented::Local)
+                ),
+                "{shared:?} shared: a strip's middle is Local"
+            );
         }
-        assert!(
-            matches!(
-                present_in(&plane, &b, cell, &holding(&[0, 2], &[]), &[0, 2]),
-                Err(Unpresented::Local)
-            ),
-            "both sides shared: no one side holds the zero"
-        );
-        assert!(
-            matches!(
-                present_in(&plane, &b, cell, &holding(&[0, 2], &[1]), &[0]),
-                Err(Unpresented::Local)
-            ),
-            "a vertex in the cell: the sides' chords are not all there is"
-        );
         assert!(
             matches!(
                 present_in(&plane, &b, cell, &holding(&[0], &[9]), &[0]),
@@ -8087,26 +8049,6 @@ mod presentation_rows {
             ),
             "a lone vertex in the cell beside one side: the side's chord is not all there is"
         );
-        // A sliver wedge, its sides meeting at the origin at a
-        // milliradian: across its middle, a strip.
-        let (plane, wedge) = segments(&[
-            (1, (0.0, 0.0), (10.0, 0.0), [1, 2]),
-            (3, (10.0, 1e-3), (0.0, 0.0), [3, 1]),
-        ]);
-        match present_in(&plane, &wedge, cell, &holding(&[0, 1], &[]), &[0]) {
-            Ok(Presentation::Of(q)) => {
-                assert!(
-                    matches!(&q.zero, Zero::Side(Side::YLo, a) if a.edges == [edge(1)]),
-                    "the wedge's shared side is the zero side"
-                );
-                let across = q.whole().y;
-                assert!(
-                    across.hi() < 5e-4 + 1e-12,
-                    "capped at the other side over the cell's reach: {across:?}"
-                );
-            }
-            _ => panic!("a wedge's middle, its tip clear of the cell, is a strip"),
-        }
     }
 
     /// **`present_plane`, a strip's end**: a cell holding a thin face's
@@ -8219,15 +8161,14 @@ mod presentation_rows {
         );
     }
 
-    /// **Two lines that are not of one convex piece are no strip**: the
-    /// two sides of a slot or of a hole, each with the face on its far
-    /// side from the other; a slit's two sides, meeting at its tip; and
-    /// an end whose corner turns in. Each is `Local`, the face's part of
-    /// the cell not the region between its lines. Where two loops' edges
-    /// face each other (a face's rim and a hole beside it), the face's
-    /// part is the strip between them, and is presented. Red if the
-    /// strip's or the end's leans read a face side the wrong way, or not
-    /// at all.
+    /// **Lines that are not of one convex piece are no strip's end**:
+    /// the two sides of a slot or of a hole, each with the face on its far
+    /// side from the other; two sides whose face lies above both; a slit's
+    /// two sides, meeting at its tip; a rim and a hole's side; and ends
+    /// whose far corner turns in, whose sides cross in the cell, or whose
+    /// three edges meet at one vertex. Each is `Local`. Red if the end's
+    /// leans read a face side the wrong way, or not at all, or if two
+    /// lines with no common end are presented.
     #[test]
     fn two_lines_with_the_face_beyond_them_are_no_strip() {
         let (l, w) = (10.0, 1e-3);
@@ -8334,26 +8275,18 @@ mod presentation_rows {
             "three edges at one vertex are no strip's end"
         );
         // The face's rim along `y = 0` and a hole's side at `y = w`, its
-        // hole above: the face between them.
+        // hole above: a strip's middle, which is not read.
         let (plane, beside) = segments(&[
             (1, (0.0, 0.0), (l, 0.0), [1, 2]),
             (3, (l, w), (0.0, w), [4, 3]),
         ]);
-        let pair = holding(&[0, 1], &[]);
-        match present_in(&plane, &beside, cell, &pair, &[0]) {
-            Ok(Presentation::Of(q)) => {
-                assert!(
-                    matches!(&q.zero, Zero::Side(Side::YLo, a) if a.edges == [edge(1)] && a.on_edges),
-                    "the rim is the zero side, on its edge"
-                );
-                let across = q.whole().y;
-                assert!(
-                    -1e-12 < across.lo() && across.hi() < w + 1e-12,
-                    "the strip between the rim and the hole, not the cell: {across:?}"
-                );
-            }
-            _ => panic!("a rim and a hole facing it bound a strip"),
-        }
+        assert!(
+            matches!(
+                present_in(&plane, &beside, cell, &holding(&[0, 1], &[]), &[0]),
+                Err(Unpresented::Local)
+            ),
+            "a rim and a hole facing it: a strip's middle, Local"
+        );
     }
 
     /// [`certify_pair`] of a thin face's end against a face sharing its
@@ -8598,24 +8531,38 @@ mod presentation_rows {
         );
     }
 
-    /// **A strip and a strip's end read off cells' own balls**: a thin
-    /// face's middle and its end, each cell's local boundary read by
-    /// [`Local::of`], present with the shared side as the zero: the
-    /// middle's cell holds both long sides, the end's the short side and
-    /// both neighbours. Red where the strip or the end is `Local`.
+    /// **A strip's end read off a cell's own ball**: a thin face's end,
+    /// the cell's local boundary read by [`Local::of`] (its short side and
+    /// both neighbours), presents with the short side as the zero; its
+    /// middle, both long sides, is `Local`. Red where the end is `Local`.
     #[test]
-    fn a_strip_and_its_end_read_off_real_balls_present() {
+    fn a_strip_end_read_off_a_real_ball_presents() {
         let (l, w) = (10.0, 1e-3);
-        for (what, cell, shared, held, key) in [
-            ("the middle", ((4.0, 5.0), (-1e-4, 2e-3)), 0, vec![0, 2], 1),
-            ("the end", ((9.99, 10.5), (-1.0, 1.0)), 1, vec![0, 1, 2], 2),
-        ] {
-            let (plane, mut b) = segments(&[
+        let thin = || {
+            segments(&[
                 (1, (0.0, 0.0), (l, 0.0), [1, 2]),
                 (2, (l, 0.0), (l, w), [2, 3]),
                 (3, (l, w), (0.0, w), [3, 4]),
                 (4, (0.0, w), (0.0, 0.0), [4, 1]),
-            ]);
+            ])
+        };
+        for (what, cell, shared, held, presented) in [
+            (
+                "the end",
+                ((9.99, 10.5), (-1.0, 1.0)),
+                1,
+                vec![0, 1, 2],
+                true,
+            ),
+            (
+                "the middle",
+                ((4.0, 5.0), (-1e-4, 2e-3)),
+                0,
+                vec![0, 2],
+                false,
+            ),
+        ] {
+            let (plane, mut b) = thin();
             let (local, ball) = real_local(&mut b, cell);
             assert_eq!(local.edges, held, "{what}: the cell's own boundary");
             let piece = Piece {
@@ -8628,91 +8575,67 @@ mod presentation_rows {
                 local: &local,
                 ball,
             };
-            assert!(
-                matches!(
-                    present_plane(&piece, &[shared], &[], band()),
-                    Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(key)])
-                ),
-                "{what}: presented, edge {key} its zero side"
-            );
+            let got = present_plane(&piece, &[shared], &[], band());
+            if presented {
+                assert!(
+                    matches!(&got, Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(2)])),
+                    "{what}: presented, its short side the zero"
+                );
+            } else {
+                assert!(matches!(got, Err(Unpresented::Local)), "{what}: Local");
+            }
         }
     }
 
-    /// **A strip turned in its chart presents at every cell size**: the
-    /// face `[0, 10] × [0, w]`, `w` a millimetre and `100Kε`, turned by
-    /// up to 45° in its chart, read in square cells about its middle from
-    /// a unit half-size down. Red
-    /// where a cap's lean is read per chart coordinate over the reach,
-    /// picking up reach·|sin·cos| of slack.
+    /// **A strip's end turned in its chart presents its short side**, at
+    /// five turns, `w` a millimetre and `100Kε`, in square cells about the
+    /// short side from 0.2 down to `10w`. Red where the cap's lean picks
+    /// up the turn's slack over the reach, read per chart coordinate.
     #[test]
-    fn a_strip_turned_in_its_chart_presents_at_every_cell_size() {
+    fn a_strip_end_turned_in_its_chart_presents_its_short_side() {
         let l = 10.0;
         for w in [1e-3_f64, 100.0 * band().escalate()] {
-            for turn in [0.0_f64, 0.01, 0.3, 0.785] {
+            for turn in [0.0_f64, 0.1, 0.7, 1.3, 2.0] {
                 let (c, s) = (turn.cos(), turn.sin());
                 let r = |(x, y): (f64, f64)| (c * x - s * y, s * x + c * y);
                 let (plane, b) = segments(&[
                     (1, r((0.0, 0.0)), r((l, 0.0)), [1, 2]),
+                    (2, r((l, 0.0)), r((l, w)), [2, 3]),
                     (3, r((l, w)), r((0.0, w)), [3, 4]),
                 ]);
-                let (cx, cy) = r((5.0, 0.5 * w));
-                for half in [1.0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7] {
+                let (cx, cy) = r((l, 0.5 * w));
+                for half in [0.2, 1e-2, 10.0 * w] {
                     let cell = ((cx - half, cx + half), (cy - half, cy + half));
                     assert!(
                         matches!(
-                            present_in(&plane, &b, cell, &holding(&[0, 1], &[]), &[0]),
-                            Ok(Presentation::Of(_))
+                            present_in(&plane, &b, cell, &holding(&[0, 1, 2], &[2, 3]), &[1]),
+                            Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(2)])
                         ),
-                        "w = {w:e}, turned {turn}, half-size {half:e}: presented"
+                        "w = {w:e}, turned {turn}, half-size {half:e}: the short side is the zero side"
                     );
                 }
             }
         }
     }
 
-    /// **A strip's end turned in its chart presents its short side**, at
-    /// five turns, in a cell 0.4 wide about it. Red where the cap's lean
-    /// picks up the turn's slack over the reach.
+    /// **A cap's lean is read at the band**: a strip's end `Kε/2` wide
+    /// is not read, its cap's rise over the base in the band; `2Kε` wide,
+    /// it is. Red if the leans are read as signs alone.
     #[test]
-    fn a_strip_end_turned_in_its_chart_presents_its_short_side() {
-        let (l, w) = (10.0, 1e-3);
-        for turn in [0.0_f64, 0.1, 0.7, 1.3, 2.0] {
-            let (c, s) = (turn.cos(), turn.sin());
-            let r = |(x, y): (f64, f64)| (c * x - s * y, s * x + c * y);
-            let (plane, b) = segments(&[
-                (1, r((0.0, 0.0)), r((l, 0.0)), [1, 2]),
-                (2, r((l, 0.0)), r((l, w)), [2, 3]),
-                (3, r((l, w)), r((0.0, w)), [3, 4]),
-            ]);
-            let (cx, cy) = r((l, 0.5 * w));
-            let cell = ((cx - 0.2, cx + 0.2), (cy - 0.2, cy + 0.2));
-            assert!(
-                matches!(
-                    present_in(&plane, &b, cell, &holding(&[0, 1, 2], &[2, 3]), &[1]),
-                    Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(2)])
-                ),
-                "turned {turn}: the short side is the zero side"
-            );
-        }
-    }
-
-    /// **A cap's lean is read at the band**: a strip `Kε/2` wide is no
-    /// strip, its far side's rise in the band; `2Kε` wide, it is. Red if
-    /// the leans are read as signs alone.
-    #[test]
-    fn a_strip_narrower_than_the_band_is_not_read() {
+    fn an_end_narrower_than_the_band_is_not_read() {
         let k = band().escalate();
         for (w, presented) in [(0.5 * k, false), (2.0 * k, true)] {
             let (plane, b) = segments(&[
                 (1, (0.0, 0.0), (10.0, 0.0), [1, 2]),
+                (2, (10.0, 0.0), (10.0, w), [2, 3]),
                 (3, (10.0, w), (0.0, w), [3, 4]),
             ]);
-            let pair = holding(&[0, 1], &[]);
-            let got = present_in(&plane, &b, ((4.0, 5.0), (-w, 2.0 * w)), &pair, &[0]);
+            let end = holding(&[0, 1, 2], &[2, 3]);
+            let got = present_in(&plane, &b, ((9.99, 10.5), (-1.0, 1.0)), &end, &[1]);
             assert_eq!(
                 matches!(got, Ok(Presentation::Of(_))),
                 presented,
-                "a strip {w:e} wide: presented = {presented}"
+                "an end {w:e} wide: presented = {presented}"
             );
         }
     }
