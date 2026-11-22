@@ -35,18 +35,22 @@ const TILT: f64 = 0.6;
 
 fn sphere<T: Real>(radius: f64) -> Surface<T> {
     Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(T::zero(), T::zero(), T::one()),
+            Vec3::new(T::one(), T::zero(), T::zero()),
+        ),
         radius: T::from_f64(radius),
-        axis: Vec3::new(T::zero(), T::zero(), T::one()),
-        u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
     }
 }
 
 fn tilted_plane<T: Real>() -> Surface<T> {
     Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(T::from_f64(TILT.sin()), T::zero(), T::from_f64(TILT.cos())),
-        u_ref: Vec3::new(T::from_f64(TILT.cos()), T::zero(), T::from_f64(-TILT.sin())),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(T::from_f64(TILT.sin()), T::zero(), T::from_f64(TILT.cos())),
+            Vec3::new(T::from_f64(TILT.cos()), T::zero(), T::from_f64(-TILT.sin())),
+        ),
     }
 }
 
@@ -222,12 +226,18 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
 /// ENCLOSURE, and the consumer-visible text renders it.
 ///
 /// **Which limb escalates is measured, not chosen.** On the quarter
-/// turn limb 2's hull bound reads about 3.13e-15, under limb 1's worst
-/// sample (about 4.77e-15, its upper end), because every Bézier row of
-/// the composite is restricted from its own span window through the
-/// monotone step (`Certification::between`). Under the convex step it
-/// read 5.0e-15, just over limb 1, and this row pinned limb 2's
-/// escalation there. Limb 2 stays under limb 1 over the arcs, tilts,
+/// turn limb 2's hull bound reads about 3.58e-15, under limb 1's worst
+/// sample (about 4.94e-15, its upper end): the tilted plane's and the
+/// arc's frames are stated at `Interval` by point axes
+/// (`(sin 0.6, 0, cos 0.6)` rounds off unit), so each is a choice,
+/// squared at `f64` and read by its polar enclosure
+/// (`RigidMotion::squared`), about an ulp of each entry wide, which
+/// limb 1 reads and limb 2 charges over the carrier's reach (squared
+/// over the points at `Interval` instead, 5.29e-15 and 6.66e-15; read
+/// as points, 3.13e-15 and 4.77e-15). Limb 2 stays under limb 1
+/// because every Bézier row of the composite is restricted from its own
+/// span window through the monotone step (`Certification::between`).
+/// Limb 2 stays under limb 1 over the arcs, tilts,
 /// radii and translations of this pair (hull/locus 0.06 to 0.88), so
 /// no band makes limb 2 the first limb in it, and the band here sits
 /// between the two: limb 1 escalates, limb 2 is under the band. Limb

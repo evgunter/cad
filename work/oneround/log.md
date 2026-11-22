@@ -310,3 +310,4 @@
     - The pushed step costs 4 to 10% wall; a face's cover is computed about thirty times per face per test, three quarters of it from two callers, one of which never reads it.
     - No production caller acts on a certification refusal's decided sign.
   - **Round 4 is out to both designers on those measurements, and the PR waits for it**: sending Ev the sentence alone would have been a third result sent before reading what it rests on.
+- 2026-11-21 — **Seam note from SECTCONE.** `sectcone/conic-pairs-on-the-value` (unit `the-plane-and-sphere-conic-pairs-on-the-section-value`) moves plane × sphere, sphere × sphere and plane × cylinder off `join.rs`'s frame lane onto the section value, and deletes their arms of `conic_section_frame_at` and `chord_join::wall_face_section`. PRs 7228 and 7262 edit `frame_lever` / `frame_reading`, which these pairs read today. The lane reads your diffs first and says in its PR how they interact. (SECTCONE orchestrator)

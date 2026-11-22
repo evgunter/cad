@@ -41,6 +41,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
+use geom_core::k_stats::TestSite;
 use geom_core::{Band, Bounds, Decide, InfSpeed, Margin, Point3, Real, Sign, Tol, Vec3};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite};
@@ -135,8 +136,7 @@ impl<T: Decide + Bounds> EndCut<T> {
             )
         })?;
         let Surface::Plane {
-            origin: po,
-            normal: n,
+            frame: carrier_frame,
             ..
         } = stored
         else {
@@ -145,7 +145,8 @@ impl<T: Decide + Bounds> EndCut<T> {
                 "a cut-off's end face's stored surface is not a plane",
             ));
         };
-        let carry = |p: Point3<T>| p + along * ((*po - p).dot(*n) / along.dot(*n));
+        let (po, n) = (carrier_frame.origin(), carrier_frame.axis());
+        let carry = |p: Point3<T>| p + along * ((po - p).dot(n) / along.dot(n));
         let (foot_a, foot_b) = (carry(q_a), carry(q_b));
         // The feet must land on the rims, strictly inside their spans:
         // anywhere else the band runs into a face the cut-off does not
@@ -161,14 +162,11 @@ impl<T: Decide + Bounds> EndCut<T> {
             let placed = placed.ok_or_else(unbuilt)?;
             let turn = (foot_a - center).cross(foot_b - center);
             let backward = match placed {
-                Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { axis, .. },
-                    ..
-                })
-                | Curve3::Ellipse(geom::Ellipse {
-                    frame: geom::Frame { axis, .. },
-                    ..
-                }) => turn.dot(axis).hi() < 0.0,
+                Curve3::Circle(geom::Circle { frame, .. })
+                | Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
+                    let axis = frame.axis();
+                    turn.dot(axis).hi() < 0.0
+                }
                 _ => return Err(unbuilt()),
             };
             Ok(EndCurve::Round(if backward {
@@ -178,12 +176,10 @@ impl<T: Decide + Bounds> EndCut<T> {
             }))
         };
         let spine = match *band {
-            Surface::Cylinder {
-                origin,
-                radius,
-                u_ref,
-                ..
-            } => Some((origin, radius, u_ref)),
+            Surface::Cylinder { frame, radius, .. } => {
+                let (origin, u_ref) = (frame.origin(), frame.u_ref());
+                Some((origin, radius, u_ref))
+            }
             _ => None,
         };
         let curve = match (section, spine) {
@@ -408,7 +404,7 @@ impl<T: Bounds> SectionFrame<T> {
                 .scaled(origin + dir * ta - center)
                 .max(self.scaled(origin + dir * tb - center)),
             Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
-                Some(k) => self.scaled(k.frame().origin - center) + k.speed_hi() / self.minor(),
+                Some(k) => self.scaled(k.frame().origin() - center) + k.speed_hi() / self.minor(),
                 None => unreachable!("a circle or an ellipse is a conic"),
             },
             Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => return None,
@@ -436,7 +432,7 @@ impl<T: Bounds> SectionFrame<T> {
                 ((a.0 + ex * s).powi(2) + (a.1 + ey * s).powi(2)).sqrt()
             }
             Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
-                Some(k) => self.scaled(k.frame().origin - center) - k.speed_hi() / self.minor(),
+                Some(k) => self.scaled(k.frame().origin() - center) - k.speed_hi() / self.minor(),
                 None => unreachable!("a circle or an ellipse is a conic"),
             },
             Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => return None,
@@ -630,7 +626,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
 fn apart<T: Decide + Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
     let round = |c: &Curve3<T>| {
         c.conic()
-            .map(|k| (k.frame().origin, k.speed_hi(), k.speed_lo()))
+            .map(|k| (k.frame().origin(), k.speed_hi(), k.speed_lo()))
     };
     let about = |(o, outer, inner): (Point3<T>, T, T), (carrier, window): Piece<'_, T>| {
         let (near, far) = piece_distance(carrier, window, o)?;
@@ -739,18 +735,22 @@ impl<T: Decide + Bounds> CapSliver<T> {
         cut: bool,
         band: Band,
     ) -> CycleReading<T> {
-        if !cut && let Some(depth) = self.ring_inside(pieces).filter(|d| sure(*d, band)) {
+        if !cut
+            && let Some(depth) = self
+                .ring_inside(pieces)
+                .filter(|d| sure(RING_INSIDE, *d, band))
+        {
             return CycleReading::Inside(T::zero() - depth);
         }
         let deepest = pieces
             .iter()
             .filter_map(|&(carrier, window)| self.reaches_in(carrier, window))
-            .filter(|x| sure(*x, band))
+            .filter(|x| sure(REACHES_IN, *x, band))
             .reduce(|m, x| m.max(x));
         let reaches_out = cut
             || pieces.iter().any(|&(carrier, window)| {
                 self.reaches_out(carrier, window)
-                    .is_some_and(|x| sure(x, band))
+                    .is_some_and(|x| sure(REACHES_OUT, x, band))
             });
         match deepest.filter(|_| reaches_out) {
             Some(depth) => CycleReading::Crossing(T::zero() - depth),
@@ -861,27 +861,23 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 let (center, axis, major, minor, u) = match *arc {
                     Curve3::Circle(
                         circle @ geom::Circle {
-                            frame:
-                                geom::Frame {
-                                    origin: center,
-                                    axis,
-                                    u_ref,
-                                },
+                            frame: carrier_frame_3,
                             ..
                         },
                     ) => {
+                        let (center, axis, u_ref) = (
+                            carrier_frame_3.origin(),
+                            carrier_frame_3.axis(),
+                            carrier_frame_3.u_ref(),
+                        );
                         let radius = circle.radius();
                         (center, axis, radius, radius, u_ref)
                     }
                     ref ellipse @ Curve3::Ellipse(geom::Ellipse {
-                        frame:
-                            geom::Frame {
-                                origin: center,
-                                axis,
-                                ..
-                            },
+                        frame: carrier_frame,
                         ..
                     }) => {
+                        let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
                         let Some(f) = ellipse.major_frame() else {
                             unreachable!("an Ellipse carrier has a major frame")
                         };
@@ -921,7 +917,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let toward = (pv - center).normalize();
         let mut directions = vec![toward];
         if let Some((frame, _)) = round {
-            let (u, w) = (frame.shape.frame.u_ref, frame.shape.frame.v_ref());
+            let (u, w) = (frame.shape.frame.u_ref(), frame.shape.frame.v_ref());
             directions.extend([u, -u, w, -w]);
         }
         // `reach` and the floors over the rim pieces alone: `A` adds no
@@ -1305,6 +1301,20 @@ pub(in crate::blend) fn fold_sliver<T: Decide>(
     rec.dead.vertices.push(vertex);
     Ok(())
 }
+
+/// The end face's calls of `reach::sure`, one site per call.
+const RING_INSIDE: TestSite = TestSite::new(
+    "blend_end_face_ring_inside",
+    "a ring lies surely inside the end face",
+);
+const REACHES_IN: TestSite = TestSite::new(
+    "blend_end_face_reaches_in",
+    "a piece reaches surely into the end face",
+);
+const REACHES_OUT: TestSite = TestSite::new(
+    "blend_end_face_reaches_out",
+    "a piece reaches surely out of the end face",
+);
 
 #[cfg(test)]
 mod line_meter_fuzz;

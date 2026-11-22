@@ -23,9 +23,10 @@ RETIRED") has not been decided:
 - `crates/mesh/src/planar.rs` `same_position` — a point is the far
   point when its three coordinates are bit-equal (its doc argues the
   signed-zero case).
-- `crates/step-import/src/adopt.rs` `bitwise_iso_match` — a parsed
+- `crates/step-import/src/on_built.rs` `bitwise_twin` — a parsed
   NURBS carrier IS a wall's boundary iso-curve when degree, knots,
-  control points and weights are bit-equal (the IsoCurve rung).
+  control points and weights are bit-equal (the iso rung,
+  `build::column_match`).
 
 `scripts/gates/bit-identity-consumer.sh` sees neither (it matches
 `bit_identity::|repr_bits|eq_bits`), and

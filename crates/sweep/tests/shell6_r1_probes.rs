@@ -242,19 +242,17 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
 /// to `apex_y` on the axis; every face of the old chart shares the key.
 fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Surface<f64> {
     let Surface::Cone {
-        axis,
+        frame: carrier_frame,
         half_angle,
-        u_ref,
         ..
     } = cone_of(body, group[0])
     else {
         panic!("a cone chart");
     };
+    let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
     let surface = Surface::Cone {
-        apex: Point3::new(0.0, apex_y, 0.0),
-        axis,
+        frame: geom::Frame::new(Point3::new(0.0, apex_y, 0.0), axis, u_ref),
         half_angle,
-        u_ref,
     };
     let key = body
         .set_face_surface(

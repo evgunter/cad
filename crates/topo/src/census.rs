@@ -113,9 +113,10 @@
 //!
 //! **The chart-region door is a parameter of the pass, not a bound on
 //! its scalar.** Every pass here takes
-//! `region: Option<`[`RegionLane<T>`]`>` — the two chart-region doors
-//! as one `Copy` value, constructible only at a scalar holding
-//! `CertifiedBounds` — and the `pub` doors carry it to their callers:
+//! `region: Option<T::RegionLane>` ([`crate::AtRestPolicy::RegionLane`])
+//! — the two chart-region doors as one `Copy` value,
+//! [`crate::RegionLane`] at a scalar that certifies and a type with no
+//! values at a dual — and the `pub` doors carry it to their callers:
 //! [`census_and_certify`] and, under `sweep-testing`, [`census_traces`]
 //! / [`census_traces_planted`]. It is read at three sites, and `None`
 //! is the same typed non-answer at each, at whatever scalar the pass
@@ -314,7 +315,7 @@ use std::collections::BTreeSet;
 use crate::live::NAMES_ONLY_LIVE;
 use bvh::{Aabb, Bvh};
 use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, Span as CarrierSpan, meet};
-use geom_core::k_stats::{Magnitude, decide_reported, straddle};
+use geom_core::k_stats::{Magnitude, QuerySite, decide_reported, straddle};
 use geom_core::ladder::{Aborts, Answering, Climb, Evidence, Refusal, Rung, climb, climb_evidence};
 use geom_core::one_line::on_one_line;
 use geom_core::{
@@ -324,7 +325,9 @@ use geom_core::{
 use crate::body::Body;
 use crate::boolean::{ContactKind, ContactRecords};
 use crate::boxes::{edge_box, face_box, sweep_pad};
-use crate::chart_region::{ChartRegionError, RegionLane};
+#[cfg(test)]
+use crate::chart_region::RegionLane;
+use crate::chart_region::{ChartRegionError, RegionLaneOf};
 use crate::contain::{ContainError, FaceContainment, contfp};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::face_normal::NormalAbort;
@@ -697,21 +700,85 @@ impl Class {
     /// of the snapshot order, independent of tree shape
     /// ([`Bvh::overlapping`]'s contract); every item where nothing
     /// prunes.
-    fn overlapping(&self, query: &Aabb) -> Vec<usize> {
+    fn overlapping(&self, site: QuerySite, query: &Aabb) -> Vec<usize> {
         match &self.tree {
-            Some(tree) => tree.overlapping(query),
+            Some(tree) => tree.overlapping(site, query),
             None => (0..self.boxes.len()).collect(),
         }
     }
 
     /// The items after `i` whose box overlaps item `i`'s — the
     /// self-join of a class, ascending.
-    fn later(&self, i: usize) -> Vec<usize> {
-        let mut out = self.overlapping(self.query(i));
+    fn later(&self, site: QuerySite, i: usize) -> Vec<usize> {
+        let mut out = self.overlapping(site, self.query(i));
         out.retain(|&j| j > i);
         out
     }
 }
+
+// The census's box queries, one site per call ([`Class::overlapping`]).
+const COLLINEAR_EDGES: QuerySite = QuerySite::new(
+    "census_collinear_edges",
+    "the later edges whose boxes meet an edge's, read for collinear overlaps",
+);
+const VERTEX_VERTEX: QuerySite = QuerySite::new(
+    "census_vertex_vertex",
+    "the later vertices whose boxes meet a vertex's",
+);
+const VERTEX_EDGE: QuerySite = QuerySite::new(
+    "census_vertex_edge",
+    "the straight edges whose boxes meet a vertex's",
+);
+const VERTEX_CURVED_EDGE: QuerySite = QuerySite::new(
+    "census_vertex_curved_edge",
+    "the curved edges whose boxes meet a vertex's",
+);
+const VERTEX_FACE: QuerySite = QuerySite::new(
+    "census_vertex_face",
+    "the faces whose boxes meet a vertex's",
+);
+const EDGE_FACE: QuerySite =
+    QuerySite::new("census_edge_face", "the faces whose boxes meet an edge's");
+const EDGE_IN_CURVED_FACE: QuerySite = QuerySite::new(
+    "census_edge_in_curved_face",
+    "the faces whose boxes meet an edge's, read for an edge lying in a curved face",
+);
+const EDGE_EDGE: QuerySite = QuerySite::new(
+    "census_edge_edge",
+    "the later edges whose boxes meet an edge's",
+);
+const CURVED_EDGE_LINE: QuerySite = QuerySite::new(
+    "census_curved_edge_line",
+    "the straight edges whose boxes meet a curved edge's",
+);
+const CURVED_EDGE_CURVED: QuerySite = QuerySite::new(
+    "census_curved_edge_curved",
+    "the later curved edges whose boxes meet a curved edge's",
+);
+const PLANAR_FACE_PAIRS: QuerySite = QuerySite::new(
+    "census_planar_face_pairs",
+    "the later faces whose boxes meet a face's, read for planar face pairs",
+);
+const CURVED_SAME_SIDE: QuerySite = QuerySite::new(
+    "census_curved_same_side",
+    "the later faces whose boxes meet a face's, read for curved faces on one side",
+);
+const TANGENT_LINES: QuerySite = QuerySite::new(
+    "census_tangent_lines",
+    "the later faces whose boxes meet a face's, read for tangent lines on one solid",
+);
+const BACKSTOP_REACHES: QuerySite = QuerySite::new(
+    "census_backstop_reaches",
+    "the later reaches whose boxes meet a reach's, across solids",
+);
+const BACKSTOP_SOLIDS: QuerySite = QuerySite::new(
+    "census_backstop_solids",
+    "the later solids whose extents meet a solid's",
+);
+const FLUSH_PAIRS: QuerySite = QuerySite::new(
+    "census_flush_pairs",
+    "the later faces whose boxes meet a face's, read for flush pairs",
+);
 
 /// The empty box: overlaps nothing, so the face it stands for is
 /// examined against nothing — the planted degradation the
@@ -834,7 +901,7 @@ pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> Vec<ValidationError> {
     census_with(
         body,
@@ -863,7 +930,7 @@ pub fn census_traces<T: Decide + crate::props::AtRestPolicy + Bounds>(
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     strategy: CensusStrategy,
 ) -> (Vec<ValidationError>, CensusTrace) {
     let mut trace = CensusTrace::default();
@@ -890,7 +957,7 @@ pub fn census_traces_planted<T: Decide + crate::props::AtRestPolicy + Bounds>(
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     strategy: CensusStrategy,
     plant: crate::boolean::PlantedDegradation,
 ) -> (Vec<ValidationError>, CensusTrace) {
@@ -917,7 +984,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     strategy: CensusStrategy,
     plant: Option<FaceKey>,
     mut trace: Option<&mut CensusTrace>,
@@ -1131,12 +1198,12 @@ impl Declared {
     /// pass's own reading of it ([`confirm_face_pair`]: the patch, a
     /// point touch, or the tangent line two carriers derive) finds
     /// nothing; each is the pair's verified interface.
-    fn confirm<'a, T: Decide>(
+    fn confirm<'a, T: crate::props::AtRestPolicy>(
         &mut self,
         body: &Body<T>,
         geo: &Geo<T>,
         band: Band,
-        region: Option<RegionLane<T>>,
+        region: Option<T::RegionLane>,
         found: impl IntoIterator<Item = &'a FoundPair>,
     ) {
         let confirms = |fa, fb| {
@@ -1671,7 +1738,7 @@ fn pair_holds_edges<T: Decide>(
 /// itself answers through the SAME two doors the confirm pass runs —
 /// Door 1 (`rest_pair_verdict`: carrier identity
 /// through the kind ladder, senses opposed) and Door 2 (the
-/// chart-region overlap through the [`RegionLane`] the pass holds, the
+/// chart-region overlap through the [`crate::RegionLane`] the pass holds, the
 /// verdict carried between them, `interior_witness`'s rescue included) — and
 /// the overlap region is definitely positive. Anything else is a
 /// non-answer HERE, deliberately unreported — a door ERROR included,
@@ -1698,12 +1765,12 @@ fn pair_holds_edges<T: Decide>(
 /// held no region door; replay through the certified door* from *this
 /// pair's geometry is outside the lane* without knowing which arm
 /// swallowed what.
-fn pair_region_verified<T: Decide>(
+fn pair_region_verified<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     fa: FaceKey,
     fb: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> bool {
     if !matches!(
         crate::boolean::rest_pair_verdict(body, fa, body, fb, band),
@@ -1727,12 +1794,12 @@ fn pair_region_verified<T: Decide>(
 /// [`pair_region_verified`] in either frame order: the certified
 /// answers are frame-invariant (`world_carrier`'s lemma), and trying
 /// both keeps a rung total over how the record spells the pair.
-fn pair_verified<T: Decide>(
+fn pair_verified<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     fa: FaceKey,
     fb: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> bool {
     pair_region_verified(body, fa, fb, band, region)
         || pair_region_verified(body, fb, fa, band, region)
@@ -1945,7 +2012,10 @@ fn placed<T: Decide>(
     let plane = body.face(f).and_then(|view| {
         held.check(view.surface(), band);
         match *view.surface() {
-            geom::Surface::Plane { normal, .. } => Some(normal),
+            geom::Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
+                Some(normal)
+            }
             _ => None,
         }
     });
@@ -2445,7 +2515,7 @@ pub(crate) fn collinear_overlaps<T: Decide + Bounds>(
     );
     let mut found = Vec::new();
     for (i, ea) in edges.iter().enumerate() {
-        for j in class.later(i) {
+        for j in class.later(COLLINEAR_EDGES, i) {
             let eb = candidate(&edges, j);
             let mut errors = Vec::new();
             let Some(overlap) = parallel_overlap(ea, eb, band, &mut errors) else {
@@ -2843,7 +2913,10 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         std::collections::BTreeMap::new();
     for (key, face) in body.faces.iter() {
         let plane = match body.surfaces.get(face.surface) {
-            Some(&geom::Surface::Plane { origin, normal, .. }) => Some((origin, normal)),
+            Some(&geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((origin, normal))
+            }
             _ => {
                 curved_faces.push(key);
                 None
@@ -3041,7 +3114,7 @@ fn sweep_vertex_vertex<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(ka, pa)) in geo.verts.iter().enumerate() {
-        for j in cands.trees.verts.later(i) {
+        for j in cands.trees.verts.later(VERTEX_VERTEX, i) {
             let &(kb, pb) = candidate(&geo.verts, j);
             let found = declared.absorb(
                 pass,
@@ -3114,7 +3187,11 @@ fn sweep_vertex_edge<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(vk, q)) in geo.verts.iter().enumerate() {
-        for j in cands.trees.edges.overlapping(cands.trees.verts.query(i)) {
+        for j in cands
+            .trees
+            .edges
+            .overlapping(VERTEX_EDGE, cands.trees.verts.query(i))
+        {
             let e = candidate(&geo.edges, j);
             if vk == e.v0 || vk == e.v1 {
                 continue; // structural adjacency
@@ -3210,7 +3287,11 @@ fn sweep_vertex_curved_edge<T: Decide>(
         })
         .collect();
     for (i, &(vk, q)) in geo.verts.iter().enumerate() {
-        for j in cands.trees.curved.overlapping(cands.trees.verts.query(i)) {
+        for j in cands
+            .trees
+            .curved
+            .overlapping(VERTEX_CURVED_EDGE, cands.trees.verts.query(i))
+        {
             let Some((ek, ends, sides)) = *candidate(&edges, j) else {
                 continue;
             };
@@ -3454,7 +3535,11 @@ fn sweep_vertex_face<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(vk, q)) in geo.verts.iter().enumerate() {
-        for j in cands.trees.faces.overlapping(cands.trees.verts.query(i)) {
+        for j in cands
+            .trees
+            .faces
+            .overlapping(VERTEX_FACE, cands.trees.verts.query(i))
+        {
             let f = candidate(&geo.faces, j);
             if f.boundary.contains(&vk) {
                 continue; // structural adjacency
@@ -3736,7 +3821,11 @@ fn sweep_edge_face<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, e) in geo.edges.iter().enumerate() {
-        for j in cands.trees.faces.overlapping(cands.trees.edges.query(i)) {
+        for j in cands
+            .trees
+            .faces
+            .overlapping(EDGE_FACE, cands.trees.edges.query(i))
+        {
             let f = candidate(&geo.faces, j);
             if f.key == e.f_plus || f.key == e.f_minus {
                 continue; // structural adjacency
@@ -4454,10 +4543,8 @@ mod variety_reading_rows {
 
     fn cylinder() -> geom::Surface<f64> {
         geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -4494,10 +4581,8 @@ mod variety_reading_rows {
     #[test]
     fn a_conics_samples_in_band_then_off_are_not_on_the_sphere() {
         let sphere = geom::Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let r = 1.0 + in_band();
         // Five samples of a circle's arc, as `carrier_on_surface` reads
@@ -4582,7 +4667,7 @@ fn sweep_edge_in_curved_face<T: Decide>(
         for j in cands
             .trees
             .every_face
-            .overlapping(cands.trees.edges.query(i))
+            .overlapping(EDGE_IN_CURVED_FACE, cands.trees.edges.query(i))
         {
             let f = cands.every_face[j];
             if f == e.f_plus
@@ -5111,7 +5196,7 @@ fn sweep_edge_edge<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, ea) in geo.edges.iter().enumerate() {
-        for j in cands.trees.edges.later(i) {
+        for j in cands.trees.edges.later(EDGE_EDGE, i) {
             let eb = candidate(&geo.edges, j);
             let found = declared.absorb(
                 pass,
@@ -5249,14 +5334,14 @@ fn sweep_curved_edge_edge<T: Decide>(
         let others = cands
             .trees
             .edges
-            .overlapping(query)
+            .overlapping(CURVED_EDGE_LINE, query)
             .into_iter()
             .map(|j| *candidate(&lines, j))
             .chain(
                 cands
                     .trees
                     .curved
-                    .later(i)
+                    .later(CURVED_EDGE_CURVED, i)
                     .into_iter()
                     .map(|j| *candidate(&curved, j)),
             );
@@ -6441,7 +6526,7 @@ pub(crate) fn unread_sample(a: FaceKey, b: FaceKey, reason: Undecidable) -> Vali
 ///   a margin decided Zero, and which way the senses lie.
 /// - **Opposed**, the material on either side of the carrier: Door 2,
 ///   the declared-pair overlap door on Door 1's premise
-///   ([`RegionLane::declared_overlap`], in either frame order as
+///   ([`crate::RegionLane::declared_overlap`], in either frame order as
 ///   [`pair_verified`] reads it), decides a definitely positive area,
 ///   and the pair is a rest.
 /// - **Aligned**, the material on one side: the faces share interior
@@ -6483,11 +6568,11 @@ pub(crate) fn unread_sample(a: FaceKey, b: FaceKey, reason: Undecidable) -> Vali
 /// ([`Declared::holds`]) whether or not it is recorded. The caller
 /// reports each opposed pair no record names ([`report_found_pairs`]);
 /// arm 2 reports each aligned one.
-fn planar_face_pairs<T: Decide>(
+fn planar_face_pairs<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     cands: &Candidates,
 ) -> FacePairs {
     let Some(lane) = region else {
@@ -6495,7 +6580,7 @@ fn planar_face_pairs<T: Decide>(
     };
     let mut found = FacePairs::default();
     for (i, fa) in geo.faces.iter().enumerate() {
-        for j in cands.trees.faces.later(i) {
+        for j in cands.trees.faces.later(PLANAR_FACE_PAIRS, i) {
             let fb = candidate(&geo.faces, j);
             let (Some(sa), Some(sb)) = (body.solid_of_face(fa.key), body.solid_of_face(fb.key))
             else {
@@ -6515,7 +6600,16 @@ fn planar_face_pairs<T: Decide>(
                             b: fb.key,
                             reason,
                         };
-                        match in_band_reading(body, geo, lane, (fa, fb), err, band) {
+                        match in_band_reading(
+                            body,
+                            geo,
+                            |x: &FaceGeo<T>, y: &FaceGeo<T>, premise| {
+                                lane.declared_overlap(body, x.key, body, y.key, premise, band)
+                            },
+                            (fa, fb),
+                            err,
+                            band,
+                        ) {
                             InBand::Overlap(margin) => found.same_side.push(FoundPair {
                                 a: fa.key,
                                 b: fb.key,
@@ -6554,7 +6648,9 @@ fn planar_face_pairs<T: Decide>(
                     if let Ok(true) = same_side_overlap(
                         body,
                         geo,
-                        lane,
+                        |x: &FaceGeo<T>, y: &FaceGeo<T>, premise| {
+                            lane.declared_overlap(body, x.key, body, y.key, premise, band)
+                        },
                         fa,
                         fb,
                         crate::chart_region::CarrierPremise::Decided,
@@ -6634,7 +6730,7 @@ fn curved_same_side_pairs<T: Decide>(
     let mut out = CurvedSameSide::default();
     for (i, &fa) in cands.every_face.iter().enumerate() {
         let Some(ka) = kind(fa) else { continue };
-        for j in cands.trees.every_face.later(i) {
+        for j in cands.trees.every_face.later(CURVED_SAME_SIDE, i) {
             let fb = *candidate(&cands.every_face, j);
             if kind(fb) != Some(ka) {
                 continue;
@@ -6649,7 +6745,8 @@ fn curved_same_side_pairs<T: Decide>(
             // interiors, whose heights lie strictly inside their
             // boundaries', are apart unless the spans overlap.
             let axially = match surface(fa) {
-                Some(&geom::Surface::Cylinder { origin, axis, .. }) => {
+                Some(&geom::Surface::Cylinder { frame, .. }) => {
+                    let (origin, axis) = (frame.origin(), frame.axis());
                     match (axial(fa, origin, axis), axial(fb, origin, axis)) {
                         (Some(a), Some(b)) => Some(decide(
                             "census_aligned_axial_overlap",
@@ -6715,7 +6812,11 @@ enum InBand {
 fn in_band_reading<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: RegionLane<T>,
+    read: impl Fn(
+        &FaceGeo<T>,
+        &FaceGeo<T>,
+        crate::chart_region::CarrierPremise,
+    ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError>,
     (fa, fb): (&FaceGeo<T>, &FaceGeo<T>),
     door_one: geom_brep::CarrierEqError,
     band: Band,
@@ -6734,7 +6835,7 @@ fn in_band_reading<T: Decide>(
         CarrierRelation::SameOpposite => InBand::Unread(Undecidable::ThinInBand),
         CarrierRelation::SameOriented => {
             let premise = crate::chart_region::CarrierPremise::InBand;
-            match same_side_overlap(body, geo, lane, fa, fb, premise, band) {
+            match same_side_overlap(body, geo, read, fa, fb, premise, band) {
                 Ok(true) => InBand::Overlap(diag.margin),
                 Ok(false) => InBand::Unread(Undecidable::ThinInBand),
                 Err(_) => InBand::Unread(aligned_unread(geo, fa, fb, band)),
@@ -6830,17 +6931,18 @@ enum SameSideUnread {
 fn same_side_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: RegionLane<T>,
+    read: impl Fn(
+        &FaceGeo<T>,
+        &FaceGeo<T>,
+        crate::chart_region::CarrierPremise,
+    ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError>,
     fa: &FaceGeo<T>,
     fb: &FaceGeo<T>,
     premise: crate::chart_region::CarrierPremise,
     band: Band,
 ) -> Result<bool, SameSideUnread> {
-    let read = |x: &FaceGeo<T>, y: &FaceGeo<T>| {
-        lane.declared_overlap(body, x.key, body, y.key, premise, band)
-    };
     use crate::chart_region::ChartOverlap;
-    let either = [read(fa, fb), read(fb, fa)];
+    let either = [read(fa, fb, premise), read(fb, fa, premise)];
     if either
         .iter()
         .any(|r| matches!(r, Ok(ChartOverlap::PositiveArea)))
@@ -6913,14 +7015,14 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
 fn one_record_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: RegionLane<T>,
+    read: Result<crate::chart_region::ChartOverlap, ChartRegionError>,
     (fa, fb): (FaceKey, FaceKey),
     band: Band,
 ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError> {
     use crate::chart_region::ChartOverlap;
     let sense = |f| proven(&body.faces, f, EntityId::Face).sense;
     let facing = Facing::of_senses(sense(fa), sense(fb));
-    match lane.chart_overlap(body, fa, body, fb, band) {
+    match read {
         Err(refusal @ (ChartRegionError::Escalated(_) | ChartRegionError::Corrupt)) => Err(refusal),
         Err(refusal) => match face_interiors_meet(body, geo, fa, fb, facing, band) {
             Ok(false) => Ok(ChartOverlap::Empty),
@@ -6962,12 +7064,12 @@ fn one_record_overlap<T: Decide>(
 /// refusal so the recourse can quote exactly what would verify —
 /// and, unbacked by a face-granularity record, refuses as
 /// `UnrecordedContact` (discovery is never declaration, F1).
-fn sweep_conformal_patches<T: Decide>(
+fn sweep_conformal_patches<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     // The scope is the WHOLE body's curved faces, deliberately: a
@@ -6991,7 +7093,10 @@ fn sweep_conformal_patches<T: Decide>(
                 if da.sense == db.sense {
                     continue; // SameOriented: flush material, not contact (C1)
                 }
-                match region.map(|lane| one_record_overlap(body, geo, lane, (fa, fb), band)) {
+                match region.map(|lane| {
+                    let read = lane.chart_overlap(body, fa, body, fb, band);
+                    one_record_overlap(body, geo, read, (fa, fb), band)
+                }) {
                     None => {
                         // The pass holds no CERTIFIED region door (the
                         // `_structural` twin's value at every scalar,
@@ -7112,7 +7217,7 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
     let faces: Vec<Option<Candidate>> = cands.every_face.iter().map(|&f| read(f)).collect();
     for (i, x) in faces.iter().enumerate() {
         let Some(x) = x else { continue };
-        for j in cands.trees.every_face.later(i) {
+        for j in cands.trees.every_face.later(TANGENT_LINES, i) {
             let Some(y) = candidate(&faces, j) else {
                 continue;
             };
@@ -9528,12 +9633,18 @@ fn tangent_sectors<T: Decide>(
 /// `None` on a spline, which has no such frame.
 pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3<T>; 3]> {
     let (u, a) = match *surface {
-        geom::Surface::Plane { u_ref, normal, .. } => (u_ref, normal),
-        geom::Surface::Cylinder { u_ref, axis, .. }
-        | geom::Surface::Cone { u_ref, axis, .. }
-        | geom::Surface::Sphere { u_ref, axis, .. }
-        | geom::Surface::Torus { u_ref, axis, .. }
-        | geom::Surface::Spindle { u_ref, axis, .. } => (u_ref, axis),
+        geom::Surface::Plane { frame, .. } => {
+            let (u_ref, normal) = (frame.u_ref(), frame.axis());
+            (u_ref, normal)
+        }
+        geom::Surface::Cylinder { frame, .. }
+        | geom::Surface::Cone { frame, .. }
+        | geom::Surface::Sphere { frame, .. }
+        | geom::Surface::Torus { frame, .. }
+        | geom::Surface::Spindle { frame, .. } => {
+            let (u_ref, axis) = (frame.u_ref(), frame.axis());
+            (u_ref, axis)
+        }
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => return None,
     };
     Some([u, a.cross(u), a])
@@ -10315,7 +10426,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         .collect();
     let reach = cands.class(reach_boxes);
     for (i, a) in reaches.iter().enumerate() {
-        for j in reach.later(i) {
+        for j in reach.later(BACKSTOP_REACHES, i) {
             let b = candidate(&reaches, j);
             if a.solid == b.solid || !a.verts.is_disjoint(&b.verts) {
                 continue; // same instance / structural adjacency
@@ -10797,7 +10908,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         }
     }
     for (i, &(&sa, _)) in solids.iter().enumerate() {
-        for j in extents.later(i) {
+        for j in extents.later(BACKSTOP_SOLIDS, i) {
             let &(&sb, _) = candidate(&solids, j);
             let before = errors.len();
             let coincident = coincident_pairs.get(&(sa.min(sb), sa.max(sb))).copied();
@@ -11011,12 +11122,12 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
 /// The confirmation direction of the certification diff: every
 /// declaration must have a geometric witness — dead keys, equal keys,
 /// and coincidence-free records are stale, typed.
-fn confirm_records<T: Decide>(
+fn confirm_records<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     contacts: &ContactRecords,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     for kind in contacts.kinds() {
@@ -11158,13 +11269,13 @@ fn confirm_edge_face<T: Decide>(
 ///   table along it, sides included
 ///   ([`crate::boolean::tangent_table_at_rest`]), which confirms or
 ///   contradicts the record. Refused typed where no line derives.
-fn confirm_face_pair<T: Decide>(
+fn confirm_face_pair<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     a: FaceKey,
     b: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     let stale = ValidationError::StaleContactDeclaration {
@@ -11603,15 +11714,15 @@ pub(crate) fn line_passes<T: Real>(
 /// the census confirms. The body is read once, at [`Self::of`]. The
 /// chart-region door is the caller's, as at every census door: without
 /// it a face–face pair is outside the confirm's lanes.
-pub(crate) struct RecordConfirm<'b, T: Decide> {
+pub(crate) struct RecordConfirm<'b, T: crate::props::AtRestPolicy> {
     body: &'b Body<T>,
     geo: Geo<T>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 }
 
-impl<'b, T: Decide> RecordConfirm<'b, T> {
-    pub(crate) fn of(body: &'b Body<T>, band: Band, region: Option<RegionLane<T>>) -> Self {
+impl<'b, T: crate::props::AtRestPolicy> RecordConfirm<'b, T> {
+    pub(crate) fn of(body: &'b Body<T>, band: Band, region: Option<T::RegionLane>) -> Self {
         Self {
             body,
             geo: snapshot(body),
@@ -12016,11 +12127,11 @@ const FLUSH_UNREAD: &str = "they lie on one surface facing the same way with the
 /// `group` partitions the solids as [`record_at_rest`]'s does; a pair
 /// inside one group, or with a solid in none, is not read. `region` is
 /// the scalar's region doors ([`crate::AtRestPolicy::flush_at_rest`]).
-pub(crate) fn flush_at_rest<T: Decide + Bounds>(
+pub(crate) fn flush_at_rest<T: crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     group: &dyn Fn(crate::SolidKey) -> Option<u32>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> FlushAtRest {
     let geo = snapshot(body);
     let pad = sweep_pad(band);
@@ -12046,13 +12157,13 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
 }
 
 /// [`flush_at_rest`] over its candidates, `faces` and their box tree.
-fn flush_pairs<T: Decide>(
+fn flush_pairs<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     (faces, boxes): (&[FaceKey], &Class),
     group: &dyn Fn(crate::SolidKey) -> Option<u32>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> FlushAtRest {
     let kind = |f: FaceKey| Some(body.face(f)?.surface().kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
@@ -12062,7 +12173,7 @@ fn flush_pairs<T: Decide>(
         .collect();
     let mut out = FlushAtRest::default();
     for (i, &fa) in faces.iter().enumerate() {
-        for j in boxes.later(i) {
+        for j in boxes.later(FLUSH_PAIRS, i) {
             let fb = *candidate(faces, j);
             if kind(fa) != kind(fb) {
                 continue;
@@ -12120,7 +12231,9 @@ fn flush_pairs<T: Decide>(
                     same_side_overlap(
                         body,
                         geo,
-                        lane,
+                        |x: &FaceGeo<T>, y: &FaceGeo<T>, premise| {
+                            lane.declared_overlap(body, x.key, body, y.key, premise, band)
+                        },
                         x,
                         y,
                         crate::chart_region::CarrierPremise::Decided,
@@ -12965,12 +13078,12 @@ pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidenc
 /// A mate's record lands in the product body's `ContactRecords` — the
 /// boolean 3′ currency, same type, no adapter — and THIS is the at-rest
 /// evidence door those records certify through.
-fn confirm_patch<T: Decide>(
+fn confirm_patch<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     face_a: FaceKey,
     face_b: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     let stale = ValidationError::StaleContactDeclaration {
@@ -14709,6 +14822,18 @@ mod tests {
     /// band's own parting or, where the point's chord to the end falls in
     /// the band's hair-wide gap, as the end reading's escalation, and the
     /// census reports no defect.
+    ///
+    /// At ε 1e-12 the point is read on the end's vertex, and at ε 1e-6 on
+    /// the arc, at both `K`: decided readings, each sound (the point is
+    /// `0.996·zero` from the end and `0.3·zero` off the arc), and the
+    /// census still reports no defect. Cause: a frame squared at `f64`
+    /// from stated directions, a rigid-motion claim (fork 274), not a
+    /// bracket input at `Interval`: the fixture's `Curve3::circle` squares
+    /// its frame at `f64` where main stored the stated `axis` and `u_ref`
+    /// raw, which moves the end the frame computes by a rounding. Mutant
+    /// F1F (squaring at `f64` stores the stated vectors raw) reads main's
+    /// answer and turns this pin red at both ε; mutants A and F1X do not.
+    /// At ε 1e-9 the read is as stated above.
     #[test]
     fn a_far_arc_at_k_near_one_reads_its_end_where_certification_pinned_it() {
         use crate::test_support_fixtures::arc_cap;
@@ -14749,11 +14874,34 @@ mod tests {
             // band, which a band this narrow reads either way as the
             // rounding falls: the finding with every end at a corner, or
             // the end reading's escalation. Never an end off its corner.
-            assert!(
+            // At ε 1e-12 and 1e-6 the carrier's frame, squared at f64 from
+            // the stated directions (a rigid-motion claim, fork 274), puts
+            // the point decided on the arc's end vertex (1e-12) or on the
+            // arc (1e-6): a decided reading, sound, with no defect.
+            let eps = tol.eps();
+            let pinned = if eps <= 1e-12 {
+                matches!(&read, Ok(crate::contain::FaceContainment::OnVertex(_)))
+            } else if eps >= 1e-6 {
+                // On the arc: neither side and no vertex (the variant is
+                // read by exclusion, its name being a splitting item's).
+                matches!(
+                    &read,
+                    Ok(at) if !matches!(
+                        at,
+                        crate::contain::FaceContainment::In
+                            | crate::contain::FaceContainment::Out
+                            | crate::contain::FaceContainment::OnVertex(_)
+                    )
+                )
+            } else {
                 matches!(&read, Err(ContainError::ArcEndClearOfCorners(g)) if !g.off_corner())
-                    || matches!(&read, Err(ContainError::Escalated { .. })),
-                "K {k}: the end lies at its corner, and only the band parts the passes (frame \
-                 and eval part by {parting:e}): {read:?}"
+                    || matches!(&read, Err(ContainError::Escalated { .. }))
+            };
+            assert!(
+                pinned,
+                "K {k} at ε {eps:e}: the end lies at its corner, and only the band parts the \
+                 passes (frame and eval part by {parting:e}); on the vertex at 1e-12, on the \
+                 arc at 1e-6: {read:?}"
             );
             let mut errors = Vec::new();
             read_containment(cap, read, &mut errors);
@@ -15402,9 +15550,7 @@ mod tests {
                     f,
                     FaceSurface::New {
                         surface: Surface::Plane {
-                            origin: centroid,
-                            normal,
-                            u_ref,
+                            frame: geom::Frame::new(centroid, normal, u_ref),
                         },
                         sense: true,
                     },
@@ -15578,9 +15724,7 @@ mod tests {
         let seed = body.mvfs(p0, true).expect("a seed");
         // After the seed: a surface on an empty body is an orphan.
         let plane = body.add_surface(Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         });
         let cyl = body.add_surface(CylFrame::canonical(1.0).surface());
         let arc = body
@@ -16392,9 +16536,7 @@ mod tests {
         let body =
             crate::test_support_fixtures::spiric_cap(10.0, 1.0, 5.0, (v0, v1), Tol::witness()).0;
         let spiric = geom::Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 10.0,
             minor_radius: 1.0,
             offset: 5.0,
@@ -18704,9 +18846,7 @@ mod tests {
             assert!(errors.is_empty(), "{errors:?}");
             let cuts = cuts.expect("decided");
             let oval = geom::Curve3::Spiric {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 2.0,
                 minor_radius: 1.0,
                 offset: 0.5,
@@ -18736,12 +18876,7 @@ mod tests {
         ) -> (Body<f64>, FaceKey) {
             use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
             let geom::Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame,
                 ..
             }) = carrier
             else {
@@ -18752,9 +18887,7 @@ mod tests {
             let mut body = Body::<f64>::new();
             let seed = body.mvfs(p0, true).expect("a seed");
             let plane = body.add_surface(Surface::Plane {
-                origin: center,
-                normal: axis,
-                u_ref,
+                frame: carrier_frame,
             });
             let cyl = body.add_surface(cyl.surface());
             let arc = body
@@ -19318,7 +19451,8 @@ mod records_by_carrier {
     fn face_at_z(body: &Body<f64>, z: f64, up: bool) -> FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5
                         && (origin.z - z).abs() < 1e-12
                         && ((normal.z > 0.0) == f.sense) == up
@@ -19434,7 +19568,8 @@ mod records_by_carrier {
             let side = block
                 .faces()
                 .find(|(_, f)| match block.get_surface(f.surface) {
-                    Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    Some(geom::Surface::Plane { frame, .. }) => {
+                        let (origin, normal) = (frame.origin(), frame.axis());
                         normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-12
                     }
                     _ => false,
@@ -19710,7 +19845,8 @@ mod two_carrier_records {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - 1.0).abs() < 1e-12
                 }
                 _ => false,
@@ -19770,7 +19906,8 @@ mod two_carrier_records {
         let top = body
             .faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
                 }
                 _ => false,
@@ -19839,7 +19976,8 @@ mod two_carrier_records {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-15
                 }
                 _ => false,
@@ -19897,7 +20035,8 @@ mod two_carrier_records {
         let a_top = body
             .faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5
                         && (origin.z - 1.0).abs() < 1e-12
                         && ((normal.z > 0.0) == f.sense)
@@ -20064,7 +20203,8 @@ mod two_carrier_records {
             let top = body
                 .faces()
                 .find(|(_, f)| match body.get_surface(f.surface) {
-                    Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    Some(geom::Surface::Plane { frame, .. }) => {
+                        let (origin, normal) = (frame.origin(), frame.axis());
                         normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
                     }
                     _ => false,
@@ -21112,8 +21252,8 @@ mod edge_face_residual {
             .faces()
             .find(|&(k, f)| {
                 matches!(body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { origin, normal, .. })
-                        if normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12)
+                    Some(geom::Surface::Plane { frame, .. })
+                        if frame.axis().z.abs() > 0.5 && (frame.origin().z - 1.0).abs() < 1e-12)
                     && body.vertices().any(|(v, _)| {
                         at(v) == [0.0, 0.0, 1.0]
                             && Contact::new(&body, Cell::Vertex(v), Cell::Face(k)).is_err()
@@ -21181,7 +21321,8 @@ mod point_touch {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - x).abs() <= 1e-15 * x.abs().max(1.0)
                 }
                 _ => false,
@@ -21349,15 +21490,11 @@ mod curved_edge_edge {
         let (p0, p1) = (circle.eval(0.0), circle.eval(std::f64::consts::PI));
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
-            origin: center,
-            normal: axis,
-            u_ref,
+            frame: geom::Frame::new(center, axis, u_ref),
         });
         let cyl = body.add_surface(Surface::Cylinder {
-            origin: center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             radius: 1.0,
-            u_ref,
         });
         let arc = body
             .mev(
@@ -21507,7 +21644,7 @@ mod curved_edge_edge {
                         .and_then(|d| body.get_curve_geom(d.curve))
                         .and_then(|g| g.certified())
                         .is_some_and(|c| {
-                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if center.z == 0.0)
+                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z == 0.0)
                         })
             })
             .expect("the sheet's bottom rim");
@@ -22366,15 +22503,11 @@ mod arc_interiors {
         let (p0, p1) = (circle.eval(t0), circle.eval(t1));
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
-            origin,
-            normal: n,
-            u_ref: u,
+            frame: geom::Frame::new(origin, n, u),
         });
         let cyl = body.add_surface(Surface::Cylinder {
-            origin: center,
-            axis: n,
+            frame: geom::Frame::new(center, n, u),
             radius: r,
-            u_ref: u,
         });
         let arc = body
             .mev(
@@ -23005,7 +23138,7 @@ mod lone_vertex_rows {
         let mut post = crate::tier3_tests::half_disc(0.3, 0.5, (0.5, 0.5, 1.0), false, tol);
         let plane = |body: &crate::Body<f64>, normal: geom_core::Vec3<f64>| {
             body.face_views()
-                .find(|f| matches!(*f.surface(), geom::Surface::Plane { normal: n, .. } if (n - normal).norm() < 1e-12))
+                .find(|f| matches!(*f.surface(), geom::Surface::Plane { frame, .. } if (frame.axis() - normal).norm() < 1e-12))
                 .map(|f| f.key())
                 .expect("the face")
         };
