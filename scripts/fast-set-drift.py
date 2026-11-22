@@ -8,9 +8,10 @@ run alone on main.
     fast-set-drift.py gather <shard> <dir> [<hours>]
         download the shard's `fast-set-times-<shard>` artifacts of the last
         <hours> (HOURS) of PR runs and write <dir>/readings.tsv
-    fast-set-drift.py judge <shard> <dir>
+    fast-set-drift.py judge <shard> <dir> [<min readings>]
         re-time alone, on this checkout's build, every test whose median
-        suggests it costs BAR or more, and fail on each one that does
+        over at least <min readings> (MIN_READINGS) readings suggests it
+        costs BAR or more, and fail on each one that does
     fast-set-drift.py --selftest
 
 `.github/workflows/fast-set-drift.yml` runs it every day, one job per shard,
@@ -146,11 +147,11 @@ def load(path: Path) -> dict[Pair, list[tuple[str, int, float]]]:
 # --- judge -----------------------------------------------------------------------
 
 
-def candidates(by: dict[Pair, list[tuple[str, int, float]]]) -> list[Pair]:
+def candidates(by: dict[Pair, list[tuple[str, int, float]]], least: int = MIN_READINGS) -> list[Pair]:
     return sorted(
         p
         for p, rs in by.items()
-        if len(rs) >= MIN_READINGS and statistics.median(t for _, _, t in rs) >= SCREEN
+        if len(rs) >= least and statistics.median(t for _, _, t in rs) >= SCREEN
     )
 
 
@@ -193,6 +194,7 @@ def judge(
     runs_now: set[Pair],
     run: alone.Runner,
     server: str = "",
+    least: int = MIN_READINGS,
 ) -> int:
     meds = {p: statistics.median(t for _, _, t in rs) for p, rs in by.items()}
     nruns = len({r for rs in by.values() for _, r, _ in rs})
@@ -200,11 +202,11 @@ def judge(
         f"fast-set drift [{shard}]: the fast set's total test time is {sum(meds.values()):.1f} s "
         f"(the sum of {len(meds)} tests' medians over {nruns} PR runs)"
     )
-    cands = candidates(by)
+    cands = candidates(by, least)
     gone = [p for p in cands if p not in runs_now]
     timed = [p for p in cands if p in runs_now]
     print(
-        f"fast-set drift [{shard}]: {len(cands)} tests with {MIN_READINGS}+ readings and a median "
+        f"fast-set drift [{shard}]: {len(cands)} tests with {least}+ readings and a median "
         f"of {SCREEN:.3f} s or more ({BAR} s x {RATIO} x {MARGIN}); {len(gone)} no longer in the "
         f"fast set; re-running {len(timed)} alone x{alone.RUNS}"
     )
@@ -335,12 +337,13 @@ def main(argv: list[str]) -> int:
         return 0
     if len(argv) in (3, 4) and argv[0] == "gather":
         return gather(argv[1], Path(argv[2]), float(argv[3]) if len(argv) == 4 else HOURS)
-    if len(argv) == 3 and argv[0] == "judge":
+    if len(argv) in (3, 4) and argv[0] == "judge":
         scope = shlex.split(shard_scope(argv[1]))
         by = load(Path(argv[2]) / "readings.tsv")
-        return judge(argv[1], by, fast_set(scope), alone.nextest_runner(scope), runs_url())
+        least = int(argv[3]) if len(argv) == 4 else MIN_READINGS
+        return judge(argv[1], by, fast_set(scope), alone.nextest_runner(scope), runs_url(), least)
     raise SystemExit(
-        "usage: fast-set-drift.py scope <shard> | gather <shard> <dir> [<hours>] | judge <shard> <dir> | --selftest"
+        "usage: fast-set-drift.py scope <shard> | gather <shard> <dir> [<hours>] | judge <shard> <dir> [<min readings>] | --selftest"
     )
 
 

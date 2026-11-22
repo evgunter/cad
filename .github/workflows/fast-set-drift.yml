@@ -13,6 +13,13 @@ on:
   schedule:
     - cron: '47 6 * * *'
   workflow_dispatch:
+    inputs:
+      hours:
+        description: "the window of PR runs read, in hours"
+        default: "24"
+      min_readings:
+        description: "the fewest readings a test needs in the window to be a candidate"
+        default: "3"
 
 permissions:
   actions: read
@@ -46,7 +53,8 @@ jobs:
       - name: the last day's PR-run readings
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/fast-set-drift.py gather ${{ matrix.shard }} "$RUNNER_TEMP/drift"
+          HOURS: ${{ inputs.hours || '24' }}
+        run: python3 scripts/fast-set-drift.py gather ${{ matrix.shard }} "$RUNNER_TEMP/drift" "$HOURS"
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -69,4 +77,6 @@ jobs:
           # shellcheck disable=SC2086 # scope is a list of cargo flags
           cargo nextest run --no-run --profile ci $scope
       - name: re-time alone every test whose median suggests 0.25 s
-        run: python3 scripts/fast-set-drift.py judge ${{ matrix.shard }} "$RUNNER_TEMP/drift"
+        env:
+          MIN_READINGS: ${{ inputs.min_readings || '3' }}
+        run: python3 scripts/fast-set-drift.py judge ${{ matrix.shard }} "$RUNNER_TEMP/drift" "$MIN_READINGS"
