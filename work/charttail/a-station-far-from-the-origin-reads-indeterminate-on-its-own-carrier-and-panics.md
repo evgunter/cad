@@ -47,6 +47,7 @@ the subtract both built) is not measured either. A width the scalar
 cannot hold is a refusal of the question (`[tolerance.recourse]`),
 typed, not a panic in the region door. The row
 `a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_holds`
-skips a placement whose reach times `256 · f64::EPSILON` is at least
-ε, printing that it did, until this is read. The factor is set from
-this one measurement (100 off fails at 1e-12; 900 off passes at 1e-9).
+does not ask a placement 100 or more off the origin below ε = 1e-9,
+printing that it did not, until this is read. That line is the
+measurement above (100 off fails at 1e-12; 900 off is read at 1e-9),
+not a model of the rounding.

@@ -3341,12 +3341,13 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
             [900.0, -900.0, 900.0],
             [0.1, 0.0, 0.0],
         ] {
-            // At `Interval` a station this far out is enclosed wider than
-            // a tight ε, reads indeterminate against its own carrier, and
-            // the region door panics on it: measured 100 off at ε = 1e-12
+            // At `Interval` and ε = 1e-12 a station 100 off the origin
+            // reads indeterminate against its own carrier, and the region
+            // door panics on it
             // (`work/charttail/a-station-far-from-the-origin-reads-indeterminate-on-its-own-carrier-and-panics.md`).
-            let reach = o.iter().fold(0.0_f64, |m, x| m.max(x.abs()));
-            if reach * f64::EPSILON * 256.0 >= tol().eps() {
+            // The far placements are asked at the ε measured to read them.
+            let far = o.iter().any(|x| x.abs() >= 100.0);
+            if far && tol().eps() < 1e-9 {
                 println!(
                     "SKIPPED at eps {}: the placement {o:?} off the origin is not asked",
                     tol().eps()
