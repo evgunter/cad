@@ -71,3 +71,11 @@ table's filter relies on it: a reader that bypassed `serves` would read
 (`section_table.rs` `SectionReader::read`).
 
 Moved from SECTRUNG to SECT on 2026-11-02, by `git mv`, when SECTRUNG merged back into SECT: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so SECT and the three tracks cut from it (SECTTAIL, SECTRUNG, SECTSITE) came in under one budget.
+
+## Evidence from SECTCONE U1 (PR 7354, 2026-11-22)
+
+`pair_section` now dispatches through a private `Arm` enum (`crates/geom-brep/src/pair_section.rs`, `fn arm`), and `serves(a, b)` and `builds(a, b)` read that one dispatch. That ends `serves`' second spelling, but `Arm` is a third near-parallel enum, beside `PairPose` (one variant per built pair) and `intersect::route`'s `PairRoute`. Each needs a visit when a pair is added: `arm`, `PairPose`'s matches, and `route`.
+
+
+`pair_section::uncarried(a, b)` (PR 7357), the kind pairs the value classifies but no march carries (a cone against a cylinder or a cone, its `Arm::ConeRuled`), reads the same dispatch, so it is no fourth spelling.
+
