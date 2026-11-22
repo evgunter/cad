@@ -71,3 +71,48 @@ The two 1e-6 siblings red from the same window
 pose PR 7052's body names and files
 (`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`);
 another lane holds them.
+
+## 2026-11-22: the verdict, and the pin (U2)
+
+**The refusal is wrong.** A print at the slit's unread arm on the row's
+own pose (CI run 44997911372, main `1d14b92ca6`, throwaway branch) shows
+face 4 is the drum's cut plane and edge 16 is the sphere × cylinder
+section edge, a clamped spline view with both ends on the rim
+(`Names { ends: true }`). Its height over the plane is `3.5e-13` and
+`5.1e-13` at its two ends and `0.010 … 0.126` m between them, and all
+its control points but the two end ones are strictly on that side. The
+slit's `clears_plane` needs every control point strictly off, so it can
+never clear a carrier that ends on the plane. Six neighbouring poses
+(±0.01 in `c.x` and `c.z`, ±0.001 in r) refuse the same way at all three
+ε, so this is not a knife edge.
+
+The fix is not in PR 7052's hunk (the reading is `slit.rs`'s), so the
+row is pinned at every ε to its one stop
+(`test_utils::pinned_red::row`: the panic must be exactly one off run,
+B ∖ A at `EdgeInFace { .. CarrierUnread }`, so a second off run or any
+other stop is red). Fix row, P0:
+`work/sectarms/a-rim-ball-refuses-b-minus-a-at-the-slits-unread-carrier-since-the-periodic-loop.md`.
+SECTARMS was told on its log.
+
+**The other eight pose rows and the sibling list.** No other pose row
+stops at the slit. On the 11-21 nightly the other eight pose rows pass at
+every ε, except `wider_than_the_wall` at 1e-6. That row and
+`every_segment_joins_neighbouring_sites_along_its_loop` are red at 1e-6
+only, at `GermSectionUnbuilt { .. TubeStraddles }` on the sliver pose
+r 0.699. They went red in the same window, and the cause is the lost pose
+PR 7052 filed itself
+(`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`),
+not this one. Another lane holds them. Of the other seven rows on the EMBED sibling list
+(`work/embed/the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause.md`,
+"1. Baseline"), none stops at `CarrierUnread`. In the 11-21 nightly
+(44870651337), `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs`
+is red at every ε, but on its own stop, `PeriodicView`. That is also
+7052's, and it has its own row
+(`work/sectarms/main-red-the-tilted-rods-other-spins-row-asks-a-periodic-view-past-its-window.md`).
+The seeded fuzzer `square_search::the_square_wall_arm_agrees_with_the_traced_section`
+is red at the default ε and 1e-12 on strip mismatches, which is not this
+cause. The other five pass at every ε. Related but not the same case:
+`work/splice/an-unread-rider-related-only-by-its-own-vertices-refuses.md`
+(an exemption by lineage, for a face and edge of one operand). Here the
+edge is a section edge whose ends lie on the other operand's rim, so that
+exemption would not cover it.

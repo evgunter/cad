@@ -537,7 +537,25 @@ pose_rows! {
     a_ball_across_a_cylinder_wall_in_two_loops: 5;
     a_ball_across_a_cylinder_wall_in_two_loops_turned: 6;
     a_ball_across_a_cylinder_wall_r_0_2_across_the_rim: 7;
-    a_ball_across_a_cylinder_wall_r_0_1_across_the_rim: 8;
+}
+
+/// Pinned at every ε to main's one stop, B ∖ A refused at the slit's
+/// unread carrier, while its fix row is open
+/// (`work/sectarms/a-rim-ball-refuses-b-minus-a-at-the-slits-unread-carrier-since-the-periodic-loop.md`):
+/// the other five runs still build at their volumes, and any other stop
+/// is red.
+#[test]
+fn a_ball_across_a_cylinder_wall_r_0_1_across_the_rim() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the r 0.1 rim pose",
+        &[
+            "[\n    \"the row's ball r 0.1 across the rim, B ∖ A: refused at None: EdgeInFace {",
+            "gap: CarrierUnread }\",\n]",
+        ],
+        || builds_at_its_volume_or_refuses_at_its_door(8),
+    );
 }
 
 /// A site's place on its loop of the analytic section, read off the
