@@ -130,3 +130,51 @@ at admission, cell by cell.
   population, each run again with the walk going on past its first
   verified crossing (the verdict kept): 7.8 s stopped against 15.3 s run
   on (median ratio 3.0), every one still `Crosses`.
+
+## Evidence: why a cell pair splits (M5, the gate lane, 2026-11-22)
+
+`embed/gate-measure` at `c5c02311de`: every split records its reason
+(class, site, shared cell), and each child inherits its parent's, so a
+child failing as its parent did is read directly. Verdicts unchanged.
+Population (`measure/gate/walk-population.json`): the four tests behind
+the twelve dearest refusing asks (13 asks); 40 asks whose first refusal
+comes at the depth floor, from 39 tests (departure at an edge 16, at a
+vertex 12, `Budget(Depth)` 12); the 22 tests behind the 38 asks that
+crossed after a refusal.
+
+**M5a, the reasons.**
+
+| reason a cell pair splits | 13 dearest | depth-floor sample |
+|---|---:|---:|
+| not touching: distance undecided, separation straddling the band's edge | 904,922 (97%) | 18,059 (53%) |
+| touching, one part `Local` at `unread` (an edge no presentation reads, not shared) | 18,960 | — |
+| touching, one part `Structural` | 4,007 | — |
+| touching, `Local` in `present_plane`'s catch-all (three or more of a plane face's edges in the cell) | — | 9,746 |
+| touching, `Local` in `present_plane` at a corner (lean or span sign undecided; rims sharing no end) | — | 4,739 |
+| touching, `Local` in `zero_of` / `present_chart` | 501 | — |
+| touching, both presented, the departure margin wholly in band | 0 | 1,282 |
+| touching, both presented, the margin straddling zero | 354 | 0 |
+| touching, both presented, no margin read undecided | 0 | 299 |
+
+In the dearest asks the walk is not stuck in the local certificate: 97%
+of their splits are non-touching cell pairs whose separation keeps
+straddling the band's edge. These torus, ball and rod placements have
+faces that come within the band of each other off their shared cells,
+and the walk halves them to the floor or the budget.
+
+**M5b, per refusing face pair.** Two criteria:
+
+| | 13 dearest (4,236 s) | depth-floor sample (1.4 s) |
+|---|---|---|
+| *strict*: a reason no smaller cell changes (a `Structural` part, a margin or separation wholly in band) | 9 of 166 pairs, first at depth 11; spent below it 293 s (6.9%) | 7 of 108 pairs, depth 8; 0.3 s (21%) |
+| *repeat*: every split below that depth repeats its parent exactly | 72 of 166 pairs, from depth 1 (at most 23); 3,718 s (87.8%) | 95 of 108 pairs, from depth 1 (at most 27); 0.4 s (28%) |
+
+The repeat criterion is a ceiling, not a proof: nearly all of it is the
+distance straddle repeating, and a straddling separation can still narrow.
+
+**M5c, the 38 crossings after a refusal.** 5 were found at depths 2 to 5,
+at a fresh subtree root; 33 at the depth floor (40), deep in the walk. In
+6 of the 38 the crossing's lineage holds a touching split made after the
+ask's first refusal. So a continuation that, after the first refusal,
+probes and splits only non-touching cell pairs would still find 32 of the
+38.
