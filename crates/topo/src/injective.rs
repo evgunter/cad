@@ -2252,6 +2252,9 @@ fn present_chart<'a>(
             // cell does not hold both of.
             match merged.iter_mut().find(|m| m.side == side) {
                 Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
+                    // A second vertex at the same collapsed side replaces the
+                    // first here. That only refuses: the first is then on no
+                    // zero side, and its edges are not run on.
                     m.collapsed = Some(v);
                     m.ends_here = ends_on_collapse(piece.surface, b, v, point, band);
                 }

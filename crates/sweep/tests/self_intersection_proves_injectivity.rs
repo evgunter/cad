@@ -3223,6 +3223,20 @@ fn try_cone_tip<T: Scalar>(y0: f64, r: f64, h: f64, up: bool) -> Result<Body<T>,
         .map_err(|e| format!("{e:?}"))
 }
 
+/// **The report is a refusal on the departure arm between `pair`**: the
+/// two faces and the cell they share, as the refusal's `Debug` spells
+/// them (`a: FaceKey(1v1), b: FaceKey(2v1), shared: Edge(EdgeKey(1v1))`).
+fn assert_refuses_departure(what: &str, report: &BoundReport<Witness>, pair: &str) {
+    let verdict = format!("{:?}", report.verdict);
+    assert!(
+        verdict.starts_with("Refused(Uncertified {")
+            && verdict.contains(pair)
+            && verdict.contains("arm: Departure"),
+        "{what} refuses on the departure arm between {pair}: {verdict} {:?}",
+        report.receipt
+    );
+}
+
 /// A rigid turn about a generic axis and a translation, as a sketch
 /// plane: three frames, and the plain one at `0`.
 fn turned_plane(k: usize) -> SketchPlane<f64> {
@@ -3284,9 +3298,18 @@ fn cones_far_from_the_origin_hold_across_their_apexes() {
     let long = "the long cone with its apex at y = 101.3";
     let reports = match try_cone_tip::<Interval>(101.3, 20.0, 50.0, false) {
         Ok(twin) => holds_at_both(long, cone_tip(101.3, 20.0, 50.0, false), twin).to_vec(),
-        // At ε = 1e-12 the `Interval` revolve refuses its own pcurve
+        // At ε = 1e-12, and only there, the `Interval` revolve refuses its
+        // own pcurve at the envelope's `FidelityV` term
         // (`work/pcert/an-interval-revolve-of-a-long-cone-a-hundred-units-out-escalates-its-pcurve-envelope-at-1e-12.md`).
+        // Any other refusal, or that one at another ε, fails the row.
         Err(refusal) => {
+            assert!(
+                tol().eps() < 1e-11
+                    && refusal.contains("EnvelopeTerm(FidelityV)")
+                    && refusal.contains("pcurve_envelope"),
+                "{long}: the Interval twin is unbuilt at ε = {:e}: {refusal}",
+                tol().eps()
+            );
             println!("SKIPPED: {long} is asked at f64 alone, its Interval twin unbuilt: {refusal}");
             let body = cone_tip::<f64>(101.3, 20.0, 50.0, false);
             let report = injective(&body, None, BUDGET);
@@ -3322,13 +3345,18 @@ fn cones_far_from_the_origin_hold_across_their_apexes() {
 }
 
 /// **A ball a hundred units off the origin holds at both scalars, and
-/// cones in turned frames hold**: the unit ball about `y = 101.3`, and
-/// the unit cone tip on the second and third of three sketch planes
-/// turned about a generic axis and moved ([`turned_plane`]), at `f64`. A
-/// sphere's poles and a cone's apex are read off the face's own vertices
-/// wherever the body is. The unit cone on the first turned plane has a
-/// row of its own, as its verdict moves with ε
-/// ([`the_unit_cone_on_the_first_turned_plane_holds_or_refuses_by_eps`]).
+/// cones in turned frames hold**: the unit ball about `y = 101.3`; the
+/// unit cone tip on the first and second of three sketch planes turned
+/// about a generic axis and moved ([`turned_plane`]); and the slender
+/// cone (`r = 0.37`, `h = 2.3`, apex at `y = 103.6`) on all three, at
+/// `f64`. A sphere's poles and a cone's apex are read off the face's own
+/// vertices wherever the body is. The unit cone on the third plane
+/// refuses, on a row of its own below.
+///
+/// Which turned cones hold has moved with main, not with this reading:
+/// the table on
+/// `work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`
+/// gives each main's. A cone here that refuses is that row's evidence.
 #[test]
 fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
     fn ball<T: Scalar>(y0: f64) -> Body<T> {
@@ -3342,19 +3370,36 @@ fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
     for report in holds_at_both("the ball about y = 101.3", ball(101.3), ball(101.3)) {
         assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
     }
-    for k in 2..4 {
-        let at = |x: f64, y: f64| Point2::new(x, y);
-        let cone = revolved_on(
-            turned_plane(k),
-            vec![
-                (at(0.0, 0.0), 0.0),
-                (at(1.0, 0.0), 0.0),
-                (at(0.0, 1.0), 0.0),
-            ],
-        );
+    let at = |x: f64, y: f64| Point2::new(x, y);
+    let unit = || {
+        vec![
+            (at(0.0, 0.0), 0.0),
+            (at(1.0, 0.0), 0.0),
+            (at(0.0, 1.0), 0.0),
+        ]
+    };
+    let slender = || {
+        vec![
+            (at(0.0, 101.3), 0.0),
+            (at(0.37, 101.3), 0.0),
+            (at(0.0, 103.6), 0.0),
+        ]
+    };
+    for (what, k, verts) in [
+        ("the unit cone", 1, unit()),
+        ("the unit cone", 2, unit()),
+        ("the slender cone", 1, slender()),
+        ("the slender cone", 2, slender()),
+        ("the slender cone", 3, slender()),
+    ] {
+        let cone = revolved_on(turned_plane(k), verts);
         let report = injective(&cone, None, BUDGET);
-        assert_holds(&format!("the cone in frame {k}"), &report, &cone);
-        assert_eq!(report.receipt.refused, 0, "frame {k}: {:?}", report.receipt);
+        assert_holds(&format!("{what} in frame {k}"), &report, &cone);
+        assert_eq!(
+            report.receipt.refused, 0,
+            "{what} in frame {k}: {:?}",
+            report.receipt
+        );
     }
 }
 
@@ -3365,7 +3410,9 @@ fn singular_points_hold_far_from_the_origin_and_in_turned_frames() {
 /// the two seam meridians in a plane of its own: their stored frames
 /// are not one value in a turned frame
 /// (`work/embed/a-balls-seam-meridians-in-one-bracket-are-not-one-plane-so-its-pole-refuses-at-interval.md`).
-/// Red when a turned ball holds, and that row's reading has landed.
+/// The refusal names the two half-bands across their first seam
+/// meridian, at every ε. Red when a turned ball holds, and that row's
+/// reading has landed.
 #[test]
 fn a_ball_in_a_turned_frame_refuses_departure_at_its_pole() {
     for k in 1..4 {
@@ -3373,35 +3420,29 @@ fn a_ball_in_a_turned_frame_refuses_departure_at_its_pole() {
         let (a, b, c) = (at(0.0, -1.0), at(0.0, 1.0), at(0.0, 0.0));
         let ball = revolved_on(turned_plane(k), vec![(a, bulge(a, b, c)), (b, 0.0)]);
         let report = injective(&ball, None, BUDGET);
-        assert!(
-            matches!(
-                report.verdict,
-                BoundVerdict::Refused(EngineRefusal::Uncertified {
-                    arm: CertificateArm::Departure,
-                    ..
-                })
-            ),
-            "frame {k}: {:?} {:?}",
-            report.verdict,
-            report.receipt
+        assert_refuses_departure(
+            &format!("the ball in frame {k}"),
+            &report,
+            "a: FaceKey(1v1), b: FaceKey(2v1), shared: Edge(EdgeKey(1v1))",
         );
     }
 }
 
-/// **The unit cone on the first turned plane holds at the default ε and
-/// at 1e-12, and refuses at 1e-6**: the triangle `(0, 0) (1, 0) (0, 1)`
-/// revolved on [`turned_plane`]`(1)`. Where it holds it takes over ten
-/// thousand splits (the plain-frame cone takes 173). At ε = 1e-6 it
-/// refuses `Uncertified` on the departure arm at its apex: the plane
-/// through the half-cones' two shared rulings signs one half-cone and
-/// reads no sign on the other, in 6,190 cell pairs of the run
+/// **The unit cone on the third turned plane refuses on the departure
+/// arm at its apex**: the triangle `(0, 0) (1, 0) (0, 1)` revolved on
+/// [`turned_plane`]`(3)`. Its apex is placed and its meridians run on to
+/// it; the two half-cones, which share both rulings, are then not parted
+/// at the apex: `zero_of` reads `Local` in the cells there, 90,849 times
+/// in the run, with both rulings zero sides of one cell
 /// (`work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`,
-/// exit B). Red at any ε where its verdict changes.
+/// exit A). The refusal names the two half-cones across a shared
+/// ruling, at every ε. Red when it holds, and that row's reading has
+/// landed.
 #[test]
-fn the_unit_cone_on_the_first_turned_plane_holds_or_refuses_by_eps() {
+fn the_unit_cone_on_the_third_turned_plane_refuses_departure_at_its_apex() {
     let at = |x: f64, y: f64| Point2::new(x, y);
     let cone = revolved_on(
-        turned_plane(1),
+        turned_plane(3),
         vec![
             (at(0.0, 0.0), 0.0),
             (at(1.0, 0.0), 0.0),
@@ -3409,57 +3450,10 @@ fn the_unit_cone_on_the_first_turned_plane_holds_or_refuses_by_eps() {
         ],
     );
     let report = injective(&cone, None, BUDGET);
-    // The ε rows the suite runs at are 1e-9, 1e-6 and 1e-12.
-    if tol().eps() > 1e-7 {
-        assert!(
-            matches!(
-                report.verdict,
-                BoundVerdict::Refused(EngineRefusal::Uncertified {
-                    arm: CertificateArm::Departure,
-                    ..
-                })
-            ),
-            "at ε = 1e-6: {:?} {:?}",
-            report.verdict,
-            report.receipt
-        );
-    } else {
-        assert_holds("the cone in frame 1", &report, &cone);
-        assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
-        assert!(report.receipt.splits > 5_000, "{:?}", report.receipt);
-    }
-}
-
-/// **A slender cone in a turned frame refuses on the departure arm at
-/// its apex**: the triangle `r = 0.37`, `h = 2.3` with its apex up at
-/// `y = 103.6`, on the second turned sketch plane. Its apex is placed
-/// and its meridians run on to it; the two half-cones, which share both
-/// rulings, are then not parted at the apex
-/// (`work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`).
-/// Red when it holds, and that row's reading has landed.
-#[test]
-fn a_slender_cone_in_a_turned_frame_refuses_departure_at_its_apex() {
-    let at = |x: f64, y: f64| Point2::new(x, y);
-    let cone = revolved_on(
-        turned_plane(2),
-        vec![
-            (at(0.0, 101.3), 0.0),
-            (at(0.37, 101.3), 0.0),
-            (at(0.0, 103.6), 0.0),
-        ],
-    );
-    let report = injective(&cone, None, BUDGET);
-    assert!(
-        matches!(
-            report.verdict,
-            BoundVerdict::Refused(EngineRefusal::Uncertified {
-                arm: CertificateArm::Departure,
-                ..
-            })
-        ),
-        "{:?} {:?}",
-        report.verdict,
-        report.receipt
+    assert_refuses_departure(
+        "the unit cone in frame 3",
+        &report,
+        "a: FaceKey(1v1), b: FaceKey(2v1), shared: Edge(EdgeKey(4v1))",
     );
 }
 
