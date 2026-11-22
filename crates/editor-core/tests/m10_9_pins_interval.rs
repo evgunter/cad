@@ -291,7 +291,12 @@ pub(crate) struct Study {
 /// the session proves only through the door: door open it leaves the
 /// symbolic count, door shut it escalated and leaves the numeric one
 /// with its partner, and the question, which does not read the registry,
-/// stores the quotient there either way.
+/// stores the quotient there either way. Door shut the link certifies,
+/// (696, 843) refusing at limb 2's stall -> (725, 1003): its tangent
+/// arcs depart along the hop before them, and that ray is now the
+/// minted axis where it was the chord's quotient, so the rim residual
+/// the door discharged is a theorem without it. Measured by handing
+/// the tip the quotient again: (695, 843), refusing at the same stall.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -332,21 +337,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 3.029e2,
             refuses_at: Some(3.030e2),
             refused_by: None,
-            // Door shut, the extrude's rim (half-edge 24v1) refuses at
-            // check 4. The refusal decides the terms in order up to the
-            // first one over the band alone, `Radius` (the class
-            // circle's radius and orientation read as one pair), so it
-            // decides 3 of the envelope's 9 terms on each of its two
-            // reads.
-            //
-            // reads. Under INTENT stage 3 D's placement it decides two
-            // fewer numeric comparisons on the way (712 -> 710).
-            // Pinned at what main measures since PR 5728 (limb 2 for every
-            // carrier; at 1e-9 its first parent reads (722, 704) refusing
-            // at the pcurve's certification, its merge (709, 585)): shut, the door now refuses earlier,
-            // at limb 2's stall against the cylinder rather than at
-            // `pcurve_envelope`, after (709, 585), where it read (722, 702).
-            without_the_registry: Some(((696, 843), Some("Stalled { operand: Cylinder"))),
+            // Door shut it certifies too: the tangent arcs depart along
+            // the minted axis of the hop before them, and the rim
+            // residual is a theorem without the registration.
+            without_the_registry: Some(((725, 1003), None)),
             symbolic: [785, 785, 785],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
@@ -758,9 +752,8 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// whole at its `certifies_at` with the door shut (`registered: false`,
 /// every other dial as shipped), against `Study::without_the_registry`.
 /// Where the door-shut replay certifies it decides what the shipped one
-/// does, and the door's decisions move from `symbolic` to `numeric`; on
-/// the link the door is load-bearing, and shut it refuses at
-/// `pcurve_envelope`. A registrant that started stating something
+/// does, and the door's decisions move from `symbolic` to `numeric`,
+/// the link's among them. A registrant that started stating something
 /// slightly false stops discharging without ever being refused, and
 /// this is where that shows.
 ///
@@ -983,8 +976,11 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`). Then the
     // direction mint asks the expression and reads one sign per axis:
     // (1483, 1709, 1967) -> (1467, 1709, 130), sixteen proved-Zero
-    // readings out of the count and the forms their walks froze out of
-    // the session.
+    // readings out of the count; of the frozen forms, 700 were those
+    // readings' walks and 1137 a tangent arc's, built on the quotient
+    // of the hop before it where it is now built on the minted axis
+    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING` has the
+    // measurement).
     assert_eq!(got[0], (1467, 1709, 130), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],

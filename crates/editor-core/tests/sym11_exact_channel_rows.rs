@@ -122,9 +122,14 @@ use crate::m10_9_pins_interval::measured_studies;
 /// Numeric: the bracket `1546 → 1545`, the sign reading of one fillet
 /// radial the session proved only through the registered door, which
 /// the question does not read: it stores the quotient there. Frozen:
-/// the link `2600 → 1987` and the pad `1967 → 130`, the forms those
-/// readings' walks froze in the session; the annulus mints nothing and
-/// does not move.
+/// the link `2600 → 1987` and the pad `1967 → 130`. A `line_to` hop's
+/// minted director is the ray the next verb departs along, so a
+/// tangent arc after an axis hop is built on the literal axis and its
+/// forms no longer reach the budget: measured by handing the tip the
+/// quotient again, which reads the link `2600` and the pad `1267`. The
+/// pad's other `700` are the forms the mint's readings froze in the
+/// session, which the question walks in its own state. The annulus
+/// mints nothing and does not move.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [975, 1047, 36]),
     ("r1_annulus", [511, 548, 36]),
