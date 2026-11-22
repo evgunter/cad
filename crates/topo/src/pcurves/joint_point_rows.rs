@@ -60,69 +60,74 @@ fn closed() -> Option<Winding> {
 /// enclosure, no point.
 #[test]
 fn a_corner_is_the_meet_and_a_cut_is_the_maps_value() {
-    fn at<T: Decide + Bounds>(scalar: &str) {
-        let (zero, len) = (T::zero(), length::<T>());
-        let cut = len / T::from_f64(3.0);
-        // The bottom side's two pieces hold one image over their own spans.
-        let mut first = row(0.0, (0.0, 1.0), (zero, len));
-        let mut second = first.clone();
-        first.params = (zero, cut);
-        second.params = (cut, len);
-        let lift = Lift::stated_for_tests(
-            vec![
-                first,
-                second,
-                column(1.0, (0.0, 1.0), (zero, len)),
-                row(1.0, (1.0, 0.0), (zero, len)),
-                column(0.0, (1.0, 0.0), (zero, len)),
-            ],
-            closed(),
-        );
-        // Corners: into rows 0, 2, 3, 4.
-        for (i, corner) in [
-            (0, (0.0, 0.0)),
-            (2, (1.0, 0.0)),
-            (3, (1.0, 1.0)),
-            (4, (0.0, 1.0)),
-        ] {
-            assert_eq!(
-                points(lift.joint_point(i)),
-                (Some(corner.0), Some(corner.1)),
-                "{scalar}: the joint into row {i} is the meet of its two lines"
+    // One body per scalar, by macro: the rows read brackets and decide
+    // nothing, and name no compound bound to do it.
+    macro_rules! at {
+        ($t:ty, $scalar:expr) => {{
+            let scalar: &str = $scalar;
+            let (zero, len) = (<$t>::zero(), length::<$t>());
+            let cut = len / <$t>::from_f64(3.0);
+            // The bottom side's two pieces hold one image over their own spans.
+            let mut first = row(0.0, (0.0, 1.0), (zero, len));
+            let mut second = first.clone();
+            first.params = (zero, cut);
+            second.params = (cut, len);
+            let lift = Lift::stated_for_tests(
+                vec![
+                    first,
+                    second,
+                    column(1.0, (0.0, 1.0), (zero, len)),
+                    row(1.0, (1.0, 0.0), (zero, len)),
+                    column(0.0, (1.0, 0.0), (zero, len)),
+                ],
+                closed(),
             );
-            let before = (i + 4) % 5;
+            // Corners: into rows 0, 2, 3, 4.
+            for (i, corner) in [
+                (0, (0.0, 0.0)),
+                (2, (1.0, 0.0)),
+                (3, (1.0, 1.0)),
+                (4, (0.0, 1.0)),
+            ] {
+                assert_eq!(
+                    points(lift.joint_point(i)),
+                    (Some(corner.0), Some(corner.1)),
+                    "{scalar}: the joint into row {i} is the meet of its two lines"
+                );
+                let before = (i + 4) % 5;
+                assert_eq!(
+                    brackets(lift.exit_point(before)),
+                    brackets(lift.joint_point(i)),
+                    "{scalar}: row {before} leaves at the corner row {i} enters at"
+                );
+            }
+            // The cut: the entering piece's own value, and the leaving piece's.
+            let rows = lift.rows();
+            let entering = rows[1].pcurve.eval(cut);
             assert_eq!(
-                brackets(lift.exit_point(before)),
-                brackets(lift.joint_point(i)),
-                "{scalar}: row {before} leaves at the corner row {i} enters at"
+                brackets(lift.joint_point(1)),
+                brackets(entering),
+                "{scalar}: the cut is the entering image's value there"
             );
-        }
-        // The cut: the entering piece's own value, and the leaving piece's.
-        let rows = lift.rows();
-        let entering = rows[1].pcurve.eval(cut);
-        assert_eq!(
-            brackets(lift.joint_point(1)),
-            brackets(entering),
-            "{scalar}: the cut is the entering image's value there"
-        );
-        assert_eq!(
-            brackets(lift.exit_point(0)),
-            brackets(rows[0].pcurve.eval(cut)),
-            "{scalar}: the piece before the cut leaves at its own value"
-        );
-        assert!(
-            entering.x.lo() > 0.0 && entering.x.hi() < 1.0,
-            "{scalar}: the cut is no chart end"
-        );
-        // What the meet replaces: the image's own end over a computed span.
-        let own_end = rows[2].pcurve.eval(len);
-        assert!(
-            own_end.y.lo() <= 1.0 && 1.0 <= own_end.y.hi(),
-            "{scalar}: the column's own end encloses the corner"
-        );
+            assert_eq!(
+                brackets(lift.exit_point(0)),
+                brackets(rows[0].pcurve.eval(cut)),
+                "{scalar}: the piece before the cut leaves at its own value"
+            );
+            assert!(
+                entering.x.lo() > 0.0 && entering.x.hi() < 1.0,
+                "{scalar}: the cut is no chart end"
+            );
+            // What the meet replaces: the image's own end over a computed span.
+            let own_end = rows[2].pcurve.eval(len);
+            assert!(
+                own_end.y.lo() <= 1.0 && 1.0 <= own_end.y.hi(),
+                "{scalar}: the column's own end encloses the corner"
+            );
+        }};
     }
-    at::<f64>("f64");
-    at::<Interval>("Interval");
+    at!(f64, "f64");
+    at!(Interval, "Interval");
     // At `Interval` an image's own end over a computed span has width:
     // the corner is exact only as a meet.
     let len = length::<Interval>();
@@ -159,48 +164,53 @@ fn patch<T: Decide>(lo: f64, hi: f64) -> Surface<T> {
 /// period's length (`1.7 − 1.3` is no point at `Interval`).
 #[test]
 fn a_stored_corner_undoes_the_rows_own_deck() {
-    fn at<T: Decide + Bounds>(scalar: &str) {
-        let (lo, hi) = (0.4, 1.7);
-        let surface = patch::<T>(lo, hi);
-        let periods = ChartPeriods::stated(&surface);
-        let span = (T::zero(), length::<T>());
-        let once = Deck {
-            u: 1,
-            v: 0,
-            twin: false,
-        };
-        // The stored bottom row, and the same row as the lift moves it.
-        let stored = row::<T>(0.0, (lo, hi), span);
-        let mut lifted = stored.clone().moved_for_tests(once);
-        lifted.pcurve = once.apply(&stored.pcurve, &surface, periods).unwrap();
-        let seam = column::<T>(hi, (1.0, 0.0), span);
-        let far = column::<T>(3.0, (0.0, 1.0), span);
-        let top = row::<T>(1.0, (3.0, hi), span);
-        let lift = Lift::stated_for_tests(vec![lifted, far, top, seam], closed());
-        let [start, _] = lift.stored_corners(0, periods);
-        let start = start.expect("the row meets the seam's column at its start");
-        assert_eq!(
-            (start.lo(), start.hi()),
-            (lo, lo),
-            "{scalar}: the corner at the lifted seam is the stored branch's low end"
-        );
-        // An unmoved row's corners are its meets.
-        let plain = Lift::stated_for_tests(
-            vec![
-                row::<T>(0.0, (lo, hi), span),
-                column::<T>(hi, (0.0, 1.0), span),
-                row::<T>(1.0, (hi, lo), span),
-                column::<T>(lo, (1.0, 0.0), span),
-            ],
-            closed(),
-        );
-        let [a, b] = plain.stored_corners(0, periods).map(|c| c.unwrap());
-        assert_eq!(
-            ((a.lo(), a.hi()), (b.lo(), b.hi())),
-            ((lo, lo), (hi, hi)),
-            "{scalar}: an unmoved row spans its domain exactly"
-        );
+    // One body per scalar, by macro: the rows read brackets and decide
+    // nothing, and name no compound bound to do it.
+    macro_rules! at {
+        ($t:ty, $scalar:expr) => {{
+            let scalar: &str = $scalar;
+            let (lo, hi) = (0.4, 1.7);
+            let surface = patch::<$t>(lo, hi);
+            let periods = ChartPeriods::stated(&surface);
+            let span = (<$t>::zero(), length::<$t>());
+            let once = Deck {
+                u: 1,
+                v: 0,
+                twin: false,
+            };
+            // The stored bottom row, and the same row as the lift moves it.
+            let stored = row::<$t>(0.0, (lo, hi), span);
+            let mut lifted = stored.clone().moved_for_tests(once);
+            lifted.pcurve = once.apply(&stored.pcurve, &surface, periods).unwrap();
+            let seam = column::<$t>(hi, (1.0, 0.0), span);
+            let far = column::<$t>(3.0, (0.0, 1.0), span);
+            let top = row::<$t>(1.0, (3.0, hi), span);
+            let lift = Lift::stated_for_tests(vec![lifted, far, top, seam], closed());
+            let [start, _] = lift.stored_corners(0, periods);
+            let start = start.expect("the row meets the seam's column at its start");
+            assert_eq!(
+                (start.lo(), start.hi()),
+                (lo, lo),
+                "{scalar}: the corner at the lifted seam is the stored branch's low end"
+            );
+            // An unmoved row's corners are its meets.
+            let plain = Lift::stated_for_tests(
+                vec![
+                    row::<$t>(0.0, (lo, hi), span),
+                    column::<$t>(hi, (0.0, 1.0), span),
+                    row::<$t>(1.0, (hi, lo), span),
+                    column::<$t>(lo, (1.0, 0.0), span),
+                ],
+                closed(),
+            );
+            let [a, b] = plain.stored_corners(0, periods).map(|c| c.unwrap());
+            assert_eq!(
+                ((a.lo(), a.hi()), (b.lo(), b.hi())),
+                ((lo, lo), (hi, hi)),
+                "{scalar}: an unmoved row spans its domain exactly"
+            );
+        }};
     }
-    at::<f64>("f64");
-    at::<Interval>("Interval");
+    at!(f64, "f64");
+    at!(Interval, "Interval");
 }
