@@ -31,8 +31,8 @@ use crate::session::refuse::Refusal;
 ///
 /// The unit is carried rather than looked up again at the reading, and
 /// that is the whole reason this is a struct rather than a pair. The
-/// probe seeds one step of the unit the field is WRITTEN in
-/// ([`probe_seed`]), so a reading in any other unit
+/// probe seeds one step of the unit the field is WRITTEN in, so a
+/// reading in any other unit
 /// describes a search that did not happen — it would say metres about
 /// a range found in millimetres. A panel that re-read the unit off the
 /// row it is drawing would agree with the search only for as long as
@@ -102,7 +102,7 @@ pub(super) fn probe_bounds(
     tol: Tol,
 ) -> Result<BoundsReading, Refusal> {
     let (origin, unit, integral) = probe_scale(base, &target)?;
-    let seed = probe_seed(unit);
+    let seed = props::authored_in(unit, 1.0);
     // The baseline is taken at the value the field HAS, from the
     // same oracle every sample goes through — so "no worse than the
     // baseline" compares two runs of one function rather than a run
@@ -130,8 +130,8 @@ pub(super) fn probe_bounds(
             }
         },
     );
-    // The unit stored here is the one `probe_seed` above stepped
-    // by: the reading and the search are one value read twice.
+    // The unit stored here is the one the seed above is one of: the
+    // reading and the search are one value read twice.
     Ok(BoundsReading {
         target,
         bounds: result,
@@ -139,21 +139,12 @@ pub(super) fn probe_bounds(
     })
 }
 
-/// One written `unit`, in canonical terms — the probe's step, and
-/// the one place that arithmetic is spelled, so a slot's seed and a
-/// variable's seed are the same answer to the same question.
-/// `None` is the field that names no unit at all (a count, a bare
-/// scalar), whose step is 1.
-fn probe_seed(unit: Option<UnitDef>) -> f64 {
-    unit.map_or(1.0, |unit| props::from_written(1.0, unit))
-}
-
 /// The probe's three inputs, read off the field **in `doc`**: where
 /// it is now, the unit it is written in, and whether its answer is
 /// an integer.
 ///
 /// The unit rather than the step, so that the number the search
-/// walks by ([`probe_seed`]) and the number the reading is
+/// walks by and the number the reading is
 /// written in ([`BoundsReading::unit`]) come from one answer to one
 /// question. One of that unit is the step — one millimetre for a
 /// field written in millimetres, one radian for one written
