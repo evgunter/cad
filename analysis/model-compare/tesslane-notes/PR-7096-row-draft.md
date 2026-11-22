@@ -73,7 +73,7 @@ The findings of the first reviews, by defect:
 - **The cut over-cuts, both, DEMONSTRATED** (R2 from its first delta): on bores of other shapes and thicknesses every cut is unneeded (R2: 256 of about 2,640 cells denser than main; R1: 440, and about 450 at other thicknesses). Kept and stated; the exact cure is a design question filed apart.
 - `may_make`'s soundness premise unstated at its site (both); stale tracker citations (R1); the description's stale lines (both).
 
-**Hosted CI:** HOSTED_CI
+**Hosted CI:** red at the frozen head on the PR's own slow-set row; on the fix head `7a6f5bfe6e` green but for one random-seed fuzz row of `profile`, a crate the PR does not touch. No head between that one and the closing head completed a hosted run: on 2026-11-22 runs queued for 20 to 45 minutes and each was superseded by the next push before a job started. The merge waits on the closing head's run. Local evidence in its place: `mesh` whole with the slow set at three ε on the final code head, by the implementer and by one reviewer on the head before it; both reviewers' differentials.
 
 ## Quality of the review
 The orchestrator's adjudication is unblinded.
@@ -108,11 +108,11 @@ The session records give usage by kind and a cost. Cumulative figures are the re
 | R1, first review (21:12:24 to 22:20:41) | 1 h 08 min 17 s | input 132, output 90,199, cache read 13,674,852, cache write 313,496 ($10.77) |
 | R2, first review (21:12:25 to 22:58:06) | 1 h 45 min 41 s | input 185, output 82,414, cache read 20,946,679, cache write 239,345 ($7.75) |
 | Blind coder | 155.1 s | 94,495 (the harness's figure for a subagent) |
-| Fix pass (21:56 on 2026-11-17 to its report, 06:18 to 08:15 on 2026-11-18) | about 9 h, most of it runs re-started after container restarts | IMPL_FIXPASS |
+| Fix pass (21:56 on 2026-11-17 to its report, 06:18 to 08:15 on 2026-11-18) | about 9 h, most of it runs re-started after container restarts | the record's cumulative figure read at 23:22 on 2026-11-17 and again at 01:10 on 2026-11-18 was the same, so it is a floor: input 934, output 205,542, cache read 75,533,165, cache write 444,345 ($22.79) |
 | R1, first delta (01:33 to its failure at about 02:07 on 2026-11-18) | cut off at about 34 min | about $6.79 by subtraction |
 | R2, first delta (01:33:17 to 03:07:31) | 1 h 34 min 14 s | the turn alone: input 112, output 40,210, cache read 22,026,046, cache write 355,246 ($8.05) |
 | The outage (about 02:00 on 2026-11-18 to 19:01 on 2026-11-22) | 4 d 17 h | none |
-| The integration and its last items (19:05 on 2026-11-22 to the closing head) | CLOSING_WALL | IMPL_FINAL |
+| The integration and its last items (19:05 to 22:14 on 2026-11-22, the last code push) | 3 h 09 min | implementer cumulative as the record gave it at 21:47, its turn open, also a floor: input 1,530, output 235,003, cache read 85,621,033, cache write 650,987 ($27.05) |
 | R1, second delta (19:55:28 to 20:41:20) | 45 min 13 s | the turn alone: input 64, output 26,872, cache read 12,494,423, cache write 345,479 ($9.10); R1 cumulative $26.97 |
 | R2, second delta (19:55:29 to 21:31:26) | 1 h 35 min 21 s | the turn alone: input 117, output 29,366, cache read 28,438,040, cache write 449,431 ($9.87); R2 cumulative $26.36 |
 | Dispatch to merge | 16:15 UTC on 2026-11-17 to the PR's merge time | |
@@ -127,6 +127,6 @@ Waits the agents did not cause, not subtracted: the outage; each cloud session b
 - **The implementer was sent hosted-CI failures of its in-progress heads** (a missing match arm in the Python binding, twice; the rounding gate; the binding census).
 - **Notes to the implementer queued behind its open turns** several times and were delivered by interrupts.
 - **The implementer's three-crate digest run on the final head was cancelled by the orchestrator** in favour of the two reviewers' differentials and a `mesh`-only digest against the integrated head.
-- **Main moved under the unit** by PR 7054 before the freeze, PR 7041 during the fix pass and about 2,500 commits during the outage, PR 7198 among them, which overlapped the second MAJOR's cure.
+- **Main moved under the unit** by PR 7054 before the freeze, PR 7041 during the fix pass and about 2,500 commits during the outage, PR 7198 among them, which overlapped the second MAJOR's cure. It moved once more after this row was first committed: the orchestrator merged it (no textual conflict, nothing under `crates/mesh`), type-checked `mesh` on the result, and amended this row so that it stays the last commit.
 - **The implementer was told not to open the PR and not to wait on hosted CI.** Either arm would have been briefed the same.
 - No other relaxation. The reviewers read the PR description and the check runs, PR 7198's description for the second delta, and nothing else of any thread.

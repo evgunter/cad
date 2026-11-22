@@ -1,0 +1,10 @@
+ISO-RUN-DENSITY lane, progress note 1 (stage 1, nothing built yet beyond throwaway probes).
+
+Read: CLAUDE.md, implementer-discipline, the two memories, the unit file, 4c's Closed section, [mesh.sizing]. Branch tesslane/iso-run-density checked out at de1ed37d38.
+
+Instrument (env-gated, does not ship): a log line per curved face from tessellate::route_of (route + whether every loop edge's stored image is on an iso line: Harmonic with a still channel, IsoLine, IsoArc) and per chart-lane face (triangles, lattice laid, attempts, worst cert, and two computed references: the rectangle lane's count on the face's bounding iso-rectangle, and its sum over the iso-rectangles the face cuts into along lines through its corners).
+
+First census, mesh suite only (546 tests, measured): the route's Trim::Read branch is the class, and it is reached ONLY by cylinder walls and sphere faces. 27 tests reach it; the sphere is one test (reach_probes' notched sphere row). Two corrections to the spec already:
+- my first iso predicate (`!is_non_iso_form`) was wrong: a tilted plane's section of a cylinder is a Harmonic image too (v a sinusoid), so m5_pr11's tilted walls showed as "all iso" and reach Trim::Read. So the Read branch is NOT only iso-bounded faces: it also takes a cylinder wall bounded by a tilted section stored as Harmonic. I have fixed the predicate (a still channel) and am re-running to split the two.
+- holed walls (rings, every loop iso) are a sibling the spec excludes by "no ring": they go Trim::Structural, same lattice, same headroom (reach_probes' bar-through pipe; a_ring_stored_a_period_away). I will report them beside the class.
+Running now: the census over mesh + sweep + step-import with the fixed predicate (tour after). Then the density table on a corpus of notched walls (widths, depths, across/beside the seam, two notches) and wedged balls (through, beside a pole; across/beside the seam), axis and oblique, δ 0.1..0.001. Cure switches (δ target, rows off, refine centroid / widest-edge split, held iso lines, aligned lattice) are written, not yet run. Next note with the census.
