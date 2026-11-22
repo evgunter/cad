@@ -327,6 +327,56 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
     r_max
 }
 
+/// **Whether the profile lies to the axis's LEFT** (`r < 0`), the side
+/// the module's frame does not sweep from: the sign of `r_hi + r_lo`,
+/// the profile's greatest and least signed radial coordinates.
+///
+/// The axis line and the signed angle fix the revolve whichever side
+/// the profile is on: a turn by θ about `d̂` is the turn by `−θ` about
+/// `−d̂`, which puts a left-side profile on the right. So the side
+/// selects the frame and is never a refusal: a profile wholly on either
+/// side has `|r_hi + r_lo| ≥ r_max`, definite; a profile that reaches
+/// both sides is refused by [`classify_loop`] in whichever frame it is
+/// read, so an undecided side keeps the authored frame and lets that
+/// classification name the crossing.
+///
+/// `r_hi` and `r_lo` fold every vertex and, per arc, its circle's
+/// greatest (least) radial point where the arc holds it ([`turn_past`]),
+/// comparison-free: the candidate enters as the arc's start value moved
+/// by its distance from it, signed by the membership margin, so an
+/// off-arc candidate moves the wrong way and never wins.
+pub(super) fn lies_left<T: Decide>(
+    profile: &ValidatedProfile<T>,
+    frame: &AxisFrame<T>,
+    band: Band,
+) -> bool {
+    let e_r = frame.e_r();
+    let mut extremes: Option<(T, T)> = None;
+    for lp in profile.loops() {
+        for s in lp.segments() {
+            let at = frame.r(s.start);
+            let (mut hi, mut lo) = extremes.map_or((at, at), |(hi, lo)| (hi.max(at), lo.min(at)));
+            if let SegmentKind::Arc { arc, turn } = s.kind {
+                let reach = |toward: Vec2<T>| {
+                    let p = arc.centre + toward * arc.radius;
+                    let held = T::zero() - turn_past(s.start, arc, turn, toward);
+                    (frame.r(p) - at).abs().copysign(held)
+                };
+                hi = hi.max(at + reach(e_r));
+                lo = lo.min(at - reach(e_r * (T::zero() - T::one())));
+            }
+            extremes = Some((hi, lo));
+        }
+    }
+    let Some((hi, lo)) = extremes else {
+        return false;
+    };
+    matches!(
+        decide("revolve_profile_side", Margin::of(hi + lo), band),
+        Ok(Sign::Negative)
+    )
+}
+
 /// A vertex's axis-contact class (swept order).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct VertexClass<T: Real> {

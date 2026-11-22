@@ -7,10 +7,14 @@
 //!   `origin + dir·t`. With `d̂ = dir/|dir|` and `ê_r = (d̂.y, −d̂.x)`,
 //!   every sketch point gets a signed **radial coordinate**
 //!   `r(p) = (p − origin)·ê_r = (p − origin).perp_dot(d̂)` and an axial
-//!   coordinate `z(p) = (p − origin)·d̂`. The profile must lie in the
-//!   closed half-plane `r ≥ 0` (the half-plane check: a definite `r < 0`
-//!   anywhere is a typed error; the sliver band is a typed error too —
-//!   micro-radius revolve is a genuine sliver).
+//!   coordinate `z(p) = (p − origin)·d̂`. The profile may lie on either
+//!   side of the axis line: one wholly at `r ≤ 0` revolves as the same
+//!   turn about the reversed axis (`−d̂`, `−θ`), which puts it at
+//!   `r ≥ 0`, so everything below reads the profile in the closed
+//!   half-plane `r ≥ 0` (the half-plane check: a definite `r < 0`
+//!   anywhere is then a profile across the axis, a typed error; the
+//!   sliver band is a typed error too — micro-radius revolve is a
+//!   genuine sliver).
 //! - **Angle.** [`Revolution::Partial`] carries a **signed** angle θ in
 //!   radians, right-hand rule about the world axis direction
 //!   `a₃ = place·d̂`; `|θ|` must classify definitely inside `(0, 2π)`
@@ -160,8 +164,8 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
 pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::rows::WALL_COSURFACE;
 
 /// The revolve axis: a line in **sketch coordinates** (module docs).
-/// The profile must lie in the closed half-plane `r ≥ 0`, where `r` is
-/// the signed radial coordinate `(p − origin).perp_dot(dir/|dir|)`.
+/// The profile lies wholly on one side of it, either side; `dir` and
+/// the sign of a partial angle together say which way it turns.
 #[derive(Clone, Copy, Debug)]
 pub struct RevolveAxis<T: Real> {
     /// A point on the axis, sketch-plane meters.
@@ -596,8 +600,9 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// A profile vertex lies definitely on the negative-`r` side of the
-    /// axis (the half-plane check).
+    /// A profile vertex lies definitely on the other side of the axis
+    /// from the profile's widest reach: the profile crosses the axis
+    /// (the half-plane check).
     VertexCrossesAxis {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -924,17 +929,17 @@ impl RevolveError {
                     source.lever_ending(geom_core::COINCIDENCE_RECOURSE)
                 )
             ),
-            // Definite at ANY magnitude (r = -0.5 fires this same arm),
-            // so the coincidence levers are offered conditionally — the
-            // unconditional fix is to move the profile off the negative
-            // side.
+            // Definite at ANY magnitude, so the coincidence levers are
+            // offered conditionally — the unconditional fix is to move
+            // the profile to one side.
             Self::VertexCrossesAxis {
                 loop_index,
                 vertex_index,
             } => write!(
                 f,
-                "profile loop {loop_index} vertex {vertex_index} lies definitely across the \
-                 revolve axis, and a revolve never carries material through its axis. \
+                "profile loop {loop_index} vertex {vertex_index} lies definitely on the other \
+                 side of the revolve axis from the profile's widest reach, so the profile \
+                 crosses the axis, and a revolve never carries material through its axis. \
                  Recourse: move the profile to one side of the axis; if the vertex should \
                  sit exactly on the axis, {}",
                 geom_core::COINCIDENCE_RECOURSE
@@ -1165,7 +1170,25 @@ pub(crate) fn revolve_construction<T: Decide + topo::AtRestPolicy>(
     if profile.loops().is_empty() {
         return Err(RevolveError::EmptyProfile);
     }
-    let frame = axis::AxisFrame::build(*profile.plane(), &axis, band)?;
+    let authored = axis::AxisFrame::build(*profile.plane(), &axis, band)?;
+    // ---- The side (module docs: axis): a profile to the axis's left
+    // revolves as the same turn about the reversed axis. ----
+    let (frame, revolution) = if axis::lies_left(profile, &authored, band) {
+        let reversed = RevolveAxis {
+            origin: axis.origin,
+            dir: Vec2::new(T::zero() - axis.dir.x, T::zero() - axis.dir.y),
+        };
+        let revolution = match revolution {
+            Revolution::Full => Revolution::Full,
+            Revolution::Partial(t) => Revolution::Partial(T::zero() - t),
+        };
+        (
+            axis::AxisFrame::build(*profile.plane(), &reversed, band)?,
+            revolution,
+        )
+    } else {
+        (authored, revolution)
+    };
 
     // ---- Angle classification (module docs), metered at the
     // profile's maximum radial extent (the named lever arm). ----
