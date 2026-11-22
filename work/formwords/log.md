@@ -54,3 +54,19 @@ adjacent P2 `no-viewer-row-re-points-a-live-nodes-read`), and
 
 Not taken: the circle-split pair and the other P2–P4 rows (sitting
 rule: P0 and P1 only).
+
+## 2026-11-22 — two forks weighed
+
+(FORMWORDS orchestrator)
+- **Plane door.** The two designers agreed: a plane or axis is a pose
+  variable with one definition editor, anonymous at its reader and
+  named to share, with `VarDecl` gaining a pose arm. One factual split
+  between them: one designer said `VarDecl` already takes a pose. It
+  does not (`crates/editor-core/src/var.rs`), and the other designer's
+  reading stands. The design is put to Ev on `[ev]` 7367. The build
+  waits for Ev's answer on the approach, and it stacks on the
+  mirror-plane lane, since both reshape `SessionOp::AddMirror`'s plane.
+- **Projected split.** Both designers found the premise retired, so the
+  row is closed, not put to Ev (its Closed section has the evidence).
+  The residue is two existing rows on DOORS and CHROME; this log
+  records the order they should land in.
