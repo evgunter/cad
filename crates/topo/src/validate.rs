@@ -14852,6 +14852,72 @@ mod tests {
         }
     }
 
+    /// **A lone-vertex ring standing on its face's outer loop meets
+    /// it**: the unit cube's top cap with a strut planted from its first
+    /// corner and killed by `kemr`, so its tip is the ring's one vertex,
+    /// set once on the interior of the top's far `y = 1` edge and once
+    /// on the top's corner diagonally opposite the strut's root. Each is
+    /// a `RingMeetsOuter` naming the lone vertex, in the contact shape
+    /// it stands in.
+    #[test]
+    fn check_9_refuses_a_lone_vertex_ring_on_its_outer_loop() {
+        let tol = Tol::witness();
+        let t = crate::test_support_fixtures::geometric_cube::<f64>(tol);
+        let root = t.body.get_half_edge(t.mefs[1].he_plus).unwrap().start;
+        let r = vertex_point(&t.body, root).unwrap();
+        assert_eq!(r.z, 1.0, "the strut is rooted on the top cap");
+        let far = (1.0 - r.x, 1.0 - r.y);
+        for (name, at, on_edge) in [
+            ("on an edge", Point3::new(0.5, far.1, 1.0), true),
+            ("on a corner", Point3::new(far.0, far.1, 1.0), false),
+        ] {
+            let mut body = t.body.clone();
+            let strut = body
+                .mev_line(
+                    MevSite::Fan {
+                        he1: t.mefs[1].he_plus,
+                        he2: t.mefs[1].he_plus,
+                    },
+                    at,
+                    tol,
+                )
+                .unwrap();
+            let face = body
+                .get_loop(body.get_half_edge(strut.he_plus).unwrap().parent_loop)
+                .unwrap()
+                .face;
+            let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+            let LoopBoundary::Empty { vertex: lone } = body.get_loop(kill.ring).unwrap().boundary
+            else {
+                panic!("{name}: the strut's kemr leaves a lone-vertex ring")
+            };
+            plane_every_face(&mut body, tol);
+            match &check_9_words(&body, tol)[..] {
+                [
+                    ValidationError::RingMeetsOuter {
+                        face: f,
+                        ring,
+                        contact,
+                    },
+                ] => {
+                    assert_eq!((*f, *ring), (face, kill.ring), "{name}: the face and ring");
+                    if on_edge {
+                        assert!(
+                            matches!(contact, RingContact::VertexOnEdge { ring_vertex, .. } if *ring_vertex == lone),
+                            "{name}: the lone vertex on an edge's interior: {contact:?}"
+                        );
+                    } else {
+                        assert!(
+                            matches!(contact, RingContact::Vertex { ring_vertex, .. } if *ring_vertex == lone),
+                            "{name}: the lone vertex on a corner: {contact:?}"
+                        );
+                    }
+                }
+                got => panic!("{name}: one RingMeetsOuter: {got:?}"),
+            }
+        }
+    }
+
     /// Two squares meeting at a corner, walked as a figure eight, on
     /// the unit cylinder's wall, `u` the azimuth and `v` the height: a
     /// lamina whose wall face's one loop passes `(u, v) = (1, 0)` twice,
