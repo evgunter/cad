@@ -79,3 +79,12 @@ and the model comparison apply.
   `a-check-…`), a node named to a person (`a-node-name-…` with VNEWS'
   `the-viewer-spells-a-node-as-its-kind-before-its-name`), and the
   certify control.
+
+**Dispatched 2026-11-22.** Implementers: `cascade-delete-shows-the-strand-count` on `offer/cascade-delete-shows-the-strand-count`, `the-viewer-has-no-guide-to-its-controls` on `offer/the-viewer-has-no-guide-to-its-controls` (draws on `analysis/model-compare/offer-2026-11-22`). Designers, two per fork, concurrently and blind to each other, with problem statements only: `offer-an-actionable-recourse`, `offer-a-node-named-to-a-person`, `offer-the-certify-control` (draws on `analysis/design-fork/<fork>`). Coupling notes left on VNEWS' and CHROME's logs.
+
+**2026-11-22: three `[ev]` PRs are open.** Each one waits for Ev:
+- names: #7339, on `offer/names-design`;
+- certify: #7340, on `offer/certify-design`;
+- offer: #7341, on `offer/offer-design`.
+
+The design-fork rows are 297, 298 and 299. Their second commit (Ev's decision, and the label→model mapping from `analysis/design-fork/offer-*`) lands on each PR once Ev answers. The designers' full reports and round replies are in `~/.local/share/cad-work/offer-briefs/reports/`, which is this container only. The rows hold what moved in each round.
