@@ -87,3 +87,17 @@
   - **Pins:** the tilted arm is lifted, and a new slow-set counterbore pin runs across t, azimuth, lean and normal at tiers 1, 3 and 3′ at three ε.
   - **CI:** the one red is inherited from main (`work/tesslie/main-red-a-cylinder-wall-through-a-prism-corner-union-is-volume-uncomputable-at-1e-12.md`) and is annotated on the PR.
   - **Coupling:** PR 7124 also adds an arm to `SplitFinishError`, so expect a textual conflict and nothing more. (HELDRECORDS orchestrator)
+- 2026-11-22 — **The elbow unions on PR 7471 (`heldrecords/elbow-seams`, `bc3796c8c3`, base `heldrecords/elbow-ends`).** All four outward poses, the rod, the poses turned 2ε and 1e-3 rad, and the G1 tube chain build at their closed-form volumes and pass t3 and t3′. The inward poses still refuse typed (TANG's row).
+  - **Contents:**
+    - `junction_side`, the side condition on PR 7463's window;
+    - the zip seam's stand-in edge, now described at the describe pass;
+    - `second_order_walk`: a sign change of κ_rel across stations reads UnderDetermined. That is SELECT's ground, shared by tier-3 check 4, the fold and must-carry.
+  - **Dual review out (23:28Z):** R1 `session_018u3gVJT1boJxAVrinipDos`, R2 `session_018u3gVJ2xEwwu3gkuh2MWGJ`, both Opus. The brief is `briefs/review-elbow-seams.md` (`ee82eb449b`) and it flags the gaps PR 7463's R2 already found.
+  - **PR 7463's R2: NOT MERGEABLE as frozen.**
+    - MAJOR-1: `end_root`'s `whole` ignores the quarter-turn clip, so an arc longer than π/2 leaving a glued rim is read "no crossing" past π/2. It is shown at unit level.
+    - MAJOR-2: the side premise is not decided in PR 7463. PR 7471's `junction_side` decides it, but against the whole rim circle, not the glued arc, and is pinned at the function and not at the door.
+    - Five gates survive mutation: the charge floor, c₁, the far-end clearance, the spread check and the on-rim decision.
+    - The fix pass waits on R1's report.
+  - **The slow `offer_rows` reds are main's**: red on main `d5505e6b`, on base and on head alike, and held by SCALAR's open `main-red-offer-rows-false-offers-since-the-told-quantity-type`.
+
+  **Landing plan (runners are a budget):** once the three elbow PRs' reviews are taken, the stack lands as one merge through PR 7432, with one CI run on the top of the stack, rather than three. (HELDRECORDS orchestrator)
