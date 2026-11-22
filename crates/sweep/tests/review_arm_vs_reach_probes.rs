@@ -269,10 +269,9 @@ fn review_curved() {
     // (`work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`).
     let straddle = " census=curve_pair_span_past_reach_straddle";
     report(bad, |b| {
-        let main = b.contains(" c=-")
-            && b.contains("∪")
-            && b.contains("t3p=false")
-            && b.ends_with(" census=none");
+        let below = b.contains(" c=-");
+        let main =
+            below && b.contains("∪") && b.contains("t3p=false") && b.ends_with(" census=none");
         let srec = b.contains("surviving record with an On code after srecledges");
         let vertex = (b.starts_with("r=0.05 c=0.05 ") && b.contains(" θ=0.0001: "))
             || (b.starts_with("r=0.05 c=-0.05 ") && b.contains(" θ=-0.0001: "));
@@ -280,7 +279,15 @@ fn review_curved() {
             && (b.contains("∪") || b.contains("B ∖ A"))
             && b.contains("t3p=false")
             && b.ends_with(straddle);
-        main || srec || shared
+        // At 1e-6 the same straddle reaches both discs' crossings within
+        // 1e-3 rad of the edge, where the boss bends into the disc.
+        let into = (crossing(b, "") && !below) || (crossing(b, "-") && below);
+        let coarse = at_coarse_band()
+            && into
+            && (b.contains("∪") || b.contains("B ∖ A"))
+            && b.contains(": OK BAD t2=true t3p=false cert=true operand=true ")
+            && b.ends_with(straddle);
+        main || srec || shared || coarse
     });
 }
 
@@ -320,12 +327,32 @@ fn review_curved_plate() {
     // shared vertex at θ = 1e-4: the union fails tier 3′ on the census's
     // `curve_pair_span_past_reach_straddle`, as `review_curved` does
     // (`work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`).
+    let straddle = " census=curve_pair_span_past_reach_straddle";
     report(bad, |b| {
-        b.starts_with("plate r=0.05 lb=0.04 θ=0.0001: ")
+        let vertex = b.starts_with("plate r=0.05 lb=0.04 θ=0.0001: ")
             && b.contains("∪")
             && b.contains("t3p=false")
-            && b.ends_with(" census=curve_pair_span_past_reach_straddle")
+            && b.ends_with(straddle);
+        // At 1e-6, as in `review_curved`.
+        let coarse = at_coarse_band()
+            && crossing(b, "")
+            && b.contains("∪")
+            && b.contains(": OK BAD t2=true t3p=false cert=true operand=true ")
+            && b.ends_with(straddle);
+        vertex || coarse
     });
+}
+
+/// Whether a failure line's crossing angle is `sign`1e-4 or `sign`1e-3.
+fn crossing(b: &str, sign: &str) -> bool {
+    b.contains(&format!(" θ={sign}0.0001: ")) || b.contains(&format!(" θ={sign}0.001: "))
+}
+
+/// Whether this run is the 1e-6 row, where the census's straddle on the
+/// disc's arc and the boss's edge reaches more poses than at the default
+/// (`work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`).
+fn at_coarse_band() -> bool {
+    test_utils::kernel_limit::at_row(tol().eps(), &[1e-6])
 }
 
 /// Near-coplanar: the boss's slab turned by `φ` about `x` or `y` through
