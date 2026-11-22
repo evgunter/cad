@@ -81,6 +81,15 @@ impl RoleRead {
     }
 }
 
+/// **A mate's side as its `repr` says it**: the read, or the
+/// `RoleRead` it is where it reads through a role.
+pub(crate) fn side_repr(side: &Read<d::Operand>) -> String {
+    match side.role {
+        None => side.read.to_string(),
+        Some(role) => format!("RoleRead({}, {:?})", side.read, role_word(role)),
+    }
+}
+
 /// **A mate's side as Python reads it back**: a `PoseDef` read plainly,
 /// a `RoleRead` read through a role.
 pub(crate) fn side_object(py: Python<'_>, side: &Read<d::Operand>) -> PyResult<Py<PyAny>> {

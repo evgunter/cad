@@ -3612,13 +3612,22 @@ impl DocSession {
             self.tol,
         )
         .map_err(|e| SketchTraceFault::Picked(Arc::new(Refusal::Edit(Box::new(e)))))?;
-        let landed = pncad::document::evaluate(
+        let mut landed = pncad::document::evaluate(
             &scratch,
             Some(ev),
             &pncad::document::CancelToken::new(),
             &self.eval_options(),
             self.tol,
         );
+        // A datum that does not place (the face is no plane) refuses in
+        // its own words, the words the committed profile's badge says.
+        if landed.node_error(datum).is_some()
+            && let Some(pncad::document::NodeResult::Failed(refused)) = landed.nodes.remove(&datum)
+        {
+            return Err(SketchTraceFault::Trace(Arc::new(
+                pncad::trace::SketchTraceError::Read(Box::new(refused.kind)),
+            )));
+        }
         let half = TRACE_WINDOW_MARGIN * body_reach(ev, face.node).unwrap_or(1.0);
         pncad::trace::sketch_trace(
             &scratch,

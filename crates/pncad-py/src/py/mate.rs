@@ -133,8 +133,8 @@ impl Mate {
     fn __repr__(&self) -> String {
         format!(
             "Mate(on={}, to={}, orient={})",
-            self.0.on,
-            self.0.to,
+            super::pose::side_repr(&self.0.on),
+            super::pose::side_repr(&self.0.to),
             Orientation(self.0.orient).__repr__()
         )
     }

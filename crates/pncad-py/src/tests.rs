@@ -5253,6 +5253,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_kinds_differ",
             "mate_no_chart",
             "mate_not_on_the_copy",
+            "mate_not_the_datums_own",
             "mate_overconstrained",
             "mate_poses_of_another_document",
             "mate_side_unevaluated",
