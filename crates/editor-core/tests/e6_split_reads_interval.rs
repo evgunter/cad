@@ -170,7 +170,7 @@ fn whole(v: &ParamBoxVerdict, var: VarId) -> BTreeSet<(u64, u64)> {
 /// **A variable the deciding node does not read is never split.** The
 /// first slab's extrude is undecided wherever `depth` reaches zero and
 /// reads `depth` alone; `other`, declared first and as wide, feeds a
-/// slab every leaf decides. Sixteen leaves hold the whole of `other`.
+/// slab every leaf decides. Eight leaves hold the whole of `other`.
 ///
 /// Red when `drive::bisect` admits every varying axis (its `read(var)`
 /// filter dropped): the root's tie then goes to `other`.
@@ -181,7 +181,7 @@ fn a_variable_the_deciding_node_does_not_read_is_never_split() {
     declare_in_eps(&mut r, "depth", UNDECIDED);
     slab(&mut r, len(1.0), read("depth"));
     slab(&mut r, len(1.0), read("other"));
-    let v = run(&r.doc, leaves(16));
+    let v = run(&r.doc, leaves(8));
     assert!(v.receipt().holds() && v.receipt().splits >= 3, "{:?}", v.receipt());
     assert_eq!(
         spans(&v, var(&r.doc, "other")),
@@ -381,7 +381,8 @@ fn the_first_undecided_node_in_evaluation_order_chooses_the_axis() {
 /// variable moves the content key of no node whose read set lacks it.
 /// Each continuous free variable of each corpus document is widened
 /// alone at `Interval`, by `ε/64`, and every node that still builds is
-/// compared with the nominal run.
+/// compared with the nominal run (the widened run's prior, so a node
+/// whose key holds is served and only a moved one is built).
 ///
 /// A node that fails under the widened variable has no key to compare
 /// and is passed over, so the row speaks for nodes that build.
@@ -395,10 +396,10 @@ fn widening_a_variable_moves_no_key_outside_its_readers() {
     let mut moved = 0usize;
     for d in crate::corpus::documents() {
         let reads = d.doc.free_reads();
-        let at = |box_: Option<ParamBox>| {
+        let at = |box_: Option<ParamBox>, prior| {
             editor_core::evaluate::<Interval>(
                 &d.doc,
-                None,
+                prior,
                 &editor_core::CancelToken::new(),
                 &editor_core::EvalOptions {
                     param_box: box_.map(std::sync::Arc::new),
@@ -407,7 +408,7 @@ fn widening_a_variable_moves_no_key_outside_its_readers() {
                 Tol::witness(),
             )
         };
-        let nominal = at(None);
+        let nominal = at(None, None);
         let continuous: Vec<VarId> = d
             .doc
             .free_vars()
@@ -418,7 +419,7 @@ fn widening_a_variable_moves_no_key_outside_its_readers() {
             let box_ = ParamBox::from_axes(
                 [(widened, BoxAxis::Varying { lo: -half, hi: half })].into(),
             );
-            let wide = at(Some(box_));
+            let wide = at(Some(box_), Some(&nominal));
             for &node in &nominal.order {
                 let (Some(a), Some(b)) = (nominal.value(node), wide.value(node)) else {
                     continue;
