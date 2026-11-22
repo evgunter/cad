@@ -82,8 +82,14 @@ fn whole_ray(
 ) -> Result<(), String> {
     let material = |p: Point3<f64>| robust(truth, p, clear).map(|m| m != inside_out);
     let orders = [(0, false), (3, true)].map(|order| {
-        topo::test_support::ray_counts(body, face, &geom::Ray::new(q, geom::stated_direction(d)), band, order)
-            .map(|hits| clusters(hits, 2.0 * clear))
+        topo::test_support::ray_counts(
+            body,
+            face,
+            &geom::Ray::new(q, geom::stated_direction(d)),
+            band,
+            order,
+        )
+        .map(|hits| clusters(hits, 2.0 * clear))
     });
     let counts = |r: &Read| {
         r.as_ref()

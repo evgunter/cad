@@ -965,7 +965,10 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     let cases: Vec<Row> = vec![
         (
             "honest line",
-            Curve3::Line(geom::Line { origin: o, dir: geom::stated_direction(x) }),
+            Curve3::Line(geom::Line {
+                origin: o,
+                dir: geom::stated_direction(x),
+            }),
             None,
         ),
         (
@@ -979,7 +982,10 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         ),
         (
             "line, NaN origin and infinite dir squared",
-            Curve3::line(Point3::new(nan, 0.0, 0.0), geom_core::UnitVec3::squared(Vec3::new(inf, 0.0, 0.0))),
+            Curve3::line(
+                Point3::new(nan, 0.0, 0.0),
+                geom_core::UnitVec3::squared(Vec3::new(inf, 0.0, 0.0)),
+            ),
             Some(V::Poisoned(vec![D::Origin, D::Dir])),
         ),
         ("honest circle", circle(o, z, 1.0, x), None),
@@ -1094,7 +1100,10 @@ fn the_carrier_poison_read_reads_every_scalar() {
         // stated, so their datums read the squared axes, not the
         // builder's scalars; every other datum reads its scalars as given.
         let frame = |d: geom::CurveDatum| {
-            matches!(d, geom::CurveDatum::Axis | geom::CurveDatum::URef | geom::CurveDatum::Dir)
+            matches!(
+                d,
+                geom::CurveDatum::Axis | geom::CurveDatum::URef | geom::CurveDatum::Dir
+            )
         };
         assert_eq!(
             walked.len(),
@@ -1883,7 +1892,11 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
     let (carrier, t0, t1) = match kind {
         Carrier::Segment => {
             let len = p0.distance(p1);
-            (geom::Curve3::line(p0, geom::stated_direction((p1 - p0) / len)), 0.0, len)
+            (
+                geom::Curve3::line(p0, geom::stated_direction((p1 - p0) / len)),
+                0.0,
+                len,
+            )
         }
         // θ = 0 is placed at the start point and the axis is chosen so
         // that `v_ref = axis × u_ref` points at +x: the half turn from

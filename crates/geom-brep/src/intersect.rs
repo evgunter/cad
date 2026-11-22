@@ -110,9 +110,9 @@
 //! PR 9 builds those; consumers here must refuse to construct from
 //! them (the split/boolean lanes do, typed).
 
-use geom_core::UnitVec3;
 use geom::Surface;
 use geom::{Curve3, EllipseInvalid, Frame, SpiricInvalid, SquareFrame, SurfaceKind};
+use geom_core::UnitVec3;
 use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use geom_core::k_stats::{decide_across, decide_across_reported};

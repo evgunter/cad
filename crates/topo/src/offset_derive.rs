@@ -17,9 +17,9 @@
 //! cylinder's radius change beside a cap across its axis. There the
 //! door transports, at every scalar; everywhere else it derives.
 
-use geom_core::UnitVec3;
 use core::cell::OnceCell;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+use geom_core::UnitVec3;
 use std::collections::BTreeMap;
 
 use geom_brep::ChartedNurbs;
@@ -1889,7 +1889,10 @@ mod regions {
     #[test]
     fn a_corner_region_refuses_by_the_corner() {
         let wall = net(&|i, j| 0.5 * (i + j) as f64);
-        let old = Curve3::line(Point3::origin(), geom_core::UnitVec3::constructed(Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt()));
+        let old = Curve3::line(
+            Point3::origin(),
+            geom_core::UnitVec3::constructed(Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt()),
+        );
         let got = plane_wall_section(
             &ground(),
             Wall {

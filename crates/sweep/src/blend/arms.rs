@@ -84,10 +84,10 @@
 //! [`super::BlendError::SpineUnsupported`], which names that banked
 //! unit as the front door that does not exist yet.
 
-use geom_core::UnitVec3;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::SurfaceSide;
+use geom_core::UnitVec3;
 use geom_core::{Circles, Point3, Real, Vec3};
 
 use super::battery::{Convexity, ball_side, sided, signed};
@@ -1124,7 +1124,8 @@ impl<T: Real> Meridian<T> {
             } => {
                 let (apex, axis) = (frame.origin(), frame.axis());
                 let (sin_a, cos_a) = half_angle.sin_cos();
-                let nappe = ((self.rim - apex).dot(axis) * axis.dot(self.axis.dir.get())).unit_sign();
+                let nappe =
+                    ((self.rim - apex).dot(axis) * axis.dot(self.axis.dir.get())).unit_sign();
                 Some((
                     SupportTrace::Straight {
                         normal: radial * cos_a - self.axis.dir.get() * (nappe * sin_a),
@@ -1555,7 +1556,11 @@ pub fn chamfer_frustum<T: Real>(
     };
     EdgeBlend {
         surface: Surface::Cone {
-            frame: geom::Frame::new(apex, k.get() * (foot_a - apex).dot(k.get()).unit_sign(), radial),
+            frame: geom::Frame::new(
+                apex,
+                k.get() * (foot_a - apex).dot(k.get()).unit_sign(),
+                radial,
+            ),
             half_angle: (g_r.abs() / g.norm()).asin(),
         },
         spine_curvature: T::zero(),

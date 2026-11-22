@@ -78,10 +78,7 @@ impl<T: Real> AxisLine<T> {
     /// origin's foot on that line ([`geom::Line::foot`]).
     #[must_use]
     pub fn through(point: Point3<T>, dir: UnitVec3<T>) -> Self {
-        let line = geom::Line {
-            origin: point,
-            dir: dir,
-        };
+        let line = geom::Line { origin: point, dir };
         Self {
             foot: line.foot(Point3::origin()),
             dir,

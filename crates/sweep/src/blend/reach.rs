@@ -1030,7 +1030,7 @@ fn straight_reach<T: Decide + Bounds>(
 ) -> Result<Stretch<T>, BlendError> {
     let start = point_of(body, link.start)?;
     let end = point_of(body, link.end)?;
-    let tau = UnitVec3::squared((end - start));
+    let tau = UnitVec3::squared(end - start);
     let q = st.inside();
     let mut cross = Vec::new();
     let mut sides = Vec::new();
@@ -1222,7 +1222,13 @@ fn straight_reach<T: Decide + Bounds>(
                     d: -(s0 + lo),
                 },
             ),
-            (Role::Other, Bound::Affine { n: tau.get(), d: s0 + hi }),
+            (
+                Role::Other,
+                Bound::Affine {
+                    n: tau.get(),
+                    d: s0 + hi,
+                },
+            ),
         ]
     };
     let w_lo = ends[0].2.min(ends[1].2);
@@ -3265,7 +3271,8 @@ fn same_sheet<T: Bounds>(a: &Stretch<T>, b: &Stretch<T>) -> bool {
 /// Whether two sheet frames are one and the same, bit for bit.
 fn same_frame<T: Bounds>(x: geom::Line<T>, y: geom::Line<T>) -> bool {
     let bits = |geom::Line { origin: o, dir: a }: geom::Line<T>| {
-        [o.x, o.y, o.z, a.get().x, a.get().y, a.get().z].map(|v| (v.lo().to_bits(), v.hi().to_bits()))
+        [o.x, o.y, o.z, a.get().x, a.get().y, a.get().z]
+            .map(|v| (v.lo().to_bits(), v.hi().to_bits()))
     };
     bits(x) == bits(y)
 }
@@ -3467,7 +3474,11 @@ mod tests {
     fn leaning<T: geom_core::Real>(t: f64) -> geom::Line<T> {
         geom::Line {
             origin: Point3::new(T::zero(), T::zero(), T::zero()),
-            dir: geom_core::UnitVec3::constructed(Vec3::new(T::from_f64(t.sin()), T::zero(), T::from_f64(t.cos()))),
+            dir: geom_core::UnitVec3::constructed(Vec3::new(
+                T::from_f64(t.sin()),
+                T::zero(),
+                T::from_f64(t.cos()),
+            )),
         }
     }
 
@@ -3908,7 +3919,10 @@ mod tests {
                                     read!(sheet_clip(
                                         &body,
                                         f,
-                                        geom::Line { origin: o, dir: geom::stated_direction(a) },
+                                        geom::Line {
+                                            origin: o,
+                                            dir: geom::stated_direction(a)
+                                        },
                                         band
                                     )),
                                 ),
@@ -3994,7 +4008,15 @@ mod tests {
                     for (scalar, clip) in [
                         (
                             "f64",
-                            read!(sheet_clip(&body, f, geom::Line { origin: o, dir: geom::stated_direction(a) }, band)),
+                            read!(sheet_clip(
+                                &body,
+                                f,
+                                geom::Line {
+                                    origin: o,
+                                    dir: geom::stated_direction(a)
+                                },
+                                band
+                            )),
                         ),
                         (
                             "Interval",
@@ -4156,7 +4178,10 @@ mod tests {
                     };
                     for s in [cylinder, plane] {
                         for (lo, hi) in boxes {
-                            let axis = geom::Line { origin: o, dir: geom_core::UnitVec3::constructed(a) };
+                            let axis = geom::Line {
+                                origin: o,
+                                dir: geom_core::UnitVec3::constructed(a),
+                            };
                             let Some((g, slack)) = sheet_fn(&s, axis, (lo, hi)) else {
                                 continue;
                             };

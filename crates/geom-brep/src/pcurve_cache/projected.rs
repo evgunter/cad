@@ -3186,7 +3186,9 @@ pub(super) fn projected_envelope<T: Decide>(
                 geom::Line {
                     origin: o,
                     // `e[2]`, the twin's frame axis, as the witness it is.
-                    dir: twin.frame().map_or_else(|| UnitVec3::squared(e[2]), |f| f.axis_unit()),
+                    dir: twin
+                        .frame()
+                        .map_or_else(|| UnitVec3::squared(e[2]), |f| f.axis_unit()),
                 },
             ));
             let rho_floor = (rho_twin - d).max(T::zero());

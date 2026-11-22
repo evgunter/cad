@@ -62,7 +62,9 @@
 //! in band is a sliver and refuses ([`CarrierEqError::Undecided`]).
 
 use geom_core::ladder::{IdentityLadder, Kept};
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, UnitVec3, Vec3};
+use geom_core::{
+    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, UnitVec3, Vec3,
+};
 
 use geom_core::k_stats::decide_reported;
 
@@ -981,7 +983,8 @@ fn reading<T: Decide>(
         ) => {
             let apart = (p1 - p2).norm();
             let arm = reach.lever_from_within(p1, apart);
-            let core = apart + Margin::levered(line_tilt(a1.get(), a2.get()) + (t1 - t2).abs(), arm).value();
+            let core = apart
+                + Margin::levered(line_tilt(a1.get(), a2.get()) + (t1 - t2).abs(), arm).value();
             (CONE_REACH, core)
         }
         _ => return None,

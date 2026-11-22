@@ -38,9 +38,9 @@
 //! when it is carried. Over a tangent gap the components are one tangent
 //! component, a point where the pose is a touch.
 
-use geom_core::UnitVec3;
 use geom::cover::Cover;
 use geom::{Curve3, Surface};
+use geom_core::UnitVec3;
 use geom_core::k_stats::decide_reported;
 use geom_core::{
     Band, Circles, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Point3, Real, Sign,
@@ -261,7 +261,15 @@ impl<T: Decide> Ring<T> {
         );
         let axis = UnitVec3::squared(axis);
         let finite = [
-            center.x, center.y, center.z, axis.get().x, axis.get().y, axis.get().z, u_ref.x, u_ref.y, u_ref.z,
+            center.x,
+            center.y,
+            center.z,
+            axis.get().x,
+            axis.get().y,
+            axis.get().z,
+            u_ref.x,
+            u_ref.y,
+            u_ref.z,
         ]
         .into_iter()
         .all(geom_core::is_finite_length);
@@ -773,7 +781,8 @@ pub(super) fn sphere_torus<T: Decide>(
             }
         }
         StStance::Apart => {
-            let meridian = SphereMeridian::of(ring.center, ring.axis.get(), ring.big_r, pose.center);
+            let meridian =
+                SphereMeridian::of(ring.center, ring.axis.get(), ring.big_r, pose.center);
             let radii = ring.radii();
             match pose.gap {
                 TorusGap::Transverse => {

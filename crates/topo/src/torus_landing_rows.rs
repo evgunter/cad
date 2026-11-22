@@ -172,7 +172,10 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
             }
             let d = d.normalize();
             let got = line_torus_roots(
-                geom::Line { origin: o, dir: geom::stated_direction(d) },
+                geom::Line {
+                    origin: o,
+                    dir: geom::stated_direction(d),
+                },
                 geom::Line {
                     origin: center,
                     dir: geom::stated_direction(axis),

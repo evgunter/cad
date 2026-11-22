@@ -455,7 +455,10 @@ pub(crate) fn straight_map(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(
     if file.read(STEP_STRAIGHT_MAP, hull) != Read::Zero {
         return None;
     }
-    Some((Curve3::line_stated(plus_zero_point(first), plus_zero(dir)), hull))
+    Some((
+        Curve3::line_stated(plus_zero_point(first), plus_zero(dir)),
+        hull,
+    ))
 }
 
 /// An upper bound on `|p − q|`, rounded outward.
@@ -1512,7 +1515,15 @@ mod tests {
                         residual,
                         ..
                     } => (
-                        [origin.x, origin.y, origin.z, dir.get().x, dir.get().y, dir.get().z].map(f64::to_bits),
+                        [
+                            origin.x,
+                            origin.y,
+                            origin.z,
+                            dir.get().x,
+                            dir.get().y,
+                            dir.get().z,
+                        ]
+                        .map(f64::to_bits),
                         residual,
                     ),
                     other => panic!("weights [{w}; 3] at ε = {eps:e} must promote: {other:?}"),

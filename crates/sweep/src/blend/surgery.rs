@@ -3210,7 +3210,7 @@ fn strip_clearance<T: Decide + Bounds>(
         let t = point_of(body, chord.to)
             .ok_or_else(|| unresolved(EntityId::Vertex(chord.to), "a station's point"))?;
         let [x, y] = chord.feet;
-        let d = UnitVec3::squared((t - o));
+        let d = UnitVec3::squared(t - o);
         let m = geom::Line { origin: o, dir: d }.offset(x).normalize();
         let corners = [o, t, x, y];
         let along = |u: Vec3<T>| {
@@ -6976,7 +6976,10 @@ mod tests {
                 (1e-10, band),
                 (1e-7, Band::new(1e-6, 1e-5).expect("the band at ε 1e-6")),
             ] {
-                let below = Curve3::line(p(-0.2, -0.27), geom_core::UnitVec3::constructed(v(1.0, 0.0)));
+                let below = Curve3::line(
+                    p(-0.2, -0.27),
+                    geom_core::UnitVec3::constructed(v(1.0, 0.0)),
+                );
                 let w = (T::zero(), T::from_f64(0.2 - short));
                 close(
                     margin(&one, &below, w, band, "below"),

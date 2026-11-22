@@ -3974,7 +3974,7 @@ mod wiring {
     /// Red against: the narrowest pad read, and the boxes read unwidened.
     #[test]
     fn a_site_reads_the_widest_pad_of_its_widened_boxes() {
-        use geom_core::{Point3, Vec3};
+        use geom_core::Point3;
         let pad_box = |lo: f64, hi: f64, pad: f64| super::PadBox {
             lo: [lo, -1e-2, -1e-2],
             hi: [hi, 1e-2, 1e-2],

@@ -2539,8 +2539,9 @@ fn cone_v_range<T: Decide>(
             );
             let radius = circle.radius();
             let v_ref = ca.cross(u_ref);
-            let amp = ((u_ref.dot(axis.get()) * radius).powi(2) + (v_ref.dot(axis.get()) * radius).powi(2))
-                .sqrt()
+            let amp = ((u_ref.dot(axis.get()) * radius).powi(2)
+                + (v_ref.dot(axis.get()) * radius).powi(2))
+            .sqrt()
                 / cos_a;
             let c = v_of(center);
             (c - amp, c + amp)
@@ -2558,8 +2559,9 @@ fn cone_v_range<T: Decide>(
             );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = ca.cross(u_ref);
-            let amp = ((u_ref.dot(axis.get()) * semi_u).powi(2) + (v_ref.dot(axis.get()) * semi_v).powi(2))
-                .sqrt()
+            let amp = ((u_ref.dot(axis.get()) * semi_u).powi(2)
+                + (v_ref.dot(axis.get()) * semi_v).powi(2))
+            .sqrt()
                 / cos_a;
             let c = v_of(center);
             (c - amp, c + amp)
@@ -5198,7 +5200,10 @@ mod pose_reach_rows {
             ),
             half_angle: alpha,
         };
-        let edge = Curve3::line(Point3::new(2.0, -2.0, 0.0), geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)));
+        let edge = Curve3::line(
+            Point3::new(2.0, -2.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
+        );
         let tight = 8.0_f64.sqrt();
         let reach = span(&edge, (0.0, 4.0));
         assert!((reach.lever_from(Point3::origin()).length() - tight).abs() < 1e-12);
@@ -5634,7 +5639,7 @@ mod torn_body_rows {
 mod read_ends_rows {
     use geom::Curve3;
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
-    use geom_core::{Band, Point3, Tol, Vec3};
+    use geom_core::{Band, Point3, Tol};
 
     use super::{EdgePlan, ReplaceFaceError, read_ends};
     use crate::entity::{EdgeKey, VertexKey};

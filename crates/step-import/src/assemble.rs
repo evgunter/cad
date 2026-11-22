@@ -1142,7 +1142,7 @@ mod tests {
     #[test]
     fn the_tied_selfloop_door_refuses_a_strut_it_cannot_mint() {
         use geom::Curve3;
-        use geom_core::{Point3, Tol, Vec3};
+        use geom_core::{Point3, Tol};
 
         const SELF_LOOP: u64 = 10;
         const NEIGHBOUR: u64 = 20;

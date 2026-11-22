@@ -129,7 +129,13 @@ fn assert_frame(got: SectionLoop<f64>, centre: Point3<f64>, axis: Vec3<f64>, wha
         got.axis.origin
     );
     assert!(
-        got.axis.dir.get().normalize().cross(axis.normalize()).norm() <= eps,
+        got.axis
+            .dir
+            .get()
+            .normalize()
+            .cross(axis.normalize())
+            .norm()
+            <= eps,
         "{what}: axis {:?}, want {axis:?}",
         got.axis
     );

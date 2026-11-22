@@ -506,7 +506,12 @@ fn an_analytic_chart_reads_the_carrier_before_the_fitted_lane() {
         ),
         radius: 1.0,
     };
-    let line = |r: f64| Curve3::line(Point3::new(r, 0.0, 0.0), geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)));
+    let line = |r: f64| {
+        Curve3::line(
+            Point3::new(r, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        )
+    };
     let general = |r| {
         PcurveCache::certify_general(
             column_curve::<f64>(),

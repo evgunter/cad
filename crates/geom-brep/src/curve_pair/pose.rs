@@ -694,8 +694,8 @@
 
 mod window;
 
-use geom_core::UnitVec3;
 use geom::{Azimuth, Curve3, CurveKind};
+use geom_core::UnitVec3;
 use geom_core::k_stats::{Pick, choose, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};

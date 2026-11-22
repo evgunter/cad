@@ -153,8 +153,25 @@ impl Tally {
         let axis = torus_axis();
         let d = dir.normalize();
         self.checked += 1;
-        let got = line_torus_roots(geom::Line { origin: o, dir: geom::stated_direction(d) }, axis, rr, r, band());
-        let (oracle, gap) = oracle_roots(geom::Line { origin: o, dir: geom::stated_direction(d) }, axis, rr, r);
+        let got = line_torus_roots(
+            geom::Line {
+                origin: o,
+                dir: geom::stated_direction(d),
+            },
+            axis,
+            rr,
+            r,
+            band(),
+        );
+        let (oracle, gap) = oracle_roots(
+            geom::Line {
+                origin: o,
+                dir: geom::stated_direction(d),
+            },
+            axis,
+            rr,
+            r,
+        );
         match got {
             Ok(QuarticRoots::Certified(found)) => {
                 let (count, ts) = (found.count(), found.roots());
@@ -368,7 +385,10 @@ fn r1_the_hole_ray_certifies_exactly_four_roots() {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: geom::stated_direction(d),
         },
-        geom::Line { origin: c, dir: geom::stated_direction(a) },
+        geom::Line {
+            origin: c,
+            dir: geom::stated_direction(a),
+        },
         rr,
         r,
         band(),

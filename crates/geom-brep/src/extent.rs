@@ -65,9 +65,9 @@
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
 
-use geom_core::UnitVec3;
 use geom::cover::{Cover, ParamWindow, Site, Uncovered};
 use geom::{Conic, Curve3, Line};
+use geom_core::UnitVec3;
 use geom_core::spline::SpanLocate;
 use geom_core::{Lever, Point3, Real, Vec3, is_finite_length, poison};
 
@@ -134,8 +134,11 @@ pub fn surface_anchored_at<T: Real>(surface: &geom::Surface<T>, at: Point3<T>) -
             ));
         }
         geom::Surface::Cylinder { frame, .. } => {
-            *frame =
-                frame.with_origin(anchored_at(frame.origin(), Forgets::Axis(frame.axis_unit()), at));
+            *frame = frame.with_origin(anchored_at(
+                frame.origin(),
+                Forgets::Axis(frame.axis_unit()),
+                at,
+            ));
         }
         _ => {}
     }
@@ -1522,7 +1525,12 @@ mod tests {
             let beta = c.atan2(cos);
             let n = Vec3::new(cos, 0.0, c);
             let lever = face
-                .turn_lever(Point3::new(0.0, 0.0, 0.0), (n, geom::stated_direction(a)), c, cos)
+                .turn_lever(
+                    Point3::new(0.0, 0.0, 0.0),
+                    (n, geom::stated_direction(a)),
+                    c,
+                    cos,
+                )
                 .length();
             let want = c / (1.0 + cos);
             assert!(
@@ -1545,7 +1553,12 @@ mod tests {
             ExtentBall::point(Point3::origin()).lever(),
         );
         let lever = leaning
-            .turn_lever(Point3::origin(), (tilted, geom::stated_direction(tilted)), c, cos)
+            .turn_lever(
+                Point3::origin(),
+                (tilted, geom::stated_direction(tilted)),
+                c,
+                cos,
+            )
             .length();
         let want = c / (1.0 + cos);
         assert!(
@@ -1556,7 +1569,12 @@ mod tests {
         let n = Vec3::new(0.0, 0.0, 1.0);
         assert_eq!(
             measured
-                .turn_lever(Point3::new(0.0, 0.0, 0.0), (n, geom::stated_direction(a)), 1.0, 0.0)
+                .turn_lever(
+                    Point3::new(0.0, 0.0, 0.0),
+                    (n, geom::stated_direction(a)),
+                    1.0,
+                    0.0
+                )
                 .length(),
             0.0
         );
@@ -1824,7 +1842,8 @@ mod tests {
             let axes = crate::intersect::parallel_axes_at(&reach, a, b);
             assert!((axes.d - 3.0).abs() < 1e-12, "{what}: d = {}", axes.d);
             assert!(
-                (axes.d_vec.norm() - 3.0).abs() < 1e-12 && axes.d_vec.dot(a.dir.get()).abs() < 1e-12,
+                (axes.d_vec.norm() - 3.0).abs() < 1e-12
+                    && axes.d_vec.dot(a.dir.get()).abs() < 1e-12,
                 "{what}: d_vec = {:?}",
                 axes.d_vec
             );

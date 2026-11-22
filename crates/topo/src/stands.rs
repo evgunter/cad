@@ -478,7 +478,10 @@ fn across_edges<T: Decide>(
         let (t0, t1) = curve.params();
         let t = curve.carrier().deriv(geom::mid_param(t0, t1));
         let w = UnitVec3::squared(inward(normal, if plus { t } else { -t }));
-        if [w.get().x, w.get().y, w.get().z].iter().all(|c| !c.is_poison()) {
+        if [w.get().x, w.get().y, w.get().z]
+            .iter()
+            .all(|c| !c.is_poison())
+        {
             inward_lines.push(geom::Line {
                 origin: curve.mid_point(),
                 dir: w,

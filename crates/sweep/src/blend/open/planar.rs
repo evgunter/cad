@@ -458,7 +458,7 @@ pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
                 Ok(l.origin + l.dir.get() * ((p - l.origin).dot(n_e) / l.dir.get().dot(n_e)))
             };
             let (g1, g2) = (pierce(other(p1))?, pierce(other(p2))?);
-            let d = UnitVec3::squared((g2 - g1));
+            let d = UnitVec3::squared(g2 - g1);
             let w = p - g1;
             let w = (w - d.get() * w.dot(d.get())).normalize();
             let chord_trim = geom::Line {

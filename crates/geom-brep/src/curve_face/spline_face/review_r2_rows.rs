@@ -6,7 +6,7 @@
 use geom::{Curve3, NurbsCurve3, NurbsSurface};
 use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Bounds, Point3, Tol, Vec3};
+use geom_core::{Band, Bounds, Point3, Tol};
 
 use super::{ChartMeeting, SplineFaceRefusal};
 use crate::roots::Unsettled;

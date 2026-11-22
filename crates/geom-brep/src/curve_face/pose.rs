@@ -825,7 +825,12 @@ pub(super) fn line_sphere_read<T: Decide>(
     band: Band,
 ) -> Result<LineQuadric<T>, PoseRefusal> {
     let centred = super::line_quadric::sphere_quadratic(line, (center, radius), about);
-    discriminant(&centred, (line.dir.get().norm_squared(), radius), about, band)
+    discriminant(
+        &centred,
+        (line.dir.get().norm_squared(), radius),
+        about,
+        band,
+    )
 }
 
 /// **The wall's and the sphere's discriminant** (`curve_face_pose_disc`):

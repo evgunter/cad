@@ -4364,8 +4364,11 @@ mod tests {
         }
         .map_scalar(lift);
         let edge = |d: f64| {
-            let line =
-                Curve3::line(Point3::new(0.0, 0.0, 0.0), geom::stated_direction(Vec3::new(1.0, d, 0.0))).map_scalar(lift);
+            let line = Curve3::line(
+                Point3::new(0.0, 0.0, 0.0),
+                geom::stated_direction(Vec3::new(1.0, d, 0.0)),
+            )
+            .map_scalar(lift);
             analytic_edge_limbs(&line, (lift(0.0), lift(1.0)), &floor, &wall, band)
         };
         assert_eq!(edge(0.0), Ok(()));
@@ -4417,7 +4420,8 @@ mod tests {
         .map_scalar(lift);
         // Off the wall by 1e-6 at its start and by 3e-6 at its end: the
         // chord between them, its span in metres.
-        let (chord, len) = geom::Line::chord(Point3::new(0.0, 1e-6, 0.0), Point3::new(1.0, 3e-6, 0.0));
+        let (chord, len) =
+            geom::Line::chord(Point3::new(0.0, 1e-6, 0.0), Point3::new(1.0, 3e-6, 0.0));
         let line = Curve3::Line(chord).map_scalar(lift);
         let ends = line_plane_ends(&line, (lift(0.0), lift(len)), &wall).unwrap();
         let reach = |got: Option<Result<(), AnalyticRung3Refusal>>| match got {
@@ -4543,7 +4547,10 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
             ),
         };
-        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom::stated_direction(Vec3::new(1.0, y0, 0.0)));
+        let line = Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(1.0, y0, 0.0)),
+        );
         let escalates = |got: &Result<(), AnalyticRung3Refusal>| {
             matches!(
                 got,
@@ -4698,7 +4705,10 @@ mod tests {
                     direction(1.0, 0.0, 0.0),
                 ),
             };
-            let line = geom::Curve3::line(point(0.0, 0.0, a), geom_core::UnitVec3::constructed(direction(1.0, 0.0, 0.0)));
+            let line = geom::Curve3::line(
+                point(0.0, 0.0, a),
+                geom_core::UnitVec3::constructed(direction(1.0, 0.0, 0.0)),
+            );
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         assert_eq!(result, Ok(()));
@@ -4775,7 +4785,10 @@ mod tests {
                     direction(1.0, 0.0, 0.0),
                 ),
             };
-            let line = geom::Curve3::line(point(0.0, 0.0, a), geom_core::UnitVec3::constructed(direction(1.0, 0.0, 0.0)));
+            let line = geom::Curve3::line(
+                point(0.0, 0.0, a),
+                geom_core::UnitVec3::constructed(direction(1.0, 0.0, 0.0)),
+            );
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         let Err(AnalyticRung3Refusal::Stalled {

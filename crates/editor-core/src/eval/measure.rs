@@ -1704,7 +1704,10 @@ mod tests {
         radius: f64,
         convex: bool,
     ) -> Carrier<'static, f64> {
-        let axis = geom::Line { origin, dir: geom::stated_direction(axis) };
+        let axis = geom::Line {
+            origin,
+            dir: geom::stated_direction(axis),
+        };
         Carrier::Cylinder {
             axis,
             radius,

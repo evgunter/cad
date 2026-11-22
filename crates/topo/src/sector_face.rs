@@ -44,9 +44,9 @@
 //!
 //! Its home follows `[topo.homes]` (`crates/topo/README.md`).
 
-use geom_core::UnitVec3;
 use geom::SurfaceKind;
 use geom_brep::OutwardNormal;
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Point3, Vec3};
 
 use crate::face_normal::ConePoint;

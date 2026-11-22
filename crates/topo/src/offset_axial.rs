@@ -290,12 +290,12 @@
 //! between them has no transversal corner to solve, and the meter says
 //! so in the geometry's own terms rather than by a special case.
 
-use geom_core::UnitVec3;
 use geom::SurfaceKind;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::ExtentBall;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::UnitVec3;
 use geom_core::k_stats::decide;
 use geom_core::ladder::{FreeOf, Uncarried, Undecided, argmin_decided};
 use geom_core::{
@@ -1149,7 +1149,10 @@ fn classify<T: Decide>(
                 // else cuts the body obliquely to its own axis of
                 // revolution — a corner this reduction has no
                 // coordinates for.
-                if !sine(n.dot(frame.axis.dir.get()).abs(), "offset_axial_axis_parallel")? {
+                if !sine(
+                    n.dot(frame.axis.dir.get()).abs(),
+                    "offset_axial_axis_parallel",
+                )? {
                     return Err(not_axial(
                         "a plane neither normal to the axis nor parallel to it",
                     ));
@@ -3627,9 +3630,12 @@ mod tests {
             let v = p - rim.axis.origin;
             v - a * v.dot(a)
         };
-        let start =
-            Affine3::rotation_about_axis(rim.axis.origin, rim.axis.dir.get(), T::zero() * rim.angle)
-                .transform_point(placed(rim));
+        let start = Affine3::rotation_about_axis(
+            rim.axis.origin,
+            rim.axis.dir.get(),
+            T::zero() * rim.angle,
+        )
+        .transform_point(placed(rim));
         let (from, to) = (radial(start), radial(corner));
         a.dot(from.cross(to)).atan2(from.dot(to))
     }
@@ -3637,7 +3643,8 @@ mod tests {
     /// Main's reading of a start turned by `phi`: the turn composed into
     /// the placement and the corner read back through that composite.
     fn composed_reading<T: Decide>(rim: &Rim<T>, phi: T, p: Point3<T>) -> (Point3<T>, Affine3<T>) {
-        let plane = Affine3::rotation_about_axis(rim.axis.origin, rim.axis.dir.get(), phi) * rim.place;
+        let plane =
+            Affine3::rotation_about_axis(rim.axis.origin, rim.axis.dir.get(), phi) * rim.place;
         (plane.inverse().transform_point(p), plane)
     }
 

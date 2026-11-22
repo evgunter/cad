@@ -29,7 +29,10 @@ fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
 }
 
 fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
-    geom::Curve3::line(Point3::from_array(o), geom::stated_direction(Vec3::from_array(d)))
+    geom::Curve3::line(
+        Point3::from_array(o),
+        geom::stated_direction(Vec3::from_array(d)),
+    )
 }
 
 /// PROBE 1 (claim 2): a genuine CROSSING — a cylinder half-embedded in

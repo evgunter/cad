@@ -314,7 +314,10 @@ fn a_far_ray_reaches_the_count_disagreement() {
     );
     let band = Band::new(1e-9, 1e-8).unwrap();
     let roots = line_torus_roots(
-        geom::Line { origin: q, dir: geom::stated_direction(d) },
+        geom::Line {
+            origin: q,
+            dir: geom::stated_direction(d),
+        },
         geom::Line {
             origin: centre(),
             dir: geom::stated_direction(axis()),

@@ -735,7 +735,7 @@ pub fn trace_marks(
                 surface,
                 face.sense,
                 // A rigid map of the unit heading: unit over the reals.
-        &geom::Ray::new(origin, geom_core::UnitVec3::constructed(dir)),
+                &geom::Ray::new(origin, geom_core::UnitVec3::constructed(dir)),
                 reach,
                 band,
             ) else {

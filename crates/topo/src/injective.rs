@@ -7721,7 +7721,10 @@ mod presentation_rows {
         let line = |d: Vec3<Interval>, far: u64, plus: bool| Rim {
             stated: None,
             key: edge(far),
-            arc: Some((Curve3::line(origin(), geom_core::UnitVec3::constructed(d)), (iv0(0.0), iv0(4.0)))),
+            arc: Some((
+                Curve3::line(origin(), geom_core::UnitVec3::constructed(d)),
+                (iv0(0.0), iv0(4.0)),
+            )),
             ends: [vertex(1), vertex(far)],
             uses: vec![Use {
                 plus,
@@ -7992,7 +7995,11 @@ mod presentation_rows {
                 (
                     Curve3::line(
                         p(from),
-                        geom_core::UnitVec3::constructed(Vec3::new(iv0(dx / len), iv0(dy / len), iv0(0.0))),
+                        geom_core::UnitVec3::constructed(Vec3::new(
+                            iv0(dx / len),
+                            iv0(dy / len),
+                            iv0(0.0),
+                        )),
                     ),
                     (iv0(0.0), iv0(len)),
                 )
@@ -9263,7 +9270,11 @@ mod presentation_rows {
             arc: Some((
                 Curve3::line(
                     on_cyl(1.0, 0.5),
-                    if up { geom_core::UnitVec3::exact_z() } else { -geom_core::UnitVec3::exact_z() },
+                    if up {
+                        geom_core::UnitVec3::exact_z()
+                    } else {
+                        -geom_core::UnitVec3::exact_z()
+                    },
                 ),
                 (iv0(0.0), iv0(0.5)),
             )),

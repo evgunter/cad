@@ -87,8 +87,15 @@ fn a_loop_through_the_apex_reads_alike_from_every_start() {
             .chain(&edges[..start])
             .cloned()
             .collect();
-        let w = cone_loop_winding(&cone, apex, geom::stated_direction(axis), &turned, AtApex::AlongGenerator, band())
-            .unwrap_or_else(|e| panic!("start {start}: {e:?}"));
+        let w = cone_loop_winding(
+            &cone,
+            apex,
+            geom::stated_direction(axis),
+            &turned,
+            AtApex::AlongGenerator,
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("start {start}: {e:?}"));
         assert_eq!(
             require_cone_loop_vertices_distinct(apex, geom::stated_direction(axis), &w, band()),
             Ok(()),

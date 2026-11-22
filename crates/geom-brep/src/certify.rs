@@ -58,9 +58,9 @@
 //! never disagree with the vertices by more than ε without failing
 //! loudly.
 
-use geom_core::UnitVec3;
 use geom::Curve3;
 use geom::Surface;
+use geom_core::UnitVec3;
 use geom_core::period::{Exact, Extent, NotForward, Turn, TurnRows, TurnUndecided, Within};
 use geom_core::spline::SpanLocate;
 use geom_core::{
@@ -7516,7 +7516,10 @@ mod tests {
         );
         // An in-band offset (3·ε) escalates instead of passing.
         let mut spec = line_spec(p0, p1);
-        spec.carrier = Curve3::line(Point3::new(0.0, 3.0 * eps(), 0.0), geom_core::UnitVec3::exact_x());
+        spec.carrier = Curve3::line(
+            Point3::new(0.0, 3.0 * eps(), 0.0),
+            geom_core::UnitVec3::exact_x(),
+        );
         let err = EdgeCurve::certify(
             spec.clone(),
             p0,
@@ -10272,7 +10275,10 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(p0 + dir * (reach / 2.0)),
             },
-            carrier: Curve3::Line(geom::Line { origin: p0, dir: geom::stated_direction(dir) }),
+            carrier: Curve3::Line(geom::Line {
+                origin: p0,
+                dir: geom::stated_direction(dir),
+            }),
             param_start: 0.0,
             param_end: 2.0 * reach,
         };

@@ -186,7 +186,10 @@ fn far_patch<T: Decide>(
     let ruling = |u: f64, forward: bool| {
         let (s, c) = u.sin_cos();
         LoopEdge::hand_built(
-            Curve3::line(o + (x * T::from_f64(c) + y * T::from_f64(s)) * r, geom_core::UnitVec3::constructed(n)),
+            Curve3::line(
+                o + (x * T::from_f64(c) + y * T::from_f64(s)) * r,
+                geom_core::UnitVec3::constructed(n),
+            ),
             T::zero(),
             T::one(),
             forward,

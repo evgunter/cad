@@ -45,7 +45,7 @@ use crate::common::approx::band;
 use crate::common::oracles::sigma;
 use geom::Surface;
 use geom_brep::SurfaceSide::{self, Inner, Outer};
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol};
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;

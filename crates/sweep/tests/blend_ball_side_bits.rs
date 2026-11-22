@@ -410,7 +410,14 @@ fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
         let ivv = |v: Vec3<f64>| v.map(iv);
         let n_i = ivv(n);
         let unit_i = (n_i * iv(sign)).normalize();
-        let blend = plane_plane_blend(p.map(iv), geom_core::UnitVec3::constructed(ivv(tau)), n_i, ivv(up), iv(0.1), convexity);
+        let blend = plane_plane_blend(
+            p.map(iv),
+            geom_core::UnitVec3::constructed(ivv(tau)),
+            n_i,
+            ivv(up),
+            iv(0.1),
+            convexity,
+        );
         let Surface::Cylinder { frame, .. } = blend.surface else {
             panic!("{convexity}: the plane–plane arm mints a cylinder at Interval");
         };

@@ -1622,7 +1622,10 @@ mod carry {
         vec![
             (
                 "line",
-                Curve3::Line(geom::Line { origin: o, dir: geom::stated_direction(x) }),
+                Curve3::Line(geom::Line {
+                    origin: o,
+                    dir: geom::stated_direction(x),
+                }),
                 Curve3::Line(geom::Line {
                     origin: Point3::new(o.x, up(o.y), o.z),
                     dir: geom::stated_direction(x),

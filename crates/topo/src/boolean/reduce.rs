@@ -7299,7 +7299,10 @@ mod edge_span_tests {
         };
         let y = Body::<f64>::new();
         let crossing = |delta: f64, (t0, t1): (f64, f64)| {
-            let line = geom::Curve3::line(Point3::new(2.0, 0.0, 0.0), geom::stated_direction(Vec3::new(delta, 0.0, 1.0)));
+            let line = geom::Curve3::line(
+                Point3::new(2.0, 0.0, 0.0),
+                geom::stated_direction(Vec3::new(delta, 0.0, 1.0)),
+            );
             wall_crossing(
                 &y,
                 FaceKey::default(),
@@ -9336,7 +9339,8 @@ mod spline_face_rows {
         let tol = Tol::witness();
         let p = prism::<f64>(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
         let pt = |k| p.body.resolve_vertex_point(k, crate::live::Proven);
-        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, geom_core::UnitVec3::squared(b - a));
+        let line =
+            |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, geom_core::UnitVec3::squared(b - a));
         let (a, b, c) = (pt(p.bottom[0]), pt(p.bottom[1]), pt(p.bottom[2]));
         let ends = |q, r| [(p.bottom[0], q), (p.bottom[0], r)];
         let edge = line(a, b);
@@ -9632,7 +9636,10 @@ mod review_5993_rows {
         for eps in [1e-12, 1e-9, 1e-6] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             let got = geom_brep::curve_face::line_quadric::line_quadric_roots(
-                geom::Line { origin: o, dir: geom::stated_direction(d) },
+                geom::Line {
+                    origin: o,
+                    dir: geom::stated_direction(d),
+                },
                 (-2.0, 0.0),
                 &torus(),
                 band,

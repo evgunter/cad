@@ -54,7 +54,10 @@ fn ruling(surface: &Surface<f64>, phi: f64, sigma: f64, h: f64, off: f64) -> Cur
     };
     let apex = frame.origin();
     let (g, n) = generator(surface, phi, sigma);
-    Curve3::line(apex + g * (h / half_angle.cos()) + n * off, geom::stated_direction(g))
+    Curve3::line(
+        apex + g * (h / half_angle.cos()) + n * off,
+        geom::stated_direction(g),
+    )
 }
 
 /// A height whose nappe reading lies in band: the geometric mean of the

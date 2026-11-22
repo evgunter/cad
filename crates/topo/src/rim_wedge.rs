@@ -590,7 +590,8 @@ fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
     match locus {
         Locus::Line(line) => line.at(s),
         Locus::Rim(rim) => {
-            rim.center + geom::Frame::new(rim.center, rim.axis.get(), rim.u_ref).radial(s) * rim.radius
+            rim.center
+                + geom::Frame::new(rim.center, rim.axis.get(), rim.u_ref).radial(s) * rim.radius
         }
     }
 }
@@ -608,7 +609,9 @@ fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
         Locus::Line(line) => line.param(p),
         Locus::Rim(rim) => {
             let d = p - rim.center;
-            let th = d.dot(rim.axis.get().cross(rim.u_ref)).atan2(d.dot(rim.u_ref));
+            let th = d
+                .dot(rim.axis.get().cross(rim.u_ref))
+                .atan2(d.dot(rim.u_ref));
             let tau = geom::conic_period::<T>().length();
             th - tau * (th / tau).floor()
         }
@@ -757,7 +760,11 @@ fn curve_sense<T: Decide>(
     match (locus, curve.carrier()) {
         (Locus::Rim(rim), geom::Curve3::Circle(geom::Circle { frame, .. })) => {
             let axis = frame.axis();
-            crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis.get())), band)
+            crate::validate::decide(
+                "seam_rim_axis_sense",
+                Margin::of(axis.dot(rim.axis.get())),
+                band,
+            )
         }
         _ => Ok(geom_core::Sign::Positive),
     }
@@ -906,7 +913,11 @@ fn crossings<T: Decide>(
                 Locus::Rim(rim) => {
                     // n·(p(φ) − c) = A cos φ + B sin φ + C.
                     let n = rim.axis;
-                    let (qa, qb, qc) = (n.get().dot(e1) * re, n.get().dot(e2) * re, n.get().dot(ce - rim.center));
+                    let (qa, qb, qc) = (
+                        n.get().dot(e1) * re,
+                        n.get().dot(e2) * re,
+                        n.get().dot(ce - rim.center),
+                    );
                     let rr = (qa.powi(2) + qb.powi(2)).sqrt();
                     if maybe_nonzero(rr) {
                         let ratio = -qc / rr;
@@ -1675,7 +1686,10 @@ mod boundary_midpoint_rows {
         let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
         let t = Vec3::new(theta.sin(), -theta.cos(), 0.0);
         (
-            Locus::Line(geom::Line { origin: p, dir: geom::stated_direction(t) }),
+            Locus::Line(geom::Line {
+                origin: p,
+                dir: geom::stated_direction(t),
+            }),
             move |u, v| p + t * u + n * v,
         )
     }
@@ -1906,7 +1920,7 @@ mod unplaced_rows {
     use super::*;
     use crate::construction::MevSite;
     use crate::test_support_fixtures::prism_z;
-    use geom_core::{Tol, Vec3};
+    use geom_core::Tol;
 
     /// **A face whose containment door refuses a piece's midpoint on no
     /// margin is named by its side of the pair, with the door's refusal

@@ -350,7 +350,10 @@ fn a_tilt_decided_apart_leaves_the_bound_past_the_band() {
         major_radius: 2.0,
         minor_radius: 0.5,
     };
-    let (first, second) = (torus(geom::stated_direction(a)), torus(geom::stated_direction(b)));
+    let (first, second) = (
+        torus(geom::stated_direction(a)),
+        torus(geom::stated_direction(b)),
+    );
     let (datum, tilt) = TorusDisplacement::of(first, second).data[0];
     assert_eq!(datum, TorusDatum::AxisTilt, "the first datum is the tilt");
     let band = Band::new(0.5 * tilt.value(), tilt.value()).unwrap();

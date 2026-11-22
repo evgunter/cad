@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Decide, Interval, Point2, Point3, Vec2, Vec3};
+use geom_core::{Decide, Interval, Point2, Point3, Vec2};
 
 use super::Pcurve;
 use super::spline_door_rows::{band, in_band, ring};

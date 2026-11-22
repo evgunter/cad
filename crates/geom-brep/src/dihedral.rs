@@ -2897,7 +2897,10 @@ mod tests {
         };
         let along = |dir| geom::Curve3::line(Point3::origin(), dir);
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
-        let (x_axis, y_axis) = (along(geom_core::UnitVec3::exact_x()), along(geom_core::UnitVec3::exact_y()));
+        let (x_axis, y_axis) = (
+            along(geom_core::UnitVec3::exact_x()),
+            along(geom_core::UnitVec3::exact_y()),
+        );
 
         let coplanar = plane(Vec3::unit_z(), Vec3::unit_y());
         assert_eq!(
@@ -3003,7 +3006,8 @@ mod tests {
         };
         let ruling = Vec3::new(s, 0.0, c);
         let tangent = plane(Vec3::new(c, 0.0, -s), ruling);
-        let carrier = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::constructed(ruling));
+        let carrier =
+            geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::constructed(ruling));
         assert!(
             !crate::tangent_certificate_lane(&carrier, &cone, &tangent),
             "the witness is out of lane"

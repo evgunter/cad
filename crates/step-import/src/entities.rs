@@ -1664,7 +1664,10 @@ impl<'a> Resolver<'a> {
         let mut meridian = |d: Vec3<f64>| -> Result<u64, StepImportError> {
             let eid = self.mint_id();
             let carrier = signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
-                center, radius, axis.get(), d,
+                center,
+                radius,
+                axis.get(),
+                d,
             ));
             let (t0, t1) = geometry::endpoint_params(eid, &carrier, north, south, false)?;
             edges.insert(

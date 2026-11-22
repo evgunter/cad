@@ -578,7 +578,11 @@ fn cylinder_near_apex(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     let beta = rng.range(0.1, FRAC_PI_2);
     let d = leaning(rng, k, beta);
     let o = k.apex + unit_vec(rng) * (sc * rng.range(0.2, 1.5));
-    let dist = geom::Line { origin: o, dir: geom::stated_direction(d) }.distance(k.apex);
+    let dist = geom::Line {
+        origin: o,
+        dir: geom::stated_direction(d),
+    }
+    .distance(k.apex);
     let shift = sc * offset(rng);
     let r = dist + shift;
     (r > 0.05 * sc).then(|| Pose {
@@ -833,7 +837,13 @@ fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
         Surface::Cylinder { frame, radius, .. } => {
             let (origin, axis) = (frame.origin(), frame.axis());
             let d = axis.normalize();
-            let apex = (geom::Line { origin, dir: geom::stated_direction(d) }.distance(k.apex) - radius).abs();
+            let apex = (geom::Line {
+                origin,
+                dir: geom::stated_direction(d),
+            }
+            .distance(k.apex)
+                - radius)
+                .abs();
             let aperture = (d.dot(k.a).abs().acos() - k.alpha).abs() * lever;
             apex.min(aperture)
         }

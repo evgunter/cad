@@ -833,7 +833,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
     };
     let ruling = Curve3::line(
         Point3::new(pr(0.0), pr(0.0), pr(0.0)),
-        Vec3::new(pr(0.0), pr(0.0), pr(1.0)),
+        geom_core::UnitVec3::exact_z(),
     );
     k_stats::start_recording();
     let determinate = must_carry_over_edge(
@@ -1046,7 +1046,9 @@ fn probe_surface(s: &Surface<f64>) -> Surface<geom_core::k_stats::Probe> {
 fn probe_carrier(c: &Curve3<f64>) -> Curve3<geom_core::k_stats::Probe> {
     use geom_core::k_stats::Probe;
     match *c {
-        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(origin.map(Probe), dir.map(Probe)),
+        Curve3::Line(geom::Line { origin, dir }) => {
+            Curve3::line(origin.map(Probe), dir.map_scalar(Probe))
+        }
         _ => panic!("only the out-of-lane triple's carrier is lifted here"),
     }
 }

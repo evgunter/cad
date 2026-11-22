@@ -439,7 +439,9 @@ fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
                 let geom::Curve3::Line(geom::Line { origin: o, dir }) = spec.carrier else {
                     continue;
                 };
-                if (dir.get().x.hypot(dir.get().z) - t * dir.get().y.abs()).abs() > 1e-6 * dir.get().norm() {
+                if (dir.get().x.hypot(dir.get().z) - t * dir.get().y.abs()).abs()
+                    > 1e-6 * dir.get().norm()
+                {
                     continue;
                 }
                 let at = |s: f64| {

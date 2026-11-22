@@ -69,7 +69,10 @@ fn triangle_prism<T: Decide + topo::AtRestPolicy>() -> (
                 place,
             },
         )),
-        carrier: Curve3::line(p0, geom_core::UnitVec3::constructed((p1 - p0) / p0.distance(p1))),
+        carrier: Curve3::line(
+            p0,
+            geom_core::UnitVec3::constructed((p1 - p0) / p0.distance(p1)),
+        ),
         param_start: T::zero(),
         param_end: p0.distance(p1),
     };

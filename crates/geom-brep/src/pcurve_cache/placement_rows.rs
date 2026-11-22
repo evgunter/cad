@@ -292,7 +292,10 @@ fn line_arms() -> Vec<Arm> {
                 frame: geom::Frame::new(o, z, x),
                 radius: 1.0,
             },
-            Curve3::line(Point3::new(phi.cos(), phi.sin(), 0.0), geom::stated_direction(z)),
+            Curve3::line(
+                Point3::new(phi.cos(), phi.sin(), 0.0),
+                geom::stated_direction(z),
+            ),
             (0.3, 2.0),
         ),
         (

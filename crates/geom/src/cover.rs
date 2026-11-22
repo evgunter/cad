@@ -1283,7 +1283,8 @@ impl<T: Real> Tube<T> {
         let turn = own
             .axis
             .dir
-            .get().normalize()
+            .get()
+            .normalize()
             .cross(other.axis.dir.get().normalize())
             .norm();
         (other.axis.origin - own.axis.origin).norm()

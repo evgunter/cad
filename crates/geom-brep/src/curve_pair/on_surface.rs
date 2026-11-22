@@ -37,8 +37,8 @@
 //! a caller hands [`Charted::record`] are one record's stays the
 //! caller's: each reads both off one face.
 
-use geom_core::UnitVec3;
 use geom::{Azimuth, ChartAngle, ChartArm, ChartChannels, ChartInverse, Circle, Curve3, Frame};
+use geom_core::UnitVec3;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec3};
 

@@ -211,10 +211,16 @@ fn draw(r: &mut Rng, i: usize) -> (Around<f64>, Piece<f64>, Vec<Point3<f64>>, f6
     let axis = if coaxial { n } else { unit(r) } * r.range(0.5, 2.0);
     let origin = centre(r, far);
     let depth = match i % 3 {
-        0 => Around::Line(geom::Line { origin, dir: geom_core::UnitVec3::squared(axis) }),
+        0 => Around::Line(geom::Line {
+            origin,
+            dir: geom_core::UnitVec3::squared(axis),
+        }),
         1 => Around::Point(origin),
         _ => Around::Circle(Core {
-            axis: geom::Line { origin, dir: geom_core::UnitVec3::squared(axis) },
+            axis: geom::Line {
+                origin,
+                dir: geom_core::UnitVec3::squared(axis),
+            },
             radius: r.range(0.0, 2.0),
         }),
     };

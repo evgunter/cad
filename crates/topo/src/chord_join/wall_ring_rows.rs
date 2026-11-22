@@ -879,7 +879,11 @@ fn a_carried_ruling_chord_runs_back_where_it_leaves_back() {
         let geom::Curve3::Line(geom::Line { dir: d, .. }) = chord.spec.carrier else {
             panic!("{what}: a line");
         };
-        assert_eq!(d.get().z < 0.0, back, "{what}: run back where it leaves back");
+        assert_eq!(
+            d.get().z < 0.0,
+            back,
+            "{what}: run back where it leaves back"
+        );
     }
     let comp = closed_form(line, (0.1, 0.9), open);
     let (got, _) = closed_form_chord(comp, partner, (lo, hi), -Vec3::unit_z());

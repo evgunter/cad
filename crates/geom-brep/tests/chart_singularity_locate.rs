@@ -317,12 +317,15 @@ fn a_cone_rim_holds_its_apex_on_one_side() {
     );
     // A generator from the apex: the apex is that loop's vertex.
     // Each generator is its chord from the apex, its span in metres.
-    let generator = Curve3::Line(geom::Line::chord(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)).0);
+    let generator =
+        Curve3::Line(geom::Line::chord(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)).0);
     let sector = vec![
         LoopEdge::hand_built(generator.clone(), 0.0, SQRT_2, true, 0, 1),
         LoopEdge::hand_built(rim.clone(), 0.0, PI, true, 1, 2),
         LoopEdge::hand_built(
-            Curve3::Line(geom::Line::chord(Point3::new(0.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 1.0)).0),
+            Curve3::Line(
+                geom::Line::chord(Point3::new(0.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 1.0)).0,
+            ),
             0.0,
             SQRT_2,
             false,

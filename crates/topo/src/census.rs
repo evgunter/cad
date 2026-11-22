@@ -455,7 +455,10 @@ impl<T: Real> Spans<T> for Stretch<'_, T> {
             p0: e.p0,
             dir: e.dir,
             at: self.at,
-            ends: [e.p0 + e.dir.get() * self.at.0, e.p0 + e.dir.get() * self.at.1],
+            ends: [
+                e.p0 + e.dir.get() * self.at.0,
+                e.p0 + e.dir.get() * self.at.1,
+            ],
             points: [None; 2],
             produced: from + from + self.at.0.abs() + self.at.1.abs(),
             stored: false,
@@ -23310,7 +23313,11 @@ mod line_pass_rows {
         body.points.get_mut(moved).expect("the point resolves").z += 1e-3;
         let middle = edge.p0 + edge.dir.get() * (0.5 * edge.len);
         let across = edge.dir.get().cross(Vec3::new(0.0, 0.0, 1.0));
-        let passes = line_passes(&body, (middle - across, geom::stated_direction(across), 2.0), |k, _, _| k == key);
+        let passes = line_passes(
+            &body,
+            (middle - across, geom::stated_direction(across), 2.0),
+            |k, _, _| k == key,
+        );
         let [pass] = &passes[..] else {
             panic!("the one edge kept: {} passes", passes.len());
         };

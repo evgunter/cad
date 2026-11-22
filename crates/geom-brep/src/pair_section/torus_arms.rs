@@ -815,7 +815,10 @@ pub(super) fn square_pose<T: Decide>(
 ) -> Option<SquareWall<T>> {
     if sign_as(
         "section_torus_square_wall_tilt",
-        Margin::levered(a.get().dot(d.get()), super::torus::lever(ball.foot_on(partner), ball)),
+        Margin::levered(
+            a.get().dot(d.get()),
+            super::torus::lever(ball.foot_on(partner), ball),
+        ),
         band,
     ) != Some(Sign::Zero)
     {

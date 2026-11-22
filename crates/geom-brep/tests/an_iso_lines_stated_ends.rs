@@ -13,7 +13,7 @@ use crate::shared::tol::band;
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck, StoredSpan};
 use geom_core::spline::KnotVector;
-use geom_core::{Bounds, Decide, Interval, Point2, Point3, Real, Vec3};
+use geom_core::{Bounds, Decide, Interval, Point2, Point3, Real};
 use std::sync::Arc;
 
 /// `x` as a point bracket, or `None` where it is wider.

@@ -167,7 +167,9 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
     let p = |q: geom_core::Point3<f64>| pt::<T>([q.x, q.y, q.z]);
     let v = |q: geom_core::Vec3<f64>| vt::<T>([q.x, q.y, q.z]);
     match *e {
-        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(p(origin), geom_core::UnitVec3::constructed(v(dir.get()))),
+        Curve3::Line(geom::Line { origin, dir }) => {
+            Curve3::line(p(origin), geom_core::UnitVec3::constructed(v(dir.get())))
+        }
         Curve3::Circle(
             conic_k @ geom::Circle {
                 frame: carrier_frame_10,

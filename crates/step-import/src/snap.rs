@@ -761,7 +761,12 @@ fn coaxial(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Surface
                 return (out, f64::INFINITY);
             };
             let delta = c - from.foot(c);
-            carry(&mut out, from, (from.origin, from.origin + delta), from.dir.get());
+            carry(
+                &mut out,
+                from,
+                (from.origin, from.origin + delta),
+                from.dir.get(),
+            );
             (out, delta.norm())
         }
         (None, None) => {

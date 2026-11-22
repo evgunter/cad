@@ -192,7 +192,10 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
     // A ruling of the cone from its apex, where the cone's metre lever
     // vanishes: the parts near the apex read `√|f|` instead.
     let (sin, cos) = (PI / 6.0).sin_cos();
-    let apex_ruling = Curve3::line(Point3::origin(), geom_core::UnitVec3::constructed(Vec3::new(sin, 0.0, cos)));
+    let apex_ruling = Curve3::line(
+        Point3::origin(),
+        geom_core::UnitVec3::constructed(Vec3::new(sin, 0.0, cos)),
+    );
     let rows = [
         ("ruling", cylinder.clone(), side.clone(), ruling, (0.0, 2.0)),
         (
@@ -334,7 +337,10 @@ fn a_part_moved_a_kilometre_reads_as_at_the_origin() {
         let side = Surface::Plane {
             frame: geom::Frame::new(moved(Point3::origin(), d), Vec3::unit_y(), Vec3::unit_x()),
         };
-        let ruling = Curve3::line(moved(Point3::new(0.5, 0.0, 0.0), d), geom_core::UnitVec3::exact_z());
+        let ruling = Curve3::line(
+            moved(Point3::new(0.5, 0.0, 0.0), d),
+            geom_core::UnitVec3::exact_z(),
+        );
         let (s, c) = (PI / 5.0).sin_cos();
         let tilted = Surface::Plane {
             frame: geom::Frame::new(

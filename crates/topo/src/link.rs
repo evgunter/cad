@@ -3736,7 +3736,7 @@ impl<T: Decide> Link<T> {
                         })
                         .map(|(j, _)| j)
                         .collect();
-                    let u = UnitVec3::squared((r - s.apex));
+                    let u = UnitVec3::squared(r - s.apex);
                     let (wp, ep) = (w - u.get() * u.get().dot(w), e - u.get() * u.get().dot(e));
                     let f = [ep.norm_squared(), two * wp.dot(ep), wp.norm_squared()];
                     let ruling = geom::Line {

@@ -509,7 +509,12 @@ mod straddle_rows {
         let past = EdgeSpan::of(ellipse, (t0, t1));
         assert!(
             matches!(
-                passes(&past, &geom::Ray::new(q, geom::stated_direction(d)), at, band),
+                passes(
+                    &past,
+                    &geom::Ray::new(q, geom::stated_direction(d)),
+                    at,
+                    band
+                ),
                 Passes::Clear
             ),
             "an arc past the closest approach"
@@ -580,7 +585,12 @@ mod straddle_rows {
         let radial = (at - centre).normalize();
         assert!(
             matches!(
-                passes(&arc, &geom::Ray::new(at - radial, geom::stated_direction(radial)), at, band),
+                passes(
+                    &arc,
+                    &geom::Ray::new(at - radial, geom::stated_direction(radial)),
+                    at,
+                    band
+                ),
                 Passes::End(_)
             ),
             "the ray grazes the arc's start"

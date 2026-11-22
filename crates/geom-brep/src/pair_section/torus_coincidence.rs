@@ -27,9 +27,7 @@
 //! ([`TorusCoincidence::Apart`]'s `upper`).
 
 use geom_core::k_stats::decide_reported;
-use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
-};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use super::{PairSide, line_tilt};
 use crate::ladder::{IdentityLadder, data_beneath_sum, read_identity};

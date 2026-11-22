@@ -541,10 +541,17 @@ fn a_line_through_a_sphere_has_two_roots_on_it_and_a_clear_one_misses() {
     let (c, r) = (Point3::new(0.0, 0.0, -0.5), 0.3);
     let q = Point3::new(0.06, 0.0, -0.92);
     for d in [Vec3::new(0.0, 0.0, 1.0)] {
-        let WallRoots::Two(ts, _) =
-            line_sphere_roots(geom::Line { origin: q, dir: geom::stated_direction(d) }, c, r, band(), About::Start)
-                .unwrap()
-        else {
+        let WallRoots::Two(ts, _) = line_sphere_roots(
+            geom::Line {
+                origin: q,
+                dir: geom::stated_direction(d),
+            },
+            c,
+            r,
+            band(),
+            About::Start,
+        )
+        .unwrap() else {
             panic!("the line along {d:?} crosses the sphere");
         };
         for t in ts {

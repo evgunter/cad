@@ -103,10 +103,6 @@ impl Chart {
         }
     }
 
-    fn axis(self) -> Vec3<f64> {
-        self.axis_unit().get()
-    }
-
     fn axis_unit(self) -> UnitVec3<f64> {
         match self {
             Self::Sphere { axis, .. } | Self::Cone { axis, .. } => axis,
@@ -811,7 +807,10 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             ..
         } => Ray {
             carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
-                center, radius, axis.get(), d,
+                center,
+                radius,
+                axis.get(),
+                d,
             )),
             from: if k == 0 { 0.0 } else { core::f64::consts::PI },
             sign: if k == 0 { 1.0 } else { -1.0 },
@@ -1750,7 +1749,10 @@ mod meetings_are_the_kernels {
         let seam_carrier = geom::pole_form::sphere_meridian(origin, 1.0, z, x);
         let Some(twin) = geom::pole_form::half_turn_curve(
             &seam_carrier,
-            geom::Line { origin, dir: geom::stated_direction(z) },
+            geom::Line {
+                origin,
+                dir: geom::stated_direction(z),
+            },
             crate::signed_zero::plus_zero_point,
             crate::signed_zero::plus_zero,
         ) else {
@@ -1845,7 +1847,10 @@ mod meetings_are_the_kernels {
         let Ok((Hit::Edge { edge: 11, t }, _)) = got else {
             panic!("the line at slant 2: {}", shown(&got))
         };
-        assert!((t - 1e-3 * y.norm()).abs() < 1e-9, "met at the line's middle: t {t}");
+        assert!(
+            (t - 1e-3 * y.norm()).abs() < 1e-9,
+            "met at the line's middle: t {t}"
+        );
     }
 
     /// **A singular point in the band of its ray refuses**, the band's

@@ -30,9 +30,10 @@ pub fn cut_stations(
         .clone();
     let (t0, t1) = c.params();
     let mut us: Vec<f64> = match *c.carrier() {
-        Curve3::Line(geom::Line { origin, dir }) => {
-            points.iter().map(|&p| (p - origin).dot(dir.get())).collect()
-        }
+        Curve3::Line(geom::Line { origin, dir }) => points
+            .iter()
+            .map(|&p| (p - origin).dot(dir.get()))
+            .collect(),
         Curve3::Circle(geom::Circle { frame, .. }) => {
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = axis.cross(u_ref);

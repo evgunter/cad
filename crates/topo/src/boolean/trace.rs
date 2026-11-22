@@ -18,7 +18,6 @@
 //! a tangency, or two crossings the band cannot order graze the carrier,
 //! and refuse.
 
-use geom_core::UnitVec3;
 use geom::{Curve3, Surface, SurfaceKind};
 use geom_brep::curve_face::{CrossRefusal, CrossWhy, OnSpan, Pose, PoseRefusal, cross};
 use geom_brep::curve_pair::{MeetKind, Span, SpanEnd};

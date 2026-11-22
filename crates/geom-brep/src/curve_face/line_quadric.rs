@@ -904,7 +904,10 @@ mod wall_root_rows {
     fn roots(q: Point3<f64>, d: Vec3<f64>, r: f64, span: f64) -> WallRoots<f64> {
         let z = Vec3::new(0.0, 0.0, 1.0);
         line_wall_roots(
-            geom::Line { origin: q, dir: geom::stated_direction(d) },
+            geom::Line {
+                origin: q,
+                dir: geom::stated_direction(d),
+            },
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
                 dir: geom::stated_direction(z),
@@ -1016,8 +1019,14 @@ mod wall_root_rows {
             let o = Point3::new(0.0, 0.0, 0.0);
             let read = |about| {
                 line_wall_roots(
-                    geom::Line { origin: q, dir: geom::stated_direction(d) },
-                    geom::Line { origin: o, dir: geom::stated_direction(z) },
+                    geom::Line {
+                        origin: q,
+                        dir: geom::stated_direction(d),
+                    },
+                    geom::Line {
+                        origin: o,
+                        dir: geom::stated_direction(z),
+                    },
                     r,
                     4.0 * big,
                     band(),
@@ -1598,7 +1607,10 @@ mod line_cone_rows {
                             .filter(inside)
                             .collect();
                         match line_cone_roots(
-                            geom::Line { origin, dir: geom::stated_direction(axis) },
+                            geom::Line {
+                                origin,
+                                dir: geom::stated_direction(axis),
+                            },
                             (
                                 geom::Line {
                                     origin: apex,

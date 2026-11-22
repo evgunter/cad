@@ -596,12 +596,13 @@ fn plane_cone_apex_trio() {
     };
     // The tangent generator lies in the plane.
     assert!(
-        dir.get().dot(Vec3::new(
-            (core::f64::consts::FRAC_PI_2 - a).sin(),
-            0.0,
-            -(core::f64::consts::FRAC_PI_2 - a).cos()
-        ))
-        .abs()
+        dir.get()
+            .dot(Vec3::new(
+                (core::f64::consts::FRAC_PI_2 - a).sin(),
+                0.0,
+                -(core::f64::consts::FRAC_PI_2 - a).cos()
+            ))
+            .abs()
             < 1e-9,
         "tangent generator in-plane"
     );

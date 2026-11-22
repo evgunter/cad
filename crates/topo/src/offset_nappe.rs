@@ -303,7 +303,7 @@ mod torn_hop_rows {
     use super::*;
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
-    use geom_core::{Tol, Vec3};
+    use geom_core::Tol;
 
     #[test]
     fn the_corner_stations_panic_on_a_torn_ring_link() {

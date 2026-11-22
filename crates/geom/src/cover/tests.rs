@@ -1297,7 +1297,10 @@ fn a_non_finite_datum_builds_no_cover() {
         )),
         "an infinite sphere"
     );
-    let line = Curve3::Line(Line { origin: o, dir: crate::stated_direction(x) });
+    let line = Curve3::Line(Line {
+        origin: o,
+        dir: crate::stated_direction(x),
+    });
     assert_eq!(
         line.cover_over(ParamWindow::new(0.0, f64::INFINITY)).err(),
         Some(Uncovered::new(

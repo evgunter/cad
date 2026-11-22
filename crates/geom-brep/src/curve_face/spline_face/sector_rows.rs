@@ -71,9 +71,18 @@ fn from_rim(
 ) -> Result<Vec<ChartMeeting<f64>>, SplineFaceRefusal> {
     let at = cylinder().eval(u, 0.0);
     if toward {
-        read(&Curve3::line(at - dir * 0.5, geom::stated_direction(dir)), (0.0, 0.5))
+        read(
+            &Curve3::line(at - dir * 0.5, geom::stated_direction(dir)),
+            (0.0, 0.5),
+        )
     } else {
-        read(&Curve3::Line(geom::Line { origin: at, dir: geom::stated_direction(dir) }), (0.0, 0.5))
+        read(
+            &Curve3::Line(geom::Line {
+                origin: at,
+                dir: geom::stated_direction(dir),
+            }),
+            (0.0, 0.5),
+        )
     }
 }
 

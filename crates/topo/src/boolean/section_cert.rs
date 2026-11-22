@@ -944,7 +944,8 @@ fn torus_pair<T: Decide>(
             // turn onto the torus axis moves it by the torus centre's
             // station from the pivot times `1 − cos` (at most `sin²`),
             // and by the offset's part along the tilted axis.
-            let turn = |t: &Turn<T>| (c - t.at).dot(a.get()).abs() * t.tilt.powi(2) + t.offset * t.tilt;
+            let turn =
+                |t: &Turn<T>| (c - t.at).dot(a.get()).abs() * t.tilt.powi(2) + t.offset * t.tilt;
             match axis_pose(
                 geom::Line { origin: c, dir: a },
                 geom::Line {
@@ -1299,7 +1300,11 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
         ruling::Chart {
             base: self.apex,
             offset: ruling::Swing::fixed(zero),
-            dir: ruling::Swing::round([self.a.get() * c, self.u_ref * s, self.a.get().cross(self.u_ref) * s]),
+            dir: ruling::Swing::round([
+                self.a.get() * c,
+                self.u_ref * s,
+                self.a.get().cross(self.u_ref) * s,
+            ]),
             reach_speed: lever * s,
             lever: lever + lever,
         }
@@ -1444,7 +1449,8 @@ fn cone_cone<T: Decide>(
         let lever = reach.lever_from(one.apex).max(reach.lever_from(two.apex));
         let mut lines = 0;
         for a2 in [two.a, -two.a] {
-            let m = geom_brep::cone_cone_apex_meeting((one.a.get(), one.sc.1), (a2.get(), two.sc.1));
+            let m =
+                geom_brep::cone_cone_apex_meeting((one.a.get(), one.sc.1), (a2.get(), two.sc.1));
             match sign_as(RULINGS, Margin::levered(m.disc, lever), band) {
                 Some(Sign::Positive) => lines += 2,
                 Some(Sign::Negative) => {}
@@ -1734,7 +1740,8 @@ fn cone_parallel_cylinder<T: Decide>(
     };
     let foot = cone.apex + toward * (e - rc);
     let h = (e - rc).abs() * c / s;
-    let part = |h: T| Component::closed_form(false, [!outside, true], Some(foot + cone.a.get() * h));
+    let part =
+        |h: T| Component::closed_form(false, [!outside, true], Some(foot + cone.a.get() * h));
     Section::Components {
         parts: vec![part(h), part(-h)],
         single: false,

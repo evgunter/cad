@@ -631,7 +631,10 @@ impl<T: Real> UnitVec3<T> {
         debug_assert!(
             {
                 let n = v.dot(v);
-                match ((n - T::one()).told_reading().ends(), n.told_reading().ends()) {
+                match (
+                    (n - T::one()).told_reading().ends(),
+                    n.told_reading().ends(),
+                ) {
                     (Some((lo, hi)), Some((_, top))) => {
                         let charge = crate::rounding_charge(top.abs() + 1.0);
                         !(lo > charge || hi < -charge)
@@ -1275,5 +1278,146 @@ mod new_scaled_rows {
         }
         rows::<f64>("f64", band);
         rows::<Interval>("interval", band);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod stated_rows {
+    use super::{UnitVec3, Vec3};
+    use crate::dual::Dual64;
+    use crate::interval::Interval;
+    use crate::real::{Bounds, Real};
+
+    fn bits(v: Vec3<f64>) -> [u64; 3] {
+        [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]
+    }
+
+    /// `x̂` stretched so that `v·v − 1` is `k` units of roundoff.
+    fn off_unit(k: f64) -> Vec3<f64> {
+        Vec3::new((1.0 + k * f64::EPSILON).sqrt(), 0.0, 0.0)
+    }
+
+    /// **The stated door's tolerance, from both sides**: a direction whose
+    /// `v·v − 1` is within the charge of its terms (`rounding_charge` of
+    /// `v·v + 1`, `16ε` about a unit vector) is adopted bit for bit, and
+    /// one past it is refused, as is a direction that is not a finite
+    /// number or names no direction. Red with the charge halved (the
+    /// `14ε` direction refused) or doubled (the `18ε` one adopted).
+    #[test]
+    fn a_stated_direction_is_adopted_within_its_rounding_and_refused_past_it() {
+        let within = off_unit(14.0);
+        assert!((within.dot(within) - 1.0).abs() > 12.0 * f64::EPSILON);
+        let adopted = UnitVec3::stated(within).expect("14ε: within the 16ε charge");
+        assert_eq!(bits(adopted.get()), bits(within), "adopted bit for bit");
+        let past = off_unit(18.0);
+        assert!((past.dot(past) - 1.0).abs() < 20.0 * f64::EPSILON);
+        assert!(UnitVec3::stated(past).is_none(), "18ε: past the 16ε charge");
+        for (what, v) in [
+            ("the zero vector", Vec3::new(0.0, 0.0, 0.0)),
+            ("a chord", Vec3::new(3.0, 0.0, 4.0)),
+            ("a NaN", Vec3::new(f64::NAN, 0.0, 1.0)),
+            ("an infinity", Vec3::new(f64::INFINITY, 0.0, 0.0)),
+        ] {
+            assert!(UnitVec3::stated(v).is_none(), "{what}: no stated direction");
+        }
+    }
+
+    /// **The stated door keeps a direction's bits where squaring it moves
+    /// them**: the first of a fixed run of normalized directions whose
+    /// square is not itself bit for bit (the corpus stores a few hundred
+    /// line directions a last place off unit) is adopted as stated. Red
+    /// with the door squaring ([`UnitVec3::squared`]) what it adopts.
+    #[test]
+    fn squaring_a_stated_direction_moves_its_bits_and_the_stated_door_does_not() {
+        let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
+        };
+        let moved = (0..10_000)
+            .map(|_| Vec3::new(next(), next(), next()).normalize())
+            .find(|v| bits(UnitVec3::squared(*v).get()) != bits(*v))
+            .expect("some normalized direction squares to other bits");
+        let adopted = UnitVec3::stated(moved).expect("a normalized direction is unit to rounding");
+        assert_eq!(bits(adopted.get()), bits(moved), "the stated bits, kept");
+    }
+
+    /// **A constructed direction keeps its bits at every scalar**: the
+    /// door adds the type to what the construction made, at `f64`, at
+    /// `Interval` and at `Dual`, its tangent channel included.
+    #[test]
+    fn a_constructed_direction_keeps_its_bits_at_every_scalar() {
+        let (s, c) = 0.3_f64.sin_cos();
+        let v = Vec3::new(s, 0.0, c);
+        assert_eq!(bits(UnitVec3::constructed(v).get()), bits(v), "f64");
+        let iv = v.map(Interval::from_f64);
+        let got = UnitVec3::constructed(iv).get();
+        assert!(
+            [got.x, got.y, got.z]
+                .iter()
+                .zip([iv.x, iv.y, iv.z])
+                .all(|(a, b)| a.lo() == b.lo() && a.hi() == b.hi()),
+            "Interval: {got:?}"
+        );
+        let t = Dual64::variable(0.3);
+        let (ds, dc) = t.sin_cos();
+        let dv = Vec3::new(ds, Dual64::constant(0.0), dc);
+        let got = UnitVec3::constructed(dv).get();
+        assert!(
+            got.x.value == s && got.x.deriv == c && got.z.deriv == -s,
+            "Dual: {got:?}"
+        );
+    }
+
+    /// **A constructed direction its value refutes fails loud**: a chord
+    /// of length 5 handed to the door is a debug assertion, never a
+    /// direction carried on.
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "is not unit to rounding")]
+    fn a_constructed_chord_fails_loud() {
+        let _ = UnitVec3::constructed(Vec3::new(3.0, 0.0, 4.0));
+    }
+
+    /// **The lift of a stated direction, per target** (D2's read): to
+    /// `Interval` the polar enclosure of the unit vector nearest the
+    /// stored one, which holds the stored bits; carried as it is between
+    /// two scalars of one kind.
+    #[test]
+    fn a_stated_direction_lifts_to_its_enclosure_and_within_its_kind() {
+        let v = UnitVec3::stated(Vec3::new(0.6, 0.8, 0.0)).unwrap();
+        let at = v.map_scalar(Interval::from_f64).get();
+        for (e, x) in [(at.x, 0.6), (at.y, 0.8), (at.z, 0.0)] {
+            assert!(e.lo() <= x && x <= e.hi(), "the enclosure holds {x}: {e:?}");
+        }
+        let kept = v.map_scalar(|x: f64| x).get();
+        assert_eq!(bits(kept), bits(v.get()), "f64 to f64, as it is");
+        let lane = UnitVec3::constructed(Vec3::new(
+            Dual64::constant(0.6),
+            Dual64::constant(0.8),
+            Dual64::constant(0.0),
+        ));
+        let same = lane.map_scalar(|x: Dual64| x).get();
+        assert!(
+            same.x.value == 0.6 && same.y.value == 0.8,
+            "Dual to Dual, as it is"
+        );
+    }
+
+    /// **No read carries a stated direction into another kind's lane**:
+    /// `f64` to a `Dual` over `Interval` fails a debug assertion (a release
+    /// build answers poison). Into `f64`'s own lane, `Dual<f64>`, it is
+    /// carried as it is, a constant.
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "no read carries a direction into a lane")]
+    fn a_stated_direction_does_not_lift_into_another_kinds_lane() {
+        let v = UnitVec3::stated(Vec3::new(0.6, 0.8, 0.0)).unwrap();
+        let constant = v.map_scalar(Dual64::constant).get();
+        assert!(constant.x.value == 0.6 && constant.x.deriv == 0.0);
+        let _ = v.map_scalar(|x| crate::dual::Dual::<Interval>::constant(Interval::from_f64(x)));
     }
 }

@@ -6887,9 +6887,8 @@ pub enum Ruling<T: Real> {
 /// class arms, props' boundary parse and the boolean share: the line's
 /// greatest distance from `ruling` over the edge's span `[t0, t1]`, in
 /// metres. A distance from a line is convex along a line, so the greatest
-/// is at an end of the span and the reading is exact. It is the line's
-/// and not its parametrisation's speed: a line with `dir` scaled and its
-/// span scaled back reads the same.
+/// is at an end of the span and the reading is exact. The line's
+/// direction is a `UnitVec3`, so its parameter is metres along it.
 ///
 /// The ruling is anchored where the closed form that a Zero reading
 /// selects places its image: on a cylinder, the ruling through the line's
@@ -13048,7 +13047,10 @@ fn torus_oblique_circle<T: Decide>(
     .offset(c);
     let gates = [
         ("pcurve_torus_villarceau_offset", Margin::of(w_r.norm() - r)),
-        ("pcurve_torus_villarceau_equator", Margin::of(w.dot(axis.get()))),
+        (
+            "pcurve_torus_villarceau_equator",
+            Margin::of(w.dot(axis.get())),
+        ),
         ("pcurve_torus_villarceau_plane", Margin::of(n.dot(w))),
         (
             "pcurve_torus_villarceau_tilt",
@@ -15397,7 +15399,8 @@ mod tests {
                 half_angle: 0.5,
             }
             .map_scalar(&at);
-            let line = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()).map_scalar(&at);
+            let line =
+                Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()).map_scalar(&at);
             let half = 0.1 * band().zero();
             chart_pcurve_over(&line, at(-half), at(half), &cone, band())
                 .expect_err("the apex plane meets the cone only at the apex")
@@ -16032,7 +16035,10 @@ mod tests {
 
     /// A `Curve3::Line` from `origin` along `dir` (already unit here).
     fn ruling_line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Line(geom::Line { origin, dir: geom::stated_direction(dir) })
+        Curve3::Line(geom::Line {
+            origin,
+            dir: geom::stated_direction(dir),
+        })
     }
 
     /// The positive row: a promoted LINE carrier on the wall's `u = 0`
@@ -16444,7 +16450,10 @@ mod fitted_lane_tests {
     }
 
     fn line(lift: f64) -> Curve3<f64> {
-        Curve3::line(Point3::new(0.0, 0.5, lift), geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)))
+        Curve3::line(
+            Point3::new(0.0, 0.5, lift),
+            geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        )
     }
 
     /// **A line carrier enters as its exact net, against the chart
@@ -16709,7 +16718,12 @@ mod off_chart_class_rows {
         }
         let mid = 0.5 * (band().zero() + band().escalate());
         let dir = Vec3::new(0.0, 1.0, 0.3).normalize();
-        let line = |origin: Point3<f64>| Curve3::Line(geom::Line { origin, dir: geom::stated_direction(dir) });
+        let line = |origin: Point3<f64>| {
+            Curve3::Line(geom::Line {
+                origin,
+                dir: geom::stated_direction(dir),
+            })
+        };
         let at_mid = Point3::new(1.0, 0.0, mid);
         let (u, v) = (Vec3::unit_y(), Vec3::new(mid, 0.0, 1.0).normalize());
         let tilted_circle =

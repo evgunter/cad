@@ -77,7 +77,10 @@ fn bisect_roots(q: Point3<f64>, d: Vec3<f64>) -> Vec<f64> {
 fn probe(q: Point3<f64>, d_raw: Vec3<f64>, band: Band) -> (Option<(usize, Vec<f64>)>, bool) {
     let d = d_raw.normalize();
     match line_torus_roots(
-        geom::Line { origin: q, dir: geom::stated_direction(d) },
+        geom::Line {
+            origin: q,
+            dir: geom::stated_direction(d),
+        },
         geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
@@ -252,7 +255,11 @@ fn r2_extreme_radii_ratios_keep_the_certified_roots_honest() {
             band,
         );
         let f = |t: f64| {
-            let w = Vec3::new(q.x + d.get().x * t, q.y + d.get().y * t, q.z + d.get().z * t);
+            let w = Vec3::new(
+                q.x + d.get().x * t,
+                q.y + d.get().y * t,
+                q.z + d.get().z * t,
+            );
             let n2 = w.norm_squared();
             (n2 + rr * rr - rm * rm).powi(2) - 4.0 * rr * rr * (n2 - w.y * w.y)
         };

@@ -86,9 +86,9 @@
 //! plane — makes the path undecided, one in the escalation band makes
 //! it escalate, and the caller asks another.
 
-use geom_core::UnitVec3;
 use geom::Conic;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, Vec3};
 
 use crate::validate::decide;
@@ -342,18 +342,8 @@ impl<T: Decide> Quadric<T> {
                 let mut paths = Vec::with_capacity(2);
                 // Round the start's meridian to `to`'s parallel, then round.
                 let turned = centre + axis.get() * ht + ef * rt;
-                let meridian = parallel(
-                    (kf, ef.cross(axis.get())),
-                    off_t,
-                    start,
-                    turned,
-                );
-                let round = parallel(
-                    (centre + axis.get() * ht, axis.get()),
-                    rt,
-                    turned,
-                    to,
-                );
+                let meridian = parallel((kf, ef.cross(axis.get())), off_t, start, turned);
+                let round = parallel((centre + axis.get() * ht, axis.get()), rt, turned, to);
                 paths.push(Path {
                     pieces: vec![lead.clone(), Piece::Meridian(meridian), Piece::Arc(round)],
                     arrival: round.tangent(round.span.1),
@@ -361,18 +351,8 @@ impl<T: Decide> Quadric<T> {
                 });
                 // Round the start's parallel to `to`'s meridian, then round.
                 let turned = centre + axis.get() * hs + et * rs;
-                let round = parallel(
-                    (centre + axis.get() * hs, axis.get()),
-                    rs,
-                    start,
-                    turned,
-                );
-                let meridian = parallel(
-                    (kt, et.cross(axis.get())),
-                    off_t,
-                    turned,
-                    to,
-                );
+                let round = parallel((centre + axis.get() * hs, axis.get()), rs, start, turned);
+                let meridian = parallel((kt, et.cross(axis.get())), off_t, turned, to);
                 paths.push(Path {
                     pieces: vec![lead, Piece::Arc(round), Piece::Meridian(meridian)],
                     arrival: meridian.tangent(meridian.span.1),
@@ -449,12 +429,7 @@ impl<T: Decide> Quadric<T> {
             Margin::of(charge(rise, slack)),
             band,
         )?;
-        let round_at_to = parallel(
-            (base + axis.get() * ht, axis.get()),
-            rt,
-            turned,
-            to,
-        );
+        let round_at_to = parallel((base + axis.get() * ht, axis.get()), rt, turned, to);
         let turn = decide(
             "split_ring_path_turn",
             Margin::of(charge(
@@ -472,12 +447,7 @@ impl<T: Decide> Quadric<T> {
             });
         }
         if rise != Sign::Zero {
-            let round = parallel(
-                (base + axis.get() * hf, axis.get()),
-                rf,
-                from,
-                below,
-            );
+            let round = parallel((base + axis.get() * hf, axis.get()), rf, from, below);
             paths.push(Path {
                 pieces: vec![Piece::Arc(round), piece(below, to, to)],
                 arrival: if rise == Sign::Positive {

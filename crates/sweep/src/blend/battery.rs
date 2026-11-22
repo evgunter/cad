@@ -38,10 +38,10 @@
 //!   `spine_regularity_refuses_before_the_torus_is_minted` pins by
 //!   showing the refusal arrives with no surface allocated.
 
-use geom_core::UnitVec3;
 use geom::Surface;
 use geom::{Curve3, EllipseInvalid};
 use geom_brep::SurfaceSide;
+use geom_core::UnitVec3;
 use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
@@ -3402,7 +3402,14 @@ fn mixed_corner_square<T: Decide + Bounds>(
             "a plane–plane link's trimline is not a line",
         ));
     };
-    match cap_transverse(vertex, normals[slot], spine.dir.get(), radius, odd.arm_len, band)? {
+    match cap_transverse(
+        vertex,
+        normals[slot],
+        spine.dir.get(),
+        radius,
+        odd.arm_len,
+        band,
+    )? {
         EndSection::Circle => Ok(faces[slot]),
         _ => Err(BlendError::ObliqueMixedCorner {
             vertex,

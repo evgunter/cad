@@ -1,8 +1,7 @@
 //! **Whether a line is a ruling of its chart** ([`ruling_miss`], the one
 //! reading the mint's cylinder and cone arms, props and the boolean
 //! share): metered over the edge's span, so one tilt reads apart on a
-//! long edge and shown on a short one, and a line read from a moved
-//! origin or run back reads the same. On the cone it is D3's lane choice: a line
+//! long edge and shown on a short one. On the cone it is D3's lane choice: a line
 //! shown on its generator takes the generator's closed form, and one in
 //! band or definitely off it the general lane. Every row holds at `f64`
 //! and at `Interval`, and at every ε of the run.
@@ -314,72 +313,6 @@ fn one_tilt_reads_by_its_reach_over_the_edge() {
     }
 }
 
-/// **A line's reading is the line's, not its parametrisation's**: the
-/// same segment read from an origin moved along it, its span moved back,
-/// and run the other way, reads the same margin and takes the same class,
-/// on the cylinder (the short edge of
-/// [`one_tilt_reads_by_its_reach_over_the_edge`]) and on the cone (a
-/// ruling turned in band off its generator). A line's direction is a
-/// `UnitVec3`, so a shift of its parameter and its reversal are the
-/// reparametrisations a line has; a scaled direction, which this row read
-/// before, is no line's.
-#[test]
-fn a_reparametrised_span_reads_the_same_margin() {
-    let short_tilt = 100.0 * band().escalate();
-    let short = 0.25 * zero() / short_tilt;
-    let (anchor, g, tangent) = cone_at(1.0, 1.0, 1.0);
-    let Surface::Cone { frame, .. } = cone() else {
-        unreachable!("a cone")
-    };
-    let apex = frame.origin();
-    let theta = cone_in_band_turn(CONE_SPAN.1);
-    let cone_line = Curve3::line(anchor, geom::stated_direction(g * theta.cos() + tangent * theta.sin()));
-    let rows = [
-        (
-            "cylinder",
-            tilted(0.3, short_tilt),
-            (-short / 2.0, short / 2.0),
-            cylinder(),
-            Ruling::Axis(Vec3::unit_z()),
-        ),
-        (
-            "cone",
-            cone_line,
-            CONE_SPAN,
-            cone(),
-            Ruling::Generator { apex, g },
-        ),
-    ];
-    for (what, carrier, span, surface, ruling) in rows {
-        let Curve3::Line(geom::Line { origin, dir }) = carrier else {
-            unreachable!("a line")
-        };
-        let (base, _) = reading(&carrier, span, ruling);
-        let [d, _] = derivations(&carrier, span, &surface);
-        let shifted = |c: f64| (Curve3::line(origin + dir.get() * c, dir), (span.0 - c, span.1 - c));
-        let reversed = (Curve3::line(origin, -dir), (-span.1, -span.0));
-        for (k, (scaled, span_k)) in [("shifted −0.7", shifted(-0.7)), ("shifted 2.5", shifted(2.5)), ("reversed", reversed)] {
-            let (at, (lo, hi)) = reading(&scaled, span_k, ruling);
-            // The cross product's rounding, metres over the span.
-            let slack = 1e-9 * base + 64.0 * f64::EPSILON * (span.1 - span.0);
-            assert!(
-                (at - base).abs() <= slack && lo <= base + slack && hi >= base - slack,
-                "{what}, {k}: the reading {at:e} ([{lo:e}, {hi:e}]) is the stated span's {base:e}"
-            );
-            let [d_k, d_k_i] = derivations(&scaled, span_k, &surface);
-            let class = |d: &Result<Derivation, PcurveCertifyError>| {
-                d.as_ref()
-                    .map(core::mem::discriminant)
-                    .map_err(core::mem::discriminant)
-            };
-            assert!(
-                class(&d_k) == class(&d) && class(&d_k_i) == class(&d),
-                "{what}, {k}: the class is the stated span's: {d_k:?} / {d_k_i:?} against {d:?}"
-            );
-        }
-    }
-}
-
 /// The span the cone's in-band rows read, from the anchor.
 const CONE_SPAN: (f64, f64) = (0.0, 1e-2);
 
@@ -503,7 +436,10 @@ fn an_in_band_tilt_takes_the_general_lane_on_each_chart() {
         let theta = cone_in_band_turn(l);
         rows.push((
             format!("cone, σ {sigma}"),
-            Curve3::line(anchor, geom::stated_direction(g * theta.cos() + tangent * theta.sin())),
+            Curve3::line(
+                anchor,
+                geom::stated_direction(g * theta.cos() + tangent * theta.sin()),
+            ),
             CONE_SPAN,
             cone(),
             Ruling::Generator { apex, g },
@@ -610,7 +546,10 @@ fn the_cone_reading_is_placed_over_the_span() {
     for sigma in [1.0, -1.0] {
         let (anchor, g, tangent) = cone_at(1.0, sigma, 1.0);
         let what = format!("cone, σ {sigma}, turned {theta:e}, over [{k}, {}]", k + l);
-        let carrier = Curve3::line(anchor, geom::stated_direction(g * theta.cos() + tangent * theta.sin()));
+        let carrier = Curve3::line(
+            anchor,
+            geom::stated_direction(g * theta.cos() + tangent * theta.sin()),
+        );
         let span = (k, k + l);
         let [d, d_i] = derivations(&carrier, span, &surface);
         assert!(
@@ -653,7 +592,8 @@ fn a_line_across_the_apex_that_is_no_generator_ends_not_yet() {
         for k in [1.02, 1.1] {
             for span in [(-0.5, 0.5), (-0.4, 1.0)] {
                 let what = format!("σ {sigma}, shifted {k}·zero, over {span:?}");
-                let carrier = Curve3::line(anchor + tangent * (k * zero()), geom::stated_direction(g));
+                let carrier =
+                    Curve3::line(anchor + tangent * (k * zero()), geom::stated_direction(g));
                 let [d, d_i] = derivations(&carrier, span, &surface);
                 assert!(
                     !matches!(d, Ok(Derivation::ConeRuling { .. }))

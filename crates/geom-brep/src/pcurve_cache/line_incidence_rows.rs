@@ -137,7 +137,11 @@ fn hunt(
     let surface_i = surface.map_scalar(f);
     let line_i = Curve3::line(
         Point3::new(f(line.origin.x), f(line.origin.y), f(line.origin.z)),
-        geom_core::UnitVec3::constructed(Vec3::new(f(line.dir.get().x), f(line.dir.get().y), f(line.dir.get().z))),
+        geom_core::UnitVec3::constructed(Vec3::new(
+            f(line.dir.get().x),
+            f(line.dir.get().y),
+            f(line.dir.get().z),
+        )),
     );
     let at = |t: f64| distance(&surface_i, &line_i, t.clamp(t0, t1));
     let n: u32 = 2000;
@@ -162,7 +166,10 @@ fn hunt(
         .collect();
     if let Some(geom::Line { origin: o, dir: a }) = surface.axis_line().map(geom::Line::unit) {
         let (q, u) = (line.origin - o, line.dir);
-        let (qo, uo) = (q - a.get() * q.dot(a.get()), u.get() - a.get() * u.get().dot(a.get()));
+        let (qo, uo) = (
+            q - a.get() * q.dot(a.get()),
+            u.get() - a.get() * u.get().dot(a.get()),
+        );
         near.push(-qo.dot(uo) / uo.dot(uo));
     }
     for c in near.into_iter().filter(|c| c.is_finite()) {
@@ -335,10 +342,13 @@ fn no_parameter_of_the_span_is_farther_than_the_read() {
     println!("[line incidence] past the band {off}, inside the zero band {on}");
 }
 
+/// A line on its unit direction and the factor its stated spans scale by.
+type UnitLine = (geom::Line<f64>, f64);
+
 /// **A stated line `origin + dir·t` on its unit direction**, and `|dir|`,
 /// the factor its stated spans are read in metres by: the same segment
 /// for any span.
-fn on_unit(origin: Point3<f64>, dir: Vec3<f64>) -> (geom::Line<f64>, f64) {
+fn on_unit(origin: Point3<f64>, dir: Vec3<f64>) -> UnitLine {
     (
         geom::Line {
             origin,
@@ -382,7 +392,10 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
                     let axis = frame.axis();
                     lines.push(on_unit(surface.eval(u, 0.4), axis * 0.7))
                 }
-                Surface::Plane { .. } => lines.push(on_unit(surface.eval(u, 0.4), surface.deriv_u(u, 0.4) + surface.deriv_v(u, 0.4) * u)),
+                Surface::Plane { .. } => lines.push(on_unit(
+                    surface.eval(u, 0.4),
+                    surface.deriv_u(u, 0.4) + surface.deriv_v(u, 0.4) * u,
+                )),
                 _ => {}
             }
         }
@@ -431,7 +444,7 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
 fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     let f = Interval::from_f64;
     let u_ref = Vec3::unit_x();
-    let mut cases: Vec<(String, Surface<f64>, (geom::Line<f64>, f64))> = Vec::new();
+    let mut cases: Vec<(String, Surface<f64>, UnitLine)> = Vec::new();
     for big in [0.3, -0.3] {
         for axis in [Vec3::unit_z(), Vec3::new(0.1, -0.2, 1.0).normalize()] {
             let c = Point3::new(0.0, 0.0, 0.0);
@@ -478,7 +491,10 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     cases.push((
         "cone chord past the apex".into(),
         cone,
-        on_unit(Point3::new(r, 0.0, 0.3) + side, Point3::new(-r, 0.0, -0.3) - Point3::new(r, 0.0, 0.3)),
+        on_unit(
+            Point3::new(r, 0.0, 0.3) + side,
+            Point3::new(-r, 0.0, -0.3) - Point3::new(r, 0.0, 0.3),
+        ),
     ));
     for (what, surface, (line, k)) in cases {
         let carrier = Curve3::Line(line);

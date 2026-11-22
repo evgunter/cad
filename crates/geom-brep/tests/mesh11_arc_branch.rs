@@ -242,7 +242,10 @@ fn cone_rim<T: Real>(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<T> {
 fn generator<T: Real>(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<T> {
     let s = core::f64::consts::FRAC_1_SQRT_2;
     edge(
-        Curve3::line(p3(0.0, 0.0, 0.0), geom_core::UnitVec3::constructed(v3(u.cos() * s, u.sin() * s, s))),
+        Curve3::line(
+            p3(0.0, 0.0, 0.0),
+            geom_core::UnitVec3::constructed(v3(u.cos() * s, u.sin() * s, s)),
+        ),
         v0,
         v1,
         a,

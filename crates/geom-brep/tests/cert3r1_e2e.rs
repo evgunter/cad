@@ -83,7 +83,11 @@ mod interval_lane {
             ),
             axis: geom::Line {
                 origin: Point3::new(wd(1.0), wd(2.0), wd(3.0)),
-                dir: geom_core::UnitVec3::constructed(Vec3::new(wd(2.0 / 3.0), wd(1.0 / 3.0), wd(-2.0 / 3.0))),
+                dir: geom_core::UnitVec3::constructed(Vec3::new(
+                    wd(2.0 / 3.0),
+                    wd(1.0 / 3.0),
+                    wd(-2.0 / 3.0),
+                )),
             },
             angle: iv(angle),
         })

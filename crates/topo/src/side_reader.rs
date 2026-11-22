@@ -16,8 +16,8 @@
 //! ([`crate::solid_contain`]'s crossing walk), logged under their
 //! own rows ([`AIMED_ROWS`]) so the two readers' verdicts stay apart.
 
-use geom_core::UnitVec3;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
 
 use crate::body::Body;
@@ -1095,13 +1095,19 @@ mod aimed_ray_tests {
             ("through two faces", through_faces, 2, false),
             ("through two corners", through_corners, 2, true),
         ] {
-            let from_start = counts(&geom::Ray::new(start, geom::stated_direction(d)), marks_only);
+            let from_start = counts(
+                &geom::Ray::new(start, geom::stated_direction(d)),
+                marks_only,
+            );
             assert!(
                 from_start.len() >= hits,
                 "{what}: the ray from its start reads the brick: {from_start:?}"
             );
             for k in [0.5, 3.0, 7.0] {
-                let given = counts(&geom::Ray::starting(start + d * k, geom::stated_direction(d), -k), marks_only);
+                let given = counts(
+                    &geom::Ray::starting(start + d * k, geom::stated_direction(d), -k),
+                    marks_only,
+                );
                 assert_eq!(
                     given.len(),
                     from_start.len(),
@@ -1118,7 +1124,10 @@ mod aimed_ray_tests {
             }
             // The same origin with no start before it reads nothing
             // behind itself.
-            let past = counts(&geom::Ray::new(start + d * 7.0, geom::stated_direction(d)), marks_only);
+            let past = counts(
+                &geom::Ray::new(start + d * 7.0, geom::stated_direction(d)),
+                marks_only,
+            );
             assert!(past.is_empty(), "{what}: past the brick: {past:?}");
         }
     }

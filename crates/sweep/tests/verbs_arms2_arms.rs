@@ -245,7 +245,10 @@ impl Row {
     ) -> (EdgeBlend<f64>, Point3<f64>) {
         if let Some((origin, axis)) = self.axis {
             let sheet = Meridian {
-                axis: geom::Line { origin, dir: geom::stated_direction(axis) },
+                axis: geom::Line {
+                    origin,
+                    dir: geom::stated_direction(axis),
+                },
                 rim: self.rim,
             };
             let (ta, da) = sheet.trace(&self.a, senses.0).expect("a coaxial trace");
@@ -267,7 +270,9 @@ impl Row {
             (b, center)
         } else {
             let sheet = Ruling {
-                tau: geom_core::UnitVec3::constructed(self.tau.expect("a ruled row carries its ruling")),
+                tau: geom_core::UnitVec3::constructed(
+                    self.tau.expect("a ruled row carries its ruling"),
+                ),
                 rim: self.rim,
                 lever: 1.0,
             };
@@ -279,8 +284,14 @@ impl Row {
                 self.arm.name()
             );
             let b = sheet.blend(ta, tb, radius, Branch::Rim);
-            let center =
-                sweep::blend::arms::sheet_center(self.rim, sheet.tau.get(), ta, tb, radius, Branch::Rim);
+            let center = sweep::blend::arms::sheet_center(
+                self.rim,
+                sheet.tau.get(),
+                ta,
+                tb,
+                radius,
+                Branch::Rim,
+            );
             (b, center)
         }
     }

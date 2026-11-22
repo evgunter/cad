@@ -87,7 +87,10 @@ fn quarter_ellipse() -> Vec<(Curve3<f64>, (f64, f64))> {
         1.0,
     ));
     vec![
-        (Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()), (0.0, 3.0)),
+        (
+            Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
+            (0.0, 3.0),
+        ),
         (e, (0.0, FRAC_PI_2)),
         (
             Curve3::line(Point3::new(0.0, 1.0, 0.0), -geom_core::UnitVec3::exact_y()),
@@ -145,7 +148,10 @@ fn an_ellipse_run_past_the_corner_meets_there() {
 
 fn rim() -> Vec<(Curve3<f64>, (f64, f64))> {
     vec![
-        (Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()), (0.0, 1.0)),
+        (
+            Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
+            (0.0, 1.0),
+        ),
         (circle(Vec3::unit_z()), (0.0, FRAC_PI_2)),
         (
             Curve3::line(Point3::new(0.0, 1.0, 0.0), -geom_core::UnitVec3::exact_y()),

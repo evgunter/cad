@@ -8294,7 +8294,8 @@ fn verify_tangency<T: Decide>(
                 let (rim, identity) = crate::rim_wedge::shared_rim(a, fa, b, fb, band)
                     .map_err(|diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag)))?
                     .ok_or(Unsupported)?;
-                let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
+                let circle =
+                    geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
                 (
                     circle,
                     T::zero(),

@@ -725,7 +725,10 @@ mod tests {
     }
     fn arc(c: Point3<f64>, n: Vec3<f64>, from: Point3<f64>, to: Point3<f64>) -> Proposed<f64> {
         Proposed {
-            depth: Around::Line(geom::Line { origin: c, dir: geom_core::UnitVec3::squared(n) }),
+            depth: Around::Line(geom::Line {
+                origin: c,
+                dir: geom_core::UnitVec3::squared(n),
+            }),
             source: Source::Arc(from, to),
         }
     }
@@ -803,7 +806,10 @@ mod tests {
             }))])
         };
         let y = v(0.0, 1.0, 0.0);
-        let parallel = dirs(&wall(p(0.0, 0.0, 0.0), geom_core::UnitVec3::squared(y)), &wall(p(1.0, 0.7, 1.0), geom_core::UnitVec3::squared(y * 2.0)));
+        let parallel = dirs(
+            &wall(p(0.0, 0.0, 0.0), geom_core::UnitVec3::squared(y)),
+            &wall(p(1.0, 0.7, 1.0), geom_core::UnitVec3::squared(y * 2.0)),
+        );
         assert_eq!(parallel.len(), 2, "two offsets");
         assert!(
             parallel

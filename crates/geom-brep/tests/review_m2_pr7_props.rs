@@ -294,7 +294,11 @@ fn meridian_edge(
                 carrier_frame.u_ref(),
             );
             let (radial, _) = frame(axis, u_ref);
-            (Curve3::line(origin + radial * radius, geom::stated_direction(axis)), v0, v1)
+            (
+                Curve3::line(origin + radial * radius, geom::stated_direction(axis)),
+                v0,
+                v1,
+            )
         }
         Surface::Cone {
             frame: carrier_frame,
@@ -308,7 +312,14 @@ fn meridian_edge(
             let (sa, ca) = half_angle.sin_cos();
             let (radial, _) = frame(axis, u_ref);
             let dir = axis * ca + radial * sa; // unit generator; p(v) = apex + dir·v
-            (Curve3::Line(geom::Line { origin: apex, dir: geom::stated_direction(dir) }), v0, v1)
+            (
+                Curve3::Line(geom::Line {
+                    origin: apex,
+                    dir: geom::stated_direction(dir),
+                }),
+                v0,
+                v1,
+            )
         }
         Surface::Sphere {
             frame: carrier_frame,
@@ -524,7 +535,14 @@ fn torus_patch_matches_oracle_arbitrary_minor_intervals() {
 fn line_edge(a: Point3<f64>, b: Point3<f64>) -> LoopEdge<f64> {
     let d = b - a;
     let len = d.norm();
-    LoopEdge::hand_built(Curve3::line(a, geom::stated_direction(d * (1.0 / len))), 0.0, len, true, 0, 0)
+    LoopEdge::hand_built(
+        Curve3::line(a, geom::stated_direction(d * (1.0 / len))),
+        0.0,
+        len,
+        true,
+        0,
+        0,
+    )
 }
 
 /// Full circle in the z = h plane as a single self-loop edge, CCW

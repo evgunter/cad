@@ -993,7 +993,10 @@ fn split_tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
         seam,
         geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
-            carrier: geom::Curve3::line(ends.0, geom::stated_direction((ends.1 - ends.0) / (ends.1 - ends.0).norm())),
+            carrier: geom::Curve3::line(
+                ends.0,
+                geom::stated_direction((ends.1 - ends.0) / (ends.1 - ends.0).norm()),
+            ),
             param_start: 0.0,
             param_end: (ends.1 - ends.0).norm(),
         },

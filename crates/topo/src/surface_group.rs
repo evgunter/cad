@@ -40,13 +40,13 @@
 //! Rings take a face out of every class: a ringed face is a trimmed one,
 //! and a ring is a boundary the scan cannot see.
 
-use geom_core::UnitVec3;
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
 use geom_brep::ladder::read_identity;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Vec3};
+use geom_core::UnitVec3;
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3};
 
 use crate::rim_wedge::Rim;
 use crate::solid_contain::PointInSolidError;

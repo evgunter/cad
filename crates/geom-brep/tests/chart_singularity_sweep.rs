@@ -399,8 +399,12 @@ mod closed_form_and_walk {
     #[test]
     fn a_cone_patch_reads_the_apex_by_its_orientation() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let gen_ =
-            |u: f64| Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::squared(Vec3::new(u.cos(), u.sin(), 1.0)));
+        let gen_ = |u: f64| {
+            Curve3::line(
+                Point3::new(0.0, 0.0, 0.0),
+                geom_core::UnitVec3::squared(Vec3::new(u.cos(), u.sin(), 1.0)),
+            )
+        };
         // A generator's parameter is `√2` metres per unit of height.
         let h = core::f64::consts::SQRT_2;
         let (u0, u1) = (0.2, 0.2 + core::f64::consts::FRAC_PI_2);

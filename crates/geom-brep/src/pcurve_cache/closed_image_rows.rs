@@ -556,7 +556,10 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
                 let (sigma, speed) = (sign(g), g.range(0.3, 3.0));
                 let away = sigma * slant > 0.0;
                 let reach = if away { 10.0 } else { slant.abs() - 0.2 } / speed;
-                let line = Curve3::line(o + generator * slant, geom_core::UnitVec3::squared(generator * sigma));
+                let line = Curve3::line(
+                    o + generator * slant,
+                    geom_core::UnitVec3::squared(generator * sigma),
+                );
                 (surface, line, (0.0, g.range(0.1, 1.0) * reach * speed))
             } else {
                 let c = o + axis * (slant * alpha.cos());
@@ -742,7 +745,10 @@ impl Mirror {
     /// is `axis × u_ref`, so its reflected axis is negated.
     fn carrier(self, c: &Curve3<f64>) -> Curve3<f64> {
         match c {
-            Curve3::Line(l) => Curve3::line(self.point(l.origin), geom::stated_direction(self.vector(l.dir.get()))),
+            Curve3::Line(l) => Curve3::line(
+                self.point(l.origin),
+                geom::stated_direction(self.vector(l.dir.get())),
+            ),
             Curve3::Circle(k) => Curve3::circle(
                 self.point(k.frame.origin()),
                 -self.vector(k.frame.axis()),

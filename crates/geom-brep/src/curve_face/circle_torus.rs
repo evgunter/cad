@@ -143,8 +143,8 @@
 //!   width, refused `Unsettled` (module docs of [`super::circle_roots`],
 //!   "The half-angle ladder, and the subdivision that answers").
 
-use geom_core::UnitVec3;
 use geom::Conic;
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{CircleRoots, DoorRefusal, door_half_angle_roots, door_refusal};
@@ -284,7 +284,9 @@ pub(super) fn torus_method<T: Decide>(
 }
 
 /// A torus's centre, axis and radii, or `None` for another kind.
-fn torus_data<T: geom_core::Real>(torus: &geom::Surface<T>) -> Option<(Point3<T>, UnitVec3<T>, T, T)> {
+fn torus_data<T: geom_core::Real>(
+    torus: &geom::Surface<T>,
+) -> Option<(Point3<T>, UnitVec3<T>, T, T)> {
     match *torus {
         geom::Surface::Torus {
             frame,

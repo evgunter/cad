@@ -21,7 +21,10 @@ pub(super) fn band() -> Band {
 }
 
 pub(super) fn line(o: [f64; 3], d: [f64; 3]) -> Curve3<f64> {
-    Curve3::line(Point3::from_array(o), geom_core::UnitVec3::squared(Vec3::from_array(d)))
+    Curve3::line(
+        Point3::from_array(o),
+        geom_core::UnitVec3::squared(Vec3::from_array(d)),
+    )
 }
 
 /// A frame `u_ref` square to `axis`.
@@ -1398,11 +1401,19 @@ fn two_segments_on_one_line_two_metres_apart_meet_nowhere() {
     let band = Band::new(1e-6, 1e-5).unwrap();
     let edge = Curve3::line(
         Point3::new(-1.999_356_330_248_317_7, 0.535_723_727_818_681_7, 1.0),
-        geom::stated_direction(Vec3::new(0.965_926_090_343_448_7, -0.258_818_059_636_146_96, 0.0)),
+        geom::stated_direction(Vec3::new(
+            0.965_926_090_343_448_7,
+            -0.258_818_059_636_146_96,
+            0.0,
+        )),
     );
     let boundary = Curve3::line(
         Point3::new(1.999_999_999_999_999_8, -0.535_898_384_862_245_2, 1.0),
-        geom::stated_direction(Vec3::new(-0.965_925_826_289_068_3, 0.258_819_045_102_520_7, 0.0)),
+        geom::stated_direction(Vec3::new(
+            -0.965_925_826_289_068_3,
+            0.258_819_045_102_520_7,
+            0.0,
+        )),
     );
     let a = Span::new(&edge, (0.0, 2.069_885_419_015_256_5));
     let b = Span::new(&boundary, (0.0, 0.000_666_381_398_214_661_7));

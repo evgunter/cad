@@ -7962,7 +7962,10 @@ mod segment_curve_tests {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = FaceKey::from(KeyData::from_ffi(3));
         let surface = SurfaceKey::default();
-        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)));
+        let line = geom::Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        );
         let spec = |description| EdgeCurveSpec {
             description,
             carrier: line.clone(),

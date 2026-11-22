@@ -74,7 +74,8 @@ fn cut_d(sin: f64) -> (Body<f64>, EdgeKey, f64) {
             let on = (origin.x - c).abs() < 1e-9 && (origin.y - sin).abs() < 1e-9;
             // The parameter at z = 0.
             (on && dir.get().z.abs() > 0.5).then(|| {
-                let at0 = (Point3::new(c, sin, 0.0) - origin).dot(dir.get()) / dir.get().dot(dir.get());
+                let at0 =
+                    (Point3::new(c, sin, 0.0) - origin).dot(dir.get()) / dir.get().dot(dir.get());
                 (e, at0)
             })
         })

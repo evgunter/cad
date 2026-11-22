@@ -38,10 +38,10 @@
 //! clear of it is read against the sliver itself: wholly inside it,
 //! crossing it, or neither certified.
 
-use geom_core::UnitVec3;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
+use geom_core::UnitVec3;
 use geom_core::{Band, Bounds, Decide, InfSpeed, Margin, Point3, Real, Sign, Tol, Vec3};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite};
@@ -1361,7 +1361,8 @@ mod tests {
             let (line_i, len_i) = geom::Line::chord(ip(a.0, a.1), ip(b.0, b.1));
             (
                 self.sliver::<f64>().line_clearance(line, (0.0, len)),
-                self.sliver::<Interval>().line_clearance(line_i, (iv(0.0), len_i)),
+                self.sliver::<Interval>()
+                    .line_clearance(line_i, (iv(0.0), len_i)),
             )
         }
 
@@ -1505,7 +1506,9 @@ mod tests {
                     let (chord, chord_len) =
                         geom::Line::chord(Point3::new(a.0, a.1, 0.0), Point3::new(b.0, b.1, 0.0));
                     let carrier = Curve3::Line(chord);
-                    let whole = region.sliver::<f64>().whole_clearance(&carrier, (0.0, chord_len));
+                    let whole = region
+                        .sliver::<f64>()
+                        .whole_clearance(&carrier, (0.0, chord_len));
                     handed_over += usize::from(m > 1e-3 && whole.is_some_and(|w| w <= 0.0));
                 }
             }
@@ -1689,7 +1692,13 @@ mod tests {
         let v = |x: f64, y: f64| Vec3::new(x, y, 0.0);
         let rim = |o: Point3<f64>, d: Vec3<f64>| {
             // The rim is its chord `o → o + d`, its span in metres.
-            (Curve3::Line(geom::Line { origin: o, dir: geom_core::UnitVec3::squared(d) }), (0.0, d.norm()))
+            (
+                Curve3::Line(geom::Line {
+                    origin: o,
+                    dir: geom_core::UnitVec3::squared(d),
+                }),
+                (0.0, d.norm()),
+            )
         };
         CapSliver {
             cap: FaceKey::default(),

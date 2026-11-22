@@ -243,7 +243,10 @@ fn parallel_cylinders_mint_the_external_and_internal_generators() {
         ..
     } = tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 1.0), metre_patch(), band()).unwrap();
     assert!((origin.y - 1.0).abs() < 1e-12, "{origin:?}");
-    assert!(dir.get().y.abs() < 1e-12 && dir.get().z.abs() < 1e-12, "{dir:?}");
+    assert!(
+        dir.get().y.abs() < 1e-12 && dir.get().z.abs() < 1e-12,
+        "{dir:?}"
+    );
     // Internal: r 1 inside r 3, axes 2 apart — generator at y = -1
     // (the small cylinder touches the big one on its far side).
     let TangentLocus::Line {

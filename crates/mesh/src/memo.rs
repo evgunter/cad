@@ -1350,7 +1350,10 @@ mod tests {
     fn edge(seed: f64, ids: [u32; 3]) -> EdgeInputs {
         EdgeInputs {
             forward: true,
-            carrier: Curve3::line(p(seed), geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, seed))),
+            carrier: Curve3::line(
+                p(seed),
+                geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, seed)),
+            ),
             params: (0.0, 1.0),
             ids: ids.to_vec(),
             positions: ids.iter().map(|&i| p(f64::from(i))).collect(),
@@ -1393,7 +1396,10 @@ mod tests {
     fn every_carrier_kind_writes_a_distinct_tag() {
         let frame = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
         let kinds: [(&str, Curve3<f64>); 5] = [
-            ("line", Curve3::line(frame.0, geom_core::UnitVec3::squared(frame.1))),
+            (
+                "line",
+                Curve3::line(frame.0, geom_core::UnitVec3::squared(frame.1)),
+            ),
             ("circle", Curve3::circle(frame.0, frame.1, 1.0, frame.2)),
             (
                 "ellipse",
@@ -1471,7 +1477,12 @@ mod tests {
         ),
         (
             "an edge's carrier",
-            |f| f.loops[0][1].carrier = Curve3::line(p(9.0), geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, 2.0))),
+            |f| {
+                f.loops[0][1].carrier = Curve3::line(
+                    p(9.0),
+                    geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, 2.0)),
+                )
+            },
             [true, true, true],
         ),
         (

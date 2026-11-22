@@ -1541,7 +1541,10 @@ pub(super) fn decide_plain_joint<T: Decide>(
     // `u_ref·cos + v_ref·sin` over the chart's orthonormal frame, or `x̂`:
     // unit over the reals.
     let arrived = geom::Curve3::line(vertex, geom_core::UnitVec3::constructed(along(prev.x)));
-    let leaving = geom::Curve3::line(vertex, geom_core::UnitVec3::constructed(along(image.eval(entry_t).x)));
+    let leaving = geom::Curve3::line(
+        vertex,
+        geom_core::UnitVec3::constructed(along(image.eval(entry_t).x)),
+    );
     let reach = || Some(geom_core::Lever::curvature_radius(T::one()));
     decide_joint(
         chart,

@@ -235,7 +235,10 @@ fn survives_wrong_carriers_are_rejected() {
     let l0 = Point3::origin();
     let l1 = Point3::new(1.0, 0.0, 0.0);
     let mut line = EdgeCurveSpec::line_between(l0, l1);
-    line.carrier = Curve3::line(Point3::new(0.0, 100.0 * eps(), 0.0), geom_core::UnitVec3::exact_x());
+    line.carrier = Curve3::line(
+        Point3::new(0.0, 100.0 * eps(), 0.0),
+        geom_core::UnitVec3::exact_x(),
+    );
     assert!(
         EdgeCurve::certify(
             line,

@@ -2838,7 +2838,10 @@ fn require_cone_generator<T: Decide>(
         .offset(p)
     };
     let (q0, q1) = (radial(e.p0()), radial(e.p1()));
-    let (h0, h1) = ((e.p0() - apex).dot(axis.get()), (e.p1() - apex).dot(axis.get()));
+    let (h0, h1) = (
+        (e.p0() - apex).dot(axis.get()),
+        (e.p1() - apex).dot(axis.get()),
+    );
     let f0 = cone_offset(q0.norm(), h0.abs(), sin_a, cos_a);
     let f1 = cone_offset(q1.norm(), h1.abs(), sin_a, cos_a);
     // Over a piece on one side of the apex's plane: the larger end, and
@@ -5950,7 +5953,10 @@ fn torus_chart_loop<T: Decide>(
                 },
                 None => Joint {
                     turn: [
-                        (turn_about(axis.get(), a, b), (b - axis.get() * b.dot(axis.get())).norm()),
+                        (
+                            turn_about(axis.get(), a, b),
+                            (b - axis.get() * b.dot(axis.get())).norm(),
+                        ),
                         tube,
                     ],
                     flat: T::zero(),

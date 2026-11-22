@@ -628,7 +628,10 @@ fn a_pair_that_says_nothing_answers_past_a_pair_in_band() {
         reach: None,
     };
     let ruling = |origin: Point3<f64>, dir: Vec3<f64>| LoopArc::Line {
-        line: geom::Line { origin, dir: geom::stated_direction(dir) },
+        line: geom::Line {
+            origin,
+            dir: geom::stated_direction(dir),
+        },
         span: (0.0, 1.0),
     };
     let tilted = ruling(

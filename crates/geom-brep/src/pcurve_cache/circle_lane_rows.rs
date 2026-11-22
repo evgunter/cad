@@ -1203,7 +1203,10 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 } else {
                     off(&mut s)
                 } * sign(&mut s);
-                let carrier = Curve3::line(world(&surface, g * (h / ca)), geom::stated_direction(world_dir(&surface, g)));
+                let carrier = Curve3::line(
+                    world(&surface, g * (h / ca)),
+                    geom::stated_direction(world_dir(&surface, g)),
+                );
                 (surface, carrier)
             }
         };
@@ -1530,7 +1533,10 @@ fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, angle: f64) -> Curve3<f
             let radius = conic_k.radius();
             Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x))
         }
-        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(o + turn(origin - o), geom::stated_direction(turn(dir.get()))),
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(
+            o + turn(origin - o),
+            geom::stated_direction(turn(dir.get())),
+        ),
         _ => unreachable!("the rows' carriers are circles and lines"),
     }
 }
@@ -1552,7 +1558,10 @@ fn a_foreign_stored_row_never_ends_not_yet() {
     let cone = cone(1.1);
     let (sa, ca) = 1.1_f64.sin_cos();
     let g = Vec3::new(sa * 0.7_f64.cos(), sa * 0.7_f64.sin(), ca);
-    let ruling = Curve3::line(world(&cone, g * (in_band() / ca)), geom::stated_direction(world_dir(&cone, g)));
+    let ruling = Curve3::line(
+        world(&cone, g * (in_band() / ca)),
+        geom::stated_direction(world_dir(&cone, g)),
+    );
     let tau = cone_tilt_for(&cone, 1.1, 2.0, 0.4 * zero());
     let rows = [
         (

@@ -652,7 +652,10 @@ mod tests {
     fn each_carrier_kind_lands_on_its_own_lane() {
         let plane = plane_y(0.5);
         for (carrier, want) in [
-            (Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_y()), "line"),
+            (
+                Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_y()),
+                "line",
+            ),
             (circle(), "conic"),
             (
                 Curve3::Ellipse(geom::Ellipse::new(
