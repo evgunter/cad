@@ -934,7 +934,11 @@ fn germ_site<T: crate::props::AtRestPolicy>(
 ///   wall's wrap edge (both its halves bound that face) once, piercing
 ///   a face of the partner there, or meeting a vertex of its boundary,
 ///   where the loop only touches that boundary (a wall tangent to a
-///   hole's along the wrap edge);
+///   hole's along the wrap edge), or crossing the partner's own one-face
+///   wall's wrap edge there: two coaxial revolved walls carry their wrap
+///   edges in one half-plane, so a section circle of the two meets both
+///   at one site, and each operand's side runs from it round its own
+///   wall back to it;
 /// - **a closed edge lying in the partner** (a one-segment circle or
 ///   ellipse, both of whose ends are its one vertex): the loop is that
 ///   edge, and the
@@ -949,8 +953,7 @@ fn germ_site<T: crate::props::AtRestPolicy>(
 /// other [`one_site`] record is left for the
 /// [`JoinError::SingleSiteSectionLoop`] refusal: a pierce or a boundary
 /// vertex of a face the joiner sides no closed loop in
-/// (`crate::chord_join::reads_loop_side`), a site on both operands' wrap
-/// edges, a site where a pierce meets an edge of another face, a closed
+/// (`crate::chord_join::reads_loop_side`), a site where a pierce meets an edge of another face, a closed
 /// edge meeting one in a curved face, and a closed edge on a carrier the
 /// joiner does not copy whole (`crate::chord_join::copies_closed_edge`).
 ///
@@ -1095,10 +1098,11 @@ fn one_site_segments<T: crate::props::AtRestPolicy>(
 /// loop in ([`crate::chord_join::reads_loop_side`]); a closed circle or
 /// ellipse against a vertex on the boundary of a planar face it stands on
 /// from the other side ([`stands_on`]), against a wrap edge, or against
-/// another closed circle or ellipse. Against a wrap edge the closed
-/// edge's side copies it whole and the wall's side runs from the site
-/// round the wall back to it, as a transverse section's does, whatever
-/// the wall's kind: that holds for a loop that winds round the wall,
+/// another closed circle or ellipse; a wrap edge against a wrap edge.
+/// Against a wrap edge the closed edge's side copies it whole and the
+/// wall's side runs from the site round the wall back to it, as a
+/// transverse section's does, whatever the wall's kind, and two walls'
+/// sides each do so on their own operand: that holds for a loop that winds round the wall,
 /// crossing its wrap edge at the site. A loop that only touches the wrap
 /// edge there, winding round nothing, never reaches this table: the
 /// crossing layer escalates the tangent touch first. At a boundary
@@ -1133,7 +1137,8 @@ fn closes_at_its_site<T: crate::props::AtRestPolicy>(
         (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_))) => true,
         (SiteCell::Closed(Some(_)), SiteCell::Wrap) => true,
         (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
-        (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
+        (SiteCell::Wrap, SiteCell::Wrap) => true,
+        (SiteCell::Closed(Some(e)),SiteCell::Other(f)) => {
             planar(&red.b, f) && stands_on(red, (Operand::A, e), f, band)?
         }
         (SiteCell::Other(f), SiteCell::Closed(Some(e))) => {

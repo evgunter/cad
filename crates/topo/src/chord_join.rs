@@ -107,8 +107,9 @@
 //!
 //! A **self-loop chord** (both ends one vertex) is a one-site section
 //! loop's: a one-face closed wall cut across its one wrap edge, in the
-//! split or the boolean, and in the boolean also a face of the partner
-//! [`reads_loop_side`] reads, whose interior that edge pierces
+//! split or the boolean (where the partner's site may be its own wall's
+//! wrap edge, cut the same way), and in the boolean also a face of the
+//! partner [`reads_loop_side`] reads, whose interior that edge pierces
 //! ([`ChordJoiner::join_lone_ring`]) or whose boundary it meets at a
 //! vertex, where the null edge hangs from that vertex into the face as a
 //! strut ([`Lone`], [`ChordJoiner::place_strut`]); and in the
@@ -332,8 +333,9 @@ pub enum JoinError {
     /// a loop at: the one vertex on the loop holds both its ends, and
     /// the join closes a loop on itself only at a wrap edge or a closed
     /// edge piercing a face [`reads_loop_side`] reads, a wrap edge meeting
-    /// a vertex of such a face's boundary, or a closed edge on a one-face
-    /// wall's wrap edge or along another closed edge
+    /// a vertex of such a face's boundary or another one-face wall's wrap
+    /// edge, or a closed edge on a one-face wall's wrap edge or along
+    /// another closed edge
     /// (`boolean::join::one_site_segments`). Any other is refused typed,
     /// before the loose ends are counted.
     SingleSiteSectionLoop {
@@ -828,7 +830,8 @@ impl JoinError {
                 f,
                 "{count} section loop(s) close through a single vertex, which the join closes \
                  only where a wrap edge or a closed edge pierces or touches a face it sides a \
-                 loop in, or a closed edge runs on a wrap edge or along another closed edge; \
+                 loop in, a wrap edge meets another wrap edge, or a closed edge runs on a wrap \
+                 edge or along another closed edge; \
                  this one is not built. {}",
                 geom_core::NOT_YET_ENDING
             ),

@@ -258,6 +258,8 @@ fn the_near_tangent_family_builds_to_1e_6_at_the_finer_bands() {
 /// `h = δ(2r2 − δ)/2d`, the circle's radius `√(h(2r1 − h))`, every
 /// factor free of cancellation, and `δ = (r1 − d) + r2` exact. The
 /// volume cannot see a misplaced pierce on a lens this thin; this can.
+/// Both balls carry their seam in one half-plane, so the circle meets
+/// the two seams at one site, the only vertex off the axis.
 fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
     let eps = Tol::witness().get().eps;
     let delta = (R1 - d) + R2;
@@ -276,7 +278,7 @@ fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
             "{label}: vertex {p:?} is {off:e} off the section circle (y {y_star}, radius {a})"
         );
     }
-    assert!(pierces >= 2, "{label}: the section's pierce vertices exist");
+    assert_eq!(pierces, 1, "{label}: the section's one pierce vertex");
 }
 
 /// **Where the near-tangent family stops at ε = 1e-12.** At `δ = 1e-7`
