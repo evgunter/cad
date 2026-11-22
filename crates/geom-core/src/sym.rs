@@ -4036,6 +4036,7 @@ fn form_in(
             profile::clear_note();
             #[cfg(feature = "sym-profile-testing")]
             let t0 = profile::clock();
+            let probe_t0 = crate::k_stats::probe_tally::deep().then(std::time::Instant::now);
             form::take_refusal();
             let combined = combine(&node, kids, sess, early);
             let refusal = form::take_refusal();
@@ -4126,6 +4127,13 @@ fn form_in(
                 );
             }
             let made = combined.filter(|f| within(budget, f));
+            if let Some(t) = probe_t0 {
+                crate::k_stats::probe_tally::walk_node(
+                    made.as_deref().map(|f| f.num.terms().len() + f.den.terms().len()),
+                    t.elapsed().as_nanos(),
+                    refusal == Some(form::Refusal::Ring),
+                );
+            }
             #[cfg(feature = "sym-profile-testing")]
             profile::record_node(
                 node.op,
@@ -4697,6 +4705,35 @@ fn names_free(sess: &Session, x: u128) -> bool {
 }
 
 /// The identity test along `path`, inside the installed session.
+std::thread_local! {
+    // PROBE (M7, S2): the rung and attempt of the last ladder asked.
+    static PROBE_LAST: std::cell::Cell<Option<(String, u8)>> = const { std::cell::Cell::new(None) };
+}
+
+/// PROBE (M7, S2): whether `from`'s recorded DAG reaches a `Free` node.
+fn probe_reaches_free(from: SymId) -> bool {
+    SESSION.with(|s| {
+        let slot = s.borrow();
+        let Some(sess) = slot.as_ref() else {
+            return false;
+        };
+        let mut stack = vec![from];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(at) = stack.pop() {
+            let Some(node) = sess.nodes.get(&at) else {
+                continue;
+            };
+            if node.op == SymOp::Free {
+                return true;
+            }
+            if seen.insert(at) {
+                stack.extend(node.kids().iter().copied());
+            }
+        }
+        false
+    })
+}
+
 fn discharge_in(id: SymId, path: Path) -> Option<u8> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
@@ -4706,7 +4743,9 @@ fn discharge_in(id: SymId, path: Path) -> Option<u8> {
         }
         #[cfg(feature = "sym-profile-testing")]
         let mark = profile::decision_begin();
+        crate::k_stats::probe_tally::walk_asked(path == Path::Decision);
         let out = ladder(sess, id, path);
+        PROBE_LAST.with(|l| l.set(out.map(|(r, a)| (format!("{r:?}"), a))));
         #[cfg(feature = "sym-profile-testing")]
         profile::decision_end(mark, out);
         out.map(|(_, attempt)| attempt)
@@ -5682,6 +5721,12 @@ impl<T: Decide> Sym<T> {
             // It asks the door walk and the registry-free rungs, and
             // only where a registration exists, so a document with no
             // arc pays one `is_empty()`.
+            // PROBE (M7, S1): nothing is asked of the tier here.
+            if crate::k_stats::probe_tally::s1() {
+                count_decision(false);
+                report::record(&numeric, false, None, self.value.enclosure_probe());
+                return numeric;
+            }
             if door_zero(self.node) {
                 count_registration_contradicted();
             }
@@ -5736,6 +5781,26 @@ impl<T: Decide> Sym<T> {
             return numeric;
         }
         let proven = !domain_violation && discharge_retried(self.node).is_some();
+        // PROBE (M7, S2): a symbolic Zero beside its enclosure.
+        if proven && crate::k_stats::probe_tally::s2_file().is_some() {
+            let enc = self.value.enclosure_probe();
+            let contains = enc.map(|(lo, hi)| lo <= 0.0 && 0.0 <= hi);
+            let (rung, attempt) = PROBE_LAST.with(std::cell::Cell::take).unwrap_or_default();
+            let free = probe_reaches_free(self.node);
+            let scalar = core::any::type_name::<T>().rsplit("::").next().unwrap_or("?");
+            let num = match &numeric {
+                Ok(_) => "numeric_zero",
+                Err(_) => "numeric_indeterminate",
+            };
+            crate::k_stats::probe_tally::s2_zero(
+                format!(
+                    "scalar={scalar} rung={rung} attempt={attempt} free={free} contains0={} {num}",
+                    contains.map_or("na".to_owned(), |c| c.to_string())
+                ),
+                contains == Some(false),
+                || format!("scalar={scalar} rung={rung} attempt={attempt} free={free} {num} enclosure={enc:?} band={band:?} test={:?}", std::thread::current().name()),
+            );
+        }
         count_decision(proven);
         if proven {
             #[cfg(feature = "probe")]

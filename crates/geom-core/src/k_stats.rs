@@ -488,6 +488,120 @@ pub mod probe_tally {
         }
     }
 
+    /// PROBE (M7, S1): `BOXFINISH_S1=1` skips, after a definite numeric
+    /// sign at `Sym`, the registry check and the contradiction walk.
+    pub fn s1() -> bool {
+        static S1: OnceLock<bool> = OnceLock::new();
+        *S1.get_or_init(|| std::env::var("BOXFINISH_S1").is_ok_and(|v| v == "1"))
+    }
+
+    /// PROBE (M7): what the symbolic walks did inside one decision.
+    #[derive(Default, Clone, Copy, Debug)]
+    pub struct Walk {
+        pub forms: u64,
+        pub largest: usize,
+        pub ns_made: u128,
+        pub ns_refused: u128,
+        pub refused: u64,
+        pub ring: u64,
+        pub first_ring_ns: Option<u128>,
+        pub decision_ladders: u32,
+        pub contradiction_ladders: u32,
+    }
+    thread_local! {
+        static WALK: Cell<Walk> = const { Cell::new(Walk {
+            forms: 0, largest: 0, ns_made: 0, ns_refused: 0, refused: 0, ring: 0,
+            first_ring_ns: None, decision_ladders: 0, contradiction_ladders: 0,
+        }) };
+        static WALK_START: Cell<Option<std::time::Instant>> = const { Cell::new(None) };
+    }
+    pub fn walk_reset() {
+        WALK.with(|w| w.set(Walk::default()));
+        WALK_START.with(|w| w.set(Some(std::time::Instant::now())));
+    }
+    pub fn walk_take() -> Walk {
+        WALK.with(Cell::get)
+    }
+    pub fn walk_asked(decision: bool) {
+        WALK.with(|w| {
+            let mut v = w.get();
+            if decision {
+                v.decision_ladders += 1;
+            } else {
+                v.contradiction_ladders += 1;
+            }
+            w.set(v);
+        });
+    }
+    pub fn walk_node(terms: Option<usize>, ns: u128, ring: bool) {
+        WALK.with(|w| {
+            let mut v = w.get();
+            match terms {
+                Some(t) => {
+                    v.forms += 1;
+                    v.largest = v.largest.max(t);
+                    v.ns_made += ns;
+                }
+                None => {
+                    v.refused += 1;
+                    v.ns_refused += ns;
+                }
+            }
+            if ring {
+                v.ring += 1;
+                if v.first_ring_ns.is_none() {
+                    v.first_ring_ns =
+                        WALK_START.with(Cell::get).map(|s| s.elapsed().as_nanos());
+                }
+            }
+            w.set(v);
+        });
+    }
+
+    /// PROBE (M7, S2): one symbolic `Zero`, tallied per thread and
+    /// appended to `BOXFINISH_S2_FILE` when the thread ends.
+    pub fn s2_file() -> Option<&'static str> {
+        static F: OnceLock<Option<String>> = OnceLock::new();
+        F.get_or_init(|| std::env::var("BOXFINISH_S2_FILE").ok()).as_deref()
+    }
+    struct S2 {
+        tally: BTreeMap<(String, &'static str), u64>,
+        examples: u32,
+    }
+    fn s2_append(text: &str) {
+        use std::io::Write;
+        if let Some(path) = s2_file() {
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = f.write_all(text.as_bytes());
+            }
+        }
+    }
+    impl Drop for S2 {
+        fn drop(&mut self) {
+            let mut out = String::new();
+            for ((key, name), n) in &self.tally {
+                out.push_str(&format!("T {key} name={name} n={n}\n"));
+            }
+            s2_append(&out);
+        }
+    }
+    thread_local! {
+        static S2T: std::cell::RefCell<S2> = std::cell::RefCell::new(S2 { tally: BTreeMap::new(), examples: 0 });
+    }
+    /// `key` is "scalar rung attempt free contains0 numeric"; `example`
+    /// is printed for the first few zero-excluding cases of a thread.
+    pub fn s2_zero(key: String, excludes: bool, example: impl FnOnce() -> String) {
+        let name = super::CURRENT.with(Cell::get);
+        let _ = S2T.try_with(|s| {
+            let mut s = s.borrow_mut();
+            *s.tally.entry((key, name)).or_default() += 1;
+            if excludes && s.examples < 8 {
+                s.examples += 1;
+                s2_append(&format!("X name={name} {}\n", example()));
+            }
+        });
+    }
+
     /// PROBE (M5): the deep trace, `BOXFINISH_TRACE=3`.
     pub fn deep() -> bool {
         static DEEP: OnceLock<bool> = OnceLock::new();
@@ -640,10 +754,25 @@ fn classify<T: Decide, A: MarginTerms>(
         let entered = std::time::Instant::now();
         (entered, format!("{margin:?} {band:?}"))
     });
+    if deep.is_some() {
+        probe_tally::walk_reset();
+    }
     let t0 = std::time::Instant::now();
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
     if let Some((entered, text)) = deep {
-        probe_tally::decision(name, &text, entered, t0, std::time::Instant::now());
+        let t1 = std::time::Instant::now();
+        probe_tally::decision(name, &text, entered, t0, t1);
+        let ms = (t1 - t0).as_secs_f64() * 1e3;
+        if ms >= 20.0 {
+            let w = probe_tally::walk_take();
+            eprintln!(
+                "[bf-slow] {name} ms={ms:.1} outcome={} forms={} largest_terms={} made_ms={:.1} refused_nodes={} refused_ms={:.1} ring={} first_ring_ms={} decision_ladders={} contradiction_ladders={}",
+                match &outcome { Ok(d) => format!("{:?}", d.sign), Err(_) => "Indeterminate".to_owned() },
+                w.forms, w.largest, w.ns_made as f64 / 1e6, w.refused, w.ns_refused as f64 / 1e6, w.ring,
+                w.first_ring_ns.map_or("none".to_owned(), |n| format!("{:.2}", n as f64 / 1e6)),
+                w.decision_ladders, w.contradiction_ladders,
+            );
+        }
     }
     probe_tally::add(if outcome.is_ok() {
         "definite"
