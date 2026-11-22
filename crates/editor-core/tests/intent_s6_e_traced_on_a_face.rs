@@ -1,6 +1,6 @@
 //! **A profile on a face tracing faces of its body** (D10 `[placement]`;
 //! `REFERENCES.md` DM1; DESIGN "Constructing a coincidence"): drawn on
-//! a datum flush on the face ([`editor_core::draw_on_face`], its
+//! the face's chart ([`editor_core::draw_on_face`], its
 //! [`OnFace::traced`]), so a profile on a face is one act whether or not
 //! it traces. A boss drawn on a cylinder's cap, leaving the wall's trace
 //! along its tangent and extruded by a signed depth, is tangent to the
@@ -332,19 +332,12 @@ fn turned_cylinder(
     by: Formula,
     (centre, lift): ([f64; 2], f64),
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, datum) = editor_core::datum_on_face(
-        &doc,
-        None,
-        BodyRead::plain(Operand::output(base, 0)),
-        cap(base, CapEnd::End),
-        &OnFace {
-            orient: Some(editor_core::Orientation::IDENTITY),
-            ..OnFace::nearest()
-        },
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the datum stands on the box's top: {e}"));
-    let chart = Operand::output(datum, 0);
+    let chart = Operand::Pose(Box::new(PoseDef::FaceChart {
+        face: pick(Operand::output(base, 0), cap(base, CapEnd::End)),
+        orient: editor_core::Orientation::IDENTITY,
+        spin: fixture::ang(0.0),
+        slides: [len(0.0), len(0.0)],
+    }));
     let at_origin = Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::plain(chart.clone()),
         along: RoleRead::through(chart, PoseRole::Z),
@@ -648,9 +641,8 @@ fn a_chart_on_a_missing_member_refuses_typed() {
     );
 }
 
-/// **A face that is no plane takes no datum**: a profile drawn on the
-/// cylinder's wall refuses typed, as the datum's far side that reads the
-/// wall as a plane.
+/// **A face that is no plane has no chart**: a profile drawn on the
+/// cylinder's wall refuses typed where it is read.
 #[test]
 fn a_profile_on_a_face_that_is_no_plane_refuses_typed() {
     let (doc, cylinder) = cylinder_at(0.0);
@@ -666,17 +658,8 @@ fn a_profile_on_a_face_that_is_no_plane_refuses_typed() {
     let ev = eval(&doc);
     let refusal = ev.node_error(footprint).map(|e| &e.kind);
     assert!(
-        matches!(
-            refusal,
-            Some(editor_core::NodeErrorKind::Mate(fault)) if matches!(
-                **fault,
-                editor_core::MateFault::SideUnevaluated {
-                    side: editor_core::MateSide::To,
-                    ..
-                }
-            )
-        ),
-        "the wall is no plane a datum's far side reads: {refusal:?}"
+        matches!(refusal, Some(editor_core::NodeErrorKind::PoseRead { .. })),
+        "the wall has no chart: {refusal:?}"
     );
 }
 
@@ -721,14 +704,14 @@ fn a_profile_on_a_member_traces_that_member() {
     );
 }
 
-/// **A datum flush on a face reads a trace before anything is drawn on
-/// it** ([`editor_core::datum_on_face`]): a probe profile on a datum flush
-/// on the bottom cap, lowered into the document the datum is in, reads
-/// the wall against that document's evaluation. The wall is the cylinder
-/// of the radius, its axis the sketch's `z`, and the datum is the one the
-/// door writes.
+/// **A face's chart reads a trace before anything is drawn on it**
+/// ([`editor_core::chart_on_face`]): a probe profile on the bottom cap's
+/// chart, lowered into a scratch copy of the document, reads the wall
+/// against the document's own evaluation, its spin and slides bound as
+/// the run binds them. The wall is the cylinder of the radius, its axis
+/// the sketch's `z`, and the chart is the one the door writes.
 #[test]
-fn a_datum_flush_on_a_face_reads_a_trace_before_anything_is_drawn_there() {
+fn a_faces_chart_reads_a_trace_before_anything_is_drawn_there() {
     let (doc, cylinder) = cylinder_at(0.0);
     let ev = eval(&doc);
     let wall = face(&ev, cylinder, SurfaceKind::Cylinder);
@@ -742,17 +725,8 @@ fn a_datum_flush_on_a_face_reads_a_trace_before_anything_is_drawn_there() {
         ),
         "the nearest orientation puts z down the cap's normal"
     );
-    let (mut scratch, datum) = editor_core::datum_on_face(
-        &doc,
-        Some(&ev),
-        body,
-        bottom,
-        &OnFace::nearest(),
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the datum stands on the cap: {e}"));
-    let frame = Operand::output(datum, 0);
-    let ev = eval(&scratch);
+    let frame = editor_core::chart_on_face(&doc, Some(&ev), body, bottom, &OnFace::nearest());
+    let mut scratch = doc.clone();
     let probe = Node::Profile(ProfileProgram {
         loops: Vec::new(),
         ids: Vec::new(),

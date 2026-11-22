@@ -1,15 +1,13 @@
-//! **A profile drawn on a face, on a datum flush on the face, and a
-//! signed depth** (D10 `[placement]`, `[placement.datums]`;
-//! `REFERENCES.md` DM1;
+//! **A profile drawn on a face, on the face's chart, and a signed
+//! depth** (D10 `[placement]`; `REFERENCES.md` DM1;
 //! `work/doctail/a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face.md`).
 //!
-//! The datum is placed as a body is: its xy plane mated on the face's
-//! plane under an orientation, a spin and two slides, so its frame is the
-//! one a plane placement onto the face gives under the same values;
-//! within the band about the least turn's pole it refuses, naming the
-//! orientation to write. A profile drawn on it is in the face's body's
-//! space, and an extrude of it by a `+` depth is a boss above the face,
-//! by a `−` depth a pocket's tool under it.
+//! The face's chart is the frame a plane placement onto the face gives
+//! under the same orientation, spin and slides, computed by that
+//! placement's own code; within the band about the least turn's pole it
+//! refuses, naming the orientation to write. A profile drawn on it is in
+//! the face's body's space, and an extrude of it by a `+` depth is a boss
+//! above the face, by a `−` depth a pocket's tool under it.
 
 #![allow(
     clippy::unwrap_used,
@@ -21,6 +19,7 @@
 use crate::fixture::{self, ang, fname, len};
 use editor_core::eval::bound_pose;
 use editor_core::mate::face_chart_slides;
+use editor_core::pose::{PoseConstruction, PoseDef};
 use editor_core::{
     BodyRead, BooleanValue, CancelToken, CapEnd, Coord, Dimension, DocEdit, EvalOptions,
     Evaluation, Formula, FreeValue, FreeVar, LoopProgram, Mate, MateFault, Node, NodeErrorKind,
@@ -124,30 +123,20 @@ fn drawn_loop(
     (out.doc, out.profile)
 }
 
-/// The datum the profile is drawn on: the node defining its frame.
-fn datum_of(doc: &ProfileDoc, profile: RecipeNodeId) -> RecipeNodeId {
+/// The face's chart the profile is drawn on, as written: its frame
+/// variable's definition.
+fn written(doc: &ProfileDoc, profile: RecipeNodeId) -> PoseDef {
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("a profile")
     };
     let frame = program.on.as_ref().expect("drawn on a frame").frame;
-    let datum = doc.operation_of(frame).expect("drawn on a node's frame");
-    assert!(
-        matches!(doc.node(datum), Some(Node::Datum { .. })),
-        "the profile is drawn on a datum"
-    );
-    datum
+    doc.var(frame)
+        .and_then(|v| v.def().pose())
+        .cloned()
+        .expect("a pose definition")
 }
 
-/// The orientation the datum the profile is drawn on is mated under.
-fn written(doc: &ProfileDoc, profile: RecipeNodeId) -> Orientation {
-    fixture::bundle(doc, datum_of(doc, profile))
-        .iter()
-        .find_map(editor_core::Constraint::mate)
-        .expect("the datum is mated on the face")
-        .orient
-}
-
-/// The frame the profile is drawn on, as the profile reads it.
+/// The face's chart the profile is drawn on, as the profile reads it.
 fn chart(doc: &ProfileDoc, profile: RecipeNodeId) -> Result<RigidMotion<f64>, NodeErrorKind> {
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("a profile")
@@ -229,11 +218,12 @@ fn a_bottom_caps_chart_is_the_identity_least_turn_and_a_boss_stands_outward() {
     let (doc, body) = block(2.0, 1.0);
     let (doc, profile) = drawn(&doc, body, cap(body, CapEnd::Start), OnFace::nearest());
     let want = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
-    assert_eq!(
-        written(&doc, profile),
-        want,
-        "the door writes the nearest orientation"
-    );
+    match written(&doc, profile) {
+        PoseDef::FaceChart { orient, .. } => {
+            assert_eq!(orient, want, "the door writes the nearest orientation")
+        }
+        other => panic!("a face's chart, not {other:?}"),
+    }
     let f = chart(&doc, profile).expect("the bottom cap charts");
     assert_eq!(xyz(f.u().get()), [1.0, 0.0, 0.0], "x is the space's x");
     assert_eq!(xyz(f.v().get()), [0.0, -1.0, 0.0], "y is the space's −y");
@@ -274,7 +264,10 @@ fn a_bottom_caps_chart_is_the_identity_least_turn_and_a_boss_stands_outward() {
 fn a_top_caps_chart_is_the_space_at_the_cap_and_a_boss_stands_above() {
     let (doc, body) = block(2.0, 1.0);
     let (doc, profile) = drawn(&doc, body, cap(body, CapEnd::End), OnFace::nearest());
-    assert_eq!(written(&doc, profile), Orientation::IDENTITY);
+    match written(&doc, profile) {
+        PoseDef::FaceChart { orient, .. } => assert_eq!(orient, Orientation::IDENTITY),
+        other => panic!("a face's chart, not {other:?}"),
+    }
     let f = chart(&doc, profile).expect("the top cap charts");
     assert_eq!(xyz(f.u().get()), [1.0, 0.0, 0.0]);
     assert_eq!(xyz(f.v().get()), [0.0, 1.0, 0.0]);
@@ -353,16 +346,12 @@ fn the_pole_refuses_naming_the_orientation_to_write() {
         cap(body, CapEnd::Start),
         on(Some(Orientation::IDENTITY), 0.0, [0.0, 0.0]),
     );
-    let ev = eval(&doc);
-    let refused = ev.nodes.get(&datum_of(&doc, profile));
-    let Some(NodeResult::Failed(e)) = refused else {
-        panic!("the pole refuses: {refused:?}")
-    };
-    let NodeErrorKind::Mate(fault) = &e.kind else {
-        panic!("the pole refuses as the datum's mate: {:?}", e.kind)
-    };
-    let MateFault::Backwards { orient, write, .. } = **fault else {
-        panic!("the pole refuses backwards: {fault:?}")
+    let refused = chart(&doc, profile);
+    let Err(NodeErrorKind::PoseDegenerate {
+        construction: PoseConstruction::FaceChartBackwards { orient, write },
+    }) = refused
+    else {
+        panic!("the pole refuses typed: {refused:?}")
     };
     assert_eq!(orient, Orientation::IDENTITY, "it names what was written");
     assert_eq!(
@@ -370,7 +359,10 @@ fn the_pole_refuses_naming_the_orientation_to_write() {
         [0.0, 0.0, -1.0],
         "the orientation to write puts z on the outward normal: {write}"
     );
-    let text = e.kind.to_string();
+    let text = NodeErrorKind::PoseDegenerate {
+        construction: PoseConstruction::FaceChartBackwards { orient, write },
+    }
+    .to_string();
     assert!(
         text.contains(&format!("Recourse: write the orientation {write}")),
         "{text}"
@@ -419,7 +411,7 @@ fn a_redimension_that_keeps_the_plane_leaves_the_chart_bit_equal() {
 }
 
 /// The motion a plane placement of a cube of side `side` onto `face` of
-/// `copy` solves to, under `orient` and the values a datum flush on a face
+/// `copy` solves to, under `orient` and the values a face's chart
 /// writes: its start cap flipped to look up its own `z`, as DM1 places
 /// a body on a face. Its fault where it refuses.
 fn placed_on(
@@ -501,7 +493,9 @@ fn chart_and_placement(spin: Formula) -> (Vec<u64>, Vec<u64>) {
     let top = cap(body, CapEnd::End);
     let slides = [0.25, -0.15];
     let (doc, profile) = drawn(&doc, copy, top.clone(), on_by(None, spin.clone(), slides));
-    let orient = written(&doc, profile);
+    let PoseDef::FaceChart { orient, .. } = written(&doc, profile) else {
+        panic!("a face's chart")
+    };
     let f = chart(&doc, profile)
         .expect("the tilted cap charts")
         .to_affine();
