@@ -349,7 +349,10 @@ fn a_body_that_meshes_records_mains_k_stream() {
             moved.push(format!("{name}: {got:#x}, main's {bytes:#x}"));
         }
     }
-    assert!(moved.is_empty(), "main's bytes, every row that moved: {moved:#?}");
+    assert!(
+        moved.is_empty(),
+        "main's bytes, every row that moved: {moved:#?}"
+    );
 }
 
 /// The cylinder wider by [`in_band`]: the poison of
