@@ -2,12 +2,13 @@
 id: cascade-delete-shows-the-strand-count
 kind: issue
 title: The cascade-delete affordance shows the names a delete would strand, beside its dependent count (DM7)
-status: review
+status: closed
 opened: 2026-09-16
 priority: P1
 cost: M
 pr: 7346
 branch: offer/cascade-delete-shows-the-strand-count
+closed: 2026-11-22
 ---
 
 
@@ -205,3 +206,9 @@ linked: `a-stranded-name-row-offers-no-rebind-in-the-viewer`.
 Rows: the `edit_maintenance::the_delete_button_…` rows
 (`crates/viewer/tests/edit_maintenance.rs`), and the die's inner fillet
 in `cascade_delete::the_delete_affordance_names_the_count_and_the_kinds`.
+
+## Closed (2026-11-22, PR #7346)
+
+The delete button now shows "stranding N names". N is the number of distinct references that the click's own netted maintenance reports. The affordance rehearses the click's action through `stage_run` once per committed history state, and that same rehearsal answers the button's refusal. The item's `doomed` formula was not built: the review demonstrated three ways it is wrong for a splice. Only the `## Built` section above describes the code as merged. Filed by this unit:
+- `a-stranded-name-row-offers-no-rebind-in-the-viewer` (P2);
+- DOCTAIL's `maintenance-net-reports-one-stranded-name-once-per-edit-that-strands-it` (P3).
