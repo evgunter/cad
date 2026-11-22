@@ -46,8 +46,7 @@ use pncad::profile::{
 use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
 use crate::forms::{
-    DimensionField, FieldWriting, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT, arc_mode_label,
-    target_kind_label,
+    FieldWriting, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT, arc_mode_label, target_kind_label,
 };
 use crate::props;
 use crate::readout;
@@ -272,9 +271,9 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// from its DRAG SPEED and the display scaling, and from nothing about
 /// the value — `auto_decimals` is `ceil(log10(aim_radius / speed))` and
 /// the range handed to a formatter is `auto_decimals ..= auto_decimals
-/// + 2`. A length field at a length's tick ([`DimensionField`]) shown in millimetres is
-/// handed `1..=3` at one point per pixel, so its coarsest spelling is
-/// `{:.3}` over millimetres.
+/// + 2`. A length field at a length's tick ([`props::DimensionField`])
+/// shown in millimetres is handed `1..=3` at one point per pixel, so
+/// its coarsest spelling is `{:.3}` over millimetres.
 ///
 /// Inside that range the widget already picks the shortest spelling
 /// that reads back, which is this rule. What it does when NONE of them
@@ -1267,10 +1266,10 @@ pub(crate) fn named_field(
 }
 
 /// **A whole-number field** — an index, an instance, a subdivision
-/// count — at a count's tick ([`DimensionField`]), so a form's count
-/// steps the way the panel's does.
+/// count — at a count's tick ([`props::DimensionField`]), so a form's
+/// count steps the way the panel's does.
 pub(crate) fn count_field<Num: egui::emath::Numeric>(value: &mut Num) -> egui::DragValue<'_> {
-    number_field(value, DimensionField::of(Dimension::Count).tick)
+    number_field(value, props::DimensionField::of(Dimension::Count).tick)
 }
 
 /// **What a step row's fields draw for each argument** — the seam

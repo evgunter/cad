@@ -24,15 +24,16 @@
 //! everything on this page is `pub(crate)`, so an intra-doc link from a
 //! public module page does not resolve.)
 //!
-//! `DimensionField` and [`FieldWriting`] are the same kind of decision
-//! one level down: how many of a unit one pixel of drag is worth.
+//! [`FieldWriting`] is the same kind of decision one level down: the
+//! unit a field is written in and how many of it one pixel of drag is
+//! worth.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::Dimension;
 use pncad::profile::{ArcMode, TargetKind};
-use pncad::quantity::{UnitDef, UnitQuantity};
+use pncad::quantity::UnitDef;
 use pncad::topo::BooleanOp;
 
 use crate::props;
@@ -151,52 +152,8 @@ pub(crate) const MIN_CIRCLE_SPLIT: usize = 2;
 /// a typed number can make and never rewrites a count it was handed.
 pub(crate) const MAX_CIRCLE_SPLIT: usize = 1024;
 
-/// **What a field of one dimension is, before any notation is
-/// chosen**: the quantity whose unit it is written in, and the tick it
-/// is dragged at. The viewer's one `Dimension` ladder — the unit
-/// pickers' options ([`props::unit_options`]), the unit a value nobody
-/// wrote reads in ([`props::WorkingNotation::unit`], and through it
-/// [`props::rendering_unit`]), and every field's drag tick
-/// ([`FieldWriting::of`]) are read off it rather than spelled again.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct DimensionField {
-    /// The quantity the field's unit measures. `None` is a count: a
-    /// number rather than a quantity, written as itself in every
-    /// notation.
-    pub(crate) quantity: Option<UnitQuantity>,
-    /// One drag tick, in CANONICAL units (metres, radians).
-    pub(crate) tick: f64,
-}
-
-impl DimensionField {
-    /// The field `dimension` is.
-    ///
-    /// A tick per dimension and not one number, because the useful
-    /// range of a field is its dimension's: half a millimetre per pixel
-    /// is a good length tick, and at 0.0005 rad a full turn is twelve
-    /// thousand pixels of drag.
-    pub(crate) const fn of(dimension: Dimension) -> Self {
-        let (quantity, tick) = match dimension {
-            // Half a millimetre.
-            Dimension::Length => (Some(UnitQuantity::Length), 0.0005),
-            // A third of a degree: a full turn is a few hundred pixels.
-            Dimension::Angle => (Some(UnitQuantity::Angle), 0.005),
-            // A direction or a normal component, whose useful range is
-            // about [-1, 1]: a hundredth spans it in one gesture.
-            Dimension::Scalar => (Some(UnitQuantity::Scalar), 0.01),
-            // One. A count holds whole numbers, and `egui` steps a
-            // field by its speed: an arrow key or an accessibility
-            // increment adds exactly one tick and rounds, so a tick
-            // below one leaves an integer field where it was, and a
-            // float field dragged below one lands between integers.
-            Dimension::Count => (None, 1.0),
-        };
-        Self { quantity, tick }
-    }
-}
-
 /// **How ONE FIELD is written**: the unit it shows and authors in, and
-/// the tick it is scrubbed at — `DimensionField` read in a notation.
+/// the tick it is scrubbed at — [`props::DimensionField`] read in a notation.
 ///
 /// The two are one value because they are one decision. A tick is a
 /// number of whatever the field says, so a tick chosen without the unit
@@ -227,7 +184,7 @@ impl FieldWriting {
         let unit = props::rendering_unit(dimension, stored, notation);
         Self {
             unit,
-            tick: props::shown_in(unit, DimensionField::of(dimension).tick),
+            tick: props::shown_in(unit, props::DimensionField::of(dimension).tick),
         }
     }
 

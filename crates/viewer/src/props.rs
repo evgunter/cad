@@ -257,6 +257,51 @@ impl SlotValue {
     }
 }
 
+/// **What a field of one dimension is, before any notation is
+/// chosen**: the quantity whose unit it is written in, and the tick it
+/// is dragged at. The viewer's one `Dimension` ladder — the unit
+/// pickers' options ([`unit_options`]), the unit a value nobody
+/// wrote reads in ([`WorkingNotation::unit`], and through it
+/// [`rendering_unit`]), and every field's drag tick
+/// (`crate::forms::FieldWriting::of`) are read off it rather than
+/// spelled again.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DimensionField {
+    /// The quantity the field's unit measures. `None` is a count: a
+    /// number rather than a quantity, written as itself in every
+    /// notation.
+    pub quantity: Option<UnitQuantity>,
+    /// One drag tick, in CANONICAL units (metres, radians).
+    pub tick: f64,
+}
+
+impl DimensionField {
+    /// The field `dimension` is.
+    ///
+    /// A tick per dimension and not one number, because the useful
+    /// range of a field is its dimension's: half a millimetre per pixel
+    /// is a good length tick, and at 0.0005 rad a full turn is twelve
+    /// thousand pixels of drag.
+    pub const fn of(dimension: Dimension) -> Self {
+        let (quantity, tick) = match dimension {
+            // Half a millimetre.
+            Dimension::Length => (Some(UnitQuantity::Length), 0.0005),
+            // A third of a degree: a full turn is a few hundred pixels.
+            Dimension::Angle => (Some(UnitQuantity::Angle), 0.005),
+            // A direction or a normal component, whose useful range is
+            // about [-1, 1]: a hundredth spans it in one gesture.
+            Dimension::Scalar => (Some(UnitQuantity::Scalar), 0.01),
+            // One. A count holds whole numbers, and a field steps by
+            // its tick: an arrow key adds one tick and rounds, so an
+            // integer field at a tick below a half stays where it
+            // was, and a float field dragged below one lands between
+            // integers.
+            Dimension::Count => (None, 1.0),
+        };
+        Self { quantity, tick }
+    }
+}
+
 /// Every unit a value of `dimension` may be written in — the picker's
 /// options, read off the closed table so a unit added to `quantity`
 /// appears here the day it lands.
@@ -265,7 +310,7 @@ impl SlotValue {
 /// bare scalar has exactly one row, which is not a choice
 /// (`UnitQuantity::Scalar`).
 pub fn unit_options(dimension: Dimension) -> Vec<UnitDef> {
-    let Some(wanted) = crate::forms::DimensionField::of(dimension).quantity else {
+    let Some(wanted) = DimensionField::of(dimension).quantity else {
         return Vec::new();
     };
     let rows: Vec<UnitDef> = UNITS
@@ -339,7 +384,7 @@ pub trait WorkingNotation: Copy {
 
 impl WorkingNotation for Notation {
     fn unit(self, dimension: Dimension) -> Option<UnitDef> {
-        let measured = crate::forms::DimensionField::of(dimension).quantity?;
+        let measured = DimensionField::of(dimension).quantity?;
         Some(match measured {
             UnitQuantity::Length => self.length.def(),
             UnitQuantity::Angle => self.angle.def(),

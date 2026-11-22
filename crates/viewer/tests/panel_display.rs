@@ -956,7 +956,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     );
 
     // Each dimension keeps its own tick, and a count keeps whole
-    // numbers: the mistakes `forms::DimensionField`'s per-dimension
+    // numbers: the mistakes `props::DimensionField`'s per-dimension
     // tick and its count tick of one exist to answer. "Each" is `Dimension::ALL`, so the claim is
     // about the lattice rather than about the dimensions a list
     // written here happens to name.
