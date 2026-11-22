@@ -2016,11 +2016,13 @@ fn present_chart<'a>(
             if (lo && y.0 > 0.0) || (!lo && y.1 < 0.0) {
                 continue;
             }
+            if review_mut() != "G6" {
             y = if lo {
                 (y.0.max(0.0), y.1)
             } else {
                 (y.0, y.1.min(0.0))
             };
+            }
             let side = Side::of(Axis::V, lo);
             // A line on the face's low side that does not hold `0`, in a
             // rectangle that still reaches `0`, lies within the slack of
@@ -2284,6 +2286,7 @@ fn zero_of(
             }
             match corners.as_slice() {
                 [one] => Ok(one.clone()),
+                [] if review_mut() == "G5" => Ok(Zero::None),
                 _ => Err(Unpresented::Local),
             }
         }
@@ -5876,16 +5879,51 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     if graph_of(x, y, near, qx, qy, band).is_some_and(opposite) {
         return Outcome::Certified { corner };
     }
-    if let Some(alone) = at_end_vertex(near) {
+    let m = review_mut();
+    if let Some(alone) = at_end_vertex(near).filter(|_| m != "M1") {
         let (rx, ry) = (
             present(x, &[], &alone.vertices, band),
             present(y, &[], &alone.vertices, band),
         );
-        if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (&rx, &ry)
+        if std::env::var_os("CAD_REVIEW_TRACE").is_some() {
+            let zk = |r: &Result<Presentation<'_>, Unpresented>| match r {
+                Ok(Presentation::Of(q)) => format!("{:?} x={:?} y={:?}", zero_kind(&q.zero), q.x, q.y),
+                Ok(Presentation::Vacuous) => "Vacuous".into(),
+                Err(e) => format!("Err({e:?})"),
+            };
+            let seps: Vec<(Option<Sign>, Option<Sign>)> = match (&rx, &ry) {
+                (Ok(Presentation::Of(a)), Ok(Presentation::Of(b))) => planes_through(x, &alone, a, b)
+                    .into_iter()
+                    .map(|(psi, on)| (sign_on(&psi, Some(&on), a, Some(b), band), sign_on(&psi, Some(&on), b, Some(a), band)))
+                    .collect(),
+                _ => Vec::new(),
+            };
+            eprintln!(
+                "CVR end {:?}/{:?} {}/{} x u={:?} v={:?} [{}] | y u={:?} v={:?} [{}] seps={:?}",
+                x.face, y.face, kind(x.surface), kind(y.surface), x.u, x.v, zk(&rx), y.u, y.v, zk(&ry), seps
+            );
+        }
+        let (qa, qb) = if m == "G3" { (&px, &py) } else { (&rx, &ry) };
+        if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (qa, qb)
             && planes_through(x, &alone, rx, ry)
                 .into_iter()
-                .any(|sep| apart(rx, ry, sep))
+                .any(|sep| {
+                    if m == "M2" {
+                        let (psi, on) = sep;
+                        sign_on(&psi, Some(&on), rx, Some(ry), band).is_some()
+                            || sign_on(&psi, Some(&on), ry, Some(rx), band).is_some()
+                    } else {
+                        apart(rx, ry, sep)
+                    }
+                })
         {
+            if std::env::var_os("CAD_REVIEW_FIRE").is_some() {
+                eprintln!(
+                    "CVR fire {}/{} {:?}/{:?} zeros {:?}/{:?} vertex {:?}",
+                    kind(x.surface), kind(y.surface), x.face, y.face,
+                    zero_kind(&rx.zero), zero_kind(&ry.zero), alone.vertices
+                );
+            }
             return Outcome::Certified {
                 corner: rx.corner || ry.corner,
             };
@@ -5907,7 +5945,45 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// ruling the plane's carrier holds through the apex. With no shared edge
 /// the presentations against the vertex are the pair's own, which
 /// [`planes_through`] has read already.
+fn review_mut() -> &'static str {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("CAD_REVIEW_MUT").unwrap_or_default())
+}
+fn kind(s: &Surface<Interval>) -> &'static str {
+    match s {
+        Surface::Plane { .. } => "Plane",
+        Surface::Cylinder { .. } => "Cylinder",
+        Surface::Cone { .. } => "Cone",
+        Surface::Sphere { .. } => "Sphere",
+        Surface::Torus { .. } => "Torus",
+        Surface::Nurbs(_) => "Nurbs",
+        _ => "Other",
+    }
+}
+fn zero_kind(z: &Zero) -> String {
+    match z {
+        Zero::None => "None".into(),
+        Zero::Side(s, a) => format!("Side({s:?},vx={:?},edges={})", a.vertex, a.edges.len()),
+        Zero::Past(s, _) => format!("Past({s:?})"),
+        Zero::Corner((s, _), (t, _)) => format!("Corner({s:?},{t:?})"),
+        Zero::Point(s, t, v) => format!("Point({s:?},{t:?},{v:?})"),
+        Zero::Curve(s, _) => format!("Curve({s:?})"),
+    }
+}
 fn at_end_vertex(near: &Near) -> Option<Near> {
+    let m = review_mut();
+    if m == "G1" {
+        return match near.vertices.as_slice() {
+            [v] => Some(Near { edges: Vec::new(), vertices: vec![*v] }),
+            _ => None,
+        };
+    }
+    if m == "G2" {
+        return match near.vertices.as_slice() {
+            [v, ..] if !near.edges.is_empty() => Some(Near { edges: Vec::new(), vertices: vec![*v] }),
+            _ => None,
+        };
+    }
     match near.vertices.as_slice() {
         [v] if !near.edges.is_empty() => Some(Near {
             edges: Vec::new(),

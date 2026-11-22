@@ -3237,3 +3237,77 @@ fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
         }
     }
 }
+
+/// REVIEW PROBE (embed/apex-separator-review): the wedge at 10,000
+/// units, mirrored, and scaled, plain frame or moved; prints verdicts.
+#[test]
+fn review_probe_apex_wedge_scale_and_mirror() {
+    use geom_core::{Affine3, Mat3, Vec3};
+    fn wedge<T: Scalar>(place: &SketchPlane<f64>, theta: f64, pts: [(f64, f64); 3]) -> Result<Body<T>, String> {
+        let profile = Profile::new(
+            plane_at::<T>(place),
+            lifted(&[ProfileLoop::polygon(pts.map(|(x, y)| Point2::new(x, y)))]),
+        )
+        .validate(tol())
+        .map_err(|e| format!("profile: {e:?}"))?;
+        Ok(revolve(&profile, axis_y(), Revolution::Partial(T::from_f64(theta)), tol())
+            .map_err(|e| format!("revolve: {e:?}"))?
+            .body
+            .into_body())
+    }
+    let frame = |m: Mat3<f64>, d: Vec3<f64>| {
+        SketchPlane::from_frame(geom_core::test_support::rigid(&Affine3::from_parts(m, d), tol()))
+    };
+    let tri = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)];
+    let mirror = [(0.0, 0.0), (0.0, 1.0), (-1.0, 0.0)];
+    let big = [(0.0, 0.0), (100.0, 0.0), (0.0, 100.0)];
+    let thin = [(0.0, 0.0), (0.05, 0.0), (0.0, 1.0)];
+    let flat = [(0.0, 0.0), (1.0, 0.0), (0.0, 0.05)];
+    let cases: Vec<(&str, SketchPlane<f64>, [(f64, f64); 3])> = vec![
+        ("plain", SketchPlane::xy(), tri),
+        ("moved 1e4", frame(Mat3::identity(), Vec3::new(6400.0, -5700.0, 5200.0)), tri),
+        ("moved 1e2", frame(Mat3::identity(), Vec3::new(64.0, -57.0, 52.0)), tri),
+        ("moved 1e3", frame(Mat3::identity(), Vec3::new(640.0, -570.0, 520.0)), tri),
+        ("moved 3e3", frame(Mat3::identity(), Vec3::new(1920.0, -1710.0, 1560.0)), tri),
+        ("mirror", SketchPlane::xy(), mirror),
+        ("mirror moved 1e4", frame(Mat3::identity(), Vec3::new(6400.0, -5700.0, 5200.0)), mirror),
+        ("size 100", SketchPlane::xy(), big),
+        ("needle", SketchPlane::xy(), thin),
+        ("flat", SketchPlane::xy(), flat),
+    ];
+    for theta in [1.5 * core::f64::consts::PI + 0.01, 5.5, 3.0, 3.3] {
+        for (name, place, pts) in &cases {
+            let (Ok(f), Ok(t)) = (wedge::<f64>(place, theta, *pts), wedge::<Interval>(place, theta, *pts)) else {
+                println!("[review wedge] θ={theta:.4} {name}: not built {:?}", wedge::<f64>(place, theta, *pts).err());
+                continue;
+            };
+            let (float, twin) = (embedding(&f), embedding(&t));
+            println!(
+                "[review wedge] θ={theta:.4} {name}: f64 {:?} {:?} | Interval {:?} {:?}",
+                float.verdict, float.receipt.splits, twin.verdict, twin.receipt.splits
+            );
+        }
+    }
+}
+
+/// REVIEW PROBE: the turned wedge alone, for CAD_REVIEW_TRACE.
+#[test]
+fn review_probe_turned_wedge_alone() {
+    fn wedge<T: Scalar>(place: &SketchPlane<f64>, theta: f64) -> Body<T> {
+        let profile = Profile::new(
+            plane_at::<T>(place),
+            lifted(&[ProfileLoop::polygon(
+                [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
+            )]),
+        )
+        .validate(tol())
+        .unwrap();
+        revolve(&profile, axis_y(), Revolution::Partial(T::from_f64(theta)), tol())
+            .unwrap()
+            .body
+            .into_body()
+    }
+    let (_, place) = apex_frames()[1].clone();
+    let float = embedding(&wedge::<f64>(&place, 5.5));
+    println!("[review turned] {:?} {:?}", float.verdict, float.receipt);
+}
