@@ -435,8 +435,7 @@ impl<T: Real> Surface<T> {
     /// **A surface of revolution's axis, as a line**: from a cylinder's
     /// axis point, a cone's apex, or a sphere's, a torus's or a spindle's
     /// centre, along its stored axis as stored ([`Frame::axis_line`] of
-    /// [`Self::frame`]). A reader that takes the axis as unit (a meridian
-    /// sheet, a revolve's seed) says so with [`Line::unit`]. `None` for a
+    /// [`Self::frame`]), its direction the frame's unit axis. `None` for a
     /// plane, whose frame axis is a normal and not an axis line, and for
     /// a net. The one door to a surface of revolution's axis.
     #[must_use]

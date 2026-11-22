@@ -745,15 +745,16 @@ impl<T: Real> UnitVec3<T> {
         Self::kept_or_squared(a * (T::from_f64(2.0) * u.dot(a)) - u).0
     }
 
-    /// **The unit chord along `v`, and its length**: `v / |v|` and `|v|`,
+    /// **The unit chord along `v`, and its length**: `v / |v|` and `|v|`
+    /// ([`Vec3::direction_and_length`], read through its one prescale),
     /// unit over the reals wherever `v` is not zero. A zero chord has no
     /// direction: its quotient is `0/0`, the totality policy's poison,
     /// which the predicate layer catches. Nothing is decided and nothing
     /// measured, so no band and no refusal.
     #[must_use]
     pub fn chord(v: Vec3<T>) -> (Self, T) {
-        let len = v.norm();
-        (Self(v / len), len)
+        let (d, len) = v.direction_and_length();
+        (Self(d), len)
     }
 
     /// **This direction reversed, its zeros positive**: `0 − u`, exact at

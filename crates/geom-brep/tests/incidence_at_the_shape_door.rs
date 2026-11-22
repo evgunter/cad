@@ -210,7 +210,7 @@ fn a_rim_whose_incidence_the_band_cannot_decide_escalates_on_the_torus() {
 fn a_carrier_that_evaluates_to_no_finite_point_escalates() {
     let line = Curve3::line(
         p3(1.0, 0.0, 0.0),
-        geom_core::UnitVec3::checked(v3(-1.0, f64::NAN, 0.0)),
+        crate::shared::point::unit3(-1.0, f64::NAN, 0.0),
     );
     let got = door(&surf::sphere(1.0), line);
     assert!(

@@ -111,6 +111,7 @@ crates/geom/src/curves.rs	test	3	oracle
 crates/geom/src/curves/conic.rs	prod	7	far-centre
 crates/geom/src/curves/fit.rs	test	1	oracle
 crates/geom/src/frame.rs	prod	4	re-pose
+crates/geom/src/pole_form.rs	test	2	oracle
 crates/geom/src/surfaces/nurbs.rs	test	1	oracle
 crates/geom/tests/curves/arc_window_adversarial.rs	test	6	oracle
 crates/geom/tests/curves/curve3_r1_probes.rs	test	1	oracle

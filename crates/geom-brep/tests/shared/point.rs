@@ -29,3 +29,10 @@ pub(crate) fn p3<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
 pub(crate) fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
     Vec3::new(x, y, z).map(T::from_f64)
 }
+
+/// A fixture's unit direction: checked at `f64`
+/// ([`geom_core::UnitVec3::checked`]) and lifted into `T` as a direction
+/// ([`geom_core::UnitVec3::map_scalar`]), not entry by entry.
+pub(crate) fn unit3<T: Real>(x: f64, y: f64, z: f64) -> geom_core::UnitVec3<T> {
+    geom_core::UnitVec3::checked(Vec3::new(x, y, z)).map_scalar(T::from_f64)
+}

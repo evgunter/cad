@@ -244,7 +244,7 @@ fn generator<T: Real>(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<T> {
     edge(
         Curve3::line(
             p3(0.0, 0.0, 0.0),
-            geom_core::UnitVec3::checked(v3(u.cos() * s, u.sin() * s, s)),
+            crate::shared::point::unit3(u.cos() * s, u.sin() * s, s),
         ),
         v0,
         v1,

@@ -117,7 +117,8 @@ fn meridian_carrier<T: Real>(kind: Kind, u: f64) -> Curve3<T> {
         Kind::Cylinder => Curve3::line(p(R * c, R * s, 0.0), geom_core::UnitVec3::exact_z()),
         Kind::Cone => Curve3::line(
             p(0.0, 0.0, 0.0),
-            geom_core::UnitVec3::checked(v(HALF.sin() * c, HALF.sin() * s, HALF.cos())),
+            geom_core::UnitVec3::checked(Vec3::new(HALF.sin() * c, HALF.sin() * s, HALF.cos()))
+                .map_scalar(T::from_f64),
         ),
         // `axis × u_ref = ẑ`, so the parameter is the latitude (sphere)
         // or the minor angle (torus).

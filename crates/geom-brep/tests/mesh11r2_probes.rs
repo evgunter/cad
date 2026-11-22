@@ -154,7 +154,7 @@ fn r2_the_cone_floor_is_the_escalation_threshold_from_both_sides() {
         edge(
             Curve3::line(
                 p3(0.0, 0.0, 0.0),
-                geom_core::UnitVec3::checked(v3(u.cos() * s, u.sin() * s, s)),
+                crate::shared::point::unit3(u.cos() * s, u.sin() * s, s),
             ),
             v0,
             v1,
