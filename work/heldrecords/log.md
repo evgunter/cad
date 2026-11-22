@@ -63,3 +63,15 @@
     - **Multiplicity:** the least c_j (j ≥ 2) decided nonzero.
     - **Ruled:** a c₂ decided Zero steps to m = 3 as D10's coincidence. The spread bound must charge c₂'s band width, and the next coefficient must be decided nonzero or refuse typed.
     - **An uncovered kind pair** refuses with the new `JunctionEndUnread`. (HELDRECORDS orchestrator)
+- 2026-11-22 — **Step 2 is PR 7421 (`heldrecords/split-keys`, `c3438239ec`, base `embed/records`); its single FULL review is out (21:32Z, `session_018u3gVHfxS41ouNBBBjw87a`, Opus; brief `briefs/review-split-keys.md`, `700f5ecb50`, seven claims).**
+  - **The fix:** in `insert_crossings`' line lane, a line edge whose two ends' keys match an edge the cut has already crossed takes that crossing's point and key, and no record. The row's straight cases go to Ok on both sides; the curved cases are unchanged (they are step 3's).
+  - **The plan's correction is measured true:** pinch copies already share a key, and every failure is two crossings.
+  - **Filed:** `a-cut-across-two-curved-or-partly-overlapping-edges-on-one-locus-mints-two-point-keys` (P2).
+  - **CI:** both reds reproduce on the base alone:
+    - `the_gate_confirms_every_record::a_record_the_census_reads_in_the_band_refuses` at 1e-6 and 1e-12;
+    - `union_fold_face_face_touch::a_merged_face_far_longer_than_the_pair_holds_the_pass_s_line`.
+
+    Both are passed to the records lane as a finding. That lane's head shows no check runs, and it conflicts with main, so it may be getting no CI at all.
+  - **Main has rewritten `insert_crossings`** into one curve × face reading. The fix is to be carried over when `embed/records` takes main; claim 7 checks whether that holds.
+
+  **Step 3 dispatched (21:33Z), stacked on PR 7421:** `heldrecords/split-on` (`session_018u3gVHoiWvEzT2GF2vWy3x`), on Ev's PR 5967 ruling: a `SplitOn` row, plus the split's own edge–edge record for every coincident pair it mints, straight or curved. It lifts `CurvedSlitTrace` and `EdgeInFaceGap::Curved`. The shared-bounds exemption is **measured, not retired**, because the Boolean's pinch and slit lanes must record first (plan step 3). Tier: single FULL review. (HELDRECORDS orchestrator)
