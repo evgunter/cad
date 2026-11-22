@@ -6,6 +6,9 @@
 //! a gesture the mapper answers with that row's action, and each
 //! gesture the mapper answers is a row the guide shows.
 
+#![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
+
 use viewer::camera::{Camera, CameraOp};
 use viewer::input::{
     Binding, Held, InputMap, Navigation, PRESETS, PickAction, PointerButton, ViewportEvent,
