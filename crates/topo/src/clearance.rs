@@ -5022,6 +5022,17 @@ pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
             distance: distance.hi(),
         })
     });
+    if std::env::var_os("CV_COST").is_some() {
+        use std::sync::atomic::Ordering::Relaxed;
+        eprintln!(
+            "CVCOST {} calls={} pairs={} split_calls={} receipt_pairs={}",
+            std::thread::current().name().unwrap_or("?"),
+            crate::injective::CV_COST_CALLS.load(Relaxed),
+            crate::injective::CV_COST_PAIRS.load(Relaxed),
+            crate::injective::CV_COST_SPLIT_CALLS.load(Relaxed),
+            report.receipt.discharged + report.receipt.violated + report.receipt.within + report.receipt.refused,
+        );
+    }
     let verdict = match report.verdict {
         BoundVerdict::Holds => Embedding::Embedded,
         BoundVerdict::Violated(crossing) => Embedding::Crosses(crossing),

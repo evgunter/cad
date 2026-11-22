@@ -149,6 +149,10 @@ pub(crate) const SELF_INTERSECTION_MONOTONE: &str = "self_intersection_monotone"
 /// less its minor radius, metres.
 pub(crate) const RING_TORUS: geom::RingSites = geom::RingReader::SelfIntersection.sites();
 
+pub(crate) static CV_COST_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub(crate) static CV_COST_PAIRS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub(crate) static CV_COST_SPLIT_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 // ------------------------------------------------- the lifted boundary
 
 /// A chart axis.
@@ -5917,6 +5921,32 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
 /// with the other presented, a plane through straight shared edges or a
 /// conic one's own plane, the shared edge's graph.
 fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -> Outcome {
+    if std::env::var_os("CV_COST").is_some() {
+        use std::sync::atomic::Ordering::Relaxed;
+        // A plane face's part with exactly two line edges at one vertex in
+        // reach would be two pieces.
+        let pieces = |p: &Piece<'_>| -> u64 {
+            let b = p.boundary;
+            let lines: Vec<&Rim> = p
+                .local
+                .edges
+                .iter()
+                .filter_map(|&i| b.edges.get(i))
+                .filter(|e| e.arc.as_ref().is_some_and(|(c, _)| !c.is_curved()))
+                .collect();
+            let two = matches!(p.surface, Surface::Plane { .. })
+                && p.local.edges.len() == 2
+                && lines.len() == 2
+                && lines[0].ends.iter().any(|v| lines[1].ends.contains(v));
+            if two { 2 } else { 1 }
+        };
+        let (a, b) = (pieces(x), pieces(y));
+        CV_COST_CALLS.fetch_add(1, Relaxed);
+        CV_COST_PAIRS.fetch_add(a * b, Relaxed);
+        if a * b > 1 {
+            CV_COST_SPLIT_CALLS.fetch_add(1, Relaxed);
+        }
+    }
     let shared = near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face));
     let split = Outcome::Split {
         arm: CertificateArm::Departure,
