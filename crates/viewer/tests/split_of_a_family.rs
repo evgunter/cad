@@ -73,7 +73,7 @@ fn world(
         &mut s,
         SessionOp::AddMirror {
             body: pattern.into(),
-            plane: cap_end(body),
+            plane: viewer::session::ToolPlane::Face(cap_end(body)),
         },
     );
     let variants = vec![
