@@ -1637,6 +1637,14 @@ fn probe_each_arc_verbs_radius_along_its_radial() {
                         "   seg {k}: radius {radius:?}\n      gap {gaps:?}\n      rim-radius {rims:?}\n      along {along:?}"
                     ));
                 }
+                let v = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol());
+                rows.push(format!(
+                    "   validate: {}",
+                    match v {
+                        Ok(_) => "ok".to_owned(),
+                        Err(e) => format!("{e:?}").chars().take(330).collect::<String>(),
+                    }
+                ));
                 rows
             })
         });

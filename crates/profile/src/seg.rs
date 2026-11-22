@@ -1285,14 +1285,10 @@ fn chord_side_reported<T: Decide>(
 }
 
 /// **`circle_side`** — which side of an arc's carrier circle a point
-/// lies on. Margin: |q − c| − r, the rim through [`Arc2::rim`]
+/// lies on. Margin: |q − c| − r, as [`Arc2::off_carrier`] spells it
 /// (meters; positive = outside).
 fn circle_side<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Escalation> {
-    decide(
-        Gate::CircleSide,
-        Margin::of(g.arc.rim(q) - g.arc.radius),
-        band,
-    )
+    decide(Gate::CircleSide, Margin::of(g.arc.off_carrier(q)), band)
 }
 
 /// **`line_span`** — whether a point *known to lie on the carrier line*
@@ -1666,7 +1662,10 @@ pub(crate) fn joint_tangency<T: Decide>(
 
 /// **`carrier_line_circle`'s margin, in one place**: the clearance
 /// `r − |h|` between a line's carrier and a circle's, where `h` is the
-/// centre's signed offset from the line, [`Line2::side`]. Returned with the SCALE its arithmetic passes through — the
+/// centre's signed offset from the line, [`Line2::side`], spelled
+/// `(r² − h²)/(r + |h|)`: the same real, with a numerator that is the
+/// zero form where the construction made the line tangent, whichever
+/// side the centre lies on. Returned with the SCALE its arithmetic passes through — the
 /// radius and the two points' own coordinate magnitudes — because both
 /// the subtraction and the `C − a` inside `h` cancel first-order in
 /// that magnitude, and the clearance therefore resolves only to about
@@ -1679,9 +1678,9 @@ pub(crate) fn joint_tangency<T: Decide>(
 /// the same `h`, so the
 /// clearance and the crossings cannot drift apart.
 pub(crate) fn carrier_line_circle_margin<T: Real>(line: Line2<T>, g: &ArcGeom<T>) -> (T, T) {
-    let h = line.distance(g.arc.centre);
+    let h = line.side(g.arc.centre);
     (
-        g.arc.radius - h,
+        (g.arc.radius.powi(2) - h.powi(2)) / (g.arc.radius + h.abs()),
         g.arc
             .radius
             .max(reach(g.arc.centre))
@@ -2137,7 +2136,7 @@ fn segment_clear_of_circle<T: Decide>(line: &Seg<T>, g: &ArcGeom<T>, tc: T, band
 /// `r` taken against it.
 fn end_clear_of_circle<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, outside: bool, band: Band) -> bool {
     let charge = geom_core::rounding_charge(reach(q) + reach(g.arc.centre) + g.arc.radius);
-    let rim = g.arc.rim(q) - g.arc.radius;
+    let rim = g.arc.off_carrier(q);
     let (margin, side) = if outside {
         (rim - charge, Sign::Positive)
     } else {

@@ -1248,6 +1248,19 @@ pub fn is_exact_zero<T: Real>(x: T) -> bool {
     !(x * T::zero()).is_poison() && (x * (T::one() / x)).is_poison()
 }
 
+/// **A measured norm less a stored radius**, `norm − radius`, spelled
+/// `(norm_sq − radius²)/(norm + radius)`: the same real wherever the
+/// denominator is non-zero, with a numerator that is a polynomial in
+/// whatever the squared norm and the radius are polynomials in. For a
+/// point built at `centre + radius·x`, `x` a unit direction, the
+/// numerator is the zero form, and `√(radius²)` is never asked to be
+/// `radius`. `norm_sq` is the offset's own dot product, `norm` its
+/// root. The one spelling of a point's signed gap off a circle, a
+/// cylinder or a sphere.
+pub fn radius_gap<T: Real>(norm_sq: T, norm: T, radius: T) -> T {
+    (norm_sq - radius.powi(2)) / (norm + radius)
+}
+
 /// `x` with a zero of either sign stated as `+0.0`; every other value,
 /// NaN included, unchanged. It moves no value (`-0.0 == 0.0`) and fixes
 /// the bit pattern, for a reader that would tell the two zeros apart: a

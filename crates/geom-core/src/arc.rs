@@ -197,15 +197,12 @@ impl<T: Real> Arc2<T> {
     }
 
     /// **How far `p` stands off the carrier**, `‖p − centre‖ − radius`,
-    /// signed (positive outside), spelled `(‖w‖² − radius²)/(‖w‖ +
-    /// radius)` for `w = p − centre`: the same real wherever the
-    /// denominator is non-zero, with a numerator that is a polynomial
-    /// in the arc's and the point's data. For a point built at `centre
-    /// + radius·x`, `x` a unit direction, the numerator is the zero
-    /// form, and no root of `radius²` is asked to be `radius`.
+    /// signed (positive outside), as [`crate::radius_gap`] spells it: a
+    /// vertex built at `centre + radius·x`, `x` a unit direction, reads
+    /// the zero form.
     pub fn off_carrier(self, p: Point2<T>) -> T {
         let w = p - self.centre;
-        (w.norm_squared() - self.radius.powi(2)) / (w.norm() + self.radius)
+        crate::radius_gap(w.norm_squared(), w.norm(), self.radius)
     }
 
     /// Where this arc started at `a` ends: [`Arc2::point_from`] at
