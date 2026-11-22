@@ -26,6 +26,7 @@ M={
  'M9_stated_plane_always': [("""    f.origin().equals_exactly(g.origin())
         && [""","""    true || f.origin().equals_exactly(g.origin())
         && [""")],
+ 'M10_w_not_compared': [("""        && [(m.u(), n.u()), (m.v(), n.v()), (m.w(), n.w())]""","""        && [(m.u(), n.u()), (m.v(), n.v())]""")],
 }
 env=dict(os.environ, CARGO_TARGET_DIR='/home/user/review-target')
 which=sys.argv[1:] or list(M)

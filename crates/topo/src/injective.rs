@@ -10817,6 +10817,34 @@ mod presentation_rows {
             }
         }
         eprintln!("PAIRS {pairs} with v, w kept and u off; w lifts disjoint {disjoint}; coplanar {read_one}");
+        // The same with `u`, `v` kept and `w` a few ulps off.
+        let (mut pairs, mut disjoint) = (0, 0);
+        for _ in 0..400 {
+            let a = Vec3::new(next(), next(), next()).normalize();
+            let th = 3.0 * next();
+            let (c, s) = (th.cos(), th.sin());
+            let rot = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+            let (u, w) = (rot(Vec3::new(1.0, 0.0, 0.0)), rot(Vec3::new(0.0, 0.0, 1.0)));
+            let Some(f) = geom::Frame::admitted(o, w, u) else { continue };
+            for comp in 0..3 {
+                for step in [-2i32, -1, 1, 2] {
+                    let mut w2 = w;
+                    let nudge = |x: f64| (0..step.abs()).fold(x, |y, _| if step > 0 { y.next_up() } else { y.next_down() });
+                    match comp { 0 => w2.x = nudge(w.x), 1 => w2.y = nudge(w.y), _ => w2.z = nudge(w.z) }
+                    let Some(g) = geom::Frame::admitted(o, w2, u) else { continue };
+                    let (m, n) = (f.motion(), g.motion());
+                    if !(m.u().get().same_bits(n.u().get()) && m.v().get().same_bits(n.v().get())) { continue; }
+                    pairs += 1;
+                    let (lf, lg) = (
+                        f.map_scalar(Interval::from_f64).motion().w().get(),
+                        g.map_scalar(Interval::from_f64).motion().w().get(),
+                    );
+                    let apart = |x: Interval, y: Interval| x.hi() < y.lo() || y.hi() < x.lo();
+                    if apart(lf.x, lg.x) || apart(lf.y, lg.y) || apart(lf.z, lg.z) { disjoint += 1; }
+                }
+            }
+        }
+        eprintln!("PAIRS {pairs} with u, v kept and w off; w lifts disjoint {disjoint}");
     }
 
     #[test]
