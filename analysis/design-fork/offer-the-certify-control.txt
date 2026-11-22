@@ -1,0 +1,6 @@
+fork: offer-the-certify-control (OFFER, certify-affordance-on-the-bounds-panel)
+drawn: 2026-11-22, od -N1 /dev/urandom
+arm byte: 251 (>= 86: two designers)
+label byte: 116
+mapping: A = Opus designer, B = Fable designer
+protocol: 3a6220f722
