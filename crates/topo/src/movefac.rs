@@ -1122,6 +1122,7 @@ mod tests {
     /// list and from that list reversed. An enumeration, not a sample.
     #[test]
     fn valid_fixtures_partition_as_their_records_do() {
+        use crate::euler_theorem::check_component_theorem;
         use crate::fixtures::{
             mvfs_state, ngon_pillow, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strutted,
             ops_two_ring_face, pillow, raw_prism,
@@ -1147,6 +1148,11 @@ mod tests {
         let mut most = 0;
         for (fixture, body) in bodies {
             assert_eq!(validate(&body), Ok(()), "{fixture} is valid");
+            assert_eq!(
+                check_component_theorem(&body),
+                Ok(()),
+                "{fixture}: per-component Euler–Poincaré"
+            );
             for (shell, _) in body.shells() {
                 let truth = claimed_components(&body, shell);
                 let components = claimed_count(&body, shell);
@@ -1173,6 +1179,11 @@ mod tests {
                         validate(&trial),
                         Ok(()),
                         "{fixture}: tier 1 after movefac (reversed {reversed})"
+                    );
+                    assert_eq!(
+                        check_component_theorem(&trial),
+                        Ok(()),
+                        "{fixture}: per-component Euler–Poincaré after movefac (reversed {reversed})"
                     );
                 }
             }

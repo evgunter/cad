@@ -547,7 +547,7 @@ impl Ledger {
                 self.h
             ));
         }
-        Ok(())
+        crate::euler_theorem::check_component_theorem(body)
     }
 }
 
