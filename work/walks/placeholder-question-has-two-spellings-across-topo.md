@@ -66,3 +66,7 @@ Sweep: `is_placeholder()` and `NetState::Placeholder` over `crates/`,
 which cannot match a site composing `net::is_placeholder` or
 `net::any_poison` directly (`geom`'s own `net.rs`, the implementation,
 is excluded).
+
+## The question to Ev (2026-11-22, fork F2)
+
+Two designers weighed it independently and converged: the two (in fact four) doors exist only because "this face has no surface yet" is stored as an in-band all-NaN NURBS net. Their recommendation: tag the body's surface SLOT in `topo` (undescribed | described `Surface`), retire `NetState`, `net_state`, both `is_placeholder`s, `Surface::is_placeholder_chart` and the placeholder constructors, and leave one finiteness predicate (NaN and ±∞) as the only question asked of a net. That reverses geom's crate-doc "three states" doctrine and possibly an earlier retirement of a unit variant, and is moderately hard to reverse, so it goes to Ev. The curve placeholder (no producer outside tests) is deleted regardless, by `walks/curve-placeholder`.
