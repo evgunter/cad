@@ -35,17 +35,16 @@ wasm32. The `change filter` job's log prints what this run selected, and
 - **A red nightly is a red main, and the orchestrator owns it.** An
   implementer that notices one reports it to its orchestrator rather than
   fixing it; the orchestrator assigns the fix.
-- **A test that costs ≥ 0.5 s goes in the slow set, and a test you add or
-  edit must cost under 0.25 s to stay in the fast set.** Its cost is its time
-  run alone on the gate's build: the gate re-runs alone any test its full
-  parallel pass reads over a bar, and that reading is the one that counts.
-  Add a test over 0.25 s to `.config/nextest.toml`'s `ci` filter in the PR
-  that adds or edits it. A slow-set test runs on that PR, on any PR that edits
-  its file, and every night after. The gate also fails any fast-set test that
-  reads over a ceiling far above the bar, so the PR that makes an old test
-  dramatically slower is the one that goes red. A test that drifts past 0.5 s,
-  or jumps severalfold, on main without crossing the ceiling is not your PR's:
-  a drift check of its own names it, and the orchestrator moves it.
+- **A fast-set test costs under 0.25 s.** Its cost is its time run alone on
+  the gate's build: the gate re-runs alone any test its full parallel pass
+  reads over a bar, and that reading is the one that counts. A test you add or
+  edit that costs 0.25 s or more goes in `.config/nextest.toml`'s `ci` filter
+  in that PR. A slow-set test runs on that PR, on any PR that edits its file,
+  and every night after. The gate also fails any fast-set test that costs 1 s
+  or more, so the PR that makes an old test dramatically slower is the one
+  that goes red. A test that drifts past 0.25 s on main without reaching 1 s
+  is not your PR's: a drift check of its own times it alone, names it, and
+  the orchestrator moves it.
 
 **Draft PRs do not run the gate at all.** Mark the PR ready for review when you
 want it gated; undrafting triggers a full run on the same head.
