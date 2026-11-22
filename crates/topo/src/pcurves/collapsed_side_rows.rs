@@ -74,3 +74,71 @@ fn a_joint_on_a_collapsed_side_is_the_identity_and_one_ulp_off_it_is_a_gap() {
         joint(&apart, pole).ok()
     );
 }
+
+/// A NURBS cone about `z`: its `u` row the rational circle, closed, and
+/// its side `v = 0` the apex, one stored point.
+fn spline_cone() -> Surface<f64> {
+    let ku = KnotVector::clamped(
+        vec![
+            0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+        ],
+        2,
+    )
+    .unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let s = std::f64::consts::FRAC_1_SQRT_2;
+    let ring = [
+        (1.0, 0.0, 1.0),
+        (1.0, 1.0, s),
+        (0.0, 1.0, 1.0),
+        (-1.0, 1.0, s),
+        (-1.0, 0.0, 1.0),
+        (-1.0, -1.0, s),
+        (0.0, -1.0, 1.0),
+        (1.0, -1.0, s),
+        (1.0, 0.0, 1.0),
+    ];
+    let mut control = Vec::new();
+    let mut weights = Vec::new();
+    for &(x, y, w) in &ring {
+        control.push(Point3::new(0.0, 0.0, 0.0));
+        control.push(Point3::new(x, y, -1.0));
+        weights.extend([w, w]);
+    }
+    Surface::Nurbs(Arc::new(
+        NurbsSurface::new(Knots::from(ku), Knots::from(kv), control, weights).unwrap(),
+    ))
+}
+
+/// **A collapsed side along a channel the net closes refuses typed**: at
+/// a NURBS cone's apex the turn about the point and the face's side of
+/// it have no spline reading yet, so the joint refuses
+/// [`super::SingularMiss::ClosedSide`] rather than writing an element.
+#[test]
+fn a_collapsed_side_along_a_closed_channel_refuses_typed() {
+    let cone = spline_cone();
+    let apex = Point3::new(0.0, 0.0, 0.0);
+    assert!(
+        ChartPeriods::of(&cone, band()).u().is_some(),
+        "the cone's u closes"
+    );
+    let image = Pcurve::IsoLine {
+        p0: Point2::new(0.25, 0.0),
+        pl: Vec2::new(0.0, 1.0),
+        ends: None,
+    };
+    let out = decide_plain_joint(
+        DescribedChart::of(&cone).unwrap(),
+        &image,
+        0.0,
+        Point2::new(0.75, 0.0),
+        apex,
+        ChartPeriods::of(&cone, band()),
+        band(),
+    );
+    assert!(
+        matches!(out, Err(PinMiss::Singular(super::SingularMiss::ClosedSide))),
+        "the apex refuses as unbuilt, read {:?}",
+        out.ok()
+    );
+}

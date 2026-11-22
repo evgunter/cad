@@ -927,6 +927,79 @@ pub(crate) fn chart_flipped(patch: &NurbsSurface<f64>, promoted: &Surface<f64>) 
 /// conics, and the selection order.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
+mod collapsed_side_healing {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    /// A bilinear patch whose side `u = 0` runs from (1, 1, 0) to `top`.
+    fn triangle(top: Point3<f64>) -> NurbsSurface<f64> {
+        let kv = || {
+            geom_core::spline::Knots::from(
+                KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            )
+        };
+        NurbsSurface::new(
+            kv(),
+            kv(),
+            vec![
+                Point3::new(1.0, 1.0, 0.0),
+                top,
+                Point3::new(3.0, 0.0, 0.0),
+                Point3::new(3.0, 2.0, 0.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap()
+    }
+
+    /// **A side one ulp wide is made its first point and reported**; one
+    /// the file's band reads apart is kept; one in the band refuses as
+    /// ambiguous; one already a point is not touched.
+    #[test]
+    fn a_side_the_file_reads_as_one_point_is_made_that_point() {
+        let file = crate::interpret::FileBand::test(1e-9);
+        let pole = Point3::new(1.0, 1.0, 0.0);
+        let ulp = Point3::new(f64::from_bits(1.0_f64.to_bits() + 1), 1.0, 0.0);
+        let Ok(Some((healed, sides))) = heal_collapsed_sides(&triangle(ulp), file) else {
+            panic!("one ulp: healed");
+        };
+        assert_eq!(sides.len(), 1, "one ulp: the one side");
+        assert!(
+            sides[0].1 > 0.0 && sides[0].1 < 1e-15,
+            "one ulp: its move {}",
+            sides[0].1
+        );
+        assert_eq!(
+            geom_brep::chart_singularity::collapsed_sides(&healed)
+                .iter()
+                .map(|(side, p)| (*side, p.to_array()))
+                .collect::<Vec<_>>(),
+            vec![(sides[0].0, pole.to_array())],
+            "one ulp: the side is the first point exactly"
+        );
+        assert!(
+            matches!(heal_collapsed_sides(&triangle(pole), file), Ok(None)),
+            "a point already: untouched"
+        );
+        assert!(
+            matches!(
+                heal_collapsed_sides(&triangle(Point3::new(1.0, 2.0, 0.0)), file),
+                Ok(None)
+            ),
+            "a unit apart: kept"
+        );
+        assert!(
+            matches!(
+                heal_collapsed_sides(&triangle(Point3::new(1.0 + 3e-9, 1.0, 0.0)), file),
+                Err(crate::interpret::Refusal::Ambiguous { .. })
+            ),
+            "in the band: ambiguous"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod review_probes {
     use super::*;
     use geom_core::spline::KnotVector;
