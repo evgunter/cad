@@ -153,3 +153,43 @@ already owed.
 ## Narrowed (2026-10-02, RECIPE `declared-pairs-are-a-booleans-own-payload`)
 
 The `Declare` node is gone: declared pairs are a boolean's or union's own payload, so no delete can orphan a declaration, and `Maintenance::OrphanedDeclare` (`orphaned_declare`) no longer exists. What this row says of the orphan arm no longer applies; the rest stands.
+
+## Built (2026-11-22)
+
+**The count is the delete's own rehearsal, not the formula above.**
+The affordance reads `editor_core::continuation::splice` now, and a
+splice is hand-over edits followed by deletes. Two things follow that
+the `doomed`-set formula gets wrong:
+
+- a reader handed to the body the target continues is outside `doomed`
+  and may hold a name whose `name.node` is inside it that the target
+  only CARRIED IN from that body; the splice rebinds it back
+  (`continuation::carried_back`), so it strands nothing and the formula
+  counts it;
+- a hand-over can strand by reach (`Took::Reach`) as well as by delete.
+
+So `DeleteAffordance::of` applies the planned splice to a scratch
+`Recording` of the committed document and counts what its net
+(`MaintenanceNet`, through `Recording::finish`) says the end document
+holds: the distinct `(holder, name)` references of the `Strand`,
+`StrandedSelection` and `StrandedAppearance` rows. Those are the rows
+the click's `OpOutcome::maintenance` carries, so the button and the
+click cannot disagree about which names. Distinct references rather
+than rows, because the net reports one name twice where a hand-over
+and the delete each strand it
+(`work/doctail/maintenance-net-reports-one-stranded-name-once-per-edit-that-strands-it.md`).
+The label says `, stranding N name(s)` and the hover gains a sentence;
+both are omitted at zero. The affordance is kept per generation and
+node (`DocSession::priced`), since composing it now rehearses the whole
+delete.
+
+**After the click** the rows already reach the status line, one notice
+each in the row's own sentence (`frame::outcome_notices`, PR #3196);
+nothing was added there. The viewer has no `Rebind` door, so none is
+linked: `a-stranded-name-row-offers-no-rebind-in-the-viewer`.
+
+Rows: `edit_maintenance::the_delete_button_counts_the_names_its_click_strands`,
+`…_does_not_count_a_strand_on_a_carrier_it_deletes`,
+`…_does_not_count_a_name_the_delete_hands_back`
+(`crates/viewer/tests/edit_maintenance.rs`), and the die's inner fillet
+in `cascade_delete::the_delete_affordance_names_the_count_and_the_kinds`.
