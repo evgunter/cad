@@ -127,9 +127,9 @@ fn ruling<T: Decide>(place: Place) -> Curve3<T> {
 fn column<T: Decide>() -> Pcurve<T> {
     let c = T::from_f64;
     Pcurve::IsoLine {
-        p0: Point2::new(c(0.5), c(0.0)),
-        pl: Vec2::new(c(0.0), c(1.0)),
-        ends: None,
+        line: crate::ChartLine::column(c(0.5)),
+        at0: c(0.0),
+        rate: c(1.0),
     }
 }
 

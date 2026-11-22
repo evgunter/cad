@@ -577,8 +577,9 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                 ends: None,
             },
             Pcurve::IsoArc {
-                p0,
-                pd,
+                line,
+                g0,
+                gd,
                 t0,
                 angle,
                 breaks,

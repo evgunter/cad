@@ -1317,11 +1317,7 @@ fn joined_spec<T: Decide>(
             };
             demanded.unwrap_or_else(|| geom_brep::EdgeDescriptionSpec::Chart {
                 surface: c.surface,
-                image: if c.wrap {
-                    None
-                } else {
-                    Some(c.pcurve.clone())
-                },
+                image: if c.wrap { None } else { Some(c.pcurve.clone()) },
                 wrap: c.wrap,
                 declared,
             })

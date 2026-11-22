@@ -510,7 +510,10 @@ impl<T: Decide> Period<T> {
             // where every run lies: the whole span, as the fold into
             // `[0, τ)` gave.
             Pick::Tie if ahead.point_value().is_some() => ahead,
-            Pick::Tie => ahead.enclosure_hull(behind).max(T::zero()).min(self.length()),
+            Pick::Tie => ahead
+                .enclosure_hull(behind)
+                .max(T::zero())
+                .min(self.length()),
         }
     }
 

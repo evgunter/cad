@@ -200,21 +200,24 @@ const STATED: [Stated; 2] = [Stated::Iso, Stated::General];
 /// A stated image, held at `f64` and lifted to each scalar.
 #[derive(Clone, Debug)]
 enum Image {
-    /// `p0 + pl·t`.
+    /// The iso line `p0 + pl·t`: a row or a column of the chart.
     Iso([f64; 2], [f64; 2]),
     General(Arc<NurbsCurve2<f64>>),
 }
 
 impl Image {
+    /// The line `p0 + pl·t` as an iso image, where it is a row or a column
+    /// of its chart; `None` for a diagonal, which is stated as a curve in
+    /// UV alone.
+    fn iso(p0: [f64; 2], pl: [f64; 2]) -> Option<Self> {
+        Pcurve::<f64>::iso_line_for_tests(p0, pl).map(|_| Self::Iso(p0, pl))
+    }
+
     fn at<T: Real>(&self) -> Pcurve<T> {
-        let c = T::from_f64;
         match self {
-            Self::Iso(p0, pl) => Pcurve::IsoLine {
-                p0: Point2::new(c(p0[0]), c(p0[1])),
-                pl: geom_core::Vec2::new(c(pl[0]), c(pl[1])),
-                ends: None,
-            },
-            Self::General(net) => Pcurve::General(Arc::new(net.map_scalar(c))),
+            Self::Iso(p0, pl) => Pcurve::iso_line_for_tests(*p0, *pl)
+                .expect("an iso image is built by `Image::iso`, a row or a column"),
+            Self::General(net) => Pcurve::General(Arc::new(net.map_scalar(T::from_f64))),
         }
     }
 }
@@ -558,11 +561,14 @@ fn stated_images_on_their_carriers(g: &mut fuzz::Rng) {
             (a, b)
         };
         // The iso line where the curve in UV is one: degree one,
-        // unweighted, its two ends the line's.
-        let iso = (degree == 1 && !rational && count == 2).then(|| {
-            let (a, b) = (control[0], control[1]);
-            Image::Iso([a.x, a.y], [b.x - a.x, b.y - a.y])
-        });
+        // unweighted, its two ends the line's, a row or a column of the
+        // chart (a plane's slanted line is the curve in UV alone).
+        let iso = (degree == 1 && !rational && count == 2)
+            .then(|| {
+                let (a, b) = (control[0], control[1]);
+                Image::iso([a.x, a.y], [b.x - a.x, b.y - a.y])
+            })
+            .flatten();
         let images = std::iter::once(Image::General(Arc::new(image))).chain(iso);
         for stated in images {
             for door in DOORS {
@@ -927,7 +933,7 @@ fn a_wrong_image_through_its_pcurve_door_ends_as_its_miss() {
 
 /// **A correct image far from the origin certifies or ends in the
 /// lever**: on a tilted plane and on a cylinder's ruling, from 100 m to
-/// 10 km out, an iso line and a curve in UV stated against their own
+/// 10 km out, a curve in UV (and, on the ruling, an iso line) stated against their own
 /// polyline (and, on the plane, against the line they are), at both
 /// scalars. The patch's corners and the composite carry the coordinates'
 /// rounding, which past some distance outgrows a fine band (as the
@@ -973,17 +979,22 @@ fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
             ),
         ];
         for (surface, [p0, pl], net, carrier, name) in rows {
-            let iso = Image::Iso(p0, pl);
-            let got = [
-                certify_both(surface, iso.at(), iso.at(), carrier),
-                certify_both(
-                    surface,
-                    Pcurve::General(Arc::new(net.clone())),
-                    Pcurve::General(Arc::new(net.map_scalar(fi))),
-                    carrier,
-                ),
-            ];
-            for got in got.iter().flatten() {
+            // The plane's line is slanted in its chart, so it is stated as
+            // the curve in UV alone; the cylinder's ruling is a column.
+            let iso = Image::iso(p0, pl).map(|iso| certify_both(surface, iso.at(), iso.at(), carrier));
+            assert_eq!(
+                iso.is_some(),
+                name == "cylinder",
+                "{name}: an iso image is a row or a column of its chart"
+            );
+            let got = iso.into_iter().chain([certify_both(
+                surface,
+                Pcurve::General(Arc::new(net.clone())),
+                Pcurve::General(Arc::new(net.map_scalar(fi))),
+                carrier,
+            )]);
+            for got in got.flatten() {
+                let got = &got;
                 // The stated image's own reading: never a miss, and in band
                 // its lever. (Far out, the endpoint pins and the net's
                 // incidence read meet their own rounding first.)
@@ -1026,9 +1037,9 @@ fn an_iso_line_whose_u_is_an_enclosure_certifies_on_its_ruling() {
     let (_, carrier) = polyline_under(&cylinder, |t| [0.1, -1.0 + 2.5 * t], [0.0, 0.0]);
     let fi = Interval::from_f64;
     let image: Pcurve<Interval> = Pcurve::IsoLine {
-        p0: Point2::new(Interval::from_bounds(0.1, 0.1 + 1e-15), fi(-1.0)),
-        pl: geom_core::Vec2::new(fi(0.0), fi(2.5)),
-        ends: None,
+        line: crate::ChartLine::column(Interval::from_bounds(0.1, 0.1 + 1e-15)),
+        at0: fi(-1.0),
+        rate: fi(2.5),
     };
     let surface = cylinder.map_scalar(fi);
     assert!(
@@ -1044,9 +1055,9 @@ fn an_iso_line_whose_u_is_an_enclosure_certifies_on_its_ruling() {
     let [_, got] = certify_both(
         &cylinder,
         Pcurve::IsoLine {
-            p0: Point2::new(0.1, -1.0),
-            pl: geom_core::Vec2::new(0.0, 2.5),
-            ends: None,
+            line: crate::ChartLine::column(0.1),
+            at0: -1.0,
+            rate: 2.5,
         },
         image,
         &carrier,

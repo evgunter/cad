@@ -3573,10 +3573,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 param_end: tb,
             }
         };
-        (
-            child(T::zero(), a, t0, t),
-            child(a, T::one(), t, t1),
-        )
+        (child(T::zero(), a, t0, t), child(a, T::one(), t, t1))
     }
 
     /// This carrier's spec view (for re-certification).
@@ -7315,10 +7312,10 @@ mod tests {
             .iter()
             .map(|&(anchor, _, _)| {
                 let (chart, _) = d2_iso_chart(anchor);
-                let Pcurve::IsoLine { p0, pl, .. } = chart.pcurve else {
+                let Pcurve::IsoLine { at0, rate, .. } = chart.pcurve else {
                     panic!("the iso arm mints an IsoLine chart image");
                 };
-                (anchor, p0.y.to_bits(), pl.y.to_bits())
+                (anchor, at0.to_bits(), rate.to_bits())
             })
             .collect();
         assert_eq!(

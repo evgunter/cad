@@ -122,11 +122,8 @@ fn certify_line<T: Decide>(
 ) -> Result<PcurveCache<T>, PcurveCertifyError> {
     let f = T::from_f64;
     PcurveCache::certify(
-        Pcurve::IsoLine {
-            p0: Point2::new(f(p0.0), f(p0.1)),
-            pl: Vec2::new(f(pl.0), f(pl.1)),
-            ends: None,
-        },
+        Pcurve::iso_line_for_tests([p0.0, p0.1], [pl.0, pl.1])
+            .expect("the probes state rows and columns"),
         T::zero(),
         T::one(),
         &Curve3::Nurbs(Arc::new(lift_curve::<T>(carrier))),
@@ -541,9 +538,9 @@ fn out_of_domain_body<T: Decide + Bounds>(lane: &str) {
             let row = interior_iso_u(&s, u).unwrap();
             let f = T::from_f64;
             let pc = Pcurve::IsoLine {
-                p0: Point2::new(f(u), f(v0)),
-                pl: Vec2::new(T::zero(), f(v1 - v0)),
-                ends: None,
+                line: geom_brep::ChartLine::column(f(u)),
+                at0: f(v0),
+                rate: f(v1 - v0),
             };
             let r = PcurveCache::certify(
                 pc,

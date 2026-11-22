@@ -38,7 +38,7 @@ fn stored_rows(body: &Body<f64>, wall: FaceKey) -> Vec<Row> {
                 .pcurve()
             {
                 Pcurve::IsoLine { p0, pl, .. } => ("column", (p0.x, p0.y), (pl.x, pl.y)),
-                Pcurve::IsoArc { p0, pd, .. } => ("rim", (p0.x, p0.y), (pd.x, pd.y)),
+                Pcurve::IsoArc { line, g0, gd, .. } => ("rim", (p0.x, p0.y), (pd.x, pd.y)),
                 other => panic!("{h:?}: the wall's rows are exact iso images: {other:?}"),
             }
         })
@@ -235,9 +235,9 @@ fn a_circle_stated_as_an_iso_line_on_a_spline_chart_is_refused_at_the_door() {
     spec.description = EdgeDescriptionSpec::Chart {
         surface: wall_key,
         image: Some(Pcurve::IsoLine {
-            p0: Point2::new(-slope * t0, 0.0),
-            pl: geom_core::Vec2::new(slope, 0.0),
-            ends: None,
+            line: geom_brep::ChartLine::row(0.0),
+            at0: -slope * t0,
+            rate: slope,
         }),
         wrap: false,
         declared: None,

@@ -86,7 +86,7 @@ fn derived(body: &Body<f64>, h: HalfEdgeKey) -> Result<Pcurve<f64>, PcurveMintEr
 /// far `u` moves, its row, and how far `v` moves.
 fn arc(image: &Pcurve<f64>) -> (f64, f64, f64, f64) {
     match image {
-        Pcurve::IsoArc { p0, pd, .. } => (p0.x, pd.x, p0.y, pd.y),
+        Pcurve::IsoArc { line, g0, gd, .. } => (p0.x, pd.x, p0.y, pd.y),
         other => panic!("an arc rim's image is an IsoArc: {other:?}"),
     }
 }

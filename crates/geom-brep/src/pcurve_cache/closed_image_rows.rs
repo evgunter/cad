@@ -68,10 +68,13 @@ fn lift<T: Real>(image: &Pcurve<f64>) -> Pcurve<T> {
             u: channel(u),
             v: channel(v),
         },
-        &Pcurve::IsoLine { p0, pl, ends } => Pcurve::IsoLine {
-            p0: p2(p0),
-            pl: v2(pl),
-            ends: ends.map(|e| e.map(p2)),
+        &Pcurve::IsoLine { line, at0, rate } => Pcurve::IsoLine {
+            line: crate::ChartLine {
+                axis: line.axis,
+                value: c(line.value),
+            },
+            at0: c(at0),
+            rate: c(rate),
         },
         Pcurve::General(net) => Pcurve::General(Arc::new(net.map_scalar(c))),
         &Pcurve::Spiric {
@@ -113,15 +116,20 @@ fn lift<T: Real>(image: &Pcurve<f64>) -> Pcurve<T> {
             sense: c(f.sense),
         }),
         Pcurve::IsoArc {
-            p0,
-            pd,
+            line,
+            g0,
+            gd,
             t0,
             angle,
             breaks,
             ends,
         } => Pcurve::IsoArc {
-            p0: p2(*p0),
-            pd: v2(*pd),
+            line: crate::ChartLine {
+                axis: line.axis,
+                value: c(line.value),
+            },
+            g0: c(*g0),
+            gd: c(*gd),
             t0: c(*t0),
             angle: c(*angle),
             breaks: breaks.clone(),
@@ -1165,7 +1173,10 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             if [pa.x, pa.y, pb.x, pb.y].iter().any(|&x| x != 0.0) {
                 continue;
             }
-            let iso = Pcurve::IsoLine { p0, pl, ends: None };
+            // The line as an iso image where it is a row or a column of
+            // its chart (a ruling, a meridian); a line slanted in its
+            // chart is the curve in UV alone.
+            let iso = Pcurve::iso_line_for_tests([p0.x, p0.y], [pl.x, pl.y]);
             let mut breaks: Vec<f64> = (0..g.below(5))
                 .map(|_| span.0 + (span.1 - span.0) * g.range(0.05, 0.95))
                 .collect();
@@ -1183,7 +1194,11 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             let general = Pcurve::General(Arc::new(
                 NurbsCurve2::new(kv.clone(), control, vec![1.0; count]).unwrap(),
             ));
-            for (what, image) in [("iso line", iso), ("curve in UV", general.clone())] {
+            let stated = iso
+                .map(|iso| ("iso line", iso))
+                .into_iter()
+                .chain([("curve in UV", general.clone())]);
+            for (what, image) in stated {
                 certifies_everywhere(
                     &format!("{kind:?} {what}"),
                     &surface,
@@ -1668,8 +1683,9 @@ fn a_closed_forms_structure_read_wrong_ends_as_its_defect() {
     let (oval, [_, _, oval_plane]) = spiric(&mut fuzz::Rng::from_seed(7));
     let spiric_cap = chart_pcurve_over(&oval, 0.3, 2.2, &oval_plane, band()).unwrap();
     let iso_arc = Pcurve::IsoArc {
-        p0: Point2::new(0.0, 0.0),
-        pd: Vec2::new(1.0, 0.0),
+        line: crate::ChartLine::row(0.0),
+        g0: 0.0,
+        gd: 1.0,
         t0: 0.0,
         angle: PI,
         breaks: KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),

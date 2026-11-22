@@ -1210,6 +1210,31 @@ impl<T: Real> Pcurve<T> {
         }
     }
 
+    /// **A suite's fixture line `p0 + pl·t` as the iso image it is**: the
+    /// column `u = p0[0]` where `pl[0]` is the literal `0.0`, the row
+    /// `v = p0[1]` where `pl[1]` is. `None` for a diagonal line, which is
+    /// no iso image (a suite states it as [`Pcurve::General`]), and for a
+    /// point. The fixture's `f64` literals are read here, never a scalar's
+    /// value: an image's own axis is its [`ChartLine`].
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn iso_line_for_tests(p0: [f64; 2], pl: [f64; 2]) -> Option<Self> {
+        let c = T::from_f64;
+        match (pl[0] == 0.0, pl[1] == 0.0) {
+            (true, false) => Some(Pcurve::IsoLine {
+                line: ChartLine::column(c(p0[0])),
+                at0: c(p0[1]),
+                rate: c(pl[1]),
+            }),
+            (false, true) => Some(Pcurve::IsoLine {
+                line: ChartLine::row(c(p0[1])),
+                at0: c(p0[0]),
+                rate: c(pl[0]),
+            }),
+            _ => None,
+        }
+    }
+
     /// An iso line read as `p0 + pl·t`: its chart point at `t = 0` and
     /// its constant chart velocity, whose held component is the zero it
     /// is by structure. `None` for every other variant.
@@ -5777,7 +5802,9 @@ impl<T: Decide> PcurveCache<T> {
                 breaks,
                 ends,
             } => run_iso_arc_checks(
-                *line, *g0, *gd,
+                *line,
+                *g0,
+                *gd,
                 *t0,
                 *angle,
                 breaks,
@@ -16021,9 +16048,9 @@ mod tests {
     fn a_line_ruling_on_its_column_certifies_through_the_seam_class() {
         let cache = PcurveCache::certify(
             Pcurve::IsoLine {
-                p0: Point2::new(0.0, 0.0),
-                pl: Vec2::new(0.0, 1.0),
-                ends: None,
+                line: crate::ChartLine::column(0.0),
+                at0: 0.0,
+                rate: 1.0,
             },
             0.0,
             1.0,
@@ -16048,9 +16075,9 @@ mod tests {
     fn the_reversed_column_certifies_too() {
         let cache = PcurveCache::certify(
             Pcurve::IsoLine {
-                p0: Point2::new(0.0, 1.0),
-                pl: Vec2::new(0.0, -1.0),
-                ends: None,
+                line: crate::ChartLine::column(0.0),
+                at0: 1.0,
+                rate: -1.0,
             },
             0.0,
             1.0,
@@ -16070,9 +16097,9 @@ mod tests {
     fn the_wrong_column_side_refuses() {
         let got = PcurveCache::certify(
             Pcurve::IsoLine {
-                p0: Point2::new(1.0, 0.0),
-                pl: Vec2::new(0.0, 1.0),
-                ends: None,
+                line: crate::ChartLine::column(1.0),
+                at0: 0.0,
+                rate: 1.0,
             },
             0.0,
             1.0,
@@ -16096,9 +16123,9 @@ mod tests {
         let displaced =
             |d: f64| ruling_line(Point3::new(1.0 + d, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let image = || Pcurve::IsoLine {
-            p0: Point2::new(0.0, 0.0),
-            pl: Vec2::new(0.0, 1.0),
-            ends: None,
+            line: crate::ChartLine::column(0.0),
+            at0: 0.0,
+            rate: 1.0,
         };
         let d = 0.3 * Tol::witness().get().eps;
         let cache = PcurveCache::certify(image(), 0.0, 1.0, &displaced(d), &ruled_wall(), band())
@@ -16136,9 +16163,9 @@ mod tests {
         let certify = |weights: [f64; 6]| {
             PcurveCache::certify(
                 Pcurve::IsoLine {
-                    p0: Point2::new(0.0, 0.0),
-                    pl: Vec2::new(0.0, 1.0),
-                    ends: None,
+                    line: crate::ChartLine::column(0.0),
+                    at0: 0.0,
+                    rate: 1.0,
                 },
                 0.0,
                 1.0,
@@ -16171,9 +16198,9 @@ mod tests {
     #[test]
     fn an_image_leaving_the_column_domain_refuses() {
         let carrier = ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        let (p0, pl) = (Point2::new(0.0, 0.0), Vec2::new(0.0, 1.0));
+        let image = || Pcurve::iso_column(0.0, (0.0, 1.0), (0.0, 1.0));
         let at_door = PcurveCache::certify(
-            Pcurve::IsoLine { p0, pl, ends: None },
+            image(),
             0.0,
             1.5,
             &carrier,
@@ -16188,7 +16215,7 @@ mod tests {
             "a ruling past the patch's end is off the patch: {at_door:?}"
         );
         let got = run_iso_checks(
-            &Pcurve::IsoLine { p0, pl, ends: None },
+            &image(),
             0.0,
             1.5,
             &carrier,
@@ -17787,9 +17814,9 @@ mod row_support_rows {
     fn a_row_reads_its_own_support_and_misses_each_changed_input() {
         let ulp = f64::from_bits(1);
         let iso = Pcurve::IsoLine {
-            p0: Point2::new(0.0, 0.0),
-            pl: Vec2::new(0.0, 1.0),
-            ends: None,
+            line: crate::ChartLine::column(0.0),
+            at0: 0.0,
+            rate: 1.0,
         };
         let surface = wall();
         let cache = PcurveCache::certify(iso, 0.0, 1.0, &line(0.0), &surface, band())

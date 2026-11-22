@@ -2775,9 +2775,9 @@ mod tests {
             let mut rows = polygon::<Interval>(&SQUARE);
             let LiftedRow { pcurve, .. } = &mut rows[0];
             *pcurve = Pcurve::IsoLine {
-                p0: Point2::new(Interval::zero(), Interval::zero()),
-                pl: Vec2::new(Interval::from_bounds(-1e-300, 1.0), Interval::zero()),
-                ends: None,
+                line: geom_brep::ChartLine::row(Interval::zero()),
+                at0: Interval::zero(),
+                rate: Interval::from_bounds(-1e-300, 1.0),
             };
             refused::<Interval>(rows, "not decided");
         }

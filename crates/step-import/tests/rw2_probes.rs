@@ -251,8 +251,9 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
     knots_b.extend([1.0, 1.0]);
     let breaks = geom_core::spline::KnotVector::clamped(knots_b, 1).unwrap();
     let pcurve = geom_brep::Pcurve::IsoArc {
-        p0: Point2::new(0.0, 0.0),
-        pd: geom_core::Vec2::new(1.0, 0.0),
+        line: geom_brep::ChartLine::row(0.0),
+        g0: 0.0,
+        gd: 1.0,
         t0: 0.0,
         angle: theta,
         breaks,
@@ -297,8 +298,9 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
     knots_b2.extend([1.0, 1.0]);
     let breaks2 = geom_core::spline::KnotVector::clamped(knots_b2, 1).unwrap();
     let pcurve2 = geom_brep::Pcurve::IsoArc {
-        p0: Point2::new(0.0, 0.0),
-        pd: geom_core::Vec2::new(1.0, 0.0),
+        line: geom_brep::ChartLine::row(0.0),
+        g0: 0.0,
+        gd: 1.0,
         t0: 0.0,
         angle: theta,
         breaks: breaks2,

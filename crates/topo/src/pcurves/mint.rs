@@ -1793,7 +1793,11 @@ pub(super) fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
 /// (sphere, torus, a net closed in `v`: [`chart_v_period`]): `image`
 /// moved `k` periods along the second channel
 /// ([`Pcurve::shift_branch_v`]); the walk and the lift read the one map.
-pub(crate) fn shift_v_branch<T: Decide>(pcurve: &Pcurve<T>, k: i32, period: Period<T>) -> Pcurve<T> {
+pub(crate) fn shift_v_branch<T: Decide>(
+    pcurve: &Pcurve<T>,
+    k: i32,
+    period: Period<T>,
+) -> Pcurve<T> {
     pcurve.shift_branch_v(k, period)
 }
 

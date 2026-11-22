@@ -1358,9 +1358,9 @@ mod tests {
             positions: ids.iter().map(|&i| p(f64::from(i))).collect(),
             chord_params: vec![0.0, 0.5, 1.0],
             pcurve: Some(Pcurve::IsoLine {
-                p0: Point2::new(seed, 0.0),
-                pl: Vec2::new(0.0, 1.0),
-                ends: None,
+                line: geom_brep::ChartLine::column(seed),
+                at0: 0.0,
+                rate: 1.0,
             }),
             lineage: Some(ids[0]),
             across: Some(ids[0]),
@@ -1511,9 +1511,9 @@ mod tests {
             "a pcurve",
             |f| {
                 f.loops[0][1].pcurve = Some(Pcurve::IsoLine {
-                    p0: Point2::new(3.0, 0.0),
-                    pl: Vec2::new(0.0, 1.0),
-                    ends: None,
+                    line: geom_brep::ChartLine::column(3.0),
+                    at0: 0.0,
+                    rate: 1.0,
                 })
             },
             [false, false, true],

@@ -481,8 +481,6 @@ fn assert_same_arc(got: &geom_brep::Pcurve<f64>, want: &geom_brep::Pcurve<f64>, 
 
 fn arc_row(image: &geom_brep::Pcurve<f64>) -> test_utils::arc_row::ArcRow {
     let geom_brep::Pcurve::IsoArc {
-        p0,
-        pd,
         t0,
         angle,
         breaks,
@@ -491,6 +489,7 @@ fn arc_row(image: &geom_brep::Pcurve<f64>) -> test_utils::arc_row::ArcRow {
     else {
         panic!("an IsoArc image: {image:?}")
     };
+    let (p0, pd) = image.iso_arc_segment().expect("an IsoArc image");
     test_utils::arc_row::ArcRow {
         p0: [p0.x, p0.y],
         pd: [pd.x, pd.y],

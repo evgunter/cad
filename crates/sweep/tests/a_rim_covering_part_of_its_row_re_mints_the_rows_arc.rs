@@ -99,8 +99,9 @@ fn assert_same_row(got: &Pcurve<f64>, want: &Pcurve<f64>, what: &str) {
 
 fn arc_row(image: &Pcurve<f64>) -> test_utils::arc_row::ArcRow {
     let Pcurve::IsoArc {
-        p0,
-        pd,
+        line,
+        g0,
+        gd,
         t0,
         angle,
         breaks,
@@ -300,7 +301,7 @@ fn a_rim_against_the_charts_u_re_mints_its_pieces() {
         .unwrap()
         .pcurve()
         .clone();
-    let Pcurve::IsoArc { p0, pd, .. } = &parent else {
+    let Pcurve::IsoArc { line, g0, gd, .. } = &parent else {
         panic!("the reversed rim's row is an IsoArc: {parent:?}")
     };
     assert_eq!(

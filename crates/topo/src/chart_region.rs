@@ -2736,13 +2736,8 @@ fn loop_uv_polygon<T: Decide + Bounds>(
         let row = lifted.as_ref().map(|(lift, rows)| (lift, rows[i]));
         let entry = if let Some((cache, (lift, row))) = body.pcurve(he).zip(row) {
             let image = &lift.rows()[row].pcurve;
-            pcurve_entry(
-                image,
-                cache.params(),
-                forward,
-                Some(lift.joint_point(row)),
-            )
-            .map_err(refuse)?
+            pcurve_entry(image, cache.params(), forward, Some(lift.joint_point(row)))
+                .map_err(refuse)?
         } else if matches!(surface, Surface::Plane { .. }) {
             // Derive-on-demand affine image (C4's standing plane
             // status). A plane chart has no branches, so the
@@ -4490,8 +4485,9 @@ mod tests {
         );
 
         let arc = geom_brep::Pcurve::IsoArc {
-            p0: Point2::new(0.0, 1.0),
-            pd: Vec2::new(1.0, 0.0),
+            line: geom_brep::ChartLine::row(1.0),
+            g0: 0.0,
+            gd: 1.0,
             t0: 0.0,
             angle: core::f64::consts::FRAC_PI_2,
             breaks: geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
