@@ -67,16 +67,7 @@ pub fn widest_render(mut advance: impl FnMut(char) -> f32) -> f32 {
 
 /// The dimension a value read in `unit` has.
 fn dimension(unit: UnitDef) -> geom_core::Dimension {
-    dimension_of(unit.quantity())
-}
-
-/// The told dimension of a unit table's quantity.
-fn dimension_of(quantity: UnitQuantity) -> geom_core::Dimension {
-    match quantity {
-        UnitQuantity::Length => geom_core::Dimension::Length,
-        UnitQuantity::Angle => geom_core::Dimension::Angle,
-        UnitQuantity::Scalar => geom_core::Dimension::Dimensionless,
-    }
+    geom_core::Dimension::of(unit.quantity())
 }
 
 /// A canonical value nobody wrote, told in `unit` with its unit word.
@@ -104,7 +95,7 @@ pub fn computed_number(canonical: f64, unit: UnitDef) -> Option<String> {
 /// words the unit itself: `NaN` and `inf` for a value that is neither
 /// a number nor finite.
 pub fn bare(value: f64, quantity: UnitQuantity) -> String {
-    canonical_number(&Told::computed(&value, dimension_of(quantity)))
+    canonical_number(&Told::computed(&value, geom_core::Dimension::of(quantity)))
 }
 
 /// A quantity's number in the canonical unit, which says every
