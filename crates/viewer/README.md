@@ -21,24 +21,43 @@ it rather than using it. The ratified plan that record answers to is
 
 | Gesture | Action |
 | --- | --- |
-| LEFT click | select (a face, edge or vertex pick, or a profile by its drawn outline; also feeds the mate tool's picks) |
-| MIDDLE drag | orbit (shift+middle: pan) |
-| ALT + LEFT drag | orbit — the trackpad binding (plain left never moves the camera) |
-| RIGHT drag | pan |
-| scroll | zoom |
-| ctrl/⌘ + scroll | zoom (as scroll) |
+| Middle drag | orbit |
+| Alt + left drag | orbit |
+| Right drag | pan |
+| Shift + middle drag | pan |
+| Scroll | zoom |
+| Pinch | zoom |
+| Left click | select what is under the pointer |
+| Hover | highlight what is under the pointer |
 
-**A pinch is not a mouse binding, and it zooms too**, with the model's
-apparent size following the fingers: a trackpad pinch where the
+The running viewer shows this table from the toolbar's **Controls**
+button. Both are the rows of `InputMap::DEFAULT.bindings`
+(`src/input.rs`), the table the input mapper itself reads: the window
+draws them, and `tests/controls_guide.rs` holds this page's copy to
+them, so neither can name a binding the viewport does not honour.
+
+Selecting picks a face, edge or vertex, or a profile by its drawn
+outline, and feeds the mate tool's picks. A modifier key a row does not
+name does not change what its gesture does (`input::Held::met_by`), and
+of two rows a drag fits, the one naming more keys is the one it means.
+
+**The wheel's modifiers are not in the table.** The toolkit adapter
+decides them before the table is asked (`pane/viewport.rs`,
+`configure_input` and `scroll_event`, with the rows beside them that
+hold it): a wheel turned with ctrl, ⌘ or alt held reaches the table as
+a plain scroll, and one turned with shift held is a sideways scroll,
+which is no gesture here.
+
+**A pinch zooms** with the model's apparent size following the
+fingers: a trackpad pinch where the
 platform reports one as a gesture (macOS and iOS through winit, and a
 browser through the web backend), and a touchscreen pinch. A platform
 that turns a pinch into a ctrl+wheel instead hands the viewer a scroll,
 which zooms at the scroll rate — by that mechanism, what a Windows
 precision touchpad's pinch would be.
 
-Left-drag in the viewport is inert **by design** — primary is reserved
-for selection; hold ALT to orbit with it on a trackpad. Moving a body's
-space is not a viewport drag either: the free-move probe is the typed
+A drag no row names moves nothing. Moving a body's space is not a
+viewport drag either: the free-move probe is the typed
 x/y/z fields in the selected body's display section of the Properties
 panel (display-only, in the working length unit).
 
@@ -286,8 +305,8 @@ Four things are known-absent by design:
   download/upload or OPFS story GUI-5 owns.
 - **No touch orbit or pan.** A pinch zooms — a touchscreen's, and a
   trackpad's the browser reports as a gesture, through
-  `ViewportEvent::Pinch` — but `InputMap` binds orbit to a middle drag
-  and pan to a secondary drag, and a phone has neither. egui delivers the touch events and `Context::multi_touch`
+  `ViewportEvent::Pinch` — but every drag row of the table
+  (`input::Binding::Drag`) names a mouse button, and a phone has none. egui delivers the touch events and `Context::multi_touch`
   is there, but only its zoom is consumed, so orbiting and panning are
   unreachable on a phone until a touch vocabulary for them lands.
   `InputMap::map` is a pure `ViewportEvent → CameraOp` function, so
@@ -2110,9 +2129,21 @@ of the node they insert, or a pick.
   `body ∪ image` for every body, placed or not, and answers the image
   as what it made, so the image is labelled `Mirror N` and selected.
   The union takes no label.
-- **Clearance.** The form asks for the two seats and the bound's shape
-  (at least, at most, exactly, between), which decides how many bound
-  slots the requirement has. The insert writes every end at contact,
+- **Assertion.** One tool authors every claim between two seats
+  (`SessionOp::AddAssertion`). The form asks for the two seats and the
+  measure: a clearance, a `Gap` or a `Distance`. A `Gap` or a
+  `Distance` is the measure node over the seats and a value assertion
+  over its output, inserted as one action. One bound choice serves
+  every measure (at least, at most, exactly, between); a band bounds
+  only a clearance, and the commit is withheld for a band over a value.
+  A value claim's insert writes the bound at contact, `0`. A holding
+  `= 0` over a measure that says what an unproven coincidence decided
+  quiets it, by the rule `[assertions.quiet]` states
+  (`checks::at_rest::saying`: a `Gap` over two faces at rest, a
+  `Distance` between the poses read off two cells, a `Gap` or a
+  `Distance` against a split's tool); a clearance quiets nothing. For a
+  clearance the bound choice decides how many bound slots the
+  requirement has. The insert writes every end at contact,
   `0`. Each end is then a slot row of the requirement,
   `SlotId::ClearanceBound` (`Low` or `High`; `= c` holds the low end),
   taking a number or a formula. The evaluator reads a bound slot with
@@ -2549,7 +2580,8 @@ deletes nothing. Nothing about how the node was made is recorded or inferred:
 the plan is read off the recipe, so adding a feature and deleting it
 leaves the document as it was, and a mirror's image or a sketch's
 profile (the piece its gesture made) deleted collapses the union back
-to the body. The delete button prices the nodes that go
+to the body. The delete button prices the nodes that go and the
+names the delete strands, counted off a rehearsal of the delete itself
 (`DeleteAffordance`).
 
 **A body reaches the product through one door.** Nothing joins the

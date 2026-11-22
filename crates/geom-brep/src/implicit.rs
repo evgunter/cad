@@ -106,6 +106,8 @@ fn poison_vec<T: Real>() -> Vec3<T> {
 /// its siblings) repeat this order term for term to stay bit-identical
 /// to it, so it is not [`geom::Line::param_and_offset`], whose division
 /// by `|axis|²` the twins do not carry.
+/// `ssi::enclose`'s `axial_split` repeats the order over a box, in
+/// certification arithmetic, not bit-identical to it.
 pub(crate) fn axial_radial<T: Real>(
     p: Point3<T>,
     anchor: Point3<T>,
@@ -163,6 +165,17 @@ pub fn cone_elevation<T: Real>(
 /// height, or a unit direction's two components).
 pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
     rho * cos_a - s * sin_a
+}
+
+/// **A cone's half-angle's sine and cosine at the scalar it is crossed
+/// into**: the stored angle crossed by `cross` first, and the pair taken
+/// at the crossed scalar. At an enclosure scalar they then enclose the
+/// stored angle's, where crossing the lane's own `sin_cos` would read
+/// its rounded values (libm's, at `f64`) as exact points. The one
+/// spelling for every reader that carries a cone into certification
+/// arithmetic.
+pub fn cone_sin_cos<U, S: Real>(half_angle: U, cross: impl FnOnce(U) -> S) -> (S, S) {
+    cross(half_angle).sin_cos()
 }
 
 /// The linearized implicit residual of `p` against `s`, in meters (the

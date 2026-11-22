@@ -79,6 +79,8 @@ mod a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported;
 mod a_straight_seam_on_a_retimed_column_imports;
 #[path = "a_vertex_its_description_fixes_is_built_where_its_surfaces_meet.rs"]
 mod a_vertex_its_description_fixes_is_built_where_its_surfaces_meet;
+#[path = "an_edge_is_read_on_its_description_whatever_recognition_says.rs"]
+mod an_edge_is_read_on_its_description_whatever_recognition_says;
 #[path = "an_off_iso_line_on_a_spline_wall_imports_its_general_row.rs"]
 mod an_off_iso_line_on_a_spline_wall_imports_its_general_row;
 #[path = "an_open_arc_trims_inside_what_its_spline_covers.rs"]
@@ -151,6 +153,8 @@ mod probe_vol;
 mod r1_dm1_probe;
 #[path = "recognize_pins.rs"]
 mod recognize_pins;
+#[path = "records_follow_the_file.rs"]
+mod records_follow_the_file;
 #[path = "rev_import_probe.rs"]
 mod rev_import_probe;
 #[path = "review_band_probes.rs"]
