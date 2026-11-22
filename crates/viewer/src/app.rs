@@ -10493,14 +10493,7 @@ mod properties_pane_tests {
                         if matches!(
                             &**fault,
                             pncad::trace::SketchTraceError::Read(kind)
-                                if matches!(
-                                    &**kind,
-                                    pncad::document::NodeErrorKind::Mate(fault)
-                                        if matches!(
-                                            **fault,
-                                            pncad::document::MateFault::SideUnevaluated { .. }
-                                        )
-                                )
+                                if matches!(**kind, pncad::document::NodeErrorKind::PoseRead { .. })
                         )
                 ),
                 "{:?}",
@@ -10538,10 +10531,10 @@ mod properties_pane_tests {
             );
             assert!(
                 matches!(
-                    doc.operation_of(*frame).and_then(|at| doc.node(at)),
-                    Some(pncad::document::Node::Datum { .. })
+                    doc.var(*frame).and_then(|v| v.def().pose()),
+                    Some(pncad::document::pose::PoseDef::FaceChart { .. })
                 ),
-                "drawn on a datum flush on the face"
+                "drawn on the face's chart"
             );
             assert_eq!(
                 doc.node_space(profile),
@@ -12504,7 +12497,9 @@ mod properties_pane_tests {
             let commit = ToolKind::Split.commit();
             let gained = driven.gained_hovering(&commit);
             assert!(
-                gained.iter().any(|run| run == "no split plane picked yet"),
+                gained
+                    .iter()
+                    .any(|run| run == "no split plane picked yet: pick a face or a datum"),
                 "the withheld button names the missing pick: {gained:?}"
             );
             let splits = |driven: &Driven| -> Vec<RecipeNodeId> {
@@ -12541,6 +12536,68 @@ mod properties_pane_tests {
                 driven.app.session.selection(),
                 &Selection::Node(split),
                 "the split is selected"
+            );
+        }
+
+        /// **The mirror's button waits for its plane, and names it**, as
+        /// the split's does: with a body (the plate's copy) and no plane
+        /// the commit is withheld, its hover the missing pick, and a
+        /// click inserts nothing. Picking the plate's cap as the plane
+        /// lets it commit, and the insert selects the mirror.
+        ///
+        /// Red if the mirror's button commits without a plane, does not
+        /// say what is missing, or the insert leaves the selection off
+        /// the mirror.
+        #[test]
+        fn the_mirror_button_waits_for_its_plane_and_the_insert_selects_the_mirror() {
+            use crate::tools::ToolKind;
+            let mut driven = Driven::with(Vec::new());
+            driven.settle();
+            driven.app.tools.open(ToolKind::Mirror);
+            driven.click_through(vec![Selection::Node(placement())]);
+            driven.click(crate::pane::create::COMBINE_BODIES);
+            let commit = ToolKind::Mirror.commit();
+            let gained = driven.gained_hovering(&commit);
+            assert!(
+                gained
+                    .iter()
+                    .any(|run| run == "no mirror plane picked yet: pick a face or a datum"),
+                "the withheld button names the missing pick: {gained:?}"
+            );
+            let mirrors = |driven: &Driven| -> Vec<RecipeNodeId> {
+                let doc = driven.app.session.committed_doc();
+                doc.ids()
+                    .iter()
+                    .copied()
+                    .filter(|&id| matches!(doc.node(id), Some(Node::Mirror { .. })))
+                    .collect()
+            };
+            driven.click(&commit);
+            driven.settle();
+            assert!(
+                mirrors(&driven).is_empty(),
+                "a withheld click inserts nothing"
+            );
+
+            let cap = crate::session::FaceSelection {
+                name: pncad::prelude::StableName {
+                    kind: pncad::prelude::EntityKind::Face,
+                    node: extrude(),
+                    path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::End)],
+                },
+                node: placement(),
+                body: 0,
+            };
+            driven.click_through(vec![Selection::Face(cap)]);
+            driven.click(&commit);
+            driven.settle();
+            let [mirror] = mirrors(&driven)[..] else {
+                panic!("the commit inserts one mirror: {:?}", mirrors(&driven))
+            };
+            assert_eq!(
+                driven.app.session.selection(),
+                &Selection::Node(mirror),
+                "the mirror is selected"
             );
         }
 

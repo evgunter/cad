@@ -2094,7 +2094,7 @@ is its preview.
   that refuses shows its refusal on the node's badge, like any other.
 - **New profile** inserts a profile with no loops and opens the
   profile editor on it; **New profile on a face** does the same on a
-  datum flush on a latched face (`Recording::draw_on_face`), and with a second
+  latched face's chart (`Recording::draw_on_face`), and with a second
   face latched to trace, its one chain runs onto that face's trace and
   along it. A
   profile with no loops is the empty region: it evaluates and draws
@@ -2128,7 +2128,9 @@ of the node they insert, or a pick.
   The gesture's noun is the mirror: the insert writes the image and
   `body ∪ image` for every body, placed or not, and answers the image
   as what it made, so the image is labelled `Mirror N` and selected.
-  The union takes no label.
+  The union takes no label. Its body and plane are held and taken as
+  the split's are (`combine::PlaneSeats`, below), and the button is
+  withheld, naming the missing pick, until both are held.
 - **Assertion.** One tool authors every claim between two seats
   (`SessionOp::AddAssertion`). The form asks for the two seats and the
   measure: a clearance, a `Gap` or a `Distance`. A `Gap` or a
@@ -2160,13 +2162,14 @@ of the node they insert, or a pick.
   missing pick, until both are held. The plane is a face pick, read as
   its plane on the body it was picked on (`matetool::plane_of`), and
   held as the mirror holds its own (`combine::PlaneSeats`, one value
-  for both tools); the first face pick seats the target too, a
-  later one re-picks the plane, and a tree pick re-picks the target. A
-  `Plane` variable, or a `Frame` read through its `xy`, is taken as the
-  plane when the selection names it (`Selection::Variable`); no
-  Properties row lists a pose variable, so that pick comes through the
-  selection stream (a driver, the op vocabulary), not a row.
-  `SessionOp::AddSplit` takes the plane as `SplitPlane`: that face, or a
+  and one selection feed for both tools); the first face pick seats
+  the target too, a later one re-picks the plane, and a tree pick
+  re-picks the target. A `Plane` variable, or a `Frame` read through
+  its `xy`, is taken as the plane when the selection names it
+  (`Selection::Variable`); no Properties row lists a pose variable, so
+  that pick comes through the selection stream (a driver, the op
+  vocabulary), not a row. `SessionOp::AddSplit` and
+  `SessionOp::AddMirror` take the plane as `ToolPlane`: that face, or a
   plane read written whole. The insert
   selects the split. Nothing is staged before it: the split's own
   evaluation, read on its tree row, says whether a side is empty.

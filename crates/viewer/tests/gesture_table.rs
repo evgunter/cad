@@ -280,7 +280,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddSplit {
             target: node.into(),
-            plane: viewer::session::SplitPlane::Face(FaceSelection {
+            plane: viewer::session::ToolPlane::Face(FaceSelection {
                 name: face(node),
                 node,
                 body: 0,
@@ -396,7 +396,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddMirror {
             body: node.into(),
-            plane: viewer::session::FaceSelection {
+            plane: viewer::session::ToolPlane::Face(viewer::session::FaceSelection {
                 name: pncad::prelude::StableName {
                     kind: pncad::prelude::EntityKind::Face,
                     node,
@@ -404,7 +404,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 },
                 node,
                 body: 0,
-            },
+            }),
         },
         // A value claim, the op's two-node arm: the measure and the
         // assertion over its output.

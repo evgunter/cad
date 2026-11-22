@@ -3804,9 +3804,39 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
     program: &ProfileProgram,
     tol: Tol,
 ) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
+    traced_faces_in(doc, ev, program, None, tol)
+}
+
+/// **The faces the profile node `profile` traces, read through the frame
+/// its own carriage decided** ([`ProfileValue::drawn_frame`]): what a
+/// reader after the profile reads, never selecting the frame again.
+/// `None` where the profile has no value.
+pub(crate) fn traced_faces_of<T: EvalScalar + crate::mate::SolveScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<T>,
+    profile: RecipeNodeId,
+    tol: Tol,
+) -> Option<Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind>> {
+    let crate::Node::Profile(program) = doc.node(profile)? else {
+        return None;
+    };
+    let ValuePayload::Profile(value) = &ev.value(profile)?.payload else {
+        return None;
+    };
+    Some(traced_faces_in(doc, ev, program, value.frame.as_ref(), tol))
+}
+
+/// [`traced_faces`], through `decided` where it is in hand.
+fn traced_faces_in<T: EvalScalar + crate::mate::SolveScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<T>,
+    program: &ProfileProgram,
+    decided: Option<&wire::trace::DrawnFrame<T>>,
+    tol: Tol,
+) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
     // `doc` may be `ev`'s document with a probe lowered into it, whose
     // member reads mint their indices as counts `ev` never bound, and
-    // whose values are definitions it
+    // whose values (a face's chart's spin and slides) are definitions it
     // never bound. They are bound in the run's order: each count as the
     // document holds it (`edit::written_count`), then the definitions
     // over them (`Doc::bind_definitions`).
@@ -3840,7 +3870,10 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
             std::borrow::Cow::Owned(env)
         }
     };
-    Ok(wire::trace::drawn(doc, &ev.nodes, program, &env, tol)?.map_or_else(Vec::new, |d| d.faces))
+    Ok(
+        wire::trace::drawn_in(doc, &ev.nodes, program, decided, &env, tol)?
+            .map_or_else(Vec::new, |d| d.faces),
+    )
 }
 
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box
@@ -5403,7 +5436,7 @@ where
                 resolved,
                 pre: Box::new(pre),
                 form,
-                frame: drawn.map(|d| d.frame),
+                frame: drawn.map(|d| d.on),
             }
         }
         // AN ASSERTION'S EXPRESSIONS (E10): a value claim's value and
@@ -5737,7 +5770,9 @@ mod tag {
         /// role it reads through ([`pose_role`]), then the read's tree
         /// — `OUTPUT` for an operation's output (whose key and port the
         /// upstream list carries), `SELECTION` and its names, or
-        /// `DEFINITION`, the arm ([`pose_arm`]), each read's role and tree in field order, then each scalar's value and its
+        /// `DEFINITION`, the arm ([`pose_arm`]), a face's chart's
+        /// orientation as two [`signed_axis`] words (where its `x` and
+        /// `z` lie), each read's role and tree in field order, then each scalar's value and its
         /// nominal under [`slot`]'s `NOMINAL`; `SOURCE` for a source of a
         /// member ([`crate::VarDef::Source`]), its number of indices and
         /// each index's value.
@@ -5749,7 +5784,7 @@ mod tag {
             SOURCE = 5,
         }
         /// A pose definition's arm ([`crate::pose::PoseDef`]).
-        pose_arm retires [4, 8, 9, 13] {
+        pose_arm retires [4, 8, 9] {
             PLANE = 1,
             AXIS = 2,
             POINT = 3,
@@ -5759,6 +5794,7 @@ mod tag {
             CARRIED = 10,
             SLIDE = 11,
             SPIN = 12,
+            FACE_CHART = 13,
         }
         /// The role a pose read reads through
         /// ([`crate::pose::PoseRole`]), a plain read's included.
@@ -7251,7 +7287,8 @@ fn feed_bundle(
 }
 
 /// **An orientation as a content key's two words**: where the frame's
-/// `x` and `z` lie, which fix it. A mate's orientation is keyed by it.
+/// `x` and `z` lie, which fix it. A mate's and a face's chart's
+/// orientation are keyed by it.
 fn orientation_words(orient: crate::Orientation) -> [u8; 2] {
     [axis_word(orient.x()), axis_word(orient.z())]
 }

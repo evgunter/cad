@@ -91,6 +91,14 @@ use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
 use crate::product::sources_of;
 
+/// The pick's two ray queries: the patches, then each patch's triangles.
+const PICK_PATCHES: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("pick_patches", "the mesh patches a pick ray may hit");
+const PICK_TRIANGLES: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "pick_triangles",
+    "the triangles of a patch a pick ray may hit",
+);
+
 /// One triangle of the pick index: its corner geometry, copied out of
 /// the mesh's position buffer so the index cannot drift out of sync
 /// with a mesh it merely borrowed. Its face is its patch's
@@ -448,18 +456,25 @@ impl MeshPick {
     /// triangles, merged and sorted by `(t_enter, flat position)`.
     fn candidates(&self, ray: &Ray) -> Vec<Candidate> {
         let mut out = Vec::new();
-        for pc in self.top.ray(ray) {
+        for pc in self.top.ray(PICK_PATCHES, ray) {
             let Some(patch) = self.patches.get(pc.item) else {
                 // Unreachable: the top level was built over exactly
                 // `patches`.
                 continue;
             };
-            out.extend(patch.table.tree.ray(ray).into_iter().map(|c| Candidate {
-                t_enter: c.t_enter,
-                flat: patch.base + c.item,
-                patch: pc.item,
-                tri: c.item,
-            }));
+            out.extend(
+                patch
+                    .table
+                    .tree
+                    .ray(PICK_TRIANGLES, ray)
+                    .into_iter()
+                    .map(|c| Candidate {
+                        t_enter: c.t_enter,
+                        flat: patch.base + c.item,
+                        patch: pc.item,
+                        tri: c.item,
+                    }),
+            );
         }
         // Flat positions are distinct, so the key is a strict total
         // order and the sort is a permutation with no ties to break.

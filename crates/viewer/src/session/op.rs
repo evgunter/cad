@@ -805,9 +805,8 @@ pub enum SessionOp {
     /// (`work/doors/a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it.md`).
     ///
     /// The plane is any plane the document reads in the target's space
-    /// ([`SplitPlane`]): a picked face's own, read where it was picked
-    /// as the mirror reads its plane, or a plane read the caller
-    /// writes. A target seat of the wrong kind refuses
+    /// ([`ToolPlane`]): a picked face's own, read where it was picked,
+    /// or a plane read the caller writes. A target seat of the wrong kind refuses
     /// [`Refusal::WrongNodeKind`]; a plane read in another space refuses
     /// at the insert door (`EditError::SpaceMismatch`). Whether the
     /// face is planar, and which side is empty, are the split's own to
@@ -816,12 +815,14 @@ pub enum SessionOp {
         /// The body split.
         target: Operand,
         /// The plane it is cut along.
-        plane: SplitPlane,
+        plane: ToolPlane,
     },
-    /// **Mirror an existing body across the plane of a picked face** —
-    /// the mirror tool's one committed action. The plane is the face's
-    /// own, read where it was picked: a pick on a copy is read on that
-    /// copy, in the copy's space, where the mirrored body stands.
+    /// **Mirror an existing body across a plane** — the mirror tool's
+    /// one committed action. The plane is any plane the document reads
+    /// in the body's space ([`ToolPlane`]), as the split's is: a picked
+    /// face's own, read where it was picked — a pick on a copy is read
+    /// on that copy, in the copy's space, where the mirrored body
+    /// stands — or a plane read the caller writes.
     ///
     /// The body becomes the symmetric part: the image (`Node::Mirror`)
     /// and the union of the body and its image, in the body's space,
@@ -832,15 +833,15 @@ pub enum SessionOp {
     /// PR 6353). The made node is the image, the piece the gesture adds.
     ///
     /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
-    /// a face read in another space — another construction's, or its
+    /// a plane read in another space — another construction's, or its
     /// image's — refuses at the insert door (`EditError::SpaceMismatch`).
-    /// Whether the face is planar is the mirror's own refusal where it
+    /// Whether a face is planar is the mirror's own refusal where it
     /// evaluates.
     AddMirror {
         /// The body reflected.
         body: Operand,
-        /// The face whose plane it is reflected across.
-        plane: FaceSelection,
+        /// The plane it is reflected across.
+        plane: ToolPlane,
     },
     /// **Add an assertion** — the assertion tool's one committed action:
     /// a recorded claim between two seats, each a body, a face picked in
@@ -1953,9 +1954,10 @@ impl SessionOp {
     }
 }
 
-/// **The plane a split cuts along** ([`SessionOp::AddSplit`]).
+/// **The plane a split cuts along or a mirror reflects across**
+/// ([`SessionOp::AddSplit`], [`SessionOp::AddMirror`]).
 #[derive(Debug, Clone, PartialEq)]
-pub enum SplitPlane {
+pub enum ToolPlane {
     /// A face, read as its plane on the body it was picked on
     /// (`crate::matetool::plane_of`).
     Face(FaceSelection),
