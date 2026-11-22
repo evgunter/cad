@@ -3715,7 +3715,9 @@ where
 /// therefore `Real::atan2` (`libm`'s at `f64`), not the platform one the
 /// `f64` and dual lanes keep, and may differ from the `f64` lane's by an
 /// ulp: `Sym` mints its value and its recorded node together inside
-/// `geom-core`, which has no door to set one beside the other.
+/// `geom-core`, which has no door to set one beside the other. A chart's
+/// spin is set from its frames, as on the interval lane, so a chart's map
+/// differs from the `f64` lane's by its rounding.
 impl<T: crate::mate::SolveScalar> crate::mate::SolveScalar for geom_core::Sym<T>
 where
     geom_core::Sym<T>: geom_core::Decide,
@@ -3732,8 +3734,11 @@ where
         self.value.exactly_zero()
     }
 
+    /// A chart's map is set from its frames, `rot(a, θ)·S·O`: a
+    /// polynomial in the chart's inputs, with no `atan2` of the folded
+    /// map and no renormalized axes for the tier to see through.
     fn spins_by_frames() -> bool {
-        T::spins_by_frames()
+        true
     }
 
     fn solve_atan2(y: Self, x: Self) -> Self {

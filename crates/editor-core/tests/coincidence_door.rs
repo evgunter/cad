@@ -2042,8 +2042,8 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 
 /// **What the door proves on the tour's composed dies**: the blend
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. Both
-/// of `die_composed`'s two and 28 of `die_composed_tour`'s 42 prove as
-/// theorems, and the rest stay unproven. The angle reductions read
+/// of `die_composed`'s two and all 42 of `die_composed_tour`'s prove as
+/// theorems. The angle reductions read
 /// `geom_core::period::Period::at_or_above`, and the extruded pips' caps
 /// and rims are their sketch frames turned, so the margins are forms the
 /// symbolic replay cancels within its budget; a reduction spelled
@@ -2051,19 +2051,18 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 /// names the same functions in forms it does not (`Unproven`, recourse
 /// `Budget`).
 /// The tour's pips are copies
-/// placed against the die's faces; a copy placed by a frame turned off
-/// the die's own axes reaches its rim through that turn's sine and
-/// cosine, and its joints stay unproven
-/// (`work/intent/a-turn-by-the-nearest-quarter-turn-rounds.md`). The
+/// placed against the die's faces; a copy placed through a chart turned
+/// off the die's own axes reaches its rim through that chart's frames
+/// (`SolveScalar::spins_by_frames`), so its joints cancel too. The
 /// dies' booleans decide vertex identities too, each a point minted on
 /// an edge, published as a `Meet` of the cells it lies in and left
 /// unproven, a coincidence of values as far as the door can tell.
 #[test]
-fn the_door_proves_two_thirds_of_the_composed_dies_joints() {
+fn the_door_proves_every_composed_dies_joint() {
     // `met`: the vertex identities the dies' booleans decide at a point
     // minted on an edge, each a `Meet` of the cells it lies in (measured:
     // a pip's meridian seam edge against a face of the die).
-    for (name, proved, rows, met) in [("die_composed", 2, 4, 2), ("die_composed_tour", 28, 84, 42)]
+    for (name, proved, rows, met) in [("die_composed", 2, 4, 2), ("die_composed_tour", 42, 84, 42)]
     {
         let cd = crate::corpus::documents()
             .into_iter()
