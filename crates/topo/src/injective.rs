@@ -8089,12 +8089,8 @@ mod presentation_rows {
                 line_rim(3, [0.0; 3], [1.0, 0.75e-9, 0.0], (0.0, 4.0), [1, 13], true),
             ),
             (
-                "run the other way",
+                "into the vertex, as the first edge is",
                 line_rim(3, [0.0; 3], x, (0.0, 4.0), [1, 13], false),
-            ),
-            (
-                "its far end on the first edge's side",
-                line_rim(3, [0.0; 3], x, (-3.0, 0.0), [13, 1], true),
             ),
         ];
         for (what, second) in rows {
@@ -8110,6 +8106,21 @@ mod presentation_rows {
                 "{what}"
             );
         }
+        // Out of the vertex and back along the first edge: no run, in a
+        // cell beside the vertex that both edges pass.
+        let back = at_vertex_1(vec![
+            first(true),
+            line_rim(3, [0.0; 3], x, (-3.0, 0.0), [13, 1], false),
+        ]);
+        let beside = Piece {
+            u: (-3.6, -3.4),
+            ..about_vertex_1(&floor, &back, &local, (-0.5, 0.5))
+        };
+        assert_eq!(
+            read(present_plane(&beside, &[], &[vertex(1)], band())),
+            Read::Local,
+            "doubling back"
+        );
         // A line held as a bracket is not shown on itself.
         let mut wide = run_through_vertex_1(x, [2, 3]);
         for r in &mut wide.edges {
