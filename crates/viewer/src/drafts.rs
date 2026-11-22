@@ -25,10 +25,10 @@ use pncad::quantity::UnitDef;
 use pncad::trace::TraceMarks;
 
 use crate::blend::BlendKindChoice;
-use crate::combine::{ClearanceBoundChoice, PatternOutputChoice};
+use crate::combine::{AssertionMeasure, BoundChoice, PatternOutputChoice};
 use crate::forms::{PatternLayoutChoice, ShapeKind};
 use crate::props::{self, Notation, SlotRow};
-use crate::seats::SeatError;
+use crate::seats::{FaceRole, SeatError};
 use crate::session::{FaceSelection, Refusal, SessionOp, SketchTraceFault};
 use crate::sketch::{self, HeldRefusal, HeldStep, HeldStepFault};
 use crate::tree::HeldPick;
@@ -136,8 +136,10 @@ pub(crate) struct Drafts {
     /// The blend form's kind choice — which of the two doors the
     /// commit button calls.
     pub(crate) blend_kind: BlendKindChoice,
-    /// The clearance form's choice of which side it bounds.
-    pub(crate) clearance_bound: ClearanceBoundChoice,
+    /// The assertion form's choice of measure.
+    pub(crate) assertion_measure: AssertionMeasure,
+    /// The assertion form's choice of how it bounds the measure.
+    pub(crate) assertion_bound: BoundChoice,
     /// **The path editor opened on a committed profile** — its
     /// program as written, held for the edit door
     /// ([`Drafts::profile_edit`] loads it). `None` while no profile is
@@ -1098,7 +1100,8 @@ impl Default for Drafts {
             // form wants is the one that selects something new.
             part_instance: 1,
             blend_kind: BlendKindChoice::Fillet,
-            clearance_bound: ClearanceBoundChoice::AtLeast,
+            assertion_measure: AssertionMeasure::default(),
+            assertion_bound: BoundChoice::default(),
             profile_edit: None,
             dropped: Vec::new(),
             label_text: None,
@@ -1605,16 +1608,17 @@ impl Drafts {
     /// latched face's chart. Where a face to trace is latched too, it
     /// traces that face, its one chain the traced template
     /// ([`traced_template`]) with the trace's steps between its halves;
-    /// otherwise it is an empty profile the editor fills. `Ok(None)`
-    /// while no face is latched to draw on.
+    /// otherwise it is an empty profile the editor fills.
     ///
     /// # Errors
     ///
-    /// The template's chain refused at the lift.
-    pub(crate) fn on_face_op(&self, notation: Notation) -> Result<Option<SessionOp>, CommitFault> {
-        let Some(on) = &self.on_face else {
-            return Ok(None);
-        };
+    /// [`SeatError::NoFace`] naming [`FaceRole::DrawnOn`] while no face
+    /// is latched to draw on, and the template's chain refused at the
+    /// lift.
+    pub(crate) fn on_face_op(&self, notation: Notation) -> Result<SessionOp, CommitFault> {
+        let on = self.on_face.as_ref().ok_or(SeatError::NoFace {
+            role: FaceRole::DrawnOn,
+        })?;
         let (traced, chains) = match &self.trace_face {
             Some(face) => {
                 let (steps, after) = traced_template();
@@ -1624,11 +1628,11 @@ impl Drafts {
             }
             None => (Vec::new(), Vec::new()),
         };
-        Ok(Some(SessionOp::DrawOnFace {
+        Ok(SessionOp::DrawOnFace {
             face: on.face().clone(),
             traced,
             chains,
-        }))
+        })
     }
 }
 
@@ -1726,7 +1730,7 @@ pub(crate) struct TraceShown {
 /// a string at the raising site.
 #[derive(Debug)]
 pub(crate) enum CommitFault {
-    /// A tool seat is still empty.
+    /// A pick the commit needs is not held, or not read yet.
     Seat(SeatError),
     /// A draft field is not a value a literal may hold.
     Dimension(DimensionError),
@@ -1739,6 +1743,26 @@ pub(crate) enum CommitFault {
     Refused(Box<Refusal>),
     /// A pattern row's default spacing could not be written.
     Spacing(crate::combine::RowSpacingFault),
+    /// The assertion form's band bounds a measure's value, which a band
+    /// cannot (`AssertionMeasure::claim`).
+    BandOverValue,
+}
+
+impl CommitFault {
+    /// **Whether the commit is withheld over this fault** before the
+    /// click: a pick it waits for, or a claim the form's choices cannot
+    /// make — the faults the form itself is still short of. A literal or
+    /// a measure the click would be refused over is said at the click.
+    pub(crate) fn withholds(&self) -> bool {
+        match self {
+            Self::Seat(_) | Self::BandOverValue => true,
+            Self::Dimension(_)
+            | Self::Program(_)
+            | Self::Traced(_)
+            | Self::Refused(_)
+            | Self::Spacing(_) => false,
+        }
+    }
 }
 
 impl From<SeatError> for CommitFault {
@@ -1780,6 +1804,9 @@ impl std::fmt::Display for CommitFault {
             Self::Traced(error) => error.fmt(f),
             Self::Refused(refusal) => refusal.fmt(f),
             Self::Spacing(fault) => fault.fmt(f),
+            Self::BandOverValue => f.write_str(
+                "a band bounds a clearance; bound a value from one side, or at one value",
+            ),
         }
     }
 }

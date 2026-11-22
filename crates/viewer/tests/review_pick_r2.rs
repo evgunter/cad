@@ -46,6 +46,9 @@ use viewer::pickindex::PickIndex;
 use crate::common::corpus_pick::{FlatReference, over_every_landing, too_wide, wide_aim};
 use editor_core::test_support::det_and_conditioning;
 
+const TEST_RAY: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("viewer_test_ray", "the triangles a test ray may hit");
+
 #[derive(Default)]
 struct Tally {
     rays: usize,
@@ -95,7 +98,7 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
         let mut refused_here = 0usize;
         for flat in &reference.parts {
             let ray = flat.local(&ray);
-            for cand in flat.tree.ray(&ray) {
+            for cand in flat.tree.ray(TEST_RAY, &ray) {
                 let tri = &flat.corners[cand.item];
                 let cross = crossing(&ray, tri);
                 if cross.is_none() {

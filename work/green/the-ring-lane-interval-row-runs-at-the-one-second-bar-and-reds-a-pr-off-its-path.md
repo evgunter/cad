@@ -2,8 +2,9 @@
 id: the-ring-lane-interval-row-runs-at-the-one-second-bar-and-reds-a-pr-off-its-path
 kind: issue
 title: sweep's verbs_germarms_interval ring-lane row runs at the 1 s fast-set bar and reds a PR that does not reach it
-status: open
+status: closed
 opened: 2026-11-14
+closed: 2026-11-22
 priority: P4
 cost: E
 ---
@@ -53,3 +54,13 @@ the bar, not any one of them.
 Make the row faster, or name it in the slow set in
 `.config/nextest.toml`, as the step's own message says. Not done on PR
 6935: neither the test nor the slow set is that lane's.
+
+## Closed (2026-11-22, green/fast-set-margin)
+
+`verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar`
+is already in the slow set (`ccbf17e356`, cover-levers, at 1.03 s on CI).
+The two other rows named here: `ring_carry_through_by_piece` went in with
+PR 6931 and `pis_arc_capped_poses::the_cut_cylinders_ellipse_face_takes_nothing_away`
+with PR 6956. The class (rows near the bar tipping on a slow runner) is
+`the-one-second-bar-reds-prs-off-their-path-several-times-a-day`'s, which
+PR 7397 decides.

@@ -45,7 +45,7 @@ use geom_brep::Pcurve;
 use geom_core::k_stats::decide;
 use geom_core::{Margin, Point3, Sign, Tol, Vec3};
 
-use crate::entities::{EdgeSpec, FaceSpec, SolidSpec};
+use crate::entities::{EdgeSpec, FaceSpec, SolidSpec, SurfaceRecord};
 use crate::error::{BuiltEntity, StepImportError};
 use crate::interpret::{FileBand, Read};
 use crate::{FaceCensus, NormalizationKind, StructureNormalization};
@@ -131,6 +131,8 @@ pub(crate) struct Shell<'a> {
     pub(crate) id: u64,
     /// The faces, in `CLOSED_SHELL` order.
     pub(crate) faces: &'a [FaceSpec],
+    /// The surface records the faces wear.
+    pub(crate) surfaces: &'a BTreeMap<u64, SurfaceRecord>,
     /// Every edge, keyed by `EDGE_CURVE` id.
     pub(crate) edges: BTreeMap<u64, Edge>,
     /// Every vertex's built point, keyed by `VERTEX_POINT` id.
@@ -351,6 +353,7 @@ pub(crate) fn build<'a>(
     Ok(Shell {
         id: solid.id,
         faces: &solid.faces,
+        surfaces: &solid.surfaces,
         edges,
         vertices,
         holders,
@@ -524,10 +527,10 @@ fn choose(
     tol: Tol,
     file: FileBand,
 ) -> Result<Chosen, StepImportError> {
-    let (sa, sb) = (&solid.faces[plus].surface, &solid.faces[minus].surface);
+    let (sa, sb) = (solid.surface(plus), solid.surface(minus));
     let p_start = solid.vertices[&spec.start];
     let p_end = solid.vertices[&spec.end];
-    let one_record = surface_sig(sa) == surface_sig(sb);
+    let one_record = solid.faces[plus].record == solid.faces[minus].record;
     if let Some(chosen) = iso_of_wall(id, spec, (sa, sb), (p_start, p_end), one_record, file)? {
         return Ok(chosen);
     }
@@ -845,6 +848,17 @@ fn served_pair(
     extent: geom_core::Lever<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
+    // A pair the value classifies but carries no component of refuses by
+    // that cause before any classification: neither the file nor the
+    // tolerance is what stops it.
+    if let Some(why) = geom_brep::pair_section::uncarried(sa.kind(), sb.kind()) {
+        return Err(unbuilt(
+            file,
+            id,
+            format!("the section of {}: {why}", pair_names(sa, sb)),
+            SECTION_LANE,
+        ));
+    }
     let ball = Some(region.ball());
     let classified =
         |band, at_file: bool| -> Result<Option<geom_brep::PairSection<f64>>, StepImportError> {
@@ -2032,59 +2046,8 @@ struct EndsOrder {
 /// in metres, read at the file's band.
 pub(crate) const STEP_ISO_CIRCLE: &str = "step_iso_circle";
 
-/// **A surface's exact structural signature**: variant tag and field bits,
-/// the key that restores writer-side surface sharing (bitwise identity, no
-/// ε). An analytic kind's fields are [`Surface::data`]'s, so a field a
-/// variant gains is a field of the key; a spline's are its degrees, knots,
-/// controls and weights, counts leading each section so two payloads of
-/// different shapes cannot alias by concatenation.
-pub(crate) fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
-    use geom::SurfaceData;
-    let p = |p: Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
-    let tag: u64 = match surface {
-        Surface::Plane { .. } => 0,
-        Surface::Cylinder { .. } => 1,
-        Surface::Cone { .. } => 2,
-        Surface::Sphere { .. } => 3,
-        Surface::Torus { .. } => 4,
-        Surface::Nurbs(_) => 5,
-        Surface::Approx(_) => 6,
-        Surface::Spindle { .. } => 7,
-    };
-    match surface.data() {
-        SurfaceData::Analytic(data) => core::iter::once(tag)
-            .chain(
-                data.into_iter()
-                    .flat_map(|(_, value)| value.scalars())
-                    .map(f64::to_bits),
-            )
-            .collect(),
-        // No import path mints one (STEP's OFFSET_SURFACE is not read):
-        // the tag aliases only with itself.
-        SurfaceData::Approx(_) => vec![tag],
-        SurfaceData::Nurbs(payload) => {
-            let (nu, nv) = payload.control_counts();
-            let (ku, kv) = (payload.knots_u_f64_interim(), payload.knots_v_f64_interim());
-            let mut sig = vec![
-                tag,
-                ku.degree() as u64,
-                kv.degree() as u64,
-                ku.knots().len() as u64,
-                kv.knots().len() as u64,
-                nu as u64,
-                nv as u64,
-            ];
-            sig.extend(ku.knots().iter().map(|k| k.to_bits()));
-            sig.extend(kv.knots().iter().map(|k| k.to_bits()));
-            sig.extend(payload.control().iter().flat_map(|q| p(*q)));
-            sig.extend(payload.weights().iter().map(|w| w.to_bits()));
-            sig
-        }
-    }
-}
-
 /// **A carrier's exact structural signature**: variant tag and field
-/// bits, as [`surface_sig`] is a surface's. Two carriers are the same
+/// bits. Two carriers are the same
 /// value exactly where their signatures are equal (the ledger's
 /// `CarrierBuilt` test). A periodic cubic is its own variant read through
 /// its debug form, which prints every datum round-trip exact; no import
@@ -2261,7 +2224,7 @@ fn build_vertices(
                 (None, Some(&b)) => (b, b),
                 (None, None) => continue,
             };
-            let surface = &solid.faces[sides[&id].0].surface;
+            let surface = solid.surface(sides[&id].0);
             c.carrier = Some(deferred_carrier(id, spec, surface, deferred, (a, b), file)?);
             progress = true;
         }
@@ -2302,11 +2265,10 @@ fn build_vertices(
 /// share one.
 fn one_surface_around<'a>(solid: &'a SolidSpec, faces: &[usize]) -> Option<&'a Surface<f64>> {
     let (&first, rest) = faces.split_first()?;
-    let surface = &solid.faces[first].surface;
-    let sig = surface_sig(surface);
+    let record = solid.faces[first].record;
     rest.iter()
-        .all(|&f| surface_sig(&solid.faces[f].surface) == sig)
-        .then_some(surface)
+        .all(|&f| solid.faces[f].record == record)
+        .then_some(solid.surface(first))
 }
 
 /// **A chart singularity the vertex's faces' generators cross at**: a
@@ -2437,17 +2399,14 @@ fn rooted(
             continue;
         };
         let (plus, minus) = sides[&e];
-        let held = [
-            surface_sig(&solid.faces[plus].surface),
-            surface_sig(&solid.faces[minus].surface),
-        ];
+        let held = [solid.faces[plus].record, solid.faces[minus].record];
         let spec = &solid.edges[&e];
         let extent = geom_brep::edge_extent_inf(&spec.carrier, spec.t0, spec.t1);
         for &f in faces {
-            let surface = &solid.faces[f].surface;
-            if held.contains(&surface_sig(surface)) {
+            if held.contains(&solid.faces[f].record) {
                 continue;
             }
+            let surface = solid.surface(f);
             match root_on(surface, carrier, printed, extent, band) {
                 Ok(Ok(point)) => return Ok(Rooted::At(point)),
                 Ok(Err(topo::CornerVerdict::Unsupported { what })) => {
@@ -2889,9 +2848,9 @@ mod tests {
             frame: geom::Frame::new(origin, axis, u_ref),
             radius: 1.0,
         };
-        let face = |id: u64, surface: Surface<f64>| FaceSpec {
+        let face = |id: u64| FaceSpec {
             id,
-            surface,
+            record: id + 100,
             sense: true,
             loops: Vec::new(),
             band: false,
@@ -2901,11 +2860,13 @@ mod tests {
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
         );
-        let faces = vec![
-            face(10, wall),
-            face(11, cylinder(Point3::new(0.5, 1.0, 0.0), z, x)),
-            face(12, cylinder(Point3::new(0.0, 1.0, 1.0), x, y)),
+        let stated = [
+            (10, wall),
+            (11, cylinder(Point3::new(0.5, 1.0, 0.0), z, x)),
+            (12, cylinder(Point3::new(0.0, 1.0, 1.0), x, y)),
         ];
+        let faces = stated.iter().map(|&(id, _)| face(id)).collect();
+        let surfaces = crate::entities::records_of(stated.into_iter().map(|(id, s)| (id + 100, s)));
         let p = Point3::new(0.5, 0.0, 1.0);
         let segment = |a: Point3<f64>, b: Point3<f64>| {
             let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -2964,6 +2925,7 @@ mod tests {
             faces,
             edges,
             vertices,
+            surfaces,
             band_seams: std::collections::BTreeSet::new(),
         };
         let mut moves = Vec::new();
