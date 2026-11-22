@@ -33,6 +33,13 @@ Those are UNGUARDED readings, quoted to explain the shape of the tests
 and computed by none of them: a rate two boxes could measure
 differently is not a guard. What is guarded is the 0-versus-many, and
 the counterfactual above is what says the guard has teeth.
+
+They are readings of an opt-level-0 extension, which the nightly still
+builds. The PR gate builds it at opt-level 1, where the same run is
+several times shorter: the cancelling row then stops a run under way less
+often, and the GIL row's counting window is narrower
+(`work/bind/the-cancelling-mid-run-row-checks-its-prefix-less-often-on-a-faster-wheel`,
+`work/bind/the-gil-release-rows-window-narrows-with-the-wheels-speed`).
 """
 
 import threading
@@ -120,9 +127,10 @@ def stack(count):
 SMALL = 3
 
 #: The concurrent arm's document, sized by measurement: 30 nodes take
-#: ~300 ms against the debug extension on this box, which leaves a
-#: helper thread a wide window to be scheduled in. Nothing asserted
-#: below depends on that duration — see the module docstring.
+#: ~300 ms against the opt-level-0 extension on this box, which leaves a
+#: helper thread a wide window to be scheduled in. No assertion's
+#: outcome is a threshold on that duration, but how much the cancelling
+#: and GIL rows exercise shrinks with it — see the module docstring.
 WIDE = 8
 
 
@@ -370,9 +378,12 @@ class TestCancelingARunUnderWay(unittest.TestCase):
         outcome = []
         launched = threading.Event()
 
-        # The helper wakes needing the GIL, which this thread holds until
-        # `evaluate` has taken the borrow and released it: the edit lands
-        # inside the call at any build profile, with no sleep to outlast.
+        # The helper wakes needing the GIL while this thread runs the few
+        # bytecodes into `evaluate`, which takes the borrow and only then
+        # releases the GIL. The edit lands inside the call unless this
+        # thread is descheduled for a whole switch interval (5 ms) in that
+        # gap; that fails red, not green, and owes no sleep to the build's
+        # speed.
         def edit():
             launched.wait()
             try:

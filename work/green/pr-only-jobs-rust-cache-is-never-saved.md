@@ -1,7 +1,7 @@
 ---
 id: pr-only-jobs-rust-cache-is-never-saved
 kind: issue
-title: ci.yml's lint, viewer, topo-release, demos and tools jobs save their rust-cache only on main, where they never run, so every PR run compiles their dependencies cold
+title: ci.yml's lint, topo-release, demos and tools jobs save their rust-cache only on main, where they never run, so every PR run compiles their dependencies cold
 status: open
 opened: 2026-11-21
 priority: P3

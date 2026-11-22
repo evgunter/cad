@@ -37,4 +37,4 @@ than the machine's speed.
 
 ## Closed
 
-2026-11-21, by GREEN's PR-latency unit (`work/green/pr-ci-latency-median-is-32-minutes.md`), which moves the PR gate's python job to an opt-level-1 wheel and so shortens the evaluation this row raced. The helper now waits on an event the main thread sets just before `evaluate`; it wakes needing the GIL, which the main thread holds until `evaluate` has taken the borrow and released it, so the edit lands inside the call at any build profile.
+2026-11-21, by GREEN's PR-latency unit (`work/green/pr-ci-latency-median-is-32-minutes.md`), which moves the PR gate's python job to an opt-level-1 wheel and so shortens the evaluation this row raced. The helper now waits on an event the main thread sets just before `evaluate`; it wakes needing the GIL, which the main thread holds until `evaluate` has taken the borrow and released it, so the edit lands inside the call unless the main thread is descheduled for a whole switch interval (5 ms) in the few bytecodes before the borrow, a window that does not shrink with the build's speed and fails red.
