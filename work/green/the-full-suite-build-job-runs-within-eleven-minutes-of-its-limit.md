@@ -2,7 +2,7 @@
 id: the-full-suite-build-job-runs-within-eleven-minutes-of-its-limit
 kind: issue
 title: The nightly's full-suite build job ran 75 to 109 minutes against its 120-minute limit, and a timeout there leaves every eps row without a run
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P2
 cost: E

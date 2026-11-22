@@ -1292,7 +1292,7 @@ def _seeds(files: list[str], root: str) -> str:
 # exact-name entry of the `ci` profile's `default-filter` added, dropped or
 # moved. That edit moves only the tests it names, so it seeds their crates: a
 # dropped name runs in that crate's default step, an added one in the
-# slow-set step when the diff's Rust lines also spell it (else the nightly),
+# slow-set step when the diff also spells it or edits its file (else the nightly),
 # and the name check reads both binaries' listings.
 #
 # THE TEST IS STRUCTURAL AND FAILS SAFE. Both revisions must parse; the file
