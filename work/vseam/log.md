@@ -501,3 +501,11 @@ row's last section says what moved.
     - `document-seam-no-in-session-change-detection` (P1, design) goes to two Opus designers first.
     - `the-profile-editor-picks-an-earlier-piece-...` waits on SELFREF's units, and the two parked rows wait on FACELOOP and REPEAT, so none of those is dispatchable here.
   - **Not built in the retirement:** the GUI prefill of slides and spin from the clicked corner (Ev on 7073: "may"), and whether plain New profile takes a picked face. Both are filed as their own row and kept out of the retirement. (VSEAM)
+- 2026-11-22 — **The two retirement PRs.** Python is PR 7465, viewer phase 1 is PR 7466.
+  - **Review tier.** The viewer unit's review went from STYLE to FULL at dispatch, because the PR rewrote or deleted many test rows and the risk was that pins weakened silently.
+  - **The 7466 review.** APPROVE-WITH-FIXES, no MAJOR. Mutants turned every ported row red. The fix pass took M1 (the `gestures_on` sweep lost its on-face checks beyond the one the rule retires) and M2 (`mixed_chain`'s mirror swap lost the minted-first tie-break at depth and its profile loop's subject), plus the four duplicate boss helpers, the rectangle chain copy, and four prose rows (one of them in DESIGN's companion table). Argued down: the hand-indexed gesture table (Q7).
+  - **Filed elsewhere:**
+    - `chrome/a-profiles-placement-reading-lost-the-sketch-it-was-written-for` (P3);
+    - evidence on `pcert/review-pick-r2-tally-moved-at-5225-azimuth-placement` (still red: 147850 against 147856, at base and head);
+    - notes on the doors, formwords and vgeom logs about rows citing `SketchOnFace`.
+  - **Friction found: disk.** Each lane's target is 11–12 GB, so this container fits about three at once. The viewer lane filled the disk mid-run. The fix was to delete finished lanes' targets before a reviewer builds and to have reviewers build with `CARGO_INCREMENTAL=0`. Running reviewers in their own cloud sessions is the alternative. (VSEAM)
