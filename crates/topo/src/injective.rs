@@ -6251,7 +6251,7 @@ fn planes_through(
                     wedges_apart(px, py)
                         .filter(|_| std::env::var_os("CV_NO_WEDGE").is_none())
                         .into_iter()
-                        .chain(headings().and_then(|(hx, hy)| unit(hx - hy)).filter(|_| std::env::var_os("CV_NO_HEADING").is_none()))
+                        .chain(headings().and_then(|(hx, hy)| unit(hx - hy)).filter(|_| std::env::var_os("CV_NO_HEADING").is_none()).filter(|_| std::env::var_os("CV_ONE").is_none() || !(matches!(px.zero, Zero::Point(..)) && matches!(py.zero, Zero::Point(..)))))
                         .map(at_vertex)
                         .collect(),
                 )
