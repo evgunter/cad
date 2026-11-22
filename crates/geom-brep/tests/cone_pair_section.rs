@@ -127,8 +127,58 @@ fn roots_along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> Vec<f64>
 /// inside the region, and whether each is the apex alone.
 struct Trace {
     points: Vec<Point3<f64>>,
+    ruling_of: Vec<usize>,
     cluster: Vec<usize>,
     apex_only: Vec<bool>,
+    link: f64,
+}
+
+/// The rulings the trace solves along.
+const RULINGS: usize = 40_000;
+
+/// **The points' clusters**: each joined to the points within `link` on
+/// its own ruling and the next (the last ruling to the first), those not
+/// `kept` left out (labelled `usize::MAX`); and the cluster count.
+fn clusters(
+    points: &[Point3<f64>],
+    ruling_of: &[usize],
+    link: f64,
+    kept: &dyn Fn(Point3<f64>) -> bool,
+) -> (Vec<usize>, usize) {
+    let mut parent: Vec<usize> = (0..points.len()).collect();
+    let mut by_ruling: Vec<Vec<usize>> = vec![Vec::new(); RULINGS];
+    for (i, &k) in ruling_of.iter().enumerate() {
+        if kept(points[i]) {
+            by_ruling[k].push(i);
+        }
+    }
+    for k in 0..RULINGS {
+        let next = (k + 1) % RULINGS;
+        for &i in &by_ruling[k] {
+            for &j in by_ruling[k].iter().chain(&by_ruling[next]) {
+                if i != j && (points[i] - points[j]).norm() <= link {
+                    let (ri, rj) = (find(&mut parent, i), find(&mut parent, j));
+                    parent[ri] = rj;
+                }
+            }
+        }
+    }
+    let mut label = vec![usize::MAX; points.len()];
+    let mut count = 0;
+    let cluster = (0..points.len())
+        .map(|i| {
+            if !kept(points[i]) {
+                return usize::MAX;
+            }
+            let r = find(&mut parent, i);
+            if label[r] == usize::MAX {
+                label[r] = count;
+                count += 1;
+            }
+            label[r]
+        })
+        .collect();
+    (cluster, count)
 }
 
 fn find(parent: &mut [usize], i: usize) -> usize {
@@ -151,7 +201,6 @@ fn traced(
     region: ExtentBall<f64>,
     link: f64,
 ) -> Trace {
-    const RULINGS: usize = 40_000;
     let Surface::Cone { frame, half_angle } = *cone else {
         panic!("the oracle rules a cone")
     };
@@ -173,36 +222,7 @@ fn traced(
             }
         }
     }
-    let mut parent: Vec<usize> = (0..points.len()).collect();
-    // Points are in ruling order: join each to the next ruling's and its
-    // own ruling's, the last ruling to the first.
-    let mut by_ruling: Vec<Vec<usize>> = vec![Vec::new(); RULINGS];
-    for (i, &k) in ruling_of.iter().enumerate() {
-        by_ruling[k].push(i);
-    }
-    for k in 0..RULINGS {
-        let next = (k + 1) % RULINGS;
-        for &i in &by_ruling[k] {
-            for &j in by_ruling[k].iter().chain(&by_ruling[next]) {
-                if i != j && (points[i] - points[j]).norm() <= link {
-                    let (ri, rj) = (find(&mut parent, i), find(&mut parent, j));
-                    parent[ri] = rj;
-                }
-            }
-        }
-    }
-    let mut label = vec![usize::MAX; points.len()];
-    let mut clusters = 0;
-    let cluster: Vec<usize> = (0..points.len())
-        .map(|i| {
-            let r = find(&mut parent, i);
-            if label[r] == usize::MAX {
-                label[r] = clusters;
-                clusters += 1;
-            }
-            label[r]
-        })
-        .collect();
+    let (cluster, clusters) = clusters(&points, &ruling_of, link, &|_| true);
     let mut apex_only = vec![true; clusters];
     for (i, x) in points.iter().enumerate() {
         if (*x - apex).norm() > link {
@@ -211,8 +231,10 @@ fn traced(
     }
     Trace {
         points,
+        ruling_of,
         cluster,
         apex_only,
+        link,
     }
 }
 
@@ -229,6 +251,35 @@ impl Trace {
         near.sort_unstable();
         near.dedup();
         near
+    }
+
+    /// **The trace's stretches between nodes**: its points farther than
+    /// `radius` from every node re-clustered, so a node-joined set falls
+    /// into one cluster per arc; the stretch each of `witnesses` stands
+    /// on, where exactly one.
+    fn stretches(
+        &self,
+        nodes: &[Point3<f64>],
+        radius: f64,
+        witnesses: &[Point3<f64>],
+    ) -> Vec<Option<usize>> {
+        let kept = |x: Point3<f64>| nodes.iter().all(|n| (x - *n).norm() > radius);
+        let (cluster, _) = clusters(&self.points, &self.ruling_of, self.link, &kept);
+        witnesses
+            .iter()
+            .map(|w| {
+                let mut near: Vec<usize> = self
+                    .points
+                    .iter()
+                    .zip(&cluster)
+                    .filter(|(q, c)| **c != usize::MAX && (**q - *w).norm() <= self.link)
+                    .map(|(_, &c)| c)
+                    .collect();
+                near.sort_unstable();
+                near.dedup();
+                (near.len() == 1).then(|| near[0])
+            })
+            .collect()
     }
 
     /// The clusters that are not the apex alone.
@@ -329,6 +380,32 @@ fn checked(
         for set in section.node_sets() {
             let first = listed[set.arcs[0]].witness.unwrap();
             clusters.push(trace.cluster_at(first, link)[0]);
+            // Each arc of the set on its own stretch of the trace, the
+            // nodes cut out: an arc read on another's points goes red.
+            let nodes: Vec<Point3<f64>> = section.nodes().iter().map(|n| n.point).collect();
+            let witnesses: Vec<Point3<f64>> = set
+                .arcs
+                .iter()
+                .map(|&k| listed[k].witness.unwrap())
+                .collect();
+            let radius = 4.0 * link;
+            let mut on: Vec<usize> = Vec::new();
+            for (w, stretch) in witnesses
+                .iter()
+                .zip(trace.stretches(&nodes, radius, &witnesses))
+            {
+                if nodes.iter().any(|n| (*w - *n).norm() <= radius + link) {
+                    // A witness by a node reads no stretch of its own.
+                    continue;
+                }
+                let stretch = stretch
+                    .unwrap_or_else(|| panic!("arc witness {w:?} on no one stretch of the trace"));
+                assert!(
+                    !on.contains(&stretch),
+                    "two arcs of a node-joined set on one stretch of the trace: {witnesses:?}"
+                );
+                on.push(stretch);
+            }
         }
         let distinct = {
             let mut c = clusters.clone();
@@ -805,6 +882,109 @@ fn a_node_whose_rulings_stand_close_claims_each_ray_once() {
     );
     for (k, r) in rays.iter().enumerate() {
         assert!(!rays[..k].contains(r), "each ray claimed once: {rays:?}");
+    }
+}
+
+/// **A section does not depend on where the cone's seam stands**: a rod
+/// of radius `0.5` along `x`, tangent to the unit cone at `(0, 1/2, 1/2)`
+/// and crossing it there, one node whose two lobes close either side of
+/// `x = 0`. Read with the cone's seam turned to each of 48 azimuths,
+/// every read lists the same arcs by their rays at the node, each arc's
+/// witness on its own side of the node along its rays, and the seam
+/// crossing an arc never moves a pass. A walk that places a crossing by
+/// the absolute angle across the seam (its pass at the walk's wrong end,
+/// an arc read on the other lobe's points, or refused): red.
+#[test]
+fn a_crossing_reads_the_same_wherever_the_cones_seam_stands() {
+    let s = FRAC_1_SQRT_2;
+    let r = 0.5;
+    let rod = cylinder(p(0.0, 0.5 - r * s, 0.5 + r * s), Vec3::unit_x(), r);
+    let describe = |sec: &PairSection<f64>| {
+        let mut arcs: Vec<Vec<(i64, i64, i64)>> = sec
+            .counted()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                let ComponentShape::Open { ends } = c.shape else {
+                    panic!("an arc: {c:?}")
+                };
+                let mut rays: Vec<(i64, i64, i64)> = ends
+                    .nodes
+                    .both()
+                    .into_iter()
+                    .flatten()
+                    .map(|e| {
+                        let node = &sec.nodes()[e.node];
+                        let ray = node.ray(e.line, e.sense);
+                        assert!(
+                            ray.dot(c.witness.unwrap() - node.point) > 0.0,
+                            "the arc leaves its node toward its own witness"
+                        );
+                        #[allow(clippy::cast_possible_truncation)]
+                        let q = |x: f64| (x * 100.0).round() as i64;
+                        (q(ray.x), q(ray.y), q(ray.z))
+                    })
+                    .collect();
+                rays.sort_unstable();
+                rays
+            })
+            .collect();
+        arcs.sort();
+        arcs
+    };
+    let mut first = None;
+    for k in 0..48 {
+        let seam = TAU * f64::from(k) / 48.0;
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::new(seam.cos(), seam.sin(), 0.0),
+            ),
+            half_angle: FRAC_PI_4,
+        };
+        let section = built(&cone, &rod, region());
+        assert_eq!(section.nodes().len(), 1, "seam {seam:.3}: one crossing");
+        let read = describe(&section);
+        match &first {
+            None => first = Some(read),
+            Some(first) => assert_eq!(&read, first, "seam {seam:.3}: the same arcs"),
+        }
+    }
+    let (shapes, _) = checked(&unit_cone(), &rod, region(), 0.02);
+    assert_eq!(
+        shapes,
+        Shapes {
+            noded: 2,
+            sets: 1,
+            ..Shapes::default()
+        }
+    );
+}
+
+/// **An oblique rod's bite reads the same wherever its frame stands**:
+/// the bite's rod turned off `x`, its frame `1e4` along its own axis. The
+/// apex's foot on the axis carries the frame origin's rounding off the
+/// oblique axis, and the charge for it keeps the read decided. A foot
+/// whose rounding is not charged: red (an in-band reading at that
+/// distance).
+#[test]
+fn an_oblique_bite_reads_the_same_wherever_its_frame_stands() {
+    let d = Vec3::new(1.0, 0.2, 0.1).normalize();
+    let at = |shift: f64| cylinder(p(0.0, 1.3, 1.0) + d * shift, d, 0.4);
+    let count = |shift: f64| {
+        let section = built(&unit_cone(), &at(shift), region());
+        section
+            .counted()
+            .unwrap()
+            .iter()
+            .map(|c| c.shape)
+            .collect::<Vec<_>>()
+    };
+    let near = count(0.0);
+    assert!(!near.is_empty(), "the oblique rod bites the cone");
+    for shift in [1e2, 1e4] {
+        assert_eq!(count(shift), near, "the frame {shift:e} along the axis");
     }
 }
 

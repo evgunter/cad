@@ -293,8 +293,11 @@ impl<T: Decide> ConeRuledPose<T> {
 
     /// **The cone's rulings against the cylinder `wall`**, and the apex
     /// margin. The wall's axis is read from the apex's foot on it, a point
-    /// the geometry fixes, so neither the read nor its rounding depends on
-    /// where the wall's frame stands along its axis.
+    /// the geometry fixes, so the read does not move with where the wall's
+    /// frame stands along its axis. The foot itself is computed from the
+    /// frame's origin, and carries that origin's rounding off an oblique
+    /// axis, of the size of its distance from the apex: that slack is
+    /// charged wherever `u` enters ([`Form::with_slack`]).
     fn against_wall(
         cone: Carrier<T>,
         wall: &Surface<T>,
@@ -341,7 +344,9 @@ impl<T: Decide> ConeRuledPose<T> {
             origin: o + d * d.dot(cone.apex - o),
             dir: d,
         };
-        let ruled = ruled(cone, Form::cylinder(axis, radius), region);
+        let slack = T::from_f64(4.0)
+            * geom_core::rounding_charge((o - Point3::origin()).norm() + (cone.apex - o).norm());
+        let ruled = ruled(cone, Form::cylinder(axis, radius).with_slack(slack), region);
         let apex = read(
             ConeDecision::ApexOnPartner,
             Margin::of(ruled.partner_residual(ruled.apex)),
@@ -445,8 +450,8 @@ impl<T: Decide> ConeRuledPose<T> {
         )
         .normalize();
         let e2 = normal.cross(e1);
-        let (a, c) = (ruled.axis, ruled.sc.1);
-        let form = |x: Vec3<T>, y: Vec3<T>| a.dot(x) * a.dot(y) - c.powi(2) * x.dot(y);
+        let (a, cos) = (ruled.axis, ruled.sc.1);
+        let form = |x: Vec3<T>, y: Vec3<T>| a.dot(x) * a.dot(y) - cos.powi(2) * x.dot(y);
         let (q11, q12, q22) = (form(e1, e1), form(e1, e2), form(e2, e2));
         let det = q11 * q22 - q12.powi(2);
         let decided = read(
@@ -460,19 +465,19 @@ impl<T: Decide> ConeRuledPose<T> {
                 predicate: ConeDecision::ApexForm.name(),
             }),
             Sign::Negative => {
-                // `Q(cos θ e₁ + sin θ e₂) = h + b cos 2θ + c sin 2θ`, `h`
-                // the trace's half, `b = (Q₁₁ − Q₂₂)/2`, `c = Q₁₂`; its
-                // zeros are `2θ = ψ ± acos(−h/R)`, `R = √(b² + c²)`,
-                // `ψ` the angle of `(b, c)`. Indefinite, `R > |h|`, so
+                // `Q(cos θ e₁ + sin θ e₂) = h + b cos 2θ + s₂ sin 2θ`, `h`
+                // the trace's half, `b = (Q₁₁ − Q₂₂)/2`, `s₂ = Q₁₂`; its
+                // zeros are `2θ = ψ ± acos(−h/R)`, `R = √(b² + s₂²)`,
+                // `ψ` the angle of `(b, s₂)`. Indefinite, `R > |h|`, so
                 // nothing divides by a diagonal entry that may vanish.
                 let half = T::from_f64(0.5);
-                let (h, b, c) = ((q11 + q22) * half, (q11 - q22) * half, q12);
-                let r = (b.powi(2) + c.powi(2)).sqrt();
+                let (h, b, s2) = ((q11 + q22) * half, (q11 - q22) * half, q12);
+                let r = (b.powi(2) + s2.powi(2)).sqrt();
                 let psi = (b / r)
                     .max(T::zero() - T::one())
                     .min(T::one())
                     .acos()
-                    .copysign(c);
+                    .copysign(s2);
                 let open = ((T::zero() - h) / r)
                     .max(T::zero() - T::one())
                     .min(T::one())

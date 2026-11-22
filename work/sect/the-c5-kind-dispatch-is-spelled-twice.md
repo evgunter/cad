@@ -71,3 +71,7 @@ table's filter relies on it: a reader that bypassed `serves` would read
 (`section_table.rs` `SectionReader::read`).
 
 Moved from SECTRUNG to SECT on 2026-11-02, by `git mv`, when SECTRUNG merged back into SECT: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so SECT and the three tracks cut from it (SECTTAIL, SECTRUNG, SECTSITE) came in under one budget.
+
+## A third spelling (PR 7357)
+
+`pair_section::uncarried(a, b)` is a third exhaustive spelling of the kind roster, beside `pair_section`'s match and `serves`. It answers `Some(NoCarrier::ConeUnmarched)` for a cone against a cylinder or a cone, a pair the value classifies but no march carries, and `None` for everything else. Step-import's `served_pair` reads it first, so that such an edge refuses by its cause rather than classifying it twice. It is spelled by kind alone, so it also covers the cone poses `pair_section` reads `Elsewhere` (a shared apex, or one aperture on parallel axes). No march carries those either, so its sentence holds for them too. It should be derived together with the other two whenever this row is built.

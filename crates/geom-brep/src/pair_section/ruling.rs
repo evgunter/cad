@@ -735,6 +735,9 @@ pub(crate) struct Form<T: Real> {
     radius: Option<T>,
     /// The partner cone's `cos α`.
     cos: Option<T>,
+    /// How far `P` may stand off the point it names, in metres: its own
+    /// rounding where it was computed (a foot on the axis).
+    slack: T,
 }
 
 impl<T: Real> Form<T> {
@@ -748,6 +751,7 @@ impl<T: Real> Form<T> {
             gamma: T::zero() - r.powi(2),
             radius: Some(r),
             cos: None,
+            slack: T::zero(),
         }
     }
 
@@ -762,7 +766,13 @@ impl<T: Real> Form<T> {
             gamma: T::zero(),
             radius: None,
             cos: Some(cos),
+            slack: T::zero(),
         }
+    }
+
+    /// The form with `P` read within `slack` of the point it names.
+    pub(crate) fn with_slack(self, slack: T) -> Self {
+        Self { slack, ..self }
     }
 
     /// The cylinder's radius, `None` for a cone.
@@ -858,13 +868,21 @@ impl<T: Real> RuledCone<T> {
     fn charges(&self) -> (T, T, T, T) {
         let big_u = self.reach();
         let two = T::from_f64(2.0);
-        let s1 = T::from_f64(4.0) * big_u;
+        let four = T::from_f64(4.0);
+        let s1 = four * big_u;
         let s0 = two * big_u.powi(2) + self.partner.gamma.abs();
+        // `P`'s slack moves `u` by as much: `p₁` by at most four times it
+        // (the form's matrix has norm at most one, `|v| = 1`), `p₀` by
+        // `4|u|` times it, and `E` by `2|p₁|` and `4|p₂|` times those.
+        let slack = self.partner.slack;
+        let (m1, m0) = (four * slack, four * big_u * slack);
         (
             rounding_charge(two),
-            rounding_charge(s1),
-            rounding_charge(s0),
-            rounding_charge(s1.powi(2) + T::from_f64(8.0) * s0),
+            rounding_charge(s1) + m1,
+            rounding_charge(s0) + m0,
+            rounding_charge(s1.powi(2) + T::from_f64(8.0) * s0)
+                + two * s1 * m1
+                + T::from_f64(8.0) * m0,
         )
     }
 
@@ -931,17 +949,25 @@ impl<T: Real> RuledCone<T> {
         let charge = den
             .lo
             .select_le_zero(T::zero(), rounding_charge(reach + reach) / den.lo);
-        let q = num.abs().quotient(den).widen(charge);
+        let q = num.abs().quotient(den).widen(charge + self.partner.slack);
         let delta = Iv {
             lo: q.lo.max(T::zero()).min(reach),
             hi: q.hi.min(reach).max(T::zero()),
         };
         // `δ′ = sign(N)(N′D − N D′)/D²`, `D′ = (w·w′)/D`.
         let dden = w.dot(dw).quotient(den);
+        // Its rounding: the numerator's, of size `|u|`, through the
+        // quotient by `|v × d|²`, which a ruling near the axis's direction
+        // levers as it levers `δ`'s.
+        let slope_charge = den.lo.select_le_zero(
+            T::zero(),
+            rounding_charge(reach + reach) * (T::one() + reach / den.lo) / den.lo.powi(2),
+        );
         let g = dnum
             .times(den)
             .plus(num.times(dden).neg())
-            .quotient(den.square());
+            .quotient(den.square())
+            .widen(slope_charge);
         let slope = Iv {
             lo: num.lo.select_le_zero(
                 num.hi.select_le_zero(T::zero() - g.hi, T::zero() - wide),
@@ -1095,10 +1121,16 @@ impl<T: Real> RuledCone<T> {
         let u = self.u();
         let two = T::from_f64(2.0);
         let (du, dvv, dvd, dvdd) = (d.dot(u), d.dot(v), d.dot(dv), d.dot(ddv));
-        let p2 = kappa + beta * dvv.powi(2);
-        let p1 = two * (kappa * u.dot(v) + beta * du * dvv);
-        let dp2 = two * beta * dvv * dvd;
-        let dp1 = two * (kappa * u.dot(dv) + beta * du * dvd);
+        // The quadratic and its slopes as the sweep reads them, at the
+        // angle; its curvatures, which nothing else reads, here.
+        let q = self.quadratic(&cell);
+        let at_angle = |i: Iv<T>| (i.lo + i.hi) * T::from_f64(0.5);
+        let (p2, p1, dp2, dp1) = (
+            at_angle(q.p2),
+            at_angle(q.p1),
+            at_angle(q.dp2),
+            at_angle(q.dp1),
+        );
         let ddp2 = two * beta * (dvd.powi(2) + dvv * dvdd);
         let ddp1 = two * (kappa * u.dot(ddv) + beta * du * dvdd);
         let t = T::zero() - p1 / (two * p2);
@@ -1261,11 +1293,15 @@ pub(crate) struct Touch<T: Real> {
 /// The row a double root of `Δ` is decided a tangency on.
 pub(crate) const TANGENCY: &str = "ruling_tangency";
 
-/// **What one sweep read**: the components inside the ball, and the
-/// loops the section has before the ball cuts them.
+/// **What one sweep read**: the components inside the ball, and how
+/// many loops the discriminant's arcs make before the ball cuts them or
+/// a crossing cuts them into arcs between nodes (one per arc of `Δ > 0`
+/// bounded by branch points, two over the whole turn: the count the
+/// cylinder pairs' poses check theirs against).
 #[derive(Clone, Debug)]
 pub(crate) struct Sweep<T: Real> {
     pub(crate) components: Vec<Swept<T>>,
+    /// The loops `Δ`'s arcs make, uncut.
     pub(crate) loops: usize,
     /// The double roots of `Δ` decided tangencies.
     pub(crate) touches: Vec<Touch<T>>,
@@ -1557,14 +1593,19 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
 
     fn run(&mut self) -> Result<Sweep<T>, SweepRefusal> {
         let cells = self.tiled()?;
-        self.crossings = self
-            .touches
-            .iter()
-            .filter(|t| {
-                t.crossing && self.reads(Row::Cut, self.past(V3::at(t.at))) == Some(Reads::Below)
-            })
-            .map(|t| t.phi)
-            .collect();
+        // A crossing the ball holds is a node every walk through it
+        // passes; one within band of its boundary is a node the walks may
+        // or may not reach, and escalates.
+        let mut crossings = Vec::new();
+        for t in self.touches.iter().filter(|t| t.crossing) {
+            let past = self.past(V3::at(t.at));
+            match self.reads(Row::Cut, past) {
+                Some(Reads::Below) => crossings.push(t.phi),
+                Some(Reads::Above) => {}
+                None => return Err(self.escalate(Row::Cut, past)),
+            }
+        }
+        self.crossings = crossings;
         if cells.iter().all(|(_, d)| d.positive() == Some(true)) {
             let turn: Vec<Cell<T>> = cells.into_iter().map(|(c, _)| c).collect();
             let mut components = Vec::new();
@@ -1937,46 +1978,66 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
     /// (`backward`: against the angle), a pass through each crossing the
     /// leaves reach placed before the first leaf past its angle.
     fn walk(&self, leaves: Vec<Leaf<T>>, sheet: Sheet, backward: bool) -> Vec<Event<T>> {
-        let (lo, hi) = leaves
+        use core::f64::consts::{PI, TAU};
+        // The leaves' angles unwrapped in the walk's own order: an arc read
+        // across the turn's seam ([`arcs`]) steps back a turn there, and
+        // the walk reads its angles on from its start.
+        let mut offset = 0.0;
+        let mut last: Option<f64> = None;
+        let span: Vec<(f64, f64)> = leaves
             .iter()
-            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), l| {
-                (lo.min(l.cell().lo), hi.max(l.cell().hi))
+            .map(|l| {
+                let c = l.cell();
+                if let Some(last) = last {
+                    if !backward && c.lo + offset < last - PI {
+                        offset += TAU;
+                    } else if backward && c.hi + offset > last + PI {
+                        offset -= TAU;
+                    }
+                }
+                last = Some(if backward {
+                    c.lo + offset
+                } else {
+                    c.hi + offset
+                });
+                (c.lo + offset, c.hi + offset)
+            })
+            .collect();
+        let (lo, hi) = span
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &(a, b)| {
+                (lo.min(a), hi.max(b))
             });
-        let mut pending: Vec<f64> = self
+        // Each crossing at its angle in that frame, a turn either way.
+        let mut pending: Vec<(f64, f64)> = self
             .crossings
             .iter()
-            .copied()
-            .filter(|&phi| lo < phi && phi < hi)
+            .flat_map(|&phi| {
+                [-2.0, -1.0, 0.0, 1.0, 2.0]
+                    .into_iter()
+                    .map(move |k| (phi, phi + k * TAU))
+            })
+            .filter(|&(_, at)| lo < at && at < hi)
             .collect();
-        let mut out = Vec::new();
-        for leaf in leaves {
-            let cell = *leaf.cell();
-            pending.retain(|&phi| {
-                let past = if backward {
-                    cell.hi <= phi
-                } else {
-                    cell.lo >= phi
-                };
-                if past {
-                    out.push(Event::Node {
-                        pass: Pass {
-                            phi,
-                            sheet,
-                            backward,
-                        },
-                    });
-                }
-                !past
-            });
-            out.push(self.event(leaf, sheet, backward));
-        }
-        out.extend(pending.into_iter().map(|phi| Event::Node {
+        let node = |phi: f64| Event::Node {
             pass: Pass {
                 phi,
                 sheet,
                 backward,
             },
-        }));
+        };
+        let mut out = Vec::new();
+        for (leaf, (a, b)) in leaves.into_iter().zip(span) {
+            pending.retain(|&(phi, at)| {
+                let past = if backward { b <= at } else { a >= at };
+                if past {
+                    out.push(node(phi));
+                }
+                !past
+            });
+            out.push(self.event(leaf, sheet, backward));
+        }
+        out.extend(pending.into_iter().map(|(phi, _)| node(phi)));
         out
     }
 
@@ -3012,5 +3073,19 @@ mod tests {
         );
         let far = cone((0.0, 5.0, 1.0), 0.1).form_ceiling(&Cell::at(-FRAC_PI_2));
         assert!(far >= WIDE, "no ceiling past the condition: {far:e}");
+        // Over a cell about the graze, the ceiling bounds every ruling's
+        // clearance in it, the edges' too: `r − δ`, `δ` the ruling's
+        // distance from the rod's axis. The mean value's `|E′|·w/2` is what
+        // reaches them; dropped, the ceiling is the middle's rounding.
+        let eps = 0.02;
+        let wide = cone((0.0, 0.0, 1.0), FRAC_1_SQRT_2)
+            .form_ceiling(&Cell::new(FRAC_PI_2 - eps, FRAC_PI_2 + eps));
+        let (s, c) = FRAC_PI_4.sin_cos();
+        let (vy, vz) = (s * eps.cos(), c);
+        let edge = FRAC_1_SQRT_2 - vy / (vy * vy + vz * vz).sqrt();
+        assert!(
+            edge > 0.0 && wide >= edge,
+            "a wide cell's ceiling {wide:e} reaches its edge's clearance {edge:e}"
+        );
     }
 }

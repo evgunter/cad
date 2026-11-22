@@ -1004,9 +1004,9 @@ pub enum NoCarrier {
     /// A cone's apex touches the other surface, the cone's form definite
     /// on its tangent plane there: an isolated point of the section.
     ApexTouch,
-    /// A section with a cone side is classified, and no march carries it:
-    /// limb 2 has no composite for the cone at the march's search, and
-    /// the pair has no march door.
+    /// No march carries a section of a cone against a cylinder or a cone:
+    /// the certificate has no cone arm at the march's search, and the
+    /// pair has no march door.
     ConeUnmarched,
 }
 
@@ -1048,9 +1048,9 @@ impl NoCarrier {
                  section, and no carrier is minted for it"
             }
             Self::ConeUnmarched => {
-                "a section with a cone side is classified, but no march carries it: the \
-                 certificate's bound has no composite for the cone at the march's search, and \
-                 the pair has no march door"
+                "no march carries a section of a cone against a cylinder or a cone: the \
+                 certificate has no cone arm at the march's search, and the pair has no march \
+                 door"
             }
         }
     }
@@ -1519,12 +1519,16 @@ pub fn serves(kind: SurfaceKind) -> bool {
     }
 }
 
-/// **Why the value carries no component of a kind pair it classifies**,
-/// where that holds by kind: a cone against a cylinder or a cone, which
-/// no march carries yet ([`NoCarrier::ConeUnmarched`]). A reader that uses
-/// only a carried section reads this first, and refuses by its cause,
-/// rather than classify a pair whose carry must refuse. Exhaustive, as
-/// [`pair_section`]'s match is.
+/// **Why no component of a kind pair is carried, where that holds by
+/// kind**: a cone against a cylinder or a cone, which no march carries
+/// yet ([`NoCarrier::ConeUnmarched`]), whether the value classifies the
+/// pose or reads it elsewhere (two cones through one apex, or of one
+/// aperture on parallel axes). A reader that uses only a carried section
+/// reads this first, and refuses by its cause, rather than classify a
+/// pair whose carry must refuse. A third spelling of the kind roster
+/// beside [`pair_section`]'s match and [`serves`]
+/// (`work/sect/the-c5-kind-dispatch-is-spelled-twice.md`), exhaustive as
+/// they are.
 #[must_use]
 pub fn uncarried(a: SurfaceKind, b: SurfaceKind) -> Option<NoCarrier> {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
