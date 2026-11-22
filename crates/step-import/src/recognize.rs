@@ -634,6 +634,10 @@ fn estimate_cone(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f6
     })
 }
 
+/// A healed net, and each side it made one point with how far that moved
+/// a control point ([`heal_collapsed_sides`]).
+pub(crate) type Healed = (NurbsSurface<f64>, Vec<(geom_brep::ChartSide, f64)>);
+
 /// **A net side the file states one point at its band, made exactly
 /// that point** (DESIGN `[import]` healing, `[extensibility]`): a side of
 /// the knot rectangle whose every control point reads Zero from the
@@ -650,8 +654,7 @@ fn estimate_cone(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f6
 pub(crate) fn heal_collapsed_sides(
     patch: &NurbsSurface<f64>,
     file: FileBand,
-) -> Result<Option<(NurbsSurface<f64>, Vec<(geom_brep::ChartSide, f64)>)>, crate::interpret::Refusal>
-{
+) -> Result<Option<Healed>, crate::interpret::Refusal> {
     use geom_brep::chart_singularity::{side_row, spline_side_spans};
     let mut control = patch.control().to_vec();
     let mut healed = Vec::new();
@@ -969,12 +972,9 @@ mod collapsed_side_healing {
             "one ulp: its move {}",
             sides[0].1
         );
-        assert_eq!(
-            geom_brep::chart_singularity::collapsed_sides(&healed)
-                .iter()
-                .map(|(side, p)| (*side, p.to_array()))
-                .collect::<Vec<_>>(),
-            vec![(sides[0].0, pole.to_array())],
+        let got = geom_brep::chart_singularity::collapsed_sides(&healed);
+        assert!(
+            got.len() == 1 && got[0].0 == sides[0].0 && got[0].1.equals_exactly(pole),
             "one ulp: the side is the first point exactly"
         );
         assert!(

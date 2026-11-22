@@ -2634,18 +2634,30 @@ mod tests {
 
         /// The two scalars a loop is read at, each reading its loop.
         trait Reads: Real {
-            fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError>;
+            fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError> {
+                Self::read_collapsed(rows, &[])
+            }
+            fn read_collapsed(
+                rows: Vec<LiftedRow<Self>>,
+                collapsed: &[(geom_brep::ChartSide, f64)],
+            ) -> Result<TrimRectangle, PropsError>;
         }
 
         impl Reads for f64 {
-            fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError> {
-                trim_rectangle(&Lift::stated_for_tests(rows, closed()), &[])
+            fn read_collapsed(
+                rows: Vec<LiftedRow<Self>>,
+                collapsed: &[(geom_brep::ChartSide, f64)],
+            ) -> Result<TrimRectangle, PropsError> {
+                trim_rectangle(&Lift::stated_for_tests(rows, closed()), collapsed)
             }
         }
 
         impl Reads for Interval {
-            fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError> {
-                trim_rectangle(&Lift::stated_for_tests(rows, closed()), &[])
+            fn read_collapsed(
+                rows: Vec<LiftedRow<Self>>,
+                collapsed: &[(geom_brep::ChartSide, f64)],
+            ) -> Result<TrimRectangle, PropsError> {
+                trim_rectangle(&Lift::stated_for_tests(rows, closed()), collapsed)
             }
         }
 
@@ -2872,9 +2884,7 @@ mod tests {
         #[test]
         fn a_collapsed_side_is_a_side_of_the_rectangle() {
             use geom_brep::{ChartAxis, ChartEnd, ChartSide};
-            fn each<
-                T: Reads + geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
-            >() {
+            fn each<T: Reads>() {
                 let three = || {
                     vec![
                         from_to::<T>((0.0, 0.0), (1.0, 0.0)),
@@ -2886,9 +2896,7 @@ mod tests {
                     fixed: ChartAxis::U,
                     end,
                 };
-                let read = |collapsed: &[(ChartSide, f64)]| {
-                    trim_rectangle(&Lift::stated_for_tests(three(), closed()), collapsed)
-                };
+                let read = |collapsed: &[(ChartSide, f64)]| T::read_collapsed(three(), collapsed);
                 let got = read(&[(side(ChartEnd::Low), 0.0)]).unwrap();
                 assert_eq!(
                     (got.rect, got.turn),

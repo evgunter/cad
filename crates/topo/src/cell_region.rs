@@ -297,28 +297,28 @@ fn clear_of_singular(
     station: Point3<Interval>,
     clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
-    match *surface {
-        Surface::Cone { frame, .. } => {
-            let apex = frame.origin();
-            clear_as(CELL_REGION_SINGULAR, (station - apex).norm())
+    // A spline net's collapsed sides, from their one home: each a point
+    // the chart's normal vanishes at.
+    let sides_clear = geom_brep::chart_singularity::singular_points(surface)
+        .into_iter()
+        .filter(|(which, _)| matches!(which, geom_brep::chart_singularity::Singularity::Side(_)))
+        .all(|(_, x)| clear_as(CELL_REGION_SINGULAR, (station - x).norm()));
+    sides_clear
+        && match *surface {
+            Surface::Cone { frame, .. } => {
+                let apex = frame.origin();
+                clear_as(CELL_REGION_SINGULAR, (station - apex).norm())
+            }
+            Surface::Torus { frame, .. } | Surface::Spindle { frame, .. } => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                let axis_line = geom::Line {
+                    origin: center,
+                    dir: axis,
+                };
+                clear_as(CELL_REGION_SINGULAR, axis_line.distance(station))
+            }
+            _ => true,
         }
-        Surface::Torus { frame, .. } | Surface::Spindle { frame, .. } => {
-            let (center, axis) = (frame.origin(), frame.axis());
-            let axis_line = geom::Line {
-                origin: center,
-                dir: axis,
-            };
-            clear_as(CELL_REGION_SINGULAR, axis_line.distance(station))
-        }
-        // A spline net's collapsed sides, from their one home, each a
-        // point the chart's normal vanishes at.
-        Surface::Nurbs(_) | Surface::Approx(_) => {
-            geom_brep::chart_singularity::singular_points(surface)
-                .into_iter()
-                .all(|(_, x)| clear_as(CELL_REGION_SINGULAR, (station - x).norm()))
-        }
-        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Sphere { .. } => true,
-    }
 }
 
 /// One stop of a face's boundary walk, lifted to the interval scalar:
