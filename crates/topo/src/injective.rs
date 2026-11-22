@@ -13158,7 +13158,9 @@ mod rate_rows {
                 axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
                 r: iv0(r),
             });
-            let k = r * 4e-3;
+            // Wide enough that a cell clear of the carrier departs it past
+            // the band at every ε, and still small against the radius.
+            let k = (r * 4e-3).max(100.0 * band().zero());
             let cell = |x: (f64, f64)| Presented {
                 surface: &s,
                 map: Map::Chart,
