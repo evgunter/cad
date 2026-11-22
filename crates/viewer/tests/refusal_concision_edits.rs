@@ -102,10 +102,20 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 refusal: Box::new(ProgramRefusal::Geometry {
                     loop_: 0,
                     step: 2,
-                    kind: profile::PathErrorKind::JunctionTangent,
-                    rendered: profile::PathError::<f64>::JunctionTangent {
-                        margin: geom_core::Told::computed(&1e-12, geom_core::Dimension::Length),
-                        arm: geom_core::Told::computed(&0.5, geom_core::Dimension::Length),
+                    kind: profile::PathErrorKind::JunctionTurnWithinTolerance,
+                    rendered: profile::PathError::<f64>::JunctionTurnWithinTolerance {
+                        turn: profile::LeveredTurn {
+                            sin_turn: geom_core::Told::computed(
+                                &0.9,
+                                geom_core::Dimension::Dimensionless,
+                            ),
+                            align: geom_core::Told::computed(
+                                &0.44,
+                                geom_core::Dimension::Dimensionless,
+                            ),
+                            lever: geom_core::Told::computed(&3e-10, geom_core::Dimension::Length),
+                            lever_of: profile::TurnLever::ShorterLeg,
+                        },
                     }
                     .to_string(),
                 }),
