@@ -537,10 +537,7 @@ fn the_first_boundary_stops_the_proof_and_a_search_on_the_island_proves_it() {
         r.proven_interval().1 < THROUGH,
         "the proof must stop at the crossing, not leap it"
     );
-    assert!(
-        no_new_failure(&doc, "height", 0.2),
-        "the far branch builds"
-    );
+    assert!(no_new_failure(&doc, "height", 0.2), "the far branch builds");
 
     let island = notch(0.2);
     let on_it = range_of(
@@ -777,12 +774,18 @@ fn admission_refuses_a_document_that_does_not_build_from_the_callers_build() {
     let field = RangeField::Param(var(&broken, "depth"));
     let seed = RangeSeed::symmetric(0.25);
     let built = f64_run(&broken);
-    assert!(!failing(&built).is_empty(), "a depth of zero does not build");
+    assert!(
+        !failing(&built).is_empty(),
+        "a depth of zero does not build"
+    );
     let Err(RangeRefusal::Drive(refusal)) = admit(&broken, &field, seed, Some(&built)) else {
         panic!("a build with a failed node is not admitted");
     };
     assert!(
-        matches!(*refusal, editor_core::drive::DriveRefusal::WitnessDoesNotBuild { .. }),
+        matches!(
+            *refusal,
+            editor_core::drive::DriveRefusal::WitnessDoesNotBuild { .. }
+        ),
         "got {refusal:?}"
     );
     // The search's own witness says the same thing.

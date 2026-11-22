@@ -72,13 +72,12 @@
 //!   carries none, so the arm is typed but the culprit is not always
 //!   named. The SEPARATE question of what a certified lane owes when
 //!   a value goes non-real is open and is not this door:
-//!   `work/props/certified-lane-non-real-contract-audit.md`.
+//!   `work/encl/certified-lane-non-real-contract-audit.md`.
 //!
 //! **What keeps THIS module the interactive answer is cost**, and a
-//! drive's cost is measured rather than argued: `editor_core::range`
-//! carries the table (seconds per leaf on the corpus documents,
-//! nothing certified at a budget a caller can afford) beside the
-//! instruction to re-take it rather than trust it. **Nothing in
+//! replay's cost is measured rather than argued: `editor_core::range`
+//! carries the table (seconds per replay on the corpus documents)
+//! beside the instruction to re-take it rather than trust it. **Nothing in
 //! either tree reds if those numbers drift** — they are a measurement
 //! at a tree, not an invariant — so this paragraph names where they
 //! live instead of copying them, and a reader who needs the figure
@@ -92,22 +91,20 @@
 //! decide differently" is strictly more than "does anything new
 //! fail". It is NOT a subset of the BRACKET this module reports: the
 //! probe reports the furthest value it SAMPLED and found valid, which
-//! on a field with a nearby boundary sits well outside what a drive
-//! can prove, and `editor_core::range`'s own docs carry the
-//! counterexample (an 8 mm slot certified to `1.6e-8` against a
-//! furthest valid sample of `3.9e-6`). So a panel shows both or names
+//! on a field with a nearby boundary can sit well outside what a
+//! replay can prove. So a panel shows both or names
 //! which one it is showing, and never draws one inside the other.
 //!
-//! **A consumer reads four arms, not a yes or no.**
-//! `editor_core::range::RangeSide` is `Certified` (the seed's edge —
-//! never "unbounded"), `NewFailure` and `DecisionFlip` (a bracket
-//! around a boundary, with the driver's evidence), and
-//! `Indeterminate` (the driver could not decide). Rendering
-//! `Indeterminate` as an edge is the specific mistake to avoid, and
-//! it is sharper than "unknown": a definite failure reaches that arm
-//! today priced `Budget` at the depth floor, so "raise the budget" is
-//! honest advice only above the floor
-//! (`work/props/coincidence-zone-priced-budget-at-the-floor.md`).
+//! **A consumer reads three things per side, not a yes or no.**
+//! `editor_core::range::RangeSide` states how far the proof reaches
+//! (to the seed's end at most — never "unbounded"), the nearest point
+//! PROVEN different where there is one (with the driver's evidence),
+//! and the ground between that was not decided. Rendering undecided
+//! ground as valid, or as an edge, is the specific mistake to avoid: a
+//! definite failure sits in it today, priced `Budget` at the depth
+//! floor (`work/verdict/coincidence-zone-priced-budget-at-the-floor.md`),
+//! and `NotDecided::more_time_helps` says whether more proving moves
+//! it.
 //!
 //! Nothing in `crates/viewer` asks for one on a user's behalf yet —
 //! the affordance is

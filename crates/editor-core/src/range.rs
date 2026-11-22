@@ -42,20 +42,28 @@
 //!
 //! # What it costs, measured
 //!
-//! Per replay, dev profile, @COST_BOX@:
+//! A replay's cost is how far it gets before something is undecided,
+//! so it spans orders of magnitude on one document. Per replay, dev
+//! profile, on a 4-vCPU x86_64 cloud container (Linux 6.18) with a
+//! second build sharing its cores:
 //!
-//! | document | field | per replay |
-//! | --- | --- | --- |
-//! | (to be measured) | | |
+//! | document | field | an interval that refuses early | undecided | certifies, or nearly |
+//! | --- | --- | --- | --- | --- |
+//! | `corpus::plate_param` (7 nodes) | `hole_r` | 0.1 s | 1.4–4.5 s | 21–24 s |
+//! | `corpus::die` (57 nodes) | `pip_depth` | 0.2 s | 2.6 s | 115–132 s, none certified in 8 |
+//! | `corpus::die` | the cube's `Distance` slot | 0.4 s | 1.8–2.1 s | 26–42 s, none certified in 8 |
 //!
 //! Re-take them rather than trusting them
 //! (`docm9_range::the_per_replay_cost_on_the_corpus`, ignored, prints
-//! the table).
+//! the rows).
 //!
-//! The width that certifies is the driver's, not this module's. A field
-//! feeding a PARAMETRIC POLYGON VERTEX certifies at about `10 ε` and no
-//! wider (`work/verdict/parametric-polygon-loop-certifies-nothing`);
-//! what certifies over a macroscopic interval is straight geometry whose
+//! The width that certifies is the driver's, not this module's. The
+//! plate's `hole_r` certifies at about `ε/4` and no wider (an arc rim's
+//! endpoint pinning): 47 replays from a seed of `±1e-6`, where a
+//! level-by-level subdivision of that seed needs 2¹³ leaves. A field
+//! feeding a PARAMETRIC POLYGON VERTEX certifies at about `10 ε`
+//! (`work/nurbs/parametric-polygon-loop-certifies-nothing`); what
+//! certifies over a macroscopic interval is straight geometry whose
 //! identities the symbolic tier cancels.
 //!
 //! # The budget
@@ -63,7 +71,12 @@
 //! [`DriveConfig::max_leaves`] is the number of replays the search may
 //! take and [`DriveConfig::max_depth`] how many times one side may be
 //! halved; `symbolic` and `plain_memo` are the leaf protocol's own.
-//! `parallel` is not read: a step is one replay. Ground the search has
+//! `parallel` is not read: a step is one replay. A depth costs two
+//! replays a level here, so it is sized to the seed and not to a leaf
+//! count: reaching a width that certifies near `ε` from a side of
+//! width `W` takes `log2(W/ε)` halvings, more than
+//! [`crate::drive::DEFAULT_MAX_DEPTH`] for a side wider than `2²⁴ ε`,
+//! and the `f64` grid bounds it whatever the dial says. Ground the search has
 //! not replayed, or has replayed and not yet halved, is priced
 //! [`RefusalReason::Budget`] (E6) under the replays taken so far.
 //!
@@ -110,9 +123,8 @@ use crate::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use crate::distribution::Distribution;
 use crate::doc::{Doc, FreeVar};
 use crate::drive::{
-    BudgetKind, DriveConfig, DriveRefusal, FlipEvidence, LeafVerdict, RefusalReason,
-    VerdictVector, VerdictVectorKey, certifying_vector, classify, does_not_build, drive_memo,
-    witness_build,
+    BudgetKind, DriveConfig, DriveRefusal, FlipEvidence, LeafVerdict, RefusalReason, VerdictVector,
+    VerdictVectorKey, certifying_vector, classify, does_not_build, drive_memo, witness_build,
 };
 use crate::edit::{DocEdit, EditError, apply};
 use crate::eval::Evaluation;
@@ -908,9 +920,9 @@ fn side_answer(cells: &[Cell], steps: usize) -> RangeSide {
     let reason = match &frontier.ground {
         Ground::Different(_) | Ground::Proven => None,
         Ground::Floor(reason) => Some(reason.clone()),
-        Ground::Unreached | Ground::Undecided => {
-            Some(RefusalReason::Budget(BudgetKind::Leaves { max_leaves: steps }))
-        }
+        Ground::Unreached | Ground::Undecided => Some(RefusalReason::Budget(BudgetKind::Leaves {
+            max_leaves: steps,
+        })),
     };
     RangeSide {
         proven_to,
@@ -1079,7 +1091,8 @@ impl RangeSearch {
             let c = &cells[at];
             let better = best.is_none_or(|(s, a)| {
                 let b = &self.sides[s][a];
-                c.near.abs() < b.near.abs() || (c.near.abs() == b.near.abs() && c.width() > b.width())
+                c.near.abs() < b.near.abs()
+                    || (c.near.abs() == b.near.abs() && c.width() > b.width())
             });
             if better {
                 best = Some((side, at));
@@ -1181,7 +1194,11 @@ mod tests {
                 RunStatus::Poisoned,
                 DifferenceKind::StandingChange { node: node(7) },
             ),
-            (RunStatus::Ok, RunStatus::Ok, DifferenceKind::BuildsDifferently),
+            (
+                RunStatus::Ok,
+                RunStatus::Ok,
+                DifferenceKind::BuildsDifferently,
+            ),
             (
                 RunStatus::Failed,
                 RunStatus::Failed,
@@ -1213,8 +1230,16 @@ mod tests {
             cell(0.0, 1.0, Ground::Proven),
             cell(1.0, 1.5, depth_floor()),
             cell(1.5, 2.0, Ground::Undecided),
-            cell(2.0, 4.0, Ground::Different(evidence(RunStatus::Ok, RunStatus::Ok))),
-            cell(4.0, 8.0, Ground::Different(evidence(RunStatus::Ok, RunStatus::Failed))),
+            cell(
+                2.0,
+                4.0,
+                Ground::Different(evidence(RunStatus::Ok, RunStatus::Ok)),
+            ),
+            cell(
+                4.0,
+                8.0,
+                Ground::Different(evidence(RunStatus::Ok, RunStatus::Failed)),
+            ),
         ];
         let side = side_answer(&cells, 9);
         assert_eq!(side.proven_to(), 1.0);
@@ -1242,7 +1267,10 @@ mod tests {
             ];
             let side = side_answer(&cells, 5);
             assert_eq!(side.proven_to(), -1.0);
-            assert!(side.end().is_none(), "neither the seed's end nor a difference");
+            assert!(
+                side.end().is_none(),
+                "neither the seed's end nor a difference"
+            );
             let gap = side.not_decided().expect("the frontier is undecided");
             assert_eq!(gap.past(), -1.0);
             assert_eq!(
@@ -1276,7 +1304,10 @@ mod tests {
     fn an_interval_halves_until_its_depth_or_the_grid() {
         let c = cell(0.0, -1.0, Ground::Undecided);
         let (near, far) = c.halves(1).expect("depth 0 halves under a bound of 1");
-        assert_eq!((near.near, near.far, far.near, far.far), (0.0, -0.5, -0.5, -1.0));
+        assert_eq!(
+            (near.near, near.far, far.near, far.far),
+            (0.0, -0.5, -0.5, -1.0)
+        );
         assert_eq!(near.depth, 1);
         assert_eq!(near.halves(1), Err(BudgetKind::Depth { max_depth: 1 }));
         let tiny = cell(1.0, 1.0 + f64::EPSILON, Ground::Undecided);

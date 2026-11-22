@@ -2343,7 +2343,17 @@ fn a_part_instancing_document_is_admitted_to_the_range_search() {
         ..DriveConfig::default()
     };
     let stop = editor_core::Stop::default();
-    let search = |resolver| RangeSearch::new(&b.doc, &field, seed, &config, resolver, &stop, Tol::witness());
+    let search = |resolver| {
+        RangeSearch::new(
+            &b.doc,
+            &field,
+            seed,
+            &config,
+            resolver,
+            &stop,
+            Tol::witness(),
+        )
+    };
     let Err(RangeRefusal::Drive(refusal)) = search(None).map(|_| ()) else {
         panic!("with no resolver the instance does not build");
     };
