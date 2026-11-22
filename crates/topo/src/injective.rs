@@ -2544,9 +2544,11 @@ fn present_plane<'a>(
             };
             // A straight corner: one run through the vertex, from the
             // edge that ends there to the one that starts there.
+            let opposite = a[0] * bv[0] + a[1] * bv[1];
             let straight = exactly(lean(n1, bv), 0.0)
                 && exactly(lean(n2, a), 0.0)
-                && (a[0] * bv[0] + a[1] * bv[1]).hi() < 0.0
+                && opposite.is_certified()
+                && opposite.hi() < 0.0
                 && (start1 == vtx) != (start2 == vtx);
             if straight {
                 let (p, q) = if start2 == vtx {
@@ -6129,10 +6131,7 @@ fn planes_through(
         let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
         match (run(px, b), run(py, y.boundary)) {
             (Some(((q, d), r)), Some(((_, e), s))) => {
-                return Some((
-                    Psi::Linear { n: d.cross(e), q },
-                    through(&[r, s].concat()),
-                ));
+                return Some((Psi::Linear { n: d.cross(e), q }, through(&[r, s].concat())));
             }
             (Some(((q, d), r)), None) | (None, Some(((q, d), r))) => {
                 let m = lift(bisector(hx, hy, unit(vmid(d))?)?);
@@ -8010,7 +8009,14 @@ mod presentation_rows {
         let x = [1.0, 0.0, 0.0];
         let split = at_vertex_1(vec![
             line_rim(2, [0.0; 3], x, (-4.0, 0.0), [12, 1], true),
-            line_rim(3, [4.0, 0.0, 0.0], [-1.0, 0.0, 0.0], (0.0, 4.0), [13, 1], false),
+            line_rim(
+                3,
+                [4.0, 0.0, 0.0],
+                [-1.0, 0.0, 0.0],
+                (0.0, 4.0),
+                [13, 1],
+                false,
+            ),
         ]);
         for b in [run_through_vertex_1(x, [2, 3]), split] {
             a_run_is_presented(&floor, &b, &local);
@@ -8019,15 +8025,18 @@ mod presentation_rows {
 
     fn a_run_is_presented(floor: &Surface<Interval>, b: &Boundary, local: &Local) {
         let across = about_vertex_1(floor, b, local, (-0.5, 0.5));
-        let zero = |edges: &[usize], vertices: &[VertexKey]| {
-            match present_plane(&across, edges, vertices, band()) {
-                Ok(Presentation::Of(q)) => {
-                    assert_eq!(q.y, (0.0, 0.0625), "clipped to the run's line");
-                    assert_eq!(q.x, (0.4375, 0.5625), "the cell's reach along the run");
-                    q.zero.clone()
-                }
-                _ => panic!("the run is presented"),
+        let zero = |edges: &[usize], vertices: &[VertexKey]| match present_plane(
+            &across,
+            edges,
+            vertices,
+            band(),
+        ) {
+            Ok(Presentation::Of(q)) => {
+                assert_eq!(q.y, (0.0, 0.0625), "clipped to the run's line");
+                assert_eq!(q.x, (0.4375, 0.5625), "the cell's reach along the run");
+                q.zero.clone()
             }
+            _ => panic!("the run is presented"),
         };
         let run = [edge(2), edge(3)];
         assert!(
@@ -8222,16 +8231,14 @@ mod presentation_rows {
         let f = run_through_vertex_1([0.0, 1.0, 0.0], [2, 3]);
         let above = plane_through_origin([0.0, -1.0, 0.0], [1.0, 0.0, 0.0]);
         let g = run_through_vertex_1([1.0, 0.0, 0.0], [4, 5]);
-        let present = |s, b, edges: &[usize]| {
-            match present_plane(
-                &about_vertex_1(s, b, &local, (-0.5, 0.5)),
-                edges,
-                &[vertex(1)],
-                band(),
-            ) {
-                Ok(Presentation::Of(q)) => q,
-                _ => panic!("presented"),
-            }
+        let present = |s, b, edges: &[usize]| match present_plane(
+            &about_vertex_1(s, b, &local, (-0.5, 0.5)),
+            edges,
+            &[vertex(1)],
+            band(),
+        ) {
+            Ok(Presentation::Of(q)) => q,
+            _ => panic!("presented"),
         };
         let (p, q) = (present(&wall, &f, &[]), present(&above, &g, &[]));
         let psi = Psi::Linear {
@@ -8251,7 +8258,11 @@ mod presentation_rows {
             Some(Sign::Positive),
             "under the two runs' plane, against the other run"
         );
-        assert_eq!(sign(None, Some(&q)), None, "no cells listed: the carrier arm");
+        assert_eq!(
+            sign(None, Some(&q)),
+            None,
+            "no cells listed: the carrier arm"
+        );
         assert_eq!(
             sign(Some(&on(true)), None),
             None,

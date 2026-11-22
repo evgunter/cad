@@ -1627,9 +1627,8 @@ fn a_flap_through_a_run_at_its_vertex_never_holds() {
         use topo::test_support::plane;
 
         let mut body = flush_union::<T>().into_body();
-        let at = |x: f64, y: f64, z: f64| {
-            Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
-        };
+        let at =
+            |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
         let v_at = at(1.0, 0.25, 1.0);
         let v = body
             .vertices()
