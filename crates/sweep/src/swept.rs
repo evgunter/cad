@@ -179,6 +179,16 @@ impl<T: Real> Placing<T> {
         self.carry_frame(self.motion.spun_toward(d))
     }
 
+    /// **The station's frame turned onto a unit sketch direction** the
+    /// sweep holds as one ([`Unit2`]): [`Self::frame_toward`] with
+    /// nothing normalized ([`RigidMotion::spun_onto`]), so its `u` is
+    /// [`Self::direction`] of that direction, node for node. An arc's
+    /// carrier and wall are turned onto its recorded start radial so.
+    pub(crate) fn frame_onto(self, d: Unit2<T>) -> RigidMotion<T> {
+        let Unit2(d) = d;
+        self.carry_frame(self.motion.spun_onto(d))
+    }
+
     /// A frame of the placed copy carried by the turn, or as it is when
     /// there is none.
     pub(crate) fn carry_frame(self, frame: RigidMotion<T>) -> RigidMotion<T> {
@@ -687,19 +697,17 @@ pub(crate) fn sketch_direction<T: Real, S: SweptChord<T>>(seg: &S) -> Unit2<T> {
     }
 }
 
-/// **The sketch vector a frame is turned onto**
+/// **The sketch vector a line's frame is turned onto**
 /// ([`Placing::frame_toward`], which normalizes it once): a line's chord
-/// `b − a`, an arc's recorded start radial, a unit already. Its right
-/// normal `(y, 0 − x)` is spelled as [`Unit2::right`] spells it, so a
-/// frame turned onto it holds that normal placed bit for bit
-/// ([`sketch_right_vector`]).
+/// `b − a`; for an arc, its start vertex's offset `a − centre`, which
+/// no door reads (an arc's frame is turned onto its recorded radial,
+/// [`Placing::frame_onto`]). Its right normal `(y, 0 − x)` is spelled
+/// as [`Unit2::right`] spells it, so a frame turned onto it holds that
+/// normal placed bit for bit ([`sketch_right_vector`]).
 pub(crate) fn sketch_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
     match seg.kind().get() {
         SegmentKind::Line { .. } => seg.b() - seg.a(),
-        SegmentKind::Arc {
-            radials: [start, _],
-            ..
-        } => start,
+        SegmentKind::Arc { arc, .. } => seg.a() - arc.centre,
     }
 }
 
@@ -782,8 +790,8 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
 /// where its start lies on the turn's axis, the radial along that axis),
 /// which then takes the values the fixed copy has.
 ///
-/// An arc's carrier is `place`'s frame turned onto the arc's start
-/// radial ([`Placing::frame_toward`]) and run back where the turn
+/// An arc's carrier is `place`'s frame turned onto the arc's recorded
+/// start radial ([`Placing::frame_onto`]) and run back where the turn
 /// negates the axis: rigid by construction, nothing re-squared. Where
 /// `radial` is given the copy is the fixed one turned a half turn about
 /// an axis through its centre and its start radial, which turns its
@@ -823,7 +831,7 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
             let c_world = centre(arc.centre);
             let carrier = match radial {
                 None => {
-                    let turned = place.frame_toward(sketch_vector(seg));
+                    let turned = place.frame_onto(sketch_direction(seg));
                     let signed = if turn_negates(turn) {
                         turned.reversed_as_difference()
                     } else {
@@ -835,7 +843,7 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
                     ))
                 }
                 Some(radial) => {
-                    let turned = radial.frame_toward(sketch_vector(seg));
+                    let turned = radial.frame_onto(sketch_direction(seg));
                     let fixed = if turn_negates(turn) {
                         turned.reversed_as_difference()
                     } else {
@@ -1675,8 +1683,9 @@ mod tests {
                 canonical_vertex: 0,
                 canonical_segment: 0,
             };
-            let to3 = |p: Point2<S>| place.transform_point(Point3::new(p.x, p.y, lit(0.0)));
-            let (q_from, q_to) = (to3(seg.a), to3(seg.b));
+            // The placed vertices as the doors place them.
+            let placing = Placing::from(place);
+            let (q_from, q_to) = (placing.point(seg.a), placing.point(seg.b));
             let spec = placed_segment_spec(&seg, place, q_from, tol);
             let Curve3::Circle(
                 circle @ geom::Circle {

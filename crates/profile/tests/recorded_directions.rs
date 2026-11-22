@@ -1605,53 +1605,125 @@ const ARC_VERBS: [(&str, f64, f64); 10] = [
     ("fillet", 0.25, 0.02),
 ];
 
-/// PROBE: what each verb's stored arc reads over a box.
+/// **Each arc verb's stored arc is exact over a box on the quantity
+/// that fixes its radius.** For the circle, the split circle, a bulge
+/// leg of either sign, a via arc on either side of its chord, a tangent
+/// arc to either side, the onto arc and a line×line fillet, at
+/// `Sym<Interval>` over a box about a tenth of the quantity wide, with
+/// the registered-identity door shut (open for the fillet, whose own
+/// door reads the tangency it registers):
+///
+/// - the stored radius is positive over the whole box;
+/// - each vertex reads on its carrier ([`Arc2::off_carrier`] decides
+///   Zero), though the read's enclosure is far wider than the band;
+/// - where the verb records its radials, the centre plus the radius
+///   along each is its vertex, in both components;
+/// - the rim less the radius, `√(…) − radius`, does not decide: the
+///   reading this row's readers no longer take;
+/// - and each member of the box, built at `f64`, stores a centre, a
+///   radius, a sweep and radials inside the boxed build's enclosures.
+///
+/// Red on a verb that stores its radius as a magnitude: with
+/// `radius.abs()` in `circle_loop`, `rho.abs()` in `tangent_arc` or
+/// `.abs()` on `Arc2::from_chord_radials`' radius, that verb's
+/// along-the-radial readings come back undecided.
 #[test]
-#[ignore = "probe"]
-fn probe_each_arc_verbs_radius_along_its_radial() {
+fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
+    use geom_core::Sign;
     let band = geom_core::Band::linear(tol()).unwrap();
+    let budget = SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    };
+    let inside = |x: f64, e: Lane| e.lo() <= x && x <= e.hi();
     for (verb, c, h) in ARC_VERBS {
-        let rows = std::panic::catch_unwind(|| {
-            in_session(|| {
-                let lp = arc_verb_loop::<Lane>(verb, param("q", c, h));
-                let n = lp.vertices().len();
-                let mut rows = Vec::new();
-                for k in 0..n {
-                    let Segment::Arc(arc) = lp.segments()[k] else {
-                        continue;
-                    };
-                    let (a, b) = (lp.vertices()[k], lp.vertices()[(k + 1) % n]);
-                    let sign = |m: Lane| {
-                        let w = m.hi() - m.lo();
-                        (m.sign_within(band).map(|d| d.sign).ok(), w)
-                    };
-                    let radius = (arc.radius.lo(), arc.radius.hi());
-                    let gaps = [sign(arc.off_carrier(a)), sign(arc.off_carrier(b))];
-                    let rims = [sign(arc.rim(a) - arc.radius), sign(arc.rim(b) - arc.radius)];
-                    let along = lp.directions()[k].map(|d| {
-                        let (s, e) = radials(d);
-                        let (ma, mb) = (arc.on_radial(s) - a, arc.on_radial(e) - b);
-                        [sign(ma.x), sign(ma.y), sign(mb.x), sign(mb.y)]
-                    });
-                    rows.push(format!(
-                        "   seg {k}: radius {radius:?}\n      gap {gaps:?}\n      rim-radius {rims:?}\n      along {along:?}"
-                    ));
+        // The fillet's own door reads its joints through the tangency it
+        // registers at its incoming foot, so it runs with the door open.
+        let rules = if verb == "fillet" {
+            SymRules::shipped()
+        } else {
+            SymRules::shipped_without_the_door()
+        };
+        with_session_rules(budget, rules, || {
+            let lp = arc_verb_loop::<Lane>(verb, param("q", c, h));
+            let members: Vec<ProfileLoop<f64>> = [c - h, c, c + h]
+                .into_iter()
+                .map(|q| arc_verb_loop::<f64>(verb, q))
+                .collect();
+            let n = lp.vertices().len();
+            let zero = |m: Lane| m.sign_within(band).map(|d| d.sign).ok() == Some(Sign::Zero);
+            let mut arcs = 0;
+            for k in 0..n {
+                let Segment::Arc(arc) = lp.segments()[k] else {
+                    continue;
+                };
+                arcs += 1;
+                let ends = [lp.vertices()[k], lp.vertices()[(k + 1) % n]];
+                assert!(arc.radius.lo() > 0.0, "{verb} segment {k}: a positive radius");
+                for (v, end) in ends.into_iter().zip(["start", "end"]) {
+                    assert!(
+                        zero(arc.off_carrier(v)),
+                        "{verb} segment {k}: the {end} vertex on its carrier"
+                    );
                 }
-                let v = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol());
-                rows.push(format!(
-                    "   validate: {}",
-                    match v {
-                        Ok(_) => "ok".to_owned(),
-                        Err(e) => format!("{e:?}").chars().take(330).collect::<String>(),
+                let recorded = lp.directions()[k].map(radials);
+                if let Some((start, end)) = recorded {
+                    let mut widest = 0.0_f64;
+                    for (v, d, at) in [(ends[0], start, "start"), (ends[1], end, "end")] {
+                        let miss = arc.on_radial(d) - v;
+                        for (m, axis) in [(miss.x, "x"), (miss.y, "y")] {
+                            widest = widest.max(m.hi() - m.lo());
+                            assert!(
+                                zero(m),
+                                "{verb} segment {k}: the radius along the {at} radial is \
+                                 its vertex, {axis}"
+                            );
+                        }
                     }
-                ));
-                rows
-            })
+                    if verb != "onto" || k == 1 {
+                        assert!(
+                            widest > 1e3 * band.escalate(),
+                            "{verb} segment {k}: no enclosure decided it ({widest:e})"
+                        );
+                        assert!(
+                            !zero(arc.rim(ends[0]) - arc.radius),
+                            "{verb} segment {k}: the rim less the radius does not decide"
+                        );
+                    }
+                } else {
+                    assert_eq!(verb, "fillet", "{verb} segment {k} records its radials");
+                }
+                for (q, member) in members.iter().enumerate() {
+                    let Segment::Arc(m) = member.segments()[k] else {
+                        panic!("{verb} member {q} segment {k} is an arc");
+                    };
+                    let mut pairs = vec![
+                        (m.centre.x, arc.centre.x, "centre.x"),
+                        (m.centre.y, arc.centre.y, "centre.y"),
+                        (m.radius, arc.radius, "radius"),
+                        (m.sweep, arc.sweep, "sweep"),
+                    ];
+                    if let (Some((s, e)), Some((bs, be))) =
+                        (member.directions()[k].map(radials), recorded)
+                    {
+                        pairs.extend([
+                            (s.x, bs.x, "start radial x"),
+                            (s.y, bs.y, "start radial y"),
+                            (e.x, be.x, "end radial x"),
+                            (e.y, be.y, "end radial y"),
+                        ]);
+                    }
+                    for (x, e, what) in pairs {
+                        assert!(
+                            inside(x, e),
+                            "{verb} member {q} segment {k} {what}: {x:e} outside [{:e}, {:e}]",
+                            e.lo(),
+                            e.hi()
+                        );
+                    }
+                }
+            }
+            assert!(arcs > 0, "{verb} stores an arc");
         });
-        println!("== {verb} over {c} ± {h}");
-        match rows {
-            Ok(rows) => rows.iter().for_each(|r| println!("{r}")),
-            Err(_) => println!("   THE DOOR REFUSED OR PANICKED OVER THE BOX"),
-        }
     }
 }

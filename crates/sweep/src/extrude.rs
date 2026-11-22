@@ -1469,7 +1469,7 @@ fn side_surface<T: Real>(
             // The sketch frame turned onto the arc's start radial, its
             // normal the turn-signed plane normal ([`swept::turn_negates`]'s sign,
             // the frame run back): rigid by construction.
-            let turned = place.frame_toward(swept::sketch_vector(&segs[j]));
+            let turned = place.frame_onto(sketch_direction(&segs[j]));
             let turned = if swept::turn_negates(turn) {
                 turned.reversed_as_difference()
             } else {

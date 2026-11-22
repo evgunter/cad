@@ -938,6 +938,3 @@ mod union_member_orders_decide_alike;
 mod value_chart_sweeps;
 #[path = "vessel_cavity_interval.rs"]
 mod vessel_cavity_interval;
-
-#[path = "signed_radius_probe.rs"]
-mod signed_radius_probe;

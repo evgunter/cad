@@ -1320,7 +1320,18 @@ impl<T: Real> RigidMotion<T> {
     /// to `(c, s, 0)`, so `u` is a placed sketch direction bit for bit.
     #[must_use]
     pub fn spun_toward(self, d: Vec2<T>) -> Self {
-        let c = d.normalize();
+        self.spun_onto(d.normalize())
+    }
+
+    /// **This frame turned about its own `w` onto `c`**, a unit direction
+    /// of its own `uv` plane its caller holds as a unit: `u` becomes
+    /// this frame turning `(c, 0)` and `v` this frame turning `c`'s left
+    /// normal, `w` and the origin kept, with no arithmetic on `c`.
+    /// [`RigidMotion::spun_toward`] is this at a vector normalized once;
+    /// a direction a construction recorded is turned onto as it stands,
+    /// so a frame's `u` is that direction placed, node for node.
+    #[must_use]
+    pub fn spun_onto(self, c: Vec2<T>) -> Self {
         let along = Vec3::new(c.x, c.y, T::zero());
         let left = Vec3::new(T::zero() - c.y, c.x, T::zero());
         Self {
