@@ -1791,7 +1791,7 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
     /// `Δ` decided on one side at both ends and turning between them (a
     /// maximum below zero, or a minimum above it), its slope decided at
     /// both ends; the core where the slope is in band found by bisection
-    /// and widened by its own width either way; `Δ` monotone from each
+    /// and widened by half its width either way; `Δ` monotone from each
     /// end to the core, every piece's slope decided; and the ceiling over
     /// the core decided on [`TANGENCY`]. `Zero` is the tangency; past it,
     /// or a cell of another shape, is none, and the cell is split; in
@@ -1852,7 +1852,7 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
                 }
             }
         }
-        let width = r - l;
+        let width = 0.5 * (r - l);
         let (a, b) = ((l - width).max(cell.lo), (r + width).min(cell.hi));
         if disc(geom::mid_param(a, b)).is_some() {
             return Ok(None);

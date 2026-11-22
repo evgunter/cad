@@ -766,20 +766,24 @@ fn the_coaxial_and_parallel_poses_fall_out_of_the_sweep() {
 
 /// **A node whose rulings stand close reads each arc end on its own
 /// line**: a wall through the apex whose tangent plane holds the rulings
-/// at azimuths `π/2 ± 0.05`. The sheet leaves the node along its four
+/// at azimuths `π/2 ± 0.15`. The sheet leaves the node along its four
 /// rays, each claimed by one arc end (C5). A line chosen off the pass's
 /// coarse angle, which falls to the first line in band: red.
 #[test]
 fn a_node_whose_rulings_stand_close_claims_each_ray_once() {
     let ruling = |phi: f64| Vec3::new(phi.cos(), phi.sin(), 1.0).normalize();
-    let delta = 0.05;
+    let delta = 0.15;
     let (r0, r1) = (
         ruling(core::f64::consts::FRAC_PI_2 - delta),
         ruling(core::f64::consts::FRAC_PI_2 + delta),
     );
     let normal = r0.cross(r1).normalize();
     let wall = cylinder(Point3::origin() + normal * 0.5, (r0 + r1).normalize(), 0.5);
-    let section = built(&unit_cone(), &wall, region());
+    // A region the arcs leave near the apex: past it, the sheet runs
+    // nearly along the rulings, and a cut end there is in band at a fine
+    // tolerance.
+    let near = ExtentBall::fixture(Point3::origin(), 1.0);
+    let section = built(&unit_cone(), &wall, near);
     assert_eq!(section.nodes().len(), 1, "one node at the apex");
     let mut rays = Vec::new();
     for c in section.counted().unwrap() {
