@@ -226,7 +226,7 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
             continue;
         }
         let pad = "  ".repeat(depth);
-        let Some(node) = sess.nodes.get(&id).copied() else {
+        let Some(node) = sess.node_of(id) else {
             let _ = writeln!(out, "{pad}[unrecorded #{:08x}]", id.bits() as u32);
             continue;
         };

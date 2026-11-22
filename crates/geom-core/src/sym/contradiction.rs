@@ -115,7 +115,7 @@ pub fn check(decisions: &[Decision]) -> Option<Report> {
             let Some(sign @ (Sign::Positive | Sign::Negative)) = d.sign else {
                 continue;
             };
-            if !sess.nodes.contains_key(&d.node) {
+            if sess.node_of(d.node).is_none() {
                 report.absent += 1;
                 continue;
             }
