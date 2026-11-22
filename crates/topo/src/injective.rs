@@ -4324,6 +4324,9 @@ fn line_onward(
     if interval_sign_as(advance, SELF_INTERSECTION_COLUMN, band) != Some(wanted) {
         return Err(Unpresented::Structural);
     }
+    // An edge that ends inside the columns ends at a vertex in `R`, which
+    // [`alone`] refuses: this states the run's premise, and is not
+    // load-bearing beside it.
     let end = column.of((l.far[0], l.far[1]));
     let passes = if onward {
         end.lo() >= a1
@@ -6115,7 +6118,9 @@ fn sign_on(
                 return None;
             }
             // A side that runs on along the next edge is zero only under
-            // the graph built along that edge too.
+            // the graph built along that edge too. A plane holding the
+            // curve's whole conic holds the conic continued, which the
+            // next edge is not on; the carrier arm reads no past curve.
             let run = c.run.map(|r| r.edge);
             let zero = match (on, psi) {
                 (Some(on), Psi::Graph { piece, .. }) => {
@@ -6807,7 +6812,10 @@ fn graph_run(
     } else {
         return None;
     };
-    // `s` grows toward the vertex where it is the graph's edge's end.
+    // `s` grows toward the vertex where it is the graph's edge's end, and
+    // the other edge must carry it on: `γ` is one function of `s`. The
+    // chart reading has the run a graph over a chart axis, not over `t`,
+    // so this is the separator's own premise, as its edge's advance is.
     let onward = if run.start { -1.0 } else { 1.0 };
     let advance = t.dot(d);
     if interval_sign_as(
