@@ -8146,7 +8146,14 @@ mod tests {
             CertifyError::IntersectionSameSurface { key: keys[0] }
         );
         let mut spline = on(p0, p1);
-        spline.carrier = Curve3::nurbs_placeholder();
+        spline.carrier = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
+                vec![p0, p1],
+                vec![1.0, 1.0],
+            )
+            .expect("a degree-1 segment validates"),
+        ));
         assert_eq!(
             EdgeCurve::certify(
                 spline,
@@ -8168,7 +8175,7 @@ mod tests {
         let p0 = Point3::origin();
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let mut spec = line_spec(p0, p1);
-        spec.carrier = Curve3::nurbs_placeholder();
+        spec.carrier = geom::test_support::poisoned_nurbs_segment();
         assert_eq!(
             EdgeCurve::certify(
                 spec.clone(),

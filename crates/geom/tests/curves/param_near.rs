@@ -399,7 +399,14 @@ fn the_ellipse_arm_recovers_the_eccentric_anomaly() {
 /// `None` — the typed refusal each consumer turns into its own error.
 #[test]
 fn the_nurbs_arm_refuses() {
-    let nurbs = Curve3::<f64>::nurbs_placeholder();
+    let nurbs: Curve3<f64> = Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
+            vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+            vec![1.0, 1.0],
+        )
+        .expect("a degree-1 segment validates"),
+    ));
     assert!(nurbs.param_near(Point3::new(0.0, 0.0, 0.0), 0.0).is_none());
 }
 

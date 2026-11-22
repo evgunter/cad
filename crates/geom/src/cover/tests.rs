@@ -975,12 +975,13 @@ fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
         Some(unbounded.clone()),
         "Err ∨ Ok is the Err"
     );
-    let spline = Curve3::<f64>::nurbs_placeholder().cover_over(ParamWindow::new(0.0, 1.0));
+    let spline =
+        crate::test_support::poisoned_nurbs_segment::<f64>().cover_over(ParamWindow::new(0.0, 1.0));
     let poisoned = Uncovered::new(Entity::Curve(crate::CurveKind::Nurbs), Unknown::PoisonedNet);
     assert_eq!(
         spline.as_ref().err(),
         Some(&poisoned),
-        "a placeholder spline's net bounds nothing"
+        "a poisoned spline's net bounds nothing"
     );
     let both = refused.meet(spline).expect_err("Err ∧ Err is Err");
     assert_eq!(

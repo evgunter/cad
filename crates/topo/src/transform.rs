@@ -44,12 +44,12 @@
 //!   [`MappedCurve`] pre-composes the isometry into its rigid
 //!   placement (`place ↦ map ∘ place`) and maps its world-space
 //!   vectors/axis data — sketch-space payloads are untouched;
-//! - a DESCRIBED `Nurbs` surface or carrier maps by its CONTROL
-//!   POINTS, with knots and weights carried over verbatim: a rigid map
+//! - a `Nurbs` carrier, and a DESCRIBED `Nurbs` surface, maps by its
+//!   CONTROL POINTS, with knots and weights carried over verbatim: a rigid map
 //!   is affine, and the Euclidean-storage section of `geom`'s
 //!   `curves::nurbs` data model is where the commutation that makes
 //!   the mapped net the exact IMAGE — never a re-fit — is argued;
-//! - the `Nurbs` PLACEHOLDER — and only it — is refused typed (its
+//! - the `Nurbs` surface PLACEHOLDER — and only it — is refused typed (its
 //!   evaluation is all-poison; transforming one would launder poison
 //!   as geometry);
 //! - approximating surfaces: the offset description's base net and the
@@ -91,10 +91,10 @@ pub enum TransformError {
         /// The offending edge.
         edge: EdgeKey,
     },
-    /// A `Nurbs` placeholder surface or carrier — the "no description
-    /// yet" net, whose control points are all-poison, so transforming
-    /// it would launder poison as geometry. A DESCRIBED net is not
-    /// this arm: it maps, by its control points.
+    /// A `Nurbs` placeholder surface — the "no description yet" net,
+    /// whose control points are all-poison, so transforming it would
+    /// launder poison as geometry. A DESCRIBED net is not this arm: it
+    /// maps, by its control points.
     NurbsPlaceholder,
     /// The body is corrupt (the validators would refuse it too): a
     /// reference that does not resolve, an arena entry nothing
@@ -141,7 +141,7 @@ impl TransformError {
             },
             Self::NurbsPlaceholder => write!(
                 f,
-                "a spline (NURBS) surface or carrier cannot be transformed yet. {}",
+                "a spline (NURBS) surface cannot be transformed yet. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::Corrupt { found } => {
@@ -460,16 +460,9 @@ pub(crate) fn map_carrier<T: Real>(
                 offset,
             }
         }
-        // The surface arm's argument, one dimension down: a described
-        // net maps by its control points (weights and knots verbatim)
-        // and the placeholder alone is refused.
-        Curve3::Nurbs(ref n) => {
-            if n.is_placeholder() {
-                return Err(TransformError::NurbsPlaceholder);
-            }
-            Curve3::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
-        }
-        // The same map of a periodic cubic's cyclic net.
+        // A net maps by its control points, weights and knots verbatim,
+        // as a periodic cubic's cyclic net does.
+        Curve3::Nurbs(ref n) => Curve3::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p)))),
         Curve3::Periodic(ref n) => {
             Curve3::Periodic(Arc::new(n.map_points(|p| map.transform_point(p))))
         }
@@ -926,17 +919,6 @@ mod tests {
     fn the_surface_placeholder_is_what_refuses() {
         assert!(matches!(
             map_surface(&aside(), Hand::Proper, None, &Surface::nurbs_placeholder()),
-            Err(TransformError::NurbsPlaceholder)
-        ));
-    }
-
-    #[test]
-    fn the_carrier_placeholder_is_what_refuses() {
-        assert!(matches!(
-            map_carrier(
-                &Isometry::Proper(aside_motion()),
-                &Curve3::nurbs_placeholder()
-            ),
             Err(TransformError::NurbsPlaceholder)
         ));
     }

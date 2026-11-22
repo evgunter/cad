@@ -5,8 +5,7 @@
 //! enum makes every dispatch site exhaustively checked at compile time.
 //! The [`Curve3::Nurbs`] variant is the universal fallback — it carries
 //! a validated [`NurbsCurve3`] payload (see [`nurbs`]) and its evaluator
-//! arms are real; the "no description yet" state is
-//! [`Curve3::nurbs_placeholder`].
+//! arms are real.
 //!
 //! # Curve conventions (normative; the curve half)
 //!
@@ -189,10 +188,7 @@ pub enum Curve3<T: Real> {
     /// The NURBS fallback (D3: representable from day one; evaluators
     /// implemented at M5 PR 3). The payload is a validated
     /// [`NurbsCurve3`] behind an [`Arc`] (immutable, cheap to clone —
-    /// see the enum docs on the `Copy` loss). The "no description yet"
-    /// state that the former unit variant carried is now
-    /// [`Curve3::nurbs_placeholder`] — a poison-valued payload with the
-    /// same all-poison evaluation behavior.
+    /// see the enum docs on the `Copy` loss).
     Nurbs(Arc<NurbsCurve3<T>>),
 
     /// **The periodic cubic**: a closed C² cubic spline with no start
@@ -222,7 +218,7 @@ pub enum CurveKind {
     Ellipse,
     /// A [`Curve3::Spiric`].
     Spiric,
-    /// A [`Curve3::Nurbs`], described or the placeholder.
+    /// A [`Curve3::Nurbs`].
     Nurbs,
     /// A [`Curve3::Periodic`].
     Periodic,
@@ -1251,15 +1247,6 @@ impl<T: Real> Curve3<T> {
             }
         }
     }
-
-    /// The "no description yet" NURBS state (the former unit
-    /// placeholder variant, as data): a structurally valid payload
-    /// whose control points are all-poison, so evaluation yields the
-    /// all-poison point and every downstream certification fails
-    /// loudly (D4 ¶2) — representable ≠ described.
-    pub fn nurbs_placeholder() -> Self {
-        Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder()))
-    }
 }
 
 /// **A point's direction in a spiric's tube section**: `(h, ρ − R)` in
@@ -1824,7 +1811,7 @@ impl<T: SpanLocate> Curve3<T> {
     ///   `center + u_ref·offset + m·f + axis·(r·s)` — exactly as
     ///   parenthesized, one `sin_cos`, one `sqrt`, no branch.
     /// - Nurbs: the payload's [`NurbsCurve3::eval`] (span selection via
-    ///   the sealed seam; all-poison for the placeholder state).
+    ///   the sealed seam).
     pub fn eval(&self, t: T) -> Point3<T> {
         match self {
             Curve3::Line(line) => line.at(t),
@@ -1864,7 +1851,7 @@ impl<T: SpanLocate> Curve3<T> {
     ///   anomaly, not arc length).
     /// - Spiric: `m·f′ + axis·(r·c)` with `f′ = −r·ρ·s/f` — fixed
     ///   order; `|dP/dv| ≥ r` (the variant docs).
-    /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
+    /// - Nurbs: the payload’s derivative.
     ///
     /// The order-1 jet is [`Self::ders1`]: a caller wanting the point
     /// and this at one `t` asks once. There is no order-2 jet on the
@@ -1971,7 +1958,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// - Spiric: `m·f″ − axis·(r·s)` with
     ///   `f″ = −r·((ρ·c − r·s²)/f + r·ρ²·s²/f³)` — fixed order as
     ///   written.
-    /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
+    /// - Nurbs: the payload’s derivative.
     pub fn deriv2(&self, t: T) -> Vec3<T> {
         match self {
             Curve3::Line(_) => Vec3::zero(),
@@ -2058,7 +2045,7 @@ mod tests {
                 origin: frame.origin(),
                 dir: frame.axis(),
             }),
-            Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder())),
+            quarter_circle_nurbs(),
         ];
         for c in &open {
             assert!(c.period().is_none(), "{c:?} does not repeat");
@@ -3293,8 +3280,8 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[test]
-    fn nurbs_placeholder_evaluates_to_poison() {
-        let n: Curve3<f64> = Curve3::nurbs_placeholder();
+    fn a_poisoned_nurbs_net_evaluates_to_poison() {
+        let n: Curve3<f64> = crate::test_support::poisoned_nurbs_segment();
         let p = n.eval(0.5);
         assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan());
         let d = n.deriv(0.5);
@@ -3321,8 +3308,7 @@ mod tests {
         Curve3::Nurbs(Arc::new(NurbsCurve3::new(knots, control, weights).unwrap()))
     }
 
-    /// A described NURBS lifts as its PAYLOAD, never as the placeholder:
-    /// the lifted curve's value channel is the source's evaluation bit
+    /// A described NURBS lifts as its PAYLOAD: the lifted curve's value channel is the source's evaluation bit
     /// for bit, and its tangent channel is the source's closed-form
     /// derivative to rounding.
     #[test]
@@ -3351,10 +3337,6 @@ mod tests {
                 );
             }
         }
-        assert!(
-            matches!(&cd, Curve3::Nurbs(n) if !n.is_placeholder()),
-            "a described NURBS lifted to the placeholder"
-        );
     }
 
     /// A described NURBS with the structure the quarter circle lacks:
@@ -3401,7 +3383,7 @@ mod tests {
     /// every weight — and the lifted curve evaluates to the source at
     /// every knot value, span boundary and span midpoint. A lift that
     /// perturbs an interior knot or a weight is red here and nowhere in
-    /// the placeholder-vs-payload rows above.
+    /// the payload rows above.
     #[test]
     fn knotted_nurbs_lift_carries_structure_verbatim_at_dual() {
         let c = knotted_curve();
@@ -3697,13 +3679,13 @@ mod tests {
         }
 
         /// NaI in → NaI out (surfaced as NaN brackets through Bounds),
-        /// and the Nurbs placeholder poisons at interval type too.
+        /// and an all-poison Nurbs net poisons at interval type too.
         #[test]
         fn poison_propagates_at_interval() {
             let ci = super::xy_circle(2.0).map_scalar(Interval::from_f64);
             let p = ci.eval(Interval::from_f64(f64::NAN));
             assert!(p.x.lo().is_nan() && p.y.lo().is_nan() && p.z.lo().is_nan());
-            let n: Curve3<Interval> = Curve3::nurbs_placeholder();
+            let n: Curve3<Interval> = crate::test_support::poisoned_nurbs_segment();
             // All-poison, not first-channel-poison.
             let q = n.eval(Interval::zero());
             assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
@@ -3733,10 +3715,6 @@ mod tests {
                     );
                 }
             }
-            assert!(
-                matches!(&ci, Curve3::Nurbs(n) if !n.is_placeholder()),
-                "a described NURBS lifted to the placeholder"
-            );
         }
 
         /// The interval half of the structure row: knots and weights

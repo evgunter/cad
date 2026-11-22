@@ -136,7 +136,7 @@
 //! went through `f` ([`NurbsCurve3::map_scalar`]); a [`Surface::Nurbs`]
 //! and a [`Surface::Approx`] likewise ([`NurbsSurface::map_scalar`],
 //! [`ApproxSurface::map_scalar`]). No variant is mapped to the
-//! placeholder: a described curve that came back "no description yet"
+//! placeholder: a described surface that came back "no description yet"
 //! after a lift would be a silent substitution, and the whole reason a
 //! lift exists is to evaluate the *same* geometry at another scalar.
 //!
@@ -172,9 +172,8 @@ impl<T: Real> Curve3<T> {
     /// **The same curve at another scalar** (module docs): a frame or a
     /// direction re-minted there ([`crate::Frame::map_scalar`],
     /// [`UnitVec3::map_scalar`]), every other analytic field through `f`, the
-    /// NURBS payload through [`NurbsCurve3::map_scalar`]. Poison travels;
-    /// the placeholder lifts to the placeholder and a described curve to
-    /// a described curve. A conic's sizes are rebuilt through its
+    /// NURBS payload through [`NurbsCurve3::map_scalar`]. Poison travels.
+    /// A conic's sizes are rebuilt through its
     /// constructor ([`crate::Ellipse::new`]), so a lift that makes one
     /// non-finite or definitely negative panics there.
     #[must_use]

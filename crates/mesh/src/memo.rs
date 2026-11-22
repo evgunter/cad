@@ -1412,7 +1412,7 @@ mod tests {
                     offset: 0.05,
                 },
             ),
-            ("nurbs", Curve3::nurbs_placeholder()),
+            ("nurbs", geom::test_support::poisoned_nurbs_segment()),
         ];
         let tags: Vec<(&str, u8)> = kinds
             .iter()

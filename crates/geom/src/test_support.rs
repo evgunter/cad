@@ -14,7 +14,10 @@ pub mod held_arc;
 
 use crate::datum::ANALYTIC_DATA_MAX;
 use crate::{Curve3, CurveKind, Surface, SurfaceKind};
+use core::num::NonZeroUsize;
+use geom_core::spline::{KnotVector, Knots, SpanLocate};
 use geom_core::{Point3, Vec3};
+use std::sync::Arc;
 
 /// One analytic kind: a builder over a flat scalar list, and how many
 /// of the list's leading scalars it reads.
@@ -135,6 +138,22 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
             })
         })
         .collect()
+}
+
+/// **A NURBS carrier poisoned in every channel**: a degree-1 segment on
+/// `[0, 1]` with unit weights whose two control points are the scalar's
+/// poison. It validates, so every evaluator answers it, and every
+/// answer is poison.
+#[must_use]
+#[allow(clippy::expect_used)]
+pub fn poisoned_nurbs_segment<T: SpanLocate>() -> Curve3<T> {
+    let nan = T::from_f64(f64::NAN);
+    let p = Point3::new(nan, nan, nan);
+    let knots = Knots::from(KnotVector::unit_segment(NonZeroUsize::MIN)).lift(T::from_f64);
+    Curve3::Nurbs(Arc::new(
+        crate::NurbsCurve3::new(knots, vec![p, p], vec![T::one(), T::one()])
+            .expect("a degree-1 segment with unit weights validates"),
+    ))
 }
 
 /// **The frames a frame pin charts one surface on**, as `(t, flip)`

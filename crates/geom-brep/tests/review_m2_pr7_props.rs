@@ -684,7 +684,20 @@ fn out_of_inventory_boundaries_refuse_typed() {
         "zero-extent face must refuse"
     );
     // (g) Nurbs carrier.
-    let e = LoopEdge::hand_built(Curve3::nurbs_placeholder(), 0.0, 1.0, true, 0, 1);
+    let segment = geom::NurbsCurve3::new(
+        geom_core::spline::KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
+        vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+        vec![1.0, 1.0],
+    )
+    .expect("a degree-1 segment validates");
+    let e = LoopEdge::hand_built(
+        Curve3::Nurbs(std::sync::Arc::new(segment)),
+        0.0,
+        1.0,
+        true,
+        0,
+        1,
+    );
     assert!(matches!(
         curved_face(&s, &[e], true, b),
         Err(PropsError::Unimplemented)
