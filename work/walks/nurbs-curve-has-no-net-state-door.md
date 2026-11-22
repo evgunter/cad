@@ -6,7 +6,7 @@ status: review
 opened: 2026-10-10
 priority: P3
 cost: M
-pr: 0
+pr: 7433
 branch: walks/curve-placeholder
 refs: [described-net-two-state-reads-hand-a-poisoned-net-the-described-arm, transform-rigid-maps-a-poisoned-net-into-the-placeholder]
 ---

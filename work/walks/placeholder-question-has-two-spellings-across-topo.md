@@ -6,7 +6,7 @@ status: review
 opened: 2026-09-14
 priority: P1
 cost: E
-pr: 0
+pr: 7433
 branch: walks/curve-placeholder
 ---
 
