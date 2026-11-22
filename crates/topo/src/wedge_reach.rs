@@ -82,7 +82,7 @@ pub(crate) fn reach_over<T: geom_core::spline::SpanLocate>(
     (t0, t1): (T, T),
     faces: impl IntoIterator<Item = Point3<T>>,
 ) -> geom_core::Lever<T> {
-    geom_brep::points_lever_from(
+    reach_from_vertex(
         carrier.mid_point(t0, t1),
         [carrier.eval(t0), carrier.eval(t1)]
             .into_iter()
@@ -90,17 +90,23 @@ pub(crate) fn reach_over<T: geom_core::spline::SpanLocate>(
     )
 }
 
-/// **The reach of two faces that share a vertex and no edge on it**: the
-/// farthest of `faces`, both faces' boundary vertices, from `vertex`.
-/// [`reach_over`]'s reading pivoted at the vertex, as there is no edge
+/// **The reach of two faces from a vertex**: the farthest of `faces`,
+/// both faces' boundary vertices, from `vertex`. [`reach_over`] reads an
+/// edge's from its middle through this; two faces that share a vertex
+/// and no edge on it are read from that vertex, there being no edge
 /// whose middle to read from: each face ε off over its run from the
 /// vertex turns by ε over that run there, so how the two leave the
 /// vertex is levered at the farther face's run.
 ///
-/// It reads vertices alone, as [`reach_over`] does, so a face bounded by
-/// a closed edge on that one vertex (a disc's rim) adds nothing, and two
-/// such faces read a zero arm. A margin levered at a zero or undecided
-/// arm is not definite, so the reader refuses; no default stands in.
+/// It reads vertices alone, so a face bounded by a closed edge on that
+/// one vertex (a disc's rim) adds nothing, and two such faces read a
+/// zero arm. A margin levered at a zero or undecided arm is not
+/// definite, so the reader refuses; no default stands in.
+///
+/// It hands its caller's points to the points' door, as
+/// [`WedgeReach::reach`] always has: the reach is not yet read off the
+/// faces' covers
+/// (`work/oneround/lever-doors-pinned-sites-await-a-geometry-read.md`).
 pub(crate) fn reach_from_vertex<T: geom_core::Real>(
     vertex: Point3<T>,
     faces: impl IntoIterator<Item = Point3<T>>,
