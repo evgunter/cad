@@ -270,8 +270,8 @@ mod tests {
     fn the_roster_holds_every_readers_rows() {
         assert_eq!(
             COUNT,
-            2 * 4 + 3 * 3,
-            "four ring readers, three spiric readers"
+            2 * 4 + 4 * 3,
+            "four ring readers, four spiric readers"
         );
         assert!(ROWS.iter().all(|r| !r.is_empty()), "{ROWS:?}");
         assert!(ROWS.contains(&"self_intersection_ring_torus"), "{ROWS:?}");

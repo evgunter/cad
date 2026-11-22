@@ -109,15 +109,20 @@ impl<T: Decide> Section<T> {
     ///
     /// On a section read through a chart ([`Self::HalfPlane`],
     /// [`Self::TubeSide`]): its curve's ([`SurfaceCurve::section_of`]).
-    fn of_its_own(&self, y: Point3<T>, row: &'static str, band: Band) -> Result<Sign, Indeterminate> {
+    fn of_its_own(
+        &self,
+        y: Point3<T>,
+        row: &'static str,
+        band: Band,
+    ) -> Result<Sign, Indeterminate> {
         match *self {
             Self::Whole => Ok(Sign::Positive),
-            Self::Circle { centre, radius } => {
-                Ok(match decide(row, Margin::of((y - centre).norm() - radius), band)? {
+            Self::Circle { centre, radius } => Ok(
+                match decide(row, Margin::of((y - centre).norm() - radius), band)? {
                     Sign::Zero => Sign::Positive,
                     Sign::Positive | Sign::Negative => Sign::Negative,
-                })
-            }
+                },
+            ),
             Self::Oval { foot, side } => decide(row, Margin::of((y - foot).dot(side)), band),
             Self::HalfPlane { .. } | Self::TubeSide { .. } => {
                 unreachable!("a section read through a chart is its curve's")
@@ -1056,10 +1061,9 @@ impl<'a, T: Decide> OnSurface<'a, T> {
                     side: axis.cross(u_ref),
                 }
             }
-            Curve3::Line(_)
-            | Curve3::Ellipse(_)
-            | Curve3::Nurbs(_)
-            | Curve3::Periodic(_) => Section::Whole,
+            Curve3::Line(_) | Curve3::Ellipse(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+                Section::Whole
+            }
         }
     }
 
@@ -1082,10 +1086,11 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         row: &'static str,
         band: Band,
     ) -> Result<Met<T>, MeetRefusal<T>> {
-        self.same_record(curve).map_err(|_| MeetRefusal::OffRecord {
-            edge: self.on,
-            curve: curve.record(),
-        })?;
+        self.same_record(curve)
+            .map_err(|_| MeetRefusal::OffRecord {
+                edge: self.on,
+                curve: curve.record(),
+            })?;
         let read = direction(curve.family(), self.carrier.kind());
         let reading = match read {
             Read::EdgeOverLeg => self.across(curve, band),
@@ -1217,7 +1222,7 @@ fn co_surface<T: Decide>(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
     use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
@@ -1478,7 +1483,10 @@ mod tests {
             matches!(m.on_edge, crate::curve_face::OnSpan::Inside { .. }),
             "{label}: {m:?}"
         );
-        assert!((m.point - want).norm() < 1e-9, "{label}: {m:?}, want {want:?}");
+        assert!(
+            (m.point - want).norm() < 1e-9,
+            "{label}: {m:?}, want {want:?}"
+        );
     }
 
     /// **The crest probe** ([`direction`]'s torus rows): a parallel leg
@@ -1494,16 +1502,8 @@ mod tests {
         let torus = torus();
         let on = on(&torus);
         let oval_offset = 2.0;
-        let oval = Curve3::spiric(
-            Point3::origin(),
-            z(),
-            x(),
-            big,
-            minor,
-            oval_offset,
-            b(),
-        )
-        .unwrap();
+        let oval =
+            Curve3::spiric(Point3::origin(), z(), x(), big, minor, oval_offset, b()).unwrap();
         // The meridian edge at azimuth 0, its parameter counted from the
         // outer equator.
         let meridian = SurfaceCurve::meridian(&on, Point2::new(0.0, 0.0), true).unwrap();
@@ -1515,13 +1515,22 @@ mod tests {
             let whole = || ((-PI, PI), true);
             lands_once(
                 &format!("d {d}: a parallel on a meridian"),
-                OnSurface::edge(key(), &meridian_edge, (-0.5, 2.5)).meet(&parallel, whole, ROW, b()),
+                OnSurface::edge(key(), &meridian_edge, (-0.5, 2.5)).meet(
+                    &parallel,
+                    whole,
+                    ROW,
+                    b(),
+                ),
                 Point3::new(rho, 0.0, h),
             );
             lands_once(
                 &format!("d {d}: a parallel on an oval"),
                 OnSurface::edge(key(), &oval, (-0.5, 2.5)).meet(&parallel, whole, ROW, b()),
-                Point3::new(oval_offset, (rho * rho - oval_offset * oval_offset).sqrt(), h),
+                Point3::new(
+                    oval_offset,
+                    (rho * rho - oval_offset * oval_offset).sqrt(),
+                    h,
+                ),
             );
             let edge = parallel.carrier();
             lands_once(

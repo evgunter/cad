@@ -624,13 +624,13 @@ pub mod ellipse_torus;
 pub mod line_quadric;
 pub mod plane_crossing;
 pub mod pose;
-pub mod spiric_plane;
 #[cfg(test)]
 mod pose_rows;
 #[cfg(test)]
 mod review_rows;
 #[cfg(test)]
 mod rows;
+pub mod spiric_plane;
 pub mod spline_face;
 #[cfg(test)]
 mod window_fuzz;

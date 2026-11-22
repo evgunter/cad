@@ -47,6 +47,7 @@ use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, ros
 /// structs and `*_as` forwarders) whose literal arguments are names.
 const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_FOLD_HALF"),
+    NameCarrier::Const("OVAL_SIDE"),
     NameCarrier::Const("SQUARE_EDGE_OVER"),
     NameCarrier::Const("SPHERE_NEAR"),
     NameCarrier::Const("SPHERE_FAR"),
@@ -305,6 +306,8 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("curve_face/spline_face.rs: settle: row", CLOSURE_FORWARDS),
     ("curve_pair/on_surface.rs: section_of: row", FORWARDS),
+    ("curve_pair/on_surface.rs: of_its_own: row", FORWARDS),
+    ("curve_pair/on_surface.rs: meet: m.point", FORWARDS),
     ("curve_pair/pose.rs: constant_as: row", FORWARDS),
     ("curve_pair/pose.rs: definite_as: row", FORWARDS),
     ("curve_pair/pose.rs: read_identity#1(offsets)", IDENTITY),

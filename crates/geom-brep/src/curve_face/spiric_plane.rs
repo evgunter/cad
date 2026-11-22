@@ -193,13 +193,27 @@ mod tests {
             })
             .collect();
         let want = oracle(&curve, origin, normal);
-        assert_eq!(want.len(), count, "{label}: the oracle's own count {want:?}");
-        assert_eq!(ts.len(), want.len(), "{label}: door {ts:?}, oracle {want:?}");
+        assert_eq!(
+            want.len(),
+            count,
+            "{label}: the oracle's own count {want:?}"
+        );
+        assert_eq!(
+            ts.len(),
+            want.len(),
+            "{label}: door {ts:?}, oracle {want:?}"
+        );
         for (t, w) in ts.iter().zip(&want) {
-            assert!((t - w).abs() < 1e-7, "{label}: door {ts:?}, oracle {want:?}");
+            assert!(
+                (t - w).abs() < 1e-7,
+                "{label}: door {ts:?}, oracle {want:?}"
+            );
             let p = curve.eval(*t);
             let off = (p - origin).dot(normal.normalize());
-            assert!(off.abs() < 1e-9, "{label}: the meeting at {t} is {off} off the plane");
+            assert!(
+                off.abs() < 1e-9,
+                "{label}: the meeting at {t} is {off} off the plane"
+            );
         }
         got.pose
     }
@@ -240,11 +254,7 @@ mod tests {
     /// meeting of this one.
     #[test]
     fn a_line_across_the_mirror_oval_alone_meets_none_of_this_one() {
-        let pose = meets_as_oracle(
-            "y = −5",
-            (Point3::new(0.0, -5.0, 0.0), Vec3::unit_y()),
-            0,
-        );
+        let pose = meets_as_oracle("y = −5", (Point3::new(0.0, -5.0, 0.0), Vec3::unit_y()), 0);
         assert!(matches!(pose, Pose::Isolated(_)), "y = −5: {pose:?}");
         let pose = meets_as_oracle(
             "past the tube",
@@ -266,16 +276,25 @@ mod tests {
         };
         for normal in [Vec3::unit_x(), -Vec3::unit_x()] {
             let got = read(Point3::new(OFFSET, 3.0, -2.0), normal);
-            assert!(matches!(got, Pose::Lies), "its own plane {normal:?}: {got:?}");
+            assert!(
+                matches!(got, Pose::Lies),
+                "its own plane {normal:?}: {got:?}"
+            );
         }
         let got = read(Point3::new(OFFSET + 0.5, 0.0, 0.0), Vec3::unit_x());
-        assert!(matches!(got, Pose::Apart), "a parallel plane off it: {got:?}");
+        assert!(
+            matches!(got, Pose::Apart),
+            "a parallel plane off it: {got:?}"
+        );
         // Tilted inside the band over the oval's reach, off it by more.
         let got = read(
             Point3::new(OFFSET + 0.5, 0.0, 0.0),
             Vec3::new(1.0, 1e-12, 0.0),
         );
-        assert!(matches!(got, Pose::Apart), "a tilt in band, off it: {got:?}");
+        assert!(
+            matches!(got, Pose::Apart),
+            "a tilt in band, off it: {got:?}"
+        );
     }
 
     /// **Tangent**: a plane touching the oval at its top, where the line
