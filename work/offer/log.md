@@ -92,6 +92,23 @@ Points from the designers' orchestrator sections:
 - `work/chrome/tree-rows-lead-with-raw-tags.md` closes with the vnews row; its placement-constraint half stays open on its own.
 - `work/chrome/a-checks-cell-for-a-vertex-selects-its-node.md` is independent of this fork.
 - The two relation rows (`a-made-body-…` and `a-placement-and-its-part-…`) are one unit: Properties shows operand slots, plus read-by.
+## 2026-11-22 — the offer fork goes to Ev
+
+(OFFER orchestrator) The fork `a-refusal-offers-no-action-in-the-viewer` with `a-check-offers-no-way-to-add-the-assertion-it-asks-for` has reconciled. It went one round, then a further designer weighed in after the designers swapped on two points, then a final round in which all designers agreed. It goes to Ev as an `[ev]` PR on `offer/offer-design`, because it adds a sentence to DESIGN `[one-way.places]`. The agreed final state and a correction of the row's stale evidence are in the refusal row's `## Design` and `## Correction` sections.
+
+Rows the building unit owes, filed with it:
+- a member-budget door;
+- an expected-component-count door, together with the question of whether that count belongs in the document;
+- a tolerance door, and the kernel row that types the tolerance recourse, which is prose in fourteen kernel files;
+- a test listing the arms with no control.
+
+Already filed: `work/clear/a-clearance-claim-and-a-zero-gap-value-say-one-thing-two-ways`.
+
+Found and owed to the unit: `checks_window` offers "Add to the product" while a run is outstanding, which the one staleness rule fixes. `CERTIFY_STOPPED` names Re-evaluate and offers no button for it.
+
+Unknown: whether `saying` can mint the one index-reaching assertion for a family row. Where it cannot, the finding names the construction alone and does not refuse at `Error`. That is a behaviour change, and the PR states it.
+
+CHROME is told on its log when the unit dispatches.
 **Dispatched 2026-11-22.** Implementers: `cascade-delete-shows-the-strand-count` on `offer/cascade-delete-shows-the-strand-count`, `the-viewer-has-no-guide-to-its-controls` on `offer/the-viewer-has-no-guide-to-its-controls` (draws on `analysis/model-compare/offer-2026-11-22`). Designers, two per fork, concurrently and blind to each other, with problem statements only: `offer-an-actionable-recourse`, `offer-a-node-named-to-a-person`, `offer-the-certify-control` (draws on `analysis/design-fork/<fork>`). Coupling notes left on VNEWS' and CHROME's logs.
 
 **2026-11-22: three `[ev]` PRs are open.** Each one waits for Ev:
@@ -100,3 +117,24 @@ Points from the designers' orchestrator sections:
 - offer: #7341, on `offer/offer-design`.
 
 The design-fork rows are 297, 298 and 299. Their second commit (Ev's decision, and the label→model mapping from `analysis/design-fork/offer-*`) lands on each PR once Ev answers. The designers' full reports and round replies are in `~/.local/share/cad-work/offer-briefs/reports/`, which is this container only. The rows hold what moved in each round.
+- 2026-11-22 — **Ev answered #7341:** "this all sounds good". The offer design is decided, with every lean taken. Fork-log row 299 is completed with the mapping: A Opus 5.5, B Fable 5.2, and further designer C Fable 5.2. `design` is cleared on both rows. (OFFER orchestrator)
+
+## 2026-11-22 — the offer build, cut
+
+(OFFER orchestrator) Ev decided the offer design on #7341, which is now merged. The build is cut into three units:
+1. `a-check-offers-no-way-to-add-the-assertion-it-asks-for` is re-priced M → H and carries the kernel half: a finding carries the assertion that quiets it, with the interference face pair and the law test.
+2. `the-viewer-has-one-assertion-tool` (new, M) is the general assertion door.
+3. `a-refusal-offers-no-action-in-the-viewer` (H) is the offers function. It is parked on 1 and 2 and stacks on them.
+
+Filed, as the design requires:
+- `the-viewer-has-no-member-budget-door` (P2);
+- `the-checks-expected-component-count-has-no-home` (P2);
+- `the-tolerance-recourse-is-prose-and-has-no-viewer-door` (P2).
+
+`program.md`'s keep_out clause "never a diff from here" was agent-written in CHROME's cut, with no ruling from Ev (`git log -S`). It now says that OFFER carries the decided kernel half and announces itself on ATREST's and COINCIDE's logs.
+
+**Dispatch, letters and tiers** (logged before any draw):
+- `a-check-offers-no-way-to-add-the-assertion-it-asks-for`: letter H, tier DUAL. It is the architectural pattern every later finding follows, and the minting rule is a soundness claim (an offered assertion quiets its row).
+- `the-viewer-has-one-assertion-tool`: letter M, tier SINGLE, FULL review. It writes claims into the document, and a wrong claim shape fails silently: it would not quiet.
+
+The local disk has 8 GB free and two lane targets are live, so these lanes run as their own cloud sessions.
