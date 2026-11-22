@@ -6,7 +6,8 @@ status: open
 opened: 2026-08-31
 refs: [1376]
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 ## From GitHub issue 1387
