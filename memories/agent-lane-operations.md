@@ -221,7 +221,13 @@ its issue, and the LANE THAT CAUSED IT owes the fix — record the debt
 on the issue and summon that lane; never absorb it in passing.
 **Separately confirm none is still in flight** —
 a check still running when you merge dies at checkout and can never be
-re-run, so its failure reads as a defect forever. Confirm a *skip* is
+re-run, so its failure reads as a defect forever. The exception (Ev,
+in chat, 2026-11-22): where the risk is low, such as a head that was
+green and has since gained only a merge of main with a straightforward
+conflict or none, merge over the running CI, and cancel a redundant
+run freely. Waiting there only re-opens the window in which main moves
+again (`memories/orchestration-model.md`: such a commit "merges
+immediately, without a fresh CI run"). Confirm a *skip* is
 habitual by checking earlier green runs of the same branch. Resolving a
 conflict where **both sides deleted** something: take the union of the
 deletions, **derived from `main`** — "keep both sides" resurrects what
