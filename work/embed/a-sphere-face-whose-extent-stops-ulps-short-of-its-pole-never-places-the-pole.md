@@ -234,3 +234,15 @@ pair below is one main with and without PR 7115's `injective.rs`.
   body and cavity, plain frame, within six units of the origin): 1,464
   of 1,464, at the receipts of the first fix pass.
 - **The endpoint census:** `injective.rs` reads 180 / 78.
+
+**Re-measured on main `c3ffedeb2`** (EMBED, lane pole, 2026-11-22), with and
+without PR 7115's `injective.rs`:
+- f64 cavity rows failing: 15 of 221 without, 9 with; only the six pole
+  rows differ, every other cavity's verdict and receipt the same;
+- tour walk: 78 of 85 on both, identical line for line;
+- with the PR: the injectivity suite 64 of 64 at the default ε, 1e-6
+  and 1e-12; the review's 120 plain-frame cone cases 120 of 120; its
+  turned-frame sweep 47 holding and 21 refusing (five turned cones and
+  the sixteen turned ice-creams); this lane's sweep 1,464 of 1,464 at
+  the first fix pass's receipts;
+- 25 mutants, each over the 118 unit rows and the 64 body rows: all die.
