@@ -500,3 +500,9 @@ body has the reasons):
   - The traced-carriage row is created and closed in the PR.
   - GitHub shows the PR "dirty", but a local merge-tree against main is
     clean; it is re-checked before merge.
+- 2026-11-22 13:22 — 7151 is green on `fdd4d80`, but the head lacks
+  the delta review's last pass; the lane had missed the message. It is
+  re-sent as one task: disclose and source the levers, the prover-row
+  Owed, under-measure arc rows, fail loud in `meetings`, a traced-
+  crossing twin row, the halving limits, and slow-set timings. The
+  orchestrator reads that pass and merges.
