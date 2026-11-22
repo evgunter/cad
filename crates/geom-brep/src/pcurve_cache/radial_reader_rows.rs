@@ -108,7 +108,7 @@ fn a_point_built_on_a_cylinder_is_on_it_over_a_box_on_the_radius() {
             for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
                 let cylinder = Surface::Cylinder {
                     frame: geom::Frame::new(point(c), lit3(axis), lit3(u_ref)),
-                    radius: radius,
+                    radius,
                 };
                 let p = point(c) + x * r + lit3(axis) * h;
                 assert_eq!(
@@ -142,7 +142,7 @@ fn a_point_built_on_a_sphere_is_on_it_over_a_box_on_the_radius() {
             for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
                 let sphere = Surface::Sphere {
                     frame: geom::Frame::new(point(c), lit3(axis), lit3(u_ref)),
-                    radius: radius,
+                    radius,
                 };
                 assert_eq!(
                     reading(chart_distance(&sphere, point(c) + x * r)),
