@@ -5190,6 +5190,9 @@ where
     // another document (an instantiated part) has that document's
     // nodes open and close their own frames ABOVE this one, so theirs
     // land on their own nodes and this frame receives only this node's.
+    // PROBE (M9): when this node began and the session's counts then.
+    let m9 = geom_core::k_stats::probe_tally::m8()
+        .then(|| (std::time::Instant::now(), geom_core::sym::probe_counts()));
     let bracket = geom_core::k_stats::Bracket::open();
     // A failure carries what the frame recorded on the way to it,
     // whether or not the op ran.
@@ -5530,7 +5533,23 @@ where
     // PROBE (M8): the op's wall time and the finishes inside it.
     let m8 = geom_core::k_stats::probe_tally::m8()
         .then(|| (std::time::Instant::now(), geom_core::k_stats::probe_tally::finish_ns()));
+    let m9_pre = m9.as_ref().map(|(t, _)| t.elapsed().as_secs_f64() * 1e3);
     let op = wire::run_op(id, &input, doc, results, &slot_values, op_env, tol);
+    if let (Some((_, c0)), Some(pre)) = (&m9, m9_pre) {
+        let c1 = geom_core::sym::probe_counts();
+        let delta = match (c0, c1) {
+            (Some(a), Some(b)) => format!(
+                "sym+{},num+{},retried+{},reg_refused+{},reg_contra+{},disputed+{},chk_exp+{},chk_frz+{}",
+                b.symbolic - a.symbolic, b.numeric - a.numeric, b.retried - a.retried,
+                b.registrations_refused - a.registrations_refused,
+                b.registrations_contradicted - a.registrations_contradicted,
+                b.theorems_disputed - a.theorems_disputed,
+                b.checks_expanded - a.checks_expanded, b.checks_frozen - a.checks_frozen,
+            ),
+            _ => "none".to_owned(),
+        };
+        geom_core::k_stats::probe_tally::node9_push(format!("{}", id.0), pre, 0.0, delta);
+    }
     if let Some((t, f)) = m8 {
         geom_core::k_stats::probe_tally::node_push(
             format!("{}", id.0),

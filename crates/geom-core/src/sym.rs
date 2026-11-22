@@ -3040,6 +3040,22 @@ pub fn with_session_memo_retry<R>(
     with_session_in(budget, rules, retry, accepts.then(|| Arc::clone(memo)), f)
 }
 
+std::thread_local! {
+    /// PROBE (M9): the last session's (setup ms, teardown ms).
+    pub static PROBE_SESSION_MS: std::cell::Cell<(f64, f64)> = const { std::cell::Cell::new((0.0, 0.0)) };
+}
+struct ProbeTeardown(std::time::Instant, std::time::Instant, std::time::Instant);
+impl Drop for ProbeTeardown {
+    fn drop(&mut self) {
+        PROBE_SESSION_MS.with(|c| {
+            c.set((
+                (self.1 - self.0).as_secs_f64() * 1e3,
+                self.2.elapsed().as_secs_f64() * 1e3,
+            ));
+        });
+    }
+}
+
 fn with_session_in<R>(
     budget: SymBudget,
     rules: SymRules,
@@ -3059,12 +3075,16 @@ fn with_session_in<R>(
     if nested {
         return (f(), SymCounts::default());
     }
+    let probe_t0 = std::time::Instant::now();
     SESSION.with(|s| {
         *s.borrow_mut() = Some(Session::new(budget, rules, retry, memo));
     });
     #[cfg(feature = "sym-profile-testing")]
     profile::session_start();
+    let probe_t1 = std::time::Instant::now();
     let out = f();
+    let probe_t2 = std::time::Instant::now();
+    let _probe_done = ProbeTeardown(probe_t0, probe_t1, probe_t2);
     let mut sess = SESSION.with(|s| s.borrow_mut().take());
     #[cfg(feature = "sym-profile-testing")]
     if let Some(s) = &sess {
@@ -4708,6 +4728,11 @@ fn names_free(sess: &Session, x: u128) -> bool {
 std::thread_local! {
     // PROBE (M7, S2): the rung and attempt of the last ladder asked.
     static PROBE_LAST: std::cell::Cell<Option<(String, u8)>> = const { std::cell::Cell::new(None) };
+}
+
+/// PROBE (M9): the installed session's running counts.
+pub fn probe_counts() -> Option<SymCounts> {
+    SESSION.with(|s| s.borrow().as_ref().map(|sess| sess.counts))
 }
 
 /// PROBE (M8): which of `ids` are `Opaque` nodes of the installed session.

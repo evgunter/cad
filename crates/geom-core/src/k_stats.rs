@@ -496,6 +496,8 @@ pub mod probe_tally {
     thread_local! {
         static FINISH_NS: Cell<u128> = const { Cell::new(0) };
         static NODES: std::cell::RefCell<Vec<(String, u128, f64, f64)>> = const { std::cell::RefCell::new(Vec::new()) };
+        // PROBE (M9): per node: id, ms before the op, ms after it, counts delta text.
+        static NODES9: std::cell::RefCell<Vec<(String, f64, f64, String)>> = const { std::cell::RefCell::new(Vec::new()) };
     }
     /// PROBE (M8): time spent in finishes on this thread.
     pub fn finish_add(ns: u128) {
@@ -511,6 +513,36 @@ pub mod probe_tally {
     pub fn nodes_take() -> Vec<(String, u128, f64, f64)> {
         NODES.with(|n| std::mem::take(&mut *n.borrow_mut()))
     }
+    pub fn node9_push(id: String, pre_ms: f64, post_ms: f64, counts: String) {
+        NODES9.with(|n| n.borrow_mut().push((id, pre_ms, post_ms, counts)));
+    }
+    pub fn nodes9_take() -> Vec<(String, f64, f64, String)> {
+        NODES9.with(|n| std::mem::take(&mut *n.borrow_mut()))
+    }
+    /// PROBE (M9): the first text seen under `key`, and where a later
+    /// one first differs from it.
+    pub fn first_difference(key: String, text: &str) -> Option<String> {
+        static SEEN: Mutex<BTreeMap<String, String>> = Mutex::new(BTreeMap::new());
+        let mut seen = SEEN.lock().unwrap();
+        let Some(first) = seen.get(&key) else {
+            seen.insert(key, text.to_owned());
+            return None;
+        };
+        if first == text {
+            return None;
+        }
+        let i = first.bytes().zip(text.bytes()).position(|(a, b)| a != b).unwrap_or(first.len().min(text.len()));
+        let cut = |t: &str| {
+            let lo = i.saturating_sub(160);
+            let hi = (i + 120).min(t.len());
+            t.get(lo..hi).unwrap_or("?").to_owned()
+        };
+        Some(format!("at byte {i}: FIRST ..{}.. THIS ..{}..", cut(first), cut(text)))
+    }
+    pub fn hash_text(s: &str) -> u64 {
+        hash_of(s)
+    }
+
     /// PROBE (M8): every `SymId(n)` in `text`, sorted, with repeats.
     pub fn sym_ids(text: &str) -> Vec<u128> {
         let mut out = Vec::new();

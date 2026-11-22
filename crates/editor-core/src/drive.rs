@@ -1576,8 +1576,12 @@ fn classify(
                 evals.set(evals.get() + 1);
                 if geom_core::k_stats::probe_tally::m8() {
                     geom_core::k_stats::probe_tally::nodes_take();
+                    geom_core::k_stats::probe_tally::nodes9_take();
                 }
+                let m9_eval = std::time::Instant::now();
                 let leaf: Evaluation<Sym<Interval>> = evaluate(doc, None, &stop.cancel, &opts, tol);
+                let m9_eval_ms = m9_eval.elapsed().as_secs_f64() * 1e3;
+                let m9_probe = std::time::Instant::now();
                 // PROBE (M8): one line per replay and per node, inside
                 // the session so the symbolic ids can be classified.
                 if geom_core::k_stats::probe_tally::m8() {
@@ -1594,6 +1598,8 @@ fn classify(
                     let spans = spans.join(";");
                     let rid = pt::hash_ids(&spans.bytes().map(u128::from).collect::<Vec<_>>());
                     let timed = pt::nodes_take();
+                    let timed9 = pt::nodes9_take();
+                    eprintln!("[m9-replay] rid={rid:016x} eval_ms={m9_eval_ms:.2}");
                     let deciding = leaf.order.iter().find(|id| match leaf.result(**id) {
                         Some(NodeResult::Ok(v)) => !v.escalations.is_empty(),
                         Some(NodeResult::Failed(_)) => true,
@@ -1617,6 +1623,38 @@ fn classify(
                             Some(NodeResult::Poisoned { .. }) => ("poisoned", None, Vec::new()),
                             None => ("absent", None, Vec::new()),
                         };
+                        // PROBE (M9): the node's recorded side as the drive
+                        // receives it, and where it differs under one key.
+                        let t9 = timed9.iter().find(|t| t.0 == name);
+                        let counts = t9.map_or("none", |t| t.3.as_str());
+                        let recorded = match leaf.result(*id) {
+                            Some(NodeResult::Ok(v)) => Some(format!(
+                                "verdicts={:?} escalations={:?} marks={:?}",
+                                v.verdicts, v.escalations, v.marks
+                            )),
+                            Some(NodeResult::Failed(e)) => {
+                                Some(format!("kind={:?} escalations={:?}", e.kind, e.escalations))
+                            }
+                            _ => None,
+                        };
+                        if let (Some(text), Some(k)) = (&recorded, key) {
+                            let stripped = pt::strip_nodes(text);
+                            let diff = pt::first_difference(format!("{name}/{k:032x}"), text);
+                            let diff_c = pt::first_difference(format!("counts/{name}/{k:032x}"), counts);
+                            eprintln!(
+                                "[m9-node] rid={rid:016x} node={name} state={state} key={k:032x} pre_ms={:.3} rec={:016x} rec_no_ids={:016x} rec_len={} counts={counts}",
+                                t9.map_or(0.0, |t| t.1),
+                                pt::hash_text(text),
+                                pt::hash_text(&stripped),
+                                text.len(),
+                            );
+                            if let Some(d) = diff {
+                                eprintln!("[m9-diff] node={name} key={k:032x} {d}");
+                            }
+                            if let Some(d) = diff_c {
+                                eprintln!("[m9-cdiff] node={name} key={k:032x} {d}");
+                            }
+                        }
                         let mut distinct = ids.clone();
                         distinct.dedup();
                         let opaque = geom_core::sym::probe_opaque_of(&distinct);
@@ -1632,6 +1670,7 @@ fn classify(
                             pt::hash_ids(&opaque),
                         );
                     }
+                    eprintln!("[m9-probe] rid={rid:016x} probe_ms={:.2}", m9_probe.elapsed().as_secs_f64() * 1e3);
                 }
                 leaf
             },
@@ -1639,6 +1678,7 @@ fn classify(
         if let Some(stopped) = crate::Stopped::of(leaf.outcome) {
             return Err(stopped);
         }
+        let m9_classify = std::time::Instant::now();
         let verdict = classify_replay(
             doc,
             box_,
@@ -1648,6 +1688,15 @@ fn classify(
             witness_key,
             counts,
         );
+        if geom_core::k_stats::probe_tally::m8() {
+            let (setup, teardown) = geom_core::sym::PROBE_SESSION_MS.with(std::cell::Cell::get);
+            eprintln!(
+                "[m9-leaf] leaf_ms={:.2} session_setup_ms={setup:.3} session_teardown_ms={teardown:.3} classify_ms={:.3} frozen={} sym={} num={}",
+                started.elapsed().as_secs_f64() * 1e3,
+                m9_classify.elapsed().as_secs_f64() * 1e3,
+                counts.frozen, counts.symbolic, counts.numeric,
+            );
+        }
         if probe {
             let spans: Vec<String> = box_
                 .order()
