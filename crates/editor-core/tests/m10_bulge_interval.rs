@@ -273,7 +273,12 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
-    ("arc_span", [6, 4]),
+    // The bulge arc against the lines it meets: two `arc_span` and two
+    // `circle_side` decisions the registered rim used to carry are
+    // numeric at the nominal, the crossing found through the half
+    // chord's root
+    // (`work/boxfinish/a-bulge-arc-beside-a-line-stops-in-validations-span-readers-over-a-box.md`).
+    ("arc_span", [4, 6]),
     ("assert_bound", [0, 1]),
     ("carrier_circles_identity", [3, 0]),
     ("carrier_endpoint_end", [36, 0]),
@@ -283,7 +288,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("carrier_on_surface_2", [126, 18]),
     ("carrier_pose_axes_parallel", [1, 0]),
     ("chord_side", [6, 12]),
-    ("circle_side", [2, 2]),
+    ("circle_side", [0, 4]),
     ("contact_at_shared_vertex", [12, 4]),
     ("pose_unit_norm", [0, 2]),
     // The extrude reads each of its 16 edges by its whole wedge, the

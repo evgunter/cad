@@ -124,11 +124,19 @@ fn decide_3_no_predicate_loses_a_decision() {
             // `carrier_matches_mapped_source` back on both sides
             // (`[132, 12] -> [96, 12]`, `[136, 8] -> [100, 8]`;
             // `[178, 20] -> [160, 20]`, `[182, 16] -> [164, 16]`).
+            // Then the link's tangent arcs stored their radius as the
+            // decided side's literal times the signed offset, a rational
+            // function of the half width where it was an `abs` atom the
+            // registered rim aliased: four of the shipped side's
+            // `carrier_matches_mapped_source` freeze at the coefficient
+            // budget and go back to `numeric` (`[164, 16] -> [160, 20]`),
+            // so rule G's trade on this row no longer shows at the
+            // nominal. The `carrier_on_surface_*` slots hold.
             let pinned: Option<([u64; 2], [u64; 2])> = match (*name, *p) {
                 ("r2_link", "carrier_on_surface_1" | "carrier_on_surface_2") => {
                     Some(([96, 12], [100, 8]))
                 }
-                ("r2_link", "carrier_matches_mapped_source") => Some(([160, 20], [164, 16])),
+                ("r2_link", "carrier_matches_mapped_source") => Some(([160, 20], [160, 20])),
                 // **The one decision rule G trades, against rule H**: on
                 // the bracket rule H's angle sums take six of
                 // `carrier_matches_mapped_source` with rule G shut and two

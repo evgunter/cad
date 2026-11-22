@@ -359,6 +359,15 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
 /// the scalar are enclosures of the rotations they state, where the base
 /// read their three vectors as points. The `f64` fence above did not
 /// move.
+///
+/// RE-TAKEN when arcs stored their radius as the literal their
+/// construction decided and an arc's frame turned onto its recorded
+/// radial (BOXFINISH's `boxfinish/signed-radius`). The `f64` fence
+/// above did not move. The differential of enclosure bounds against the
+/// merge base was not taken; what moves a bound is the frame's `u`
+/// read from the recorded radial where it was the start vertex's
+/// normalized offset, and a point's distance from a wall read as the
+/// rationalized gap.
 #[test]
 fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
@@ -377,7 +386,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xd079_10f9_3b56_2ffa, 0x6c4b_05bb_b430_84de),
+        (0xf07e_4868_fdd6_2d82, 0x9406_878f_996a_ac26),
         "the corpus's Interval evaluation moved"
     );
 }

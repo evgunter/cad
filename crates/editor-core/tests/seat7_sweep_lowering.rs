@@ -225,13 +225,22 @@ fn both_sweeps_evaluate_in_one_document() {
 /// and `boss_union`, on
 /// `work/onecopy/boss-unions-body-moved-at-6710-and-is-pinned-unjudged.md`.
 /// `die`, `cut_cylinder` and `kitchen_sink` are judged.
+///
+/// `boss_union` moved again when an arc's carrier and wall frames turned
+/// onto the radial its construction recorded
+/// (`sweep::swept::Placing::frame_onto`): the boss's bulge arc records
+/// the lowering's rational radial, which differs from its start
+/// vertex's normalized offset in the last bits, so every frame entry
+/// that reads it moves by rounding. The other four documents' arcs are
+/// circles, whose recorded radial is the axis the normalized offset
+/// already was, bit for bit. Pinned unjudged with its row above.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x0319_7db7_bec3_d32f),
         ("corner_table", 0x7da6_d69a_c91e_7f29),
         ("cut_cylinder", 0xe5a6_6d83_0fff_478c),
-        ("boss_union", 0x9242_6dc9_578f_e111),
+        ("boss_union", 0xfe70_7d64_6574_d449),
         ("kitchen_sink", 0x4080_aff5_e382_f53d),
     ];
     let mut moved: Vec<String> = Vec::new();

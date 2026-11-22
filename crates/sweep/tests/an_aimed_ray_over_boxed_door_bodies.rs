@@ -10,10 +10,15 @@
 //! The plain prisms are the slab's kind; the others are curved bodies
 //! over a box: a filleted prism and a disc of boxed depth (cylinder
 //! walls under moving arc-edged caps), and a cylinder and a cone frustum
-//! of boxed radius (the curved carrier itself moves). The sweep doors
-//! refuse every one of the curved bodies over every box drawn here, so
-//! today these rows read the prisms alone and say so in what they
-//! print; a curved body is read the day its door admits it.
+//! of boxed radius (the curved carrier itself moves). One curved body
+//! is admitted over a box: the disc of boxed radius drawn by the circle
+//! verb, whose arcs store the radius the verb gated and whose walls and
+//! two-arc caps turn their frames onto the recorded radial
+//! ([`the_circle_verbs_disc_of_boxed_radius_is_admitted_and_read`]).
+//! The doors refuse the other curved bodies over every box drawn here
+//! (their arcs come through the fixture table, which records no
+//! radial), and the rows say so in what they print; each is read the
+//! day its door admits it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -155,6 +160,29 @@ fn shapes() -> Vec<Shape> {
             moving: |p, u| {
                 let a = u * TAU;
                 [0.5 * a.cos(), 0.5 * a.sin(), p]
+            },
+        },
+        Shape {
+            name: "disc of boxed radius, the circle verb's",
+            middle: 0.7,
+            build: |r, tol| {
+                let circle = profile::circle(Point2::new(c(0.0), c(0.0)), r, tol)
+                    .map_err(|e| format!("{e:?}"))?;
+                let profile =
+                    profile::ConstructedProfile::new(SketchPlane::<Boxed>::xy(), vec![circle.into()])
+                        .validate(tol)
+                        .map_err(|e| format!("{e:?}"))?;
+                let extrusion = Extrusion::Distance {
+                    depth: c(1.0),
+                    side: ExtrudeSide::Along,
+                };
+                extrude(&profile, extrusion, tol)
+                    .map(|built| built.body.into_body())
+                    .map_err(|e| format!("{e:?}"))
+            },
+            moving: |p, u| {
+                let a = u * TAU;
+                [p * a.cos(), p * a.sin(), (7.0 * u).fract()]
             },
         },
         Shape {
@@ -635,4 +663,37 @@ fn a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side() {
         wrong.is_empty(),
         "a ray every member reads Out reads In over the box: {wrong:#?}"
     );
+}
+
+/// **The circle verb's disc of boxed radius is admitted, and read.** A
+/// disc whose radius is a box up to a tenth wide either way, drawn by
+/// `profile::circle` and extruded: the door builds it at every width
+/// here (cylinder walls under two-arc caps, all moving with the
+/// radius), and of the rays the two rows above aim at it some read
+/// `Out` and none reads `In`.
+///
+/// **What this can go red on:** the door refusing the disc (a circle
+/// verb that stores `radius.abs()`, or an arc frame turned onto the
+/// start vertex's normalized offset, refuses it from `1e-6` up), and a
+/// reading of the side no member has.
+#[test]
+fn the_circle_verbs_disc_of_boxed_radius_is_admitted_and_read() {
+    let shape = shapes()
+        .into_iter()
+        .find(|s| s.name.starts_with("disc of boxed radius"))
+        .expect("the disc");
+    for half in [1e-6, 1e-4, 1e-2, 0.05, 0.1] {
+        let (lo, hi) = (shape.middle - half, shape.middle + half);
+        let readings = over(&shape, lo, hi, |body, band| {
+            topo::test_support::each_aim(body, band)
+        })
+        .unwrap_or_else(|refusal| panic!("±{half:e}: the door refuses the disc: {refusal}"));
+        let kinds: Vec<&str> = readings.iter().map(|r| kind(r)).collect();
+        assert!(!kinds.contains(&"IN"), "±{half:e}: a wrong side: {readings:?}");
+        assert!(
+            kinds.contains(&"out"),
+            "±{half:e}: no aim reads a side: {}",
+            tally(&readings)
+        );
+    }
 }

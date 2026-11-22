@@ -733,12 +733,22 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // the ladder or without it, numeric +1 on the plate and the bracket,
     // each two placements where one measure asked, and unmoved on the
     // rest, one for one; no symbolic row moves and the recovery holds at 6.
+    // Then arcs stored their radius as the literal their construction
+    // decided and the readers of a point against a radius read it
+    // sign-free (`geom_core::radius_gap`, the ruling's phase over the
+    // radius), numeric to symbolic one for one, with the ladder or
+    // without it: the boss +8 (its chart-incidence reads), the link +8
+    // (+16 from the readers, −8 where its tangent arcs' rational radius
+    // freezes forms the `abs` atom did not, two of them each on
+    // `carrier_on_surface_2` and `witness_on_surface_2`), the bracket +9
+    // without the ladder and +12 with it, its recovery 6 -> 9. The plate
+    // and the annulus do not move.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
         ("two_hole_plate", [979, 1047], [979, 1047], 0),
         ("r1_annulus", [511, 548], [511, 548], 0),
-        ("r1_segment_boss", [489, 572], [489, 572], 0),
-        ("r2_filleted_bracket", [1361, 1541], [1367, 1535], 6),
-        ("r2_link", [786, 943], [786, 943], 0),
+        ("r1_segment_boss", [497, 564], [497, 564], 0),
+        ("r2_filleted_bracket", [1370, 1532], [1379, 1523], 9),
+        ("r2_link", [794, 935], [794, 935], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -759,8 +769,9 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
             // `[76, 0, 16, 16]` became `[92, 0, 8, 8]` here.
             for (pred, want) in [
                 // ONEHOME's moved copy: 136/8 -> 100/8 and 20/0 -> 16/0.
-                ("carrier_on_surface_2", [100, 8]),
-                ("witness_on_surface_2", [16, 0]),
+                // The signed radius: 100/8 -> 98/10 and 16/0 -> 14/2.
+                ("carrier_on_surface_2", [98, 10]),
+                ("witness_on_surface_2", [14, 2]),
             ] {
                 let got = t.get(pred).copied().unwrap_or([0; 2]);
                 if got != want {
@@ -927,10 +938,14 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // what carries the ladder now. Then the decided least-turn mint (fork
     // 270) took the pad's identity chart with no pole verdict: [1390,
     // 1802, 0] -> [1390, 1801, 0]. The pad's one session-box ask is its
-    // placement's, not its measure's (PR 7088): unmoved.
+    // placement's, not its measure's (PR 7088): unmoved. Then arcs
+    // stored their radius as the literal their construction decided and
+    // their readers read it sign-free: [1390, 1801, 0] -> [1419, 1772,
+    // 22], twenty-nine decisions out of `numeric`, twenty-two of them
+    // through the ladder, which has a leaf to retry on again.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1390, 1801, 0],
+        [1419, 1772, 22],
         "the shipped ladder's leaf receipt"
     );
     // With nothing retried the receipt writes no ladder column, as the

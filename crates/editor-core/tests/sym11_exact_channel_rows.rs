@@ -112,10 +112,21 @@ use crate::m10_9_pins_interval::measured_studies;
 /// count moves, and under `SymRules::without_canonical_root` the plate's
 /// 2,025 recorded decisions answer as on the merge base, each with its
 /// outcome, its 64 blocked residuals the same predicates.
+///
+/// Then arcs stored their radius as the literal their construction
+/// decided, and a point's distance from a wall and a ruling's phase read
+/// the stored radius sign-free (`geom_core::radius_gap`,
+/// `pcurve_cache`'s `ruling_direction`). The plate and the annulus,
+/// circles alone: frozen only, `36 → 8`, the rim's `sqrt` forms gone
+/// from what the reads build. The link: `[786, 943, 2600] → [794, 935,
+/// 2314]`, the readers' re-posing taking sixteen decisions out of
+/// `numeric` and the tangent arcs' rational radius putting eight back
+/// (its forms reach the coefficient budget where the `abs` atom did
+/// not). The bracket and the pad do not move here.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [979, 1047, 36]),
-    ("r1_annulus", [511, 548, 36]),
-    ("r2_link", [786, 943, 2600]),
+    ("two_hole_plate", [979, 1047, 8]),
+    ("r1_annulus", [511, 548, 8]),
+    ("r2_link", [794, 935, 2314]),
     ("r2_filleted_bracket", [1367, 1546, 57]),
     ("r2_rounded_pad", [1483, 1709, 1967]),
 ];

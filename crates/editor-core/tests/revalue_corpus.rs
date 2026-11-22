@@ -522,9 +522,14 @@ fn revalue_plate_param_apart_to_its_parting() {
 /// (the owed item's `bool_pair_gap` swap).
 #[test]
 fn revalue_boss_union_apart_to_its_parting() {
+    // 1462 until a point's distance from a wall read the rationalized
+    // gap (1450: twelve margins that moved are the zero form now) and
+    // the boss's arc stored its radius as its turn's literal times the
+    // signed radius, read along its recorded radial (1406: forty-four
+    // more).
     holds_until_parting(
         "boss_union",
-        1462,
+        1406,
         &[],
         // PCERT E1c (every mint reads incidence first, PR 5889): the apart move now parts
         // at the read every mint makes first, before the radial decision.
