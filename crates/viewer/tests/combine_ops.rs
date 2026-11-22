@@ -4495,13 +4495,9 @@ fn a_member_picked_on_a_family_drawn_as_itself_reads_that_member() {
 /// **A split of a family reads one half of one member**: picked in the
 /// tree, the split waits for its half and reads every member; the half
 /// and the member are chosen in either order, and the read is the
-/// half's output at the member's index (`split.above[1]`). The door
-/// takes it; evaluation refuses it, `WrongOperand` on the union, since
-/// a split of a family evaluates to a family of splits whose halves no
-/// read reaches —
-/// `work/refs/a-split-of-a-family-has-no-halves-a-read-reaches.md`,
-/// whose fix turns this row's last assertion into the member's upper
-/// three quarters.
+/// half's output at the member's index (`split.above[1]`), which
+/// evaluates to that member's half (D10 `[repetition]`): its upper
+/// three quarters by volume.
 #[test]
 fn a_split_of_a_family_reads_one_half_of_one_member_chosen_in_either_order() {
     let tol = Tol::witness();
@@ -4550,18 +4546,12 @@ fn a_split_of_a_family_reads_one_half_of_one_member_chosen_in_either_order() {
         half_first.line(Speaker::of(&doc))
     );
     let union = session_insert(&mut session, half_first.op().expect("committable"));
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
+    let got = body_volume(&mut session, union, tol);
+    let member = A[0] * A[1] * A[2];
     assert!(
-        matches!(
-            eval.result(union).and_then(NodeResult::error),
-            Some(NodeError {
-                kind: NodeErrorKind::WrongOperand { input, .. },
-                ..
-            }) if *input == split
-        ),
-        "{:?}",
-        eval.result(union)
+        near(got, 0.75 * member),
+        "member 1's upper half {got} vs {}",
+        0.75 * member
     );
 }
 

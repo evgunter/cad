@@ -217,6 +217,8 @@ mod screen_view;
 mod select_pick;
 #[path = "sketch_on_face.rs"]
 mod sketch_on_face;
+#[path = "split_of_a_family.rs"]
+mod split_of_a_family;
 #[path = "story_assembly.rs"]
 mod story_assembly;
 #[path = "story_authoring.rs"]

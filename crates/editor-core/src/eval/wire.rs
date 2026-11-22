@@ -3249,16 +3249,29 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
             },
         };
         if let Some((family, at)) = member {
-            replaced.push(member_projected(
-                family,
-                value_of(results, family)?.whole(),
-                &at,
-            )?);
+            let whole = family_read(var, family, doc, results)?;
+            replaced.push(member_projected(family, &whole, &at)?);
             continue;
         }
-        replaced.extend(split_port(var, doc, results)?);
+        let whole = crate::repetition::takes_whole(node, seat);
+        replaced.extend(split_port(var, doc, results, whole)?);
     }
     Ok(with_replaced(results, replaced))
+}
+
+/// **The family a member read of `var` picks from**, read whole: the
+/// family of the half `var` reads, where it reads a split's port
+/// ([`split_port`]), else `family`'s value.
+fn family_read<'v, T: topo::AtRestPolicy + Decide>(
+    var: crate::VarId,
+    family: RecipeNodeId,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &'v Results<T>,
+) -> Result<std::borrow::Cow<'v, super::NodeValue<T>>, NodeErrorKind> {
+    Ok(match split_port(var, doc, results, true)? {
+        Some((_, _, halves)) => std::borrow::Cow::Owned(halves),
+        None => std::borrow::Cow::Borrowed(value_of(results, family)?.whole()),
+    })
 }
 
 /// **The member of the family `value` at the index values `at`, as a
@@ -3394,14 +3407,14 @@ pub(super) fn project_selection<T: topo::AtRestPolicy + Decide>(
         return project_ports(&[var], doc, results);
     };
     match selection_member(doc, slot, select, params)? {
-        Some((family, at)) => Ok(with_replaced(
-            results,
-            vec![member_projected(
-                family,
-                value_of(results, family)?.whole(),
-                &at,
-            )?],
-        )),
+        Some((family, at)) => {
+            let read = doc.selected_body(select).read;
+            let whole = family_read(read, family, doc, results)?;
+            Ok(with_replaced(
+                results,
+                vec![member_projected(family, &whole, &at)?],
+            ))
+        }
         None => project_ports(&[doc.selected_body(select).read], doc, results),
     }
 }
@@ -3416,17 +3429,23 @@ pub(super) fn project_ports<T: topo::AtRestPolicy + Decide>(
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
     let mut replaced = Vec::new();
     for &var in reads {
-        replaced.extend(split_port(var, doc, results)?);
+        replaced.extend(split_port(var, doc, results, false)?);
     }
     Ok(with_replaced(results, replaced))
 }
 
-/// The half a read of a split's port is, projected, keyed by the split;
-/// `None` when `var` reads no split by port.
+/// **The half a read of a split's port is**, projected, keyed by the
+/// split; `None` when `var` reads no split by port. A split of a family
+/// (D10 `[repetition]`) is a family of splits, so its half is a family
+/// of halves: to a reader that reaches the same index, read where its
+/// member stands, the member's half; read `whole` ([`crate::repetition::takes_whole`])
+/// or by a reader that reaches no index, the family of that half's
+/// members ([`halves`]).
 fn split_port<T: topo::AtRestPolicy + Decide>(
     var: crate::VarId,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
+    whole: bool,
 ) -> Result<Option<(RecipeNodeId, u32, super::NodeValue<T>)>, NodeErrorKind> {
     let Some((split, port)) = doc
         .var(var)
@@ -3438,22 +3457,83 @@ fn split_port<T: topo::AtRestPolicy + Decide>(
     let half = SplitHalf::of_output_body(u32::from(port))
         .unwrap_or_else(|| unreachable!("a split defines a port per half"));
     let value = value_of(results, split)?;
+    let value = if whole { value.whole() } else { value };
+    let projected = match &value.payload {
+        ValuePayload::Family => halves(split, value, half, port)?,
+        _ => half_of(split, value, half, port)?,
+    };
+    Ok(Some((split, half.output_body(), projected)))
+}
+
+/// **One split's half**, `port`, as a read of it holds it: the body
+/// alone at output 0, with its own output's names (N1, the scope) and
+/// its own side's carry; [`NodeErrorKind::EmptyHalf`] for an empty one.
+fn half_of<T: topo::AtRestPolicy + Decide>(
+    split: RecipeNodeId,
+    value: &super::NodeValue<T>,
+    half: SplitHalf,
+    port: u8,
+) -> Result<super::NodeValue<T>, NodeErrorKind> {
     let ValuePayload::Split { above, below } = &value.payload else {
-        unreachable!("a split evaluates to its two sides")
+        return Err(wrong_operand(value, split, super::family::SPLIT));
     };
     let body = split_side(split, half, above, below)?;
-    // The half's names are its own output's (N1, the scope).
     let names = value.output(port).cloned().unwrap_or_else(|| {
         unreachable!(
             "split {split:?}'s value holds no name table for its {half:?} half (port {port}), \
              though the split's lowering names each half's output"
         )
     });
-    let (of, index, projected) = projected(split, value, body, names, half.output_body())?;
+    let (_, _, projected) = projected(split, value, body, names, half.output_body())?;
     // A half carries its own side's records, keyed in its arena.
-    let at = half.output_body() as usize;
-    let carry = value.carry.member(at).clone();
-    Ok(Some((of, index, super::NodeValue { carry, ..projected })))
+    let carry = value.carry.member(half.output_body() as usize).clone();
+    Ok(super::NodeValue {
+        carry,
+        family: None,
+        ..projected
+    })
+}
+
+/// **A split of a family's half, whole**: the family of each member's
+/// half ([`half_of`]), named and keyed as any family of bodies is
+/// ([`super::members::family_value`]); a member whose half is empty is
+/// an empty member there, as a boolean's empty result is.
+fn halves<T: topo::AtRestPolicy + Decide>(
+    split: RecipeNodeId,
+    value: &super::NodeValue<T>,
+    half: SplitHalf,
+    port: u8,
+) -> Result<super::NodeValue<T>, NodeErrorKind> {
+    let Some(members) = &value.members else {
+        return Err(wrong_operand(value, split, super::family::SPLIT));
+    };
+    let halves = members
+        .members
+        .iter()
+        .map(|(at, member)| {
+            let own = match half_of(split, member, half, port) {
+                Err(NodeErrorKind::EmptyHalf { .. }) => {
+                    let empty = OpOut::<T>::empty();
+                    super::NodeValue {
+                        payload: empty.payload,
+                        outputs: empty.outputs.into(),
+                        carry: member.carry.member(half.output_body() as usize).clone(),
+                        family: None,
+                        ..member.clone()
+                    }
+                }
+                other => other?,
+            };
+            Ok((at.clone(), own))
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    super::members::family_value(
+        split,
+        super::members::Members {
+            over: Arc::clone(&members.over),
+            members: halves,
+        },
+    )
 }
 
 /// `value`'s output `index` as the body alone, at output 0, with that

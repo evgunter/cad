@@ -38,7 +38,7 @@ from pncad import (
     m,
 )
 
-from placing import against, own_frame, placed
+from placing import against, own_frame, placed, plane_on
 from measuring import pinned
 from test_part_select import box, mass_of, refusal, still
 
@@ -283,6 +283,33 @@ class TestAMemberReadReadsAFamily(unittest.TestCase):
                 with self.assertRaises(EditError) as caught:
                     doc.insert(Node.union([of[0]]))
                 self.assertEqual(caught.exception.variant, tag)
+
+
+class TestASplitOfARowHasHalves(unittest.TestCase):
+    """A split of a row is a family of splits, and each of its halves a
+    family (D10 `[repetition]`): `doc.output(split, 0)[i]` is member
+    `i`'s upper half, and the half read whole is every member's."""
+
+    def test_a_half_of_one_member_and_a_half_whole(self):
+        doc = Doc()
+        prototype = box(doc)
+        row = row_of(doc, prototype)
+        split = doc.insert(
+            Node.split(row, plane_on(doc, prototype, (0.0, 0.0, 0.25), (0.0, 0.0, 1.0)))
+        )
+        above = doc.output(split, 0)
+        upper = still(doc, above[1])
+        # Cut from member 1 it leaves its lower quarter; from member 0,
+        # which it does not meet, all of member 0.
+        rest = doc.insert(Node.subtract(row[1], above[1]))
+        apart = doc.insert(Node.subtract(row[0], above[1]))
+        every = doc.insert(Node.union(doc.output(split, 1)))
+        ev = evaluate(doc)
+        whole = 2.0 * 2.0 * 1.0
+        self.assertAlmostEqual(mass_of(ev, upper).volume, 0.75 * whole, places=12)
+        self.assertAlmostEqual(mass_of(ev, rest).volume, 0.25 * whole, places=12)
+        self.assertAlmostEqual(mass_of(ev, apart).volume, whole, places=12)
+        self.assertAlmostEqual(mass_of(ev, every).volume, COUNT * 0.25 * whole, places=12)
 
 
 class TestTheRefusalsAreTyped(unittest.TestCase):
