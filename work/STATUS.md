@@ -1351,7 +1351,7 @@ prefix `profile/`; tag `(PROFILE orchestrator)`.
 |---|---|---|---|---|---|---|---|
 | P1 | `a-faces-loop-or-closed-trace-cannot-become-a-profile-loop` | issue | M | open | A picked edge loop, or a face's whole closed trace, cannot become a profile loop: an elbow off a hollow cylinder's end is re-typed by hand |  |  |
 | P1 | `a-fillet-refusal-names-the-step-that-resolved-it-not-the-fillet` | issue | M | open | A fillet that cannot be resolved is reported at the step that resolved it, not at the fillet's own step, though the chain already records the fillet's step |  |  |
-| P1 | `a-loop-cannot-repeat-inside-a-profile` | issue | M +design | open | A loop or a run of pieces cannot repeat inside one profile: patterns exist for bodies only |  |  |
+| P1 | `a-loop-cannot-repeat-inside-a-profile` | issue | M | open | A loop or a run of pieces cannot repeat inside one profile: patterns exist for bodies only |  |  |
 | P1 | `a-pen-drawn-rectangle-with-a-boxed-side-refuses-line-span-over-any-box` | issue | M | open | A pen-drawn rectangle with a boxed side refuses the profile's line-span gate over any parameter box, on main |  |  |
 | P1 | `a-real-junction-on-a-short-leg-refuses-as-tangent` | issue | M | open | JunctionTangent and SeamTangent name tangency at a real angle on a short leg: their levered turn margin cannot tell a short arm from a small turn |  |  |
 | P1 | `an-ovoid-cannot-be-authored` | issue | M | open | An ovoid cannot be authored: a profile has no ellipse arc to revolve, and a body cannot be scaled non-uniformly |  |  |
