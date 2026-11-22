@@ -55,9 +55,10 @@ verdicts never differ from it. Its 4 `+E` cases are its bound from above
 reading `+` where the truth is in band. That is the safe direction: acting only
 where the two agree, they refuse.
 
-**Bodies** of the `+` where the truth reads `0` cases (faces lying almost along
-their edge's line, a few nanometres off it but up to 1 m from the span's middle
-along it):
+**Bodies** of the differing cases. In every listed case except the probe, every
+vertex of both faces lies exactly on the edge's line (truth 0) and up to 0.5 m
+from the span's middle along it. These are degenerate faces, test fixtures. In
+the probe the faces stand 1.49e-9 off the line and 1 m along it.
 - `tier3_tests::description_references_keep_a_surface_alive`
 - `tier3_tests::dangling_description_is_a_tier1_error`
 - `euler::tests::the_gate_carries_and_refuses_a_line_under_an_intersection_description`
