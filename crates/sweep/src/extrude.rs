@@ -453,7 +453,7 @@ pub enum ExtrudeError {
     },
     /// An Euler operator or attachment gate refused — including every
     /// D4 ¶2 certification failure, which arrives as
-    /// [`EulerOpError::Certification`] carrying the certification
+    /// [`EulerOpError::DescriptionUncertified`] carrying the certification
     /// report.
     Op {
         /// The operator-layer failure.
@@ -773,7 +773,7 @@ struct LoopBase {
 /// extrusion vectors, sliver dihedrals at joins, escalated cosurface
 /// decisions, and every operator/certification
 /// refusal (D4 ¶2 reports surface inside
-/// [`EulerOpError::Certification`]).
+/// [`EulerOpError::DescriptionUncertified`]).
 ///
 /// # Panics
 ///

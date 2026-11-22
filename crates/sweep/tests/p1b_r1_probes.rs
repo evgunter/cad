@@ -536,7 +536,7 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     assert!(
         matches!(
             err,
-            topo::EulerOpError::Certification {
+            topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::ResidualExceeded {
                     check: geom_brep::CertCheck::MappedSource,
                     ..
@@ -596,7 +596,7 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     assert!(
         matches!(
             err,
-            topo::EulerOpError::Certification {
+            topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::ResidualExceeded {
                     check: geom_brep::CertCheck::MappedSource,
                     ..
@@ -703,7 +703,7 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
     assert!(
         matches!(
             err,
-            topo::EulerOpError::Certification {
+            topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::ResidualExceeded {
                     check: geom_brep::CertCheck::MappedSource,
                     ..

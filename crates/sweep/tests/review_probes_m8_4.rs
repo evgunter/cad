@@ -183,7 +183,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
                 "the seam's certified sup does not fit a finer ε_in"
             );
         }
-        Err(topo::EulerOpError::Certification {
+        Err(topo::EulerOpError::DescriptionUncertified {
             error:
                 geom_brep::CertifyError::Escalated {
                     check: geom_brep::CertCheck::PlaneNurbsHull,

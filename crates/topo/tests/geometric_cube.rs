@@ -173,11 +173,12 @@ fn wrong_cache_is_rejected_at_attachment() {
     assert!(
         matches!(
             err,
-            EulerOpError::Certification {
+            EulerOpError::DescriptionUncertified {
                 error: CertifyError::ResidualExceeded {
                     check: CertCheck::EndpointStart,
                     ..
-                }
+                },
+                ..
             }
         ),
         "{err:?}"
@@ -353,11 +354,12 @@ fn near_tangent_intersection_attachment_escalates() {
     assert!(
         matches!(
             err,
-            EulerOpError::Certification {
+            EulerOpError::DescriptionUncertified {
                 error: CertifyError::Escalated {
                     check: CertCheck::Transversality,
                     ..
-                }
+                },
+                ..
             }
         ),
         "{err:?}"
@@ -379,7 +381,7 @@ fn totality_no_panics_on_poison_inputs() {
             Point3::new(nan, 0.0, 0.0),
             Tol::witness(),
         ),
-        Err(EulerOpError::Certification { .. })
+        Err(EulerOpError::DescriptionUncertified { .. })
     ));
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
@@ -393,8 +395,9 @@ fn totality_no_panics_on_poison_inputs() {
             spec,
             Tol::witness(),
         ),
-        Err(EulerOpError::Certification {
-            error: CertifyError::Unimplemented
+        Err(EulerOpError::DescriptionUncertified {
+            error: CertifyError::Unimplemented,
+            ..
         })
     ));
     assert_eq!(validate(&body), Ok(()));

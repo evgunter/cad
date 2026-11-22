@@ -1116,7 +1116,9 @@ pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
     .map(drop)
     .map_err(|refusal| {
         let edge = match &refusal {
-            EulerOpError::RechartFalsifies { edge, .. } => *edge,
+            EulerOpError::DescriptionUncertified {
+                edge: Some(edge), ..
+            } => *edge,
             _ => return refusal.into(),
         };
         let carrier = restated
@@ -2888,7 +2890,7 @@ mod edge_on_faces_rows {
 
     use super::{SplitFinishError, of_attachment};
     use crate::entity::EdgeKey;
-    use crate::euler::{EulerOpError, RechartDoor};
+    use crate::euler::EulerOpError;
     use crate::geometry::SurfaceKey;
 
     /// **A section-boundary line chord's residual read in band is the
@@ -2915,15 +2917,8 @@ mod edge_on_faces_rows {
             sample: 8,
             cause: in_band(predicate),
         };
-        let at_both_doors = |error: CertifyError| {
-            [
-                EulerOpError::Certification { error },
-                EulerOpError::RechartFalsifies {
-                    door: RechartDoor::SetFaceSurfacesDescribing,
-                    edge,
-                    error,
-                },
-            ]
+        let keyed_or_minted = |error: CertifyError| {
+            [Some(edge), None].map(|edge| EulerOpError::DescriptionUncertified { edge, error })
         };
         for (check, predicate) in [
             (
@@ -2932,7 +2927,7 @@ mod edge_on_faces_rows {
             ),
             (CertCheck::ChartResidual, "pcurve_map_residual"),
         ] {
-            for refusal in at_both_doors(escalated(check, predicate)) {
+            for refusal in keyed_or_minted(escalated(check, predicate)) {
                 let got = of_attachment(edge, CurveKind::Line, refusal.clone());
                 assert!(
                     matches!(
@@ -2981,7 +2976,7 @@ mod edge_on_faces_rows {
             escalated(CertCheck::Transversality, "dihedral_wedge"),
         ];
         for error in kernels {
-            for refusal in at_both_doors(error) {
+            for refusal in keyed_or_minted(error) {
                 let got = of_attachment(edge, CurveKind::Line, refusal.clone());
                 assert!(
                     matches!(got, SplitFinishError::Euler(ref e) if *e == refusal),

@@ -3187,7 +3187,7 @@ fn certify_refusal_routes() -> Vec<(String, NodeErrorKind)> {
             row(
                 &format!("Extrude/Op/Certification/Routed/{route}"),
                 NodeErrorKind::Extrude(sweep::ExtrudeError::Op {
-                    source: topo::EulerOpError::Certification { error: source },
+                    source: topo::EulerOpError::DescriptionUncertified { error: source },
                 }),
             )
         })

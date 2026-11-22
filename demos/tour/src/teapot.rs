@@ -1634,7 +1634,7 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, tol: Tol) -> bool {
         };
         return matches!(
             join.error(),
-            JoinError::Euler(EulerOpError::Certification {
+            JoinError::Euler(EulerOpError::DescriptionUncertified {
                 error: CertifyError::Escalated {
                     check: CertCheck::PlaneNurbsHullValue,
                     ..

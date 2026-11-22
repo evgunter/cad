@@ -25,8 +25,8 @@
 //! Serves ch. 14 `splitgenerate` edge splitting and ch. 15's edge×face
 //! reduction sweep (M3 PRs 2 and 4).
 
+use geom_brep::EdgeCurveSpec;
 use geom_brep::recourse::{Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
-use geom_brep::{CertifyError, EdgeCurveSpec};
 use geom_core::{Band, Decide, Point3, Tol};
 
 use crate::body::Body;
@@ -284,9 +284,7 @@ impl<T: Decide> Body<T> {
         let hm_prev = self.require_live(hm_data.prev, link(EntityId::HalfEdge(hm.key()), "prev"));
         let curve = self.stored_curve(edge)?.clone();
         let (t0, t1) = curve.params();
-        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
-            error: CertifyError::Band(e),
-        })?;
+        let band = Band::linear(tol).map_err(EulerOpError::Band)?;
         // Interiority (trilean, Q1): the span's own reading of the
         // parameter (`geom_brep::curve_pair::Span::place_param_read`): the
         // split point within the band of an end's point, by their chord,

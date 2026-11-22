@@ -116,7 +116,7 @@ fn refused<T: Decide + AtRestPolicy + Bounds>(declared: bool) -> CertifyError {
         param_end: len,
     };
     match body.set_edge_curve(edge, spec, Tol::witness()) {
-        Err(EulerOpError::Certification { error }) => error,
+        Err(EulerOpError::DescriptionUncertified { error, .. }) => error,
         other => panic!(
             "{}: a chord off its sphere refuses at the mint: {other:?}",
             T::NAME

@@ -750,9 +750,7 @@ pub(crate) fn edge_on_faces_reading(
     carrier: geom::CurveKind,
     refusal: &EulerOpError,
 ) -> Option<Indeterminate> {
-    let (EulerOpError::Certification { error } | EulerOpError::RechartFalsifies { error, .. }) =
-        refusal
-    else {
+    let EulerOpError::DescriptionUncertified { error, .. } = refusal else {
         return None;
     };
     match (carrier, error) {
@@ -785,17 +783,18 @@ pub(crate) fn edge_on_faces_reading(
 /// other refusal's whole text. The door reporting it gives the ending.
 pub(crate) fn refusal_payload(cause: &EulerOpError) -> String {
     match cause {
-        EulerOpError::Certification {
+        EulerOpError::DescriptionUncertified {
             error:
                 geom_brep::CertifyError::ResidualExceeded {
                     check,
                     sample,
                     margin,
                 },
+            ..
         } if *sample != geom_brep::certify::NOT_A_SAMPLE => {
             format!("{check} at sample {sample} is {margin:e}, definitely past the tolerance")
         }
-        EulerOpError::Certification { error } => error.to_string(),
+        EulerOpError::DescriptionUncertified { error, .. } => error.to_string(),
         other => other.to_string(),
     }
 }
@@ -808,7 +807,7 @@ pub(crate) fn refusal_payload(cause: &EulerOpError) -> String {
 /// walk broke.
 pub(crate) fn undescribed_ending(cause: Option<&EulerOpError>, fitted: bool) -> String {
     match cause {
-        Some(EulerOpError::Certification { error }) if fitted => error
+        Some(EulerOpError::DescriptionUncertified { error, .. }) if fitted => error
             .ending(Reading::Build)
             .unwrap_or_else(|| geom_core::KERNEL_DEFECT_ENDING.to_owned()),
         _ => geom_core::KERNEL_DEFECT_ENDING.to_owned(),
@@ -1617,7 +1616,7 @@ impl OpPlacement {
             // survivor, so a nested group meets it on a body that was
             // never torn. ----
             E::SameFace { .. }
-            | E::Certification { .. }
+            | E::DescriptionUncertified { .. }
             | E::RebasedCarrier { .. }
             | E::RebasedNullEdge { .. }
             | E::MergeRebasesCarriers { .. }
@@ -1627,11 +1626,11 @@ impl OpPlacement {
             | E::RechartStrandsDescriptions { .. }
             | E::RechartUnvouched { .. }
             | E::RechartUndescribed { .. }
-            | E::RechartFalsifies { .. }
             | E::RechartOffBoundary { .. }
             | E::RechartBoundaryEscalated { .. }
             | E::NotMovedEdge { .. }
             | E::FaceMovedTwice { .. }
+            | E::Band(_)
             | E::FanStartMismatch { .. }
             | E::LoopNotEmpty { .. }
             | E::NotSameFace { .. }

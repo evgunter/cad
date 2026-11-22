@@ -896,7 +896,7 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
         .set_edge_curve(rim, forged, Tol::witness())
         .unwrap_err();
     assert!(
-        matches!(err, topo::EulerOpError::Certification { .. }),
+        matches!(err, topo::EulerOpError::DescriptionUncertified { .. }),
         "start-point witness must fail the mid-parameter pin: {err:?}"
     );
     assert_all_tiers(&body);
@@ -1157,7 +1157,7 @@ fn survives_near_full_period_rim_span_escalates() {
         )
         .unwrap_err();
     assert!(
-        matches!(err, topo::EulerOpError::Certification { .. }),
+        matches!(err, topo::EulerOpError::DescriptionUncertified { .. }),
         "near-τ rim span must escalate: {err:?}"
     );
 }

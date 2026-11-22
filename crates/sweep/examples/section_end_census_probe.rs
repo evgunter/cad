@@ -56,7 +56,7 @@ fn outcome(r: Result<topo::SplitResult<f64>, SplitError>) -> String {
             format!("END {reading:?} {:?}", diag.margin)
         }
         Err(SplitError::Join(JoinError::SectionUnresolved { miss, .. })) => unresolved(miss),
-        Err(SplitError::Join(JoinError::Euler(EulerOpError::Certification { error }))) => {
+        Err(SplitError::Join(JoinError::Euler(EulerOpError::DescriptionUncertified { error, .. }))) => {
             match error {
                 geom_brep::CertifyError::Escalated { check, cause, .. } => {
                     format!("EULER {check:?} escalated {:?}", cause.margin)

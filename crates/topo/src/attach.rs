@@ -66,7 +66,7 @@
 //! keys, and a setter call is part of the history.
 
 use geom::Surface;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
 
@@ -350,9 +350,7 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
-            error: CertifyError::Band(e),
-        })?;
+        let band = Band::linear(tol).map_err(EulerOpError::Band)?;
         let faces = self.plan_recharts(&charts)?;
         let slots = moved_slots(&faces);
         let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| slots.get(f).copied();
@@ -404,9 +402,8 @@ impl<T: Decide> Body<T> {
                     .and_then(geom_brep::EdgeCurve::locus_certificate)
                     .as_slice(),
             )
-            .map_err(|error| EulerOpError::RechartFalsifies {
-                door: RechartDoor::SetFaceSurfacesDescribing,
-                edge,
+            .map_err(|error| EulerOpError::DescriptionUncertified {
+                edge: Some(edge),
                 error,
             })?;
             written.push((edge, sides, curve));
@@ -898,9 +895,9 @@ impl<T: Decide> Body<T> {
     /// adjacency-coherent once the move lands, a key the moving face
     /// wears now standing for `onto`
     /// ([`EulerOpError::DescriptionNotAdjacent`]); and, `tol` building
-    /// a band ([`EulerOpError::Certification`]), it certifies on the
-    /// edge's own carrier and interval at its endpoints
-    /// ([`EulerOpError::RechartFalsifies`]). A kill re-describes; it
+    /// a band ([`EulerOpError::Band`]), it certifies on the edge's own
+    /// carrier and interval at its endpoints
+    /// ([`EulerOpError::DescriptionUncertified`]). A kill re-describes; it
     /// does not move a carrier, so the stored carrier, interval and
     /// pcurve rows stand. Then no unlisted edge is stranded
     /// ([`EulerOpError::RechartUndescribed`], every one named, in
@@ -926,11 +923,7 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let band = || {
-            Band::linear(tol).map_err(|e| EulerOpError::Certification {
-                error: CertifyError::Band(e),
-            })
-        };
+        let band = || Band::linear(tol).map_err(EulerOpError::Band);
         let landing = self.landing_on(old, onto);
         let moved = |he, l, f| moves(he, l, f).then_some(landing.after);
         let mut written: Written<T> = Written::with_capacity(redescriptions.len());
@@ -973,7 +966,10 @@ impl<T: Decide> Body<T> {
                 None,
                 kept.as_slice(),
             )
-            .map_err(|error| EulerOpError::RechartFalsifies { door, edge, error })?;
+            .map_err(|error| EulerOpError::DescriptionUncertified {
+                edge: Some(edge),
+                error,
+            })?;
             written.push((edge, sides, curve));
         }
         let keeps = landing.after == Slot::Kept(old) || refusals_lifted();
@@ -1349,9 +1345,7 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
-            error: CertifyError::Band(e),
-        })?;
+        let band = Band::linear(tol).map_err(EulerOpError::Band)?;
         let data = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?;
         let sides = crate::readback::edge_sides_of(self, edge, data);
         let (s_plus, s_minus) = sides.surfaces();
@@ -1550,8 +1544,8 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// What `rewired` raises; [`EulerOpError::Certification`] where
-    /// `tol` builds no band; [`EulerOpError::PcurveMint`] naming the face a half-edge of which
+    /// What `rewired` raises; [`EulerOpError::Band`] where `tol` builds
+    /// no band; [`EulerOpError::PcurveMint`] naming the face a half-edge of which
     /// did not resolve.
     pub(crate) fn description_rows(
         &self,
@@ -2610,7 +2604,7 @@ mod tests {
             .set_face_surfaces_describing(shifted, &specs, tol())
             .unwrap_err();
         assert!(
-            matches!(err, EulerOpError::RechartFalsifies { edge, .. } if edge == named[0]),
+            matches!(err, EulerOpError::DescriptionUncertified { edge: Some(edge), .. } if edge == named[0]),
             "{err:?}"
         );
         assert_eq!(deep_snapshot(&body), before, "body changed on Err");
@@ -3269,7 +3263,7 @@ mod tests {
                 .set_face_surfaces_describing(vec![chart], &specs_of(&body, face), tol())
                 .unwrap_err();
             assert!(
-                matches!(err, EulerOpError::RechartFalsifies { .. }),
+                matches!(err, EulerOpError::DescriptionUncertified { .. }),
                 "one chart alone: {err:?}"
             );
         }
@@ -4554,7 +4548,7 @@ mod tests {
 
     /// **A describing kill refuses a listed spec that does not
     /// certify**: a cap edge listed as an image in the front face's
-    /// chart, which it does not lie in, is `RechartFalsifies` naming
+    /// chart, which it does not lie in, is `DescriptionUncertified` naming
     /// that edge, and the door writes nothing.
     #[test]
     fn a_describing_kill_refuses_a_listed_spec_that_does_not_certify() {
@@ -4573,9 +4567,8 @@ mod tests {
         assert!(
             matches!(
                 err,
-                EulerOpError::RechartFalsifies {
-                    door: RechartDoor::KefDescribing,
-                    edge,
+                EulerOpError::DescriptionUncertified {
+                    edge: Some(edge),
                     ..
                 } if edge == moved
             ),
