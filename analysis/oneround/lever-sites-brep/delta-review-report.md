@@ -187,12 +187,17 @@ for the test's name in the file). `geom-brep …::a_carrier_on_its_chart_pinned_
 passes on both sides under my seed; under mine the sibling
 `every_arm_and_term_is_load_bearing_in_a_pinned_sweep` is red on both.
 Its row names the test, as a mutant-coverage matter and not as red under
-a foreign seed. Also red on both sides here at 1e-9, same messages: the
-ten slow-set rows of my first report's n8 less the two editor-core ones
-(not in this scope), plus `sweep::all bisector_nodes::the_near_node_poses_at_the_witness_band`
-and `section_end_poses::a_section_end_at_the_band_edge_…` (both red on
-the base binary with no seed and no ε set), and three source-scan rows
-I did not separate from my logger patch.
+a foreign seed. Also red on both sides here at 1e-9, same messages, 13 in all: the
+three step-import rows on `nist_ftc_09_asme1_rd.stp`, `sweep
+offer_rows::every_sphere_offer_passes_just_below_it`, `topo
+…offer_rows::every_offered_tolerance_passes_just_below_it`, the two of
+`topo::all a_corner_reads_only_its_own_sectors`, `sweep::all
+germ_tilted_rod::other_spins_…` (all in my first report's n8), `sweep::all
+bisector_nodes::the_near_node_poses_at_the_witness_band` and
+`section_end_poses::a_section_end_at_the_band_edge_…` (new to me; both
+red on the base binary with no seed and no ε set), and three source-scan
+rows I did not separate from my logger patch (two `recourse_roster`s,
+`topo face_normal::tests::no_source_file_folds_the_bit_by_hand`).
 
 **D6. The dated row section's `Option<NurbsLane<T>>`** is
 `Option<impl NurbsLaneOf<T>>` since the merge (F4). `sure`.
@@ -285,9 +290,10 @@ crates; the log is keyed by binary stem and test name (two source-scan
 keys collide); it sees only decisions through `k_stats::classify`.
 
 Mutants, re-planted on the frozen head (`probes/delta/mutants.log`): 34,
-of which 30 red and 4 surviving (D1). Red: all 17 of the first review's
-PR list that still apply, the three former survivors at
-`chart_curvature_arm`, the three Face-arm ones, three on
+of which 30 red and 4 surviving (D1). Red: the 14 of the PR's
+first-round list I re-planted, the three former survivors at
+`chart_curvature_arm`, the three Face-arm ones, one more on the cone
+arm, three on
 `edges_extent_inf` (the edges' own extents alone; one width for the
 widest; the width scaled past the farthest pair), and six of ten on
 step-import's bounds.
