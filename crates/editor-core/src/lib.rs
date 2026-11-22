@@ -113,7 +113,7 @@ pub use appearance::{
 pub use checks::at_rest::{
     AtRestEvidence, AtRestRow, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows,
     CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
-    PinnedDoc, Route, Unlocalized,
+    PinnedDoc, Route, RouteHop, Unlocalized,
 };
 pub use checks::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
@@ -154,8 +154,8 @@ pub use eval::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged};
 pub use spoken::{
-    FullId, HeldNodes, Mention, Mentioned, NameTables, Phrase, Put, Run, Said, SaidName, SaidNode,
-    SaidVar, Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, held_by,
+    FullId, HeldNodes, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode, SaidVar,
+    Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, held_by,
     node_kind_noun, spell, spoken_by, spoken_within,
 };
 

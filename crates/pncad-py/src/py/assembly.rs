@@ -224,7 +224,7 @@ pub(crate) fn product_named(
 pub(super) fn route_fields(py: Python<'_>, route: &d::Route) -> (Py<PyAny>, Py<PyAny>) {
     let of = PyString::new(py, &route.of.to_string()).unbind().into_any();
     let via = core::iter::once(route.through)
-        .chain(route.via.iter().map(d::SpokenNode::id))
+        .chain(route.via.iter().map(|hop| hop.node.id()))
         .map(NodeId)
         .collect::<Vec<_>>()
         .into_pyobject(py)

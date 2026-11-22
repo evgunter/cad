@@ -88,8 +88,8 @@ const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 87
 /// regression: a change that lengthens them says in its PR which names
 /// grew and why, and lowers the pin with any that shrank.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 48_003]),
-    ("full", [19, 121, 196, 341_097]),
+    ("scoped faces", [16, 43, 57, 47_867]),
+    ("full", [19, 121, 196, 340_476]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -100,7 +100,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// a node stores, an id minted earlier, or a document the corpus gains
 /// re-pins it; the PR that moves it says which words moved, and that
 /// with each tag masked no other did where that is so.
-const SAID_DIGEST: u64 = 0x4fa2_f3d3_3000_d430;
+const SAID_DIGEST: u64 = 0x1bd0_e2a7_9b08_1dfe;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

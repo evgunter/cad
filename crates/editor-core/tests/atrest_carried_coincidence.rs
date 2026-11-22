@@ -394,11 +394,24 @@ fn a_part_two_documents_down_is_reported_once_by_its_route() {
                 row.route
                     .via
                     .iter()
-                    .map(editor_core::SpokenNode::id)
+                    .map(|hop| (hop.node.id(), hop.document))
                     .collect::<Vec<_>>()
             ),
-            (ids[0], part.id(), vec![inner]),
+            (ids[0], part.id(), vec![(inner, mid.id())]),
             "of the part, through the top's instance, via the middle's"
+        );
+        let said = editor_core::spoken_by(&row.route, &top);
+        let mentions: Vec<_> = said
+            .mentions()
+            .map(|m| (m.node().map(editor_core::SpokenNode::id), m.document()))
+            .collect();
+        assert_eq!(
+            mentions,
+            vec![
+                (Some(ids[0]), Some(top.id())),
+                (Some(inner), Some(mid.id()))
+            ],
+            "each hop is mentioned in its own document: {said}"
         );
     }
 }
@@ -452,7 +465,7 @@ fn a_leaf_under_two_middles_is_reported_once() {
                     row.route
                         .via
                         .iter()
-                        .map(editor_core::SpokenNode::id)
+                        .map(|hop| hop.node.id())
                         .collect::<Vec<_>>()
                 ),
                 (a, vec![inner]),

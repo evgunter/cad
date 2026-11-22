@@ -2501,7 +2501,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                 FindingSubject::Var(var) => {
                     return CheckRow {
                         select: Selection::Variable(var),
-                        button: by.read(var).sentence().to_string(),
+                        button: by.read(var).to_string(),
                         sentence: Said(finding, by).sentence().to_string(),
                         cells: Vec::new(),
                         add_to_product: None,
@@ -2703,10 +2703,9 @@ fn repointed(
             }
         }
         None => {
-            let copy = placements.first().map_or_else(
-                || by.read(source).sentence(),
-                |&copy| sentence!(by.node(copy)),
-            );
+            let copy = placements
+                .first()
+                .map_or_else(|| by.read(source), |&copy| sentence!(by.node(copy)));
             let named = sentence!("the copy ", copy).to_string();
             Repointed {
                 counted: named.clone(),

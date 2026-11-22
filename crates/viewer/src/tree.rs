@@ -677,9 +677,7 @@ fn cleared(
             canonical,
             dimension: pncad::document::Dimension::Length,
         }),
-        Some(crate::props::SlotValue::Count(_)) | None => {
-            Bound::Written(by.read(var).sentence().to_string())
-        }
+        Some(crate::props::SlotValue::Count(_)) | None => Bound::Written(by.read(var).to_string()),
     };
     // A face seat is its face, said; a body seat its read — a copy's
     // as the body it places ([`crate::world::copy_source`]), the
@@ -694,7 +692,6 @@ fn cleared(
                     .filter(|source| !source.member)
                     .map_or(var, |source| source.body_var),
             )
-            .sentence()
             .to_string(),
     };
     Cleared {

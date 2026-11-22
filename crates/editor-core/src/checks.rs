@@ -509,7 +509,7 @@ fn copy_said(
     by: crate::spoken::Speaker<'_>,
 ) -> crate::Sentence {
     match copy.member {
-        0 => by.read(copy.var).sentence(),
+        0 => by.read(copy.var),
         member => sentence!(by.read(copy.var), format_args!(" member {member}")),
     }
 }
@@ -734,10 +734,8 @@ impl SaidFinding<'_> {
             CheckEvidence::Unused { named } => {
                 f.write_str("used by nothing")?;
                 if !named.is_empty() {
-                    let names = crate::Sentence::joined(
-                        named.iter().map(|&var| by.read(var).sentence()),
-                        ", ",
-                    );
+                    let names =
+                        crate::Sentence::joined(named.iter().map(|&var| by.read(var)), ", ");
                     say!(f, ", its outputs named ", names, " with it")?;
                 }
                 f.write_str(": not the product, not an assertion, and nothing reads it")

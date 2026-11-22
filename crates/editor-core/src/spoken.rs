@@ -53,6 +53,11 @@
 
 use core::fmt;
 
+mod sentence;
+
+use sentence::Readers;
+pub use sentence::{Mention, Mentioned, Put, Run, SaidName, SaidNode, SaidVar, Sentence, spell};
+
 use crate::DocumentId;
 use crate::doc::Doc;
 use crate::label::Label;
@@ -1286,8 +1291,8 @@ impl<'a> Speaker<'a> {
     /// **The read `var`, said**: its name where the document
     /// holds one, else the operation defining it (`Split 1ab2's above`
     /// for one of several outputs), else its id.
-    pub fn read(self, var: crate::var::VarId) -> Phrase {
-        Phrase::written(|out| {
+    pub fn read(self, var: crate::var::VarId) -> Sentence {
+        Sentence::written(|out| {
             let Some(doc) = self.doc else {
                 return write!(out, "{}", ReadTag(var));
             };
@@ -1405,7 +1410,7 @@ impl<'a> Speaker<'a> {
     /// speaker has no document). A refusal kept by an evaluation memo
     /// holds the formula as an [`crate::Expr`], so a rename — which
     /// recomputes nothing — still reads in the sentence.
-    pub fn formula<L: crate::expr::LeafSet>(self, expr: &crate::expr::ExprTree<L>) -> Phrase {
+    pub fn formula<L: crate::expr::LeafSet>(self, expr: &crate::expr::ExprTree<L>) -> Sentence {
         let mut reads = Vec::new();
         expr.var_reads(&mut reads);
         let names: Vec<(crate::var::VarId, crate::doc::VarName)> = match self.doc {
@@ -1415,7 +1420,7 @@ impl<'a> Speaker<'a> {
                 .filter_map(|(id, _)| doc.speak_var(id).map(|name| (id, name)))
                 .collect(),
         };
-        Phrase::written(|out| {
+        Sentence::written(|out| {
             let mut readers = Readers { out, by: self };
             crate::expr::unparse_into(
                 expr,
@@ -1435,8 +1440,8 @@ impl<'a> Speaker<'a> {
     /// spoken by its operation): its name where it has one, else `the
     /// <port> of <node>`; by its id where the speaker's document does
     /// not hold it.
-    pub fn output(self, var: crate::var::VarId) -> Phrase {
-        Phrase::written(|out| {
+    pub fn output(self, var: crate::var::VarId) -> Sentence {
+        Sentence::written(|out| {
             let Some(doc) = self.doc else {
                 return write!(out, "{var}");
             };
@@ -1457,8 +1462,8 @@ impl<'a> Speaker<'a> {
 
     /// **A space, said** (D10 `[placement.spaces]`): `the
     /// world`, or as the output it is (`the space of Extrude e548`).
-    pub fn space(self, var: crate::var::VarId) -> Phrase {
-        Phrase::written(|out| {
+    pub fn space(self, var: crate::var::VarId) -> Sentence {
+        Sentence::written(|out| {
             if var == crate::var::VarId::WORLD {
                 return out.write_str("the world");
             }
@@ -1484,7 +1489,7 @@ impl<'a> Speaker<'a> {
     /// holds, its readers said ([`Self::formula`]); a
     /// named one by its name; `#<ordinal>:<hex>` where the speaker's
     /// document does not hold it.
-    pub fn slot_var(self, var: crate::var::VarId, dim: crate::expr::Dimension) -> Phrase {
+    pub fn slot_var(self, var: crate::var::VarId, dim: crate::expr::Dimension) -> Sentence {
         let written = self
             .doc
             .and_then(|doc| doc.written(var, dim))
@@ -1553,8 +1558,8 @@ impl<'a> Speaker<'a> {
     /// placement as [`Speaker::node`] says it. With no document to read
     /// the bundle off, `n` is the constraint's ordinal (`#<ordinal>`),
     /// never its arena key.
-    pub fn mate(self, mate: crate::mate::MateRef) -> Phrase {
-        Phrase::written(|out| {
+    pub fn mate(self, mate: crate::mate::MateRef) -> Sentence {
+        Sentence::written(|out| {
             write!(out, "constraint {} of ", self.constraint_numeral(mate))?;
             out.node(self.node(mate.placement))
         })
@@ -1570,498 +1575,6 @@ impl<'a> Speaker<'a> {
             None => mate.id.to_string(),
         }
     }
-}
-
-/// A name said ([`Speaker::name`]), for [`Sentence::name`]: the one
-/// spelling of a name in words ([`crate::LeafRole`]), [`SpokenName`]'s
-/// and [`StableName`]'s too.
-#[must_use]
-pub struct SaidName<'a>(&'a StableName, Speaker<'a>);
-
-/// **A node as a sentence says it** ([`Speaker::node`],
-/// [`Speaker::node_as`], [`Speaker::mention`]), for [`Sentence::node`]:
-/// `this <noun>` for the sentence's subject, `<noun> <tag>` for a node
-/// the document did not hold where the sentence knows what it is, and
-/// otherwise a [`Mention`]. It has no `Display`: only a whole sentence
-/// becomes text.
-#[must_use]
-pub struct SaidNode(SaidNodeIs);
-
-enum SaidNodeIs {
-    This(&'static str),
-    Absent(&'static str, RecipeNodeId),
-    Mention(Mention),
-}
-
-impl SaidNode {
-    /// `None` for the subject; a node not held, said as `noun`.
-    fn of(noun: &'static str, said: Option<SpokenNode>, document: Option<DocumentId>) -> Self {
-        Self(match said {
-            None => SaidNodeIs::This(noun),
-            Some(node) if node.kind().is_none() && noun != "node" => {
-                SaidNodeIs::Absent(noun, node.id())
-            }
-            Some(node) => SaidNodeIs::Mention(Mention {
-                of: Mentioned::Node(node),
-                document,
-            }),
-        })
-    }
-}
-
-/// A variable as a sentence mentions it ([`Speaker::var`]), for
-/// [`Sentence::var`].
-#[must_use]
-pub struct SaidVar(Mention);
-
-/// **What a mention names**: a recipe node or a variable, as the
-/// document it was spoken from held it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Mentioned {
-    /// A recipe node.
-    Node(SpokenNode),
-    /// A variable.
-    Var(SpokenVar),
-}
-
-/// **A node or variable a sentence names** (DESIGN.md Band 1, "Node
-/// labels"): what it names, as spoken, and the document its id is
-/// spelled in — `None` where the speaker had none (a sentence said by
-/// tag). An id is not document-scoped, so a reader acts on a mention
-/// only in the document it names.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Mention {
-    of: Mentioned,
-    document: Option<DocumentId>,
-}
-
-impl Mention {
-    /// What it names.
-    #[must_use]
-    pub fn mentioned(&self) -> &Mentioned {
-        &self.of
-    }
-
-    /// The node it names, if it names one.
-    #[must_use]
-    pub fn node(&self) -> Option<&SpokenNode> {
-        match &self.of {
-            Mentioned::Node(node) => Some(node),
-            Mentioned::Var(_) => None,
-        }
-    }
-
-    /// The variable it names, if it names one.
-    #[must_use]
-    pub fn var(&self) -> Option<&SpokenVar> {
-        match &self.of {
-            Mentioned::Var(var) => Some(var),
-            Mentioned::Node(_) => None,
-        }
-    }
-
-    /// The document its id is spelled in.
-    #[must_use]
-    pub fn document(&self) -> Option<DocumentId> {
-        self.document
-    }
-}
-
-/// **A mention as text**: the one spelling, which a [`Sentence`]'s
-/// `Display` and every flattening of one use. A node is its label and
-/// tag, `"base plate" (3fa9c1d2a0b1)`; its kind and tag with no label,
-/// `Extrude 3fa9c1d2a0b1`; `node 3fa9c1d2a0b1` where the document did
-/// not hold it. A variable is its name, or its id with none.
-///
-/// # Errors
-///
-/// The writer's.
-pub fn spell(mention: &Mention, out: &mut dyn fmt::Write) -> fmt::Result {
-    match &mention.of {
-        Mentioned::Node(node) => node.spell(out),
-        Mentioned::Var(var) => var.spell(out),
-    }
-}
-
-/// One run of a [`Sentence`]: words, or a mention.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Run {
-    /// Words, as written.
-    Words(String),
-    /// A node or variable it names.
-    Mention(Mention),
-}
-
-/// **A sentence as a value**: words, written through [`fmt::Write`],
-/// and mentions, written through [`Sentence::node`], [`Sentence::var`]
-/// and [`Sentence::name`]. A [`Say`] value writes its sentence into
-/// one; its `Display` is its text, each mention [`spell`]ed.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Sentence(Vec<Run>);
-
-impl Sentence {
-    /// The empty sentence.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Its runs, in order; no two words runs are adjacent.
-    #[must_use]
-    pub fn runs(&self) -> &[Run] {
-        &self.0
-    }
-
-    /// The mentions it holds, in order.
-    pub fn mentions(&self) -> impl Iterator<Item = &Mention> {
-        self.0.iter().filter_map(|piece| match piece {
-            Run::Mention(mention) => Some(mention),
-            Run::Words(_) => None,
-        })
-    }
-
-    /// Whether it holds nothing.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Writes the node `said`.
-    ///
-    /// # Errors
-    ///
-    /// None; a sentence's write cannot fail.
-    pub fn node(&mut self, said: SaidNode) -> fmt::Result {
-        match said.0 {
-            SaidNodeIs::This(noun) => write!(self, "this {noun}"),
-            SaidNodeIs::Absent(noun, id) => write!(self, "{noun} {id}"),
-            SaidNodeIs::Mention(mention) => {
-                self.0.push(Run::Mention(mention));
-                Ok(())
-            }
-        }
-    }
-
-    /// Writes the variable `said`.
-    ///
-    /// # Errors
-    ///
-    /// None; a sentence's write cannot fail.
-    pub fn var(&mut self, said: SaidVar) -> fmt::Result {
-        self.0.push(Run::Mention(said.0));
-        Ok(())
-    }
-
-    /// Writes the name `said` in words, its nodes as mentions.
-    ///
-    /// # Errors
-    ///
-    /// None; a sentence's write cannot fail.
-    pub fn name(&mut self, said: SaidName<'_>) -> fmt::Result {
-        let SaidName(name, by) = said;
-        crate::names::LeafRole(name).say(self, by)
-    }
-
-    /// Writes `value`'s sentence, each node said by `by`.
-    ///
-    /// # Errors
-    ///
-    /// None; a sentence's write cannot fail.
-    pub fn say<T: Say + ?Sized>(&mut self, value: &T, by: Speaker<'_>) -> fmt::Result {
-        value.say(self, by)
-    }
-
-    /// Writes `words` ([`fmt::Write::write_str`], callable with no
-    /// import).
-    ///
-    /// # Errors
-    ///
-    /// None; a sentence's write cannot fail.
-    pub fn write_str(&mut self, words: &str) -> fmt::Result {
-        self.push_words(words);
-        Ok(())
-    }
-
-    /// Writes `args` as words: what `write!` calls.
-    ///
-    /// # Errors
-    ///
-    /// None; a sentence's write cannot fail.
-    pub fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
-        fmt::Write::write_fmt(self, args)
-    }
-
-    /// `parts`, in order, with `between` written between each two.
-    #[must_use]
-    pub fn joined(parts: impl IntoIterator<Item = Sentence>, between: &str) -> Self {
-        let mut out = Self::new();
-        for (i, part) in parts.into_iter().enumerate() {
-            if i > 0 {
-                out.push_words(between);
-            }
-            out.append(part);
-        }
-        out
-    }
-
-    /// Writes `other` after it, its mentions as they were.
-    pub fn append(&mut self, other: Sentence) {
-        for piece in other.0 {
-            match piece {
-                Run::Words(words) => self.push_words(&words),
-                mention @ Run::Mention(_) => self.0.push(mention),
-            }
-        }
-    }
-
-    fn push_words(&mut self, words: &str) {
-        if words.is_empty() {
-            return;
-        }
-        match self.0.last_mut() {
-            Some(Run::Words(run)) => run.push_str(words),
-            _ => self.0.push(Run::Words(words.to_owned())),
-        }
-    }
-}
-
-impl fmt::Write for Sentence {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.push_words(s);
-        Ok(())
-    }
-}
-
-/// Words alone.
-impl From<String> for Sentence {
-    fn from(words: String) -> Self {
-        let mut sentence = Self::new();
-        sentence.push_words(&words);
-        sentence
-    }
-}
-
-/// Words alone.
-impl From<&str> for Sentence {
-    fn from(words: &str) -> Self {
-        let mut sentence = Self::new();
-        sentence.push_words(words);
-        sentence
-    }
-}
-
-/// Its text: the words, and each mention [`spell`]ed.
-impl fmt::Display for Sentence {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for piece in &self.0 {
-            match piece {
-                Run::Words(words) => f.write_str(words)?,
-                Run::Mention(mention) => spell(mention, f)?,
-            }
-        }
-        Ok(())
-    }
-}
-
-/// Its text ([`spell`]ing each mention): where a sentence leaves the
-/// kernel as text.
-impl From<Sentence> for String {
-    fn from(sentence: Sentence) -> Self {
-        sentence.to_string()
-    }
-}
-
-impl Sentence {
-    /// Whether it reads `text`, compared as it is spelled, run by run.
-    fn reads(&self, text: &str) -> bool {
-        struct Against<'t>(&'t str);
-        impl fmt::Write for Against<'_> {
-            fn write_str(&mut self, s: &str) -> fmt::Result {
-                let rest = self.0.strip_prefix(s).ok_or(fmt::Error)?;
-                self.0 = rest;
-                Ok(())
-            }
-        }
-        let mut against = Against(text);
-        fmt::write(&mut against, format_args!("{self}")).is_ok() && against.0.is_empty()
-    }
-}
-
-/// A sentence equals the text it reads.
-impl PartialEq<str> for Sentence {
-    fn eq(&self, text: &str) -> bool {
-        self.reads(text)
-    }
-}
-
-/// A sentence equals the text it reads.
-impl PartialEq<&str> for Sentence {
-    fn eq(&self, text: &&str) -> bool {
-        self.reads(text)
-    }
-}
-
-/// A sentence equals the text it reads.
-impl PartialEq<String> for Sentence {
-    fn eq(&self, text: &String) -> bool {
-        self.reads(text)
-    }
-}
-
-/// A sentence equals the text it reads.
-impl PartialEq<Sentence> for String {
-    fn eq(&self, sentence: &Sentence) -> bool {
-        sentence.reads(self)
-    }
-}
-
-/// A sentence equals the text it reads.
-impl PartialEq<Sentence> for &str {
-    fn eq(&self, sentence: &Sentence) -> bool {
-        sentence.reads(self)
-    }
-}
-
-/// A formula's readers, mentioned ([`Speaker::formula`]).
-struct Readers<'s, 'a> {
-    out: &'s mut Sentence,
-    by: Speaker<'a>,
-}
-
-impl crate::expr::Unparsed for Readers<'_, '_> {
-    fn push(&mut self, ch: char) {
-        let _ = fmt::Write::write_char(self.out, ch);
-    }
-    fn push_str(&mut self, text: &str) {
-        self.out.push_words(text);
-    }
-    fn reader(&mut self, var: crate::var::VarId, name: Option<&crate::doc::VarName>) {
-        let _ = self
-            .out
-            .var(self.by.var(&SpokenVar::new(var, name.cloned())));
-    }
-}
-
-/// **Part of a sentence, said by a [`Speaker`]'s helper** ([`Speaker::read`],
-/// [`Speaker::formula`] and the others): words and mentions, written
-/// into the sentence it is part of. It has no `Display`: only a whole
-/// sentence becomes text.
-#[must_use]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Phrase(Sentence);
-
-impl Phrase {
-    fn written(write: impl FnOnce(&mut Sentence) -> fmt::Result) -> Self {
-        let mut out = Sentence::new();
-        let _ = write(&mut out);
-        Self(out)
-    }
-
-    /// The phrase as a sentence of its own.
-    pub fn sentence(self) -> Sentence {
-        self.0
-    }
-}
-
-/// **What [`say!`](crate::say) writes into a sentence**: words (`&str`,
-/// `String`, `format_args!`) or a mention ([`SaidNode`], [`SaidVar`],
-/// [`SaidName`]), a [`Phrase`], a [`Sentence`], or a value [`Said`].
-pub trait Put {
-    /// Writes itself into `out`.
-    fn put(self, out: &mut Sentence);
-}
-
-impl Put for &str {
-    fn put(self, out: &mut Sentence) {
-        out.push_words(self);
-    }
-}
-
-impl Put for String {
-    fn put(self, out: &mut Sentence) {
-        out.push_words(&self);
-    }
-}
-
-impl Put for fmt::Arguments<'_> {
-    fn put(self, out: &mut Sentence) {
-        let _ = fmt::Write::write_fmt(out, self);
-    }
-}
-
-impl Put for SaidNode {
-    fn put(self, out: &mut Sentence) {
-        let _ = out.node(self);
-    }
-}
-
-impl Put for SaidVar {
-    fn put(self, out: &mut Sentence) {
-        let _ = out.var(self);
-    }
-}
-
-impl Put for SaidName<'_> {
-    fn put(self, out: &mut Sentence) {
-        let _ = out.name(self);
-    }
-}
-
-impl Put for Phrase {
-    fn put(self, out: &mut Sentence) {
-        out.append(self.0);
-    }
-}
-
-impl Put for Sentence {
-    fn put(self, out: &mut Sentence) {
-        out.append(self);
-    }
-}
-
-/// `Recourse: ` and the recourse, its mentions kept.
-impl Put for geom_core::Recourse<Sentence> {
-    fn put(self, out: &mut Sentence) {
-        out.push_words("Recourse: ");
-        out.append(self.0);
-    }
-}
-
-/// `Recourse: ` and the recourse, its mentions kept.
-impl Put for geom_core::Recourse<&Sentence> {
-    fn put(self, out: &mut Sentence) {
-        out.push_words("Recourse: ");
-        out.append(self.0.clone());
-    }
-}
-
-impl<T: Say + ?Sized> Put for Said<'_, T> {
-    fn put(self, out: &mut Sentence) {
-        let _ = self.0.say(out, self.1);
-    }
-}
-
-/// **Writes a sentence's pieces in order** ([`Put`]): `say!(out,
-/// by.node(id), format_args!(" reads {n} values"))`. Evaluates to
-/// `Ok(())`, the [`Say::say`] answer.
-#[macro_export]
-macro_rules! say {
-    ($out:expr $(, $piece:expr)* $(,)?) => {{
-        let out: &mut $crate::Sentence = $out;
-        $( $crate::Put::put($piece, &mut *out); )*
-        ::core::result::Result::<(), ::core::fmt::Error>::Ok(())
-    }};
-}
-
-/// **A sentence of its pieces** ([`say!`](crate::say)'s, written into a
-/// new [`Sentence`]).
-#[macro_export]
-macro_rules! sentence {
-    ($($piece:expr),* $(,)?) => {{
-        let mut out = $crate::Sentence::new();
-        let _ = $crate::say!(&mut out $(, $piece)*);
-        out
-    }};
 }
 
 /// A value whose sentence a [`Speaker`] says.

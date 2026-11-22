@@ -148,8 +148,8 @@ pub use editor_core::{
 // said by, the nodes a door kept beside a refusal it carries whole, and
 // the full-width id a machine channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, Mention, Mentioned, NameTables, Phrase, Put, Run, Said, SaidName, SaidNode,
-    SaidVar, Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, held_by,
+    FullId, HeldNodes, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode, SaidVar,
+    Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, held_by,
     node_kind_noun, say, sentence, spell, spoken_by, spoken_within,
 };
 

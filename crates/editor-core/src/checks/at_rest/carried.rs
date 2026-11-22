@@ -51,7 +51,19 @@ pub struct Route {
     /// labels"). Empty when `through` instantiates `of` directly; one
     /// entry per intervening sub-assembly, so a row three documents
     /// down names its whole route.
-    pub via: Vec<crate::spoken::SpokenNode>,
+    pub via: Vec<RouteHop>,
+}
+
+/// **One instance a route passes through below its own document**: the
+/// node as its document says it, and that document, whose id space the
+/// node's id is in — so a sentence mentions it there, never in the
+/// document reading the route.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RouteHop {
+    /// The instantiating node, as its document holds it.
+    pub node: crate::spoken::SpokenNode,
+    /// The document holding it.
+    pub document: crate::ident::DocumentId,
 }
 
 // The route as an author reads it: the instance in this document, said
@@ -65,7 +77,7 @@ impl crate::spoken::Say for Route {
             by.node_as(self.through, "instance")
         )?;
         for hop in &self.via {
-            say!(f, " → ", hop.as_noun("instance", by.document()))?;
+            say!(f, " → ", hop.node.as_noun("instance", Some(hop.document)))?;
         }
         Ok(())
     }
@@ -96,7 +108,7 @@ pub(crate) struct PartRow<B> {
     /// The instances between the part and `of`, nearest first, each as
     /// its document holds it ([`Route::via`]): empty for the part's own
     /// row.
-    via: Vec<crate::spoken::SpokenNode>,
+    via: Vec<RouteHop>,
     /// The row itself, in `of`'s ids.
     body: B,
     /// `body`'s nodes, as `of` holds them.
@@ -142,9 +154,12 @@ impl<B> PartRow<B> {
     pub(crate) fn below<P>(doc: &Doc<P>, route: Route, body: B, held: Arc<HeldNodes>) -> Self {
         Self {
             of: route.of,
-            via: core::iter::once(doc.spoken(route.through))
-                .chain(route.via)
-                .collect(),
+            via: core::iter::once(RouteHop {
+                node: doc.spoken(route.through),
+                document: doc.id(),
+            })
+            .chain(route.via)
+            .collect(),
             body,
             held,
         }

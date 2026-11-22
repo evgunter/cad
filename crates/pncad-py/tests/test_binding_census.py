@@ -2397,7 +2397,6 @@ NOT_BOUND = {
     # mention's node rides as the payload's `NodeId`.
     "Mention": SHAPE,
     "Mentioned": SHAPE,
-    "Phrase": SHAPE,
     "Put": SHAPE,
     "Run": SHAPE,
     "SaidName": SHAPE,
