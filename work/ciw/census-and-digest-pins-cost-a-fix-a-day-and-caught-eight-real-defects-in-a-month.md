@@ -43,7 +43,11 @@ change moves a number. Where no claim survives that, delete the test.
   had 15 reds and 3 real catches. All three were reads that skip
   `is_certified()`; the other twelve were per-file count re-pins, one a
   line reflow. Gate only on an unasked, undispositioned read and drop the
-  counts.
+  counts. Better still, remove the need for it: SCALAR's
+  `an-interval-endpoint-can-be-read-without-asking-whether-it-certified`
+  (P1, design) makes the forgotten ask a compile error, and this census
+  then shrinks to the named escape's call sites. Do the cheap
+  restructure now only if that design is far off.
 - **Hand-kept lists go**, or become derived: `reader_census`,
   `node_standing` `READERS`, the binding census, the tier-1 `ALLOWED`
   roster, the box-door `PINNED` inventory, `raw_door_census`,
