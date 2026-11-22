@@ -165,6 +165,21 @@ pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
     rho * cos_a - s * sin_a
 }
 
+/// A cone's `(sin α, cos α)` for certification arithmetic: the stored
+/// half-angle crossed into [`geom_core::Interval`] first and its sine
+/// and cosine taken there, on the interval lane, so each brackets the
+/// stored cone's value at every lane scalar. Taken at `T = f64` and
+/// then crossed, a sine would be a rounded value, not a bracket.
+pub(crate) fn cone_sin_cos_enclosure<T: geom_core::CertifiedBounds>(
+    half_angle: T,
+) -> (geom_core::Interval, geom_core::Interval) {
+    let (sin, cos) = geom_core::Interval::from_certified(half_angle).sin_cos();
+    (
+        geom_core::Interval::from_certified(sin),
+        geom_core::Interval::from_certified(cos),
+    )
+}
+
 /// The linearized implicit residual of `p` against `s`, in meters (the
 /// module-doc table). Zero on the surface; agrees with the signed
 /// distance to first order near it. Total: poison in, poison out; a

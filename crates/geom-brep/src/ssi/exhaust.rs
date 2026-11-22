@@ -78,7 +78,7 @@ use geom_core::interval::max_bound;
 use geom_core::{Interval, Point3, SizedPass, SupSpeed};
 
 use super::SsiError;
-use super::enclose::{Box3, UvWindow, has_implicit_enclosure, implicit_enclosure};
+use super::enclose::{Box3, UvWindow, has_implicit_enclosure, implicit_sign_enclosure};
 use super::four::{Box4, PairBoxes};
 use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, defect_ending};
 
@@ -1015,8 +1015,9 @@ pub(crate) fn account_r3(
 }
 
 /// The ℝ³ lane's exclusion rule, over the one shared [`sweep`]: a cell
-/// is solution-free when a certified enclosure of either surface's
-/// implicit form over it does not contain zero.
+/// is solution-free when a certified enclosure of a function with
+/// either surface's implicit sign over it ([`implicit_sign_enclosure`])
+/// does not contain zero.
 fn sweep_r3(
     s1: &Surface<f64>,
     s2: &Surface<f64>,
@@ -1029,8 +1030,8 @@ fn sweep_r3(
         });
     }
     sweep(floor, duty, |cell| {
-        let e1 = implicit_enclosure(s1, cell);
-        let e2 = implicit_enclosure(s2, cell);
+        let e1 = implicit_sign_enclosure(s1, cell);
+        let e2 = implicit_sign_enclosure(s2, cell);
         if !e1.is_certified() || !e2.is_certified() {
             // Both kinds are in the roster (above), so a refused
             // enclosure is a degenerate operand, behind the doors' own

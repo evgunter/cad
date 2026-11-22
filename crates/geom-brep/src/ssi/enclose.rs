@@ -328,7 +328,10 @@ fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [Interval; 3] {
 /// about the box's centre, met with the direct one: the direct form
 /// treats `A²` and `4R²ρ²` as independent and is about `2R/r` wider.
 /// Refused where `A`'s enclosure is not positive (a spindle or horn
-/// torus near its axis). The cone has no arm; [`Surface::Nurbs`] has no
+/// torus near its axis). On the cone it is the double cone's elevation
+/// `g = ρ cos α − |h| sin α` ([`Elevation`]), limb 1's own residual,
+/// enclosed the torus's way and refused off [`Elevation`]'s gate (a box
+/// reaching the axis or the apex's plane). [`Surface::Nurbs`] has no
 /// implicit form at all.
 pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Box3) -> Interval {
     let two = Interval::point(2.0);
@@ -347,24 +350,7 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
             (norm_sq(&subp(b, center)) - r.sqr()) / (two * r)
         }
         Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
-            let q = subp(b, origin);
-            let a = constv(axis);
-            let h = dot(&q, &a);
-            // |w|² from the radial vector itself, NOT as |q|² − (q·â)².
-            //
-            // The algebraic identity is exact in ℝ and catastrophic in
-            // interval arithmetic: the two terms share `q`, and
-            // subtracting them as independent operands adds twice the
-            // axial square to the width. On a box straddling `z ≈ 1`
-            // that is a width of ~0.8 m² where the true width is zero,
-            // which — divided by 2r for a thin cylinder — makes the
-            // enclosure so wide it can never exclude anything, and the
-            // exhaustiveness subdivision then refines the entire slab
-            // to the floor. Forming `w = q − â(q·â)` first keeps the
-            // cancellation inside one expression, and for an
-            // axis-aligned cylinder it is exact.
-            let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
+            let (_, w) = axial_radial(b, frame.origin(), frame.axis());
             let r = Interval::from_certified(radius);
             (norm_sq(&w) - r.sqr()) / (two * r)
         }
@@ -383,19 +369,81 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
             let d = [b.x - mid.x, b.y - mid.y, b.z - mid.z];
             (at(mid).residual() + dot(&grad, &d)).meet(over.residual())
         }
+        Surface::Cone {
+            frame, half_angle, ..
+        } => {
+            let angle = crate::implicit::cone_sin_cos_enclosure(half_angle);
+            let at = |b: Box3| Elevation::over(b, frame.origin(), frame.axis(), angle);
+            let c = b.center();
+            let mid = Box3::between(c, c);
+            let (Some(over), Some(centre)) = (at(b), at(mid)) else {
+                return Interval::refused();
+            };
+            let d = [b.x - mid.x, b.y - mid.y, b.z - mid.z];
+            (centre.residual() + dot(&over.gradient(), &d)).meet(over.residual())
+        }
         // `Approx` with the no-enclosure group: the implicit forms this
         // module encloses do not exist for a spline stand-in.
-        Surface::Cone { .. } | Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            Interval::refused()
-        }
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Interval::refused(),
     }
+}
+
+/// An enclosure over `b` of a function with the sign of `surface`'s
+/// implicit form at every point: [`implicit_enclosure`]'s own where it
+/// is certified, and on a cone box off [`Elevation`]'s gate the
+/// quadric `Q = cos²α·ρ² − sin²α·h²`, whose sign is the double cone's
+/// exactly (`Q = g·(ρ cos α + |h| sin α)`, the second factor positive
+/// off the apex, where both vanish). A reader of the sign alone, an
+/// exclusion, reads this one: refused on a box straddling the apex's
+/// plane, the elevation would hold a cell far from the cone unexcluded
+/// at every depth.
+pub(crate) fn implicit_sign_enclosure<T: CertifiedBounds>(
+    surface: &Surface<T>,
+    b: Box3,
+) -> Interval {
+    let g = implicit_enclosure(surface, b);
+    match *surface {
+        Surface::Cone {
+            frame, half_angle, ..
+        } if !g.is_certified() => {
+            let (sin, cos) = crate::implicit::cone_sin_cos_enclosure(half_angle);
+            let (h, w) = axial_radial(b, frame.origin(), frame.axis());
+            cos.sqr() * norm_sq(&w) - sin.sqr() * h.sqr()
+        }
+        _ => g,
+    }
+}
+
+/// `h = q·â` and the radial vector `w = q − âh` of `q = p − origin`
+/// over `b`.
+///
+/// `|w|²` is read from the radial vector itself, never as
+/// `|q|² − (q·â)²`: that identity is exact in ℝ and catastrophic in
+/// interval arithmetic, since the two terms share `q` and subtracting
+/// them as independent operands adds twice the axial square to the
+/// width. On a box straddling `z ≈ 1` that is a width of ~0.8 m² where
+/// the true width is zero, which, divided by `2r` for a thin cylinder,
+/// makes the enclosure so wide it can never exclude anything, and the
+/// exhaustiveness subdivision then refines the entire slab to the
+/// floor. Forming `w` first keeps the cancellation inside one
+/// expression, and for an axis-aligned surface it is exact.
+fn axial_radial<T: CertifiedBounds>(
+    b: Box3,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+) -> (Interval, [Interval; 3]) {
+    let q = subp(b, origin);
+    let a = constv(axis);
+    let h = dot(&q, &a);
+    (h, [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h])
 }
 
 /// The enclosure over `b` of the gradient of [`implicit_enclosure`]'s
 /// own function, which Krawczyk's test (`super::one_arc`) reads as its
 /// Jacobian: [`crate::implicit::implicit_gradient`] on the plane, sphere
-/// and cylinder, `∇g` on the torus ([`Quartic::gradient`]), unit on the
-/// surface in every case. Same kind coverage as [`implicit_enclosure`].
+/// and cylinder, `∇g` on the torus ([`Quartic::gradient`]) and the cone
+/// ([`Elevation::gradient`]), unit on the surface in every case. Same
+/// kind coverage, and the same refusals, as [`implicit_enclosure`].
 pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
     surface: &Surface<T>,
     b: Box3,
@@ -439,15 +487,89 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
             let (center, axis) = (frame.origin(), frame.axis());
             Quartic::over(b, center, axis, major_radius, minor_radius).gradient()
         }
-        Surface::Cone { .. } | Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            refused
+        Surface::Cone {
+            frame, half_angle, ..
+        } => {
+            let angle = crate::implicit::cone_sin_cos_enclosure(half_angle);
+            Elevation::over(b, frame.origin(), frame.axis(), angle)
+                .map_or(refused, |e| e.gradient())
         }
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => refused,
+    }
+}
+
+/// The double cone's elevation over a box, with the parts its gradient
+/// reads: `q = p − apex`, `h = q·â`, the radial vector `w = q − âh`
+/// ([`axial_radial`]) and `ρ = |w|`.
+///
+/// **The gate.** It exists only where `h`'s enclosure and `|w|`'s
+/// exclude zero. Over such a box `g = ρ cos α − σh sin α` with the one
+/// sign `σ` of `h`, a smooth function whose zero set is the double
+/// cone's part in the box: only the nappe `σ` names meets it. Without
+/// the gate a box near the apex holds points of both nappes without
+/// reaching the axis, and a proof of one solution of one nappe's
+/// system would stand where the other nappe passes through the box.
+/// Off it `|h|` and `ρ` have no derivative (the apex's plane, the
+/// axis), and the apex itself, where `∇g` vanishes, is C5's node.
+struct Elevation {
+    h: Interval,
+    w: [Interval; 3],
+    axis: [Interval; 3],
+    rho: Interval,
+    /// `σ`, the sign of `h`.
+    nappe: Interval,
+    sin: Interval,
+    cos: Interval,
+}
+
+impl Elevation {
+    fn over<T: CertifiedBounds>(
+        b: Box3,
+        apex: Point3<T>,
+        axis: Vec3<T>,
+        (sin, cos): (Interval, Interval),
+    ) -> Option<Self> {
+        let (h, w) = axial_radial(b, apex, axis);
+        let rho_sq = norm_sq(&w);
+        let nappe = match (h.is_certified(), h.lo() > 0.0, h.hi() < 0.0) {
+            (true, true, _) => 1.0,
+            (true, _, true) => -1.0,
+            _ => return None,
+        };
+        if !(rho_sq.is_certified() && rho_sq.lo() > 0.0) {
+            return None;
+        }
+        Some(Self {
+            h,
+            w,
+            axis: constv(axis),
+            rho: rho_sq.sqrt(),
+            nappe: Interval::point(nappe),
+            sin,
+            cos,
+        })
+    }
+
+    /// `g = ρ cos α − σh sin α`.
+    fn residual(&self) -> Interval {
+        self.rho * self.cos - self.nappe * self.h * self.sin
+    }
+
+    /// `∇g = cos α·∇ρ − σ sin α·â`, with `∇ρ = (w − â·h(1 − |â|²))/ρ`
+    /// exact for an `f64` axis that is not exactly unit (the cylinder
+    /// arm's reason), grouped by the radial vector and the axis as one
+    /// scalar enclosure times one vector each.
+    fn gradient(&self) -> [Interval; 3] {
+        let k = self.cos / self.rho;
+        let along =
+            -(k * self.h * (Interval::point(1.0) - norm_sq(&self.axis))) - self.nappe * self.sin;
+        [0, 1, 2].map(|i| k * self.w[i] + self.axis[i] * along)
     }
 }
 
 /// The torus's quartic over a box, with the parts its gradient reads:
-/// `q = p − c`, `h = q·â`, the radial vector `w = q − âh` formed
-/// itself (the cylinder arm's reason), `A = |q|² + R² − r²` and
+/// `q = p − c`, `h = q·â`, the radial vector `w = q − âh`
+/// ([`axial_radial`]), `A = |q|² + R² − r²` and
 /// `F = A² − 4R²|w|²`.
 ///
 /// `ρ² = |q − âh|²` reads the stored `f64` axis as unit, as limb 1's
@@ -479,9 +601,8 @@ impl Quartic {
         minor: T,
     ) -> Self {
         let q = subp(b, center);
+        let (h, w) = axial_radial(b, center, axis);
         let axis = constv(axis);
-        let h = dot(&q, &axis);
-        let w = [q[0] - axis[0] * h, q[1] - axis[1] * h, q[2] - axis[2] * h];
         let big_sq = Interval::from_certified(major).sqr();
         let small = Interval::from_certified(minor);
         let a = norm_sq(&q) + (big_sq - small.sqr());
@@ -537,7 +658,10 @@ impl Quartic {
 /// no verdict on the pair, whatever the carrier.
 pub(crate) const fn has_implicit_enclosure(kind: geom::SurfaceKind) -> bool {
     use geom::SurfaceKind as K;
-    matches!(kind, K::Plane | K::Sphere | K::Cylinder | K::Torus)
+    matches!(
+        kind,
+        K::Plane | K::Sphere | K::Cylinder | K::Torus | K::Cone
+    )
 }
 
 /// Whether the tube can enclose `surface` at all: its kind is in
