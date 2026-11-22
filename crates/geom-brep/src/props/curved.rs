@@ -266,6 +266,7 @@ pub fn boundary_material_sign_holding<T: Decide>(
                 minor_radius,
                 crate::uniform_curvature_arm(surface),
                 loops,
+                held,
                 band,
             )
         }
@@ -2025,6 +2026,7 @@ pub fn curved_face_holding<T: Decide>(
                 crate::uniform_curvature_arm(surface),
                 loops,
                 Tube::Ring,
+                &[],
                 band,
             )
         }
@@ -2050,6 +2052,7 @@ pub fn curved_face_holding<T: Decide>(
                 crate::uniform_curvature_arm(surface),
                 loops,
                 Tube::Sheet(side),
+                held,
                 band,
             )
         }
@@ -2094,6 +2097,24 @@ pub fn whole_surface<T: Decide>(
             let ring = pi.powi(2) * major * minor;
             (T::from_f64(6.0) * ring * minor, T::from_f64(4.0) * ring)
         }
+        Some(ClosedSurface::Sheet { major, minor }) => {
+            // Pappus over the region the sheet's meridian arc bounds
+            // with the axis, the arc of half angle `v* = acos(−R/r)`
+            // (the sheet's own closed `v` range) and its chord on the
+            // axis at height `±h`, `h = √(r² − R²)`: the region's area
+            // is `r²v* + R·h` and its moment about the axis
+            // `R·(r²v* + R·h) + 2h³/3`; the arc's moment is
+            // `r·(R·v* + r·sin v*)`. One form for the lemon (`R < 0`,
+            // the minor arc), the apple and the horn (`v* = π`).
+            let v_star = (-major / minor).acos();
+            let h = (minor * minor - major * major).sqrt();
+            let region = minor * minor * v_star + major * h;
+            let two_pi = T::from_f64(2.0) * pi;
+            let volume =
+                two_pi * (major * region + T::from_f64(2.0) * h.powi(3) / T::from_f64(3.0));
+            let area = T::from_f64(2.0) * two_pi * minor * (major * v_star + minor * v_star.sin());
+            (T::from_f64(3.0) * volume, area)
+        }
         None => return Err(PropsError::DegenerateFace),
     };
     Ok(FaceContribution {
@@ -2117,11 +2138,19 @@ pub enum ClosedSurface<T> {
         /// Its minor radius.
         minor: T,
     },
+    /// A spindle or horn torus's sheet ([`Surface::Spindle`]), closed
+    /// between its two apexes.
+    Sheet {
+        /// Its major radius, signed.
+        major: T,
+        /// Its minor radius.
+        minor: T,
+    },
 }
 
 /// **Whether `surface` is closed**, with what [`whole_surface`] reads of
-/// it: a sphere or a torus is, a plane, a cylinder or a cone is not
-/// (`None`).
+/// it: a sphere, a torus or a spindle sheet is, a plane, a cylinder or a
+/// cone is not (`None`).
 ///
 /// # Errors
 ///
@@ -2140,8 +2169,16 @@ pub fn closed_surface<T: Real>(
             major: major_radius,
             minor: minor_radius,
         }),
+        Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(ClosedSurface::Sheet {
+            major: major_radius,
+            minor: minor_radius,
+        }),
         Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => None,
-        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+        Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(PropsError::Unimplemented);
         }
     })
@@ -5506,6 +5543,11 @@ struct ApexJump<T> {
     sin_v: T,
     cos_v: T,
     lever: T,
+    /// Where the loop reaches the apex up a wrap edge its chart image
+    /// dropped ([`sheet_tip_closure`]): the tube turn from the piece's
+    /// level to the apex's, walked out before the apex's level and back
+    /// after it. `None` where real meridians reach it.
+    climb: Option<T>,
 }
 
 /// The loop's steps with the pieces of one split edge rejoined: loop-
@@ -5548,11 +5590,16 @@ fn fold_torus_pieces<T: Decide>(pieces: Vec<TorusPiece<'_, T>>, minor: T) -> Vec
     // A loop's pass through an apex runs along the apex's level in the
     // chart: a rim of no length, read after the piece that reaches it.
     let apex = |jump: Option<ApexJump<T>>| {
-        jump.map(|j| TorusStep::Rim {
-            sin_v: j.sin_v,
-            cos_v: j.cos_v,
-            du: j.du,
-            rho: T::zero(),
+        jump.into_iter().flat_map(|j| {
+            let level = TorusStep::Rim {
+                sin_v: j.sin_v,
+                cos_v: j.cos_v,
+                du: j.du,
+                rho: T::zero(),
+            };
+            let climb = j.climb.map(|dv| TorusStep::Meridian { dv });
+            let back = j.climb.map(|dv| TorusStep::Meridian { dv: -dv });
+            climb.into_iter().chain(core::iter::once(level)).chain(back)
         })
     };
     let runs = match loop_runs(pieces, joins) {
@@ -5664,6 +5711,7 @@ fn torus_chart<T: Decide>(
     tube_arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
     tube: Tube,
+    held: &[Point3<T>],
     band: Band,
 ) -> Result<TorusChart<T>, PropsError> {
     let (big, r) = (major, minor);
@@ -5686,10 +5734,12 @@ fn torus_chart<T: Decide>(
         // Every edge is certified rim or meridian first, so a face this
         // inventory has no arm for refuses as itself.
         let mut pieces: Vec<TorusPiece<T>> = Vec::with_capacity(edges.len());
+        let mut first_rim_dir = None;
         let classified = torus_classify(center, axis, major, minor, tube_arm, edges, band)?;
         for (edge, e) in classified.into_iter().zip(edges.iter()) {
             let step = match edge {
                 TorusEdge::Rim(rim) => {
+                    first_rim_dir.get_or_insert(rim.d_u_sign);
                     let RimLevel::Unit(sin_v, cos_v) = rim.level else {
                         return Err(PropsError::Defect {
                             what: "a torus rim carried a non-angle level",
@@ -5738,6 +5788,9 @@ fn torus_chart<T: Decide>(
         }
         if let Tube::Sheet(side) = tube {
             sheet_apex_jumps(center, axis, major, minor, &mut pieces, side, band)?;
+            if let (Some(dir), true) = (first_rim_dir, pieces.iter().all(|p| p.rising.is_none())) {
+                sheet_tip_closure(center, axis, (major, minor), &mut pieces, dir, side, held, band)?;
+            }
         }
         chart_loops.push(torus_chart_loop(
             center, axis, major, minor, edges, &pieces, band,
@@ -5854,6 +5907,72 @@ fn torus_lift_as<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i3
             },
             BranchMiss::OnMark => PropsError::NotIsoRectangle { what: name },
         })
+}
+
+/// **A sheet loop whose chart image dropped a wrap tip** (DESIGN
+/// `[topology]`, tiers 2 and 3): a loop of rims alone, the meridian that
+/// reached an apex out and back gone with its tip. Its region is the cap
+/// between its rims and the apex on the face's side: `+v` (the upper
+/// apex) where the face lies left of a rim running with `u` under the
+/// chart normal, the lower apex otherwise. The loop closes there along
+/// the apex's level, against the rims' whole turn, climbing to it and
+/// back by the tube turn between the rims' level and the apex's. That
+/// apex must be a tip the image dropped (`held`): a reading whose apex
+/// holds none winds the chart as no boundary does.
+#[allow(clippy::too_many_arguments)]
+fn sheet_tip_closure<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    (major, minor): (T, T),
+    pieces: &mut [TorusPiece<'_, T>],
+    dir: NonzeroSign,
+    side: ApexSide,
+    held: &[Point3<T>],
+    band: Band,
+) -> Result<(), PropsError> {
+    let (Some(last), Some(first)) = (pieces.len().checked_sub(1), pieces.first()) else {
+        return Ok(());
+    };
+    let up = (dir == NonzeroSign::Positive) == (side == ApexSide::Left);
+    let apex = geom::sheet_apex(major, minor);
+    let tip = if up {
+        center + axis * apex.height
+    } else {
+        center - axis * apex.height
+    };
+    let mut own = false;
+    for &h in held {
+        own |= crate::chart_singularity::vertex_at_singular_point(h, tip, band).map_err(
+            |cause| PropsError::Escalated {
+                cause,
+                check: PropsCheck::Inventory,
+            },
+        )?;
+    }
+    if !own {
+        return Err(PropsError::LoopsWindChart);
+    }
+    let TorusStep::Rim { sin_v, cos_v, .. } = first.step else {
+        return Err(PropsError::Defect {
+            what: "a sheet loop of rims alone began on a meridian",
+        });
+    };
+    let mut turn = T::zero();
+    for p in pieces.iter() {
+        if let TorusStep::Rim { du, .. } = p.step {
+            turn = turn + du;
+        }
+    }
+    let level = if up { apex.v } else { -apex.v };
+    let sin_apex = apex.height / minor;
+    pieces[last].apex_after = Some(ApexJump {
+        du: -turn,
+        sin_v: if up { sin_apex } else { -sin_apex },
+        cos_v: -major / minor,
+        lever: minor,
+        climb: Some(level - torus_angle(sin_v, cos_v)),
+    });
+    Ok(())
 }
 
 /// One torus loop for the closure decision ([`closure::closed_form_windings`]):
@@ -6017,9 +6136,10 @@ fn torus_face<T: Decide>(
     tube_arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
     tube: Tube,
+    held: &[Point3<T>],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let chart = torus_chart(center, axis, major, minor, tube_arm, loops, tube, band)?;
+    let chart = torus_chart(center, axis, major, minor, tube_arm, loops, tube, held, band)?;
     let mut va = Vec3::new(T::zero(), T::zero(), T::zero());
     for edges in loops {
         va = va + loop_vector_area(edges, center)?;
@@ -6049,6 +6169,7 @@ fn torus_material_sign<T: Decide>(
         tube_arm,
         loops,
         Tube::Ring,
+        &[],
         band,
     )?;
     chart_area_side(chart.area, chart.length, band)
@@ -6080,6 +6201,7 @@ fn sheet_material_sign<T: Decide>(
     minor: T,
     tube_arm: Lever<T>,
     loops: &[&[LoopEdge<T>]],
+    held: &[Point3<T>],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
     let read = |side| {
@@ -6091,6 +6213,7 @@ fn sheet_material_sign<T: Decide>(
             tube_arm,
             loops,
             Tube::Sheet(side),
+            held,
             band,
         )
         .and_then(|chart| chart_area_side(chart.area, chart.length, band))
@@ -6210,6 +6333,7 @@ fn sheet_apex_jumps<T: Decide>(
             sin_v: if rising { sin_v } else { -sin_v },
             cos_v: -major / minor,
             lever,
+            climb: None,
         });
     }
     Ok(())
