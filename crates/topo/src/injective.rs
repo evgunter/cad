@@ -12825,6 +12825,27 @@ mod margin_rows {
                 "a rectangle {across} across is read"
             );
         }
+        // The sign is the side the face lies on, however thin: a
+        // rectangle on the edge's other side reads the other sign, so two
+        // faces folded onto one side of the wall are never read apart.
+        let folded = presented(
+            &s,
+            (0.0, 1.0),
+            (-1e-15, 0.0),
+            Zero::Side(Side::YHi, along(1)),
+        );
+        assert_eq!(
+            sign_on(
+                &wall(1.0),
+                Some(&on(&[1], &[])),
+                &folded,
+                None,
+                arm(1.0),
+                band()
+            ),
+            Some(Sign::Negative),
+            "the other side of the edge"
+        );
         let inside = 0.5 * (band().zero() + band().escalate());
         assert_eq!(read(1.0, 1.0, arm(inside)), None, "an arm inside the band");
         assert_eq!(read(1.0, 1.0, None), None, "no arm");
@@ -12914,6 +12935,21 @@ mod margin_rows {
         };
         assert_eq!(read(Along::at(key(7))), Some(Sign::Positive), "the pole");
         assert_eq!(read(along(2)), None, "two regular sides");
+        // The lune on the meridian's other side reads the other sign.
+        let west = Zero::Corner((Side::XHi, along(1)), (Side::YHi, Along::at(key(7))));
+        let p = presented(&s, (-0.1, 0.0), (pole - 0.1, pole), west);
+        assert_eq!(
+            sign_on(
+                &meridian,
+                Some(&on(&[1, 2], &[7])),
+                &p,
+                None,
+                arm(1.0),
+                band()
+            ),
+            Some(Sign::Negative),
+            "the other side of the meridian"
+        );
     }
 
     /// A boundary of line edges `(key, from, to)` over the vertices
