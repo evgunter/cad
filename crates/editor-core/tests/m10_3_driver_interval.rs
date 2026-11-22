@@ -900,13 +900,16 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
     assert!(mass > 0.0, "flip mass priced at {mass}");
 }
 
-/// **The step**: an L whose riser `(1, 0) → (1, height)` is a hop along
-/// `y`, its height a document parameter over a box that straddles zero.
-/// The hop's `x` is zero as an expression, so the profile's direction
-/// mint stores the axis `(0, ±1)` and signs it by one reading of
-/// `height`; below zero the riser points down and the step is a
-/// different, perfectly good outline.
-fn step(nominal: f64, half: f64) -> ProfileDoc {
+/// **The riser**: a quadrilateral whose side `(1, 0) → (1, height)` is
+/// a hop along `y`, its height a document parameter over a box that
+/// straddles zero. The hop's `x` is zero as an expression, so the
+/// profile's direction mint stores the axis `(0, ±1)` and signs it by
+/// one reading of `height`; below zero the side points down and the
+/// corner at `(1, 0)` turns the other way, a different, perfectly good
+/// outline. No two sides are parallel, so no pair's gap reading bounds
+/// the leaves
+/// (`work/cpair/a-line-pairs-gap-reading-is-a-range-boundary-where-no-contact-changes.md`).
+fn riser(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("height"),
@@ -922,9 +925,7 @@ fn step(nominal: f64, half: f64) -> ProfileDoc {
             [len(0.0), len(0.0)],
             [len(1.0), len(0.0)],
             [len(1.0), param("height")],
-            [len(2.0), param("height")],
-            [len(2.0), len(1.0)],
-            [len(0.0), len(1.0)],
+            [len(-1.0), len(2.0)],
         ])],
         ids: Vec::new(),
         on: None,
@@ -937,7 +938,7 @@ fn step(nominal: f64, half: f64) -> ProfileDoc {
 }
 
 /// **An axis whose sign is undecided reaches the driver as a cue to
-/// bisect.** Over the whole box of [`step`] the riser's direction is
+/// bisect.** Over the whole box of [`riser`] the side's direction is
 /// along `y` and which way is undecided, so the mint's one sign reading
 /// escalates and the `line_to` verb refuses with it. The reading is
 /// taken outside the verdict log (the `f64` witness stores the quotient
@@ -955,7 +956,7 @@ fn step(nominal: f64, half: f64) -> ProfileDoc {
 /// took the unlogged refusal for a definite one certifies nothing.
 #[test]
 fn an_undecided_axis_sign_reaches_the_driver_as_a_cue_to_bisect() {
-    let doc = step(0.25, 0.3);
+    let doc = riser(0.25, 0.3);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
         param_box: Some(std::sync::Arc::new(ParamBox::of(&analyzed))),
@@ -1005,7 +1006,7 @@ fn an_undecided_axis_sign_reaches_the_driver_as_a_cue_to_bisect() {
     let v = drive(
         &doc,
         &analyzed,
-        &config(4096),
+        &config(64),
         &editor_core::Stop::default(),
         Tol::witness(),
     )
