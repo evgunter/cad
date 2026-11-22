@@ -120,7 +120,7 @@ fn two_prisms(doc: ProfileDoc, sym: Sym) -> (ProfileDoc, RecipeNodeId, RecipeNod
 }
 
 fn spelled<R>(members: Vec<R>) -> Bodies<R> {
-    Bodies::Spelled(members)
+    Bodies::spelled(members)
 }
 
 /// A name with its trailing `Fragment` discriminators taken off: the

@@ -608,7 +608,7 @@ fn the_union_records_the_constructed_tangency_proven_by_its_heading() {
     let (doc, union) = fixture::insert(
         scene.doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![scene.cylinder.into(), scene.boss.into()]),
+            members: editor_core::Bodies::spelled(vec![scene.cylinder.into(), scene.boss.into()]),
         },
     );
     let ev = eval(&doc);
@@ -786,7 +786,7 @@ fn a_cone_drawn_on_a_sphere_runs_tangent_to_it_along_its_rim() {
     let (doc, union) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::output(sphere, 0).into(),
                 Operand::output(cone, 0).into(),
             ]),

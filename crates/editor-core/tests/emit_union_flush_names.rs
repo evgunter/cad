@@ -639,7 +639,7 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
         let (doc, u1) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(vec![ids[0].into(), ids[1].into()]),
+                members: editor_core::Bodies::spelled(vec![ids[0].into(), ids[1].into()]),
             },
         );
         for order in permutations(&[0, 1]) {

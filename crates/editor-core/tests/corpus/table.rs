@@ -82,7 +82,7 @@ pub fn document() -> CorpusDoc {
         }
         let leg = r.against(top, ext, &editor_core::Frame::translation([0.0, 0.0, -1.0]));
         let uni = r.insert(Node::Union {
-            members: editor_core::Bodies::Spelled(vec![acc.into(), leg.into()]),
+            members: editor_core::Bodies::spelled(vec![acc.into(), leg.into()]),
         });
         acc = uni;
     }

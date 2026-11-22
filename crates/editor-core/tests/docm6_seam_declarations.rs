@@ -351,7 +351,7 @@ fn union_with_far_cube(
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), far.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), far.into()]),
         },
     );
     let ev = run(&doc, &with_resolver(store.clone()));

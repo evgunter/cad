@@ -48,7 +48,7 @@ fn chain(label: &str, k: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>)
         let (next, union) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(vec![input.into()]),
+                members: editor_core::Bodies::spelled(vec![input.into()]),
             },
         );
         doc = next;

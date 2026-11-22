@@ -147,7 +147,7 @@ fn the_fast_path_builds_what_the_slow_path_builds() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: Bodies::Spelled(vec![
+                members: Bodies::spelled(vec![
                     BodyRead::plain(Operand::Node(a)),
                     BodyRead::plain(Operand::Node(b)),
                     BodyRead::plain(Operand::Node(c)),
@@ -179,7 +179,7 @@ fn cut_family_n(overlap_kept_first: bool, product_plain: bool, n: i64) -> usize 
     let (doc, asm) = insert(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Node(aw)),
                 BodyRead::plain(Operand::Node(bw)),
             ]),
@@ -382,7 +382,7 @@ fn a_lump_of_one_copy_inside_a_lump_of_another_builds_what_the_slow_path_builds(
         insert(
             doc,
             Node::Assemble {
-                members: Bodies::Spelled(vec![
+                members: Bodies::spelled(vec![
                     BodyRead::plain(Operand::Node(big)),
                     BodyRead::plain(Operand::Node(small)),
                 ]),
@@ -400,7 +400,7 @@ fn a_lump_of_one_copy_inside_a_lump_of_another_builds_what_the_slow_path_builds(
     let (slow_doc, slow) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Node(lumps)),
                 BodyRead::plain(Operand::Node(lumps2)),
             ]),
@@ -484,7 +484,7 @@ fn per_member_assembles(reversed: bool) -> (ProfileDoc, RecipeNodeId, RecipeNode
     let (doc, sq) = insert(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::indexed(tall, vec![Formula::var(k, Dimension::Count)]),
                 BodyRead::plain(Operand::Node(lid)),
             ]),

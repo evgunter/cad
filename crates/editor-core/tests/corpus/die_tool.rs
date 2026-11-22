@@ -142,7 +142,7 @@ pub fn document() -> CorpusDoc {
         .map(|values| editor_core::BodyRead::plain(r.copies(master, values)))
         .collect();
     let tool = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(pips),
+        members: editor_core::Bodies::spelled(pips),
     });
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),

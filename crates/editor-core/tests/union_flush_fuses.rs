@@ -31,7 +31,7 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![m1.into(), m2.into()]),
+            members: editor_core::Bodies::spelled(vec![m1.into(), m2.into()]),
         },
     );
     let ev = run(&doc);
@@ -306,7 +306,7 @@ fn a_held_flush_stretch_is_named_for_every_member_that_holds_it() {
                 doc,
                 DocEdit::SetMembers {
                     node: union,
-                    members: editor_core::Bodies::Spelled(
+                    members: editor_core::Bodies::spelled(
                         listed(a, redrawn).into_iter().map(Into::into).collect(),
                     ),
                 },
@@ -449,7 +449,7 @@ fn a_stack_of_resting_slabs_builds() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![low.into(), mid.into(), top.into()]),
+            members: editor_core::Bodies::spelled(vec![low.into(), mid.into(), top.into()]),
         },
     );
     let ev = run(&doc);

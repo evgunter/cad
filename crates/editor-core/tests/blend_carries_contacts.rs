@@ -84,7 +84,7 @@ fn blended(
     let (doc, reader) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![blend.into()]),
+            members: Bodies::spelled(vec![blend.into()]),
         },
     );
     (doc, blend, reader)
@@ -145,7 +145,7 @@ fn pinch_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(members.iter().map(|&m| m.into()).collect()),
+            members: Bodies::spelled(members.iter().map(|&m| m.into()).collect()),
         },
     )
 }
@@ -229,7 +229,7 @@ fn stacked() -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![a.into(), b.into()]),
+            members: Bodies::spelled(vec![a.into(), b.into()]),
         },
     )
 }

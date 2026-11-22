@@ -90,7 +90,7 @@ fn a_slab_under_a_union_certifies_in_one_leaf() {
         depth(&mut r, half);
         let slab = prism(&mut r, unit_square());
         r.insert(Node::Union {
-            members: Bodies::Spelled(vec![slab.into()]),
+            members: Bodies::spelled(vec![slab.into()]),
         });
         assert_eq!(certified(&r.doc), 1, "half {half}");
     }
@@ -112,7 +112,7 @@ fn a_slab_placed_then_unioned_certifies_in_one_leaf() {
             editor_core::Formula::literal(3.0, Dimension::Length).expect("a length"),
         );
         r.insert(Node::Union {
-            members: Bodies::Spelled(vec![slab.into(), copy.into()]),
+            members: Bodies::spelled(vec![slab.into(), copy.into()]),
         });
         assert_eq!(certified(&r.doc), 1, "half {half}");
     }
@@ -204,7 +204,7 @@ fn review_probe_6371_union_after_a_box_extrude() {
         if members > 0 {
             let ms = vec![Operand::output(slab, 0).into()];
             r.insert(Node::Union {
-                members: Bodies::Spelled(ms),
+                members: Bodies::spelled(ms),
             });
         }
         assert_eq!(certified(&r.doc), 1, "members {members}, half {half}");

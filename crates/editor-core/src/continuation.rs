@@ -90,7 +90,12 @@ pub fn continues<P: crate::ProfilePayload>(doc: &Doc<P>, node: RecipeNodeId) -> 
                 Bodies::Spelled(reads) => sole_whole(
                     &reads
                         .iter()
-                        .map(|read| (read.read, read.is_indexed()))
+                        .map(|read| {
+                            (
+                                read.read().read,
+                                read.is_splice() || read.read().is_indexed(),
+                            )
+                        })
                         .collect::<Vec<_>>(),
                 ),
                 Bodies::Family(_) => None,
@@ -125,7 +130,7 @@ pub fn continues<P: crate::ProfilePayload>(doc: &Doc<P>, node: RecipeNodeId) -> 
 pub fn spelled<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
-) -> Option<Vec<(BodyRead<VarId>, BodyRead<Formula>)>> {
+) -> Option<Vec<(crate::Spell<BodyRead<VarId>>, crate::Spell<BodyRead<Formula>>)>> {
     let (Node::Union { members } | Node::Intersect { members } | Node::Assemble { members }) =
         doc.node(id)?
     else {
@@ -665,7 +670,7 @@ fn fate<P: crate::ProfilePayload + Clone>(
         }
         // Each operand kept: its variable, whether it names members,
         // and its read as written.
-        let kept: Vec<(VarId, bool, BodyRead<Formula>)> = members
+        let kept: Vec<(VarId, bool, crate::Spell<BodyRead<Formula>>)> = members
             .into_iter()
             .enumerate()
             .filter(|(i, _)| !lost.contains(&OperandSlot::Member(*i)))
@@ -675,17 +680,27 @@ fn fate<P: crate::ProfilePayload + Clone>(
                         read: Operand::Var(var),
                         at,
                     }) => {
-                        let at = at.clone().unwrap_or(written.at);
+                        let splice = written.is_splice();
+                        let at = at.clone().unwrap_or(written.read().at.clone());
+                        let read = BodyRead {
+                            read: Operand::Var(*var),
+                            at,
+                        };
                         (
                             *var,
-                            !at.is_empty(),
-                            BodyRead {
-                                read: Operand::Var(*var),
-                                at,
+                            splice || !read.at.is_empty(),
+                            if splice {
+                                crate::Spell::All(read)
+                            } else {
+                                crate::Spell::One(read)
                             },
                         )
                     }
-                    _ => (stored.read, stored.is_indexed(), written),
+                    _ => (
+                        stored.read().read,
+                        stored.is_splice() || stored.read().is_indexed(),
+                        written,
+                    ),
                 },
             )
             .collect();

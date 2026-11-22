@@ -94,7 +94,7 @@ fn grid_of(
                     name: VarName::from_static(name),
                     def: VarDecl::Index {
                         count: Formula::count(2),
-                        within: within.map(|w| Formula::var(w, Dimension::Count)),
+                        after: within.map(|w| Formula::var(w, Dimension::Count)),
                     },
                 },
                 tol,
@@ -182,7 +182,7 @@ fn the_offer_has_no_row_that_strands_a_pick() {
         viewer::test_support::inserted(&doc, common::world_place(Operand::Node(plate)), tol);
     let space = VarId::WORLD;
     let spelled = |reads: &[RecipeNodeId]| {
-        Bodies::Spelled(
+        Bodies::spelled(
             reads
                 .iter()
                 .map(|&read| Operand::Node(read).into())

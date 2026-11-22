@@ -821,7 +821,76 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
         }
         held.insert(name, id);
     }
+    index_seat_fault(snapshot)
+}
+
+/// **The first index whose seat in its binder no edit writes** (D10
+/// `[repetition]`), as the index doors and [`crate::DocEdit::SetYields`]
+/// hold it: a further index comes after a live index that no other
+/// comes after, and a binder's yields are live variables, none an index,
+/// none listed twice or by two binders.
+fn index_seat_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    let mut after: std::collections::BTreeMap<VarId, VarId> = std::collections::BTreeMap::new();
+    let mut yielded: std::collections::BTreeMap<VarId, VarId> = std::collections::BTreeMap::new();
+    for (&id, var) in &snapshot.vars {
+        let Some(index) = var.def().index() else {
+            continue;
+        };
+        let refused = |other, fault| {
+            Some(SnapshotError::IndexSeat {
+                var: id,
+                other,
+                fault,
+            })
+        };
+        match &index.seat {
+            crate::IndexSeat::After(before) => {
+                if *before == id
+                    || !snapshot
+                        .vars
+                        .get(before)
+                        .is_some_and(|v| v.def().index().is_some())
+                {
+                    return refused(*before, IndexSeatFault::AfterNoIndex);
+                }
+                if let Some(&taken) = after.get(before) {
+                    return refused(taken, IndexSeatFault::AfterTwice);
+                }
+                after.insert(*before, id);
+            }
+            crate::IndexSeat::Binder { yields } => {
+                for &y in yields {
+                    match snapshot.vars.get(&y) {
+                        None => return refused(y, IndexSeatFault::YieldNotLive),
+                        Some(v) if v.def().index().is_some() => {
+                            return refused(y, IndexSeatFault::YieldIndex);
+                        }
+                        Some(_) => {}
+                    }
+                    if yielded.insert(y, id).is_some() {
+                        return refused(y, IndexSeatFault::YieldTwice);
+                    }
+                }
+            }
+        }
+    }
     None
+}
+
+/// **Why an index's seat in its binder is refused at load**
+/// ([`SnapshotError::IndexSeat`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndexSeatFault {
+    /// It comes after a variable that is no other live index.
+    AfterNoIndex,
+    /// It comes after an index another already comes after.
+    AfterTwice,
+    /// Its binder yields a variable that is not live.
+    YieldNotLive,
+    /// Its binder yields an index.
+    YieldIndex,
+    /// A variable is yielded twice.
+    YieldTwice,
 }
 
 /// The first defined variable, in declaration order, whose definition
@@ -1398,6 +1467,17 @@ pub enum SnapshotError {
         /// The name.
         name: VarName,
     },
+    /// An index's seat in its binder no edit writes
+    /// ([`IndexSeatFault`]); the edit doors' twins are
+    /// [`crate::EditError::Index`] and [`crate::EditError::Yields`].
+    IndexSeat {
+        /// The index.
+        var: VarId,
+        /// The other variable the fault names.
+        other: VarId,
+        /// Why.
+        fault: IndexSeatFault,
+    },
     /// One name held by two variables (VR2: a name is unique within a
     /// document).
     VarNameTwice {
@@ -1836,6 +1916,28 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "the name {name} is attached to variable {var}, which is not live"
             ),
+            Self::IndexSeat { var, other, fault } => match fault {
+                IndexSeatFault::AfterNoIndex => write!(
+                    f,
+                    "index {var} comes after {other}, which is no other live index"
+                ),
+                IndexSeatFault::AfterTwice => write!(
+                    f,
+                    "index {var} comes after an index {other} already comes after, and a \
+                     binder's indices are one sequence"
+                ),
+                IndexSeatFault::YieldNotLive => {
+                    write!(f, "the binder {var} yields {other}, which is not live")
+                }
+                IndexSeatFault::YieldIndex => write!(
+                    f,
+                    "the binder {var} yields {other}, which is an index, and a binder mints \
+                     its indices"
+                ),
+                IndexSeatFault::YieldTwice => {
+                    write!(f, "{other} is yielded twice, and by binder {var} the second time")
+                }
+            },
             Self::VarNameTwice { name, a, b } => write!(
                 f,
                 "the name {name} is held by two variables, {a} and {b}, and a name is unique \
@@ -2342,6 +2444,7 @@ mod tests {
             OutputSignature,
             VarNotMinted,
             NameOnMissingVar,
+            IndexSeat,
             VarNameTwice,
             ReaderOfUnmintedVar,
             SlotVarKind,
@@ -2378,6 +2481,7 @@ mod tests {
             | SnapshotError::MintLogOrder { .. }
             | SnapshotError::VarNotMinted { .. }
             | SnapshotError::NameOnMissingVar { .. }
+            | SnapshotError::IndexSeat { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
             SnapshotError::OutputSignature { .. } => Walk::OutputSignature,
             SnapshotError::SelectionShape { .. } | SnapshotError::SelectionBody { .. } => {
@@ -2550,6 +2654,11 @@ mod tests {
             SnapshotError::NameOnMissingVar {
                 var: crate::VarId::new(0, 7),
                 name: VarName::from_static("w"),
+            },
+            SnapshotError::IndexSeat {
+                var: crate::VarId::new(0, 7),
+                other: crate::VarId::new(0, 8),
+                fault: super::IndexSeatFault::AfterNoIndex,
             },
             SnapshotError::VarNameTwice {
                 name: VarName::from_static("w"),

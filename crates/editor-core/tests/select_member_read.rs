@@ -464,7 +464,7 @@ fn the_load_door_holds_a_side_read_through_a_pose() {
                 var: editor_core::VarRef::Id(k),
                 def: editor_core::VarDecl::Index {
                     count: Formula::count(2),
-                    within: Some(Formula::var(j, Dimension::Count)),
+                    after: Some(Formula::var(j, Dimension::Count)),
                 },
                 fresh: Vec::new(),
             },

@@ -67,7 +67,7 @@ pub fn document() -> CorpusDoc {
     // The kiss union: the v-v kiss at (1,1,1) is DISCOVERED by the op
     // and recorded in the result's contacts.
     let u1 = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![a.into(), b_on_a.into()]),
+        members: editor_core::Bodies::spelled(vec![a.into(), b_on_a.into()]),
     });
 
     // The mover: [1.5,2.5]² × [1.5,2.5], placed against a 1.5 up, a
@@ -85,7 +85,7 @@ pub fn document() -> CorpusDoc {
 
     let c_on_a = r.against(a, c, &editor_core::Frame::translation([0.0, 0.0, 1.5]));
     let u2 = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![u1.into(), c_on_a.into()]),
+        members: editor_core::Bodies::spelled(vec![u1.into(), c_on_a.into()]),
     });
 
     r.place_part(u2);

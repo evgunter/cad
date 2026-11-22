@@ -63,7 +63,7 @@ pub fn document() -> CorpusDoc {
         &editor_core::Frame::translation([0.0, 0.0, 0.3]),
     );
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![plate.into(), placed.into()]),
+        members: editor_core::Bodies::spelled(vec![plate.into(), placed.into()]),
     });
 
     r.place_part(union);

@@ -117,7 +117,7 @@ fn pinned_die() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![die.into(), pin.into()]),
+            members: editor_core::Bodies::spelled(vec![die.into(), pin.into()]),
         },
     )
 }

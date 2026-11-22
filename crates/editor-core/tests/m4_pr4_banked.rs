@@ -207,7 +207,7 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), placement.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), placement.into()]),
         },
     );
     let doc2 = slide(doc.clone(), placement, 0.5);

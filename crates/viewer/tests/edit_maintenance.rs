@@ -986,7 +986,7 @@ fn the_delete_button_counts_a_name_its_hand_over_takes_out_of_reach() {
     let (doc, fused) = common::inserted(
         &doc,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![
+            members: pncad::document::Bodies::spelled(vec![
                 placed_first.into(),
                 placed_second.into(),
             ]),

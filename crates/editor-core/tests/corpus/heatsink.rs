@@ -89,7 +89,7 @@ pub fn document() -> CorpusDoc {
     // Every fin overlaps the base by 1/16, so no union has a
     // coincidence.
     let acc = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![base.into(), fins.into()]),
+        members: editor_core::Bodies::spelled(vec![base.into(), fins.into()]),
     });
     r.place_part(acc);
     r.place(fins);

@@ -3909,7 +3909,7 @@ mod value_field_tests {
                     name: index.clone(),
                     def: pncad::document::VarDecl::Index {
                         count: Formula::count(count + 1),
-                        within: None,
+                        after: None,
                     },
                 },
                 tol,

@@ -27,13 +27,13 @@ fn a_face_cut_and_merged_in_one_pair_step_names_each_piece_for_what_it_holds() {
     let (doc, bg) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![b.into(), g.into()]),
+            members: editor_core::Bodies::spelled(vec![b.into(), g.into()]),
         },
     );
     let (doc, pair) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![bg.into(), a.into()]),
+            members: editor_core::Bodies::spelled(vec![bg.into(), a.into()]),
         },
     );
     let ev = run(&doc);

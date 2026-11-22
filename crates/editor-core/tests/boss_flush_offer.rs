@@ -46,7 +46,7 @@ fn the_flush_boss_unions() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![blk.into(), boss.into()]),
+            members: editor_core::Bodies::spelled(vec![blk.into(), boss.into()]),
         },
     );
     let ev = run(&doc);

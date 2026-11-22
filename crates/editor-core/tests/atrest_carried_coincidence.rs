@@ -44,7 +44,7 @@ fn resting_part(label: &str) -> ProfileDoc {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![base.into(), plate.into()]),
+            members: editor_core::Bodies::spelled(vec![base.into(), plate.into()]),
         },
     );
     crate::fixture::place(doc, union).0
@@ -74,7 +74,7 @@ fn reunited_part() -> ProfileDoc {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(members),
+            members: editor_core::Bodies::spelled(members),
         },
     );
     crate::fixture::place(doc, union).0
@@ -484,7 +484,7 @@ fn an_instance_under_a_boolean_still_reports_its_parts_rows() {
     let (doc, fused) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 editor_core::BodyRead::plain(Operand::Node(instance)),
                 far.into(),
             ]),
@@ -522,7 +522,7 @@ fn a_partly_proven_part_carries_its_own_verdict() {
     let (doc, rest) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![base.into(), plate.into()]),
+            members: editor_core::Bodies::spelled(vec![base.into(), plate.into()]),
         },
     );
     let (doc, _) = crate::fixture::place(doc, rest);
@@ -546,7 +546,7 @@ fn a_partly_proven_part_carries_its_own_verdict() {
     let (doc, reunited) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(members),
+            members: editor_core::Bodies::spelled(members),
         },
     );
     let (part, _) = crate::fixture::place(doc, reunited);
@@ -675,7 +675,7 @@ fn resting_labelled(id: &str, base: &str) -> ProfileDoc {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![block_node.into(), plate.into()]),
+            members: editor_core::Bodies::spelled(vec![block_node.into(), plate.into()]),
         },
     );
     crate::fixture::assemble_world_copies(crate::fixture::place(doc, union).0)
@@ -810,7 +810,7 @@ fn a_part_instanced_twice_is_replayed_once() {
     let (part, union) = insert(
         part,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 editor_core::BodyRead::plain(Operand::Node(instance)),
                 plate.into(),
             ]),

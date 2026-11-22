@@ -512,7 +512,7 @@ fn a_piece_two_unions_draw_stays_until_both_are_hidden() {
     let (doc, other) = common::inserted(
         &doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![BodyRead::plain(pncad::document::Operand::Node(
+            members: Bodies::spelled(vec![BodyRead::plain(pncad::document::Operand::Node(
                 a_copy,
             ))]),
         },
@@ -557,7 +557,7 @@ fn the_products_body_is_drawn_whatever_reads_it() {
     let (doc, union) = common::inserted(
         &doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(pncad::document::Operand::Node(a_copy)),
                 BodyRead::plain(pncad::document::Operand::Node(b_copy)),
             ]),

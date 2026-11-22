@@ -1364,7 +1364,7 @@ fn plate_reading_an_index(count: i64) -> (DocSession, RecipeNodeId) {
             name: VarName::new("k").expect("a name"),
             def: pncad::document::VarDecl::Index {
                 count: Formula::count(count),
-                within: None,
+                after: None,
             },
         },
         tol,

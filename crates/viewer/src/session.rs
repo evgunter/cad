@@ -3810,7 +3810,7 @@ impl DocSession {
             let halves = pncad::select::SplitHalf::ALL
                 .map(|half| pncad::document::BodyRead::plain(Operand::output(split, half.port())));
             let both = run.insert(Node::Assemble {
-                members: pncad::document::Bodies::Spelled(halves.to_vec()),
+                members: pncad::document::Bodies::spelled(halves.to_vec()),
             })?;
             Ok(Wrote {
                 made: split,
@@ -4024,7 +4024,7 @@ impl DocSession {
                 index,
                 pncad::document::VarDecl::Index {
                     count: Formula::count(count),
-                    within: None,
+                    after: None,
                 },
             )
             .map(drop)
@@ -4500,6 +4500,7 @@ impl DocSession {
             | DocEdit::SetLoftSections { .. }
             // What the document makes: structure, not a panel field.
             | DocEdit::SetProduct { .. }
+            | DocEdit::SetYields { .. }
             // A profile's program replaced whole: structure, not a
             // panel field's value — and the identity program keeping
             // every step is the door's own no-op.
@@ -5464,7 +5465,7 @@ fn write_product(
         [] => None,
         [one] => Some(one.clone()),
         several => {
-            let members = pncad::document::Bodies::Spelled(
+            let members = pncad::document::Bodies::spelled(
                 several
                     .iter()
                     .cloned()
@@ -5793,13 +5794,13 @@ fn split_halves_read(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<VarId
     };
     let Some(split) = members
         .first()
-        .and_then(|member| doc.operation_of(member.read))
+        .and_then(|member| doc.operation_of(member.read().read))
         .filter(|&at| matches!(doc.node(at), Some(Node::Split { .. })))
     else {
         return Vec::new();
     };
     let halves = doc.outputs(split);
-    let read: Vec<VarId> = members.iter().map(|member| member.read).collect();
+    let read: Vec<VarId> = members.iter().map(|member| member.read().read).collect();
     if read == halves { halves } else { Vec::new() }
 }
 
@@ -5835,7 +5836,10 @@ fn assemble_seats(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<(RecipeNodeId, O
             members
                 .into_iter()
                 .enumerate()
-                .filter(|(_, (stored, _))| stored.read == var && !stored.is_indexed())
+                .filter(|(_, (stored, _))| {
+                    matches!(stored, pncad::document::Spell::One(one)
+                        if one.read == var && !one.is_indexed())
+                })
                 .map(move |(i, _)| (id, OperandSlot::Member(i)))
         })
         .collect()
@@ -5854,7 +5858,10 @@ fn drop_seats(run: &mut Recording<'_, ProfileProgram>, var: VarId) -> Result<(),
         .filter_map(|node| {
             let kept = editor_core::continuation::spelled(doc, node)?
                 .into_iter()
-                .filter(|(stored, _)| stored.read != var || stored.is_indexed())
+                .filter(|(stored, _)| {
+                    !matches!(stored, pncad::document::Spell::One(one)
+                        if one.read == var && !one.is_indexed())
+                })
                 .map(|(_, authored)| authored)
                 .collect();
             Some((node, kept))

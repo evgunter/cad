@@ -229,7 +229,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     let (doc, join) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![fa.into(), fb_in.into()]),
+            members: editor_core::Bodies::spelled(vec![fa.into(), fb_in.into()]),
         },
     );
     // One more hop: a copy of the poisoned join.
@@ -362,7 +362,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
+            members: editor_core::Bodies::spelled(vec![t1.into(), t2.into()]),
         },
     );
     // A ring of base about an axis read off it (data only).

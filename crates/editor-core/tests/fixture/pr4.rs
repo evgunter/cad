@@ -90,7 +90,7 @@ where
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), tr.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), tr.into()]),
         },
     );
     let (doc, k, pat) = crate::fixture::row(doc, u, ("k", 2), editor_core::TargetAxis::Y, 5.0);
@@ -157,7 +157,7 @@ where
             var: editor_core::VarRef::Id(k),
             def: editor_core::VarDecl::Index {
                 count: editor_core::Formula::count(1),
-                within: None,
+                after: None,
             },
             fresh: Vec::new(),
         },

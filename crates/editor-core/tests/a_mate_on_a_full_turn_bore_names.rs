@@ -217,7 +217,7 @@ fn a_mate_on_a_full_turn_bore_names() {
                 let (doc, union) = insert(
                     doc.clone(),
                     Node::Union {
-                        members: editor_core::Bodies::Spelled(reads.to_vec()),
+                        members: editor_core::Bodies::spelled(reads.to_vec()),
                     },
                 );
                 assert!(

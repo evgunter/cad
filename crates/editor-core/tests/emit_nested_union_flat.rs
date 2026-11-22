@@ -147,7 +147,7 @@ fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
     let (d1, inner) = insert(
         doc.clone(),
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![ab[0].into(), ab[1].into()]),
+            members: editor_core::Bodies::spelled(vec![ab[0].into(), ab[1].into()]),
         },
     );
     let (cx, cy, cz) = C;

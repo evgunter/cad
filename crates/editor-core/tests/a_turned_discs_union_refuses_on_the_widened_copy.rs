@@ -69,7 +69,7 @@ fn turned_disc_union() -> (ProfileDoc, [RecipeNodeId; 3]) {
     );
     let clear = r.in_world_by(disc, fixture::turned_to([20.0 * radius, 0.0, 0.0], &[]));
     let union = r.insert(Node::Union {
-        members: Bodies::Spelled(vec![turned.into(), clear.into()]),
+        members: Bodies::spelled(vec![turned.into(), clear.into()]),
     });
     r.assemble_world_copies();
     (r.doc, [turned, clear, union])

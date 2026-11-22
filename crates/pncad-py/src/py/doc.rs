@@ -1012,7 +1012,7 @@ impl MembersArg {
         match self {
             Self::Family(read) => d::Bodies::Family(read.read()),
             Self::Spelled(reads) => {
-                d::Bodies::Spelled(reads.into_iter().map(BodyArg::read).collect())
+                d::Bodies::spelled(reads.into_iter().map(BodyArg::read).collect())
             }
         }
     }
@@ -3956,7 +3956,7 @@ impl VarDecl {
     ) -> PyResult<Self> {
         Ok(Self(d::VarDecl::Index {
             count: count.formula(py, d::Dimension::Count)?,
-            within: within.map(|w| match w {
+            after: within.map(|w| match w {
                 VarArg::Id(var) => d::Formula::var(var.0, d::Dimension::Count),
                 VarArg::Name(name) => d::Formula::named(name.0, d::Dimension::Count),
             }),
@@ -4007,7 +4007,7 @@ impl VarDecl {
     #[getter]
     fn within(&self) -> Option<super::expr::Formula> {
         match &self.0 {
-            d::VarDecl::Index { within, .. } => within.clone().map(super::expr::Formula),
+            d::VarDecl::Index { after, .. } => after.clone().map(super::expr::Formula),
             d::VarDecl::Free(_) | d::VarDecl::Defined(_) | d::VarDecl::Source(_) => None,
         }
     }
@@ -4020,7 +4020,7 @@ impl VarDecl {
             d::VarDecl::Defined(expr) => {
                 format!("VarDecl.defined({})", d::unparse(expr, &|_| None))
             }
-            d::VarDecl::Index { count, within } => {
+            d::VarDecl::Index { count, after } => {
                 let count = d::unparse(count, &|_| None);
                 match within {
                     None => format!("VarDecl.index({count})"),

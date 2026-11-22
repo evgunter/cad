@@ -87,7 +87,7 @@ fn a_judgements_naming_refusal_is_not_discarded_by_a_later_empty_judgement() {
     let (doc, i) = crate::fixture::insert(
         doc,
         Node::Intersect {
-            members: Bodies::Spelled(vec![a.into(), b.into(), c.into()]),
+            members: Bodies::spelled(vec![a.into(), b.into(), c.into()]),
         },
     );
     assert_eq!(

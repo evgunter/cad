@@ -600,6 +600,7 @@ where
                         at(seat, read)?,
                         read,
                         projected.as_ref().unwrap_or(unprojected),
+                        doc.yielding(read).is_some(),
                     ))
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
@@ -4014,17 +4015,26 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let members: Vec<MemberRead<T>> = match bodies {
         crate::Bodies::Spelled(reads) => {
             let mut members = Vec::with_capacity(reads.len());
-            for (i, member) in reads.iter().enumerate() {
+            for (i, entry) in reads.iter().enumerate() {
+                let member = entry.read();
                 let read = member.read;
                 let slot = O::Member(i);
                 let at = super::read_at(doc, slot, read)?;
                 let projected =
                     reads_projected(node, &[(slot, read)], doc, (results, vals, params))?;
                 let results = projected.as_ref().unwrap_or(results);
-                let value = value_of(results, at)?.whole();
-                // A family spelled as one read is its every member
+                // A yield is a family to every reader, and a member read
+                // takes its member out of it; any other read inside a
+                // binder is of the member at the reader's own values
                 // (D10 `[repetition]`).
-                if value.members.is_some() && !member.is_member() {
+                let held = value_of(results, at)?;
+                let value = if member.is_member() || doc.yielding(read).is_some() {
+                    held.whole()
+                } else {
+                    held
+                };
+                // A splice, `…xs`, is the family's every member.
+                if entry.is_splice() {
                     members.extend(whole(read, at, value)?);
                     continue;
                 }
@@ -4057,7 +4067,13 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             }
             let read = &family.read;
             let at = super::read_at(doc, O::Members, *read)?;
-            whole(*read, at, value_of(results, at)?.whole())?
+            let held = value_of(results, at)?;
+            let value = if doc.yielding(*read).is_some() {
+                held.whole()
+            } else {
+                held
+            };
+            whole(*read, at, value)?
         }
     };
     // The node's own read: the space a fold step's rows are read in.
@@ -4783,17 +4799,17 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
 /// each member's records keyed in its own arena.
 fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    members: &[(RecipeNodeId, crate::VarId, &Results<T>)],
+    members: &[(RecipeNodeId, crate::VarId, &Results<T>, bool)],
     tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
-    // Each operand's bodies, read once: every seat of an assemble takes
-    // a family whole, so a member is its family's every body, and an
-    // empty one refuses.
+    // Each operand's bodies, read once: a yield is its family's every
+    // body, and an empty one refuses; any other read is one body.
     let operands = members
         .iter()
-        .map(|&(of, read, results)| {
-            let value = value_of(results, of)?.whole();
+        .map(|&(of, read, results, yielded)| {
+            let held = value_of(results, of)?;
+            let value = if yielded { held.whole() } else { held };
             let (bodies, family) = match value.payload.one_body() {
                 Some(Some(body)) => (vec![body.clone()], false),
                 Some(None) => return Err(NodeErrorKind::EmptyOperand { input: of }),

@@ -37,7 +37,7 @@ pub fn index_decl(
         name,
         def: VarDecl::Index {
             count,
-            within: within.map(|w| Formula::named(w.clone(), Dimension::Count)),
+            after: within.map(|w| Formula::named(w.clone(), Dimension::Count)),
         },
     }
 }

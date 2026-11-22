@@ -92,12 +92,12 @@ fn build(blocks: &[B], ops: &[Op], creation: &[usize]) -> Built {
         let before = doc.clone();
         let node = match *op {
             Op::Union(ms) => Node::Union {
-                members: editor_core::Bodies::Spelled(
+                members: editor_core::Bodies::spelled(
                     ms.iter().map(|&m| r(m, &out).into()).collect(),
                 ),
             },
             Op::Pair(BooleanOp::Union, a, b) => Node::Union {
-                members: editor_core::Bodies::Spelled(vec![r(a, &out).into(), r(b, &out).into()]),
+                members: editor_core::Bodies::spelled(vec![r(a, &out).into(), r(b, &out).into()]),
             },
             Op::Pair(BooleanOp::Subtract, a, b) => Node::Subtract {
                 from: r(a, &out).into(),

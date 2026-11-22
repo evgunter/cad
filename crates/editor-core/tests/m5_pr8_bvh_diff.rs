@@ -138,7 +138,7 @@ fn corpus_boolean_operands_superset_pin() {
                         members: editor_core::Bodies::Spelled(members),
                         ..
                     },
-                ) if members.len() == 2 => (&members[0], &members[1]),
+                ) if members.len() == 2 => (members[0].read(), members[1].read()),
                 _ => continue,
             };
             let (body_a, body_b) = (

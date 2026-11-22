@@ -500,7 +500,7 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
     let (doc, uni) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     // Attribute a UNION-minted face name (node = the boolean).
@@ -708,7 +708,7 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
     let (doc, uni) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));

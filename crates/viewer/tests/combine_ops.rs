@@ -214,6 +214,7 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
     else {
         panic!("one union node: {:?}", doc.node(union));
     };
+    let members: Vec<_> = members.iter().map(|m| m.read().clone()).collect();
     assert_eq!(
         members.iter().map(|m| Some(m.read)).collect::<Vec<_>>(),
         [a, b, c].map(|n| doc.output(n, 0)),
@@ -3184,13 +3185,13 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         (
             "union",
             Node::Union {
-                members: Bodies::Spelled(vec![body.into(), body_b.into()]),
+                members: Bodies::spelled(vec![body.into(), body_b.into()]),
             },
         ),
         (
             "intersect",
             Node::Intersect {
-                members: Bodies::Spelled(vec![body.into(), body_b.into()]),
+                members: Bodies::spelled(vec![body.into(), body_b.into()]),
             },
         ),
         (
@@ -4203,7 +4204,7 @@ fn a_combine_that_would_strand_a_pick_refuses_typed() {
     let (doc, seat) = crate::fixture::insert(
         doc.clone(),
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Var(a_copy)),
                 BodyRead::plain(Operand::Var(b_copy)),
             ]),

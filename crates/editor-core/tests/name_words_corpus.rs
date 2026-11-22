@@ -542,10 +542,10 @@ fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) ->
             tool: b.into(),
         },
         BooleanOp::Union => Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
         BooleanOp::Intersect => Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     })
 }
@@ -610,7 +610,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         name: editor_core::VarName::from_static("j"),
         def: editor_core::VarDecl::Index {
             count: Formula::count(2),
-            within: Some(Formula::var(i, editor_core::Dimension::Count)),
+            after: Some(Formula::var(i, editor_core::Dimension::Count)),
         },
     });
     let j = r.doc.var_named("j").expect("the inner index");

@@ -305,7 +305,7 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     let a = recorded_block(&mut rec, None, (0.0, 1.0));
     let b = recorded_block(&mut rec, Some(a), (0.5, 1.5));
     let inner = rec.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+        members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
     });
     let c = recorded_block(&mut rec, Some(a), (1.2, 2.2));
     // The inner's merged rows, as the inner's table names them.
@@ -320,7 +320,7 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
         )
     };
     let outer = rec.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![inner.into(), c.into()]),
+        members: editor_core::Bodies::spelled(vec![inner.into(), c.into()]),
     });
     let ev = run(&rec.doc);
     assert!(failure(&ev, outer).is_none(), "{:?}", failure(&ev, outer));
@@ -411,7 +411,7 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
     let a = recorded_block(&mut rec, None, (0.0, 1.0));
     let b = recorded_block(&mut rec, Some(a), (0.5, 1.5));
     let inner = rec.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+        members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
     });
     let c = recorded_block(&mut rec, Some(a), (1.2, 2.2));
     let at = rec.doc.clone();
@@ -425,7 +425,7 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
         )
     };
     let outer = rec.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![inner.into(), c.into()]),
+        members: editor_core::Bodies::spelled(vec![inner.into(), c.into()]),
     });
     let ev = run(&rec.doc);
     assert!(failure(&ev, outer).is_none(), "{:?}", failure(&ev, outer));
@@ -487,7 +487,7 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
     let (doc, inner) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     // A far block, unioned with the merge as operand B, so the merged
@@ -496,14 +496,14 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
     let (doc, mid) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![far.into(), inner.into()]),
+            members: editor_core::Bodies::spelled(vec![far.into(), inner.into()]),
         },
     );
     let (doc, c) = block_on(doc, a, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
     let (doc, outer) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![mid.into(), c.into()]),
+            members: editor_core::Bodies::spelled(vec![mid.into(), c.into()]),
         },
     );
     let ev = run(&doc);

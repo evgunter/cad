@@ -163,7 +163,7 @@ fn a_blind_bore_pin_is_quietable_and_refuses_until_quieted() {
     let (doc, plate) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![holed.into(), floor.into()]),
+            members: Bodies::spelled(vec![holed.into(), floor.into()]),
         },
     );
     let (doc, pin) = prism(doc, vec![circle(0.0, 0.0, 0.505)], 1.7);
@@ -190,7 +190,7 @@ fn a_blind_bore_pin_in_a_turned_frame_is_quietable() {
     let (doc, plate) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![holed.into(), floor.into()]),
+            members: Bodies::spelled(vec![holed.into(), floor.into()]),
         },
     );
     let (doc, pin) = prism(doc, vec![circle(0.0, 0.0, 0.505)], 1.7);
@@ -226,7 +226,7 @@ fn a_headed_press_fit_is_not_quietable() {
     let (doc, pin) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![shank.into(), head.into()]),
+            members: Bodies::spelled(vec![shank.into(), head.into()]),
         },
     );
     let (doc, _) = place(doc, plate);
@@ -308,7 +308,7 @@ fn two_press_fits_between_one_pair_are_not_quietable() {
     let (doc, pins) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![left.into(), right.into()]),
+            members: Bodies::spelled(vec![left.into(), right.into()]),
         },
     );
     let (doc, _) = place(doc, plate);

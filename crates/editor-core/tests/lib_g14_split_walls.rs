@@ -579,7 +579,7 @@ fn a_unions_seams_of_a_tied_face_tie_under_the_bare_name() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![sub.into(), d.into()]),
+            members: editor_core::Bodies::spelled(vec![sub.into(), d.into()]),
         },
     );
     let ev = run(&doc);

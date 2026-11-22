@@ -51,7 +51,7 @@ fn pocketed_prongs_split() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, tool) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![u.into(), pocket.into()]),
+            members: Bodies::spelled(vec![u.into(), pocket.into()]),
         },
     );
     let (doc, sub) = insert(

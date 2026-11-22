@@ -63,10 +63,10 @@ impl Op {
         let (a, b) = (a.into(), b.into());
         match self {
             Self::Union => Node::Union {
-                members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+                members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
             },
             Self::Intersect => Node::Intersect {
-                members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+                members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
             },
             Self::Subtract => Node::Subtract {
                 from: a.into(),
@@ -326,7 +326,7 @@ fn one_table(
             let (doc, u) = insert(
                 doc,
                 Node::Union {
-                    members: editor_core::Bodies::Spelled(p.iter().map(|&i| m[i].into()).collect()),
+                    members: editor_core::Bodies::spelled(p.iter().map(|&i| m[i].into()).collect()),
                 },
             );
             let ev = run(&doc);
@@ -431,7 +431,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
     let (doc, node) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![rib.into(), turned.into()]),
+            members: editor_core::Bodies::spelled(vec![rib.into(), turned.into()]),
         },
     );
     ids.push(("union node", node));

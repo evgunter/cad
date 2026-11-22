@@ -534,7 +534,7 @@ mod tests {
                     name: name.clone(),
                     def: crate::VarDecl::Index {
                         count: crate::Formula::count(count),
-                        within: None,
+                        after: None,
                     },
                 },
                 tol,

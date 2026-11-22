@@ -1090,13 +1090,29 @@ pub fn index_of(
             name: name.clone(),
             def: editor_core::VarDecl::Index {
                 count,
-                within: within.map(|w| Formula::var(w, editor_core::Dimension::Count)),
+                after: within.map(|w| Formula::var(w, editor_core::Dimension::Count)),
             },
         },
     )
     .0;
     let id = doc.var_named(name.as_str()).expect("the index is declared");
     (doc, id)
+}
+
+/// **`doc` with the binder `binder` also yielding `more`**, after what
+/// it yields already ([`DocEdit::SetYields`]).
+pub fn yield_more(doc: ProfileDoc, binder: VarId, more: &[VarId]) -> ProfileDoc {
+    let mut yields: Vec<editor_core::VarRef> =
+        doc.yields(binder).iter().map(|&y| y.into()).collect();
+    yields.extend(more.iter().map(|&y| editor_core::VarRef::from(y)));
+    step(
+        doc,
+        DocEdit::SetYields {
+            binder: binder.into(),
+            yields,
+        },
+    )
+    .0
 }
 
 /// `scalar(index)`, a `Scalar` reading the index.
@@ -1164,17 +1180,17 @@ pub fn ring(
     (doc, k, ring)
 }
 
-/// **The edit giving the index `k` the count `count`**, its `within`
-/// kept.
+/// **The edit giving the index `k` the count `count`**, its seat in its
+/// binder kept.
 pub fn recount_edit(doc: &ProfileDoc, k: VarId, count: Formula) -> DocEdit<ProfileProgram> {
-    let within = doc
+    let after = doc
         .var(k)
         .and_then(|v| v.def().index())
-        .and_then(|index| index.within)
+        .and_then(editor_core::Index::after)
         .map(|w| Formula::var(w, editor_core::Dimension::Count));
     DocEdit::DefineVar {
         var: editor_core::VarRef::Id(k),
-        def: editor_core::VarDecl::Index { count, within },
+        def: editor_core::VarDecl::Index { count, after },
         fresh: Vec::new(),
     }
 }
@@ -1623,6 +1639,16 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
         },
     );
     let id = minted.unwrap();
+    // A placement reading an index is a pattern, which its binder yields
+    // (D10 `[repetition]`), as the façade's pattern writers write it.
+    let doc = match (doc.node(id), doc.node_reach(id).chain()) {
+        (Some(Node::Place { .. }), Some([first, ..])) => {
+            let out = doc.output(id, 0).expect("a placement defines its copy");
+            let binder = doc.binder_of(*first).expect("an index has a binder");
+            yield_more(doc, binder, &[out])
+        }
+        _ => doc,
+    };
     // The fixture's product is the world's copies, which a placement
     // into the world joins.
     let joins = matches!(
@@ -1925,7 +1951,7 @@ pub fn union_over(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, Rec
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(
+            members: editor_core::Bodies::spelled(
                 inserted.clone().into_iter().map(Into::into).collect(),
             ),
         },
@@ -1937,7 +1963,7 @@ pub fn union_over(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, Rec
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: editor_core::Bodies::Spelled(
+            members: editor_core::Bodies::spelled(
                 members.iter().copied().map(Into::into).collect(),
             ),
         },
@@ -2492,7 +2518,7 @@ impl Recorder {
             name: name.clone(),
             def: editor_core::VarDecl::Index {
                 count,
-                within: None,
+                after: None,
             },
         });
         self.doc
@@ -3861,7 +3887,7 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
         &axes_at([0.0, 0.0, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
     );
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+        members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
     });
     (r.doc, union)
 }

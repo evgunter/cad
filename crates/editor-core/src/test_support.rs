@@ -1526,7 +1526,7 @@ pub fn assemble_world_copies_edits(
         })
         .collect();
     let spelled = |copies: &[crate::VarId]| {
-        crate::Bodies::Spelled(
+        crate::Bodies::spelled(
             copies
                 .iter()
                 .map(|&copy| crate::BodyRead::plain(copy))
@@ -1553,7 +1553,7 @@ pub fn assemble_world_copies_edits(
         several => {
             let insert = crate::DocEdit::InsertNode {
                 node: Box::new(Node::Assemble {
-                    members: crate::Bodies::Spelled(
+                    members: crate::Bodies::spelled(
                         several
                             .iter()
                             .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))

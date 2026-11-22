@@ -1725,7 +1725,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         .and_then(|at| doc.node(at))
     {
         Some(Node::Assemble {
-            members: pncad::document::Bodies::Spelled(members),
+            members: pncad::document::Bodies::spelled(members),
         }) => members.iter().map(|member| member.read).collect::<Vec<_>>(),
         other => panic!("the layout's product is a `⊔`, got {other:?}"),
     };

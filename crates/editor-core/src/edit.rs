@@ -702,6 +702,21 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The body read, `None` for an empty product.
         product: Option<crate::Operand>,
     },
+    /// **Write what a binder yields** (D10 `[repetition]`), whole and in
+    /// order: each yield a family to every reader, one member per value
+    /// of the binder's indices. `binder` is its first index.
+    ///
+    /// Refuses a binder that is no binder's first index, a yield that
+    /// is an index, is listed twice or is another binder's
+    /// ([`EditError::Yields`]); and, as every edit does, one that leaves
+    /// a reader reading a family at a seat for one body
+    /// ([`EditError::SlotVarKind`]).
+    SetYields {
+        /// The binder, by its first index.
+        binder: VarRef,
+        /// What it yields.
+        yields: Vec<VarRef>,
+    },
 }
 
 impl<P: crate::ProfilePayload> DocEdit<P> {
@@ -798,6 +813,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             | Self::ClearAppearanceMeta { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
+            | Self::SetYields { .. }
             | Self::UpdateReference { .. } => false,
         }
     }
@@ -2273,16 +2289,46 @@ pub enum SourceFault {
     Fresh,
 }
 
+/// **Why a binder's yields are refused** ([`EditError::Yields`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum YieldsFault {
+    /// The variable named is no binder's first index.
+    NotABinder,
+    /// A yield is an index, which its binder mints rather than yields.
+    Index {
+        /// The yield.
+        var: Box<SpokenVar>,
+    },
+    /// A yield is written twice.
+    Twice {
+        /// The yield.
+        var: Box<SpokenVar>,
+    },
+    /// A yield is another binder's.
+    Elsewhere {
+        /// The yield.
+        var: Box<SpokenVar>,
+        /// The binder yielding it.
+        binder: Box<SpokenVar>,
+    },
+}
+
 /// **Why an index is refused as declared** ([`EditError::Index`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexFault {
     /// Its count is of another dimension.
     CountNotCount {
         /// The count's dimension.
         found: Dimension,
     },
-    /// What it is declared within is no index of the document.
-    WithinNoIndex,
+    /// What it is declared after is no index of the document.
+    AfterNoIndex,
+    /// The index it is declared after already has an index after it:
+    /// a binder's indices are one sequence, outermost first.
+    AfterTaken {
+        /// The index already after it.
+        taken: Box<SpokenVar>,
+    },
 }
 
 /// **A declared definition as the door writes it**: a free one as
@@ -2302,7 +2348,7 @@ fn lower_decl<P: crate::ProfilePayload>(
         VarDecl::Defined(formula) => lowering
             .lower_definition(doc, var, formula)
             .map(WrittenDef::Defined),
-        VarDecl::Index { count, within } => {
+        VarDecl::Index { count, after } => {
             let refused = |fault| EditError::Index {
                 var: var.clone(),
                 fault,
@@ -2310,18 +2356,37 @@ fn lower_decl<P: crate::ProfilePayload>(
             if count.dim() != Dimension::Count {
                 return Err(refused(IndexFault::CountNotCount { found: count.dim() }));
             }
-            let within = match within {
-                None => None,
-                Some(within) => Some(
-                    lowering
-                        .lower_definition(doc, var, within)?
+            let seat = match after {
+                // A redefined binder keeps what it yields.
+                None => crate::IndexSeat::Binder {
+                    yields: doc
+                        .var(var.id())
+                        .and_then(|held| held.def().index())
+                        .and_then(|index| match &index.seat {
+                            crate::IndexSeat::Binder { yields } => Some(yields.clone()),
+                            crate::IndexSeat::After(_) => None,
+                        })
+                        .unwrap_or_default(),
+                },
+                Some(after) => {
+                    let before = lowering
+                        .lower_definition(doc, var, after)?
                         .as_var()
-                        .filter(|&at| doc.var(at).is_some_and(|v| v.def().index().is_some()))
-                        .ok_or_else(|| refused(IndexFault::WithinNoIndex))?,
-                ),
+                        .filter(|&at| {
+                            at != var.id() && doc.var(at).is_some_and(|v| v.def().index().is_some())
+                        })
+                        .ok_or_else(|| refused(IndexFault::AfterNoIndex))?;
+                    if let Some(taken) = doc.index_after(before).filter(|&taken| taken != var.id())
+                    {
+                        return Err(refused(IndexFault::AfterTaken {
+                            taken: Box::new(doc.spoken_var(taken)),
+                        }));
+                    }
+                    crate::IndexSeat::After(before)
+                }
             };
             let count = lowering.lower_definition(doc, var, count)?;
-            Ok(WrittenDef::Index(crate::Index { count, within }))
+            Ok(WrittenDef::Index(crate::Index { count, seat }))
         }
         VarDecl::Source(body) => lower_source_decl(doc, lowering, var, body),
     }
@@ -2466,6 +2531,8 @@ pub enum CarryForwardDoor {
     Rename,
     /// [`DocEdit::DeleteVar`] — the variable itself.
     Delete,
+    /// [`DocEdit::SetYields`] — what a binder yields.
+    Yields,
 }
 
 // The door as it appears inside a refusal's sentence, in the user's
@@ -2479,6 +2546,7 @@ impl core::fmt::Display for CarryForwardDoor {
             Self::Annotation => "an annotation edit",
             Self::Rename => "a rename",
             Self::Delete => "a delete",
+            Self::Yields => "a binder's yields",
         })
     }
 }
@@ -2671,6 +2739,13 @@ impl LoftFault {
 /// paragraph instead of re-wording it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditError {
+    /// A binder's yields refused as written ([`DocEdit::SetYields`]).
+    Yields {
+        /// The binder, by its first index.
+        binder: SpokenVar,
+        /// Why.
+        fault: YieldsFault,
+    },
     /// The edit targets a node id that is not live.
     UnknownNode {
         /// The missing id.
@@ -3109,9 +3184,9 @@ pub enum EditError {
         /// The kind the definition holds.
         offered: VarKind,
     },
-    /// **A reader of two indices neither of which is within the other**
-    /// (D10 `[repetition]`): they meet in no reader.
-    IndicesUnrelated {
+    /// **A reader of the indices of two binders** (D10 `[repetition]`):
+    /// no binder holds it, so it would repeat over both unwritten.
+    TwoBinders {
         /// The reader.
         node: SpokenNode,
         /// One index.
@@ -3920,7 +3995,7 @@ impl EditError {
                 **source = source.respoken(doc);
                 **other = other.respoken(doc);
             }
-            Self::IndicesUnrelated { node, a, b } => {
+            Self::TwoBinders { node, a, b } => {
                 *node = node.respoken(doc);
                 **a = a.respoken(doc);
                 **b = b.respoken(doc);
@@ -4018,6 +4093,10 @@ impl EditError {
                 offered: _,
             }
             | Self::Index { var, fault: _ }
+            | Self::Yields {
+                binder: var,
+                fault: _,
+            }
             | Self::SourceRead { var, fault: _ }
             | Self::VarCountHasNoUnit { var }
             | Self::VarCountHasNoDistribution { var }
@@ -4702,15 +4781,42 @@ impl EditError {
                 )?;
                 tail.recourse(f, format_args!("read the entry, or drop it from the table"))
             }
-            Self::IndicesUnrelated { node, a, b } => {
+            Self::TwoBinders { node, a, b } => {
                 write!(
                     f,
-                    "{node} reads the indices {a} and {b}, and neither is within the other, so \
-                     they meet in no reader"
+                    "{node} reads the indices {a} and {b}, which are of two binders, and a \
+                     reader repeats inside one binder"
                 )?;
                 tail.recourse(
                     f,
-                    format_args!("declare one within the other, or read one of them here"),
+                    format_args!(
+                        "bind both indices in one binder, or read what one binder yields"
+                    ),
+                )
+            }
+            Self::Yields { binder, fault } => {
+                match fault {
+                    YieldsFault::NotABinder => write!(
+                        f,
+                        "{binder} is no binder's first index, and a binder's yields are \
+                         written on its first index"
+                    )?,
+                    YieldsFault::Index { var } => write!(
+                        f,
+                        "{binder} would yield {var}, which is an index: a binder mints its \
+                         indices and yields what reads them"
+                    )?,
+                    YieldsFault::Twice { var } => {
+                        write!(f, "{binder} would yield {var} twice")?;
+                    }
+                    YieldsFault::Elsewhere { var, binder: other } => write!(
+                        f,
+                        "{binder} would yield {var}, which {other} already yields"
+                    )?,
+                }
+                tail.recourse(
+                    f,
+                    format_args!("name each yield once, a variable inside the binder"),
                 )
             }
             Self::Index { var, fault } => {
@@ -4721,17 +4827,22 @@ impl EditError {
                          a whole number of values",
                         found.article()
                     )?,
-                    IndexFault::WithinNoIndex => write!(
+                    IndexFault::AfterNoIndex => write!(
                         f,
-                        "{var} is declared within a variable that is no index, and an index \
-                         is within another index or nothing"
+                        "{var} is declared after a variable that is no other index, and a \
+                         binder's further index comes after one of its indices"
+                    )?,
+                    IndexFault::AfterTaken { taken } => write!(
+                        f,
+                        "{var} is declared after an index that {taken} already comes after, \
+                         and a binder's indices are one sequence"
                     )?,
                 }
                 tail.recourse(
                     f,
                     format_args!(
-                        "give it a count expression, and declare it within an index, or no \
-                         index"
+                        "give it a count expression, and declare it as a new binder's index, \
+                         or after the last index of a binder"
                     ),
                 )
             }
@@ -7520,7 +7631,7 @@ impl Recording<'_, crate::ProfileProgram> {
             placed.bundle(),
         ))?;
         let union = self.insert(Node::Union {
-            members: crate::Bodies::Spelled(vec![
+            members: crate::Bodies::spelled(vec![
                 crate::BodyRead::plain(whole),
                 crate::BodyRead::plain(crate::Operand::Output {
                     node: placement,
@@ -8147,6 +8258,28 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
     }
+    // D10 `[repetition]`, on EVERY arm: a yield goes with its variable.
+    let gone: Vec<(VarId, crate::Index)> = new
+        .vars
+        .iter()
+        .filter_map(|(&id, var)| {
+            let index = var.def().index()?;
+            let crate::IndexSeat::Binder { yields } = &index.seat else {
+                return None;
+            };
+            yields
+                .iter()
+                .any(|y| !new.vars.contains_key(y))
+                .then(|| (id, index.clone()))
+        })
+        .collect();
+    for (id, mut index) in gone {
+        if let crate::IndexSeat::Binder { yields } = &mut index.seat {
+            yields.retain(|y| new.vars.contains_key(y));
+        }
+        new.vars
+            .insert(id, Var::written(crate::WrittenDef::Index(index)));
+    }
     // D10 `[placement.spaces]`, on EVERY arm: the node an edit
     // re-points (`held`) is refused reading two spaces, as one written
     // whole is at its own door; any other node an edit left reading two
@@ -8178,20 +8311,52 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             });
         }
     }
-    // D10 `[repetition]`, on EVERY arm: two indices meet in one reader
-    // only when one is within the other. An edit that leaves a reader of
-    // two unrelated indices refuses, naming the first in id order that
-    // the document before did not hold.
+    // D10 `[repetition]`, on EVERY arm: a reader repeats inside one
+    // binder. An edit that leaves a reader of two binders' indices
+    // refuses, naming the first in id order that the document before did
+    // not hold.
     if let Some((node, a, b)) = new
         .indices_faults()
         .into_iter()
         .find(|fault| !doc.indices_faults().contains(fault))
     {
-        return Err(EditError::IndicesUnrelated {
+        return Err(EditError::TwoBinders {
             node: spoken_before_else_after(doc, &new, node),
             a: Box::new(new.spoken_var(a)),
             b: Box::new(new.spoken_var(b)),
         });
+    }
+    // D10 `[repetition]`, on EVERY arm: a yield is a family to every
+    // reader, so an edit that leaves one read at a seat for one body, or
+    // a member read of a variable no binder yields, refuses by kind,
+    // naming the first the document before did not hold.
+    let family_faults = new.family_read_faults();
+    if !family_faults.is_empty() {
+        let before = doc.family_read_faults();
+        if let Some(fault) = family_faults.into_iter().find(|f| !before.contains(f)) {
+            return Err(match fault {
+                crate::repetition::FamilyReadFault::Seat {
+                    node,
+                    slot,
+                    var,
+                    found,
+                } => EditError::SlotVarKind {
+                    var: Box::new(new.spoken_var(var)),
+                    node: spoken_before_else_after(doc, &new, node),
+                    slot: SlotId::Operand(slot),
+                    found,
+                    expected: new
+                        .node(node)
+                        .map_or_else(|| slot.kind(), |held| held.seat_kind(slot)),
+                },
+                crate::repetition::FamilyReadFault::Source { source, found, .. } => {
+                    EditError::SourceRead {
+                        var: new.spoken_var(source),
+                        fault: SourceFault::Kind { found },
+                    }
+                }
+            });
+        }
     }
     // VR2, on EVERY arm: an anonymous variable has one reader, so the
     // edit that gave it a second, or cleared the name two share, refuses
@@ -8848,6 +9013,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         .enumerate()
                         .map(|(i, section)| {
                             let slot = crate::OperandSlot::Section(i);
+                            let section = section.read();
                             if section.is_member() {
                                 return Err(EditError::UnknownSlot {
                                     id: spoken(),
@@ -9686,6 +9852,60 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 outputs: Vec::new(),
             }
         }
+        DocEdit::SetYields { binder, yields } => {
+            let unknown = |var: &VarRef| EditError::UnknownVar {
+                var: var.clone(),
+                door: CarryForwardDoor::Yields,
+            };
+            let Some(first) = doc.resolve_var(binder) else {
+                return Err(unknown(binder));
+            };
+            let refused = |fault| EditError::Yields {
+                binder: doc.spoken_var(first),
+                fault,
+            };
+            let Some(index) = doc
+                .var(first)
+                .and_then(|held| held.def().index())
+                .filter(|index| index.after().is_none())
+            else {
+                return Err(refused(YieldsFault::NotABinder));
+            };
+            let mut written = Vec::with_capacity(yields.len());
+            for read in yields {
+                let Some(var) = doc.resolve_var(read) else {
+                    return Err(unknown(read));
+                };
+                let spoken = || Box::new(doc.spoken_var(var));
+                if doc.var(var).is_some_and(|held| held.def().index().is_some()) {
+                    return Err(refused(YieldsFault::Index { var: spoken() }));
+                }
+                if written.contains(&var) {
+                    return Err(refused(YieldsFault::Twice { var: spoken() }));
+                }
+                if let Some(other) = doc.yielding(var).filter(|&other| other != first) {
+                    return Err(refused(YieldsFault::Elsewhere {
+                        var: spoken(),
+                        binder: Box::new(doc.spoken_var(other)),
+                    }));
+                }
+                written.push(var);
+            }
+            let index = crate::Index {
+                count: index.count.clone(),
+                seat: crate::IndexSeat::Binder { yields: written },
+            };
+            new.vars
+                .insert(first, Var::written(crate::WrittenDef::Index(index)));
+            EditRecord {
+                minted: None,
+                minted_constraints: Vec::new(),
+                minted_var: None,
+                structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
+            }
+        }
         DocEdit::SetLabel { node, label } => {
             if !new.nodes.contains_key(node) {
                 return Err(EditError::UnknownNode {
@@ -10175,6 +10395,10 @@ pub enum ProductReadFault {
     /// one; the product's gather does not, so the slot refuses it rather
     /// than gather the family whole.
     Member,
+    /// The body read reads an index, so it is one member at each value
+    /// of it, and a reader outside its binder reads only what the
+    /// binder yields (D10 `[repetition]`).
+    PerMember,
     /// A pick written at the slot picks no piece ([`EditError::PickPath`]'s
     /// rule).
     Path {
@@ -10196,6 +10420,10 @@ impl core::fmt::Display for ProductReadFault {
             Self::Space { space } => write!(f, "its body is in {space}, not the world"),
             Self::Member => f.write_str(
                 "it reads one member of a family, which the product's gather does not read",
+            ),
+            Self::PerMember => f.write_str(
+                "it reads a body that reads an index, which is one member at each value; the \
+                 product reads a family its binder yields",
             ),
             Self::Path { at } => write!(f, "{}", PicksNoPiece("it", *at)),
         }
@@ -10226,7 +10454,8 @@ fn product_read<P: crate::ProfilePayload>(
     ) {
         return Err(refused(ProductReadFault::Unresolved));
     }
-    let body = crate::SlotKind::Is(VarKind::Body);
+    // The product reads one body, or a family a binder yields whole.
+    let body = crate::SlotKind::Placeable;
     let var = lower_read(
         doc,
         &|| SpokenNode::absent(RecipeNodeId::WORLD),
@@ -10246,6 +10475,11 @@ fn product_read<P: crate::ProfilePayload>(
     })?;
     if doc.unresolved_read(var).is_some() {
         return Err(refused(ProductReadFault::Unresolved));
+    }
+    // Containment (D10 `[repetition]`): a body that reads an index is
+    // one member at each value, read only inside its binder.
+    if doc.yielding(var).is_none() && !doc.var_reach(var).is_none() {
+        return Err(refused(ProductReadFault::PerMember));
     }
     match product_fault(doc, var) {
         None => Ok(var),

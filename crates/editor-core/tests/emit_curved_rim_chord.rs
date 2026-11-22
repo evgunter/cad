@@ -276,7 +276,7 @@ fn unites_in_both_orders(rim: Rim, x: (f64, f64), y: (f64, f64), pieces: usize, 
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(members.iter().map(|&m| m.into()).collect()),
+                members: editor_core::Bodies::spelled(members.iter().map(|&m| m.into()).collect()),
             },
         );
         let ev = run(&doc);
@@ -389,7 +389,7 @@ fn the_edge_check_refuses_a_name_for_the_other_piece() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![notched.into(), post.into()]),
+            members: editor_core::Bodies::spelled(vec![notched.into(), post.into()]),
         },
     );
     let ev = run(&doc);

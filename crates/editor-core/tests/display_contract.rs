@@ -1010,6 +1010,7 @@ test_utils::f6_variants! {
         OutputSignature,
         VarNotMinted,
         NameOnMissingVar,
+        IndexSeat,
         VarNameTwice,
         ReaderOfUnmintedVar,
         SlotVarKind,
@@ -1365,6 +1366,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "the name width is attached to variable #0:0000000000070000",
                 "not live",
             ],
+        ),
+        (
+            SnapshotError::IndexSeat {
+                var: editor_core::VarId::new(0, tagged(7)),
+                other: editor_core::VarId::new(0, tagged(8)),
+                fault: editor_core::persist::IndexSeatFault::YieldIndex,
+            },
+            vec!["yields #0:0000000000080000, which is an index"],
         ),
         (
             SnapshotError::VarNameTwice {

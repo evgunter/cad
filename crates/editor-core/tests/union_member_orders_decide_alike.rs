@@ -182,7 +182,7 @@ fn decide(
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(
+            members: editor_core::Bodies::spelled(
                 order.iter().map(|&i| members[i].into()).collect(),
             ),
         },
@@ -717,7 +717,7 @@ fn statements(fixture: Members, order: &[usize]) -> Vec<String> {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(
+            members: editor_core::Bodies::spelled(
                 order.iter().map(|&i| members[i].into()).collect(),
             ),
         },
@@ -886,7 +886,7 @@ fn a_re_cited_record_cites_the_rows_its_steps_decided_in_every_member_order() {
         let (doc, union) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(
+                members: editor_core::Bodies::spelled(
                     order.iter().map(|&i| members[i].into()).collect(),
                 ),
             },
@@ -1012,7 +1012,7 @@ fn published_row_cells_are_member_cells_that_meet() {
             let (doc, union) = insert(
                 doc,
                 Node::Union {
-                    members: editor_core::Bodies::Spelled(
+                    members: editor_core::Bodies::spelled(
                         order.iter().map(|&i| members[i].into()).collect(),
                     ),
                 },
@@ -1044,7 +1044,7 @@ fn log(fixture: Members, order: &[usize], padding: usize) -> Vec<String> {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(
+            members: editor_core::Bodies::spelled(
                 order.iter().map(|&i| members[i].into()).collect(),
             ),
         },
@@ -1188,7 +1188,7 @@ fn every_fold_row_names_every_member_cell_its_cells_are_made_of() {
             let (doc, union) = insert(
                 doc,
                 Node::Union {
-                    members: editor_core::Bodies::Spelled(
+                    members: editor_core::Bodies::spelled(
                         order.iter().map(|&i| members[i].into()).collect(),
                     ),
                 },

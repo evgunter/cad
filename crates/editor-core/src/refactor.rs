@@ -1981,9 +1981,10 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::FreshUnread { .. }
             | EditError::VarKindFixed { .. }
             | EditError::Index { .. }
+            | EditError::Yields { .. }
             | EditError::SourceRead { .. }
             | EditError::PlacementReadsNoSource { .. }
-            | EditError::IndicesUnrelated { .. }
+            | EditError::TwoBinders { .. }
             | EditError::NotAFreeVar { .. }
             | EditError::VarIsAnOutput { .. }
             | EditError::DefinitionCycle { .. }
@@ -2701,7 +2702,7 @@ impl<'s> VarCarry<'s> {
                     });
                 VarDecl::Index {
                     count,
-                    within: index.within.map(read),
+                    after: index.after().map(read),
                 }
             }
             VarDef::Output { .. } => {
@@ -3080,8 +3081,11 @@ pub fn split(
                     && matches!(doc.node(id), Some(Node::Assemble {
                         members: crate::Bodies::Spelled(reads),
                     }) if reads.len() == copies.len()
-                        && reads.iter().all(|read| !read.is_indexed())
-                        && reads.iter().map(|read| read.read).collect::<BTreeSet<_>>() == copies)
+                        && reads.iter().all(|read| {
+                            matches!(read, crate::Spell::One(one) if !one.is_indexed())
+                        })
+                        && reads.iter().map(|read| read.read().read).collect::<BTreeSet<_>>()
+                            == copies)
                     && doc.output(id, 0).is_some_and(|out| doc.is_read(out))
             })
         })
@@ -3842,7 +3846,7 @@ pub fn split(
         (None, several) => {
             let node = part
                 .insert(Node::Assemble {
-                    members: crate::Bodies::Spelled(
+                    members: crate::Bodies::spelled(
                         several
                             .iter()
                             .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))

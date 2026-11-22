@@ -1777,13 +1777,20 @@ pub enum NodeErrorKind {
         /// The member's refusal.
         source: Box<NodeErrorKind>,
     },
-    /// **Two indices read in one reader, neither within the other**
-    /// (D10 `[repetition]`): they meet in no reader.
-    IndicesUnrelated {
+    /// **The indices of two binders read in one reader** (D10
+    /// `[repetition]`): no binder holds it.
+    TwoBinders {
         /// One index.
         a: crate::VarId,
         /// The other.
         b: crate::VarId,
+    },
+    /// **A binder that yields nothing and holds no assertion** (D10
+    /// `[repetition]`): what reads its indices is refused, since nothing
+    /// outside it could read what it builds.
+    YieldsNothing {
+        /// The binder, by its first index.
+        binder: crate::VarId,
     },
     /// **An index's count did not evaluate** where its reader is
     /// evaluated once per value.
@@ -2474,13 +2481,21 @@ impl crate::spoken::Say for NodeErrorKind {
                     Said(&**source, by)
                 )
             }
-            Self::IndicesUnrelated { a, b } => write!(
+            Self::TwoBinders { a, b } => write!(
                 f,
-                "the node reads the indices {} and {}, and neither is within the other, so \
-                 they meet in no reader. {}",
+                "the node reads the indices {} and {}, which are of two binders, and a reader \
+                 repeats inside one binder. {}",
                 by.read(*a),
                 by.read(*b),
-                crate::sentence::Recourse("declare one within the other, or read one index here")
+                crate::sentence::Recourse(
+                    "bind both indices in one binder, or read what one binder yields"
+                )
+            ),
+            Self::YieldsNothing { binder } => write!(
+                f,
+                "the node reads the index {}, whose binder yields nothing. {}",
+                by.read(*binder),
+                crate::sentence::Recourse("name what the binder yields")
             ),
             Self::IndexCount { index, source } => {
                 write!(
@@ -4781,7 +4796,32 @@ fn chains_of(
         return BTreeMap::new();
     }
     let mut reach = crate::repetition::Reach::new(doc);
-    order.iter().map(|&id| (id, reach.node(id))).collect()
+    let chains: BTreeMap<RecipeNodeId, crate::repetition::Reached> =
+        order.iter().map(|&id| (id, reach.node(id))).collect();
+    // A binder that yields nothing refuses what it holds, unless it
+    // holds an assertion: an assertion is its own yield, a family of
+    // verdicts.
+    let binder_of = |reached: &crate::repetition::Reached| {
+        reached
+            .chain()
+            .and_then(|chain| chain.first())
+            .and_then(|&index| reach.binders().seat(index))
+            .map(|(binder, _)| binder)
+    };
+    let asserting: std::collections::BTreeSet<crate::VarId> = chains
+        .iter()
+        .filter(|(id, _)| matches!(doc.node(**id), Some(crate::Node::Assertion(_))))
+        .filter_map(|(_, reached)| binder_of(reached))
+        .collect();
+    chains
+        .iter()
+        .map(|(&id, reached)| match binder_of(reached) {
+            Some(binder) if doc.yields(binder).is_empty() && !asserting.contains(&binder) => {
+                (id, crate::repetition::Reached::YieldsNothing(binder))
+            }
+            _ => (id, reached.clone()),
+        })
+        .collect()
 }
 
 /// **A part document's own listing steps**: its families', in its
@@ -5114,10 +5154,18 @@ where
         })
         .and_then(|p| p.value(id));
     let step = match chains.get(&id) {
-        Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
+        Some(crate::repetition::Reached::TwoBinders(a, b)) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
-                kind: NodeErrorKind::IndicesUnrelated { a: *a, b: *b },
+                kind: NodeErrorKind::TwoBinders { a: *a, b: *b },
+                escalations: Arc::new(Vec::new()),
+            }),
+            reused: false,
+        },
+        Some(crate::repetition::Reached::YieldsNothing(binder)) => NodeStep {
+            result: NodeResult::Failed(NodeError {
+                node: id,
+                kind: NodeErrorKind::YieldsNothing { binder: *binder },
                 escalations: Arc::new(Vec::new()),
             }),
             reused: false,

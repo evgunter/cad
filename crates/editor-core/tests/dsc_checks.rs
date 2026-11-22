@@ -81,7 +81,7 @@ fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
     let (doc, result) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     fixture::place(doc, result)
@@ -232,7 +232,7 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     let (doc, result) = insert(
         doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     // An empty body has no geometry for a mate to read, so its
@@ -353,7 +353,7 @@ fn a_thin_void_shell_is_a_cavity_and_the_count_reads_one() {
     let (doc, root) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![hollow.into(), c.into()]),
+            members: editor_core::Bodies::spelled(vec![hollow.into(), c.into()]),
         },
     );
     let (doc, _placement) = fixture::place(doc, root);

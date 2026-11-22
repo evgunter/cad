@@ -2063,7 +2063,8 @@ fn node_error_tags_are_the_published_words() {
         EmptyHalf => "empty_half",
         MemberOutOfRange => "member_out_of_range",
         MemberRefused => "member_refused",
-        IndicesUnrelated => "indices_unrelated",
+        TwoBinders => "two_binders",
+        YieldsNothing => "yields_nothing",
         IndexCount => "index_count",
         IndexCountOutOfRange => "index_count_out_of_range",
         DegenerateDirection => "degenerate_direction",
@@ -2368,12 +2369,12 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::Index {
             var: spv(),
-            fault: pncad::document::IndexFault::WithinNoIndex,
+            fault: pncad::document::IndexFault::AfterNoIndex,
         },
         &["param"],
     );
     carries(
-        &E::IndicesUnrelated {
+        &E::TwoBinders {
             node: sp(1),
             a: Box::new(spv()),
             b: Box::new(spv()),
@@ -4758,7 +4759,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fresh_unread",
             "index",
             "indexed_read",
-            "indices_unrelated",
+            "two_binders",
             "invalid_distribution",
             "invalid_tolerance",
             "label_unchanged",
@@ -5245,7 +5246,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fillet",
             "index_count",
             "index_count_out_of_range",
-            "indices_unrelated",
+            "two_binders",
             "loft",
             "mate_backwards",
             "mate_kinds_differ",
@@ -6484,7 +6485,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("index_rank", 2),
     // One fact (D10 `[repetition]`) at the edit and evaluate doors: two
     // indices one reader reads, neither within the other.
-    ("indices_unrelated", 2),
+    ("two_binders", 2),
     ("io", 2),
     // Three: the join every finisher ends with refused, at a door that
     // tags it by its stage (the boolean's, the split's, the import's).

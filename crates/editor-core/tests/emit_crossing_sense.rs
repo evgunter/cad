@@ -61,7 +61,7 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc);

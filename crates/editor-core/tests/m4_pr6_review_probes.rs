@@ -334,7 +334,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
-                members: editor_core::Bodies::Spelled(vec![e0.into(), e1_in.into()]),
+                members: editor_core::Bodies::spelled(vec![e0.into(), e1_in.into()]),
             }),
             fresh: Vec::new(),
         },
@@ -381,7 +381,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             name: VarName::from_static("k"),
             def: editor_core::VarDecl::Index {
                 count: Formula::count(2),
-                within: None,
+                after: None,
             },
         },
     );

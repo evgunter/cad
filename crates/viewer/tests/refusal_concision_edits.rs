@@ -661,8 +661,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "IndicesUnrelated",
-            EditError::IndicesUnrelated {
+            "TwoBinders",
+            EditError::TwoBinders {
                 node: s(5, "Place"),
                 a: Box::new(spoken_var()),
                 b: Box::new(pncad::document::SpokenVar::new(

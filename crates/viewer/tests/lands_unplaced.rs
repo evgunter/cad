@@ -121,7 +121,7 @@ fn product_of_a_union(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let (doc, union) = common::inserted(
         &doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(copy(a_copy)),
                 BodyRead::plain(copy(b_copy)),
             ]),
@@ -132,7 +132,7 @@ fn product_of_a_union(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let (doc, assemble) = common::inserted(
         &doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Node(union)),
                 BodyRead::plain(Operand::Node(other)),
             ]),
@@ -159,6 +159,7 @@ fn member(doc: &Doc<ProfileProgram>, assemble: RecipeNodeId, k: usize) -> VarId 
     else {
         panic!("a spelled `⊔`: {:?}", doc.node(assemble));
     };
+    let reads: Vec<_> = reads.iter().map(|m| m.read().clone()).collect();
     reads[k].read
 }
 
@@ -409,7 +410,7 @@ fn a_pick_through_a_union(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) 
     let (doc, union) = common::inserted(
         &doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(copy(&doc, a_copy)),
                 BodyRead::plain(copy(&doc, b_copy)),
             ]),
@@ -420,7 +421,7 @@ fn a_pick_through_a_union(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) 
     let (doc, assemble) = common::inserted(
         &doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Node(union)),
                 BodyRead::plain(Operand::Node(other)),
             ]),
@@ -549,7 +550,7 @@ fn a_pick_through_a_copy_of_a_copy_is_guarded() {
     let (doc, assemble) = common::inserted(
         &doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Var(piece)),
                 BodyRead::plain(Operand::Node(b_copy)),
             ]),

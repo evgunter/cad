@@ -60,10 +60,10 @@ fn block_on(
 fn boolean_node(op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
     match op {
         BooleanOp::Union => Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
         BooleanOp::Intersect => Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
         BooleanOp::Subtract => Node::Subtract {
             from: a.into(),
@@ -152,7 +152,7 @@ fn two_parts_of_one_copy_answer_under_every_op() {
     let (p, q) = two_parts_of_one_copy(&mut r);
     let nodes: Vec<RecipeNodeId> = OPS.iter().map(|&op| boolean(&mut r, op, p, q)).collect();
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![p.into(), q.into()]),
+        members: editor_core::Bodies::spelled(vec![p.into(), q.into()]),
     });
     let ev = eval(&r.doc);
     for (op, &id) in OPS.iter().zip(&nodes) {

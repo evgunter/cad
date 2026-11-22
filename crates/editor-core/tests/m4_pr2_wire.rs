@@ -152,7 +152,7 @@ fn a_row_evaluates_its_members_as_data() {
     let (doc, joined) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![row.into(), other.into()]),
+            members: editor_core::Bodies::spelled(vec![row.into(), other.into()]),
         },
     );
     let ev = run(&doc);
@@ -211,7 +211,7 @@ fn typed_refusal_doors() {
     let refusal = crate::fixture::insert_refused(
         &doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![split_node.into(), second.into()]),
+            members: editor_core::Bodies::spelled(vec![split_node.into(), second.into()]),
         },
     );
     assert!(

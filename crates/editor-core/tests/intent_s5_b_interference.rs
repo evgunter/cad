@@ -656,7 +656,7 @@ fn a_blind_bore_pin_is_not_quieted_by_the_bores_gap() {
     let (doc, plate) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![holed.into(), floor.into()]),
+            members: Bodies::spelled(vec![holed.into(), floor.into()]),
         },
     );
     let (doc, pin) = prism(doc, vec![circle(0.505)], 1.7);

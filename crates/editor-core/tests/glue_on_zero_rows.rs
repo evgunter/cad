@@ -29,7 +29,7 @@ fn plate_on_a_block(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![base.into(), plate.into()]),
+            members: editor_core::Bodies::spelled(vec![base.into(), plate.into()]),
         },
     );
     (doc, base, plate, union)

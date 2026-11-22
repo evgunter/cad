@@ -100,7 +100,7 @@ fn whole_seats(doc: ProfileDoc, family: RecipeNodeId) -> (ProfileDoc, [RecipeNod
     let (doc, spelled) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![BodyRead::plain(Operand::Node(family))]),
+            members: Bodies::spelled(vec![BodyRead::plain(Operand::Node(family))]),
         },
     );
     let (doc, intersect) = insert(doc, Node::Intersect { members: whole() });
@@ -360,7 +360,7 @@ fn product_with_an_empty_member(empty: usize) -> (usize, usize, Vec<topo::Valida
     let (doc, pq) = insert(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![p.into(), q.into()]),
+            members: Bodies::spelled(vec![p.into(), q.into()]),
         },
     );
     let (doc, _, row) = fixture::row(doc, pq, ("k", 3), TargetAxis::X, 0.75);

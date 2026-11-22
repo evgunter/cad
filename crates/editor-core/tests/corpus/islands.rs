@@ -87,7 +87,7 @@ fn plate_with_tube(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
     });
     let tube = on(r, plate, tube, 0.5);
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![plate.into(), tube.into()]),
+        members: editor_core::Bodies::spelled(vec![plate.into(), tube.into()]),
     });
     (union, plate)
 }
@@ -99,7 +99,7 @@ pub fn document_105() -> CorpusDoc {
     let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 2.0);
     let placed = on(&mut r, plate, pillar, 0.75);
     let u2 = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![u1.into(), placed.into()]),
+        members: editor_core::Bodies::spelled(vec![u1.into(), placed.into()]),
     });
     r.place_part(u2);
 
@@ -131,7 +131,7 @@ pub fn document_106_depth1() -> CorpusDoc {
     let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.0);
     let placed = on(&mut r, plate, slab, 1.375);
     let cut = r.insert(Node::Intersect {
-        members: editor_core::Bodies::Spelled(vec![u1.into(), placed.into()]),
+        members: editor_core::Bodies::spelled(vec![u1.into(), placed.into()]),
     });
     r.place_part(cut);
 
@@ -164,12 +164,12 @@ pub fn document_106_depth2() -> CorpusDoc {
     let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 2.0);
     let placed = on(&mut r, plate, pillar, 0.75);
     let u2 = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![u1.into(), placed.into()]),
+        members: editor_core::Bodies::spelled(vec![u1.into(), placed.into()]),
     });
     let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.0);
     let placed = on(&mut r, plate, slab, 1.375);
     let cut = r.insert(Node::Intersect {
-        members: editor_core::Bodies::Spelled(vec![u2.into(), placed.into()]),
+        members: editor_core::Bodies::spelled(vec![u2.into(), placed.into()]),
     });
     r.place_part(cut);
 

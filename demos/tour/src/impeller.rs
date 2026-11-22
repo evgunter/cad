@@ -316,7 +316,7 @@ fn build_doc(tol: Tol) -> Recipe {
     let solid = insert(
         &mut doc,
         Box::new(Node::Union {
-            members: Bodies::Spelled(vec![hub_e.into(), group.into()]),
+            members: Bodies::spelled(vec![hub_e.into(), group.into()]),
         }),
     );
     Recipe { doc, group, solid }

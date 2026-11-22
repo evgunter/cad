@@ -84,7 +84,7 @@ fn is_empty(ev: &Evaluation<f64>, id: RecipeNodeId) -> bool {
 }
 
 fn spelled(reads: &[RecipeNodeId]) -> Bodies<editor_core::BodyRead<editor_core::Formula>> {
-    Bodies::Spelled(reads.iter().map(|&r| r.into()).collect())
+    Bodies::spelled(reads.iter().map(|&r| r.into()).collect())
 }
 
 /// Every name in `at`'s table, sorted.
@@ -196,13 +196,13 @@ fn a_union_or_intersect_of_no_body_is_the_typed_empty_body() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(Vec::new()),
+            members: Bodies::spelled(Vec::new()),
         },
     );
     let (doc, i) = insert(
         doc,
         Node::Intersect {
-            members: Bodies::Spelled(Vec::new()),
+            members: Bodies::spelled(Vec::new()),
         },
     );
     let ev = run(&doc);
@@ -233,7 +233,7 @@ fn the_union_of_a_splits_two_halves_builds_the_block() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 Operand::output(split, 0).into(),
                 Operand::output(split, 1).into(),
             ]),

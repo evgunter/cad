@@ -95,14 +95,14 @@ impl SunkBossCut {
             several => insert(
                 doc,
                 Node::Union {
-                    members: Bodies::Spelled(several.iter().map(|&b| b.into()).collect()),
+                    members: Bodies::spelled(several.iter().map(|&b| b.into()).collect()),
                 },
             ),
         };
         let (doc, joined) = insert(
             doc,
             Node::Union {
-                members: Bodies::Spelled(vec![plate.into(), boss.into()]),
+                members: Bodies::spelled(vec![plate.into(), boss.into()]),
             },
         );
         let (doc, cut) = insert(
@@ -418,7 +418,7 @@ fn two_blocks_that_open_a_sunk_boss_wall_only_together_name_the_glue() {
     let (doc, joined) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![plate.into(), boss.into()]),
+            members: Bodies::spelled(vec![plate.into(), boss.into()]),
         },
     );
     let (doc, lo) = block_on(doc, plate, (1.35, 1.65), (1.6, 2.0), 0.9, 0.4);
@@ -439,7 +439,7 @@ fn two_bars_that_sever_a_sunk_boss_wall_only_together_name_the_glue() {
     let (doc, joined) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![plate.into(), boss.into()]),
+            members: Bodies::spelled(vec![plate.into(), boss.into()]),
         },
     );
     let (doc, low) = block_on(doc, plate, (1.4, 1.6), (1.5, 2.5), 0.8, 0.45);
@@ -462,13 +462,13 @@ fn two_half_bosses_and_a_bar_name_the_glue() {
     let (doc, h0) = insert(
         doc,
         Node::Intersect {
-            members: Bodies::Spelled(vec![boss.into(), south.into()]),
+            members: Bodies::spelled(vec![boss.into(), south.into()]),
         },
     );
     let (doc, h1) = insert(
         doc,
         Node::Intersect {
-            members: Bodies::Spelled(vec![boss.into(), north.into()]),
+            members: Bodies::spelled(vec![boss.into(), north.into()]),
         },
     );
     let (doc, bar) = block_on(doc, plate, (1.4, 1.6), (0.5, 2.5), 0.4, 1.2);

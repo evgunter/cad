@@ -2719,7 +2719,7 @@ NOT_BOUND = {
     # itself makes. Python evaluates through `evaluate`, which makes both
     # reads inside: the members they list cross as `Value.members` (each
     # member's index values beside its value), two unrelated indices as
-    # the `indices_unrelated` tag, and a member's `env` is a `VarEnv`,
+    # the `two_binders` tag, and a member's `env` is a `VarEnv`,
     # itself behind a door.
     "Reached": INTERIOR,
     "MemberEnv": INTERIOR,
@@ -3760,7 +3760,7 @@ MEMBERS_BOUND_AS = {
     "EditError::MetaNonFinite": "EditError.variant",
     "EditError::MetaNotSet": "EditError.variant",
     "EditError::RebindMetadataCollision": "EditError.variant",
-    "EditError::IndicesUnrelated": "EditError.variant",
+    "EditError::TwoBinders": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
     "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",

@@ -831,7 +831,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             (
                 "boolean-a",
                 Node::Union {
-                    members: editor_core::Bodies::Spelled(vec![victim.into(), b.into()]),
+                    members: editor_core::Bodies::spelled(vec![victim.into(), b.into()]),
                 },
             ),
             (

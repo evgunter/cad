@@ -46,7 +46,7 @@ pub fn document() -> CorpusDoc {
     let plane = crate::fixture::plane_on(&r.doc, plate, [0.0, 0.0, 0.0], [-1.0, 0.0, 0.0]);
     let image = r.insert(Node::mirror(plate, plane));
     let whole = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![plate.into(), image.into()]),
+        members: editor_core::Bodies::spelled(vec![plate.into(), image.into()]),
     });
     r.place_part(whole);
 

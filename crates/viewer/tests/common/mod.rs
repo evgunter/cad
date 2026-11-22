@@ -677,8 +677,8 @@ pub fn cut_across(
             Some(Node::Union {
                 members: pncad::document::Bodies::Spelled(members),
             }) => {
-                on = Operand::Var(members[0].read);
-                members[0].read
+                on = Operand::Var(members[0].read().read);
+                members[0].read().read
             }
             _ => break,
         };

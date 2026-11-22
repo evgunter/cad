@@ -103,7 +103,7 @@ fn a_union_of_a_family_and_of_its_members_spelled_name_and_build_alike() {
     let (doc, spelled) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![member(xs, 0), member(xs, 1), member(xs, 2)]),
+            members: Bodies::spelled(vec![member(xs, 0), member(xs, 1), member(xs, 2)]),
         },
     );
     let ev = eval(&doc);
@@ -150,7 +150,7 @@ fn an_indexed_read_at_a_body_seat_reads_that_member() {
     let (doc, lower) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 editor_core::Operand::output(split, editor_core::SplitHalf::Below.port()).into(),
             ]),
         },
@@ -240,7 +240,7 @@ fn the_index_variable_is_an_input_of_its_reader() {
     let (doc, one) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![BodyRead::indexed(
+            members: Bodies::spelled(vec![BodyRead::indexed(
                 xs,
                 vec![Formula::named(k, editor_core::Dimension::Count)],
             )]),
@@ -391,7 +391,7 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
             insert_refused(
                 &doc,
                 Node::Union {
-                    members: Bodies::Spelled(vec![two]),
+                    members: Bodies::spelled(vec![two]),
                 },
             ),
             EditError::IndexedRead {
@@ -413,14 +413,14 @@ fn set_members_writes_indexed_members() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![member(xs, 0), member(xs, 1), member(xs, 2)]),
+            members: Bodies::spelled(vec![member(xs, 0), member(xs, 1), member(xs, 2)]),
         },
     );
     let (doc, _) = step(
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: Bodies::Spelled(vec![member(xs, 0), member(xs, 2)]),
+            members: Bodies::spelled(vec![member(xs, 0), member(xs, 2)]),
         },
     );
     let ev = eval(&doc);
@@ -521,7 +521,7 @@ fn an_overlapping_family_names_alike_read_whole_and_spelled() {
     let (doc, spelled) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![member(xs, 0), member(xs, 1), member(xs, 2)]),
+            members: Bodies::spelled(vec![member(xs, 0), member(xs, 1), member(xs, 2)]),
         },
     );
     let ev = eval(&doc);

@@ -75,7 +75,7 @@ fn boss_union_doc() -> (ProfileDoc, RecipeNodeId) {
     let (doc, boss) = crate::fixture::slid(r.doc, plate, boss, [0.0, 0.0, 0.3]);
     r.doc = doc;
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+        members: editor_core::Bodies::spelled(vec![plate.into(), boss.into()]),
     });
     (r.doc, union)
 }

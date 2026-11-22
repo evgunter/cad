@@ -942,7 +942,7 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
             with(
                 &session,
                 Node::Union {
-                    members: pncad::document::Bodies::Spelled(vec![
+                    members: pncad::document::Bodies::spelled(vec![
                         Operand::Node(body).into(),
                         Operand::Node(c1).into(),
                     ]),
@@ -1051,7 +1051,7 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
     let (session, u) = with(
         &session,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![
+            members: pncad::document::Bodies::spelled(vec![
                 Operand::Node(body).into(),
                 Operand::Node(c1).into(),
             ]),
@@ -1224,7 +1224,7 @@ fn a_continuation_is_a_body_read_whole() {
     let (session, u) = with(
         &session,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![m0, Operand::Node(copy).into()]),
+            members: pncad::document::Bodies::spelled(vec![m0, Operand::Node(copy).into()]),
         },
         tol,
     );
@@ -1244,6 +1244,7 @@ fn a_continuation_is_a_body_read_whole() {
     else {
         panic!("the union stays")
     };
+    let members: Vec<_> = members.iter().map(|m| m.read().clone()).collect();
     assert!(
         matches!(&members[..], [one] if one.is_indexed() && Some(one.read) == doc.output(family, 0)),
         "with member 0 its one operand: {members:?}"
@@ -1297,7 +1298,7 @@ fn a_continuation_is_a_body_read_whole() {
     let (session, u) = with(
         &session,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![f0.clone(), Operand::Node(copy).into()]),
+            members: pncad::document::Bodies::spelled(vec![f0.clone(), Operand::Node(copy).into()]),
         },
         tol,
     );
@@ -1332,6 +1333,7 @@ fn a_continuation_is_a_body_read_whole() {
     else {
         panic!("the union stays")
     };
+    let members: Vec<_> = members.iter().map(|m| m.read().clone()).collect();
     assert!(
         matches!(&members[..], [one, _] if one.is_indexed() && Some(one.read) == doc.output(family, 0)),
         "handed member 0 of the family: {members:?}"
@@ -1650,7 +1652,7 @@ fn a_cut_of_a_member_read_by_a_list_is_handed_the_member() {
     let (mut session, u) = with(
         &session,
         Node::Union {
-            members: Bodies::Spelled(vec![Operand::Node(cut).into(), m1]),
+            members: Bodies::spelled(vec![Operand::Node(cut).into(), m1]),
         },
         tol,
     );
@@ -1668,6 +1670,7 @@ fn a_cut_of_a_member_read_by_a_list_is_handed_the_member() {
     else {
         panic!("the union stays")
     };
+    let members: Vec<_> = members.iter().map(|m| m.read().clone()).collect();
     let family_out = doc.output(family, 0);
     assert!(
         matches!(&members[..], [a, b] if a.is_indexed() && b.is_indexed()
@@ -1686,7 +1689,7 @@ fn an_intersection_left_with_a_member_keeps_it() {
     let (session, i) = with(
         &session,
         Node::Intersect {
-            members: Bodies::Spelled(vec![m0, Operand::Node(copy).into()]),
+            members: Bodies::spelled(vec![m0, Operand::Node(copy).into()]),
         },
         tol,
     );
@@ -1803,7 +1806,7 @@ fn the_offer_leaves_out_a_placement_read_through_a_mate() {
     let (mut session, u) = with(
         &session,
         Node::Union {
-            members: Bodies::Spelled(vec![Operand::Node(body).into(), Operand::Node(c1).into()]),
+            members: Bodies::spelled(vec![Operand::Node(body).into(), Operand::Node(c1).into()]),
         },
         tol,
     );

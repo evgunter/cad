@@ -65,7 +65,7 @@ pub fn document() -> CorpusDoc {
     };
     let copy = placed_in(&mut r, &bushing.body(), bushing.body(), placed);
     let whole = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
+        members: editor_core::Bodies::spelled(vec![
             editor_core::BodyRead::plain(bushing.body()),
             copy.into(),
         ]),

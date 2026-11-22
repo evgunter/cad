@@ -748,6 +748,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::DeleteNode { .. } => "DeleteNode",
         DocEdit::SetMembers { .. } => "SetMembers",
         DocEdit::SetProduct { .. } => "SetProduct",
+        DocEdit::SetYields { .. } => "SetYields",
         DocEdit::SetLoftSections { .. } => "SetLoftSections",
         DocEdit::SetProgram { .. } => "SetProgram",
         DocEdit::SetParam { .. } => "SetParam",

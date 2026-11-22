@@ -80,7 +80,7 @@ fn assembled(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, RecipeNo
     put(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(members.iter().map(|&r| r.into()).collect()),
+            members: Bodies::spelled(members.iter().map(|&r| r.into()).collect()),
         },
     )
 }
@@ -518,7 +518,7 @@ fn a_union_of_one_instance_carries_its_parts_finding() {
     let (doc, lone) = put(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![i.into()]),
+            members: Bodies::spelled(vec![i.into()]),
         },
     );
     let doc = set_product(&doc, lone);
@@ -689,7 +689,7 @@ fn a_union_of_one_assemble_placed_beside_it_reports_the_overlap_once() {
     let (doc, lone) = put(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![source.into()]),
+            members: Bodies::spelled(vec![source.into()]),
         },
     );
     let (doc, placed) = fixture::slid(doc, lone, lone, [5.0, 0.0, 0.0]);

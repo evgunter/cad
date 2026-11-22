@@ -1001,7 +1001,7 @@ fn build_doc(tol: Tol) -> Recipe {
         insert(
             doc,
             Node::Union {
-                members: Bodies::Spelled(vec![cup.into(), b]),
+                members: Bodies::spelled(vec![cup.into(), b]),
             },
             tol,
         )

@@ -97,7 +97,7 @@ pub fn document() -> CorpusDoc {
         ],
     );
     let whole = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![cube.into(), placed.into()]),
+        members: editor_core::Bodies::spelled(vec![cube.into(), placed.into()]),
     });
 
     r.place_part(whole);

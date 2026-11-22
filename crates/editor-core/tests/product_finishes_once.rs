@@ -437,7 +437,7 @@ fn copies_under(
     let (doc, source) = block(doc);
     let (doc, a) = editor_core::test_support::in_world(doc, source, at[0], tol);
     let (doc, b) = editor_core::test_support::in_world(doc, source, at[1], tol);
-    let members = || Bodies::Spelled(vec![a.into(), b.into()]);
+    let members = || Bodies::spelled(vec![a.into(), b.into()]);
     let node = match op {
         OverCopies::Assemble => Node::Assemble { members: members() },
         OverCopies::Union => Node::Union { members: members() },
@@ -751,7 +751,7 @@ fn mirrors_in_one_turned_frame(name: &str) -> ProfileDoc {
     let (doc, gathered) = fixture::insert(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![copy.into(), near.into(), far.into()]),
+            members: Bodies::spelled(vec![copy.into(), near.into(), far.into()]),
         },
     );
     product_of_family(doc, gathered)

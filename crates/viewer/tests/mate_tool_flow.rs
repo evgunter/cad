@@ -596,7 +596,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     let union = common::insert_into(
         &mut doc,
         pncad::document::Node::Union {
-            members: pncad::document::Bodies::Spelled(members),
+            members: pncad::document::Bodies::spelled(members),
         },
         tol,
     );
@@ -668,7 +668,7 @@ fn the_transform_tool_reaches_an_instance_through_a_unions_name() {
     let union = common::insert_into(
         &mut doc,
         pncad::document::Node::Union {
-            members: pncad::document::Bodies::Spelled(members.clone()),
+            members: pncad::document::Bodies::spelled(members.clone()),
         },
         tol,
     );

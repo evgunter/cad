@@ -151,7 +151,7 @@ fn set_count(doc: &Doc<ProfileProgram>, fins: VarId, n: usize, tol: Tol) -> Doc<
             var: VarRef::Id(fins),
             def: VarDecl::Index {
                 count: pe(&format!("{n}")),
-                within: None,
+                after: None,
             },
             fresh: Vec::new(),
         },
@@ -265,7 +265,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let union = insert(
         &mut doc,
         Node::Union {
-            members: Bodies::Spelled(vec![base.into(), group.into()]),
+            members: Bodies::spelled(vec![base.into(), group.into()]),
         },
         tol,
     );

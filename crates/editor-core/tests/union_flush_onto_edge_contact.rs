@@ -127,7 +127,7 @@ fn chained_pair_unions_fold_a_flush_partner_onto_the_edge_contact() {
                 insert(
                     doc,
                     Node::Union {
-                        members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
+                        members: editor_core::Bodies::spelled(vec![x.into(), y.into()]),
                     },
                 )
             };

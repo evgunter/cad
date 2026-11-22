@@ -77,7 +77,7 @@ fn slide_union(tx: f64) -> Slide {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), placement.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), placement.into()]),
         },
     );
     Slide {
@@ -184,7 +184,7 @@ fn an_nary_union_whose_hull_test_pairs_other_members_names_no_flip() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![c1.into(), placement.into(), c2.into()]),
+            members: editor_core::Bodies::spelled(vec![c1.into(), placement.into(), c2.into()]),
         },
     );
     let s = Slide {
@@ -335,7 +335,7 @@ fn parallel_schedule_preserves_verdict_logs() {
     let (doc, _uni) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let seq = run(&doc, None);

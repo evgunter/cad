@@ -83,7 +83,7 @@ fn boolean(
     a: RecipeNodeId,
     b: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let members = editor_core::Bodies::Spelled(vec![a.into(), b.into()]);
+    let members = editor_core::Bodies::spelled(vec![a.into(), b.into()]);
     insert(
         doc,
         match op {

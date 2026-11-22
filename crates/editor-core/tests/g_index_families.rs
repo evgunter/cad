@@ -24,7 +24,7 @@ pub(crate) fn index(doc: ProfileDoc, name: &str, count: Formula) -> (ProfileDoc,
             name: name.clone(),
             def: VarDecl::Index {
                 count,
-                within: None,
+                after: None,
             },
         },
     )
@@ -148,7 +148,7 @@ fn a_union_reads_the_family_whole_and_an_indexed_read_one_member() {
     let (doc, one) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![editor_core::BodyRead::indexed(
+            members: Bodies::spelled(vec![editor_core::BodyRead::indexed(
                 ring,
                 vec![Formula::count(2)],
             )]),
@@ -267,7 +267,7 @@ fn one_assertion_over_a_family_quiets_each_members_own_finding() {
             var: editor_core::VarRef::Id(k),
             def: VarDecl::Index {
                 count: Formula::count(16),
-                within: None,
+                after: None,
             },
             fresh: Vec::new(),
         },
@@ -349,7 +349,7 @@ fn a_reader_of_two_unrelated_indices_refuses_at_the_door() {
             placed.bundle(),
         ),
     );
-    let editor_core::EditError::IndicesUnrelated { a, b, .. } = &refused else {
+    let editor_core::EditError::TwoBinders { a, b, .. } = &refused else {
         panic!("unrelated indices refuse: {refused:?}")
     };
     assert_eq!([a.id(), b.id()], [i, j], "{refused}");
@@ -371,7 +371,7 @@ fn a_member_read_out_of_range_refuses_typed() {
         let (doc, read) = insert(
             doc.clone(),
             Node::Union {
-                members: Bodies::Spelled(vec![editor_core::BodyRead::indexed(
+                members: Bodies::spelled(vec![editor_core::BodyRead::indexed(
                     row,
                     vec![Formula::count(at)],
                 )]),
@@ -473,7 +473,7 @@ fn a_rings_neighbours_are_read_through_mod() {
     let (doc, pairs) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 editor_core::BodyRead::indexed(ring, vec![Formula::var(k, Dimension::Count)]),
                 editor_core::BodyRead::indexed(ring, vec![next]),
             ]),
@@ -526,7 +526,7 @@ fn a_member_is_reused_by_its_key() {
             var: editor_core::VarRef::Id(k),
             def: VarDecl::Index {
                 count: Formula::count(6),
-                within: None,
+                after: None,
             },
             fresh: Vec::new(),
         },
@@ -556,7 +556,7 @@ fn comb(doc: ProfileDoc, width: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 editor_core::BodyRead::plain(Operand::Node(a)),
                 editor_core::BodyRead::plain(Operand::Node(b)),
             ]),

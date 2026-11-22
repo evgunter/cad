@@ -282,7 +282,7 @@ fn a_union_reads_a_cited_member_line_by_its_rows() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![notched.into(), post.into()]),
+            members: editor_core::Bodies::spelled(vec![notched.into(), post.into()]),
         },
     );
     let ev = run(&doc, None);

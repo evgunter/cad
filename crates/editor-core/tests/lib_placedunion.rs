@@ -138,7 +138,7 @@ fn the_fin_group_equals_the_placement_union_chain() {
             Some(a) => {
                 let (doc, id) = union_of(
                     chain,
-                    editor_core::Bodies::Spelled(vec![a.into(), placed.into()]),
+                    editor_core::Bodies::spelled(vec![a.into(), placed.into()]),
                 );
                 chain = doc;
                 id

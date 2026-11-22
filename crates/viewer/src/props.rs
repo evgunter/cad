@@ -621,9 +621,11 @@ pub enum SlotFault {
 /// listed** ([`SlotFault::Members`]).
 #[derive(Clone, Debug, PartialEq)]
 pub enum MemberFault {
-    /// It reads two indices neither of which is within the other, which
-    /// no member binds together.
+    /// It reads the indices of two binders, which no member binds
+    /// together.
     Unrelated(VarId, VarId),
+    /// It reads an index of a binder that yields nothing.
+    YieldsNothing(VarId),
     /// An index's count did not evaluate, or is no count an index admits.
     Count(MemberCountFault),
 }
@@ -634,7 +636,8 @@ impl MemberFault {
     #[must_use]
     pub fn node_error(self) -> NodeErrorKind {
         match self {
-            Self::Unrelated(a, b) => NodeErrorKind::IndicesUnrelated { a, b },
+            Self::Unrelated(a, b) => NodeErrorKind::TwoBinders { a, b },
+            Self::YieldsNothing(binder) => NodeErrorKind::YieldsNothing { binder },
             Self::Count(fault) => fault.node_error(),
         }
     }
@@ -1014,7 +1017,10 @@ fn reading(
                 .map_err(SlotFault::Eval);
         }
         Reached::Chain(chain) => chain,
-        Reached::Unrelated(a, b) => return Err(MemberFault::Unrelated(a, b).slot_fault(doc)),
+        Reached::TwoBinders(a, b) => return Err(MemberFault::Unrelated(a, b).slot_fault(doc)),
+        Reached::YieldsNothing(binder) => {
+            return Err(MemberFault::YieldsNothing(binder).slot_fault(doc));
+        }
     };
     let members = doc
         .member_envs::<f64>(&chain)
@@ -1760,8 +1766,8 @@ pub fn index_count_edit(
         var: var.into(),
         def: pncad::document::VarDecl::Index {
             count,
-            within: index
-                .within
+            after: index
+                .after()
                 .map(|w| Formula::var(w, pncad::document::Dimension::Count)),
         },
         fresh: Vec::new(),

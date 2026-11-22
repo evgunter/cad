@@ -57,7 +57,7 @@ fn a_band_along_a_joined_flush_edge_is_named_by_that_edge() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc);

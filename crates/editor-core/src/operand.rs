@@ -478,20 +478,78 @@ impl From<crate::SitedFace> for Operand {
 
 /// **A `Bodies` argument** (REFERENCES DM4; D10): the one argument a
 /// union and an intersect take, defined by index or by enumeration.
-/// Every reader of a `Bodies` takes either form, and a mix cannot be
-/// written: a `Bodies` read in a member's place is ill-typed at the door
+/// Every reader of a `Bodies` takes either form. A family inside a
+/// spelled list is written as a splice, `[a, …xs]` ([`Spell::All`]); a
+/// family read in a member's place is ill-typed at the door
 /// (`SlotVarKind`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Bodies<R> {
     /// A family, read whole: its members in index order, each named by
     /// its index under the one read.
     Family(R),
-    /// Independent reads spelled at the slot, in the order written, each
-    /// member named by its own read.
-    Spelled(Vec<R>),
+    /// Reads spelled at the slot, in the order written, each member
+    /// named by its own read.
+    Spelled(Vec<Spell<R>>),
+}
+
+/// **One entry of a spelled list** ([`Bodies::Spelled`]): one body, or
+/// a family spliced in whole, `…xs` (D10 `[repetition]`), its members in
+/// index order at the splice's place.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Spell<R> {
+    /// One body.
+    One(R),
+    /// A family's every member, `…xs`.
+    All(R),
+}
+
+impl<R> Spell<R> {
+    /// The read, whichever entry it is.
+    pub fn read(&self) -> &R {
+        match self {
+            Self::One(read) | Self::All(read) => read,
+        }
+    }
+
+    /// [`Self::read`], writable.
+    pub fn read_mut(&mut self) -> &mut R {
+        match self {
+            Self::One(read) | Self::All(read) => read,
+        }
+    }
+
+    /// Whether this entry splices a family in.
+    #[must_use]
+    pub fn is_splice(&self) -> bool {
+        matches!(self, Self::All(_))
+    }
+
+    /// The same entry over `f(read)`.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses.
+    pub fn try_map<Q, E>(&self, f: impl FnOnce(&R) -> Result<Q, E>) -> Result<Spell<Q>, E> {
+        Ok(match self {
+            Self::One(read) => Spell::One(f(read)?),
+            Self::All(read) => Spell::All(f(read)?),
+        })
+    }
+}
+
+impl<R> From<R> for Spell<R> {
+    fn from(read: R) -> Self {
+        Self::One(read)
+    }
 }
 
 impl<R> Bodies<R> {
+    /// **A list of single bodies**, spelled in the order given.
+    #[must_use]
+    pub fn spelled(reads: Vec<R>) -> Self {
+        Self::Spelled(reads.into_iter().map(Spell::One).collect())
+    }
+
     /// The reads, with the operand slot each sits in, in list order.
     pub fn rows(&self) -> Vec<(OperandSlot, &R)> {
         match self {
@@ -499,7 +557,7 @@ impl<R> Bodies<R> {
             Self::Spelled(reads) => reads
                 .iter()
                 .enumerate()
-                .map(|(i, read)| (OperandSlot::Member(i), read))
+                .map(|(i, read)| (OperandSlot::Member(i), read.read()))
                 .collect(),
         }
     }
@@ -511,7 +569,7 @@ impl<R> Bodies<R> {
             Self::Spelled(reads) => reads
                 .iter_mut()
                 .enumerate()
-                .map(|(i, read)| (OperandSlot::Member(i), read))
+                .map(|(i, read)| (OperandSlot::Member(i), read.read_mut()))
                 .collect(),
         }
     }
@@ -522,7 +580,7 @@ impl<R> Bodies<R> {
             Self::Family(read) => (Some(read), &[][..]),
             Self::Spelled(reads) => (None, reads.as_slice()),
         };
-        family.into_iter().chain(spelled)
+        family.into_iter().chain(spelled.iter().map(Spell::read))
     }
 
     /// The same argument, each read mapped through `f`, in list order;
@@ -541,7 +599,7 @@ impl<R> Bodies<R> {
                 reads
                     .iter()
                     .enumerate()
-                    .map(|(i, read)| f(OperandSlot::Member(i), read))
+                    .map(|(i, read)| read.try_map(|r| f(OperandSlot::Member(i), r)))
                     .collect::<Result<_, _>>()?,
             ),
         })

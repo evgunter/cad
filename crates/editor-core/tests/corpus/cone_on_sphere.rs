@@ -55,7 +55,7 @@ pub fn document() -> CorpusDoc {
     // are the sphere's coordinates.
     let placed = placed_in(&mut r, &sphere.body(), cone.body(), editor_core::stand());
     let whole = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
+        members: editor_core::Bodies::spelled(vec![
             editor_core::BodyRead::plain(sphere.body()),
             placed.into(),
         ]),

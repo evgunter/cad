@@ -109,8 +109,10 @@ pub enum NodeErrorClass {
     MemberOutOfRange,
     /// [`NodeErrorKind::MemberRefused`].
     MemberRefused,
-    /// [`NodeErrorKind::IndicesUnrelated`].
-    IndicesUnrelated,
+    /// [`NodeErrorKind::TwoBinders`].
+    TwoBinders,
+    /// [`NodeErrorKind::YieldsNothing`].
+    YieldsNothing,
     /// [`NodeErrorKind::IndexCount`].
     IndexCount,
     /// [`NodeErrorKind::IndexCountOutOfRange`].
@@ -260,7 +262,8 @@ impl NodeErrorKind {
             Self::EmptyHalf { .. } => C::EmptyHalf,
             Self::MemberOutOfRange { .. } => C::MemberOutOfRange,
             Self::MemberRefused { .. } => C::MemberRefused,
-            Self::IndicesUnrelated { .. } => C::IndicesUnrelated,
+            Self::TwoBinders { .. } => C::TwoBinders,
+            Self::YieldsNothing { .. } => C::YieldsNothing,
             Self::IndexCount { .. } => C::IndexCount,
             Self::IndexCountOutOfRange { .. } => C::IndexCountOutOfRange,
             Self::NoSuchPiece { .. } => C::NoSuchPiece,
@@ -406,7 +409,8 @@ mod tests {
         EmptyHalf,
         MemberOutOfRange,
         MemberRefused,
-        IndicesUnrelated,
+        TwoBinders,
+        YieldsNothing,
         IndexCount,
         IndexCountOutOfRange,
         NoSuchPiece,
@@ -652,9 +656,12 @@ mod tests {
                 at: vec![(crate::VarId::new(2, 0), 3)],
                 source: Box::new(K::UnschedulableCycle),
             },
-            C::IndicesUnrelated => K::IndicesUnrelated {
+            C::TwoBinders => K::TwoBinders {
                 a: crate::VarId::new(2, 0),
                 b: crate::VarId::new(3, 0),
+            },
+            C::YieldsNothing => K::YieldsNothing {
+                binder: crate::VarId::new(2, 0),
             },
             C::IndexCount => K::IndexCount {
                 index: crate::VarId::new(2, 0),

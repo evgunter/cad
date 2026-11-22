@@ -108,7 +108,7 @@ pub fn document() -> CorpusDoc {
     };
     // The two halves rest on each other across the section.
     let whole = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
+        members: editor_core::Bodies::spelled(vec![
             half(&r, SplitHalf::Above).into(),
             half(&r, SplitHalf::Below).into(),
         ]),

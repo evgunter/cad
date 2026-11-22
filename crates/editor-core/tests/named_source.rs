@@ -220,7 +220,7 @@ fn a_redefinition_through_its_own_copy_is_refused() {
     let (doc, f) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::Node(c).into(),
                 Operand::Node(d).into(),
             ]),
@@ -386,7 +386,7 @@ fn a_cycle_through_a_source_of_a_source_is_refused() {
     let (doc, f) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::Node(c).into(),
                 Operand::Node(d).into(),
             ]),
@@ -575,7 +575,7 @@ fn the_load_refuses_a_shared_anonymous_source_and_a_cycle_through_nodes() {
     let (doc, f) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::Node(c1).into(),
                 Operand::Node(dd).into(),
             ]),

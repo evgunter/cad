@@ -137,7 +137,7 @@ pub fn document() -> CorpusDoc {
     });
     let placed_b = r.against(block_a, block_b, &Frame::translation([0.5, 0.0, 0.0]));
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![block_a.into(), placed_b.into()]),
+        members: editor_core::Bodies::spelled(vec![block_a.into(), placed_b.into()]),
     });
 
     // Split the union with a plane read off its own geometry.
@@ -194,7 +194,7 @@ pub fn document() -> CorpusDoc {
     );
     // One member of the row, read by its index (a STRUCTURAL slot).
     let first = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![editor_core::BodyRead::indexed(
+        members: editor_core::Bodies::spelled(vec![editor_core::BodyRead::indexed(
             linear,
             vec![Formula::count(1)],
         )]),

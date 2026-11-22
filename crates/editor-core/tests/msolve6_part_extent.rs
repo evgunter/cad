@@ -540,7 +540,7 @@ fn a6_no_edit_asks_the_store() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Union {
-                    members: editor_core::Bodies::Spelled(vec![
+                    members: editor_core::Bodies::spelled(vec![
                         fixture::copy(b, body),
                         fixture::copy(c, body),
                     ]),

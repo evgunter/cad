@@ -352,7 +352,7 @@ fn the_placers_admit_a_body_or_a_family_and_a_union_reads_a_family_whole() {
     let (doc, both) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![row.into(), cube.into()]),
+            members: editor_core::Bodies::spelled(vec![row.into(), cube.into()]),
         },
     );
     let ev = run(&doc, &opts());

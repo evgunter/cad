@@ -385,7 +385,7 @@ fn a_pattern_of_a_copy_whose_source_becomes_a_family() {
     let (doc, _, _) = crate::fixture::row(doc, c, ("m", 2), editor_core::TargetAxis::Y, 2.0);
     let got = define(&doc, "S", VarDecl::source(Operand::Node(row)));
     assert!(
-        matches!(got, Err(EditError::IndicesUnrelated { .. })),
+        matches!(got, Err(EditError::TwoBinders { .. })),
         "{:?}",
         got.map(|_| ())
     );
