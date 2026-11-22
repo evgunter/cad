@@ -2,13 +2,14 @@
 id: unsourced-levers-the-test-sites-and-the-bit-only-movers
 kind: unit
 title: The unsourced lever arms that need no ruling: test sites go to the fixture doors, and arms whose honest read moves only last bits are re-read
-status: review
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: M
 branch: oneround/unsourced-bits
 parent: unsourced-levers-await-a-source
 pr: 7227
+closed: 2026-11-22
 ---
 
 
@@ -52,3 +53,29 @@ that takes its family.
 Not this unit: families 2 to 5 of the parent row, the records and the
 lever fields (Ev's condition), `Margin::sagitta` and
 `Margin::over_lever`'s bare arms, and deleting the `unsourced` doors.
+
+## Closed (2026-11-22, PR 7227)
+
+Ten `Lever::unsourced` markers are gone: six test sites read the
+fixture doors, and four production arms are re-read from the extent
+they hold (`star::leaned`, and the line parameter spans in
+`offset_axial::corner_arms`, `curve_face::pose::line_cone_read` and
+`census::parallel_reading`); `corner_arms`' fallback arm reads
+`edge_extent_inf`. No verdict moved in the reviewer's differential at
+either ε on either lane; bits moved only at the converted sites' own
+predicates.
+
+Not done here, each with its home:
+
+- `corner_arms`' circle arm and its fallback kinds, which act on every
+  sign and take both bounds: `unsourced-levers-the-sums-the-arc-lengths-and-profile`
+  (PR 7294).
+- `intersect`'s five: `unsourced-levers-with-no-door-that-names-them`
+  (filed on PR 7268's branch; decided on PR 7410; converted by
+  `the-ten-readings-that-are-not-levers-are-decided-by-what-they-are`).
+- `census`'s wedge sides, `ssi::certify`'s test twin and the
+  metering-arm family: the records unit, on the parent row
+  `unsourced-levers-await-a-source`.
+
+The row of record for how the unit went is
+`docs/model-compare-log/rows/PR-7227.md`.
