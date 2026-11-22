@@ -1330,14 +1330,14 @@ impl<T: Decide> Quadric<T> {
 /// A crossing is passed over when any of its in-span readings is
 /// decided out of span, even where another escalates.
 ///
-/// - A circle piece meets a conic's or an oval's plane where
-///   `A cos θ + B sin θ = −D/r` (`A`, `B` the plane normal's components
-///   on the piece's frame, `D` the piece's centre's offset from the
-///   plane): at two parameters when `r·√(A² + B²) > |D|`
-///   (**`split_ring_path_meets_plane`**, on the gap `r·√(A² + B²) − |D|`
-///   in metres: moving the plane by it flips the meeting). A graze inside
-///   the gap's band escalates, and the caller asks the next path. On the
-///   arrival arc, the root nearer the piece's end is the arrival. A gap
+/// - A circle piece meets a conic's or an oval's plane where the
+///   crossing reading finds it ([`plane_roots`], the plane arm of
+///   [`geom_brep::curve_face::cross()`], whose pose decides the gap
+///   `r·√(A² + B²) − |D|` uncharged: `A`, `B` the plane normal's
+///   components on the piece's frame, `D` the piece's centre's offset
+///   from the plane). A graze inside the gap's band escalates, and the
+///   caller asks the next path. On the arrival arc, the meeting nearer
+///   the piece's end is the arrival. A gap
 ///   in the zero band is a piece along the plane, which meets no conic
 ///   arc it is decided apart from ([`misses_in_plane`]): a path's
 ///   meridian or parallel through a point of an arc's carrier, or of its
