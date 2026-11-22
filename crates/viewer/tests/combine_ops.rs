@@ -2556,7 +2556,7 @@ fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
         ToolKind::Blend => tools.blend().is_some(),
         ToolKind::Part => tools.part().is_some(),
         ToolKind::Mirror => tools.mirror().is_some(),
-        ToolKind::Clearance => tools.clearance().is_some(),
+        ToolKind::Assertion => tools.assertion().is_some(),
     })
 }
 
@@ -2698,10 +2698,12 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
             // The other seat a body of the right kind, so the refusal
             // is about the seat under test.
-            Seat::ClearedFirst | Seat::ClearedSecond => SessionOp::AddClearance {
-                a: viewer::session::ClearedSeat::Body(filled(Seat::ClearedFirst).into()),
-                b: viewer::session::ClearedSeat::Body(filled(Seat::ClearedSecond).into()),
-                bounds: pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+            Seat::AssertedFirst | Seat::AssertedSecond => SessionOp::AddAssertion {
+                a: viewer::session::AssertedSeat::Body(filled(Seat::AssertedFirst).into()),
+                b: viewer::session::AssertedSeat::Body(filled(Seat::AssertedSecond).into()),
+                claim: viewer::session::AssertedClaim::Clearance(
+                    pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+                ),
             },
             Seat::PatternBody => SessionOp::AddPattern {
                 input: filled(Seat::PatternBody).into(),
@@ -3310,9 +3312,9 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
         tools.open(kind);
         let want = match kind {
             // The mirror's and the split's plane is a face, and their
-            // body is picked by one too; the clearance tool seats
+            // body is picked by one too; the assertion tool seats
             // faces, and bodies from the tree.
-            ToolKind::Mate | ToolKind::Mirror | ToolKind::Split | ToolKind::Clearance => {
+            ToolKind::Mate | ToolKind::Mirror | ToolKind::Split | ToolKind::Assertion => {
                 PickKinds::FacesOnly
             }
             ToolKind::Blend => PickKinds::EdgesOnly,
@@ -3886,7 +3888,7 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
             // a profile and an axis, which a face pick never is.
             ToolKind::Mate | ToolKind::Blend => continue,
             // A face pick seats the face itself, not its body.
-            ToolKind::Clearance => continue,
+            ToolKind::Assertion => continue,
         };
         assert_eq!(
             held,
@@ -4710,8 +4712,8 @@ fn every_seat_reads_a_member_exactly_where_its_door_takes_one() {
             | Seat::PatternBody
             | Seat::PartInstance
             | Seat::MirrorBody
-            | Seat::ClearedFirst
-            | Seat::ClearedSecond => None,
+            | Seat::AssertedFirst
+            | Seat::AssertedSecond => None,
         };
         if let Some(spec) = spec {
             let mut session = crate::common::inline_without_door(doc.clone(), tol);
