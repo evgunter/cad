@@ -1,0 +1,534 @@
+//! **The root an edge's end owes a surface it ends on**, factored out,
+//! and the window past it certified clear.
+//!
+//! An edge whose end lies on a curve where its own face and a face of
+//! the other operand meet as a junction (both faces end on that curve)
+//! meets the other face's carrier at that end with a root of order at
+//! least the junction's contact. The root doors refuse there: a double
+//! root reads as a graze or as no count. This door reads the end
+//! instead, as the cone door reads its apex's double root
+//! (`super::conic_quadric`'s deflated form and its spread):
+//!
+//! - **The composite.** The carrier, measured from the end into its
+//!   span, composed with the surface's canonical form in its chart frame:
+//!   a polynomial in the line's own parameter, or in the half angle
+//!   `τ = tan(φ/2)` of a circle turned `φ` from the end, the circle then
+//!   `X(τ)/W(τ)` with `W = 1 + τ²`. Its coefficients `c_j` are the
+//!   composite's Taylor coefficients at the end.
+//! - **The order** `m` is the least `j ≥ 1` whose coefficient decides
+//!   nonzero, each read as the separation `c_j·L^j` its term makes over
+//!   the window's local extent `L`, over the form's gradient at the end
+//!   (`end_root_order`). A coefficient decided Zero is a coincidence the
+//!   door acts on, as the glue does (D10), and the walk steps past it; one
+//!   in band refuses, and the walk never steps on it. Every coefficient
+//!   decided Zero is the carrier lying on the surface.
+//! - **The window** `[0, s_w]`, halved from `L` until the terms past `m`
+//!   are at most half the `m`-th over it, so the quotient `Q(s) = Σ_{j≥m}
+//!   c_j s^{j−m}` keeps `c_m`'s sign there with `|Q| ≥ |c_m|/2`.
+//! - **The spread.** The terms below `m` are dropped and charged at the
+//!   most their verdicts admit: `c₀` at the zero band's width (the end
+//!   decided on the surface), and each coefficient the walk stepped past
+//!   at the zero band's width at its power over `L`, so a small true
+//!   coefficient cannot move a root out of what is charged. The roots in
+//!   the window then lie where `s^m·|c_m|/2` does not exceed the charge,
+//!   which must end strictly inside the window (`end_root_spread`). There
+//!   the carrier runs within the charge of the surface, the zero band at
+//!   the end's scale: a double root's neighbourhood, `√(2ε/κ)` long and
+//!   not `ε`, which no reading at the band shortens. The caller owns why
+//!   that neighbourhood is the end's own incidence (a junction: the
+//!   carrier leaves the curve the two faces end on into its own face,
+//!   where the other face is not).
+//! - **The window's far end** must stand definitely off the surface
+//!   (`end_root_window_clear`, the linearized residual), so no root of
+//!   the rest of the span sits within the band of where the window ends.
+//!   The rest of the span is the root doors', unchanged.
+//!
+//! What it reads: a line or a circle against a plane, a cylinder wall, a
+//! sphere, a cone or a torus. Anything else is [`EndRootRefusal::NoLane`].
+
+use geom::{Curve3, Surface};
+use geom_core::k_stats::decide;
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+
+/// Which end of the span the root sits at.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpanEnd {
+    /// The span's first parameter.
+    Start,
+    /// Its last.
+    End,
+}
+
+/// The window the door certified past the end: the carrier's parameter
+/// where it ends, and the root's order at the end.
+#[derive(Clone, Copy, Debug)]
+pub struct EndWindow<T> {
+    /// The carrier parameter at the window's far end, inside the span or
+    /// at its other end.
+    pub at: T,
+    /// The window is the whole span: no root of it but the end's.
+    pub whole: bool,
+    /// The order of the end's root.
+    pub order: u32,
+}
+
+/// Why the door read no window.
+#[derive(Clone, Copy, Debug)]
+pub enum EndRootRefusal {
+    /// No lane for this carrier and surface kind.
+    NoLane,
+    /// A coefficient the order walk would step on read in band.
+    Order(Indeterminate),
+    /// The roots the dropped terms can move reach the window's far end.
+    Spread(Option<Indeterminate>),
+    /// Every coefficient decided Zero: the carrier lies on the surface.
+    LiesOn,
+    /// No window short of the halving budget holds the order's term
+    /// against the rest, or its far end does not stand clear.
+    Window(Option<Indeterminate>),
+}
+
+/// The order walk's predicate.
+pub const END_ROOT_ORDER: &str = "end_root_order";
+/// The spread's predicate.
+pub const END_ROOT_SPREAD: &str = "end_root_spread";
+/// The window's far end.
+pub const END_ROOT_WINDOW_CLEAR: &str = "end_root_window_clear";
+/// The halvings a window is tried at.
+const WINDOW_HALVINGS: u32 = 48;
+
+type Poly<T> = Vec<T>;
+
+fn add<T: Real>(a: &[T], b: &[T]) -> Poly<T> {
+    let n = a.len().max(b.len());
+    (0..n)
+        .map(|i| {
+            let x = a.get(i).copied().unwrap_or_else(T::zero);
+            let y = b.get(i).copied().unwrap_or_else(T::zero);
+            x + y
+        })
+        .collect()
+}
+
+fn scale<T: Real>(k: T, a: &[T]) -> Poly<T> {
+    a.iter().map(|&x| k * x).collect()
+}
+
+fn sub<T: Real>(a: &[T], b: &[T]) -> Poly<T> {
+    add(a, &scale(-T::one(), b))
+}
+
+fn mul<T: Real>(a: &[T], b: &[T]) -> Poly<T> {
+    if a.is_empty() || b.is_empty() {
+        return Vec::new();
+    }
+    let mut out = vec![T::zero(); a.len() + b.len() - 1];
+    for (i, &x) in a.iter().enumerate() {
+        for (j, &y) in b.iter().enumerate() {
+            out[i + j] = out[i + j] + x * y;
+        }
+    }
+    out
+}
+
+/// `Σ |c_j| s^j` over `js`.
+fn abs_terms<T: Real>(a: &[T], js: impl Iterator<Item = usize>, s: T) -> T {
+    js.fold(T::zero(), |acc, j| {
+        acc + a.get(j).copied().unwrap_or_else(T::zero).abs() * pow(s, j)
+    })
+}
+
+fn pow<T: Real>(s: T, j: usize) -> T {
+    s.powi(i32::try_from(j).unwrap_or(i32::MAX))
+}
+
+/// The carrier from the end: its homogeneous point `X/W` as polynomials
+/// in the local parameter, the local extent the window starts from, the
+/// local parameter's top speed in metres, and the map back to the
+/// carrier's parameter.
+struct Local<T: Real> {
+    x: [Poly<T>; 3],
+    w: Poly<T>,
+    extent: T,
+    kind: LocalKind,
+    t_end: T,
+    toward: T,
+}
+
+#[derive(Clone, Copy)]
+enum LocalKind {
+    Line,
+    HalfAngle,
+}
+
+impl<T: Real> Local<T> {
+    fn param(&self, s: T) -> T {
+        match self.kind {
+            LocalKind::Line => self.t_end + self.toward * s,
+            LocalKind::HalfAngle => self.t_end + self.toward * T::from_f64(2.0) * s.atan(),
+        }
+    }
+}
+
+fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Option<Local<T>> {
+    let (t_end, t_far, toward) = match end {
+        SpanEnd::Start => (t0, t1, T::one()),
+        SpanEnd::End => (t1, t0, -T::one()),
+    };
+    let span = (t_far - t_end).abs();
+    match carrier {
+        Curve3::Line(line) => {
+            let p = line.origin + line.dir * t_end;
+            let d = line.dir * toward;
+            Some(Local {
+                x: [vec![p.x, d.x], vec![p.y, d.y], vec![p.z, d.z]],
+                w: vec![T::one()],
+                extent: span,
+                kind: LocalKind::Line,
+                t_end,
+                toward,
+            })
+        }
+        Curve3::Circle(circle) => {
+            let r = circle.radius();
+            let c = circle.frame.origin();
+            let (p, d) = carrier.ders1(t_end);
+            let u = (p - c) / r;
+            let v = d * (toward / r);
+            // A quarter turn at most: the window lives near the end, and
+            // the half angle stays at most one.
+            let quarter = T::from_f64(core::f64::consts::FRAC_PI_2);
+            let turned = span.min(quarter);
+            let two = T::from_f64(2.0);
+            let w = vec![T::one(), T::zero(), T::one()];
+            let coord = |ci: T, ui: T, vi: T| vec![ci + r * ui, two * r * vi, ci - r * ui];
+            Some(Local {
+                x: [
+                    coord(c.x, u.x, v.x),
+                    coord(c.y, u.y, v.y),
+                    coord(c.z, u.z, v.z),
+                ],
+                w,
+                extent: (turned / two).tan(),
+                kind: LocalKind::HalfAngle,
+                t_end,
+                toward,
+            })
+        }
+        _ => None,
+    }
+}
+
+/// The surface's canonical form composed along `local`, and its
+/// gradient's norm at the end.
+fn composite<T: Real>(surface: &Surface<T>, local: &Local<T>) -> Option<(Poly<T>, T)> {
+    let (o, e) = crate::pcurve_cache::projected::chart_frame(surface)?;
+    let ow = |k: usize| -> Poly<T> {
+        let ok = match k {
+            0 => o.x,
+            1 => o.y,
+            _ => o.z,
+        };
+        scale(ok, &local.w)
+    };
+    let rel: [Poly<T>; 3] = [0, 1, 2].map(|k| sub(&local.x[k], &ow(k)));
+    let framed: [Poly<T>; 3] = e.map(|ei: Vec3<T>| {
+        add(
+            &add(&scale(ei.x, &rel[0]), &scale(ei.y, &rel[1])),
+            &scale(ei.z, &rel[2]),
+        )
+    });
+    let [y0, y1, y2] = &framed;
+    let at = |p: &Poly<T>| p.first().copied().unwrap_or_else(T::zero);
+    let (a, b, c) = (at(y0), at(y1), at(y2));
+    let two = T::from_f64(2.0);
+    let radial = add(&mul(y0, y0), &mul(y1, y1));
+    let w2 = mul(&local.w, &local.w);
+    Some(match *surface {
+        Surface::Plane { .. } => (y2.clone(), T::one()),
+        Surface::Cylinder { radius, .. } => (
+            sub(&radial, &scale(radius.powi(2), &w2)),
+            two * (a.powi(2) + b.powi(2)).sqrt(),
+        ),
+        Surface::Sphere { radius, .. } => (
+            sub(&add(&radial, &mul(y2, y2)), &scale(radius.powi(2), &w2)),
+            two * (a.powi(2) + b.powi(2) + c.powi(2)).sqrt(),
+        ),
+        Surface::Cone { half_angle, .. } => {
+            let (sin, cos) = half_angle.sin_cos();
+            let (s2, c2) = (sin.powi(2), cos.powi(2));
+            (
+                sub(&scale(c2, &radial), &scale(s2, &mul(y2, y2))),
+                two * (c2.powi(2) * (a.powi(2) + b.powi(2)) + s2.powi(2) * c.powi(2)).sqrt(),
+            )
+        }
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let rr = major_radius.powi(2);
+            let shifted = add(
+                &add(&radial, &mul(y2, y2)),
+                &scale(rr - minor_radius.powi(2), &w2),
+            );
+            let n = sub(
+                &mul(&shifted, &shifted),
+                &scale(T::from_f64(4.0) * rr, &mul(&radial, &w2)),
+            );
+            let big_a = a.powi(2) + b.powi(2) + c.powi(2) + rr - minor_radius.powi(2);
+            let four = T::from_f64(4.0);
+            let eight = T::from_f64(8.0);
+            let g0 = four * big_a * a - eight * rr * a;
+            let g1 = four * big_a * b - eight * rr * b;
+            let g2 = four * big_a * c;
+            (n, (g0.powi(2) + g1.powi(2) + g2.powi(2)).sqrt())
+        }
+        _ => return None,
+    })
+}
+
+/// **The window past the end of `[t0, t1]` the door certifies**: the
+/// module docs' reading.
+///
+/// # Errors
+///
+/// [`EndRootRefusal`] naming why no window was read.
+pub fn end_window<T: Decide>(
+    carrier: &Curve3<T>,
+    span: (T, T),
+    end: SpanEnd,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<EndWindow<T>, EndRootRefusal> {
+    let local = local(carrier, span, end).ok_or(EndRootRefusal::NoLane)?;
+    let (n, g) = composite(surface, &local).ok_or(EndRootRefusal::NoLane)?;
+    let extent = local.extent;
+    // The order: the least `j ≥ 1` decided nonzero. A Zero is charged at
+    // the zero band's width at its power, the most its verdict admits;
+    // a coefficient in band stops the walk.
+    let zero = T::from_f64(band.zero());
+    let mut charge: Vec<T> = vec![
+        n.first()
+            .copied()
+            .unwrap_or_else(T::zero)
+            .abs()
+            .max(zero * g),
+    ];
+    let mut order = None;
+    for j in 1..n.len() {
+        let term = n[j] * pow(extent, j);
+        match decide(END_ROOT_ORDER, Margin::over_lever(term, g), band) {
+            Ok(Sign::Positive | Sign::Negative) => {
+                order = Some(j);
+                break;
+            }
+            Ok(Sign::Zero) => charge.push(n[j].abs().max(zero * g / pow(extent, j))),
+            Err(diag) => return Err(EndRootRefusal::Order(diag)),
+        }
+    }
+    let m = order.ok_or(EndRootRefusal::LiesOn)?;
+    let lead = n[m].abs() * T::from_f64(0.5);
+    // The window: the terms past `m` at most half the `m`-th.
+    let mut s_w = extent;
+    let mut held = false;
+    let mut halved = false;
+    for _ in 0..WINDOW_HALVINGS {
+        let tail = (m + 1..n.len()).fold(T::zero(), |acc, j| acc + n[j].abs() * pow(s_w, j - m));
+        if geom_core::k_stats::prove(END_ROOT_WINDOW_CLEAR, Margin::sign_of(lead - tail))
+            == Ok(Sign::Positive)
+        {
+            held = true;
+            break;
+        }
+        s_w = s_w * T::from_f64(0.5);
+        halved = true;
+    }
+    if !held {
+        return Err(EndRootRefusal::Window(None));
+    }
+    // The charge below the order, against the order's term: positive
+    // past the spread, increasing in `s`. The window is halved further
+    // until its far end stands off the surface, the spread inside it.
+    let excess = |s: T| lead * pow(s, m) - abs_terms(&charge, 0..m, s);
+    let mut whole = !halved;
+    for _ in 0..WINDOW_HALVINGS {
+        if geom_core::k_stats::prove(END_ROOT_SPREAD, Margin::sign_of(excess(s_w)))
+            != Ok(Sign::Positive)
+        {
+            return Err(EndRootRefusal::Spread(None));
+        }
+        let at = local.param(s_w);
+        let far: Point3<T> = carrier.eval(at);
+        match decide(
+            END_ROOT_WINDOW_CLEAR,
+            Margin::of(crate::implicit_residual(surface, far)),
+            band,
+        ) {
+            Ok(Sign::Positive | Sign::Negative) => {
+                return Ok(EndWindow {
+                    at,
+                    whole,
+                    order: u32::try_from(m).unwrap_or(u32::MAX),
+                });
+            }
+            Ok(Sign::Zero) | Err(_) => {}
+        }
+        s_w = s_w * T::from_f64(0.5);
+        whole = false;
+    }
+    Err(EndRootRefusal::Window(None))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod rows {
+    //! The rows read the elbow's own geometry: a pipe `x² + y² = 1` along
+    //! `z ≤ 2`, and the bend that leaves its cap `z = 2` G1, the torus
+    //! about the line `x = 3, z = 2` (along `y`) with `R = 3`, `r = 1`.
+    use super::*;
+    use geom_core::{Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn bend() -> Surface<f64> {
+        super::super::conic_oracle::torus(
+            Point3::new(3.0, 0.0, 2.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            3.0,
+            1.0,
+        )
+    }
+
+    fn pipe() -> Surface<f64> {
+        Surface::Cylinder {
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            radius: 1.0,
+        }
+    }
+
+    /// The pipe's ruling through the rim point at angle `theta`, from
+    /// `z = 0` up to the rim: its end is the span's.
+    fn ruling(theta: f64) -> Curve3<f64> {
+        Curve3::Line(geom::Line {
+            origin: Point3::new(theta.cos(), theta.sin(), 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        })
+    }
+
+    /// A ruling ending on the rim away from the bend's neutral points is
+    /// a double root: the junction's contact, and its curvature apart.
+    #[test]
+    fn a_ruling_ending_on_the_rim_is_a_double_root() {
+        let w = end_window(&ruling(0.0), (0.0, 2.0), SpanEnd::End, &bend(), band())
+            .expect("a window past the rim end");
+        assert_eq!(w.order, 2, "the junction's double root");
+        assert!(
+            w.whole,
+            "the bend meets the ruling's carrier again only past the span"
+        );
+    }
+
+    /// **A root of the rest of the span is not covered over.** A pipe
+    /// longer than `√12` has its ruling meet the bend's carrier again
+    /// inside the span, at `z = 2 − √12`: the window ends short of it,
+    /// so the root is the root doors' to find and place.
+    #[test]
+    fn a_long_rulings_second_root_lies_past_the_window() {
+        let w = end_window(&ruling(0.0), (-2.0, 2.0), SpanEnd::End, &bend(), band())
+            .expect("a window past the rim end");
+        let second = 2.0 - 12.0_f64.sqrt();
+        assert_eq!(w.order, 2);
+        assert!(!w.whole, "the window is not the span");
+        assert!(
+            w.at > second && w.at < 2.0,
+            "window to {} keeps {second} out",
+            w.at
+        );
+    }
+
+    /// **At a neutral point the order steps past the Zeros.** Through
+    /// `(0, 1, 2)` the bend's distance from the ruling is
+    /// `(√(9 + s²) − 3)² ≈ s⁴/36`: the quadratic and cubic terms decide
+    /// Zero, each charged at the zero band's width, and the quartic
+    /// decides the order.
+    #[test]
+    fn a_ruling_ending_at_a_neutral_point_is_a_fourth_order_root() {
+        let w = end_window(
+            &ruling(core::f64::consts::FRAC_PI_2),
+            (0.0, 2.0),
+            SpanEnd::End,
+            &bend(),
+            band(),
+        )
+        .expect("a window past the neutral point");
+        assert_eq!(w.order, 4, "the quartic decides");
+    }
+
+    /// **A quadratic term in band refuses; the walk never steps on it.**
+    /// The ruling turned off the neutral point by `δ` meets a relative
+    /// curvature `κ ≈ δ/3`, whose quadratic term separates the two by
+    /// `κ·L²/2 = (2/3)·δ` over the span `L = 2`; `δ` puts that mid-band.
+    #[test]
+    fn a_ruling_whose_quadratic_term_is_in_band_refuses() {
+        let b = band();
+        let delta = 1.5 * 0.5 * (b.zero() + b.escalate());
+        let got = end_window(
+            &ruling(core::f64::consts::FRAC_PI_2 - delta),
+            (0.0, 2.0),
+            SpanEnd::End,
+            &bend(),
+            b,
+        );
+        assert!(
+            matches!(got, Err(EndRootRefusal::Order(_))),
+            "in band at δ = {delta}: {got:?}"
+        );
+    }
+
+    /// The bend's sweep arc from the rim point `(1, 0, 2)`, a quarter
+    /// turn about the bend's axis, against the pipe: a double root.
+    #[test]
+    fn an_arc_leaving_the_rim_is_a_double_root_on_the_pipe() {
+        let arc = Curve3::circle(
+            Point3::new(3.0, 0.0, 2.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            2.0,
+            Vec3::new(-1.0, 0.0, 0.0),
+        );
+        let w = end_window(
+            &arc,
+            (0.0, core::f64::consts::FRAC_PI_2),
+            SpanEnd::Start,
+            &pipe(),
+            band(),
+        )
+        .expect("a window past the rim end");
+        assert_eq!(w.order, 2);
+        assert!(w.at > 0.0, "past the end: {}", w.at);
+    }
+
+    /// A carrier the door has no lane for.
+    #[test]
+    fn an_ellipse_has_no_lane() {
+        let e = Curve3::ellipse(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            2.0,
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+            band(),
+        )
+        .unwrap();
+        assert!(matches!(
+            end_window(&e, (0.0, 1.0), SpanEnd::Start, &pipe(), band()),
+            Err(EndRootRefusal::NoLane)
+        ));
+    }
+}
