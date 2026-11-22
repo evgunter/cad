@@ -294,3 +294,23 @@ fn p10_the_check_at_a_hull_and_an_opaque_leaf() {
     assert_eq!(a, Ok((Sign::Zero, true)));
     assert_eq!(b, Ok((Sign::Zero, true)));
 }
+
+/// The enclosure check at the REGISTRY DOOR's rung: two registrations
+/// the witness admits (touching enclosures) and an in-band margin only
+/// the door proves zero, over an enclosure clear of 0. Red if the check
+/// is not taken on the door's zeros.
+#[test]
+#[should_panic(expected = "at the Door rung (attempt 0) and its certified enclosure")]
+fn p11_a_doors_zero_whose_enclosure_excludes_zero_panics() {
+    let _ = with_session_rules(budget(), SymRules::shipped(), || {
+        let a = Sym::param(
+            ParamSymbol::new(test_utils::symbol_id("a")),
+            Interval::from_bounds(0.9, 1.1),
+        );
+        let lo = a - <Sym<Interval> as Real>::from_f64(0.2);
+        let hi = a + <Sym<Interval> as Real>::from_f64(0.2);
+        let _ = lo.register_equal(a, Tol::witness());
+        let _ = hi.register_equal(a, Tol::witness());
+        decide((lo - hi) * <Sym<Interval> as Real>::from_f64(1.0e-10))
+    });
+}
