@@ -24,7 +24,8 @@ mod the_sectioned_vessel {
         pncad::mesh::validate::check_mesh(&mesh)
             .unwrap_or_else(|e| panic!("the sectioned vessel's mesh: {e:?}"));
         let props = pncad::topo::mass_properties(
-            &pncad::topo::finish(body, tol).expect("the sectioned vessel is a finished body"),
+            &pncad::topo::finish(pncad::topo::Built::of(body), tol)
+                .expect("the sectioned vessel is a finished body"),
             tol,
             demo_tour::printed(),
         )
