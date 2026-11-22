@@ -132,3 +132,72 @@ nowhere says the embedding question reads on after a finding.
   crossing and otherwise reports every refusal it met. Not asked again;
   logged when it lands.
 
+
+## Landed (2026-11-22, `embed/first-finding`)
+
+**What the code reads.** One rule, `Bound::refuse_below`
+(`crates/topo/src/clearance.rs`): a refusal of the lower bound is kept,
+and the injectivity question (`Bound::injective`: the strict bound over
+one body) ends the walk there, as a verified crossing does, with the
+frontier counted `abandoned`. A metric bound keeps its first refusal
+and reads on. Seven sites read the rule: a face its kind does not make
+injective, a witness the verifier declines, a certificate's own
+refusal, a touching pair's refused split, a terminal sliver or poison
+enclosure, a distance pair's refused split, and a level that does not
+fit the pair budget. `Budget`, `Sliver` and `WitnessUnverified` carry
+the two faces of the cell pair they were made on.
+
+**The order that makes a finding the first**: faces discharged by kind
+in the order of the side's faces, then the frontier a level at a time,
+candidates ascending by their faces' places in the side, a split's
+children in its cut's order. A cell's box is on the frame's axes, so a
+rigid motion can change the depth a pair is refused at: the turned
+plate below takes 53 candidates and 1,010 splits where the plate at
+rest takes 31 and 802. In every pose measured the refusal named the
+same two faces (the plate at rest, turned 0.7 rad about `(0.3, −0.5,
+0.8)`, and set `(60, −70, 40)` off; the tour's four refusing stops
+against main's). No body was found where the named pair differs, and
+nothing proves there is none.
+
+**Measured.**
+- *The 13 dearest asks.* Before, the gate lane's own figure
+  (`measure/gate/walk-rows.tsv`, main `c2a0c41f40`): 12 of them in four
+  tests, 150.9 to 563.7 s each, 4,433 s together. After, those four
+  tests through the gate on `embed/first-finding-measure` (main
+  `df73fd38d` and this branch): 11 refusing asks, 0.22 to 0.38 s each,
+  2.6 s together, all `Uncertified` departure at an edge, within 3
+  splits. The tests end at the first refused solid, so one of the 12
+  asks is no longer reached. The thirteenth (`sliver_shell_role`, 4.9 s,
+  `Budget(Pairs)`) was not rerun.
+- *The 22 tests whose asks crossed after a refusal*, through the gate
+  before and after on that branch: 2,007 asks both times. Before: 136
+  cross, 38 of them after a refusal, in all 22 tests; 58.3 s in the
+  asks. After: 98 cross and none after a refusal; the 38 report the
+  refusal they met first (30 `Budget(Depth)`, 3 departure at an edge, 5
+  at a vertex); 52.7 s. Two of the 22 pass with the gate asking, before
+  and after, the same two.
+- *On main without the gate*, no test's verdict class moves. Two
+  receipts move in `self_intersection_proves_injectivity`: the
+  collinear-cap drum refuses one cell pair where it refused 210, and
+  the one-face torus cut's ask ends at its meridian, so its caps are
+  asked alone. Both re-pinned.
+- *The tour walk*, 85 stops: 78 hold, four refuse and three benches
+  cross, on main and here, each refusal naming the same faces and
+  edge. The four refusing stops' receipts read `refused 1` where they
+  read 56, 42, 56 and 76, with as many splits: their first refusal
+  comes on the walk's last level.
+- *`self_intersection_proves_injectivity` and `shell_cavity_embedded`*
+  at the default ε, 1e-6 and 1e-12: 57 of 57 on main, 60 of 60 here
+  (three rows added). Wall time 7.6 to 7.9 s on main, 7.2 to 7.4 s
+  here, two runs each on an idle four-core box: no change this suite
+  can show.
+
+**What it gives up, as ruled.** A plate whose void touches its top
+(`a_plate_whose_void_touches_its_top_reads_the_refusal_it_meets_first`)
+read `Crosses` on the top and a wall of the void; it now refuses out of
+depth on those same two faces, on a cell a rounding off the apex that
+comes before the cell holding it on the same level.
+
+**Left open**: three of the seven sites are reached by no body the
+suites build
+(`three-refusal-sites-of-the-embedding-ask-are-reached-by-no-built-body`).
