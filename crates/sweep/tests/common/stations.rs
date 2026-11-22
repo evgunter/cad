@@ -33,15 +33,8 @@ pub fn cut_stations(
         Curve3::Line(geom::Line { origin, dir }) => {
             points.iter().map(|&p| (p - origin).dot(dir)).collect()
         }
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            ..
-        }) => {
+        Curve3::Circle(geom::Circle { frame, .. }) => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = axis.cross(u_ref);
             let (lo, hi) = (t0.min(t1), t0.max(t1));
             points
@@ -100,30 +93,17 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
         (
             Curve3::Circle(
                 k1 @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: c1,
-                            axis: a1,
-                            ..
-                        },
+                    frame: carrier_frame,
                     ..
                 },
             ),
-            Curve3::Circle(
-                k2 @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: c2,
-                            axis: a2,
-                            ..
-                        },
-                    ..
-                },
-            ),
+            Curve3::Circle(k2 @ geom::Circle { frame, .. }),
         ) => {
+            let (c1, a1) = (carrier_frame.origin(), carrier_frame.axis());
+            let (c2, a2) = (frame.origin(), frame.axis());
             let r1 = k1.radius();
             let r2 = k2.radius();
-            close(*c1, *c2) && a1.cross(*a2).norm() < 1e-9 && (r1 - r2).abs() < 1e-9
+            close(c1, c2) && a1.cross(a2).norm() < 1e-9 && (r1 - r2).abs() < 1e-9
         }
         _ => false,
     };

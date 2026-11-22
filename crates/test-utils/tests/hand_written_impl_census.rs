@@ -352,6 +352,7 @@ const IMPL_FILES_TODAY: [&str; 43] = [
     "crates/geom-core/src/told.rs",
     "crates/geom/src/curves/nurbs.rs",
     "crates/geom/src/curves/periodic_nurbs.rs",
+    "crates/geom/src/frame.rs",
     "crates/geom/src/surfaces/nurbs.rs",
     "crates/mesh/src/memo.rs",
     "crates/profile/src/lib.rs",

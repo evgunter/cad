@@ -142,8 +142,8 @@ fn an_empty_world_is_the_empty_product_subject() {
     assert_eq!(wrapped.findings, Vec::new(), "and it is clean");
     assert_eq!(
         wrapped.skipped,
-        vec![CheckId::ChartCoherence],
-        "with the one default-Off resident named, and nothing else"
+        Vec::new(),
+        "every resident runs by default, so nothing is skipped"
     );
 }
 
@@ -292,11 +292,7 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     );
     assert_eq!(
         report.skipped,
-        vec![
-            CheckId::ChartCoherence,
-            CheckId::UnprovenCoincidence,
-            CheckId::AtRest
-        ],
+        vec![CheckId::UnprovenCoincidence, CheckId::AtRest],
         "and the skip is visible"
     );
 
@@ -316,11 +312,7 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     assert_eq!(editor_core::gathers_on_this_thread() - before, 0);
     assert_eq!(
         report.skipped,
-        vec![
-            CheckId::ChartCoherence,
-            CheckId::UnprovenCoincidence,
-            CheckId::AtRest
-        ]
+        vec![CheckId::UnprovenCoincidence, CheckId::AtRest]
     );
 }
 

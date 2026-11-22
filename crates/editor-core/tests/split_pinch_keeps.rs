@@ -495,8 +495,8 @@ fn operand_floor(ev: &Evaluation<f64>, target: RecipeNodeId) -> StableName {
                 key: EntityKey::Face(f),
                 ..
             }) => match body.body().face_surface(*f) {
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if origin.y == 1.0 && normal.y == 1.0 =>
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.origin().y == 1.0 && frame.axis().y == 1.0 =>
                 {
                     Some(n.clone())
                 }
@@ -706,7 +706,8 @@ fn operand_face_on(
                 key: EntityKey::Face(f),
                 ..
             }) => match body.body().face_surface(*f) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     let off = (p[0] - origin.x) * normal.x
                         + (p[1] - origin.y) * normal.y
                         + (p[2] - origin.z) * normal.z;

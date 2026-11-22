@@ -90,21 +90,15 @@ fn a_cone_cap_holding_its_apex_reaches_it_along_the_axis() {
 fn a_ruled_face_on_a_lone_vertex_has_no_cover() {
     for surface in [
         geom::Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         },
         geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         },
         geom::Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: 0.5,
-            u_ref: Vec3::unit_x(),
         },
     ] {
         let mut body = crate::Body::<f64>::new();

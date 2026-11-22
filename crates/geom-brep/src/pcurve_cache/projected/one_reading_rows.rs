@@ -39,35 +39,27 @@ fn charts() -> Vec<(&'static str, Surface<f64>)> {
     let u_ref = Vec3::new(1.0, 0.0, 0.0);
     let o = Point3::new(0.2, -0.1, 0.3);
     let cone = |half_angle| Surface::Cone {
-        apex: o,
-        axis,
+        frame: geom::Frame::new(o, axis, u_ref),
         half_angle,
-        u_ref,
     };
     let torus = |major_radius, minor_radius| Surface::Torus {
-        center: o,
-        axis,
+        frame: geom::Frame::new(o, axis, u_ref),
         major_radius,
         minor_radius,
-        u_ref,
     };
     vec![
         (
             "sphere",
             Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: 0.7,
-                axis,
-                u_ref,
             },
         ),
         (
             "cylinder",
             Surface::Cylinder {
-                origin: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: 0.7,
-                u_ref,
             },
         ),
         ("narrow cone", cone(0.4)),

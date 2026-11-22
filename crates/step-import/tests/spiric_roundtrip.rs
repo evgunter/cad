@@ -167,9 +167,7 @@ fn a_spiric_rim_exports_as_a_spline_and_reimports_at_its_volume() {
             continue;
         };
         let &geom::Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             offset,
@@ -177,6 +175,11 @@ fn a_spiric_rim_exports_as_a_spline_and_reimports_at_its_volume() {
         else {
             continue;
         };
+        let (center, axis, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         let (t0, t1) = curve.params();
         let (spline, _) = step_export::spiric_export_spline(
             1e-4,
@@ -190,16 +193,12 @@ fn a_spiric_rim_exports_as_a_spline_and_reimports_at_its_volume() {
         )
         .expect("the writer's spline");
         let plane = geom::Surface::Plane {
-            origin: center + u_ref * offset,
-            normal: u_ref,
-            u_ref: axis,
+            frame: geom::Frame::new(center + u_ref * offset, u_ref, axis),
         };
         let torus = geom::Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         };
         assert_eq!(
             geom_brep::analytic_rung3(&spline, spline.domain(), &plane, &torus, band),

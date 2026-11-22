@@ -462,7 +462,10 @@ This section is where that rule's parts live.
   admission rule read as a length, the longest lever over which a short
   chain's rounding still fits the headroom (a run is admitted exactly
   where `R` is at least the box). `R` is read through one `Tolerance`
-  door, never a site's own constant. A formula that loses digits where its
+  door, never a site's own constant. A read made before the extent it is
+consumed over exists (a trace read through a face chart's turn before
+the profile's loops resolve) is a selection: its pose is decided over the
+session box, and its conditioning by the carriage that consumes it. A formula that loses digits where its
   result is decided (a squared residual over a small `2r`) is re-posed
   (as a distance). A stored form that loses digits is re-minted in a
   well-conditioned form: a conic is stored anchored on the arc it
@@ -478,7 +481,11 @@ This section is where that rule's parts live.
   merge base
   (`work/ciw/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
 - **A verdict's lever arm** (`Lever<T>`, the arm of
-  `Margin::levered`). It is built only from its sources: a read of the
+  `Margin::levered`). It is the length at which a tilt (a sine, a
+  cosine, an angle between directions) displaces the geometry it
+  governs, and a reading is levered only where that displacement is
+  what is held against the tolerance. It is built only from its
+  sources: a read of the
   consumed extent, a curvature arm `1/κ_rel`, or the session box where
   no geometry is in hand. Rates are not levers: they go through
   `levered_inv` and the metric doors. A length that is the reading

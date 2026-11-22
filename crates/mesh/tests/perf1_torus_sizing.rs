@@ -183,18 +183,20 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
             .certified()
             .unwrap();
         let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { axis, .. },
+            frame: carrier_frame,
             ..
         }) = *curve.carrier()
         else {
             continue;
         };
+        let axis = carrier_frame.axis();
         let mut on_torus = None;
         for hek in [edge.he_plus, edge.he_minus] {
             let lp = body.get_half_edge(hek).unwrap().parent_loop;
             let fk = body.get_loop(lp).unwrap().face;
             let surface = body.face_surface(fk).unwrap();
-            if let Surface::Torus { axis: taxis, .. } = *surface {
+            if let Surface::Torus { frame, .. } = *surface {
+                let taxis = frame.axis();
                 on_torus = Some(taxis);
             }
         }
