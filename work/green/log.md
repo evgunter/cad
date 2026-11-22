@@ -542,3 +542,8 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - Also found: 7112's first parent named wrongly; the topo row never bisected; the coarse class wider than ONEHOME's row; a pinned stop hiding the parallel pose's SOUND check.
   - Fix pass sent with all taken but S6.
   - Class, logged: a re-bless filter keyed on a verdict line's prefix inherits whatever that verdict does not check.
+- 2026-11-22 — PR 7365's review is in (FULL, Opus): APPROVE-WITH-FIXES, no MAJOR.
+  - Nothing a leg reads is lost: 37 binaries in the archive, 19885 tests per ε row, and the scalpel unchanged in its own job. The swap and the sampler are sound.
+  - The saving is mis-attributed: opt 1 buys about 13 min and the scalpel move about 10; the probe's gap is mostly runner speed. The sampler's log does not survive a lost-communication kill.
+  - Closing the P1 on one dispatched night would remove the only watcher. Ruling: close on the change, with a P2 re-check row for five scheduled main nights.
+  - Fix pass sent with all taken but the wasm list.
