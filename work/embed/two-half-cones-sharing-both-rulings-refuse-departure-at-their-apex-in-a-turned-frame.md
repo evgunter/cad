@@ -47,6 +47,9 @@ ruling. On main `ae076e050` the unit cone's and the slender cone's
 verdicts on each turned plane are the same at ε 1e-9, 1e-6 and 1e-12;
 the small cone's were read at the default ε alone.
 
+On main `a3d5ce89c` (2026-11-22, 577 commits on) every case in the
+last column reads the same, at the same receipt.
+
 **The verdict moved with ε too, on an earlier main.** On `c3ffedeb2`
 the unit cone on the first turned plane held at the default ε and at
 1e-12 after 10,507 splits and refused at 1e-6

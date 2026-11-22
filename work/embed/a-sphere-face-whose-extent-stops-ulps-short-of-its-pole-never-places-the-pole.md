@@ -258,3 +258,12 @@ carrier frames both in), with and without PR 7115's `injective.rs`:
   turned-frame sweep 46 holding and 22 refusing (six turned cone cases
   on the P0 row, sixteen turned ice-creams on the seam-meridians row);
   its far-body probe 23 of 24 against main's 17.
+
+**Re-measured on main `a3d5ce89c`** (2026-11-22, 577 commits on from
+`ae076e050`, none to `injective.rs`): every number above is the same.
+f64 cavity rows failing 15 of 221 with main's `injective.rs` and 9 with
+this one, the six pole rows the only difference and every other
+receipt unchanged from `ae076e050`; tour walk 78 of 85; the injectivity
+suite 64 of 64 at the default ε, 1e-6 and 1e-12; 119 unit rows; the
+review's 120 hold, its turned set 46 hold and 22 refuse, its far probe
+23 of 24, each refusal at the receipt it had on `ae076e050`.
