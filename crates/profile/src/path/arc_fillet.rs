@@ -72,8 +72,9 @@ use geom_core::{
 
 use super::program::Overrun;
 use super::{
-    ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, LegFit, PathError, PathNoCornerReason,
-    TurnLever, angle, authored_length, length, linear_band, radius_lever, ratio,
+    ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, LegFit, LeveredTurn, PathError,
+    PathNoCornerReason, TurnLever, angle, authored_length, length, linear_band, radius_lever,
+    ratio,
 };
 use crate::fillet_select::{nearest_candidate, nearest_joint};
 use crate::structure::{
@@ -508,10 +509,12 @@ fn map_refusal<T: Bounds>(
             arm,
         } => CornerOutcome::Whole(no_corner(
             PathNoCornerReason::TurnWithinTolerance {
-                sin_turn: ratio(sin_turn),
-                align: ratio(align),
-                lever: length(arm),
-                lever_of: TurnLever::ShorterLeg,
+                turn: LeveredTurn {
+                    sin_turn: ratio(sin_turn),
+                    align: ratio(align),
+                    lever: length(arm),
+                    lever_of: TurnLever::ShorterLeg,
+                },
                 corner: Some(corner),
             },
             radius,
