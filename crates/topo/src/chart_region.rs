@@ -642,7 +642,7 @@ impl std::error::Error for ChartRegionError {}
 /// scalar with a bracket, a [`Dual`](geom_core::Dual) included, and
 /// no bound on a whole function can say *"this arm certifies, the rest
 /// does not"*; so the passes that run at both kinds of scalar take the
-/// door as `Option<RegionLane<T>>`, and `None` is the arm's own typed
+/// door as `Option<T::RegionLane>`, and `None` is the arm's own typed
 /// refusal ([`crate::ValidationError::CensusLaneUnsupported`] at the
 /// two reporting arms, a `false` at the crossing rung's backing
 /// consult) rather than a silent skip.
@@ -676,21 +676,18 @@ impl std::error::Error for ChartRegionError {}
 /// CertifiedBounds` whenever `T` is, so the constructor is there for
 /// it.
 ///
-/// A scalar that may not certify cannot hold one — the constructor's
-/// `impl` block is bounded on the right, so the value cannot be
-/// written, let alone handed to the census:
+/// A scalar that does not certify has no such type
+/// ([`crate::QuadLane`]'s paragraph), and the census holds
+/// [`crate::AtRestPolicy::RegionLane`] with no values there:
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_core::Dual64;
 /// use topo::RegionLane;
 /// let _ = RegionLane::<Dual64>::certified();
 /// ```
-///
-/// Why the code is `E0599`, and what the fence does not check:
-/// [`crate::QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct RegionLane<T: Decide> {
+pub struct RegionLane<T: geom_core::Certifies> {
     /// [`chart_region_overlap`], and nothing else can be written here
     /// (`wiring_rows` pins the pointer).
     chart_overlap:
@@ -709,7 +706,7 @@ pub struct RegionLane<T: Decide> {
     ) -> Result<ChartOverlap, ChartRegionError>,
 }
 
-impl<T: Decide + CertifiedBounds> RegionLane<T> {
+impl<T: geom_core::Certifies + CertifiedBounds> RegionLane<T> {
     /// The certified chart-region doors — the whole inventory of this
     /// value, and the only constructor there is.
     #[must_use]
@@ -733,14 +730,67 @@ impl<T: Decide + CertifiedBounds> RegionLane<T> {
     }
 }
 
-impl<T: Decide> RegionLane<T> {
-    /// The structural door, reached by the census's conformal face-pair
-    /// arm.
-    ///
-    /// # Errors
-    ///
-    /// As [`chart_region_overlap`].
-    pub(crate) fn chart_overlap(
+/// **A [`RegionLane`] as a pass that runs at every scalar holds it**:
+/// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
+/// values) at one that does not (`geom-core` README, DL5.3). Sealed: the lane and
+/// `NoLane` are its only implementors, so a pass that holds one holds
+/// the value of the lane's one constructor or nothing. In the block
+/// below every method is written out, so the seal is what refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::Band;
+/// use topo::{Body, CarrierPremise, ChartOverlap, ChartRegionError, FaceKey};
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl topo::RegionLaneOf<f64> for Mine {
+///     fn chart_overlap(
+///         self,
+///         _a: &Body<f64>,
+///         _fa: FaceKey,
+///         _b: &Body<f64>,
+///         _fb: FaceKey,
+///         _band: Band,
+///     ) -> Result<ChartOverlap, ChartRegionError> {
+///         unimplemented!()
+///     }
+///     fn declared_overlap(
+///         self,
+///         _a: &Body<f64>,
+///         _fa: FaceKey,
+///         _b: &Body<f64>,
+///         _fb: FaceKey,
+///         _premise: CarrierPremise,
+///         _band: Band,
+///     ) -> Result<ChartOverlap, ChartRegionError> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait RegionLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// The chart-region overlap of two faces (`chart_region_overlap`).
+    fn chart_overlap(
+        self,
+        body_a: &Body<T>,
+        face_a: FaceKey,
+        body_b: &Body<T>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Result<ChartOverlap, ChartRegionError>;
+
+    /// The overlap of a pair declared on one carrier (`glued_pair_overlap`).
+    fn declared_overlap(
+        self,
+        body_a: &Body<T>,
+        face_a: FaceKey,
+        body_b: &Body<T>,
+        face_b: FaceKey,
+        premise: CarrierPremise,
+        band: Band,
+    ) -> Result<ChartOverlap, ChartRegionError>;
+}
+
+impl<T: geom_core::Certifies> RegionLaneOf<T> for RegionLane<T> {
+    fn chart_overlap(
         self,
         body_a: &Body<T>,
         face_a: FaceKey,
@@ -751,13 +801,7 @@ impl<T: Decide> RegionLane<T> {
         (self.chart_overlap)(body_a, face_a, body_b, face_b, band)
     }
 
-    /// The declared-pair door, reached by the census's confirm pass and
-    /// the crossing rung's backing consult.
-    ///
-    /// # Errors
-    ///
-    /// As [`glued_pair_overlap`].
-    pub(crate) fn declared_overlap(
+    fn declared_overlap(
         self,
         body_a: &Body<T>,
         face_a: FaceKey,
@@ -767,6 +811,31 @@ impl<T: Decide> RegionLane<T> {
         band: Band,
     ) -> Result<ChartOverlap, ChartRegionError> {
         (self.declared_overlap)(body_a, face_a, body_b, face_b, premise, band)
+    }
+}
+
+impl<T: Decide> RegionLaneOf<T> for geom_core::NoLane {
+    fn chart_overlap(
+        self,
+        _body_a: &Body<T>,
+        _face_a: FaceKey,
+        _body_b: &Body<T>,
+        _face_b: FaceKey,
+        _band: Band,
+    ) -> Result<ChartOverlap, ChartRegionError> {
+        match self {}
+    }
+
+    fn declared_overlap(
+        self,
+        _body_a: &Body<T>,
+        _face_a: FaceKey,
+        _body_b: &Body<T>,
+        _face_b: FaceKey,
+        _premise: CarrierPremise,
+        _band: Band,
+    ) -> Result<ChartOverlap, ChartRegionError> {
+        match self {}
     }
 }
 
@@ -786,7 +855,7 @@ mod wiring_rows {
 
     /// `Ok(())` when both fields hold their door; otherwise the name of
     /// the first field that does not, so a red says which pointer moved.
-    fn holds_the_certified_region_doors<T: super::Decide + geom_core::CertifiedBounds>()
+    fn holds_the_certified_region_doors<T: geom_core::Certifies + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = RegionLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
@@ -1252,7 +1321,10 @@ fn plane_frame<T: Decide>(
     face: FaceKey,
 ) -> Result<(geom_core::Point3<T>, geom_core::Vec3<T>), ChartRegionError> {
     match face_surface(body, face)? {
-        Surface::Plane { origin, normal, .. } => Ok((*origin, *normal)),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Ok((origin, normal))
+        }
         _ => Err(ChartRegionError::Corrupt),
     }
 }
@@ -1622,8 +1694,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
         let cover = pair_cover(body, face, band)?;
         for frame in [a, b] {
-            let (lo, hi) = cover.range_along(frame.axis);
-            let base = (frame.origin - geom_core::Point3::origin()).dot(frame.axis);
+            let (lo, hi) = cover.range_along(frame.axis());
+            let base = (frame.origin() - geom_core::Point3::origin()).dot(frame.axis());
             reach = reach.max((lo - base).abs()).max((hi - base).abs());
         }
     }
@@ -1651,14 +1723,14 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     norm_gate(
         "chart_region_cyl_tilt",
         Margin::levered(
-            a.axis.cross(b.axis).norm(),
+            a.axis().cross(b.axis()).norm(),
             // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
             // and the larger radius; no extent read computes it.
             geom_core::Lever::unsourced(hyp),
         ),
     )?;
-    let perp_a = a.axis_line().distance(b.origin);
-    let perp_b = b.axis_line().distance(a.origin);
+    let perp_a = a.axis_line().distance(b.origin());
+    let perp_b = b.axis_line().distance(a.origin());
     norm_gate("chart_region_cyl_offset", Margin::of(perp_a.max(perp_b)))?;
 
     // --- The transfer parameters (doc above). The sense margin is the
@@ -1672,7 +1744,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     let sigma: T = decide_nonzero(
         "chart_region_cyl_axis_sense",
         Margin::levered(
-            a.axis.dot(b.axis),
+            a.axis().dot(b.axis()),
             // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
             // and the larger radius; no extent read computes it.
             geom_core::Lever::unsourced(hyp),
@@ -1682,8 +1754,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     .map_err(ChartRegionError::Escalated)?
     .unit();
     let w_a = a.v_ref();
-    let delta = b.u_ref.dot(w_a).atan2(b.u_ref.dot(a.u_ref));
-    let c = a.height(b.origin);
+    let delta = b.u_ref().dot(w_a).atan2(b.u_ref().dot(a.u_ref()));
+    let c = a.height(b.origin());
 
     // --- Extraction (each face read in its OWN minted chart). ---
     let surface_a = face_surface(body_a, face_a)?.clone();
@@ -2093,14 +2165,10 @@ fn interior_witness<T: Decide + Bounds>(
     if premise == CarrierPremise::InBand {
         return WitnessOutcome::Declined;
     }
-    let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = *carrier
-    else {
+    let Surface::Plane { frame } = *carrier else {
         return WitnessOutcome::Declined;
     };
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let v_ref = normal.cross(u_ref);
     let Ok((_, normal_b)) = plane_frame(body_b, face_b) else {
         return WitnessOutcome::Declined;
@@ -4964,9 +5032,7 @@ mod tests {
     /// ẑ ⇒ v_ref = ẑ × x̂ = ŷ).
     pub(super) fn xy_plane() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         }
     }
 
@@ -4974,9 +5040,7 @@ mod tests {
     /// (`u_ref` rotated 90°).
     pub(super) fn xy_plane_rotated() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_y()),
         }
     }
 
@@ -5280,10 +5344,8 @@ mod tests {
             (0.25, 1.0)
         );
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         // A window clear of the poles certifies `r·cos v_max`.
         let (arm_u, arm_v) = arm_values(certified_arms(&sphere, -0.5, 0.5, band())).unwrap();
@@ -5707,29 +5769,35 @@ mod inf_arms {
 
     fn sphere(radius: f64) -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn cone(half_angle: f64) -> Surface<f64> {
         Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn torus(major: f64, minor: f64) -> Surface<f64> {
         Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: major,
             minor_radius: minor,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -6094,10 +6162,12 @@ mod inf_arms {
             (1.0, 1.0)
         );
         let c: Surface<f64> = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 3.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         assert_eq!(
             arm_values(certified_arms(&c, -5.0, 5.0, band())).unwrap(),

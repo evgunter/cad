@@ -75,13 +75,12 @@
 //! (`work/sectarms/a-chart-limb-1-foot-refuses-a-pose-far-from-the-origin.md`),
 //! each a loud, typed refusal, never a silent miscertification.
 //!
-//! **Why cylinder×sphere first**: both operands' polynomial composites
-//! convert to meters **exactly** (`÷2R`), so limb 2 certified with no
-//! invented scale factor. The torus's composite is quartic, and its
-//! conversion to metres is a per-span lever (C2 limb 2,
-//! `enclose::torus_meters_sup`), which came later; the torus pairs
-//! retired on it, each with its own pose's tangency decision. The
-//! fixture property the spec asks for — a branch naive marching MISSES
+//! **Why cylinder×sphere first**: both operands' composites convert
+//! to metres by a lever with no root in it, so limb 2 certified with no
+//! invented scale factor. The torus's and the cone's conversions are
+//! per-part levers (C2 limb 2, `pcurve_cache::limb2_offset_sup`), and
+//! the pairs on them retire each with its own pose's tangency decision.
+//! The fixture property the spec asks for — a branch naive marching MISSES
 //! — is delivered by an offset cylinder cutting a sphere in two loops of
 //! very different size, of which the small one touches no domain
 //! boundary.
@@ -3750,16 +3749,12 @@ fn trace_plane_nurbs_within(
     band: Band,
     max_steps: usize,
 ) -> Result<TracedTriple, SsiError> {
-    let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = *plane
-    else {
+    let Surface::Plane { frame } = *plane else {
         return Err(SsiError::WrongLane {
             expected: PLANE_AND_WALL,
         });
     };
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     finite_operand("plane", plane)?;
     let form = residual::ImplicitForm::of(plane).map_err(|_| SsiError::WrongLane {
         expected: PLANE_AND_WALL,
@@ -4065,21 +4060,15 @@ mod ending_tests {
         use geom_core::{Point3, Vec3};
         let o = Point3::origin();
         let plane = Surface::Plane {
-            origin: o,
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(o, Vec3::unit_z(), Vec3::unit_x()),
         };
         let sphere = |radius| Surface::Sphere {
-            center: o,
+            frame: geom::Frame::new(o, Vec3::unit_z(), Vec3::unit_x()),
             radius,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let cylinder = |radius| Surface::Cylinder {
-            origin: o,
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(o, Vec3::unit_z(), Vec3::unit_x()),
             radius,
-            u_ref: Vec3::unit_x(),
         };
         let e = 0.3;
         let mut rows = vec![("plane", plane.clone(), 0.0)];
@@ -5353,9 +5342,7 @@ mod budget_tests {
         let s2 = std::f64::consts::FRAC_1_SQRT_2;
         let at = Point3::new(0.5, -1.0 / 8.0, 0.5);
         let plane = Surface::Plane {
-            origin: at,
-            normal: Vec3::new(s2, s2, 0.0),
-            u_ref: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(at, Vec3::new(s2, s2, 0.0), Vec3::new(0.0, 0.0, 1.0)),
         };
         let dom = SsiDomain {
             center: at,
@@ -5493,9 +5480,11 @@ mod budget_tests {
     fn a_sliver_bend_pair_refuses_on_few_tries() {
         let wall = bend_pair(1e-4, -0.5);
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let dom = SsiDomain {
             center: Point3::new(0.5, 0.5, 0.0),

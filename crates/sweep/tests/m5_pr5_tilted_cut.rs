@@ -159,7 +159,7 @@ fn perpendicular_cut_stays_rung_1_circles() {
                 continue;
             };
             if let Curve3::Circle(k) = *c.carrier()
-                && (k.frame.origin.z - 0.5).abs() < 1e-12
+                && (k.frame.origin().z - 0.5).abs() < 1e-12
             {
                 assert!((k.radius() - 0.5).abs() < 1e-12);
                 section_circles += 1;
@@ -833,7 +833,7 @@ fn definite_roots_mint_four_crossings() {
     }
 }
 
-/// `plane_crossing_belly_graze` in-band, end to end: a plane 3ε shy of
+/// `curve_face_pose_belly_graze` in-band, end to end: a plane 3ε shy of
 /// the rim apex is an ill-conditioned graze — CrossingEscalated, with
 /// the predicate named and the shared recourse riding the payload.
 #[test]
@@ -849,7 +849,7 @@ fn near_graze_escalates_typed() {
     let err = split(&body, &plane, Tol::witness()).unwrap_err();
     let msg = err.render(geom_brep::recourse::Reading::Build);
     assert!(
-        format!("{err:?}").contains("plane_crossing_belly_graze"),
+        format!("{err:?}").contains("curve_face_pose_belly_graze"),
         "{err:?}"
     );
     // One recourse, the split's own: a split takes no declaration.

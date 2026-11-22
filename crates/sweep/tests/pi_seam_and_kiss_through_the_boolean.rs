@@ -66,8 +66,8 @@ fn planes_at_z(b: &Body<f64>, z: f64) -> Vec<FaceKey> {
         .filter(|(fk, _)| {
             matches!(
                 b.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if (origin.z - z).abs() < 1e-9 && normal.z.abs() > 0.5
+                Some(geom::Surface::Plane { frame, .. })
+                    if (frame.origin().z - z).abs() < 1e-9 && frame.axis().z.abs() > 0.5
             )
         })
         .map(|(k, _)| k)
@@ -265,15 +265,11 @@ fn the_sphere_capped_tube_builds_as_a_seam() {
             "{label}: the rim's two semicircles: {rims:?}"
         );
         for k in rims {
-            let geom::Curve3::Circle(
-                conic_k @ geom::Circle {
-                    frame: geom::Frame { origin: center, .. },
-                    ..
-                },
-            ) = carrier_of(&body, k)
+            let geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = carrier_of(&body, k)
             else {
                 panic!("{label}: the rim is a circle");
             };
+            let center = frame.origin();
             let radius = conic_k.radius();
             assert!(
                 (center - Point3::new(0.0, 0.0, H)).norm() < 1e-12 && (radius - R).abs() < 1e-12,
@@ -746,12 +742,12 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
     let rim_radius = |b: &Body<f64>| -> Vec<f64> {
         b.edges()
             .filter_map(|(e, _)| match carrier_of(b, e) {
-                geom::Curve3::Circle(
-                    circle @ geom::Circle {
-                        frame: geom::Frame { origin: center, .. },
-                        ..
-                    },
-                ) if (center.z - H).abs() < 1e-9 => Some(circle.radius()),
+                geom::Curve3::Circle(circle @ geom::Circle { frame, .. })
+                    if (frame.origin().z - H).abs() < 1e-9 =>
+                {
+                    let _ = frame.origin();
+                    Some(circle.radius())
+                }
                 _ => None,
             })
             .collect()

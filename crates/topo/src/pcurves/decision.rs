@@ -606,9 +606,10 @@ type FittedDoor<'a, T, K> = &'a dyn Fn(&Walked<T, K>) -> Result<PcurveCache<T>, 
 /// is not certified again. Every other image goes to the door its kind
 /// names ([`Pcurve::certifying_door`]): the `Decide`-scalar door,
 /// [`PcurveCache::certify`], or `fitted` — the fitted door, which only
-/// the pass holds. Without it a fitted or general image meets the
-/// closed-form door, which refuses it, and a projected one is read
-/// there.
+/// the pass holds. Without it an image only the fitted door certifies
+/// ([`Pcurve::needs_fitted_door`]: a fitted or general one, a projected
+/// net's) is refused unread, and a projected circle's or line's is read
+/// at the closed-form door.
 ///
 /// # Errors
 ///
@@ -635,6 +636,9 @@ pub(super) fn certify_walked<T: Decide, K: Copy>(
         let (t0, t1) = w.window();
         let cache = match (w.pcurve().certifying_door(), fitted) {
             (CertifyingDoor::Fitted | CertifyingDoor::Either, Some(fitted)) => fitted(&w),
+            (_, None) if w.pcurve().needs_fitted_door() => {
+                Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })
+            }
             _ => PcurveCache::certify(w.pcurve().clone(), t0, t1, &w.carrier, surface, band),
         };
         // An image the walk derived: a lane choice's refusal of its own
@@ -1011,10 +1015,16 @@ fn axis_distance<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point
     };
     match *chart.surface() {
         Surface::Cylinder { radius, .. } => Some(radius),
-        Surface::Sphere { center, axis, .. }
-        | Surface::Torus { center, axis, .. }
-        | Surface::Spindle { center, axis, .. } => Some(off_axis(center, axis)),
-        Surface::Cone { apex, axis, .. } => Some(off_axis(apex, axis)),
+        Surface::Sphere { frame, .. }
+        | Surface::Torus { frame, .. }
+        | Surface::Spindle { frame, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            Some(off_axis(center, axis))
+        }
+        Surface::Cone { frame, .. } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            Some(off_axis(apex, axis))
+        }
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
@@ -1219,9 +1229,9 @@ fn half_turn_off<T: Decide>(
     // along, less its part along the axis.
     let near = edge.at + (edge.far - edge.at) * T::from_f64(0.125);
     let chord = edge.carrier.eval(near) - edge.carrier.eval(edge.at);
-    let across = chord - frame.axis * chord.dot(frame.axis);
+    let across = chord - frame.axis() * chord.dot(frame.axis());
     let (sin, cos) = u.sin_cos();
-    let along = frame.u_ref * cos + frame.v_ref() * sin;
+    let along = frame.u_ref() * cos + frame.v_ref() * sin;
     match decide(
         "pcurve_singular_sheet",
         Margin::levered(across.dot(along) / across.norm(), lever),
@@ -1524,7 +1534,7 @@ pub(super) fn decide_plain_joint<T: Decide>(
         Ok(inverse) => {
             let frame = inverse.frame();
             let (sin, cos) = u.sin_cos();
-            frame.u_ref * cos + frame.v_ref() * sin
+            frame.u_ref() * cos + frame.v_ref() * sin
         }
         Err(_) => geom_core::Vec3::unit_x(),
     };

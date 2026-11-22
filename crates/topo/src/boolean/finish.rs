@@ -444,7 +444,7 @@ fn section_boundary<T: Decide>(
 /// vertices in result keys, for the stretches a face borders across a
 /// one-sided chord ([`ChordsAcross`]).
 #[allow(clippy::type_complexity)]
-fn discarded<T: Decide>(
+fn discarded<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     solid: SolidKey,
     kept: &[ShellKey],

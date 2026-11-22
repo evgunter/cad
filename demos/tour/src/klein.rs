@@ -820,7 +820,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let cylinders: Vec<(Point3<f64>, f64)> = bulb
         .surfaces()
         .filter_map(|(_, s)| match s {
-            pncad::topo::Surface::Cylinder { origin, radius, .. } => Some((*origin, *radius)),
+            pncad::topo::Surface::Cylinder { frame, radius, .. } => {
+                let origin = frame.origin();
+                Some((origin, *radius))
+            }
             _ => None,
         })
         .collect();
@@ -846,7 +849,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let caps: Vec<(Point3<f64>, pncad::geom_core::Vec3<f64>)> = top
         .surfaces()
         .filter_map(|(_, sf)| match sf {
-            pncad::topo::Surface::Plane { origin, normal, .. } => Some((*origin, *normal)),
+            pncad::topo::Surface::Plane { frame, .. } => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((origin, normal))
+            }
             _ => None,
         })
         .collect();

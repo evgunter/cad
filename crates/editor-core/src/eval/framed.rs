@@ -33,12 +33,15 @@
 //! the at-rest quieting rule) takes the other through
 //! [`Framed::seat`]: its body as it stands and the relative motion each
 //! datum it takes off it goes through ([`topo::Seat`]). An operation
-//! that builds one body out of its operands reads them into its frame
-//! whole: the fold and the cut through [`Framed::read_in`], each gather
-//! of copies into one aggregate (the `⊔`, a distribute's assembly, the
-//! product) through [`Framed::graft_into`], which moves the copy's data
-//! into the aggregate's and asks the session box of the image. Every
-//! such move is counted once, at [`Framed::moving_into`].
+//! that builds one body out of its operands hands them to the kernel's
+//! door where they stand, and the door moves each one not in its
+//! computing frame: the Boolean pair, the n-ary fold and the at-rest
+//! intersection through a placed operand ([`topo::Placed`],
+//! `topo::boolean_placed`, `topo::nary_placed`), each gather of copies
+//! into one aggregate (the `⊔`, a distribute's assembly, the product)
+//! through [`Framed::graft_into`], which moves the copy's data into the
+//! aggregate's and asks the session box of the image. Every such motion
+//! is counted once, at [`Framed::moving_into`].
 //!
 //! A construction computes in its own coordinates ([`Frame::Own`]). A
 //! one-input construction over a body — blend, shell, split, mirror —
@@ -462,10 +465,7 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     ///
     /// The relative map's overflow.
     pub(crate) fn seat<'b>(&self, other: &'b Self) -> Result<topo::Seat<'b, T>, RigidMotionError> {
-        Ok(match self.relative(other)? {
-            None => topo::Seat::own(other.body()),
-            Some(motion) => topo::Seat::at(other.body(), motion),
-        })
+        Ok(topo::Seat::from_motion(other.body(), self.relative(other)?))
     }
 }
 
@@ -507,8 +507,11 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     /// **The motion that moves this body into `frame`'s coordinates**,
     /// `None` where the two are one frame, counted as the one rigid map
     /// it costs where it is a motion (`counters::rigid_map`): the one
-    /// home of that count, for every door that moves a body between
-    /// frames ([`Self::read_into`], [`Self::graft_into`]).
+    /// home of that count. It counts each placement the evaluator makes
+    /// ([`Self::graft_into`], [`Self::placed_in`]), once per operand and
+    /// operation, not each move a kernel door makes of it: the at-rest
+    /// localization places a copy once and hands it to every pair it is
+    /// in, whose door moves it per pair.
     ///
     /// # Errors
     ///
@@ -522,6 +525,24 @@ impl<T: topo::AtRestPolicy> Framed<T> {
             super::counters::rigid_map();
         }
         Ok(motion)
+    }
+}
+
+impl<T: topo::AtRestPolicy> Framed<T> {
+    /// **`held`, this value's body finished, placed in `frame`**
+    /// ([`topo::Placed`]): under the motion into `frame` ([`Self::moving_into`],
+    /// where that motion is counted), or alone where the two are one frame.
+    /// The door it is handed to moves it.
+    ///
+    /// # Errors
+    ///
+    /// The relative map's overflow.
+    pub(crate) fn placed_in<'a>(
+        &self,
+        frame: &Frame<T>,
+        held: &'a T::Finished,
+    ) -> Result<topo::Placed<'a, T::Finished>, RigidMotionError> {
+        Ok(topo::Placed::new(held, self.moving_into(frame)?))
     }
 }
 
@@ -545,55 +566,15 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
         other: &Self,
         tol: Tol,
     ) -> Result<topo::GraftKeys, GraftIn> {
-        let seat = match other.moving_into(frame).map_err(GraftIn::Motion)? {
-            None => topo::Seat::own(other.body()),
-            Some(motion) => topo::Seat::at(other.body(), motion),
-        };
+        let seat = topo::Seat::from_motion(
+            other.body(),
+            other.moving_into(frame).map_err(GraftIn::Motion)?,
+        );
         topo::boolean::graft_placed(dst, seat, other.body.kind(), tol).map_err(|e| match e {
             topo::boolean::PlacedGraftError::Move(e) => {
                 GraftIn::Moved(topo::MoveError::under_a_motion(e))
             }
             topo::boolean::PlacedGraftError::Graft(e) => GraftIn::Graft(Box::new(e)),
         })
-    }
-}
-
-impl<T: topo::AtRestPolicy> Framed<T> {
-    /// **`other`'s body in this one's coordinates**, for an operation
-    /// that builds one body out of both: what it holds, as it holds it,
-    /// where the two are in one frame; else what it holds moved once
-    /// ([`Self::relative`], [`Held::moved`]), of the same kind: a
-    /// finished body stays finished, its verdict carried. A reader that
-    /// only relates the two takes [`Self::seat`] instead.
-    ///
-    /// # Errors
-    ///
-    /// The relative map's overflow, or the move's one refusal: the image
-    /// reaches past the session box.
-    pub(crate) fn read_in(&self, other: &Self, tol: Tol) -> Result<Held<T>, super::NodeErrorKind> {
-        other.read_into(&self.frame, tol)
-    }
-
-    /// **This body in `frame`'s coordinates** ([`Self::read_in`] with the
-    /// reader given by its frame alone).
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::read_in`].
-    pub(crate) fn read_into(
-        &self,
-        frame: &Frame<T>,
-        tol: Tol,
-    ) -> Result<Held<T>, super::NodeErrorKind> {
-        match self
-            .moving_into(frame)
-            .map_err(super::NodeErrorKind::Motion)?
-        {
-            None => Ok(self.body.clone()),
-            Some(map) => self
-                .body
-                .moved(&map, tol)
-                .map_err(|findings| super::NodeErrorKind::NotFinished { findings }),
-        }
     }
 }

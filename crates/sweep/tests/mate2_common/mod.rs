@@ -132,7 +132,8 @@ pub fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
     let hits: Vec<_> = body
         .faces()
         .filter(|(fk, _)| match body.face_surface(*fk) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => {
+            Some(geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
                 (origin.z - z).abs() < 1e-12 && (normal.z > 0.5) == up
             }
             _ => false,

@@ -22,24 +22,20 @@ fn band() -> Band {
 fn cone(apex: [f64; 3], axis: [f64; 3], half_angle: f64) -> geom::Surface<f64> {
     let axis = Vec3::from_array(axis).normalize();
     geom::Surface::Cone {
-        apex: Point3::from_array(apex),
-        axis,
+        frame: geom::Frame::new(Point3::from_array(apex), axis, axis.orthonormal_basis().0),
         half_angle,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 
 /// `(apex, axis, half-angle)` of a cone surface.
 fn parts(s: &geom::Surface<f64>) -> (Point3<f64>, Vec3<f64>, f64) {
     let geom::Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
+        frame, half_angle, ..
     } = *s
     else {
         unreachable!("the rows build cones")
     };
+    let (apex, axis) = (frame.origin(), frame.axis());
     (apex, axis, half_angle)
 }
 
@@ -380,13 +376,10 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
     let b = band();
     // A circle through the apex at `θ = 0`: `C(0) = c + ρ·û` is the apex.
     let e = circle([0.5, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
-    let geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame { u_ref, .. },
-        ..
-    }) = e
-    else {
+    let geom::Curve3::Circle(geom::Circle { frame, .. }) = e else {
         unreachable!("a circle")
     };
+    let u_ref = frame.u_ref();
     let conic = e.conic().unwrap();
     // `θ` placing `C(θ)` about `shift` metres along the circle from `C(0)`.
     let toward = if u_ref.x < 0.0 { 0.0 } else { PI };
@@ -455,13 +448,10 @@ fn a_root_the_slack_meter_cannot_place_refuses() {
     };
     for d in [1e-6, 1e-5] {
         let e = crossing(d);
-        let geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            ..
-        }) = e
-        else {
+        let geom::Curve3::Circle(geom::Circle { frame, .. }) = e else {
             unreachable!("a circle")
         };
+        let center = frame.origin();
         let farthest = (center - Point3::origin()).norm() + rho;
         let slope = 2.0 * alpha.cos().powi(2) * d * alpha.sin() * rho;
         let reach = 2.0 * geom_core::UNIT_ROUNDOFF * rho * alpha.sin();
@@ -679,7 +669,7 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
 }
 
 /// **A crossing beside the apex is never read as the apex's double
-/// root** (the spread rung, `conic_quadric_cone_apex_spread`). Three
+/// root** (the spread rung, `curve_face_pose_conic_apex_spread`). Three
 /// carriers a few zero bands from a cone's apex, found by a reviewer's
 /// counterexample search (PR 6424), at the ε each was found at: each
 /// genuinely crosses the cone within some tens of zero bands of the
@@ -700,10 +690,12 @@ fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
     };
     let cone_at =
         |apex: [f64; 3], axis: [f64; 3], half_angle: f64, u_ref: [f64; 3]| geom::Surface::Cone {
-            apex: Point3::from_array(apex),
-            axis: Vec3::from_array(axis),
+            frame: geom::Frame::new(
+                Point3::from_array(apex),
+                Vec3::from_array(axis),
+                Vec3::from_array(u_ref),
+            ),
             half_angle,
-            u_ref: Vec3::from_array(u_ref),
         };
     let cases = [
         (
@@ -923,19 +915,21 @@ fn the_nightly_1115_ellipse_in_contract_is_refused_on_its_root_slack() {
         );
     }
     let s = geom::Surface::Cone {
-        apex: Point3::from_array([-0.5248723522085268, -0.2602737120283434, 0.5026482288829277]),
-        axis: Vec3::from_array([
-            0.16386811977525384,
-            -0.9491390527668793,
-            -0.26885367364816554,
-        ]),
+        frame: geom::Frame::new(
+            Point3::from_array([-0.5248723522085268, -0.2602737120283434, 0.5026482288829277]),
+            Vec3::from_array([
+                0.16386811977525384,
+                -0.9491390527668793,
+                -0.26885367364816554,
+            ]),
+            Vec3::from_array([0.9854212451578827, 0.17013221209250257, 0.0]),
+        ),
         half_angle: 1.1109037283720684,
-        u_ref: Vec3::from_array([0.9854212451578827, 0.17013221209250257, 0.0]),
     };
     let (t0, t1) = (5.709087228385727, 10.08162235503239);
     let band = Band::new(1e-6, 1e-5).unwrap();
     let found = conic_quadric_roots(&e, t0, t1, &s, band);
-    let slack = crate::rows::CONIC_QUADRIC_FIRST.root_slack();
+    let slack = "conic_quadric_first_root_slack";
     assert!(
         matches!(found, Ok(Err(Unsettled::Meter { row })) if row == slack),
         "the in-contract twin is refused on the first-harmonic arm's root slack ({slack}): \
