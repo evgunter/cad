@@ -182,8 +182,10 @@ and measured before it was set aside; the measurements are in
   phase with it. A re-seam turns a centre-held conic about its centre;
   an arc-held one has none.
 
-This unit (PR 7203) holds the two placements as a private tag beside
-an unread field; the tag becomes the placement. What remains is on two
+This unit (PR 7203) holds an ellipse's placement as one private value
+in the conic's module, at its centre or on its arc with the phase
+inside that case, and no unread field (it held a tag beside an unread
+field when this section was written). What remains is on two
 rows that PR files:
 `one-stored-form-waits-on-the-readers-of-a-conics-centre` (the
 readers) and

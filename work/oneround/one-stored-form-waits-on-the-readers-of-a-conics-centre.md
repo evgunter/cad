@@ -105,6 +105,13 @@ be held on its arc.
   `crates/topo/src/ring_path.rs` (`ConicArc::distance_floor`),
   `crates/sweep/src/blend/surgery.rs` (`piece_along`).
 
+- Brought by `main` since, both on the import's path only:
+  `crates/step-import/src/build.rs` (`column_circle`, which rebuilds a
+  circle through `Curve3::circle` with its axis reversed, re-squaring
+  the frame), and `crates/step-import/src/on_built.rs` (`Conic::of`,
+  which restates a circle and an ellipse as centre + `a·cos` + `b·sin`
+  from `frame()`).
+
 `crates/step-export/src/writer.rs` writes the derived centre, which is
 Ev's decision on PR 4812 and not one of these.
 

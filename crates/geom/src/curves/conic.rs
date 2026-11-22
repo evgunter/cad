@@ -67,8 +67,8 @@
 //! `f64` a quarter turn takes the turned seam renormalized
 //! ([`Frame::quarter_turned_renormalized`]), a rounding apart from the
 //! frame's own `v`, and the centre read through the turned frame moves
-//! by a rounding of the semi-axis (0.5 to 2.6 `u·a` measured on frames
-//! in general position; nothing over a half turn, which is exact).
+//! by a few roundings of the semi-axis, more as the seam handed in
+//! nears the axis; across a half turn, which is exact, it does not move.
 //!
 //! The placement is private to this module, and nothing outside it asks
 //! which point a conic holds: a position is read as the centre
