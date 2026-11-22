@@ -222,3 +222,5 @@ mod cusp_fillet_keeps_its_leg;
 mod fillet_radius_at_anchor;
 #[path = "fillet_run_fit.rs"]
 mod fillet_run_fit;
+#[path = "zz_rev_7264_probe.rs"]
+mod zz_rev_7264_probe;
