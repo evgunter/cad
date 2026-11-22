@@ -1286,8 +1286,12 @@ fn a_one_chord_face_through_the_apex_with_both_sides_split_meshes() {
 /// `θ = 2·atan2(h, 1)`: a torus face round the bore for one sign, a
 /// sphere face for the other. Either holds both of the bore's rims.
 pub(super) fn bored_ball(sign: f64) -> Body<f64> {
+    bored_ball_of(1.05, sign)
+}
+
+/// [`bored_ball`] of radius `r`, its bore still of radius 1.
+fn bored_ball_of(r: f64, sign: f64) -> Body<f64> {
     use profile::test_support::bulge_loop;
-    let r: f64 = 1.05;
     let h = (r * r - 1.0).sqrt();
     let theta = 2.0 * h.atan2(1.0);
     let lp = bulge_loop(vec![
@@ -1320,45 +1324,61 @@ pub(super) fn bored_ball(sign: f64) -> Body<f64> {
 /// unsplit ball too, which the relation then reads without an unsplit
 /// count. The rest (sign +1 at δ 0.1 and 0.04, sign −1 at δ 0.04) is the
 /// over-cut, pinned: a rule that cut only what the neighbour does make
-/// would read the neighbour's mesh, which the walk does not. Every cell
+/// would read the neighbour's mesh, which the walk does not. A second,
+/// thicker ball (radius 1.3, a shell of 0.3) pins the over-cut off this
+/// one thickness: its unsplit body meshes at every δ, so the census needs
+/// no cut there, and the walk cuts 7 to 29 sides a cell at δ 3 to 0.25 and
+/// none at δ 0.2 and 0.1, its threshold falling between. Every cell
 /// passes `check_mesh` and is the body's
 /// (`work/tesslane/a-strip-against-a-neighbour-holding-both-rims-makes-an-edge-of-four-triangles.md`).
 ///
 /// **By ε.** The same at the default, `10⁻⁶` and `10⁻¹²`.
 #[test]
 fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
+    // The sides the walk cuts, per (ball's radius, sign, δ), the same for
+    // either split. The 1.05 ball: where the cut is off, sign +1 at δ 3 to
+    // 0.3 and sign −1 at δ 3 to 0.1 refuse `OverusedSide`; its other cuts
+    // are over-cuts. The 1.3 ball (a shell of 0.3): its unsplit body meshes
+    // at every δ, so every cut here is an over-cut; its threshold falls
+    // between δ 0.25 and 0.2. This pin bounds both.
+    let cuts = |r: f64, sign: f64, delta: f64| match (r == 1.05, sign > 0.0, delta) {
+        (true, true, 3.0 | 1.0) => 15,
+        (true, true, 0.3) => 25,
+        (true, true, 0.1) => 43,
+        (true, true, 0.04) => 69,
+        (true, false, 3.0 | 1.0 | 0.3) => 15,
+        (true, false, 0.1) => 21,
+        (true, false, 0.04) => 16,
+        (false, true, 3.0) => 15,
+        (false, true, 0.5) => 21,
+        (false, true, 0.25) => 29,
+        (false, false, 3.0 | 0.5) => 15,
+        (false, false, 0.25) => 7,
+        _ => 0,
+    };
     let mut cells = 0usize;
-    for sign in [1.0, -1.0] {
-        let body = bored_ball(sign);
-        let solid = split_and_placed(&body, &[], &[]);
-        let [seam] = rulings(&body)[..] else {
-            panic!("the bore has one seam");
-        };
-        for fracs in [&[0.5][..], &[0.9, 0.7, 0.5, 0.3, 0.1][..]] {
-            let what = format!("the ball bored with sign {sign}, its seam split at {fracs:?}");
-            let split = split_and_placed(&body, &[seam], fracs);
-            for delta in [3.0, 1.0, 0.3, 0.1, 0.04, 0.035, 0.03] {
-                // The sides the walk cuts, the same for either split: the
-                // bore's rim-to-rim sides whose midpoint is not decided past
-                // the neighbour's reach. Where the cut is off, sign +1 at δ
-                // 3 to 0.3 and sign −1 at δ 3 to 0.1 refuse `OverusedSide`;
-                // the other cuts are over-cuts, which this pin bounds.
-                let cuts = match (sign > 0.0, delta) {
-                    (true, 3.0 | 1.0) => 15,
-                    (true, 0.3) => 25,
-                    (true, 0.1) => 43,
-                    (true, 0.04) => 69,
-                    (false, 3.0 | 1.0 | 0.3) => 15,
-                    (false, 0.1) => 21,
-                    (false, 0.04) => 16,
-                    _ => 0,
-                };
-                holds_the_relation(&what, &split, &solid, delta, cuts);
-                cells += 1;
+    for (r, deltas) in [
+        (1.05, &[3.0, 1.0, 0.3, 0.1, 0.04, 0.035, 0.03][..]),
+        (1.3, &[3.0, 0.5, 0.25, 0.2, 0.1][..]),
+    ] {
+        for sign in [1.0, -1.0] {
+            let body = bored_ball_of(r, sign);
+            let solid = split_and_placed(&body, &[], &[]);
+            let [seam] = rulings(&body)[..] else {
+                panic!("the bore has one seam");
+            };
+            for fracs in [&[0.5][..], &[0.9, 0.7, 0.5, 0.3, 0.1][..]] {
+                let what =
+                    format!("the ball of {r} bored with sign {sign}, its seam split at {fracs:?}");
+                let split = split_and_placed(&body, &[seam], fracs);
+                for &delta in deltas {
+                    holds_the_relation(&what, &split, &solid, delta, cuts(r, sign, delta));
+                    cells += 1;
+                }
             }
         }
     }
-    assert_eq!(cells, 28, "the cells this row reads");
+    assert_eq!(cells, 48, "the cells this row reads");
     assert_eq!(
         unread_volumes(),
         0,
@@ -1599,18 +1619,23 @@ fn a_split_beside_the_apex_of_a_needle_cone_refuses_undecided() {
 }
 
 /// **A thin D-prism split on every line edge refuses as the same prism
-/// split on its caps' chords alone does.** The D-shaped prism of 0.5 rad
-/// ([`d_prism`]) at δ 0.1, where its arc is two chords: each cap is a
-/// sliver of four points, the arc's two chords and its chord's two halves
-/// once the chord is split, which the planar lane cannot wind
-/// (`UnresolvedWinding`). Split on its caps' chords alone (no ruled face
-/// has a split side, so nothing here is walked) it refuses so on this
-/// tree and on main's. Split on every line edge, the cylinder face's
-/// rulings too, it refuses the same way here: the walk chords the arc at
-/// the face's own step, as the unsplit face is chorded. Main's chart lane
-/// chorded the arc finer (its headroom), which let the caps mesh, so this
-/// cell meshed there; a split changes this refusal, and only by giving the
-/// caps the arc the unsplit prism has.
+/// split on its caps' chords alone does: a regression against main this
+/// unit keeps.** The D-shaped prism of 0.5 rad ([`d_prism`]) at δ 0.1,
+/// placed obliquely. Its refusing face is a planar cap, not the walked
+/// one: with a point on its straight chord the cap meets points the planar
+/// lane cannot wind (`UnresolvedWinding`). Three cells:
+///
+/// - **unsplit:** meshes, here and on main;
+/// - **its caps' chords alone split** (no ruled face has a split side, so
+///   nothing is walked): refuses so, here and on main;
+/// - **every line edge split**, the cylinder face's rulings too: refuses
+///   so here. On main it meshed, only because main's chart lane chorded the
+///   ruled face's rim finer (its headroom), which gave the caps an arc they
+///   can hold; the walk chords the rim as the unsplit face's is chorded.
+///
+/// The 0.2 rad prism at δ 0.03 is the same (12 cells over both, six split
+/// patterns each, refuse here and mesh on main). The class is the planar
+/// lane's (`work/tesslane/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).
 #[test]
 fn a_thin_d_prism_split_on_every_line_edge_refuses_as_its_split_caps_do() {
     use geom::SurfaceKind;
@@ -1631,6 +1656,11 @@ fn a_thin_d_prism_split_on_every_line_edge_refuses_as_its_split_caps_do() {
         .collect();
     assert_eq!(caps.len(), 2, "the prism's two cap chords");
     let solid = split_and_placed(&body, &[], &[]);
+    assert_eq!(
+        got_enclosing(&solid, &solid, 0.1),
+        Got::Meshed,
+        "the unsplit prism, δ 0.1"
+    );
     for (what, edges) in [("its caps' chords", &caps), ("every line edge", &lines)] {
         let split = split_and_placed(&body, edges, &[0.5]);
         assert_eq!(

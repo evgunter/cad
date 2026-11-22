@@ -468,14 +468,19 @@ pub(crate) fn walkable(
             geom::Curve3::Circle(..) => line.push(false),
             _ => return Ok(false),
         }
-        let start = body
+        // The vertex's point through topo's one read of it, the read behind
+        // `Body::vertex_points`, whose copy the lane's mesh position of this
+        // vertex is (`tessellate`): the lane reads the apex there
+        // (`singular_vertices`), so both read one point.
+        let he = body
             .get_half_edge(hek)
-            .and_then(|he| body.get_vertex(he.start))
-            .and_then(|v| body.get_point(v.point))
-            .ok_or(TessellateError::MissingEntity {
+            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?;
+        let start = topo::readback::vertex_point(body, he.start).map_err(|_| {
+            TessellateError::MissingEntity {
                 what: "vertex position",
-            })?;
-        let at_apex = crate::chart_table::at_a_pole(surface, *start, band).ok_or(
+            }
+        })?;
+        let at_apex = crate::chart_table::at_a_pole(surface, start, band).ok_or(
             TessellateError::MissingEntity {
                 what: "an analytic surface's chart",
             },
@@ -834,7 +839,7 @@ pub(crate) fn tessellate_trimmed(
                     steps: c.bound.grid_steps(budget),
                 })
                 .collect(),
-            worst_cert: measure.worst,
+            worst_cert: measure.verdict.worst(),
             worst_dev: measure.worst_dev,
             worst_dev_cert: measure.worst_dev_cert,
             worst_ratio: falsification.worst_ratio,
@@ -866,13 +871,8 @@ struct Falsification {
 /// One attempt's measurements: the budget CSV's deviation columns and
 /// the face's worst certificate, reset at the top of each attempt.
 struct AttemptMeasure {
-    worst: f64,
-    /// Some triangle's bound is [`cert::Verdict::Exceeded`] at its own
-    /// rounding magnitude: the attempt refuses.
-    exceeded: bool,
-    /// The largest allowance a [`cert::Verdict::Unresolved`] triangle
-    /// would have had to absorb, if any.
-    unresolved: Option<f64>,
+    /// The attempt's certificate verdict over its triangles.
+    verdict: cert::FaceVerdict,
     worst_dev: f64,
     worst_dev_cert: f64,
     dev_samples: u64,
@@ -881,9 +881,7 @@ struct AttemptMeasure {
 impl AttemptMeasure {
     fn fresh() -> Self {
         Self {
-            worst: 0.0,
-            exceeded: false,
-            unresolved: None,
+            verdict: cert::FaceVerdict::new(),
             worst_dev: f64::NAN,
             worst_dev_cert: f64::NAN,
             dev_samples: 0,
@@ -1142,25 +1140,11 @@ impl TrimmedFace<'_> {
         // centroids each re-admit the empty circle beside themselves).
         // Appending keeps every existing candidate index (the `dropped`
         // set stays valid).
-        if !refine.is_empty() && !measure.worst.is_nan() && attempt < last_attempt() {
+        if !refine.is_empty() && !measure.verdict.worst().is_nan() && attempt < last_attempt() {
             candidates.extend(refine);
             return Ok(Next::Rebuild);
         }
-        if measure.exceeded {
-            return Err(TessellateError::CertificateExceeded {
-                face: fk,
-                bound: measure.worst,
-                requested: self.tol.delta,
-            });
-        }
-        if let Some(allowance) = measure.unresolved {
-            return Err(TessellateError::RoundingUnresolved {
-                face: fk,
-                bound: measure.worst,
-                requested: self.tol.delta,
-                allowance,
-            });
-        }
+        measure.verdict.refusal(fk, self.tol.delta)?;
         // D2 addendum row 5, the same re-derivation `curved`'s emit
         // pass makes and for the same class (issue 897): an edge
         // incident to a vertex this walk placed at two distinct UV
@@ -1647,18 +1631,10 @@ impl TrimmedFace<'_> {
                     folded_grid.extend(grid);
                 }
                 let (bound, scale) = self.row.cert(tri, uv, singular);
-                let verdict = cert::verdict(bound, tol.delta, scale, tol.eps);
-                match verdict {
-                    cert::Verdict::Certified => {}
-                    cert::Verdict::Exceeded => measure.exceeded = true,
-                    cert::Verdict::Unresolved { allowance } => {
-                        measure.unresolved = Some(
-                            measure
-                                .unresolved
-                                .map_or(allowance, |a: f64| a.max(allowance)),
-                        );
-                    }
-                }
+                // The attempt's verdict takes the triangle in, its worst bound
+                // a NaN kept once met (`cert::FaceVerdict`): what a refusal
+                // reports is what refused.
+                let verdict = measure.verdict.read(bound, tol.delta, scale, tol.eps);
                 // THE DEVIATION PASS (`crate::budget`, issue #320):
                 // barycentric samples of |S(w) − Π(w)| on this triangle,
                 // reduced to the largest ratio against the triangle's OWN
@@ -1727,9 +1703,6 @@ impl TrimmedFace<'_> {
                         }
                     }
                 }
-                // The attempt's worst bound, a NaN kept once met
-                // (`cert::worse`): what a refusal reports is what refused.
-                measure.worst = cert::worse(measure.worst, bound);
                 if refine_lane && verdict == cert::Verdict::Exceeded {
                     refine.push(inside_point());
                 }
@@ -3568,6 +3541,25 @@ impl Creases {
 /// surface with no such foot, or a point where it is not one point, may
 /// make it. Every face of one run is meshed at its one δ (the run's
 /// `SizingTols`), and a face sized finer than δ is still within it.
+///
+/// **When the exclusion is sound.** It compares the midpoint's TRUE
+/// distance, computed, with δ·(1 + ALLOWANCE_SHARE), while the neighbour
+/// passes a triangle on its COMPUTED bound `b̃`: `cert::verdict` passes it
+/// where `b̃ ≤ δ + a`, `a = cert::rounding_allowance(scale)` (8 ulps of the
+/// coordinates' magnitude), and only while `a ≤ δ·ALLOWANCE_SHARE`. The
+/// true bound is within `a` of `b̃`, so a passed triangle lies within
+/// `δ·(1 + ALLOWANCE_SHARE) + a` of its surface. "Decided greater" puts
+/// the midpoint's true distance past `δ·(1 + ALLOWANCE_SHARE) + Kε − r`,
+/// `r` this distance's own rounding (a midpoint, a closed-form foot, a
+/// difference and a norm: a short chain, at most `SHORT_CHAIN_ULPS` of the
+/// magnitude). So no passed triangle holds the side while `Kε > a + r`:
+/// about `6·10⁻¹²` m at the session box's edge (`|p| ≤ √3·10³`). Every ε
+/// this crate's rows run has `Kε ≥ 10⁻¹¹` and passes it; the admission
+/// rule alone (`(K − 1)·ε` covers `geom_core::tolerance::ADMISSION_FLOOR`,
+/// `≈ 1.8·10⁻¹²`) does not guarantee it at `ε_min` for a body at the box's
+/// edge, where the band may decide "greater" on a side a passed triangle
+/// still holds, and the census (`tessellate::overused_side`) is what
+/// refuses it.
 fn may_make(
     neighbour: &Surface<f64>,
     a: Point3<f64>,
@@ -3639,7 +3631,18 @@ fn walk_face(
     // the polygon the chord pass built, after the route read the loop's
     // carriers (`walkable`); the route cannot hand the lane the polygon,
     // which does not exist when it runs. A re-derivation that a correct
-    // kernel always passes is row 4.
+    // kernel always passes is row 4, and it is a re-derivation of one
+    // decision, not a second decision that should agree: the apex flags
+    // here (`singular_vertices`) and the route's are one function on the
+    // same arguments, `chart_table::at_a_singular_point` over
+    // `topo::chart::Chart::of(surface).poles()` (the route through
+    // `chart_table::at_a_pole`, the lane through `AnalyticRow::is_singular`,
+    // its row minted on the same surface), at the vertex's point by topo's
+    // one read of it (`readback::vertex_point`; the lane's mesh position is
+    // `Body::vertex_points`' copy of it), at the run's one band
+    // (`tessellate` mints it once and hands it to the route and to
+    // `SizingTols`). A vertex in the band between them cannot exist: where
+    // the route's reading is undecided it does not walk the face.
     let Some(rows) = (polygon.ends.len() == 1)
         .then(|| crate::ruled_walk::Rows::of(points, &line, singular))
         .flatten()
@@ -3740,7 +3743,7 @@ fn walk_face(
         corners = next;
     }
     let mut triangles = Vec::with_capacity(corners.len());
-    let (mut worst, mut exceeded, mut unresolved) = (0.0f64, false, None::<f64>);
+    let mut verdict = cert::FaceVerdict::new();
     for c in corners {
         let ids = c.map(|c| c.0);
         let tri = ids.map(|id| id.position(shared, &interior));
@@ -3770,31 +3773,10 @@ fn walk_face(
         // (`cert::cert_cone`'s `pole`), as the CDT arms read theirs. A cut
         // point is never the apex.
         let (bound, scale) = row.cert(tri, c.map(|c| c.1), c.map(|c| c.2));
-        match cert::verdict(bound, tol.delta, scale, tol.eps) {
-            cert::Verdict::Certified => {}
-            cert::Verdict::Exceeded => exceeded = true,
-            cert::Verdict::Unresolved { allowance } => {
-                unresolved = Some(unresolved.map_or(allowance, |a: f64| a.max(allowance)));
-            }
-        }
-        worst = cert::worse(worst, bound);
+        verdict.read(bound, tol.delta, scale, tol.eps);
         triangles.push(ids);
     }
-    if exceeded {
-        return Err(TessellateError::CertificateExceeded {
-            face: fk,
-            bound: worst,
-            requested: tol.delta,
-        });
-    }
-    if let Some(allowance) = unresolved {
-        return Err(TessellateError::RoundingUnresolved {
-            face: fk,
-            bound: worst,
-            requested: tol.delta,
-            allowance,
-        });
-    }
+    verdict.refusal(fk, tol.delta)?;
     Ok(Patch {
         interior,
         triangles,
