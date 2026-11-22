@@ -2,10 +2,13 @@
 id: main-red-a-ball-r-0-1-across-the-cylinder-rim-refuses-b-minus-a-at-edge-in-face
 kind: issue
 title: Main red: cylinder_sphere_frame's ball r 0.1 across the rim refuses B ∖ A at EdgeInFace (CarrierUnread)
-status: dispatched
+status: closed
 opened: 2026-11-20
 priority: P0
 cost: M
+closed: 2026-11-22
+pr: 7392
+branch: green/rim-ball
 ---
 
 
