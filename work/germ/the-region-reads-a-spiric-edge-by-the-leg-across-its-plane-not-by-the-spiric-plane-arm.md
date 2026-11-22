@@ -6,6 +6,9 @@ status: closed
 opened: 2026-11-21
 closed: 2026-11-22
 pr: 7431
+priority: P1
+cost: M
+rides_with: co-surface-direction-table-and-spiric-plane-door
 ---
 
 
