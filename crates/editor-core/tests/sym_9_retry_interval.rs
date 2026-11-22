@@ -733,12 +733,18 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // the ladder or without it, numeric +1 on the plate and the bracket,
     // each two placements where one measure asked, and unmoved on the
     // rest, one for one; no symbolic row moves and the recovery holds at 6.
+    // Then the direction mint asks the expression and reads one sign per
+    // axis, with the ladder or without it: symbolic the plate −4, the
+    // boss −1, the bracket −8 and the link −1, each axis's proved-Zero
+    // reading; numeric the bracket −1, the sign reading of the one radial
+    // the session proved only through the registered door. The annulus,
+    // two circles, mints none, and the recovery holds at 6.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [979, 1047], [979, 1047], 0),
+        ("two_hole_plate", [975, 1047], [975, 1047], 0),
         ("r1_annulus", [511, 548], [511, 548], 0),
-        ("r1_segment_boss", [489, 572], [489, 572], 0),
-        ("r2_filleted_bracket", [1361, 1541], [1367, 1535], 6),
-        ("r2_link", [786, 943], [786, 943], 0),
+        ("r1_segment_boss", [488, 572], [488, 572], 0),
+        ("r2_filleted_bracket", [1353, 1540], [1359, 1534], 6),
+        ("r2_link", [785, 943], [785, 943], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -927,10 +933,16 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // what carries the ladder now. Then the decided least-turn mint (fork
     // 270) took the pad's identity chart with no pole verdict: [1390,
     // 1802, 0] -> [1390, 1801, 0]. The pad's one session-box ask is its
-    // placement's, not its measure's (PR 7088): unmoved.
+    // placement's, not its measure's (PR 7088): unmoved. Then the
+    // direction mint asks the expression and reads one sign per axis:
+    // [1390, 1801, 0] -> [1378, 1794, 0]. Eleven axes keep their sign
+    // reading and lose the proved-Zero one, three directions with no
+    // zero component read nothing where they read two, and one radial
+    // the session proved only through the registered door is no axis
+    // and reads nothing.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1390, 1801, 0],
+        [1378, 1794, 0],
         "the shipped ladder's leaf receipt"
     );
     // With nothing retried the receipt writes no ladder column, as the
@@ -960,7 +972,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // and the bare drive reads the shipped receipt, [1390, 1802, 0]. Then
     // the least-turn mint's identity chart, as the shipped receipt's:
     // [1390, 1802, 0] -> [1390, 1801, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1390, 1801, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1378, 1794, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

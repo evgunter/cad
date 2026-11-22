@@ -170,6 +170,13 @@ fn a0_alone() -> SymRules {
 /// certifies in ONE leaf again, fitting no plane on the way: plain
 /// 2863/2831 → 460/504, shipped 2919/2775 → 468/496. A0's yield is 8,
 /// one replay's.
+///
+/// Then the profile's direction mint asks the chord's expression
+/// whether it is zero (`geom_core::Expression::proves_zero`, no
+/// decision) and reads one sign per axis, where it read both
+/// components: the four sides' proved-Zero readings leave the count,
+/// plain 460/504 → 456/504, shipped 468/496 → 464/496, the same at
+/// every ε row; A0's yield holds at 8.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -200,12 +207,12 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=460 numeric=504 frozen=0",
+        "decisions symbolic=456 numeric=504 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=468 numeric=496 frozen=0",
+        "decisions symbolic=464 numeric=496 frozen=0",
         "8 of the 504 numeric refusals are comparisons of two rational CONSTANTS, which A0 \
          decides exactly"
     );

@@ -280,7 +280,18 @@ pub(crate) struct Study {
 /// each placement asks it of where its copy stands
 /// (`topo::session_box_at`) and no measure asks it of an image, door
 /// shut: the bracket, two placements where one measure asked,
-/// (1290, 1611) -> (1290, 1612); the pad, one for one, unmoved.
+/// (1290, 1611) -> (1290, 1612); the pad, one for one, unmoved. Then the
+/// profile's direction mint asks the chord's expression whether it is
+/// zero (`geom_core::Expression::proves_zero`, no decision) and reads
+/// one sign per axis, where it read both components: symbolic the plate
+/// 979 -> 975, the link 786 -> 785, the bracket 1361 -> 1353 and the pad
+/// 1483 -> 1467, exactly what the F43 readings added; door shut the
+/// bracket (1290, 1612) -> (1283, 1610) and the pad (1483, 1709) ->
+/// (1467, 1709). The bracket's eighth reading was of a fillet radial
+/// the session proves only through the door: door open it leaves the
+/// symbolic count, door shut it escalated and leaves the numeric one
+/// with its partner, and the question, which does not read the registry,
+/// stores the quotient there either way.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -294,7 +305,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [979, 979, 979],
+            symbolic: [975, 975, 975],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -336,7 +347,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // at limb 2's stall against the cylinder rather than at
             // `pcurve_envelope`, after (709, 585), where it read (722, 702).
             without_the_registry: Some(((696, 843), Some("Stalled { operand: Cylinder"))),
-            symbolic: [786, 786, 786],
+            symbolic: [785, 785, 785],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -373,13 +384,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +2 numeric: each of its two placements asks the session box
             // of where its copy stands (`topo::session_box_at`).
             // −2 numeric: its two identity charts owe no pole verdict.
-            without_the_registry: Some(((1290, 1612), None)),
+            without_the_registry: Some(((1283, 1610), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/sym/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1361, 1361, 1361],
+            symbolic: [1353, 1353, 1353],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -406,7 +417,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +1 numeric: its placement asks the session box of where its
             // copy stands (`topo::session_box_at`).
             // −1 numeric: its identity chart owes no pole verdict.
-            without_the_registry: Some(((1483, 1709), None)),
+            without_the_registry: Some(((1467, 1709), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -421,7 +432,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // extension's run became its own segment (Ev, PR 6542; PR
             // 6682, "the same added-vertex move as sym_9"): each corner
             // after a straight leg keeps the leg's end as a vertex.
-            symbolic: [1483, 1483, 1483],
+            symbolic: [1467, 1467, 1467],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -969,8 +980,12 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // (PR 7088), so the count does not move. Then the carriers held their
     // frames as rigid motions, minted from the sketch frame and read as
     // stored: 2773 -> 1967 frozen, the decisions holding
-    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`).
-    assert_eq!(got[0], (1483, 1709, 1967), "rule F shut: the pad's receipt");
+    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`). Then the
+    // direction mint asks the expression and reads one sign per axis:
+    // (1483, 1709, 1967) -> (1467, 1709, 130), sixteen proved-Zero
+    // readings out of the count and the forms their walks froze out of
+    // the session.
+    assert_eq!(got[0], (1467, 1709, 130), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
