@@ -1571,7 +1571,7 @@ impl<T: SolveScalar> FaceChart<T> {
     }
 
     /// **The chart's motion, minted at its first carriage**, of what
-    /// reaches `reach`: decided as [`Charted::carries`] decides, then the
+    /// reaches `reach`: decided as [`MintedChart::carries`] decides, then the
     /// mate's coset ([`super::solve::fold_cosets`]) and the values settled
     /// on it ([`settle`]), the calls a placement's fold makes.
     ///
