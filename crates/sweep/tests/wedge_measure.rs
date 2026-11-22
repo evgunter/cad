@@ -128,6 +128,7 @@ fn read<T: Decide + topo::AtRestPolicy + geom_core::Certifies + geom_core::Certi
     let side = Side {
         body,
         faces: body.faces().map(|(k, _)| k).collect(),
+        excluded: topo::clearance::FacePairs::none(),
     };
     let t = std::time::Instant::now();
     let report = embedded(&side, band, BUDGETS);

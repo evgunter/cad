@@ -2252,6 +2252,8 @@ where
                         }
                     }
                 } else if let Some((near, la, lb)) = &near {
+                    crate::wedge_measure::CELL
+                        .with(|c| c.set((pair.depth, walk.budgets.max_cell_depth)));
                     let (px, py) = (piece_of(x, pair.a, la), piece_of(y, pair.b, lb));
                     if same {
                         injective::certify_self(&px, &py, near, band)
@@ -5183,6 +5185,17 @@ pub struct EmbeddingReport {
 /// upper end, decided at the strict site, where a separation in the band
 /// is a coincidence.
 pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
+    side: &Side<'_, T>,
+    band: Band,
+    budgets: Budgets,
+) -> EmbeddingReport {
+    let wm_outer = crate::wedge_measure::enter(side.body, &side.faces, band);
+    let report = embedded_inner(side, band, budgets);
+    crate::wedge_measure::leave(wm_outer, side.body, band, budgets, &report.verdict);
+    report
+}
+
+fn embedded_inner<T: geom_core::Certifies + CertifiedBounds>(
     side: &Side<'_, T>,
     band: Band,
     budgets: Budgets,

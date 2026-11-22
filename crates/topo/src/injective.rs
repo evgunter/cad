@@ -721,6 +721,7 @@ fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> 
 /// A margin's definite sign at `row`, or `None` where it is zero, in
 /// band or does not certify.
 fn definite(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<Sign> {
+    let x = margin.value();
     match decide(row, margin, band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         _ => {
@@ -733,6 +734,18 @@ fn definite(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<S
 /// The definite sign of a sine levered at `arm`, decided at the
 /// departure's site, or `None`.
 fn levered_sign(sine: Interval, arm: Lever<Interval>, band: Band) -> Option<Sign> {
+    if crate::wedge_measure::on() {
+        crate::wedge_measure::RATES.with(|r| r.borrow_mut().push((sine.lo(), sine.hi())));
+        if crate::wedge_measure::SIGN_ALONE.with(std::cell::Cell::get) {
+            return if sine.lo() > 0.0 {
+                Some(Sign::Positive)
+            } else if sine.hi() < 0.0 {
+                Some(Sign::Negative)
+            } else {
+                None
+            };
+        }
+    }
     definite(
         SELF_INTERSECTION_DEPARTURE,
         Margin::levered(sine, arm),
@@ -6095,7 +6108,7 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
 /// **The departure arm.** Each separator in turn: one face's carrier
 /// with the other presented, a plane through straight shared edges or a
 /// conic one's own plane, the shared edge's graph.
-fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -> Outcome {
+fn departure_inner(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -> Outcome {
     let shared = near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face));
     let split = Outcome::Split {
         arm: CertificateArm::Departure,
@@ -6169,7 +6182,10 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         return Outcome::Certified { corner: false };
     }
     // Read once a sign may be asked: the returns above never use it.
-    let arm = arm_of(x, y, near);
+    let arm = match crate::wedge_measure::ARM.with(std::cell::Cell::get) {
+        Some(len) if crate::wedge_measure::on() => Some(Lever::unsourced(at(len))),
+        _ => arm_of(x, y, near),
+    };
     // One face's carrier, the other departing it. Not between two faces
     // of one face: the face is its own carrier.
     if two {
@@ -6177,6 +6193,10 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
             if let (Some(imp), Ok(Presentation::Of(p))) = (implicit_of(sep, band), other)
                 && sign_on(&Psi::Carrier(imp), None, p, None, arm, band).is_some()
             {
+                if crate::wedge_measure::on() {
+                    let g = wm_far_gap(&Psi::Carrier(imp), p);
+                    crate::wedge_measure::GAP.with(|c| c.set(g));
+                }
                 return Outcome::Certified { corner: p.corner };
             }
         }
@@ -6203,10 +6223,59 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         sign_on(&psi, Some(&on), qx, Some(qy), arm, band),
         sign_on(&psi, Some(&on), qy, Some(qx), arm, band),
     ) {
-        (Some(a), Some(b)) => a == flip(b),
+        (Some(a), Some(b)) => {
+            let ok = a == flip(b);
+            if ok && crate::wedge_measure::on() {
+                let g = match (wm_far_gap(&psi, qx), wm_far_gap(&psi, qy)) {
+                    (Some(a), Some(b)) => Some(a.min(b)),
+                    (a, b) => a.or(b),
+                };
+                crate::wedge_measure::GAP.with(|c| c.set(g));
+            }
+            ok
+        }
         _ => false,
     };
     let corner = qx.corner || qy.corner;
+    if crate::wedge_measure::on() {
+        let single_line = near.edges.len() == 1
+            && near.edges.iter().all(|&(i, _)| {
+                x.boundary
+                    .edges
+                    .get(i)
+                    .is_some_and(|r| matches!(r.arc.as_ref(), Some((Curve3::Line(_), _))))
+            });
+        let rows: Vec<crate::wedge_measure::SumRow> = planes_through(x, near, qx, qy)
+            .into_iter()
+            .map(|(psi, on)| {
+                let read = |p: &Presented<'_>, q: &Presented<'_>| {
+                    crate::wedge_measure::RATES.with(|r| r.borrow_mut().clear());
+                    let alone = sign_on(&psi, Some(&on), p, Some(q), arm, band);
+                    let rate = crate::wedge_measure::RATES.with(|r| r.borrow().last().copied());
+                    (alone, rate)
+                };
+                let (ax, rx) = read(qx, qy);
+                let (ay, ry) = read(qy, qx);
+                let sum_clears = match (rx, ry, arm) {
+                    (Some(rx), Some(ry), Some(arm)) => {
+                        let d = iv(rx) - iv(ry);
+                        definite(SELF_INTERSECTION_DEPARTURE, Margin::levered(d, arm), band).is_some()
+                    }
+                    _ => false,
+                };
+                crate::wedge_measure::SumRow {
+                    bisector: single_line,
+                    rx,
+                    ry,
+                    alone_x: ax.is_some(),
+                    alone_y: ay.is_some(),
+                    opposite: matches!((ax, ay), (Some(a), Some(b)) if a == flip(b)),
+                    sum_clears,
+                }
+            })
+            .collect();
+        crate::wedge_measure::SUM.with(|s| *s.borrow_mut() = rows);
+    }
     if planes_through(x, near, qx, qy).into_iter().any(opposite) {
         return Outcome::Certified { corner };
     }
@@ -6218,6 +6287,127 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     }
     crate::gate_measure::set_reason_undecided();
     split
+}
+
+/// MEASUREMENT ONLY: the far side's least `|ψ|` over a presented face.
+fn wm_far_gap(psi: &Psi, p: &Presented<'_>) -> Option<f64> {
+    let opp = |s: Side| match s {
+        Side::XLo => Side::XHi,
+        Side::XHi => Side::XLo,
+        Side::YLo => Side::YHi,
+        Side::YHi => Side::YLo,
+    };
+    let v = match &p.zero {
+        Zero::Side(s, _) | Zero::Past(s, _) | Zero::Curve(s, _) => {
+            let f = opp(*s);
+            let b = p.bound(f);
+            let (x, y) = match f.axis() {
+                Axis::U => ((b, b), p.y),
+                Axis::V => (p.x, (b, b)),
+            };
+            on_side(psi, p, x, y)?
+        }
+        Zero::Corner((s, _), (t, _)) | Zero::Point(s, t, _) => psi.value(p.corner(opp(*s), opp(*t)))?,
+        Zero::None => return None,
+    };
+    Some(if v.lo() > 0.0 {
+        v.lo()
+    } else if v.hi() < 0.0 {
+        -v.hi()
+    } else {
+        0.0
+    })
+}
+
+/// MEASUREMENT ONLY: PR 7329's departure, re-decided beside shared
+/// edges under the fold's lever and, at a crease, by sign alone; logged.
+fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -> Outcome {
+    use crate::wedge_measure as wm;
+    use std::cell::Cell;
+    if !wm::on() || near.edges.is_empty() {
+        return departure_inner(x, y, near, band, two);
+    }
+    let reset = || {
+        wm::GAP.with(|c| c.set(None));
+        wm::SUM.with(|c| c.borrow_mut().clear());
+        wm::RATES.with(|c| c.borrow_mut().clear());
+    };
+    reset();
+    let base = departure_inner(x, y, near, band, two);
+    let sum = wm::SUM.with(|c| c.borrow().clone());
+    let rates = wm::RATES.with(|c| c.borrow().clone());
+    let keys: Vec<EdgeKey> = near
+        .edges
+        .iter()
+        .filter_map(|&(i, _)| x.boundary.edges.get(i).map(|r| r.key))
+        .collect();
+    let infos: Option<Vec<wm::EdgeInfo>> =
+        wm::EDGES.with(|m| keys.iter().map(|k| m.borrow().get(k).copied()).collect());
+    let crease = infos.as_ref().is_some_and(|v| !v.is_empty() && v.iter().all(|e| e.crease));
+    let fold = infos.as_ref().and_then(|v| v.iter().map(|e| e.fold).reduce(f64::min));
+    let reach = infos.as_ref().and_then(|v| v.iter().map(|e| e.reach).reduce(f64::min));
+    let arm = arm_of(x, y, near).map(|a| a.length().lo());
+    let cert = |o: &Outcome| matches!(o, Outcome::Certified { .. });
+    let c7329 = cert(&base);
+    let cfold = fold.map(|f| {
+        wm::ARM.with(|c| c.set(Some(f)));
+        let o = departure_inner(x, y, near, band, two);
+        wm::ARM.with(|c| c.set(None));
+        cert(&o)
+    });
+    let (mutant, gap) = if crease {
+        reset();
+        wm::SIGN_ALONE.with(|c| c.set(true));
+        let o = departure_inner(x, y, near, band, two);
+        wm::SIGN_ALONE.with(|c| c.set(false));
+        let g = wm::GAP.with(Cell::get);
+        (Some(o), g)
+    } else {
+        (None, None)
+    };
+    let cmut = mutant.as_ref().is_some_and(cert);
+    let (depth, max) = wm::CELL.with(Cell::get);
+    let kind = |o: &Outcome| match o {
+        Outcome::Certified { .. } => "cert",
+        Outcome::Split { .. } if depth >= max => "split@budget",
+        Outcome::Split { .. } => "split",
+        Outcome::Refuse(_) => "refuse",
+        Outcome::Cusp { .. } => "cusp",
+    };
+    let one_signed = rates.iter().any(|&(lo, hi)| lo > 0.0 || hi < 0.0);
+    if cmut && !c7329 && wm::top() {
+        wm::flip(x.face, y.face);
+    }
+    if wm::top() {
+        let sums: Vec<String> = sum
+            .iter()
+            .map(|r| {
+                format!(
+                    "{}:{}{}{}{}:{:?}:{:?}",
+                    if r.bisector { "bis" } else { "pl" },
+                    u8::from(r.alone_x),
+                    u8::from(r.alone_y),
+                    u8::from(r.opposite),
+                    u8::from(r.sum_clears),
+                    r.rx,
+                    r.ry
+                )
+            })
+            .collect();
+        wm::emit(
+            "WMD",
+            &format!(
+                "{:?}/{:?}	edges={keys:?}	crease={crease}	depth={depth}/{max}	base={}	c7329={c7329}	cmut={cmut}	cfold={cfold:?}	arm={arm:?}	reach={reach:?}	fold={fold:?}	gap={gap:?}	one_signed={one_signed}	sum={sums:?}",
+                x.face,
+                y.face,
+                kind(&base),
+            ),
+        );
+    }
+    match mutant {
+        Some(o) if wm::MUTANT.with(Cell::get) && cert(&o) => o,
+        _ => base,
+    }
 }
 
 /// **The arm a cell pair's departure is levered at**: the reach of the

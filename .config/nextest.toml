@@ -537,3 +537,8 @@ filter = '''(binary_id(sweep::all) & (
   test(=verbs_germarms2::the_fenced_poses_keep_their_own_outcomes)
 ))'''
 priority = 100
+
+# MEASUREMENT ONLY (embed/wedge-measure): the census runs, each test capped.
+[profile.wm]
+fail-fast = false
+slow-timeout = { period = "60s", terminate-after = 5 }
