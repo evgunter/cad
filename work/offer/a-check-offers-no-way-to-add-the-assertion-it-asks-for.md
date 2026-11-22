@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-22
 priority: P1
 cost: M
+design: true
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "the checks report that you should add an assertion to clear them, but there's no clear way to add assertions anywhere (and it should be offered from the check itself)".

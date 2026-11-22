@@ -31,3 +31,51 @@ Signed (CHROME orchestrator).
 - 2026-09-30 — Seam note from AUTH-15 (`author/accept-part-version`, PR #3591). A new `SessionOp::AcceptPartVersion { id }` commits `pncad::workspace::update_to_store`'s edits (one `DocEdit::UpdateReference` per site whose pin moves) as one action. The store is read through a new `DocSession::read_store`, which `add_instance` and `part_catalogue` now share; `parts::catalogue` takes the scanned `&Workspace` and is infallible. `frame::version_offer(kind, files)` sits beside `declare_offer` and reads a `session::VersionOffer` off an instance's own `PartFault::Unresolved { fault: PinMismatch }`. `tree::TreeRow` gains `version_offer: Option<VersionOffer>` (every `TreeRow` literal needs the field). `DocSession::tree_rows` withholds every offer while `busy()`. `pane::features::feature_row_ui` draws `Refusal::version_question` and a `VersionOffer::LABEL` button under the row (`RowClicks::accept`). `DeclareOffer::ACCEPT_LABEL` and `DECLINE_LABEL` replace `pane::create`'s "Declare"/"Decline" literals. Every exhaustive `SessionOp` table gains the arm (`tools.rs`, `frame::acts`, the three in `session/op.rs`, and `tests/gesture_table.rs`, whose `OP_COUNT` is 47). `test_support::{PART_FILE, part_refused}` are new fixtures. Rows: `tests/instance_authoring.rs` (accept, one undo, the store's refusals, the committed-document read), `frame`'s `PartFault` census, the label-versus-recourse row in `session::refuse`, and a `pane::features` unit test.
 
 - 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): viewer `session.rs`: the at-rest badge reads the checks report; no offer path changed.
+
+## 2026-11-22 — first sitting: the track claimed and re-cut
+
+(OFFER orchestrator) Track set `active`. It stood at 34/30, and
+re-pricing its five legacy `cost: D` rows would have raised it, so it
+was cut along its charter before anything was dispatched:
+
+- **To DOORS** (`work/doors/`), by `git mv`, ids and bodies kept: the
+  three free-move rows, `viewer-free-move-misses-pattern-placed-mates`,
+  `viewer-free-move-and-place-where-shown-over-a-whole-group` and
+  `viewer-free-move-decides-rigidity-by-its-own-predicate`. They are
+  one story, the free-move probe, and the second is P3 of the
+  edit-placement spec whose residue DOORS already holds from PLACING.
+  `crates/viewer/src/display.rs` moved from OFFER's paths to DOORS'.
+- **To VSEAM** (`work/vseam/`), id and body kept:
+  `document-seam-no-in-session-change-detection`. Its head is a memo
+  served across a store change, which is VSEAM's charter ("an answer
+  cached across a generation").
+- **Re-priced**: `a-refusal-offers-no-action-in-the-viewer` D → H
+  (a general offer type over three existing instances, plus the
+  recourse separated from its explanation), design;
+  `cascade-delete-shows-the-strand-count` D → M (its body is the
+  spec); `viewer-free-move-misses-pattern-placed-mates` D → E (the fix
+  is one comparison through `member_of`, plus its row);
+  `document-seam-no-in-session-change-detection` D → M, design;
+  `viewer-expresses-no-gpu-adapter-preference` D → M, design.
+- **design: true** added on `certify-affordance-on-the-bounds-panel`,
+  `a-node-name-the-viewer-shows-is-not-a-link-to-it` and
+  `a-check-offers-no-way-to-add-the-assertion-it-asks-for`, which each
+  carry a question with several viable answers.
+
+The review posture the plan left open is answered there: the tiers
+and the model comparison apply.
+
+**Dispatch, letters and tiers** (logged before any draw):
+
+- `cascade-delete-shows-the-strand-count` — letter M, tier SINGLE,
+  FULL review: the pre-click number is a derived end-state count on a
+  destructive button, and a wrong number there is a confident wrong
+  answer.
+- `the-viewer-has-no-guide-to-its-controls` — letter S, tier SINGLE,
+  STYLE review: a new view drawn from the binding table; what is at
+  risk is the structure (one source for bindings and guide), not a
+  computed value.
+- Designers, concurrently: the offer (`a-refusal-…` with
+  `a-check-…`), a node named to a person (`a-node-name-…` with VNEWS'
+  `the-viewer-spells-a-node-as-its-kind-before-its-name`), and the
+  certify control.
