@@ -107,24 +107,26 @@ zero and never forbids one:
   point; anything else names no zero (`Zero::None`), read by the
   separator's value over the whole rectangle.
 
-**Measured** with the lane stacked on `embed/straight-corner`
-(`505a6756a`), which it no longer is; that branch read a plane face's
-straight run, which none of these tests' refusing pairs moved on. Main
-`b99f71c3d` with the harness `ebb2e6f8e`
-(`embed/clip-vertex-measure`), the gate logging and passing
-(`CAD_GATE_PASS=1`), on 55 census tests: every `2-refused` Departure
-row with a cylinder, torus/torus or cylinder/torus pair in the modules
-this row, the corner-of-no-pair row and the bushing row name (48
-`sweep::all`, 3 `step-import::all`), and 4 `editor-core::all` rows that
-ask the bushing. 5,006 asks.
+**Measured.** Main `a3d5ce89c` with the harness `ebb2e6f8e`
+(`embed/clip-vertex-measure`), before and after on that one base, the
+gate logging and passing (`CAD_GATE_PASS=1`), on 55 census tests: every
+`2-refused` Departure row with a cylinder, torus/torus or cylinder/torus
+pair in the modules this row, the corner-of-no-pair row and the bushing
+row name (48 `sweep::all`, 3 `step-import::all`), and 4
+`editor-core::all` rows that ask the bushing. 5,006 asks.
 
 | | before | after |
 |---|---|---|
-| asks `Embedded` | 4,098 | 4,162 |
-| asks `Uncertified { Departure }` | 743 | 679 |
-| asks `Crosses` / budget / second-order | 64 / 100 / 1 | 64 / 100 / 1 |
+| asks `Embedded` | 4,101 | 4,165 |
+| asks `Uncertified { Departure }` | 745 | 681 |
+| asks `Crosses` / budget / second-order | 64 / 95 / 1 | 64 / 95 / 1 |
 | tests whose every ask is embedded | 0 | 5 |
-| `zero_of` `Local` exits, the 51 traced tests | 41,802 | 11,702 |
+| tests with more asks refused | | 0 |
+
+`zero_of`'s `Local` exits were counted on an earlier run (main
+`b99f71c3d`, the lane then stacked on `embed/straight-corner`, whose
+plane reading moved none of these counts), in the 51 traced tests:
+41,802 before, 11,702 after.
 
 The five: `face_face_touch::a_bridged_rod_standing_off_the_plate_discovers_nothing`
 (mid-side, on a ruling), `full_turn_wall::a_near_full_revolves_gap_is_out_at_both_doors`,
