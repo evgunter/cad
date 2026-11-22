@@ -49,8 +49,11 @@ node reads against what its key hashes; by reading unless said):
 - **The session's root mint scope** counts from zero per session: a
   value minted under no node's scope (a read after the evaluation, the
   clearance query's) is named by the replay's order. Measured: 53,065
-  such mints inside a session over `editor-core`'s suite, 216 over the
-  tour's, none in any node's result.
+  such mints inside a session over `editor-core`'s suite and 216 over
+  the tour's. No built result holds a value with no expression
+  (45,430 results over `editor-core`'s suite, read at the top of each
+  value), and over the tour's tests none holds an expression that
+  reaches one (24,628 results, each value's expression walked).
 - **The deferred list's entry numbers** (`sym::deferred`'s `NEXT`) are
   a process-wide count: unique, and not the same in two runs.
 - **`SymOp::Free`** has one name for every mint (`INDET_FREE`), by
