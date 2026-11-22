@@ -105,7 +105,7 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 use crate::swept;
 use crate::swept::{
     CapEnd, CosurfaceNames, Placing, SweptChord, Unit2, Unit3, cap_plane, decide, face_surface_key,
-    line_span, placed_segment_spec, sketch_direction, turn_axis,
+    placed_segment_spec, sketch_chord, sketch_direction, turn_axis,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -1421,7 +1421,7 @@ fn side_surface<T: Real>(
         SegmentKind::Line { .. } => {
             let along = Placing::from(place).direction(d);
             let half = T::from_f64(0.5);
-            let length = line_span(&segs[j], d);
+            let length = sketch_chord(&segs[j]).1;
             Surface::Plane {
                 origin: qs[j] + along.get() * (length * half) + sweep.w * half,
                 normal: course.wall_normal(place.into(), d).get(),

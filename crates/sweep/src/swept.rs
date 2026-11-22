@@ -581,11 +581,10 @@ pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegmen
     }
 }
 
-/// **A unit sketch direction**, minted only from a segment
-/// ([`sketch_direction`]): a line's recorded director, or an arc's start
-/// radial over its own length, the sweep's one place that divides a
-/// sketch difference by its length. The station's frame carries it to a
-/// [`Unit3`] ([`Placing::direction`]).
+/// **A unit sketch direction**, minted only from a segment as the
+/// profile stores it ([`sketch_direction`], [`sketch_chord`]): the sweep's
+/// one place that divides a sketch difference by its own length. The
+/// station's frame carries it to a [`Unit3`] ([`Placing::direction`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Unit2<T: Real>(Vec2<T>);
 
@@ -646,36 +645,33 @@ impl<T: Real> Unit3<T> {
 }
 
 /// **The sketch direction a placed copy of the segment carries**, in
-/// swept order: a line's director as its traversal holds it
-/// ([`Traversed`]), the profile's recorded director carried through the
-/// traversal's relabelling; an arc's radial at its swept start,
-/// `(a − centre)/‖a − centre‖`. Every placed copy is the station's
-/// frame turning it ([`Placing::direction`]).
+/// swept order: a line's director `(b − a)/‖b − a‖`, an arc's radial
+/// at its swept start `(a − centre)/‖a − centre‖`. Decided once here,
+/// in the sketch, from the segment as the profile stores it; every
+/// placed copy is the station's frame turning it
+/// ([`Placing::direction`]), so no door divides a difference of placed
+/// points by its own length.
 ///
-/// **The arc arm is the sweep's one division of a sketch difference by
-/// its own length**, and it divides although the arm holds the recorded
-/// radial: a carrier about the recorded radial is `centre + radius·x`
-/// where a verb's vertex is `centre + r·x` and its stored radius `|r|`,
-/// and the symbolic tier cannot use the sign the verb's gate decided, so
-/// over a box such a carrier misses its own description by `|r| − r`;
-/// the quotient's rim folds onto the stored radius instead
+/// **The traversal holds the profile's recorded directions and this does
+/// not read them.** A line wall on a minted axis beside a partner on a
+/// chord's quotient `s/|s|` loses identities the two quotients cancel
+/// (`work/boxfinish/a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners.md`),
+/// and a carrier about a recorded radial misses a verb's vertex by
+/// `|r| − r`
 /// (`work/boxfinish/a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided.md`).
 pub(crate) fn sketch_direction<T: Real, S: SweptChord<T>>(seg: &S) -> Unit2<T> {
     match seg.kind().get() {
-        SegmentKind::Line { director } => Unit2(director),
+        SegmentKind::Line { .. } => sketch_chord(seg).0,
         SegmentKind::Arc { arc, .. } => Unit2((seg.a() - arc.centre).normalize()),
     }
 }
 
-/// **The span a line's carrier runs**: the chord `b − a` read along the
-/// line's director, `(b − a)·d`. The carrier from `a` along `d` ends at
-/// the foot of `b` on it, so its far end misses `b` by exactly the
-/// chord's component across `d`: an identity zero wherever the director
-/// is an axis whose other component the profile proved zero, and,
-/// through `sqrt(X)² = X`, wherever it is the chord's own quotient. For
-/// the unit director of the chord it is the chord's length.
-pub(crate) fn line_span<T: Real, S: SweptChord<T>>(seg: &S, director: Unit2<T>) -> T {
-    (seg.b() - seg.a()).dot(director.0)
+/// A segment's chord `b − a` as its unit direction and its own length,
+/// read once (`Vec2::direction_and_length`): a line's director and the
+/// span its carrier runs.
+pub(crate) fn sketch_chord<T: Real, S: SweptChord<T>>(seg: &S) -> (Unit2<T>, T) {
+    let (d, length) = (seg.b() - seg.a()).direction_and_length();
+    (Unit2(d), length)
 }
 
 /// The arc parameter span |Δθ|: the sweep signed by the segment's
@@ -854,19 +850,19 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
             place: place.map(),
         }));
     match seg.kind().get() {
-        // The direction the profile recorded, turned by the station's
-        // frame, and the span the chord runs along it ([`line_span`]),
-        // the segment's own length for a unit director (geom-brep
-        // README, "Parameterization conventions"). Nothing is
-        // registered: the far end folds to `place(b)` as a form
-        // (`tests::the_placed_lines_far_end_folds_to_the_far_vertex`).
+        // The bounds from the quantity that defines them, the sketch
+        // segment's own length, and the direction from the same chord
+        // (geom-brep README, "Parameterization conventions"), turned by
+        // the station's frame. Nothing is registered: the far end folds
+        // to `place(b)` as a form
+        // (`the_placed_lines_far_end_folds_to_the_far_vertex_in_the_plain_tier`).
         SegmentKind::Line { .. } => {
-            let dir = sketch_direction(seg);
+            let (dir, span) = sketch_chord(seg);
             EdgeCurveSpec {
                 description,
                 carrier: Curve3::line(q_from, place.direction(dir).get()),
                 param_start: T::zero(),
-                param_end: line_span(seg, dir),
+                param_end: span,
             }
         }
         SegmentKind::Arc { arc, turn, .. } => {
@@ -1812,47 +1808,37 @@ mod tests {
         assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
     }
 
-    /// **The placed line's far end folds to the far vertex**, so the
-    /// line arm registers nothing where the arc arm registers its
-    /// carrier end. Two directors, each under a quarter turn and a
-    /// translation, `p` a box at `Sym<Interval>`, the carrier's end
-    /// `q_from + L·d·span` against the far vertex `place(b)`:
-    /// - an axis the profile proved, `(1, 0)` from `(0.3, 0.7)` to
-    ///   `(p, 0.7)`: every component decides `Zero` with no rule at all
-    ///   (`SymRules::none`), none of them numeric;
-    /// - the chord's own quotient, `(0.3, 0.7)` to `(2.9, p)`: `Zero`
-    ///   under the shipped rules, none numeric, through
-    ///   `sqrt(X)² = X` ([`line_span`]); with no rule the quotient's
-    ///   square stays an atom, so the plain tier proves nothing there.
-    ///
-    /// A span of `‖b − a‖` fails the first (`√((p − 0.3)²)` is no
-    /// polynomial against `p − 0.3`), so the row goes red on it.
+    /// **The placed line's far end folds to the far vertex in the plain
+    /// tier**, so the line arm registers nothing where the arc arm
+    /// registers its carrier end. This row records why no registration is
+    /// owed; it holds for a direction read off the placed vertices too,
+    /// so it guards no spelling (the span row,
+    /// `a_placed_lines_span_is_its_segments_length_and_it_ends_at_the_far_vertex`,
+    /// does). A segment from `(0.3, 0.7)` to
+    /// `(2.9, p)`, `p` a box at `Sym<Interval>`, under a quarter turn and
+    /// a translation: the carrier's end `q_from + L·dir·span` against the
+    /// far vertex `place(b)` decides `Zero` on every component with no
+    /// rule at all (`SymRules::none`), as many decisions as under the
+    /// shipped rules, and none of them numeric.
     #[test]
-    fn the_placed_lines_far_end_folds_to_the_far_vertex() {
+    fn the_placed_lines_far_end_folds_to_the_far_vertex_in_the_plain_tier() {
         use geom_core::sym::with_session_rules;
         use geom_core::{ParamSymbol, Sym};
         type S = Sym<Interval>;
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the witness band");
-        let readings = |rules, axis: bool| {
+        let readings = |rules| {
             with_session_rules(budget(), rules, || {
                 let lit = |x: f64| <S as Real>::from_f64(x);
                 let p = S::param(
                     ParamSymbol::new(test_utils::symbol_id("p")),
-                    Interval::from_bounds(2.85, 2.95),
+                    Interval::from_bounds(0.45, 0.55),
                 );
-                let a = Point2::new(lit(0.3), lit(0.7));
-                let (b, kind) = if axis {
-                    let director = Vec2::new(lit(1.0), lit(0.0));
-                    (Point2::new(p, lit(0.7)), SegmentKind::Line { director })
-                } else {
-                    let b = Point2::new(lit(2.9), p - lit(2.4));
-                    (b, line_from(a, b))
-                };
+                let (a, b) = (Point2::new(lit(0.3), lit(0.7)), Point2::new(lit(2.9), p));
                 let seg = SweptSeg {
                     a,
                     b,
-                    kind: Traversed::forward(kind),
+                    kind: Traversed::forward(line_from(a, b)),
                     canonical_vertex: 0,
                     canonical_segment: 0,
                 };
@@ -1872,22 +1858,17 @@ mod tests {
                 ]
             })
         };
-        let (end, plain) = readings(geom_core::SymRules::none(), true);
+        let (end, plain) = readings(geom_core::SymRules::none());
+        assert_eq!(end, [Some(Sign::Zero); 3], "the far end, plain: {plain:?}");
+        assert_eq!(plain.numeric, 0, "no numeric decision: {plain:?}");
+        let (shipped_end, shipped) = readings(geom_core::SymRules::shipped());
         assert_eq!(
-            end,
-            [Some(Sign::Zero); 3],
-            "the axis's far end, plain: {plain:?}"
-        );
-        assert_eq!(plain.numeric, 0, "the axis: no numeric decision: {plain:?}");
-        let (end, shipped) = readings(geom_core::SymRules::shipped(), false);
-        assert_eq!(
-            end,
-            [Some(Sign::Zero); 3],
-            "the quotient's far end: {shipped:?}"
+            shipped_end, end,
+            "the shipped rules read the same: {shipped:?}"
         );
         assert_eq!(
-            shipped.numeric, 0,
-            "the quotient: no numeric decision: {shipped:?}"
+            shipped.symbolic, plain.symbolic,
+            "no rule is needed: {shipped:?} {plain:?}"
         );
     }
 
@@ -2036,7 +2017,7 @@ mod tests {
     /// carrier ends at the placed far vertex.** A segment from `(0.3, 0.7)`
     /// to `(2.9, −1.4)` under a rigid placement that turns the sketch
     /// plane about a tilted axis and moves it off the origin: `param_end`
-    /// is `‖b − a‖` to rounding, the carrier's direction is unit within
+    /// is `‖b − a‖` bit for bit, the carrier's direction is unit within
     /// rounding, and the carrier at `param_end` lies within a few ulps of
     /// `q_to`, the placed far vertex. A span that disagrees with the
     /// placed length (twice it, say) leaves the carrier's end that far
@@ -2068,11 +2049,10 @@ mod tests {
         let Curve3::Line(line) = spec.carrier else {
             panic!("a line places onto a line carrier");
         };
-        let length = a.distance(b);
-        assert!(
-            (spec.param_end - length).abs() <= 4.0 * f64::EPSILON * length,
-            "the span {} is the segment's own length {length} to rounding",
-            spec.param_end
+        assert_eq!(
+            spec.param_end.to_bits(),
+            a.distance(b).to_bits(),
+            "the span is the segment's own length"
         );
         let scale = q_to.x.abs().max(q_to.y.abs()).max(q_to.z.abs());
         assert!(
