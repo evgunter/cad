@@ -1808,8 +1808,9 @@ mod tests {
     /// read 3.61.
     #[test]
     fn a_parallel_pairs_gap_is_read_at_one_station() {
-        let segment = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom::stated_direction(Vec3::new(3.0, 0.0, 4.5)));
-        let reach = Reach::of_span(&segment, (0.0, 1.0)).expect("the span is covered");
+        let (chord, len) = Line::chord(Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 0.0, 4.5));
+        let segment = Curve3::Line(chord);
+        let reach = Reach::of_span(&segment, (0.0, len)).expect("the span is covered");
         let z = Vec3::new(0.0, 0.0, 1.0);
         let l1 = Line {
             origin: Point3::new(0.0, 0.0, -7.0),

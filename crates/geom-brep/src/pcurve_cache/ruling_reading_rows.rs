@@ -1,14 +1,14 @@
 //! **Whether a line is a ruling of its chart** ([`ruling_miss`], the one
 //! reading the mint's cylinder and cone arms, props and the boolean
 //! share): metered over the edge's span, so one tilt reads apart on a
-//! long edge and shown on a short one, and a line read with its `dir`
-//! scaled reads the same. On the cone it is D3's lane choice: a line
+//! long edge and shown on a short one, and a line read from a moved
+//! origin or run back reads the same. On the cone it is D3's lane choice: a line
 //! shown on its generator takes the generator's closed form, and one in
 //! band or definitely off it the general lane. Every row holds at `f64`
 //! and at `Interval`, and at every ε of the run.
 //!
 //! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `ruling-per-parameter`
-//! (the span unread), the short-and-long, scaled and in-band rows refuse;
+//! (the span unread), the short-and-long and in-band rows refuse;
 //! naming `cone-ruling-gate` (no ruling reading on the cone), the shifted
 //! ruling and the cone's in-band row refuse; naming `ruling-unplaced`
 //! (the span's length read, where it lies unread), the anchored row
@@ -314,14 +314,17 @@ fn one_tilt_reads_by_its_reach_over_the_edge() {
     }
 }
 
-/// **A line's reading is the line's, not its parametrisation's**: `dir`
-/// scaled by `1e-3` and `1e3`, its span scaled back, reads the same
-/// margin and takes the same class, on the cylinder (the short edge of
+/// **A line's reading is the line's, not its parametrisation's**: the
+/// same segment read from an origin moved along it, its span moved back,
+/// and run the other way, reads the same margin and takes the same class,
+/// on the cylinder (the short edge of
 /// [`one_tilt_reads_by_its_reach_over_the_edge`]) and on the cone (a
-/// ruling turned in band off its generator). Red under
-/// `ruling-per-parameter`, which reads the scale.
+/// ruling turned in band off its generator). A line's direction is a
+/// `UnitVec3`, so a shift of its parameter and its reversal are the
+/// reparametrisations a line has; a scaled direction, which this row read
+/// before, is no line's.
 #[test]
-fn a_scaled_direction_reads_the_same_margin() {
+fn a_reparametrised_span_reads_the_same_margin() {
     let short_tilt = 100.0 * band().escalate();
     let short = 0.25 * zero() / short_tilt;
     let (anchor, g, tangent) = cone_at(1.0, 1.0, 1.0);
@@ -353,15 +356,15 @@ fn a_scaled_direction_reads_the_same_margin() {
         };
         let (base, _) = reading(&carrier, span, ruling);
         let [d, _] = derivations(&carrier, span, &surface);
-        for k in [1e-3, 1e3] {
-            let scaled = Curve3::line(origin, geom::stated_direction(dir.get() * k));
-            let span_k = (span.0 / k, span.1 / k);
+        let shifted = |c: f64| (Curve3::line(origin + dir.get() * c, dir), (span.0 - c, span.1 - c));
+        let reversed = (Curve3::line(origin, -dir), (-span.1, -span.0));
+        for (k, (scaled, span_k)) in [("shifted −0.7", shifted(-0.7)), ("shifted 2.5", shifted(2.5)), ("reversed", reversed)] {
             let (at, (lo, hi)) = reading(&scaled, span_k, ruling);
             // The cross product's rounding, metres over the span.
             let slack = 1e-9 * base + 64.0 * f64::EPSILON * (span.1 - span.0);
             assert!(
                 (at - base).abs() <= slack && lo <= base + slack && hi >= base - slack,
-                "{what}, ×{k}: the reading {at:e} ([{lo:e}, {hi:e}]) is the unscaled {base:e}"
+                "{what}, {k}: the reading {at:e} ([{lo:e}, {hi:e}]) is the stated span's {base:e}"
             );
             let [d_k, d_k_i] = derivations(&scaled, span_k, &surface);
             let class = |d: &Result<Derivation, PcurveCertifyError>| {
@@ -371,7 +374,7 @@ fn a_scaled_direction_reads_the_same_margin() {
             };
             assert!(
                 class(&d_k) == class(&d) && class(&d_k_i) == class(&d),
-                "{what}, ×{k}: the class is the unscaled one: {d_k:?} / {d_k_i:?} against {d:?}"
+                "{what}, {k}: the class is the stated span's: {d_k:?} / {d_k_i:?} against {d:?}"
             );
         }
     }

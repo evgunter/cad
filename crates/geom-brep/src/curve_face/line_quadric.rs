@@ -1169,6 +1169,14 @@ mod line_cone_rows {
         door(origin, dir, span).unwrap()
     }
 
+    /// **A stated segment `origin + dir·t` over `span`, on its unit
+    /// direction**: the same points, its span in metres, and the
+    /// direction's length, the factor a root's metres are read back by.
+    fn unit_segment(dir: [f64; 3], span: (f64, f64)) -> ([f64; 3], (f64, f64), f64) {
+        let len = Vec3::from_array(dir).norm();
+        (dir.map(|x| x / len), (span.0 * len, span.1 * len), len)
+    }
+
     /// `ρ² − h²` at `origin + dir·t`: the quadric form of the cone.
     fn form(origin: [f64; 3], dir: [f64; 3], t: f64) -> f64 {
         let p: Vec<f64> = (0..3).map(|i| origin[i] + dir[i] * t).collect();
@@ -1438,16 +1446,18 @@ mod line_cone_rows {
             // is a small multiple of `δ`: in the band.
             ("in band of the apex", [-1.0, 0.05 * b.zero(), 0.3]),
         ] {
-            let got = roots(origin, [1.0, 0.0, -0.3], (0.0, 2.0));
+            let (dir, span, len) = unit_segment([1.0, 0.0, -0.3], (0.0, 2.0));
+            let got = roots(origin, dir, span);
             let Ok(CircleRoots::Certified(found)) = got else {
                 panic!("{label}: got {got:?}");
             };
             assert!(
-                found.roots().len() == 2 && found.roots().iter().all(|t| (t - 1.0).abs() < 1e-6),
+                found.roots().len() == 2 && found.roots().iter().all(|t| (t - len).abs() < 1e-6),
                 "{label}: a double root at the apex, got {found:?}"
             );
         }
-        let short = roots([-1.0, 0.0, 0.3], [1.0, 0.0, -0.3], (0.0, 0.5));
+        let (dir, span, _) = unit_segment([1.0, 0.0, -0.3], (0.0, 0.5));
+        let short = roots([-1.0, 0.0, 0.3], dir, span);
         assert!(
             matches!(short, Err(Unsettled::Tangency)),
             "a segment ending half a metre short of the apex, got {short:?}"
@@ -1470,7 +1480,8 @@ mod line_cone_rows {
                 [1.0, 0.0, 1.05],
             ),
         ] {
-            let got = roots(origin, dir, (0.0, 2.0));
+            let (dir, span, _) = unit_segment(dir, (0.0, 2.0));
+            let got = roots(origin, dir, span);
             assert!(
                 matches!(got, Err(Unsettled::AtApex)),
                 "through the apex, {label}: got {got:?}"
@@ -1497,32 +1508,32 @@ mod line_cone_rows {
                 1.0,
             ),
         ] {
-            let got = roots(origin, [1.0, 0.0, -0.3], span);
+            let (dir, span, len) = unit_segment([1.0, 0.0, -0.3], span);
+            let got = roots(origin, dir, span);
             let Ok(CircleRoots::Certified(found)) = got else {
                 panic!("{label}: got {got:?}");
             };
             assert!(
-                found.roots().len() == 2 && found.roots().iter().all(|&t| t == end),
+                found.roots().len() == 2 && found.roots().iter().all(|&t| t == end * len),
                 "{label}: a double root at the end, got {found:?}"
             );
         }
-        let ruling = roots([-1.0, 0.0, -1.0], [1.0, 0.0, 1.0], (0.0, 1.0));
+        let (dir, span, _) = unit_segment([1.0, 0.0, 1.0], (0.0, 1.0));
+        let ruling = roots([-1.0, 0.0, -1.0], dir, span);
         assert!(
             matches!(ruling, Err(Unsettled::Degenerate)),
             "a ruling ending at the apex, got {ruling:?}"
         );
-        let steep = roots(
-            [-1.0, 0.5 * b.zero(), -1.001],
-            [1.0, 0.0, 1.001],
-            (0.0, 1.0),
-        );
+        let (dir, span, _) = unit_segment([1.0, 0.0, 1.001], (0.0, 1.0));
+        let steep = roots([-1.0, 0.5 * b.zero(), -1.001], dir, span);
         assert!(
             matches!(steep, Err(Unsettled::AtApex)),
             "a line beside a generator ending in band of the apex, got {steep:?}"
         );
         // Its spread in the band's gap (about `2.3e-9` at the witness
         // band): the apex's, refused typed, never escalated.
-        let gap = roots([-1.0, 0.5 * b.zero(), -1.05], [1.0, 0.0, 1.05], (0.0, 1.0));
+        let (dir, span, _) = unit_segment([1.0, 0.0, 1.05], (0.0, 1.0));
+        let gap = roots([-1.0, 0.5 * b.zero(), -1.05], dir, span);
         assert!(
             matches!(gap, Err(Unsettled::AtApex)),
             "a spread in the escalation band, got {gap:?}"

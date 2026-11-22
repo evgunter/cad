@@ -78,7 +78,8 @@ fn core_about(center: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Around<f64> 
     Around::Circle(Core {
         axis: crate::Line {
             origin: center,
-            dir: crate::stated_direction(axis),
+            // The circle names its axis by direction alone.
+            dir: geom_core::UnitVec3::squared(axis),
         },
         radius,
     })
@@ -307,7 +308,10 @@ fn sites(rng: &mut Rng, center: Point3<f64>, scale: f64) -> Vec<Site<f64>> {
         ));
         out.push(Site::Line(Line {
             origin: center + (point(rng, 2.0 * scale) - Point3::origin()),
-            dir: crate::stated_direction(unit(rng) * rng.range(0.5, 2.0)),
+            // A site line's distance reads its direction alone; the
+            // length's draw is kept, so every later draw is the stream it
+            // was.
+            dir: geom_core::UnitVec3::squared(unit(rng) * rng.range(0.5, 2.0)),
         }));
     }
     out
@@ -550,7 +554,7 @@ fn a_curves_cover_over_a_span_holds_it() {
         };
         let line = Curve3::Line(Line {
             origin: center,
-            dir: crate::stated_direction(unit(&mut rng) * scale),
+            dir: geom_core::UnitVec3::squared(unit(&mut rng) * scale),
         });
         run("line", line, vec![]);
         let conic_extremes = |a: f64, b: f64| {
@@ -1305,20 +1309,21 @@ fn a_non_finite_datum_builds_no_cover() {
 }
 
 /// **A segment whose end cancels is enclosed at `Interval`.** The line
-/// `x = 1e5 + 0.1·t` at `t = −1e6`: the product `0.1·t` rounds at the
-/// scale of `1e5` while the end lands near zero, so an end rounded once
+/// `x = 6e4 + 0.6·t` at `t = −1e5`: the product `0.6·t` rounds at the
+/// scale of `6e4` while the end lands near zero, so an end rounded once
 /// at `f64` misses its exact point by far more than an ulp of itself.
 /// The interval end encloses it, and the cover built at `Interval`
 /// holds that enclosure on both sides.
 #[test]
 fn a_cancelling_segment_end_is_enclosed_at_interval() {
     let line = Curve3::Line(Line {
-        origin: Point3::new(1e5, 0.0, 0.0),
-        dir: crate::stated_direction(Vec3::new(0.1, 0.0, 0.0)),
+        origin: Point3::new(6e4, 8e4, 0.0),
+        // `0.6` and `0.8` are not `f64`s, so the end's products round.
+        dir: crate::stated_direction(Vec3::new(0.6, 0.8, 0.0)),
     });
     let at = line.map_scalar(iv);
-    let cover = at.cover_over(ParamWindow::new(iv(-1e6), iv(0.0))).unwrap();
-    let end = at.eval(iv(-1e6)).x;
+    let cover = at.cover_over(ParamWindow::new(iv(-1e5), iv(0.0))).unwrap();
+    let end = at.eval(iv(-1e5)).x;
     let x = ivec(Vec3::unit_x());
     let (lo, hi) = (iv(0.0) - cover.support(-x), cover.support(x));
     assert!(
@@ -1492,7 +1497,7 @@ fn the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset() {
             let origin = on + radial * delta + z * lift;
             let line = Line {
                 origin,
-                dir: crate::stated_direction(tangent * 3.0),
+                dir: crate::stated_direction(tangent),
             };
             let scale = (origin - Point3::origin()).norm() + size;
             let tol = 64.0 * f64::EPSILON * scale;
@@ -1525,7 +1530,7 @@ fn the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset() {
 fn a_circle_about_the_line_reads_its_radius_in_either_sense() {
     let line = Site::Line(Line {
         origin: Point3::new(0.0, 0.0, -7.0),
-        dir: crate::stated_direction(Vec3::unit_z() * 0.5),
+        dir: geom_core::UnitVec3::exact_z(),
     });
     for axis in [Vec3::unit_z(), -Vec3::unit_z()] {
         let circle = Curve3::Circle(crate::Circle::new(

@@ -639,7 +639,7 @@ impl<T: Real> UnitVec3<T> {
                     _ => true,
                 }
             },
-            "a constructed direction is not unit to rounding"
+            "a constructed direction {v:?} is not unit to rounding"
         );
         Self(v)
     }

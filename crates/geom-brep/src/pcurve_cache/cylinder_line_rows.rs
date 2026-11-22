@@ -265,7 +265,7 @@ fn a_line_shown_off_its_rulings_on_the_wall_takes_the_projected_lane() {
     };
     let (s, c) = 0.7_f64.sin_cos();
     let dir = Vec3::unit_z() + Vec3::new(-s, c, 0.0) * (100.0 * band().escalate());
-    let carrier = Curve3::line(at - dir * 0.5, geom::stated_direction(dir));
+    let carrier = Curve3::line(at - dir * 0.5, geom_core::UnitVec3::squared(dir));
     let Curve3::Line(line) = &carrier else {
         unreachable!("a line")
     };

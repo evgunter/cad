@@ -682,13 +682,26 @@ pub enum CurveData<'a, T: Real> {
 /// here decides it;
 /// at rest, `topo`'s tier-3 check 1 refuses a zero direction on every
 /// edge carrier (crate docs, "Unit-vector and orthogonality fields").
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Line<T: Real> {
     /// The point at `t = 0`.
     pub origin: Point3<T>,
     /// The direction increasing `t` runs along, unit as a type: `t` is
     /// arc length from `origin`.
     pub dir: UnitVec3<T>,
+}
+
+/// The direction is rendered as the vector it holds, so a line reads
+/// as it did when its direction was a bare [`Vec3`]: the corpus digests
+/// that hash geometry through `Debug` see a line's bits and not its
+/// type.
+impl<T: Real> core::fmt::Debug for Line<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Line")
+            .field("origin", &self.origin)
+            .field("dir", &self.dir.get())
+            .finish()
+    }
 }
 
 /// **Two lines' closest approach** ([`Line::closest_params`]): the
@@ -2126,24 +2139,25 @@ mod tests {
     }
 
     /// **Two lines' closest approach**: skew lines meet their common
-    /// perpendicular at the parameters the closed form reads, whatever the
-    /// directions' lengths; `sin2` is one for perpendicular lines, zero for
-    /// parallel ones (where `s` and `t` divide by zero), and NaN where a
-    /// direction is zero. Each point is the other line's nearest.
+    /// perpendicular at the parameters the closed form reads, in metres
+    /// along each unit direction; `sin2` is one for perpendicular lines,
+    /// zero for parallel ones (where `s` and `t` divide by zero), and NaN
+    /// where a direction is poison (a zero vector squared). Each point is
+    /// the other line's nearest.
     #[test]
     fn two_lines_closest_approach_is_their_common_perpendicular() {
         let x = Line {
             origin: Point3::new(-2.0, 0.0, 0.0),
-            dir: crate::stated_direction(Vec3::new(2.0, 0.0, 0.0)),
+            dir: UnitVec3::exact_x(),
         };
         let y = Line {
             origin: Point3::new(3.0, 5.0, 1.0),
-            dir: crate::stated_direction(Vec3::new(0.0, -0.5, 0.0)),
+            dir: -UnitVec3::exact_y(),
         };
         let pair = x.closest_params(&y);
         assert_eq!(
             (pair.s, pair.t, pair.sin2),
-            (2.5, 10.0, 1.0),
+            (5.0, 5.0, 1.0),
             "perpendicular skew lines"
         );
         let (p, q) = (x.at(pair.s), y.at(pair.t));
@@ -2154,7 +2168,7 @@ mod tests {
         );
         let tilted = Line {
             origin: Point3::new(0.3, -1.0, 2.0),
-            dir: crate::stated_direction(Vec3::new(1.0, 2.0, -0.5)),
+            dir: UnitVec3::squared(Vec3::new(1.0, 2.0, -0.5)),
         };
         let pair = x.closest_params(&tilted);
         let (p, q) = (x.at(pair.s), tilted.at(pair.t));
@@ -2170,21 +2184,21 @@ mod tests {
         );
         let parallel = Line {
             origin: Point3::new(0.0, 1.0, 0.0),
-            dir: crate::stated_direction(Vec3::new(-3.0, 0.0, 0.0)),
+            dir: -UnitVec3::exact_x(),
         };
         assert_eq!(x.closest_params(&parallel).sin2, 0.0, "parallel lines");
         let point = Line {
             origin: Point3::new(0.0, 1.0, 0.0),
-            dir: crate::stated_direction(Vec3::new(0.0, 0.0, 0.0)),
+            dir: UnitVec3::squared(Vec3::new(0.0, 0.0, 0.0)),
         };
-        assert!(x.closest_params(&point).sin2.is_nan(), "a zero direction");
+        assert!(x.closest_params(&point).sin2.is_nan(), "a poisoned direction");
     }
 
     #[test]
-    fn a_lines_offset_and_square_foot_read_a_non_unit_dir() {
+    fn a_lines_offset_and_square_foot_read_its_axis() {
         let l = Line {
             origin: Point3::new(1.0, 2.0, 3.0),
-            dir: crate::stated_direction(Vec3::new(0.0, 0.0, 4.0)),
+            dir: UnitVec3::exact_z(),
         };
         let p = Point3::new(4.0, 6.0, 11.0);
         let xyz = |v: Vec3<f64>| (v.x, v.y, v.z);
@@ -2198,45 +2212,38 @@ mod tests {
         );
     }
 
-    /// **A line's foot is square to it, whatever `dir`'s length**: the
-    /// way from the foot to the point is perpendicular to `dir`. A
-    /// reading that took `dir` as unit would land `|dir|²` times too far
-    /// along.
+    /// **A line's foot is square to it**: the way from the foot to the
+    /// point is perpendicular to `dir`.
     #[test]
-    fn a_lines_foot_is_square_to_it_at_any_dir_length() {
+    fn a_lines_foot_is_square_to_it() {
         let origin = Point3::new(0.5, -1.0, 2.0);
         let p = Point3::new(3.0, 1.0, -0.5);
-        for scale in [1.0, 0.25, 3.0] {
-            let line = Line {
-                origin,
-                dir: crate::stated_direction(Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale),
-            };
-            let foot = line.foot(p);
-            assert!(
-                (p - foot).dot(line.dir.get()).abs() < 1e-12,
-                "|dir| = {scale}: the way to the foot is square to the line"
-            );
-        }
+        let line = Line {
+            origin,
+            dir: crate::stated_direction(Vec3::new(1.0, -2.0, 2.0) / 3.0),
+        };
+        let foot = line.foot(p);
+        assert!(
+            (p - foot).dot(line.dir.get()).abs() < 1e-12,
+            "the way to the foot is square to the line"
+        );
     }
 
-    /// **A line's `param_near` is its foot's parameter at any `dir`
-    /// length**: the parameter whose point is the foot, so a reading that
-    /// took `dir` as unit, `t·|dir|²`, fails at every length but one.
+    /// **A line's `param_near` is its foot's parameter**: the parameter
+    /// whose point is the foot, in metres along the unit direction.
     #[test]
-    fn a_lines_param_near_is_its_foots_at_any_dir_length() {
+    fn a_lines_param_near_is_its_foots() {
         let origin = Point3::new(0.5, -1.0, 2.0);
         let p = Point3::new(3.0, 1.0, -0.5);
-        for scale in [0.25, 3.0] {
-            let line = Line {
-                origin,
-                dir: crate::stated_direction(Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale),
-            };
-            let t = Curve3::Line(line).param_near(p, 0.0).unwrap();
-            assert!(
-                (line.origin + line.dir.get() * t - line.foot(p)).norm() < 1e-12,
-                "|dir| = {scale}: param_near's point is the foot"
-            );
-        }
+        let line = Line {
+            origin,
+            dir: crate::stated_direction(Vec3::new(1.0, -2.0, 2.0) / 3.0),
+        };
+        let t = Curve3::Line(line).param_near(p, 0.0).unwrap();
+        assert!(
+            (line.origin + line.dir.get() * t - line.foot(p)).norm() < 1e-12,
+            "param_near's point is the foot"
+        );
     }
 
     /// **A reversed carrier is the same locus run back**: its point at
@@ -3566,7 +3573,7 @@ mod tests {
     /// fixtures, at parameters that are not special to any of them.
     #[test]
     fn analytic_ders1_is_eval_and_deriv_bit_for_bit() {
-        let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), crate::stated_direction(Vec3::new(0.3, -0.4, 1.2)));
+        let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), crate::stated_direction(Vec3::new(3.0 / 13.0, -4.0 / 13.0, 12.0 / 13.0)));
         for (kind, c) in [
             ("line", line),
             ("circle", tilted_circle()),

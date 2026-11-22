@@ -1353,23 +1353,15 @@ mod tests {
         /// `Interval`.
         pub(super) fn meter(&self, a: (f64, f64), b: (f64, f64)) -> (f64, Interval) {
             let at = |x: f64, y: f64| Point3::new(x, y, 0.0);
-            let dir = Vec3::new(b.0 - a.0, b.1 - a.1, 0.0);
             let iv = Interval::from_f64;
+            // The segment is its chord, its span in metres, at each scalar
+            // from its own two ends.
+            let ip = |x: f64, y: f64| Point3::new(iv(x), iv(y), iv(0.0));
+            let (line, len) = geom::Line::chord(at(a.0, a.1), at(b.0, b.1));
+            let (line_i, len_i) = geom::Line::chord(ip(a.0, a.1), ip(b.0, b.1));
             (
-                self.sliver::<f64>().line_clearance(
-                    geom::Line {
-                        origin: at(a.0, a.1),
-                        dir: geom::stated_direction(dir),
-                    },
-                    (0.0, 1.0),
-                ),
-                self.sliver::<Interval>().line_clearance(
-                    geom::Line {
-                        origin: Point3::new(iv(a.0), iv(a.1), iv(0.0)),
-                        dir: geom_core::UnitVec3::constructed(Vec3::new(iv(dir.x), iv(dir.y), iv(0.0))),
-                    },
-                    (iv(0.0), iv(1.0)),
-                ),
+                self.sliver::<f64>().line_clearance(line, (0.0, len)),
+                self.sliver::<Interval>().line_clearance(line_i, (iv(0.0), len_i)),
             )
         }
 
@@ -1510,11 +1502,10 @@ mod tests {
                             "{what}, {scalar}: {a:?} → {b:?}: {read} is below the least G {least}"
                         );
                     }
-                    let carrier = Curve3::line(
-                        Point3::new(a.0, a.1, 0.0),
-                        geom::stated_direction(Vec3::new(b.0 - a.0, b.1 - a.1, 0.0)),
-                    );
-                    let whole = region.sliver::<f64>().whole_clearance(&carrier, (0.0, 1.0));
+                    let (chord, chord_len) =
+                        geom::Line::chord(Point3::new(a.0, a.1, 0.0), Point3::new(b.0, b.1, 0.0));
+                    let carrier = Curve3::Line(chord);
+                    let whole = region.sliver::<f64>().whole_clearance(&carrier, (0.0, chord_len));
                     handed_over += usize::from(m > 1e-3 && whole.is_some_and(|w| w <= 0.0));
                 }
             }
@@ -1549,8 +1540,10 @@ mod tests {
         let (a, b) = (at(-1.0e4), at(1.0e4));
         let (m, iv) = region.meter(a, b);
         assert!((m + 0.15).abs() < 1e-11, "f64 reads {m}, not −0.15");
+        // `1.0047e-10` under: the chord's far end rounds at `1e4` m on
+        // its unit direction, where a stated `b − a` landed on `b`.
         assert!(
-            iv.lo() <= -0.15 && iv.lo() > -0.15 - 1e-10,
+            iv.lo() <= -0.15 && iv.lo() > -0.15 - 2e-10,
             "Interval reads {iv:?}, not −0.15"
         );
     }
@@ -1604,8 +1597,14 @@ mod tests {
             "f64 reads {m}, the least G is {least}: {}",
             what()
         );
+        // The chord's far end is `a + e·len` on its unit direction,
+        // rounded at the reach of `a`, where a stated `b − a` landed on `b`
+        // exactly: over the length, that rounding is `e`'s width, and the
+        // reading carries it at the reach of the centre.
+        let far_end = 8.0 * f64::EPSILON * (1.0 + a.0.hypot(a.1)).powi(2) / scale;
         assert!(
-            iv.lo() <= least + slack && iv.lo() >= m - 1e-12 * (1.0 + a.0.hypot(a.1) + scale),
+            iv.lo() <= least + slack
+                && iv.lo() >= m - 1e-12 * (1.0 + a.0.hypot(a.1) + scale) - far_end,
             "Interval reads {iv:?}, f64 {m}, the least G is {least}: {}",
             what()
         );
@@ -1689,7 +1688,8 @@ mod tests {
         let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
         let v = |x: f64, y: f64| Vec3::new(x, y, 0.0);
         let rim = |o: Point3<f64>, d: Vec3<f64>| {
-            (Curve3::Line(geom::Line { origin: o, dir: geom::stated_direction(d) }), (0.0, 1.0))
+            // The rim is its chord `o → o + d`, its span in metres.
+            (Curve3::Line(geom::Line { origin: o, dir: geom_core::UnitVec3::squared(d) }), (0.0, d.norm()))
         };
         CapSliver {
             cap: FaceKey::default(),

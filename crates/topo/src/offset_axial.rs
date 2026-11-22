@@ -3504,7 +3504,11 @@ mod tests {
             place,
             axis: geom::Line {
                 origin: place.transform_point(Point3::new(lift(0.5), lift(1.0), lift(0.0))),
-                dir: geom_core::UnitVec3::constructed(place.transform_vec(Vec3::new(lift(1.0), lift(0.4), lift(0.0)))),
+                // `(1, 0.4, 0)` over its length, turned by the rigid `place`.
+                dir: geom_core::UnitVec3::constructed(place.transform_vec({
+                    let len = 1.16_f64.sqrt();
+                    Vec3::new(lift(1.0 / len), lift(0.4 / len), lift(0.0))
+                })),
             },
             angle: lift(1.9),
         })

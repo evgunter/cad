@@ -212,8 +212,13 @@ fn a_piece_through_a_cones_apex_refuses_at_the_apex() {
     let line = ray_crossings(
         &cone,
         true,
-        &geom::Ray::new(Point3::new(-2.0, 0.0, 0.3), geom::stated_direction(Vec3::new(1.0, 0.0, -0.15))),
-        4.0,
+        // The ray from `(−2, 0, 0.3)` through the apex, its reach `4` along
+        // `(1, 0, −0.15)`, in metres on its unit direction.
+        &geom::Ray::new(
+            Point3::new(-2.0, 0.0, 0.3),
+            geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, -0.15)),
+        ),
+        4.0 * Vec3::new(1.0, 0.0, -0.15).norm(),
         band(),
     );
     assert_eq!(

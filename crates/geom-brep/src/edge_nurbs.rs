@@ -4415,10 +4415,11 @@ mod tests {
             ),
         }
         .map_scalar(lift);
-        // Off the wall by 1e-6 at t = 0 and by 3e-6 at t = 1.
-        let line =
-            Curve3::line(Point3::new(0.0, 1e-6, 0.0), geom::stated_direction(Vec3::new(1.0, 2e-6, 0.0))).map_scalar(lift);
-        let ends = line_plane_ends(&line, (lift(0.0), lift(1.0)), &wall).unwrap();
+        // Off the wall by 1e-6 at its start and by 3e-6 at its end: the
+        // chord between them, its span in metres.
+        let (chord, len) = geom::Line::chord(Point3::new(0.0, 1e-6, 0.0), Point3::new(1.0, 3e-6, 0.0));
+        let line = Curve3::Line(chord).map_scalar(lift);
+        let ends = line_plane_ends(&line, (lift(0.0), lift(len)), &wall).unwrap();
         let reach = |got: Option<Result<(), AnalyticRung3Refusal>>| match got {
             Some(Err(AnalyticRung3Refusal::Limb { margin, .. })) => margin.readable().to_string(),
             other => panic!("both ends decided off answer a miss: {other:?}"),
@@ -4476,12 +4477,14 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
             ),
         };
+        // The segment `(−8, 6, 0)` long from the stated start: on its
+        // unit direction, `10` m.
         let line = Curve3::line(
             Point3::new(-402.5061327433079, -173.4329004425178, 0.0),
-            geom::stated_direction(Vec3::new(-8.0, 6.0, 0.0)),
+            geom::stated_direction(Vec3::new(-0.8, 0.6, 0.0)),
         );
         // The f64 reading the old rule took sits inside the band.
-        for t in [0.0, 1.0] {
+        for t in [0.0, 10.0] {
             let p = line.eval(t);
             let Surface::Plane { frame, .. } = tilted else {
                 unreachable!()
@@ -4493,12 +4496,12 @@ mod tests {
                 "the f64 reading at t = {t} is {read:e}"
             );
         }
-        let at_f64 = analytic_edge_limbs(&line, (0.0, 1.0), &tilted, &floor, band);
+        let at_f64 = analytic_edge_limbs(&line, (0.0, 10.0), &tilted, &floor, band);
         assert!(at_f64.is_err(), "f64: {at_f64:?}");
         let lift = geom_core::Interval::from_f64;
         let at_iv = analytic_edge_limbs(
             &line.map_scalar(lift),
-            (lift(0.0), lift(1.0)),
+            (lift(0.0), lift(10.0)),
             &tilted.map_scalar(lift),
             &floor.map_scalar(lift),
             band,

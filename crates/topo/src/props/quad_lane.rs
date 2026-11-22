@@ -1871,10 +1871,12 @@ mod tests {
         }
 
         fn line(a: Point3<Interval>, b: Point3<Interval>, tags: (u32, u32)) -> LoopEdge<Interval> {
+            // The side is its chord, its span in metres.
+            let len = (b - a).norm();
             LoopEdge::hand_built(
-                Curve3::line(a, geom_core::UnitVec3::constructed(b - a)),
+                Curve3::line(a, geom_core::UnitVec3::constructed((b - a) / len)),
                 iv(0.0),
-                iv(1.0),
+                len,
                 true,
                 tags.0,
                 tags.1,

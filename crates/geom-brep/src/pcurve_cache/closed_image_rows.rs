@@ -473,8 +473,15 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
             let at = o + u_ref * g.range(-5.0, 5.0) + v_ref * g.range(-5.0, 5.0);
             match g.below(3) {
                 0 => {
-                    let dir = perpendicular(g, axis) * g.range(0.3, 3.0);
-                    (surface, Curve3::line(at, geom::stated_direction(dir)), length(g))
+                    // The drawn speed scales the span: the same segment
+                    // on its unit direction, its span in metres.
+                    let (dir, speed) = (perpendicular(g, axis), g.range(0.3, 3.0));
+                    let (t0, t1) = length(g);
+                    (
+                        surface,
+                        Curve3::line(at, geom_core::UnitVec3::squared(dir)),
+                        (t0 * speed, t1 * speed),
+                    )
                 }
                 1 => {
                     let r = g.range(0.1, 5.0);
@@ -505,8 +512,13 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
             match g.below(3) {
                 0 => {
                     let at = o + radial(g.range(-4.0, 4.0)) * r + axis * h;
-                    let dir = axis * (sign(g) * g.range(0.3, 3.0));
-                    (surface, Curve3::line(at, geom::stated_direction(dir)), length(g))
+                    let (dir, speed) = (axis * sign(g), g.range(0.3, 3.0));
+                    let (t0, t1) = length(g);
+                    (
+                        surface,
+                        Curve3::line(at, geom_core::UnitVec3::squared(dir)),
+                        (t0 * speed, t1 * speed),
+                    )
                 }
                 1 => (surface, circle(g, o + axis * h, axis, r), turn(g)),
                 _ => {
@@ -544,8 +556,8 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
                 let (sigma, speed) = (sign(g), g.range(0.3, 3.0));
                 let away = sigma * slant > 0.0;
                 let reach = if away { 10.0 } else { slant.abs() - 0.2 } / speed;
-                let line = Curve3::line(o + generator * slant, geom::stated_direction(generator * (sigma * speed)));
-                (surface, line, (0.0, g.range(0.1, 1.0) * reach))
+                let line = Curve3::line(o + generator * slant, geom_core::UnitVec3::squared(generator * sigma));
+                (surface, line, (0.0, g.range(0.1, 1.0) * reach * speed))
             } else {
                 let c = o + axis * (slant * alpha.cos());
                 (

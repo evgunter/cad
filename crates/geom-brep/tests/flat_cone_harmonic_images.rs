@@ -189,17 +189,21 @@ fn a_ruling_off_a_cone_images_at_its_distance() {
 }
 
 /// A ruling on a narrow cone certifies at `Interval` with an envelope
-/// whose enclosure stays within `24·u` of its size: the distance off
+/// whose enclosure stays within `26·u` of its size: the distance off
 /// the generator is read in its radial-sized parts, never as the
 /// difference of two length-sized vectors (`x − (x·ĝ)·ĝ`), whose
-/// enclosure is twice as wide on a narrow cone.
+/// enclosure is twice as wide on a narrow cone. The ruling's direction
+/// reaches `Interval` as its polar unit enclosure (a line's direction is
+/// a `UnitVec3`, lifted as one), whose `η` widens the `α = 0.5` ruling
+/// from `24·u` to `25.2·u` of its size; its entries lifted as points
+/// read within `24·u`.
 #[test]
 fn a_ruling_on_a_narrow_cone_encloses_its_envelope_tightly() {
     let mut wrong = Vec::new();
     for alpha in [0.1, 0.5] {
         for span in [(1.0, 100.0), (-1.0, -100.0)] {
             let (line, t1) = ruling(alpha, span, 0.0);
-            let ceiling = 24.0 * U * size(&line, t1);
+            let ceiling = 26.0 * U * size(&line, t1);
             let line = line.map_scalar(Interval::from_f64);
             let surface = cone(alpha).map_scalar(Interval::from_f64);
             let got = chart_pcurve(&line, &surface, band()).and_then(|image| {
@@ -219,7 +223,7 @@ fn a_ruling_on_a_narrow_cone_encloses_its_envelope_tightly() {
                     if width > ceiling {
                         wrong.push(format!(
                             "α {alpha}, {span:?}: width {width:e} = {:.1}·u·size, over {ceiling:e}",
-                            width / (ceiling / 24.0)
+                            width / (ceiling / 26.0)
                         ));
                     }
                 }

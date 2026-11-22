@@ -7020,23 +7020,32 @@ mod ruling_scale_rows {
 
     /// A cone generator, and the same shifted `s` along the rim's tangent
     /// so it stands `zero/2` off the cone (`s²·cos α/2ρ`) and misses the
-    /// apex by about `s/2`, far past the band; each read with `dir` unit
-    /// and scaled `1e-3` and `1e3`: the generator passes and the shifted
-    /// line refuses `props_meridian_generator`, at every scale. Before
-    /// the reading took the home, a shifted line read with `dir` scaled
-    /// `1e-3` passed.
+    /// apex by about `s/2`, far past the band; each read along `g` and
+    /// run back: the generator passes and the shifted line refuses
+    /// `props_meridian_generator`, either way. (The row read `dir` scaled
+    /// `1e-3` and `1e3` while a line's direction could be; it is a
+    /// `UnitVec3` now, and the scaled line that once passed is no line.)
     #[test]
-    fn a_cone_generator_reads_alike_at_every_scale() {
+    fn a_cone_generator_reads_alike_either_way() {
         let apex = Point3::new(0.0, 0.0, 0.0);
-        let axis = Vec3::unit_z();
         let (sin_a, cos_a) = 0.5f64.sin_cos();
         let g = Vec3::new(sin_a, 0.0, cos_a);
         let shift = (band().zero() * sin_a / cos_a / cos_a).sqrt();
         for (shift, generator) in [(0.0, true), (shift, false)] {
-            for k in [1.0, 1e-3, 1e3] {
-                let carrier = Curve3::line(apex + g + Vec3::new(0.0, shift, 0.0), geom::stated_direction(g * k));
-                let e = LoopEdge::hand_built(carrier, 0.0, 1.0 / k, true, 0, 1);
-                let read = require_cone_generator(apex, geom_core::UnitVec3::constructed(axis), sin_a, cos_a, geom_core::UnitVec3::constructed(g * k), &e, band());
+            for k in [1.0, -1.0] {
+                let dir = geom_core::UnitVec3::constructed(g * k);
+                let carrier = Curve3::line(apex + g + Vec3::new(0.0, shift, 0.0), dir);
+                let span = if k > 0.0 { (0.0, 1.0) } else { (-1.0, 0.0) };
+                let e = LoopEdge::hand_built(carrier, span.0, span.1, true, 0, 1);
+                let read = require_cone_generator(
+                    apex,
+                    geom_core::UnitVec3::exact_z(),
+                    sin_a,
+                    cos_a,
+                    dir,
+                    &e,
+                    band(),
+                );
                 match (generator, &read) {
                     (true, Ok(())) => {}
                     (
@@ -7045,7 +7054,7 @@ mod ruling_scale_rows {
                             what: "props_meridian_generator",
                         }),
                     ) => {}
-                    _ => panic!("shift {shift:e}, dir ×{k:e}: {read:?}"),
+                    _ => panic!("shift {shift:e}, dir ×{k}: {read:?}"),
                 }
             }
         }

@@ -754,8 +754,9 @@ fn aimed_ray<T: Decide>(
     let crossings = match ray_crossings(
         body,
         geos,
-        // `along² + across² = 1` over the orthonormal `normal`, `b1`, `b2`.
-        &geom::Ray::starting(aim, -UnitVec3::constructed(out), start),
+        // The aim squared: the face's normal is unit only to its
+        // carrier's convention, and the ray's advance is in metres.
+        &geom::Ray::starting(aim, -UnitVec3::squared(out), start),
         reach,
         band,
         AIMED_ROWS,

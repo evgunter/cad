@@ -1287,9 +1287,9 @@ mod tests {
                 let spec = EdgeSpec {
                     start: 30 + i,
                     end: 30 + (i + 1) % 4,
-                    carrier: Curve3::line(a, geom::stated_direction(b - a)),
+                    carrier: Curve3::Line(geom::Line::chord(a, b).0),
                     t0: 0.0,
-                    t1: 1.0,
+                    t1: (b - a).norm(),
                     reversed: false,
                     curve: None,
                 };
@@ -1344,14 +1344,16 @@ mod tests {
                 .unwrap(),
             ))
         };
-        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, geom::stated_direction(b - a));
+        // A side is its chord, its span in metres; an iso column spans
+        // its own `(0, 1)`.
+        let line = |a: Point3<f64>, b: Point3<f64>| (Curve3::Line(geom::Line::chord(a, b).0), (b - a).norm());
         let corners =
             [(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)].map(|(x, y)| Point3::new(x, y, 0.0));
         let carriers = [
             line(corners[0], corners[1]),
-            iso(0.5, false),
+            (iso(0.5, false), 1.0),
             line(corners[2], corners[3]),
-            iso(0.0, true),
+            (iso(0.0, true), 1.0),
         ];
         let mut solid = solid(0.25);
         solid.faces[0].surface = Surface::Nurbs(Arc::new(s));
@@ -1359,13 +1361,13 @@ mod tests {
         solid.edges = carriers
             .into_iter()
             .zip(0..4u64)
-            .map(|(carrier, i)| {
+            .map(|((carrier, t1), i)| {
                 let spec = EdgeSpec {
                     start: 30 + i,
                     end: 30 + (i + 1) % 4,
                     carrier,
                     t0: 0.0,
-                    t1: 1.0,
+                    t1,
                     reversed: false,
                     curve: None,
                 };
@@ -1436,9 +1438,9 @@ mod tests {
                             EdgeSpec {
                                 start: v,
                                 end,
-                                carrier: Curve3::line(a, geom::stated_direction(b - a)),
+                                carrier: Curve3::Line(geom::Line::chord(a, b).0),
                                 t0: 0.0,
-                                t1: 1.0,
+                                t1: (b - a).norm(),
                                 reversed: false,
                                 curve: None,
                             },
@@ -1864,7 +1866,9 @@ mod tests {
                 solid.vertices[&(300 + k)],
                 solid.vertices[&(300 + (k + 1) % n)],
             );
-            solid.edges.get_mut(&(200 + k)).unwrap().carrier = Curve3::line(a, geom::stated_direction(b - a));
+            let edge = solid.edges.get_mut(&(200 + k)).unwrap();
+            edge.carrier = Curve3::Line(geom::Line::chord(a, b).0);
+            edge.t1 = (b - a).norm();
         }
         solid.faces[0].surface = Surface::Nurbs(Arc::new(s));
         solid
@@ -2213,10 +2217,10 @@ mod tests {
                     }
                     let spl = build(hi);
                     let max_x = max_x(&spl);
-                    let back = Curve3::line(Point3::new(0.3, 0.8, 0.0), geom::stated_direction(Vec3::new(0.0, -0.6, 0.0)));
+                    let back = Curve3::line(Point3::new(0.3, 0.8, 0.0), -geom_core::UnitVec3::exact_y());
                     let s = face(
                         chart([0.0, 0.5, 1.0]),
-                        vec![(Curve3::Nurbs(Arc::new(spl)), 0.0, 1.0), (back, 0.0, 1.0)],
+                        vec![(Curve3::Nurbs(Arc::new(spl)), 0.0, 1.0), (back, 0.0, 0.6)],
                     );
                     let got = crossing_knots(&s, 0, false, EPS_IN);
                     if max_x - 0.5 > EPS_IN && got != vec![0.5] {

@@ -288,7 +288,7 @@ fn probe_analytic_arms_at_extreme_parameters() {
     };
     let center = Point3::new(-1.7, 0.4, 2.2);
     let curves = [
-        ("line", Curve3::line(center, geom::stated_direction(Vec3::new(0.3, -0.4, 1.2)))),
+        ("line", Curve3::line(center, geom::stated_direction(Vec3::new(3.0 / 13.0, -4.0 / 13.0, 12.0 / 13.0)))),
         ("circle", Curve3::circle(center, axis, 3.25, u_ref)),
         ("circle_tiny", Curve3::circle(center, axis, 1e-300, u_ref)),
         (

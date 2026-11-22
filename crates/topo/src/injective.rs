@@ -7984,13 +7984,19 @@ mod presentation_rows {
         Rim {
             stated: None,
             key: edge(n),
-            arc: Some((
-                Curve3::line(
-                    p(from),
-                    geom_core::UnitVec3::constructed(Vec3::new(iv0(to.0 - from.0), iv0(to.1 - from.1), iv0(0.0))),
-                ),
-                (iv0(0.0), iv0(1.0)),
-            )),
+            // The segment is its chord, its span in metres: the chord's
+            // direction over its own length, entered as points.
+            arc: Some({
+                let (dx, dy) = (to.0 - from.0, to.1 - from.1);
+                let len = dx.hypot(dy);
+                (
+                    Curve3::line(
+                        p(from),
+                        geom_core::UnitVec3::constructed(Vec3::new(iv0(dx / len), iv0(dy / len), iv0(0.0))),
+                    ),
+                    (iv0(0.0), iv0(len)),
+                )
+            }),
             ends: ends.map(vertex),
             uses: vec![Use {
                 plus: true,
@@ -9255,7 +9261,10 @@ mod presentation_rows {
             stated: None,
             key: edge(n),
             arc: Some((
-                Curve3::line(on_cyl(1.0, 0.5), geom_core::UnitVec3::constructed(Vec3::new(iv0(0.0), iv0(0.0), iv0(dv)))),
+                Curve3::line(
+                    on_cyl(1.0, 0.5),
+                    if up { geom_core::UnitVec3::exact_z() } else { -geom_core::UnitVec3::exact_z() },
+                ),
                 (iv0(0.0), iv0(0.5)),
             )),
             ends: [vertex(1), vertex(2)],
@@ -10069,8 +10078,8 @@ mod presentation_rows {
                 stated: None,
                 key: edge(12),
                 arc: Some((
-                    Curve3::line(on_cyl(1.015, -0.5), geom_core::UnitVec3::constructed(Vec3::new(iv0(0.0), iv0(0.0), iv0(2.0)))),
-                    (iv0(0.0), iv0(1.0)),
+                    Curve3::line(on_cyl(1.015, -0.5), geom_core::UnitVec3::exact_z()),
+                    (iv0(0.0), iv0(2.0)),
                 )),
                 ends: [vertex(5), vertex(6)],
                 uses: Vec::new(),

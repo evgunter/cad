@@ -1409,11 +1409,13 @@ fn a_lane_choices_envelope_refusal_ends_not_yet() {
     let a = (1.0 - 0.6 * zero()).acos();
     let (sa, ca) = a.sin_cos();
     let (q0, q1) = (Vec3::new(ca, -sa, 0.1), Vec3::new(ca, sa, 0.4));
-    let chord = Curve3::line(world(&wall, q0), geom::stated_direction(world_dir(&wall, q1 - q0)));
+    // The chord from `q0` to `q1`, its span in metres.
+    let (chord, chord_len) = geom::Line::chord(world(&wall, q0), world(&wall, q1));
+    let chord = Curve3::Line(chord);
     for (scalar, got) in
         ["f64", "Interval"]
             .into_iter()
-            .zip(minted_and_certified(&chord, (0.0, 1.0), &wall))
+            .zip(minted_and_certified(&chord, (0.0, chord_len), &wall))
     {
         assert!(
             got.as_ref().err().is_some_and(|e| {
@@ -1447,8 +1449,10 @@ fn a_stored_rows_envelope_refusal_keeps_its_term() {
     let a = (1.0 - 0.6 * zero()).acos();
     let (sa, ca) = a.sin_cos();
     let (q0, q1) = (Vec3::new(ca, -sa, 0.1), Vec3::new(ca, sa, 0.4));
-    let chord = Curve3::line(world(&wall, q0), geom::stated_direction(world_dir(&wall, q1 - q0)));
-    let span = (0.0, 1.0);
+    // The chord from `q0` to `q1`, its span in metres.
+    let (chord, chord_len) = geom::Line::chord(world(&wall, q0), world(&wall, q1));
+    let chord = Curve3::Line(chord);
+    let span = (0.0, chord_len);
     for (scalar, got) in ["f64", "Interval"]
         .into_iter()
         .zip(minted_and_certified(&chord, span, &wall))

@@ -121,7 +121,9 @@ fn a_line_ellipse_or_spiric_on_a_surface_it_cannot_lie_on_is_off_it() {
     let off = Err(PropsError::OffSurface {
         what: "props_carrier_on_surface",
     });
-    let chord = |a: geom_core::Point3<f64>, b: geom_core::Point3<f64>| Curve3::line(a, geom::stated_direction(b - a));
+    // A chord from `a` along `b − a`: the door reads the span `(0, 1)`,
+    // which on the unit direction runs a metre of the same line.
+    let chord = |a: geom_core::Point3<f64>, b: geom_core::Point3<f64>| Curve3::Line(geom::Line::chord(a, b).0);
     assert_eq!(
         door(
             &surf::sphere(1.0),

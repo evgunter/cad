@@ -335,6 +335,19 @@ fn no_parameter_of_the_span_is_farther_than_the_read() {
     println!("[line incidence] past the band {off}, inside the zero band {on}");
 }
 
+/// **A stated line `origin + dir·t` on its unit direction**, and `|dir|`,
+/// the factor its stated spans are read in metres by: the same segment
+/// for any span.
+fn on_unit(origin: Point3<f64>, dir: Vec3<f64>) -> (geom::Line<f64>, f64) {
+    (
+        geom::Line {
+            origin,
+            dir: geom_core::UnitVec3::squared(dir),
+        },
+        dir.norm(),
+    )
+}
+
 /// **A line on the chart, or within the zero band of it, is not read
 /// off**: each cone's generators through the apex on both nappes, read
 /// over spans across the apex and to one side; the same shifted along
@@ -361,30 +374,22 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
                         let g = wall - apex;
                         let side = surface.deriv_u(u, v).normalize();
                         for shift in [0.0, 0.5 * zero()] {
-                            lines.push(geom::Line {
-                                origin: wall + side * shift,
-                                dir: geom::stated_direction(g),
-                            });
+                            lines.push(on_unit(wall + side * shift, g));
                         }
                     }
                 }
                 Surface::Cylinder { frame, .. } => {
                     let axis = frame.axis();
-                    lines.push(geom::Line {
-                        origin: surface.eval(u, 0.4),
-                        dir: geom::stated_direction(axis * 0.7),
-                    })
+                    lines.push(on_unit(surface.eval(u, 0.4), axis * 0.7))
                 }
-                Surface::Plane { .. } => lines.push(geom::Line {
-                    origin: surface.eval(u, 0.4),
-                    dir: geom::stated_direction(surface.deriv_u(u, 0.4) + surface.deriv_v(u, 0.4) * u),
-                }),
+                Surface::Plane { .. } => lines.push(on_unit(surface.eval(u, 0.4), surface.deriv_u(u, 0.4) + surface.deriv_v(u, 0.4) * u)),
                 _ => {}
             }
         }
         let surface_i = surface.map_scalar(f);
-        for line in lines {
+        for (line, k) in lines {
             for span in [(-1.5, 0.5), (-0.4, 1.0), (0.1, 0.6)] {
+                let span = (span.0 * k, span.1 * k);
                 let carrier = Curve3::Line(line);
                 let carrier_i = carrier.map_scalar(f);
                 let verdicts = (
@@ -426,7 +431,7 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
 fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     let f = Interval::from_f64;
     let u_ref = Vec3::unit_x();
-    let mut cases: Vec<(String, Surface<f64>, geom::Line<f64>)> = Vec::new();
+    let mut cases: Vec<(String, Surface<f64>, (geom::Line<f64>, f64))> = Vec::new();
     for big in [0.3, -0.3] {
         for axis in [Vec3::unit_z(), Vec3::new(0.1, -0.2, 1.0).normalize()] {
             let c = Point3::new(0.0, 0.0, 0.0);
@@ -438,10 +443,7 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
                     major_radius: big,
                     minor_radius: 0.5,
                 },
-                geom::Line {
-                    origin: c - axis * tip,
-                    dir: geom::stated_direction(axis * (2.0 * tip)),
-                },
+                on_unit(c - axis * tip, axis * (2.0 * tip)),
             ));
         }
     }
@@ -451,10 +453,7 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
             frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), u_ref),
             radius: 0.5,
         },
-        geom::Line {
-            origin: Point3::new(0.0, 0.0, -0.5),
-            dir: geom_core::UnitVec3::exact_z(),
-        },
+        on_unit(Point3::new(0.0, 0.0, -0.5), Vec3::unit_z()),
     ));
     // The torus's outer equator point to its inner one at azimuth 0,
     // through the core circle at `x = R`.
@@ -465,10 +464,7 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
             major_radius: 1.2,
             minor_radius: 0.4,
         },
-        geom::Line {
-            origin: Point3::new(0.8, 0.0, 0.0),
-            dir: geom::stated_direction(Vec3::new(0.8, 0.0, 0.0)),
-        },
+        on_unit(Point3::new(0.8, 0.0, 0.0), Vec3::new(0.8, 0.0, 0.0)),
     ));
     // Two points of the cone at height ±0.3, either side of the axis,
     // shifted off the apex by `30·zero`: the chord crosses the apex plane
@@ -482,16 +478,14 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
     cases.push((
         "cone chord past the apex".into(),
         cone,
-        geom::Line {
-            origin: Point3::new(r, 0.0, 0.3) + side,
-            dir: geom::stated_direction(Point3::new(-r, 0.0, -0.3) - Point3::new(r, 0.0, 0.3)),
-        },
+        on_unit(Point3::new(r, 0.0, 0.3) + side, Point3::new(-r, 0.0, -0.3) - Point3::new(r, 0.0, 0.3)),
     ));
-    for (what, surface, line) in cases {
+    for (what, surface, (line, k)) in cases {
         let carrier = Curve3::Line(line);
         let (carrier_i, surface_i) = (carrier.map_scalar(f), surface.map_scalar(f));
         // The second span puts the middle off the sampled schedule.
         for span in [(0.0, 1.0), (0.013, 0.9)] {
+            let span = (span.0 * k, span.1 * k);
             let off = |r: Option<&PcurveCertifyError>| {
                 matches!(
                     r.and_then(crate::IncidenceRead::of),

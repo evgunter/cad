@@ -14,7 +14,7 @@ pub mod held_arc;
 
 use crate::datum::ANALYTIC_DATA_MAX;
 use crate::{Curve3, CurveKind, Surface, SurfaceKind};
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, UnitVec3, Vec3};
 
 /// One analytic kind: a builder over a flat scalar list, and how many
 /// of the list's leading scalars it reads.
@@ -105,7 +105,7 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
         .filter_map(|kind| -> Option<AnalyticKind<Curve3<f64>>> {
             Some(match kind {
                 CurveKind::Line => AnalyticKind {
-                    build: |x| Curve3::line(pt(&x[0..3]), crate::stated_direction(dir(&x[3..6]))),
+                    build: |x| Curve3::line(pt(&x[0..3]), UnitVec3::squared(dir(&x[3..6]))),
                     scalars: 6,
                 },
                 CurveKind::Circle => AnalyticKind {

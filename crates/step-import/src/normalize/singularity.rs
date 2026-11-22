@@ -1823,7 +1823,8 @@ mod meetings_are_the_kernels {
         };
         let [ray, _] = meridian_rays(chart, 0, x, 1.0);
         let crossing = ray.carrier.eval(2.0);
-        let line = Curve3::line(crossing - y * 1e-3, geom::stated_direction(y * 2e-3));
+        // The 2 mm chord across the crossing, its span in metres.
+        let line = Curve3::line(crossing - y * 1e-3, geom_core::UnitVec3::squared(y));
         let solid = face(
             cone,
             vec![(
@@ -1833,18 +1834,18 @@ mod meetings_are_the_kernels {
                     end: 2,
                     carrier: line.clone(),
                     t0: 0.0,
-                    t1: 1.0,
+                    t1: 2e-3 * y.norm(),
                     reversed: false,
                     curve: None,
                 },
             )],
-            vec![(1, line.eval(0.0)), (2, line.eval(1.0))],
+            vec![(1, line.eval(0.0)), (2, line.eval(2e-3 * y.norm()))],
         );
         let got = first_hit(&solid, 0, &ray, None, &[], &read_at(1e-9));
         let Ok((Hit::Edge { edge: 11, t }, _)) = got else {
             panic!("the line at slant 2: {}", shown(&got))
         };
-        assert!((t - 0.5).abs() < 1e-9, "met at the line's middle: t {t}");
+        assert!((t - 1e-3 * y.norm()).abs() < 1e-9, "met at the line's middle: t {t}");
     }
 
     /// **A singular point in the band of its ray refuses**, the band's

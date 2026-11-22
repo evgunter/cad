@@ -4557,24 +4557,12 @@ fn decide_turn<T: Decide>(
         // have a period is `Curve3::period`'s to say, so this arm restates
         // no kind list.
         //
-        // A line's span is forward in parameter, and then in metres where
-        // its `dir` is the zero vector: such a line names one point at
-        // every parameter, so no span on it is forward, and it refuses as
-        // `IntervalNotForward` (its metred margin is an exact zero) rather
-        // than certifying a direction its readers take as nonzero
-        // (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
-        // The metres decision runs on that line alone, so every other
-        // line's span is decided once, as before.
-        (None, line) => {
+        // A line's span is forward in parameter, which is metres: its
+        // direction is a `UnitVec3`, so no line names one point at every
+        // parameter (a zero vector has no direction to mint, and squares
+        // to poison).
+        (None, _) => {
             forward(Margin::of(span))?;
-            if line.as_line().is_some_and(|geom::Line { dir, .. }| {
-                matches!(dir.get().checked_direction(), Err(geom_core::NoDirection::Zero))
-            }) {
-                forward(Margin::metered(
-                    span,
-                    geom::carrier_speed::speed_range(line).0,
-                ))?;
-            }
             None
         }
     })
@@ -7493,94 +7481,6 @@ mod tests {
             NurbsLane::certified(),
         )
         .unwrap();
-    }
-
-    /// **A line's span is forward in metres where its `dir` is the zero
-    /// vector.** A line of zero direction names one point at every
-    /// parameter, so its span of one parameter unit refuses as the caller's
-    /// stated interval, not forward on the zero side, where a
-    /// parameter-only read certified it (this row is red without the
-    /// guard). A line at speed two certifies a span of half a unit: that
-    /// row asks only that the guard over-refuse nothing, and no mutation of
-    /// the guard reddens it.
-    ///
-    /// At the interval scalar the guard reads the same door: an exact
-    /// `[0, 0]` direction refuses as the point's zero does, and a direction
-    /// whose enclosure straddles zero past the band's escalation is not decided,
-    /// so the metred span escalates rather than certifying.
-    #[test]
-    fn a_lines_span_is_forward_in_metres_where_its_dir_is_zero() {
-        use geom_core::{Affine3, Interval, Point2};
-        fn along<T: Decide>(dir: UnitVec3<T>, param_end: T) -> EdgeCurveSpec<T> {
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
-                    crate::mapped::MappedSource::ExtrudedPoint {
-                        point: Point2::new(T::zero(), T::zero()),
-                        place: Affine3::translation(Vec3::new(T::zero(), T::zero(), T::zero())),
-                        vec: dir.get() * param_end,
-                    },
-                )),
-                carrier: Curve3::line(Point3::new(T::zero(), T::zero(), T::zero()), dir),
-                param_start: T::zero(),
-                param_end,
-            }
-        }
-        // One certifying door per scalar, each at its own concrete type.
-        macro_rules! certify_at {
-            ($name:ident: $t:ty) => {
-                fn $name(
-                    spec: EdgeCurveSpec<$t>,
-                    p1: Point3<$t>,
-                ) -> Result<EdgeCurve<$t>, CertifyError> {
-                    let zero = <$t as geom_core::Real>::zero();
-                    EdgeCurve::certify(
-                        spec,
-                        Point3::new(zero, zero, zero),
-                        p1,
-                        |_| None,
-                        geom_core::test_support::fixture_lever(<$t as geom_core::Real>::one()),
-                        band(),
-                        NurbsLane::certified(),
-                    )
-                }
-            };
-        }
-        certify_at!(certify: f64);
-        certify_at!(certify_interval: Interval);
-        let zero_refusal = |err: &CertifyError| {
-            matches!(
-                err,
-                CertifyError::StatedInterval {
-                    refused: StatedSpan::Forward(ForwardReading::Decided(Refused::Zero(_)))
-                }
-            )
-        };
-        let err = certify(along(geom::stated_direction(Vec3::zero()), 1.0), Point3::origin()).unwrap_err();
-        assert!(zero_refusal(&err), "{err:?}");
-        let fast = Vec3::new(2.0, 0.0, 0.0);
-        assert!(certify(along(geom::stated_direction(fast), 0.5), Point3::new(1.0, 0.0, 0.0)).is_ok());
-
-        let iv = Interval::from_f64;
-        let origin = Point3::new(iv(0.0), iv(0.0), iv(0.0));
-        let flat = Vec3::new(iv(0.0), iv(0.0), iv(0.0));
-        let err = certify_interval(along(geom_core::UnitVec3::constructed(flat), iv(1.0)), origin).unwrap_err();
-        assert!(zero_refusal(&err), "[0, 0]: {err:?}");
-        // A straddle past the escalation of the band in force, so its
-        // metred span reads neither zero nor positive at every ε.
-        let reach = 2.0 * band().escalate();
-        let wide = Interval::from_bounds(-reach, reach);
-        let straddling = Vec3::new(wide, iv(0.0), iv(0.0));
-        let err = certify_interval(along(geom_core::UnitVec3::constructed(straddling), iv(1.0)), origin).unwrap_err();
-        assert!(
-            matches!(
-                err,
-                CertifyError::Escalated {
-                    check: CertCheck::ParamSpan,
-                    ..
-                }
-            ),
-            "straddling: {err:?}"
-        );
     }
 
     #[test]

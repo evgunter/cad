@@ -140,7 +140,7 @@ fn an_uncertain_axis_reaches_the_start_sample_at_most_twice_over() {
 /// The bound itself is at most `(1 + √3)·w`.
 #[test]
 fn an_uncertain_axis_reaches_a_turned_sample_within_its_row_bound() {
-    let (angle, n) = (2.1, Vec3::new(0.3, -0.2, 1.0));
+    let (angle, n) = (2.1, Vec3::new(0.3, -0.2, 1.0).normalize());
     let rim = |half: f64| {
         let w = |c: f64| Interval::from_bounds(c - half, c + half);
         MappedCurve::whole(MappedSource::RevolvedPoint {
@@ -534,7 +534,7 @@ fn on_an_origin_axis_a_whole_range_is_the_composite_maps_point_bit_for_bit() {
     let mut mismatches = Vec::new();
     for angle in [TAU, -1.0, 1e-8, core::f64::consts::PI] {
         for at in [[0.0, 0.0, 0.0], [1000.0, -700.0, 300.0], [-3.0, 0.5, 2.0]] {
-            let n = Vec3::new(0.3, -0.2, 1.0);
+            let n = Vec3::new(0.3, -0.2, 1.0).normalize();
             let c = MappedCurve::whole(MappedSource::RevolvedPoint {
                 point: Point2::new(iv(2.0), iv(-1.5)),
                 place: Affine3::translation(Vec3::new(iv(at[0]), iv(at[1]), iv(at[2]))),

@@ -343,20 +343,13 @@ impl<T: Decide> Quadric<T> {
                 // Round the start's meridian to `to`'s parallel, then round.
                 let turned = centre + axis.get() * ht + ef * rt;
                 let meridian = parallel(
-                    geom::Line {
-                        origin: kf,
-                        // A radial of the spine square to its axis.
-                        dir: UnitVec3::constructed(ef.cross(axis.get())),
-                    },
+                    (kf, ef.cross(axis.get())),
                     off_t,
                     start,
                     turned,
                 );
                 let round = parallel(
-                    geom::Line {
-                        origin: centre + axis.get() * ht,
-                        dir: axis,
-                    },
+                    (centre + axis.get() * ht, axis.get()),
                     rt,
                     turned,
                     to,
@@ -369,20 +362,13 @@ impl<T: Decide> Quadric<T> {
                 // Round the start's parallel to `to`'s meridian, then round.
                 let turned = centre + axis.get() * hs + et * rs;
                 let round = parallel(
-                    geom::Line {
-                        origin: centre + axis.get() * hs,
-                        dir: axis,
-                    },
+                    (centre + axis.get() * hs, axis.get()),
                     rs,
                     start,
                     turned,
                 );
                 let meridian = parallel(
-                    geom::Line {
-                        origin: kt,
-                        // A radial of the spine square to its axis.
-                        dir: UnitVec3::constructed(et.cross(axis.get())),
-                    },
+                    (kt, et.cross(axis.get())),
                     off_t,
                     turned,
                     to,
@@ -464,10 +450,7 @@ impl<T: Decide> Quadric<T> {
             band,
         )?;
         let round_at_to = parallel(
-            geom::Line {
-                origin: base + axis.get() * ht,
-                dir: axis,
-            },
+            (base + axis.get() * ht, axis.get()),
             rt,
             turned,
             to,
@@ -490,10 +473,7 @@ impl<T: Decide> Quadric<T> {
         }
         if rise != Sign::Zero {
             let round = parallel(
-                geom::Line {
-                    origin: base + axis.get() * hf,
-                    dir: axis,
-                },
+                (base + axis.get() * hf, axis.get()),
                 rf,
                 from,
                 below,
@@ -576,24 +556,20 @@ impl<T: Real> Path<T> {
 /// radius `radius`, from `from` to `to` (both in its plane), the short
 /// way round: a parallel, or a torus's meridian.
 fn parallel<T: Decide>(
-    axis: geom::Line<T>,
+    (centre, axis): (Point3<T>, Vec3<T>),
     radius: T,
     from: Point3<T>,
     to: Point3<T>,
 ) -> CircleArc<T> {
-    let geom::Line {
-        origin: centre,
-        dir: axis,
-    } = axis;
     let u = from - centre;
     let u = u.normalize();
     let w = to - centre;
-    let phi = w.dot(axis.get().cross(u)).atan2(w.dot(u));
+    let phi = w.dot(axis.cross(u)).atan2(w.dot(u));
     // The way round is a raw pick: either is a path between the same
     // ends, and the parity is the same on every path.
     CircleArc {
         circle: geom::Circle::new(
-            geom::Frame::new(centre, axis.get() * phi.select_le_zero(-T::one(), T::one()), u),
+            geom::Frame::new(centre, axis * phi.select_le_zero(-T::one(), T::one()), u),
             radius,
         ),
         span: (T::zero(), phi.abs()),

@@ -969,16 +969,17 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
             None,
         ),
         (
-            "line, zero dir",
+            // A zero vector has no direction: squared, it is poison.
+            "line, zero dir squared",
             Curve3::Line(geom::Line {
                 origin: o,
-                dir: geom::stated_direction(zero),
+                dir: geom_core::UnitVec3::squared(zero),
             }),
             Some(V::Poisoned(vec![D::Dir])),
         ),
         (
-            "line, NaN origin and infinite dir",
-            Curve3::line(Point3::new(nan, 0.0, 0.0), geom::stated_direction(Vec3::new(inf, 0.0, 0.0))),
+            "line, NaN origin and infinite dir squared",
+            Curve3::line(Point3::new(nan, 0.0, 0.0), geom_core::UnitVec3::squared(Vec3::new(inf, 0.0, 0.0))),
             Some(V::Poisoned(vec![D::Origin, D::Dir])),
         ),
         ("honest circle", circle(o, z, 1.0, x), None),
@@ -1089,11 +1090,12 @@ fn the_carrier_poison_read_reads_every_scalar() {
             .into_iter()
             .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
             .collect();
-        // A frame is squared where it is stated, so its datums read the
-        // squared axes, not the builder's scalars; every other datum reads
-        // its scalars as given.
-        let frame =
-            |d: geom::CurveDatum| matches!(d, geom::CurveDatum::Axis | geom::CurveDatum::URef);
+        // A frame and a line's direction are squared where they are
+        // stated, so their datums read the squared axes, not the
+        // builder's scalars; every other datum reads its scalars as given.
+        let frame = |d: geom::CurveDatum| {
+            matches!(d, geom::CurveDatum::Axis | geom::CurveDatum::URef | geom::CurveDatum::Dir)
+        };
         assert_eq!(
             walked.len(),
             kind.scalars,

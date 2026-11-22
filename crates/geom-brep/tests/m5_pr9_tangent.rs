@@ -275,7 +275,7 @@ fn a_skewed_carrier_fails_normal_parallelism() {
     // 0.05 tilt over a 1 m edge: sinθ ≈ y/1 up to 0.05, margin ≈
     // 0.05 m ≫ escalate at any battery ε).
     let (k1, k2, map) = keys2();
-    let carrier = Curve3::line(Point3::new(1.0, 0.0, 0.0), geom::stated_direction(Vec3::new(0.0, 0.05, 1.0)));
+    let carrier = Curve3::line(Point3::new(1.0, 0.0, 0.0), geom_core::UnitVec3::squared(Vec3::new(0.0, 0.05, 1.0)));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(k1, k2),
