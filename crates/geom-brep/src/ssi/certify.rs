@@ -26,8 +26,10 @@
 //!
 //! A sampled max is not a bound, and a marched-and-fitted curve lies
 //! about the locus *precisely between samples*. Two mechanisms, one per
-//! operand kind, both pure convexity facts about control coefficients
-//! (C9's certification arithmetic: no evaluation, no root, no transcendental):
+//! operand kind, both convexity facts about control coefficients in
+//! C9's certification arithmetic (no evaluation; the analytic arm's one
+//! root is of a bound, its lever's, and a cone's sine and cosine are
+//! taken once of its crossed angle):
 //!
 //! - **analytic**: the edge certificate's one reader
 //!   ([`crate::pcurve_cache::limb2_offset_sup`]): the surface's
@@ -176,8 +178,11 @@ pub(crate) fn tube_ladder(extent: f64, band: Band) -> impl Iterator<Item = f64> 
     })
 }
 
-/// How many spans limbs 2 and 3 cut the carrier into ([`cert_grid`]).
-/// More spans ⇒ tighter hulls and a tighter tube, at linear cost. The
+/// How many spans the box chain of limb 3 cuts a spline carrier into
+/// ([`cert_grid`]), the chart arm's grid over a closed form
+/// ([`chart_grid`]), and per turn of its angle the analytic reader's
+/// first cut of a closed form (`pcurve_cache::closed_form_grid`). More
+/// spans ⇒ tighter hulls and a tighter tube, at linear cost. The
 /// grid's points are a **structure** choice, not a decision; the
 /// refinement they schedule is made inside the certificate, so it is
 /// held as homogeneous enclosures in the ring (C6: [`refined_net`],
@@ -306,9 +311,10 @@ pub enum SsiLimb {
     /// `|S(P(t)) − C(t)|`, the carrier read through its pcurve: a bound
     /// on the carrier's miss and on the pcurve's together.
     HullSupChart,
-    /// Limb 2 against an analytic operand — the composite's certified
-    /// value at one of its breaks, past the band's zero: limb 1's
-    /// linearized residual, measured where the bound did not clear.
+    /// Limb 2 against an analytic operand — the reader's certified lower
+    /// bound in metres on the carrier's distance from the surface at one
+    /// of its breaks, past the band's zero, measured where the bound did
+    /// not clear.
     HullValue,
     /// Limb 2 against a NURBS operand — `|S(P(t)) − C(t)|` at one of the
     /// composite's breaks, past the band's zero: the carrier against the
@@ -356,8 +362,8 @@ impl SsiLimb {
     /// one, the value at a break is that image's own miss
     /// (`PcurveCheck::of_fitted_limb`). Limbs 1 and 2 are the fitted
     /// carrier's on-locus residual and sup-norm bound; limb 2's value at
-    /// a break is limb 1's residual against an analytic operand, and
-    /// against a NURBS operand the sup-norm bound's quantity at a point,
+    /// a break is a lower bound on the carrier's distance there against
+    /// an analytic operand, and against a NURBS operand the sup-norm bound's quantity at a point,
     /// a bound on the miss like it; limb 3's margin is a lower bound on
     /// the operands' transversality over the box chain.
     #[must_use]
@@ -372,11 +378,11 @@ impl SsiLimb {
     }
 }
 
-/// The breaks limbs 2 and 3 cut the carrier at so they have small
-/// spans to work with: the domain's `SSI_CERT_SPANS` grid. Both read
-/// the DESCRIBED carrier with these breaks taken in the certification
-/// ring (limb 2 through [`CurveCertData::with_breaks`], the box chain
-/// through [`refined_net`]), never a refined curve with `f64` weights.
+/// The breaks limb 3's box chain cuts a spline carrier at so it has
+/// small spans to work with: the domain's `SSI_CERT_SPANS` grid. It
+/// reads the DESCRIBED carrier with these breaks taken in the
+/// certification ring ([`refined_net`]), never a refined curve with
+/// `f64` weights.
 fn cert_grid(kv: &KnotVector) -> Vec<f64> {
     // Already fine enough: a carrier that the marcher's step rule
     // already gave hundreds of spans gains nothing from more breaks.
@@ -1126,8 +1132,8 @@ pub(crate) struct HullArm {
     value_limb: SsiLimb,
 }
 
-/// Limb 2 against an analytic operand: its value at a break is limb 1's
-/// residual.
+/// Limb 2 against an analytic operand: its value at a break is the
+/// reader's lower bound on the carrier's distance there, in metres.
 const ANALYTIC_HULL: HullArm = HullArm {
     sup: "ssi_hull_sup",
     sup_limb: SsiLimb::HullSup,

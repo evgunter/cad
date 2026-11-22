@@ -101,8 +101,8 @@
 //! (PR 4), certifies all three C2 limbs, and proves the domain
 //! exhausted or refuses typed. Every other rung-3 arm keeps its typed
 //! refusal and **cites the trace shape it would use** and what is
-//! actually missing: for the cone pairs, the meters conversion of the
-//! cone's composite.
+//! actually missing: for the cone pairs, the tube's cone arm
+//! (`ssi::enclose::has_implicit_enclosure`) and the pair doors.
 //!
 //! Tangential outcomes (`TangentLine` variants) are **classification
 //! data**, not constructible edges: a pair whose transversality margin
@@ -286,9 +286,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    tangency sub-case exists, a coaxial cylinder always cuts \
                    transversally; a tilted cylinder and a parallel-but-OFFSET one \
                    both cut a QUARTIC and route to the general rung, whose \
-                   cone×cylinder arm has not retired — the cone's composite has no \
-                   meters conversion, so its certificate, not its trace, is what is \
-                   missing (arms retire one at a time, each with its proof)",
+                   cone×cylinder arm has not retired — the uniqueness tube has no \
+                   cone arm, so its certificate, not its trace, is what is missing \
+                   (arms retire one at a time, each with its proof)",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ³ implicit-pair
         // march. Both operands' C9 composites convert to meters
@@ -314,24 +314,24 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the cone's exact \
-                   meters conversion; the common-apex line-pair special case is \
+                   trace shape (the general-rung marcher), blocked on the uniqueness \
+                   tube's cone arm; the common-apex line-pair special case is \
                    not classified here",
         },
         (Cone, Sphere) | (Sphere, Cone) => PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the cone's exact \
-                   meters conversion; the coaxial pose has a closed form \
+                   trace shape (the general-rung marcher), blocked on the uniqueness \
+                   tube's cone arm; the coaxial pose has a closed form \
                    (cone_sphere_section), which this dispatch does not route to",
         },
         (Cone, Torus) | (Torus, Cone) => PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the cone's exact \
-                   meters conversion; the coaxial pose has a closed form \
+                   trace shape (the general-rung marcher), blocked on the uniqueness \
+                   tube's cone arm; the coaxial pose has a closed form \
                    (cone_torus_section), which this dispatch does not route to",
         },
         // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, each
@@ -3220,8 +3220,8 @@ fn coaxial_cone_sphere<T: Decide>(
             return Err(SectionError::RoutesToGeneralRung {
                 pair: "cone×sphere",
                 why: "a sphere whose centre is off the cone's axis cuts a QUARTIC, and the \
-                      pair's general-rung arm has not retired — the cone's composite has no \
-                      meters conversion",
+                      pair's general-rung arm has not retired — the uniqueness tube has no \
+                      cone arm",
             });
         }
     }
@@ -3641,8 +3641,8 @@ pub fn cone_cylinder_section<T: Decide>(
                 pair: "cone×cylinder",
                 why: "a cylinder tilted off the cone's axis cuts a QUARTIC, not a \
                       circle, and the pair's general-rung arm has not retired — the \
-                      cone's composite has no meters conversion (arms retire one at a \
-                      time, each with its proof)",
+                      uniqueness tube has no cone arm (arms retire one at a time, each \
+                      with its proof)",
             });
         }
     }
@@ -3713,8 +3713,8 @@ pub fn cone_cylinder_section<T: Decide>(
             pair: "cone×cylinder",
             why: "a cylinder parallel to the cone's axis but OFF it cuts a QUARTIC, \
                   not a circle, and the pair's general-rung arm has not retired — the \
-                  cone's composite has no meters conversion (arms retire one at a time, \
-                  each with its proof)",
+                  uniqueness tube has no cone arm (arms retire one at a time, each with \
+                  its proof)",
         }),
     }
 }

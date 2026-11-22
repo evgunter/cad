@@ -426,7 +426,10 @@ curve pairs.
   carried at `T` (`SsiCertificate<T>`, `FittedLane`). The analytic
   composite's coefficients are enclosures built at the lane scalar, so
   a WIDENED analytic operand is certified as the family it is rather
-  than represented by a surface picked out of it.
+  than represented by a surface picked out of it. The one reading that
+  still holds an analytic operand as `f64` structure is the chart
+  tube's partner form (`ssi::certify::chart_partner_form`), which
+  refuses a widened partner typed (`CHART_TUBE_PARTNER_INEXACT`).
 - **What a lane scalar takes from `f64` is a choice, never a claim,
   and the same across the box.** This holds of every scalar that is
   not `f64`, a `Dual` and a `Sym` as much as an `Interval`: at a

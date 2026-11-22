@@ -933,9 +933,9 @@ enum Partner<'a, T: Real> {
 
 impl<'a, T: Real> Partner<'a, T> {
     /// `s` as a lane's partner: a plane, or a sphere, cylinder or ring
-    /// torus, whose implicit residual the rung-3 door reads in metres.
-    /// A cone's has no metres conversion there, a spindle has no arm,
-    /// and a spline is a wall.
+    /// torus, whose implicit form the chart tube reads
+    /// (`ssi::certify::chart_partner_form`). A cone has no such form, a
+    /// spindle has no arm, and a spline is a wall.
     fn of(s: &'a Surface<T>) -> Option<Self> {
         match s {
             Surface::Plane { frame, .. } => {
@@ -1029,9 +1029,9 @@ pub(crate) fn is_residual_partner<T: Real>(s: &Surface<T>) -> bool {
 /// # Errors
 ///
 /// [`PlaneNurbsRefusal`], whose vocabulary this lane shares:
-/// [`PlaneNurbsRefusal::WrongLane`] for any other partner (a cone's
-/// residual has no metres conversion at the rung-3 door, and a plane has
-/// its own lane), and otherwise as [`plane_nurbs_limbs`].
+/// [`PlaneNurbsRefusal::WrongLane`] for any other partner (a cone has no
+/// form the chart tube reads, and a plane has its own lane), and
+/// otherwise as [`plane_nurbs_limbs`].
 ///
 /// The bound is [`plane_nurbs_limbs`]'s, and a dual fails it the same
 /// way:
