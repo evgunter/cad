@@ -5244,6 +5244,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "expr",
             "extrude",
             "fillet",
+            "half_of_a_family",
             "index_count",
             "index_count_out_of_range",
             "indices_unrelated",

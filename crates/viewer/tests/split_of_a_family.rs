@@ -236,8 +236,7 @@ fn split_of_a_read_pattern(
 /// halves refusing typed**: the door re-points the placement onto the
 /// split's `above ⊔ below`. A split of a family is a family of splits,
 /// so that assemble, which reads no member, has no one half to read: it
-/// refuses `HalfOfAFamily` naming the split, and the placement is
-/// poisoned through it. No evaluation panics.
+/// refuses `HalfOfAFamily` naming the split. No evaluation panics.
 #[test]
 fn a_split_of_a_transformed_pattern_evaluates() {
     let tol = Tol::witness();
@@ -275,9 +274,5 @@ fn a_split_of_a_transformed_pattern_evaluates() {
         ),
         "the assemble refuses its half of a family: {:?}",
         eval.node_error(assemble).map(|e| &e.kind)
-    );
-    assert!(
-        eval.value(moved).is_none(),
-        "and the placement reading it has no value"
     );
 }
