@@ -678,3 +678,233 @@ fn a_mates_fixed_freedoms_leave_the_draft_before_apply() {
         outcome.maintenance
     );
 }
+
+/// How many names `rows` report the document keeping with their
+/// referent gone — in a payload, in a selection, or as an appearance
+/// key — each counted once however many rows say it.
+fn stranded_names(rows: &[Maintenance]) -> usize {
+    stranded(rows).len()
+}
+
+/// The names [`stranded_names`] counts, each with where it is held.
+fn stranded(rows: &[Maintenance]) -> std::collections::BTreeSet<(String, StableName)> {
+    rows.iter()
+        .filter_map(|row| match row {
+            Maintenance::Strand { node, name, .. } => {
+                Some((format!("payload {:?}", node.id()), name.name().clone()))
+            }
+            Maintenance::StrandedSelection { var, name, .. } => {
+                Some((format!("selection {:?}", var.id()), name.name().clone()))
+            }
+            Maintenance::StrandedAppearance { body, name, .. } => {
+                Some((format!("appearance {:?}", body.id()), name.name().clone()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The names the selection `shell` reads holds.
+fn selected(doc: &Doc<ProfileProgram>, shell: RecipeNodeId) -> Vec<StableName> {
+    doc.selection(face_of(doc, shell))
+        .expect("a shell reads a selection")
+        .names
+        .iter()
+        .cloned()
+        .collect()
+}
+
+/// **The delete button's count is the count of the rows its click
+/// reports**, for a selected name and for an appearance key. A shell of
+/// the kept block names a wall of the victim, which is also painted.
+#[test]
+fn the_delete_button_counts_the_names_its_click_strands() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("button-strand-count", tol);
+    let (doc, kept) = block(&doc, 0.0);
+    let (doc, victim) = block(&doc, 4.0);
+    let named = wall(&doc, victim, 0, 0);
+    let (doc, _) = shell_on(&doc, kept, named.clone());
+    let tag = test_utils::refusal::tag(victim.0.digest());
+
+    let one = DocSession::inline(doc.clone(), tol).delete_affordance(victim);
+    assert_eq!(one.stranded, 1, "the shell's name");
+    assert_eq!(one.label, format!("Delete Extrude {tag}, stranding 1 name"));
+    assert_eq!(
+        one.hover.as_deref(),
+        Some("Strands 1 name that the document keeps and that resolves to nothing until rebound")
+    );
+
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &named),
+            name: wall(&doc, victim, 0, 2),
+            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
+        },
+        tol,
+    );
+    // A shell of the victim itself goes with it, and its name with it.
+    let (doc, _) = shell_on(&doc, victim, wall(&doc, victim, 0, 1));
+    let mut session = DocSession::inline(doc, tol);
+    let two = session.delete_affordance(victim);
+    assert_eq!(two.stranded, 2, "the shell's name and the paint's key");
+    assert_eq!(
+        two.label,
+        format!("Delete Extrude {tag} and 1 dependent feature, stranding 2 names")
+    );
+    assert_eq!(
+        two.hover.as_deref(),
+        Some(
+            "Also deletes 1 feature that depends on it: 1 × Shell\nStrands 2 names that the \
+             document keeps and that resolve to nothing until rebound"
+        )
+    );
+    let outcome = session.perform(SessionOp::DeleteNode { node: victim });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        outcome
+            .maintenance
+            .iter()
+            .any(|row| matches!(row, Maintenance::StrandedAppearance { .. })),
+        "the premise: one of the two is the appearance key: {:?}",
+        outcome.maintenance
+    );
+    assert_eq!(
+        stranded_names(&outcome.maintenance),
+        two.stranded,
+        "the button said what the click reported"
+    );
+
+    assert_eq!(
+        session.delete_affordance(victim).stranded,
+        0,
+        "asked again of the document the click left, which holds no victim"
+    );
+    let kept_only = session.delete_affordance(kept);
+    assert_eq!(kept_only.stranded, 0, "the kept block minted no held name");
+    assert!(
+        !kept_only.label.contains("stranding"),
+        "a zero is not said: {}",
+        kept_only.label
+    );
+}
+
+/// **A strand on a carrier the cascade goes on to delete is not
+/// counted.** Two shells read one block, and the first names a face of
+/// the second; deleting the block deletes the second shell, which
+/// strands the first's name, and then the first.
+#[test]
+fn the_delete_button_does_not_count_a_strand_on_a_carrier_it_deletes() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("button-transient", tol);
+    let (doc, target) = block(&doc, 0.0);
+    // The carrier is the older shell, so the cascade reaches it last.
+    let placeholder = wall(&doc, target, 0, 1);
+    let (doc, carrier) = shell_on(&doc, target, placeholder.clone());
+    let (doc, minter) = shell_on(&doc, target, wall(&doc, target, 0, 0));
+    let of_minter = StableName {
+        kind: EntityKind::Face,
+        node: minter,
+        path: Vec::new(),
+    };
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::Rebind {
+            body: doc.output(target, 0),
+            from: placeholder,
+            to: of_minter.clone(),
+        },
+        tol,
+    );
+    assert_eq!(selected(&doc, carrier), [of_minter], "the premise");
+    let mut session = DocSession::inline(doc.clone(), tol);
+    let affordance = session.delete_affordance(target);
+    assert_eq!(affordance.cascade.last(), Some(&target));
+    assert_eq!(affordance.cascade.len(), 3, "both shells go with it");
+
+    let outcome = session.perform(SessionOp::DeleteNode { node: target });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    // Each committed edit's own rows, summed: what a count taken step
+    // by step would say.
+    let mut at = doc;
+    let mut stepwise = 0;
+    for edit in &outcome.committed {
+        let applied = pncad::document::apply(&at, edit, tol).expect("the committed edit replays");
+        stepwise += stranded_names(&applied.maintenance);
+        at = applied.doc;
+    }
+    assert_eq!(
+        stepwise, 1,
+        "the premise: a step of the cascade strands the carrier's name"
+    );
+    assert_eq!(affordance.stranded, 0, "the carrier went with it");
+    assert_eq!(stranded_names(&outcome.maintenance), 0);
+    assert_eq!(
+        affordance.label,
+        format!(
+            "Delete Extrude {} and 2 dependent features",
+            test_utils::refusal::tag(target.0.digest())
+        )
+    );
+}
+
+/// **A name handed back to the continued body is not counted, and a
+/// name the deleted node minted is.** The outer shell reads the inner
+/// one and holds two names of it: one the inner carried in whole from
+/// the block, one it minted. Deleting the inner hands the outer to the
+/// block; both names' minting node is the deleted one and their
+/// carrier survives.
+#[test]
+fn the_delete_button_does_not_count_a_name_the_delete_hands_back() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("button-handed-back", tol);
+    let (doc, base) = block(&doc, 0.0);
+    let (doc, inner) = shell_on(&doc, base, wall(&doc, base, 0, 0));
+    let of_base = wall(&doc, base, 0, 1);
+    let carried = StableName {
+        kind: EntityKind::Face,
+        node: inner,
+        path: vec![RoleSeg::From {
+            read: doc.output(base, 0).expect("the block's body"),
+            of: of_base.clone().into(),
+        }],
+    };
+    let minted = StableName {
+        kind: EntityKind::Face,
+        node: inner,
+        path: Vec::new(),
+    };
+    let (doc, outer) = common::inserted(
+        &doc,
+        Node::Shell {
+            thickness: common::len(0.01),
+            open: pncad::document::Operand::select(inner, vec![carried, minted.clone()]),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    let affordance = session.delete_affordance(inner);
+    assert_eq!(
+        affordance.cascade,
+        [inner],
+        "the outer shell is handed over"
+    );
+    assert_eq!(affordance.stranded, 1, "the minted name alone");
+
+    let outcome = session.perform(SessionOp::DeleteNode { node: inner });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(
+        stranded(&outcome.maintenance)
+            .into_iter()
+            .map(|(_, name)| name)
+            .collect::<Vec<_>>(),
+        [minted.clone()],
+        "the click reports the minted name and not the carried one"
+    );
+    let mut held = selected(session.committed_doc(), outer);
+    held.sort();
+    let mut want = vec![of_base, minted];
+    want.sort();
+    assert_eq!(held, want, "the carried name returned to the block's");
+}

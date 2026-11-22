@@ -480,6 +480,11 @@ pub struct DocSession {
     /// [`DocSession::generation`], which every route that changes the
     /// shown document moves ([`DocSession::request_eval`]).
     offers: crate::generation::GenerationMemo<RecipeNodeId, PlacementOffers>,
+    /// **The delete affordance last composed, with the generation and
+    /// node it was composed for** ([`DocSession::delete_affordance`]): the
+    /// delete button asks it every frame, and composing it rehearses the
+    /// whole delete.
+    priced: crate::generation::GenerationMemo<RecipeNodeId, DeleteAffordance>,
     /// **The re-point buttons read this generation**
     /// ([`DocSession::repoint_button`]), each source row and "copy of" row
     /// asking under its own source and selected body: each asks the same
@@ -1084,6 +1089,7 @@ impl DocSession {
             resolver: None,
             notation: Notation::DEFAULT,
             offers: crate::generation::GenerationMemo::default(),
+            priced: crate::generation::GenerationMemo::default(),
             repoints: crate::generation::GenerationMap::default(),
             bundles: crate::generation::GenerationMemo::default(),
             proposals: crate::generation::GenerationMemo::default(),
@@ -1156,6 +1162,9 @@ impl DocSession {
     /// The `cascade` field is the deletion order itself — exactly what
     /// [`SessionOp::DeleteNode`] applies — so the number on the button
     /// and the number of features that vanish are one list read twice.
+    /// The `stranded` field counts what the delete's own rehearsal
+    /// reports, so the number of names the button says it strands is the
+    /// number the click's [`OpOutcome::maintenance`] is about.
     ///
     /// Read off the COMMITTED document, which is the one the edits
     /// apply to; the delete op is one of the table's refusals
@@ -1163,7 +1172,9 @@ impl DocSession {
     /// holds a scratch value, so the two never disagree at a live
     /// button.
     pub fn delete_affordance(&self, node: RecipeNodeId) -> DeleteAffordance {
-        DeleteAffordance::of(self.committed_doc(), node)
+        self.priced.get_or(self.generation, &node, || {
+            DeleteAffordance::of(self.committed_doc(), node, self.tol)
+        })
     }
 
     /// **The chrome's cancel doors, one per gesture** — the exits
@@ -6426,6 +6437,7 @@ impl core::fmt::Debug for DocSession {
             resolver,
             notation,
             offers: _,
+            priced: _,
             repoints: _,
             bundles: _,
             proposals: _,
