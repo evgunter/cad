@@ -91,3 +91,13 @@ reads and a claim no gate reads are one kind of work. Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+## 2026-11-22: the fifteen AUTH notes
+
+`docs/doc-ledger/auth-1-spec.md` through `auth-15-spec.md` named
+`29b8874a1`, which holds no `docs/AUTH-*-SPEC.md`. All fifteen specs were
+deleted in `bb8a91c59a`; the notes now recover from its parent
+`84cc49f1f`, and all fifteen `git cat-file -e` checks resolve. Still open:
+a note-template sentence saying the recovery SHA is the deleting commit's
+parent. Its home (`work/README.md`'s Closing rule or
+`memories/docs-ledger.md`) binds future work, so it waits on Ev.
