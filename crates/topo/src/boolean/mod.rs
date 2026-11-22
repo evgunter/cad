@@ -1870,7 +1870,7 @@ pub(crate) struct VerifiedGlue<T: Real> {
     pub(crate) lines: std::collections::BTreeMap<(FaceKey, FaceKey), geom::Line<T>>,
     /// The rim each junction was glued on: two faces that both end on it,
     /// routed a smooth seam.
-    pub(crate) rims: std::collections::BTreeMap<(FaceKey, FaceKey), crate::rim_wedge::Rim<T>>,
+    rims: std::collections::BTreeMap<(FaceKey, FaceKey), crate::rim_wedge::Rim<T>>,
     /// The one-carrier pairs a margin decided, one row each in
     /// declaration order: a declaration's verification is a value
     /// decision, so its glue is recorded like any other
@@ -2145,7 +2145,7 @@ impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
 
     /// The rim the (operand-tagged) pair was glued on as a junction, if
     /// it was.
-    pub(crate) fn junction_rim(
+    pub(in crate::boolean) fn junction_rim(
         &self,
         o1: Operand,
         f1: FaceKey,
@@ -8053,6 +8053,21 @@ pub(crate) enum TangencyFailure {
 }
 
 /// What [`BooleanError::JunctionEndUnread`] does not read.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung; the disposition table cites this paragraph as its home). A Rust
+/// caller can already name and match it — `pncad` re-exports `topo`
+/// whole — and the Python door says which refusal it rides in
+/// (`junction_end_unread`) and carries its sentence, which names the two
+/// kinds or the window. Publishing it owes the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude` and a
+/// Python word per arm, both the façade crate's to write.
+///
+/// **The falsifier is a Python caller who must tell a missing lane from
+/// a missing window** without reading the sentence. When the façade
+/// carries the reading, delete this paragraph and the disposition row
+/// with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JunctionEndGap {
     /// The end-root door has no lane for the edge's carrier and the

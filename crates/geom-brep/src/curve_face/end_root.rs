@@ -17,7 +17,7 @@
 //!   composite's Taylor coefficients at the end.
 //! - **The order** `m` is the least `j ≥ 1` whose coefficient decides
 //!   nonzero, each read as the separation `c_j·L^j` its term makes over
-//!   the window's local extent `L`, over the form's gradient at the end
+//!   the window's local length `L`, over the form's gradient at the end
 //!   (`curve_face_end_root_order`). A coefficient decided Zero is a coincidence the
 //!   door acts on, as the glue does (D10), and the walk steps past it; one
 //!   in band refuses, and the walk never steps on it. Every coefficient
@@ -143,13 +143,12 @@ fn pow<T: Real>(s: T, j: usize) -> T {
 }
 
 /// The carrier from the end: its homogeneous point `X/W` as polynomials
-/// in the local parameter, the local extent the window starts from, the
-/// local parameter's top speed in metres, and the map back to the
-/// carrier's parameter.
+/// in the local parameter, the local length the window starts from, and
+/// the map back to the carrier's parameter.
 struct Local<T: Real> {
     x: [Poly<T>; 3],
     w: Poly<T>,
-    extent: T,
+    run: T,
     kind: LocalKind,
     t_end: T,
     toward: T,
@@ -183,7 +182,7 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
             Some(Local {
                 x: [vec![p.x, d.x], vec![p.y, d.y], vec![p.z, d.z]],
                 w: vec![T::one()],
-                extent: span,
+                run: span,
                 kind: LocalKind::Line,
                 t_end,
                 toward,
@@ -209,7 +208,7 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
                     coord(c.z, u.z, v.z),
                 ],
                 w,
-                extent: (turned / two).tan(),
+                run: (turned / two).tan(),
                 kind: LocalKind::HalfAngle,
                 t_end,
                 toward,
@@ -303,7 +302,7 @@ pub fn end_window<T: Decide>(
 ) -> Result<EndWindow<T>, EndRootRefusal> {
     let local = local(carrier, span, end).ok_or(EndRootRefusal::NoLane)?;
     let (n, g) = composite(surface, &local).ok_or(EndRootRefusal::NoLane)?;
-    let extent = local.extent;
+    let run = local.run;
     // The order: the least `j ≥ 1` decided nonzero. A Zero is charged at
     // the zero band's width at its power, the most its verdict admits;
     // a coefficient in band stops the walk.
@@ -317,20 +316,20 @@ pub fn end_window<T: Decide>(
     ];
     let mut order = None;
     for (j, &c) in n.iter().enumerate().skip(1) {
-        let term = c * pow(extent, j);
+        let term = c * pow(run, j);
         match decide(END_ROOT_ORDER, Margin::over_lever(term, g), band) {
             Ok(Sign::Positive | Sign::Negative) => {
                 order = Some(j);
                 break;
             }
-            Ok(Sign::Zero) => charge.push(c.abs().max(zero * g / pow(extent, j))),
+            Ok(Sign::Zero) => charge.push(c.abs().max(zero * g / pow(run, j))),
             Err(diag) => return Err(EndRootRefusal::Order(diag)),
         }
     }
     let m = order.ok_or(EndRootRefusal::LiesOn)?;
     let lead = n[m].abs() * T::from_f64(0.5);
     // The window: the terms past `m` at most half the `m`-th.
-    let mut s_w = extent;
+    let mut s_w = run;
     let mut held = false;
     let mut halved = false;
     for _ in 0..WINDOW_HALVINGS {
@@ -352,6 +351,7 @@ pub fn end_window<T: Decide>(
     // until its far end stands off the surface, the spread inside it.
     let excess = |s: T| lead * pow(s, m) - abs_terms(&charge, 0..m, s);
     let mut whole = !halved;
+    let mut in_band = None;
     for _ in 0..WINDOW_HALVINGS {
         if geom_core::k_stats::prove(END_ROOT_SPREAD, Margin::sign_of(excess(s_w)))
             != Ok(Sign::Positive)
@@ -372,12 +372,17 @@ pub fn end_window<T: Decide>(
                     order: u32::try_from(m).unwrap_or(u32::MAX),
                 });
             }
-            Ok(Sign::Zero) | Err(_) => {}
+            Ok(Sign::Zero) => {}
+            // A nearer window may clear; the first reading in band is the
+            // refusal's where none does.
+            Err(diag) => {
+                in_band.get_or_insert(diag);
+            }
         }
         s_w = s_w * T::from_f64(0.5);
         whole = false;
     }
-    Err(EndRootRefusal::Window(None))
+    Err(EndRootRefusal::Window(in_band))
 }
 
 #[cfg(test)]
