@@ -3355,7 +3355,9 @@ impl<T: Decide> CarriedComponent<T> {
         let off = p - at;
         let along = d1.dot(off) / d1.norm();
         let arc = T::from_f64(band.escalate());
-        let w = speed_range(&self.carrier).0.to_param(arc);
+        // The parameter run the arc spans at most: over the speed's inf,
+        // which over-states it, the side a curvature bound over it needs.
+        let w = arc / speed_range(&self.carrier).0.get();
         let kappa = curvature_hi_over(&self.carrier, (t - w, t + w));
         let fall = (T::one() - kappa * (off.norm() + arc)).max(T::zero());
         // A projection onto the unit tangent, in metres, over the
