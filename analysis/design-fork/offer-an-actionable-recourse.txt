@@ -1,0 +1,6 @@
+fork: offer-an-actionable-recourse (OFFER, a-refusal-offers-no-action-in-the-viewer with a-check-offers-no-way-to-add-the-assertion-it-asks-for)
+drawn: 2026-11-22, od -N1 /dev/urandom
+arm byte: 167 (>= 86: two designers)
+label byte: 226
+mapping: A = Opus designer, B = Fable designer
+protocol: 3a6220f722
