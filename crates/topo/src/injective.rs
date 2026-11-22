@@ -5377,16 +5377,30 @@ impl Psi {
     /// and along a ruling, where `v` is the axis, that part is all of it.
     fn rate(&self, p: Point3<Interval>, v: Vec3<Interval>) -> Interval {
         let unit = |w: Vec3<Interval>| w * (at(1.0) / w.norm());
+        // REVIEW PROBE: `REVIEW_MUT=<n>` selects one mutant; unset is the PR's code.
+        let mu = review_mutant();
         match *self {
-            Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n.dot(v),
+            Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => match mu {
+                9 => -n.dot(v),
+                12 => n.dot(v) * at(0.5),
+                _ => n.dot(v),
+            },
             Self::Carrier(Implicit::Cylinder { o, axis, .. }) => {
                 let line = geom::Line {
                     origin: o,
                     dir: axis,
                 };
-                unit(line.offset(p)).dot(square_to(axis, v))
+                match mu {
+                    6 => line.offset(p).dot(square_to(axis, v)),
+                    13 => at(0.0),
+                    _ => unit(line.offset(p)).dot(square_to(axis, v)),
+                }
             }
-            Self::Carrier(Implicit::Sphere { c, .. }) => unit(p - c).dot(v),
+            Self::Carrier(Implicit::Sphere { c, .. }) => match mu {
+                7 => (p - c).dot(v),
+                8 => -unit(p - c).dot(v),
+                _ => unit(p - c).dot(v),
+            },
             Self::Carrier(Implicit::Cone {
                 apex,
                 axis,
@@ -5398,9 +5412,23 @@ impl Psi {
                     origin: apex,
                     dir: axis,
                 };
-                unit(line.offset(p)).dot(square_to(axis, v)) * cos - axis.dot(v) * (nappe * sin)
+                let radial = if mu == 11 {
+                    line.offset(p).dot(square_to(axis, v))
+                } else {
+                    unit(line.offset(p)).dot(square_to(axis, v))
+                };
+                match mu {
+                    2 => radial * cos - axis.dot(v) * (-nappe * sin),
+                    3 => radial * sin - axis.dot(v) * (nappe * cos),
+                    4 => radial * cos + axis.dot(v) * (nappe * sin),
+                    _ => radial * cos - axis.dot(v) * (nappe * sin),
+                }
             }
-            Self::Graph { m, t, slope, .. } => (m - t * slope).dot(v),
+            Self::Graph { m, t, slope, .. } => match mu {
+                10 => (m + t * slope).dot(v),
+                14 => m.dot(v) - t.dot(v) * slope,
+                _ => (m - t * slope).dot(v),
+            },
         }
     }
 
@@ -5416,7 +5444,22 @@ impl Psi {
 /// **`v` less its part along `axis`**: `v − axis·(axis·v)/|axis|²`. A
 /// vector square to the axis has the same dot with it as with `v`.
 fn square_to(axis: Vec3<Interval>, v: Vec3<Interval>) -> Vec3<Interval> {
-    v - axis * (axis.dot(v) / axis.norm_squared())
+    match review_mutant() {
+        1 => v,
+        5 => v - axis * (axis.dot(v) / axis.norm()),
+        _ => v - axis * (axis.dot(v) / axis.norm_squared()),
+    }
+}
+
+/// REVIEW PROBE: the mutant `REVIEW_MUT` names, 0 where unset.
+fn review_mutant() -> u32 {
+    static M: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *M.get_or_init(|| {
+        std::env::var("REVIEW_MUT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0)
+    })
 }
 
 /// `ψ∘Φ` over `x × y` in its centred form: its value at the middle, and
@@ -12683,5 +12726,408 @@ mod presentation_rows {
             None,
             "the shared edge's far end"
         );
+    }
+}
+
+/// Reviewer probes for PR 7327 (`embed/iso-end`): `Psi::rate` against a
+/// finite difference of `Psi::value`, member by member.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stderr)]
+mod review_iso_end_probes {
+    use super::*;
+
+    fn iv0(x: f64) -> Interval {
+        Interval::from_bounds(x, x)
+    }
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).unwrap()
+    }
+    fn pt(q: Vec3<f64>) -> Point3<Interval> {
+        Point3::new(iv0(q.x), iv0(q.y), iv0(q.z))
+    }
+    fn boxed(q: Vec3<f64>, h: f64) -> Point3<Interval> {
+        let s = |x: f64| Interval::from_bounds(x - h, x + h);
+        Point3::new(s(q.x), s(q.y), s(q.z))
+    }
+    fn vbox(v: Vec3<f64>, h: f64) -> Vec3<Interval> {
+        let s = |x: f64| Interval::from_bounds(x - h, x + h);
+        Vec3::new(s(v.x), s(v.y), s(v.z))
+    }
+    struct Lcg(u64);
+    impl Lcg {
+        /// Uniform in (-1, 1).
+        fn next(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64) * 2.0 - 1.0
+        }
+        fn vec(&mut self, s: f64) -> Vec3<f64> {
+            Vec3::new(self.next() * s, self.next() * s, self.next() * s)
+        }
+    }
+    const D: [f64; 3] = [0.36, -0.48, 0.8];
+    const O: [f64; 3] = [1.5, -2.25, 0.75];
+    fn d() -> Vec3<f64> {
+        Vec3::new(D[0], D[1], D[2])
+    }
+    fn o() -> Vec3<f64> {
+        Vec3::new(O[0], O[1], O[2])
+    }
+    fn mid(x: Interval) -> f64 {
+        0.5 * (x.lo() + x.hi())
+    }
+    /// A central difference of `psi.value` along `v` at `q`.
+    fn fd(psi: &Psi, q: Vec3<f64>, v: Vec3<f64>) -> f64 {
+        let h = 1e-5;
+        let val = |s: f64| mid(psi.value(pt(q + v * s)).expect("a closed form"));
+        (val(h) - val(-h)) / (2.0 * h)
+    }
+    fn carriers(axis: Vec3<Interval>, org: Vec3<f64>) -> Vec<(&'static str, Psi)> {
+        let op = pt(org);
+        let cone = |nappe: f64| {
+            Psi::Carrier(Implicit::Cone {
+                apex: op,
+                axis,
+                cos: iv0(0.8),
+                sin: iv0(0.6),
+                nappe: iv0(nappe),
+            })
+        };
+        vec![
+            (
+                "cylinder",
+                Psi::Carrier(Implicit::Cylinder {
+                    o: op,
+                    axis,
+                    r: iv0(0.5),
+                }),
+            ),
+            ("cone+", cone(1.0)),
+            ("cone-", cone(-1.0)),
+            (
+                "sphere",
+                Psi::Carrier(Implicit::Sphere {
+                    c: op,
+                    r: iv0(0.5),
+                }),
+            ),
+            ("plane", Psi::Carrier(Implicit::Plane { o: op, n: axis })),
+            ("linear", Psi::Linear { n: axis, q: op }),
+        ]
+    }
+    fn off_axis(q: Vec3<f64>) -> f64 {
+        let w = q - o();
+        (w - d() * w.dot(d())).norm()
+    }
+
+    /// **At a point, each carrier's rate is the derivative of its own
+    /// value along `v`**, to 1e-7, and is itself a point to 1e-9: so a
+    /// sign, a factor, or a swapped term in any arm goes red.
+    #[test]
+    fn each_carriers_rate_at_a_point_is_its_values_derivative() {
+        let mut g = Lcg(7);
+        let mut seen = 0;
+        while seen < 200 {
+            let q = o() + g.vec(2.0);
+            if off_axis(q) < 0.2 {
+                continue;
+            }
+            seen += 1;
+            let v = g.vec(1.0);
+            for (what, psi) in carriers(d().map(iv0), o()) {
+                let rate = psi.rate(pt(q), v.map(iv0));
+                let want = fd(&psi, q, v);
+                assert!(
+                    rate.hi() - rate.lo() < 1e-9
+                        && rate.lo() - 1e-7 <= want
+                        && want <= rate.hi() + 1e-7,
+                    "{what} at {q:?} along {v:?}: rate {rate:?}, derivative {want}"
+                );
+            }
+        }
+    }
+
+    /// **Over a box, an axis enclosure and a direction enclosure, the
+    /// rate holds every member's derivative**: members sampled, each
+    /// with its own axis, point and direction.
+    #[test]
+    fn each_carriers_rate_over_a_box_holds_every_sampled_members_derivative() {
+        let mut g = Lcg(11);
+        let mut seen = 0;
+        while seen < 60 {
+            let q = o() + g.vec(2.0);
+            if off_axis(q) < 0.3 {
+                continue;
+            }
+            seen += 1;
+            let v = g.vec(1.0);
+            for (hq, ha, hv) in [(1e-2, 0.0, 0.0), (1e-3, 1e-6, 1e-3), (1e-5, 1e-4, 1e-2)] {
+                let axis = vbox(d(), ha);
+                for ((what, psi), k) in carriers(axis, o()).into_iter().zip(0..) {
+                    let rate = psi.rate(boxed(q, hq), vbox(v, hv));
+                    for _ in 0..12 {
+                        let a = d() + g.vec(ha);
+                        let (qm, vm) = (q + g.vec(hq), v + g.vec(hv));
+                        let (_, member) = carriers(a.map(iv0), o()).swap_remove(k);
+                        let want = fd(&member, qm, vm);
+                        assert!(
+                            rate.lo() - 1e-7 <= want && want <= rate.hi() + 1e-7,
+                            "{what} box {hq} axis {ha} dir {hv} at {q:?}: rate {rate:?}, \
+                             a member's derivative {want}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// **A cylinder's rate about an axis that is not unit** is still its
+    /// value's derivative (`Line::distance`, `Line::offset` and
+    /// `square_to` each hold for any nonzero `dir`): red where
+    /// `square_to` divides by `|axis|`.
+    #[test]
+    fn a_cylinders_rate_about_a_long_axis_is_its_values_derivative() {
+        let mut g = Lcg(13);
+        for scale in [2.0, 1.0 + 1e-3, 0.5] {
+            let psi = Psi::Carrier(Implicit::Cylinder {
+                o: pt(o()),
+                axis: (d() * scale).map(iv0),
+                r: iv0(0.5),
+            });
+            let mut seen = 0;
+            while seen < 50 {
+                let q = o() + g.vec(2.0);
+                if off_axis(q) < 0.2 {
+                    continue;
+                }
+                seen += 1;
+                let v = g.vec(1.0);
+                let rate = psi.rate(pt(q), v.map(iv0));
+                let want = fd(&psi, q, v);
+                assert!(
+                    rate.lo() - 1e-7 <= want && want <= rate.hi() + 1e-7,
+                    "scale {scale} at {q:?} along {v:?}: rate {rate:?}, derivative {want}"
+                );
+            }
+        }
+    }
+
+    /// PRINTS: a cone about an axis off unit by the stored convention
+    /// (`|dir|²` to 1e-10). `value` reads the height as `w·dir/|dir|`,
+    /// `rate` reads its axial term as `axis·v`: the two differ by
+    /// `|dir| − 1` relative, which a point enclosure does not hold.
+    #[test]
+    fn prints_a_cones_rate_about_an_axis_off_unit_by_the_convention() {
+        let scale = 1.0 + 5e-11;
+        let a = d() * scale;
+        let psi = Psi::Carrier(Implicit::Cone {
+            apex: pt(o()),
+            axis: a.map(iv0),
+            cos: iv0(0.8),
+            sin: iv0(0.6),
+            nappe: iv0(1.0),
+        });
+        // along the axis, at a point off it: the true rate is −sin·|v|
+        // for v = the unit axis.
+        let q = o() + Vec3::new(0.8, 0.6, 0.0) * 0.7 + d() * 1.3;
+        let v = d();
+        let rate = psi.rate(pt(q), v.map(iv0));
+        let truth = -0.6;
+        eprintln!(
+            "PROBE cone off-unit axis: rate {rate:?}; truth {truth}; lo-truth {:e} hi-truth {:e}; holds {}",
+            rate.lo() - truth,
+            rate.hi() - truth,
+            rate.lo() <= truth && truth <= rate.hi()
+        );
+    }
+
+    /// PRINTS: what the rate reads over a box that holds the axis (a
+    /// cone's apex among it), and whether a sign is read of it.
+    #[test]
+    fn prints_the_rate_over_a_box_holding_the_axis() {
+        for (what, psi) in carriers(d().map(iv0), o()).into_iter().take(3) {
+            for (name, q, h) in [
+                ("holds the axis", o() + d() * 0.4, 1e-3),
+                ("holds the apex", o(), 1e-3),
+                ("touches the axis", o() + d() * 0.4 + Vec3::new(1e-3, 0.0, 0.0), 1e-3),
+            ] {
+                let v = Vec3::new(0.8, 0.6, 0.0);
+                let rate = psi.rate(boxed(q, h), v.map(iv0));
+                let value = psi.value(boxed(q, h));
+                eprintln!(
+                    "PROBE near-axis {what} {name}: rate {rate:?} value {value:?} sign {:?}",
+                    interval_sign_as(rate, SELF_INTERSECTION_DEPARTURE, band())
+                );
+                assert!(
+                    interval_sign_as(rate, SELF_INTERSECTION_DEPARTURE, band()).is_none(),
+                    "{what} {name}: a sign read over a box holding the axis"
+                );
+            }
+        }
+    }
+
+    /// PRINTS: widths of other spellings of the same rate, each an
+    /// identity for every member.
+    #[test]
+    fn prints_the_widths_of_other_spellings() {
+        let unit = |w: Vec3<Interval>| w * (at(1.0) / w.norm());
+        let w = |x: Interval| x.hi() - x.lo();
+        let axis = d().map(iv0);
+        let line = geom::Line {
+            origin: pt(o()),
+            dir: axis,
+        };
+        let across = Vec3::new(0.6, -0.8, 0.0).cross(d()); // square to axis and to the radial below
+        for (h, r) in [(6e-6, 0.006), (1e-3, 0.5), (1e-2, 0.5)] {
+            let c = o() + d() * 0.7 + Vec3::new(0.8, 0.6, 0.0) * r;
+            // a box round a ruling's segment and a generic box
+            for (name, p) in [
+                ("ruling box", {
+                    let s = |x: f64, k: f64| Interval::from_bounds(x - h * k.abs(), x + h * k.abs());
+                    Point3::new(s(c.x, D[0]), s(c.y, D[1]), s(c.z, D[2]))
+                }),
+                ("cube", boxed(c, h)),
+            ] {
+                for (dir, v) in [("along", d()), ("across", across), ("radial", Vec3::new(0.8, 0.6, 0.0))] {
+                    let v = v.map(iv0);
+                    let sq = square_to(axis, v);
+                    let off = line.offset(p);
+                    let landed = unit(off).dot(sq);
+                    let factored = off.dot(sq) / off.norm();
+                    let direct = (p - pt(o())).dot(sq) / line.distance(p);
+                    let old = unit(off).dot(v);
+                    eprintln!(
+                        "PROBE spelling cyl h={h:e} r={r} {name} {dir}: old {:e} landed {:e} (off.sq)/|off| {:e} (w.sq)/dist {:e}",
+                        w(old), w(landed), w(factored), w(direct)
+                    );
+                }
+            }
+            // sphere
+            let p = boxed(c, h);
+            let ws = p - pt(o());
+            let v = Vec3::new(0.3, 0.5, -0.4).map(iv0);
+            eprintln!(
+                "PROBE spelling sphere h={h:e}: unit(w).v {:e} (w.v)/|w| {:e}",
+                w(unit(ws).dot(v)),
+                w(ws.dot(v) / ws.norm())
+            );
+        }
+        // graph
+        let (m, t) = (Vec3::new(0.6, 0.0, 0.8).map(iv0), Vec3::new(0.0, 1.0, 0.0).map(iv0));
+        for (slope, v) in [
+            (Interval::from_bounds(-0.5, 0.5), Vec3::new(0.3, 0.5, -0.4)),
+            (Interval::from_bounds(0.9, 1.1), Vec3::new(0.6, 0.6, 0.8)),
+        ] {
+            let v = vbox(v, 1e-3);
+            let tilted_t = Vec3::new(0.48, 0.6, -0.64).map(iv0);
+            for (name, t) in [("t on an axis", t), ("t tilted", tilted_t)] {
+                eprintln!(
+                    "PROBE spelling graph {name} slope {slope:?}: (m-t*slope).v {:e} m.v-(t.v)*slope {:e}",
+                    w((m - t * slope).dot(v)),
+                    w(m.dot(v) - t.dot(v) * slope)
+                );
+            }
+        }
+    }
+
+    /// **The graph arm's rate holds `m·v − s·(t·v)` for every slope `s`
+    /// in its enclosure**: its gradient is `m − γ′(s)·t` by definition.
+    #[test]
+    fn the_graph_arms_rate_holds_every_slopes_rate() {
+        let mut g = Lcg(17);
+        for _ in 0..200 {
+            let (m, t, v) = (g.vec(1.0), g.vec(1.0), g.vec(1.0));
+            let (s0, s1) = {
+                let (a, b) = (g.next(), g.next());
+                (a.min(b), a.max(b))
+            };
+            let psi = Psi::Graph {
+                m: m.map(iv0),
+                t: t.map(iv0),
+                slope: Interval::from_bounds(s0, s1),
+                piece: (0.0, 1.0),
+            };
+            let rate = psi.rate(pt(o()), v.map(iv0));
+            for k in 0..=4 {
+                let s = s0 + (s1 - s0) * f64::from(k) / 4.0;
+                let want = m.dot(v) - s * t.dot(v);
+                assert!(
+                    rate.lo() - 1e-12 <= want && want <= rate.hi() + 1e-12,
+                    "slope {s}: rate {rate:?} want {want}"
+                );
+            }
+            // and no wider than the three independent slopes can make it
+            let slack = (s1 - s0) * (t.x * v.x).abs().max((t.y * v.y).abs()).max((t.z * v.z).abs()) * 3.0;
+            let tight = (s1 - s0) * t.dot(v).abs();
+            assert!(
+                rate.hi() - rate.lo() <= tight + slack + 1e-12,
+                "rate {rate:?} wider than its slopes: tight {tight} slack {slack}"
+            );
+        }
+    }
+
+    /// The plane through the ruling `(r, 0, z)` of the cylinder of radius
+    /// `r` round `z`, at 45° to the tangent plane there: chart
+    /// `(u, v) ↦ (r, 0, 0) + u·e + v·ẑ·(±1)`, `e = (1, 1, 0)/√2`. It
+    /// crosses the cylinder along the ruling, `u = 0`.
+    fn crossing_plane(r: f64) -> Surface<Interval> {
+        let s = core::f64::consts::FRAC_1_SQRT_2;
+        Surface::Plane {
+            frame: geom::Frame::new(
+                Point3::new(iv0(r), iv0(0.0), iv0(0.0)),
+                Vec3::new(iv0(s), iv0(-s), iv0(0.0)),
+                Vec3::new(iv0(s), iv0(s), iv0(0.0)),
+            ),
+        }
+    }
+
+    /// **The carrier arm's negative.** A plane face's cell with no zero
+    /// on its sides, crossing the cylinder's carrier along a ruling's
+    /// line in its interior, is not signed against that carrier, at
+    /// radius 0.25 and at radius 4; the same cell moved clear of the
+    /// line is. Red where the rate's enclosure is too small (a radial
+    /// term not normalised at r < 1, a rate read as zero).
+    #[test]
+    fn a_plane_cell_crossing_a_cylinders_carrier_along_a_ruling_is_not_signed() {
+        for r in [0.25, 4.0, 0.006] {
+            let s = crossing_plane(r);
+            let psi = Psi::Carrier(Implicit::Cylinder {
+                o: Point3::new(iv0(0.0), iv0(0.0), iv0(0.0)),
+                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                r: iv0(r),
+            });
+            let k = r * 4e-3;
+            let cell = |x: (f64, f64)| Presented {
+                surface: &s,
+                map: Map::Chart,
+                x,
+                y: (-k, k),
+                zero: Zero::None,
+                corner: false,
+                cache: Cache::default(),
+            };
+            let crossing = cell((-0.3 * k, 1.7 * k));
+            let value = centred(&psi, &crossing, crossing.x, crossing.y);
+            eprintln!("PROBE carrier-arm negative r={r}: centred {value:?}");
+            assert_eq!(
+                sign_on(&psi, None, &crossing, None, band()),
+                None,
+                "r = {r}: a cell crossing the carrier is signed: {value:?}"
+            );
+            let clear = cell((0.5 * k, 1.5 * k));
+            assert_eq!(
+                sign_on(&psi, None, &clear, None, band()),
+                Some(Sign::Positive),
+                "r = {r}: a cell clear of the carrier, outside it"
+            );
+            let inside = cell((-1.5 * k, -0.5 * k));
+            assert_eq!(
+                sign_on(&psi, None, &inside, None, band()),
+                Some(Sign::Negative),
+                "r = {r}: a cell clear of the carrier, inside it"
+            );
+        }
     }
 }

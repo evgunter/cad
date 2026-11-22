@@ -3265,3 +3265,108 @@ fn a_ball_through_the_wall_beside_a_reflex_corner_reads_violated() {
         report.verdict
     );
 }
+
+// ------------------------------------------------- reviewer probes (PR 7327)
+
+/// The notched rod with its notch cut from the other side: the mirror
+/// image in `y = 0`, built rather than moved.
+fn notched_rod_mirrored<T: Scalar>() -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished};
+    let notch = finished(
+        "the notch",
+        brick::<T>((-0.3, 0.3), (-2.0, -0.4), (0.5, 2.0), tol()),
+        tol(),
+    );
+    built(topo::subtract(&rod((0.0, 1.0)), &notch, tol()))
+}
+
+fn review_pose_holds(what: &str, mirrored: bool, poses: &[geom_core::Affine3<f64>]) {
+    use topo::clearance::Embedding;
+    let place = |mut b: topo::AtRestBody<f64>| {
+        for p in poses {
+            b = moved(&b, p);
+        }
+        b.into_body()
+    };
+    let place_iv = |mut b: topo::AtRestBody<Interval>| {
+        for p in poses {
+            b = moved(&b, p);
+        }
+        b.into_body()
+    };
+    let body = place(if mirrored {
+        notched_rod_mirrored::<f64>()
+    } else {
+        notched_rod::<f64>()
+    });
+    let twin = place_iv(if mirrored {
+        notched_rod_mirrored::<Interval>()
+    } else {
+        notched_rod::<Interval>()
+    });
+    let (e, ei) = (embedding_of(&body), embedding_of(&twin));
+    eprintln!("PROBE pose {what}: f64 {e:?} interval {ei:?}");
+    assert_eq!(e, Embedding::Embedded, "{what}: the verdict door");
+    assert_eq!(ei, Embedding::Embedded, "{what}: the verdict door at Interval");
+    holds_at_both(&format!("the notched rod {what}"), body, twin);
+}
+
+#[test]
+fn review_probe_notched_rod_mirrored() {
+    review_pose_holds("mirrored", true, &[]);
+}
+
+#[test]
+fn review_probe_notched_rod_mirrored_and_turned() {
+    use geom_core::{Affine3, Vec3};
+    review_pose_holds(
+        "mirrored and turned",
+        true,
+        &[Affine3::rotation_about_axis(
+            Point3::new(-0.4, 0.7, 0.2),
+            Vec3::new(6.0 / 7.0, -2.0 / 7.0, 3.0 / 7.0),
+            2.3,
+        )],
+    );
+}
+
+#[test]
+fn review_probe_notched_rod_turned_a_quarter_about_x() {
+    use geom_core::{Affine3, Vec3};
+    review_pose_holds(
+        "a quarter turn about x",
+        false,
+        &[Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            core::f64::consts::FRAC_PI_2,
+        )],
+    );
+}
+
+#[test]
+fn review_probe_notched_rod_at_the_session_boxs_wall() {
+    use geom_core::{Affine3, Vec3};
+    review_pose_holds(
+        "at the session box's corner",
+        false,
+        &[Affine3::translation(Vec3::new(998.0, -998.0, 998.0))],
+    );
+}
+
+#[test]
+fn review_probe_notched_rod_turned_then_at_the_session_boxs_wall() {
+    use geom_core::{Affine3, Vec3};
+    review_pose_holds(
+        "turned, at the session box's corner",
+        false,
+        &[
+            Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+                0.7,
+            ),
+            Affine3::translation(Vec3::new(-997.0, 997.0, -997.0)),
+        ],
+    );
+}
