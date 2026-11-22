@@ -32,7 +32,7 @@ family it is. That is a `geom_core` change of its own (orchestrator ruling
 (`work/sectcone/the-search-certificate-reads-limb-two-through-the-edge-reader.md`).
 The search's analytic limb 2 no longer has a composite of its own: it
 reads through the edge certificate's reader
-(`pcurve_cache::limb2_carrier_read`), whose canonical form's
+(`pcurve_cache::limb2_offset_sup` at `Limb2Locus::Carrier`), whose canonical form's
 coefficients are enclosures built at the lane scalar and whose frame is
 applied to the carrier in certification arithmetic. `composite_form`,
 `exact`'s gate on it, `FrameCharge` and the midpoint reading are gone,

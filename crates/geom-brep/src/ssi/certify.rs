@@ -30,7 +30,7 @@
 //! (C9's certification arithmetic: no evaluation, no root, no transcendental):
 //!
 //! - **analytic**: the edge certificate's one reader
-//!   ([`crate::pcurve_cache::limb2_carrier_read`]): the surface's
+//!   ([`crate::pcurve_cache::limb2_offset_sup`]): the surface's
 //!   canonical form, its coefficients enclosures built at the lane
 //!   scalar, composed along the carrier's net in the surface's frame and
 //!   converted to a distance in metres per part, a cone read as the
@@ -462,7 +462,7 @@ fn frame_direction(d: [(f64, f64); 3]) -> Option<([f64; 3], f64)> {
 }
 
 /// Limb 1 + limb 2 against one **analytic** operand. Limb 2 is the edge
-/// certificate's own reader ([`crate::pcurve_cache::limb2_carrier_read`]:
+/// certificate's own reader ([`crate::pcurve_cache::limb2_offset_sup`] against the carrier:
 /// the operand's canonical form with enclosure-valued coefficients,
 /// composed along the carrier's net in the operand's frame, converted to
 /// metres per part), read against the operand's whole carrier, since a
@@ -480,8 +480,15 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     band: Band,
     at: &mut Refused,
 ) -> Result<(T, T), SsiError> {
+    use crate::pcurve_cache::projected::Offset;
     let ((t0, t1), (h0, h1)) = crate::carrier_net::carrier_span(carrier, params);
-    let read = crate::pcurve_cache::limb2_carrier_read(carrier, params, surface, band);
+    let read = crate::pcurve_cache::limb2_offset_sup(
+        carrier,
+        params,
+        surface,
+        crate::pcurve_cache::Limb2Locus::Carrier,
+        band,
+    );
     // ---- limb 1: the fixed schedule ----
     // The schedule on the carrier's held span (its ends held, its
     // interior stations chosen points); the value channel names a
@@ -509,21 +516,10 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         )?;
     }
     // ---- limb 2: the reader's distance bound ----
-    let sup = offset_limb(read.map_err(offset_refusal)?, band, at)?;
-    Ok((worst, sup))
-}
-
-/// Limb 2's verdict on what the reader read of the carrier's distance
-/// from an analytic operand: a measured miss at a break first, decided
-/// at [`ANALYTIC_HULL`]'s value predicate, then the bound over the
-/// carrier at its bound's. A refusal locates the reading's uncleared
-/// parts.
-fn offset_limb<T: Decide + Bounds>(
-    read: crate::pcurve_cache::projected::OffsetRead<T>,
-    band: Band,
-    at: &mut Refused,
-) -> Result<T, SsiError> {
-    use crate::pcurve_cache::projected::Offset;
+    // A measured miss at a break is decided first, at the value's
+    // predicate, then the bound over the carrier at the bound's; a
+    // refusal locates the reading's uncleared parts.
+    let read = read.map_err(offset_refusal)?;
     let arm = &ANALYTIC_HULL;
     let sup = match read.offset {
         Offset::Bound(sup) => sup,
@@ -546,7 +542,7 @@ fn offset_limb<T: Decide + Bounds>(
     }
     let upper = read.upper;
     limb_verdict(arm.sup_limb, decided, || RefusedResidual::Over(upper), at)?;
-    Ok(sup)
+    Ok((worst, sup))
 }
 
 /// The search's refusal for a reader's: an escalation names limb 2's
@@ -4343,7 +4339,7 @@ mod tests {
     /// counterexample search: cubic carriers whose controls lie on a
     /// torus (thin to fat, horn and spindle, tilted) displaced by up to a
     /// tenth of the tube, read against the torus by the search's reader
-    /// ([`crate::pcurve_cache::limb2_carrier_read`]). A bound holds the
+    /// ([`crate::pcurve_cache::limb2_offset_sup`]). A bound holds the
     /// distance `|m − r|` from the torus at points sampled along the
     /// carrier, and a miss's floor is no more than the distance at its
     /// break: a conversion that divided by too much, or floored by too
@@ -4403,7 +4399,13 @@ mod tests {
             let carrier = NurbsCurve3::new(knots, points, vec![1.0; 6]).unwrap();
             let band = Band::new(1e-12, 1e-11).unwrap();
             let curve = geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone()));
-            let read = crate::pcurve_cache::limb2_carrier_read(&curve, (0.0, 1.0), &torus, band);
+            let read = crate::pcurve_cache::limb2_offset_sup(
+                &curve,
+                (0.0, 1.0),
+                &torus,
+                crate::pcurve_cache::Limb2Locus::Carrier,
+                band,
+            );
             let ctx = format!("{torus:?}, lift {lift:e}: {replay}");
             // The sample is read in f64 at the point, so it carries the
             // point's own rounding, at the point's scale (its distance
@@ -4644,7 +4646,7 @@ mod one_reader_rows {
     use geom_core::{Band, Interval, Point3, Vec3};
 
     use crate::pcurve_cache::projected::Offset;
-    use crate::pcurve_cache::{limb2_carrier_read, limb2_offset_sup};
+    use crate::pcurve_cache::{Limb2Locus, limb2_offset_sup};
 
     /// The segment from `a` to `b` as a degree-1 spline on `[0, 1]`.
     fn segment(a: Point3<f64>, b: Point3<f64>) -> Curve3<f64> {
@@ -4672,12 +4674,13 @@ mod one_reader_rows {
         };
         let on = |z: f64| Point3::new(z * half_angle.tan(), 0.0, z);
         let ruling = segment(on(-1.0), on(0.5));
-        let carrier = limb2_carrier_read(&ruling, (0.0, 1.0), &cone, band).unwrap();
+        let carrier =
+            limb2_offset_sup(&ruling, (0.0, 1.0), &cone, Limb2Locus::Carrier, band).unwrap();
         let Offset::Bound(bound) = carrier.offset else {
             panic!("the double cone holds the ruling: {carrier:?}");
         };
         assert!(bound <= band.zero(), "the ruling's bound {bound:e} clears");
-        let face = limb2_offset_sup(&ruling, (0.0, 1.0), &cone, band);
+        let face = limb2_offset_sup(&ruling, (0.0, 1.0), &cone, Limb2Locus::Face, band);
         assert!(
             !matches!(&face, Ok(r) if matches!(r.offset, Offset::Bound(b) if b <= band.zero())),
             "the mirror nappe alone does not hold the ruling: {face:?}"
@@ -4706,7 +4709,7 @@ mod one_reader_rows {
         };
         let at = |z: f64| {
             segment(Point3::new(0.0, 0.0, z), Point3::new(2.0, 0.0, z))
-                .map_scalar(Interval::from_f64)
+                .map_scalar(<Interval as geom_core::Real>::from_f64)
         };
         let mut refused = super::Refused::default();
         let (_, sup) =

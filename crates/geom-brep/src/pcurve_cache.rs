@@ -3535,10 +3535,11 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         // The chart's sine and cosine are the lane's of the twin's
         // angle; at the certification scalar they are its enclosures.
         ProjectedChart::Cone { nappe, .. } => {
-            let Surface::Cone { half_angle, .. } = *twin else {
+            let Some(projected::Meters::Cone { sin, cos, .. }) =
+                projected::Meters::of(twin, None, cross)
+            else {
                 return Err(refuse("a cone chart's twin is not a cone"));
             };
-            let (sin, cos) = projected::cone_sin_cos(half_angle);
             ProjectedChart::Cone { sin, cos, nappe }
         }
         ProjectedChart::Torus { major } => ProjectedChart::Torus {
@@ -4053,6 +4054,16 @@ mod span_memo {
     }
 }
 
+/// Which locus limb 2 reads a cone against ([`limb2_offset_sup`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Limb2Locus {
+    /// An edge's face: the nappe the carrier's middle over the window
+    /// lies on.
+    Face,
+    /// The surface's carrier: the double cone.
+    Carrier,
+}
+
 /// **Limb 2's reader: an `Intersection` carrier's distance from an
 /// analytic surface**, for a carrier of every kind — limb 2 of C2 for an
 /// analytic operand ([`crate::analytic_edge_limbs`]). The carrier is read
@@ -4090,7 +4101,9 @@ mod span_memo {
 ///
 /// The edge reads a cone against its face's nappe, taken from the
 /// window's middle ([`Limb2Locus::Face`]); a search reads it against the
-/// double cone ([`limb2_carrier_read`]).
+/// surface's whole carrier ([`Limb2Locus::Carrier`]): a pair's section
+/// is a section of carriers, which no face's extent enters (C5), so a
+/// cone is read as the double cone it is.
 ///
 /// # Errors
 ///
@@ -4098,42 +4111,6 @@ mod span_memo {
 /// no certified net over; [`PcurveCertifyError::UnsupportedChart`] off
 /// an analytic chart; as [`projected::offset_rounds`] otherwise.
 pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
-    carrier: &Curve3<T>,
-    window: (T, T),
-    surface: &Surface<T>,
-    band: Band,
-) -> Result<projected::OffsetRead<T>, PcurveCertifyError> {
-    limb2_read(carrier, window, surface, Limb2Locus::Face, band)
-}
-
-/// [`limb2_offset_sup`] against the surface's whole carrier: a pair's
-/// section is a section of carriers, which no face's extent enters
-/// (C5), so a search reads a cone as the double cone it is.
-///
-/// # Errors
-///
-/// As [`limb2_offset_sup`].
-pub(crate) fn limb2_carrier_read<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
-    carrier: &Curve3<T>,
-    window: (T, T),
-    surface: &Surface<T>,
-    band: Band,
-) -> Result<projected::OffsetRead<T>, PcurveCertifyError> {
-    limb2_read(carrier, window, surface, Limb2Locus::Carrier, band)
-}
-
-/// Which locus limb 2 reads a cone against.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Limb2Locus {
-    /// An edge's face: the nappe the carrier's middle over the window
-    /// lies on.
-    Face,
-    /// The surface's carrier: the double cone.
-    Carrier,
-}
-
-/// Limb 2's one reader ([`limb2_offset_sup`]'s docs), against `locus`.
-fn limb2_read<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     window: (T, T),
     surface: &Surface<T>,
@@ -16995,7 +16972,12 @@ mod limb2_memo_rows {
         use geom_core::spline::{KnotVector, SpanLocate as _};
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (c, s) = rim(1.25);
-        let round = || format!("{:?}", limb2_offset_sup(&c, (0.2, 2.9), &s, band));
+        let round = || {
+            format!(
+                "{:?}",
+                limb2_offset_sup(&c, (0.2, 2.9), &s, Limb2Locus::Face, band)
+            )
+        };
         limb2_memo::clear();
         let cold = round();
         limb2_memo::clear();
@@ -17217,7 +17199,10 @@ mod limb2_memo_rows {
             if let Surface::Cylinder { ref mut radius, .. } = s {
                 *radius = wall;
             }
-            format!("{:?}", limb2_offset_sup(&c, window, &s, band))
+            format!(
+                "{:?}",
+                limb2_offset_sup(&c, window, &s, Limb2Locus::Face, band)
+            )
         };
         let base = || read(1.25, WALL, (0.2, 2.9), band);
         limb2_memo::clear();
@@ -17281,7 +17266,13 @@ mod limb2_memo_rows {
             };
             format!(
                 "{:?}",
-                limb2_offset_sup(&c, (lift(0.2), lift(2.9)), &s.map_scalar(lift), band)
+                limb2_offset_sup(
+                    &c,
+                    (lift(0.2), lift(2.9)),
+                    &s.map_scalar(lift),
+                    Limb2Locus::Face,
+                    band
+                )
             )
         };
         let certified = lift(1.25);
@@ -17305,7 +17296,8 @@ mod limb2_memo_rows {
             || {
                 let lift = |x: f64| <Sym<Interval> as Real>::from_f64(x);
                 let (c, s) = rim_at(1.25, lift);
-                let read = limb2_offset_sup(&c, (lift(0.2), lift(2.9)), &s, band).unwrap();
+                let read = limb2_offset_sup(&c, (lift(0.2), lift(2.9)), &s, Limb2Locus::Face, band)
+                    .unwrap();
                 (
                     read.upper.to_bits(),
                     read.size.width.to_bits(),
@@ -17323,6 +17315,7 @@ mod limb2_memo_rows {
             &rim(1.25).0.map_scalar(lift),
             (lift(0.2), lift(2.9)),
             &rim(1.25).1.map_scalar(lift),
+            Limb2Locus::Face,
             band,
         )
         .unwrap();
@@ -17407,7 +17400,7 @@ mod limb2_quick_rows {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let read = |radius: f64, wall: f64, window: (f64, f64)| {
             let (c, s) = rim(radius, wall);
-            bits(&limb2_offset_sup(&c, window, &s, band))
+            bits(&limb2_offset_sup(&c, window, &s, Limb2Locus::Face, band))
         };
         limb2_quick::clear();
         let rounds_before = limb2_memo::counts();
@@ -17460,6 +17453,7 @@ mod limb2_quick_rows {
                 &c,
                 (lift(0.2), lift(2.9)),
                 &s.map_scalar(lift),
+                Limb2Locus::Face,
                 band,
             ))
         };
@@ -17480,7 +17474,8 @@ mod limb2_quick_rows {
             || {
                 let lift = |x: f64| <Sym<Interval> as Real>::from_f64(x);
                 let (c, s) = rim_at(1.25, 1.25, lift);
-                let r = limb2_offset_sup(&c, (lift(0.2), lift(2.9)), &s, band).unwrap();
+                let r = limb2_offset_sup(&c, (lift(0.2), lift(2.9)), &s, Limb2Locus::Face, band)
+                    .unwrap();
                 (
                     r.upper.to_bits(),
                     r.size.width.to_bits(),
@@ -17498,6 +17493,7 @@ mod limb2_quick_rows {
             &rim(1.25, 1.25).0.map_scalar(lift),
             (lift(0.2), lift(2.9)),
             &rim(1.25, 1.25).1.map_scalar(lift),
+            Limb2Locus::Face,
             band,
         )
         .unwrap();
@@ -17548,7 +17544,8 @@ mod limb2_quick_rows {
         limb2_quick::clear();
         let rounds = limb2_memo::counts();
         for operand in [&torus, &plane] {
-            let read = limb2_offset_sup(&spiric, (0.1, 1.9), operand, band).unwrap();
+            let read =
+                limb2_offset_sup(&spiric, (0.1, 1.9), operand, Limb2Locus::Face, band).unwrap();
             assert!(
                 matches!(read.offset, projected::Offset::Bound(_)) && read.upper <= band.zero(),
                 "{:?}: the spiric clears: {:?}",
@@ -17572,7 +17569,7 @@ mod limb2_quick_rows {
         let (c, s) = rim(1.25 + 1e-6, 1.25);
         limb2_memo::clear();
         let (_, misses) = limb2_memo::counts();
-        let read = limb2_offset_sup(&c, (0.2, 2.9), &s, band);
+        let read = limb2_offset_sup(&c, (0.2, 2.9), &s, Limb2Locus::Face, band);
         assert!(limb2_memo::counts().1 > misses, "the rounds are asked");
         assert!(
             matches!(
@@ -17586,7 +17583,8 @@ mod limb2_quick_rows {
             bits(&read)
         );
         limb2_memo::clear();
-        let alone = limb2_quick::without(|| limb2_offset_sup(&c, (0.2, 2.9), &s, band));
+        let alone =
+            limb2_quick::without(|| limb2_offset_sup(&c, (0.2, 2.9), &s, Limb2Locus::Face, band));
         assert_eq!(bits(&read), bits(&alone), "the rounds' reading");
     }
 
@@ -17652,7 +17650,8 @@ mod limb2_quick_rows {
                 let window = (quarter - lo, quarter + hi);
                 let truth = deviation(lo).max(deviation(hi));
                 let (_, misses) = limb2_memo::counts();
-                let read = limb2_offset_sup(&circle, window, &plane, band).unwrap();
+                let read =
+                    limb2_offset_sup(&circle, window, &plane, Limb2Locus::Face, band).unwrap();
                 if let projected::Offset::Bound(b) = read.offset {
                     passes += 1;
                     if limb2_memo::counts().1 == misses {
@@ -17711,10 +17710,16 @@ mod limb2_quick_rows {
             assert!(read.starts_with("Miss"), "{what}: a measured miss: {read}");
         };
         limb2_memo::clear();
-        let read = bits(&limb2_offset_sup(&circle, window, &plane, band));
+        let read = bits(&limb2_offset_sup(
+            &circle,
+            window,
+            &plane,
+            Limb2Locus::Face,
+            band,
+        ));
         limb2_memo::clear();
         let alone = bits(&limb2_quick::without(|| {
-            limb2_offset_sup(&circle, window, &plane, band)
+            limb2_offset_sup(&circle, window, &plane, Limb2Locus::Face, band)
         }));
         assert_eq!(read, alone, "f64: the rounds' reading");
         miss("f64", &read);
@@ -17722,9 +17727,11 @@ mod limb2_quick_rows {
         let (c, p) = (circle.map_scalar(lift), plane.map_scalar(lift));
         let w = (lift(window.0), lift(window.1));
         limb2_memo::clear();
-        let read = bits(&limb2_offset_sup(&c, w, &p, band));
+        let read = bits(&limb2_offset_sup(&c, w, &p, Limb2Locus::Face, band));
         limb2_memo::clear();
-        let alone = bits(&limb2_quick::without(|| limb2_offset_sup(&c, w, &p, band)));
+        let alone = bits(&limb2_quick::without(|| {
+            limb2_offset_sup(&c, w, &p, Limb2Locus::Face, band)
+        }));
         assert_eq!(read, alone, "Interval: the rounds' reading");
         miss("Interval", &read);
     }

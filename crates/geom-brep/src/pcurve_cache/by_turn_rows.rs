@@ -216,7 +216,14 @@ fn limb2(
 ) -> (projected::OffsetRead<f64>, u64) {
     limb2_memo::clear();
     let (_, before) = limb2_memo::counts();
-    let read = limb2_offset_sup(carrier, (0.0, 1.0), surface, band).unwrap();
+    let read = limb2_offset_sup(
+        carrier,
+        (0.0, 1.0),
+        surface,
+        crate::pcurve_cache::Limb2Locus::Face,
+        band,
+    )
+    .unwrap();
     (read, limb2_memo::counts().1 - before)
 }
 

@@ -123,7 +123,7 @@ the apex) reads `√|f|` instead: `f` is the product of the distances
 from the meridian half-plane's two generator lines, both on the implicit
 cone. The search reads limb 2 through the same reader, against the
 surface's whole carrier rather than a face's
-(`pcurve_cache::limb2_carrier_read`): a pair's section is a section of
+(`pcurve_cache::Limb2Locus::Carrier`): a pair's section is a section of
 carriers (C5), so it reads a cone as the double cone, whose lever is
 `ρ cos α + |z| sin α`, taking the lesser of that reading and `√|f|`.
 The coefficients are enclosures built at the lane scalar, a cone's

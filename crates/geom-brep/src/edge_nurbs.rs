@@ -2111,7 +2111,13 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             &curve,
             params,
             operand,
-            crate::pcurve_cache::limb2_offset_sup(&curve, params, operand, band),
+            crate::pcurve_cache::limb2_offset_sup(
+                &curve,
+                params,
+                operand,
+                crate::pcurve_cache::Limb2Locus::Face,
+                band,
+            ),
             None,
             band,
         )?;
@@ -2191,7 +2197,13 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             carrier,
             params,
             operand,
-            crate::pcurve_cache::limb2_offset_sup(carrier, params, operand, band),
+            crate::pcurve_cache::limb2_offset_sup(
+                carrier,
+                params,
+                operand,
+                crate::pcurve_cache::Limb2Locus::Face,
+                band,
+            ),
             line_plane_ends(carrier, params, operand),
             band,
         )?;
