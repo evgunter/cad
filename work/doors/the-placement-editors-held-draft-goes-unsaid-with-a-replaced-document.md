@@ -33,3 +33,5 @@ must be spoken from the OUTGOING document, which is gone by the time
 `ViewerApp::document_replaced` runs (it is called after the session
 performed the replacement), so the said text has to be taken before
 the op is performed or carried by the editor.
+
+`Drafts::mate_value_edits` (the placement editor's typed text) goes silently too: `Drafts::document_replaced` drops it with nothing said.

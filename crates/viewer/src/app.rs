@@ -803,25 +803,36 @@ pub(crate) struct DocumentDerived {
     /// number on screen is theirs and the badge would be claiming a
     /// choice it did not make.
     budget_delta: Option<crate::scene::FittedDelta>,
+    /// A field focused over the outgoing document is let go of,
+    /// unwritten, on the next frame
+    /// ([`crate::widgets::let_go_of_the_focused_edit`]): its typed text
+    /// was typed against that document, and the incoming one may hold
+    /// the same node and slot. Owed to the frame because the focus is
+    /// egui's, reached through the context a frame hands in.
+    release_focus: bool,
 }
 
 impl DocumentDerived {
-    /// A document has just arrived: both fits owed, no verdict yet.
+    /// A document has just arrived: both fits owed, no verdict yet, and
+    /// the focused field let go of.
     fn owed() -> Self {
         Self {
             fit_camera: true,
             fit_delta: true,
             budget_delta: None,
+            release_focus: true,
         }
     }
 
     /// The startup document: [`Self::owed`] except the camera fit,
     /// which `pending_fit` takes on the first frame over the startup
     /// mesh already drawn. Owing it again at the first landing would
-    /// re-frame a camera the user moved in between.
+    /// re-frame a camera the user moved in between. No field has been
+    /// focused yet, so none is owed a release.
     fn at_startup() -> Self {
         Self {
             fit_camera: false,
+            release_focus: false,
             ..Self::owed()
         }
     }
@@ -2341,6 +2352,9 @@ impl ViewerApp {
 
 impl eframe::App for ViewerApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if core::mem::take(&mut self.derived.release_focus) {
+            crate::widgets::let_go_of_the_focused_edit(ui.ctx());
+        }
         self.sync_scene();
         let mut ops: Vec<SessionOp> = Vec::new();
         // The palette the chrome may switch to this frame. Collected

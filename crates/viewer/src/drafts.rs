@@ -1507,7 +1507,8 @@ impl Drafts {
             pattern_output,
             part_instance,
             blend_kind,
-            clearance_bound,
+            assertion_measure,
+            assertion_bound,
             creation_labels,
             dropped,
             // Held about the outgoing document.
@@ -1536,7 +1537,8 @@ impl Drafts {
             pattern_output,
             part_instance,
             blend_kind,
-            clearance_bound,
+            assertion_measure,
+            assertion_bound,
             creation_labels,
             dropped,
             ..Self::default()
@@ -1900,14 +1902,54 @@ mod tests {
     }
 
     /// **A replaced document takes every draft that names something in
-    /// it, and leaves the chrome**: a refused expression's field, a
-    /// rename, a naming field and an offer go; a form's typed name, its
-    /// openness and its choices stay.
+    /// it, and leaves the chrome**: every field of [`Drafts`] set off its
+    /// default, then each one read after the door — the kept ones as
+    /// set, the dropped ones empty.
     #[test]
     fn a_replaced_document_keeps_only_the_chrome() {
-        use pncad::document::{SlotId, VarId, VarName};
+        use crate::blend::BlendKindChoice;
+        use crate::combine::{AssertionMeasure, BoundChoice, PatternOutputChoice};
+        use crate::forms::PatternLayoutChoice;
+        use pncad::document::{
+            Coord, Dimension, Operand, ProfileProgram, SlotId, TargetAxis, VarId, VarName,
+        };
         let node = RecipeNodeId::new(0, 3);
+        let face = FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node,
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
+            },
+            node,
+            body: 0,
+        };
+        let gesture = sketch::TraceGesture {
+            sense: pncad::document::TraceSense::Against,
+            ..sketch::TraceGesture::default()
+        };
+        let notice = super::Dropped {
+            said: "Profile".to_owned(),
+            why: super::DropWhy::Undo,
+            editor: super::Editor::Profile,
+        };
         let mut drafts = Drafts {
+            // Chrome.
+            delta_text: Some("0.1".to_owned()),
+            new_variable_open: true,
+            new_variable_name: "zz".to_owned(),
+            new_variable_dimension: Some(Dimension::Length),
+            new_variable_value: 0.25,
+            new_doc_name: Some("next".to_owned()),
+            on_face_open: true,
+            trace_gesture: gesture,
+            pattern_kind: PatternLayoutChoice::Circular,
+            pattern_output: PatternOutputChoice::Fused,
+            part_instance: 3,
+            blend_kind: BlendKindChoice::Chamfer,
+            assertion_measure: AssertionMeasure::Gap,
+            assertion_bound: BoundChoice::Between,
+            dropped: vec![notice.clone()],
+            // Held about the document.
             expr_target: Some((node, SlotId::Distance)),
             expr_text: "zz/2".to_owned(),
             name_draft: Some(super::NameDraft {
@@ -1917,37 +1959,92 @@ mod tests {
                 share: false,
                 text: "depth".to_owned(),
             }),
-            label_text: Some((node, "lid".to_owned())),
             new_variable_offer: Some(VarName::from_static("zz")),
-            new_variable_open: true,
-            new_variable_name: "zz".to_owned(),
-            new_doc_name: Some("next".to_owned()),
-            part_instance: 3,
+            mate_value_edits: vec![(<Coord<Operand>>::slide(TargetAxis::X), "5 mm".to_owned())],
+            mate_value_door: Some(crate::matetool::PlaceDoor {
+                placement: node,
+                base: crate::session::PlacementBase {
+                    target: Operand::Var(VarId::WORLD),
+                    constraints: Vec::new(),
+                },
+            }),
+            trace_shown: Some(super::TraceShown {
+                plane: face.clone(),
+                face,
+                against: std::sync::Weak::new(),
+                read: Err(crate::session::SketchTraceFault::Unevaluated),
+            }),
+            profile_edit: Some(ProfileEdit::load(
+                node,
+                ProfileProgram {
+                    loops: Vec::new(),
+                    ids: Vec::new(),
+                    on: None,
+                },
+                "Profile".to_owned(),
+            )),
+            label_text: Some((node, "lid".to_owned())),
             ..Drafts::default()
         };
         drafts
             .creation_labels
             .insert("extrude", "plinth".to_owned());
         drafts.document_replaced();
+
+        assert_eq!(drafts.delta_text.as_deref(), Some("0.1"), "the δ field");
+        assert_eq!(
+            (
+                drafts.new_variable_open,
+                drafts.new_variable_name.as_str(),
+                drafts.new_variable_dimension,
+                drafts.new_variable_value,
+            ),
+            (true, "zz", Some(Dimension::Length), 0.25),
+            "the add-variable form"
+        );
+        assert_eq!(drafts.new_doc_name.as_deref(), Some("next"), "New…");
+        assert!(drafts.on_face_open, "the profile-on-a-face form stays open");
+        assert_eq!(drafts.trace_gesture, gesture, "the trace's branches");
+        assert_eq!(
+            (
+                drafts.pattern_kind,
+                drafts.pattern_output,
+                drafts.part_instance,
+                drafts.blend_kind,
+                drafts.assertion_measure,
+                drafts.assertion_bound,
+            ),
+            (
+                PatternLayoutChoice::Circular,
+                PatternOutputChoice::Fused,
+                3,
+                BlendKindChoice::Chamfer,
+                AssertionMeasure::Gap,
+                BoundChoice::Between,
+            ),
+            "the forms' choices"
+        );
+        assert_eq!(
+            drafts.creation_labels.get("extrude").map(String::as_str),
+            Some("plinth"),
+            "a create form's typed label"
+        );
+        assert_eq!(drafts.dropped, [notice], "a drop not yet said");
+
         assert_eq!(
             (drafts.expr_target, drafts.expr_text.as_str()),
             (None, ""),
             "the refused text"
         );
         assert_eq!(drafts.name_draft, None, "the naming field");
-        assert_eq!(drafts.label_text, None, "the rename");
         assert_eq!(drafts.new_variable_offer, None, "the offer");
         assert!(
-            drafts.new_variable_open && drafts.new_variable_name == "zz",
-            "the add-variable form stays open on its name"
+            drafts.mate_value_edits.is_empty() && drafts.mate_value_door.is_none(),
+            "the placement editor's typed values"
         );
-        assert_eq!(drafts.new_doc_name.as_deref(), Some("next"), "New…");
-        assert_eq!(drafts.part_instance, 3, "a form's choice");
-        assert_eq!(
-            drafts.creation_labels.get("extrude").map(String::as_str),
-            Some("plinth"),
-            "a create form's typed label"
-        );
+        assert!(drafts.trace_shown.is_none(), "the trace shown");
+        assert!(drafts.profile_edit.is_none(), "the profile editor's draft");
+        assert_eq!(drafts.label_text, None, "the rename");
     }
 
     /// A labelled creation settles its form as the bare creation does,

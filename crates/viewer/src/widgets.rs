@@ -804,6 +804,27 @@ pub(crate) struct FieldShowing {
     pub(crate) source: Option<String>,
 }
 
+/// **Let go of the focused field's keyboard edit, unwritten** — what a
+/// replaced document owes the field typed into over the outgoing one.
+///
+/// The focus is surrendered and egui's text buffer for the field is
+/// removed with it, so the field's next draw neither keeps editing nor
+/// parses the buffer at its loss of focus (`egui::DragValue` applies a
+/// buffer it finds on the frame focus leaves); every [`OpenEdit`] goes
+/// with them.
+pub(crate) fn let_go_of_the_focused_edit(ctx: &egui::Context) {
+    let focused = ctx.memory(egui::Memory::focused);
+    if let Some(id) = focused {
+        ctx.memory_mut(|memory| memory.surrender_focus(id));
+    }
+    ctx.data_mut(|data| {
+        if let Some(id) = focused {
+            data.remove::<String>(id);
+        }
+        data.remove_by_type::<OpenEdit>();
+    });
+}
+
 /// **One open keyboard edit**, remembered under its field's own
 /// widget id from the frame the field takes focus to the frame it
 /// loses it — and not a frame longer, so nothing accumulates.
