@@ -50,6 +50,9 @@ are not repeated here (PR 7370's body has the table).
 `1942290ead` (run 44989234943) and again hosted on current main
 `5ea1ac0a70`, the slow-set names taken out of the slow set on throwaway
 branches so they ran at every ε (runs 45051569400 and 45051677551).
+The tilted rod is the exception: on current main it ran only in the
+slow-set step, at the default ε (run 45051677551), so its 1e-6 and
+1e-12 reds are read on the nightly alone.
 
 | test | ε red on main | held by |
 |---|---|---|
