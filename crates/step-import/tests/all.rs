@@ -200,3 +200,5 @@ mod whole_torus_one_face;
 mod wild;
 
 test_utils::every_suite_file_is_aggregated!();
+#[path = "ovoid_probe.rs"]
+mod ovoid_probe;
