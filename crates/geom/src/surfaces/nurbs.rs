@@ -952,6 +952,24 @@ impl<T: Real> NurbsSurface<T> {
         )
     }
 
+    /// **This net with its control points rewritten by index**: point
+    /// `i` (in the net's `iu · nv + iv` order) becomes `f(i, point)`, the
+    /// knots and weights kept. A net of the counts it was read from needs
+    /// no validation, as [`Self::map_points`] argues.
+    #[must_use]
+    pub fn map_points_indexed(&self, f: impl Fn(usize, Point3<T>) -> Point3<T>) -> Self {
+        Self::from_validated_parts(
+            self.knots_u.clone(),
+            self.knots_v.clone(),
+            self.control
+                .iter()
+                .enumerate()
+                .map(|(i, p)| f(i, *p))
+                .collect(),
+            self.weights.clone(),
+        )
+    }
+
     /// The [`SurfaceWindow`] for a span pair already validated against
     /// THIS surface's own knot vectors — the one primitive
     /// constructor, behind [`Self::window`] and [`Self::window_at`].
