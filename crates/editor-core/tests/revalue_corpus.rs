@@ -1099,3 +1099,134 @@ fn reader_ties_at_the_nominal() {
         );
     }
 }
+
+/// **A chart on a face tilted by a variable at zero moves with it**: a
+/// cylinder placed into a box's space spun about `x` by `a` at `0`, and a
+/// square drawn on its top cap's chart and extruded. At `a = 0` the cap's
+/// normal is the space's `z` in value alone, so a chart that read its
+/// least turn as the identity off that value would be constant in `a`:
+/// its margins, re-valued at a moved `a`, would stay where `p0` put them
+/// while the `p1` build's moved. Under the apart move every variable at
+/// zero moves by the step, so the row sees it.
+#[test]
+fn revalue_a_chart_on_a_cap_tilted_at_zero() {
+    use crate::fixture::{self, len};
+    use editor_core::{
+        BodyRead, CapEnd, Coord, Dimension, DocEdit, Formula, LoopProgram, Node, OnFace, Operand,
+        ProfileProgram, TargetAxis, VarDecl, VarName,
+    };
+    let doc = ProfileDoc::empty_derived("revalue_zero_tilt", Tol::witness());
+    let name = VarName::new("a").expect("a name");
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: name.clone(),
+            def: VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
+        },
+    );
+    let a = Formula::named(name, Dimension::Angle);
+    let (doc, outline) = fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::polygon_expr([
+                [len(-3.0), len(-0.5)],
+                [len(-2.0), len(-0.5)],
+                [len(-2.0), len(0.5)],
+                [len(-3.0), len(0.5)],
+            ])],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, block) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: outline.into(),
+            distance: len(0.5),
+        },
+    );
+    let (doc, disc) = fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::Circle {
+                centre: [len(0.0), len(0.0)],
+                radius: len(1.0),
+            }],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, upright) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: disc.into(),
+            distance: len(1.0),
+        },
+    );
+    let space = fixture::space(&doc, block);
+    let placed = editor_core::Placed {
+        mates: Vec::new(),
+        values: vec![
+            (Coord::Spin(Some(TargetAxis::X)), a),
+            (Coord::Spin(Some(TargetAxis::Y)), fixture::ang(0.0)),
+            (Coord::Spin(Some(TargetAxis::Z)), fixture::ang(0.0)),
+            (Coord::slide(TargetAxis::X), len(0.0)),
+            (Coord::slide(TargetAxis::Y), len(0.0)),
+            (Coord::slide(TargetAxis::Z), len(0.0)),
+        ],
+    };
+    let (doc, cylinder) = fixture::insert(
+        doc,
+        Node::place(
+            BodyRead::plain(Operand::from(upright)),
+            Operand::Var(space),
+            placed.bundle(),
+        ),
+    );
+    let ev = editor_core::evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let top = fixture::fname(upright, editor_core::RoleSeg::Cap(CapEnd::End));
+    let cap = editor_core::all_faces(&ev, cylinder)
+        .into_iter()
+        .find(|n| n.path == top.path)
+        .expect("the copy's top cap");
+    let drawn = editor_core::draw_on_face(
+        &doc,
+        BodyRead::plain(Operand::output(cylinder, 0)),
+        cap,
+        vec![LoopProgram::polygon_expr([
+            [len(-0.2), len(-0.2)],
+            [len(0.2), len(-0.2)],
+            [len(0.2), len(0.2)],
+            [len(-0.2), len(0.2)],
+        ])],
+        OnFace {
+            slides: [len(0.0), len(0.0)],
+            traced: Vec::new(),
+            ..OnFace::nearest()
+        },
+        &EvalOptions::default(),
+        &CancelToken::new(),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the square is drawn on the cap: {e}"));
+    let (doc, _) = fixture::insert(
+        drawn.doc,
+        Node::Extrude {
+            profile: drawn.profile.into(),
+            distance: len(0.3),
+        },
+    );
+    let found = compare("a chart on a cap tilted at zero", &doc);
+    eprintln!("REVALUE zero tilt: {found:?}");
+    assert_eq!(found.drifted, 0, "{found:?}");
+    assert_eq!(found.mode, Some(Move::Apart), "{found:?}");
+    assert!(found.laundered.is_empty(), "{found:?}");
+    assert!(found.flips.is_empty(), "{found:?}");
+    assert!(found.moved > 0, "{found:?}");
+}
