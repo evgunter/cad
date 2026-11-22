@@ -138,4 +138,4 @@ Filed, as the design requires:
 - `the-viewer-has-one-assertion-tool`: letter M, tier SINGLE, FULL review. It writes claims into the document, and a wrong claim shape fails silently: it would not quiet.
 
 The local disk has 8 GB free and two lane targets are live, so these lanes run as their own cloud sessions.
-- 2026-11-22 — **Ev answered #7339:** names are decided, as recorded in the row's `## Decided` section. Fork-log row 297 is completed: A is Opus 5.5 and B is Fable 5.2. The truncation row I filed on CHROME was reverted before it reached main, at Ev's word. (OFFER orchestrator)
+- 2026-11-22 — **Ev answered #7339:** names are decided, as recorded in the row's `## Decided` section. Fork-log row 300 (renumbered from 297, which another fork took on main) is completed: A is Opus 5.5 and B is Fable 5.2. The truncation row I filed on CHROME was reverted before it reached main, at Ev's word. (OFFER orchestrator)
