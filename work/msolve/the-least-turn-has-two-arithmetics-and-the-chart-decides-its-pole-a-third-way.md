@@ -2,10 +2,13 @@
 id: the-least-turn-has-two-arithmetics-and-the-chart-decides-its-pole-a-third-way
 kind: issue
 title: The least turn has two arithmetics (editor-core LeastTurn, geom-core RigidMotion::turned_between) and the value chart decides its pole a third way
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
+closed: 2026-11-15
+pr: 6988
+branch: onehome/least-turn-mint
 ---
 
 

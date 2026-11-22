@@ -360,9 +360,7 @@ fn two_notations_of_one_leg_are_one_program_and_one_geometry() {
 fn a_recorded_notation_round_trips_through_save_and_load() {
     let (steps, notation) = in_millimetres();
     let program = LoopProgram::from_recorded_with_notation(&steps, &notation).expect("lifts");
-    let base = ProfileDoc::empty(DocumentId::derive("edit-recorded-notation"), Tol::witness());
-    let edits = edits_of(program.clone());
-    let text = save(&base, edits.as_ref(), Tol::witness()).expect("the log saves");
+    let text = save(&doc_of(program.clone()), Tol::witness()).expect("the document saves");
     // The STORED FORM, before any load: a save that dropped the symbol
     // and a load that re-derived it from the dimension would satisfy
     // every assertion below, and would lose the notation the moment a
@@ -372,11 +370,10 @@ fn a_recorded_notation_round_trips_through_save_and_load() {
         "the persisted text names the notation; got:\n{text}"
     );
     let plain = save(
-        &base,
-        edits_of(LoopProgram::from_recorded(&square(0.025)).expect("lifts")).as_ref(),
+        &doc_of(LoopProgram::from_recorded(&square(0.025)).expect("lifts")),
         Tol::witness(),
     )
-    .expect("the log saves");
+    .expect("the document saves");
     assert!(
         !plain.contains("mm"),
         "and a recording with no notation stores none"
@@ -385,12 +382,12 @@ fn a_recorded_notation_round_trips_through_save_and_load() {
 
     let loaded = load(&text, Tol::witness()).expect("and loads");
     assert_eq!(
-        read_back(&loaded.doc, LEG, StepArg::TargetX),
+        read_back(&loaded, LEG, StepArg::TargetX),
         (0.025, "mm"),
         "the leg still says it was written in millimetres"
     );
     assert!(
-        loaded.doc.bit_eq(&doc_of(program)),
+        loaded.bit_eq(&doc_of(program)),
         "and the loaded document is the document that was saved"
     );
 }

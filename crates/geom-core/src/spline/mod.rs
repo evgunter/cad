@@ -22,8 +22,10 @@
 //! # Conventions (binding, stated once)
 //!
 //! - **Clamped-v1**: end-knot multiplicity exactly `degree + 1`;
-//!   interior multiplicity ≤ `degree`. Periodic and unclamped forms
-//!   are a **designed absence** until a consumer exists.
+//!   interior multiplicity ≤ `degree`. Unclamped forms are a
+//!   **designed absence**. The one periodic form (C11: `geom`'s periodic
+//!   cubic, a closed fitted section loop) is held outside this module
+//!   and read here as its clamped views.
 //! - **Structure vs values**: degrees, multiplicities, spans and every
 //!   decision a plan takes are `f64` structure, read off the values'
 //!   value channel; a carrier's knots ([`Knots`]), weights and control
@@ -73,8 +75,8 @@ pub use compose::{
 pub use derivative::{
     AreaSlopes, AxisCut, CellAxis, CellBlock, CellFirstQuotients, CellMeasureQuotients,
     CellQuotients, CellSecondQuotients, IntervalPieces, QUOTIENT_MAX_DEGREE, QuotientPiece,
-    accel_pieces, cell_first_quotients, cell_measure_quotients, cell_quotients,
-    cell_second_quotients, derivative_net, derivative_pair, polynomial_area_pieces,
+    accel_pieces, accel_pieces_by_span, cell_first_quotients, cell_measure_quotients,
+    cell_quotients, cell_second_quotients, derivative_net, derivative_pair, polynomial_area_pieces,
     span_derivative_scale, speed_pieces, stretch_pieces,
 };
 pub use hull::{

@@ -3,7 +3,6 @@
 # says what raising a row means). One row per (file, function).
 # path	function	count	class
 crates/editor-core/src/eval/measure.rs	angle	1	turn
-crates/editor-core/src/eval/mod.rs	solve_atan2	4	user
 crates/editor-core/src/expr.rs	eval_inner	1	user
 crates/editor-core/src/mate/value.rs	chain_turns	4	user
 crates/geom/src/surfaces.rs	sheet_apex	1	upper-half
@@ -27,19 +26,18 @@ crates/profile/src/path.rs	chord_director	1	user
 crates/profile/src/path/arc_fillet.rs	about	1	user
 crates/profile/src/sugar.rs	at_corner	2	user
 crates/profile/src/sugar.rs	setback	1	user
-crates/step-import/src/normalize/singularity.rs	crossings	1	harmonic
 crates/sweep/src/blend/surgery.rs	attach_contact	1	turn
 # turn_past is arc_past's (0, τ] read at T: Real, where Azimuth::near (Decide) does not apply.
 crates/sweep/src/revolve/axis.rs	turn_past	1	past-at-real
 crates/topo/src/cover.rs	sphere_window	1	chart
-crates/topo/src/boolean/conic_quadric/mod.rs	through_the_apex	1	harmonic
+crates/geom-brep/src/curve_face/conic_quadric.rs	through_the_apex	1	harmonic
 crates/topo/src/boolean/fate.rs	tip_wraps	1	turn
 crates/topo/src/boolean/ops.rs	apply_cut_ins	1	turn
-crates/topo/src/boolean/region.rs	between	1	turn
-crates/topo/src/boolean/rim_wedge.rs	locus_param	1	awaits-6443
-crates/topo/src/boolean/rim_wedge.rs	crossings	2	awaits-6443
-crates/topo/src/boolean/solid_contain.rs	loop_turn	1	turn
-crates/topo/src/boolean/solid_contain.rs	arc_turn	2	turn
+crates/topo/src/region.rs	between	1	turn
+crates/topo/src/rim_wedge.rs	locus_param	1	awaits-6443
+crates/topo/src/rim_wedge.rs	crossings	2	awaits-6443
+crates/topo/src/solid_contain.rs	loop_turn	1	turn
+crates/topo/src/solid_contain.rs	arc_turn	2	turn
 crates/topo/src/chart_region.rs	cylinder_pair_overlap	1	turn
 crates/topo/src/injective.rs	on	1	chart
 crates/topo/src/offset_axial.rs	solve_corner	1	harmonic

@@ -76,3 +76,11 @@ branch points and the far ruling. The same loop then certifies at ε 1e-6. Doors
 cell centres (`exhaust::seed_r3`) still put the seam wherever their first
 seed lands. A fix here would cover both cases: refine under the
 non-graph box, or fit a closed trace as periodic.
+
+## Note from SECTARMS (2026-11-17)
+
+Ev's decision on PR 7056 (`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`,
+"Decided") makes limb 3 halve its own cover where a box wider than its
+rung is no graph, and retires `refine_for_tube`. Both designers expect
+that to close both instances of this row. SECTARMS builds it; the build
+will cite this row.

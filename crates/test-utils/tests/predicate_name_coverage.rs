@@ -30,14 +30,14 @@
 //!   decides needs a home, not a marker. And it ratchets the other way
 //!   too: a marked name some census decides is red ("drop the marker").
 //! - **A hold.** A listed crate holds a name only where it spells it as
-//!   decided — a `const` of it, or, for a [`Missing::ClosedTable`]
-//!   entry, its table's `Variant => "lit"` arm
-//!   (`test_utils::source::held_spellings`) — never at a reference or an
-//!   arbitrary literal. Once the crate's roster reads it, the name
-//!   resolves on its own. A crate that runs a roster but spells names in
-//!   a closed type's table the census does not read (profile's `Gate`,
-//!   sweep's blend decisions, geom-brep's pose and pair decisions) is a
-//!   `ClosedTable` entry, red once it holds no reference.
+//!   decided — a `const` of it (`test_utils::source::held_spellings`) —
+//!   never at a reference or an arbitrary literal. Once the crate's
+//!   roster reads it, the name resolves on its own.
+//! - **A closed type's table** (profile's `Gate`, sweep's blend
+//!   decisions, geom-brep's pose and pair decisions, editor-core's
+//!   `decisions!`) is no hold: its crate's roster declares it
+//!   (`NameCarrier::Table`), so its names are in the census union like
+//!   any other, and a label table no roster declares holds nothing.
 //!
 //! **When it runs.** It walks the whole tree, so it is in the slow set:
 //! a PR runs it only when the PR names it, and the nightly every night.
@@ -50,42 +50,12 @@ use test_utils::source::{
     repo_root, test_references,
 };
 
-/// Why a crate's decided names are not all in the census union yet.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Missing {
-    /// It decides names and runs no roster. No crate is listed so today;
-    /// the variant stays, since it is how the next deciding crate is
-    /// listed until its roster lands.
-    #[allow(
-        dead_code,
-        reason = "the list's shape for the next crate with no roster"
-    )]
-    Roster,
-    /// It runs a roster, but its names are spelled in a closed type's
-    /// table, which the census does not read.
-    ClosedTable,
-}
-
-/// The crates whose decided names the union does not yet hold, each
-/// with why and the row that closes it. A reference only such a crate
-/// spells is held by its entry.
-const KNOWN_MISSING: &[(&str, Missing, &str)] = &[
-    (
-        "profile",
-        Missing::ClosedTable,
-        "work/onecopy/the-census-reads-no-closed-type-name-table.md",
-    ),
-    (
-        "geom-brep",
-        Missing::ClosedTable,
-        "work/onecopy/the-census-reads-no-closed-type-name-table.md",
-    ),
-    (
-        "sweep",
-        Missing::ClosedTable,
-        "work/onecopy/the-census-reads-no-closed-type-name-table.md",
-    ),
-];
+/// The crates that decide names and run no roster yet, each with the
+/// row that gives it one. A reference only such a crate spells as a
+/// `const` is held by its entry. Empty today: every deciding crate runs
+/// a roster, and a closed type's table is a declared carrier
+/// (`NameCarrier::Table`) its crate's roster reads, not a hold.
+const KNOWN_MISSING: &[(&str, &str)] = &[];
 
 /// A crate as this row reads it.
 struct Crate {
@@ -147,28 +117,22 @@ fn has_sites(census: &PredicateCensus) -> bool {
 fn every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided() {
     let crates = crates();
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
-    let listed: BTreeMap<&str, Missing> = KNOWN_MISSING
-        .iter()
-        .map(|(name, why, _)| (*name, *why))
-        .collect();
+    let listed: BTreeMap<&str, &str> = KNOWN_MISSING.iter().copied().collect();
     assert_eq!(listed.len(), KNOWN_MISSING.len(), "a crate is listed twice");
     let mut out = Vec::new();
-    for (name, why, row) in KNOWN_MISSING {
+    for (name, row) in KNOWN_MISSING {
         if !root.join(row).is_file() {
             out.push(format!("`{name}` cites `{row}`, which is not a file"));
         }
-        match (crates.get(*name), why) {
-            (None, _) => out.push(format!("`{name}` is listed but is no crate with a src")),
-            (Some(c), Missing::Roster) if c.runs_roster => out.push(format!(
+        match crates.get(*name) {
+            None => out.push(format!("`{name}` is listed but is no crate with a src")),
+            Some(c) if c.runs_roster => out.push(format!(
                 "`{name}` runs a roster now — remove it from KNOWN_MISSING"
             )),
-            (Some(c), Missing::Roster) if !has_sites(&c.census) => out.push(format!(
+            Some(c) if !has_sites(&c.census) => out.push(format!(
                 "`{name}` decides nothing now — remove it from KNOWN_MISSING"
             )),
-            (Some(c), Missing::ClosedTable) if !c.runs_roster => out.push(format!(
-                "`{name}` runs no roster: list it as `Missing::Roster`"
-            )),
-            _ => {}
+            Some(_) => {}
         }
     }
     for (name, c) in &crates {
@@ -186,17 +150,13 @@ fn every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided() {
         .collect();
     assert!(!union.is_empty(), "the census read no name anywhere");
     let crates_dir = root.join("crates");
-    // A listed crate holds a name only where it spells it as decided:
-    // a `const` of it, or, for a closed table, its `Variant => "lit"`
-    // arm — never at a reference and never at an arbitrary literal.
+    // A listed crate holds a name only where it spells it as decided —
+    // a `const` of it — never at a reference and never at an arbitrary
+    // literal.
     let held: BTreeMap<&str, BTreeSet<String>> = KNOWN_MISSING
         .iter()
-        .map(|(name, why, _)| {
-            let src = crates_dir.join(name).join("src");
-            (*name, held_spellings(&src, *why == Missing::ClosedTable))
-        })
+        .map(|(name, _)| (*name, held_spellings(&crates_dir.join(name).join("src"))))
         .collect();
-    let mut holding: BTreeSet<&str> = BTreeSet::new();
     for (name, c) in &crates {
         let sites = c
             .census
@@ -213,19 +173,13 @@ fn every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided() {
             if union.contains(referenced) {
                 continue;
             }
-            let holders: Vec<&str> = held
-                .iter()
-                .filter(|(_, names)| names.contains(referenced))
-                .map(|(holder, _)| *holder)
-                .collect();
-            if holders.is_empty() {
+            if !held.values().any(|names| names.contains(referenced)) {
                 out.push(format!(
                     "{site}: {referenced} — a predicate literal no crate decides: spell it as \
                      the door does, route it through the door's const, or, in test code, mark \
                      a deliberate negative `// UNDECIDED-NAME: <why>` on the line above"
                 ));
             }
-            holding.extend(holders);
         }
         // The other half of the marker's ratchet: a marked name some
         // census decides is a reference, and the marker a stale claim.
@@ -252,14 +206,6 @@ fn every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided() {
                 "crates/{name}/src/{site}: an `UNDECIDED-NAME` marker outside test code — a \
                  production name nothing decides needs a home (a door, or the door's const), \
                  not a marker"
-            ));
-        }
-    }
-    for (name, why, _) in KNOWN_MISSING {
-        if *why == Missing::ClosedTable && !holding.contains(name) {
-            out.push(format!(
-                "`{name}`'s closed table holds no unresolved reference now — remove it from \
-                 KNOWN_MISSING"
             ));
         }
     }

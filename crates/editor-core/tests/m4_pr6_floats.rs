@@ -78,8 +78,8 @@ fn round_trip(value: f64) -> ProfileDoc {
             },
         );
     }
-    let text = save(&doc, &[], Tol::witness()).expect("save");
-    load(&text, Tol::witness()).expect("load").doc
+    let text = save(&doc, Tol::witness()).expect("save");
+    load(&text, Tol::witness()).expect("load")
 }
 
 fn assert_bits(label: &str, value: f64, loaded: f64) {
@@ -159,9 +159,9 @@ fn epsilon_round_trips_bit_exactly() {
     // (The in-process reconcile door requires it to MATCH the
     // committed ambient ε, so the probe uses the ambient value.)
     let doc = ProfileDoc::empty_derived("m4_pr6_floats", Tol::witness());
-    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let text = save(&doc, Tol::witness()).expect("save");
     let loaded = load(&text, Tol::witness()).expect("load");
-    assert_bits("epsilon", doc.epsilon(), loaded.doc.epsilon());
+    assert_bits("epsilon", doc.epsilon(), loaded.epsilon());
 }
 
 #[test]

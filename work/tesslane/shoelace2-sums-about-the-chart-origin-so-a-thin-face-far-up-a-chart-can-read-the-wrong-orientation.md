@@ -45,3 +45,5 @@ without a body.
 Sum about a polygon-local anchor (the first point, or the bbox centre as
 `loop_area` does). That moves what the planar lane computes, so its digests are
 re-derived with the cause named.
+
+2026-11-20 (`tesslie/empty-patch`, PR 7196): a sum landing on zero no longer refuses `MissingEntity` in `trim_orientation`. The face goes on to the constraint pass, which refuses `BoundaryBoundsNoRegion` where the loops bound nothing and `TrimLoopOrientation` where they bound a region but have no orientation. The sign question this row raises is unchanged.

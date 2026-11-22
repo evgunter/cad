@@ -107,10 +107,8 @@ fn a_point_built_on_a_cylinder_is_on_it_over_a_box_on_the_radius() {
         for (name, x) in radial_directions() {
             for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
                 let cylinder = Surface::Cylinder {
-                    origin: point(c),
-                    axis: lit3(axis),
-                    radius,
-                    u_ref: lit3(u_ref),
+                    frame: geom::Frame::new(point(c), lit3(axis), lit3(u_ref)),
+                    radius: radius,
                 };
                 let p = point(c) + x * r + lit3(axis) * h;
                 assert_eq!(
@@ -143,10 +141,8 @@ fn a_point_built_on_a_sphere_is_on_it_over_a_box_on_the_radius() {
         for (name, x) in directions {
             for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
                 let sphere = Surface::Sphere {
-                    center: point(c),
-                    radius,
-                    axis: lit3(axis),
-                    u_ref: lit3(u_ref),
+                    frame: geom::Frame::new(point(c), lit3(axis), lit3(u_ref)),
+                    radius: radius,
                 };
                 assert_eq!(
                     reading(chart_distance(&sphere, point(c) + x * r)),
@@ -185,10 +181,8 @@ fn a_ruling_built_on_a_cylinder_is_placed_at_its_own_angle_over_a_box() {
         let r = boxed("radial_reader_radius", RADIUS);
         for (name, x, angle, folds) in directions {
             let cylinder = Surface::Cylinder {
-                origin: point(c),
-                axis: lit3(axis),
+                frame: geom::Frame::new(point(c), lit3(axis), lit3(u_ref)),
                 radius: r,
-                u_ref: lit3(u_ref),
             };
             let line = geom::Line {
                 origin: point(c) + lit3(x) * r,
@@ -277,15 +271,15 @@ fn ivp(p: Point3<f64>) -> Point3<Interval> {
 /// the table against the direct spelling's `Interval` enclosure, which
 /// holds the exact distance of the point as given: the `f64` read is
 /// within four ulps of the offset's and the radius's sum of it, and
-/// the `Interval` read meets it. Within a part in `1e4` of the wall,
-/// where incidence is decided, the `Interval` read is as narrow as the
-/// direct one (measured: `0.85` to `1.01` of its width); away from the
-/// wall its quotient carries the offset's rounding twice, and it is up
-/// to five times the direct one's width, a rounding of the offset
-/// still.
+/// the `Interval` read meets it. The `Interval` read's quotient
+/// carries the offset's rounding twice, so it is wider than the direct
+/// one by a rounding of the offset: within a part in `1e4` of the
+/// wall, where incidence is decided, at most twice its width (measured:
+/// `0.85` to `1.01` on the sphere, up to `2.0` on the tilted cylinder),
+/// and away from the wall up to five times.
 ///
-/// Red with [`super::radius_gap`] handing `norm_gap` the radius for its
-/// square (run by hand: no site in `mutants`).
+/// Red with [`super::wall_distance`] handing the gap the radius's
+/// square for the radius (run by hand: no site in `mutants`).
 #[test]
 fn the_distance_is_the_measured_norm_less_the_radius_to_its_rounding() {
     let (axis, u_ref, cv, c) = tilted();
@@ -305,31 +299,23 @@ fn the_distance_is_the_measured_norm_less_the_radius_to_its_rounding() {
                         let (surface, surface_iv) = if sphere {
                             (
                                 Surface::Sphere {
-                                    center: c,
+                                    frame: geom::Frame::new(c, axis, u_ref),
                                     radius: radius_f,
-                                    axis,
-                                    u_ref,
                                 },
                                 Surface::Sphere {
-                                    center: ivp(c),
+                                    frame: geom::Frame::new(ivp(c), iv3(axis), iv3(u_ref)),
                                     radius: Interval::from_f64(radius_f),
-                                    axis: iv3(axis),
-                                    u_ref: iv3(u_ref),
                                 },
                             )
                         } else {
                             (
                                 Surface::Cylinder {
-                                    origin: c,
-                                    axis,
+                                    frame: geom::Frame::new(c, axis, u_ref),
                                     radius: radius_f,
-                                    u_ref,
                                 },
                                 Surface::Cylinder {
-                                    origin: ivp(c),
-                                    axis: iv3(axis),
+                                    frame: geom::Frame::new(ivp(c), iv3(axis), iv3(u_ref)),
                                     radius: Interval::from_f64(radius_f),
-                                    u_ref: iv3(u_ref),
                                 },
                             )
                         };
@@ -368,7 +354,7 @@ fn the_distance_is_the_measured_norm_less_the_radius_to_its_rounding() {
                     let (width, direct_width) =
                         (got_iv.hi() - got_iv.lo(), direct.hi() - direct.lo());
                     let allowed = if (reach - 1.0).abs() <= 1.0e-4 {
-                        1.05 * direct_width + f64::EPSILON * radius
+                        2.1 * direct_width + f64::EPSILON * radius
                     } else {
                         6.0 * direct_width + slack
                     };
@@ -446,4 +432,66 @@ fn a_rulings_direction_reads_the_angle_of_its_offset_to_its_rounding() {
         }
     }
     assert_eq!(read, 4 * 11 * 64, "every row of the table read");
+}
+
+/// **Against a radius that is not positive a point reads its distance
+/// from no chart at all, off the mirror wall.** Against a cylinder or a
+/// sphere of radius `−R` every point of the table but the mirror
+/// wall's reads `‖w‖ + R`, never zero, as the direct spelling does: the
+/// gap's `abs` is taken of the whole quotient, whose denominator
+/// `‖w‖ − R` changes sign across that wall. Within its rounding of the
+/// mirror wall the gap's one precondition fails and the read is not
+/// claimed; a radius that is not positive is refused as a datum
+/// (`Surface`'s `radius > 0`), not by this distance.
+///
+/// Red with [`super::wall_distance`] taking the `abs` of the numerator
+/// alone (run by hand: no site in `mutants`): a point inside the mirror
+/// wall reads a negative distance, which decides as on the chart.
+#[test]
+fn a_radius_that_is_not_positive_reads_no_point_on_it_off_the_mirror_wall() {
+    let (axis, u_ref, cv, c) = tilted();
+    let mut read = 0_u32;
+    for radius in RADII {
+        for reach in REACHES {
+            for theta in table_angles().step_by(7) {
+                let (s, cs) = theta.sin_cos();
+                let x = u_ref * cs + cv * s;
+                let frame = geom::Frame::new(c, axis, u_ref);
+                let cases = [
+                    (
+                        "cylinder",
+                        Surface::Cylinder {
+                            frame,
+                            radius: -radius,
+                        },
+                        c + x * (radius * reach) + axis * 0.37,
+                    ),
+                    (
+                        "sphere",
+                        Surface::Sphere {
+                            frame,
+                            radius: -radius,
+                        },
+                        c + (x * 0.8 + axis * 0.6) * (radius * reach),
+                    ),
+                ];
+                for (name, surface, p) in cases {
+                    let got = chart_distance(&surface, p);
+                    let want = radius * (reach + 1.0);
+                    let label = format!("{name} R = -{radius}, reach {reach}, at {theta}");
+                    // On the mirror wall the gap's precondition fails
+                    // (`‖w‖ + radius = 0`) and the quotient is its own
+                    // rounding: no value is claimed there.
+                    if reach != 1.0 {
+                        assert!(
+                            (got - want).abs() <= 1.0e-6 * want,
+                            "{label}: {got} against {want}"
+                        );
+                    }
+                    read += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(read, 4 * 11 * 10 * 2, "every row of the table read");
 }

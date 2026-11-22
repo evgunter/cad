@@ -26,7 +26,7 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, Convexity, CornerConfig, FILLET3_MIXED_CORNER_RECOURSE};
+use sweep::blend::{BlendError, Convexity, FILLET3_MIXED_CORNER_RECOURSE, UnbuiltEnd};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::readback::euler_counts;
@@ -168,9 +168,10 @@ fn the_stored_chart_equator_runs_through_each_sides_own_feet() {
     ];
     for (convex, sign) in [(Convexity::Convex, 1.0), (Convexity::Concave, -1.0)] {
         let ball = corner_ball([Point3::new(0.0, 0.0, 0.0); 3], normals, r, convex);
-        let Surface::Sphere { axis, u_ref, .. } = ball.surface else {
+        let Surface::Sphere { frame, .. } = ball.surface else {
             panic!("the corner ball's surface is a sphere");
         };
+        let (axis, u_ref) = (frame.axis(), frame.u_ref());
         let feet = normals.map(|n| n * sign);
         assert!(
             (u_ref - feet[0]).norm() < 1e-15,
@@ -297,11 +298,15 @@ fn the_filleted_cavity() {
 fn outward_at_boundary(body: &Body<f64>, face: topo::FaceKey) -> Vec<(Point3<f64>, Vec3<f64>)> {
     let f = body.get_face(face).expect("a minted face");
     let radial = |q: Point3<f64>| match body.face_surface(face).expect("its surface") {
-        Surface::Cylinder { origin, axis, .. } => {
-            let d = q - *origin;
-            (d - *axis * d.dot(*axis)).normalize()
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            let d = q - origin;
+            (d - axis * d.dot(axis)).normalize()
         }
-        Surface::Sphere { center, .. } => (q - *center).normalize(),
+        Surface::Sphere { frame, .. } => {
+            let center = frame.origin();
+            (q - center).normalize()
+        }
         other => panic!("a fillet carve mints cylinders and spheres, got {other:?}"),
     };
     let first = match body.get_loop(f.outer).expect("an outer loop").boundary {
@@ -442,10 +447,7 @@ fn the_mixed_corner_recourse_is_followable_as_written() {
     assert!(
         matches!(
             refused.error,
-            BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { .. },
-                ..
-            }
+            BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: Some(_), .. })
         ),
         "the reflex edge's ends are mixed corners, got {text}"
     );

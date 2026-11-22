@@ -44,7 +44,7 @@ to the crate root. Then re-point `splitting` and every reader above at
 it, and drop the cited rises and every other `names-splitting` pin the
 move clears. The cited rises include `contain_loop.rs`, the containment
 door's `From<PointInLoopError> for ContainError` (moved out of
-`boolean/contain.rs` by PR 6683). It is mechanical, but it touches about twenty files, so it
+`contain.rs` by PR 6683). It is mechanical, but it touches about twenty files, so it
 costs M.
 
 ## Evidence (`topo-shared-cores-hosted-in-one-half`, 2026-11-12)

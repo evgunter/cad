@@ -33,6 +33,8 @@ import: Ok(Solid) solids=1 shells=1 faces=6 edges=12 vertices=8
 import: Ok(Solid) solids=1 shells=1 faces=6 edges=12 vertices=8
 ## swept_elbow
 import: Ok(Solid) solids=1 shells=1 faces=6 edges=12 vertices=8
+## voided
+import: Ok(Solid) solids=1 shells=2 faces=12 edges=24 vertices=16
 ## freecad/box
 import: Ok(Solid) solids=1 shells=1 faces=6 edges=12 vertices=8
 ## freecad/cylinder

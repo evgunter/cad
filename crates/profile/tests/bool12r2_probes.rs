@@ -222,6 +222,7 @@ fn r2_the_lever_only_bites_at_an_arm_far_from_one() {
     let refused = tilted_close(off, 1000.0);
     match refused {
         Err(PathError::SeamArrivalOffDirection { margin, arm, .. }) => {
+            let (margin, arm) = (crate::common::told(&margin), crate::common::told(&arm));
             println!("R2: long-arm miss -> margin {margin} arm {arm}");
             assert!(
                 (margin.abs() - off).abs() <= 1e-2 * off,
@@ -282,6 +283,7 @@ fn r2_a_degenerate_closing_leg_is_refused_for_want_of_a_lever() {
     println!("R2: degenerate undeclared close -> {undeclared:?}");
     match declared {
         Err(PathError::SeamArrivalLeverTooShort { arm }) => {
+            let arm = crate::common::told(&arm);
             assert!(arm.abs() < eps, "arm {arm} is the degenerate lever");
         }
         other => panic!("the declared check must refuse for want of a lever: {other:?}"),
@@ -314,6 +316,7 @@ fn r2_the_arc_lever_is_radius_min_chord() {
         .tangent_arc_to(Start.arrives_tangent(), t);
     match refused {
         Err(PathError::SeamArrivalOffDirection { margin, arm, .. }) => {
+            let (margin, arm) = (crate::common::told(&margin), crate::common::told(&arm));
             println!("R2: both-ends-tangent seam -> margin {margin} arm {arm}");
             assert!((arm - 1.25).abs() < 1e-12, "arm {arm} is not radius 1.25");
             assert!(

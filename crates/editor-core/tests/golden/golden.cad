@@ -3,7 +3,7 @@ id: 7ddec231df0049f879136a2f7624647d
   "snapshot": {
     "id": "7ddec231df0049f879136a2f7624647d",
     "mint": {
-      "chain": "27fa01745cdc8943bdb67f7ebaf1adff39ccb2a8ecedf374b1e7a6ee8b0fe658",
+      "chain": "10c0d9b93056dbdf3bbb710323482c2f63c70bd61d0d511c53729d469539f4ac",
       "log": [
         {
           "var": "1:e2382e0f27e19466"
@@ -619,6 +619,9 @@ id: 7ddec231df0049f879136a2f7624647d
         },
         {
           "var": "205:27fa01745cdc8943"
+        },
+        {
+          "var": "206:10c0d9b93056dbdf"
         }
       ]
     },
@@ -683,7 +686,7 @@ id: 7ddec231df0049f879136a2f7624647d
       "19:60b9dcebde45e1b0": {
         "Extrude": {
           "profile": "18:4a110dac040a7834",
-          "distance": "1:e2382e0f27e19466"
+          "distance": "206:10c0d9b93056dbdf"
         }
       },
       "35:2a18926a86b3b81d": {
@@ -2841,6 +2844,18 @@ id: 7ddec231df0049f879136a2f7624647d
             "port": 0
           }
         }
+      },
+      "206:10c0d9b93056dbdf": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.5,
+              "display_unit": "mm"
+            }
+          }
+        }
       }
     },
     "var_names": {
@@ -2905,22 +2920,5 @@ id: 7ddec231df0049f879136a2f7624647d
       ]
     ],
     "product": "205:27fa01745cdc8943"
-  },
-  "edits": [
-    {
-      "SetParam": {
-        "node": "19:60b9dcebde45e1b0",
-        "slot": "Distance",
-        "value": {
-          "Formula": {
-            "Quantity": {
-              "value": 0.5,
-              "dim": "Length",
-              "unit": "mm"
-            }
-          }
-        }
-      }
-    }
-  ]
+  }
 }

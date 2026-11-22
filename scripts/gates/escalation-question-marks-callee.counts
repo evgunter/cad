@@ -19,10 +19,19 @@
 # editor-core trace: resolve_chain's steps, each read from the pen the
 # step before left: NOT A SEARCH.
 crates/editor-core/src/trace.rs 4
+# curve_face pose: line_cone_read's apex end (1): WHICH, the end the apex
+# is decided at is the root whose spread is read next, so an end in band
+# ahead of it refuses (the `place_off` ruling; the site says so).
+crates/geom-brep/src/curve_face/pose.rs 1
 # props curved: pole_turning (1) sums every arc's turning: NOT A SEARCH.
 # (sphere_region_material_sign and pole_side climb their arcs; pose's
 # one_line reads one identity.)
 crates/geom-brep/src/props/curved.rs 1
+# pair_section CarriedSection::site's scan for a node box holding the
+# site (1): `PadBox::holds` widens each box by the band's escalation and
+# refuses only a site whose coordinate the scalar holds as no point, a
+# desync, no band reading: NOT A SEARCH.
+crates/geom-brep/src/pair_section.rs 1
 # quadrature rounds: each round's extent is the premise of its estimate:
 # NOT A SEARCH.
 crates/geom-brep/src/props/quad/patch.rs 1
@@ -38,7 +47,7 @@ crates/geom-brep/src/ssi/refine.rs 1
 # attach: unvouched reads every edge: NOT A SEARCH.
 crates/topo/src/attach.rs 1
 # contain: boundary_pre_pass's per-loop place_off: WHICH (its doc says so).
-crates/topo/src/boolean/contain.rs 1
+crates/topo/src/contain.rs 1
 # edge_join: joinable's regularity read over the two surfaces: HAND-ROLLED
 # (with its decide site in escalation-question-marks.counts); join_all's
 # two reads, a fixpoint where each join is read on the body the last one
@@ -74,7 +83,7 @@ crates/topo/src/boolean/reduce.rs 5
 # covers settle the kind (EdgeKindUnread, Mixed, NoEdge) answers, and
 # pieces can answer different kinds (QML T4; the site says so); reach's
 # four reads, every arc's: NOT A SEARCH.
-crates/topo/src/boolean/rim_wedge.rs 6
+crates/topo/src/rim_wedge.rs 6
 # section_cert ruling: roots walks sorted roots to the first past the
 # window: NOT A SEARCH.
 crates/topo/src/boolean/section_cert/ruling.rs 1

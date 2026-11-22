@@ -167,9 +167,7 @@ pub(super) fn rim_arc(
 ) -> EdgeCurveSpec<f64> {
     let centre = Point3::new(0.0, 0.0, v);
     let plane = body.add_surface(geom::Surface::Plane {
-        origin: centre,
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(centre, Vec3::unit_z(), Vec3::unit_x()),
     });
     let circle = geom::Curve3::circle(centre, Vec3::unit_z(), 1.0, Vec3::unit_x());
     let (carrier, t0, t1) = if u1 > u0 {

@@ -29,24 +29,25 @@ use geom_core::{Point3, Vec3};
 /// would make the claim vacuous.
 fn sphere(r: f64) -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.3, -0.2, 1.1),
+        frame: geom::Frame::new(Point3::new(0.3, -0.2, 1.1), Vec3::unit_z(), Vec3::unit_x()),
         radius: r,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
 /// Evaluate the sphere chart by hand (the probe's own oracle).
 fn sphere_eval(s: &Surface<f64>, u: f64, v: f64) -> Point3<f64> {
     let Surface::Sphere {
-        center,
+        frame: carrier_frame,
         radius,
-        axis,
-        u_ref,
     } = *s
     else {
         panic!("sphere only")
     };
+    let (center, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let cv = axis.cross(u_ref);
     let rad = u_ref * u.cos() + cv * u.sin();
     center + rad * (radius * v.cos()) + axis * (radius * v.sin())
@@ -62,9 +63,14 @@ fn sphere_eval(s: &Surface<f64>, u: f64, v: f64) -> Point3<f64> {
 fn probe_pole_crossing_meridian_arc_certifies() {
     let r = 0.7;
     let s = sphere(r);
-    let Surface::Sphere { center, .. } = s else {
+    let Surface::Sphere {
+        frame: carrier_frame,
+        ..
+    } = s
+    else {
         unreachable!()
     };
+    let center = carrier_frame.origin();
     // Great circle in the xz-plane of the chart frame: v(t) = t,
     // azimuth 0. The window [pi/4, 3pi/4] crosses the north pole
     // (v = pi/2) in its INTERIOR.
@@ -91,10 +97,8 @@ fn probe_mirror_nappe_cone_rim_certifies_at_azimuth_plus_pi() {
     let half_angle: f64 = 0.5;
     let apex = Point3::new(1.0, 2.0, 3.0);
     let cone = Surface::Cone {
-        apex,
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(apex, Vec3::unit_z(), Vec3::unit_x()),
         half_angle,
-        u_ref: Vec3::unit_x(),
     };
     let h: f64 = -0.4;
     let rho = h.abs() * half_angle.tan();
@@ -129,10 +133,8 @@ fn probe_mirror_nappe_cone_rim_certifies_at_azimuth_plus_pi() {
 fn probe_apex_level_rim_refuses() {
     let apex = Point3::new(0.0, 0.0, 0.0);
     let cone = Surface::Cone {
-        apex,
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(apex, Vec3::unit_z(), Vec3::unit_x()),
         half_angle: 0.5,
-        u_ref: Vec3::unit_x(),
     };
     let carrier = Curve3::circle(apex, Vec3::unit_z(), 1e-3, Vec3::unit_x());
     let got = chart_pcurve(&carrier, &cone, band());
@@ -152,11 +154,9 @@ fn probe_torus_inner_equator_certifies_at_v_pi() {
     let (major, minor) = (1.0, 0.3);
     let center = Point3::new(-1.0, 0.5, 2.0);
     let torus = Surface::Torus {
-        center,
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         major_radius: major,
         minor_radius: minor,
-        u_ref: Vec3::unit_x(),
     };
     let carrier = Curve3::circle(center, Vec3::unit_z(), major - minor, Vec3::unit_x());
     let p = chart_pcurve(&carrier, &torus, band()).unwrap();
@@ -181,9 +181,10 @@ fn probe_torus_inner_equator_certifies_at_v_pi() {
 fn probe_sphere_envelope_dominates_a_corrupted_meridian() {
     let r = 0.7;
     let s = sphere(r);
-    let Surface::Sphere { center, .. } = s else {
+    let Surface::Sphere { frame, .. } = s else {
         unreachable!()
     };
+    let center = frame.origin();
     let carrier = Curve3::circle(center, Vec3::unit_y() * -1.0, r, Vec3::unit_x());
     let image = chart_pcurve(&carrier, &s, band()).unwrap();
     let d = 1e-4;

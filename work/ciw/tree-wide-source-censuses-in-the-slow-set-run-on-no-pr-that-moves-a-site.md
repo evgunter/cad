@@ -32,7 +32,7 @@ reaches it. A census depends on them by text.
 
 | census | moved by | what moved |
 |---|---|---|
-| copysign | PR 5956 (`2660be102b`, 2026-10-28) | 4 sites in `topo/src/sector_face.rs`, hidden by the census's own cut (`work/tcost/census-files-each-cut-a-files-shipped-part-by-hand.md`) |
+| copysign | PR 5956 (`2660be102b`, 2026-10-28) | 4 sites in `topo/src/sector_face.rs`, hidden by the census's own cut (`work/green/census-files-each-cut-a-files-shipped-part-by-hand.md`) |
 | copysign | PR 6139 (`f2f34e16b0`, 2026-10-31) | `geom-brep/src/pair_section/cylinders.rs` +1 |
 | copysign | PR 6345 (`7d6855d09c`, 2026-11-02) | `topo/src/boolean/fan.rs` +1, `join.rs` +1 |
 | copysign | PR 6486 (`5a5ce31ef7`, 2026-11-03) | `geom/src/surfaces.rs` +1 |
@@ -44,6 +44,8 @@ reaches it. A census depends on them by text.
 
 All four (with `flagged_census`, PR 6603) were red together on
 `1b31bac52e`.
+
+The slow set's reach on a PR is decided in `dependents-slow-sets-skip-a-kernel-pr.md`'s policy (Ev, 2026-11-12): no PR runs a crate's whole slow set, and the nightly attributes each newly red slow test to its merge. So a PR that moves a census's site is reached by the nightly attribution, not by its gate. Option A below is the kind of cheap per-PR selection `trimmed-slow-canary-for-a-seeded-crate` asks for, and the options stay as the census-specific alternatives.
 
 ## Options
 

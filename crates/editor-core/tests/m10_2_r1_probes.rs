@@ -1039,7 +1039,7 @@ fn corruptible() -> ProfileDoc {
 #[test]
 fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     let doc = corruptible();
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
 
     // (a) The bound's dimension: Length → Angle. The bound is written
     // as a distinctive value, so its variable is found by it.

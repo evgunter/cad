@@ -188,8 +188,8 @@ pyo3::create_exception!(
     PersistError,
     PncadError,
     "A save or load the persistence doors refused (bad header, \
-     unknown schema, unparseable body, a snapshot or edit log that \
-     fails the shared validator, ...). Carries `variant`, the stable \
+     unparseable body, a document that fails the shared validator, \
+     ...). Carries `variant`, the stable \
      tag of the refusing arm, plus every arm's payload as \
      attributes — `None` where the arm does not carry one.\n\n\
      Four arms wrap a refusal of their own (a profile-program fault, \
@@ -256,7 +256,9 @@ pyo3::create_exception!(
      promotion sits on a surface whose recognition estimator is \
      ill-conditioned at the file's own tolerance — and \
      `promoted_kind` says which analytic kind's estimator declined, \
-     `plane` or `cylinder`. The two lead different places: a plane \
+     one of `plane`, `cylinder`, `cone`, `sphere` and `torus` (the \
+     cylinder's is the one estimator with a conditioning margin, so it \
+     is the one that declines). The two lead different places: a plane \
      that will not certify is a flatness question at the import \
      tolerance, a cylinder that will not is an ill-conditioned axis \
      and wants more of the patch. The entity ids and the conditioning \

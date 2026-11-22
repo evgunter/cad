@@ -78,7 +78,7 @@ pub(crate) struct AzimuthFrame<T: Real> {
 /// [`AzimuthFrame`]'s fields.
 pub(crate) fn frame<T: Real>(frame: &Frame<T>, u: T) -> AzimuthFrame<T> {
     let ((s, c), v_ref) = basis(frame, u);
-    of_legs(frame.u_ref, v_ref, (s, c))
+    of_legs(frame.u_ref(), v_ref, (s, c))
 }
 
 /// [`frame`] over two legs a caller holds verbatim, `u_ref` and `v_ref`,
@@ -292,15 +292,16 @@ impl<T: Decide> Azimuth<T> {
     /// `(−1, τ − 1]`, and one on the cut reads the closed end `τ − 1`. One
     /// in band just inside the open end, at angle `−1 + δ`, reads
     /// `τ − 1 + δ`: the turned formula, a hair past the window, which
-    /// placement's marks take back. A direction of no length (or, at `Interval`,
-    /// one whose enclosure reaches zero length: no bounded reciprocal)
-    /// names no angle, and every angle names its zero-length vector alike:
-    /// it reads `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)`
-    /// does at `f64` (a pole's zero-radius parallel, a sub-band rim's
-    /// centre on the axis). At `Interval` the rule broadens the same way:
-    /// an enclosure of the length that straddles zero has no bounded
-    /// reciprocal, so it reads `0` too, although the direction it encloses
-    /// may have length.
+    /// placement's marks take back. A direction whose length may be zero
+    /// ([`geom_core::structure_nonzero`]'s structure decision) names no
+    /// angle, and every angle names its zero-length vector alike: it reads
+    /// `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)` does at
+    /// `f64` (a pole's zero-radius parallel, a sub-band rim's centre on the
+    /// axis). At `Interval` the rule broadens the same way: an enclosure of
+    /// the length that straddles zero reads `0` too, although the direction
+    /// it encloses may have length. A direction with a component that is not
+    /// finite is no direction of no length: it names none, and reads NaN, as
+    /// [`Self::near`] does.
     pub fn principal(self, band: Band) -> T {
         self.principal_in(Window::Angle, band)
     }
@@ -380,6 +381,13 @@ impl<T: Decide> Azimuth<T> {
     }
 
     fn read_in_as(self, window: Window, row: &'static str, band: Band) -> T {
+        // Poison first, as `near` reads it: a NaN or infinite component
+        // names no direction, so it reads no angle rather than the chart's
+        // `u_ref`, which is what a zero length reads.
+        if !(geom_core::real::is_finite_length(self.y) && geom_core::real::is_finite_length(self.x))
+        {
+            return T::from_f64(f64::NAN);
+        }
         if !geom_core::structure_nonzero(self.length()) {
             return T::zero();
         }
@@ -456,6 +464,11 @@ impl Window {
     pub fn centre<T: Real>(self) -> T {
         T::pi() + self.start()
     }
+
+    /// The window's closed end, a whole turn past its start.
+    pub fn end<T: Real>(self) -> T {
+        self.centre::<T>() + T::pi()
+    }
 }
 
 /// The angle of `(x, y)` (M5 S13, shared by every chart's derivation
@@ -485,6 +498,30 @@ mod tests {
     use geom_core::Real;
 
     use super::*;
+
+    /// **A poisoned direction names no angle**: a NaN or infinite
+    /// component reads NaN through the principal read and through `near`
+    /// alike, never the chart's `u_ref`, which is what a direction of no
+    /// length reads (`0`).
+    #[test]
+    fn a_poisoned_direction_reads_no_angle() {
+        let band = Band::least();
+        for (y, x) in [
+            (f64::NAN, 1.0),
+            (0.0, f64::NAN),
+            (f64::INFINITY, 1.0),
+            (1.0, f64::NEG_INFINITY),
+        ] {
+            let az = Azimuth::of(y, x);
+            assert!(az.principal(band).is_nan(), "({y}, {x}) principal");
+            assert!(az.near(0.5).is_nan(), "({y}, {x}) near");
+        }
+        assert_eq!(
+            Azimuth::of(0.0, 0.0).principal(band),
+            0.0,
+            "no length reads u_ref"
+        );
+    }
 
     /// The two doors agree **bit for bit** with the formula
     /// `DESIGN.md`'s parameterization row and the two module headers
@@ -521,11 +558,12 @@ mod tests {
     /// only guard against a transposition.
     #[test]
     fn both_doors_are_bitwise_the_documented_formula() {
-        let axis = Vec3::new(0.31, -0.72, 0.61).normalize();
-        let u_ref = {
-            let raw = Vec3::new(0.83, 0.19, -0.52);
-            (raw - axis * raw.dot(axis)).normalize()
-        };
+        let placed = crate::Frame::new(
+            geom_core::Point3::origin(),
+            Vec3::new(0.31, -0.72, 0.61),
+            Vec3::new(0.83, 0.19, -0.52),
+        );
+        let (axis, u_ref) = (placed.axis(), placed.u_ref());
         let bits = |v: Vec3<f64>| (v.x.to_bits(), v.y.to_bits(), v.z.to_bits());
 
         for k in -400i32..400 {
@@ -533,18 +571,12 @@ mod tests {
             let (s, c) = Real::sin_cos(u);
             let v_ref = axis.cross(u_ref);
 
-            let ((bs, bc), bv) = basis(
-                &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
-                u,
-            );
+            let ((bs, bc), bv) = basis(&placed, u);
             assert_eq!(bs.to_bits(), s.to_bits(), "basis sin at {u}");
             assert_eq!(bc.to_bits(), c.to_bits(), "basis cos at {u}");
             assert_eq!(bits(bv), bits(v_ref), "basis v_ref at {u}");
 
-            let f = frame(
-                &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
-                u,
-            );
+            let f = frame(&placed, u);
             assert_eq!(
                 bits(f.radial.0),
                 bits(u_ref * c + v_ref * s),
@@ -555,7 +587,6 @@ mod tests {
                 bits(u_ref * (-s) + v_ref * c),
                 "tangential at {u}"
             );
-            let placed = crate::Frame::new(geom_core::Point3::origin(), axis, u_ref);
             assert_eq!(
                 bits(placed.radial(u)),
                 bits(f.radial.0),

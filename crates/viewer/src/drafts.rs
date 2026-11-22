@@ -91,14 +91,14 @@ pub(crate) struct Drafts {
     /// open, `None` while it is not. The op is not emitted until
     /// its commit — a name in flight is a draft, not a document.
     pub(crate) new_doc_name: Option<String>,
-    /// **Whether the traced-profile form is open** — its
-    /// `New traced profile…` door clicked. Whether it is on screen is a
+    /// **Whether the profile-on-a-face form is open** — its
+    /// `New profile on a face…` door clicked. Whether it is on screen is a
     /// different read, the frame's (`ProfileDoors::create`): a section
     /// folded over an open form hides it too, and what the viewport
     /// shows of the form follows that read ([`Self::marked_face`],
     /// [`Self::trace_wanted`]).
-    pub(crate) traced_open: bool,
-    /// The face whose body's plane the traced sketch is drawn on.
+    pub(crate) on_face_open: bool,
+    /// The face the profile is drawn on, on its chart.
     ///
     /// A LATCH of the viewport's face pick rather than a read of the
     /// live selection: a face is not a node a combo can list, so the
@@ -114,8 +114,9 @@ pub(crate) struct Drafts {
     ///
     /// Held as every face pick is ([`HeldPick`]), its nodes spoken again
     /// from each later document ([`Self::respeak`]).
-    pub(crate) trace_plane: Option<HeldPick>,
-    /// The face the sketch traces, latched the same way.
+    pub(crate) on_face: Option<HeldPick>,
+    /// The face the profile traces, latched the same way: the form's
+    /// optional pick, without which the profile traces nothing.
     pub(crate) trace_face: Option<HeldPick>,
     /// The trace's branches: which crossing, and which sense.
     pub(crate) trace_gesture: sketch::TraceGesture,
@@ -172,13 +173,13 @@ pub(crate) fn label_typed(text: &str) -> Result<Option<Label>, LabelFault> {
 }
 
 /// **One value per profile panel that draws in the viewport** — the
-/// traced-profile form (`create`), which shows the trace its latches
+/// profile-on-a-face form (`create`), which shows the trace its latches
 /// read, and the profile editor (`edit`), which shows its draft. What
 /// the frame loop takes per panel — the preview, whether the panel
 /// drew — is one of these.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ProfileDoors<T> {
-    /// The traced-profile form's.
+    /// The profile-on-a-face form's.
     pub(crate) create: T,
     /// The profile editor's.
     pub(crate) edit: T,
@@ -719,21 +720,14 @@ impl ProfileEdit {
     }
 
     /// **The first step a held loop puts out of the order a step that
-    /// lowers against the pen needs** ([`sketch::pen_order`]), over
-    /// the loops at plain numbers as `landed` reads them: the draft waits
-    /// on it, since the evaluation would refuse the profile there.
-    pub(crate) fn pen_order(
-        &self,
-        landed: &Doc<ProfileProgram>,
-        tol: Tol,
-    ) -> Option<pncad::document::TraceRefusal> {
+    /// lowers against the pen needs** ([`sketch::pen_order`]): the
+    /// draft waits on it, since the door would refuse the profile
+    /// there.
+    pub(crate) fn pen_order(&self) -> Option<pncad::document::TraceRefusal> {
         self.loops
             .iter()
-            .zip(self.steps(landed, tol))
             .enumerate()
-            .find_map(|(loop_, (rows, views))| {
-                sketch::pen_order(rows, &views, program_index(loop_), tol)
-            })
+            .find_map(|(loop_, rows)| sketch::pen_order(rows, program_index(loop_)))
     }
 
     /// **Every driven argument of a committed step that the held row
@@ -1091,8 +1085,8 @@ impl Default for Drafts {
             mate_value_edits: Vec::new(),
             mate_value_door: None,
             new_doc_name: None,
-            traced_open: false,
-            trace_plane: None,
+            on_face_open: false,
+            on_face: None,
             trace_face: None,
             trace_gesture: sketch::TraceGesture::default(),
             trace_shown: None,
@@ -1128,10 +1122,12 @@ impl Drafts {
     /// **A form whose op the document ACCEPTED comes to rest** — called
     /// once per op a batch performed without a refusal.
     ///
-    /// The traced-profile form closes with its one committed edit, as
-    /// a tool does; its latches stay, so a second traced profile starts
-    /// from the faces the first one read. The add-variable form closes
-    /// on its own declaration.
+    /// The profile-on-a-face form closes with its one committed edit, as
+    /// a tool does, and lets its face to trace go ([`Self::close_on_face`]):
+    /// tracing is the form's option, so the next profile traces only what
+    /// it is given. The face it was drawn on stays latched, so a second
+    /// profile starts on the same face. The add-variable form closes on
+    /// its own declaration.
     ///
     /// A REFUSED add leaves the drafts alone, so correcting what was
     /// refused does not cost what was typed.
@@ -1148,8 +1144,8 @@ impl Drafts {
             SessionOp::CreateLabelled { creation, .. } => creation.op(),
             op => op,
         };
-        if matches!(op, SessionOp::AddDrawnProfile { .. }) {
-            self.traced_open = false;
+        if matches!(op, SessionOp::DrawOnFace { .. }) {
+            self.close_on_face();
         }
         // A reshaped program renumbers its slots, so text held for a
         // profile slot would show on whichever argument takes that
@@ -1495,7 +1491,7 @@ impl Drafts {
     /// replaced document drops, an operation speaks again and a takeover
     /// moves.
     fn latches(&mut self) -> [&mut Option<HeldPick>; 2] {
-        [&mut self.trace_plane, &mut self.trace_face]
+        [&mut self.on_face, &mut self.trace_face]
     }
 
     /// **The picks the forms hold** ([`crate::session::Holds`]): the
@@ -1536,21 +1532,21 @@ impl Drafts {
     }
 
     /// **The face the viewport marks as held** (`crate::marks::Held`):
-    /// the face whose plane the traced profile is drawn on, while the
-    /// traced-profile form was `drawn` on the last frame
+    /// the face the profile is drawn on, while the profile-on-a-face
+    /// form was `drawn` on the last frame
     /// (`ProfileDoors::create`), the one read of whether the form is on
     /// screen — a form behind its door, in a folded section or in a
     /// pane not drawn holds nothing a reader can see.
     pub(crate) fn marked_face(&self, drawn: bool) -> Option<&FaceSelection> {
-        self.trace_plane
+        self.on_face
             .as_ref()
-            .filter(|_| drawn && self.traced_open)
+            .filter(|_| drawn && self.on_face_open)
             .map(HeldPick::face)
     }
 
     /// **The latches a trace is to be read for** — when the form was
-    /// `drawn` on the last frame (the read [`Self::marked_face`] takes)
-    /// and writes a traced path, both are held, and the trace shown was
+    /// `drawn` on the last frame (the read [`Self::marked_face`] takes),
+    /// both the face drawn on and the face to trace are held, and the trace shown was
     /// not read for them against `landed`. Drops the trace shown
     /// otherwise.
     pub(crate) fn trace_wanted(
@@ -1560,7 +1556,7 @@ impl Drafts {
     ) -> Option<(FaceSelection, FaceSelection)> {
         let (true, Some(plane), Some(face)) = (
             drawn && self.traces(),
-            self.trace_plane.as_ref().map(HeldPick::face),
+            self.on_face.as_ref().map(HeldPick::face),
             self.trace_face.as_ref().map(HeldPick::face),
         ) else {
             self.trace_shown = None;
@@ -1591,31 +1587,47 @@ impl Drafts {
         });
     }
 
-    /// **Whether the traced-profile form is open**, and so reads a
-    /// trace.
-    pub(crate) fn traces(&self) -> bool {
-        self.traced_open
+    /// **The profile-on-a-face form closes**, by its commit or its
+    /// Cancel, and lets its face to trace go, with the trace it showed.
+    pub(crate) fn close_on_face(&mut self) {
+        self.on_face_open = false;
+        self.trace_face = None;
+        self.trace_shown = None;
     }
 
-    /// **The traced-profile form's op**: a profile drawn on the frame
-    /// the two latches read, its one chain the traced template
+    /// **Whether the profile-on-a-face form is open**, and so reads a
+    /// trace where it holds a face to trace.
+    pub(crate) fn traces(&self) -> bool {
+        self.on_face_open
+    }
+
+    /// **The profile-on-a-face form's op**: a profile drawn on the
+    /// latched face's chart. Where a face to trace is latched too, it
+    /// traces that face, its one chain the traced template
     /// ([`traced_template`]) with the trace's steps between its halves;
-    /// `Ok(None)` while a latch is empty.
+    /// otherwise it is an empty profile the editor fills. `Ok(None)`
+    /// while no face is latched to draw on.
     ///
     /// # Errors
     ///
     /// The template's chain refused at the lift.
-    pub(crate) fn traced_op(&self, notation: Notation) -> Result<Option<SessionOp>, CommitFault> {
-        let (Some(plane), Some(face)) = (&self.trace_plane, &self.trace_face) else {
+    pub(crate) fn on_face_op(&self, notation: Notation) -> Result<Option<SessionOp>, CommitFault> {
+        let Some(on) = &self.on_face else {
             return Ok(None);
         };
-        let (steps, after) = traced_template();
-        let chain = sketch::traced_loop(&steps, after, &self.trace_gesture, 0, notation)
-            .map_err(CommitFault::Traced)?;
-        Ok(Some(SessionOp::AddDrawnProfile {
-            plane: plane.face().clone(),
-            traced: vec![face.face().clone()],
-            chains: vec![chain],
+        let (traced, chains) = match &self.trace_face {
+            Some(face) => {
+                let (steps, after) = traced_template();
+                let chain = sketch::traced_loop(&steps, after, &self.trace_gesture, 0, notation)
+                    .map_err(CommitFault::Traced)?;
+                (vec![face.face().clone()], vec![chain])
+            }
+            None => (Vec::new(), Vec::new()),
+        };
+        Ok(Some(SessionOp::DrawOnFace {
+            face: on.face().clone(),
+            traced,
+            chains,
         }))
     }
 }
@@ -1840,7 +1852,7 @@ mod tests {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("drafts-creation-landed", tol);
         let mut drafts = Drafts {
-            traced_open: true,
+            on_face_open: true,
             ..Drafts::default()
         };
         drafts
@@ -1865,18 +1877,18 @@ mod tests {
             node: profile,
             body: 0,
         };
-        let creation = crate::session::Creation::of(SessionOp::AddDrawnProfile {
-            plane: face.clone(),
+        let creation = crate::session::Creation::of(SessionOp::DrawOnFace {
+            face: face.clone(),
             traced: vec![face],
             chains: Vec::new(),
         })
-        .expect("a traced profile creates a node");
+        .expect("a profile on a face creates a node");
         drafts.accepted(&SessionOp::CreateLabelled {
             creation,
             label: pncad::document::Label::new("sketch").expect("a label"),
         });
         assert!(
-            !drafts.traced_open,
+            !drafts.on_face_open,
             "the labelled add settles the form as the bare one does"
         );
         drafts.creation_landed(&doc, Some(profile));

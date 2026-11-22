@@ -264,6 +264,12 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// residual's coefficients, main's `4121c920`, `pcurve_closed_bound`)
 /// moves none of these counts: the copy's stated images are carried with
 /// its certificates, so none is metered again where it is placed.
+///
+/// **The decided least-turn mint** (fork 270): a pair that is one
+/// direction exactly turns by the identity with no pole verdict, its
+/// chord being 2, and this copy's mated directions agree exactly, so
+/// `mate_chart_pole` 0/1 decides nothing. Nothing else moved; deciding
+/// the pole at the identity again puts back the row.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -290,7 +296,6 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("interval_span_forward", [0, 36]),
     ("interval_span_winding", [0, 12]),
     ("line_span", [6, 4]),
-    ("mate_chart_pole", [0, 1]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 11]),
     ("pcurve_chart_cut_side", [0, 26]),
@@ -313,8 +318,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("segment_direction_sign", [0, 1]),
     ("segment_gap", [0, 2]),
     ("segment_straightness", [6, 6]),
-    // ONEHOME stage 2: the d-tab's placement asks the session box of its
-    // image (`Replay::moved_by`), one numeric decision.
+    // The d-tab's placement asks the session box of where it stands
+    // (`topo::session_box_at`, PR 7088: the door that places a copy asks
+    // it, its measure does not), one numeric decision.
     ("session_box_reach", [0, 1]),
     ("side_cylinders_cosurface", [2, 0]),
     ("side_planes_cosurface", [0, 2]),
@@ -477,6 +483,12 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// `dihedral_*` 0/108 -> 0/80, `carrier_matches_mapped_source` 144/0 ->
 /// 126/0, `pcurve_chart_radial_moving` 22/20 -> 14/12, the other
 /// `pcurve_*` rows about four in ten, `ssi_hull_sup` 28/0 -> 20/0.
+///
+/// **The decided least-turn mint** (fork 270): a pair that is one
+/// direction exactly turns by the identity with no pole verdict, its
+/// chord being 2, and this copy's mated directions agree exactly, so
+/// `mate_chart_pole` 0/1 decides nothing. Nothing else moved; deciding
+/// the pole at the identity again puts back the row.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -508,7 +520,6 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("interval_span_forward", [0, 24]),
             ("interval_span_winding", [0, 12]),
             ("line_span", [2, 0]),
-            ("mate_chart_pole", [0, 1]),
             ("path_circle_radius", [0, 1]),
             ("path_junction_turn", [0, 5]),
             ("pcurve_chart_cut_side", [0, 26]),
@@ -530,8 +541,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("segment_direction_axis", [1, 1]),
             ("segment_direction_sign", [0, 1]),
             ("segment_straightness", [2, 6]),
-            // ONEHOME stage 2: the boss's placement asks the session box
-            // of its image (`Replay::moved_by`), one numeric decision.
+            // The boss's placement asks the session box of where it
+            // stands (`topo::session_box_at`, PR 7088: the door that
+            // places a copy asks it, its measure does not), one numeric
+            // decision.
             ("session_box_reach", [0, 1]),
             ("side_cylinders_cosurface", [2, 0]),
             // Limb 2's distance bound (C2), owed by every Intersection

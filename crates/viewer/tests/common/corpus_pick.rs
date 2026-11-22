@@ -428,7 +428,7 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
     {
         let text = super::gallery_ring_at(tol);
         let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
-        let doc = loaded.snapshot;
+        let doc = loaded;
         let (node, slot, expr) = ring_bump(&doc);
         let mut session = crate::common::inline_without_door(doc.clone(), tol);
         session.pump();

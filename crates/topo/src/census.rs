@@ -113,9 +113,10 @@
 //!
 //! **The chart-region door is a parameter of the pass, not a bound on
 //! its scalar.** Every pass here takes
-//! `region: Option<`[`RegionLane<T>`]`>` — the two chart-region doors
-//! as one `Copy` value, constructible only at a scalar holding
-//! `CertifiedBounds` — and the `pub` doors carry it to their callers:
+//! `region: Option<T::RegionLane>` ([`crate::AtRestPolicy::RegionLane`])
+//! — the two chart-region doors as one `Copy` value,
+//! [`crate::RegionLane`] at a scalar that certifies and a type with no
+//! values at a dual — and the `pub` doors carry it to their callers:
 //! [`census_and_certify`] and, under `sweep-testing`, [`census_traces`]
 //! / [`census_traces_planted`]. It is read at three sites, and `None`
 //! is the same typed non-answer at each, at whatever scalar the pass
@@ -322,16 +323,18 @@ use geom_core::{
 };
 
 use crate::body::Body;
-use crate::boolean::{
-    ContactKind, ContactRecords, ContainError, FaceContainment, SolidContainment, contfp,
-};
+use crate::boolean::{ContactKind, ContactRecords};
 use crate::boxes::{edge_box, face_box, sweep_pad};
-use crate::chart_region::{ChartRegionError, RegionLane};
+#[cfg(test)]
+use crate::chart_region::RegionLane;
+use crate::chart_region::{ChartRegionError, RegionLaneOf};
+use crate::contain::{ContainError, FaceContainment, contfp};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::face_normal::NormalAbort;
 use crate::geometry::PointKey;
 use crate::live::proven;
 use crate::null::CurveGeom;
+use crate::solid_contain::SolidContainment;
 use crate::sweep_trace::SweepPairs;
 
 use crate::link::{
@@ -643,7 +646,7 @@ impl CensusTrace {
 /// plane; pruning drops only such spurious escalations), admitted as
 /// such by the differential suites, never absorbed. No row exhibits a
 /// member of the class
-/// (`work/restread/the-census-filters-named-difference-has-no-witness-row.md`).
+/// (`work/contacthold/the-census-filters-named-difference-has-no-witness-row.md`).
 ///
 /// A box door that reports corruption yields the poison box: the
 /// filter has no opinion, and the exact examination that follows is
@@ -834,7 +837,7 @@ pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> Vec<ValidationError> {
     census_with(
         body,
@@ -863,7 +866,7 @@ pub fn census_traces<T: Decide + crate::props::AtRestPolicy + Bounds>(
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     strategy: CensusStrategy,
 ) -> (Vec<ValidationError>, CensusTrace) {
     let mut trace = CensusTrace::default();
@@ -890,7 +893,7 @@ pub fn census_traces_planted<T: Decide + crate::props::AtRestPolicy + Bounds>(
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     strategy: CensusStrategy,
     plant: crate::boolean::PlantedDegradation,
 ) -> (Vec<ValidationError>, CensusTrace) {
@@ -917,7 +920,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     strategy: CensusStrategy,
     plant: Option<FaceKey>,
     mut trace: Option<&mut CensusTrace>,
@@ -1131,12 +1134,12 @@ impl Declared {
     /// pass's own reading of it ([`confirm_face_pair`]: the patch, a
     /// point touch, or the tangent line two carriers derive) finds
     /// nothing; each is the pair's verified interface.
-    fn confirm<'a, T: Decide>(
+    fn confirm<'a, T: crate::props::AtRestPolicy>(
         &mut self,
         body: &Body<T>,
         geo: &Geo<T>,
         band: Band,
-        region: Option<RegionLane<T>>,
+        region: Option<T::RegionLane>,
         found: impl IntoIterator<Item = &'a FoundPair>,
     ) {
         let confirms = |fa, fb| {
@@ -1671,7 +1674,7 @@ fn pair_holds_edges<T: Decide>(
 /// itself answers through the SAME two doors the confirm pass runs —
 /// Door 1 (`rest_pair_verdict`: carrier identity
 /// through the kind ladder, senses opposed) and Door 2 (the
-/// chart-region overlap through the [`RegionLane`] the pass holds, the
+/// chart-region overlap through the [`crate::RegionLane`] the pass holds, the
 /// verdict carried between them, `interior_witness`'s rescue included) — and
 /// the overlap region is definitely positive. Anything else is a
 /// non-answer HERE, deliberately unreported — a door ERROR included,
@@ -1698,12 +1701,12 @@ fn pair_holds_edges<T: Decide>(
 /// held no region door; replay through the certified door* from *this
 /// pair's geometry is outside the lane* without knowing which arm
 /// swallowed what.
-fn pair_region_verified<T: Decide>(
+fn pair_region_verified<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     fa: FaceKey,
     fb: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> bool {
     if !matches!(
         crate::boolean::rest_pair_verdict(body, fa, body, fb, band),
@@ -1727,12 +1730,12 @@ fn pair_region_verified<T: Decide>(
 /// [`pair_region_verified`] in either frame order: the certified
 /// answers are frame-invariant (`world_carrier`'s lemma), and trying
 /// both keeps a rung total over how the record spells the pair.
-fn pair_verified<T: Decide>(
+fn pair_verified<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     fa: FaceKey,
     fb: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> bool {
     pair_region_verified(body, fa, fb, band, region)
         || pair_region_verified(body, fb, fa, band, region)
@@ -1930,7 +1933,7 @@ fn face_cone<T: Decide>(
 /// placement, the point checked on the face's carrier in debug builds
 /// ([`crate::held::Held::check`]) and placed with no on-carrier decision
 /// (a planar face by its plane, [`contfp`]; a curved one by its region,
-/// [`crate::boolean::curved_face_placement`]). A point read definitely
+/// [`crate::contain::curved_face_placement`]). A point read definitely
 /// off a curved face's carrier (a planar face's placement never says so)
 /// breaks the caller's premise, the kernel's fault ([`census_fault`]),
 /// as the boolean's held door answers it. `Some(None)` where no door
@@ -1945,7 +1948,10 @@ fn placed<T: Decide>(
     let plane = body.face(f).and_then(|view| {
         held.check(view.surface(), band);
         match *view.surface() {
-            geom::Surface::Plane { normal, .. } => Some(normal),
+            geom::Surface::Plane { frame, .. } => {
+                let normal = frame.axis();
+                Some(normal)
+            }
             _ => None,
         }
     });
@@ -1954,11 +1960,11 @@ fn placed<T: Decide>(
         Some(normal) => contain(body, (f, normal), q, band, errors).map(Some),
         _ => match read_containment(
             f,
-            crate::boolean::curved_face_placement(body, f, q, band),
+            crate::contain::curved_face_placement(body, f, q, band),
             errors,
         )? {
-            crate::boolean::CurvedPlacement::Trim(at) => Some(at),
-            crate::boolean::CurvedPlacement::OffCarrier => census_fault(
+            crate::contain::CurvedPlacement::Trim(at) => Some(at),
+            crate::contain::CurvedPlacement::OffCarrier => census_fault(
                 format_args!("face {f:?}"),
                 "a point the census holds on the face's carrier reads definitely off it",
             ),
@@ -2843,7 +2849,10 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         std::collections::BTreeMap::new();
     for (key, face) in body.faces.iter() {
         let plane = match body.surfaces.get(face.surface) {
-            Some(&geom::Surface::Plane { origin, normal, .. }) => Some((origin, normal)),
+            Some(&geom::Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Some((origin, normal))
+            }
             _ => {
                 curved_faces.push(key);
                 None
@@ -4454,10 +4463,8 @@ mod variety_reading_rows {
 
     fn cylinder() -> geom::Surface<f64> {
         geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -4494,10 +4501,8 @@ mod variety_reading_rows {
     #[test]
     fn a_conics_samples_in_band_then_off_are_not_on_the_sphere() {
         let sphere = geom::Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let r = 1.0 + in_band();
         // Five samples of a circle's arc, as `carrier_on_surface` reads
@@ -6441,7 +6446,7 @@ pub(crate) fn unread_sample(a: FaceKey, b: FaceKey, reason: Undecidable) -> Vali
 ///   a margin decided Zero, and which way the senses lie.
 /// - **Opposed**, the material on either side of the carrier: Door 2,
 ///   the declared-pair overlap door on Door 1's premise
-///   ([`RegionLane::declared_overlap`], in either frame order as
+///   ([`crate::RegionLane::declared_overlap`], in either frame order as
 ///   [`pair_verified`] reads it), decides a definitely positive area,
 ///   and the pair is a rest.
 /// - **Aligned**, the material on one side: the faces share interior
@@ -6483,11 +6488,11 @@ pub(crate) fn unread_sample(a: FaceKey, b: FaceKey, reason: Undecidable) -> Vali
 /// ([`Declared::holds`]) whether or not it is recorded. The caller
 /// reports each opposed pair no record names ([`report_found_pairs`]);
 /// arm 2 reports each aligned one.
-fn planar_face_pairs<T: Decide>(
+fn planar_face_pairs<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     cands: &Candidates,
 ) -> FacePairs {
     let Some(lane) = region else {
@@ -6515,7 +6520,16 @@ fn planar_face_pairs<T: Decide>(
                             b: fb.key,
                             reason,
                         };
-                        match in_band_reading(body, geo, lane, (fa, fb), err, band) {
+                        match in_band_reading(
+                            body,
+                            geo,
+                            |x: &FaceGeo<T>, y: &FaceGeo<T>, premise| {
+                                lane.declared_overlap(body, x.key, body, y.key, premise, band)
+                            },
+                            (fa, fb),
+                            err,
+                            band,
+                        ) {
                             InBand::Overlap(margin) => found.same_side.push(FoundPair {
                                 a: fa.key,
                                 b: fb.key,
@@ -6554,7 +6568,9 @@ fn planar_face_pairs<T: Decide>(
                     if let Ok(true) = same_side_overlap(
                         body,
                         geo,
-                        lane,
+                        |x: &FaceGeo<T>, y: &FaceGeo<T>, premise| {
+                            lane.declared_overlap(body, x.key, body, y.key, premise, band)
+                        },
                         fa,
                         fb,
                         crate::chart_region::CarrierPremise::Decided,
@@ -6649,7 +6665,8 @@ fn curved_same_side_pairs<T: Decide>(
             // interiors, whose heights lie strictly inside their
             // boundaries', are apart unless the spans overlap.
             let axially = match surface(fa) {
-                Some(&geom::Surface::Cylinder { origin, axis, .. }) => {
+                Some(&geom::Surface::Cylinder { frame, .. }) => {
+                    let (origin, axis) = (frame.origin(), frame.axis());
                     match (axial(fa, origin, axis), axial(fb, origin, axis)) {
                         (Some(a), Some(b)) => Some(decide(
                             "census_aligned_axial_overlap",
@@ -6715,7 +6732,11 @@ enum InBand {
 fn in_band_reading<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: RegionLane<T>,
+    read: impl Fn(
+        &FaceGeo<T>,
+        &FaceGeo<T>,
+        crate::chart_region::CarrierPremise,
+    ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError>,
     (fa, fb): (&FaceGeo<T>, &FaceGeo<T>),
     door_one: geom_brep::CarrierEqError,
     band: Band,
@@ -6734,7 +6755,7 @@ fn in_band_reading<T: Decide>(
         CarrierRelation::SameOpposite => InBand::Unread(Undecidable::ThinInBand),
         CarrierRelation::SameOriented => {
             let premise = crate::chart_region::CarrierPremise::InBand;
-            match same_side_overlap(body, geo, lane, fa, fb, premise, band) {
+            match same_side_overlap(body, geo, read, fa, fb, premise, band) {
                 Ok(true) => InBand::Overlap(diag.margin),
                 Ok(false) => InBand::Unread(Undecidable::ThinInBand),
                 Err(_) => InBand::Unread(aligned_unread(geo, fa, fb, band)),
@@ -6830,17 +6851,18 @@ enum SameSideUnread {
 fn same_side_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: RegionLane<T>,
+    read: impl Fn(
+        &FaceGeo<T>,
+        &FaceGeo<T>,
+        crate::chart_region::CarrierPremise,
+    ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError>,
     fa: &FaceGeo<T>,
     fb: &FaceGeo<T>,
     premise: crate::chart_region::CarrierPremise,
     band: Band,
 ) -> Result<bool, SameSideUnread> {
-    let read = |x: &FaceGeo<T>, y: &FaceGeo<T>| {
-        lane.declared_overlap(body, x.key, body, y.key, premise, band)
-    };
     use crate::chart_region::ChartOverlap;
-    let either = [read(fa, fb), read(fb, fa)];
+    let either = [read(fa, fb, premise), read(fb, fa, premise)];
     if either
         .iter()
         .any(|r| matches!(r, Ok(ChartOverlap::PositiveArea)))
@@ -6913,14 +6935,14 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
 fn one_record_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
-    lane: RegionLane<T>,
+    read: Result<crate::chart_region::ChartOverlap, ChartRegionError>,
     (fa, fb): (FaceKey, FaceKey),
     band: Band,
 ) -> Result<crate::chart_region::ChartOverlap, ChartRegionError> {
     use crate::chart_region::ChartOverlap;
     let sense = |f| proven(&body.faces, f, EntityId::Face).sense;
     let facing = Facing::of_senses(sense(fa), sense(fb));
-    match lane.chart_overlap(body, fa, body, fb, band) {
+    match read {
         Err(refusal @ (ChartRegionError::Escalated(_) | ChartRegionError::Corrupt)) => Err(refusal),
         Err(refusal) => match face_interiors_meet(body, geo, fa, fb, facing, band) {
             Ok(false) => Ok(ChartOverlap::Empty),
@@ -6962,12 +6984,12 @@ fn one_record_overlap<T: Decide>(
 /// refusal so the recourse can quote exactly what would verify —
 /// and, unbacked by a face-granularity record, refuses as
 /// `UnrecordedContact` (discovery is never declaration, F1).
-fn sweep_conformal_patches<T: Decide>(
+fn sweep_conformal_patches<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     // The scope is the WHOLE body's curved faces, deliberately: a
@@ -6991,7 +7013,10 @@ fn sweep_conformal_patches<T: Decide>(
                 if da.sense == db.sense {
                     continue; // SameOriented: flush material, not contact (C1)
                 }
-                match region.map(|lane| one_record_overlap(body, geo, lane, (fa, fb), band)) {
+                match region.map(|lane| {
+                    let read = lane.chart_overlap(body, fa, body, fb, band);
+                    one_record_overlap(body, geo, read, (fa, fb), band)
+                }) {
                     None => {
                         // The pass holds no CERTIFIED region door (the
                         // `_structural` twin's value at every scalar,
@@ -7463,8 +7488,8 @@ pub(crate) enum Undecided {
 /// [`Undecided::WitnessTooClose`]'s sentence, for every decision the
 /// loop walk carries and for none: the walk's question about the corner
 /// tested (the point its subject names), and its lever, both read from
-/// [`crate::boolean::placement_subject`] and
-/// [`crate::boolean::placement_lever`]. The margin that would value a
+/// [`crate::contain::placement_subject`] and
+/// [`crate::contain::placement_lever`]. The margin that would value a
 /// tighter tolerance stops here: `what` is a `&'static str`, so each
 /// sentence is built once and kept.
 fn witness_too_close(decision: Option<crate::splitting::LoopDecision>) -> &'static str {
@@ -7477,8 +7502,8 @@ fn witness_too_close(decision: Option<crate::splitting::LoopDecision>) -> &'stat
                 let sentence = format!(
                     "testing a corner of one against the other, {} is undecided at this \
                      tolerance. Recourse: {}",
-                    crate::boolean::placement_subject(carried),
-                    crate::boolean::placement_lever(carried)
+                    crate::contain::placement_subject(carried),
+                    crate::contain::placement_lever(carried)
                 );
                 (decision, sentence)
             })
@@ -7607,8 +7632,8 @@ impl Undecided {
 
     /// The reason a point-in-solid refusal leaves a placement
     /// undecided. Exhaustive, so a new refusal is placed here by hand.
-    pub(crate) fn of_point_in_solid(e: &crate::boolean::PointInSolidError) -> Self {
-        use crate::boolean::PointInSolidError as E;
+    pub(crate) fn of_point_in_solid(e: &crate::solid_contain::PointInSolidError) -> Self {
+        use crate::solid_contain::PointInSolidError as E;
         use crate::splitting::PointInLoopError as L;
         match e {
             E::Escalated { .. } => Self::WitnessTooClose(None),
@@ -7954,21 +7979,30 @@ fn at_rest_fault(why: &crate::face_normal::NormalAtError) -> bool {
 }
 
 impl TouchUnread {
-    /// What arm 2 reads of a touch left unread: its reason, aborting by
-    /// the cause's own standing ([`Self::refusal`]), read here before
-    /// [`Self::undecided`] names it.
-    fn unrest<T: Real>(self) -> Unrest<T> {
+    /// **A touch left unread, as arm 2 keeps it**: its reason, aborting
+    /// by the cause's own standing ([`Self::refusal`]), read here before
+    /// [`Self::undecided`] names it. The one reading of that standing:
+    /// [`Self::unrest`] and [`Self::scan`] are this, carried.
+    fn backstop_standing(self) -> Kept {
         match self.refusal() {
-            Ok(_) => Unrest::Undecided(self.undecided()),
-            Err(Aborts) => Unrest::Aborts(self.undecided()),
+            Ok(_) => Kept::Waits(self.undecided()),
+            Err(Aborts) => Kept::Aborts(self.undecided()),
         }
     }
 
-    /// [`Self::unrest`] as [`blocked`] ranks it.
+    /// What arm 2 reads of a touch left unread ([`Self::backstop_standing`]).
+    fn unrest<T: Real>(self) -> Unrest<T> {
+        match self.backstop_standing() {
+            Kept::Waits(why) => Unrest::Undecided(why),
+            Kept::Aborts(why) => Unrest::Aborts(why),
+        }
+    }
+
+    /// [`Self::backstop_standing`] as [`blocked`] ranks it.
     fn scan<T: Real>(self) -> Scan<T> {
-        match self.refusal() {
-            Ok(_) => Scan::Undecided(self.undecided()),
-            Err(Aborts) => Scan::Aborts(self.undecided()),
+        match self.backstop_standing() {
+            Kept::Waits(why) => Scan::Undecided(why),
+            Kept::Aborts(why) => Scan::Aborts(why),
         }
     }
 
@@ -8235,6 +8269,15 @@ enum Blocked<T: Real> {
     Undecided(Undecided),
 }
 
+/// A reason a touch left unread keeps the pair undecided, with its
+/// standing ([`TouchUnread::backstop_standing`]): it waits for a decided reading, or
+/// it aborts the pair's reading at once.
+#[derive(Clone, Copy, Debug)]
+enum Kept {
+    Waits(Undecided),
+    Aborts(Undecided),
+}
+
 /// One reading [`blocked`] ranks: a touch read as a crossing at the point
 /// carried, a reason whose standing aborts ([`Unrest::Aborts`]), or a
 /// reason the pair stays undecided.
@@ -8296,6 +8339,31 @@ fn between_scan<T: Real>(
     Some(Scan::Undecided(why))
 }
 
+/// **What a recorded or shared site scans as** in [`blocked`], its touch
+/// read as `at`: a crossing wherever it stands; a fault that aborts
+/// (a kernel defect, or two readings of one fact that disagree)
+/// wherever it stands, since no declaration vouches for one; and a
+/// reason that waits, or a curved germ no reading here reaches
+/// ([`TouchUnread::curved_unread`]), only where the site is read
+/// `strict` (a shared key, or a record not taken on its word). Where a
+/// declaration vouches for the site, those are taken on its word: a
+/// designed curved contact is what one declares.
+fn site_scan<T: Real>(site: TouchSite, strict: bool, at: Option<Unrest<T>>) -> Option<Scan<T>> {
+    match at? {
+        Unrest::Crossing(at) => Some(Scan::Crossing(site, at)),
+        // A declaration vouches for a curved touch the analysis cannot
+        // read: that is what declaring a designed curved contact is for.
+        // It vouches for no fault.
+        Unrest::Aborts(why)
+            if !strict && matches!(why, Undecided::Touch(t) if t.curved_unread()) =>
+        {
+            None
+        }
+        Unrest::Aborts(why) => Some(Scan::Aborts(why)),
+        Unrest::Undecided(why) => strict.then_some(Scan::Undecided(why)),
+    }
+}
+
 /// **What blocks a solid pair, from its findings and then its sites**
 /// ([`blocked`]): a pair's standing findings are scanned ahead of its
 /// recorded and shared sites, so a finding that aborts ends the reading
@@ -8311,8 +8379,8 @@ fn pair_blocked<T: Real>(
 #[cfg(test)]
 mod blocked_rows {
     use super::{
-        Blocked, CurvedUnread, Said, Scan, TouchSite, TouchUnread, Undecided, Unrest, between_scan,
-        blocked, pair_blocked,
+        Blocked, CurvedUnread, Kept, Said, Scan, TouchSite, TouchUnread, Undecided, Unrest,
+        between_scan, blocked, pair_blocked, site_scan,
     };
     use crate::entity::{FaceKey, VertexKey};
     use geom_core::Point3;
@@ -8411,12 +8479,10 @@ mod blocked_rows {
                 .map(TouchUnread::NormalFault),
         );
         for why in causes {
-            let aborts = matches!(why.scan::<f64>(), Scan::Aborts(_));
-            assert_eq!(aborts, why.refusal().is_err(), "{why:?}");
             assert_eq!(
-                matches!(why.unrest::<f64>(), Unrest::Aborts(_)),
-                aborts,
-                "{why:?}: unrest and scan agree"
+                matches!(why.backstop_standing(), Kept::Aborts(_)),
+                why.refusal().is_err(),
+                "{why:?}"
             );
         }
         assert!(
@@ -8461,6 +8527,47 @@ mod blocked_rows {
             "a confirmed face pair scans as nothing"
         );
         assert_eq!(Undecided::CurvedTouch.what(), CURVED.what(), "one sentence");
+    }
+
+    /// **A site taken on a declaration's word still aborts on a fault**
+    /// ([`site_scan`]): a reading that waits, or a curved germ no reading
+    /// here reaches, is taken on the declaration's word, but a fault (a
+    /// kernel defect, or two readings that disagree), which no
+    /// declaration vouches for, ends the pair's reading as it does at a
+    /// site read strictly. Red against dropping every reading a
+    /// non-strict site does not decide.
+    #[test]
+    fn a_declared_site_still_aborts_on_a_fault() {
+        let corrupt = Some(Unrest::<f64>::Aborts(Undecided::CorruptInstance));
+        assert!(
+            matches!(
+                site_scan(site(), false, corrupt),
+                Some(Scan::Aborts(Undecided::CorruptInstance))
+            ),
+            "an abort on a declaration's word"
+        );
+        assert!(
+            site_scan(site(), false, Some(Unrest::<f64>::Undecided(WAITS))).is_none(),
+            "a reason that waits, on its word"
+        );
+        assert!(
+            site_scan(site(), false, Some(Unrest::<f64>::Aborts(CURVED))).is_none(),
+            "an unreadable curved germ, on its word: a designed curved contact"
+        );
+        assert!(
+            matches!(
+                site_scan(site(), true, Some(Unrest::<f64>::Aborts(CURVED))),
+                Some(Scan::Aborts(_))
+            ),
+            "the same, read strictly, aborts"
+        );
+        assert!(
+            matches!(
+                site_scan(site(), true, Some(Unrest::<f64>::Undecided(WAITS))),
+                Some(Scan::Undecided(_))
+            ),
+            "the same, read strictly"
+        );
     }
 
     /// **A pair's findings are scanned before its sites**
@@ -9446,12 +9553,18 @@ fn tangent_sectors<T: Decide>(
 /// `None` on a spline, which has no such frame.
 pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3<T>; 3]> {
     let (u, a) = match *surface {
-        geom::Surface::Plane { u_ref, normal, .. } => (u_ref, normal),
-        geom::Surface::Cylinder { u_ref, axis, .. }
-        | geom::Surface::Cone { u_ref, axis, .. }
-        | geom::Surface::Sphere { u_ref, axis, .. }
-        | geom::Surface::Torus { u_ref, axis, .. }
-        | geom::Surface::Spindle { u_ref, axis, .. } => (u_ref, axis),
+        geom::Surface::Plane { frame, .. } => {
+            let (u_ref, normal) = (frame.u_ref(), frame.axis());
+            (u_ref, normal)
+        }
+        geom::Surface::Cylinder { frame, .. }
+        | geom::Surface::Cone { frame, .. }
+        | geom::Surface::Sphere { frame, .. }
+        | geom::Surface::Torus { frame, .. }
+        | geom::Surface::Spindle { frame, .. } => {
+            let (u_ref, axis) = (frame.u_ref(), frame.axis());
+            (u_ref, axis)
+        }
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => return None,
     };
     Some([u, a.cross(u), a])
@@ -9823,7 +9936,7 @@ pub(crate) enum Probe {
 /// the probe with its reason.
 pub(crate) fn probe_vertices<P: Copy>(
     vertices: &[(VertexKey, P)],
-    mut place: impl FnMut(P) -> Result<SolidContainment, crate::boolean::PointInSolidError>,
+    mut place: impl FnMut(P) -> Result<SolidContainment, crate::solid_contain::PointInSolidError>,
     exempt: impl Fn(VertexKey) -> bool,
 ) -> Probe {
     let (mut out_seen, mut any) = (false, false);
@@ -9915,7 +10028,7 @@ pub(crate) fn answered_in_band(
 ///    orderings
 ///    with no gate on either: every vertex of each instance is probed
 ///    against the other's material through the per-solid point-in-solid
-///    door ([`crate::boolean::point_in_solid_faces`], at the run band, through that
+///    door ([`crate::solid_contain::point_in_solid_faces`], at the run band, through that
 ///    door's own predicates — no comparand of this arm's), and:
 ///    - any vertex strictly `In` the other's material ⇒
 ///      [`ValidationError::InstanceInterference`] (`outer` holds the
@@ -10583,7 +10696,10 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     // `records_on_their_word` is the declared-only pair's reading (the
     // loop's argument says why): its records are read only for a
     // decided crossing, and a record the analysis cannot read is taken
-    // on its word. A face-pair record is read by no analysis here: it
+    // on its word, except where the reading is a fault that aborts (a
+    // kernel defect, or two readings of one fact that disagree), which
+    // no declaration vouches for, and which ends the pair's reading at
+    // once as anywhere else ([`site_scan`]). A face-pair record is read by no analysis here: it
     // answers for its boundary's events only once confirmed, a rest,
     // and otherwise leaves them standing as findings.
     let blocks = |standing_errors: &[ValidationError],
@@ -10639,12 +10755,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 Recorded::FacePair => None,
             })
             .chain(shared(sa, sb).into_iter().map(|site| (site, true)));
-        let at_sites = sites.filter_map(|(site, strict)| match touch(site) {
-            Some(Unrest::Crossing(at)) => Some(Scan::Crossing(site, at)),
-            Some(Unrest::Aborts(why)) if strict => Some(Scan::Aborts(why)),
-            Some(Unrest::Undecided(why)) if strict => Some(Scan::Undecided(why)),
-            _ => None,
-        });
+        let at_sites = sites.filter_map(|(site, strict)| site_scan(site, strict, touch(site)));
         pair_blocked(findings, at_sites)
     };
     // ---- The material test of one ordering: every vertex of `inner`
@@ -10657,8 +10768,8 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         .collect();
     let probe = |outer: SolidKey, inner: SolidKey| -> Probe {
         let selected = match selections.get(&outer) {
-            Some(cell) => cell.get_or_init(|| crate::boolean::SolidFaces::of(body, outer)),
-            None => &Err(crate::boolean::PointInSolidError::NoSuchSolid { solid: outer }),
+            Some(cell) => cell.get_or_init(|| crate::solid_contain::SolidFaces::of(body, outer)),
+            None => &Err(crate::solid_contain::PointInSolidError::NoSuchSolid { solid: outer }),
         };
         let sel = match selected {
             Ok(sel) => sel,
@@ -10673,7 +10784,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .collect();
         probe_vertices(
             &vertices,
-            |p| crate::boolean::point_in_solid_faces(body, sel, p, band, tol),
+            |p| crate::solid_contain::point_in_solid_faces(body, sel, p, band, tol),
             exempt,
         )
     };
@@ -10931,12 +11042,12 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
 /// The confirmation direction of the certification diff: every
 /// declaration must have a geometric witness — dead keys, equal keys,
 /// and coincidence-free records are stale, typed.
-fn confirm_records<T: Decide>(
+fn confirm_records<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     contacts: &ContactRecords,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     for kind in contacts.kinds() {
@@ -11078,13 +11189,13 @@ fn confirm_edge_face<T: Decide>(
 ///   table along it, sides included
 ///   ([`crate::boolean::tangent_table_at_rest`]), which confirms or
 ///   contradicts the record. Refused typed where no line derives.
-fn confirm_face_pair<T: Decide>(
+fn confirm_face_pair<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     a: FaceKey,
     b: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     let stale = ValidationError::StaleContactDeclaration {
@@ -11231,7 +11342,7 @@ pub(crate) fn in_both<E>(
 }
 
 /// Where `face` holds `q`: the boolean's own placement
-/// ([`crate::boolean::face_placement`]), which decides `q` against the
+/// ([`crate::contain::face_placement`]), which decides `q` against the
 /// face's carrier rather than holding it there, a point decided off a
 /// planar face's plane read `Out`: the reader for a point no one holds
 /// on the carrier. A point the caller holds there is placed by
@@ -11246,8 +11357,8 @@ pub(crate) fn face_holds<T: Decide>(
     on_plane: &'static str,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
-    use crate::boolean::{CurvedPlacement, PlacementError};
-    match crate::boolean::face_placement(body, face, q, band, on_plane) {
+    use crate::contain::{CurvedPlacement, PlacementError};
+    match crate::contain::face_placement(body, face, q, band, on_plane) {
         Ok(CurvedPlacement::OffCarrier) => Some(Some(FaceContainment::Out)),
         Ok(CurvedPlacement::Trim(at)) => Some(at),
         Err(PlacementError::OnPlane(cause)) => {
@@ -11263,7 +11374,7 @@ pub(crate) fn face_holds<T: Decide>(
 /// One `(vertex, face)` record's witness: both cells live, and the
 /// vertex strictly inside the face — on its plane and inside its region
 /// for a planar face, inside its trim by the curved containment door
-/// ([`crate::boolean::curved_face_containment`], which puts a point off
+/// ([`crate::contain::curved_face_containment`], which puts a point off
 /// the carrier `Out`) for a curved one.
 fn confirm_vertex_on_face<T: Decide>(
     body: &Body<T>,
@@ -11457,7 +11568,7 @@ fn on_its_line<T: Real>(
 /// **How a ray's span passes one of a body's line edges** — the
 /// edge-edge closest read ([`ee_lines_closest`]) with the span as the
 /// first: what a ray reads of the edges it passes
-/// (`boolean::solid_contain::ray_crossings`).
+/// (`solid_contain::ray_crossings`).
 pub(crate) struct LinePass<T: Real> {
     /// The edge.
     pub(crate) edge: EdgeKey,
@@ -11523,15 +11634,15 @@ pub(crate) fn line_passes<T: Real>(
 /// the census confirms. The body is read once, at [`Self::of`]. The
 /// chart-region door is the caller's, as at every census door: without
 /// it a face–face pair is outside the confirm's lanes.
-pub(crate) struct RecordConfirm<'b, T: Decide> {
+pub(crate) struct RecordConfirm<'b, T: crate::props::AtRestPolicy> {
     body: &'b Body<T>,
     geo: Geo<T>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 }
 
-impl<'b, T: Decide> RecordConfirm<'b, T> {
-    pub(crate) fn of(body: &'b Body<T>, band: Band, region: Option<RegionLane<T>>) -> Self {
+impl<'b, T: crate::props::AtRestPolicy> RecordConfirm<'b, T> {
+    pub(crate) fn of(body: &'b Body<T>, band: Band, region: Option<T::RegionLane>) -> Self {
         Self {
             body,
             geo: snapshot(body),
@@ -11936,11 +12047,11 @@ const FLUSH_UNREAD: &str = "they lie on one surface facing the same way with the
 /// `group` partitions the solids as [`record_at_rest`]'s does; a pair
 /// inside one group, or with a solid in none, is not read. `region` is
 /// the scalar's region doors ([`crate::AtRestPolicy::flush_at_rest`]).
-pub(crate) fn flush_at_rest<T: Decide + Bounds>(
+pub(crate) fn flush_at_rest<T: crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     group: &dyn Fn(crate::SolidKey) -> Option<u32>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> FlushAtRest {
     let geo = snapshot(body);
     let pad = sweep_pad(band);
@@ -11966,13 +12077,13 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
 }
 
 /// [`flush_at_rest`] over its candidates, `faces` and their box tree.
-fn flush_pairs<T: Decide>(
+fn flush_pairs<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
     (faces, boxes): (&[FaceKey], &Class),
     group: &dyn Fn(crate::SolidKey) -> Option<u32>,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
 ) -> FlushAtRest {
     let kind = |f: FaceKey| Some(body.face(f)?.surface().kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
@@ -12040,7 +12151,9 @@ fn flush_pairs<T: Decide>(
                     same_side_overlap(
                         body,
                         geo,
-                        lane,
+                        |x: &FaceGeo<T>, y: &FaceGeo<T>, premise| {
+                            lane.declared_overlap(body, x.key, body, y.key, premise, band)
+                        },
                         x,
                         y,
                         crate::chart_region::CarrierPremise::Decided,
@@ -12104,7 +12217,7 @@ fn shared_run<T: Decide>(
 ) -> Result<bool, InteriorsUnread> {
     let mut read = Vec::new();
     let pairs = ea.iter().flat_map(|&a| eb.iter().map(move |&b| (a, b)));
-    meeting_found(climb(Answering::Any, pairs, |(a, b)| {
+    search_meeting(pairs, |(a, b)| {
         let before = read.len();
         meeting_rung(
             match curved::interiors_meeting(body, a, b, band, &mut read) {
@@ -12113,7 +12226,7 @@ fn shared_run<T: Decide>(
                 None => Err(escalated_since(&read, before)),
             },
         )
-    }))
+    })
 }
 
 /// Why [`planar_interiors_meet`] read no verdict.
@@ -12173,6 +12286,18 @@ fn meeting_rung(
     Rung::holds(reading, true, |why| why.refusal())
 }
 
+/// **The search for a meeting**, the one ladder [`shared_run`],
+/// [`planar_interiors_meet`] and [`shared_interior_witness`] read their
+/// probes through: any probe that meets answers, past a probe kept ahead
+/// of it ([`climb`], [`Answering::Any`]: one meeting is a meeting), and
+/// what it read is [`meeting_found`]'s.
+fn search_meeting<I>(
+    probes: impl IntoIterator<Item = I>,
+    read: impl FnMut(I) -> Rung<Result<bool, InteriorsUnread>, InteriorsUnread>,
+) -> Result<bool, InteriorsUnread> {
+    meeting_found(climb(Answering::Any, probes, read))
+}
+
 /// What a search for a meeting read: its answer (a meeting, or a
 /// refusal it stopped on), `Ok(false)` where every reading passed, and
 /// the ranked kept refusal ([`Evidence`]) otherwise.
@@ -12224,7 +12349,7 @@ fn planar_interiors_meet<T: Decide>(
         geo.sides_of(fb.key)
             .map(move |eb| PlanarProbe::Sides(ea, eb))
     });
-    meeting_found(climb(Answering::Any, corners.chain(sides), |probe| {
+    search_meeting(corners.chain(sides), |probe| {
         meeting_rung(match probe {
             PlanarProbe::Corner(x, y, v) => {
                 let Some(&p) = geo.vmap.get(&v) else {
@@ -12246,7 +12371,7 @@ fn planar_interiors_meet<T: Decide>(
                 None => Err(InteriorsUnread::Undecided),
             },
         })
-    }))
+    })
 }
 
 /// **Whether two faces on one carrier, facing as `facing` says
@@ -12345,7 +12470,7 @@ fn shared_interior_witness<T: Decide>(
             .flat_map(|&ea| edges_b.iter().map(move |&eb| WitnessProbe::Pair(ea, eb))),
     );
     // No witness found, and none kept, is no certificate either way.
-    let climbed = climb(Answering::Any, probes, |probe| {
+    let found = search_meeting(probes, |probe| {
         meeting_rung(match probe {
             WitnessProbe::At(x, at, y, q) => {
                 meets_at(body, geo, (x, at), (y, facing), q, band, &mut read)
@@ -12369,7 +12494,7 @@ fn shared_interior_witness<T: Decide>(
             }
         })
     });
-    match meeting_found(climbed) {
+    match found {
         Ok(true) => Ok(SharedInterior),
         Ok(false) => Err(InteriorsUnread::Unbuilt),
         Err(why) => Err(why),
@@ -12873,12 +12998,12 @@ pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidenc
 /// A mate's record lands in the product body's `ContactRecords` — the
 /// boolean 3′ currency, same type, no adapter — and THIS is the at-rest
 /// evidence door those records certify through.
-fn confirm_patch<T: Decide>(
+fn confirm_patch<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     face_a: FaceKey,
     face_b: FaceKey,
     band: Band,
-    region: Option<RegionLane<T>>,
+    region: Option<T::RegionLane>,
     errors: &mut Vec<ValidationError>,
 ) {
     let stale = ValidationError::StaleContactDeclaration {
@@ -13382,7 +13507,7 @@ mod tests {
     /// grazed is not.
     #[test]
     fn a_carried_loop_refusal_is_placed_by_its_kind() {
-        use crate::boolean::PointInSolidError as E;
+        use crate::solid_contain::PointInSolidError as E;
         use crate::splitting::{
             OffPlane, OffPlaneCause, PointInLoopError as L, Uncrossable, UncrossableCarrier,
         };
@@ -14509,7 +14634,7 @@ mod tests {
         let (body, cap, end) = half_disc_cap(0.0, tol);
         let q = end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0);
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
-        let read = crate::boolean::contfp(&body, cap, Vec3::unit_z(), q, narrow);
+        let read = crate::contain::contfp(&body, cap, Vec3::unit_z(), q, narrow);
         let Err(ContainError::Escalated { diag, .. }) = read.clone() else {
             panic!("the band's own parting: {read:?}");
         };
@@ -14536,7 +14661,7 @@ mod tests {
         let off = Band::linear(tol).unwrap().zero() / 2.0;
         let (body, cap, end) = half_disc_cap(off, tol);
         let fine = Band::new(off / 50.0, off / 5.0).unwrap();
-        let read = crate::boolean::contfp(&body, cap, Vec3::unit_z(), end, fine);
+        let read = crate::contain::contfp(&body, cap, Vec3::unit_z(), end, fine);
         let mut errors = Vec::new();
         assert_eq!(read_containment(cap, read, &mut errors), None);
         let [ValidationError::ArcEndOffCorner { face, gaps }] = errors.as_slice() else {
@@ -14617,6 +14742,18 @@ mod tests {
     /// band's own parting or, where the point's chord to the end falls in
     /// the band's hair-wide gap, as the end reading's escalation, and the
     /// census reports no defect.
+    ///
+    /// At ε 1e-12 the point is read on the end's vertex, and at ε 1e-6 on
+    /// the arc, at both `K`: decided readings, each sound (the point is
+    /// `0.996·zero` from the end and `0.3·zero` off the arc), and the
+    /// census still reports no defect. Cause: a frame squared at `f64`
+    /// from stated directions, a rigid-motion claim (fork 274), not a
+    /// bracket input at `Interval`: the fixture's `Curve3::circle` squares
+    /// its frame at `f64` where main stored the stated `axis` and `u_ref`
+    /// raw, which moves the end the frame computes by a rounding. Mutant
+    /// F1F (squaring at `f64` stores the stated vectors raw) reads main's
+    /// answer and turns this pin red at both ε; mutants A and F1X do not.
+    /// At ε 1e-9 the read is as stated above.
     #[test]
     fn a_far_arc_at_k_near_one_reads_its_end_where_certification_pinned_it() {
         use crate::test_support_fixtures::arc_cap;
@@ -14652,16 +14789,39 @@ mod tests {
         let q = end - tangent * (0.95 * zero) + radial * (0.3 * zero);
         for k in [1.001, 1.2] {
             let band = Band::new(zero, k * zero).unwrap();
-            let read = crate::boolean::contfp(&body, cap, axis, q, band);
+            let read = crate::contain::contfp(&body, cap, axis, q, band);
             // The point's chord to the end sits within a hair of the zero
             // band, which a band this narrow reads either way as the
             // rounding falls: the finding with every end at a corner, or
             // the end reading's escalation. Never an end off its corner.
-            assert!(
+            // At ε 1e-12 and 1e-6 the carrier's frame, squared at f64 from
+            // the stated directions (a rigid-motion claim, fork 274), puts
+            // the point decided on the arc's end vertex (1e-12) or on the
+            // arc (1e-6): a decided reading, sound, with no defect.
+            let eps = tol.eps();
+            let pinned = if eps <= 1e-12 {
+                matches!(&read, Ok(crate::contain::FaceContainment::OnVertex(_)))
+            } else if eps >= 1e-6 {
+                // On the arc: neither side and no vertex (the variant is
+                // read by exclusion, its name being a splitting item's).
+                matches!(
+                    &read,
+                    Ok(at) if !matches!(
+                        at,
+                        crate::contain::FaceContainment::In
+                            | crate::contain::FaceContainment::Out
+                            | crate::contain::FaceContainment::OnVertex(_)
+                    )
+                )
+            } else {
                 matches!(&read, Err(ContainError::ArcEndClearOfCorners(g)) if !g.off_corner())
-                    || matches!(&read, Err(ContainError::Escalated { .. })),
-                "K {k}: the end lies at its corner, and only the band parts the passes (frame \
-                 and eval part by {parting:e}): {read:?}"
+                    || matches!(&read, Err(ContainError::Escalated { .. }))
+            };
+            assert!(
+                pinned,
+                "K {k} at ε {eps:e}: the end lies at its corner, and only the band parts the \
+                 passes (frame and eval part by {parting:e}); on the vertex at 1e-12, on the \
+                 arc at 1e-6: {read:?}"
             );
             let mut errors = Vec::new();
             read_containment(cap, read, &mut errors);
@@ -15310,9 +15470,7 @@ mod tests {
                     f,
                     FaceSurface::New {
                         surface: Surface::Plane {
-                            origin: centroid,
-                            normal,
-                            u_ref,
+                            frame: geom::Frame::new(centroid, normal, u_ref),
                         },
                         sense: true,
                     },
@@ -15486,9 +15644,7 @@ mod tests {
         let seed = body.mvfs(p0, true).expect("a seed");
         // After the seed: a surface on an empty body is an orphan.
         let plane = body.add_surface(Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         });
         let cyl = body.add_surface(CylFrame::canonical(1.0).surface());
         let arc = body
@@ -16265,7 +16421,7 @@ mod tests {
             }
             asked += 1;
             assert_eq!(
-                crate::boolean::contfp(&body, cap, Vec3::unit_z(), p, band()),
+                crate::contain::contfp(&body, cap, Vec3::unit_z(), p, band()),
                 Ok(FaceContainment::Out),
                 "a far vertex in the cap's plane at {p:?}"
             );
@@ -16300,9 +16456,7 @@ mod tests {
         let body =
             crate::test_support_fixtures::spiric_cap(10.0, 1.0, 5.0, (v0, v1), Tol::witness()).0;
         let spiric = geom::Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 10.0,
             minor_radius: 1.0,
             offset: 5.0,
@@ -16323,7 +16477,7 @@ mod tests {
             .map(|(k, _)| k)
             .expect("the cap");
         assert_eq!(
-            crate::boolean::contfp(&body, cap, Vec3::unit_x(), q, band()),
+            crate::contain::contfp(&body, cap, Vec3::unit_x(), q, band()),
             Ok(FaceContainment::Out),
             "just past the arc's end, the cap answers"
         );
@@ -18612,9 +18766,7 @@ mod tests {
             assert!(errors.is_empty(), "{errors:?}");
             let cuts = cuts.expect("decided");
             let oval = geom::Curve3::Spiric {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 2.0,
                 minor_radius: 1.0,
                 offset: 0.5,
@@ -18644,12 +18796,7 @@ mod tests {
         ) -> (Body<f64>, FaceKey) {
             use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
             let geom::Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame,
                 ..
             }) = carrier
             else {
@@ -18660,9 +18807,7 @@ mod tests {
             let mut body = Body::<f64>::new();
             let seed = body.mvfs(p0, true).expect("a seed");
             let plane = body.add_surface(Surface::Plane {
-                origin: center,
-                normal: axis,
-                u_ref,
+                frame: carrier_frame,
             });
             let cyl = body.add_surface(cyl.surface());
             let arc = body
@@ -19226,7 +19371,8 @@ mod records_by_carrier {
     fn face_at_z(body: &Body<f64>, z: f64, up: bool) -> FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5
                         && (origin.z - z).abs() < 1e-12
                         && ((normal.z > 0.0) == f.sense) == up
@@ -19342,7 +19488,8 @@ mod records_by_carrier {
             let side = block
                 .faces()
                 .find(|(_, f)| match block.get_surface(f.surface) {
-                    Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    Some(geom::Surface::Plane { frame, .. }) => {
+                        let (origin, normal) = (frame.origin(), frame.axis());
                         normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-12
                     }
                     _ => false,
@@ -19618,7 +19765,8 @@ mod two_carrier_records {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - 1.0).abs() < 1e-12
                 }
                 _ => false,
@@ -19678,7 +19826,8 @@ mod two_carrier_records {
         let top = body
             .faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
                 }
                 _ => false,
@@ -19694,7 +19843,7 @@ mod two_carrier_records {
         let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
         crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
         let placed = |x: f64| {
-            crate::boolean::face_placement(
+            crate::contain::face_placement(
                 &body,
                 top,
                 geom_core::Point3::new(x, 0.0, 1.0),
@@ -19705,12 +19854,12 @@ mod two_carrier_records {
         assert!(
             matches!(
                 placed(2.0),
-                Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                Ok(crate::contain::CurvedPlacement::Trim(Some(
                     FaceContainment::Out
                 )))
             ) && matches!(
                 placed(1.0),
-                Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                Ok(crate::contain::CurvedPlacement::Trim(Some(
                     FaceContainment::In
                 )))
             ),
@@ -19747,7 +19896,8 @@ mod two_carrier_records {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-15
                 }
                 _ => false,
@@ -19805,7 +19955,8 @@ mod two_carrier_records {
         let a_top = body
             .faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5
                         && (origin.z - 1.0).abs() < 1e-12
                         && ((normal.z > 0.0) == f.sense)
@@ -19972,7 +20123,8 @@ mod two_carrier_records {
             let top = body
                 .faces()
                 .find(|(_, f)| match body.get_surface(f.surface) {
-                    Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    Some(geom::Surface::Plane { frame, .. }) => {
+                        let (origin, normal) = (frame.origin(), frame.axis());
                         normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
                     }
                     _ => false,
@@ -20564,10 +20716,10 @@ mod two_carrier_records {
             /// strictly inside `face`; `None` where the placement refuses.
             fn placed(body: &Body<f64>, face: FaceKey, p: geom_core::Point3<f64>) -> Option<bool> {
                 let b = Band::linear(Tol::witness()).unwrap();
-                let at = crate::boolean::face_placement(body, face, p, b, "probe_oracle").ok()?;
+                let at = crate::contain::face_placement(body, face, p, b, "probe_oracle").ok()?;
                 Some(matches!(
                     at,
-                    crate::boolean::CurvedPlacement::Trim(Some(FaceContainment::In))
+                    crate::contain::CurvedPlacement::Trim(Some(FaceContainment::In))
                 ))
             }
 
@@ -21020,8 +21172,8 @@ mod edge_face_residual {
             .faces()
             .find(|&(k, f)| {
                 matches!(body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { origin, normal, .. })
-                        if normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12)
+                    Some(geom::Surface::Plane { frame, .. })
+                        if frame.axis().z.abs() > 0.5 && (frame.origin().z - 1.0).abs() < 1e-12)
                     && body.vertices().any(|(v, _)| {
                         at(v) == [0.0, 0.0, 1.0]
                             && Contact::new(&body, Cell::Vertex(v), Cell::Face(k)).is_err()
@@ -21089,7 +21241,8 @@ mod point_touch {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                Some(geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - x).abs() <= 1e-15 * x.abs().max(1.0)
                 }
                 _ => false,
@@ -21257,15 +21410,11 @@ mod curved_edge_edge {
         let (p0, p1) = (circle.eval(0.0), circle.eval(std::f64::consts::PI));
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
-            origin: center,
-            normal: axis,
-            u_ref,
+            frame: geom::Frame::new(center, axis, u_ref),
         });
         let cyl = body.add_surface(Surface::Cylinder {
-            origin: center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             radius: 1.0,
-            u_ref,
         });
         let arc = body
             .mev(
@@ -21415,7 +21564,7 @@ mod curved_edge_edge {
                         .and_then(|d| body.get_curve_geom(d.curve))
                         .and_then(|g| g.certified())
                         .is_some_and(|c| {
-                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if center.z == 0.0)
+                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z == 0.0)
                         })
             })
             .expect("the sheet's bottom rim");
@@ -22274,15 +22423,11 @@ mod arc_interiors {
         let (p0, p1) = (circle.eval(t0), circle.eval(t1));
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
-            origin,
-            normal: n,
-            u_ref: u,
+            frame: geom::Frame::new(origin, n, u),
         });
         let cyl = body.add_surface(Surface::Cylinder {
-            origin: center,
-            axis: n,
+            frame: geom::Frame::new(center, n, u),
             radius: r,
-            u_ref: u,
         });
         let arc = body
             .mev(
@@ -22764,12 +22909,13 @@ mod link_faces_ranking {
 /// of one in band** ([`InteriorsUnread::refusal`], the ladder's
 /// [`Evidence`]): while a pair is unbuilt no tolerance certifies the
 /// interiors apart, so its refusal (`FLUSH_UNREAD`) is the one whose
-/// recourse frees the question. Fed the rungs directly, since no body a
-/// constructor builds keeps both kinds in one search; a fold that kept
-/// an undecided reading over a later unbuilt one reports `Undecided`.
+/// recourse frees the question. The rungs are fed to the search's ladder
+/// ([`search_meeting`]) directly, since no body a constructor builds keeps
+/// both kinds in one search; a fold that kept an undecided reading over a
+/// later unbuilt one reports `Undecided`. A meeting answers past both.
 #[cfg(test)]
 mod interiors_ranking {
-    use super::{Answering, InteriorsUnread, climb, meeting_found, meeting_rung};
+    use super::{InteriorsUnread, meeting_rung, search_meeting};
 
     #[test]
     fn an_unbuilt_reading_outranks_an_undecided_one_in_either_order() {
@@ -22779,22 +22925,21 @@ mod interiors_ranking {
             [Err(Unbuilt), Err(Undecided)],
         ] {
             assert_eq!(
-                meeting_found(climb(Answering::Any, order, meeting_rung)),
+                search_meeting(order, meeting_rung),
                 Err(Unbuilt),
                 "{order:?}: the limit is the refusal"
             );
         }
         assert_eq!(
-            meeting_found(climb(
-                Answering::Any,
+            search_meeting(
                 [Err(Undecided), Err(Unbuilt), Ok(false), Ok(true)],
                 meeting_rung
-            )),
+            ),
             Ok(true),
             "a later meeting answers past both"
         );
         assert_eq!(
-            meeting_found(climb(Answering::Any, [Ok(false), Ok(false)], meeting_rung)),
+            search_meeting([Ok(false), Ok(false)], meeting_rung),
             Ok(false),
             "every reading apart certifies apart"
         );
@@ -22913,7 +23058,7 @@ mod lone_vertex_rows {
         let mut post = crate::tier3_tests::half_disc(0.3, 0.5, (0.5, 0.5, 1.0), false, tol);
         let plane = |body: &crate::Body<f64>, normal: geom_core::Vec3<f64>| {
             body.face_views()
-                .find(|f| matches!(*f.surface(), geom::Surface::Plane { normal: n, .. } if (n - normal).norm() < 1e-12))
+                .find(|f| matches!(*f.surface(), geom::Surface::Plane { frame, .. } if (frame.axis() - normal).norm() < 1e-12))
                 .map(|f| f.key())
                 .expect("the face")
         };

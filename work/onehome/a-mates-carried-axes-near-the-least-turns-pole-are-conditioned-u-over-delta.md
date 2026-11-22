@@ -2,10 +2,13 @@
 id: a-mates-carried-axes-near-the-least-turns-pole-are-conditioned-u-over-delta
 kind: issue
 title: Near the least turn's pole a mate's carried axes, and so its spin and its slides along them, move by about u/δ when its directions move by their rounding, inside the ε band the chart admits
-status: open
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: M
+closed: 2026-11-15
+pr: 6988
+branch: onehome/least-turn-mint
 ---
 
 

@@ -47,3 +47,21 @@ From nightly 43371638371 (main `e36675c1`). The row read, identically at ε 1e-6
 Unchanged from `3b59315dc` to main. Not bisected: how the plate got from the `1189` this row records at PR 6717 to the `[1173, 824, 259]` read at `9a256348` and `f162f739d`, and the frozen column's older `229 -> 259`.
 
 Reproduce: `cargo nextest run -p editor-core -E 'test(sym11_the_exact_channel_never_contradicts_past_the_ceiling)'` at each commit named (the assertion prints every receipt).
+
+## The frozen column moved again with PR 6953 (BOXFINISH, `boxfinish/profile-directions-revalue`, 2026-11-15)
+
+Measured locally at ε 1e-9 (nextest), while separating PR 6963's moves of
+this row from the others'. PR 6963's (the axis mint's sign readings on
+the symbolic and numeric columns) are taken out on that branch; what
+remains is the frozen column on two documents:
+
+| document | stored | `4642f059` (PR 6963's merge) | `1332e481` (PR 6958) | `38031714` (PR 6953, `onehome/rim-span`) | main `deadbbb4` with PR 6963's moves out |
+|---|---|---|---|---|---|
+| `r2_link` | `[813, 947, 3576]` | 3576 | 3576 | 3575 | `[813, 947, 3575]` |
+| `r2_rounded_pad` | `[1515, 1698, 3989]` | 3989 | 3989 | 4000 | `[1515, 1698, 4000]` |
+
+PR 6953 re-pinned `m10_9_pins_interval`'s pad receipt for the same move
+(3989 → 4000, "the forms they freeze read the placed sketch chord's
+unit where they read the placed vertices' difference") but not this slow
+row, which its gate did not run. The row stays red on main until it is
+re-cut for that move; nothing else in it moves.

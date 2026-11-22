@@ -75,7 +75,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "axis_projection",
         about: "two copies of one bushing stacked spigot in socket along its own axis, unioned",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(whole),
         pin: None, // revolved: π-valued

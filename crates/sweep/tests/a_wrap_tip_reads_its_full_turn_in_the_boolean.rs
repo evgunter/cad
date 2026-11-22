@@ -21,8 +21,8 @@
 //! places a lattice of points as the analytic region does.
 //!
 //! (A plane through the pole tilted off the axis cuts the sphere in a
-//! circle through the pole, which mints no pcurve with or without the
-//! tip: `work/charttail/a-section-circle-through-a-sphere-faces-pole-mints-no-pcurve.md`.)
+//! circle through the pole, with or without the tip:
+//! `a_plane_through_a_pole_cuts_a_cap`.)
 //!
 //! The cone of the same height, its apex reached by one wrap edge, splits
 //! through the apex at its closed forms, and its Boolean through the

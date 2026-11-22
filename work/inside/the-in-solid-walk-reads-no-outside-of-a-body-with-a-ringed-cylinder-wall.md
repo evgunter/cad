@@ -13,7 +13,7 @@ refs: [a-pierce-point-inside-a-curved-face-of-the-piercing-operand-refuses-unbui
 
 Found in PR 5155: the lying cylinder over its whole span, `a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order` in `crates/sweep/tests/a_pierce_held_in_a_curved_face.rs`.
 
-**The bodies.** Two prisms stand across the lying cylinder's top, and each leaves a ring on the cylinder's wall. On those bodies, `topo::point_in_solid` answers `VolumeUncertified` at probes outside the body. The review traced it to `at_infinity_side` (`crates/topo/src/boolean/solid_contain.rs:5538`): a no-hit ray, with the closed-form volume refused.
+**The bodies.** Two prisms stand across the lying cylinder's top, and each leaves a ring on the cylinder's wall. On those bodies, `topo::point_in_solid` answers `VolumeUncertified` at probes outside the body. The review traced it to `at_infinity_side` (`crates/topo/src/solid_contain.rs:5538`): a no-hit ray, with the closed-form volume refused.
 
 **Census over the row's 1134 probes:**
 

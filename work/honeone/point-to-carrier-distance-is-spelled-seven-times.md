@@ -18,7 +18,7 @@ A point's distance to a carrier (and the on-carrier decision built on it) is spe
 - `pcurve_cache::chart_distance` (`crates/geom-brep/src/pcurve_cache.rs:8207`): `unreachable!` for Nurbs and Approx;
 - `blend/reach::surface_distance` (`crates/sweep/src/blend/reach.rs:490`);
 - `offset_axial::surface_residual` (`crates/topo/src/offset_axial.rs:2556`): `_ => 0`, filed separately on SHELL;
-- `solid_contain::torus_elevation` (`crates/topo/src/boolean/solid_contain.rs:2673`).
+- `solid_contain::torus_elevation` (`crates/topo/src/solid_contain.rs:2673`).
 
 The on-carrier decision is not one reading either:
 - `contain` decides on the exact ρ−r;

@@ -47,7 +47,7 @@ left the list:
 - `crates/topo/src/boolean/ops.rs`: `volume_backstop`, `describe_minted_edges`, `classify_shells`, `fallback`, `finish_fallback`
 - `crates/topo/src/boolean/reduce.rs`: `sweep_direction`, `curved_face_arm`, `vertex_on_curved_face`, `vertex_on_face`, `split_other_at_point`
 - `crates/topo/src/boolean/rest.rs`: `try_rest_union`
-- `crates/topo/src/boolean/solid_contain.rs`: `point_in_solid`, `point_in_solid_of`, `point_in_solid_faces`, `point_in_faces`, `cast_ray`, `at_infinity_side`
+- `crates/topo/src/solid_contain.rs`: `point_in_solid`, `point_in_solid_of`, `point_in_solid_faces`, `point_in_faces`, `cast_ray`, `at_infinity_side`
 - `crates/topo/src/boolean/vtxfac.rs`: `classify_vertex_on_face`
 - `crates/topo/src/census.rs`: `census_and_certify`, `census_traces`, `census_traces_planted`, `census_with`, `sweep_cross_solid_backstop`
 - `crates/topo/src/offset_axial.rs`: `offset_charts_together`

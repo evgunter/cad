@@ -16,11 +16,25 @@ B-spline curves on those planes, and its left and right edges are lines.
                    B-spline of two quarter-circle spans joined at a
                    double knot, smooth there; its rims are CIRCLE arcs
                    with no knot, so the split places its vertices on
-                   them.
+                   them. It is exactly a cone, so import promotes it.
+    half_elliptic_cone.step
+                   the same with its y extent scaled by 3/4: an elliptic
+                   cone no analytic kind is, its rims ELLIPSE arcs, so it
+                   keeps the split.
     seam_edge.step the top is one smooth quadratic span with no interior
                    knot; its FRONT edge states the same parabola split at
                    its midpoint, a double knot where the curve is smooth.
                    Only the edge carrier has a C0 knot.
+    c_prism.step   a prism over a C-shaped plan whose top lies on the
+                   paraboloid z = 1 + x^2/8 + y^2/4, stated as a biquadratic
+                   chart over [0, 2] x [0, 1] split by de Casteljau at x = 1:
+                   a double knot where the locus is smooth. Its top edges
+                   are single quadratic spans with no knot, so the knot line
+                   crosses the trim four times inside edges, twice away
+                   from the chart's boundary rows.
+    half_ridge.step the same chart trimmed to x <= 1 over a unit square
+                   plan: its right edge is the chart's curved iso line at
+                   the knot, so the line runs along the face's boundary.
 
 Regenerate with `python3 generate.py <dir>`; the outputs are committed
 so the test does not need a Python interpreter.
@@ -176,14 +190,15 @@ DATA;
     body = "\n".join("#%d = %s;" % (i + 1, t) for i, t in enumerate(s.lines))
     return head + body + "\nENDSEC;\nEND-ISO-10303-21;\n"
 
-def build_half_cone(name):
+def build_half_cone(name, k=1.0):
     """A half frustum of a cone about z, radius 1 at z = 0 and 1/2 at
-    z = 1, cut by the plane x = 0. Its wall is a rational B-spline of
-    two quarter-circle spans joined at a double knot on the +x meridian;
-    its rims are CIRCLE arcs, which carry no knot."""
+    z = 1, cut by the plane x = 0, its y extent scaled by `k`. Its wall
+    is a rational B-spline of two quarter-arc spans joined at a double
+    knot on the +x meridian; its rims are CIRCLE arcs (ELLIPSE arcs where
+    `k` is not 1), which carry no knot."""
     s = Step()
     r2 = 2 ** -0.5
-    pos = {"A": (0, -1, 0), "B": (0, 1, 0), "C": (0, 0.5, 1), "D": (0, -0.5, 1)}
+    pos = {"A": (0, -k, 0), "B": (0, k, 0), "C": (0, 0.5 * k, 1), "D": (0, -0.5 * k, 1)}
     V = {k: s.add("VERTEX_POINT('',#%d)" % s.pt(p)) for k, p in pos.items()}
     E = {}
 
@@ -194,7 +209,11 @@ def build_half_cone(name):
         E[n] = (s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (V[a], V[b], c)), a, b)
 
     def arc_edge(n, a, b, z, r):
-        c = s.add("CIRCLE('',#%d,%s)" % (s.ax2((0, 0, z), (0, 0, 1), (1, 0, 0)), num(r)))
+        place = s.ax2((0, 0, z), (0, 0, 1), (1, 0, 0))
+        if k == 1.0:
+            c = s.add("CIRCLE('',#%d,%s)" % (place, num(r)))
+        else:
+            c = s.add("ELLIPSE('',#%d,%s,%s)" % (place, num(r), num(k * r)))
         E[n] = (s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (V[a], V[b], c)), a, b)
 
     arc_edge("bot", "A", "B", 0.0, 1.0)
@@ -220,7 +239,7 @@ def build_half_cone(name):
         return s.add("PLANE('',#%d)" % s.ax2(origin, axis, ref))
 
     ring = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1)]
-    rows = [["#%d" % s.pt((x * r, y * r, z)) for r, z in ((1.0, 0.0), (0.5, 1.0))] for x, y in ring]
+    rows = [["#%d" % s.pt((x * r, k * y * r, z)) for r, z in ((1.0, 0.0), (0.5, 1.0))] for x, y in ring]
     w = [1.0, r2, 1.0, r2, 1.0]
     weights = ",".join("(%s)" % ",".join(num(wi) for _ in range(2)) for wi in w)
     surf = s.add(
@@ -236,6 +255,74 @@ def build_half_cone(name):
     face(plane((0, 0, 0), (-1, 0, 0), (0, 1, 0)), [("ad", "A"), ("dc", "D"), ("bc", "C"), ("ab", "B")])
     return finish(s, name, faces)
 
+
+def build_plan_prism(name, plan):
+    """A prism over the counter-clockwise polygon `plan` whose top lies
+    on z = 1 + x^2/8 + y^2/4 (`PARABOLOID`), each side wall the plane
+    through one plan edge."""
+    s = Step()
+    n = len(plan)
+    def z(x, y):
+        return 1 + x * x / 8 + y * y / 4
+
+    bot = [s.add("VERTEX_POINT('',#%d)" % s.pt((x, y, 0))) for x, y in plan]
+    top = [s.add("VERTEX_POINT('',#%d)" % s.pt((x, y, z(x, y)))) for x, y in plan]
+
+    def line(va, pa, vb, pb):
+        d = tuple(pb[i] - pa[i] for i in range(3))
+        c = s.add("LINE('',#%d,#%d)" % (s.pt(pa), s.add("VECTOR('',#%d,1.)" % s.dr(d))))
+        return s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (va, vb, c))
+
+    def on_top(k):
+        # The paraboloid over a plan segment along x or y is a parabola:
+        # one quadratic span, its middle control point the product of
+        # the ends' moving coordinates in place of the square.
+        (xa, ya), (xb, yb) = plan[k], plan[(k + 1) % n]
+        mid = 1 + xa * xb / 8 + ya * yb / 4
+        ctrl = [(xa, ya, z(xa, ya)), ((xa + xb) / 2, (ya + yb) / 2, mid), (xb, yb, z(xb, yb))]
+        pts = ",".join("#%d" % s.pt(c) for c in ctrl)
+        c = s.add("B_SPLINE_CURVE_WITH_KNOTS('',2,(%s),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.)" % pts)
+        return s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (top[k], top[(k + 1) % n], c))
+
+    def lifted(k, h):
+        return (plan[k][0], plan[k][1], h)
+
+    bottom = [line(bot[k], lifted(k, 0), bot[(k + 1) % n], lifted((k + 1) % n, 0)) for k in range(n)]
+    upright = [line(bot[k], lifted(k, 0), top[k], (plan[k][0], plan[k][1], z(*plan[k]))) for k in range(n)]
+    rim = [on_top(k) for k in range(n)]
+
+    faces = []
+
+    def face(surf, oriented, sense="T"):
+        oes = [s.add("ORIENTED_EDGE('',*,*,#%d,.%s.)" % (e, "T" if f else "F")) for e, f in oriented]
+        el = s.add("EDGE_LOOP('',(%s))" % ",".join("#%d" % i for i in oes))
+        fb = s.add("FACE_OUTER_BOUND('',#%d,.T.)" % el)
+        faces.append(s.add("ADVANCED_FACE('',(#%d),#%d,.%s.)" % (fb, surf, sense)))
+
+    def plane(origin, axis, ref):
+        return s.add("PLANE('',#%d)" % s.ax2(origin, axis, ref))
+
+    face(plane((0, 0, 0), (0, 0, -1), (1, 0, 0)), [(bottom[k], False) for k in reversed(range(n))])
+    for k in range(n):
+        (xa, ya), (xb, yb) = plan[k], plan[(k + 1) % n]
+        d = (xb - xa, yb - ya, 0)
+        out = (d[1], -d[0], 0)
+        face(plane((xa, ya, 0), out, d),
+             [(bottom[k], True), (upright[(k + 1) % n], True), (rim[k], False), (upright[k], False)])
+    # x = 2u, y = v; z's x part is u^2/2, split at u = 1/2 by de
+    # Casteljau, and its y part v^2/4: every control point dyadic.
+    xs = [(0, 0), (0.5, 0), (1, 0.125), (1.5, 0.25), (2, 0.5)]
+    ys = [(0, 0), (0.5, 0), (1, 0.25)]
+    rows = [["#%d" % s.pt((x, y, 1 + fx + gy)) for y, gy in ys] for x, fx in xs]
+    surf = s.add(
+        "B_SPLINE_SURFACE_WITH_KNOTS('',2,2,(%s),.UNSPECIFIED.,.F.,.F.,.F.,(3,2,3),(3,3),(0.,0.5,1.),(0.,1.),.UNSPECIFIED.)"
+        % ",".join("(%s)" % ",".join(r) for r in rows))
+    face(surf, [(rim[k], True) for k in range(n)])
+    return finish(s, name, faces)
+
+
+C_PLAN = [(0, 0), (2, 0), (2, 0.25), (0.5, 0.25), (0.5, 0.75), (2, 0.75), (2, 1), (0, 1)]
+HALF_PLAN = [(0, 0), (1, 0), (1, 1), (0, 1)]
 
 # Two quadratic halves meeting at a crease at x = 1: the left half
 # rises with slope +0.2 into the ridge, the right falls with -0.2.
@@ -255,4 +342,9 @@ for fname, args in (
         f.write(build(fname, *args))
 with open("%s/half_cone.step" % d, "w") as f:
     f.write(build_half_cone("half_cone"))
+with open("%s/half_elliptic_cone.step" % d, "w") as f:
+    f.write(build_half_cone("half_elliptic_cone", 0.75))
+for fname, plan in (("c_prism", C_PLAN), ("half_ridge", HALF_PLAN)):
+    with open("%s/%s.step" % (d, fname), "w") as f:
+        f.write(build_plan_prism(fname, plan))
 print("ok")

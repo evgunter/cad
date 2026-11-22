@@ -121,11 +121,11 @@ fn the_boss_union_document_row_f64_volume_and_roundtrip() {
         "doc-lane boss union volume {vol} vs {expect}"
     );
     // Save/load replay identity, f64 lane.
-    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let text = save(&doc, Tol::witness()).expect("save");
     let loaded = load(&text, Tol::witness()).expect("load");
-    assert!(loaded.doc.bit_eq(&doc), "round-trip bit identity");
+    assert!(loaded.bit_eq(&doc), "round-trip bit identity");
     let ev2 = evaluate::<f64>(
-        &loaded.doc,
+        &loaded,
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
@@ -249,10 +249,10 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
     };
     let n0 = count(&r.doc);
     assert_eq!(n0, 2, "the fillet mints its two tangent struts at rest");
-    let text = save(&r.doc, &[], Tol::witness()).expect("save");
+    let text = save(&r.doc, Tol::witness()).expect("save");
     let loaded = load(&text, Tol::witness()).expect("load");
     assert_eq!(
-        count(&loaded.doc),
+        count(&loaded),
         n0,
         "TangentIntersection edges lost across save/load"
     );

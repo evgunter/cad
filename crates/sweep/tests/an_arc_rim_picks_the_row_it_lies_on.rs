@@ -333,9 +333,10 @@ fn seam_tube() -> (Body<f64>, FaceKey, [HalfEdgeKey; 2]) {
         .filter(|(_, e)| on_torus(&body, e.he_plus) && on_torus(&body, e.he_minus))
         .map(|(k, e)| {
             let curve = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            let geom::Curve3::Circle(geom::Circle { radius, .. }) = *curve.carrier() else {
+            let geom::Curve3::Circle(conic_k) = *curve.carrier() else {
                 panic!("an equator is a circle")
             };
+            let radius = conic_k.radius();
             (radius, k)
         })
         .collect();

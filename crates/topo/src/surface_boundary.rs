@@ -11,7 +11,7 @@
 //! - **The surface boundary** ([`surface_cycles`]) drops every such edge:
 //!   what remains is the cycles of edges that have another face on their
 //!   far side, the face's boundary on its surface. Region and point
-//!   placement read it: `boolean::region::boundary` reads its cycles, and
+//!   placement read it: `region::boundary` reads its cycles, and
 //!   tier 3's region arm (`crate::one_region`) reads each cycle against
 //!   the others, a torus's by their windings
 //!   ([`surface_cycle_windings`]). A face every edge of which it lies on

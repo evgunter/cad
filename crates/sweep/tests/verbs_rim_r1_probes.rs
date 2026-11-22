@@ -14,8 +14,8 @@
 //! - **The #554 pair at randomized geometry**: full and partial
 //!   revolves of one profile DECIDE the same dihedral — red if the
 //!   closed form regresses to a zero wedge. Past that decision the
-//!   closed rim's band is built and the open arc reaches its
-//!   unimplemented seam-meridian corner.
+//!   closed rim's band is built and the open arc reaches its unbuilt
+//!   end, an open chain's curved link (`UnsupportedChain`).
 //! - **The detector differential**: a co-surface seam meridian still
 //!   reads Zero at margin exactly 0.0 — red if the fix removed the
 //!   detector rather than the false positive.
@@ -258,8 +258,8 @@ fn closed_rims_meter_their_diameter_and_never_exceed_arc_length() {
 /// regresses to the false `KnifeEdge`.
 ///
 /// Past that decision the forms part: the closed rim's band is built by
-/// the cylinder×cone arm, the open arc terminates at the revolve's
-/// seam-meridian vertices, whose corner configuration is unimplemented.
+/// the cylinder×cone arm, the open arc ends at the revolve's cut faces,
+/// where an open chain's curved link has no built end (`UnsupportedChain`).
 #[test]
 fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
     let mut rng = fuzz::start("rim-r1 #554 pair");
@@ -301,12 +301,12 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
             let expected = if closed {
                 v.is_ok()
             } else {
-                matches!(v, Err(BlendError::UnsupportedCorner { .. }))
+                matches!(v, Err(BlendError::UnsupportedChain { edge, .. }) if edge == rims[0])
             };
             assert!(
                 expected,
                 "neck {a}, closed = {closed}: a closed rim builds its band and an open \
-                 arc reaches the unimplemented seam-meridian corner, got {v:?}; {}",
+                 arc reaches its unbuilt end, got {v:?}; {}",
                 fuzz::replay()
             );
         }
@@ -406,8 +406,8 @@ fn a_passing_closed_rim_reaches_the_surgery_and_builds_its_annulus_band() {
 /// leaves the corner rim an OPEN arc whose endpoint chord is
 /// ~0.0032·a — the collapsed old lever — while the honest lever
 /// meters ~the rim's diameter; the dihedral decides, and the refusal
-/// that follows is the OPEN arc's own — its seam-meridian
-/// terminations, whose corner configuration is unimplemented — on an
+/// that follows is the OPEN arc's own — an open chain's curved link,
+/// which has no built end (`UnsupportedChain`) — on an
 /// arc the endpoint chord would have starved before either door.
 ///
 /// The fixture's kink is the same healthy 30° as the #554 pair, ON
@@ -454,7 +454,7 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
         "the dihedral must decide at the honest lever, not starve: {v:?}"
     );
     assert!(
-        matches!(v, Err(BlendError::UnsupportedCorner { .. })),
-        "expected the decided corner refusal at the honest lever, got {v:?}"
+        matches!(v, Err(BlendError::UnsupportedChain { edge, .. }) if edge == corner[0]),
+        "expected the open arc's end refused once its sign decided, got {v:?}"
     );
 }

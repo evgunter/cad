@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 test_utils::gated_to![
-    "crates/topo/src/boolean/solid_contain.rs",
+    "crates/topo/src/solid_contain.rs",
     "crates/topo/src/splitting/containment.rs",
     "crates/topo/src/ray_walk.rs",
 ];
