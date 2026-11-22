@@ -709,9 +709,7 @@ fn selected(doc: &Doc<ProfileProgram>, shell: RecipeNodeId) -> Vec<StableName> {
     doc.selection(face_of(doc, shell))
         .expect("a shell reads a selection")
         .names
-        .iter()
-        .cloned()
-        .collect()
+        .to_vec()
 }
 
 /// **The delete button's count is the count of the rows its click
@@ -899,7 +897,7 @@ fn the_delete_button_does_not_count_a_name_the_delete_hands_back() {
             .into_iter()
             .map(|(_, name)| name)
             .collect::<Vec<_>>(),
-        [minted.clone()],
+        std::slice::from_ref(&minted),
         "the click reports the minted name and not the carried one"
     );
     let mut held = selected(session.committed_doc(), outer);
