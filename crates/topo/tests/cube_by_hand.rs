@@ -207,7 +207,7 @@ fn cube_by_hand_validates_with_minimal_counts() {
             s: 1
         }
     );
-    assert_eq!(counts.genus(), Ok(0));
+    assert_eq!(counts.h(), Ok(0));
     assert_eq!(validate(&body), Ok(()));
     // The finished cube is a tier-2 closed solid: no scaffolding, one
     // connected shell component.

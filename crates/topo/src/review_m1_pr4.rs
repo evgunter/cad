@@ -824,7 +824,7 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
     body.mfkrh_plug(kill.ring, true).unwrap();
     assert_eq!(validate(&body), Ok(()), "tier-1 accepts the result");
     let counts = euler_counts(&body);
-    assert_eq!(counts.genus(), Ok(-1), "naive derived h = -1 (the finding)");
+    assert_eq!(counts.h(), Ok(-1), "naive derived h = -1 (the finding)");
 
     // ...because the SHELL's surface disconnected: two components, each
     // a genus-0 closed piece (the pillow, and the lone-vertex+disk

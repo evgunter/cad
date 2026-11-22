@@ -537,10 +537,10 @@ impl Ledger {
         }
         // Eq. 9.2 rearranged: h = s − (v − e + f − r) / 2, with the
         // parity checked before the halving by the door itself.
-        let derived_h = counts.genus().map_err(|refusal| refusal.to_string())?;
+        let derived_h = counts.h().map_err(|refusal| refusal.to_string())?;
         if derived_h != self.h {
             return Err(format!(
-                "genus mismatch: derived h = {derived_h}, ledger h = {}",
+                "h mismatch: derived h = {derived_h}, ledger h = {}",
                 self.h
             ));
         }

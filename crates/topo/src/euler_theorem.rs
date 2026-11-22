@@ -89,7 +89,7 @@ pub(crate) fn component_censuses(body: &Body<f64>) -> Vec<(ShellKey, FaceKey, Eu
 /// that breaks it.
 pub(crate) fn check_component_theorem(body: &Body<f64>) -> Result<(), String> {
     for (shell, seed, census) in component_censuses(body) {
-        match census.genus() {
+        match census.h() {
             Ok(h) if h >= 0 => {}
             Ok(h) => {
                 return Err(format!(
