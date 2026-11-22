@@ -33,3 +33,47 @@ P1: architecture that entrenches. Every family-reading door (the split
 of a family, `a-split-of-a-family-has-no-halves-a-read-reaches`; the
 seats; Python) builds on the implicit map. Designers weigh it, and the
 decision goes to Ev: it changes a ratified decision.
+
+## The design (2026-11-22)
+
+Repetition is written. A binder `{k in D: …}` is a scope in the recipe,
+and nothing repeats outside one. Derived membership (D10 `[repetition]`'s
+"a definition or operation whose reads reach `k` is evaluated once per
+value of it") retires.
+
+- **The domain** `D` is a range `0..N` or a family's own keys
+  (`k in holes`), so lockstep states its domain once. A binder may bind
+  several indices, `{i in 0..R, j in 0..C(i): …}`. Families are flat,
+  keyed by the tuple, outermost first (FORK-PAT's flat ruling kept);
+  `xs[i]` of a grid is row `i`, and `xs[i, j]` is one member.
+- **Reading a family.** A list seat (union, intersect, assemble, a
+  subtract's tool) takes it whole. A one-body seat (split, mirror,
+  fillet, shell, a subtract's kept body, a placement's source) handed a
+  family is refused at the door by kind, with the recourse
+  `{k in xs: op(xs[k])}`. `xs[e]` is one member anywhere.
+- **"Each member" is always written**, as a binder: `{k in holes:
+  subtract(plate, holes[k])}` is N plates, and `subtract(plate, holes)`
+  is one plate with N holes.
+- **Retires:** `within`, "a reader of two unrelated indices refuses",
+  `repetition::takes_whole` and its seat exceptions, and
+  `ValuePayload::Family` as a node's value. A split inside a binder
+  yields two families, so the split of a family cannot arise.
+- **Names** stay `Member { (i, j), of }`, keyed by the binder's index
+  ids.
+- **Python:** `doc.each(N, lambda k: …)`, `doc.each(holes, lambda k: …)`,
+  `with doc.each(N) as k:`. The preset writers (`linear_pattern`,
+  `grid`, `circular_pattern`) write a binder. **Viewer:** the pattern
+  tool writes a binder around one placement. A family picked in the tree
+  at a one-body seat offers "each member", which writes a binder the
+  tree shows. A viewport pick on a drawn copy writes `xs[c]`.
+
+Open for Ev: whether which steps inside a binder repeat is stored per
+definition (lexical scope) or derived from their reads of `k` (with
+written yields and a containment rule); and whether a family may be
+spliced into a spelled list (`[A, …holes]`), which reverses DM4's ban.
+
+Ratified text this changes once Ev rules: D10 `[repetition]` (its core,
+`within`, the kind rule, "a pattern is an index, not an operation"),
+`[placement.placement]`'s pattern sentence, `[assertions]` Families,
+DM3's implicit-member sentences, and the sentence merged on PR 7386
+("`subtract(a, holes[k])` cuts it member by member").
