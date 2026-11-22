@@ -2,7 +2,8 @@
 id: euler-characteristic-has-three-carriers
 kind: issue
 title: The Euler characteristic has three carriers: readback::EulerCounts, validate's ComponentCounts and review_m1_pr4's ShellComponent
-status: open
+status: review
+branch: walks/euler-theorem
 opened: 2026-09-12
 refs: [no-public-census-or-genus-query, 2131]
 priority: P1
