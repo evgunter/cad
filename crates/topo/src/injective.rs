@@ -749,7 +749,7 @@ pub(crate) static SD: [[std::sync::atomic::AtomicU64; 3]; 6] =
     [const { [const { std::sync::atomic::AtomicU64::new(0) }; 3] }; 6];
 
 /// MEASUREMENT ONLY: one read at site `i`.
-fn sd(i: usize, undecided: bool, rate: Interval) {
+fn sd_count(i: usize, undecided: bool, rate: Interval) {
     use std::sync::atomic::Ordering::Relaxed;
     SD[i][0].fetch_add(1, Relaxed);
     if undecided {
@@ -4279,7 +4279,7 @@ fn leaves_graph(
     }
     let side = if rising == above { 1.0 } else { -1.0 };
     let rate = (db * tau_a - da * tau_b) * at(side * scale);
-    sd(
+    sd_count(
         1,
         !matches!(
             decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rate), band),
@@ -4977,7 +4977,7 @@ fn leaves_line(
                 });
             }
             let rise = h.rate(held, t) * at(sigma * away * (z - a) * lever);
-            sd(
+            sd_count(
                 2,
                 !matches!(
                     decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rise), band),
@@ -5351,7 +5351,7 @@ fn monotone_run(
         let rate = p.chart.rate(p.column, t);
         let advance = rate * at(t.hi() - t.lo()) * at(lever);
         let r = interval_sign_as(advance, SELF_INTERSECTION_COLUMN, band);
-        sd(0, r.is_none(), rate);
+        sd_count(0, r.is_none(), rate);
         r
     };
     let first = sign(p.params(run.first()?))?;
@@ -6645,7 +6645,7 @@ fn graph_of<'a>(
     let (t, m) = (lift(t), lift(m));
     let d = arc_deriv(carrier, piece);
     let advance = t.dot(d);
-    sd(
+    sd_count(
         3,
         interval_sign_as(
             advance * at(piece.1 - piece.0),
@@ -6702,7 +6702,7 @@ fn cusp(
         );
         let chord = (nx + ny).norm();
         // "undecided" column counts Zero reads; "signed" those with a chord past 1e-3.
-        sd(4, zero, at(if chord >= 1e-3 { 1.0 } else { 0.0 }));
+        sd_count(4, zero, at(if chord >= 1e-3 { 1.0 } else { 0.0 }));
     }
     if !matches!(
         decide(SELF_INTERSECTION_CUSP, Margin::of(gap), band),
@@ -6758,7 +6758,7 @@ pub(crate) fn monotone(
         let (n11, n12, n21, n22) = (m11 / na, m12 / nb, m21 / na, m22 / nb);
         let q12 = (n12 + n21) * half;
         let cosine = (n11 + n22) * half - (((n11 - n22) * half).powi(2) + q12.powi(2)).sqrt();
-        sd(
+        sd_count(
             5,
             !matches!(
                 decide(SELF_INTERSECTION_MONOTONE, Margin::of(least), band),
