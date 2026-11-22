@@ -505,15 +505,13 @@ fn a_degree_one_path_sweep_is_one_wall_per_slab() {
 
 /// **An arc whose sub-arc count differs across the sections lofts at
 /// degree 1.** The arc wall carries every section's sub-arc structure,
-/// so the narrow interior arc reaches its row refined at the wide arcs'
-/// joints: uniform sub-arcs whose end weights are not one value, the
-/// same arc through each sub-arc's change of parameter, which its arc
-/// rim's image states (`Pcurve::IsoArc`'s `ends`). Every case builds
-/// and is at rest, and the first meshes to its integrated volume. The
-/// other two each carry a bulge-0 section, whose line rim on a creased
-/// wall meshes only at a δ whose chord points straddle no crease
-/// (`work/tesslane/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`), so
-/// they are not meshed here.
+/// so the loft cuts it at every section's joints, and the narrow
+/// interior arc reaches each of its walls refined there: a sub-arc whose
+/// end weights are not one value, the same arc through its change of
+/// parameter, which its arc rim's image states (`Pcurve::IsoArc`'s
+/// `ends`). A bulge-0 section's line is cut at the same joints, so no
+/// rim crosses a crease. Every case builds, is at rest, and meshes to
+/// its integrated volume at each δ.
 #[test]
 fn an_interior_arc_refined_by_its_neighbours_lofts() {
     let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
@@ -532,7 +530,7 @@ fn an_interior_arc_refined_by_its_neighbours_lofts() {
         &[1.0, 0.2, 0.0, 0.7, 1.0],
         &[0.0, 1.0, 0.3, 0.0],
     ];
-    for (k, bulges) in cases.into_iter().enumerate() {
+    for bulges in cases {
         let what = format!("{bulges:?}");
         let sections: Vec<Section> = bulges.iter().map(|&b| section(b)).collect();
         #[allow(clippy::cast_precision_loss)]
@@ -544,17 +542,61 @@ fn an_interior_arc_refined_by_its_neighbours_lofts() {
             )
         });
         at_rest(&lofted.body, &what);
-        if k == 0 {
-            let (got, pad) = volume(&lofted.body);
-            let delta = 2e-3;
+        let (got, pad) = volume(&lofted.body);
+        for delta in [1e-3, 2e-3, 5e-3] {
             let v = meshed_volume(&lofted.body, delta, &what);
-            // Measured 4.5e-6 relative at this δ: the chords cut inside
-            // the one arc wall only, far under the 3δ a whole circle's
-            // mesh may lose.
+            // Measured from 2.2e-6 relative at δ 1e-3 to 8.4e-6 at 5e-3.
             assert!(
                 ((v - got) / got).abs() < 1e-5 + pad / got,
-                "{what}: mesh volume {v} vs integrated {got} ± {pad}"
+                "{what}, δ = {delta:e}: mesh volume {v} vs integrated {got} ± {pad}"
             );
         }
     }
+}
+
+/// **An arc refined at non-uniform breaks lofts at v-degree 2.** Bulges
+/// `tan(π/8)`, `tan 50°` and `tan 30°` put the +x side's arc at one,
+/// three and two sub-arcs, so its wall carries joints at `⅓`, `½` and
+/// `⅔`, and the loft cuts it into four walls. Each wall's rows are one
+/// rational-quadratic span, the narrow arcs' refined at end weights
+/// that are not one value, which the arc rim's image states. The body
+/// is at rest and meshes to its integrated volume (measured 2.1e-5
+/// relative at δ 2e-3).
+#[test]
+fn an_arc_refined_at_non_uniform_breaks_lofts_at_degree_two() {
+    let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let section = |b: f64| -> Section {
+        let chain = (0..4)
+            .map(|i| {
+                let (x, y) = corners[i];
+                (Point2::new(x, y), if i == 1 { b } else { 0.0 })
+            })
+            .collect();
+        vec![bulge_loop(chain)]
+    };
+    let bulges = [
+        (PI / 8.0).tan(),
+        50f64.to_radians().tan(),
+        30f64.to_radians().tan(),
+    ];
+    let sections: Vec<Section> = bulges.iter().map(|&b| section(b)).collect();
+    let lofted =
+        loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0, 2.0]), 2, tol()).unwrap_or_else(|e| {
+            panic!(
+                "the varying arc lofts: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
+    assert_eq!(
+        lofted.side_faces[0][1].len(),
+        4,
+        "the arc wall is cut at ⅓, ½ and ⅔"
+    );
+    at_rest(&lofted.body, "varying arc");
+    let (got, pad) = volume(&lofted.body);
+    let v = meshed_volume(&lofted.body, 2e-3, "varying arc");
+    assert!(
+        ((v - got) / got).abs() < 6e-5 + pad / got,
+        "varying arc: mesh volume {v} vs integrated {got} ± {pad}"
+    );
 }

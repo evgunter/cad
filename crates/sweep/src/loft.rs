@@ -3,9 +3,11 @@
 //!
 //! The topology is EXTRUDE'S with different geometry (item 6(i)):
 //! bottom cap from section 0, top cap from section k−1, one NURBS wall
-//! per profile segment ([`crate::skin::LoftGeometry`]), wall–wall
-//! seams as the walls' `u ∈ {0, 1}` boundary iso-curves, struts swept
-//! per vertex. At v-degree 1 through `k ≥ 3` sections that wall is one
+//! per profile segment ([`crate::skin::LoftGeometry`]) cut at every
+//! C⁰ knot its `u` carries, the sections' sub-arc joints
+//! ([`fn@sub_arc_walls`], [`fn@segment_pieces`]), wall–wall seams as the
+//! walls' `u ∈ {0, 1}` boundary iso-curves, struts swept per vertex and
+//! per joint. At v-degree 1 through `k ≥ 3` sections that wall is one
 //! per slab ([`fn@slab_walls`]): the body is `k − 1` such laminae swept
 //! one on the next, each interior section a ring of rims between two
 //! slabs' walls, each in the row `v = 1` of the wall below it. The three
