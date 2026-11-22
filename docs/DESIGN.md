@@ -1511,7 +1511,9 @@ value of it, and each of its outputs is a **family** of that kind (a
 `Bodies` is the family of `Body`), one member per value, keyed by the
 tuple of the indices it reaches, outer first. Membership is derived
 from reads, as dependency is: no node holds a template, and there is
-no pattern operation. A variable defined by reading `k` is, to a
+no pattern operation. A profile's program repeats part of
+itself with `each k { … }`, which takes the index whole as `union`
+takes a `Bodies` (`docs/PATHS-DESIGN.md` §2, *Composition*). A variable defined by reading `k` is, to a
 reader that reaches the same `k`, its member at the same value, and to
 every other reader the whole family: `xs[i, j]` reads one member, and
 `union`, `intersect` and `assemble` take a `Bodies`: a family, or its
@@ -1947,10 +1949,10 @@ crossings lie in band of each other, a pair, and a ray that meets a
 corner or a wedge reads nothing. The volume's sign is certified by its
 enclosure alone, never held against the band, so how thin a result is
 gets judged by its pairs alone. The door's
-finished-body gate decides this on the result alone and refuses it as
-the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
-the geometry), never silently; a definite finding there is a kernel
-defect (`ResultInvalid`).
+finished-body gate decides this on the result alone and refuses it,
+never silently, with the list of what it found (`ResultInvalid`): each
+finding carries its own family's text and recourse
+([topology.tiers]).
 
 ### Assertions `[assertions]`
 

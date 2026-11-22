@@ -241,10 +241,9 @@ fn the_undecided_endings_follow_the_gates_kind() {
         loop_index: 0,
         segment_index: 1,
     };
-    let junction = "for tangency onto a new carrier use .tangent() (.tangent().tangent_arc_to(p) \
-                    for an arc; the tangent-arc or seam-fillet close at the seam); for a straight \
-                    continuation spell it line(len) off the directed point; otherwise move the \
-                    geometry";
+    let junction = "if the angle is real, lengthen the shorter leg (or grow an arc's radius); \
+                    if smooth, declare it: .tangent() (.tangent().tangent_arc_to(p) for an \
+                    arc), or line(len) for a straight continuation; otherwise move the geometry";
     let cases = [
         (
             "a junction's turn, value",
