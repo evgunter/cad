@@ -571,10 +571,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        32,
-        31,
+        35,
+        34,
         "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all \
-         refuse by name, and so do the mignitude (`zero_free_lower_bound`, 4) and `a_positive`. \
+         refuse by name, and so do the mignitude (`zero_free_lower_bound`, 4), `a_positive` \
+         and the cone's gate (`Elevation::gate`, 3: `h`'s sign and `ρ²`'s floor, each read \
+         only after its enclosure is certified, a box it cannot decide refused). \
          The remainder is `chart_transverse_margin`'s upper end of the stretch times the \
          gradient's supremum, two finite positive points (each refused otherwise above it), so \
          the product certifies, and the margin over it rounds down: a lower bound",
