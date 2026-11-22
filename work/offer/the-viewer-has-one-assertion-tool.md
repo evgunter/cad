@@ -2,10 +2,12 @@
 id: the-viewer-has-one-assertion-tool
 kind: unit
 title: viewer: one assertion tool authors a claim over a clearance, Gap or Distance measure between two picks
-status: open
+status: review
 opened: 2026-11-22
 priority: P1
 cost: M
+pr: 7348
+branch: offer/the-viewer-has-one-assertion-tool
 ---
 
 The first half of the decided offer design (`a-refusal-offers-no-action-in-the-viewer`, `## Design` and `## Decided`; Ev, #7341). Today the viewer's only assertion door is `SessionOp::AddClearance`. A `Claim::Clearance` cannot quiet any check, because [assertions.quiet] accepts only a `Claim::Value` over a `Gap` or `Distance` output `= 0`. So "add an assertion", the advice the checks give, has no door.

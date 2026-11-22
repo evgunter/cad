@@ -781,9 +781,9 @@ impl core::fmt::Display for PlaneEvent {
 }
 
 vocabulary! {
-    /// **Which side a clearance requirement bounds** — the clearance
-    /// form's choice, and which of [`ClearanceBounds`]' shapes its
-    /// commit writes: from below, from above, both at one value, or a
+    /// **Which side a clearance requirement bounds** — the assertion
+    /// form's choice for a clearance, and which of [`ClearanceBounds`]'
+    /// shapes its commit writes: from below, from above, both at one value, or a
     /// band.
     ///
     /// [`ClearanceBounds`]: pncad::document::ClearanceBounds
