@@ -165,10 +165,11 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
     ///
     /// Red under each of: the circle verb storing `radius.abs()`
     /// (`profile::path::circle_loop`), which moves the refusal onto the
-    /// hole's own extrude; and the door's arc arm turned onto the start
-    /// vertex's offset in place of the recorded radial
-    /// (`sweep::swept::sketch_direction`), which refuses the bores' and
-    /// rims' `u_ref` lengths.
+    /// hole's own extrude, at `carrier_matches_mapped_source`; and the
+    /// door's arc arm turned onto the start vertex's normalized offset
+    /// in place of the recorded radial
+    /// (`sweep::swept::sketch_direction`), which refuses the same extrude
+    /// at `carrier_endpoint_start`.
     #[test]
     fn the_cut_plates_first_subtract_stops_at_the_volume_readings_rim_premise() {
         use demo_tour::plate::cut_plate;

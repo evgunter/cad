@@ -362,6 +362,54 @@ fn no_aim_of_a_boxed_door_body_reads_in() {
     }
 }
 
+/// `rays` aims about `shape` over `[lo, hi]`, each with a normal: half
+/// in its bounding box grown by a fifth, half on the boundary that moves
+/// with the parameter at a member of the box; the normals are the axes
+/// and random unit vectors.
+fn draws_about(
+    rng: &mut test_utils::fuzz::Rng,
+    shape: &Shape,
+    lo: f64,
+    hi: f64,
+    rays: usize,
+) -> Vec<([f64; 3], [f64; 3])> {
+    (0..rays)
+        .map(|k| {
+            let aim = if k % 2 == 0 {
+                [
+                    rng.range(-1.3, 1.3),
+                    rng.range(-0.3, 1.4),
+                    rng.range(-1.3, 1.4),
+                ]
+            } else {
+                let member = match rng.below(4) {
+                    0 => lo,
+                    1 => hi,
+                    2 => shape.middle,
+                    _ => rng.range(lo, hi),
+                };
+                (shape.moving)(member, rng.unit())
+            };
+            let normal = match rng.below(8) {
+                0 => [1.0, 0.0, 0.0],
+                1 => [0.0, 1.0, 0.0],
+                2 => [0.0, 0.0, 1.0],
+                3 => [0.0, 0.0, -1.0],
+                _ => {
+                    let v = [
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                    ];
+                    let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(1e-3);
+                    [v[0] / n, v[1] / n, v[2] / n]
+                }
+            };
+            (aim, normal)
+        })
+        .collect()
+}
+
 /// **Rays aimed anywhere about a boxed body, from any normal, read no
 /// `In`** (counterexample search, shape 1). Half the aims are drawn in
 /// the body's bounding box grown by a fifth; the other half are points
@@ -392,41 +440,7 @@ fn no_ray_about_a_boxed_door_body_reads_in() {
         for _ in 0..boxes {
             let half = rng.log_uniform(1e-5, 0.08) * shape.middle;
             let (lo, hi) = (shape.middle - half, shape.middle + half);
-            let draws: Vec<([f64; 3], [f64; 3])> = (0..rays)
-                .map(|k| {
-                    let aim = if k % 2 == 0 {
-                        [
-                            rng.range(-1.3, 1.3),
-                            rng.range(-0.3, 1.4),
-                            rng.range(-1.3, 1.4),
-                        ]
-                    } else {
-                        let member = match rng.below(4) {
-                            0 => lo,
-                            1 => hi,
-                            2 => shape.middle,
-                            _ => rng.range(lo, hi),
-                        };
-                        (shape.moving)(member, rng.unit())
-                    };
-                    let normal = match rng.below(8) {
-                        0 => [1.0, 0.0, 0.0],
-                        1 => [0.0, 1.0, 0.0],
-                        2 => [0.0, 0.0, 1.0],
-                        3 => [0.0, 0.0, -1.0],
-                        _ => {
-                            let v = [
-                                rng.range(-1.0, 1.0),
-                                rng.range(-1.0, 1.0),
-                                rng.range(-1.0, 1.0),
-                            ];
-                            let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(1e-3);
-                            [v[0] / n, v[1] / n, v[2] / n]
-                        }
-                    };
-                    (aim, normal)
-                })
-                .collect();
+            let draws = draws_about(&mut rng, &shape, lo, hi, rays);
             let read = over(&shape, lo, hi, |body, band| {
                 let face = body.faces().next().expect("a body has faces").0;
                 draws
@@ -680,20 +694,30 @@ fn a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side() {
 /// disc whose radius is a box up to a tenth wide either way, drawn by
 /// `profile::circle` and extruded: the door builds it at every width
 /// here (cylinder walls under two-arc caps, all moving with the
-/// radius). Of the rays the two rows above aim at it none reads `In`;
-/// up to a box of `1e-4` some read `Out`, and from `1e-2` each is set
-/// aside as crossing the moving wall.
+/// radius). Of each face's own aim none reads `In`; up to a box of
+/// `1e-4` some read `Out`, and from `1e-2` each is set aside as crossing
+/// the moving wall. Of the rays drawn about it as
+/// [`no_ray_about_a_boxed_door_body_reads_in`] draws them, half through
+/// the wall that moves with the radius, none reads `In`.
 ///
 /// **What this can go red on:** the door refusing the disc (a circle
 /// verb that stores `radius.abs()`, or an arc frame turned onto the
 /// start vertex's normalized offset, refuses it from `1e-6` up), and a
-/// reading of the side no member has.
+/// reading of the side no member has. It is evidence that these aims
+/// find no wrong side on the one curved body a sweep door admits over a
+/// box, not that the curved edge reading is sound: it stays green with
+/// `topo`'s `reaches_root_in_band` answering reached without deciding,
+/// and with `curved_edges::passes` reading an edge it could not place
+/// as cleared (three of the rays drawn at `1e-4` then read a side or a
+/// graze where they were set aside as crossing, none `In`).
 #[test]
 fn the_circle_verbs_disc_of_boxed_radius_is_admitted_and_read() {
     let shape = shapes()
         .into_iter()
         .find(|s| s.name.starts_with("disc of boxed radius"))
         .expect("the disc");
+    let mut rng = test_utils::fuzz::start("boxed_disc_rays");
+    let replay = test_utils::fuzz::replay();
     for half in [1e-6, 1e-4, 1e-2, 0.05, 0.1] {
         let (lo, hi) = (shape.middle - half, shape.middle + half);
         // The budget the sweeps' frame rows run in: the disc's
@@ -714,5 +738,29 @@ fn the_circle_verbs_disc_of_boxed_radius_is_admitted_and_read() {
             "±{half:e}: no aim reads a side: {}",
             tally(&readings)
         );
+        let draws = draws_about(&mut rng, &shape, lo, hi, test_utils::fuzz::scaled(40));
+        let drawn = over_within(budget, &shape, lo, hi, |body, band| {
+            let face = body.faces().next().expect("a body has faces").0;
+            draws
+                .iter()
+                .map(|&(a, n)| {
+                    topo::test_support::ray_at(
+                        body,
+                        face,
+                        Point3::new(c(a[0]), c(a[1]), c(a[2])),
+                        Vec3::new(c(n[0]), c(n[1]), c(n[2])),
+                        band,
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|refusal| panic!("±{half:e}: the door refuses the disc: {refusal}"));
+        println!("±{half:e} drawn: {}", tally(&drawn));
+        for (r, (aim, normal)) in drawn.iter().zip(&draws) {
+            assert!(
+                kind(r) != "IN",
+                "±{half:e}, aim {aim:?} normal {normal:?}: a wrong side: {r} ({replay})"
+            );
+        }
     }
 }

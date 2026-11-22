@@ -1160,7 +1160,11 @@ const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
 ///
 /// Red under the circle verb storing `radius.abs()`
 /// (`profile::path::circle_loop`): the circle's door refuses over the
-/// wide box.
+/// wide box, at its mapped-source residual. Red under the door's arc
+/// arm turned onto the start vertex's normalized offset in place of the
+/// recorded radial (`sweep::swept::sketch_direction`): both circles'
+/// doors refuse over the wide box at the carrier's start, and over the
+/// narrow one the clockwise via arc's door refuses.
 #[test]
 fn each_arc_verbs_slab_over_a_box_reaches_its_pinned_stage() {
     let band = geom_core::Band::linear(tol()).unwrap();
