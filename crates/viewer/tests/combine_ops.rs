@@ -4918,7 +4918,7 @@ fn a_transform_of_a_pattern_seats_where_evaluation_takes_it() {
             // value: `work/doors/the-split-mirror-and-pattern-seats-read-a-picked-members-whole-family.md`.
             // The mirror's plane and the clearance seats' faces are
             // picks of their own; their body seat is the same gate.
-            Seat::PatternBody | Seat::MirrorBody | Seat::ClearedFirst | Seat::ClearedSecond => {
+            Seat::PatternBody | Seat::MirrorBody | Seat::AssertedFirst | Seat::AssertedSecond => {
                 continue;
             }
             Seat::PartInstance => unreachable!("not a body seat"),
