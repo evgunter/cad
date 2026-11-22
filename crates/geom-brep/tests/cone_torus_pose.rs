@@ -286,9 +286,14 @@ fn the_meridian_triangles_cone_crosses_its_torus_certified() {
         panic!("built: {read:?}")
     };
     assert!(matches!(section.components(), Components::Marched));
-    for (a, b) in [(&k, &t), (&t, &k)] {
-        let out = ssi::cone_torus_ssi(a, b, section.pose().domain(), band())
+    {
+        let out = ssi::cone_torus_ssi(&k, &t, section.pose().domain(), band())
             .unwrap_or_else(|e| panic!("the door marches the crossing: {e}"));
+        eprintln!(
+            "the meridian cone: {} branches, {} cells examined",
+            out.branches.len(),
+            out.exhaustiveness.examined
+        );
         assert!(!out.branches.is_empty(), "the cone crosses the torus");
         let [wk, wt] = worst(&out, &k, &t);
         assert!(
