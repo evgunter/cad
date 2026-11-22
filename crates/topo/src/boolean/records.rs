@@ -128,9 +128,9 @@ impl CarryRefusal {
     pub fn write_at_a_door(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "a touch its operand records {}. Recourse: {}",
+            "a touch its operand records {}. {}",
             self.of_the_touch(),
-            Self::RECOURSE
+            geom_core::Recourse(Self::RECOURSE)
         )
     }
 

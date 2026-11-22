@@ -2268,14 +2268,7 @@ impl crate::spoken::Say for NodeErrorKind {
                 "the split op refused: {}",
                 e.render(geom_brep::recourse::Reading::Build)
             ),
-            Self::ContactCarry { refusal } => {
-                write!(
-                    f,
-                    "a touch its operand records {}. {}",
-                    refusal.of_the_touch(),
-                    crate::sentence::Recourse(topo::CarryRefusal::RECOURSE)
-                )
-            }
+            Self::ContactCarry { refusal } => refusal.write_at_a_door(f),
             Self::Blend {
                 verb,
                 error,

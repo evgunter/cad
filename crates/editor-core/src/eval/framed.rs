@@ -536,16 +536,6 @@ impl From<GraftIn> for super::NodeErrorKind {
     }
 }
 
-impl<T: topo::AtRestPolicy> Held<T> {
-    /// Which kind of value it is ([`topo::HeldKind`]).
-    pub(crate) fn kind(&self) -> topo::HeldKind {
-        match self {
-            Self::Finished(_) => topo::HeldKind::Finished,
-            Self::Leaf(_) => topo::HeldKind::Leaf,
-        }
-    }
-}
-
 impl<T: topo::AtRestPolicy> Framed<T> {
     /// **The motion that moves this body into `frame`'s coordinates**,
     /// `None` where the two are one frame, counted as the one rigid map

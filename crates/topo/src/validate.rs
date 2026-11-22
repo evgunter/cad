@@ -5243,8 +5243,9 @@ impl ValidationError {
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
                 "{declaration} names a contact the geometry does not have. \
-                 Recourse: remove that declaration, \
-                 or move the geometry so the contact exists"
+                 Recourse: where you declared the contact, remove that declaration, \
+                 or move the geometry so the contact exists; where an operation \
+                 recorded it, this is a kernel defect: report it"
             ),
             Self::ContactContradicted { record, verdict } => write!(
                 f,

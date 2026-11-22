@@ -2352,12 +2352,7 @@ impl BlendError {
             Self::NotFinished { findings } => {
                 write!(f, "the blended body is not a finished body: {findings}")
             }
-            Self::Carry { refusal } => write!(
-                f,
-                "a touch its operand records {}. Recourse: {}",
-                refusal.of_the_touch(),
-                topo::CarryRefusal::RECOURSE
-            ),
+            Self::Carry { refusal } => refusal.write_at_a_door(f),
             Self::SurgeryInvariant { at, detail } => write!(
                 f,
                 "{detail} — at {at}: the blend surgery contradicted its own earlier \
@@ -2628,7 +2623,7 @@ mod recourse_tests {
             BlendError::NonpositiveSize { .. } => Recourse::None,
             BlendError::BodyNotIntact { .. } => Recourse::None,
             BlendError::NotFinished { .. } => Recourse::None,
-            BlendError::Carry { .. } => Recourse::None,
+            BlendError::Carry { .. } => Recourse::Exactly(topo::CarryRefusal::RECOURSE),
             // The surgery's own invariant (row 4, announced).
             BlendError::SurgeryInvariant { .. } => Recourse::None,
             BlendError::Certify { .. } => Recourse::None,
