@@ -7,6 +7,7 @@ opened: 2026-09-06
 refs: [S69, 2014]
 priority: P1
 cost: D
+pr: 7438
 branch: walks/glue-home
 ---
 
