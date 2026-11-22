@@ -6,9 +6,10 @@
 //! has no wall: the walls beside it, or the two caps, share its edge.
 //! Each witness is built through `loft_body`, is a finished body (tiers
 //! 1–3 and the at-rest census), and its volume is checked against one
-//! computed off the sections alone: a closed form, the divergence
-//! theorem over the bilinear walls a v-degree-1 loft of polygons has, or
-//! the triangles of the body's mesh.
+//! the kernel does not measure: a closed form, the divergence theorem
+//! over the bilinear walls a v-degree-1 loft of polygons has (off the
+//! sections alone), or the divergence theorem over the body's own faces
+//! (off its stored surfaces, by quadrature written here).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::chart_singularity::{Singularity, singular_points};
@@ -90,24 +91,29 @@ fn measured(l: &Lofted<f64>) -> (f64, f64) {
     (m.volume, m.volume_pad)
 }
 
+/// Three-point Gauss–Legendre on `[0, 1]`: its nodes and weights, exact
+/// for polynomials of degree five.
+fn gauss3() -> ([f64; 3], [f64; 3]) {
+    let h = 0.5 * 0.6_f64.sqrt();
+    (
+        [0.5 - h, 0.5, 0.5 + h],
+        [5.0 / 18.0, 8.0 / 18.0, 5.0 / 18.0],
+    )
+}
+
 /// **The body's volume by the divergence theorem over its own faces**,
 /// read off each face's surface and loops and nothing the kernel
 /// measures: `⅓∫ X·N dA`, a plane face's as the fan of its loop's
-/// vertices (its edges are lines), a spline wall's by composite Gauss over
+/// vertices, which is exact where its edges are lines or its plane holds
+/// the origin (`X·N` is then zero on it), a spline wall's by composite
+/// Gauss over
 /// each knot span of its chart, the whole chart its face (a loft wall's
 /// boundary is its chart's), the normal `S_u × S_v` turned by the face's
 /// sense.
 fn divergence_volume(l: &Lofted<f64>) -> f64 {
     let body = &l.body;
     let mut volume = 0.0;
-    let (g, w) = (
-        [
-            0.5 - 0.5 * (0.6_f64).sqrt(),
-            0.5,
-            0.5 + 0.5 * (0.6_f64).sqrt(),
-        ],
-        [5.0 / 18.0, 8.0 / 18.0, 5.0 / 18.0],
-    );
+    let (g, w) = gauss3();
     for (fk, face) in body.faces() {
         let sign = if face.sense { 1.0 } else { -1.0 };
         match body.get_surface(face.surface).unwrap() {
@@ -181,14 +187,7 @@ fn ruled_volume(ms: &[Affine3<f64>]) -> f64 {
             .map(|k| corner(m, 0).dot(corner(m, k).cross(corner(m, k + 1))) / 6.0)
             .sum::<f64>()
     };
-    let (g, w) = (
-        [
-            0.5 - 0.5 * (0.6_f64).sqrt(),
-            0.5,
-            0.5 + 0.5 * (0.6_f64).sqrt(),
-        ],
-        [5.0 / 18.0, 8.0 / 18.0, 5.0 / 18.0],
-    );
+    let (g, w) = gauss3();
     let mut volume = fan(&ms[ms.len() - 1]) - fan(&ms[0]);
     for slab in ms.windows(2) {
         for j in 0..4 {
@@ -319,39 +318,109 @@ fn a_corner_pinned_through_three_sections_builds() {
     );
 }
 
-/// **A hinge through three sections at v-degree 1**: section 1 is the
-/// square turned about its edge y = +1, section 2 the square lifted, so
-/// the hinge is pinned in slab 0 alone; its rim in section 1 is the far
-/// rim of the slab-0 walls beside it and the base of slab 1's wall.
+/// The square turned about its edge y = +1 (segment 2) by −0.3 rad.
+fn about_its_far_edge() -> Affine3<f64> {
+    turn([0.0, 1.0, 0.0], [1.0, 0.0, 0.0], -0.3)
+}
+
+fn lift(z: f64) -> Affine3<f64> {
+    Affine3::translation(Vec3::new(0.0, 0.0, z))
+}
+
+/// **A hinge in one slab, first, middle or last, at v-degree 1**: the
+/// slab that turns the square about its edge y = +1 holds that segment
+/// flat, so its walls beside it are triangles and it has none on the
+/// segment. Each case loses the two corners' struts there, one rim, and
+/// one wall, against the census of the same stack with no hinge: through
+/// three sections (12, 20, 10) becomes (10, 17, 9), through four (16, 28,
+/// 14) becomes (14, 25, 13). In the last slab the hinge's rim is the top
+/// cap's; in the first, the bottom cap's; in the middle, an interior
+/// section's rim, the far rim of the slab below.
 #[test]
-fn a_hinge_in_one_slab_builds() {
-    let ms = [
-        Affine3::identity(),
-        turn([0.0, 1.0, 0.0], [1.0, 0.0, 0.0], -0.3),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
-    ];
-    let l = build("hinge in slab 0", &vec![square(); 3], &ms, 1);
-    assert_eq!(
-        l.side_faces[0][2][0], None,
-        "hinge: no wall on it in slab 0"
-    );
-    assert!(
-        l.side_faces[0][2][1].is_some(),
-        "hinge: a wall on it in slab 1"
-    );
-    holds("hinge in slab 0", measured(&l), ruled_volume(&ms), 1e-9);
+fn a_hinge_in_its_first_middle_or_last_slab_builds() {
+    let top = lift(2.0) * about_its_far_edge();
+    for (what, ms, flat, census_want) in [
+        (
+            "first of two slabs",
+            vec![Affine3::identity(), about_its_far_edge(), lift(2.0)],
+            0,
+            (10, 17, 9),
+        ),
+        (
+            "last of two slabs",
+            vec![lift(-2.0), Affine3::identity(), about_its_far_edge()],
+            1,
+            (10, 17, 9),
+        ),
+        (
+            "last of three slabs",
+            vec![
+                lift(-4.0),
+                lift(-2.0),
+                Affine3::identity(),
+                about_its_far_edge(),
+            ],
+            2,
+            (14, 25, 13),
+        ),
+        (
+            "middle of three slabs",
+            vec![lift(-2.0), Affine3::identity(), about_its_far_edge(), top],
+            1,
+            (14, 25, 13),
+        ),
+    ] {
+        let l = build(what, &vec![square(); ms.len()], &ms, 1);
+        assert_eq!(census(&l), census_want, "{what}: census");
+        let walls = &l.side_faces[0][2];
+        assert!(
+            walls
+                .iter()
+                .enumerate()
+                .all(|(s, w)| w.is_none() == (s == flat)),
+            "{what}: segment 2 has no wall in slab {flat} alone, read {walls:?}"
+        );
+        holds(what, measured(&l), ruled_volume(&ms), 1e-9);
+        close(what, divergence_volume(&l), ruled_volume(&ms), 1e-12);
+    }
 }
 
 /// **A half disc turned about its chord**: the chord is a hinge both
 /// caps hold, and the arc's wall a lune with a collapsed side at each
-/// end.
+/// end, whose volume is `(2/3)·sin 0.8`. Stacked under a lifted half
+/// disc, the hinge is the last slab's and the lune its only wall there.
 #[test]
 fn a_half_disc_turned_about_its_chord_builds_a_lune() {
-    let ms = [Affine3::identity(), turn([0.0; 3], [1.0, 0.0, 0.0], 0.8)];
-    let l = build("half disc", &vec![dee(); 2], &ms, 1);
+    let turned = turn([0.0; 3], [1.0, 0.0, 0.0], 0.8);
+    let l = build(
+        "half disc",
+        &vec![dee(); 2],
+        &[Affine3::identity(), turned],
+        1,
+    );
     assert_eq!(census(&l), (2, 3, 3), "half disc: two caps and a lune");
     assert_eq!(collapsed_sides(&l), 2, "half disc: the lune's two sides");
-    holds("half disc", measured(&l), divergence_volume(&l), 1e-9);
+    let lune = 2.0 / 3.0 * 0.8_f64.sin();
+    holds("half disc", measured(&l), lune, 1e-9);
+    close("half disc, its faces", divergence_volume(&l), lune, 1e-9);
+    let stacked = build(
+        "half disc in the last slab",
+        &vec![dee(); 3],
+        &[lift(-2.0), Affine3::identity(), turned],
+        1,
+    );
+    assert_eq!(
+        census(&stacked),
+        (4, 7, 5),
+        "half disc in the last slab: a straight slab under the lune"
+    );
+    let cylinder = core::f64::consts::FRAC_PI_2 * 2.0;
+    holds(
+        "half disc in the last slab",
+        measured(&stacked),
+        cylinder + lune,
+        1e-9,
+    );
 }
 
 /// **A side one ulp wide is no collapsed side** (DESIGN

@@ -1663,7 +1663,10 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 // the top of corner `j`: the next slab's base.
                 base[j] = mef.he_plus;
                 top[j] = mef.he_plus;
-                if s + 1 < slabs {
+                // A rim every slab above holds flat is the top cap's,
+                // which states it at rest; any other far rim below the top
+                // is an interior section's.
+                if !(s + 1..slabs).all(|t| pinned.flat(li, j, t)) {
                     section_rims.push((mef.edge, li, j, s));
                 }
             }
