@@ -954,66 +954,6 @@ pub(crate) fn zero_free_lower_bound(i: Interval) -> f64 {
     }
 }
 
-/// An enclosure in units of which `per` make one metre, crossed to
-/// metres by one outward division by the exact `per`.
-pub(super) fn in_meters(i: Interval, per: f64) -> Interval {
-    i / Interval::point(per)
-}
-
-/// A certified upper bound on the magnitude of [`in_meters`]'s
-/// enclosure, `NaN` where it is refused.
-pub(super) fn mag_in_meters(i: Interval, per: f64) -> f64 {
-    in_meters(i, per).mag()
-}
-
-/// The torus's `R² − r²`: the shift of its `A = |q|² + R² − r²` from
-/// the squared distance to its centre, and a lower bound on `A`.
-pub(super) fn torus_a_shift(major: f64, minor: f64) -> Interval {
-    Interval::point(major).sqr() - Interval::point(minor).sqr()
-}
-
-/// An upper bound in meters on the torus residual `F/(2r·(A + 2Rρ))`
-/// where its quartic `F = A² − 4R²ρ²` and its `A` are enclosed by `f`
-/// and `a`: `sup|F|` over `2r` times a lower bound on `A + 2Rρ`, which
-/// is `inf A` (floored by [`torus_a_shift`]) plus `2Rρ = √(A² − F) ≥
-/// √(inf A² − sup F)`. On the surface `2Rρ = A`, so the bound is tight
-/// to first order where `inf A` alone would be twice the residual.
-/// `NaN` where `f` is refused or the floor is not positive.
-pub(super) fn torus_meters_sup(f: Interval, a: Interval, major: f64, minor: f64) -> f64 {
-    let floor = torus_a_shift(major, minor).lo();
-    let inf = if a.is_certified() {
-        a.lo().max(floor)
-    } else {
-        floor
-    };
-    if !(f.is_certified() && inf > 0.0) {
-        return f64::NAN;
-    }
-    let inf = Interval::point(inf);
-    let radicand = (inf.sqr() - Interval::point(f.hi())).lo();
-    let two_big_rho = if radicand > 0.0 {
-        Interval::point(radicand).sqrt().lo()
-    } else {
-        0.0
-    };
-    let lever = (inf + Interval::point(two_big_rho)).lo();
-    (f / (Interval::point(2.0 * minor) * Interval::point(lever))).mag()
-}
-
-/// A lower bound in meters on the same residual's magnitude where `A`
-/// is enclosed positive: `|F| / (2r·(2A + r²))`, since
-/// `0 < A + 2Rρ ≤ 2A + r²` (`2Rρ ≤ R² + ρ² ≤ A + r²`). `0` where nothing
-/// is certified, and where `A` may be zero or negative (a spindle torus
-/// near its centre), since `A + 2Rρ` may then be negative and larger in
-/// magnitude than `2A + r²`.
-pub(super) fn torus_meters_floor(f: Interval, a: Interval, minor: f64) -> f64 {
-    if !(a.is_certified() && a.lo() > 0.0) {
-        return 0.0;
-    }
-    let r = Interval::point(minor);
-    zero_free_lower_bound(f / (Interval::point(2.0) * r * (Interval::point(2.0) * a + r.sqr())))
-}
-
 /// A NURBS wall's certified chart speeds over its whole domain, one per
 /// axis: each a [`SupSpeed`] (metres per parameter unit) that is
 /// positive and finite, which is what [`NurbsBoxes::chart_speeds`]
@@ -3408,71 +3348,6 @@ pub(super) mod tests {
                 }
             }
         }
-    }
-
-    /// **Limb 2's torus conversion is sound at a point, and tight on a
-    /// ring torus.** With `F` and `A` enclosed at one point near a torus
-    /// (thin to fat, horn and spindle included, tilted, within a tenth of
-    /// the tube), [`super::torus_meters_sup`] never falls under the meters
-    /// residual and [`super::torus_meters_floor`] never rises over it; on
-    /// a ring torus `R ≥ 1.2r` the bound is the residual to within 10⁻⁶ and
-    /// [`super::torus_meters_floor`] lies between 0.4 of it and it.
-    /// Dividing by `A` alone would read twice the residual, and the
-    /// global `2r(R² − r²)` up to `4R/(R − r)` times it.
-    #[test]
-    fn the_torus_meters_conversion_is_the_residual_at_a_point() {
-        use test_utils::fuzz;
-        let mut rng = fuzz::start("torus meters conversion");
-        for _ in 0..fuzz::scaled(500) {
-            let small = rng.log_uniform(1e-3, 1.0);
-            let big = small * rng.range(0.5, 30.0);
-            let c = [
-                rng.range(-1.0, 1.0),
-                rng.range(-1.0, 1.0),
-                rng.range(-1.0, 1.0),
-            ];
-            let t = torus(c, [rng.range(-1.0, 1.0), 0.4, 0.7], big, small);
-            let on = on_torus(&t, rng.range(0.0, 6.3), rng.range(0.0, 6.3));
-            let lift = small * rng.log_uniform(1e-6, 0.1);
-            let p =
-                on + implicit_gradient(&t, on) * (lift * if rng.unit() < 0.5 { -1.0 } else { 1.0 });
-            let Surface::Torus { frame, .. } = t else {
-                unreachable!("a torus")
-            };
-            let (center, axis) = (frame.origin(), frame.axis());
-            let q = p - center;
-            let rho2 = (q - axis * q.dot(axis)).norm_squared();
-            let a = Interval::point(q.norm_squared()) + super::torus_a_shift(big, small);
-            let f = a.sqr() - Interval::point(4.0 * big * big) * Interval::point(rho2);
-            let m = implicit_residual(&t, p).abs();
-            let sup = super::torus_meters_sup(f, a, big, small);
-            let floor = super::torus_meters_floor(f, a, small);
-            let ctx = format!("{t:?} at {p:?}: residual {m:e}; {}", fuzz::replay());
-            assert!(
-                sup.is_nan() || sup >= m * (1.0 - 1e-6),
-                "bound {sup:e} under the residual: {ctx}"
-            );
-            assert!(
-                floor <= m * (1.0 + 1e-6),
-                "floor {floor:e} over the residual: {ctx}"
-            );
-            if big >= 1.2 * small {
-                assert!(sup <= m * (1.0 + 1e-6), "bound {sup:e} loose: {ctx}");
-                assert!(floor >= 0.4 * m, "floor {floor:e} loose: {ctx}");
-            }
-        }
-    }
-
-    /// **A spindle torus's floor stays under its residual where `A` is
-    /// negative**, at its centre: `R = 0.75`, `r = 1`, `A = R² − r² < 0`
-    /// while `2A + r² > 0`.
-    #[test]
-    fn a_spindle_toruss_floor_stays_under_its_residual() {
-        let t = torus([0.0; 3], [0.0, 0.0, 1.0], 0.75, 1.0);
-        let a = Interval::point(0.0) + super::torus_a_shift(0.75, 1.0);
-        let floor = super::torus_meters_floor(a.sqr(), a, 1.0);
-        let m = implicit_residual(&t, Point3::origin()).abs();
-        assert!(floor <= m, "floor {floor} over the residual {m}");
     }
 
     /// **The torus enclosures hold adversarial boxes**, counterexample
