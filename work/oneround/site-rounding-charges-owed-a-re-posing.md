@@ -192,3 +192,23 @@ gap's rounding (`pn_apex_pair_over_a_span`'s
 sibling) pin `e_δ` where it decides the gap's sign, not where it is
 added to the start. The term goes with this row's re-posing of
 `plane_cone_section`'s gap charge; until then nothing holds it in place.
+
+## A sweep for a tolerance inside the reading (2026-11-22, `oneround/readings-not-levers`)
+
+Swept: every production `from_f64` of `band.zero()`, `band.escalate()`,
+their ratio or `tol.eps()` (`scripts/gates/from-f64-sites.tsv`, 37
+occurrences in 21 files), each followed to its use, for a band threshold
+multiplied into (or used as the arm of) a reading decided in that same
+band. Three have the shape, all precision-headroom gates this row
+already holds: `profile::seg::resolution_headroom`,
+`profile::sugar::offset_circles`' least lever, and
+`topo::census::span_charge` (`pm_census_span_precision`, of the span
+family above, not named there before). Four are near it and are
+scheduled: `census::span_reach` and `pcurve_cache::incidence_at`'s
+charge fraction (here), `pair_section::torus_arms::parallel_torus_arm`'s
+neck (here, with `torus_arms`), and `curve_pair::pose::route`'s arm
+`length + 2Kε`, a pinned `Lever::unsourced` of the sibling units. The
+rest are windows, brackets, pads and additive stand-offs. Not seen by
+this pattern: a threshold that reaches a reading through a record field
+or a helper's return (`ruling`'s `before`), and `f64`-typed arithmetic
+that never passes `from_f64`.
