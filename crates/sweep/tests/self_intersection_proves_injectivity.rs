@@ -1886,6 +1886,72 @@ fn a_wall_holds_against_a_face_at_a_vertex_mid_ruling() {
     }
 }
 
+/// **A wall's ruling and a plane face's straight run through one vertex
+/// hold under the plane the two lines span**, at both scalars, as built
+/// and a hundred units off: [`half_rod_on_a_block`] with the block
+/// reaching past the ruling, so each of its horizontal faces has the
+/// vertex in the middle of its own edge too. Both faces' sides are zero
+/// through the vertex, under the one plane that holds both lines. The
+/// whole body is embedded at the verdict door at `f64`.
+///
+/// Red if the wall's side through the vertex is not read beside a
+/// partner's own run (the pair refuses at the vertex at the depth
+/// budget), or a plane through one line alone is asked to sign both.
+///
+/// **Turned about a generic axis the pair refuses**, at both scalars,
+/// `Uncertified { Departure }` at the vertex: the plane face's two edges
+/// are then two stored lines whose chart points do not show them on one
+/// line exactly, so that face is not presented at the vertex
+/// (`work/embed/a-plane-faces-corner-that-is-not-strictly-convex-is-read-at-no-depth.md`),
+/// whatever the wall reads.
+#[test]
+fn a_walls_ruling_and_a_faces_run_through_one_vertex_hold() {
+    use topo::clearance::Embedding;
+
+    for (pose, m) in turned_and_far() {
+        let float = posed(half_rod_on_a_block::<f64>(2.0), m.as_ref());
+        let twin = posed(half_rod_on_a_block::<Interval>(2.0), m.as_ref());
+        let (wall, alone) = wall_and_the_faces_at_a_vertex_alone(&float);
+        let (twin_wall, twin_alone) = wall_and_the_faces_at_a_vertex_alone(&twin);
+        assert_eq!((alone.len(), twin_alone.len()), (2, 2), "{pose}");
+        let turned = pose == "turned about a generic axis";
+        for (f, g) in alone.into_iter().zip(twin_alone) {
+            let report = injective(&float, Some(vec![wall, f]), BUDGET);
+            let at_interval = injective(&twin, Some(vec![twin_wall, g]), BUDGET);
+            same_class(
+                &format!("{pose}: the wall's ruling and a face's run"),
+                &report,
+                &at_interval,
+            );
+            let refused = matches!(
+                report.verdict,
+                BoundVerdict::Refused(EngineRefusal::Uncertified {
+                    shared: SharedCell::Vertex(_),
+                    arm: CertificateArm::Departure,
+                    ..
+                })
+            );
+            assert!(
+                if turned {
+                    refused
+                } else {
+                    matches!(report.verdict, BoundVerdict::Holds) && report.receipt.certified > 0
+                },
+                "{pose}: {:?} {:?}",
+                report.verdict,
+                report.receipt
+            );
+        }
+        if !turned {
+            assert_eq!(
+                embedding(&float),
+                Embedding::Embedded,
+                "{pose}: the verdict door, at f64"
+            );
+        }
+    }
+}
+
 /// **A flap through a wall at a vertex in the middle of its ruling never
 /// holds.** From the vertex `(1, 0, 0.5)` of [`half_rod_on_a_block`],
 /// where the wall's ruling is split, hangs a triangle to
