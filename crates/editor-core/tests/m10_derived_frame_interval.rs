@@ -361,7 +361,7 @@ fn measured_replay(label: &str, doc: &ProfileDoc, box_: &ParamBox, rules: SymRul
     for name in box_.axes().keys() {
         name_param(
             geom_core::ParamSymbol::new(name.0.digest()),
-            &doc.spoken_var(*name).to_string(),
+            &editor_core::test_support::var_text(&&doc.spoken_var(*name)),
         );
     }
     let opts = EvalOptions {
@@ -684,7 +684,7 @@ fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
     for name in box_.axes().keys() {
         name_param(
             geom_core::ParamSymbol::new(name.0.digest()),
-            &derived.spoken_var(*name).to_string(),
+            &editor_core::test_support::var_text(&&derived.spoken_var(*name)),
         );
     }
     let n = SymRules::none();

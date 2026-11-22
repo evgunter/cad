@@ -918,55 +918,60 @@ fn role<'n, 's>(
 ) -> Vec<Item<'n, 's>> {
     let f = leaf.node;
     let kind = leaf.kind.noun();
-    let one = |s: String| vec![text(s)];
+    let one = |s: Sentence| vec![text(s)];
     match seg {
-        RoleSeg::OutputBody => one("the output body".to_owned()),
-        RoleSeg::Cap(e) => one(format!("the {} cap", cap(*e))),
-        RoleSeg::Lateral(r) => one(format!("the side wall over {}", run(r, f, by))),
-        RoleSeg::RimEdge(c, r) => one(format!("the {} rim edge over {}", cap(*c), run(r, f, by))),
-        RoleSeg::LateralEdge(v) => one(format!("the lateral edge over {}", vertex(v, f, by))),
-        RoleSeg::CapVertex(c, v) => one(format!(
-            "the {} cap vertex over {}",
-            cap(*c),
-            vertex(v, f, by)
-        )),
-        RoleSeg::LoftWall(at) => one(format!(
-            "the loft wall {}over {}",
-            between(at.iter().map(|&(s, _)| s), f, by),
-            pieces(at.iter().map(|(_, e)| piece(e, f, by)))
-        )),
-        RoleSeg::LoftSeam(at) => one(format!(
-            "the loft seam {}over {}",
-            between(at.iter().map(|&(s, _)| s), f, by),
-            pieces(at.iter().map(|(_, v)| vertex(v, f, by)))
-        )),
-        RoleSeg::LoftSectionEdge(s, e) => one(format!(
-            "the loft section {} edge over {}",
-            by.section_numeral(f, *s),
-            piece(e, f, by)
-        )),
-        RoleSeg::LoftSectionVertex(s, v) => one(format!(
-            "the loft section {} vertex over {}",
-            by.section_numeral(f, *s),
-            vertex(v, f, by)
-        )),
-        RoleSeg::Band(r) => one(format!("the band face over {}", run(r, f, by))),
-        RoleSeg::BandRim(v) => one(format!("the band rim over {}", vertex(v, f, by))),
-        RoleSeg::BandRimPi(v) => one(format!("the second band rim over {}", vertex(v, f, by))),
-        RoleSeg::BandPi(r) => one(format!("the second band face over {}", run(r, f, by))),
-        RoleSeg::Meridian(m, r) => one(format!(
-            "the {} meridian edge over {}",
-            meridian(*m),
+        RoleSeg::OutputBody => one(Sentence::from("the output body")),
+        RoleSeg::Cap(e) => one(Sentence::from(format!("the {} cap", cap(*e)))),
+        RoleSeg::Lateral(r) => one(sentence!("the side wall over ", run(r, f, by))),
+        RoleSeg::RimEdge(c, r) => one(sentence!(
+            format_args!("the {} rim edge over ", cap(*c)),
             run(r, f, by)
         )),
-        RoleSeg::MeridianVertex(m, v) => one(format!(
-            "the {} meridian vertex over {}",
-            meridian(*m),
+        RoleSeg::LateralEdge(v) => one(sentence!("the lateral edge over ", vertex(v, f, by))),
+        RoleSeg::CapVertex(c, v) => one(sentence!(
+            format_args!("the {} cap vertex over ", cap(*c)),
             vertex(v, f, by)
         )),
-        RoleSeg::RevolveCap(m) => one(format!("the {} wedge cap", meridian(*m))),
-        RoleSeg::Pole(v) => one(format!("the pole over {}", vertex(v, f, by))),
-        RoleSeg::AxisEdge(r) => one(format!("the axis edge over {}", run(r, f, by))),
+        RoleSeg::LoftWall(at) => one(sentence!(
+            format_args!(
+                "the loft wall {}over ",
+                between(at.iter().map(|&(s, _)| s), f, by)
+            ),
+            pieces(at.iter().map(|(_, e)| piece(e, f, by)))
+        )),
+        RoleSeg::LoftSeam(at) => one(sentence!(
+            format_args!(
+                "the loft seam {}over ",
+                between(at.iter().map(|&(s, _)| s), f, by)
+            ),
+            pieces(at.iter().map(|(_, v)| vertex(v, f, by)))
+        )),
+        RoleSeg::LoftSectionEdge(s, e) => one(sentence!(
+            format_args!("the loft section {} edge over ", by.section_numeral(f, *s)),
+            piece(e, f, by)
+        )),
+        RoleSeg::LoftSectionVertex(s, v) => one(sentence!(
+            format_args!(
+                "the loft section {} vertex over ",
+                by.section_numeral(f, *s)
+            ),
+            vertex(v, f, by)
+        )),
+        RoleSeg::Band(r) => one(sentence!("the band face over ", run(r, f, by))),
+        RoleSeg::BandRim(v) => one(sentence!("the band rim over ", vertex(v, f, by))),
+        RoleSeg::BandRimPi(v) => one(sentence!("the second band rim over ", vertex(v, f, by))),
+        RoleSeg::BandPi(r) => one(sentence!("the second band face over ", run(r, f, by))),
+        RoleSeg::Meridian(m, r) => one(sentence!(
+            format_args!("the {} meridian edge over ", meridian(*m)),
+            run(r, f, by)
+        )),
+        RoleSeg::MeridianVertex(m, v) => one(sentence!(
+            format_args!("the {} meridian vertex over ", meridian(*m)),
+            vertex(v, f, by)
+        )),
+        RoleSeg::RevolveCap(m) => one(Sentence::from(format!("the {} wedge cap", meridian(*m)))),
+        RoleSeg::Pole(v) => one(sentence!("the pole over ", vertex(v, f, by))),
+        RoleSeg::AxisEdge(r) => one(sentence!("the axis edge over ", run(r, f, by))),
         RoleSeg::Seam { a, b } => vec![
             text(format!("the seam {kind} of ")),
             cites.one(a),
@@ -1014,8 +1019,8 @@ fn role<'n, 's>(
             items.extend(cites.list(set));
             items
         }
-        RoleSeg::SplitBody => one("the split's body".to_owned()),
-        RoleSeg::SectionFace => one("the split's section face".to_owned()),
+        RoleSeg::SplitBody => one(Sentence::from("the split's body".to_owned())),
+        RoleSeg::SectionFace => one(Sentence::from("the split's section face".to_owned())),
         RoleSeg::SectionEdge { face } => {
             vec![text("the split's section edge across "), cites.one(face)]
         }
@@ -1415,12 +1420,12 @@ mod tests {
              of node 000000000003"
         );
         assert_eq!(
-            words(&blend, Speaker::TAG, &open(&[&[0]])),
+            words(&blend, Speaker::TAG, &open(&[&[0]])).to_string(),
             "the blend face over the seam edge of a face and a face of node 000000000002 of node \
              000000000003"
         );
         assert_eq!(
-            words(&blend, Speaker::TAG, &open(&[])),
+            words(&blend, Speaker::TAG, &open(&[])).to_string(),
             "the blend face over an edge of node 000000000003"
         );
         let merged = name(
@@ -1429,11 +1434,13 @@ mod tests {
             vec![RoleSeg::Merged(vec![wall(1), wall(2), wall(3)])],
         );
         assert_eq!(
-            words(&merged, Speaker::TAG, &open(&[])),
+            words(&merged, Speaker::TAG, &open(&[])).to_string(),
             "the merged face of 3 faces of node 000000000003"
         );
         assert!(
-            words(&merged, Speaker::TAG, &open(&[&[0], &[1]])).contains(" and 1 more of node"),
+            words(&merged, Speaker::TAG, &open(&[&[0], &[1]]))
+                .to_string()
+                .contains(" and 1 more of node"),
             "two in full, then how many more"
         );
         // A set on an edge is the edge a join made of its members.
@@ -1443,7 +1450,7 @@ mod tests {
             vec![RoleSeg::Merged(vec![rim(1), rim(2)])],
         );
         assert_eq!(
-            words(&joined, Speaker::TAG, &open(&[])),
+            words(&joined, Speaker::TAG, &open(&[])).to_string(),
             "the joined edge of 2 edges of node 000000000003"
         );
     }
@@ -1508,7 +1515,7 @@ mod tests {
         let details = table_details(&table);
         names
             .iter()
-            .map(|n| words(n, Speaker::TAG, &details[*n]))
+            .map(|n| words(n, Speaker::TAG, &details[*n]).to_string())
             .collect()
     }
 
@@ -1563,7 +1570,7 @@ mod tests {
             "said within the table, two names read alike: {said:#?}"
         );
         assert_eq!(
-            words(&mixed, Speaker::TAG, &open(&[&[0]])),
+            words(&mixed, Speaker::TAG, &open(&[&[0]])).to_string(),
             words(&faces, Speaker::TAG, &open(&[&[0]])),
             "the premise: the opening the first rival asks for makes the second alike"
         );

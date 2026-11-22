@@ -1720,3 +1720,26 @@ mod tests {
         );
     }
 }
+
+/// **A sentence's text, for a test to compare**: `piece` written into a
+/// sentence of its own and spelled ([`crate::spell`]).
+pub fn text(piece: impl crate::Put) -> String {
+    crate::sentence!(piece).to_string()
+}
+
+/// `node` as a sentence spells it, mentioned by tag.
+pub fn node_text(node: &crate::SpokenNode) -> String {
+    text(crate::Speaker::TAG.mention(node))
+}
+
+/// `var` as a sentence spells it, mentioned by tag.
+pub fn var_text(var: &crate::SpokenVar) -> String {
+    text(crate::Speaker::TAG.var(var))
+}
+
+/// `value`'s sentence, each node said by tag, as text.
+pub fn said_text<T: crate::Say + ?Sized>(value: &T) -> String {
+    crate::Said(value, crate::Speaker::TAG)
+        .sentence()
+        .to_string()
+}

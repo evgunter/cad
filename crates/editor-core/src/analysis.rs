@@ -699,10 +699,10 @@ impl crate::Say for SeedError {
                 f,
                 "the seed names ",
                 by.var(&var),
-                format_args!(
+                sentence!(
                     ", which is not a free variable and so is no axis of its \
                  own: a defined variable's derivative is its inputs' pushforward, and an \
-                 operation's output is a value its operation gives. {}",
+                 operation's output is a value its operation gives. ",
                     Recourse(sentence!(
                         "seed a free variable ",
                         by.var(&var),

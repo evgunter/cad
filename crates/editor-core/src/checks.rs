@@ -850,11 +850,10 @@ fn interference_words(
     finding: &at_rest::InterferenceFinding,
     by: crate::spoken::Speaker<'_>,
 ) -> fmt::Result {
-    write!(
+    say!(
         f,
-        "{} and {} overlap",
         copy_said(finding.a, by),
-        copy_said(finding.b, by)
+        sentence!(" and ", copy_said(finding.b, by), " overlap")
     )?;
     match &finding.overlap {
         at_rest::Overlap::Bounded { faces } => {

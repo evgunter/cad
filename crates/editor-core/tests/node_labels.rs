@@ -314,19 +314,25 @@ fn the_spoken_node_says_kind_label_and_tag_as_the_document_holds_them() {
     let labelled = set_label(doc.clone(), extrude, Some("base plate"));
     let t = tag(extrude.0.digest());
     assert_eq!(
-        labelled.spoken(extrude).to_string(),
+        editor_core::test_support::node_text(&labelled.spoken(extrude)),
         format!("Extrude \"base plate\" ({t})")
     );
     assert_eq!(labelled.spoken(extrude).label(), Some(&label("base plate")));
-    assert_eq!(doc.spoken(extrude).to_string(), format!("Extrude {t}"));
+    assert_eq!(
+        editor_core::test_support::node_text(&doc.spoken(extrude)),
+        format!("Extrude {t}")
+    );
     let quoted = set_label(doc.clone(), extrude, Some(r#"Bolt "M6" \ 2"#));
     assert_eq!(
-        quoted.spoken(extrude).to_string(),
+        editor_core::test_support::node_text(&quoted.spoken(extrude)),
         format!(r#"Extrude "Bolt \"M6\" \\ 2" ({t})"#),
         "a quote and a backslash in the label are escaped"
     );
     let (gone, _) = step(labelled, DocEdit::DeleteNode { id: extrude });
-    assert_eq!(gone.spoken(extrude).to_string(), format!("node {t}"));
+    assert_eq!(
+        editor_core::test_support::node_text(&gone.spoken(extrude)),
+        format!("node {t}")
+    );
 }
 
 /// **An edit refusal speaks each node it names at the raise**, from the
@@ -731,7 +737,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     assert!(
         not_a_measure.to_string().starts_with(&format!(
             "{} is not a scalar variable",
-            doc.spoken_var(body)
+            editor_core::test_support::var_text(&doc.spoken_var(body))
         )),
         "{not_a_measure}"
     );
@@ -912,7 +918,8 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_placements() {
     assert!(interference.quiet.is_none(), "{interference:?}");
     let spoken = report.spoken(&doc);
     assert!(
-        spoken.contains("Place \"base\"") && !spoken.contains(&format!("placement {b}")),
+        spoken.to_string().contains("Place \"base\"")
+            && !spoken.to_string().contains(&format!("placement {b}")),
         "no placement is left at its bare tag: {spoken}"
     );
     let bare = report.to_string();
@@ -924,7 +931,7 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_placements() {
     let refusal = enforce_checks(&report, &strict).expect_err("connectedness is at Error");
     let spoken = refusal.spoken(&doc);
     assert!(
-        spoken.contains(&format!(
+        spoken.to_string().contains(&format!(
             "check connectedness: Place \"base\" ({b}) output 0:"
         )),
         "the refusal speaks its placement from the document: {spoken}"
@@ -1023,7 +1030,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         "{pick}"
     );
     assert!(
-        pick.spoken(&doc).starts_with(&format!(
+        pick.spoken(&doc).to_string().starts_with(&format!(
             "pick: Profile \"sketch plane\" ({f})'s value is not body-denoting"
         )),
         "{}",
@@ -1032,6 +1039,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     let renamed = set_label(doc.clone(), sketch, Some("top plane"));
     assert!(
         pick.spoken(&renamed)
+            .to_string()
             .starts_with(&format!("pick: Profile \"top plane\" ({f})'s")),
         "a refusal raised before a rename speaks the label as it stands: {}",
         pick.spoken(&renamed)
@@ -1055,6 +1063,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     assert!(
         refusal
             .spoken(&doc, &ev)
+            .to_string()
             .contains(&format!("Extrude \"base plate\" ({e})")),
         "{}",
         refusal.spoken(&doc, &ev)
@@ -1119,7 +1128,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         last_good: None,
     };
     assert!(
-        vanished.spoken(&doc, &ev).starts_with(&format!(
+        vanished.spoken(&doc, &ev).to_string().starts_with(&format!(
             "the end cap of {plate} no longer resolves in this evaluation: a structural \
              parameter changed on the derivation path: slot {} of {plate}",
             SlotId::Stations.label()
@@ -1175,11 +1184,14 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     };
     let said = spoken_by(&placement, &doc);
     assert!(
-        said.starts_with(&format!("{spoken} places its copy into "))
-            && said.ends_with("not the world, so it has no world pose"),
+        said.to_string()
+            .starts_with(&format!("{spoken} places its copy into "))
+            && said
+                .to_string()
+                .ends_with("not the world, so it has no world pose"),
         "{said}"
     );
-    assert_eq!(said.matches(&t).count(), 1, "{said}");
+    assert_eq!(said.to_string().matches(&t).count(), 1, "{said}");
 
     // A mate fault recorded against a placement names the placement
     // once, by its noun where it has one and as `this node` where it has
@@ -1196,9 +1208,9 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
         })));
     let line = fixed_twice.line_at(body, Speaker::of(&doc));
     assert!(
-        line.starts_with(&format!(
+        line.to_string().starts_with(&format!(
             "{spoken} failed: the mate solve refused: this node's each of constraints "
-        )) && line.matches(&t).count() == 1,
+        )) && line.to_string().matches(&t).count() == 1,
         "{line}"
     );
     let off_the_copy = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::NotOnTheCopy {
@@ -1206,9 +1218,11 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     })));
     let line = off_the_copy.line_at(body, Speaker::TAG);
     assert!(
-        line.starts_with(&format!("node {t} failed:"))
-            && line.contains("constraint #8 of this node's `on` pose reads geometry other than")
-            && line.matches(&t).count() == 1,
+        line.to_string().starts_with(&format!("node {t} failed:"))
+            && line
+                .to_string()
+                .contains("constraint #8 of this node's `on` pose reads geometry other than")
+            && line.to_string().matches(&t).count() == 1,
         "{line}"
     );
 }

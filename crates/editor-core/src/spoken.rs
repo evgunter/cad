@@ -1856,6 +1856,41 @@ impl fmt::Display for Sentence {
     }
 }
 
+/// A sentence equals the text it reads.
+impl PartialEq<str> for Sentence {
+    fn eq(&self, text: &str) -> bool {
+        self.to_string() == text
+    }
+}
+
+/// A sentence equals the text it reads.
+impl PartialEq<&str> for Sentence {
+    fn eq(&self, text: &&str) -> bool {
+        self.to_string() == *text
+    }
+}
+
+/// A sentence equals the text it reads.
+impl PartialEq<String> for Sentence {
+    fn eq(&self, text: &String) -> bool {
+        self.to_string() == *text
+    }
+}
+
+/// A sentence equals the text it reads.
+impl PartialEq<Sentence> for String {
+    fn eq(&self, sentence: &Sentence) -> bool {
+        *self == sentence.to_string()
+    }
+}
+
+/// A sentence equals the text it reads.
+impl PartialEq<Sentence> for &str {
+    fn eq(&self, sentence: &Sentence) -> bool {
+        *self == sentence.to_string()
+    }
+}
+
 /// A formula's readers, mentioned ([`Speaker::formula`]).
 struct Readers<'s, 'a> {
     out: &'s mut Sentence,
@@ -2168,13 +2203,13 @@ mod tests {
         let spoken = doc.spoken(id);
         assert_eq!((spoken.id(), spoken.kind()), (id, Some("Tube")));
         assert_eq!(
-            spoken.to_string(),
+            crate::test_support::node_text(&spoken),
             format!("Tube {}", test_utils::refusal::tag(id.0.digest()))
         );
         let gone = empty.spoken(id);
         assert_eq!(gone.kind(), None);
         assert_eq!(
-            gone.to_string(),
+            crate::test_support::node_text(&gone),
             format!("node {}", test_utils::refusal::tag(id.0.digest()))
         );
     }
@@ -2207,9 +2242,9 @@ mod tests {
             Some("Tube"),
             Some(Label::new("floor").expect("a label")),
         );
-        let kept: HeldNodes = [forged.clone()].into_iter().collect();
+        let kept = HeldNodes::of_nodes(doc.id(), [forged.clone()]);
         let t = test_utils::refusal::tag(id.0.digest());
-        let said = |by: Speaker<'_>, id| by.node(id).to_string();
+        let said = |by: Speaker<'_>, id| crate::test_support::text(by.node(id));
         assert_eq!(
             said(Speaker::of(&doc).or_held(&kept), id),
             format!("Tube {t}"),
@@ -2222,7 +2257,7 @@ mod tests {
         );
         assert_eq!(
             said(Speaker::TAG.or_held(&kept), id),
-            forged.to_string(),
+            crate::test_support::node_text(&forged),
             "with no document, as kept"
         );
         assert_eq!(

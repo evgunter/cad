@@ -313,16 +313,16 @@ impl crate::spoken::Say for SelectRefusal {
                 name,
                 predicate,
                 source,
-            } => write!(
+            } => say!(
                 f,
-                "{}",
-                source.undecided(
-                    sentence!(
-                        format_args!("whether the {} (", name.kind.noun()),
-                        by.name(name),
-                        ") is in or out of the selection"
-                    ),
-                    crate::decision::ending(Some(predicate), source)
+                // The subject is written ahead of the refusal's own
+                // words, which an empty subject leaves whole.
+                format_args!("whether the {} (", name.kind.noun()),
+                by.name(name),
+                ") is in or out of the selection",
+                format_args!(
+                    "{}",
+                    source.undecided("", crate::decision::ending(Some(predicate), source))
                 )
             ),
             Self::TiedDisagrees {

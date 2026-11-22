@@ -1237,8 +1237,8 @@ impl crate::Say for SplitError {
                 f,
                 "split: the cut names ",
                 by.mention(&id),
-                format_args!(
-                    ", which is not live. {}",
+                sentence!(
+                    ", which is not live. ",
                     Recourse(&sentence!("leave ", by.mention(&id), " out of the cut"))
                 )
             ),
@@ -1284,10 +1284,12 @@ impl crate::Say for SplitError {
                     sentence!(
                         format_args!("{reads} to its input "),
                         by.mention(&input),
-                        format_args!(
-                            ". The \
+                        sentence!(
+                            format_args!(
+                                ". The \
                      consumer is {consumer_side} and the input is {input_side}, but a cut must be \
-                     closed under inputs and consumers. {}",
+                     closed under inputs and consumers. "
+                            ),
                             Recourse(&sentence!(
                                 "add ",
                                 by.mention(&kept),
@@ -1301,8 +1303,8 @@ impl crate::Say for SplitError {
                 f,
                 "split: ",
                 by.mention(&reader),
-                format_args!(
-                    " stays and reads cut material, and {why}. {}",
+                sentence!(
+                    format_args!(" stays and reads cut material, and {why}. "),
                     Recourse(&sentence!(
                         "cut ",
                         by.mention(&reader),
@@ -1322,9 +1324,9 @@ impl crate::Say for SplitError {
                     Some(why) => write!(f, "{why}")?,
                     None => f.write_str("the part's world carries no copy of it")?,
                 }
-                write!(
+                say!(
                     f,
-                    ". {}",
+                    ". ",
                     Recourse(&sentence!(
                         "leave ",
                         by.mention(&input),
@@ -1337,9 +1339,11 @@ impl crate::Say for SplitError {
                 f,
                 "split: ",
                 by.var(&var),
-                format_args!(
-                    " stays, since a reader the remainder keeps reads it or nothing \
-                 does, and it reads cut material: {why}. {}",
+                sentence!(
+                    format_args!(
+                        " stays, since a reader the remainder keeps reads it or nothing \
+                 does, and it reads cut material: {why}. "
+                    ),
                     Recourse(&sentence!(
                         "cut every node that reads ",
                         by.var(&var),
@@ -1360,9 +1364,9 @@ impl crate::Say for SplitError {
                 sentence!(
                     ", which is cut, and by ",
                     by.mention(&kept_node),
-                    format_args!(
+                    sentence!(
                         ", which \
-                 is kept, and one variable cannot become two documents'. {}",
+                 is kept, and one variable cannot become two documents'. ",
                         Recourse(&sentence!(
                             "put ",
                             by.mention(&cut_node),
@@ -1391,8 +1395,8 @@ impl crate::Say for SplitError {
                         ", which is kept, are both \
                  placed into ",
                         by.mention(&space),
-                        format_args!(
-                            ", and one space cannot go with both documents. {}",
+                        sentence!(
+                            ", and one space cannot go with both documents. ",
                             Recourse(&sentence!(
                                 "cut ",
                                 by.mention(&kept_node),
@@ -1419,9 +1423,9 @@ impl crate::Say for SplitError {
                         ", which \
                  moves with the cut, and to ",
                         by.var(&staying),
-                        format_args!(
+                        sentence!(
                             ", which stays, so it can go with neither \
-                 document. {}",
+                 document. ",
                             Recourse(&sentence!(
                                 "define ",
                                 by.var(&var),
@@ -1460,9 +1464,9 @@ impl crate::Say for SplitError {
                 by.mention(&node),
                 ", which is cut, reads ",
                 by.var(&var),
-                format_args!(
+                sentence!(
                     ", which this document no longer \
-                 holds, so the part has no variable to read. {}",
+                 holds, so the part has no variable to read. ",
                     Recourse(&sentence!(
                         "repoint ",
                         by.mention(&node),
@@ -1484,9 +1488,9 @@ impl crate::Say for SplitError {
                 sentence!(
                     ") derives from ",
                     by.mention(&missing),
-                    format_args!(
+                    sentence!(
                         ", \
-                 which is outside the cut, so the new document could not express it. {}",
+                 which is outside the cut, so the new document could not express it. ",
                         Recourse(&sentence!(
                             "add ",
                             by.mention(&missing),
@@ -1887,9 +1891,9 @@ impl crate::Say for InlineError {
                 f,
                 "inline: ",
                 by.mention(&instance),
-                format_args!(
+                sentence!(
                     "'s part has no product to place: its slot reads nothing, a \
-                 body that is gone, or a piece or a source rather than an operation's output. {}",
+                 body that is gone, or a piece or a source rather than an operation's output. ",
                     Recourse(&sentence!(
                         "point ",
                         by.mention(&instance),
@@ -1941,9 +1945,9 @@ impl crate::Say for InlineError {
                 f,
                 "inline: the referenced document holds the pose ",
                 by.var(&var),
-                format_args!(
+                sentence!(
                     ", which nothing in it \
-                 reads, and a pose crosses only with a reader. {}",
+                 reads, and a pose crosses only with a reader. ",
                     Recourse(&sentence!(
                         "in the referenced document, read ",
                         by.var(&var),
@@ -1958,9 +1962,9 @@ impl crate::Say for InlineError {
                 by.mention(&node),
                 " in the referenced document reads ",
                 by.var(&var),
-                format_args!(
+                sentence!(
                     ", which that document \
-                 no longer holds, so this document has no variable to point the reader at. {}",
+                 no longer holds, so this document has no variable to point the reader at. ",
                     Recourse(&sentence!(
                         "in the referenced document, repoint ",
                         by.mention(&node),
@@ -1974,10 +1978,10 @@ impl crate::Say for InlineError {
                 f,
                 "inline: ",
                 by.mention(&reader),
-                format_args!(
+                sentence!(
                     " selects entities of the instance's copy that lie in two \
                  members of the family it copies, and spliced, that family is no one body \
-                 to select them in. {}",
+                 to select them in. ",
                     Recourse(&sentence!(
                         "split ",
                         by.mention(&reader),
@@ -5393,9 +5397,9 @@ impl crate::Say for FlattenError {
                 f,
                 "flatten: ",
                 by.mention(&placement),
-                format_args!(
+                sentence!(
                     "'s bundle is not the identity as written, so its copy \
-                 is not its source where the source stands. {}",
+                 is not its source where the source stands. ",
                     Recourse(&sentence!(
                         "write ",
                         by.mention(&placement),
@@ -5420,9 +5424,9 @@ impl crate::Say for FlattenError {
                 sentence!(
                     " also copies a source out of ",
                     by.mention(&placement),
-                    format_args!(
+                    sentence!(
                         "'s source's space, \
-                 and would read the target's coordinates once it is flattened. {}",
+                 and would read the target's coordinates once it is flattened. ",
                         Recourse(&sentence!(
                             "delete or re-point ",
                             by.mention(&other),
@@ -5435,9 +5439,9 @@ impl crate::Say for FlattenError {
                 f,
                 "flatten: ",
                 by.mention(&reader),
-                format_args!(
+                sentence!(
                     " reads the copy whole or by a name of no one shape it \
-                 copies. {}",
+                 copies. ",
                     Recourse(&sentence!(
                         "re-point ",
                         by.mention(&reader),
@@ -5449,10 +5453,10 @@ impl crate::Say for FlattenError {
                 f,
                 "flatten: ",
                 by.mention(&reader),
-                format_args!(
+                sentence!(
                     " selects entities of the copy that lie in two members of \
                  the family it groups, and unwrapped, that family is no one body to select \
-                 them in. {}",
+                 them in. ",
                     Recourse(&sentence!(
                         "split ",
                         by.mention(&reader),

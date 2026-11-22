@@ -3512,7 +3512,7 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
     for (error, said) in rows {
         let text = error.to_string();
         for node in said {
-            let spoken = node.to_string();
+            let spoken = editor_core::test_support::node_text(&node);
             let at = text
                 .find(&spoken)
                 .unwrap_or_else(|| panic!("{error:?} does not say {spoken}: {text}"));

@@ -536,7 +536,7 @@ impl Say for InPart<'_> {
         for level in
             levels.take_while(|level| matches!(level.document, super::CarriedIn::ThisDocument))
         {
-            write!(f, "\n{}", level.refusal.line_at(level.node, by))?;
+            say!(f, "\n", level.refusal.line_at(level.node, by))?;
         }
         Ok(())
     }
