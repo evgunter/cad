@@ -6,6 +6,8 @@ status: open
 opened: 2026-11-22
 priority: P0
 cost: E
+pr: 7402
+branch: green/seamless-pipe
 ---
 
 
