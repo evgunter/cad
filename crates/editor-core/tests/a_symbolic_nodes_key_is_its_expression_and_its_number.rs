@@ -170,14 +170,15 @@ fn every_replay_of_one_document_has_one_key_per_node() {
     let opts = over_the_box(&doc);
     let replay = || {
         let ev = run::<Sym<Interval>>(&doc, None, &opts);
-        ev.order
-            .iter()
-            .map(|&id| keys(&ev, id))
-            .collect::<Vec<_>>()
+        ev.order.iter().map(|&id| keys(&ev, id)).collect::<Vec<_>>()
     };
     let first = session(replay);
     assert_eq!(first.len(), 2, "the profile and the extrude");
-    assert_eq!(session(replay), first, "a second session: every node, both keys");
+    assert_eq!(
+        session(replay),
+        first,
+        "a second session: every node, both keys"
+    );
     assert_eq!(replay(), first, "no session: every node, both keys");
 }
 
