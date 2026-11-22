@@ -6,6 +6,9 @@
 //! The fixture is one slab whose depth reads one of two variables that
 //! hold the same value and the same tolerance: as numbers the two
 //! spellings are one input, as expressions they are two.
+//!
+//! And a value with no expression, which the key hashes by its name, is
+//! named by the node that minted it (`geom_core::sym::mint`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
@@ -218,4 +221,80 @@ fn a_prior_built_over_another_expression_of_the_same_number_is_not_served() {
             "the extrude's keys"
         );
     });
+}
+
+/// A plate with a round hole, extruded by `a`: the hole's wall projects
+/// its pcurves, which re-enters computed samples as values with no
+/// expression.
+fn holed_slab() -> ProfileDoc {
+    let mut r = Recorder::new();
+    r.push(toleranced("a"));
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![
+            LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap(),
+            LoopProgram::Circle {
+                centre: [crate::fixture::len(1.0), crate::fixture::len(1.0)],
+                radius: crate::fixture::len(0.25),
+            },
+        ],
+        ids: Vec::new(),
+        on: None,
+    }));
+    r.insert(Node::Extrude {
+        profile: profile.into(),
+        distance: reads("a"),
+    });
+    r.doc
+}
+
+/// The names of every value with no expression one session minted.
+fn names_minted(work: impl FnOnce()) -> std::collections::BTreeSet<u128> {
+    geom_core::sym::profile::start_profile();
+    session(work);
+    let mut sessions = geom_core::sym::profile::take_profile().opaque_ids;
+    assert_eq!(sessions.len(), 1, "one session");
+    sessions.remove(0)
+}
+
+/// The values a node mints with no expression are named by the node,
+/// so a replay that minted one more value before its nodes ran holds
+/// the same names and that one more: the name a session's first mint
+/// under no node takes.
+///
+/// Mutants: a name counted over the whole replay, or `eval_node` opening
+/// no scope for its node, shifts every node's names by the early mint,
+/// and the name the second replay adds is the count's last, not the
+/// root's first.
+#[test]
+fn a_nodes_values_with_no_expression_keep_their_names_whatever_was_minted_before() {
+    let doc = holed_slab();
+    let opts = over_the_box(&doc);
+    let replay = |early: bool| {
+        names_minted(|| {
+            if early {
+                let _ = Sym::<Interval>::opaque(Interval::from_bounds(7.0, 7.0));
+            }
+            let ev = run::<Sym<Interval>>(&doc, None, &opts);
+            assert_eq!((ev.recomputed, ev.reused), (2, 0), "both nodes ran");
+            assert!(
+                ev.order.iter().all(|&id| ev.value(id).is_some()),
+                "both nodes built"
+            );
+        })
+    };
+    let alone = names_minted(|| {
+        let _ = Sym::<Interval>::opaque(Interval::from_bounds(7.0, 7.0));
+    });
+    assert_eq!(alone.len(), 1, "the root scope's first name");
+
+    let plain = replay(false);
+    assert!(!plain.is_empty(), "the hole's wall mints");
+    assert!(plain.is_disjoint(&alone), "no node mints the root's name");
+    let after_one = replay(true);
+    assert_eq!(
+        after_one.difference(&plain).copied().collect::<Vec<_>>(),
+        alone.iter().copied().collect::<Vec<_>>(),
+        "the early mint's name is all the second replay adds"
+    );
+    assert!(plain.is_subset(&after_one), "and every node's name is kept");
 }
