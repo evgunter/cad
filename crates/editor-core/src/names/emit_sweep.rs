@@ -952,4 +952,69 @@ mod tests {
         )
         .unwrap_or_else(|e| panic!("the loft is named: {e:?}"));
     }
+
+    /// **A loft with pinned corners is named whole**: a corner pinned in
+    /// a slab has no strut there and is named at the first section that
+    /// holds it, and a segment held at both ends with no wall in any slab
+    /// is the edge both caps hold, named as its start rim. The wedge (a
+    /// square turned about its edge), one corner pinned, and a hinge in
+    /// one slab of three; every table total over its body.
+    #[test]
+    fn a_loft_with_pinned_corners_is_named_whole() {
+        use geom_core::{Affine3, Point3, Vec3};
+        let square = || {
+            vec![ProfileLoop::polygon(
+                [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
+                    .iter()
+                    .map(|&(x, y)| Point2::new(x, y)),
+            )]
+        };
+        let turn = |at: [f64; 3], about: [f64; 3], angle: f64| {
+            Affine3::rotation_about_axis(
+                Point3::new(at[0], at[1], at[2]),
+                Vec3::new(about[0], about[1], about[2]),
+                angle,
+            )
+        };
+        let tol = Tol::witness();
+        let places = |ms: &[Affine3<f64>]| -> Vec<SketchPlane<f64>> {
+            ms.iter()
+                .map(|m| SketchPlane::from_frame(geom_core::test_support::rigid(m, tol)))
+                .collect()
+        };
+        for (what, ms) in [
+            (
+                "wedge",
+                vec![
+                    Affine3::identity(),
+                    turn([-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], 0.5),
+                ],
+            ),
+            (
+                "one corner",
+                vec![
+                    Affine3::identity(),
+                    turn([-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], 0.5),
+                ],
+            ),
+            (
+                "hinge in one slab",
+                vec![
+                    Affine3::identity(),
+                    turn([0.0, 1.0, 0.0], [1.0, 0.0, 0.0], -0.3),
+                    Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+                ],
+            ),
+        ] {
+            let k = ms.len();
+            let lofted = sweep::loft_body::<f64>(&vec![square(); k], &places(&ms), 1, tol)
+                .unwrap_or_else(|e| panic!("{what}: the loft builds: {e}"));
+            let pieces = ProfilePieces::numbered(&[4]);
+            let ids: Vec<SectionId> = (1..=k)
+                .map(|i| SectionId::new(i as u32, i as u64))
+                .collect();
+            name_loft(node(), &lofted, &vec![pieces; k], &ids)
+                .unwrap_or_else(|e| panic!("{what}: the loft is named: {e:?}"));
+        }
+    }
 }
