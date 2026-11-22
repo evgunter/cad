@@ -461,3 +461,8 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - Fix pass sent to the implementer:
     - taken: M1 (a sound compaction of the expression), M2, N1-N4, and the subprocess-helper and stub-rule style findings;
     - argued down: N5 (over-selection is sound) and Q4 (the discipline sentence is still true, and it is Ev's text).
+- 08:00Z — Ev, in chat: this machine is very slow, so lean heavily on CI; pushing uncompiled code is fine. Every lane is told to do this (the note is `~/.local/share/cad-work/green-ci-first-note.txt`):
+  - CI instead of local builds;
+  - a slow row run on CI by putting it on a branch whose diff selects it;
+  - bisects as one throwaway branch per candidate merge, all pushed at once (`ci.yml`'s concurrency group is per ref, so they run in parallel), deleted once read.
+  - U7 is told to take GREEN's own runs out of the latency median.
