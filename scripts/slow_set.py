@@ -159,10 +159,83 @@ def selected(pairs: list[tuple[str, str]], tokens: set[str]) -> list[tuple[str, 
     return [(b, n) for b, n in pairs if is_new(b, n, tokens) or is_edited(b, n, tokens)]
 
 
+# `-E` is one argv string, and Linux refuses one over 128 KiB (MAX_ARG_STRLEN)
+# with E2BIG before cargo starts. Every exact name of the slow set spells about
+# 200 KB, so a wide selection is said coarsely, and past this size widened.
+EXPR_LIMIT = 64 * 1024
+
+# (binary, path, kind): `all` is every slow entry of the binary, `under` every
+# one whose name starts `path::`, `exact` the one named `path`.
+Term = tuple[str, str, str]
+
+
+def _cover(binary: str, names: list[str], chosen: set[str], prefix: str) -> list[Term]:
+    """The fewest terms that hold exactly the chosen `names` (all under
+    `prefix`, `""` for the binary's root): a module whose slow entries are
+    all chosen is one term."""
+    if len(names) > 1 and all(n in chosen for n in names):
+        return [(binary, prefix, "under" if prefix else "all")]
+    depth = prefix.count("::") + 1 if prefix else 0
+    out: list[Term] = []
+    groups: dict[str, list[str]] = {}
+    for n in names:
+        parts = n.split("::")
+        if len(parts) == depth + 1:
+            out += [(binary, n, "exact")] if n in chosen else []
+        else:
+            groups.setdefault("::".join(parts[: depth + 1]), []).append(n)
+    for head, under in groups.items():
+        out += _cover(binary, under, chosen, head)
+    return out
+
+
+def terms(pairs: list[tuple[str, str]], chosen: list[tuple[str, str]]) -> list[Term]:
+    """`chosen` as `Term`s over the slow set `pairs`, widened a binary at a
+    time (the one spelling the most) to `all` until the text fits
+    EXPR_LIMIT. Widening adds slow entries and never drops one."""
+    by: dict[str, list[str]] = {}
+    for b, n in pairs:
+        by.setdefault(b, []).append(n)
+    picked = {(b, n) for b, n in chosen}
+    out = {
+        b: _cover(b, names, {n for n in names if (b, n) in picked}, "")
+        for b, names in by.items()
+        if any((b, n) in picked for n in names)
+    }
+    size = {b: len(_render(ts)) + 3 for b, ts in out.items()}
+    while sum(size.values()) > EXPR_LIMIT:
+        widest = max(size, key=size.__getitem__)
+        if out[widest] == [(widest, "", "all")]:
+            raise SlowSetError(f"{len(out)} binaries spell over {EXPR_LIMIT} bytes even whole")
+        out[widest] = [(widest, "", "all")]
+        size[widest] = len(_render(out[widest])) + 3
+    return [t for ts in out.values() for t in ts]
+
+
+def _render(ts: list[Term]) -> str:
+    by: dict[str, list[str]] = {}
+    for b, path, kind in ts:
+        by.setdefault(b, []).append(
+            "all()" if kind == "all" else f"test(/^{path}::/)" if kind == "under" else f"test(={path})"
+        )
+    return " | ".join(f"(binary_id({b}) & ({' | '.join(ps)}))" for b, ps in by.items())
+
+
+def covers(ts: list[Term], binary: str, name: str) -> bool:
+    """Whether the rendered `ts` match the slow entry `(binary, name)`."""
+    return any(
+        b == binary
+        and (kind == "all" or (kind == "under" and name.startswith(path + "::")) or name == path)
+        for b, path, kind in ts
+    )
+
+
 def new_expr(pairs: list[tuple[str, str]], tokens: set[str]) -> str:
-    """`selected` as one filterset; `none()` when it is empty."""
+    """`selected` as one filterset, `none()` when it is empty. Its terms
+    are taken inside `not default()`, the `ci` profile's slow set, so a
+    coarse term reaches no fast-set test."""
     chosen = selected(pairs, tokens)
-    return expr(chosen) if chosen else "none()"
+    return f"(not default() & ({_render(terms(pairs, chosen))}))" if chosen else "none()"
 
 
 def selftest() -> None:
@@ -184,15 +257,20 @@ def selftest() -> None:
             continue
         raise SystemExit(f"slow_set selftest FAILED: {why} was read")
     assert new_expr(want, set()) == "none()"
-    assert new_expr(want, {"a:y", "b:x"}) == expr([("a::all", "m::y")]), "a leaf, in its own package"
-    assert new_expr(want, {"b:mod:n"}) == expr([("b", "n::z")]), "a module on the path"
+    assert selected(want, {"a:y", "b:x"}) == [("a::all", "m::y")], "a leaf, in its own package"
+    assert selected(want, {"b:mod:n"}) == [("b", "n::z")], "a module on the path"
     # An edit inside a test's body, its doc or a table beside it spells no
     # name: the file it lands in selects the test.
-    assert new_expr(want, {"a:fn:y"}) == expr([("a::all", "m::y")]), "a file defining the leaf"
-    assert new_expr(want, {"b:fn:y", "a:fn:z"}) == "none()", "a leaf in another package"
-    assert new_expr(want, {"a:file:m"}) == expr([("a::all", "m::x"), ("a::all", "m::y")]), (
+    assert selected(want, {"a:fn:y"}) == [("a::all", "m::y")], "a file defining the leaf"
+    assert selected(want, {"b:fn:y", "a:fn:z"}) == [], "a leaf in another package"
+    assert selected(want, {"a:file:m"}) == want[:2], (
         "a file standing for a module on the path (a macro-made leaf)"
     )
+    assert new_expr(want, {"a:fn:y"}) == "(not default() & ((binary_id(a::all) & (test(=m::y)))))"
+    assert new_expr(want, {"a:file:m"}) == "(not default() & ((binary_id(a::all) & (all()))))", (
+        "every slow entry of a binary is one term"
+    )
+    _selftest_compact()
     top = [("a::all", "every_file"), ("b", "lone")]
     assert selected(top, {"a:file:all", "b:file:lib"}) == top, "a binary's root holds its top tests"
     assert selected(top, {"a:file:lib", "b:file:all"}) == [], "another binary's root"
@@ -200,6 +278,46 @@ def selftest() -> None:
         "an edited file does not make its tests new to the fast-set bar"
     )
     print("slow_set: selftest ok")
+
+
+def _selftest_compact() -> None:
+    """The expression holds exactly the selection while it fits, a superset
+    of it past EXPR_LIMIT, and always fits: 4800 entries whose exact names
+    alone spell about 600 KB."""
+    pad = "_and_its_long_descriptive_name_" * 2
+    pairs = [
+        (f"pkg{b}::all", f"suite{m}::case{t}{pad}")
+        for b in range(30)
+        for m in range(40)
+        for t in range(4)
+    ] + [("pkg0::all", "top_level"), ("pkg0::all", "suite0::deeper::case")]
+    assert len(expr(pairs)) > 4 * EXPR_LIMIT, len(expr(pairs))
+
+    def check(chosen: list[tuple[str, str]], exact: bool, why: str) -> None:
+        ts = terms(pairs, chosen)
+        assert len(_render(ts)) <= EXPR_LIMIT, f"{why}: {len(_render(ts))} bytes"
+        by: dict[str, list[Term]] = {}
+        for t in ts:
+            by.setdefault(t[0], []).append(t)
+        got = [p for p in pairs if covers(by.get(p[0], []), *p)]
+        assert set(chosen) <= set(got), f"{why}: a chosen entry is dropped"
+        assert not exact or got == chosen, f"{why}: {len(got)} matched for {len(chosen)} chosen"
+
+    check(pairs, True, "every entry")
+    whole_suites = [p for p in pairs if p[1].startswith(("suite1::", "suite2::")) or p[1] == "top_level"]
+    check(whole_suites, True, "whole modules and a top-level test")
+    check([("pkg3::all", f"suite5::case1{pad}"), ("pkg0::all", "suite0::deeper::case")], True, "two lone tests")
+    check(pairs[::2], False, "every other entry, widened")
+    try:
+        with open(CONFIG, encoding="utf-8") as fh:
+            real = entries(ci_filter(fh.read()))
+    except OSError:
+        print(f"slow_set: selftest: no {CONFIG} here, the tree's own slow set is not sized")
+        return
+    ts = terms(real, real)
+    assert len(_render(ts)) <= EXPR_LIMIT and all(covers(ts, *p) for p in real), (
+        f"the whole of {CONFIG}'s slow set selected: {len(_render(ts))} bytes"
+    )
 
 
 def main(argv: list[str]) -> int:

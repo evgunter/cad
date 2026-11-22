@@ -130,10 +130,18 @@ def added_tokens(diff: str, root: Path) -> set[str]:
 
 def file_module(path: str) -> str:
     """The module name a Rust file stands for: its stem, its directory's name
-    for a `mod.rs` or `tests.rs`, and `lib` for a crate root's own tests."""
+    for a `mod.rs` or a `tests.rs` below the crate root, `tests` for the
+    crate root's own `tests.rs`, and `lib` for `lib.rs`."""
     p = PurePosixPath(path)
-    name = p.parent.name if p.stem in ("mod", "tests") else p.stem
-    return "lib" if name == "src" else name
+    if p.stem == "mod" or (p.stem == "tests" and p.parent.name != "src"):
+        return p.parent.name
+    return p.stem
+
+
+def spells_a_name(names: list[str]) -> re.Pattern[str]:
+    """A line whose string literal spells one of `names`: a `"` opens the
+    run the name ends."""
+    return re.compile("|".join(f'"[^"]*{re.escape(n)}' for n in names))
 
 
 def edited_tokens(
@@ -162,61 +170,53 @@ def edited_tokens(
     return tokens
 
 
-def _git_referrers(rev: str, root: Path) -> Callable[[list[str]], list[str]]:
+def _git(root: Path, *args: str, ok: tuple[int, ...] = (0,)) -> str | None:
+    """git's stdout in `root`, paths unquoted; `None` on an exit code in
+    `ok` other than 0, and a raise on any other."""
+    out = subprocess.run(
+        ["git", "-c", "core.quotepath=off", *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        errors="replace",
+    )
+    if out.returncode not in ok:
+        raise RuntimeError(f"git {args[0]} exited {out.returncode}: {out.stderr.strip()}")
+    return out.stdout if out.returncode == 0 else None
+
+
+def _git_referrers(root: Path) -> Callable[[list[str]], list[str]]:
     def referrers(names: list[str]) -> list[str]:
         if not names:
             return []
-        out = subprocess.run(
-            ["git", "grep", "-I", "-F", *(a for n in names for a in ("-e", n)), rev, "--", "*.rs"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            errors="replace",
-        )
-        if out.returncode not in (0, 1):
-            raise RuntimeError(f"git grep failed: {out.stderr.strip()}")
-        spelled = re.compile("|".join(f'"[^"]*{re.escape(n)}' for n in names))
-        hits = (line.split(":", 2)[1:] for line in out.stdout.splitlines())
+        pats = (a for n in names for a in ("-e", n))
+        out = _git(root, "grep", "-I", "-F", *pats, "HEAD", "--", "*.rs", ok=(0, 1)) or ""
+        spelled = spells_a_name(names)
+        hits = (line.split(":", 2)[1:] for line in out.splitlines())
         return sorted({path for path, text in hits if spelled.search(text)})
 
     return referrers
 
 
-def _git_reader(rev: str, root: Path) -> Callable[[str], str | None]:
-    def read(path: str) -> str | None:
-        out = subprocess.run(
-            ["git", "show", f"{rev}:{path}"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            errors="replace",
-        )
-        return out.stdout if out.returncode == 0 else None
+def diff_tokens(base: str, root: Path) -> set[str]:
+    """Every token `--new-since` prints, for the diff `base..HEAD` of the
+    checkout at `root`. Packages are read from the checkout's own
+    `Cargo.toml`s, which is why the far end is HEAD and nothing else."""
 
-    return read
+    def diff(*args: str) -> str:
+        return _git(root, "diff", "--no-renames", "--no-color", *args) or ""
 
-
-def diff_tokens(base: str, rev: str, root: Path) -> set[str]:
-    """Every token `--new-since` prints, for the diff `base..rev`."""
-
-    def git(*args: str, paths: tuple[str, ...] = ()) -> str:
-        return subprocess.run(
-            ["git", "diff", "--no-renames", "--no-color", *args, base, rev, "--", *paths],
-            cwd=root,
-            check=True,
-            capture_output=True,
-            text=True,
-            errors="replace",
-        ).stdout
-
-    paths = git("--name-only").splitlines()
-    return added_tokens(git("-U0", paths=("*.rs",)), root) | edited_tokens(
-        paths, root, _git_reader(rev, root), _git_referrers(rev, root)
+    paths = diff("--name-only", base, "HEAD").splitlines()
+    return added_tokens(diff("-U0", base, "HEAD", "--", "*.rs"), root) | edited_tokens(
+        paths,
+        root,
+        lambda path: _git(root, "show", f"HEAD:{path}", ok=(0, 128)),
+        _git_referrers(root),
     )
 
 
 def new_since(base: str) -> int:
-    print(" ".join(sorted(diff_tokens(base, "HEAD", Path.cwd()))))
+    print(" ".join(sorted(diff_tokens(base, Path.cwd()))))
     return 0
 
 
@@ -419,12 +419,7 @@ def git_selftest(root: Path) -> None:
     """`diff_tokens` through real git: the reads `--new-since` makes."""
 
     def git(*args: str) -> None:
-        subprocess.run(
-            ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
-            cwd=root,
-            check=True,
-            capture_output=True,
-        )
+        _git(root, "-c", "user.name=t", "-c", "user.email=t@t", *args)
 
     files = {**EDITED_FILES, "crates/topo/src/chord/golden/chord_rows.txt": "1\n"}
     for rel, text in files.items():
@@ -436,14 +431,20 @@ def git_selftest(root: Path) -> None:
     git("tag", "base")
     (root / "crates/topo/src/chord/golden/chord_rows.txt").write_text("2\n")
     git("commit", "-qam", "re-cut the golden")
-    got = diff_tokens("base", "HEAD", root)
+    got = diff_tokens("base", root)
     assert got == {"topo:file:chord", "topo:fn:reads_its_golden"}, (
         f"a golden's re-cut reaches the file that reads it: {got}"
     )
-    (root / "crates/geom/tests/all/census.rs").write_text(EDITED_FILES["crates/geom/tests/all/census.rs"])
-    git("commit", "-qam", "move the pin")
-    got = diff_tokens("HEAD~1", "HEAD", root)
+    census = "crates/geom/tests/all/census.rs"
+    (root / census).write_text(EDITED_FILES[census])
+    (root / "crates/geom/tests/all/\u00e9t\u00e9.rs").write_text("fn summer_row() {}\n")
+    git("add", "-A")
+    git("commit", "-qm", "move the pin")
+    got = diff_tokens("HEAD~1", root)
     assert "geom:fn:every_read_is_counted" in got and not any(":file:chord" in t for t in got), got
+    assert {"geom:file:\u00e9t\u00e9", "geom:fn:summer_row", "geom:summer_row"} <= got, (
+        f"a non-ASCII path is read unquoted, by both readers: {got}"
+    )
 
 
 def edited_selftest(root: Path) -> None:
@@ -456,9 +457,8 @@ def edited_selftest(root: Path) -> None:
 
     def referrers(names: list[str]) -> list[str]:
         assert names == ["chord_rows.txt", "x.md"], names
-        return [
-            p for p, text in EDITED_FILES.items() if any(f'"{n}' in text or f'/{n}"' in text for n in names)
-        ]
+        spelled = spells_a_name(names)
+        return [p for p, text in EDITED_FILES.items() if spelled.search(text)]
 
     edited = edited_tokens(paths, root, EDITED_FILES.get, referrers)
     assert edited == {
@@ -468,8 +468,13 @@ def edited_selftest(root: Path) -> None:
         "topo:fn:reads_its_golden",
     }, edited
     assert file_module("crates/topo/src/lib.rs") == "lib"
-    assert file_module("crates/topo/src/tests.rs") == "lib"
+    assert file_module("crates/topo/src/tests.rs") == "tests", "the root's `tests` module"
+    assert file_module("crates/topo/src/chord/tests.rs") == "chord"
     assert file_module("crates/topo/src/chord/mod.rs") == "chord"
+    root_tests = edited_tokens(["crates/topo/src/tests.rs"], root, lambda _: "", lambda _: [])
+    assert selected([("topo", "tests::made_by_macro"), ("topo", "made_by_macro")], root_tests) == [
+        ("topo", "tests::made_by_macro")
+    ], f"an edit to src/tests.rs selects the tests under `tests::` ({root_tests})"
     slow = [
         ("geom::all", "census::every_read_is_counted"),
         ("geom::all", "other::every_read_is_counted_elsewhere"),
