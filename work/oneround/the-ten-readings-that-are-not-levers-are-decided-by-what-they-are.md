@@ -2,7 +2,7 @@
 id: the-ten-readings-that-are-not-levers-are-decided-by-what-they-are
 kind: unit
 title: the ten readings that are not levers are decided by what they are
-status: spec
+status: dispatched
 opened: 2026-11-22
 priority: P1
 cost: H
