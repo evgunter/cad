@@ -20,9 +20,9 @@ The pipe of
 `circle(1)`, `circle(0.6)` extruded 2 along z) and the same loops drawn
 on a cap and revolved a quarter turn about a line in the cap's plane
 three units off the pipe's axis. Four of that file's eight poses bend
-the elbow back INTO the pipe: off the End cap (z = 2) a turn of +π/2
-(the elbow spans z ∈ [−2, 2]), off the Start cap (z = 0) a turn of
-−π/2 (z ∈ [−4, 0]). For these the two outer walls leave the shared rim
+the elbow back INTO the pipe, a turn of +π/2 off either cap (the Start
+cap's frame faces the other way): off the End cap (z = 2) the elbow
+spans z ∈ [−2, 2], off the Start cap (z = 0) z ∈ [0, 4]. For these the two outer walls leave the shared rim
 on ONE side, so `rim_wedge::departures` should read `Same` and the
 glue door leave the rim unglued (`TangencyFailure::Unrouted`; expected
 from the geometry, not traced), and the bend runs through the pipe's

@@ -2092,6 +2092,121 @@ fn edge_covers<T: crate::props::AtRestPolicy>(
     .collect()
 }
 
+/// **The window past an end of `edge` that lies on a junction's rim**:
+/// where a parent face of `edge` and `face` were glued as a smooth
+/// junction on a rim (both end on it), and the end at `p` lies on that
+/// rim, the end's root on `face`'s carrier is the junction's, and the
+/// end-root door ([`geom_brep::curve_face::end_root`]) factors it and
+/// certifies the window past it. The edge leaves the rim into its own
+/// face, which the routing read leaving it on the side away from
+/// `face`, so the window's neighbourhood of the end is the end's own
+/// incidence; the rest of the span is the root doors'. `None` where no
+/// such junction holds the end, or the carrier lies on the surface.
+///
+/// # Errors
+///
+/// [`BooleanError::JunctionEndUnread`] where the door has no lane or no
+/// window; [`BooleanError::CurvedPierceEscalated`]
+/// ([`BooleanDecision::JunctionEndOrder`]) where a reading is in band.
+#[allow(clippy::too_many_arguments)]
+fn junction_window<T: Decide + crate::props::AtRestPolicy>(
+    (x, x_is, edge_key, edge): (&Body<T>, Operand, EdgeKey, &crate::entity::Edge),
+    face: FaceKey,
+    surface: &geom::Surface<T>,
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    p: Point3<T>,
+    declared: &super::GluedPairs<T>,
+    band: Band,
+) -> Result<Option<geom_brep::curve_face::end_root::EndWindow<T>>, BooleanError> {
+    use geom_brep::curve_face::end_root::{EndRootRefusal, SpanEnd, end_window};
+    let escalated = |diag| BooleanError::CurvedPierceEscalated {
+        operand: x_is,
+        face,
+        edge: edge_key,
+        decision: BooleanDecision::JunctionEndOrder,
+        diag,
+    };
+    let unread = |gap| BooleanError::JunctionEndUnread {
+        operand: x_is,
+        face,
+        edge: edge_key,
+        gap,
+    };
+    let rims = [
+        x.face_of_half_edge(edge.he_plus),
+        x.face_of_half_edge(edge.he_minus),
+    ]
+    .into_iter()
+    .flatten()
+    .filter_map(|parent| declared.junction_rim(x_is, parent, x_is.other(), face));
+    let mut on_rim = false;
+    for rim in rims {
+        let w = p - rim.center;
+        let height = w.dot(rim.axis);
+        let radial = (w - rim.axis * height).norm() - rim.radius;
+        let off = (radial.powi(2) + height.powi(2)).sqrt();
+        match geom_core::k_stats::decide("junction_end_on_rim", Margin::of(off), band) {
+            Ok(Sign::Zero) => {
+                on_rim = true;
+                break;
+            }
+            Ok(_) => {}
+            Err(diag) => return Err(escalated(diag)),
+        }
+    }
+    if !on_rim {
+        return Ok(None);
+    }
+    let end = match geom_core::k_stats::prove(
+        "junction_end_which",
+        Margin::of((carrier.eval(t1) - p).norm() - (carrier.eval(t0) - p).norm()),
+    ) {
+        Ok(Sign::Positive) => SpanEnd::Start,
+        Ok(Sign::Negative) => SpanEnd::End,
+        Ok(Sign::Zero) | Err(_) => return Err(unread(super::JunctionEndGap::Window)),
+    };
+    match end_window(carrier, (t0, t1), end, surface, band) {
+        Ok(window) => Ok(Some(window)),
+        Err(EndRootRefusal::LiesOn) => Ok(None),
+        Err(EndRootRefusal::NoLane) => Err(unread(super::JunctionEndGap::NoLane {
+            curve: carrier.kind(),
+            surface: surface.kind(),
+        })),
+        Err(
+            EndRootRefusal::Order(diag)
+            | EndRootRefusal::Spread(Some(diag))
+            | EndRootRefusal::Window(Some(diag)),
+        ) => Err(escalated(diag)),
+        Err(EndRootRefusal::Spread(None) | EndRootRefusal::Window(None)) => {
+            Err(unread(super::JunctionEndGap::Window))
+        }
+    }
+}
+
+/// The rest of `[t0, t1]` past a junction end's window, which ends at
+/// `at`: the span from `at` to the end away from `p`.
+fn past_the_window<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    p: Point3<T>,
+    at: T,
+) -> (T, T) {
+    if nearer_start(carrier, (t0, t1), p) {
+        (at, t1)
+    } else {
+        (t0, at)
+    }
+}
+
+/// Whether `p` lies at the start of `[t0, t1]` rather than its end.
+fn nearer_start<T: Decide>(carrier: &geom::Curve3<T>, (t0, t1): (T, T), p: Point3<T>) -> bool {
+    geom_core::k_stats::prove(
+        "junction_end_which",
+        Margin::of((carrier.eval(t1) - p).norm() - (carrier.eval(t0) - p).norm()),
+    ) == Ok(Sign::Positive)
+}
+
 /// The curved-face sweep arm: endpoint sides come from the linearized
 /// implicit residual; a definite miss is PROVEN — for a LINE carrier
 /// against a cylinder or sphere the residual is convex (both-inside
@@ -2118,7 +2233,10 @@ fn edge_covers<T: crate::props::AtRestPolicy>(
 /// certified roots decide what the enclosures could not. Spiric and
 /// NURBS carriers have no enclosure and refuse
 /// ([`BooleanError::EdgeCarrierUnsupported`]) before any clearance test.
-/// Never a silent fallback.
+/// An end ON the carrier that lies on the rim of a junction its parent
+/// face makes with `face` has that end's root factored and the window
+/// past it certified first ([`junction_window`]), the rest of the span
+/// left to the roots. Never a silent fallback.
 ///
 /// **The carrier-identity rung** comes before any enclosure on a
 /// CIRCLE carrier: an edge whose parent face is declared one carrier with
@@ -2825,17 +2943,49 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         (Sign::Zero, Sign::Positive | Sign::Negative)
         | (Sign::Positive | Sign::Negative, Sign::Zero) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(
-                y,
+            let on = if s1 == Sign::Zero { pu } else { pv };
+            let window = junction_window(
+                (x, x_is, edge_key, edge),
                 face,
-                x_is.other(),
                 &surface,
                 curve.carrier(),
-                t0,
-                t1,
+                (t0, t1),
+                on,
+                declared,
                 band,
-                &escalate,
-            )? {
+            )?;
+            match match window {
+                Some(w) if w.whole => SpanVerdict::NoInterior,
+                Some(w) => {
+                    let (a, b) = past_the_window(curve.carrier(), (t0, t1), on, w.at);
+                    match wall_crossing(
+                        y,
+                        face,
+                        x_is.other(),
+                        &surface,
+                        curve.carrier(),
+                        a,
+                        b,
+                        band,
+                        &escalate,
+                    )? {
+                        // The rest of the span stands off the carrier.
+                        SpanVerdict::Miss => SpanVerdict::NoInterior,
+                        verdict => verdict,
+                    }
+                }
+                None => wall_crossing(
+                    y,
+                    face,
+                    x_is.other(),
+                    &surface,
+                    curve.carrier(),
+                    t0,
+                    t1,
+                    band,
+                    &escalate,
+                )?,
+            } {
                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                     t,
                     p,
@@ -2930,17 +3080,56 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // a tangency, and a trim with no verdict.
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(
-                y,
-                face,
-                x_is.other(),
-                &surface,
-                curve.carrier(),
-                t0,
-                t1,
-                band,
-                &escalate,
-            )? {
+            // An end on a junction's rim gives its window up to the root
+            // doors' span; both ends, the stretch between the windows.
+            let window = |p| {
+                junction_window(
+                    (x, x_is, edge_key, edge),
+                    face,
+                    &surface,
+                    curve.carrier(),
+                    (t0, t1),
+                    p,
+                    declared,
+                    band,
+                )
+            };
+            let (wu, wv) = (window(pu)?, window(pv)?);
+            let mut span = (t0, t1);
+            for (w, p) in [(wu, pu), (wv, pv)] {
+                if let Some(w) = w {
+                    span = if nearer_start(curve.carrier(), (t0, t1), p) {
+                        (w.at, span.1)
+                    } else {
+                        (span.0, w.at)
+                    };
+                }
+            }
+            let crossed = |(a, b): (T, T)| {
+                wall_crossing(
+                    y,
+                    face,
+                    x_is.other(),
+                    &surface,
+                    curve.carrier(),
+                    a,
+                    b,
+                    band,
+                    &escalate,
+                )
+            };
+            let windowed = wu.is_some() || wv.is_some();
+            let empty = windowed
+                && geom_core::k_stats::prove("junction_end_which", Margin::of(span.1 - span.0))
+                    != Ok(Sign::Positive);
+            match if empty {
+                SpanVerdict::NoInterior
+            } else {
+                match crossed(span)? {
+                    SpanVerdict::Miss if windowed => SpanVerdict::NoInterior,
+                    verdict => verdict,
+                }
+            } {
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::OffFace => {
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, m1, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, m2, contacts, band, tol)?;

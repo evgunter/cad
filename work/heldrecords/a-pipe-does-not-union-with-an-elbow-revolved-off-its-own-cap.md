@@ -151,7 +151,7 @@ Measured behind it, with the probe hacks in `probes/heldrecords-elbow/`:
   reaches the finish and refuses four edges still carrying the
   construction stand-in description: the seam's description where a
   station is not jet-determinate, untraced.
-- **Inward poses**: End cap +π/2 and Start cap −π/2 bend back into the
+- **Inward poses**: +π/2 off either cap bends back into the
   pipe; filed as `work/tang/an-elbow-bent-back-into-its-pipe-meets-it-along-a-rim-and-a-crossing.md`.
 
 ## 2026-11-22 — Design: an edge that ends on a glued junction (`heldrecords/elbow-ends`)
@@ -295,3 +295,44 @@ where it is (`must_carry_over_edge`). Not yet traced: which stage owns
 the re-description of a rim edge whose faces change under the zip,
 and why the edge reaches the result with the stand-in rather than the
 operand's at-rest description.
+
+## 2026-11-22 — Built: the end-root door, and where it moved from the design
+
+`geom_brep::curve_face::end_root` and `reduce::junction_window`, on
+`heldrecords/elbow-ends`. These moved from the design above.
+
+- **The spread is not band-sized, and cannot be.** A double root's
+  position is ill-conditioned: with the end decided only within ε of
+  the carrier, the roots the dropped terms can move lie within about
+  `√(2ε/κ)` of the end. Measured at 8.9e-5 m for the elbow's sweep arc
+  against the pipe at ε = 1e-9. "A spread past the band refuses" would
+  therefore refuse every double root. What holds instead:
+  - inside the spread the edge runs within the charge, the zero band
+    at the end's scale, of the other face's carrier;
+  - it does so on its own face's side of the junction's rim, where the
+    other face is not (departures `Opposite`);
+  - so the gate is that the spread ends strictly inside the window
+    (`curve_face_end_root_spread`), and the window's far end stands off
+    the surface (`curve_face_end_root_window_clear`).
+- **The order walk starts at `j = 1`**, so the first-order coefficient
+  is decided like the rest rather than dropped on the structure. At a
+  junction it decides Zero.
+- **Charges are the most each verdict admits**, the zero band's width
+  at the coefficient's power over the window's local extent. This is
+  the orchestrator's condition (1) on the D10 step, and it holds for
+  `c₀` and `c₁` too.
+- **The predicate names take the table's prefix** (`curve_face_end_root_*`),
+  since the door is not one of the table's `Door`s.
+- **Measured order at the elbow's neutral point is 4, not 3.** The
+  pipe's ruling through `(0, 1, 2)` meets the bend at
+  `(√(9 + s²) − 3)² ≈ s⁴/36`.
+
+Measured after it:
+- The four outward poses (−π/2 off either cap; the earlier sections'
+  "Start cap −π/2 inward" had the Start cap backwards), the rod's
+  outward pose and the G1 tube chain's union all pass the crossing
+  layer. Each stops at the finish on the seam's stand-in descriptions
+  (PR 3).
+- The tube chain under ∖ and ∩ stops at the fallback's extent, filed
+  as `a-junction-under-subtract-or-intersect-refuses-at-the-fallbacks-extent.md`.
+- Inward poses are unchanged: they are no junction.

@@ -1868,6 +1868,9 @@ pub(crate) struct VerifiedGlue<T: Real> {
     /// The line each tangency verified along a line was decided along
     /// ([`GlueVerdict`]).
     pub(crate) lines: std::collections::BTreeMap<(FaceKey, FaceKey), geom::Line<T>>,
+    /// The rim each junction was glued on: two faces that both end on it,
+    /// routed a smooth seam.
+    pub(crate) rims: std::collections::BTreeMap<(FaceKey, FaceKey), crate::rim_wedge::Rim<T>>,
     /// The one-carrier pairs a margin decided, one row each in
     /// declaration order: a declaration's verification is a value
     /// decision, so its glue is recorded like any other
@@ -1882,6 +1885,7 @@ impl<T: Real> Default for VerifiedGlue<T> {
             tangent: std::collections::BTreeMap::new(),
             touches: Vec::new(),
             lines: std::collections::BTreeMap::new(),
+            rims: std::collections::BTreeMap::new(),
             coincidences: Vec::new(),
         }
     }
@@ -2137,6 +2141,18 @@ impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
         self.one_sided
             .get(&(tagged(o1, f1), tagged(o2, f2)))
             .copied()
+    }
+
+    /// The rim the (operand-tagged) pair was glued on as a junction, if
+    /// it was.
+    pub(crate) fn junction_rim(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> Option<crate::rim_wedge::Rim<T>> {
+        Self::key(o1, f1, o2, f2).and_then(|k| self.verified.rims.get(&k).copied())
     }
 
     /// The coincidence the (operand-tagged) face pair is declared under,
@@ -3030,6 +3046,24 @@ pub enum BooleanError {
     CurvedSectorSideUnsupported {
         /// The charge's decided verdict at the sector's arm.
         verdict: geom_brep::recourse::Refused,
+    },
+    /// **An edge of `operand` ends on a rim its face and `face` both end
+    /// on, glued a smooth junction, and the end's touch with `face`'s
+    /// carrier is not read**: the carrier and the surface have no lane
+    /// that factors the end's root (`geom_brep::curve_face::end_root`), or
+    /// no window past it holds the root's order against the rest of the
+    /// span. The parts meet there by construction, so no move settles it.
+    ///
+    /// A limit: the end's lane not built (row 2).
+    JunctionEndUnread {
+        /// The operand whose edge ends on the rim.
+        operand: Operand,
+        /// The other operand's face the rim bounds.
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// What is not read there.
+        gap: JunctionEndGap,
     },
     /// A sweep event definitely lands on a CURVED face away from its
     /// boundary, a vertex sits ON a curved surface, or a curved-carrier
@@ -4641,6 +4675,8 @@ pub enum BooleanErrorKind {
     CurvedSectorSideUnsupported,
     /// [`BooleanError::CurvedPierceUnsupported`].
     CurvedPierceUnsupported,
+    /// [`BooleanError::JunctionEndUnread`].
+    JunctionEndUnread,
     /// [`BooleanError::CurvedPierceEscalated`].
     CurvedPierceEscalated,
     /// [`BooleanError::CrossingAtConeApex`].
@@ -5059,6 +5095,7 @@ impl BooleanError {
                 BooleanErrorKind::CurvedSectorSideUnsupported
             }
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
+            Self::JunctionEndUnread { .. } => BooleanErrorKind::JunctionEndUnread,
             Self::CurvedPierceEscalated { .. } => BooleanErrorKind::CurvedPierceEscalated,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
@@ -5236,6 +5273,7 @@ impl BooleanError {
             Self::DegenerateTorus { .. } => Err(Aborts),
             Self::CurvedSectorSideUnsupported { .. }
             | Self::CurvedPierceUnsupported { .. }
+            | Self::JunctionEndUnread { .. }
             | Self::CurvedBooleanUnsupported { .. }
             | Self::VertexPairAtConeApex { .. }
             | Self::ResultPinchedAtConeApex { .. }
@@ -5441,6 +5479,29 @@ impl BooleanError {
                 ..
             } => f.write_str(
                 &geom_brep::TorusRefusal::decided(*convention, *verdict).said("a torus face's", at),
+            ),
+            Self::JunctionEndUnread {
+                operand,
+                gap: JunctionEndGap::NoLane { curve, surface },
+                ..
+            } => write!(
+                f,
+                "an edge of the {} operand ends on a rim where its face and a face of the other \
+                 join smoothly, and the Boolean cannot yet read how a {curve:?} edge leaves a \
+                 {surface:?} face there. There is no way through this in the kernel yet",
+                operand_word(*operand),
+            ),
+            Self::JunctionEndUnread {
+                operand,
+                gap: JunctionEndGap::Window,
+                ..
+            } => write!(
+                f,
+                "an edge of the {} operand ends on a rim where its face and a face of the other \
+                 join smoothly, and the Boolean cannot find a stretch past its end where the \
+                 edge clearly leaves the other face's surface. There is no way through this in \
+                 the kernel yet",
+                operand_word(*operand),
             ),
             Self::CurvedPierceUnsupported { operand, .. } => write!(
                 f,
@@ -7781,6 +7842,9 @@ fn verify_glued_contacts<T: Decide>(
                     )?;
                     verified.lines.insert((fa, fb), line);
                 }
+                if let crate::rim_wedge::Locus::Rim(rim) = tangency.locus {
+                    verified.rims.insert((fa, fb), rim);
+                }
                 verified
                     .coincidences
                     .push(tangent_row(fa, fb, tangency.margin));
@@ -7986,6 +8050,22 @@ pub(crate) enum TangencyFailure {
     /// Along a rim, a junction the routing places outside what the zip
     /// builds (a cusp, or one it cannot place): the pair is not glued.
     Unrouted,
+}
+
+/// What [`BooleanError::JunctionEndUnread`] does not read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JunctionEndGap {
+    /// The end-root door has no lane for the edge's carrier and the
+    /// face's surface.
+    NoLane {
+        /// The edge's carrier.
+        curve: geom::CurveKind,
+        /// The face's surface.
+        surface: geom::SurfaceKind,
+    },
+    /// No window past the end holds its root's order, or none ends
+    /// clear of the surface.
+    Window,
 }
 
 /// What the rim routing read of a junction it cannot glue
@@ -9830,6 +9910,12 @@ mod tests {
                 edge,
                 band,
             },
+            BooleanError::JunctionEndUnread {
+                operand: Operand::A,
+                face,
+                edge,
+                gap: JunctionEndGap::Window,
+            },
             BooleanError::CurvedPierceEscalated {
                 operand: Operand::A,
                 face,
@@ -10196,6 +10282,7 @@ mod tests {
                 BooleanErrorKind::DegenerateTorus => "DegenerateTorus",
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
+                BooleanErrorKind::JunctionEndUnread => "JunctionEndUnread",
                 BooleanErrorKind::CurvedPierceEscalated => "CurvedPierceEscalated",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",

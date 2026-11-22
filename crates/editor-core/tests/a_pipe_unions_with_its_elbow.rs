@@ -11,10 +11,14 @@
 //! junction, which the glue door decides on each rim's identity and its
 //! π wedge, so the straight wall and the bend, whose relative curvature
 //! passes through zero at two points of each rim, are no second-order
-//! question there. Every elbow pose, the four that bend back into the
-//! pipe among them, then stops at the crossing layer: an edge of one
-//! body ends on a rim tangent to the other's wall, which that layer
-//! cannot yet settle (`work/heldrecords/a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap.md`).
+//! question there. An edge of either body that ends on a rim, tangent to
+//! the other's wall there, has that end's root factored by the crossing
+//! layer (`geom_brep::curve_face::end_root`), so the four poses that bend
+//! away from the pipe pass it and stop at the finish, where the seams'
+//! edges still carry a construction's stand-in description. The four that
+//! bend back into the pipe are no junction (their walls leave the rim on
+//! one side) and stop at the crossing layer
+//! (`work/tang/an-elbow-bent-back-into-its-pipe-meets-it-along-a-rim-and-a-crossing.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::{FRAC_PI_2, PI};
@@ -179,9 +183,11 @@ fn join(hollow: bool, end: CapEnd, off: OffCap) -> Joined {
 
 /// The eight elbows that build: either cap, the axis on either side,
 /// either sign of the turn. (The other eight spellings put the profile
-/// across the axis, which the revolve refuses on its own.) Off the End
-/// cap (z = 2) a turn of +π/2 bends back into the pipe and −π/2 away
-/// from it; off the Start cap (z = 0) the reverse.
+/// across the axis, which the revolve refuses on its own.) A turn of
+/// +π/2 bends back into the pipe and −π/2 away from it, off either cap:
+/// the Start cap's frame faces the other way, so off the End cap (z = 2)
+/// the inward elbow spans z ∈ [−2, 2] and off the Start cap (z = 0)
+/// z ∈ [0, 4].
 fn the_eight_poses() -> [(CapEnd, OffCap); 8] {
     let q = FRAC_PI_2;
     let elbow = |axis_x, heading, angle| OffCap::Elbow {
@@ -201,52 +207,76 @@ fn the_eight_poses() -> [(CapEnd, OffCap); 8] {
     ]
 }
 
-/// The refusal the union reached, which must be the crossing layer's
-/// for an edge ending on a rim: past the glue door, which no longer
-/// reads the rim's second order.
+/// Whether the pose bends the elbow away from the pipe: a turn of −π/2
+/// off either cap.
+fn outward(off: OffCap) -> bool {
+    match off {
+        OffCap::Elbow { angle, .. } => angle < 0.0,
+        OffCap::Extrude(_) => true,
+    }
+}
+
+/// The union's refusal.
 #[track_caller]
-fn stops_at_the_crossing_layer(j: &Joined, what: &str) {
+fn refusal<'j>(j: &'j Joined, what: &str) -> &'j topo::BooleanError {
     let refusal =
         j.ev.node_error(j.union)
             .unwrap_or_else(|| panic!("{what}: the union refuses"));
-    assert!(
-        matches!(
-            &refusal.kind,
-            editor_core::NodeErrorKind::Boolean(topo::BooleanError::CurvedPierceUnsupported { .. })
-        ),
-        "{what}: the crossing layer's refusal of an edge ending on the rim: {:?}",
-        refusal.kind
-    );
+    match &refusal.kind {
+        editor_core::NodeErrorKind::Boolean(e) => e,
+        other => panic!("{what}: a Boolean refusal: {other:?}"),
+    }
+}
+
+/// An outward pose passes the crossing layer and stops at the finish on
+/// the seams' stand-in descriptions; an inward one stops at the crossing
+/// layer.
+#[track_caller]
+fn stops_where_its_pose_does(j: &Joined, off: OffCap, what: &str) {
+    let e = refusal(j, what);
+    if outward(off) {
+        let said = format!("{e:?}");
+        assert!(
+            matches!(e, topo::BooleanError::ResultInvalid { .. })
+                && said.contains("ScaffoldAtRest"),
+            "{what}: past the crossing layer, at the finish's stand-in edges: {said}"
+        );
+    } else {
+        assert!(
+            matches!(e, topo::BooleanError::CurvedPierceUnsupported { .. }),
+            "{what}: bent back into the pipe, at the crossing layer: {e:?}"
+        );
+    }
 }
 
 #[test]
-fn a_pipe_and_an_elbow_off_either_cap_pass_the_glue_door_in_every_pose() {
+fn a_pipe_and_an_elbow_off_either_cap_stop_where_their_pose_does() {
     for (end, off) in the_eight_poses() {
-        stops_at_the_crossing_layer(
+        stops_where_its_pose_does(
             &join(true, end, off),
+            off,
             &format!("pipe, {end:?} cap, {off:?}"),
         );
     }
 }
 
 #[test]
-fn a_rod_and_its_elbow_pass_the_glue_door() {
-    let (end, off) = the_eight_poses()[0];
-    stops_at_the_crossing_layer(&join(false, end, off), "rod");
+fn a_rod_and_its_elbow_stop_where_their_pose_does() {
+    for (end, off) in [the_eight_poses()[0], the_eight_poses()[1]] {
+        stops_where_its_pose_does(&join(false, end, off), off, &format!("rod, {off:?}"));
+    }
 }
 
 /// The neutral points moved off the routing's stations: the axis turned
-/// a few ε about the cap's normal, and far.
+/// two ε about the cap's normal, an outward pose.
 #[test]
-fn an_elbow_whose_neutral_points_sit_between_the_stations_passes_the_glue_door() {
-    for k in [2.0, 1e3] {
-        let off = OffCap::Elbow {
-            axis_x: BEND,
-            heading: -FRAC_PI_2 + k * Tol::witness().eps(),
-            angle: -FRAC_PI_2,
-        };
-        stops_at_the_crossing_layer(&join(true, CapEnd::End, off), &format!("turned {k}ε"));
-    }
+fn an_elbow_whose_neutral_points_sit_between_the_stations_passes_the_crossing_layer() {
+    let off = OffCap::Elbow {
+        axis_x: BEND,
+        heading: -FRAC_PI_2 + 2.0 * Tol::witness().eps(),
+        angle: -FRAC_PI_2,
+    };
+    stops_where_its_pose_does(&join(true, CapEnd::End, off), off, "turned 2ε");
 }
 
 /// The extrude's walls continue the pipe's on one carrier, and each wall

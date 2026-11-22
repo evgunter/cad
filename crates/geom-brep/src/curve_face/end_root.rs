@@ -18,7 +18,7 @@
 //! - **The order** `m` is the least `j ≥ 1` whose coefficient decides
 //!   nonzero, each read as the separation `c_j·L^j` its term makes over
 //!   the window's local extent `L`, over the form's gradient at the end
-//!   (`end_root_order`). A coefficient decided Zero is a coincidence the
+//!   (`curve_face_end_root_order`). A coefficient decided Zero is a coincidence the
 //!   door acts on, as the glue does (D10), and the walk steps past it; one
 //!   in band refuses, and the walk never steps on it. Every coefficient
 //!   decided Zero is the carrier lying on the surface.
@@ -31,7 +31,7 @@
 //!   at the zero band's width at its power over `L`, so a small true
 //!   coefficient cannot move a root out of what is charged. The roots in
 //!   the window then lie where `s^m·|c_m|/2` does not exceed the charge,
-//!   which must end strictly inside the window (`end_root_spread`). There
+//!   which must end strictly inside the window (`curve_face_end_root_spread`). There
 //!   the carrier runs within the charge of the surface, the zero band at
 //!   the end's scale: a double root's neighbourhood, `√(2ε/κ)` long and
 //!   not `ε`, which no reading at the band shortens. The caller owns why
@@ -39,7 +39,7 @@
 //!   carrier leaves the curve the two faces end on into its own face,
 //!   where the other face is not).
 //! - **The window's far end** must stand definitely off the surface
-//!   (`end_root_window_clear`, the linearized residual), so no root of
+//!   (`curve_face_end_root_window_clear`, the linearized residual), so no root of
 //!   the rest of the span sits within the band of where the window ends.
 //!   The rest of the span is the root doors', unchanged.
 //!
@@ -89,11 +89,11 @@ pub enum EndRootRefusal {
 }
 
 /// The order walk's predicate.
-pub const END_ROOT_ORDER: &str = "end_root_order";
+pub const END_ROOT_ORDER: &str = "curve_face_end_root_order";
 /// The spread's predicate.
-pub const END_ROOT_SPREAD: &str = "end_root_spread";
+pub const END_ROOT_SPREAD: &str = "curve_face_end_root_spread";
 /// The window's far end.
-pub const END_ROOT_WINDOW_CLEAR: &str = "end_root_window_clear";
+pub const END_ROOT_WINDOW_CLEAR: &str = "curve_face_end_root_window_clear";
 /// The halvings a window is tried at.
 const WINDOW_HALVINGS: u32 = 48;
 
@@ -316,14 +316,14 @@ pub fn end_window<T: Decide>(
             .max(zero * g),
     ];
     let mut order = None;
-    for j in 1..n.len() {
-        let term = n[j] * pow(extent, j);
+    for (j, &c) in n.iter().enumerate().skip(1) {
+        let term = c * pow(extent, j);
         match decide(END_ROOT_ORDER, Margin::over_lever(term, g), band) {
             Ok(Sign::Positive | Sign::Negative) => {
                 order = Some(j);
                 break;
             }
-            Ok(Sign::Zero) => charge.push(n[j].abs().max(zero * g / pow(extent, j))),
+            Ok(Sign::Zero) => charge.push(c.abs().max(zero * g / pow(extent, j))),
             Err(diag) => return Err(EndRootRefusal::Order(diag)),
         }
     }

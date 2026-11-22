@@ -244,6 +244,27 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "JunctionEndUnread (no lane)",
+            BooleanError::JunctionEndUnread {
+                operand: Operand::A,
+                face,
+                edge,
+                gap: topo::JunctionEndGap::NoLane {
+                    curve: geom::CurveKind::Ellipse,
+                    surface: SurfaceKind::Torus,
+                },
+            },
+        ),
+        (
+            "JunctionEndUnread (no window)",
+            BooleanError::JunctionEndUnread {
+                operand: Operand::A,
+                face,
+                edge,
+                gap: topo::JunctionEndGap::Window,
+            },
+        ),
+        (
             "CurvedSectorSideUnsupported",
             BooleanError::CurvedSectorSideUnsupported {
                 verdict: geom_brep::recourse::Refused::Negative {

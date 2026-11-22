@@ -366,6 +366,25 @@ side. It is never read from values: a root verdict of "tangent" is a
 band decision, so a graze within the band refuses, and an exact tangency
 is reached only through structure or a glue.
 
+*An end on a junction's rim.* Where an edge's parent face and the
+target face were glued as a junction on a rim (C4's `Tangent` row: both
+end on it, routed π) and the edge's end lies on that rim (decided Zero,
+`junction_end_on_rim`), the end's root on the target's carrier is the
+junction's, whatever the two carriers' kinds, and no cover is claimed.
+The end-root door (`geom_brep::curve_face::end_root`) composes the
+carrier from the end with the target's canonical form and decides the
+root's order: the least coefficient decided nonzero, a coefficient
+decided Zero stepped past and charged at the zero band's width, one in
+band refused (`BooleanDecision::JunctionEndOrder`). It then certifies
+a window past the end that holds no root but those the dropped terms
+can move. Those roots lie where the edge runs within the band of the
+carrier, on the edge's own face's side of the rim, where the target
+face is not, so they are the end's own incidence. The rest of the span
+is the root doors' as any span's, so a root of the carrier there is
+found and placed in the trim. A straight tube leaving a bend G1 does
+meet the bend's carrier again, off its face. A carrier or a surface
+the door has no lane for refuses `JunctionEndUnread`.
+
 *Touches inside the edge.* A covered LINE touching a cylinder or a
 sphere inside the edge is read again on the edge's fragments once both
 sweep directions have run: where the other operand has a vertex at the
