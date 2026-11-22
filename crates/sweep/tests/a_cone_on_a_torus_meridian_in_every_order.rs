@@ -43,7 +43,8 @@ fn torus(tol: Tol) -> AtRestBody<f64> {
     revolved(&[(2.0, -1.0, 1.0), (2.0, 1.0, 1.0)], axis_y(), tol)
 }
 
-/// The triangle revolved about the line `x = 2` along the sketch's `y`,
+/// The triangle revolved about the line `x = 2` along the sketch's `−y`
+/// (the profile on the axis's positive side),
 /// then turned a quarter about the `x` axis through `(2, 0, 0)`, so that
 /// line runs along `z` and the triangle's vertex `(1, 0)` sweeps the
 /// meridian circle in `z = 0`.
@@ -52,7 +53,7 @@ fn triangle(tol: Tol) -> AtRestBody<f64> {
         &[(1.0, 0.0, 0.0), (1.5, 0.5, 0.0), (0.5, 0.5, 0.0)],
         RevolveAxis {
             origin: Point2::new(2.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
+            dir: Vec2::new(0.0, -1.0),
         },
         tol,
     );
