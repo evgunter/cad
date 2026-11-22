@@ -270,9 +270,7 @@ fn the_spline_chart_accessor_answers_the_fit() {
     // chart (its own refusals live downstream).
     assert!(
         Surface::<f64>::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         }
         .spline_chart()
         .is_none()
@@ -569,9 +567,11 @@ fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
     let s = approx_offset_surface_at(Arc::new(base), 0.01, 1e-6, band()).unwrap();
     let fit = approx_of(&s).fit().clone();
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.4),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.4),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let row = geom_brep::interior_iso_u(&fit.transposed(), 0.5).unwrap();
     let (t0, t1) = row.domain();

@@ -125,11 +125,16 @@ pub fn anchored_at<T: Real>(datum: Point3<T>, forgets: Forgets<T>, at: Point3<T>
 pub fn surface_anchored_at<T: Real>(surface: &geom::Surface<T>, at: Point3<T>) -> geom::Surface<T> {
     let mut out = surface.clone();
     match &mut out {
-        geom::Surface::Plane { origin, normal, .. } => {
-            *origin = anchored_at(*origin, Forgets::Plane(*normal), at);
+        geom::Surface::Plane { frame, .. } => {
+            *frame = frame.with_origin(anchored_at(
+                frame.origin(),
+                Forgets::Plane(frame.axis()),
+                at,
+            ));
         }
-        geom::Surface::Cylinder { origin, axis, .. } => {
-            *origin = anchored_at(*origin, Forgets::Axis(*axis), at);
+        geom::Surface::Cylinder { frame, .. } => {
+            *frame =
+                frame.with_origin(anchored_at(frame.origin(), Forgets::Axis(frame.axis()), at));
         }
         _ => {}
     }
@@ -1199,9 +1204,9 @@ mod tests {
                 if let (Curve3::Circle(c), true) = (&carrier, t1 > 1.0) {
                     // The whole circle's farthest point from the pivot, exactly:
                     // `√(h² + (ρ + r)²)`, `h` off its plane, `ρ` across it.
-                    let w = pivot - c.frame.origin;
-                    let h = w.dot(c.frame.axis);
-                    let rho = (w - c.frame.axis * h).norm();
+                    let w = pivot - c.frame.origin();
+                    let h = w.dot(c.frame.axis());
+                    let rho = (w - c.frame.axis() * h).norm();
                     let exact = (h * h + (rho + c.radius()).powi(2)).sqrt();
                     assert!(
                         (lever - exact).abs() <= 1e-12 && farthest <= exact,
@@ -1283,14 +1288,10 @@ mod tests {
                     // against it has its farthest point there.
                     let crest_normal = {
                         let (u, k) = match carrier {
-                            Curve3::Circle(geom::Circle {
-                                frame: geom::Frame { u_ref, axis, .. },
-                                ..
-                            })
-                            | Curve3::Ellipse(geom::Ellipse {
-                                frame: geom::Frame { u_ref, axis, .. },
-                                ..
-                            }) => (u_ref, axis.normalize()),
+                            Curve3::Circle(geom::Circle { frame, .. })
+                            | Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
+                                (frame.u_ref(), frame.axis())
+                            }
                             _ => unreachable!(),
                         };
                         (u * (tm.cos() / a) + k.cross(u) * (tm.sin() / b)).normalize()
@@ -1461,9 +1462,7 @@ mod tests {
         let z = Vec3::new(0.0, 0.0, 1.0);
         let pivot = Point3::new(0.4, -0.3, 0.25);
         let spiric = Curve3::Spiric {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: z,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, Vec3::new(1.0, 0.0, 0.0)),
             major_radius: 2.0,
             minor_radius: 0.5,
             offset: 0.7,
@@ -1573,11 +1572,13 @@ mod tests {
     #[test]
     fn a_torus_levers_at_its_outer_radius() {
         let torus = Surface::Torus {
-            center: Point3::new(1.0, 2.0, 3.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(1.0, 2.0, 3.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let ball = ExtentBall::of_cover(&torus.cover().unwrap());
         for (pivot, want) in [((1.0, 2.0, 3.0), 2.5), ((1.0, 2.0, 7.0), 6.5)] {
@@ -1609,10 +1610,8 @@ mod tests {
             );
         }
         let covered = Surface::Sphere {
-            center: at,
+            frame: geom::Frame::new(at, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
             radius: 2.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
         .cover()
         .unwrap();

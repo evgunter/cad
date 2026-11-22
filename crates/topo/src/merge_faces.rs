@@ -3160,9 +3160,11 @@ mod tests {
     /// it is no merge candidate of a face on [`flat_plane`].
     fn flat_plane_at(z: f64) -> Surface<f64> {
         Surface::Plane {
-            origin: geom_core::Point3::new(0.0, 0.0, z),
-            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, z),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
     }
 
@@ -4187,14 +4189,18 @@ mod tests {
         // mvfs placeholder, and the row is about KINDS, not about
         // which kind a fixture happens to leave behind.
         let plane = body.add_surface(Surface::Plane {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
         });
         let cylinder = body.add_surface(Surface::Cylinder {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
         });
         body.faces
@@ -4268,9 +4274,11 @@ mod tests {
     /// The unit cylinder about `z`.
     fn unit_cylinder() -> Surface<f64> {
         Surface::Cylinder {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
         }
     }
@@ -4619,10 +4627,12 @@ mod tests {
             body.surfaces[key] = surface;
         };
         let sphere = |x: f64| Surface::Sphere {
-            center: geom_core::Point3::new(x, 0.0, 0.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(x, 0.0, 0.0),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
             radius: 1.0,
-            axis: geom_core::Vec3::unit_z(),
-            u_ref: geom_core::Vec3::unit_x(),
         };
         set(bad, sphere(f64::NAN));
         set(good, sphere(0.0));
@@ -4639,11 +4649,13 @@ mod tests {
             );
         }
         let torus = |major: f64, minor: f64| Surface::Torus {
-            center: geom_core::Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
+            frame: geom::Frame::new(
+                geom_core::Point3::origin(),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
             major_radius: major,
             minor_radius: minor,
-            u_ref: geom_core::Vec3::unit_x(),
         };
         let mut set = |f: FaceKey, surface: Surface<f64>| {
             let key = body.faces[f].surface;
@@ -4767,9 +4779,7 @@ pub(crate) mod winding_arm_tests {
     /// every winding is asked about.
     fn plane() -> geom::Surface<f64> {
         geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         }
     }
 
@@ -6088,9 +6098,11 @@ mod declared_reach_rows {
             };
             let tilted = body.get_face(b_side).expect("live").surface;
             *body.surfaces.get_mut(tilted).expect("live") = geom::Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 1.0),
-                normal: Vec3::new(0.0, -theta, 1.0).normalize(),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 1.0),
+                    Vec3::new(0.0, -theta, 1.0).normalize(),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
             };
             let got = body.merge_coplanar_faces(tol);
             assert!(

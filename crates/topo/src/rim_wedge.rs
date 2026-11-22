@@ -69,11 +69,7 @@ impl<T: Decide> Rim<T> {
     /// circle has no cover.
     fn reach_from(&self, pivot: Point3<T>) -> geom_core::Lever<T> {
         let circle = geom::Circle::new(
-            geom::Frame {
-                origin: self.center,
-                axis: self.axis,
-                u_ref: self.u_ref,
-            },
+            geom::Frame::new(self.center, self.axis, self.u_ref),
             self.radius,
         );
         let turn = geom::cover::ParamWindow::new(T::zero(), circle.period().length());
@@ -773,13 +769,10 @@ fn curve_sense<T: Decide>(
     band: Band,
 ) -> Result<geom_core::Sign, Indeterminate> {
     match (locus, curve.carrier()) {
-        (
-            Locus::Rim(rim),
-            geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis, .. },
-                ..
-            }),
-        ) => crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis)), band),
+        (Locus::Rim(rim), geom::Curve3::Circle(geom::Circle { frame, .. })) => {
+            let axis = frame.axis();
+            crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis)), band)
+        }
         _ => Ok(geom_core::Sign::Positive),
     }
 }
@@ -895,22 +888,10 @@ fn crossings<T: Decide>(
             }
             Ok(Some(kept))
         }
-        (
-            geom::Curve3::Circle(
-                arc @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            ..
-                        },
-                    ..
-                },
-            ),
-            _,
-        ) => {
+        (geom::Curve3::Circle(arc @ geom::Circle { frame, .. }), _) => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let radius = arc.radius();
-            let (ce, ae, re) = (*center, *axis, radius);
+            let (ce, ae, re) = (center, axis, radius);
             let e1 = {
                 let d = p0 - ce;
                 d.normalize()
@@ -1000,23 +981,23 @@ fn rides<T: Decide>(
             Locus::Rim(rim),
             geom::Curve3::Circle(
                 circle @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
+                    frame: carrier_frame_27,
                     ..
                 },
             ),
         ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_27.origin(),
+                carrier_frame_27.axis(),
+                carrier_frame_27.u_ref(),
+            );
             let radius = circle.radius();
             same_circle(
                 Rim {
-                    center: *center,
-                    axis: *axis,
+                    center,
+                    axis,
                     radius,
-                    u_ref: *u_ref,
+                    u_ref,
                 },
                 rim,
                 band,
@@ -1078,15 +1059,15 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
         .filter_map(|(_, c)| match *c.carrier() {
             geom::Curve3::Circle(
                 circle @ geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            u_ref,
-                        },
+                    frame: carrier_frame_26,
                     ..
                 },
             ) => {
+                let (center, axis, u_ref) = (
+                    carrier_frame_26.origin(),
+                    carrier_frame_26.axis(),
+                    carrier_frame_26.u_ref(),
+                );
                 let radius = circle.radius();
                 Some(Rim {
                     center,
@@ -1400,16 +1381,20 @@ mod redfirst {
     #[test]
     fn the_two_senses_route_a_tangent_rim_to_different_arms() {
         let sphere = geom::Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let cylinder = geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let equator = Rim {
             center: Point3::origin(),
@@ -1459,15 +1444,19 @@ mod redfirst {
     #[test]
     fn a_transverse_rim_is_not_a_seam() {
         let sphere = geom::Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let plane = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.6),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.6),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let rim = Rim {
             center: Point3::new(0.0, 0.0, 0.6),
@@ -1506,18 +1495,22 @@ mod r2_probes {
 
     fn sphere() -> geom::Surface<f64> {
         geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
         }
     }
 
     fn cut_plane(sign: f64) -> geom::Surface<f64> {
         geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.6),
-            normal: Vec3::new(0.0, 0.0, sign),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.6),
+                Vec3::new(0.0, 0.0, sign),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         }
     }
 

@@ -380,6 +380,11 @@ struct Graze<T: Real> {
     /// a wall's or a sphere's radius, the touch's distance from a cone's
     /// apex.
     scale: T,
+    /// Whether the form is exactly `value + bend·(1 − cos(t − at))` in the
+    /// carrier's angle, a first harmonic with no error term (a conic's
+    /// height above a plane): its in-band arc is read in closed form
+    /// ([`arc`]).
+    harmonic: bool,
     /// Whether the root is the residual's, where the arm's form is not
     /// the residual (a cone's `F`, read through its floor). Read only
     /// once the root is known to reach the span ([`Reaching::confirmed`]):
@@ -408,9 +413,17 @@ impl<T: Real> Reaching<T> {
 /// `width` of zero: `(π/2)·√(2z/bend)`, `z` that width plus the extreme's
 /// own reading. A form that falls from its extreme no faster than a first
 /// harmonic of that curvature leaves the band no nearer than that
-/// (`1 − cos ψ ≥ 2ψ²/π²`), and a quadratic's exactly there.
+/// (`1 − cos ψ ≥ 2ψ²/π²`), and a quadratic's exactly there. A form that
+/// is exactly that first harmonic ([`Graze::harmonic`]) leaves the band at
+/// `acos(1 − z/bend)`, read in closed form.
 fn arc<T: Real>(g: &Graze<T>, width: T) -> T {
     let z = width + g.value.abs() + g.noise;
+    if g.harmonic {
+        return (T::one() - z / g.bend.abs())
+            .max(T::zero() - T::one())
+            .min(T::one())
+            .acos();
+    }
     (T::from_f64(core::f64::consts::FRAC_PI_2) * (T::from_f64(2.0) * z / g.bend.abs()).sqrt())
         .min(T::pi())
 }
@@ -529,11 +542,12 @@ fn plane<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Pose<T>, PoseRefusal> {
-    let geom::Surface::Plane { origin, normal, .. } = *surface else {
+    let geom::Surface::Plane { frame, .. } = *surface else {
         return Err(PoseRefusal::Fault(
             "the plane arm was handed a surface that is not a plane",
         ));
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     let carrier = span.carrier();
     let (t0, t1) = span.params();
     match (carrier.conic(), carrier) {
@@ -548,6 +562,8 @@ fn plane<T: Decide>(
 /// **A line against a plane** over the run `(t0, t1)`: the axis-parallel
 /// rung on its drift `|d·n̂|·run` ([`axis_drift`]), then its offset at the
 /// run's middle ([`axis_offset`]: lies or apart); past it, its one root.
+/// A drift in its gap answers `Apart` where the offset reads the run
+/// clear of the plane all along it, and escalates otherwise.
 pub(super) fn plane_line<T: Decide>(
     line: geom::Line<T>,
     (t0, t1): (T, T),
@@ -558,11 +574,23 @@ pub(super) fn plane_line<T: Decide>(
     let mid = geom::mid_param(t0, t1);
     let at_mid = geom::plane_offset(origin, normal, line.origin + line.dir * mid);
     let run = (t1 - t0).abs();
-    if axis_drift(
+    let half_drift = lead.abs() * run / T::from_f64(2.0);
+    // A drift in its gap does not part a line from a plane it stands
+    // clear of all along the run: the offset rung reads it apart first.
+    let parallel = match axis_drift(
         Margin::metered(run, geom_core::InfSpeed::new(lead.abs())),
         band,
-    )? {
-        return axis_offset(at_mid, lead.abs() * run / T::from_f64(2.0), band);
+    ) {
+        Ok(parallel) => parallel,
+        Err(refusal) => {
+            return match axis_offset(at_mid, half_drift, band) {
+                Ok(Pose::Apart) => Ok(Pose::Apart),
+                _ => Err(refusal),
+            };
+        }
+    };
+    if parallel {
+        return axis_offset(at_mid, half_drift, band);
     }
     Ok(Pose::Isolated(Form(Formed::PlaneLine {
         root: mid - at_mid / lead,
@@ -644,6 +672,7 @@ pub(super) fn plane_conic<T: Decide>(
                 speed: conic.speed_at(at),
                 // The conic's diameter at the touch.
                 scale: T::from_f64(2.0) * conic.speed_at(at),
+                harmonic: true,
                 confirm: Ok(()),
             };
             kappa(span, graze, band)
@@ -665,32 +694,31 @@ fn line<T: Decide>(
         ));
     };
     match *surface {
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => line_wall(span, line, (geom::Line { origin, dir: axis }, radius), band),
-        geom::Surface::Sphere { center, radius, .. } => {
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            line_wall(span, line, (geom::Line { origin, dir: axis }, radius), band)
+        }
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             line_sphere(span, line, (center, radius), band)
         }
         geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => line_cone(
-            span,
-            line,
-            (
-                geom::Line {
-                    origin: apex,
-                    dir: axis,
-                },
-                half_angle,
-            ),
-            band,
-        ),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            line_cone(
+                span,
+                line,
+                (
+                    geom::Line {
+                        origin: apex,
+                        dir: axis,
+                    },
+                    half_angle,
+                ),
+                band,
+            )
+        }
         // A line never lies on a torus: no ruling of a ring torus is a
         // line.
         geom::Surface::Torus { .. } => Ok(Pose::Isolated(Form(Formed::LineTorus))),
@@ -754,6 +782,7 @@ impl<T: Decide> LineQuadric<T> {
                     speed: span.speeds().1.get(),
                     // The wall's or the sphere's radius.
                     scale: radius,
+                    harmonic: false,
                     confirm: Ok(()),
                 },
                 band,
@@ -1125,6 +1154,7 @@ fn line_cone<T: Decide>(
                 speed: line.dir.norm(),
                 // The vertex's distance from the apex.
                 scale,
+                harmonic: false,
                 confirm,
             };
             return kappa(span, graze, band);
@@ -1150,11 +1180,12 @@ fn conic_quadric<T: Decide>(
         (
             &geom::Curve3::Circle(circle),
             &geom::Surface::Sphere {
-                center: s_center,
+                frame: sphere_frame,
                 radius: s_radius,
                 ..
             },
         ) => {
+            let s_center = sphere_frame.origin();
             let h = crate::circle_sphere_harmonic(&circle, s_center, s_radius);
             let first = super::circle_roots::FirstHarmonic {
                 lo: h.lo,
@@ -1170,12 +1201,12 @@ fn conic_quadric<T: Decide>(
         (
             _,
             &geom::Surface::Cone {
-                apex,
-                axis,
+                frame: cone_frame,
                 half_angle,
                 ..
             },
         ) => {
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
             let h = door::cone_harmonics(&conic, (apex, axis, half_angle));
             let noise = door::cone_noise(&h);
             if let Some(through) = conic_apex(span, &conic, (apex, axis, half_angle), &h, band)? {
@@ -1365,6 +1396,7 @@ fn first_harmonic<T: Decide>(
             speed: conic.speed_at(at),
             // The conic's diameter at the touch.
             scale: T::from_f64(2.0) * conic.speed_at(at),
+            harmonic: false,
             confirm,
         };
         kappa(span, g, band)
@@ -1528,8 +1560,7 @@ fn conic_torus<T: Decide>(
 ) -> Result<Pose<T>, PoseRefusal> {
     use super::circle_torus as door;
     let geom::Surface::Torus {
-        center: t_center,
-        axis: t_axis,
+        frame,
         major_radius,
         minor_radius,
         ..
@@ -1539,6 +1570,7 @@ fn conic_torus<T: Decide>(
             "the conic × torus arm was handed a surface that is not a torus",
         ));
     };
+    let (t_center, t_axis) = (frame.origin(), frame.axis());
     // The doors read only a ring, asked of the convention before any
     // pose: their harmonics take the witness, whose floor on `|F|` per
     // metre and whose meridian bound lean on `R − r > 0`.

@@ -178,28 +178,24 @@ impl<T: Decide> Ruled<T> {
     /// surface.
     fn of(surface: &geom::Surface<T>) -> Option<Self> {
         Some(match *surface {
-            geom::Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => Self::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            },
-            geom::Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Self::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            },
+            geom::Surface::Cylinder { frame, radius } => {
+                let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Self::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    u_ref,
+                }
+            }
+            geom::Surface::Cone { frame, half_angle } => {
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Self::Cone {
+                    apex,
+                    axis,
+                    half_angle,
+                    u_ref,
+                }
+            }
             _ => return None,
         })
     }
@@ -270,10 +266,10 @@ impl<T: Decide> region::Course<T> for LegShape<T> {
         }
     }
 
-    fn span(&self, end: Option<T>, edge: &Edge<T>) -> ((T, T), bool) {
+    fn span(&self, end: Option<T>) -> ((T, T), bool) {
         match self {
-            Self::Parallel(round) => round.span(end, edge),
-            Self::Ruling(line) => line.span(end, edge),
+            Self::Parallel(round) => round.span(end),
+            Self::Ruling(line) => line.span(end),
         }
     }
 }

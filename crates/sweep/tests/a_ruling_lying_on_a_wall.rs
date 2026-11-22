@@ -733,7 +733,8 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
         }
         // The plane `y = 0`, read within a tolerance on its stored data.
         let on_flat = |k| match bb.body.get_surface(k) {
-            Some(Surface::Plane { origin, normal, .. }) => {
+            Some(Surface::Plane { frame, .. }) => {
+                let (origin, normal) = (frame.origin(), frame.axis());
                 normal.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-12 && origin.y.abs() <= 1e-12
             }
             _ => false,

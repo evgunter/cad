@@ -143,20 +143,10 @@ fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
     let (mut meridians, mut equators) = (0, 0);
     for &(e, _) in &out.naming.inner_edges {
         let (c, (t0, t1)) = carrier(cavity, e);
-        let Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                ..
-            },
-        ) = c
-        else {
+        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = c else {
             panic!("{e:?}: a torus seam is a circle, got {c:?}");
         };
+        let (center, axis) = (frame.origin(), frame.axis());
         let radius = conic_k.radius();
         let (rho_c, h_c) = axial(center);
         if rho_c <= 1e-15 {
@@ -854,6 +844,15 @@ fn a_three_quarter_turn_cone_frustum_hollows() {
         })
         .body;
     assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()), "tier 3");
+    // The cavity's caps are bounded by hyperbolic arcs, rational
+    // quadratics, and each still has a window.
+    let side = topo::clearance::Side {
+        body: &hollow,
+        faces: hollow.faces().map(|(k, _)| k).collect(),
+    };
+    if let Err(e) = side.windows(topo::clearance::Which::First) {
+        panic!("the three-quarter frustum: every face has a window, got {e:?}");
+    }
     let frustum = core::f64::consts::PI * h * (r0 * r0 + r0 * r1 + r1 * r1) / 3.0;
     assert_hollow_volume(
         "the three-quarter frustum",
@@ -941,7 +940,7 @@ fn a_partial_frustum_moving_only_its_cone_keeps_its_generators() {
             for (edge, data) in body.edges() {
                 let [f, g] = topo::edge_faces(&body, edge);
                 let (sf, sg) = (surface(&body, f), surface(&body, g));
-                let meridian = |s: &Surface<f64>| matches!(s, Surface::Plane { normal, .. } if normal.y.abs() <= 1e-12);
+                let meridian = |s: &Surface<f64>| matches!(s, Surface::Plane { frame, .. } if frame.axis().y.abs() <= 1e-12);
                 let cone_cap = (matches!(sf, Surface::Cone { .. }) && meridian(&sg))
                     || (matches!(sg, Surface::Cone { .. }) && meridian(&sf));
                 if cone_cap {

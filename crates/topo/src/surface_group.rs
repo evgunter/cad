@@ -72,10 +72,10 @@ pub(super) fn coaxial_margins<T: Decide>(
     let geom::Line { origin, dir: axis } = axis;
     [
         Margin::levered(
-            circle.frame.axis.cross(axis).norm(),
+            circle.frame.axis().cross(axis).norm(),
             geom_brep::circle_curvature_arm(circle),
         ),
-        Margin::of(off_axis(origin, axis, circle.frame.origin)),
+        Margin::of(off_axis(origin, axis, circle.frame.origin())),
     ]
 }
 
@@ -246,10 +246,10 @@ pub(super) fn wrap_rims_within<T: Decide>(
         found
             .into_iter()
             .map(|(_, circle)| Rim {
-                center: circle.frame.origin,
-                axis: circle.frame.axis,
+                center: circle.frame.origin(),
+                axis: circle.frame.axis(),
                 radius: circle.radius(),
-                u_ref: circle.frame.u_ref,
+                u_ref: circle.frame.u_ref(),
             })
             .collect(),
     ))
@@ -295,11 +295,11 @@ mod wrap_rims_holds_rows {
         };
         let rim = |center: Point3<f64>| {
             geom::Circle::new(
-                geom::Frame {
-                    origin: center,
-                    axis: Vec3::new(tilt, 0.0, (1.0 - tilt * tilt).sqrt()),
-                    u_ref: Vec3::unit_x(),
-                },
+                geom::Frame::new(
+                    center,
+                    Vec3::new(tilt, 0.0, (1.0 - tilt * tilt).sqrt()),
+                    Vec3::unit_x(),
+                ),
                 1.0,
             )
         };

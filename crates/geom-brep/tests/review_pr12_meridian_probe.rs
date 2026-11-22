@@ -21,17 +21,21 @@ use slotmap::SlotMap;
 #[test]
 fn probe_meridian_sphere_torus() {
     let torus = Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         major_radius: 1.0,
         minor_radius: 0.2,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let sphere = Surface::Sphere {
-        center: Point3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 0.2,
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let circle = Curve3::circle(
         Point3::new(1.0, 0.0, 0.0),

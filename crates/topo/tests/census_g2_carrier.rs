@@ -40,8 +40,9 @@ fn band() -> Band {
 fn z_face(body: &Body<f64>, sign: f64) -> FaceKey {
     let mut found = None;
     for (k, f) in body.faces() {
-        if let Some(Surface::Plane { normal, .. }) = body.face_surface(k) {
-            let out = geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec();
+        if let Some(Surface::Plane { frame, .. }) = body.face_surface(k) {
+            let normal = frame.axis();
+            let out = geom_brep::OutwardNormal::from_chart(normal, f.sense).vec();
             if out.z * sign > 0.5 {
                 assert!(
                     found.is_none(),
@@ -323,10 +324,12 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         (a_body, a.top_face, b_body, b.bottom_face)
     };
     let cyl = Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        axis: geom_core::Vec3::unit_z(),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0),
+            geom_core::Vec3::unit_z(),
+            geom_core::Vec3::unit_x(),
+        ),
         radius: 1.0,
-        u_ref: geom_core::Vec3::unit_x(),
     };
     let (a_body, fa, b_body, fb) = build(&cyl, &cyl);
     match glued_pair_overlap(
@@ -341,18 +344,22 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         other => panic!("the cylinder arm engages and refuses the uncached trims: {other:?}"),
     }
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0),
+            geom_core::Vec3::unit_z(),
+            geom_core::Vec3::unit_x(),
+        ),
         radius: 1.0,
-        axis: geom_core::Vec3::unit_z(),
-        u_ref: geom_core::Vec3::unit_x(),
     };
     // B charts the sphere from another reference direction: one
     // description in both would be one chart by its bits.
     let sphere_b = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0),
+            geom_core::Vec3::unit_z(),
+            geom_core::Vec3::unit_y(),
+        ),
         radius: 1.0,
-        axis: geom_core::Vec3::unit_z(),
-        u_ref: geom_core::Vec3::unit_y(),
     };
     let (a_body, fa, b_body, fb) = build(&sphere, &sphere_b);
     match glued_pair_overlap(

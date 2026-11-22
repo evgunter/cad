@@ -304,7 +304,11 @@ fn a_plane_off_a_hole_wall_reads_each_decision_across_the_band() {
                             diag, ..
                         })) if seam => diag.predicate,
                         Err(SplitError::Reduce(SplitReduceError::CrossingEscalated {
-                            fault: topo::ConicRootFault::BellyGraze(diag),
+                            fault:
+                                topo::CrossWhy::Pose(geom_brep::curve_face::PoseRefusal::InBand {
+                                    rung: geom_brep::curve_face::PoseRung::BellyGraze,
+                                    diag,
+                                }),
                             ..
                         })) if !seam => diag.predicate,
                         other => panic!("{label}: in band, refused {other:?}"),
@@ -942,7 +946,10 @@ fn a_concave_wall_beside_a_convex_one_refuses_its_knife_edge() {
         let e = split(&operand, &p, Tol::witness()).unwrap_err();
         let wall = e.knife_edge().unwrap().wall;
         let centre = match body.face_surface(wall) {
-            Some(geom::Surface::Cylinder { origin, .. }) => (origin.x, origin.y),
+            Some(geom::Surface::Cylinder { frame, .. }) => {
+                let origin = frame.origin();
+                (origin.x, origin.y)
+            }
             other => panic!("{label}: {other:?}"),
         };
         assert!(

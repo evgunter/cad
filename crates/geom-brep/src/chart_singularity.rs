@@ -785,7 +785,8 @@ impl<'a, T: Decide> Sides<'a, T> {
         x: Point3<T>,
     ) -> Result<bool, Unread<T>> {
         let side = |why| Unread::Side { r#loop: l, why };
-        if let Surface::Sphere { center, radius, .. } = *self.surface {
+        if let Surface::Sphere { frame, radius, .. } = *self.surface {
+            let center = frame.origin();
             match sphere_pole_left(
                 center,
                 radius,
@@ -947,7 +948,7 @@ pub fn walk_loop<T: Decide>(
 ) -> Option<LoopWalk<T>> {
     let shapes: Vec<EdgeShape<T>> = edges
         .iter()
-        .map(|e| EdgeShape::of(&e.carrier, chart.frame().axis))
+        .map(|e| EdgeShape::of(&e.carrier, chart.frame().axis()))
         .collect::<Option<_>>()?;
     let read = |e: usize, t: T, depth: u32, last: bool| -> Option<WalkSample<T>> {
         let p = edges[e].carrier.eval(t);
@@ -1192,12 +1193,8 @@ impl<T: Decide> EdgeShape<T> {
                 line: true,
                 height: None,
             },
-            Curve3::Circle(
-                circle @ geom::Circle {
-                    frame: geom::Frame { axis: n, .. },
-                    ..
-                },
-            ) => {
+            Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
+                let n = frame.axis();
                 let radius = circle.radius();
                 Self {
                     speed,

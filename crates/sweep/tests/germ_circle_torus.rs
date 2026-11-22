@@ -319,18 +319,18 @@ fn carrier_of(body: &Body<f64>, edge: EdgeKey) -> (Carrier, (f64, f64)) {
     let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let geom::Curve3::Circle(
         conic_k @ geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            frame: carrier_frame_7,
             ..
         },
     ) = *c.carrier()
     else {
         panic!("a circle edge");
     };
+    let (center, axis, u_ref) = (
+        carrier_frame_7.origin(),
+        carrier_frame_7.axis(),
+        carrier_frame_7.u_ref(),
+    );
     let radius = conic_k.radius();
     ((center, axis, radius, u_ref), c.params())
 }

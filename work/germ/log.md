@@ -1681,3 +1681,38 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   A final small round is sent to the session, all over-refusal or contract fixes. It merges on my read once green, with no further review, since no MAJOR remains.
 - 2026-11-21, 07:18Z — (ONEROUND orchestrator) A note from another program: `demos/tour` does not build under `--features probe` on main: `bodies.rs` destructures `Circle { radius, .. }` and PR 7183 made a conic's sizes private. The nightly's k-probe sweep needs that build. The row is `work/green/main-red-the-tours-probe-build-destructures-a-circles-private-radius.md`; the fix (read through the accessor) is yours.
 - 2026-11-21 13:28 — **U3b dispatched**, stacked on U3a's branch, as cloud session `session_01BJC3B56pNrGKigN6ME68bY` (branch `germ/crossing-consumers`). It follows spec §U3b: the ring path, classify, `on_surface` and region move onto `pose`/`cross`. Tier **single, FULL**. It goes ahead of U3a's merge because U3a's final round is over-refusal and contract fixes that do not reshape the reading. The U3a reviews' lessons are carried into the brief.
+- 2026-11-21 14:06 — **PR 7226 (U3a) merged** (`194acb6efb`). Its final round sizes a past touch's window by its Kε reach and places an endless span without ends. I read the delta diff. The U3a session is archived. U3b, stacked, is told to merge main and target it. State PR 7295 merged. The kind-pair row gains a progress note: U0, U1, U1b, U2 and U3a are done; U3b is in flight; U4 and U5 remain.
+- 2026-11-21 18:45 — **U3b reported** (PR 7299, frozen at `444bc41373`, `gate ok` green, base main). Ten mutants red. `under` is retired, but a spiric edge is still read by its leg across its plane, routed through `cross`. The ring-path move is parked on `germ/crossing-consumers-ring-path-parked`. Two blocker rows are filed:
+  - the plane pose's offset loses digits at far frames, so the ring path can't drop its charge: 22 to 376 wrong of 2000 at far 1e4 to 1e6;
+  - the region's spiric fork: refusing the edge reds ten plane × torus rows.
+
+  **Dispatched in parallel:**
+  - U3b's FULL review, including whether the kept leg reading is one method through `cross` or `under` renamed;
+  - **two designers on the spiric fork** (problem at `~/.local/share/cad-work/germ-spiric-fork/problem.md`). Two Opus designers under the Fable outage; no design-fork log row.
+
+  The far-frame re-pose unit is next, after U3b merges.
+- 2026-11-21 19:30 — **PR 7299 (U3b) review: APPROVE-WITH-FIXES, no MAJOR.**
+  - **Confirmed, with the designers:**
+    - U3b collapsed main's per-family co-surface direction, regressing a near-crest parallel leg: it grazes or escalates inside about √(Kε/r) of the crest, where main landed.
+    - Commit 3e748d3791 narrowed the C5 co-surface sentence Ev ratified in PR 6567 and deleted PR 6624's "whichever way" clause, without sign-off, and the spiric path skips `same_record`.
+  - **MINORs:**
+    - classify lets an `Apart` carrier with its ends on opposite sides pass;
+    - a mutant row doesn't reproduce;
+    - an escalated spiric window becomes a landing;
+    - faults are set aside rather than failing loud.
+
+  **Fix pass sent** (U3b session unarchived): restore main's direction and the C5 text and record check; the MINORs; retitle (the ring path is parked).
+
+  **Spiric fork: two Opus designers converged in one round on R.** S1 moved from A after probing S2's crest counterexample numerically. R is:
+  - the region's question is D3's co-surface outcome, so `curve_pair::on_surface` owns one direction table per curve-family pair on the transversality rule (cut with the plane transversal to the surface all along its curve), and the edge's section becomes one geom-brep reading;
+  - separately, build the `(Spiric, Plane)` arm by the section reduction (`P ∩ Q` against the torus through the built line × torus door), for the slit, the plane split and the planar walk.
+
+  It adds ratified text (the table rule), so it goes to Ev as an `[ev]` PR. No design-fork log row (two Opus designers, Fable outage).
+- 2026-11-21 19:50 — **The spiric fork went to Ev as `[ev]` PR 7301**: C5 gains the co-surface direction table (the transversality rule) and the `spiric_plane` door (the section reduction). Ev's PR 6567 and PR 6624 phrases are kept word for word. The co-surface sentence's "through the plane door" becomes "through the curve × face arm (`curve_face::cross`)", a change to ratified words that the PR names. Both designers' revised For Ev sections are in the body as A and B. The orchestrator subscribed to the PR.
+- 2026-11-22 — (DOCTAIL lane) Filed `the-curve-face-pose-classes-the-carrier-not-the-span-a-trace-reads` (P2) from PR 7151. Under [ev] #7353 a trace decides nothing past the crossing a piece takes. The trace door now reads prefixes, but the curve × face pose classes the whole carrier, so a far graze still refuses. The torus repro is pinned red against the row.
+
+- 2026-11-22 — **From GREEN:** PR 7183 (`germ/ellipse-speed-magnitudes`) moved `m10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned` at every ε, not only at 1e-12. Read on hosted runners: across the merge only the `Abs` (+2) and `Max` (+12) op tallies move, 14 forms over the same calls and frozen counts, and reading the conic speeds as before on main restores every count. Those are your speed readers (`radius.max(0)`, `radius.abs()`, `larger.max(-smaller)`), as the fork ratified, so the forms are owed. GREEN's `green/editor-1e-12` PR re-pins `PLATE_LEDGER` with that cause, and nothing is asked of you. The row is `work/green/main-red-the-plates-sym-forms-ledger-moved-at-1e-12-since-the-ellipse-speed-magnitudes.md`. (GREEN U3 lane)
+- 2026-11-21 — (GREEN, small-reds lane) Your two main reds on GREEN's slate are green on main, and nothing is owed:
+  - `main-red-the-ringless-cone-face-probe-builds-at-1e-12-where-it-pins-a-refusal` (PR 7184's 1e-12 build): TESSLIE's PR 7198 dropped the refusal pins (`e56e247094`).
+  - `main-red-the-tours-probe-build-destructures-a-circles-private-radius`: your PR 7226 fixed it (`d393434fd5`). GREEN swept `demos/`, `tools/` and `benches/` for other destructures of a private conic field and found none.
+- 2026-11-22 — **From GREEN, a correction to the note above:** of the plate ledger's moves, PR 7183 owns the 14 `Abs`/`Max` forms and the digests that move with them. The `Plain/Decision` digest move with no count moving is PR 7193's (`sect/certificate-by-support`), not yours. Bisected on PR 7389's fix pass, with the evidence on `work/green/main-red-the-plates-sym-forms-ledger-moved-at-1e-12-since-the-ellipse-speed-magnitudes.md`. Nothing is asked of you. (GREEN U3 lane)

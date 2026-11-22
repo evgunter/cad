@@ -124,10 +124,9 @@
 //!   crossing's rows (`curve_face_pose_*`, `curve_face_cross_*`, the
 //!   root's place on the arc's span included),
 //!   then **`point_in_arc_loop_conic_advance`**, the root's distance
-//!   along the ray in metres, and **`point_in_arc_loop_conic_in_plane`**,
-//!   an arc's offset from the ray's square plane it is parallel to (only
-//!   on the projected read). A `Zero` grazes the ray and an in-band
-//!   margin sets it aside.
+//!   along the ray in metres; an arc parallel to the ray's square plane
+//!   (only on the projected read) is the pose's offset. A `Zero` grazes
+//!   the ray and an in-band margin sets it aside.
 //!
 //! **`point_in_arc_loop_conic_straddle`** classifies nothing: it names an
 //! ellipse's two decided bounds on its span's overlap straddling the
@@ -1387,17 +1386,13 @@ pub(crate) fn carrier_loop<T: Decide>(
                 // A line: its segment is its two end vertices'.
                 geom::Curve3::Line(_) => LoopEdge::Chord,
                 geom::Curve3::Spiric {
-                    center,
-                    axis,
-                    u_ref,
+                    frame,
                     major_radius,
                     minor_radius,
                     offset,
                 } => LoopEdge::Spiric(SpiricArc::new(
                     Oval {
-                        center,
-                        axis,
-                        u_ref,
+                        frame,
                         major: major_radius,
                         minor: minor_radius,
                         offset,
@@ -1946,9 +1941,9 @@ pub(crate) fn loop_reach<T: Decide>(
 /// the projected read (`point_in_loop_projected`) an arc a little off the
 /// plane is read as its projection along `normal`, the region the walk
 /// reads there. Each root is then read along the ray
-/// (`point_in_arc_loop_conic_advance`) and on the arc's span by the plane
-/// door ([`RootPlace`](geom_brep::curve_face::plane_crossing::RootPlace)): a root at an end grazes, one in band of an end
-/// sets the ray aside.
+/// (`point_in_arc_loop_conic_advance`) and on the arc's span by the
+/// crossing reading ([`OnSpan`](geom_brep::curve_face::OnSpan)): a meeting
+/// at an end grazes, and a window sets the ray aside.
 ///
 /// **The ray's plane is built, not read off `face`'s record**: the plane
 /// through `q` with `u_ref = d` and the caller's `normal`
@@ -1978,45 +1973,49 @@ fn conic_crossings<T: Decide>(
     d: Vec3<T>,
     band: Band,
 ) -> Result<Option<usize>, Indeterminate> {
-    use geom_brep::curve_face::plane_crossing::RootPlace;
+    use geom_brep::curve_face::OnSpan;
     use geom_brep::curve_pair::on_surface::{
         AcrossRefusal, Charted, CoSurface, OnSurface, SurfaceCurve,
     };
     let plane = Charted::held(
         face,
         geom::Surface::Plane {
-            origin: q,
-            normal,
-            u_ref: d,
+            frame: geom::Frame::new(q, normal, d),
         },
     );
     let Ok(ray) = SurfaceCurve::u_line(&plane, geom_core::Point2::new(T::zero(), T::zero())) else {
         unreachable!("a plane has its u-lines")
     };
-    let read = OnSurface::edge(face, &k.carrier, k.span).across(
-        &ray,
-        "point_in_arc_loop_conic_in_plane",
-        band,
-    );
-    let roots = match read {
-        Ok(found) => found,
-        Err(AcrossRefusal::InBand(diag)) => return Err(diag),
+    let meetings = match OnSurface::edge(face, &k.carrier, k.span).across(&ray, band) {
+        Ok(CoSurface::Roots(meetings)) => meetings,
+        // Tangent to the conic where a root can reach the arc, or the arc
+        // wholly in the ray's square plane (a conic stood on edge, only
+        // on the projected read): a graze.
+        Ok(CoSurface::Touch | CoSurface::InPlane) => return Ok(None),
+        // A count needs every root: a stretch of the arc the reading
+        // could not read sets the ray aside, on its margin where it was
+        // read in band, else as a graze. A fault among the windows is a
+        // kernel fault, whatever else stands.
+        Err(AcrossRefusal::Windows(refusal)) => {
+            if let Some(fault) = refusal.windows.iter().find_map(|w| w.why.fault()) {
+                unreachable!("the ray's crossing reading is a kernel fault: {fault}");
+            }
+            return refusal
+                .windows
+                .iter()
+                .find_map(|w| w.why.diag())
+                .map_or(Ok(None), Err);
+        }
         Err(AcrossRefusal::OffRecord { edge, curve }) => {
             unreachable!("the walk keys its arc and its ray by one face: {edge:?}, {curve:?}")
         }
-    };
-    let roots = match roots {
-        CoSurface::Roots(roots) => roots,
-        // Tangent to the conic where a root can reach the arc (the door
-        // reads a graze's root spread against the span itself), or the
-        // arc wholly in the ray's square plane (a conic stood on edge,
-        // only on the projected read): a graze.
-        CoSurface::Touch | CoSurface::InPlane => return Ok(None),
-        CoSurface::Unlaned => unreachable!("a conic arc crosses a plane in closed form"),
+        Err(AcrossRefusal::NoPlane) => {
+            unreachable!("the walk reads its arc across the ray's plane")
+        }
     };
     let mut crossings = 0;
-    for (root, y) in roots {
-        let advance = Margin::of((y - q).dot(d));
+    for m in meetings {
+        let advance = Margin::of((m.point - q).dot(d));
         match decide("point_in_arc_loop_conic_advance", advance, band)? {
             Sign::Positive => {}
             Sign::Negative => continue,
@@ -2024,18 +2023,14 @@ fn conic_crossings<T: Decide>(
             // A crossing at `q` the pre-pass did not see.
             Sign::Zero => return Ok(None),
         }
-        match root.place {
-            RootPlace::Inside => crossings += 1,
+        match m.on_span {
+            OnSpan::Inside { .. } => crossings += 1,
             // An endpoint's neighbourhood. The endpoint is a vertex of
             // the loop, and a ray through a vertex has already grazed on
             // its side row, so this arm answers only where that row and
-            // the door's span reading disagree inside the band — a graze
-            // all the same, never a count.
-            RootPlace::AtEnd => return Ok(None),
-            // A count needs every root: one in band of an end sets the
-            // ray aside (not a search's kept reading; the callee register
-            // names it).
-            RootPlace::Undecided(diag) => return Err(diag),
+            // the crossing reading's span reading disagree inside the
+            // band — a graze all the same, never a count.
+            OnSpan::End(_) => return Ok(None),
         }
     }
     Ok(Some(crossings))
@@ -2380,11 +2375,11 @@ mod tests {
         }
         // A circle: an overlap in its band escalates, one past it is wound.
         let circle = geom::Curve3::Circle(geom::Circle::new(
-            geom::Frame {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             1.0,
         ));
         let tau = core::f64::consts::TAU;

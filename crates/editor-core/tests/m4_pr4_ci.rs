@@ -103,7 +103,14 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// any choice turns, so it records no flip and answers by its group
 /// size, `PredicateFlip` → `GroupResized`: a change of diagnosis. Every
 /// other row keeps its shape.
-const DIAGNOSIS_DIGEST: u64 = 0x677e_d787_2dd8_93f5;
+///
+/// **Re-pinned for the parting rung** (N5: a node whose runs part
+/// because a query handed on different candidates names where): the
+/// flip-vanish row now names the union's glue-pair query
+/// (`bool_glue_pairs`) at step 0,
+/// `GroupResized` → `Parted`: a change of diagnosis. Every other row
+/// keeps its shape.
+const DIAGNOSIS_DIGEST: u64 = 0xd7c1_8876_4bd6_ba62;
 
 #[test]
 fn diagnosis_corpus_is_golden() {
@@ -111,7 +118,7 @@ fn diagnosis_corpus_is_golden() {
     // Each row's shape, so a drift says whether a row changed its
     // diagnosis or only its spelling.
     for ((label, res), shape) in rows.iter().zip([
-        "diagnosis: GroupResized",
+        "diagnosis: Parted",
         "diagnosis: Cascade",
         "diagnosis: IndexCount",
         "error: NodeGone",
