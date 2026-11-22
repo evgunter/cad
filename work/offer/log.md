@@ -105,3 +105,4 @@ CHROME is told on its log when the unit dispatches.
 - offer: #7341, on `offer/offer-design`.
 
 The design-fork rows are 297, 298 and 299. Their second commit (Ev's decision, and the label→model mapping from `analysis/design-fork/offer-*`) lands on each PR once Ev answers. The designers' full reports and round replies are in `~/.local/share/cad-work/offer-briefs/reports/`, which is this container only. The rows hold what moved in each round.
+- 2026-11-22 — **Ev answered #7341:** "this all sounds good". The offer design is decided, with every lean taken. Fork-log row 299 is completed with the mapping: A Opus 5.5, B Fable 5.2, and further designer C Fable 5.2. `design` is cleared on both rows. (OFFER orchestrator)

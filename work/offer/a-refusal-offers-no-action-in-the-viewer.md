@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-17
 priority: P1
 cost: H
-design: true
 ---
 
 **Ev reported this** (in chat, 2026-09-17), from the same failed union
@@ -165,3 +164,10 @@ This design was weighed by two designers and a further designer (`work/offer/log
 - An offer that answers a state is never stored. An offer that answers an event holds the event in one place and is read off it.
 
 **Order.** Assert ships first. The one-variable edit promised by `[intent.checked]` follows once the kernel can state it.
+
+## Decided (Ev, 2026-11-22, on PR #7341)
+
+"This all sounds good." The `## Design` section above is the decision. Three points it settles:
+- the `[one-way.places]` sentence is signed;
+- Assert ships first, and "make these one variable" follows directly after;
+- a typed act that has no door in this viewer is said in plain words.
