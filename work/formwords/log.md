@@ -142,6 +142,7 @@ a pick route checks its own seats against that doc.
   that caught it; future briefs ask reviewers for one mutation per new
   gate row.
 
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7372 (dimension-ladders) merged after a style review with correctness claims and a fix pass, on green CI. It closes the three ladder rows. The fix pass added API to editor-core, quantity and geom-core (`Dimension::quantity`, `Notation::unit_of`, `UnitQuantity::units`), and its PR names their owners.
 ## 2026-11-22 — subtract-by-family weighed
 
 (FORMWORDS orchestrator) Both designers agree, independently: the

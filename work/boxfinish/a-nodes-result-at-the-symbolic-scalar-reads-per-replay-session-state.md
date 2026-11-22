@@ -2,11 +2,12 @@
 id: a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state
 kind: unit
 title: A node's result at the symbolic scalar reads per-replay session state: the expression table, the registry and the retry cap belong to a replay, not to a node or the drive
-status: open
+status: dispatched
 opened: 2026-11-22
 priority: P1
 cost: H
 parent: a-drive-finishes-a-body-again-in-every-leaf-whose-box-does-not-move-it
+branch: boxfinish/session-state
 ---
 
 
@@ -30,3 +31,16 @@ which the retry ladder runs or an identity is registered.
 count columns and two of its walks: this unit moves the same counts
 onto a node's value, so it stacks on that branch once its PR is open.
 After `a-nodes-content-key-at-the-symbolic-scalar-hashes-the-number-and-not-the-expression`.
+
+**Letter H; dual tier, a concurrent pair** (the symbolic session is
+read by every decision at a symbolic scalar; a piece of state moved to
+the wrong owner changes an answer without a red row, and the two
+units after this rest on a node's result depending on its key alone).
+
+**Dispatched 2026-11-22, stacked on `boxfinish/decide-path-check`**
+(PR 7394, in review), which removes four of the session's count
+columns, its `free` table and the walks after a definite sign: this
+unit moves what is left. The lane merges `boxfinish/node-key` when
+that PR opens (it gives a value with no expression a name scoped to
+its minting node, the scope this unit extends), and reports a census
+of the session's state and its plan before it builds.
