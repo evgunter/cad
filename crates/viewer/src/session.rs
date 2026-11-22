@@ -5419,7 +5419,8 @@ impl ProductDoor {
                 }),
             };
         }
-        let world_copies: Vec<(RecipeNodeId, VarId)> = doc.placements_of_var(var)
+        let world_copies: Vec<(RecipeNodeId, VarId)> = doc
+            .placements_of_var(var)
             .into_iter()
             .filter(|&copy| doc.node_space(copy) == Some(VarId::WORLD))
             .filter_map(|copy| Some((copy, doc.output(copy, 0)?)))

@@ -977,7 +977,9 @@ pub fn is_seen(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
             outputs.contains(&read.read) && !read.is_indexed()
         }))
     });
-    !doc.placements_of(node).is_empty() || assembled || product_reads(doc).iter().any(|var| outputs.contains(var))
+    !doc.placements_of(node).is_empty()
+        || assembled
+        || product_reads(doc).iter().any(|var| outputs.contains(var))
 }
 
 /// **The member a pick on body `body` of `node` reaches**: the node the

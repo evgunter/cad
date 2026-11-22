@@ -524,6 +524,11 @@ impl ViewerBehavior<'_> {
                 });
                 if *present {
                     self.label_ui(ui, *node);
+                    let doc = self.session.doc();
+                    let related =
+                        crate::relations::relations(doc, *node, self.session.part_files());
+                    relation_rows(ui, READS, &related.reads, self.ops);
+                    relation_rows(ui, READ_BY, &related.read_by, self.ops);
                 }
                 return;
             }
@@ -1388,6 +1393,56 @@ fn selected_node_heading(
     match landed.filter(|doc| doc.node(node).is_some()) {
         Some(doc) => crate::tree::node_label(doc, node, files),
         None => said.spoken(node).to_string(),
+    }
+}
+
+/// The heading over what a node reads, seat by seat.
+pub(crate) const READS: &str = "reads";
+
+/// The heading over what reads a node.
+pub(crate) const READ_BY: &str = "read by";
+
+/// **A node's relation rows, drawn under `heading`**
+/// ([`crate::relations::Relations`]): each row its seat, then its
+/// entries, each one a link that selects what it names, or plain text
+/// where it names nothing this document holds. Nothing at all for no
+/// rows.
+pub(crate) fn relation_rows(
+    ui: &mut egui::Ui,
+    heading: &str,
+    rows: &[crate::relations::RelationRow],
+    ops: &mut Vec<SessionOp>,
+) {
+    if rows.is_empty() {
+        return;
+    }
+    ui.weak(heading);
+    for row in rows {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(format!("{}:", row.seat));
+            for entry in &row.entries {
+                related_entry(ui, entry, ops);
+            }
+        });
+    }
+}
+
+/// One [`crate::relations::Related`], drawn: a link pushing its
+/// selection, or its words.
+pub(crate) fn related_entry(
+    ui: &mut egui::Ui,
+    entry: &crate::relations::Related,
+    ops: &mut Vec<SessionOp>,
+) {
+    match &entry.selects {
+        Some(selection) => {
+            if crate::widgets::message_link(ui, entry.said.as_str()).clicked() {
+                ops.push(SessionOp::Select(selection.clone()));
+            }
+        }
+        None => {
+            crate::widgets::message(ui, entry.said.as_str());
+        }
     }
 }
 

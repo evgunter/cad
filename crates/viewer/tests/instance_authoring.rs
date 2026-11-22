@@ -1173,3 +1173,27 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
     );
     assert!(session.display().probing().is_none());
 }
+
+/// **An instance's part row names the file and selects nothing**: the
+/// part is another document, so there is no node here to select.
+///
+/// *Breaks if* the row is dropped, says no file, or links.
+#[test]
+fn an_instances_part_row_names_its_file_and_is_no_link() {
+    let tol = Tol::witness();
+    let bench = asm::bench("offer-part-row", tol);
+    let (mut session, _) = authored_session(&bench, "offer-part-row", tol);
+    let instance = common::instance_in(&mut session, bench.post.id);
+    let files = session.part_files();
+    let reads = viewer::relations::relations(session.committed_doc(), instance, files).reads;
+    let part = reads
+        .iter()
+        .find(|row| row.seat == viewer::relations::PART_SEAT)
+        .expect("an instance has a part row");
+    let [entry] = &part.entries[..] else {
+        panic!("one file: {part:?}")
+    };
+    assert_eq!(entry.said, files.name(bench.post.id), "the part's file");
+    assert!(entry.said.ends_with(".pncad"), "a file name: {entry:?}");
+    assert_eq!(entry.selects, None, "the part is no node of this document");
+}

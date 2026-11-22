@@ -186,11 +186,7 @@ fn a_copy_nothing_reads_is_moved_into_the_world_and_a_space_it_did_not_mint_kept
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 2, "the re-target and the slot");
     let doc = session.committed_doc();
-    assert_eq!(
-        doc.placements_of(body),
-        [copy],
-        "no second copy"
-    );
+    assert_eq!(doc.placements_of(body), [copy], "no second copy");
     assert_eq!(
         doc.node_space(copy),
         Some(VarId::WORLD),
@@ -303,11 +299,7 @@ fn a_body_with_a_world_copy_is_not_placed_again() {
     let outcome = add(&mut session, other);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let doc = session.committed_doc();
-    assert_eq!(
-        doc.placements_of(other),
-        [held],
-        "no second copy"
-    );
+    assert_eq!(doc.placements_of(other), [held], "no second copy");
     assert_eq!(
         product(&session),
         doc.outputs(held),

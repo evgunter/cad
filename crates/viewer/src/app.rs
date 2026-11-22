@@ -7474,6 +7474,38 @@ mod properties_pane_tests {
         );
     }
 
+    /// **A revolve's Properties name the profile it was made from, and a
+    /// click on the name selects the profile.**
+    ///
+    /// *Breaks if* the profile seat is not drawn, is drawn as words, or
+    /// its click selects anything but the profile.
+    #[test]
+    fn a_revolves_properties_name_its_profile_and_a_click_selects_it() {
+        let (mut driven, revolve) =
+            with_revolve(|revolve| vec![SessionOp::Select(Selection::Node(revolve))]);
+        let doc = driven.app.session.doc();
+        let [profile] = doc.upstream(revolve)[..] else {
+            panic!("a revolve reads one profile")
+        };
+        let said = crate::tree::node_label(doc, profile, driven.app.session.part_files());
+        let painted = driven.quiet();
+        let seat = Driven::only(&painted, "profile:");
+        // The tree names the profile too; the link is the run on the
+        // seat's line.
+        let link = painted
+            .iter()
+            .find(|(run, rect)| *run == said && (rect.center().y - seat.y).abs() < 1.0)
+            .map(|(_, rect)| rect.center())
+            .unwrap_or_else(|| panic!("the seat's line names {said:?}: {painted:?}"));
+        driven.click_at(link);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(profile),
+            "the click selects the profile"
+        );
+    }
+
     /// **"Add to the product" is offered on a drawn body's tree row, and
     /// as the `unused` finding's recourse.** A fresh revolve lands
     /// unplaced and nothing reads it, so the checks report it unused
@@ -7526,7 +7558,12 @@ mod properties_pane_tests {
         driven.click(ADD_TO_THE_PRODUCT);
         driven.quiet();
         assert_eq!(
-            driven.app.session.committed_doc().placements_of(revolve).len(),
+            driven
+                .app
+                .session
+                .committed_doc()
+                .placements_of(revolve)
+                .len(),
             1,
             "the row's door placed the revolve"
         );
@@ -9486,13 +9523,9 @@ mod properties_pane_tests {
         });
         let doc = driven.app.session.committed_doc().clone();
         let [copy] = doc
-            .placements()
+            .placements_of(extrude())
             .into_iter()
-            .filter(|&at| {
-                at != placement()
-                    && doc.copied_read(at).map(|s| doc.through_sources(s).read)
-                        == doc.read_of_node(extrude())
-            })
+            .filter(|&at| at != placement())
             .collect::<Vec<_>>()[..]
         else {
             panic!("the second placement is one more copy")

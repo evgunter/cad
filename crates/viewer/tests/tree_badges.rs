@@ -190,7 +190,8 @@ fn the_tree_marks_the_bodies_the_world_places() {
     );
     let placement = doc.placements()[0];
     assert!(
-        rows.iter().any(|row| row.id == placement && row.placements.is_empty()),
+        rows.iter()
+            .any(|row| row.id == placement && row.placements.is_empty()),
         "the placement is a row of its own, unbadged"
     );
     assert_eq!(

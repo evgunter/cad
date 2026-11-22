@@ -661,7 +661,10 @@ fn a_gesture_reads_a_copy_through_one_door() {
         "the row and the copy into the body's own space are copies of the body"
     );
     assert_eq!(world::original_of(&doc, inside), body);
-    assert!(!doc.placements_of(body).is_empty(), "the body is badged placed");
+    assert!(
+        !doc.placements_of(body).is_empty(),
+        "the body is badged placed"
+    );
 }
 
 /// The body `copy` places whole, through its source; `None` for a copy

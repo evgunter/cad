@@ -876,7 +876,9 @@ fn member_scene(
     }
     // A pattern moved into the world is drawn by its own node; a copy
     // of one, by the copy.
-    let drawn = session.committed_doc().placements_of(pattern)
+    let drawn = session
+        .committed_doc()
+        .placements_of(pattern)
         .first()
         .copied()
         .unwrap_or(pattern);
