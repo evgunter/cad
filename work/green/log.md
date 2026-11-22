@@ -464,3 +464,13 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - FULL single review, Opus; no model-compare row (Fable outage).
   - The latency row closes, and the queue row holds the remainder.
 - 2026-11-22 — PR 7359 (U4) merged on its one red, an inherited varying-seed torn-body fuzz row held by CHARTTAIL (`a-split-reduce-on-a-torn-body-panics-at-pcurves-unreachable-own-loop`). Annotated on the PR.
+- 2026-11-22 — PR 7392 (U2, the P0) closes.
+  - Fix pass taken whole on a green gate (run 45026090602). The pin now holds the whole one-element refusal list, edge and face keys included.
+  - GREEN's row closes. The red's owner is SECTARMS' P0 (`a-rim-ball-refuses-b-minus-a-at-the-slits-unread-carrier-since-the-periodic-loop`, `design: true`: strengthen `clears_plane`, or restore the seam split), so one red is one open P0.
+  - FULL single review, Opus; no model-compare row (Fable outage).
+- 2026-11-22 — PR 7389 (U3, editor-core's 1e-12 reds) closes.
+  - Fix pass taken whole on a green gate. Verified hosted at all three ε (run 45033589672).
+  - The review's MAJOR is settled: the plate ledger's untraced `Plain/Decision` digest is PR 7193's (`sect/certificate-by-support`), the same forms built in another order. An order-free sum of the form digests is unchanged across it; only the chain moves.
+  - Floors are named by ε, and `(compared, checks)` is pinned across rows.
+  - Rows filed: ONEHOME (the e2e receipt's old ε-dependence, P3), FIXTURE (the copied ε-row lookup, P4). Both GREEN rows close.
+  - STYLE single review, Opus; no model-compare row (Fable outage).

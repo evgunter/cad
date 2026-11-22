@@ -810,11 +810,19 @@ fn the_search_as_rows() {
         else {
             continue;
         };
-        let nappe = image.projected().and_then(|p| p.chart().nappe());
+        let nappe = image.projected().and_then(|p| nappe_of(p.chart().locus()));
         println!(
             "{}",
             oracle_row(&surface, &carrier, nappe, (t0, t1), (envelope, hi))
         );
+    }
+}
+
+/// A cone chart's nappe, `None` on a chart read against its carrier.
+fn nappe_of(locus: crate::pcurve_cache::projected::Locus) -> Option<crate::offset::Nappe> {
+    match locus {
+        crate::pcurve_cache::projected::Locus::Nappe(nappe) => Some(nappe),
+        crate::pcurve_cache::projected::Locus::Carrier => None,
     }
 }
 
@@ -995,7 +1003,7 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             oracle_row(
                 &surface,
                 &carrier,
-                p.chart().nappe(),
+                nappe_of(p.chart().locus()),
                 (t0, t1),
                 (t.total(), ti.total().hi())
             )
