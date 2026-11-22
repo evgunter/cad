@@ -224,6 +224,8 @@ mod an_edge_on_a_ruling_lying_in_its_own_face;
 mod an_edge_running_past_a_face_reads_its_crossings;
 #[path = "an_inside_out_thin_tube_operand.rs"]
 mod an_inside_out_thin_tube_operand;
+#[path = "an_interior_loop_on_a_one_band_ball_is_cut_in_and_glued_away.rs"]
+mod an_interior_loop_on_a_one_band_ball_is_cut_in_and_glued_away;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
@@ -1477,5 +1479,3 @@ mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
 #[path = "a_station_frame_is_minted_to_its_floor.rs"]
 mod a_station_frame_is_minted_to_its_floor;
-#[path = "zz_lathe_probe.rs"]
-mod zz_lathe_probe;

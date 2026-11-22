@@ -2633,6 +2633,24 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         Ok(())
     }
 
+    /// Whether `vertex` sits at a singular point of `face`'s chart (a
+    /// sphere's pole, a cone's apex, a spindle sheet's apex), decided at
+    /// `tol`'s band; an undecided reading or a chart with no closed
+    /// inverse is no.
+    fn at_chart_singularity(&self, face: FaceKey, vertex: VertexKey, tol: Tol) -> bool {
+        use geom_brep::chart_singularity::{singular_points, vertex_at_singular_point};
+        let (Ok(band), Ok(chart)) = (
+            Band::linear(tol),
+            geom::ChartInverse::of(self.proven_face(face).surface()),
+        ) else {
+            return false;
+        };
+        let p = self.resolve_vertex_point(vertex, crate::live::Proven);
+        singular_points(&chart)
+            .iter()
+            .any(|&(_, q)| matches!(vertex_at_singular_point(p, q, band), Ok(true)))
+    }
+
     /// Merges one group into `rep`, its survivor (see the
     /// public op's docs for order and refusals). Runs on the staged
     /// clone.
@@ -2676,17 +2694,30 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         };
         let in_group = |f: FaceKey| f == rep || rest.contains(&f);
         // Absorption: repeatedly kill the first (edge-arena order)
-        // edge shared between rep and another group member.
+        // edge shared between rep and another group member. A curved
+        // run kills a wrap edge last: the wrap edge is the face's seam
+        // kept to its tip (DESIGN `[topology]`), and another edge the
+        // run shares into that tip is the one the survivor can lose.
         loop {
             let mut found = None;
-            for (edge_key, edge) in self.edges() {
-                let (hp, hm) = self.edge_halves(edge_key, edge);
-                if hp.face == rep && hm.face != rep && in_group(hm.face) {
-                    found = Some((edge_key, edge.he_minus, hm));
-                    break;
+            for wrap_pass in [false, true] {
+                for (edge_key, edge) in self.edges() {
+                    if kind == MergeKind::Curved
+                        && crate::validate::wraps(self, edge_key) != wrap_pass
+                    {
+                        continue;
+                    }
+                    let (hp, hm) = self.edge_halves(edge_key, edge);
+                    if hp.face == rep && hm.face != rep && in_group(hm.face) {
+                        found = Some((edge_key, edge.he_minus, hm));
+                        break;
+                    }
+                    if hm.face == rep && hp.face != rep && in_group(hp.face) {
+                        found = Some((edge_key, edge.he_plus, hp));
+                        break;
+                    }
                 }
-                if hm.face == rep && hp.face != rep && in_group(hp.face) {
-                    found = Some((edge_key, edge.he_plus, hp));
+                if found.is_some() || kind != MergeKind::Curved {
                     break;
                 }
             }
@@ -2819,9 +2850,27 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         //   something.
         loop {
             let mut duplicates = Vec::new();
+            // The survivor's wrap edges' tips, on a curved run: the
+            // ends of its wrap edges at a singular point of its chart (a
+            // pole, an apex). A wrap edge has the face on both sides by
+            // construction, its seam, and is no duplicate the
+            // absorption made.
+            let mut wrap_tips = BTreeSet::new();
             for (edge_key, edge) in self.edges() {
                 let (hp, hm) = self.edge_halves(edge_key, edge);
                 if hp.face == rep && hm.face == rep {
+                    if kind == MergeKind::Curved && crate::validate::wraps(self, edge_key) {
+                        let ends = self
+                            .edge_vertices(edge_key)
+                            .into_iter()
+                            .flat_map(|(u, v)| [u, v]);
+                        for v in ends {
+                            if self.at_chart_singularity(rep, v, tol) {
+                                wrap_tips.insert(v);
+                            }
+                        }
+                        continue;
+                    }
                     duplicates.push((edge_key, (edge.he_plus, hp), (edge.he_minus, hm)));
                 }
             }
@@ -2829,7 +2878,27 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 break;
             };
             if kind == MergeKind::Curved {
-                return Err(MergeCoplanarError::PeriodClosure { edge: first_key });
+                // A duplicate running into its own wrap edge's tip is a
+                // second cut into that chart singularity: the seam is a property of the face, its place
+                // conventional, and the face keeps one. It lies inside
+                // the face, so its kill moves no region: `kemr`, the
+                // side it walls off a ring. Any other duplicate closes
+                // the run's period.
+                let Some(&(edge_key, (he_plus, hp), (he_minus, hm))) =
+                    duplicates.iter().find(|&&(edge_key, _, _)| {
+                        self.edge_vertices(edge_key)
+                            .is_some_and(|(u, v)| wrap_tips.contains(&u) || wrap_tips.contains(&v))
+                    })
+                else {
+                    return Err(MergeCoplanarError::PeriodClosure { edge: first_key });
+                };
+                if hp.r#loop != hm.r#loop {
+                    return Err(MergeCoplanarError::PeriodClosure { edge: edge_key });
+                }
+                let result = self.kemr(he_plus, he_minus)?;
+                group.killed_edges.push(edge_key);
+                group.rings_made.push(result.ring);
+                continue;
             }
             // The first dangling edge in edge-arena order, deleted with
             // its free end (`crate::strut`); one with BOTH ends free is
