@@ -166,7 +166,10 @@ pub use display::{
 pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, Worker};
 pub use generation::Generation;
 pub use history::{History, HistoryId};
-pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
+pub use input::{
+    Action, Binding, Held, InputMap, Navigation, PickAction, PointerButton, ViewportEvent,
+    ViewportSize,
+};
 pub use marks::{EdgeOverlay, Highlight, edge_id_segments, edge_overlay, edge_segments, highlight};
 pub use matetool::{
     MATE_KINDS, MateChoice, MatePick, MateProposal, MateRow, MateSeat, MateTool, MateToolError,
