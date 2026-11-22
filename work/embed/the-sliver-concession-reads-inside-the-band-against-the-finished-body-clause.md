@@ -654,6 +654,58 @@ measurement lane also found this reader's sliver decides `Zero` in no
 sweep. If the fork keeps the sliver, read this reader over the
 plane corner's `R`, which needs no extra argument.
 
+## Measured: six valid bodies refused on a plane rectangle ~1e-16 wide (EMBED, lane embed/trace-cylinder, 2026-11-21)
+
+These are cause 8 of the cylinder trace of the per-solid census
+(`measure/gate/census-c2a0c41f40.json` on `embed/gate-measure`, the
+plane/cylinder edge bucket), measured on `embed/trace-cylinder-measure`
+with `CV_TRACE=1` (the `CVG` rows print `sign_on`'s side reading). All
+six are at f64 and end at `Budget(Depth { max_cell_depth: 40 })`,
+reported `Uncertified { arm: Departure }`.
+
+| binary | test | refusing pair (plane, cylinder, shared edge) |
+|---|---|---|
+| `sweep::all` | `blend4_r1_probes::p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form` | `7v7`, `21v1`, `37v1` |
+| `sweep::all` | `band_open_mixed_chain_shapes::arcs_of_a_half_turn_or_more_build` | `1v1`, `12v1`, `24v1` |
+| `sweep::all` | `band_open_mixed_chain_shapes::a_hole_over_a_wide_arcs_band_refuses_and_one_clear_of_it_builds` | `1v1`, `14v1`, `30v1` |
+| `sweep::all` | `blend_operand_gate::the_counterclockwise_wedge_blends_outward_at_both_doors` | `1v1`, `16v1`, `15v1` |
+| `sweep::all` | `review_blend4_r2_probes::r2_no_sliver_wedge_pose_is_silently_wrong_on_the_corner_path` | `1v1`, `20v1`, `13v1` |
+| `editor-core::all` | `review_m6_5_pr2_probes::p3_totality_holds_for_a_triangular_prism` | `1v1`, `16v1`, `15v1` |
+
+**The shape.** At the refusing cell pair the plane is presented
+`Of(Side(YLo))`, its rectangle clipped to a sliver beside the shared
+line: `y ∈ (0, w)` with `w` from 5.0e-17 to 6.3e-16. The partner
+cylinder is presented `Of(Side)` along the same edge. Under the plane
+and the graph separator `sign_on` reads the plane's side as
+`across = ∇ψ·f_y × span`, with span = `w`. That is about `w` itself, far
+inside the departure row's band, so `departs = None`. The sliver did not
+read the rectangle `Vacuous`.
+
+- `blend4_r1_probes::p1…`:
+  - plane cell `x ∈ (0.249268, 0.250732)`, `w = 4.20e-16`.
+  - Plane separator: plane `across = 6.04e-16` (None), cylinder
+    `across = 9.09e-4` over a span of `6.14e-3` (`Negative`).
+  - Graph separator: `6.08e-16` (None) and `9.15e-4` (`Negative`).
+- `review_m6_5_pr2_probes::p3…`:
+  - `w = 1.21e-16`.
+  - Plane separator: plane `across = 6.52e-17` (None), cylinder
+    `-2.82e-4` (`Negative`).
+  - Graph separator: `2.84e-16` (None), cylinder `-1.227e-3`.
+- `blend_operand_gate::…`: `w = 6.32e-16`; plane `across = 9.55e-16`
+  (None), cylinder `-4.91e-4` (`Negative`).
+- **Not the width alone in two.** In `arcs_of_a_half_turn_or_more_build`
+  and `a_hole_over_a_wide_arcs_band_refuses…` (`w = 5.05e-17`, plane
+  `across = -4.06e-20`), the cylinder side ALSO reads None: its `across`
+  is `[-1.32e-5, 1.89e-6]` over a span of `1.23e-2`, straddling zero,
+  under both separators. A wider plane reading alone would not certify
+  those two.
+- `review_blend4_r2_probes::r2…` (36 s) was traced without the `CVG`
+  print: the same two presentations, plane `w = 5.6e-16`.
+
+So in four of the six, the plane's rate times the sliver's own width is
+the only failing reading. In two, the cylinder's departure straddles as
+well. The bodies are valid, built as their tests' ordinary results.
+
 ## Landed: the departure is a sine levered at the faces' reach, and the sliver is gone (EMBED, lane `embed/remeter`, 2026-11-22)
 
 Main at `0cae9969f`. Default ε unless a row says otherwise.
