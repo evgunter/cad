@@ -23,8 +23,14 @@ part both designers read as needing no ruling.
   the extent itself: `leaned_lever` (`topo::star::order`, now
   `star::leaned`: the lean moves into the reading; the arm is still the
   sector's metering arm), and the line parameter spans in
-  `offset_axial::corner_arms`, `curve_face::line_quadric`'s
-  `line_cone_roots` and `census::parallel_reading`.
+  `offset_axial::corner_arms`, `curve_face::pose::line_cone_read`
+  (once `line_quadric`'s `line_cone_roots`) and
+  `census::parallel_reading`.
+- **`corner_arms`' fallback arm** (an ellipse, a spiric or a spline
+  edge): the chord becomes `edge_extent_inf`, the extent from below.
+  On a verdict that acts on every sign this is no worse than the base's
+  chord, and `oneround/unsourced-unions` (PR 7294) replaces it with
+  both bounds.
 - **Moved to other units at review** (ONEROUND orchestrator,
   2026-11-21), each back on `Lever::unsourced` with its pin:
   `corner_arms`' circle arm (an arc length; its verdict acts on every
