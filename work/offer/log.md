@@ -79,3 +79,21 @@ and the model comparison apply.
   `a-check-…`), a node named to a person (`a-node-name-…` with VNEWS'
   `the-viewer-spells-a-node-as-its-kind-before-its-name`), and the
   certify control.
+
+## 2026-11-22 — the offer fork goes to Ev
+
+(OFFER orchestrator) The fork `a-refusal-offers-no-action-in-the-viewer` with `a-check-offers-no-way-to-add-the-assertion-it-asks-for` has reconciled. It went one round, then a further designer weighed in after the designers swapped on two points, then a final round in which all designers agreed. It goes to Ev as an `[ev]` PR on `offer/offer-design`, because it adds a sentence to DESIGN `[one-way.places]`. The agreed final state and a correction of the row's stale evidence are in the refusal row's `## Design` and `## Correction` sections.
+
+Rows the building unit owes, filed with it:
+- a member-budget door;
+- an expected-component-count door, together with the question of whether that count belongs in the document;
+- a tolerance door, and the kernel row that types the tolerance recourse, which is prose in fourteen kernel files;
+- a test listing the arms with no control.
+
+Already filed: `work/clear/a-clearance-claim-and-a-zero-gap-value-say-one-thing-two-ways`.
+
+Found and owed to the unit: `checks_window` offers "Add to the product" while a run is outstanding, which the one staleness rule fixes. `CERTIFY_STOPPED` names Re-evaluate and offers no button for it.
+
+Unknown: whether `saying` can mint the one index-reaching assertion for a family row. Where it cannot, the finding names the construction alone and does not refuse at `Error`. That is a behaviour change, and the PR states it.
+
+CHROME is told on its log when the unit dispatches.
