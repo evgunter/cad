@@ -38,6 +38,10 @@ use crate::tree::HeldPick;
 /// Layer-3 state that never enters the document: an expression the
 /// user is typing is not an edit until they commit it, and a draft
 /// abandoned by selecting elsewhere leaves nothing behind.
+///
+/// **Two kinds of field**: chrome, which outlives the document, and
+/// what is held about the document, which a replacement drops — every
+/// field is one or the other at [`Self::document_replaced`].
 #[derive(Debug)]
 pub(crate) struct Drafts {
     /// The View pane's δ field, in the working length unit AS TYPED: `Some` only
@@ -105,12 +109,6 @@ pub(crate) struct Drafts {
     /// selection IS this form's picker, and an author who picks a face
     /// and then clicks the feature tree to check something must not
     /// lose it.
-    ///
-    /// **Across documents it would be a hazard**: a `RecipeNodeId` is a
-    /// small integer and a `StableName` carries no document identity,
-    /// so a stale latch would commit against a same-numbered face of
-    /// the next document. A document replacement therefore drops it
-    /// ([`Self::document_replaced`]).
     ///
     /// Held as every face pick is ([`HeldPick`]), its nodes spoken again
     /// from each later document ([`Self::respeak`]).
@@ -1477,19 +1475,73 @@ impl Drafts {
         self.new_variable_open = true;
     }
 
-    /// **Another document replaced the one the held face was picked
-    /// in** (an open, a new document): the latch names nothing in it,
-    /// and the profile editor's draft edits nothing in it.
+    /// **Another document replaced the one these drafts were made
+    /// over** (an open, a new document): everything held about that
+    /// document goes, and only the chrome stays — text typed into a
+    /// form that names nothing in either document, which form is open,
+    /// the choices a form offers. The profile editor's draft is said as
+    /// it goes.
+    ///
+    /// A value naming a node, slot, variable, face or placement of the
+    /// outgoing document is never kept: node and variable ids are drawn
+    /// from a mint chain every document starts alike, so the next
+    /// document may hold the same id as something else, and a kept
+    /// value would resolve, mark and commit there. The fields are
+    /// destructured whole, so a field added to [`Drafts`] does not
+    /// compile until it is put on one side.
     pub(crate) fn document_replaced(&mut self) {
-        for latch in self.latches() {
-            *latch = None;
-        }
         self.let_go(DropWhy::DocumentMoved);
+        let Self {
+            delta_text,
+            new_variable_open,
+            new_variable_name,
+            new_variable_dimension,
+            new_variable_value,
+            new_doc_name,
+            on_face_open,
+            trace_gesture,
+            pattern_kind,
+            pattern_output,
+            part_instance,
+            blend_kind,
+            clearance_bound,
+            creation_labels,
+            dropped,
+            // Held about the outgoing document.
+            expr_target: _,
+            expr_text: _,
+            name_draft: _,
+            new_variable_offer: _,
+            mate_value_edits: _,
+            mate_value_door: _,
+            on_face: _,
+            trace_face: _,
+            trace_shown: _,
+            profile_edit: _,
+            label_text: _,
+        } = core::mem::take(self);
+        *self = Self {
+            delta_text,
+            new_variable_open,
+            new_variable_name,
+            new_variable_dimension,
+            new_variable_value,
+            new_doc_name,
+            on_face_open,
+            trace_gesture,
+            pattern_kind,
+            pattern_output,
+            part_instance,
+            blend_kind,
+            clearance_bound,
+            creation_labels,
+            dropped,
+            ..Self::default()
+        };
     }
 
-    /// **The faces the forms latch**, the one list of them: what a
-    /// replaced document drops, an operation speaks again and a takeover
-    /// moves.
+    /// **The faces the forms latch**, the one list of them: what an
+    /// operation speaks again and a takeover moves.
     fn latches(&mut self) -> [&mut Option<HeldPick>; 2] {
         [&mut self.on_face, &mut self.trace_face]
     }
@@ -1842,6 +1894,57 @@ mod tests {
         drafts.label_text = Some((typed_for, "lid".to_owned()));
         drafts.rename_shown_for(None);
         assert_eq!(drafts.label_text, None, "dropped with no node shown");
+    }
+
+    /// **A replaced document takes every draft that names something in
+    /// it, and leaves the chrome**: a refused expression's field, a
+    /// rename, a naming field and an offer go; a form's typed name, its
+    /// openness and its choices stay.
+    #[test]
+    fn a_replaced_document_keeps_only_the_chrome() {
+        use pncad::document::{SlotId, VarId, VarName};
+        let node = RecipeNodeId::new(0, 3);
+        let mut drafts = Drafts {
+            expr_target: Some((node, SlotId::Distance)),
+            expr_text: "zz/2".to_owned(),
+            name_draft: Some(super::NameDraft {
+                node,
+                slot: SlotId::Distance,
+                var: VarId::new(0, 5),
+                share: false,
+                text: "depth".to_owned(),
+            }),
+            label_text: Some((node, "lid".to_owned())),
+            new_variable_offer: Some(VarName::from_static("zz")),
+            new_variable_open: true,
+            new_variable_name: "zz".to_owned(),
+            new_doc_name: Some("next".to_owned()),
+            part_instance: 3,
+            ..Drafts::default()
+        };
+        drafts
+            .creation_labels
+            .insert("extrude", "plinth".to_owned());
+        drafts.document_replaced();
+        assert_eq!(
+            (drafts.expr_target, drafts.expr_text.as_str()),
+            (None, ""),
+            "the refused text"
+        );
+        assert_eq!(drafts.name_draft, None, "the naming field");
+        assert_eq!(drafts.label_text, None, "the rename");
+        assert_eq!(drafts.new_variable_offer, None, "the offer");
+        assert!(
+            drafts.new_variable_open && drafts.new_variable_name == "zz",
+            "the add-variable form stays open on its name"
+        );
+        assert_eq!(drafts.new_doc_name.as_deref(), Some("next"), "New…");
+        assert_eq!(drafts.part_instance, 3, "a form's choice");
+        assert_eq!(
+            drafts.creation_labels.get("extrude").map(String::as_str),
+            Some("plinth"),
+            "a create form's typed label"
+        );
     }
 
     /// A labelled creation settles its form as the bare creation does,

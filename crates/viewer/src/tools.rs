@@ -867,8 +867,13 @@ impl Tools {
     /// open, holding nothing ([`Tools::open`]). Its picks are ids of the
     /// document they were made in, and the next document may hold a
     /// node of the same id (`SpokenNode::respoken`'s premise).
+    ///
+    /// The tool's value is rebuilt whole, so a pick a tool adds goes
+    /// with it; a field added to [`Tools`] does not compile here until
+    /// it is put on one side.
     pub fn document_replaced(&mut self) {
-        if let Some(kind) = self.open_kind() {
+        let Self { open } = self;
+        if let Some(kind) = open.as_ref().map(OpenTool::kind) {
             self.open(kind);
         }
     }

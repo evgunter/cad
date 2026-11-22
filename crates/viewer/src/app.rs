@@ -8122,6 +8122,67 @@ mod properties_pane_tests {
         removed.expect("the row removes the document it saved");
     }
 
+    /// **Another document minted by the same edits inherits nothing the
+    /// drafts held about this one** — the ordinary case, since every
+    /// startup plate holds the same node and variable ids. The naming
+    /// field opened on the extrude's depth is neither held nor drawn on
+    /// the other plate's extrude, whose depth reads an unnamed variable
+    /// of the same id, so no `Name` there renames it; and the face the
+    /// profile-on-a-face form latched is neither held nor marked.
+    #[test]
+    fn another_document_with_the_same_ids_inherits_no_held_draft() {
+        // A folder of its own: a save scans the folder it writes into.
+        let dir =
+            std::env::temp_dir().join(format!("drafts across documents {}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        let path = dir.join("other.pncad");
+        let mut other = ViewerApp::assemble(&egui::Context::default(), pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        other.perform_batch(vec![SessionOp::Save(path.clone())]);
+        let other_id = other.session.committed_doc().id();
+
+        let (mut driven, _top) = Driven::holding_the_top_cap();
+        driven.select(Selection::Node(extrude()));
+        driven.click("name\u{2026}");
+        let var = driven
+            .app
+            .drafts
+            .name_draft
+            .as_ref()
+            .map(|draft| draft.var)
+            .expect("the naming field is open");
+        assert_ne!(
+            driven.app.session.committed_doc().id(),
+            other_id,
+            "two documents"
+        );
+        driven.perform(SessionOp::Open(path.clone()));
+        let removed = std::fs::remove_dir_all(&dir);
+        driven.select(Selection::Node(extrude()));
+        let painted = driven.quiet();
+        let doc = driven.app.session.committed_doc();
+        assert_eq!(doc.id(), other_id, "the other plate is open");
+        assert_eq!(
+            (
+                doc.slot(extrude(), pncad::document::SlotId::Distance),
+                doc.var_name(var)
+            ),
+            (Some(var), None),
+            "its extrude's depth reads an unnamed variable of the same id"
+        );
+        assert!(
+            driven.app.drafts.name_draft.is_none(),
+            "the naming field is not held"
+        );
+        assert!(
+            !painted.iter().any(|(run, _)| run == "Name"),
+            "nor drawn: {painted:?}"
+        );
+        assert_eq!(driven.app.drafts.on_face, None, "the latch is not held");
+        assert_eq!(driven.app.drafts.marked_face(true), None, "nor marked");
+        removed.expect("the row removes the document it saved");
+    }
+
     /// **The op loop re-speaks what outlives the op that made it**
     /// (`ViewerApp::respeak_held`): picked, renamed, then deleted, the
     /// open tool's drop and the profile-on-a-face form's held face both name the
