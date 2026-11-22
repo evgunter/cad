@@ -1739,17 +1739,16 @@ pub(crate) fn body_walls<T: SpanLocate>(
     Ok((walls, params))
 }
 
-/// The ruled wall between two compatible section curves, `pair[0]` its
-/// row `v = 0` and `pair[1]` its row `v = 1`: their poles and weights
-/// copied, the `u` structure `pair[0]`'s.
+/// The ruled wall between two section curves of one compatible strip
+/// ([`compatible_strips`]: one `u` structure), `pair[0]` its row `v = 0`
+/// and `pair[1]` its row `v = 1`: their poles and weights copied, the
+/// `u` knots `pair[0]`'s.
 fn section_slab<T: SpanLocate>(pair: &[NurbsCurve3<T>]) -> Result<Arc<NurbsSurface<T>>, SkinError> {
     let [lower, upper] = pair else {
         unreachable!("`windows(2)` yields pairs")
     };
     let n = lower.control().len();
-    if upper.control().len() != n
-        || upper.knots_f64_interim().knots() != lower.knots_f64_interim().knots()
-    {
+    if upper.control().len() != n {
         return Err(SkinError::SectionShapeMismatch {
             section: 1,
             expected: n,

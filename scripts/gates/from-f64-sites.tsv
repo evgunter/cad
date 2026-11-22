@@ -143,6 +143,7 @@ crates/profile/src/validate.rs	5	fixture	<fn>	ValidatedProfile::lift_onto (its s
 crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's box pad, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
+crates/sweep/src/loft.rs	2	fixture	<fn>	f64_body_held_as_points: the fixture body whose carriers hold f64 values as points (walls and section parameters), behind test-support; no production caller
 crates/sweep/src/loft/stacking.rs	1	constant	count as f64	a count
 crates/sweep/src/skin.rs	1	constant	counted as f64	a row count
 crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k + 1, m)	a sub-arc end k/m as a fraction of the sweep, structure

@@ -274,4 +274,4 @@ Neither of the tour's rational walls builds at `Interval`. Both
 injectivity rows on their walls run at `f64` only.
 `demos/tour/tests/wall_jets.rs` pins both refusals, and its rows go red
 when this lands. The `Interval` twin there is the sweep crate's lens
-loft (`a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars`).
+loft (`lens_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars`).

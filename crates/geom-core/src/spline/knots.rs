@@ -2479,7 +2479,9 @@ mod tests {
         ]
     }
 
-    /// Every `SplineError` rendering names a repair — and
+    /// Every `SplineError` rendering names a repair, or, where the
+    /// input is valid and the kernel does not build it yet (a carrier
+    /// over an enclosure knot or weight), ends as unbuilt — and
     /// `KnotVectorInvalid`, which renders its carrier whole and
     /// contributes four words of its own, is asserted TRANSITIVELY: at
     /// every payload, not at one chosen because it happens to carry a
@@ -2574,6 +2576,21 @@ mod tests {
                         );
                         check(&msg);
                     }
+                }
+                // Valid and unbuilt: no repair to name, and the one
+                // ending that says so.
+                SplineError::CarrierKnotNotAPoint { .. }
+                | SplineError::CarrierWeightNotAPoint { .. } => {
+                    let msg = arm.to_string();
+                    assert_eq!(
+                        test_utils::refusal::recourse_markers(&msg),
+                        1,
+                        "not exactly one ending: {msg}"
+                    );
+                    assert!(
+                        msg.ends_with(crate::NOT_YET_ENDING) && !msg.contains("Recourse:"),
+                        "an unbuilt carrier ends as unbuilt and offers no repair: {msg}"
+                    );
                 }
                 _ => check(&arm.to_string()),
             }

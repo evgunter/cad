@@ -1680,12 +1680,18 @@ pub(crate) fn sweep_body_construction<T: Decide + topo::AtRestPolicy>(
 ///
 /// # Errors
 ///
+/// `shares` is [`sweep_body`]'s v-parameterization where the body is a
+/// path sweep's ([`f64_sweep_held_as_points`]).
+///
+/// # Errors
+///
 /// [`loft_body`]'s at `f64` short of its finish, and the assembly's at
 /// `T`.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn f64_body_held_as_points<T: Decide + topo::AtRestPolicy>(
     sections: &[Section<profile::ProfileLoop<f64>>],
     places: &[SketchPlane<f64>],
+    shares: Option<&[f64]>,
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T, Body<T>>, LoftError> {
@@ -1695,7 +1701,7 @@ pub(crate) fn f64_body_held_as_points<T: Decide + topo::AtRestPolicy>(
     let compat = compatible_strips(&canonical, places).map_err(LoftError::Skin)?;
     let strips = compat.iter().map(|lp| strip_points(lp)).collect();
     stacking::stacking_door(places, &canonical, &strips, v_degree, band, tol)?;
-    let (walls, params) = body_walls(&compat, v_degree, None).map_err(LoftError::Skin)?;
+    let (walls, params) = body_walls(&compat, v_degree, shares).map_err(LoftError::Skin)?;
     let held_places = crate::test_support::lift_places::<T>(places, tol);
     let held: Vec<ValidatedProfile<T>> = canonical
         .into_iter()
@@ -1720,6 +1726,32 @@ pub(crate) fn f64_body_held_as_points<T: Decide + topo::AtRestPolicy>(
         .collect();
     let params = params.into_iter().map(T::from_f64).collect();
     assemble(&held_places, walls, &held, params, tol)
+}
+
+/// [`f64_body_held_as_points`] over the `f64` body [`sweep_body`]
+/// builds: `profile` at each of `stations` stations of `path`, carried
+/// from `plane`.
+///
+/// # Errors
+///
+/// [`sweep_body`]'s at `f64` short of its finish, and the assembly's at
+/// `T`.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn f64_sweep_held_as_points<T: Decide + topo::AtRestPolicy>(
+    profile: &[profile::ProfileLoop<f64>],
+    plane: SketchPlane<f64>,
+    path: &geom::NurbsCurve3<f64>,
+    stations: usize,
+    v_degree: usize,
+    tol: Tol,
+) -> Result<Lofted<T, Body<T>>, LoftError> {
+    if profile.is_empty() {
+        return Err(LoftError::Skin(SkinError::EmptyProfile { section: None }));
+    }
+    let carry = PathCarry::of(path, stations, tol).map_err(LoftError::Skin)?;
+    let places = carry.place(plane).map_err(LoftError::Skin)?;
+    let sections: Vec<Section<_>> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
+    f64_body_held_as_points(&sections, &places, Some(&carry.params()), v_degree, tol)
 }
 
 #[cfg(test)]

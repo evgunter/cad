@@ -223,6 +223,38 @@ fn a_loft_over_a_wide_section_encloses_its_family_at_interval() {
     }
 }
 
+/// **At v-degree 1 a loft over a box builds through any number of
+/// sections.** Three [`quad`]s, the middle one's corner over
+/// [`box_about`]`(1.2)`: each slab's wall is its two sections' rows, so
+/// the middle section's parameter, wider than a point, is no wall's
+/// knot. Every wall value holds the `f64` loft's at each end of the box
+/// and its middle. Red where a wall through every section is skinned
+/// first: its carrier refuses the wide knot.
+#[test]
+fn a_degree_one_loft_over_a_wide_section_encloses_its_family() {
+    use geom_core::Interval;
+    let ends = Interval::from_f64(1.2);
+    let (lo, hi) = box_about(1.2);
+    let places = [0.0, 1.0, 2.0].map(|z| at_height(Interval::from_f64(z)));
+    let enclosing = sweep::test_support::loft_body_construction::<Interval>(
+        &[quad(ends), quad(Interval::from_bounds(lo, hi)), quad(ends)],
+        &places,
+        1,
+        Tol::witness(),
+    )
+    .expect("the boxed square lofts at Interval at v-degree 1");
+    for h in [lo, 1.2, hi] {
+        let sample = loft_body::<f64>(
+            &[quad(1.2), quad(h), quad(1.2)],
+            &[0.0, 1.0, 2.0].map(at_height),
+            1,
+            Tol::witness(),
+        )
+        .expect("each member lofts at f64");
+        assert_encloses(&format!("h = {h}"), &enclosing, &sample);
+    }
+}
+
 /// **A placement over a box encloses the family too**: the top quad
 /// at a height in [`box_about`]`(1)` lofts at `Interval`, and its walls
 /// hold the `f64` loft's at each end of the box and its middle.
@@ -369,11 +401,12 @@ fn an_enclosure_reaching_an_infinity_refuses_as_not_finite() {
 /// - an arc's weight `cos(Δ/2)` is an enclosure at `Interval`, from a
 ///   wide bulge or from rounding alone, so an arc section refuses at the
 ///   carrier's door (`CarrierWeightNotAPoint`, until C6's S4/S5);
-/// - three sections at v-degree 1 put their middle parameter in the
-///   skin's knot vector: the fit encloses over a wide one (C6 S5c), and
-///   the skinned wall's carrier refuses it at its door, before any slab
-///   is cut (`CarrierKnotNotAPoint`,
-///   until C6's S5z).
+/// - four sections at v-degree 2 put a mean of their middle parameters
+///   in the skin's knot vector: the fit encloses over a wide one (C6
+///   S5c), and the skinned wall's carrier refuses it at its door
+///   (`CarrierKnotNotAPoint`, until C6's S5z). At v-degree 1 no wall
+///   holds a section's parameter as a knot, so that loft builds
+///   (`a_degree_one_loft_over_a_wide_section_encloses_its_family`).
 #[test]
 fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
     use geom_core::Interval;
@@ -402,13 +435,18 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
     let ends = Interval::from_f64(1.2);
     let (lo, hi) = box_about(1.2);
     match loft_body::<Interval>(
-        &[quad(ends), quad(Interval::from_bounds(lo, hi)), quad(ends)],
-        &[0.0, 1.0, 2.0].map(|z| at_height(Interval::from_f64(z))),
-        1,
+        &[
+            quad(ends),
+            quad(Interval::from_bounds(lo, hi)),
+            quad(ends),
+            quad(ends),
+        ],
+        &[0.0, 1.0, 2.0, 3.0].map(|z| at_height(Interval::from_f64(z))),
+        2,
         Tol::witness(),
     ) {
         Err(LoftError::Skin(SkinError::Structure(e)))
-            if matches!(e.refusal(), SplineError::CarrierKnotNotAPoint { index: 1 }) => {}
+            if matches!(e.refusal(), SplineError::CarrierKnotNotAPoint { .. }) => {}
         other => panic!(
             "expected the wide interior knot's refusal, got {:?}",
             other.map(|_| ())
@@ -418,8 +456,10 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
 
 /// **Point inputs are a family of one, built in `T`.** Sections and
 /// placements lifted from `f64` loft at `Interval` as any other family
-/// does: the walls are skinned at `Interval` and enclose the `f64`
-/// loft, wider than a point only by their own arithmetic's rounding.
+/// does: the walls are built at `Interval` and each value holds the
+/// `f64` loft's, wider than a point only by its own arithmetic's
+/// rounding. At v-degree 1 each slab's wall is its two sections' rows,
+/// so any number of sections lofts.
 /// What a carrier cannot hold refuses for a family of one as for a box
 /// (`what_a_carrier_cannot_hold_refuses_typed_at_interval`): an arc
 /// section, whose weight `cos(Δ/2)` is an enclosure from rounding
@@ -450,19 +490,30 @@ fn point_inputs_loft_in_t_at_interval() {
         )
     };
 
-    let lines = [quad(1.2), quad(1.3)];
-    let nominal = loft_body::<f64>(&lines, &[0.0, 1.0].map(at_height), 1, Tol::witness())
-        .expect("the f64 loft builds");
-    let enclosed = at_interval(&lines, &[0.0, 1.0], 1)
-        .unwrap_or_else(|e| panic!("two line sections loft at Interval: {e:?}"));
-    assert_encloses("two line sections", &enclosed, &nominal);
-    let widest = wall_values(&enclosed, |x: Interval| x.hi() - x.lo())
-        .into_iter()
-        .fold(0.0, f64::max);
-    assert!(
-        widest <= 1e-14,
-        "a family of one widens by rounding alone: the widest wall value is {widest:e}"
-    );
+    let four = [quad(1.2), quad(1.3), quad(1.25), quad(1.2)];
+    for (what, sections, degree) in [
+        ("two line sections, v-degree 1", &four[..2], 1),
+        ("three line sections, v-degree 2", &four[..3], 2),
+        ("three line sections, v-degree 1", &four[..3], 1),
+        ("four line sections, v-degree 1", &four[..], 1),
+    ] {
+        #[allow(clippy::cast_precision_loss)]
+        let zs: Vec<f64> = (0..sections.len()).map(|i| i as f64).collect();
+        let heights: Vec<SketchPlane<f64>> = zs.iter().map(|z| at_height(*z)).collect();
+        let nominal = loft_body::<f64>(sections, &heights, degree, Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: the f64 loft builds: {e:?}"));
+        let enclosed = at_interval(sections, &zs, degree)
+            .unwrap_or_else(|e| panic!("{what}: lofts at Interval: {e:?}"));
+        assert_encloses(what, &enclosed, &nominal);
+        let widest = wall_values(&enclosed, |x: Interval| x.hi() - x.lo())
+            .into_iter()
+            .fold(0.0, f64::max);
+        assert!(
+            widest <= 1e-13,
+            "{what}: a family of one widens by rounding alone: the widest wall value is \
+             {widest:e}"
+        );
+    }
 
     match at_interval(&[section(0.2), section(0.2)], &[0.0, 1.0], 1) {
         Err(LoftError::Skin(SkinError::Structure(e)))
@@ -472,11 +523,7 @@ fn point_inputs_loft_in_t_at_interval() {
             other.map(|_| ())
         ),
     }
-    match at_interval(
-        &[quad(1.2), quad(1.3), quad(1.25), quad(1.2)],
-        &[0.0, 1.0, 2.0, 3.0],
-        2,
-    ) {
+    match at_interval(&four, &[0.0, 1.0, 2.0, 3.0], 2) {
         Err(LoftError::Skin(SkinError::Structure(e)))
             if matches!(e.refusal(), SplineError::CarrierKnotNotAPoint { .. }) => {}
         other => panic!(
@@ -484,6 +531,30 @@ fn point_inputs_loft_in_t_at_interval() {
             other.map(|_| ())
         ),
     }
+}
+
+/// **A point-valued loft builds at `Sym<Interval>`**, where it takes
+/// the enclosure arm: two line sections whose every value is a literal
+/// are validated and built at the lane, as at `Interval`.
+#[test]
+fn a_point_valued_loft_builds_at_sym_over_an_interval() {
+    type Si = Sym<geom_core::Interval>;
+    let budget = SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    };
+    let (built, _) = with_session(budget, || {
+        let lit = |x: f64| Si::from_f64(x);
+        sweep::test_support::loft_body_construction::<Si>(
+            &[quad(lit(1.2)), quad(lit(1.3))],
+            &[0.0, 1.0].map(|z| at_height(lit(z))),
+            1,
+            Tol::witness(),
+        )
+        .map(|_| ())
+        .map_err(|e| format!("{e:?}"))
+    });
+    assert_eq!(built, Ok(()), "two line sections loft at Sym<Interval>");
 }
 
 /// **A dual over an enclosure gets the loft's tangent.** A two-section

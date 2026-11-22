@@ -114,7 +114,7 @@ certified 42. The row pins a refusal, so the nightly's 1e-6 row is
 red. Its default and 1e-12 rows pass.
 
 ZEROSIDE answers this: the row now pins `Holds`
-(`a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars`),
+(`a_lens_walled_cap_holds_against_its_walls_at_its_tip_at_both_scalars`),
 and CI's 1e-6 row passes on it.
 
 ## Fix (ZEROSIDE, 2026-11-01)
@@ -137,7 +137,7 @@ bodies holds, at depth 0–9:
 
 The pinned rows are renamed:
 
-- `a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars`;
+- `a_lens_walled_cap_holds_against_its_walls_at_its_tip_at_both_scalars`;
 - `lily::cap_corner_departure::each_cap_of_a_lens_blade_holds_against_its_walls_at_its_tip`;
 - `klein::cap_corner_departure::each_cap_of_the_loop_holds_against_its_walls_at_its_arc_vertices`.
 

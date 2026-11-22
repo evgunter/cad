@@ -86,7 +86,9 @@ fn r2_middle_slab_at_every_band_edge_at_the_run_band() {
 /// The same edges at the certified scalar. The margin is not an exact
 /// interval there (the lift and the world transform round outward),
 /// so the exact edges are RECORDED rather than pinned, and only the
-/// off-edge steps are asserted to agree with the f64 lane.
+/// off-edge steps are asserted to agree with the f64 lane: the stacking
+/// door's three refusals, and for the step it passes, the refusal the
+/// loft meets after it.
 #[test]
 fn r2_middle_slab_band_edges_at_interval() {
     use geom_core::Interval;
@@ -124,7 +126,22 @@ fn r2_middle_slab_band_edges_at_interval() {
         run(0.5 * (eps + k * eps)),
         Err(LoftError::CornerEscalated { slab: 1, .. })
     ));
-    assert!(run(2.0 * k * eps).is_ok());
+    // Past the door, the skin's interior knot is a chord-length
+    // parameter, an enclosure at `Interval` that no carrier holds yet
+    // (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
+    // The refusal is pinned so the row goes red when that lands: once
+    // the loft builds, this step asserts `is_ok()`.
+    match run(2.0 * k * eps) {
+        Err(LoftError::Skin(SkinError::Structure(e)))
+            if matches!(
+                e.refusal(),
+                geom_core::spline::SplineError::CarrierKnotNotAPoint { .. }
+            ) => {}
+        other => panic!(
+            "a step past the band passes the stacking door and refuses at the carrier's \
+             door; once it lofts, assert that here: {other:?}"
+        ),
+    }
     assert!(matches!(
         run(-2.0 * k * eps),
         Err(LoftError::ReversedStacking { slab: 1 })
