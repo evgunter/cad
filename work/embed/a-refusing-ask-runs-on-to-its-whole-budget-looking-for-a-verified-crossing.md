@@ -140,24 +140,32 @@ nowhere says the embedding question reads on after a finding.
 and the injectivity question (`Bound::injective`: the strict bound over
 one body) ends the walk there, as a verified crossing does, with the
 frontier counted `abandoned`. A metric bound keeps its first refusal
-and reads on. Seven sites read the rule: a face its kind does not make
+and reads on. The policy is a named one (`AtRefusal`), read in that
+one function. Six sites read the rule: a face its kind does not make
 injective, a witness the verifier declines, a certificate's own
 refusal, a touching pair's refused split, a terminal sliver or poison
-enclosure, a distance pair's refused split, and a level that does not
-fit the pair budget. `Budget`, `Sliver` and `WitnessUnverified` carry
+enclosure, and a distance pair's refused split. A level that does not
+fit the pair budget ends the walk at every question: the verdict
+refuses and the level is counted abandoned, none of it refused, since
+none was examined. `Budget`, `Sliver` and `WitnessUnverified` carry
 the two faces of the cell pair they were made on.
 
 **The order that makes a finding the first**: faces discharged by kind
 in the order of the side's faces, then the frontier a level at a time,
 candidates ascending by their faces' places in the side, a split's
-children in its cut's order. A cell's box is on the frame's axes, so a
-rigid motion can change the depth a pair is refused at: the turned
-plate below takes 53 candidates and 1,010 splits where the plate at
-rest takes 31 and 802. In every pose measured the refusal named the
-same two faces (the plate at rest, turned 0.7 rad about `(0.3, −0.5,
-0.8)`, and set `(60, −70, 40)` off; the tour's four refusing stops
-against main's). No body was found where the named pair differs, and
-nothing proves there is none.
+children in its cut's order.
+
+**Whether a body passes is the shape's; which finding a body that
+does not pass is told is the walk's** (the review's measurement, taken
+in as a row). The plate whose void touches its top, placed 92 ways (44
+turns, a mirror, offsets, the void's base listed from each vertex, the
+faces in order and reversed): no placement reads `Embedded` under
+either rule; under this one 16 read `Crosses` and 76 refuse for the
+budget, where main's rule read 87 and 5. A cell's box is on the
+frame's axes, so the level a pair is refused at moves with the pose,
+and the candidates' order is the caller's order of faces. The
+question this raises for `[topology.tiers]`'s isometry sentence is
+Ev's, on PR 7319.
 
 **Measured.**
 - *The dearest asks*: the four tests behind 12 of the 13
@@ -203,6 +211,13 @@ read `Crosses` on the top and a wall of the void; it now refuses out of
 depth on those same two faces, on a cell a rounding off the apex that
 comes before the cell holding it on the same level.
 
-**Left open**: three of the seven sites are reached by no body the
-suites build
+**Left open**: two of the sites are reached by no built body and are
+pinned at the engine
 (`three-refusal-sites-of-the-embedding-ask-are-reached-by-no-built-body`).
+
+**A body whose only refusal is the pair budget gets no early end**
+(the review's note): two unit bricks 1 to 10ε apart spend the whole
+budget before the refusal they end at, about 6 s an ask. The stop
+saves what comes after a first refusal, not what comes before it;
+that is `a-failed-local-certificate-answers-split-with-no-ground`'s
+ground and the distance arm's.
