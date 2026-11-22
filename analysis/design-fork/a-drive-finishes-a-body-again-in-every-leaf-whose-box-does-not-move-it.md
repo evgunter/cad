@@ -62,3 +62,12 @@ Both designers shown both round-2 replies verbatim by label (`boxfinish/fork-ref
 ## Round 4 (dispatched 05:50 UTC), one point
 
 The drive's total only. Each designer was sent what is settled and BOTH round-3 positions on the point, each with its reasons, in my words (the round-3 replies were not yet on the reports branch: a framing exposure), and asked: is the other's reason right as a fact (does `content_key` hash the line; is `frozen` distinct while the other two columns are sums; what the report line's share means under each definition and which is E12's evidence); which definition, final; and whether `frozen`'s definition and the other two columns' should agree. Told that if the round changes no one's mind the point goes to Ev as a small stated choice.
+
+### Round 4 replies (05:49 UTC) — agreed
+
+Rounds 3 and 4 verbatim on `boxfinish/fork-refinish-reports` at `87e95760` (`probe/fork-refinish/round3/`, `round4/`).
+
+- **A moved to the distinct count and calls it final:** B's facts check (`serialize()` writes the line and `content_key` hashes it; the leaves' counts are not in it, so the sum is derivable in process and a distinct count is not; `absorb` sums `symbolic` and `numeric` while `frozen` is a set). The report's symbolic share under the sum weights a decision by how many leaves replayed it, mixing the document with the bisection's depth; E12's evidence is the distinct ratio. Its own round-3 reasons fail: "nothing re-baselines" is a cost of the change; "no reader" was wrong, the readers of the total would be reading it.
+- **B: both sets of facts are right; would accept either; its own pick is the distinct count** (the number only the drive can state; the share then speaks of the document; the only definition that makes the row's columns agree in kind).
+
+**Agreed after four rounds** on the whole final state. Recommendation to Ev: the agreed state (E6's split rule changed and one leaf-protocol bullet added; no DESIGN text). Each designer asked at 05:51 for its final `For Ev` section whole. Mapping for the row's second commit: A = Opus 5.5 (configured `claude-opus-5-5`), B = Fable 5.2 (configured `claude-fable-5-2`); confirm each session's `last_served_model` with `get_session` before writing it.
