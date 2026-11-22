@@ -134,8 +134,9 @@
 //! hyperbola, and the edge is its exact rational-quadratic arc between
 //! the moved corners, on the branch the old edge's middle stands beside
 //! ([`geom_brep::ConicBranch::arc`]); it rests where the plane×cone
-//! section states the bounds that retire its tube, and an arc that does
-//! not certify refuses as [`ReplaceFaceError::TogetherConicArc`]. The kind is the
+//! section states the bounds that retire its tube or where that tube
+//! certifies, and an arc whose tube cannot certify it refuses as
+//! [`ReplaceFaceError::TogetherConicArc`]. The kind is the
 //! section's, whatever the old carrier's was: a cavity's cap offset off
 //! the axis turns a meridian circle into a spiric, and the lift that
 //! puts it back turns the spiric into a circle. The old carrier
@@ -2543,11 +2544,12 @@ fn mint_carrier<T: Decide>(
 }
 
 /// A re-chart refused because an arc this door minted on a cone does not
-/// certify, read as the door's own refusal: the re-chart names the edge
-/// whose re-description does not certify, and an arc's tube is retired
-/// only where the plane×cone section states the bounds (C2) — a cone has
-/// no tube enclosure otherwise — so the arc it names refuses as
-/// [`ReplaceFaceError::TogetherConicArc`]. Any other refusal stands.
+/// certify at its uniqueness tube, read as the door's own refusal: the
+/// re-chart names the edge whose re-description does not certify, and an
+/// arc whose plane×cone section states no bounds (C2) owes the tube, so
+/// the arc it names refuses as [`ReplaceFaceError::TogetherConicArc`]
+/// where the tube decided it could not certify the arc ([`tube_failed`]).
+/// Any other refusal stands with its own ending.
 fn uncertified_arc<T: Real>(
     error: ReplaceFaceError<T>,
     arcs: &[(EdgeKey, geom_brep::OpenConic)],
@@ -2556,12 +2558,7 @@ fn uncertified_arc<T: Real>(
         error:
             crate::EulerOpError::RechartFalsifies {
                 edge,
-                error:
-                    geom_brep::CertifyError::AnalyticRung3(
-                        geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
-                            operand: geom::SurfaceKind::Cone,
-                        },
-                    ),
+                error: geom_brep::CertifyError::AnalyticRung3(refusal),
                 ..
             },
         ..
@@ -2569,9 +2566,40 @@ fn uncertified_arc<T: Real>(
     else {
         return error;
     };
+    if !tube_failed(refusal) {
+        return error;
+    }
     match arcs.iter().find(|(arc, _)| arc == edge) {
         Some(&(edge, conic)) => ReplaceFaceError::TogetherConicArc { edge, conic },
         None => error,
+    }
+}
+
+/// **Whether an edge's tube refusal says the tube could not certify the
+/// arc**: no enclosure of an operand, every rung's enclosure refused
+/// somewhere, a decided straddle, or a decided one-arc shortfall. A
+/// band escalation (`Escalated`, a one-arc proof left undecided) is the
+/// input's ambiguity at the tolerance and keeps its own ending, and so
+/// do an empty ladder (the extent's recourse), a silent ladder with
+/// nothing refused and a degenerate tube, which are no reading of the arc.
+fn tube_failed(refusal: &geom_brep::AnalyticRung3Refusal) -> bool {
+    use geom_brep::AnalyticRung3Refusal as A;
+    use geom_brep::edge_nurbs::TubeRefusal;
+    match refusal {
+        A::NoTubeEnclosure { .. } | A::TubeStraddles { .. } => true,
+        A::TubeNotOneArc { cause, .. } => {
+            !matches!(cause, geom_brep::ssi::OneArcRefusal::Undecided(_))
+        }
+        A::Tube(TubeRefusal::ProbeSilent { refused, .. }) => *refused > 0,
+        A::Tube(TubeRefusal::LadderEmpty { .. } | TubeRefusal::Degenerate(_))
+        | A::Escalated { .. }
+        | A::Limb { .. }
+        | A::KernelLimit { .. }
+        | A::Stalled { .. }
+        | A::NoOffsetBound { .. }
+        | A::CarrierEnclosure(_)
+        | A::Unsupported { .. }
+        | A::OutsideVocabulary => false,
     }
 }
 
@@ -3309,6 +3337,134 @@ fn clamp_unit<T: Real>(x: T) -> T {
 mod tests {
     use super::*;
     use crate::test_support_fixtures::geometric_cube;
+
+    /// **A cone arc's tube refusal reads as the door's own only where the
+    /// tube could not certify the arc** ([`tube_failed`]): each refusal
+    /// handed to [`uncertified_arc`] on an edge the door minted, which
+    /// becomes [`ReplaceFaceError::TogetherConicArc`] or stands as handed.
+    /// Red if a band escalation, an empty or silent-unrefused ladder, or
+    /// a degenerate tube is folded into the conic arc's not-yet, or if a
+    /// refused or straddling tube is not; and the edge must be one the
+    /// door minted.
+    #[test]
+    fn a_cone_arcs_tube_refusal_is_the_doors_own_only_where_the_tube_failed() {
+        use geom_brep::AnalyticRung3Refusal as A;
+        use geom_brep::edge_nurbs::TubeRefusal;
+        use geom_brep::recourse::Refused;
+        use geom_brep::ssi::OneArcRefusal;
+        use geom_core::{Indeterminate, MarginDiag};
+        let undecided = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            // UNDECIDED-NAME: the in-band cause this row's escalations carry
+            predicate: Some("ssi_tube_one_arc"),
+            terminal_sliver: false,
+        };
+        let straddle = Refused::Negative {
+            margin: MarginDiag::value(-1e-3),
+        };
+        let rows = [
+            (
+                "no enclosure",
+                A::NoTubeEnclosure {
+                    operand: SurfaceKind::Cone,
+                },
+                true,
+            ),
+            (
+                "every rung refused",
+                A::Tube(TubeRefusal::ProbeSilent {
+                    rungs: 3,
+                    refused: 3,
+                }),
+                true,
+            ),
+            (
+                "a decided straddle",
+                A::TubeStraddles {
+                    verdict: straddle,
+                    boxes: 4,
+                },
+                true,
+            ),
+            (
+                "a decided one-arc shortfall",
+                A::TubeNotOneArc {
+                    rungs: 1,
+                    cause: OneArcRefusal::Short,
+                },
+                true,
+            ),
+            (
+                "an undecided one-arc proof",
+                A::TubeNotOneArc {
+                    rungs: 1,
+                    cause: OneArcRefusal::Undecided(undecided),
+                },
+                false,
+            ),
+            (
+                "a tube escalation",
+                A::Escalated {
+                    operand: None,
+                    limb: geom_brep::Rung3Limb::Tube,
+                    cause: undecided,
+                },
+                false,
+            ),
+            (
+                "an empty ladder",
+                A::Tube(TubeRefusal::LadderEmpty {
+                    extent: 1e-9,
+                    floor: 1e-8,
+                }),
+                false,
+            ),
+            (
+                "a silent ladder with nothing refused",
+                A::Tube(TubeRefusal::ProbeSilent {
+                    rungs: 3,
+                    refused: 0,
+                }),
+                false,
+            ),
+        ];
+        let arc = EdgeKey::default();
+        let arcs = [(arc, geom_brep::OpenConic::Hyperbola)];
+        for (name, refusal, conic) in rows {
+            let refused = |edge| ReplaceFaceError::<f64>::Op {
+                edge: None,
+                error: crate::EulerOpError::RechartFalsifies {
+                    door: crate::euler::RechartDoor::SetFaceSurface,
+                    edge,
+                    error: geom_brep::CertifyError::AnalyticRung3(refusal),
+                },
+            };
+            let got = uncertified_arc(refused(arc), &arcs);
+            assert_eq!(
+                matches!(got, ReplaceFaceError::TogetherConicArc { .. }),
+                conic,
+                "{name}: {got:?}"
+            );
+        }
+        let other = uncertified_arc(
+            ReplaceFaceError::<f64>::Op {
+                edge: None,
+                error: crate::EulerOpError::RechartFalsifies {
+                    door: crate::euler::RechartDoor::SetFaceSurface,
+                    edge: EdgeKey::default(),
+                    error: geom_brep::CertifyError::AnalyticRung3(A::NoTubeEnclosure {
+                        operand: SurfaceKind::Cone,
+                    }),
+                },
+            },
+            &[],
+        );
+        assert!(
+            matches!(other, ReplaceFaceError::Op { .. }),
+            "an edge the door did not mint stands: {other:?}"
+        );
+    }
 
     /// The unit cube re-charted as a quarter-revolve wedge about `z`:
     /// `x = 0` and `y = 0` contain the axis, the caps are normal to it,
