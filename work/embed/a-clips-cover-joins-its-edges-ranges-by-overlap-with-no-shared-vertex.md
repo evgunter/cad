@@ -33,6 +33,22 @@ so the two ends must be equal bit for bit; at `Interval` they overlap
 wherever their enclosures do. Latent: no body is known to reach it, and
 the gap it would bridge is at most the enclosures' width.
 
+**Can it cover a side the boundary does not run along?** Only between
+two vertices whose stored ends touch or overlap. Measured on a unit
+fixture (two edges of the line `v = 0.5`, the face above, over
+`[0.2, 0.52]` and `[0.48, 0.8]`, ending at two vertices; the cell
+`u ∈ (0.45, 0.55)`, `v ∈ (0.5, 0.6)`): `present_chart` reads it
+`Of`, the line its side, where neither edge covers the side alone and
+no vertex joins them. No fixture of a finished body was built, and
+none is expected at `f64`: two edges of one line with the face on the
+same side whose ranges overlap run the boundary twice over the
+overlap, and two that touch at two vertices put two vertices at one
+point, neither of which a body at rest holds. Another loop, a ring or
+a seam's other use does not reach it either: a seam is no clip, and a
+ring's or second loop's edge on the same line and side is joined only
+through the same touch. At `Interval` the touch is as wide as the two
+ends' enclosures, which is the latent part, and why this is P3.
+
 `vacuous` does not share this: since the collinear-cover lane it joins a
 line's edges only at a vertex they share by key (`joints`,
 `run_through`), and its unit row
