@@ -8,6 +8,7 @@ refs: [edge-carrier-kind-has-no-readback-door, 2587]
 priority: P1
 cost: E
 branch: walks/edge-view
+pr: 7437
 ---
 
 
