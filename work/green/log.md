@@ -493,3 +493,8 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - The other three re-blesses hold. Folding the e2e pins makes the row stricter, but ε 1e-7 and 1e-11, where the old dependence showed, are gated by no run.
   - Fix pass sent: bisect the digest in 3-4 branch rounds, or name it untraced at the claim site with a row; plus MINOR-1-3, rows on ONEHOME and HELPER, labelled floors, and a trimmed doc. NOTE-1 (count−1 floors) argued down as pre-existing.
   - Class, logged again: a re-pin "every count comes back" can still bless a digest that does not.
+- 2026-11-22 — U2 reported: PR 7392, head `a8cd4e366d`, gate green (the pin ran on the slow-set step at default ε; matched against nightly 44870651337's junit at 1e-6 and 1e-12).
+  - The P0 is a regression from SECTARMS' PR 7052 (`sectarms/periodic-loop-carrier`): first parent passes, merge fails, both on hosted CI.
+  - Probe: the section edge meets the drum's cut plane only at its two rim-vertex ends and clears it elsewhere. `clears_plane` needs every control point strictly off the plane, so it can never clear a clamped carrier that ends on it. Six neighbouring poses refuse alike.
+  - Pinned under `pinned_red::row` at every ε, against a new P0 on SECTARMS (`a-rim-ball-refuses-b-minus-a-at-the-slits-unread-carrier-since-the-periodic-loop`). The fix is in the slit's plane reading, outside 7052's hunk.
+  - FULL review (Opus) dispatched.
