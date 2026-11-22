@@ -911,8 +911,8 @@ pub(crate) fn mint_director<T: Decide>(chord: Vec2<T>, unit: Vec2<T>) -> Vec2<T>
 /// offset's own measured length: a vertex that holds only its points is
 /// on the carrier to validation's decision, so its offset over the
 /// stored radius is a unit only to that band. Dividing by the stored radius
-/// is red on `fillet`'s `a_cusp_whose_walls_part_definitely_builds_legal`
-/// (the wall's frame defect reaches its envelope) and on `sweep`'s
+/// is red on `sweep`'s `a_cusp_whose_walls_part_definitely_builds_legal`
+/// (the wall's frame defect reaches its envelope) and on its
 /// `an_arc_wall_whose_radial_turns_with_a_boxed_bulge_stores_every_members_direction`
 /// (the wall's `u_ref` over the box is nine times wider).
 pub(crate) fn mint_radial<T: Decide>(arc: Arc2<T>, p: Point2<T>) -> Vec2<T> {
