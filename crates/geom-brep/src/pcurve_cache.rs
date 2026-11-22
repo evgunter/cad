@@ -13867,10 +13867,7 @@ fn spiric_chart_pcurve<T: Decide>(
                 pa: chart(axis * minor_radius),
             }))
         }
-        Surface::Torus {
-            frame,
-            ..
-        } => {
+        Surface::Torus { frame, .. } => {
             let (chart_center, chart_axis, chart_u) = (frame.origin(), frame.axis(), frame.u_ref());
             let cv = chart_axis.cross(chart_u);
             // Both readings place the oval on one of the tori that hold

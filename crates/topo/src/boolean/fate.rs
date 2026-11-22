@@ -545,6 +545,7 @@ fn sign<T: Decide>(x: T, arm: T, band: Band) -> Result<Sign, BooleanError> {
         "bool_fate_corner",
         // Unsourced lever: a unit arm (every caller's `1`) on a unit
         // vector's length or a count of half-turns, no length of any extent.
+        // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
         Margin::levered(x, geom_core::Lever::unsourced(arm)),
         band,
     )

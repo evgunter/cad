@@ -501,6 +501,7 @@ pub(crate) fn resolved_as<T: Decide>(
         name,
         // Unsourced lever: the reading's own rounding, a length that K scales, not an arm a
         // dimensionless datum is levered across; no extent, curvature or session box is it.
+        // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
         Margin::levered(k, geom_core::Lever::unsourced(rounding)),
         band,
     ) {
