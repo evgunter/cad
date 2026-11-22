@@ -1200,6 +1200,9 @@ impl<T: ProjectiveScalar> Column<T> {
     /// This column through a plan chain made on its value channel
     /// ([`spline::CurvePlan::apply_rational`], over the u knots held in
     /// `T` and carried plan to plan), with the knots the chain ends on.
+    /// Every new point is a blend of two, and a blend of one stored point
+    /// with itself is kept as that point, so a column whose points are
+    /// all one stored point stays so.
     /// A value a plan brings in is `fresh(v)` (the curve's
     /// `apply_plans` says which entry each caller makes).
     fn through(
@@ -1219,7 +1222,16 @@ impl<T: ProjectiveScalar> Column<T> {
                 &points,
                 &weights,
                 (net::poison_point::<T, Point3<T>>(), fresh),
-                |x, y, l: T| x.lerp(y, l),
+                // A blend of one stored point with itself is that point,
+                // so a side collapsed to one point stays one through the
+                // algebra (DESIGN `[extensibility]`).
+                |x, y, l: T| {
+                    if geom_core::bit_identity::one_stored_point(&x, &y) {
+                        x
+                    } else {
+                        x.lerp(y, l)
+                    }
+                },
             );
             held = held.restructure(plan.knots().clone(), fresh);
         }

@@ -30,6 +30,10 @@
 #    one STORED point, read on the stored values with no band (DESIGN
 #    [extensibility], ratified on #7287). It reads which description
 #    the net holds, and decides no coincidence between two cells;
+#  - geom surfaces/nurbs.rs — Column::through keeps a blend of one
+#    stored point with itself as that point, so the knot algebra
+#    keeps a collapsed side one stored point (the same clause): it
+#    picks between two sound values of one blend, and decides nothing;
 # The tripwire stays ARMED: any NEW file using the channel fails
 # here — a new production consumer is a design regression against
 # the ratified retirement (add nothing without a DESIGN.md
@@ -53,6 +57,7 @@ NON_CONSUMER_HOMES=(
   crates/geom-core/src/spline/blossom.rs
   crates/geom-brep/src/certify.rs
   crates/geom-brep/src/chart_singularity.rs
+  crates/geom/src/surfaces/nurbs.rs
 )
 
 gate() {

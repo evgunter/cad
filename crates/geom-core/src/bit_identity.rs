@@ -78,6 +78,19 @@ pub fn eq_bits<T: crate::Real>(a: &T, b: &T) -> Option<bool> {
     Some(repr_bits(a)? == repr_bits(b)?)
 }
 
+/// **Whether `a` and `b` are one stored point**: every coordinate the
+/// same description ([`eq_bits`]), and `false` at a scalar with no
+/// channel. The one reading of a spline net's collapsed side (DESIGN
+/// `[extensibility]`: a boundary iso whose control points are all one
+/// stored point is a chart singularity), which the singular set's home
+/// reads, and which the knot algebra keeps by carrying such a pair's
+/// blend as the point itself.
+pub fn one_stored_point<T: crate::Real>(a: &crate::Point3<T>, b: &crate::Point3<T>) -> bool {
+    [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
+        .iter()
+        .all(|(p, q)| eq_bits(p, q) == Some(true))
+}
+
 /// [`eq_bits`] of two `Sym<V>`s, or `None` when `T` is not `Sym<V>`.
 fn eq_sym<V: crate::Real, T: crate::Real>(a: &T, b: &T) -> Option<Option<bool>> {
     let (a, b): (&dyn core::any::Any, &dyn core::any::Any) = (a, b);

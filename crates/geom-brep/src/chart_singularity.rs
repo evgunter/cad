@@ -230,15 +230,13 @@ pub fn collapsed_sides<T: Real>(
         .collect()
 }
 
-/// **Whether `a` and `b` are one stored point**: every coordinate the
-/// same description, by the scalar's identity channel
-/// ([`geom_core::bit_identity::eq_bits`]). A scalar with no channel
-/// reads no point as another, so its nets have no collapsed side.
-fn one_stored_point<T: Real>(a: Point3<T>, b: Point3<T>) -> bool {
-    use geom_core::bit_identity::eq_bits;
-    [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
-        .iter()
-        .all(|(p, q)| eq_bits(p, q) == Some(true))
+/// **Whether `a` and `b` are one stored point**, the reading a spline
+/// net's collapsed side is decided by ([`collapsed_sides`],
+/// [`geom_core::bit_identity::one_stored_point`]): a constructor that
+/// writes a pinned point into a net asks it to keep the point one.
+#[must_use]
+pub fn one_stored_point<T: Real>(a: &Point3<T>, b: &Point3<T>) -> bool {
+    geom_core::bit_identity::one_stored_point(a, b)
 }
 
 /// **One loop of a face**, as [`locate`] reads it: its edges in
@@ -1601,7 +1599,9 @@ pub fn spline_collapsed_row<T: Real>(
     let control = net.control();
     let first = *row.first().and_then(|&i| control.get(i))?;
     row.iter()
-        .all(|&i| control.get(i).is_some_and(|&p| one_stored_point(p, first)))
+        .all(|&i| control
+            .get(i)
+            .is_some_and(|p| one_stored_point(p, &first)))
         .then_some(row)
 }
 

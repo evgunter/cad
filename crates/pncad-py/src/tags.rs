@@ -1694,6 +1694,8 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::SectionsTouch { .. } => "sections_touch",
         LoftError::ClearanceUndecided { .. } => "clearance_undecided",
         LoftError::ClearanceFault { .. } => "clearance_fault",
+        LoftError::SliverRim { .. } => "sliver_rim",
+        LoftError::SmoothJoinRefuted { .. } => "smooth_join_refuted",
     }
 }
 
