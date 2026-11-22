@@ -85,7 +85,7 @@ advance is metres.
   direction is no line's.
 - Certification's metred guard for a zero `dir` is removed: a zero
   vector has no direction to mint.
-- The chord-era vestiges are gone: `Line::unit`, `coefficient`'s
-  `/|dir|²`, the census's re-normalized line direction and the line ×
-  cone meter's speed.
+- The chord-era vestiges are gone: `Line::unit`, the census's
+  re-normalized line direction and the line × cone meter's speed.
+  `coefficient`'s `/|dir|²` stays, for bits a far-carrier meet reads.
 - The PR body lists each change with its cause and mutant.

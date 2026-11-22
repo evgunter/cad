@@ -766,17 +766,19 @@ impl<T: Real> Line<T> {
         self.origin + self.dir.get() * t
     }
 
-    /// The parameter of `p`'s foot: `(p − origin)·dir`, arc length along
-    /// the unit direction.
+    /// The parameter of `p`'s foot: `(p − origin)·dir / |dir|²`, arc
+    /// length along the unit direction.
     #[must_use]
     pub fn param(&self, p: Point3<T>) -> T {
         self.coefficient(p - self.origin)
     }
 
-    /// `w`'s coefficient along the unit `dir`, `w·dir`: the one spelling
+    /// `w`'s coefficient along `dir`, `w·dir / |dir|²`: the one spelling
     /// [`Self::param`] and [`Self::param_and_offset`] read.
     fn coefficient(&self, w: Vec3<T>) -> T {
-        w.dot(self.dir.get())
+        // Kept for bits: a unit `dir` divides by one to rounding, and
+        // `curve_pair`'s far-carrier charge reads this rounding.
+        w.dot(self.dir.get()) / self.dir.get().norm_squared()
     }
 
     /// **`p`'s foot**: the point of the line nearest `p`.

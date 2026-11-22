@@ -1240,8 +1240,12 @@ mod chain_rows {
                 .wrapping_add(1_442_695_040_888_963_407);
             (state >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
         };
-        let start =
-            crate::test_support_fixtures::brick::<f64>((-300.0, 300.0), (-1.0, 2.0), (-1.0, 1.0), tol);
+        let start = crate::test_support_fixtures::brick::<f64>(
+            (-300.0, 300.0),
+            (-1.0, 2.0),
+            (-1.0, 1.0),
+            tol,
+        );
         let spans = |body: &Body<f64>| -> Vec<(u64, u64)> {
             body.edges()
                 .filter_map(|(_, e)| match body.curves.get(e.curve) {
