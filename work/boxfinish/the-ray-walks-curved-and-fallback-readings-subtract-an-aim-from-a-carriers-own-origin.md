@@ -26,7 +26,8 @@ of the same face or carrier.
 
 **In the walk** (`crates/topo/src/solid_contain.rs`):
 
-- the carrier roots: `line_wall_roots` (`q − origin`, `wall.offset(q)`),
+- the carrier roots (`carrier_roots`; the finders are `geom-brep`'s,
+  `crates/geom-brep/src/curve_face/line_quadric.rs`): `line_wall_roots` (`q − origin`, `wall.offset(q)`),
   `line_cone_quadratic` (`q − apex`), `line_sphere_roots` and
   `line_torus_roots` (`q − center`), read `About::Nearest`
   (the unit's item 5), and `wall_elevation`;
