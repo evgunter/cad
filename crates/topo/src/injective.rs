@@ -13596,3 +13596,122 @@ mod margin_reach_rows {
         );
     }
 }
+
+/// MEASUREMENT ONLY (`embed/wedge-measure`, not for merge): the sliver
+/// probe through [`sign_on`]. Run with `--no-capture`; it prints rows
+/// and asserts nothing.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stderr)]
+mod wedge_measure_rows {
+    use super::*;
+    use geom_core::test_support::fixture_lever;
+
+    fn iv0(x: f64) -> Interval {
+        Interval::from_bounds(x, x)
+    }
+
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).unwrap()
+    }
+
+    fn key<K: From<slotmap::KeyData>>(n: u64) -> K {
+        slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
+    }
+
+    fn v3(v: [f64; 3]) -> Vec3<Interval> {
+        Vec3::new(iv0(v[0]), iv0(v[1]), iv0(v[2]))
+    }
+
+    fn p3(v: [f64; 3]) -> Point3<Interval> {
+        Point3::new(iv0(v[0]), iv0(v[1]), iv0(v[2]))
+    }
+
+    /// Cylinder `r = 1e-3`, axis `z`, chart `(r cos u, r sin u, v)`; the
+    /// plane through its ruling `u = 0` that it leaves at sine `s`. The
+    /// short arc is `u ∈ [−2s, 0]`, deepest at `u = −s`. The sliver is
+    /// `u ∈ [−s + φ, 0]`: it ends still leaving at rate `φ`.
+    #[test]
+    fn the_sliver_through_sign_on() {
+        let (r, s, phi) = (1e-3_f64, 1e-4_f64, 2e-8_f64);
+        let c = (1.0 - s * s).sqrt();
+        let n = v3([-c, s, 0.0]);
+        let o = [r, 0.0, 0.0];
+        let cyl = Surface::Cylinder {
+            frame: geom::Frame::new(p3([0.0; 3]), v3([0.0, 0.0, 1.0]), v3([1.0, 0.0, 0.0])),
+            radius: iv0(r),
+        };
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(p3(o), n, v3([0.0, 0.0, 1.0])),
+        };
+        // The geometry, in f64 at the stated parameters.
+        let psi_at = |u: f64| -c * (r * u.cos() - r) + s * r * u.sin();
+        let second = {
+            // the second zero of psi on u < 0, by bisection
+            let (mut a, mut b) = (-3.0 * s, -s);
+            for _ in 0..200 {
+                let m = 0.5 * (a + b);
+                if (psi_at(m) > 0.0) == (psi_at(a) > 0.0) { a = m } else { b = m }
+            }
+            0.5 * (a + b)
+        };
+        let u_far = -s + phi;
+        eprintln!(
+            "WM1 geometry: second cut u={second:.6e} chord={:.6e} m (2 r sin = {:.6e}); \
+             deepest psi(-s)={:.6e} m (r s^2/2 = {:.6e}); sliver width r*|u_far|={:.6e} m; \
+             far boundary psi(u_far)={:.6e} m; far rate c sin u + s cos u = {:.6e}",
+            (2.0 * r * (second / 2.0).sin()).abs(),
+            2.0 * r * s,
+            psi_at(-s),
+            r * s * s / 2.0,
+            r * u_far.abs(),
+            psi_at(u_far),
+            c * u_far.sin() + s * u_far.cos(),
+        );
+        let b = band();
+        eprintln!("WM1 band: zero={:e} escalate={:e}", b.zero(), b.escalate());
+        // check 4 at this pair: the fold, and its class at reach 1.
+        let fold = geom_brep::folded_lever_arm(&cyl, &plane, p3([r, 0.0, 0.5]), fixture_lever(iv0(1.0)));
+        let class = geom_brep::classify_dihedral(&cyl, &plane, p3([r, 0.0, 0.5]), fixture_lever(iv0(1.0)), b);
+        eprintln!(
+            "WM1 check4: fold={:?} class={}",
+            fold.length(),
+            match class {
+                Ok(geom_brep::Dihedral::Corner(_)) => "corner".to_owned(),
+                Ok(geom_brep::Dihedral::Tangent(_)) => "smooth".to_owned(),
+                Err(e) => format!("in band: {e:?}"),
+            }
+        );
+        let p = Presented {
+            surface: &cyl,
+            map: Map::Chart,
+            x: (u_far, 0.0),
+            y: (0.0, 1.0),
+            zero: Zero::Side(Side::XHi, Along {
+                edges: vec![key(1)],
+                vertex: None,
+                whole: true,
+                params: None,
+                on_edges: true,
+            }),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let psi = Psi::Carrier(Implicit::Plane { o: p3(o), n });
+        let (fx, _, _) = p.jet();
+        let grad = psi.gradient(p.whole());
+        let sine = grad.dot(fx) / (grad.norm() * fx.norm()) * at(Side::XHi.into());
+        eprintln!("WM1 rate enclosure over the sliver cell (signed for XHi): [{:e}, {:e}]", sine.lo(), sine.hi());
+        for (name, lever) in [("a reach 1.0", iv0(1.0)), ("b fold", fold.length())] {
+            let m = Margin::levered(sine, fixture_lever(lever));
+            let d = decide(SELF_INTERSECTION_DEPARTURE, Margin::levered(sine, fixture_lever(lever)), b);
+            let engine = sign_on(&psi, None, &p, None, Some(fixture_lever(lever)), b);
+            eprintln!(
+                "WM1 ({name}) lever=[{:e},{:e}] margin=[{:e},{:e}] decide={d:?} sign_on={engine:?} => {}",
+                lever.lo(), lever.hi(), m.value().lo(), m.value().hi(),
+                if engine.is_some() { "CERTIFIES" } else { "REFUSES" }
+            );
+        }
+        let alone = if sine.lo() > 0.0 || sine.hi() < 0.0 { "CERTIFIES" } else { "REFUSES" };
+        eprintln!("WM1 (c) sign alone: rate enclosure excludes 0? => {alone}");
+    }
+}
