@@ -426,7 +426,7 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
     for (margin, want) in [(sliver, "pn_conic_type"), (4.0 * b.escalate(), "served")] {
         let p = turned(margin);
         for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
-            let (at, extent) = reading(a, c);
+            let (_, extent) = reading(a, c);
             let got = one_loop(pair_section_frame_at(a, c, extent, b));
             let verdict = match &got {
                 Ok(Some(_)) => "served",

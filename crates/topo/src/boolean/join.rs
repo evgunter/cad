@@ -2828,20 +2828,20 @@ pub(super) fn face_pair_section_loops<T: crate::props::AtRestPolicy>(
         });
     }
     let ((_, sa), (_, sb)) = (keyed_surface(body_a, face_a), keyed_surface(body_b, face_b));
-    let (at, extent) = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
+    let extent = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
     pair_section_frame_at(sa, sb, extent, band)
         .map_err(|e| frame_refusal(e, (face_a, sa), (face_b, sb)))
 }
 
-/// **Where a face pair's frame is read, and what it is levered at**:
-/// the reading point ([`frame_reading`]) and the consumed region's
-/// measure from it ([`frame_extent`]), for the two faces' surfaces
-/// `sa` and `sb`, which the caller resolved from those faces.
+/// **What a face pair's frame is levered at**: the consumed region's
+/// measure ([`frame_extent`]) from the reading point ([`frame_reading`]),
+/// for the two faces' surfaces `sa` and `sb`, which the caller resolved
+/// from those faces.
 fn frame_lever<T: Decide>(
     (sa, body_a, face_a): (&geom::Surface<T>, &Body<T>, FaceKey),
     (sb, body_b, face_b): (&geom::Surface<T>, &Body<T>, FaceKey),
     band: Band,
-) -> Result<(geom_core::Point3<T>, FrameExtent<T>), BooleanError> {
+) -> Result<FrameExtent<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let witnesses = |body: &Body<T>, f: FaceKey| {
         super::carrier_pair::face_witnesses(body, f).unwrap_or_else(|| {
@@ -2853,9 +2853,7 @@ fn frame_lever<T: Decide>(
     };
     let at =
         frame_reading(sa, witnesses(body_a, face_a), witnesses(body_b, face_b)).map_err(desync)?;
-    let extent =
-        frame_extent((sa, body_a, face_a), (sb, body_b, face_b), at, band).map_err(desync)?;
-    Ok((at, extent))
+    frame_extent((sa, body_a, face_a), (sb, body_b, face_b), at, band).map_err(desync)
 }
 
 /// **The germ's own loop** of its pair's section
@@ -3533,7 +3531,7 @@ fn pair_reading<T: crate::props::AtRestPolicy>(
     if let Some(held) = sections.plane_cone((body_a, face_a), (body_b, face_b)) {
         return held.clone().map_err(refused);
     }
-    let (_, extent) = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
+    let extent = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
     let (plane, cone) = plane_and_cone(sa, sb).ok_or(BooleanError::JoinDesync {
         what: "a plane×cone germ's faces carry no plane and cone",
     })?;
@@ -4014,9 +4012,6 @@ fn conic_section_frame_at<T: Decide>(
         _ => Err(FrameError::NoArm),
     }
 }
-
-/// The desync a face reach raises where it levers a pair it does not serve.
-const FACE_REACH_ELSEWHERE: &str = "a curved face's reach levered a pair with no cone or torus";
 
 /// A germ pair's section refusal that is not the table's verdict on the
 /// pair's locus: an undecided degeneracy, or a conic carrier whose
@@ -6807,7 +6802,7 @@ mod frame_dispatch_tests {
             let sec = cylinder_cylinder_section(
                 &c1,
                 &c2,
-                &geom_brep::ExtentBall::fixture(at(), 1.0),
+                &geom_brep::ExtentBall::fixture(Point3::origin(), 1.0),
                 band(),
             )
             .expect("intersecting equal-radius axes have a section");

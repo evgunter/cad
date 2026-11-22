@@ -928,7 +928,7 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
     let origin = p(0.0, 0.0, 0.0);
     let ball = sphere(origin, 1.0);
     // Sphere × plane.
-    let t = touch_both_ways(&ball, &plane(origin + k, k), "section_sphere_plane_reach");
+    let t = touch_both_ways(&ball, &plane(origin + k, k), "ps_center_gap");
     assert!(
         (t.at - (origin + k)).norm() < 1e-12,
         "tangent at {:?}",
@@ -937,7 +937,7 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
     let t = touch_both_ways(
         &ball,
         &plane(origin + k * (1.0 - push), k),
-        "section_sphere_plane_reach",
+        "ps_center_gap",
     );
     let rad = (1.0 - (1.0 - push).powi(2)).sqrt();
     centres(
@@ -948,8 +948,8 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
     // Sphere × sphere, outside and inside, the ball as F and as the
     // larger or the smaller.
     for (label, r2, d, name) in [
-        ("outside", 0.3, 1.3, "section_sphere_pair_reach"),
-        ("inside", 0.4, 0.6, "section_sphere_pair_nest"),
+        ("outside", 0.3, 1.3, "ss_carrier_external"),
+        ("inside", 0.4, 0.6, "ss_carrier_internal"),
     ] {
         let t = touch_both_ways(&ball, &sphere(origin + k * d, r2), name);
         assert!(
@@ -957,7 +957,7 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
             "{label}: tangent at {:?}",
             t.at
         );
-        let d = if name.ends_with("reach") {
+        let d = if name.ends_with("external") {
             d - push
         } else {
             d + push
@@ -1017,7 +1017,7 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
 fn pinches_and_undecided_tangencies_are_not_touches() {
     let ball = sphere(p(0.0, 0.0, 0.0), 1.0);
     let pl = plane(p(0.0, 0.0, 1.0 - in_sliver()), Vec3::unit_z());
-    assert_eq!(tangent(&classify(&ball, &pl)), "section_sphere_plane_reach");
+    assert_eq!(tangent(&classify(&ball, &pl)), "ps_center_gap");
     let girdle = cylinder(p(0.5, 0.0, -2.0), Vec3::unit_z(), 0.5);
     assert_eq!(tangent(&classify(&ball, &girdle)), "cs_far_reach");
     let fat = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
@@ -1036,7 +1036,7 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     );
     assert_eq!(
         tangent(&classify(&ball, &sphere(p(off, 0.0, 0.0), 1.0 - off))),
-        "section_sphere_pair_nest"
+        "pair_section_coincident"
     );
 }
 
@@ -1236,11 +1236,11 @@ fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
 #[test]
 fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     let s = Section::Touch(Touch {
-        name: "section_sphere_plane_reach",
+        name: "ps_center_gap",
         at: p(0.0, 0.0, 1.0),
         apex: false,
     });
-    let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
+    let tan = Err(Refusal::Tangent("ps_center_gap"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
         certify_section_pair(&s, evented, band(), |_| Sheet::Not, |_, _| place)
     };
