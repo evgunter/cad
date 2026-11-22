@@ -2,10 +2,11 @@
 id: a-rational-edges-whole-span-enclosure-is-unbounded-so-its-face-has-no-window
 kind: issue
 title: A rational edge's one-interval enclosure over its whole span is unbounded, so its face's window is not a finite rectangle and two valid f64 cone cavities refuse before any cell is read
-status: open
+status: closed
 opened: 2026-11-18
 priority: P0
 cost: M
+closed: 2026-11-22
 ---
 
 Traced by lane `embed/cavity-trace` (2026-11-18) for
