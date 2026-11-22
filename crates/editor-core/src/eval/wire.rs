@@ -4132,9 +4132,13 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                      door refuses an indexed family argument (`InputFault::IndexedFamily`)"
                 );
             }
-            let read = &family.read;
-            let at = super::read_at(doc, O::Members, *read)?;
-            whole(*read, at, value_of(results, at)?.whole())?
+            let read = family.read;
+            let at = super::read_at(doc, O::Members, read)?;
+            // A split's half read whole is its family of halves.
+            let projected =
+                reads_projected(node, &[(O::Members, read)], doc, (results, vals, params))?;
+            let results = projected.as_ref().unwrap_or(results);
+            whole(read, at, value_of(results, at)?.whole())?
         }
     };
     // The node's own read: the space a fold step's rows are read in.
