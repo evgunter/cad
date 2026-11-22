@@ -63,7 +63,7 @@ type KPathError = pf::PathError<f64>;
 /// `None` where the arm carries no corner list, so handling reads
 /// `err.corners` without first branching on `err.variant`.
 fn path_err(py: Python<'_>, err: &KPathError) -> PyErr {
-    let corners = match err {
+    let corners = match err.refusal() {
         pf::PathError::NoCornerOfPair { corners, .. } => {
             let rows: Vec<(f64, f64, &'static str)> = corners
                 .iter()
