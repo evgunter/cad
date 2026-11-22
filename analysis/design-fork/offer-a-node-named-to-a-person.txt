@@ -1,0 +1,6 @@
+fork: offer-a-node-named-to-a-person (OFFER, a-node-name-the-viewer-shows-is-not-a-link-to-it with vnews/the-viewer-spells-a-node-as-its-kind-before-its-name)
+drawn: 2026-11-22, od -N1 /dev/urandom
+arm byte: 215 (>= 86: two designers)
+label byte: 36
+mapping: A = Opus designer, B = Fable designer
+protocol: 3a6220f722
