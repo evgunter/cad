@@ -471,7 +471,11 @@ impl Say for IdMapError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for IdMapError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -498,7 +502,11 @@ impl Say for PickIndexError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickIndexError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -546,7 +554,11 @@ impl Say for UndrawnBody {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for UndrawnBody {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -3296,7 +3308,11 @@ impl Say for PatchNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PatchNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -3365,7 +3381,11 @@ impl Say for EdgeNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for EdgeNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -3430,7 +3450,11 @@ impl Say for EdgeNamesRefused {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for EdgeNamesRefused {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -3480,7 +3504,11 @@ impl Say for VertexNamesRefused {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for VertexNamesRefused {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -3507,7 +3535,11 @@ impl Say for PickError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -3558,7 +3590,7 @@ mod tests {
                 copy.to_string(),
                 format!(
                     "node 000000000007 is not drawn: {}",
-                    Said(&error, Speaker::TAG.about(node))
+                    Said(&error, Speaker::TAG.about(node)).sentence()
                 ),
                 "the copy's sentence for {error:?}"
             );
@@ -3612,11 +3644,14 @@ mod tests {
                     },
                     Speaker::of(&doc).within(&eval)
                 )
+                .sentence()
             ),
             "the copy, by name, in the build's own words"
         );
         assert!(
-            badge.label().contains(&doc.spoken(copy).to_string()),
+            badge
+                .label()
+                .contains(&crate::tree::spelled(&doc.spoken(copy))),
             "the label names the copy: {}",
             badge.label()
         );

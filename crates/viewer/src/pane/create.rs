@@ -642,7 +642,7 @@ impl ViewerBehavior<'_> {
                 None => "pick a body to place it, or a copy to edit its placement".to_owned(),
                 Some(door) => format!(
                     "editing the placement {}: pick on the copy, then on what it meets, each {}",
-                    self.session.committed_doc().spoken(door.placement),
+                    crate::tree::spelled(&self.session.committed_doc().spoken(door.placement)),
                     crate::matetool::said_entities(&crate::matetool::reads(tool.active_kind()))
                 ),
             }),
@@ -755,7 +755,11 @@ impl ViewerBehavior<'_> {
                 && ui
                     .button(format!(
                         "strike the {reading} that read {}",
-                        doc.spoken_space(old)
+                        pncad::document::Said(
+                            &doc.spoken_space(old),
+                            pncad::document::Speaker::TAG
+                        )
+                        .sentence()
                     ))
                     .clicked()
             {
@@ -932,7 +936,8 @@ impl ViewerBehavior<'_> {
                 crate::widgets::message_toned(
                     ui,
                     ToolKind::Mate.says(&format_args!(
-                        "placing {read} again shares its source: name it"
+                        "placing {read} again shares its source: name it",
+                        read = crate::tree::spelled_var(&read)
                     )),
                     &self.theme,
                     Tone::Actionable,
@@ -978,7 +983,10 @@ impl ViewerBehavior<'_> {
                 let mut chosen = None;
                 ui.horizontal_wrapped(|ui| {
                     for &source in sources {
-                        if ui.button(doc.spoken_var(source).to_string()).clicked() {
+                        if ui
+                            .button(crate::tree::spelled_var(&doc.spoken_var(source)))
+                            .clicked()
+                        {
                             chosen = Some(source);
                         }
                     }
@@ -1019,8 +1027,8 @@ impl ViewerBehavior<'_> {
             .repoint_button(source, self.session.selection().node());
         ui.horizontal(|ui| {
             let copied = doc.operation_of(body).map_or_else(
-                || doc.spoken_var(body).to_string(),
-                |node| doc.spoken(node).to_string(),
+                || crate::tree::spelled_var(&doc.spoken_var(body)),
+                |node| crate::tree::spelled(&doc.spoken(node)),
             );
             ui.label(format!("copy of: {copied}{through}"));
             crate::widgets::repoint_button(ui, button, self.ops);
@@ -1047,12 +1055,19 @@ impl ViewerBehavior<'_> {
             crate::widgets::message_toned(
                 ui,
                 ToolKind::Mate.says(&format_args!(
-                    "{what} is in {read}; this placement is into {into}"
+                    "{what} is in {read}; this placement is into {into}",
+                    read = pncad::document::Said(&read, pncad::document::Speaker::TAG).sentence()
                 )),
                 &self.theme,
                 Tone::Actionable,
             );
-            if ui.button(format!("Into {read}")).clicked() {
+            if ui
+                .button(format!(
+                    "Into {read}",
+                    read = pncad::document::Said(&read, pncad::document::Speaker::TAG).sentence()
+                ))
+                .clicked()
+            {
                 edited.retarget_into(space);
             }
         });
@@ -1300,10 +1315,12 @@ impl ViewerBehavior<'_> {
             return;
         };
         ui.separator();
-        let named = Speaker::of(self.session.doc())
-            .or_held(self.session.selection_said())
-            .node(profile)
-            .to_string();
+        let named = pncad::document::sentence!(
+            Speaker::of(self.session.doc())
+                .or_held(self.session.selection_said())
+                .node(profile)
+        )
+        .to_string();
         let notation = *self.notation;
         let unit = WrittenLength::in_unit(1.0, notation.length).meters();
         let axis_x = if self.session.busy() {
@@ -1487,7 +1504,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Transform.says(&"pick the body or the copy to move"),
         );
-        let waiting = split.map(|split| (0, split.to_string()));
+        let waiting = split.map(|split| (0, crate::tree::spelled(&split)));
         if let Some((_, half)) = half_rows(ui, waiting, &self.theme) {
             for notice in self
                 .tools
@@ -1615,7 +1632,7 @@ impl ViewerBehavior<'_> {
         ui.weak(match (target, self.session.landed_pair()) {
             (Some(target), Some((landed, _))) => format!(
                 "{count} edges picked on {}",
-                Said(&target, Speaker::of(landed))
+                Said(&target, Speaker::of(landed)).sentence()
             ),
             (Some(target), None) => format!("{count} edges picked on {target}"),
             (None, _) => "no edges picked yet".to_owned(),
@@ -2650,10 +2667,12 @@ mod sketch_face_said {
             "each latch says its face's node by its last label"
         );
         assert_eq!(
-            Speaker::of(landed)
-                .or_held(session.selection_said())
-                .node(block)
-                .to_string(),
+            pncad::document::sentence!(
+                Speaker::of(landed)
+                    .or_held(session.selection_said())
+                    .node(block)
+            )
+            .to_string(),
             format!("node {t}"),
             "the selection moved on, so its snapshot does not name the block"
         );
@@ -2774,7 +2793,7 @@ mod tools_respeak {
                 .map(|notice| match notice {
                     ToolNotice::Seated { event, .. } => {
                         let crate::seats::SeatEvent::PickLost { node, .. } = event;
-                        node.to_string()
+                        crate::tree::spelled(&node)
                     }
                     other => panic!("a seated tool's drop, not {other:?}"),
                 })

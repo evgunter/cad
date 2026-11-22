@@ -197,7 +197,7 @@ fn replay(
     for name in box_.axes().keys() {
         name_param(
             geom_core::ParamSymbol::new(name.0.digest()),
-            &editor_core::test_support::var_text(&&doc.spoken_var(*name)),
+            &editor_core::test_support::var_text(&doc.spoken_var(*name)),
         );
     }
     let opts = EvalOptions {

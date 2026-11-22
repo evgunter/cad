@@ -846,7 +846,11 @@ impl Say for DrawnBody {
 /// The sentence where no document is at hand: the node by its tag.
 impl core::fmt::Display for DrawnBody {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -925,7 +929,11 @@ impl Say for PickedName<'_> {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickedName<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -1859,7 +1867,9 @@ mod picked_name {
             }],
         };
         let said = |name: &StableName, node, body| {
-            Said(&PickedName::new(name, DrawnBody::new(node, body)), by).to_string()
+            Said(&PickedName::new(name, DrawnBody::new(node, body)), by)
+                .sentence()
+                .to_string()
         };
         let tag = |id: RecipeNodeId| test_utils::refusal::tag(id.0.digest());
         let (b, p, u, s) = (tag(boss), tag(place), tag(union), tag(subtract));
@@ -1885,7 +1895,7 @@ mod picked_name {
         let on_copy = PickedName::new(&end, DrawnBody::new(place, 0));
         assert_eq!(
             on_copy.to_string(),
-            Said(&on_copy, Speaker::TAG).to_string(),
+            Said(&on_copy, Speaker::TAG).sentence().to_string(),
             "with no document at hand, each node by its tag"
         );
         assert_eq!(

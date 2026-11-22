@@ -323,7 +323,11 @@ impl Say for BlendEvent {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for BlendEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", pncad::document::Said(self, Speaker::TAG).sentence())
+        write!(
+            f,
+            "{}",
+            pncad::document::Said(self, Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -886,7 +890,9 @@ mod tests {
         assert!(
             said.contains(&refused.to_string())
                 && said.contains(
-                    &Said(&EdgeNameFault::Unnamed(first), Speaker::TAG.about(copy)).to_string()
+                    &Said(&EdgeNameFault::Unnamed(first), Speaker::TAG.about(copy))
+                        .sentence()
+                        .to_string()
                 ),
             "the index's own words, through its Display: {said}"
         );

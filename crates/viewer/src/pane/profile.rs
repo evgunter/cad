@@ -415,7 +415,10 @@ pub(crate) fn edit_door_ui(
                 .push(frame::tool_news(&FormKind::EditProfile.refuses(&fault))),
         }
     }
-    ui.label(format!("profile {}", landed.spoken(node)));
+    ui.label(format!(
+        "profile {}",
+        crate::tree::spelled(&landed.spoken(node))
+    ));
     let loops = edit.loops().len();
     let views = edit.steps(landed, tol);
     let mut rows = Vec::new();
@@ -2170,8 +2173,11 @@ mod tests {
             .spoken_name(&wall)
             .steps_respoken(session.committed_doc());
         assert!(
-            name.to_string().contains("the profile step "),
-            "a removed step is said by its tag: {name}"
+            (pncad::document::Said(&name, pncad::document::Speaker::TAG).sentence())
+                .to_string()
+                .contains("the profile step "),
+            "a removed step is said by its tag: {name}",
+            name = pncad::document::Said(&name, pncad::document::Speaker::TAG).sentence()
         );
         let Some(Node::Shell { open: face, .. }) = before.node(carrier) else {
             panic!("the carrier is a shell")

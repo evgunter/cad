@@ -710,9 +710,12 @@ fn a_feature_on_an_unpressed_fillet_offers_bracket() {
         [viewer::frame::PlacementOffer {
             said: format!(
                 "bracket (2 copies) copies {}, which this body is built on",
-                by.read(b)
+                pncad::document::sentence!(by.read(b))
             ),
-            label: format!("Re-point bracket onto {}", by.node(g)),
+            label: format!(
+                "Re-point bracket onto {}",
+                pncad::document::sentence!(by.node(g))
+            ),
             op: SessionOp::RepointPlacements {
                 source: bracket,
                 onto: g.into(),
@@ -806,8 +809,8 @@ fn a_cut_offers_the_source_of_its_tool_as_well() {
         tool_row.said,
         format!(
             "the copy {} copies {}, which this body is built on",
-            by.node(tool_copy),
-            by.read(t)
+            pncad::document::sentence!(by.node(tool_copy)),
+            pncad::document::sentence!(by.read(t))
         ),
         "the tool's row names its copy and the body it copies"
     );
