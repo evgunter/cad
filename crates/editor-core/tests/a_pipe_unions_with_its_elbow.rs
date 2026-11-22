@@ -384,3 +384,34 @@ fn zz_probe_outcomes() {
         outcome(&join(true, CapEnd::End, off), closed_form(true, off))
     );
 }
+
+/// **R1 probe (review of PR 7432)**: the elbow's axis turned about the
+/// cap's normal by `k·ε` over a ladder of `k`, which slides the two
+/// neutral points (κ_rel = 0) past the routing's stations. Every pose
+/// must stop at the crossing layer: a refusal at the glue door's
+/// routing would be the bend refusing a π seam (`work/select/a-seam-
+/// decided-pi-refuses-where-only-its-bend-is-undecided.md`).
+#[test]
+fn r1_an_elbow_turned_by_any_fraction_of_eps_passes_the_glue_door() {
+    let mut off_door = Vec::new();
+    for k in [0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 3.0, 5.0, 10.0, 30.0, 100.0] {
+        let off = OffCap::Elbow {
+            axis_x: BEND,
+            heading: -FRAC_PI_2 + k * Tol::witness().eps(),
+            angle: -FRAC_PI_2,
+        };
+        let j = join(true, CapEnd::End, off);
+        let kind = j.ev.node_error(j.union).map(|e| e.kind.to_string());
+        println!("R1PROBE k={k}: {kind:?}");
+        let at_crossing = matches!(
+            j.ev.node_error(j.union).map(|e| &e.kind),
+            Some(editor_core::NodeErrorKind::Boolean(
+                topo::BooleanError::CurvedPierceUnsupported { .. }
+            ))
+        );
+        if !at_crossing {
+            off_door.push((k, kind));
+        }
+    }
+    assert!(off_door.is_empty(), "poses that did not reach the crossing layer: {off_door:?}");
+}
