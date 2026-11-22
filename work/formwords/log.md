@@ -141,3 +141,5 @@ a pick route checks its own seats against that doc.
   they name leaves green. Each review's mutations were the instrument
   that caught it; future briefs ask reviewers for one mutation per new
   gate row.
+
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7378 (refused-entry, Ev's report) merged after a full review and a fix pass, on green CI. A class finding with no home yet: app-feature test rows can be neither in the slow set (`check-slow-set-names.py` reads them as dead) nor timed (`check-fast-set-times` times only the default-eps step). So the app-feature job has no time bar, and a 12 s row runs on every viewer PR.
