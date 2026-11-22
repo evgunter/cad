@@ -34,9 +34,11 @@ use slotmap::SlotMap;
 /// `u = 0` ruling.
 fn tangent_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
     }
 }
 
@@ -137,9 +139,11 @@ fn a_carrier_off_the_wall_refuses_with_the_measured_miss() {
 fn a_side_a_flat_patch_shares_with_its_plane_certifies_on_the_pair() {
     let edge = on_pair(
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(1.0, 0.0, 0.0),
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
         },
         Surface::Nurbs(Arc::new(flat_patch())),
         segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0)),
@@ -241,9 +245,11 @@ fn an_approx_wall_is_metered_against_its_fit() {
         })
         .fold(0.0_f64, f64::max);
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, y, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, y, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let got = on_pair(plane, approx, line);
     println!("the fit lies {miss:e} off the description's line");
@@ -282,9 +288,11 @@ fn rim(r: f64, angle: f64) -> (Curve3<f64>, f64) {
 /// The `z = 0` plane, the wall's bottom cap.
 fn cap() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, -1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 

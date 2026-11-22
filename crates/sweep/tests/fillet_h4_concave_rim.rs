@@ -223,8 +223,8 @@ fn top_face(body: &Body<f64>) -> FaceKey {
     body.faces()
         .find(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, normal, .. })
-                    if (origin.z - SLAB).abs() < 1e-12 && normal.z > 0.5)
+                Some(Surface::Plane { frame, .. })
+                    if (frame.origin().z - SLAB).abs() < 1e-12 && frame.axis().z > 0.5)
         })
         .map(|(k, _)| k)
         .expect("the slab's top face")
@@ -245,7 +245,7 @@ fn ring_radius(body: &Body<f64>, face: FaceKey) -> f64 {
     };
     let he = body.loop_cycle(first).unwrap()[0];
     let e = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
-    let Curve3::Circle(geom::Circle { radius, .. }) = *body
+    let Curve3::Circle(conic_k) = *body
         .get_curve_geom(e.curve)
         .unwrap()
         .certified()
@@ -254,7 +254,7 @@ fn ring_radius(body: &Body<f64>, face: FaceKey) -> f64 {
     else {
         panic!("a ring edge is a circle arc")
     };
-    radius
+    conic_k.radius()
 }
 
 /// **The boss's material-adding fill, as a washer integral** — nothing

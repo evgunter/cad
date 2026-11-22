@@ -718,18 +718,10 @@ fn kef_merging_a_complete_face_into_an_unminted_one_leaves_it_half_minted() {
                 .and_then(topo::CurveGeom::certified)
                 .unwrap();
             let (t0, t1) = c.params();
-            let geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                ..
-            }) = *c.carrier()
-            else {
+            let geom::Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
                 return None;
             };
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let d = want_at - center;
             let angle = d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref));
             let tau = core::f64::consts::TAU;
@@ -959,14 +951,10 @@ fn a_carrier_that_keeps_its_ends_but_not_its_trace_re_mints_the_face() {
     let center = p0.lerp(p1, 0.5) + frame.radial(UM) * (radius * 0.25_f64.cos());
     let u_ref = (p0 - center) / radius;
     let arc = |axis: geom_core::Vec3<f64>| {
-        geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+        geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(center, axis, u_ref),
             radius,
-        })
+        ))
     };
     let axis = frame.axis.cross(frame.radial(UM));
     let carrier = if arc(axis).eval(0.5).distance(p1) < 1e-12 {

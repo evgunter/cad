@@ -213,7 +213,8 @@ fn downward_extrusion_keeps_the_same_senses() {
     // And it is the concave one (material outside its carrier).
     for &fk in &t.side_faces()[0] {
         let sk = t.body.get_face(fk).unwrap().surface;
-        if let Surface::Cylinder { origin, radius, .. } = *t.body.get_surface(sk).unwrap() {
+        if let Surface::Cylinder { frame, radius, .. } = *t.body.get_surface(sk).unwrap() {
+            let origin = frame.origin();
             let d = geom_core::Point2::new(1.0, 0.75) - geom_core::Point2::new(origin.x, origin.y);
             assert_eq!(
                 sense_of(&t.body, fk),

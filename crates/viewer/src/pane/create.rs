@@ -19,7 +19,7 @@ use crate::forms::{COUNT_DRAG_SPEED, PatternLayoutChoice, boolean_op_label, spli
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_KINDS, MateTool};
 use crate::parts::{PartChooser, PartEntry};
-use crate::props::Notation;
+use crate::props::{Notation, WorkingNotation as _};
 use crate::seats::{Seat, Seats, seat_line};
 use crate::session::{Creation, NodeKindWanted, PlaceTarget, Selection, SessionOp, admits};
 use crate::theme::Theme;

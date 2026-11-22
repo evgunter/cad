@@ -30,7 +30,7 @@
 //!   which is the same silence pointed the other way and the defect
 //!   `MatePrimitive::PlanarRest` actually has. The complement wants an
 //!   instrument of its own and a verdict key this one does not need —
-//!   `work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`.
+//!   `work/bind/census-sees-an-inert-attribute-but-not-a-missing-one.md`.
 //! - **Macro-generated declarations.** A `struct` or `enum` assembled
 //!   inside a `macro_rules!` body, or by `paste!`/`concat_idents!`, is
 //!   text to a lexer and a declaration only after expansion. An
@@ -404,7 +404,7 @@ fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
     // Pinned red: the two `Qualifier` enums lost their one named variant
     // and still carry the attribute
-    // (`work/census/main-red-inert-deny-on-the-qualifier-enums`). Each
+    // (`work/bind/main-red-inert-deny-on-the-qualifier-enums`). Each
     // named file must hold exactly one site read as having nothing to
     // deny; an unreadable site is never pinned.
     let found = sites(&root);

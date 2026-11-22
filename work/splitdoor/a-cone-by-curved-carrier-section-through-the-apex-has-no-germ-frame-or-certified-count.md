@@ -19,7 +19,7 @@ section).
 ## What
 
 The sweep now reads a conic arc through a cone's apex
-(`boolean::conic_quadric`, "Through the apex"). Past the sweep, a cone's
+(`curve_face::conic_quadric`, "Through the apex"). Past the sweep, a cone's
 apex against a CURVED partner meets two frontiers that the vertex lane
 does not reach:
 

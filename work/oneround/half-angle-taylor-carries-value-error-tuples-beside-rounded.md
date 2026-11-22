@@ -2,11 +2,13 @@
 id: half-angle-taylor-carries-value-error-tuples-beside-rounded
 kind: issue
 title: half_angle's taylor carries (value, error) tuples and spells room by hand beside running::Rounded
-status: dispatched
+status: closed
 priority: P1
 cost: M
 opened: 2026-11-02
 branch: oneround/rounded-room
+closed: 2026-11-20
+pr: 7145
 ---
 
 
@@ -40,3 +42,7 @@ charge; this row then becomes whatever that ruling makes of
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
+
+## Closed (2026-11-20, PR 7145)
+
+`half_angle`'s Taylor terms are `Rounded` and are read through `room`, `magnitude`, `toward_zero` and `divisor`. The slack window is sized only where `divisor` finds the root's slope room off zero; elsewhere the lever is the piece's own slope, which is always a valid one (a decided pose, not a clamp). That moves verdicts at `Interval`, from meter refusals to sound answers, and can move a touch-arm verdict toward refusing at either scalar; the PR body says where. One hand read stays, `g0.error - toward * g0.value`, because `Rounded` has no enclosure-end doors: `rounded-readings-read-by-hand-off-their-fields` carries it and names that door as its fix. The sibling spellings the sweep found are on `value-error-pairs-are-carried-beside-rounded-in-four-modules`.

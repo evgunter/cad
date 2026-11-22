@@ -232,24 +232,23 @@ fn mint_band(
     let sense = solid.faces[fi].sense;
     // Detection tagged only these two chart kinds (spec D3).
     let (s_axis, s_u_ref, axis_point, torus) = match surface {
-        Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        } => (axis, u_ref, origin, None),
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            (axis, u_ref, origin, None)
+        }
         Surface::Torus {
-            axis,
-            u_ref,
-            center,
+            frame,
             major_radius,
             minor_radius,
-        } => (
-            axis,
-            u_ref,
-            center,
-            Some((center, major_radius, minor_radius)),
-        ),
+        } => {
+            let (axis, u_ref, center) = (frame.axis(), frame.u_ref(), frame.origin());
+            (
+                axis,
+                u_ref,
+                center,
+                Some((center, major_radius, minor_radius)),
+            )
+        }
         _ => {
             return Err(StepImportError::Topology {
                 id: face_id,
@@ -303,15 +302,9 @@ fn mint_band(
         for (ui, u) in lp.uses.iter().enumerate() {
             let spec = &solid.edges[&u.edge];
             let coaxial = match spec.carrier {
-                Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: n,
-                            ..
-                        },
-                    radius,
-                }) => {
+                Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
+                    let (center, n) = (frame.origin(), frame.axis());
+                    let radius = circle.radius();
                     let off_axis = geom::Line {
                         origin: axis_point,
                         dir: s_axis,
@@ -429,6 +422,7 @@ fn mint_band(
             // A minted edge: the importer states its own
             // start → end, so there is no sense to compose.
             reversed: false,
+            curve: None,
         },
     );
     // The mint's whole point is D1's statement that this edge is the
@@ -516,7 +510,7 @@ fn seam_vertex_on_loop(
 ) -> Result<u64, StepImportError> {
     let face_id = solid.faces[fi].id;
     let s_u_ref = match *surface {
-        Surface::Cylinder { u_ref, .. } | Surface::Torus { u_ref, .. } => u_ref,
+        Surface::Cylinder { frame, .. } | Surface::Torus { frame, .. } => frame.u_ref(),
         _ => {
             return Err(StepImportError::Topology {
                 id: face_id,
@@ -556,7 +550,8 @@ fn seam_vertex_on_loop(
             // circle; anything else lands in the typed refusal below.
             continue;
         };
-        let q = crate::signed_zero::plus_zero_point(circle.frame.origin + s_u_ref * circle.radius);
+        let q =
+            crate::signed_zero::plus_zero_point(circle.frame.origin() + s_u_ref * circle.radius());
         let t = circle
             .period()
             .above(geom::Conic::azimuth(circle, q).near(0.0), spec.t0);
@@ -621,9 +616,10 @@ fn wall_inversion(
     chart_band: Option<geom_core::Band>,
 ) -> Result<(), StepImportError> {
     for face in &solid.faces {
-        let (Surface::Cylinder { axis, .. } | Surface::Cone { axis, .. }) = face.surface else {
+        let (Surface::Cylinder { frame, .. } | Surface::Cone { frame, .. }) = face.surface else {
             continue;
         };
+        let axis = frame.axis();
         let [lp] = face.loops.as_slice() else {
             continue;
         };
@@ -633,13 +629,10 @@ fn wall_inversion(
         let mut readable = true;
         for use_ in &lp.uses {
             let spec = &solid.edges[&use_.edge];
-            let Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis: n_c, .. },
-                ..
-            }) = spec.carrier
-            else {
+            let Curve3::Circle(geom::Circle { frame, .. }) = spec.carrier else {
                 continue;
             };
+            let n_c = frame.axis();
             if n_c.dot(axis).abs() <= 0.5 {
                 continue;
             }
@@ -716,6 +709,7 @@ mod tests {
                 t0: 0.0,
                 t1: 2.0_f64.sqrt(),
                 reversed: false,
+                curve: None,
             },
         );
         edges.insert(
@@ -732,6 +726,7 @@ mod tests {
                 t0: 0.0,
                 t1: TAU,
                 reversed: false,
+                curve: None,
             },
         );
         let mut vertices = BTreeMap::new();
@@ -746,10 +741,12 @@ mod tests {
             faces: vec![FaceSpec {
                 id: 101,
                 surface: Surface::Cone {
-                    apex,
-                    axis: Vec3::new(0.0, 0.0, -1.0),
+                    frame: geom::Frame::new(
+                        apex,
+                        Vec3::new(0.0, 0.0, -1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     half_angle: std::f64::consts::FRAC_PI_4,
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
                 },
                 sense: true,
                 loops: vec![LoopSpec {

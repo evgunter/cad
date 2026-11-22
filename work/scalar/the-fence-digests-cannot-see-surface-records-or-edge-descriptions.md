@@ -4,6 +4,8 @@ kind: issue
 title: the m10_p_fence digests read only points and outcomes, so a moved surface record or edge description passes every fence row
 status: open
 opened: 2026-11-11
+priority: P3
+cost: M
 ---
 
 

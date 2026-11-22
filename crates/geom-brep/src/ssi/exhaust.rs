@@ -1436,16 +1436,20 @@ mod tests {
         use geom::Surface;
         use geom_core::{Point3, Vec3};
         let point = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 0.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let wall = Surface::Cylinder {
-            origin: Point3::new(0.03, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.03, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 0.08,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let floor = SweepFloor::r3(
             Box3::around(Point3::new(0.0, 0.0, 0.0), 1.5),
@@ -1693,18 +1697,14 @@ mod tests {
         use geom_core::{Point3, Vec3};
         let (big, small) = (1.0, 0.1);
         let torus = Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: big,
             minor_radius: small,
-            u_ref: Vec3::unit_x(),
         };
         let (c, rs) = (Point3::new(1.0, 0.0, 0.1), 0.15);
         let sphere = Surface::Sphere {
-            center: c,
+            frame: geom::Frame::new(c, Vec3::unit_z(), Vec3::unit_x()),
             radius: rs,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let root = Box3::around(Point3::origin(), big + small);
         let floor = root.width() / 512.0;

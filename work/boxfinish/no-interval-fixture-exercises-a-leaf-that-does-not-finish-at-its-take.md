@@ -40,3 +40,7 @@ going on past it.
 
 **What a fixture needs.** A document whose placement's body is
 tier-2 valid and refused by tier 3 when the connectedness walk takes it.
+
+## Lost again with placed members (fork 288, stage 1)
+
+The turned-disc union no longer reaches `UnfinishedLeaf`: its fold finishes each member in its own frame, where the clear copy finishes, and it refuses in the Boolean instead (`crates/editor-core/tests/a_turned_discs_union_refuses_on_the_widened_copy.rs`). No executed row now reaches a union's `UnfinishedLeaf` at a box scalar.

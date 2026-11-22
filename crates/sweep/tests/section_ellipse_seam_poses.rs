@@ -41,7 +41,7 @@ const FRAME_RESIDUE: &str = "work/restfront/tier-3s-frame-check-reads-a-section-
 /// sliver. No pose here keeps one: each sliver lies beside the wall face
 /// across a seam, and the split merges the two.
 const SLIVER_RESIDUE: &str =
-    "work/honepose/a-split-leaves-an-in-band-sliver-wall-face-that-refuses-only-at-rest.md";
+    "work/hone/a-split-leaves-an-in-band-sliver-wall-face-that-refuses-only-at-rest.md";
 
 /// The unit cylinder about `z`, `0 ≤ z ≤ 1`, its seam vertices at
 /// `(±1, 0, 0)` and `(±1, 0, 1)`.
@@ -242,13 +242,12 @@ fn a_near_axial_sections_readback_u_ref_is_its_major_direction() {
     let mut seamed_across = 0;
     for body in [res.above.body(), res.below.body()].into_iter().flatten() {
         for (edge, _) in body.edges() {
-            let Ok(&geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { u_ref, .. },
-                ..
-            })) = topo::readback::edge_carrier_ref(body, edge)
+            let Ok(&geom::Curve3::Ellipse(geom::Ellipse { frame, .. })) =
+                topo::readback::edge_carrier_ref(body, edge)
             else {
                 continue;
             };
+            let u_ref = frame.u_ref();
             if u_ref.z.abs() < 0.5 {
                 seamed_across += 1;
             }
