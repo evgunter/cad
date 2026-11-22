@@ -7990,6 +7990,20 @@ pub(crate) enum TangencyFailure {
 
 /// What the rim routing read of a junction it cannot glue
 /// ([`BooleanError::RimJunctionUnsettled`]).
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung; the disposition table cites this paragraph as its home). A Rust
+/// caller can already name and match it — `pncad` re-exports `topo`
+/// whole — and the Python door says which refusal it rides in
+/// (`rim_junction_unsettled`) and carries its sentence, which names the
+/// stations that disagree or the lamina. Publishing it owes the CUR3
+/// property row `carried_refusal_payloads_are_matchable_through_the_prelude`
+/// and a Python word per arm, both the façade crate's to write.
+///
+/// **The falsifier is a Python caller who must tell a mixed rim from a
+/// lamina** without reading the sentence. When the façade carries the
+/// reading, delete this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RimJunction {
     /// Neighbouring stations disagree on the class or a corner's sign.
