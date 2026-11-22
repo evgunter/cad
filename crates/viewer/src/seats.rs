@@ -7,6 +7,16 @@
 //! are its own (`crate::matetool`), and the blend tool's held-picks
 //! line is drawn in its panel (`crate::pane`), not here.
 //!
+//! **What a creation tool's commit waits for is a [`SeatError`]**,
+//! wherever the picks it waits on are held: the seated tools', the
+//! boolean tool's member list, the blend tool's edge set
+//! ([`EdgeRole`]) and the profile-on-a-face form's latch
+//! ([`FaceRole::DrawnOn`]). Those commits are drawn by
+//! `crate::pane::create`'s one withheld commit row, which takes the
+//! formed op and reads the fault off it, so none of those forms has a
+//! string of its own to say it with. The mate tool, the add-variable
+//! form and the selection's own buttons gate their controls apart.
+//!
 //! # Why one value and not one per tool
 //!
 //! The combining tools differ in exactly two
@@ -211,10 +221,12 @@ impl Seat {
     }
 }
 
-/// **What a face a tool holds beside its seats is for** — the role a
-/// held FACE plays, as [`Seat`] names a held node's.
+/// **What a face a tool or a form holds beside its seats is for** —
+/// the role a held FACE plays, as [`Seat`] names a held node's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FaceRole {
+    /// The face the profile-on-a-face form draws its profile on.
+    DrawnOn,
     /// An assertion's first seat, held as a face — the
     /// seat [`Seat::AssertedFirst`] holds as a body, and named as it is.
     AssertedFirst,
@@ -226,6 +238,7 @@ impl FaceRole {
     /// The role's name, for sentences.
     pub fn name(self) -> &'static str {
         match self {
+            Self::DrawnOn => "face to draw on",
             Self::AssertedFirst => "first seat",
             Self::AssertedSecond => "second seat",
         }
@@ -252,8 +265,26 @@ impl PlaneRole {
     }
 }
 
+/// **What a set of held EDGES is for** — the role the blend tool's edge
+/// set plays, as [`Seat`] names a held node's and [`FaceRole`] a held
+/// face's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EdgeRole {
+    /// The edges a blend rounds or bevels.
+    Blended,
+}
+
+impl EdgeRole {
+    /// The role's name, for sentences.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Blended => "edges to blend",
+        }
+    }
+}
+
 /// A typed seated-tool refusal (closed enum, D4 ¶3).
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SeatError {
     /// A seat the commit needs is still empty.
     Empty {
@@ -267,6 +298,19 @@ pub enum SeatError {
         /// The plane's role.
         role: PlaneRole,
     },
+    /// A face the commit needs is not held yet — a form's or a tool's
+    /// held face beside its seats, named by the role the panel line
+    /// gives it.
+    NoFace {
+        /// The face's role.
+        role: FaceRole,
+    },
+    /// The blend tool holds no edge: its set is the one pick it waits
+    /// for.
+    NoEdges {
+        /// The set's role.
+        role: EdgeRole,
+    },
     /// A seat holds a split picked in the tree, and which of its two
     /// halves it reads is not chosen yet.
     HalfUnchosen {
@@ -277,17 +321,20 @@ pub enum SeatError {
 
 impl core::fmt::Display for SeatError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Empty { seat } => write!(f, "no {} picked yet", seat.name()),
-            Self::NoPlane { role } => write!(f, "no {} picked yet: pick a face", role.name()),
+        let (unpicked, how) = match self {
+            Self::Empty { seat } => (seat.name(), ""),
+            Self::NoFace { role } => (role.name(), ""),
+            Self::NoPlane { role } => (role.name(), ": pick a face"),
+            Self::NoEdges { role } => (role.name(), ""),
             Self::HalfUnchosen { seat } => {
-                write!(
+                return write!(
                     f,
                     "the {} is a split: choose its above or below half",
                     seat.name()
-                )
+                );
             }
-        }
+        };
+        write!(f, "no {unpicked} picked yet{how}")
     }
 }
 
@@ -311,13 +358,25 @@ pub enum SeatEvent {
 impl core::fmt::Display for SeatEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { seat, node } => write!(
-                f,
-                "the {} pick ({node}) is no longer in the document; the tool dropped it",
-                seat.name(),
-            ),
+            Self::PickLost { seat, node } => pick_gone(f, seat.name(), node),
         }
     }
+}
+
+/// **The drop notice of a pick whose node or variable left the
+/// document**: its role and what it held, by the last label the
+/// document gave it. [`SeatEvent`]'s, and a held plane variable's
+/// (`crate::combine::PlaneEvent`); a held FACE that stops resolving is
+/// said by `crate::matetool::pick_lost`.
+pub(crate) fn pick_gone(
+    f: &mut core::fmt::Formatter<'_>,
+    role: &str,
+    held: impl core::fmt::Display,
+) -> core::fmt::Result {
+    write!(
+        f,
+        "the {role} pick ({held}) is no longer in the document; the tool dropped it"
+    )
 }
 
 /// Two role-typed seats filled in order.
@@ -913,10 +972,19 @@ pub fn seat_line(seats: &Seats, by: Speaker<'_>) -> String {
 /// own: nothing splits a panel line back into its items, so there is
 /// no hold for a name to carry.
 /// **What a panel says of a pick it does not hold**: an open seat in a
-/// held-picks line, a line holding nothing at all, and a form's latch
-/// row with no face latched (`crate::drafts::latch_said`). The one
-/// spelling of an empty pick.
+/// held-picks line ([`open_pick`]), a line holding nothing at all, and
+/// a form's latch row with no face latched
+/// (`crate::drafts::latch_said`). The one spelling of an empty pick in
+/// a panel; what a commit waiting on that pick says is its
+/// [`SeatError`].
 pub(crate) const NONE_PICKED: &str = "none picked";
+
+/// **An open pick, named by its role** — `role: none picked`, the item a
+/// held-picks line gives an open seat, and the blend tool's edge line
+/// with no edge held.
+pub(crate) fn open_pick(role: impl core::fmt::Display) -> String {
+    format!("{role}: {NONE_PICKED}")
+}
 
 pub(crate) fn picks_line<R: core::fmt::Display>(
     picks: impl IntoIterator<Item = (R, Option<String>)>,
@@ -927,7 +995,10 @@ pub(crate) fn picks_line<R: core::fmt::Display>(
     }
     picks
         .iter()
-        .map(|(role, held)| format!("{role}: {}", held.as_deref().unwrap_or(NONE_PICKED)))
+        .map(|(role, held)| match held {
+            Some(held) => format!("{role}: {held}"),
+            None => open_pick(role),
+        })
         .collect::<Vec<_>>()
         .join("; ")
 }
