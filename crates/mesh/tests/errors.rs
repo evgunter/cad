@@ -120,6 +120,7 @@ test_utils::f6_variants! {
         UnresolvedWinding,
         UnclearedSharedSide,
         OverusedSide,
+        RouterDefect,
         SphereTrimShape,
         WrapStripTurn,
         LiftedColumnOff,
@@ -361,6 +362,13 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                 uses: 4,
             },
             vec!["4 triangles", "2 faces", "not a closed manifold"],
+        ),
+        (
+            TessellateError::RouterDefect {
+                face,
+                what: "a face the route walks does not read as the walk's two rows",
+            },
+            vec!["route misread", "kernel defect", "walk's two rows"],
         ),
         (
             TessellateError::SphereTrimShape {

@@ -588,8 +588,9 @@ pub(crate) fn tessellate_trimmed(
     let orientation = trim_orientation(fk, face.sense, spline, &polygon)?;
     if walked {
         let ChartRow::Analytic(ref a) = row else {
-            return Err(TessellateError::MissingEntity {
-                what: "a face the route walks has a spline chart (router defect)",
+            return Err(TessellateError::RouterDefect {
+                face: fk,
+                what: "a face the route walks has a spline chart",
             });
         };
         return walk_face(body, fk, a, &polygon, &singular, chords, shared, tol);
@@ -3623,8 +3624,9 @@ fn walk_face(
     let rows = (polygon.ends.len() == 1)
         .then(|| crate::ruled_walk::Rows::of(points, &line, singular))
         .flatten()
-        .ok_or(TessellateError::MissingEntity {
-            what: "a face the route walks does not read as the walk's two rows (router defect)",
+        .ok_or(TessellateError::RouterDefect {
+            face: fk,
+            what: "a face the route walks does not read as the walk's two rows",
         })?;
     let across = faces_across(body, fk, chords)?;
     // Each boundary id's places on the polygon: the apex's copies are one

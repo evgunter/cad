@@ -799,18 +799,20 @@ fn tessellate_impl(
                     // projects valid boundaries below spade's
                     // coordinate domain.
                     let run = || match &route {
-                        Ready::Trimmed(lift) | Ready::Walked(lift) => crate::trimmed::tessellate_trimmed(
-                            body,
-                            fk,
-                            surface,
-                            &chords,
-                            shared,
-                            &tol,
-                            &bounds,
-                            lift,
-                            crate::trimmed::BOUNDARY_CLEARANCE,
-                            lane == Lane::Walked,
-                        ),
+                        Ready::Trimmed(lift) | Ready::Walked(lift) => {
+                            crate::trimmed::tessellate_trimmed(
+                                body,
+                                fk,
+                                surface,
+                                &chords,
+                                shared,
+                                &tol,
+                                &bounds,
+                                lift,
+                                crate::trimmed::BOUNDARY_CLEARANCE,
+                                lane == Lane::Walked,
+                            )
+                        }
                         Ready::Planar => tessellate_planar(body, fk, &chords.ids, shared),
                         Ready::Curved(rectangle) => tessellate_curved(
                             body,

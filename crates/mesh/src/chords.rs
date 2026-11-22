@@ -547,8 +547,9 @@ impl FaceLattice {
         Ok(match lane {
             Lane::Planar => None,
             Lane::Curved => {
-                let rectangle = routes.rectangle(fk).ok_or(TessellateError::MissingEntity {
-                    what: "a curved-lane face the doors gave no rectangle (router defect)",
+                let rectangle = routes.rectangle(fk).ok_or(TessellateError::RouterDefect {
+                    face: fk,
+                    what: "a curved-lane face the doors gave no rectangle",
                 })?;
                 Some(Self {
                     steps: AnalyticRow::of(body, fk, surface)?.steps(target),
@@ -607,9 +608,10 @@ impl FaceLattice {
                     Some(geom_brep::IsoFamily::V) => (1.0, 0.0),
                     Some(geom_brep::IsoFamily::U) => (0.0, 1.0),
                     None => {
-                        return Err(TessellateError::MissingEntity {
+                        return Err(TessellateError::RouterDefect {
+                            face: fk,
                             what: "a half-edge the shape door did not certify reached a \
-                                   curved-lane face's lattice (router defect)",
+                                   curved-lane face's lattice",
                         });
                     }
                 };
