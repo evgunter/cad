@@ -2,11 +2,12 @@
 id: a-split-of-a-family-has-no-halves-a-read-reaches
 kind: issue
 title: An indexed read of a split-of-a-family's half refuses WrongOperand: the read takes the split's whole Family value, not the half's members
-status: dispatched
+status: review
 opened: 2026-11-09
 priority: P0
 cost: M
 branch: formwords/split-of-family
+pr: 7387
 ---
 
 
