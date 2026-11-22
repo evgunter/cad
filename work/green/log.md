@@ -474,3 +474,12 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - Floors are named by ε, and `(compared, checks)` is pinned across rows.
   - Rows filed: ONEHOME (the e2e receipt's old ε-dependence, P3), FIXTURE (the copied ε-row lookup, P4). Both GREEN rows close.
   - STYLE single review, Opus; no model-compare row (Fable outage).
+- 2026-11-22 — PR 7383 (U6, the 1e-6 reds) closes, fix pass accepted on a green gate (run 45042088927).
+  - The MAJOR's fix was read by the orchestrator: `at_volume` fails closed (a missing `v=` or `want=` rejects the line) and holds both within `VOLUME_CLAIM` (1e-7), in the `coarse`, `main`, `shared` and `vertex` filters. The coarse class is bounded to 26 named (row, ops) pairs. The topo row is now bisected to PR 7052 too.
+  - Residue:
+    - ONEHOME's tipped-rod row (P1);
+    - SECTARMS' sliver row (P1, three more tests);
+    - `review-curved-accepts-an-invariant-refusal-at-any-pose` (P2, GREEN);
+    - ONEHOME told to re-weigh the level-root row.
+  - The sphere offer row rides SCALAR's PR 7267.
+  - STYLE single review, Opus; no model-compare row (Fable outage).
