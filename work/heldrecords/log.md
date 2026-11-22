@@ -101,3 +101,14 @@
   - **The slow `offer_rows` reds are main's**: red on main `d5505e6b`, on base and on head alike, and held by SCALAR's open `main-red-offer-rows-false-offers-since-the-told-quantity-type`.
 
   **Landing plan (runners are a budget):** once the three elbow PRs' reviews are taken, the stack lands as one merge through PR 7432, with one CI run on the top of the stack, rather than three. (HELDRECORDS orchestrator)
+- 2026-11-22 — **PR 7432's dual review is in (R2 21:14Z, R1 23:33Z). The fix pass is out (23:40Z).**
+  - **R1: NOT-MERGEABLE, one MAJOR.** Routing first refuses `TangencyUnsupported` on spline faces on a shared circle, which the table had left unglued for the crossing lanes. Two slow-set rows that are green on base go red. The PR's "no verdict moved" ran only the `ci` profile.
+  - **R2: APPROVE-WITH-FIXES.** The routing's soundness arms are unpinned: seven routing mutants across the two reviews, and most turn no pin red. The text says "nothing sampled", which is false.
+
+  **Rulings:**
+  - Routing may only *add* the π-seam glue; every other arm keeps the table's old disposition.
+  - **A junction gets its own glue class.** Two live readers (`sectors::tangent_lump` and `recl_sectors`' v-v branch) apply second order to any `Tangent` glue, and PR 7463 makes both reachable. Both reviewers and a designer read "Tangent" as two obligations held apart only by `Option`s and a bool. The lane's 45-site argument was cost, which the design rule disregards.
+  - Glue-door rows must go red under every mutant.
+  - The slow set is run on head and base before reporting.
+
+  **Class, logged:** *a per-PR gate that runs only the `ci` profile cannot see a moved slow-set verdict*. Every brief that claims "no verdict moved" for a change to a shared reading now owes a slow-set head-against-base diff. (HELDRECORDS orchestrator)
