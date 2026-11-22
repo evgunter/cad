@@ -5977,7 +5977,17 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let mut corner = false;
     for qx in &qxs {
         for qy in &qys {
-            let near = &pieces_share(near, x.boundary, split_at, qx, qy);
+            // A separator through what the faces' cells share, or through
+            // what this piece pair does: a piece off a shared edge is
+            // cornered at its end, which a plane through the edge's line
+            // holds, and where that plane is zero along the piece too (a
+            // straight corner) only one through the vertex parts it.
+            let held = pieces_share(near, x.boundary, split_at, qx, qy);
+            let nears = if held.edges.len() == near.edges.len() {
+                vec![&held]
+            } else {
+                vec![near, &held]
+            };
             let opposite = |(psi, on): (Psi, On)| match (
                 sign_on(&psi, Some(&on), qx, Some(qy), band),
                 sign_on(&psi, Some(&on), qy, Some(qx), band),
@@ -5986,12 +5996,16 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
                 _ => false,
             };
             corner |= qx.corner || qy.corner;
-            if planes_through(x, near, qx, qy).into_iter().any(opposite)
-                || graph_of(x, y, near, qx, qy, band).is_some_and(opposite)
-            {
+            if nears.iter().any(|&near| {
+                planes_through(x, near, qx, qy).into_iter().any(opposite)
+                    || graph_of(x, y, near, qx, qy, band).is_some_and(opposite)
+            }) {
                 continue;
             }
-            if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
+            if let Some(shared) = nears
+                .iter()
+                .find_map(|&near| cusp(x, near, qx, qy, y.boundary.sense, band))
+            {
                 return Outcome::Cusp { shared };
             }
             return split;
@@ -6007,9 +6021,10 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// the other face's cell need not be near). A face in one piece holds
 /// every edge its cell is near.
 ///
-/// A separator is built through what the PIECE pair shares, never the
-/// face pair: a plane through one edge of a straight corner is zero
-/// along the other piece's edge too, so it parts nothing there.
+/// [`departure`] builds a separator through this as well as through
+/// what the faces' cells share: a plane through one edge of a straight
+/// corner is zero along the other piece's edge too, so it parts nothing
+/// there, and one through the vertex does.
 fn pieces_share(
     near: &Near,
     x: &Boundary,
@@ -9761,16 +9776,17 @@ mod presentation_rows {
             vertices: vec![vertex(3)],
         };
         let wedge = quadrant_piece(&plane, &pb, &wedge_local, 2, ((-0.02, 0.02), (-0.02, 0.02)));
-        let zero = |p: &Piece<'_>| match present(p, &[], &near.vertices, band()) {
-            Ok(Presentation::Of(q)) => Some(q.zero.clone()),
-            _ => None,
+        let zeros = |p: &Piece<'_>| -> Vec<Zero> {
+            present(p, &[], &near.vertices, band())
+                .map(|q| q.pieces().iter().map(|r| r.zero.clone()).collect())
+                .unwrap_or_default()
         };
         assert!(
-            matches!(zero(&cap), Some(Zero::Side(Side::YHi, _)))
-                && matches!(zero(&wedge), Some(Zero::Point(..))),
-            "the pole's side against the wedge's quadrant: {:?} {:?}",
-            zero(&cap),
-            zero(&wedge)
+            matches!(zeros(&cap).as_slice(), [Zero::Side(Side::YHi, _)])
+                && matches!(zeros(&wedge).as_slice(), [Zero::Point(..), Zero::Point(..)]),
+            "the pole's side against the wedge's two pieces: {:?} {:?}",
+            zeros(&cap),
+            zeros(&wedge)
         );
         let got = certify_pair(&cap, &wedge, &near, band());
         assert!(matches!(got, Outcome::Certified { .. }), "{got:?}");
