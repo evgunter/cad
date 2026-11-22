@@ -350,8 +350,8 @@ fn slab_reads(half: f64) -> (usize, Vec<String>) {
 ///
 /// **Red, each under one reading put back as it was** in `topo`:
 /// - the loops' turn read on all three components
-///   (`normal.dot(u.cross(w)).atan2(u.dot(w))` in
-///   `solid_contain::loop_turn`): no ray reads at either width;
+///   (`u.dot(w)` for the second reading of `solid_contain::in_plane`):
+///   no ray reads at either width;
 /// - the aim's step reading `solid_contain::edge_clearance`: at `± 0.3`
 ///   the top cap's ray is set aside on the turn of its own loop.
 ///
@@ -427,6 +427,52 @@ fn a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair() {
             "depth 1 ± {half}: the reader's rays read {rays:?}"
         );
     }
+}
+
+/// **A prism whose walls' normals sit on a frame's seam reads its side
+/// by its rays at `Interval`.** The unit square on the sketch plane
+/// spanned by `(2/3, 2/3, 1/3)` and `(1/3, −2/3, 2/3)`, each third an
+/// enclosure a rounding wide, extruded by `1`: two of its walls are
+/// square to `(2/3, 2/3, 1/3)`, where `Vec3::orthonormal_basis` chooses
+/// between its two frames on `|n_z| − max(|n_x|, |n_y|)/2`, which is
+/// zero there. An enclosure of that normal selects both frames, and a
+/// reading taken on that frame is as wide as the two are apart.
+///
+/// **Red where the loops' turn is read on the normal's frame** (the
+/// components of `u` and `w` along `normal.orthonormal_basis()` in
+/// `solid_contain::in_plane`): every ray is set aside on the turn of a
+/// seam wall, and the reader falls to the volume.
+#[test]
+fn a_prism_with_walls_on_the_frame_seam_reads_by_its_rays_at_interval() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let iv = Interval::from_f64;
+    let (third, two_thirds) = (iv(1.0) / iv(3.0), iv(2.0) / iv(3.0));
+    let u = Vec3::new(two_thirds, two_thirds, third);
+    let v = Vec3::new(third, iv(0.0) - two_thirds, two_thirds);
+    let plane = sweep::test_support::sketch_from_axes(
+        Point3::new(iv(0.25), iv(-0.5), iv(1.0)),
+        u,
+        v,
+        tol,
+    );
+    let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        .iter()
+        .map(|&(x, y)| (Point2::new(iv(x), iv(y)), iv(0.0)))
+        .collect();
+    let profile = Profile::new(plane, vec![bulge_loop(square)])
+        .validate(tol)
+        .unwrap();
+    let extrusion = Extrusion::Distance {
+        depth: iv(1.0),
+        side: ExtrudeSide::Along,
+    };
+    let body = extrude(&profile, extrusion, tol).unwrap().body.into_body();
+    assert_eq!(
+        topo::test_support::aimed_rays(&body, band),
+        ["Ok(Side(Out))"],
+        "the reader's rays"
+    );
 }
 
 /// **Rays aimed anywhere about a boxed body, from any normal, read no

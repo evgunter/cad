@@ -3166,20 +3166,22 @@ fn turned_inside<T: Decide>(
         == Sign::Positive)
 }
 
-/// **`u × w` about a plane's normal and `u·w`, for two vectors of the
-/// plane**, read on their components along the normal's own frame
-/// `(e1, e2)` ([`Vec3::orthonormal_basis`], `e1 × e2` the normal): with
-/// `u = u1·e1 + u2·e2` and `w` likewise, `n̂·(u × w) = u1·w2 − u2·w1` and
-/// `u·w = u1·w1 + u2·w2`. A vector between two points of a plane has no
-/// part along its normal, and the points' own enclosures do not know it:
-/// two points of a cap that rides a boxed height each carry that height,
-/// their difference carries its width along the normal, and `u·w` read
-/// on all three components carries the width squared where the value
-/// holds none of it. Read on the two in-plane components, the normal
-/// part is never summed.
-fn in_plane<T: Decide>((e1, e2): (Vec3<T>, Vec3<T>), u: Vec3<T>, w: Vec3<T>) -> (T, T) {
-    let ((u1, u2), (w1, w2)) = ((u.dot(e1), u.dot(e2)), (w.dot(e1), w.dot(e2)));
-    (u1 * w2 - u2 * w1, u1 * w1 + u2 * w2)
+/// **`n̂·(u × w)` and `u·w` for two vectors of the plane across the unit
+/// `normal`**, the second read as `(n̂ × u)·(n̂ × w)`: turning both
+/// vectors a quarter turn in their plane keeps their dot, since
+/// `(n̂ × u)·(n̂ × w) = (u·w)|n̂|² − (u·n̂)(w·n̂)` and neither has a part
+/// along `n̂`. A vector between two points of a plane has no part along
+/// its normal, and the points' own enclosures do not know it: two points
+/// of a cap that rides a boxed height each carry that height, their
+/// difference carries its width along the normal, and `u·w` read on all
+/// three components sums that width squared where the value holds none
+/// of it. `n̂ ×` drops the part along the normal before anything is
+/// multiplied, as `n̂·(u × w)` already does. No frame is chosen across
+/// the normal: a frame is a selection
+/// ([`Vec3::orthonormal_basis`]), and an enclosure of a normal on its
+/// seam selects both.
+fn in_plane<T: Decide>(normal: Vec3<T>, u: Vec3<T>, w: Vec3<T>) -> (T, T) {
+    (normal.dot(u.cross(w)), normal.cross(u).dot(normal.cross(w)))
 }
 
 /// **The turn of `face`'s loops about `p`**, about `normal`, every point
@@ -3203,9 +3205,8 @@ fn loop_turn<T: Decide>(
             .map(|&x| map(x))
             .ok_or_else(corrupt)
     };
-    let frame = normal.orthonormal_basis();
     let angle = |a: Point3<T>, b: Point3<T>| {
-        let (cross, dot) = in_plane(frame, a - p, b - p);
+        let (cross, dot) = in_plane(normal, a - p, b - p);
         cross.atan2(dot)
     };
     let mut turn = T::zero();
@@ -3232,8 +3233,8 @@ fn loop_turn<T: Decide>(
                 };
                 let m = on(0.5)?;
                 turn = turn
-                    + arc_turn(frame, p, (a, on(0.25)?, m))
-                    + arc_turn(frame, p, (m, on(0.75)?, b));
+                    + arc_turn(normal, p, (a, on(0.25)?, m))
+                    + arc_turn(normal, p, (m, on(0.75)?, b));
             }
             _ => return Ok(None),
         }
@@ -3254,8 +3255,7 @@ pub(crate) fn planar_turn<T: Decide>(
 }
 
 /// **The turn about `p` of a circle arc** from `a` through `m` to `b`,
-/// at most half a turn, about the normal of `frame`
-/// ([`in_plane`]), in the plane of `p`: the change
+/// at most half a turn, about `normal`, in the plane of `p`: the change
 /// in the direction from `p` to the arc's point as it runs from `a` to
 /// `b`. As complex numbers in that plane, `M(x) = (x − a)/(x − b)` carries
 /// the arc's circle to a line through the origin and the arc to the
@@ -3266,12 +3266,12 @@ pub(crate) fn planar_turn<T: Decide>(
 /// `M` is read by its numerator `(x − a)·conj(x − b)`, the positive
 /// scale `|x − b|²` turning no argument.
 fn arc_turn<T: Decide>(
-    frame: (Vec3<T>, Vec3<T>),
+    normal: Vec3<T>,
     p: Point3<T>,
     (a, m, b): (Point3<T>, Point3<T>, Point3<T>),
 ) -> T {
     let numerator = |x: Point3<T>| {
-        let (cross, dot) = in_plane(frame, x - b, x - a);
+        let (cross, dot) = in_plane(normal, x - b, x - a);
         (dot, cross)
     };
     let ((pr, pi), (mr, mi)) = (numerator(p), numerator(m));
@@ -3330,16 +3330,17 @@ pub(crate) fn edge_clearance<T: Decide>(
 }
 
 /// **A lower bound on the distance from `m` to the edge of `e`, in the
-/// plane across `normal`**: a line edge's segment and `m` each dropped
-/// onto the plane's own frame ([`Vec3::orthonormal_basis`]) and read
-/// there, another edge as [`edge_clearance`] reads it. Dropping the part
-/// along the normal lengthens nothing, so it is a lower bound on the
-/// distance wherever the points lie, and it is the distance where `m`
-/// and the edge lie in one plane across `normal`: a point of a planar
-/// face's boundary against another edge of it. Two points of a face
-/// that rides a boxed height each carry that height, and their
-/// difference carries its width along the normal, which this reading
-/// never sums.
+/// plane across the unit `normal`**: for a line edge, the distance
+/// between `n̂ × (m − a)` and the segment along `n̂ × (b − a)`, `a` and
+/// `b` its ends; another edge as [`edge_clearance`] reads it. `n̂ ×`
+/// drops a vector's part along the normal and turns the rest a quarter
+/// turn in the plane, which keeps every distance there. Dropping a part
+/// lengthens nothing, so this is a lower bound on the distance wherever
+/// the points lie, and it is the distance where `m` and the edge lie in
+/// one plane across `normal`: a point of a planar face's boundary
+/// against another edge of it. Two points of a face that rides a boxed
+/// height each carry that height, and their difference carries its
+/// width along the normal, which this reading never sums.
 pub(crate) fn clearance_in_plane<T: Decide>(
     body: &Body<T>,
     e: &crate::live::FaceEdge,
@@ -3354,16 +3355,14 @@ pub(crate) fn clearance_in_plane<T: Decide>(
     if curve.carrier().as_line().is_none() {
         return edge_clearance(body, e, m);
     }
-    let (e1, e2) = normal.orthonormal_basis();
     let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
-    let flat = |w: Vec3<T>| Vec3::new(w.dot(e1), w.dot(e2), T::zero());
     let o = Point3::new(T::zero(), T::zero(), T::zero());
     Some(
         geom::Line {
             origin: o,
-            dir: flat(b - a),
+            dir: normal.cross(b - a),
         }
-        .distance_within(o + flat(m - a), (T::zero(), T::one())),
+        .distance_within(o + normal.cross(m - a), (T::zero(), T::one())),
     )
 }
 
@@ -5662,7 +5661,7 @@ mod arc_turn_rows {
                             (true, false) if principal >= 0.0 => principal - 2.0 * pi,
                             _ => principal,
                         };
-                        let got = arc_turn(normal.orthonormal_basis(), p, (a, m, b));
+                        let got = arc_turn(normal, p, (a, m, b));
                         assert!(
                             (got - want).abs() < 1e-6,
                             "span {span}, t0 {t0}, r {r} at {at}: {got} against {want}"
@@ -5716,10 +5715,7 @@ mod arc_turn_rows {
                     Point3::new(b.x * 2.0 - a.x, b.y * 2.0 - a.y, 0.0),
                 ];
                 for p in points {
-                    let (got, want) = (
-                        arc_turn(normal.orthonormal_basis(), p, (a, m, b)),
-                        polyline(p, t0, t1),
-                    );
+                    let (got, want) = (arc_turn(normal, p, (a, m, b)), polyline(p, t0, t1));
                     assert!(
                         (got - want).abs() < 1e-6,
                         "span {span}, t0 {t0}, p {p:?}: {got} against {want}"

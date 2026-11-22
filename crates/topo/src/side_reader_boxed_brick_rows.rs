@@ -507,7 +507,7 @@ const HALVES: [f64; 3] = [0.05, 0.25, 0.45];
 /// `1e-9` of the members' value at each of [`HALVES`].
 ///
 /// **Red where the turn is read on all three components**
-/// (`normal.dot(u.cross(w)).atan2(u.dot(w))` in `loop_turn`'s `angle`):
+/// (`u.dot(w)` for the second reading of `solid_contain::in_plane`):
 /// `u·w` then sums the height's width squared, and at a quarter of the
 /// height the turn about the inside point encloses `[−0.6, 13]`.
 #[test]
@@ -588,8 +588,8 @@ fn a_moving_caps_aim_is_stepped_by_its_members_step() {
 /// walls' are set aside, and no aim reads `In`.
 ///
 /// **Red where the loops' turn is read on all three components**
-/// (`normal.dot(u.cross(w)).atan2(u.dot(w))` in
-/// `solid_contain::loop_turn`): neither cap's ray reads.
+/// (`u.dot(w)` for the second reading of `solid_contain::in_plane`):
+/// neither cap's ray reads.
 ///
 /// A wall's ray is not asked for: its aim hangs a fixed step under its
 /// moving top edge
