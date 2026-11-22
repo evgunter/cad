@@ -2990,7 +2990,7 @@ fn cast_ray<T: Decide>(
     reach: Lever<T>,
     band: Band,
 ) -> Result<Option<SolidContainment>, RayFault<PointInSolidError>> {
-    let side = ray_crossings(body, geos, (ray, None), reach, band, SCHEDULE_ROWS)?.first_count_as(
+    let side = ray_crossings(body, geos, ray, reach, band, SCHEDULE_ROWS)?.first_count_as(
         SCHEDULE_ROWS.order(),
         band,
         RayHit::count,
@@ -3179,20 +3179,6 @@ impl<T: Copy> RayHit<T> {
 
 /// A ray's crossings, each a [`RayHit`].
 pub(crate) type RayCrossings<T> = Crossings<T, RayHit<T>>;
-
-/// **What a ray's origin was stepped from**: a point `m` of an edge the
-/// two `faces` share, and the `offset` from `m` to the ray's line's
-/// origin. An edge lies on the carriers of the faces it bounds, which
-/// the body holds and nothing here checks, so `m` is a point of each
-/// face's plane, and the ray's advance to that plane is read from `m`
-/// ([`ray_crossings`]' plane arm).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Anchor<T: geom_core::Real> {
-    /// The faces the anchored edge bounds: one face twice for a seam.
-    pub(crate) faces: [FaceKey; 2],
-    /// The ray's line's origin less the anchor point.
-    pub(crate) offset: Vec3<T>,
-}
 
 /// A planar face's plane as one ray crosses it: the advance, the
 /// crossing point and the face's outward sign there.
@@ -4334,7 +4320,7 @@ fn root_held<T: Decide>(
 pub(crate) fn ray_crossings<T: Decide>(
     body: &Body<T>,
     geos: &[(FaceKey, FaceGeo<T>)],
-    (ray, anchor): (&geom::Ray<T>, Option<&Anchor<T>>),
+    ray: &geom::Ray<T>,
     arm: Lever<T>,
     band: Band,
     rows: RayRows,
@@ -4398,21 +4384,13 @@ pub(crate) fn ray_crossings<T: Decide>(
                 Ok(_) => RayFault::Graze,
             });
         }
-        // The plane's point less the ray's origin. For a plane the ray's
-        // anchor lies on it is read from the anchor, `m − q = −offset`:
-        // `q` was stepped from `m`, so `(m − q)·n̂` holds the step alone,
-        // where `(origin − q)·n̂` subtracts two points that each carry
-        // the plane's place along its normal.
-        let to_plane = match anchor {
-            Some(anchor) if anchor.faces.contains(&face) => -anchor.offset,
-            _ => origin - q,
-        };
-        let t = to_plane.dot(normal) / denom;
+        let t = (origin - q).dot(normal) / denom;
         planes.push(PlaneCross {
             face,
             normal,
             t,
-            slack: geom_core::rounding_charge(to_plane.norm() + t.abs() * d.norm()) / denom.abs(),
+            slack: geom_core::rounding_charge((origin - q).norm() + t.abs() * d.norm())
+                / denom.abs(),
             p: q + d * t,
             outward,
         });
