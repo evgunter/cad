@@ -432,11 +432,16 @@ mod tests {
                     Surface::Plane { frame } if frame.axis().z > 0.5)
             })
             .unwrap();
-        let arm = crate::cover::face_extent_below(&body, top).unwrap().length();
+        let arm = crate::cover::face_extent_below(&body, top)
+            .unwrap()
+            .length();
         assert!(
             (arm - 1.0).abs() < 1e-12,
             "the top's arm is its edges' extent, 1, got {arm}"
         );
-        assert!(planar_axis(&body, top, band).is_some(), "the top reads its normal");
+        assert!(
+            planar_axis(&body, top, band).is_some(),
+            "the top reads its normal"
+        );
     }
 }

@@ -1053,8 +1053,9 @@ pub(crate) fn is_axial_in<T: Decide>(
 }
 
 /// The revolution axis of the solids `scope` names, read off the first
-/// curved chart in scope, and the scope's faces' farthest distance from
-/// it. An all-planar
+/// curved chart in scope, and the region the scope occupies
+/// ([`ScopeRegion`]: its faces' covers' hull and its vertices), which
+/// each consumer reads its reach from at its own pivot. An all-planar
 /// scope has no axis and is not this door's; a scope holding no face
 /// (an empty move set, a faceless body) names nothing to revolve and
 /// answers [`ReplaceFaceError::EmptyGroup`].
@@ -2477,10 +2478,13 @@ fn mint_carrier<T: Decide>(
                     }
                 }
             }
-            // The section reads several decisions off one lever, so it
-            // takes the bound it took before the scope held both: the
-            // region from above, about the torus's centre. Which bound a
-            // composite consumer reads is the turn-lever unit's question.
+            // The section reads several decisions off one lever (its fork
+            // and the ovals' lean), so it takes one bound: the region from
+            // above, about the torus's centre, where its datum is read.
+            // Before the frame held a region it took the scope's vertices
+            // from the frame's axis point, a bound from below. Its read of
+            // both bounds waits on the turn-lever row
+            // (`a-turns-lever-is-read-from-below-for-every-caller`).
             _ => match geom_brep::plane_torus_section(
                 &cap.new,
                 &wall.new,
@@ -4452,8 +4456,8 @@ mod frame_extent_rows {
 
     /// **A face with no cover poisons the region's bound from above.** The
     /// sphere's radius is no finite number, so its face has no cover and
-    /// the region reads poison from above, which every Zero-acting margin
-    /// levered at it escalates; skipping the face would read the torus's
+    /// the region reads poison from above, which every margin levered at
+    /// it escalates; skipping the face would read the torus's
     /// 2.5.
     #[test]
     fn a_scoped_face_with_no_cover_poisons_the_frame() {

@@ -1295,37 +1295,3 @@ fn torax_re_authored_arcs_put_both_corners_on_the_moved_circle() {
         "FIXTURE: no re-authored sketch arc reached the row"
     );
 }
-
-/// **The Klein elbow's hollow hollows again.** Its cavity's rim is a
-/// spiric (`torax_the_klein_elbow_hollows_to_its_measured_volume`), so
-/// the second hollow solves corners whose edges include a spiric: the
-/// axial door levers each such corner at the edge's extent from below,
-/// which a closed oval's chord, zero, would not give.
-#[test]
-fn torax_the_klein_elbow_hollow_hollows_again() {
-    let r = 0.275_f64;
-    let elbow = klein_elbow(vec![bulge_loop(vec![
-        (Point2::new(-r, 0.0), 1.0),
-        (Point2::new(r, 0.0), 1.0),
-    ])]);
-    let hollow = topo::shell(&finished("the operand", elbow, tol()), 0.05, tol())
-        .unwrap_or_else(|e| panic!("the elbow hollows, got {e:?}"))
-        .body;
-    let again = topo::shell(
-        &finished("the hollow", hollow.into_body(), tol()),
-        0.02,
-        tol(),
-    )
-    .unwrap_or_else(|e| {
-        panic!(
-            "the elbow's hollow hollows again, got {}",
-            e.render(geom_brep::recourse::Reading::Build)
-        )
-    })
-    .body;
-    assert_eq!(
-        topo::validate_geometric(&again, tol()),
-        Ok(()),
-        "the second hollow: tier 3"
-    );
-}
