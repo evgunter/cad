@@ -45,6 +45,7 @@
 //! lane exists to put a labeled second opinion beside the certified
 //! number, not to resolve a tail to six digits.
 
+use crate::say;
 use std::sync::Arc;
 
 use geom_core::Tol;
@@ -122,8 +123,8 @@ pub enum McRefusal {
     Stopped(crate::Stopped),
 }
 
-impl core::fmt::Display for McRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for McRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::BandHasNoMeasure(e) => write!(
                 f,
@@ -133,13 +134,24 @@ impl core::fmt::Display for McRefusal {
             Self::NoSamples => {
                 f.write_str("a Monte-Carlo run of zero samples has no estimate to report")
             }
-            Self::NominalDoesNotBuild { node, cause } => write!(
+            Self::NominalDoesNotBuild { node, cause } => say!(
                 f,
-                "the document does not build at its nominal ({node}), so there is nothing \
+                "the document does not build at its nominal (",
+                by.mention(&node),
+                format_args!(
+                    "), so there is nothing \
                  to replay: {cause}"
+                )
             ),
             Self::Stopped(stopped) => write!(f, "the Monte-Carlo run stopped: {stopped}"),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for McRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
     }
 }
 
@@ -316,13 +328,13 @@ impl McReport {
     ///
     /// When `doc` is not the document the run was drawn from.
     pub fn render<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
-        use core::fmt::Write as _;
         crate::spoken::assert_taken_of("this Monte-Carlo report", self.document, doc);
+        let by = crate::Speaker::of(doc);
         let tag = format!(
             "ADVISORY — Monte-Carlo estimate over {} samples, seed {:#018x}",
             self.samples, self.seed
         );
-        let mut s = String::new();
+        let mut s = crate::Sentence::new();
         let _ = writeln!(
             s,
             "{tag}. Never gates, never persisted as an assertion, never in the accounting."
@@ -336,23 +348,26 @@ impl McReport {
             // learning that the answer is "this lane cannot see this
             // measure at all".
             if m.unmeasured == self.samples {
-                let _ = writeln!(
-                    s,
-                    "  {}: UNMEASURED — no sample had an f64 value for this measure, so \
+                let _ = say!(
+                    &mut s,
+                    "  ",
+                    by.mention(&doc.spoken(m.node)),
+                    format_args!(
+                        ": UNMEASURED — no sample had an f64 value for this measure, so \
                      this lane has nothing to estimate. Its certified answer is the E6 \
-                     driver's per-leaf enclosure (see the leaf histogram).   [{tag}]",
-                    doc.spoken(m.node)
+                     driver's per-leaf enclosure (see the leaf histogram).   [{tag}]\n"
+                    )
                 );
                 continue;
             }
-            let _ = writeln!(
-                s,
-                "  {}: mean {} σ {} min {} max {}   [{tag}]",
-                doc.spoken(m.node),
-                m.mean,
-                m.sigma,
-                m.min,
-                m.max
+            let _ = say!(
+                &mut s,
+                "  ",
+                by.mention(&doc.spoken(m.node)),
+                format_args!(
+                    ": mean {} σ {} min {} max {}   [{tag}]\n",
+                    m.mean, m.sigma, m.min, m.max
+                )
             );
             if m.unmeasured > 0 {
                 let _ = writeln!(
@@ -389,19 +404,22 @@ impl McReport {
             }
         }
         for a in &self.assertions {
-            let _ = writeln!(
-                s,
-                "  {}: empirical violation fraction {}   [{tag}]",
-                doc.spoken(a.node),
-                match a.violation_fraction() {
-                    Some(f) => format!(
-                        "{:.4}% ({} of {} decided)",
-                        f * 100.0,
-                        a.violated,
-                        a.holds + a.violated
-                    ),
-                    None => "[no sample decided this assertion]".to_owned(),
-                }
+            let _ = say!(
+                &mut s,
+                "  ",
+                by.mention(&doc.spoken(a.node)),
+                format_args!(
+                    ": empirical violation fraction {}   [{tag}]\n",
+                    match a.violation_fraction() {
+                        Some(f) => format!(
+                            "{:.4}% ({} of {} decided)",
+                            f * 100.0,
+                            a.violated,
+                            a.holds + a.violated
+                        ),
+                        None => "[no sample decided this assertion]".to_owned(),
+                    }
+                )
             );
             if a.unevaluated > 0 {
                 let _ = writeln!(
@@ -417,7 +435,7 @@ impl McReport {
              accounting's tail   [{tag}]",
             self.outside_box * 100.0
         );
-        s
+        s.to_string()
     }
 }
 
@@ -458,7 +476,7 @@ pub fn monte_carlo(
         let node = standing.node();
         let cause = nominal
             .node_error(node)
-            .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc));
+            .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc).to_string());
         return Err(McRefusal::NominalDoesNotBuild {
             node: doc.spoken(node),
             cause,
@@ -516,7 +534,10 @@ pub fn monte_carlo(
             // beside this one would be a second stream the moment
             // either changed.
             let Ok(offset) = sample_offset(spoken, dist, rng.unit()) else {
-                unreachable!("every law was proved sampleable before the run, yet {spoken} refused")
+                unreachable!(
+                    "every law was proved sampleable before the run, yet {} refused",
+                    crate::sentence!(crate::Speaker::TAG.var(spoken))
+                )
             };
             if let Some(p) = analyzed.get(*name)
                 && (offset < p.offsets.lo || offset > p.offsets.hi)

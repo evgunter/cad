@@ -29,6 +29,8 @@ pub mod members;
 mod memo;
 pub(crate) mod parts;
 
+use crate::say;
+use crate::sentence;
 pub use parts::PartFault;
 pub(crate) mod schedule;
 pub(crate) mod slots;
@@ -474,7 +476,7 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
             measure::ObservedRefusal::Measure(standing) => {
                 self.node_error(standing.node()).map_or_else(
                     || (Some(standing.node()), standing.to_string()),
-                    |e| (Some(e.node), e.kind_spoken(doc)),
+                    |e| (Some(e.node), e.kind_spoken(doc).to_string()),
                 )
             }
             measure::ObservedRefusal::Expr(source) => (
@@ -593,62 +595,65 @@ impl NodeStanding {
 pub(crate) struct SubjectStanding(&'static str, NodeStanding);
 
 impl crate::spoken::Say for SubjectStanding {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "{} {}", self.0, crate::spoken::Said(&self.1, by))
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
+        say!(
+            f,
+            format_args!("{} ", self.0),
+            crate::spoken::Said(&self.1, by)
+        )
     }
 }
 
 impl core::fmt::Display for SubjectStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        write!(
+            f,
+            "{}",
+            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
+        )
     }
 }
 
 impl crate::spoken::Say for NodeStanding {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         use crate::sentence::Recourse;
         match *self {
-            Self::NotEvaluated { node } => write!(
+            Self::NotEvaluated { node } => say!(
                 f,
-                "{} has no result in this evaluation: the run stopped before it reached \
+                by.node(node),
+                format_args!(
+                    " has no result in this evaluation: the run stopped before it reached \
                  the node, canceled or out of its member budget. {}",
-                by.node(node),
-                Recourse(format_args!(
-                    "re-evaluate the document to completion; where it ran out, {}",
-                    crate::sentence::RAISE_THE_MEMBER_BUDGET
-                ))
+                    Recourse(format_args!(
+                        "re-evaluate the document to completion; where it ran out, {}",
+                        crate::sentence::RAISE_THE_MEMBER_BUDGET
+                    ))
+                )
             ),
-            Self::NotInDocument { node } => write!(
+            Self::NotInDocument { node } => say!(
                 f,
-                "{} is not a node of the document this evaluation ran over. {}",
                 by.node(node),
-                Recourse(
-                    "ask about one of that document's nodes, or evaluate the document the \
+                format_args!(
+                    " is not a node of the document this evaluation ran over. {}",
+                    Recourse(
+                        "ask about one of that document's nodes, or evaluate the document the \
                      node is in"
+                    )
                 )
             ),
-            Self::Failed { node } => write!(
+            Self::Failed { node } => say!(
                 f,
-                "{} failed, so it has no value — fix the node's own failure",
-                by.node(node)
+                by.node(node),
+                " failed, so it has no value — fix the node's own failure"
             ),
-            Self::Poisoned { node, through } => {
-                let through = by.node(through);
-                write!(
-                    f,
-                    "{} is poisoned by the failure at {through}, so it has no value — the \
-                     repair is upstream, at {through}",
-                    by.node(node)
-                )
-            }
+            Self::Poisoned { node, through } => say!(
+                f,
+                by.node(node),
+                " is poisoned by the failure at ",
+                by.node(through),
+                ", so it has no value — the repair is upstream, at ",
+                by.node(through)
+            ),
         }
     }
 }
@@ -656,7 +661,11 @@ impl crate::spoken::Say for NodeStanding {
 /// The standing where no document is at hand: each node by its tag.
 impl core::fmt::Display for NodeStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        write!(
+            f,
+            "{}",
+            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -666,7 +675,7 @@ impl NodeStanding {
     /// standing is answered by an evaluation and carried inside values
     /// the evaluation memo reuses, so it holds ids, never a label.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> crate::Sentence {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -1450,7 +1459,7 @@ impl NodeRefusal {
     /// ([`NodeErrorKind::carried_chain`]), the same words that node's own
     /// tree draws.
     #[must_use]
-    pub fn line_at(&self, node: RecipeNodeId, by: crate::spoken::Speaker<'_>) -> String {
+    pub fn line_at(&self, node: RecipeNodeId, by: crate::spoken::Speaker<'_>) -> crate::Sentence {
         failed_line(node, self.get(), by)
     }
 }
@@ -1459,10 +1468,14 @@ impl NodeRefusal {
 /// node said by `by`, and the failing node named once. The one
 /// spelling [`NodeError`]'s renderings and [`NodeRefusal::line_at`]
 /// share.
-fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Speaker<'_>) -> String {
-    format!(
-        "{} failed: {}",
+fn failed_line(
+    node: RecipeNodeId,
+    kind: &NodeErrorKind,
+    by: crate::spoken::Speaker<'_>,
+) -> crate::Sentence {
+    sentence!(
         by.node(node),
+        " failed: ",
         crate::spoken::Said(kind, by.about(node))
     )
 }
@@ -2168,11 +2181,7 @@ impl NodeErrorKind {
 // as its pin fixes them, so it says them itself ([`PartFault::held`]).
 impl crate::spoken::Say for NodeErrorKind {
     #[allow(clippy::too_many_lines)] // one arm per variant, each short
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         use crate::spoken::Said;
         match self {
             Self::Expr { slot, source } => {
@@ -2207,31 +2216,44 @@ impl crate::spoken::Say for NodeErrorKind {
                 write!(f, "profile loop {loop_} refused at {error}")
             }
             Self::Trace(refusal) => write!(f, "the profile's trace refused at {refusal}"),
-            Self::Mate(fault) => write!(f, "the mate solve refused: {}", Said(&**fault, by)),
-            Self::SpaceMismatch { a, b } => write!(
+            Self::Mate(fault) => say!(f, "the mate solve refused: ", Said(&**fault, by)),
+            Self::SpaceMismatch { a, b } => say!(
                 f,
-                "this reads {} and {}, and {}. {}",
+                "this reads ",
                 by.space(*a),
-                by.space(*b),
-                crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
-                crate::sentence::Recourse(crate::sentence::place_into_one_space("read only"))
+                sentence!(
+                    " and ",
+                    by.space(*b),
+                    format_args!(
+                        ", and {}. {}",
+                        crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
+                        crate::sentence::Recourse(crate::sentence::place_into_one_space(
+                            "read only"
+                        ))
+                    )
+                )
             ),
             Self::CrossingUnverified {
                 instance,
                 outer,
                 name,
-            } => write!(
+            } => say!(
                 f,
-                "{}'s seam declaration crosses at {} on the remainder and claims {} in \
-                 the part, which this version of the part does not name. {}",
                 by.node_as(*instance, "instance"),
+                "'s seam declaration crosses at ",
                 by.name(outer),
-                // The part's own nodes and steps are another document's
-                // ids, so its name is said by tag.
-                crate::spoken::Speaker::TAG.name(name),
-                crate::sentence::Recourse(
-                    "update the reference to a version of the part that names it"
-                ),
+                sentence!(
+                    " on the remainder and claims ", // The part's own nodes and steps are another document's
+                    // ids, so its name is said by tag.
+                    crate::spoken::Speaker::TAG.name(name),
+                    format_args!(
+                        " in \
+                 the part, which this version of the part does not name. {}",
+                        crate::sentence::Recourse(
+                            "update the reference to a version of the part that names it"
+                        )
+                    )
+                )
             ),
             // Every node is read at the build that ran it.
             Self::Extrude(e) => write!(
@@ -2319,7 +2341,7 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
             Self::MissingInput { input } => {
-                write!(f, "{} names no live node", by.node_as(*input, "input"))
+                say!(f, by.node_as(*input, "input"), " names no live node")
             }
             Self::UnresolvedRead { slot, var } => write!(
                 f,
@@ -2333,14 +2355,13 @@ impl crate::spoken::Say for NodeErrorKind {
                 reference,
                 error,
             } => match by.selection_reference(*slot, *var, *reference, error.name()) {
-                Some(at) => write!(
+                Some(at) => say!(
                     f,
-                    "{}",
                     crate::spoken::Said(&crate::resolve::AboutReference(error, at), by)
                 ),
-                None => write!(
+                None => say!(
                     f,
-                    "a selected name failed to resolve: {}",
+                    "a selected name failed to resolve: ",
                     crate::spoken::Said(error.as_ref(), by)
                 ),
             },
@@ -2368,30 +2389,36 @@ impl crate::spoken::Say for NodeErrorKind {
                 input,
                 expected,
                 found,
-            } => write!(
+            } => say!(
                 f,
-                "{} carries kind {found}; the operand needs kind {expected}",
-                by.node_as(*input, "input")
+                by.node_as(*input, "input"),
+                format_args!(" carries kind {found}; the operand needs kind {expected}")
             ),
-            Self::EmptyOperand { input } => write!(
+            Self::EmptyOperand { input } => say!(
                 f,
-                "{} is the empty value — the body ops take real bodies",
-                by.node_as(*input, "input")
+                by.node_as(*input, "input"),
+                " is the empty value — the body ops take real bodies"
             ),
             Self::EmptyMember { input, at } => {
-                let at: Vec<String> = at
-                    .iter()
-                    .map(|&(index, value)| format!("{} = {value}", by.read(index)))
-                    .collect();
-                write!(
+                let at = crate::Sentence::joined(
+                    at.iter().map(|&(index, value)| {
+                        sentence!(by.read(index), format_args!(" = {value}"))
+                    }),
+                    ", ",
+                );
+                say!(
                     f,
-                    "the member of {} at {} is the empty value — the body ops take real \
-                     bodies. {}",
+                    "the member of ",
                     by.node_as(*input, "input"),
-                    at.join(", "),
-                    crate::sentence::Recourse(
-                        "read the members that are bodies by index, or change the member's \
+                    " at ",
+                    at,
+                    format_args!(
+                        " is the empty value — the body ops take real \
+                     bodies. {}",
+                        crate::sentence::Recourse(
+                            "read the members that are bodies by index, or change the member's \
                          operands so it keeps material"
+                        )
                     )
                 )
             }
@@ -2408,11 +2435,15 @@ impl crate::spoken::Say for NodeErrorKind {
             } => {
                 let input = by.node_as(*input, "input");
                 match into {
-                    None => write!(f, "{input} does not finish where this operation takes it: ")?,
-                    Some(into) => write!(
+                    None => say!(f, input, " does not finish where this operation takes it: ")?,
+                    Some(into) => say!(
                         f,
-                        "{input}, read into {}'s frame, does not finish there: ",
-                        by.node(*into)
+                        input,
+                        sentence!(
+                            ", read into ",
+                            by.node(*into),
+                            "'s frame, does not finish there: "
+                        )
                     )?,
                 }
                 write!(
@@ -2421,14 +2452,17 @@ impl crate::spoken::Say for NodeErrorKind {
                     findings.render(geom_brep::recourse::Reading::AtRest)
                 )
             }
-            Self::EmptyHalf { input, half } => write!(
+            Self::EmptyHalf { input, half } => say!(
                 f,
-                "the split's {} half ({}) holds no material",
-                match half {
-                    crate::names::SplitHalf::Above => "above",
-                    crate::names::SplitHalf::Below => "below",
-                },
-                by.node(*input)
+                format_args!(
+                    "the split's {} half (",
+                    match half {
+                        crate::names::SplitHalf::Above => "above",
+                        crate::names::SplitHalf::Below => "below",
+                    }
+                ),
+                by.node(*input),
+                ") holds no material"
             ),
             Self::NoSuchPiece { pick, at } => write!(
                 f,
@@ -2454,53 +2488,67 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::MemberOutOfRange { input, at } => {
                 let at: Vec<String> = at.iter().map(i64::to_string).collect();
-                write!(
+                say!(
                     f,
-                    "{} has no member at [{}], which is outside its indices' range. {}",
                     by.node(*input),
-                    at.join(", "),
-                    crate::sentence::Recourse("read a member each index's count holds")
+                    format_args!(
+                        " has no member at [{}], which is outside its indices' range. {}",
+                        at.join(", "),
+                        crate::sentence::Recourse("read a member each index's count holds")
+                    )
                 )
             }
             Self::MemberRefused { at, source } => {
-                let at: Vec<String> = at
-                    .iter()
-                    .map(|&(index, value)| format!("{} = {value}", by.read(index)))
-                    .collect();
-                write!(
-                    f,
-                    "the member at {} refused: {}",
-                    at.join(", "),
-                    Said(&**source, by)
-                )
+                let at = crate::Sentence::joined(
+                    at.iter().map(|&(index, value)| {
+                        sentence!(by.read(index), format_args!(" = {value}"))
+                    }),
+                    ", ",
+                );
+                say!(f, "the member at ", at, " refused: ", Said(&**source, by))
             }
-            Self::IndicesUnrelated { a, b } => write!(
+            Self::IndicesUnrelated { a, b } => say!(
                 f,
-                "the node reads the indices {} and {}, and neither is within the other, so \
-                 they meet in no reader. {}",
+                "the node reads the indices ",
                 by.read(*a),
-                by.read(*b),
-                crate::sentence::Recourse("declare one within the other, or read one index here")
+                sentence!(
+                    " and ",
+                    by.read(*b),
+                    format_args!(
+                        ", and neither is within the other, so \
+                 they meet in no reader. {}",
+                        crate::sentence::Recourse(
+                            "declare one within the other, or read one index here"
+                        )
+                    )
+                )
             ),
             Self::IndexCount { index, source } => {
-                write!(
+                say!(
                     f,
-                    "the count of index {} did not evaluate: {source}",
-                    by.read(*index)
+                    "the count of index ",
+                    by.read(*index),
+                    format_args!(" did not evaluate: {source}")
                 )
             }
-            Self::IndexCountOutOfRange { index, count } if *count < 0 => write!(
+            Self::IndexCountOutOfRange { index, count } if *count < 0 => say!(
                 f,
-                "the count of index {} evaluated to {count}, below zero. Recourse: make it \
-                 evaluate to zero or more",
+                "the count of index ",
                 by.read(*index),
+                format_args!(
+                    " evaluated to {count}, below zero. Recourse: make it \
+                 evaluate to zero or more"
+                )
             ),
-            Self::IndexCountOutOfRange { index, count } => write!(
+            Self::IndexCountOutOfRange { index, count } => say!(
                 f,
-                "the count of index {} evaluated to {count}, and a member index is a 32-bit \
-                 value, so no count past {} can name its members. Recourse: lower the count",
+                "the count of index ",
                 by.read(*index),
-                crate::MemberCountFault::ADMITS.end()
+                format_args!(
+                    " evaluated to {count}, and a member index is a 32-bit \
+                 value, so no count past {} can name its members. Recourse: lower the count",
+                    crate::MemberCountFault::ADMITS.end()
+                )
             ),
             // Every role word is already a complete noun phrase for
             // the vector (the `*_ROLE` constants are where they are
@@ -2585,15 +2633,16 @@ impl crate::spoken::Say for NodeErrorKind {
             // #380: the payload is editor-core's OWN diagnostic, not a
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
-            Self::Naming(e) => write!(f, "name emission failed: {}", Said(e, by)),
+            Self::Naming(e) => say!(f, "name emission failed: ", Said(e, by)),
             Self::UnionFoldStep {
                 member,
                 read,
                 refusal,
-            } => write!(
+            } => say!(
                 f,
-                "the fold refused at the step that folds in member {member} ({}): {}",
+                format_args!("the fold refused at the step that folds in member {member} ("),
                 by.read(*read),
+                "): ",
                 Said(refusal.as_ref(), by)
             ),
             Self::Shell(e) => write!(
@@ -2654,7 +2703,11 @@ impl crate::spoken::Say for NodeErrorKind {
 /// The kind where no document is at hand: each node by its tag.
 impl core::fmt::Display for NodeErrorKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        write!(
+            f,
+            "{}",
+            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -2740,7 +2793,7 @@ impl CarriedLevel<'_> {
     /// them, never from `here`: ids are not document-scoped, so `here`
     /// may hold the same id as another node.
     #[must_use]
-    pub fn line_in<P: crate::ProfilePayload>(&self, here: &Doc<P>) -> String {
+    pub fn line_in<P: crate::ProfilePayload>(&self, here: &Doc<P>) -> crate::Sentence {
         let by = match self.document {
             CarriedIn::ThisDocument => crate::spoken::Speaker::of(here),
             CarriedIn::Part { held, .. } => crate::spoken::Speaker::held(held),
@@ -2751,7 +2804,7 @@ impl CarriedLevel<'_> {
     /// The level where no document is at hand: a node of the outermost
     /// document by its tag, a part's as its fault holds it.
     #[must_use]
-    pub fn line(&self) -> String {
+    pub fn line(&self) -> crate::Sentence {
         let by = match self.document {
             CarriedIn::ThisDocument => crate::spoken::Speaker::TAG,
             CarriedIn::Part { held, .. } => crate::spoken::Speaker::held(held),
@@ -2828,7 +2881,7 @@ impl NodeError {
         &self,
         doc: &Doc<P>,
         evaluation: &dyn crate::NameTables,
-    ) -> String {
+    ) -> crate::Sentence {
         failed_line(
             self.node,
             &self.kind,
@@ -2843,9 +2896,8 @@ impl NodeError {
     /// in place of the kind's documentless `Display`, which writes a
     /// reader `#<ordinal>:<hex>`.
     #[must_use]
-    pub fn kind_spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
-        crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc).about(self.node))
-            .to_string()
+    pub fn kind_spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> crate::Sentence {
+        crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc).about(self.node)).sentence()
     }
 }
 
@@ -2853,11 +2905,11 @@ impl NodeError {
 /// by its tag, then its kind's prose.
 impl core::fmt::Display for NodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&failed_line(
-            self.node,
-            &self.kind,
-            crate::spoken::Speaker::TAG,
-        ))
+        write!(
+            f,
+            "{}",
+            failed_line(self.node, &self.kind, crate::spoken::Speaker::TAG)
+        )
     }
 }
 

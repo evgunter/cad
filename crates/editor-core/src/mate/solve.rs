@@ -32,6 +32,7 @@
 //! refuses as its placement's node does, and the placements that read
 //! that copy are poisoned through it, as any reader is.
 
+use crate::say;
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::linalg::Affine3;
@@ -229,24 +230,21 @@ pub enum PoseRefusal {
 }
 
 impl crate::spoken::Say for PoseRefusal {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Mate(fault) => fault.say(f, by),
-            Self::OtherSpace { placement, space } => write!(
+            Self::OtherSpace { placement, space } => say!(
                 f,
-                "{} places its copy into {}, not the world, so it has no world pose",
                 by.node(*placement),
-                by.space(*space)
+                " places its copy into ",
+                by.space(*space),
+                ", not the world, so it has no world pose"
             ),
             Self::Unevaluated { placement } => {
-                write!(
+                say!(
                     f,
-                    "{} did not evaluate, so it has no pose",
-                    by.node(*placement)
+                    by.node(*placement),
+                    " did not evaluate, so it has no pose"
                 )
             }
         }
@@ -255,7 +253,11 @@ impl crate::spoken::Say for PoseRefusal {
 
 impl core::fmt::Display for PoseRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        write!(
+            f,
+            "{}",
+            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
+        )
     }
 }
 

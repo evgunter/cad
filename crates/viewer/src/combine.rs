@@ -755,7 +755,7 @@ pub enum PlaneEvent {
 
 /// A node `by` does not hold is said as the tool kept it.
 impl Say for PlaneEvent {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::PlaneLost { role, plane, .. } => {
                 crate::matetool::pick_lost(f, role.name(), plane, by)
@@ -1063,7 +1063,7 @@ pub enum ClearanceEvent {
 
 /// A node `by` does not hold is said as the tool kept it.
 impl Say for ClearanceEvent {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::FaceLost { role, face, .. } => {
                 crate::matetool::pick_lost(f, role.name(), face, by)

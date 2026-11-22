@@ -284,7 +284,7 @@ impl Say for IdAnswer {
     /// fact, since the index does name it. The id is `id N` in every
     /// arm that carries one, because it is one `u32` read out of the id
     /// buffer, whatever it turns out to denote.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Named(face) => PickedName::face(face).say(f, by),
             Self::Refused(fault) => fault.say(f, by),
@@ -362,7 +362,7 @@ impl Say for Disagreement {
     /// Destructured rather than field-read, so a third field added to
     /// [`Disagreement`] and left out of this sentence is E0027 rather
     /// than silently unsaid.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self { from_gpu, from_ray } = self;
         write!(
             f,
@@ -453,7 +453,7 @@ impl Say for IdNews {
     /// word about the picture. The ray's refusal is not in the
     /// sentence: it is the ray path's news and is said in its own words
     /// ([`compare`]).
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Disagreement(disagreement) => disagreement.say(f, by),
             Self::BesideRefusal { id } => write!(

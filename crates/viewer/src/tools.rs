@@ -340,7 +340,7 @@ pub enum ToolNotice {
 /// dropped face pick is said by the speaker, a node it does not hold as
 /// the tool kept it.
 impl Say for ToolNotice {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let said = match self {
             Self::Mate(event) => ToolKind::Mate.says(&Said(event, by)),
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),

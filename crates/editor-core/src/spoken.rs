@@ -1,10 +1,16 @@
 //! **How a sentence names a recipe node** (DESIGN.md Band 1, "Node
-//! labels"): a person reads a node as its kind, its label and its tag,
-//! `Extrude "base plate" (3fa9c1d2a0b1)`, or as its kind and tag when
-//! it has no label, `Extrude 3fa9c1d2a0b1`; spoken from a document that
-//! does not hold it, `node 3fa9c1d2a0b1`. A sentence spoken again from
-//! a later version of its document ([`SpokenNode::respoken`]) says a
+//! labels"): a person reads a node as its label and its tag,
+//! `"base plate" (3fa9c1d2a0b1)`, or as its kind and tag when it has
+//! no label, `Extrude 3fa9c1d2a0b1`; spoken from a document that does
+//! not hold it, `node 3fa9c1d2a0b1`. A sentence spoken again from a
+//! later version of its document ([`SpokenNode::respoken`]) says a
 //! node that version does not hold as it first said it.
+//!
+//! **A sentence is a value** ([`Sentence`]): words, and the nodes and
+//! variables it names as [`Mention`]s, each with the document its id is
+//! spelled in, so a reader can find what it names. A [`Say`] value
+//! writes its sentence into one; only a whole sentence becomes text,
+//! and [`spell`] is the one spelling of a mention as text.
 //!
 //! Four spellings, one home each:
 //!
@@ -47,6 +53,7 @@
 
 use core::fmt;
 
+use crate::DocumentId;
 use crate::doc::Doc;
 use crate::label::Label;
 use crate::names::words::Detail;
@@ -211,8 +218,9 @@ impl SpokenVar {
     }
 }
 
-impl fmt::Display for SpokenVar {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl SpokenVar {
+    /// The variable as text ([`spell`]'s, for a variable).
+    fn spell(&self, f: &mut dyn fmt::Write) -> fmt::Result {
         match &self.name {
             Some(name) => write!(f, "{name}"),
             None => write!(f, "{}", self.id),
@@ -241,15 +249,20 @@ impl SpokenSpace {
     }
 }
 
-impl fmt::Display for SpokenSpace {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+/// Its node said as the document it was spoken from held it, stamped
+/// with the speaker's document.
+impl Say for SpokenSpace {
+    fn say(&self, f: &mut Sentence, by: Speaker<'_>) -> fmt::Result {
         if self.id == crate::var::VarId::WORLD {
             return f.write_str("the world");
         }
         match (&self.name, &self.of) {
             (Some(name), _) => write!(f, "`{name}`"),
-            (None, Some((node, true))) => write!(f, "{node}"),
-            (None, Some((node, false))) => write!(f, "the space of {node}"),
+            (None, Some((node, true))) => f.node(by.mention(node)),
+            (None, Some((node, false))) => {
+                f.write_str("the space of ")?;
+                f.node(by.mention(node))
+            }
             (None, None) => write!(f, "the space {}", self.id),
         }
     }
@@ -272,12 +285,14 @@ impl<P> Doc<P> {
     }
 }
 
-/// **A recipe node as a person reads it**: its kind noun, its label
-/// and its tag (`Extrude "base plate" (3fa9c1d2a0b1)`, with a `"` or
-/// `\` in the label escaped by a `\`), its kind and
-/// tag when it has no label (`Extrude 3fa9c1d2a0b1`), or
-/// `node 3fa9c1d2a0b1` for an id the document it was spoken from did
-/// not hold.
+/// **A recipe node as a person reads it**: its label and its tag
+/// (`"base plate" (3fa9c1d2a0b1)`, with a `"` or `\` in the label
+/// escaped by a `\`), its kind and tag when it has no label
+/// (`Extrude 3fa9c1d2a0b1`), or `node 3fa9c1d2a0b1` for an id the
+/// document it was spoken from did not hold. The kind is not repeated
+/// beside a label: the label and the tag already say which node. It
+/// has no `Display`: a sentence carries it as a [`Mention`], and
+/// [`spell`] says it.
 ///
 /// Built by [`Doc::spoken`] from the document that holds the node, and
 /// spoken again from a later version by [`SpokenNode::respoken`].
@@ -359,12 +374,12 @@ impl SpokenNode {
         self.label.as_deref()
     }
 
-    /// This node where the sentence knows what it is: as it was
-    /// spoken, or `<noun> <tag>` when its document did not hold it
-    /// ([`Speaker::node_as`]'s spelling).
+    /// This node where the sentence knows what it is, mentioned in
+    /// `document`: as it was spoken, or `<noun> <tag>` when its
+    /// document did not hold it ([`Speaker::node_as`]'s spelling).
     #[must_use]
-    pub fn as_noun(&self, noun: &'static str) -> impl fmt::Display + use<> {
-        NodeAs(noun, Some(self.clone()))
+    pub fn as_noun(&self, noun: &'static str, document: Option<DocumentId>) -> SaidNode {
+        SaidNode::of(noun, Some(self.clone()), document)
     }
 
     /// **This node spoken again from `doc`, a later version of the
@@ -396,18 +411,19 @@ impl SpokenNode {
     }
 }
 
-impl fmt::Display for SpokenNode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl SpokenNode {
+    /// The node as text ([`spell`]'s, for a node).
+    fn spell(&self, f: &mut dyn fmt::Write) -> fmt::Result {
         match (self.kind, &self.label) {
-            (Some(kind), Some(label)) => {
-                write!(f, "{kind} \"")?;
+            (Some(_), Some(label)) => {
+                f.write_str("\"")?;
                 // The quote and the escape are escaped, so a label
                 // holding `"` cannot read as the end of the quotation.
                 for ch in label.as_str().chars() {
                     if matches!(ch, '"' | '\\') {
                         f.write_str("\\")?;
                     }
-                    write!(f, "{ch}")?;
+                    f.write_char(ch)?;
                 }
                 write!(f, "\" ({})", self.id)
             }
@@ -418,8 +434,8 @@ impl fmt::Display for SpokenNode {
 
 /// **A stable name as a person reads it**: its words
 /// ([`crate::LeafRole`]) with every node and profile step said as the
-/// document held them, `the end cap of Extrude "base plate"
-/// (3fa9c1d2a0b1)` — [`Speaker::name`]'s sentence, kept.
+/// document held them, `the end cap of "base plate" (3fa9c1d2a0b1)` —
+/// [`Speaker::name`]'s sentence, kept.
 ///
 /// Built by [`Doc::spoken_name`] from the document a sentence speaks
 /// from, under [`SpokenNode`]'s rule. Boxed, so that a refusal carrying
@@ -467,6 +483,10 @@ impl HoldsNodes for SpokenNameParts {
 
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
         self.held.speak_var(id)
+    }
+
+    fn document(&self) -> Option<DocumentId> {
+        self.held.document
     }
 }
 
@@ -542,15 +562,17 @@ impl SpokenName {
     }
 }
 
-impl fmt::Display for SpokenName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+/// The name as it was spoken, in the document it was spoken from:
+/// the speaker is not asked.
+impl Say for SpokenName {
+    fn say(&self, f: &mut Sentence, _by: Speaker<'_>) -> fmt::Result {
         let by = Speaker {
             doc: Some(&*self.0),
             kept: None,
             subject: None,
             scope: None,
         };
-        write!(f, "{}", by.name(self.name()))
+        f.name(by.name(self.name()))
     }
 }
 
@@ -572,7 +594,7 @@ impl<P: ProfilePayload> Doc<P> {
         // Said only to be heard: the sentence is the one authority on
         // which nodes and steps it says, so what is kept is what it
         // named.
-        let _ = by.name(name).to_string();
+        let _ = Sentence::new().name(by.name(name));
         let mut held = recording.held();
         // The minter is held apart, and a node the document does not
         // hold is said by its tag whether held or not: kept out, so a
@@ -647,6 +669,8 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> NameTables for crate::Evaluation
 /// A document a [`Speaker`] reads nodes and profile steps off.
 trait HoldsNodes {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode;
+    /// The document whose ids these are, `None` where none is known.
+    fn document(&self) -> Option<DocumentId>;
     /// Where the profile step `id` sits, `None` where no profile held
     /// here draws it.
     fn step(&self, id: StepId) -> Option<StepAt>;
@@ -704,6 +728,9 @@ trait HoldsNodes {
 impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
         self.spoken(id)
+    }
+    fn document(&self) -> Option<DocumentId> {
+        Some(self.id())
     }
     fn constraint_at(&self, mate: crate::mate::MateRef) -> Option<usize> {
         self.node(mate.placement)
@@ -844,6 +871,9 @@ impl fmt::Display for StepAt {
 /// Empty, every node is said by its tag.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HeldNodes {
+    /// The document they were held from, whose ids these are; `None`
+    /// for none (an empty hold).
+    document: Option<DocumentId>,
     nodes: Box<[SpokenNode]>,
     vars: Box<[SpokenVar]>,
     /// What the words read beyond a node's name — where a profile step
@@ -936,9 +966,11 @@ impl NodeFact {
     }
 }
 
-impl FromIterator<SpokenNode> for HeldNodes {
-    /// The nodes, each as it was spoken; of two for one id, the first.
-    fn from_iter<I: IntoIterator<Item = SpokenNode>>(nodes: I) -> Self {
+impl HeldNodes {
+    /// `nodes`, each as it was spoken from the document `document`; of
+    /// two for one id, the first.
+    #[must_use]
+    pub fn of_nodes(document: DocumentId, nodes: impl IntoIterator<Item = SpokenNode>) -> Self {
         let mut held: Vec<SpokenNode> = Vec::new();
         for node in nodes {
             if held.iter().all(|kept| kept.id() != node.id()) {
@@ -946,14 +978,19 @@ impl FromIterator<SpokenNode> for HeldNodes {
             }
         }
         Self {
+            document: Some(document),
             nodes: held.into_boxed_slice(),
             vars: Box::default(),
             facts: Box::default(),
         }
     }
-}
 
-impl HeldNodes {
+    /// The document these were held from, `None` for an empty hold.
+    #[must_use]
+    pub fn document(&self) -> Option<DocumentId> {
+        self.document
+    }
+
     /// Keeps `fact`, once per key.
     fn keep(&mut self, fact: NodeFact) {
         if self.facts.iter().all(|held| held.key() != fact.key()) {
@@ -973,6 +1010,7 @@ impl HeldNodes {
     #[must_use]
     pub fn respoken<P: ProfilePayload>(&self, doc: &Doc<P>) -> Self {
         Self {
+            document: self.document,
             nodes: self.nodes.iter().map(|node| node.respoken(doc)).collect(),
             vars: self.vars.iter().map(|var| var.respoken(doc)).collect(),
             facts: self
@@ -997,6 +1035,10 @@ impl HoldsNodes for HeldNodes {
             NodeFact::Section(of, held, at) if of == loft && held == id => Some(at),
             _ => None,
         })
+    }
+
+    fn document(&self) -> Option<DocumentId> {
+        self.document
     }
 
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
@@ -1052,11 +1094,17 @@ struct Recording<'d, P> {
 
 impl<P> Recording<'_, P> {
     fn held(self) -> HeldNodes {
-        self.said.into_inner()
+        HeldNodes {
+            document: Some(self.doc.id()),
+            ..self.said.into_inner()
+        }
     }
 }
 
 impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
+    fn document(&self) -> Option<DocumentId> {
+        Some(self.doc.id())
+    }
     fn constraint_at(&self, mate: crate::mate::MateRef) -> Option<usize> {
         let at = self.doc.constraint_at(mate)?;
         self.said.borrow_mut().keep(NodeFact::Constraint(mate, at));
@@ -1141,7 +1189,7 @@ pub fn held_by<T: Say + ?Sized, P: ProfilePayload>(value: &T, doc: &Doc<P>) -> H
     };
     // The sentence is written only to be heard: the nodes it names are
     // what is kept.
-    let _ = Said(value, speaker).to_string();
+    let _ = value.say(&mut Sentence::new(), speaker);
     recording.held()
 }
 
@@ -1223,32 +1271,59 @@ impl<'a> Speaker<'a> {
         self.doc?.carry(id)
     }
 
-    /// **The read `var`, said**: its name where the document holds one,
-    /// else the operation defining it (`Split 1ab2's above` for one of
-    /// several outputs), else its id.
+    /// **The read `var`, said**: its name where the document
+    /// holds one, else the operation defining it (`Split 1ab2's above`
+    /// for one of several outputs), else its id.
+    pub fn read(self, var: crate::var::VarId) -> Phrase {
+        Phrase::written(|out| {
+            let Some(doc) = self.doc else {
+                return write!(out, "{}", ReadTag(var));
+            };
+            if let Some(name) = doc.speak_var(var) {
+                return out.var(self.var(&SpokenVar::new(var, Some(name))));
+            }
+            match doc.output_of(var) {
+                Some(OutputOf { node, port: None }) => out.node(self.node(node)),
+                Some(OutputOf {
+                    node,
+                    port: Some(port),
+                }) => {
+                    out.node(self.node(node))?;
+                    write!(out, "'s {port}")
+                }
+                None => write!(out, "{var}"),
+            }
+        })
+    }
+
+    /// The document whose ids this speaker says, `None` by tag.
     #[must_use]
-    pub fn read(self, var: crate::var::VarId) -> String {
-        let Some(doc) = self.doc else {
-            return ReadTag(var).to_string();
-        };
-        if let Some(name) = doc.speak_var(var) {
-            return name.to_string();
-        }
-        match doc.output_of(var) {
-            Some(OutputOf { node, port: None }) => self.node(node).to_string(),
-            Some(OutputOf {
-                node,
-                port: Some(port),
-            }) => format!("{}'s {port}", self.node(node)),
-            None => format!("{var}"),
-        }
+    pub fn document(self) -> Option<DocumentId> {
+        self.doc
+            .and_then(|doc| doc.document())
+            .or_else(|| self.kept.and_then(|kept| kept.document))
+    }
+
+    /// `node`, as it was spoken, mentioned in this speaker's document.
+    #[must_use]
+    pub fn mention(self, node: &SpokenNode) -> SaidNode {
+        SaidNode::of("node", Some(node.clone()), self.document())
+    }
+
+    /// `var`, as it was spoken, mentioned in this speaker's document.
+    #[must_use]
+    pub fn var(self, var: &SpokenVar) -> SaidVar {
+        SaidVar(Mention {
+            of: Mentioned::Var(var.clone()),
+            document: self.document(),
+        })
     }
 
     /// The node `id` as this speaker's document holds it, `noun` said
     /// for its kind (`Subtract 1669` for a Boolean): `this node` when it
     /// is the node the enclosing sentence is about ([`Speaker::about`]),
     /// `node <tag>` where the document does not hold it.
-    pub(crate) fn node_as_kind(self, id: RecipeNodeId, noun: &'static str) -> impl fmt::Display {
+    pub(crate) fn node_as_kind(self, id: RecipeNodeId, noun: &'static str) -> SaidNode {
         let said = (self.subject != Some(id)).then(|| {
             let held = self.spoken(id);
             SpokenNode {
@@ -1256,7 +1331,7 @@ impl<'a> Speaker<'a> {
                 ..held
             }
         });
-        NodeAs("node", said)
+        SaidNode::of("node", said, self.document())
     }
 
     /// `Self::reference` for name `reference` of the selection `var`
@@ -1294,8 +1369,12 @@ impl<'a> Speaker<'a> {
     /// The node `id`, said: `this node` when it is the node the
     /// enclosing sentence is about ([`Speaker::about`]).
     #[must_use]
-    pub fn node(self, id: RecipeNodeId) -> impl fmt::Display + use<> {
-        NodeAs("node", (self.subject != Some(id)).then(|| self.spoken(id)))
+    pub fn node(self, id: RecipeNodeId) -> SaidNode {
+        SaidNode::of(
+            "node",
+            (self.subject != Some(id)).then(|| self.spoken(id)),
+            self.document(),
+        )
     }
 
     /// The node `id` as this speaker's document holds it, its subject
@@ -1311,14 +1390,13 @@ impl<'a> Speaker<'a> {
         }
     }
 
-    /// **A formula, its readers said**: `expr` unparsed with each
-    /// reader written by the name this speaker's document holds for it,
-    /// and `#<ordinal>:<hex>` where it holds none (or the speaker has
-    /// no document). A refusal kept by an evaluation memo holds the
-    /// formula as an [`crate::Expr`], so a rename — which recomputes
-    /// nothing — still reads in the sentence.
-    #[must_use]
-    pub fn formula<L: crate::expr::LeafSet>(self, expr: &crate::expr::ExprTree<L>) -> String {
+    /// **A formula, its readers said**: `expr` unparsed
+    /// with each reader mentioned by the name this speaker's document
+    /// holds for it, and `#<ordinal>:<hex>` where it holds none (or the
+    /// speaker has no document). A refusal kept by an evaluation memo
+    /// holds the formula as an [`crate::Expr`], so a rename — which
+    /// recomputes nothing — still reads in the sentence.
+    pub fn formula<L: crate::expr::LeafSet>(self, expr: &crate::expr::ExprTree<L>) -> Phrase {
         let mut reads = Vec::new();
         expr.var_reads(&mut reads);
         let names: Vec<(crate::var::VarId, crate::doc::VarName)> = match self.doc {
@@ -1328,56 +1406,76 @@ impl<'a> Speaker<'a> {
                 .filter_map(|(id, _)| doc.speak_var(id).map(|name| (id, name)))
                 .collect(),
         };
-        crate::expr::unparse(expr, &|id| {
-            names
-                .iter()
-                .find(|(held, _)| *held == id)
-                .map(|(_, name)| name)
+        Phrase::written(|out| {
+            let mut readers = Readers { out, by: self };
+            crate::expr::unparse_into(
+                expr,
+                &|id| {
+                    names
+                        .iter()
+                        .find(|(held, _)| *held == id)
+                        .map(|(_, name)| name)
+                },
+                &mut readers,
+            );
+            Ok(())
         })
     }
 
-    /// **An operation's output, said** (D10: an output is spoken by its
-    /// operation): its name where it has one, else `the <port> of
-    /// <node>`; by its id where the speaker's document does not hold it.
-    #[must_use]
-    pub fn output(self, var: crate::var::VarId) -> String {
-        let Some(doc) = self.doc else {
-            return var.to_string();
-        };
-        if let Some(name) = doc.speak_var(var) {
-            return format!("`{name}`");
-        }
-        match doc.output_port(var) {
-            Some((node, port)) => format!("the {port} of {}", self.node(node)),
-            None => var.to_string(),
-        }
+    /// **An operation's output, said** (D10: an output is
+    /// spoken by its operation): its name where it has one, else `the
+    /// <port> of <node>`; by its id where the speaker's document does
+    /// not hold it.
+    pub fn output(self, var: crate::var::VarId) -> Phrase {
+        Phrase::written(|out| {
+            let Some(doc) = self.doc else {
+                return write!(out, "{var}");
+            };
+            if let Some(name) = doc.speak_var(var) {
+                out.write_str("`")?;
+                out.var(self.var(&SpokenVar::new(var, Some(name))))?;
+                return out.write_str("`");
+            }
+            match doc.output_port(var) {
+                Some((node, port)) => {
+                    write!(out, "the {port} of ")?;
+                    out.node(self.node(node))
+                }
+                None => write!(out, "{var}"),
+            }
+        })
     }
 
-    /// **A space, said** (D10 `[placement.spaces]`): `the world`, or as
-    /// the output it is (`the space of Extrude e548`).
-    #[must_use]
-    pub fn space(self, var: crate::var::VarId) -> String {
-        if var == crate::var::VarId::WORLD {
-            return "the world".to_owned();
-        }
-        let Some(doc) = self.doc else {
-            return format!("the space {var}");
-        };
-        if let Some(name) = doc.speak_var(var) {
-            return format!("`{name}`");
-        }
-        match doc.output_port(var) {
-            Some((node, _)) => format!("the space of {}", self.node(node)),
-            None => format!("the space {var}"),
-        }
+    /// **A space, said** (D10 `[placement.spaces]`): `the
+    /// world`, or as the output it is (`the space of Extrude e548`).
+    pub fn space(self, var: crate::var::VarId) -> Phrase {
+        Phrase::written(|out| {
+            if var == crate::var::VarId::WORLD {
+                return out.write_str("the world");
+            }
+            let Some(doc) = self.doc else {
+                return write!(out, "the space {var}");
+            };
+            if let Some(name) = doc.speak_var(var) {
+                out.write_str("`")?;
+                out.var(self.var(&SpokenVar::new(var, Some(name))))?;
+                return out.write_str("`");
+            }
+            match doc.output_port(var) {
+                Some((node, _)) => {
+                    out.write_str("the space of ")?;
+                    out.node(self.node(node))
+                }
+                None => write!(out, "the space {var}"),
+            }
+        })
     }
 
     /// **A slot's variable, said as written**: what an anonymous one
-    /// holds, its readers said ([`Self::formula`]); a named one by its
-    /// name; `#<ordinal>:<hex>` where the speaker's document does not
-    /// hold it.
-    #[must_use]
-    pub fn slot_var(self, var: crate::var::VarId, dim: crate::expr::Dimension) -> String {
+    /// holds, its readers said ([`Self::formula`]); a
+    /// named one by its name; `#<ordinal>:<hex>` where the speaker's
+    /// document does not hold it.
+    pub fn slot_var(self, var: crate::var::VarId, dim: crate::expr::Dimension) -> Phrase {
         let written = self
             .doc
             .and_then(|doc| doc.written(var, dim))
@@ -1386,11 +1484,11 @@ impl<'a> Speaker<'a> {
     }
 
     /// The name `name` in words ([`crate::LeafRole`]): `the end cap of
-    /// Extrude e548, cut in at Subtract 1669`. The one spelling of a name
-    /// in a sentence, article-led; [`StableName`]'s own `Display` is
-    /// this, said by tag.
+    /// Extrude e548, cut in at Subtract 1669`, written by
+    /// [`Sentence::name`]. The one spelling of a name in a sentence,
+    /// article-led; [`StableName`]'s own `Display` is this, said by tag.
     #[must_use]
-    pub fn name<'n>(self, name: &'n StableName) -> impl fmt::Display + 'n
+    pub fn name<'n>(self, name: &'n StableName) -> SaidName<'n>
     where
         'a: 'n,
     {
@@ -1437,24 +1535,22 @@ impl<'a> Speaker<'a> {
     /// as the document holds it otherwise; `this <noun>` when it is
     /// the node the enclosing sentence is about ([`Speaker::about`]).
     #[must_use]
-    pub fn node_as(self, id: RecipeNodeId, noun: &'static str) -> impl fmt::Display {
+    pub fn node_as(self, id: RecipeNodeId, noun: &'static str) -> SaidNode {
         let said = (self.subject != Some(id)).then(|| self.spoken(id));
-        NodeAs(noun, said)
+        SaidNode::of(noun, said, self.document())
     }
 
-    /// **A constraint, said**: `constraint <n> of <placement>`, `n` its
-    /// 1-based position in the placement's bundle as the document holds
-    /// it (the viewer's tree says it so), the placement as
-    /// [`Speaker::node`] says it. With no document to read the bundle
-    /// off, `n` is the constraint's ordinal (`#<ordinal>`), never its
-    /// arena key.
-    #[must_use]
-    pub fn mate(self, mate: crate::mate::MateRef) -> String {
-        format!(
-            "constraint {} of {}",
-            self.constraint_numeral(mate),
-            self.node(mate.placement)
-        )
+    /// **A constraint, said**: `constraint <n> of
+    /// <placement>`, `n` its 1-based position in the placement's bundle
+    /// as the document holds it (the viewer's tree says it so), the
+    /// placement as [`Speaker::node`] says it. With no document to read
+    /// the bundle off, `n` is the constraint's ordinal (`#<ordinal>`),
+    /// never its arena key.
+    pub fn mate(self, mate: crate::mate::MateRef) -> Phrase {
+        Phrase::written(|out| {
+            write!(out, "constraint {} of ", self.constraint_numeral(mate))?;
+            out.node(self.node(mate.placement))
+        })
     }
 
     /// **A constraint's numeral alone**, as [`Speaker::mate`] says it:
@@ -1469,55 +1565,478 @@ impl<'a> Speaker<'a> {
     }
 }
 
-/// A name said ([`Speaker::name`]): the one spelling of a name in
-/// words ([`crate::LeafRole`]), [`SpokenName`]'s and [`StableName`]'s
-/// `Display` too.
-struct SaidName<'a>(&'a StableName, Speaker<'a>);
+/// A name said ([`Speaker::name`]), for [`Sentence::name`]: the one
+/// spelling of a name in words ([`crate::LeafRole`]), [`SpokenName`]'s
+/// and [`StableName`]'s too.
+#[must_use]
+pub struct SaidName<'a>(&'a StableName, Speaker<'a>);
 
-impl fmt::Display for SaidName<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self(name, by) = *self;
-        Said(&crate::names::LeafRole(name), by).fmt(f)
+/// **A node as a sentence says it** ([`Speaker::node`],
+/// [`Speaker::node_as`], [`Speaker::mention`]), for [`Sentence::node`]:
+/// `this <noun>` for the sentence's subject, `<noun> <tag>` for a node
+/// the document did not hold where the sentence knows what it is, and
+/// otherwise a [`Mention`]. It has no `Display`: only a whole sentence
+/// becomes text.
+#[must_use]
+pub struct SaidNode(SaidNodeIs);
+
+enum SaidNodeIs {
+    This(&'static str),
+    Absent(&'static str, RecipeNodeId),
+    Mention(Mention),
+}
+
+impl SaidNode {
+    /// `None` for the subject; a node not held, said as `noun`.
+    fn of(noun: &'static str, said: Option<SpokenNode>, document: Option<DocumentId>) -> Self {
+        Self(match said {
+            None => SaidNodeIs::This(noun),
+            Some(node) if node.kind().is_none() && noun != "node" => {
+                SaidNodeIs::Absent(noun, node.id())
+            }
+            Some(node) => SaidNodeIs::Mention(Mention {
+                of: Mentioned::Node(node),
+                document,
+            }),
+        })
     }
 }
 
-/// [`Speaker::node`]'s and [`Speaker::node_as`]'s answer: `None` for
-/// the sentence's subject.
-struct NodeAs(&'static str, Option<SpokenNode>);
+/// A variable as a sentence mentions it ([`Speaker::var`]), for
+/// [`Sentence::var`].
+#[must_use]
+pub struct SaidVar(Mention);
 
-impl fmt::Display for NodeAs {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.1 {
-            None => write!(f, "this {}", self.0),
-            Some(node) if node.kind().is_some() => write!(f, "{node}"),
-            Some(node) => write!(f, "{} {}", self.0, node.id()),
+/// **What a mention names**: a recipe node or a variable, as the
+/// document it was spoken from held it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Mentioned {
+    /// A recipe node.
+    Node(SpokenNode),
+    /// A variable.
+    Var(SpokenVar),
+}
+
+/// **A node or variable a sentence names** (DESIGN.md Band 1, "Node
+/// labels"): what it names, as spoken, and the document its id is
+/// spelled in — `None` where the speaker had none (a sentence said by
+/// tag). An id is not document-scoped, so a reader acts on a mention
+/// only in the document it names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mention {
+    of: Mentioned,
+    document: Option<DocumentId>,
+}
+
+impl Mention {
+    /// What it names.
+    #[must_use]
+    pub fn mentioned(&self) -> &Mentioned {
+        &self.of
+    }
+
+    /// The node it names, if it names one.
+    #[must_use]
+    pub fn node(&self) -> Option<&SpokenNode> {
+        match &self.of {
+            Mentioned::Node(node) => Some(node),
+            Mentioned::Var(_) => None,
+        }
+    }
+
+    /// The variable it names, if it names one.
+    #[must_use]
+    pub fn var(&self) -> Option<&SpokenVar> {
+        match &self.of {
+            Mentioned::Var(var) => Some(var),
+            Mentioned::Node(_) => None,
+        }
+    }
+
+    /// The document its id is spelled in.
+    #[must_use]
+    pub fn document(&self) -> Option<DocumentId> {
+        self.document
+    }
+}
+
+/// **A mention as text**: the one spelling, which a [`Sentence`]'s
+/// `Display` and every flattening of one use. A node is its label and
+/// tag, `"base plate" (3fa9c1d2a0b1)`; its kind and tag with no label,
+/// `Extrude 3fa9c1d2a0b1`; `node 3fa9c1d2a0b1` where the document did
+/// not hold it. A variable is its name, or its id with none.
+///
+/// # Errors
+///
+/// The writer's.
+pub fn spell(mention: &Mention, out: &mut dyn fmt::Write) -> fmt::Result {
+    match &mention.of {
+        Mentioned::Node(node) => node.spell(out),
+        Mentioned::Var(var) => var.spell(out),
+    }
+}
+
+/// One run of a [`Sentence`]: words, or a mention.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Run {
+    /// Words, as written.
+    Words(String),
+    /// A node or variable it names.
+    Mention(Mention),
+}
+
+/// **A sentence as a value**: words, written through [`fmt::Write`],
+/// and mentions, written through [`Sentence::node`], [`Sentence::var`]
+/// and [`Sentence::name`]. A [`Say`] value writes its sentence into
+/// one; its `Display` is its text, each mention [`spell`]ed.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Sentence(Vec<Run>);
+
+impl Sentence {
+    /// The empty sentence.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Its runs, in order; no two words runs are adjacent.
+    #[must_use]
+    pub fn runs(&self) -> &[Run] {
+        &self.0
+    }
+
+    /// The mentions it holds, in order.
+    pub fn mentions(&self) -> impl Iterator<Item = &Mention> {
+        self.0.iter().filter_map(|piece| match piece {
+            Run::Mention(mention) => Some(mention),
+            Run::Words(_) => None,
+        })
+    }
+
+    /// Whether it holds nothing.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Writes the node `said`.
+    ///
+    /// # Errors
+    ///
+    /// None; a sentence's write cannot fail.
+    pub fn node(&mut self, said: SaidNode) -> fmt::Result {
+        match said.0 {
+            SaidNodeIs::This(noun) => write!(self, "this {noun}"),
+            SaidNodeIs::Absent(noun, id) => write!(self, "{noun} {id}"),
+            SaidNodeIs::Mention(mention) => {
+                self.0.push(Run::Mention(mention));
+                Ok(())
+            }
+        }
+    }
+
+    /// Writes the variable `said`.
+    ///
+    /// # Errors
+    ///
+    /// None; a sentence's write cannot fail.
+    pub fn var(&mut self, said: SaidVar) -> fmt::Result {
+        self.0.push(Run::Mention(said.0));
+        Ok(())
+    }
+
+    /// Writes the name `said` in words, its nodes as mentions.
+    ///
+    /// # Errors
+    ///
+    /// None; a sentence's write cannot fail.
+    pub fn name(&mut self, said: SaidName<'_>) -> fmt::Result {
+        let SaidName(name, by) = said;
+        crate::names::LeafRole(name).say(self, by)
+    }
+
+    /// Writes `value`'s sentence, each node said by `by`.
+    ///
+    /// # Errors
+    ///
+    /// None; a sentence's write cannot fail.
+    pub fn say<T: Say + ?Sized>(&mut self, value: &T, by: Speaker<'_>) -> fmt::Result {
+        value.say(self, by)
+    }
+
+    /// Writes `words` ([`fmt::Write::write_str`], callable with no
+    /// import).
+    ///
+    /// # Errors
+    ///
+    /// None; a sentence's write cannot fail.
+    pub fn write_str(&mut self, words: &str) -> fmt::Result {
+        self.push_words(words);
+        Ok(())
+    }
+
+    /// Writes `args` as words: what `write!` calls.
+    ///
+    /// # Errors
+    ///
+    /// None; a sentence's write cannot fail.
+    pub fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
+        fmt::Write::write_fmt(self, args)
+    }
+
+    /// `parts`, in order, with `between` written between each two.
+    #[must_use]
+    pub fn joined(parts: impl IntoIterator<Item = Sentence>, between: &str) -> Self {
+        let mut out = Self::new();
+        for (i, part) in parts.into_iter().enumerate() {
+            if i > 0 {
+                out.push_words(between);
+            }
+            out.append(part);
+        }
+        out
+    }
+
+    /// Writes `other` after it, its mentions as they were.
+    pub fn append(&mut self, other: Sentence) {
+        for piece in other.0 {
+            match piece {
+                Run::Words(words) => self.push_words(&words),
+                mention @ Run::Mention(_) => self.0.push(mention),
+            }
+        }
+    }
+
+    fn push_words(&mut self, words: &str) {
+        if words.is_empty() {
+            return;
+        }
+        match self.0.last_mut() {
+            Some(Run::Words(run)) => run.push_str(words),
+            _ => self.0.push(Run::Words(words.to_owned())),
         }
     }
 }
 
+impl fmt::Write for Sentence {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.push_words(s);
+        Ok(())
+    }
+}
+
+/// Words alone.
+impl From<String> for Sentence {
+    fn from(words: String) -> Self {
+        let mut sentence = Self::new();
+        sentence.push_words(&words);
+        sentence
+    }
+}
+
+/// Words alone.
+impl From<&str> for Sentence {
+    fn from(words: &str) -> Self {
+        let mut sentence = Self::new();
+        sentence.push_words(words);
+        sentence
+    }
+}
+
+/// Its text: the words, and each mention [`spell`]ed.
+impl fmt::Display for Sentence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for piece in &self.0 {
+            match piece {
+                Run::Words(words) => f.write_str(words)?,
+                Run::Mention(mention) => spell(mention, f)?,
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A formula's readers, mentioned ([`Speaker::formula`]).
+struct Readers<'s, 'a> {
+    out: &'s mut Sentence,
+    by: Speaker<'a>,
+}
+
+impl crate::expr::Unparsed for Readers<'_, '_> {
+    fn push(&mut self, ch: char) {
+        let _ = fmt::Write::write_char(self.out, ch);
+    }
+    fn push_str(&mut self, text: &str) {
+        self.out.push_words(text);
+    }
+    fn reader(&mut self, var: crate::var::VarId, name: Option<&crate::doc::VarName>) {
+        let _ = self
+            .out
+            .var(self.by.var(&SpokenVar::new(var, name.cloned())));
+    }
+}
+
+/// **Part of a sentence, said by a [`Speaker`]'s helper** ([`Speaker::read`],
+/// [`Speaker::formula`] and the others): words and mentions, written
+/// into the sentence it is part of. It has no `Display`: only a whole
+/// sentence becomes text.
+#[must_use]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Phrase(Sentence);
+
+impl Phrase {
+    fn written(write: impl FnOnce(&mut Sentence) -> fmt::Result) -> Self {
+        let mut out = Sentence::new();
+        let _ = write(&mut out);
+        Self(out)
+    }
+
+    /// The phrase as a sentence of its own.
+    pub fn sentence(self) -> Sentence {
+        self.0
+    }
+}
+
+/// **What [`say!`](crate::say) writes into a sentence**: words (`&str`,
+/// `String`, `format_args!`) or a mention ([`SaidNode`], [`SaidVar`],
+/// [`SaidName`]), a [`Phrase`], a [`Sentence`], or a value [`Said`].
+pub trait Put {
+    /// Writes itself into `out`.
+    fn put(self, out: &mut Sentence);
+}
+
+impl Put for &str {
+    fn put(self, out: &mut Sentence) {
+        out.push_words(self);
+    }
+}
+
+impl Put for String {
+    fn put(self, out: &mut Sentence) {
+        out.push_words(&self);
+    }
+}
+
+impl Put for fmt::Arguments<'_> {
+    fn put(self, out: &mut Sentence) {
+        let _ = fmt::Write::write_fmt(out, self);
+    }
+}
+
+impl Put for SaidNode {
+    fn put(self, out: &mut Sentence) {
+        let _ = out.node(self);
+    }
+}
+
+impl Put for SaidVar {
+    fn put(self, out: &mut Sentence) {
+        let _ = out.var(self);
+    }
+}
+
+impl Put for SaidName<'_> {
+    fn put(self, out: &mut Sentence) {
+        let _ = out.name(self);
+    }
+}
+
+impl Put for Phrase {
+    fn put(self, out: &mut Sentence) {
+        out.append(self.0);
+    }
+}
+
+impl Put for Sentence {
+    fn put(self, out: &mut Sentence) {
+        out.append(self);
+    }
+}
+
+/// `Recourse: ` and the recourse, its mentions kept.
+impl Put for geom_core::Recourse<Sentence> {
+    fn put(self, out: &mut Sentence) {
+        out.push_words("Recourse: ");
+        out.append(self.0);
+    }
+}
+
+/// `Recourse: ` and the recourse, its mentions kept.
+impl Put for geom_core::Recourse<&Sentence> {
+    fn put(self, out: &mut Sentence) {
+        out.push_words("Recourse: ");
+        out.append(self.0.clone());
+    }
+}
+
+impl<T: Say + ?Sized> Put for Said<'_, T> {
+    fn put(self, out: &mut Sentence) {
+        let _ = self.0.say(out, self.1);
+    }
+}
+
+/// **Writes a sentence's pieces in order** ([`Put`]): `say!(out,
+/// by.node(id), format_args!(" reads {n} values"))`. Evaluates to
+/// `Ok(())`, the [`Say::say`] answer.
+#[macro_export]
+macro_rules! say {
+    ($out:expr $(, $piece:expr)* $(,)?) => {{
+        let out: &mut $crate::Sentence = $out;
+        $( $crate::Put::put($piece, &mut *out); )*
+        ::core::result::Result::<(), ::core::fmt::Error>::Ok(())
+    }};
+}
+
+/// **A sentence of its pieces** ([`say!`](crate::say)'s, written into a
+/// new [`Sentence`]).
+#[macro_export]
+macro_rules! sentence {
+    ($($piece:expr),* $(,)?) => {{
+        let mut out = $crate::Sentence::new();
+        let _ = $crate::say!(&mut out $(, $piece)*);
+        out
+    }};
+}
+
 /// A value whose sentence a [`Speaker`] says.
 pub trait Say {
-    /// The sentence, each node said by `by`.
+    /// The sentence, written into `out`, each node said by `by`.
     ///
     /// # Errors
     ///
-    /// The formatter's.
-    fn say(&self, f: &mut fmt::Formatter<'_>, by: Speaker<'_>) -> fmt::Result;
+    /// None from a sentence: the type is the one `write!` returns.
+    fn say(&self, out: &mut Sentence, by: Speaker<'_>) -> fmt::Result;
 }
 
-/// A value said by a speaker: the `Display` of [`Say::say`].
+impl<T: Say + ?Sized> Say for &T {
+    fn say(&self, out: &mut Sentence, by: Speaker<'_>) -> fmt::Result {
+        (**self).say(out, by)
+    }
+}
+
+impl<T: Say + ?Sized> Say for Box<T> {
+    fn say(&self, out: &mut Sentence, by: Speaker<'_>) -> fmt::Result {
+        (**self).say(out, by)
+    }
+}
+
+/// A value said by a speaker ([`Said::sentence`]).
 pub struct Said<'a, T: ?Sized>(pub &'a T, pub Speaker<'a>);
 
-impl<T: Say + ?Sized> fmt::Display for Said<'_, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.say(f, self.1)
+impl<T: Say + ?Sized> Said<'_, T> {
+    /// Its sentence.
+    #[must_use]
+    pub fn sentence(&self) -> Sentence {
+        let mut out = Sentence::new();
+        let _ = self.0.say(&mut out, self.1);
+        out
     }
 }
 
 /// `value`'s sentence as `doc` speaks its nodes now.
 #[must_use]
-pub fn spoken_by<T: Say + ?Sized, P: ProfilePayload>(value: &T, doc: &Doc<P>) -> String {
-    Said(value, Speaker::of(doc)).to_string()
+pub fn spoken_by<T: Say + ?Sized, P: ProfilePayload>(value: &T, doc: &Doc<P>) -> Sentence {
+    Said(value, Speaker::of(doc)).sentence()
 }
 
 /// `value`'s sentence as `doc` speaks its nodes now, each name it
@@ -1528,8 +2047,8 @@ pub fn spoken_within<T: Say + ?Sized, P: ProfilePayload>(
     value: &T,
     doc: &Doc<P>,
     tables: &dyn NameTables,
-) -> String {
-    Said(value, Speaker::of(doc).within(tables)).to_string()
+) -> Sentence {
+    Said(value, Speaker::of(doc).within(tables)).sentence()
 }
 
 /// **A report renders only from the document it was taken of.** A

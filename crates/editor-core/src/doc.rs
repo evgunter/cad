@@ -5,6 +5,7 @@
 //! latency data). All mutation goes through the pure
 //! [`crate::edit::apply`]; undo/redo is keeping prior values.
 
+use crate::sentence;
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::predicate::Decide;
@@ -2837,23 +2838,25 @@ impl<P> Doc<P> {
     /// an operation's output as the value of its operation, and an
     /// unnamed definition as the value its one reader reads (VR7: it is
     /// spoken by its reader).
-    pub fn spoken_value(&self, id: VarId) -> String
+    pub fn spoken_value(&self, id: VarId) -> crate::Sentence
     where
         P: crate::ProfilePayload,
     {
-        if let Some(name) = self.var_names.get(&id) {
-            return name.to_string();
-        }
-        if let Some(node) = self.operation_of(id) {
-            return format!("the value of {}", self.spoken(node));
+        let by = crate::Speaker::of(self);
+        if let Some(node) = self.operation_of(id)
+            && !self.var_names.contains_key(&id)
+        {
+            return sentence!("the value of ", by.node(node));
         }
         match self
             .nodes
             .iter()
             .find(|(_, node)| node.exprs().contains(&&id))
         {
-            Some((&reader, _)) => format!("the value {} reads", self.spoken(reader)),
-            None => self.spoken_var(id).to_string(),
+            Some((&reader, _)) if !self.var_names.contains_key(&id) => {
+                sentence!("the value ", by.node(reader), " reads")
+            }
+            _ => sentence!(by.var(&self.spoken_var(id))),
         }
     }
 

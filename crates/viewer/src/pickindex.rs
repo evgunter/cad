@@ -451,7 +451,7 @@ pub enum PickIndexError {
 }
 
 impl Say for IdMapError {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Duplicate { key } => write!(
                 f,
@@ -481,7 +481,7 @@ impl Say for PickIndexError {
     /// `Display`: the layer that raised a failure names it, and this
     /// one does not restate it. The layout arm is this layer's own
     /// finding and says so itself.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Ids(error) => error.say(f, by),
             Self::DrawnTwice { node, body } => write!(
@@ -532,7 +532,7 @@ impl UndrawnBody {
 impl Say for UndrawnBody {
     /// The node is this layer's contribution; why is the payload's to
     /// say.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         write!(
             f,
             "{} is not drawn: {}",
@@ -3281,7 +3281,7 @@ pub enum PatchNameFault {
 impl Say for PatchNameFault {
     /// The `Unnamed` arm forwards the carried value's own sentence:
     /// the naming layer named that failure.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Nothing => f.write_str("nothing"),
             Self::Unassigned { id } => write!(f, "id {id}, which this index never assigned"),
@@ -3334,7 +3334,7 @@ pub enum EdgeNameFault {
 impl Say for EdgeNameFault {
     /// The `Unnamed` arm forwards the carried value's own sentence:
     /// the naming layer named that failure.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::NotDrawn { node, body } => write!(
                 f,
@@ -3401,7 +3401,7 @@ pub struct EdgeNamesRefused {
 
 impl Say for EdgeNamesRefused {
     /// The refusal itself is [`EdgeNameFault::Unnamed`]'s sentence.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self {
             node,
             body,
@@ -3448,7 +3448,7 @@ pub struct VertexNamesRefused {
 
 impl Say for VertexNamesRefused {
     /// The refusal itself is the naming layer's sentence.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self {
             node,
             body,
@@ -3481,7 +3481,7 @@ impl Say for PickError {
     /// else's refusal. Every arm forwards its payload's own sentence —
     /// [`CameraError`], `editor-core`'s `HitTestError`, and
     /// [`EdgeNameFault`] each name their own failure.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Camera(error) => write!(f, "the cursor names no ray: {error}"),
             Self::HitTest(error) => write!(f, "the hit test refused: {}", Said(error, by)),

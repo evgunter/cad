@@ -691,14 +691,19 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
 /// ([`NamedCoincidence::meet`]).
 pub(crate) fn statement_words(
     row: &NamedCoincidence,
-    cell: impl Fn(&NamedCell) -> String,
-) -> String {
+    cell: impl Fn(&NamedCell) -> crate::Sentence,
+) -> crate::Sentence {
     match row.cells.as_slice() {
-        [a, b] => format!("{} {} {}", cell(a), relation_words(row.relation), cell(b)),
-        [init @ .., last] if !init.is_empty() => format!(
-            "{} and {} share one point",
-            init.iter().map(&cell).collect::<Vec<_>>().join(", "),
-            cell(last)
+        [a, b] => crate::sentence!(
+            cell(a),
+            format_args!(" {} ", relation_words(row.relation)),
+            cell(b)
+        ),
+        [init @ .., last] if !init.is_empty() => crate::sentence!(
+            crate::Sentence::joined(init.iter().map(&cell), ", "),
+            " and ",
+            cell(last),
+            " share one point"
         ),
         _ => unreachable!("a coincidence row holds two cells or more: {row:?}"),
     }

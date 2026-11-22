@@ -818,7 +818,7 @@ impl DrawnBody {
 /// grew a third component while the sentence still named two would
 /// name the wrong scope.
 impl Say for DrawnBody {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self { node, body } = *self;
         if body != 0 {
             write!(f, "body {body} of ")?;
@@ -896,7 +896,7 @@ impl<'a> PickedName<'a> {
 }
 
 impl Say for PickedName<'_> {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self { name, on } = *self;
         write!(f, "{}", by.name(name))?;
         if on.body != 0 || !leaf_role(name).nodes(by).contains(&on.node) {
@@ -1031,7 +1031,7 @@ impl<P: PickedEntity + crate::session::select::Follows> crate::session::select::
 /// The pick as the chrome says one ([`PickedName`]), on the body kept at
 /// the pick; a node `by` does not hold, as the pick kept it.
 impl<P: PickedEntity> Say for HeldPick<P> {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         PickedName::new(self.pick.name(), self.on).say(f, by.or_held(&self.said))
     }
 }

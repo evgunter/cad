@@ -96,6 +96,7 @@
 //! write is not something this API can express, which is a stronger
 //! statement than one it does not perform.
 
+use crate::say;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -1187,13 +1188,17 @@ pub enum DriveRefusal {
     Stopped(crate::Stopped),
 }
 
-impl core::fmt::Display for DriveRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for DriveRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::WitnessDoesNotBuild { node, cause } => write!(
+            Self::WitnessDoesNotBuild { node, cause } => say!(
                 f,
-                "the witness build refuses at {node}: {cause} — there is no branch to certify \
+                "the witness build refuses at ",
+                by.mention(&node),
+                format_args!(
+                    ": {cause} — there is no branch to certify \
                  leaves against until the nominal document builds"
+                )
             ),
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
@@ -1201,6 +1206,13 @@ impl core::fmt::Display for DriveRefusal {
             ),
             Self::Stopped(stopped) => write!(f, "the drive stopped: {stopped}"),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for DriveRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
     }
 }
 
@@ -1266,7 +1278,7 @@ pub fn drive(
         let node = standing.node();
         let cause = witness
             .node_error(node)
-            .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc));
+            .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc).to_string());
         return Err(DriveRefusal::WitnessDoesNotBuild {
             node: doc.spoken(node),
             cause,

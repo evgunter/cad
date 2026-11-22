@@ -39,6 +39,7 @@
 //! censused as one arrival (a `⊔`'s, or an instance's copy) discards what
 //! it finds inside it (`product::gather_sources`, [`finding_group`]).
 
+use crate::say;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -88,21 +89,17 @@ pub enum AtRestEvidence {
 // door the check reads it at: its tier-3′ messages end in their own
 // recourse.
 impl crate::spoken::Say for AtRestEvidence {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::NoLane(error) | Self::Malformed(error) | Self::InsideArrival(error) => {
                 write!(f, "{}", error.render(geom_brep::recourse::Reading::AtRest))
             }
-            Self::NotGathered(refusal) => write!(
+            Self::NotGathered(refusal) => say!(
                 f,
-                "its operands do not gather: {}",
+                "its operands do not gather: ",
                 crate::spoken::Said(refusal, by)
             ),
-            Self::Carried(row) => write!(f, "{}", crate::spoken::Said(&**row, by)),
+            Self::Carried(row) => say!(f, crate::spoken::Said(&**row, by)),
         }
     }
 }
@@ -110,7 +107,11 @@ impl crate::spoken::Say for AtRestEvidence {
 /// The evidence where no document is at hand.
 impl core::fmt::Display for AtRestEvidence {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        write!(
+            f,
+            "{}",
+            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
+        )
     }
 }
 

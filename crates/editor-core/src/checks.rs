@@ -47,6 +47,8 @@
 //! new check is a new variant, and the compiler enumerates every match
 //! site that must learn about it. There is no dynamic registration.
 
+use crate::say;
+use crate::sentence;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -502,10 +504,13 @@ pub enum FindingSubject {
 
 /// A copy as a finding says it: its placement's output, and its member
 /// where the placement defines several.
-fn copy_said(copy: crate::checks::at_rest::CopyRef, by: crate::spoken::Speaker<'_>) -> String {
+fn copy_said(
+    copy: crate::checks::at_rest::CopyRef,
+    by: crate::spoken::Speaker<'_>,
+) -> crate::Sentence {
     match copy.member {
-        0 => by.read(copy.var),
-        member => format!("{} member {member}", by.read(copy.var)),
+        0 => by.read(copy.var).sentence(),
+        member => sentence!(by.read(copy.var), format_args!(" member {member}")),
     }
 }
 
@@ -524,12 +529,12 @@ fn copy_said(copy: crate::checks::at_rest::CopyRef, by: crate::spoken::Speaker<'
 // - CarriedInterference and CarriedCoincidence end in the part's
 //   recourse, naming the part, since only the part can act on it.
 impl crate::finding::Finding for SaidFinding<'_> {
-    fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn subject(&self, f: &mut crate::Sentence) -> fmt::Result {
         write!(f, "check {}: ", self.0.check)?;
         self.about(f)
     }
 
-    fn story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn story(&self, f: &mut crate::Sentence) -> fmt::Result {
         let Self(finding, by) = *self;
         self.evidence_story(f)?;
         match (finding.quiet, &finding.evidence) {
@@ -539,13 +544,19 @@ impl crate::finding::Finding for SaidFinding<'_> {
             (Some(_), CheckEvidence::CarriedInterference { .. }) => {
                 f.write_str("; quiet: an assertion of the part's says so")
             }
-            (Some(assertion), CheckEvidence::CarriedCoincidence { finding }) => write!(
+            (Some(assertion), CheckEvidence::CarriedCoincidence { finding }) => say!(
                 f,
-                "; quiet: the part's {} says so",
-                crate::spoken::Speaker::of(&**finding.doc.get()).node_as(assertion, "assertion")
+                "; quiet: the part's ",
+                crate::spoken::Speaker::of(&**finding.doc.get()).node_as(assertion, "assertion"),
+                " says so"
             ),
             (Some(assertion), _) => {
-                write!(f, "; quiet: {} says so", by.node_as(assertion, "assertion"))
+                say!(
+                    f,
+                    "; quiet: ",
+                    by.node_as(assertion, "assertion"),
+                    " says so"
+                )
             }
         }?;
         // A part's finding is acted on in the part: its recourse, there.
@@ -582,32 +593,31 @@ const INTERFERENCE_RECOURSE: &str = "Recourse: move the two apart, combine them 
 
 impl SaidFinding<'_> {
     /// What the finding is about, by the speaker.
-    fn about(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn about(&self, f: &mut crate::Sentence) -> fmt::Result {
         let Self(finding, by) = *self;
         match finding.subject {
-            FindingSubject::Node(node) => write!(f, "{}", by.node_as(node, "node")),
+            FindingSubject::Node(node) => say!(f, by.node_as(node, "node")),
             FindingSubject::Output {
                 placement,
                 output_ix,
             } => {
-                write!(
+                say!(
                     f,
-                    "{} output {}",
                     by.node_as(placement, "placement"),
-                    output_ix
+                    format_args!(" output {output_ix}")
                 )
             }
             FindingSubject::Census { read } | FindingSubject::Var(read) => {
-                f.write_str(&by.read(read))
+                say!(f, by.read(read))
             }
             FindingSubject::Copies { a, b } => {
-                write!(f, "copies {} and {}", copy_said(a, by), copy_said(b, by))
+                say!(f, "copies ", copy_said(a, by), " and ", copy_said(b, by))
             }
         }
     }
 
     /// What the evidence says was found.
-    fn evidence_story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn evidence_story(&self, f: &mut crate::Sentence) -> fmt::Result {
         let Self(finding, by) = *self;
         match &finding.evidence {
             CheckEvidence::Connectedness { actual, expected } => write!(
@@ -660,22 +670,24 @@ impl SaidFinding<'_> {
                 ..
             } => {
                 let cell = |c: &crate::coincide::NamedCell| match c {
-                    crate::coincide::NamedCell::Entity { name, .. } => by.name(name).to_string(),
+                    crate::coincide::NamedCell::Entity { name, .. } => sentence!(by.name(name)),
                     crate::coincide::NamedCell::Tool { input, role } => match role {
-                        Some(role) => format!("the {role} of {}", by.read(*input)),
-                        None => format!("the plane of {}", by.read(*input)),
+                        Some(role) => sentence!(format_args!("the {role} of "), by.read(*input)),
+                        None => sentence!("the plane of ", by.read(*input)),
                     },
                     crate::coincide::NamedCell::Piece { profile, piece } => {
                         crate::names::words::piece(piece, *profile, by)
                     }
                 };
-                write!(
+                say!(
                     f,
-                    "{}, decided from values ({}, margin {:e}), is not proven structural: \
-                     {residual}",
                     crate::coincide::statement_words(row, cell),
-                    crate::coincide::site_words(row.site),
-                    row.margin,
+                    format_args!(
+                        ", decided from values ({}, margin {:e}), is not proven structural: \
+                         {residual}",
+                        crate::coincide::site_words(row.site),
+                        row.margin,
+                    )
                 )?;
                 if let Some(axes) = &residual.axes {
                     axes_words(f, axes, by)?;
@@ -691,10 +703,10 @@ impl SaidFinding<'_> {
             }
             CheckEvidence::Interference { finding } => interference_words(f, finding, by),
             CheckEvidence::CarriedInterference { finding } => {
-                write!(
+                say!(
                     f,
-                    "{} reports an overlap between its own arrivals: ",
-                    crate::spoken::Said(&finding.route, by)
+                    crate::spoken::Said(&finding.route, by),
+                    " reports an overlap between its own arrivals: "
                 )?;
                 interference_words(f, &finding.finding, crate::spoken::Speaker::TAG)
             }
@@ -703,27 +715,30 @@ impl SaidFinding<'_> {
                     &finding.finding,
                     crate::spoken::Speaker::of(&**finding.doc.get()),
                 );
-                write!(
+                say!(
                     f,
-                    "{} leaves a coincidence of its own unproven, at ",
-                    crate::spoken::Said(&finding.route, by)
+                    crate::spoken::Said(&finding.route, by),
+                    " leaves a coincidence of its own unproven, at "
                 )?;
                 part.about(f)?;
                 f.write_str(": ")?;
                 part.evidence_story(f)
             }
             CheckEvidence::AtRest { evidence } => {
-                write!(
+                say!(
                     f,
-                    "the census could not look: {}",
+                    "the census could not look: ",
                     crate::spoken::Said(evidence, by)
                 )
             }
             CheckEvidence::Unused { named } => {
                 f.write_str("used by nothing")?;
                 if !named.is_empty() {
-                    let names: Vec<String> = named.iter().map(|&var| by.read(var)).collect();
-                    write!(f, ", its outputs named {} with it", names.join(", "))?;
+                    let names = crate::Sentence::joined(
+                        named.iter().map(|&var| by.read(var).sentence()),
+                        ", ",
+                    );
+                    say!(f, ", its outputs named ", names, " with it")?;
                 }
                 f.write_str(": not the product, not an assertion, and nothing reads it")
             }
@@ -766,27 +781,28 @@ impl SaidFinding<'_> {
 /// mates reach, whichever cell the row names first; a radius never
 /// read is said so.
 fn axes_words(
-    f: &mut fmt::Formatter<'_>,
+    f: &mut crate::Sentence,
     axes: &crate::coincide::Axes,
     by: crate::spoken::Speaker<'_>,
 ) -> fmt::Result {
     use crate::coincide::Component;
-    let one = |f: &mut fmt::Formatter<'_>| match axes.reached {
+    let one = |f: &mut crate::Sentence| match axes.reached {
         [Some(a), Some(b)] if a == b => {
-            write!(f, "; the axes are one, both reading {}", by.read(a))
+            say!(f, "; the axes are one, both reading ", by.read(a))
         }
         _ => f.write_str("; the axes are one"),
     };
     match axes.left {
         Component::Axis => {
             let axis = |i: usize| match axes.reached[i] {
-                Some(pose) => format!("reads {}", by.read(pose)),
-                None => "is its own".to_owned(),
+                Some(pose) => sentence!("reads ", by.read(pose)),
+                None => crate::Sentence::from("is its own"),
             };
-            write!(
+            say!(
                 f,
-                "; the axes are two: the first cell's {}, the second's {}",
+                "; the axes are two: the first cell's ",
                 axis(0),
+                ", the second's ",
                 axis(1)
             )?;
             let edit = [(0, 1), (1, 0)].into_iter().find_map(|(i, j)| {
@@ -796,14 +812,14 @@ fn axes_words(
             });
             match edit {
                 Some((pose, copy, reader)) => {
-                    write!(
+                    say!(
                         f,
-                        ". Edit, for the axis: mate {}'s axis onto {}",
+                        ". Edit, for the axis: mate ",
                         by.read(copy),
-                        by.read(pose)
+                        sentence!("'s axis onto ", by.read(pose))
                     )?;
                     match reader {
-                        Some(reader) => write!(f, ", which {} reads", by.read(reader)),
+                        Some(reader) => say!(f, ", which ", by.read(reader), " reads"),
                         None => Ok(()),
                     }
                 }
@@ -830,7 +846,7 @@ fn axes_words(
 /// An interference finding's story: the two arrivals, and where they
 /// overlap.
 fn interference_words(
-    f: &mut fmt::Formatter<'_>,
+    f: &mut crate::Sentence,
     finding: &at_rest::InterferenceFinding,
     by: crate::spoken::Speaker<'_>,
 ) -> fmt::Result {
@@ -842,8 +858,9 @@ fn interference_words(
     )?;
     match &finding.overlap {
         at_rest::Overlap::Bounded { faces } => {
-            let names: Vec<String> = faces.iter().map(|s| by.name(&s.face).to_string()).collect();
-            write!(f, ", bounded by {}", names.join(", "))
+            let names =
+                crate::Sentence::joined(faces.iter().map(|s| sentence!(by.name(&s.face))), ", ");
+            say!(f, ", bounded by ", names)
         }
         at_rest::Overlap::Unlocalized(why) => {
             f.write_str(", and the kernel could not bound the overlap: ")?;
@@ -870,7 +887,7 @@ fn interference_words(
 struct SaidFinding<'a>(&'a CheckFinding, crate::spoken::Speaker<'a>);
 
 impl crate::spoken::Say for CheckFinding {
-    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         crate::finding::compose(f, &SaidFinding(self, by))
     }
 }
@@ -878,13 +895,17 @@ impl crate::spoken::Say for CheckFinding {
 /// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for CheckFinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        write!(
+            f,
+            "{}",
+            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
+        )
     }
 }
 
 /// The findings, each said by `by`, one per line ([`crate::finding::render_list`]).
 fn say_findings(
-    f: &mut fmt::Formatter<'_>,
+    f: &mut crate::Sentence,
     findings: &[CheckFinding],
     by: crate::spoken::Speaker<'_>,
 ) -> fmt::Result {
@@ -920,7 +941,7 @@ pub struct ChecksReport {
 }
 
 impl crate::spoken::Say for ChecksReport {
-    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         if self.findings.is_empty() {
             write!(f, "checks: no findings")?;
         } else {
@@ -946,7 +967,11 @@ impl crate::spoken::Say for ChecksReport {
 /// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for ChecksReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        write!(
+            f,
+            "{}",
+            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -1001,8 +1026,8 @@ impl ChecksReport {
     ///
     /// When `doc` is not the document the checks were run over.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
-        crate::spoken::Said(self, self.speaker(doc)).to_string()
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> crate::Sentence {
+        crate::spoken::Said(self, self.speaker(doc)).sentence()
     }
 }
 
@@ -1072,12 +1097,12 @@ impl From<crate::ident::Mispaired> for ChecksError {
 }
 
 impl crate::spoken::Say for ChecksError {
-    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         match self {
             Self::Placement(standing) => {
-                write!(
+                say!(
                     f,
-                    "checks: {}",
+                    "checks: ",
                     crate::spoken::Said(&standing.of_placement(), by)
                 )
             }
@@ -1089,7 +1114,7 @@ impl crate::spoken::Say for ChecksError {
             ),
             Self::Product {
                 refusal: Some(refusal),
-            } => write!(f, "checks: {}", crate::spoken::Said(refusal, by)),
+            } => say!(f, "checks: ", crate::spoken::Said(refusal, by)),
             Self::Product { refusal: None } => write!(
                 f,
                 "checks: an enabled check reads the document's product, and none was taken. {}",
@@ -1103,7 +1128,11 @@ impl crate::spoken::Say for ChecksError {
 /// The sentence where no document is at hand: each node by its tag.
 impl fmt::Display for ChecksError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        write!(
+            f,
+            "{}",
+            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -1112,7 +1141,7 @@ impl ChecksError {
     /// it**: each node, a placement's or the gather's, as `doc` holds it now
     /// ([`crate::Doc::spoken`]).
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::Doc<P>) -> crate::Sentence {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -1132,7 +1161,7 @@ pub struct CheckRefusal {
 }
 
 impl crate::spoken::Say for CheckRefusal {
-    fn say(&self, f: &mut fmt::Formatter<'_>, by: crate::spoken::Speaker<'_>) -> fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> fmt::Result {
         write!(
             f,
             "{} check finding(s) at Error severity:",
@@ -1145,7 +1174,11 @@ impl crate::spoken::Say for CheckRefusal {
 /// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for CheckRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        write!(
+            f,
+            "{}",
+            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -1157,8 +1190,8 @@ impl CheckRefusal {
     ///
     /// When `doc` is not the document the refused report was run over.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
-        crate::spoken::Said(self, self.speaker(doc)).to_string()
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> crate::Sentence {
+        crate::spoken::Said(self, self.speaker(doc)).sentence()
     }
 
     /// **The speaker for this refusal's placements**: each as `doc` holds it

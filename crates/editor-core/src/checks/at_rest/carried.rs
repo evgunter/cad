@@ -11,6 +11,7 @@
 //! (`product::gather_sources`), and the part's own reading of its census
 //! ([`super::reading`]) crosses instead.
 
+use crate::say;
 use std::sync::Arc;
 
 use super::{AtRestEvidence, InterferenceFinding};
@@ -57,19 +58,14 @@ pub struct Route {
 // by the speaker, then each instance below it, as its own document
 // holds it.
 impl crate::spoken::Say for Route {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        write!(
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
+        say!(
             f,
-            "document {} through {}",
-            self.of,
+            format_args!("document {} through ", self.of),
             by.node_as(self.through, "instance")
         )?;
         for hop in &self.via {
-            write!(f, " → {}", hop.as_noun("instance"))?;
+            say!(f, " → ", hop.as_noun("instance", by.document()))?;
         }
         Ok(())
     }
@@ -79,7 +75,11 @@ impl crate::spoken::Say for Route {
 /// tag.
 impl core::fmt::Display for Route {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        write!(
+            f,
+            "{}",
+            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -311,15 +311,11 @@ pub struct CarriedAtRestFinding {
 // One carried finding as an author reads it: which document, and what
 // its census found, as the part says it.
 impl crate::spoken::Say for CarriedAtRestFinding {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        write!(
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
+        say!(
             f,
-            "{} reports what its own census could not look at: {}",
             crate::spoken::Said(&self.route, by),
+            " reports what its own census could not look at: ",
             crate::spoken::Said(&self.finding, crate::spoken::Speaker::held(&self.held))
         )
     }
@@ -329,7 +325,11 @@ impl crate::spoken::Say for CarriedAtRestFinding {
 /// by its tag.
 impl core::fmt::Display for CarriedAtRestFinding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        write!(
+            f,
+            "{}",
+            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
+        )
     }
 }
 
@@ -385,11 +385,7 @@ pub(crate) struct Pinned<F> {
 
 // Said as the finding is: the pin names no node.
 impl<F: crate::spoken::Say> crate::spoken::Say for Pinned<F> {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         self.finding.say(f, by)
     }
 }

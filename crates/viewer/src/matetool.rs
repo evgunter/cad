@@ -1180,7 +1180,7 @@ pub enum MateToolEvent {
 }
 
 impl Say for MateToolEvent {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::PickLost {
                 row,
