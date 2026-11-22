@@ -831,18 +831,29 @@ pub enum SessionOp {
         /// The face whose plane it is reflected across.
         plane: FaceSelection,
     },
-    /// **Add a clearance requirement** — the clearance tool's one
-    /// committed action: an assertion that `clearance(a, b)` lies within
-    /// `bounds` (`Node::clearance`), each seat a body or a face. The
-    /// bounds are written as typed: a reversed band and a negative
-    /// bound are the evaluation's to refuse, on the requirement's row.
-    AddClearance {
-        /// The first seat.
-        a: ClearedSeat,
+    /// **Add an assertion** — the assertion tool's one committed action:
+    /// a recorded claim between two seats, each a body, a face picked in
+    /// the picture, or a read written as given.
+    ///
+    /// A clearance claim is `clearance(a, b)` within its bounds
+    /// (`Node::clearance`). A `Gap` or `Distance` claim is the measure
+    /// node over the two seats and a `Node::Assertion` relating its
+    /// output to the bound: the vocabulary `[assertions.quiet]` reads,
+    /// so a holding `Gap = 0` over a coincidence's two cells quiets it.
+    /// Either is one action and one undo. What a measure cannot read is
+    /// the insert door's to refuse, in its own words; a bound is written
+    /// as typed, and what is wrong with it is the evaluation's to say.
+    ///
+    /// **Built from values** ([`AssertedSeat`], [`AssertedClaim`]), so
+    /// a caller that already holds the claim — a check's finding — can
+    /// author it without the tool.
+    AddAssertion {
+        /// The first seat: a `Gap`'s outer, a `Distance`'s first.
+        a: AssertedSeat,
         /// The second seat.
-        b: ClearedSeat,
-        /// The bounds, each a length.
-        bounds: pncad::document::ClearanceBounds<Formula>,
+        b: AssertedSeat,
+        /// What is claimed between them.
+        claim: AssertedClaim,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit: an index `k = index(count)` and one placement of
@@ -1316,7 +1327,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1444,7 +1455,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1674,7 +1685,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1808,7 +1819,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1907,7 +1918,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1936,14 +1947,57 @@ pub enum SplitPlane {
     Read(pncad::document::pose::RoleRead<Operand>),
 }
 
-/// **One seat of a clearance requirement** ([`SessionOp::AddClearance`]):
-/// a body, all of its faces, or one face picked in the picture.
+/// **One seat of an assertion** ([`SessionOp::AddAssertion`]).
 #[derive(Debug, Clone, PartialEq)]
-pub enum ClearedSeat {
-    /// A body read.
+pub enum AssertedSeat {
+    /// A body read, where it is drawn; a clearance reads all of its
+    /// faces.
     Body(Operand),
     /// A face, read on the body it was picked on.
     Face(FaceSelection),
+    /// **An operand as the measure reads it**, written as given: a
+    /// selection of one name in the body read plainly, a pose defined
+    /// off such a selection, or a variable — what the measure's insert
+    /// mints its references from. A check's finding names its cells
+    /// keyed by the `⊔` that gathered them, which is not this: a seat
+    /// built from a finding's raw name is admitted and then fails to
+    /// resolve. A finding's quieting assertion is converted to seats by
+    /// the kernel's own reading of the row.
+    Read(Operand),
+}
+
+/// **What an assertion claims** ([`SessionOp::AddAssertion`]): the
+/// measure over its two seats and how it is bounded.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AssertedClaim {
+    /// `clearance(a, b)` within the bounds, each a length.
+    Clearance(pncad::document::ClearanceBounds<Formula>),
+    /// The output of the measure `measure` names, over the two seats in
+    /// order (a `Gap`'s outer then inner), related to the bound
+    /// (`pncad::document::Claim::Value`).
+    Value {
+        /// The measure.
+        measure: pncad::document::MeasureVerb,
+        /// How the output must relate to the bound.
+        relation: pncad::document::AssertionRelation,
+        /// The bound, in the output's dimension.
+        bound: Formula,
+    },
+}
+
+/// **The primitive `verb` names over `a` and `b`**, in seat order.
+#[must_use]
+pub fn measured(
+    verb: pncad::document::MeasureVerb,
+    a: Operand,
+    b: Operand,
+) -> pncad::document::MeasurePrimitive<Operand> {
+    use pncad::document::{MeasurePrimitive as M, MeasureVerb as V};
+    match verb {
+        V::Gap => M::Gap { outer: a, inner: b },
+        V::Distance => M::Distance { a, b },
+        V::Angle => M::Angle { a, b },
+    }
 }
 
 /// **An operation that creates a node** — the only operation

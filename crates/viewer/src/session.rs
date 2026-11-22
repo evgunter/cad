@@ -98,8 +98,8 @@ pub(crate) mod snap;
 pub use author::{BooleanSpec, PartSelectSpec, PatternDirection, PatternRuleSpec};
 pub use delete::DeleteAffordance;
 pub use op::{
-    CancelDoor, ClearedSeat, Creation, FreeMoveName, GestureName, OpOutcome, PlaceTarget,
-    PlacementBase, SessionOp, SplitPlane, ValueGestureName,
+    AssertedClaim, AssertedSeat, CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome,
+    PlaceTarget, PlacementBase, SessionOp, SplitPlane, ValueGestureName, measured,
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
@@ -2374,7 +2374,7 @@ impl DocSession {
             | SessionOp::AddBoolean { .. }
             | SessionOp::AddSplit { .. }
             | SessionOp::AddMirror { .. }
-            | SessionOp::AddClearance { .. }
+            | SessionOp::AddAssertion { .. }
             | SessionOp::Place { .. }
             | SessionOp::AddPattern { .. }
             | SessionOp::AddFusedPattern { .. }
@@ -2446,7 +2446,7 @@ impl DocSession {
             SessionOp::AddBoolean { spec } => self.add_boolean(spec),
             SessionOp::AddSplit { target, plane } => self.add_split(target, &plane),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
-            SessionOp::AddClearance { a, b, bounds } => self.add_clearance(a, b, bounds),
+            SessionOp::AddAssertion { a, b, claim } => self.add_assertion(a, b, claim),
             SessionOp::Place { body, target, name } => self.place(body, target, name),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
@@ -3865,9 +3865,10 @@ impl DocSession {
         }))
     }
 
-    /// **Add a clearance requirement** ([`SessionOp::AddClearance`]):
-    /// the assertion between the two seats, through the document's own
-    /// insert door.
+    /// **Add an assertion** ([`SessionOp::AddAssertion`]): the claim
+    /// between the two seats, through the document's own insert door —
+    /// a clearance as its one node, a `Gap` or a `Distance` as the
+    /// measure and the assertion over its output, in one action.
     ///
     /// **Each seat is read where it is drawn**: a requirement between
     /// two parts is about the parts as they stand, and two
@@ -3875,25 +3876,26 @@ impl DocSession {
     /// read on the drawn body it was picked on, never on the body a
     /// copy places, and a body that one world placement draws is read
     /// on that copy. A body seat of the wrong kind refuses
-    /// [`Refusal::WrongNodeKind`]; two seats in different spaces refuse
-    /// at the insert door (`EditError::SpaceMismatch`). The bounds are
-    /// written as they came: what is wrong with them is the
-    /// evaluation's to say.
-    fn add_clearance(
+    /// [`Refusal::WrongNodeKind`]; a read seat is written as given. Two
+    /// seats in different spaces, and a seat the measure cannot read,
+    /// refuse at the insert door (`EditError::SpaceMismatch`,
+    /// `EditError::SlotVarKind`). The bounds are written as they came:
+    /// what is wrong with them is the evaluation's to say.
+    fn add_assertion(
         &self,
-        a: ClearedSeat,
-        b: ClearedSeat,
-        bounds: pncad::document::ClearanceBounds<Formula>,
+        a: AssertedSeat,
+        b: AssertedSeat,
+        claim: AssertedClaim,
     ) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
-        let read = |seat: ClearedSeat| -> Result<Operand, Refusal> {
+        let read = |seat: AssertedSeat| -> Result<Operand, Refusal> {
             match seat {
-                ClearedSeat::Body(read) => {
+                AssertedSeat::Body(read) => {
                     let read = as_body(doc, read);
                     self.require_read(&read, NodeKindWanted::Body)?;
                     Ok(drawn_copy(doc, &read).unwrap_or(read))
                 }
-                ClearedSeat::Face(face) => {
+                AssertedSeat::Face(face) => {
                     let body = crate::world::body_read(doc, face.node, Some(face.body))
                         .ok_or_else(|| Refusal::NotABodyRead {
                             read: Box::new(Operand::Node(face.node)),
@@ -3905,10 +3907,41 @@ impl DocSession {
                             })?;
                     Ok(Operand::select(body, names))
                 }
+                AssertedSeat::Read(read) => Ok(read),
             }
         };
-        let node = Node::clearance(read(a)?, read(b)?, bounds);
-        Ok(creating(move |run| run.insert(node)))
+        let (a, b) = (read(a)?, read(b)?);
+        Ok(match claim {
+            AssertedClaim::Clearance(bounds) => {
+                let node = Node::clearance(a, b, bounds);
+                creating(move |run| run.insert(node))
+            }
+            AssertedClaim::Value {
+                measure,
+                relation,
+                bound,
+            } => {
+                let primitive = measured(measure, a, b);
+                creating(move |run| {
+                    let measured = run.measure(std::slice::from_ref(&primitive))?;
+                    let [output] = measured.outputs[..] else {
+                        unreachable!("one primitive measured defines one output")
+                    };
+                    // The output read at its own kind's dimension, so a
+                    // bound of another is the door's `assertion_dimension`.
+                    let dim = run
+                        .doc()
+                        .var(output)
+                        .and_then(|var| var.kind().dimension())
+                        .unwrap_or_else(|| bound.dim());
+                    run.insert(Node::Assertion(pncad::document::Claim::Value {
+                        value: Formula::var(output, dim),
+                        bound,
+                        relation,
+                    }))
+                })
+            }
+        })
     }
 
     /// Insert one pattern of an existing body, fused or not
@@ -6398,8 +6431,8 @@ fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
 /// placement copies it ([`crate::world::world_copies_of_read`]): the
 /// body as it stands in the world. `None` for a read no world placement
 /// copies, and for one several copy, which names no one of them — the
-/// clearance tool refuses such a pick itself, in its own words
-/// (`crate::combine::ClearanceEvent::SeveralCopies`).
+/// assertion tool refuses such a pick itself, in its own words
+/// (`crate::combine::AssertionEvent::SeveralCopies`).
 fn drawn_copy(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<Operand> {
     match crate::world::world_copies_of_read(doc, read).as_slice() {
         [copy] => Some(Operand::Var(*copy)),
@@ -6656,10 +6689,10 @@ mod tests {
         let tol = Tol::witness();
         let (doc, blocks, _) = crate::test_support::two_blocks_apart(tol);
         let mut session = DocSession::inline(doc, tol);
-        let added = session.perform(super::SessionOp::AddClearance {
-            a: super::ClearedSeat::Body(blocks[0].into()),
-            b: super::ClearedSeat::Body(blocks[1].into()),
-            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        let added = session.perform(super::SessionOp::AddAssertion {
+            a: super::AssertedSeat::Body(blocks[0].into()),
+            b: super::AssertedSeat::Body(blocks[1].into()),
+            claim: crate::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.02))),
         });
         let violated = added.made.expect("the requirement is a node");
         session.pump();
