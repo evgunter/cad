@@ -126,3 +126,8 @@ Filed, as the design requires:
 - `the-viewer-has-one-assertion-tool`: letter M, tier SINGLE, FULL review. It writes claims into the document, and a wrong claim shape fails silently: it would not quiet.
 
 The local disk has 8 GB free and two lane targets are live, so these lanes run as their own cloud sessions.
+- 2026-11-22 — **Dispatched as cloud sessions**, because this container's disk is the limit:
+  - `a-check-offers-…` on `offer/a-check-carries-the-assertion-that-quiets-it`, session `session_013QoYWW3B3DSwxBw5VaTjDN`;
+  - `the-viewer-has-one-assertion-tool` on `offer/the-viewer-has-one-assertion-tool`, session `session_013QoYWYBtUXfoqieYNpg1n1`.
+
+  Each reports to the orchestrator's session by `send_message`. The draws are on `analysis/model-compare/offer-2026-11-22`. (OFFER orchestrator)
