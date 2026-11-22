@@ -83,6 +83,7 @@ fn main() {
                 let side = Side {
                     body: &sb.body,
                     faces: sb.body.faces().map(|(k, _)| k).collect(),
+                    excluded: pncad::topo::clearance::FacePairs::none(),
                 };
                 let started = std::time::Instant::now();
                 let report = embedded(&side, band, BUDGETS);
