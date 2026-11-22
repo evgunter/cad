@@ -115,9 +115,11 @@ impl Pair {
         let mut arena = SlotMap::with_key();
         let keys = [arena.insert(first), arena.insert(second)];
         let plane = arena.insert(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         });
         Self { arena, keys, plane }
     }

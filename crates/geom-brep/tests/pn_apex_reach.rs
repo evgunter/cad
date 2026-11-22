@@ -44,10 +44,8 @@ struct Pose {
 impl Pose {
     fn cone(&self) -> Surface<f64> {
         Surface::Cone {
-            apex: self.apex,
-            axis: self.axis,
+            frame: geom::Frame::new(self.apex, self.axis, self.u_ref),
             half_angle: self.alpha,
-            u_ref: self.u_ref,
         }
     }
 
@@ -60,18 +58,21 @@ impl Pose {
             Vec3::unit_y()
         };
         Surface::Plane {
-            origin: self.apex - n * self.gap,
-            normal: n,
-            u_ref: (u - n * u.dot(n)).normalize(),
+            frame: geom::Frame::new(self.apex - n * self.gap, n, (u - n * u.dot(n)).normalize()),
         }
     }
 
     /// The gap the built plane realizes: forming its origin rounds, and
     /// `apex − origin` is then exact, so this reads it back.
     fn realized_gap(&self) -> f64 {
-        let Surface::Plane { origin, .. } = self.plane() else {
+        let Surface::Plane {
+            frame: carrier_frame,
+            ..
+        } = self.plane()
+        else {
             unreachable!()
         };
+        let origin = carrier_frame.origin();
         (self.apex - origin).dot(self.normal)
     }
 

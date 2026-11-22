@@ -92,3 +92,5 @@ names that does not resolve panics naming the edge
 (`Body::edge_curve_linked`). The `From` delegation sketched above is
 gone with them; a site that reads an edge key out of the body maps
 `Dangling` to `unreachable!` rather than to a refusal of its own.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` rung (`Unexaminable`) is gone.

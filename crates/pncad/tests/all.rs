@@ -1380,10 +1380,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
         None
     );
 
-    let options = ImportOptions {
-        eps_in: Some(1e-7),
-        examine_chart_coherence: true,
-    };
+    let options = ImportOptions { eps_in: Some(1e-7) };
     assert!(matches!(
         import_step("not a step file", &options, Tol::witness()),
         Err(StepImportError::Syntax { .. })
@@ -1444,7 +1441,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         eps_in,
         normalizations,
         instances,
-        coherence,
         contacts,
         coincidences,
     } = imported
@@ -1462,13 +1458,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
     named::<Vec<PlacedInstance>>(instances.clone());
-    // The chart-coherence channel, spelled from the prelude down to
-    // the vocabulary a consumer matches on. The import above asked
-    // for no examination, so the field is `None` — which is the
-    // CONFIGURATION half of this channel's distinction and not an
-    // empty report; `topo`'s own door draws the same line about the
-    // two lists inside a report it did produce.
-    named::<Option<CoherenceReport>>(coherence.clone());
     // The touches between instances the gate recorded, and the rows
     // they cite: none, since one box touches nothing.
     named::<ContactRecords>(contacts.clone());
@@ -1477,19 +1466,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         contacts.is_empty() && coincidences.is_empty(),
         "one box records no contact"
     );
-    assert!(
-        coherence.is_none(),
-        "the default import asked for no chart-coherence examination"
-    );
-    // The report's own two lists, spelled from here too, because a
-    // consumer that holds the answer reads them. No `assert_ne!`
-    // against `Some(empty)`: the assertion above is the whole runtime
-    // claim, and the fold it would guard against — an unasked import
-    // rendering as an empty report — is unrepresentable in
-    // `Option<CoherenceReport>` and would fail `is_none` first.
-    let empty = CoherenceReport::default();
-    named::<&Vec<CoherenceFinding>>(&empty.findings);
-    named::<&Vec<Unexamined>>(&empty.unexamined);
 
     // "Not a second computation", as an equality rather than a claim.
     let again = mass_properties(&body, Tol::witness(), pinned_resolution(Tol::witness()))
@@ -5022,7 +4998,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
-///   (`ProfilePayload`, `ParamValue`,
+///   (`ProfilePayload`, `ProfilePartition`, `ParamValue`,
 ///   `BifurcationKind`,
 ///   `MetaValue`, `MetaInt`, `MetaError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
@@ -5161,7 +5137,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 101] = [
+const NOT_CARRIED: [&str; 102] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5205,6 +5181,7 @@ const NOT_CARRIED: [&str; 101] = [
     "NodeVerdicts",
     "ParamValue",
     "ProfileLane",
+    "ProfilePartition",
     "ProfilePayload",
     "Qualifier",
     "RangeField",
