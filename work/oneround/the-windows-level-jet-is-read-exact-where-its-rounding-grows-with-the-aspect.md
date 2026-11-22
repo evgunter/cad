@@ -38,7 +38,9 @@ charged `DIRECTION_UNITS·u` at its reach, then the height's and the
 level's chains), over geom-brep's 206 `curve_pair`/`pose` tests, about
 133k window reads per ε at 1e-9 and 1e-12. The worst readings came from
 `curve_pair::order_rows::the_needle_far_from_the_origin_reads_as_at_it`,
-at both ε, which suggests those fixtures set their own band:
+and were the same at both ε, to the last digit. The ratios are taken
+against the band each read was decided at, so that test's reads used a
+band that `CAD_TOLERANCE_EPS` does not move:
 
 - the height's rounding reached 0.77 zero bands;
 - the level's rounding times `L` reached 1.5 zero bands.

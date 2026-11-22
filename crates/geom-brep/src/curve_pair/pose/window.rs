@@ -72,7 +72,10 @@
 //! precision. Posed about `b`'s centre their harmonics carry rounding of
 //! order `((|w| + R)/s)²` for `F` and the carriers' distance from the
 //! origin for `H`, which at a far, thin or large pair reaches the band's
-//! zero; read about the piece, each rounds as its few local terms do.
+//! zero. Read about the piece, `H` rounds as its few local terms do, and
+//! the far centre drops out of both; `F` still divides by `b`'s squared
+//! semi-axes, so its rounding as a length grows with `b`'s aspect, which
+//! the local read does not cure (`local_taylor`).
 
 //! **On, along `b`.** Where `a` touches `b`, tangent to it, `d` stays
 //! within the zero band `z` over a run about `√(2z/κ)` long, `κ` their
