@@ -2543,24 +2543,26 @@ fn mint_carrier<T: Decide>(
 }
 
 /// A re-chart refused because an arc this door minted on a cone does not
-/// certify, read as the door's own refusal: the re-chart names the edge
-/// whose re-description does not certify, and an arc's tube is retired
-/// only where the plane×cone section states the bounds (C2) — a cone has
-/// no tube enclosure otherwise — so the arc it names refuses as
-/// [`ReplaceFaceError::TogetherConicArc`]. Any other refusal stands.
+/// certify at its uniqueness tube, read as the door's own refusal: the
+/// re-chart names the edge whose re-description does not certify, and an
+/// arc whose plane×cone section states no bounds (C2) owes the tube, so
+/// the arc it names refuses as [`ReplaceFaceError::TogetherConicArc`].
+/// Any other refusal stands.
 fn uncertified_arc<T: Real>(
     error: ReplaceFaceError<T>,
     arcs: &[(EdgeKey, geom_brep::OpenConic)],
 ) -> ReplaceFaceError<T> {
+    use geom_brep::AnalyticRung3Refusal as A;
     let ReplaceFaceError::Op {
         error:
             crate::EulerOpError::RechartFalsifies {
                 edge,
                 error:
                     geom_brep::CertifyError::AnalyticRung3(
-                        geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
-                            operand: geom::SurfaceKind::Cone,
-                        },
+                        A::NoTubeEnclosure { .. }
+                        | A::TubeStraddles { .. }
+                        | A::TubeNotOneArc { .. }
+                        | A::Tube(_),
                     ),
                 ..
             },

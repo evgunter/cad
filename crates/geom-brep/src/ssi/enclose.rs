@@ -3169,20 +3169,23 @@ pub(super) mod tests {
         );
     }
 
+    /// A spindle sheet has no arm: off the roster, every box refuses,
+    /// even one clear of its tips.
     #[test]
     fn unsupported_kinds_refuse_rather_than_guess() {
-        let cone = Surface::Cone {
+        let spindle = Surface::Spindle {
             frame: geom::Frame::new(
-                Point3::new(0.0, 0.0, -2.0),
+                Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 Vec3::new(1.0, 0.0, 0.0),
             ),
-            half_angle: 0.4,
+            major_radius: 0.2,
+            minor_radius: 0.5,
         };
-        let b = Box3::around(Point3::new(0.8, 0.0, 0.0), 0.1);
-        assert!(!implicit_enclosure(&cone, b).is_certified());
-        assert!(!implicit_gradient_enclosure(&cone, b)[0].is_certified());
-        assert!(!graph_margin(&cone, &sphere(), b, Vec3::new(1.0, 0.0, 0.0)).is_certified());
+        let b = Box3::around(Point3::new(0.7, 0.0, 0.0), 0.05);
+        assert!(!implicit_enclosure(&spindle, b).is_certified());
+        assert!(!implicit_gradient_enclosure(&spindle, b)[0].is_certified());
+        assert!(!graph_margin(&spindle, &sphere(), b, Vec3::new(1.0, 0.0, 0.0)).is_certified());
     }
 
     /// A torus `(centre, axis, R, r)`, its axis normalized in `f64` and so

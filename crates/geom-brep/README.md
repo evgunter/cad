@@ -519,7 +519,9 @@ the seeding floor and the tube
 ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
-zero by enclosure, the boundary pass's mean-value enclosure of a strip
+zero by enclosure, or on a cone cell reaching its axis or its apex's
+plane the quadric `cos²α·ρ² − sin²α·h²`, which has the double cone's
+sign, the boundary pass's mean-value enclosure of a strip
 or corner cell the plane misses included), *accounted* (contained in a found branch's tube,
 or in a boundary contact's certified region), or refined to the named
 floor, where the op refuses
