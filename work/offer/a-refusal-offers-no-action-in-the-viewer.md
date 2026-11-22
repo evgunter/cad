@@ -6,7 +6,7 @@ status: parked
 opened: 2026-09-17
 priority: P1
 cost: H
-blocked_on: [a-check-offers-no-way-to-add-the-assertion-it-asks-for, the-viewer-has-one-assertion-tool]
+blocked_on: [a-check-offers-no-way-to-add-the-assertion-it-asks-for]
 ---
 
 **Ev reported this** (in chat, 2026-09-17), from the same failed union
