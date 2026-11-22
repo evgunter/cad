@@ -165,6 +165,8 @@ mod sym11_witness_kind_interval_rows;
 mod sym11_witness_kind_rows;
 #[path = "sym_9_retry_rows.rs"]
 mod sym_9_retry_rows;
+#[path = "review_decide_path_r1.rs"]
+mod review_decide_path_r1;
 #[path = "sym_contradiction_instrument_rows.rs"]
 mod sym_contradiction_instrument_rows;
 #[path = "sym_deferred_rows.rs"]

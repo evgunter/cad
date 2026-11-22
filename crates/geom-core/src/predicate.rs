@@ -4442,6 +4442,31 @@ mod tests {
         );
     }
 
+    /// Reviewer probe: what the straddling enclosure reads UNPROVEN at rest
+    /// and at the import door, and what the excluding one reads PROVEN
+    /// (the reading the row above no longer stamps).
+    #[test]
+    fn review_r1_the_straddling_twin_unproven_and_the_excluding_one_proven() {
+        let band = band_1e9();
+        let words = SizedWords {
+            lever: "L",
+            size: "length",
+            passes: SizedPass::Positive,
+            no_size: Some("n"),
+            unreadable: "u",
+            refused: RefusedReading::AsShown,
+        };
+        let file = FileCoincidence::new(1e-8);
+        let straddling = MarginDiag::enclosure(-2e-9, 5e-9);
+        let excluding = MarginDiag::enclosure(2e-9, 5e-9);
+        println!("r1 straddling unproven at rest: {}", straddling.sized_recourse(band, words));
+        println!("r1 straddling proven   at rest: {}", straddling.as_proven().sized_recourse(band, words));
+        println!("r1 straddling unproven in file: {}", straddling.sized_recourse_in_file(band, words, file));
+        println!("r1 straddling proven   in file: {}", straddling.as_proven().sized_recourse_in_file(band, words, file));
+        println!("r1 excluding  proven   at rest: {}", excluding.as_proven().sized_recourse(band, words));
+        println!("r1 excluding  proven   in file: {}", excluding.as_proven().sized_recourse_in_file(band, words, file));
+    }
+
     /// **An offer is the deciding tolerance told on its working side**,
     /// against `|m|/K` at every band and size: never above it, within
     /// the four-figure grid of it, above the least ε the band's K
