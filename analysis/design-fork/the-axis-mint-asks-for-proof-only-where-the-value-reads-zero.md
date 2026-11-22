@@ -1550,3 +1550,12 @@ Verbatim on `boxfinish/fork-identity-reports` at `af27bac0`, `probe/fork-identit
   - **A moved to a bound:** the accessor passes only on the weaker reading; everything symbolic is bounded to a trait only `Sym` implements, and the mint is a generic general spelling, a bounded closed spelling and a per-scalar item whose sentence is about the direction. Put as a choice for Ev, leaning bounded.
 
 **A split on one point** (how a numeric scalar is kept from the question: a typed absence, or a bound), 2 to 1. A round on that point alone went out at 03:28 UTC, each shown the other side's strongest point.
+
+### The round on the signature clause (replies 03:28 UTC) — agreed
+
+- **A returned to the accessor:** DL5.3's text ("A scalar's lanes are an associated type with no values at a dual, never an `Option` a dual answers `None` to") is the case in front of us, and the tree does it as C described (`NurbsLaneOf` for `geom_core::NoLane`); its own reading of the clause's examples was wrong about the clause's cited example. Withdrew the bounded mint and its per-scalar item.
+- **B and C held:** the accessor is DL5.3's shape; A's per-site item costs a trait and five impls per site and its bound on every caller path, and is the accessor written out once per site; Rust cannot give one mint body and a fully bounded question without an item every scalar implements. Both: a `Symbolic` bound, implemented by `Sym` alone, for code whose whole meaning is symbolic.
+
+**Agreed by all three after Ev's second comment:** each scalar declares the expression it carries (`Real::Expression`), a type with no values at every numeric scalar; the question is a method of the expression returning a proof, so a call against a numeric scalar does not typecheck; code whose whole meaning is symbolic is bounded to the symbolic scalar; the zero proved holds at every parameter value at which the build takes the decisions it took; the helper stays out of the ratified text. The `[ev]` PR (6993) is revised in place: DESIGN `[scalars]`, E12's bullet, the item, row 272's "to Ev" cell, DECIDE's row (`is_exact_zero_in_every_channel`). Rounds after Ev's second comment: first replies alone; the form; the closing text; the signature clause.
+
+Framing exposures in these rounds, mine: the first message presumed one generic body; the closing round offered a merged text of my composing; the addendum pointed at Ev's clause after two designers had answered.
