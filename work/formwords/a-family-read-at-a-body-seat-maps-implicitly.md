@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-22
 priority: P1
 cost: H
-design: true
 refs: [a-subtract-tool-seat-takes-a-whole-family-and-cuts-once-per-member, a-split-of-a-family-has-no-halves-a-read-reaches]
 ---
 
@@ -67,10 +66,20 @@ value of it") retires.
   at a one-body seat offers "each member", which writes a binder the
   tree shows. A viewport pick on a drawn copy writes `xs[c]`.
 
-Open for Ev: whether which steps inside a binder repeat is stored per
-definition (lexical scope) or derived from their reads of `k` (with
-written yields and a containment rule); and whether a family may be
-spliced into a spelled list (`[A, …holes]`), which reverses DM4's ban.
+- **The extent is derived from reads, with written yields** (Ev,
+  `[ev]` 7409: "in a functional paradigm aren't these the same?"). A
+  binder stores its index and the names it yields, and each yield is a
+  family. Inside a binder, a step repeats exactly when it reads `k`,
+  directly or through another definition. A step that reads nothing of
+  `k` is the same at every member, so building it once is a cache.
+- **Containment.** A definition that reads `k` may be read only by
+  definitions that read `k`, or by its binder's yields. Any other reader
+  is refused when written, and on load is unresolved and typed. A
+  definition that reads `k` but that no yield reads is refused or
+  reported, and a binder with no yield is refused.
+- **A family spliced into a list** is written, `[A, …holes]`, each member
+  keyed by its read (Ev, `[ev]` 7409: "... is good"). DM4's ban on
+  mixing a family with single bodies retires.
 
 Ratified text this changes once Ev rules: D10 `[repetition]` (its core,
 `within`, the kind rule, "a pattern is an index, not an operation"),
