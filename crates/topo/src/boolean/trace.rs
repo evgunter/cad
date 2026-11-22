@@ -352,8 +352,7 @@ pub fn ray_crossings_to<T: Decide>(
         // start: the run itself, the extent the crossings are decided
         // over.
         let arm = geom_brep::ExtentBall::of_covered(
-            geom::cover::Cover::segment(ray.start_point(), ray.start_point() + dir * run)
-                .as_ref(),
+            geom::cover::Cover::segment(ray.start_point(), ray.start_point() + dir * run).as_ref(),
         )
         .lever_from(ray.start_point());
         let span = Span::new(&carrier, (ray.start(), ray.from_start(run)));
