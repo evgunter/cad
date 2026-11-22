@@ -11580,7 +11580,14 @@ mod properties_pane_tests {
         /// as the document holds it, the refused text standing in a
         /// field if one does, whether the draft is pending, and what
         /// the status line says.
-        fn left(driven: &mut Driven) -> (crate::props::SlotRow, Option<String>, Option<String>, String) {
+        fn left(
+            driven: &mut Driven,
+        ) -> (
+            crate::props::SlotRow,
+            Option<String>,
+            Option<String>,
+            String,
+        ) {
             let row = driven.row(profile(), outline(0, StepArg::PointX));
             let standing = driven
                 .app
@@ -11628,7 +11635,10 @@ mod properties_pane_tests {
             type_into_x(&mut driven, 0, "w/2");
             let (row, standing, pending, status) = left(&mut driven);
             assert_eq!(standing, None, "corrected entry: the bad one is gone");
-            assert_eq!(pending, None, "corrected entry: nothing pending: {status:?}");
+            assert_eq!(
+                pending, None,
+                "corrected entry: nothing pending: {status:?}"
+            );
             assert_eq!(reads(&row), Some(0.035), "corrected entry: reads w/2");
             let states = driven.app.session.history().len();
             let corrected = driven.app.session.committed_doc().clone();
