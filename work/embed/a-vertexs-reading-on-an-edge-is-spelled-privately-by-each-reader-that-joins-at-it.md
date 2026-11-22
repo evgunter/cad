@@ -63,3 +63,35 @@ row ends in is its design question.
 
 After PRs 7115, 7322, 7320 and 7334 have landed, so the readings exist
 side by side.
+
+## What a by-key reading concedes (PR 7322's reviewer, 2026-11-22)
+
+A by-key join compares nothing, and it still rests on a tolerance: the
+range it bridges is whatever lies between a vertex's two stored
+readings. On a body at rest that is bounded by two certified checks of
+tier 3 (each row's `pcurve_envelope` within ε of its carrier; each
+carrier end pinned within ε of its vertex), so the two chart ends of a
+joint are within 4ε of each other in space (`pcurves/decision.rs`,
+1335-1345, as an inference; no one check decides that distance). In
+the chart the bridged range is about 2πε over the lever: near a pole or
+apex it can be a large azimuth and still a few ε of boundary.
+
+So each by-key reading is sound to ε in metres, the class of the
+module's other concessions, and is one: a face that truly came through
+a gap that narrow would go unread by that reader (the distance side of
+the question reads pieces of the boundary that close to a vertex). The
+orchestrator's three rulings said "identity by key, never a compare or
+a slack" and did not say this. What follows:
+
+- each reader lists what it bridges, bounded by which checks, in the
+  module docs' list of what the certificate concedes (asked of PR 7322
+  in its fix pass; owed by the others);
+- each reader says which gate has run before it (the bound is a fact of
+  a body at rest);
+- the unified form, when it is written, carries that bound in one
+  place.
+
+Whether this class wants Ev's word, as the sliver did, is part of this
+row's design question: it declares a boundary continuous at a vertex
+topology says it is continuous at, where the sliver declared a face
+absent from a cell it was in.
