@@ -25,9 +25,11 @@
 //! one. A mate declares no contact: where the copies it places touch
 //! is the at-rest census's to record ([`mod@crate::checks::at_rest`]).
 
+use crate::Said;
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
 use crate::say;
+use crate::sentence;
 
 pub mod corner;
 pub mod coset;
@@ -882,14 +884,14 @@ impl crate::spoken::Say for LeverRefusal {
             } => say!(
                 f,
                 by.node_as(*instance, "instance"),
-                format_args!("'s part {refusal}")
+                sentence!("'s part ", Said(&refusal, by))
             ),
             Self::Shape { shape, refusal } => {
                 say!(
                     f,
                     "the body ",
                     by.node(*shape),
-                    format_args!(" copies {refusal}")
+                    sentence!(" copies ", Said(&refusal, by))
                 )
             }
             Self::OutOfRange { parts, datum } => {
@@ -924,11 +926,7 @@ impl crate::spoken::Say for LeverRefusal {
 /// The refusal where no document is at hand: each node by its tag.
 impl core::fmt::Display for LeverRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -1357,11 +1355,7 @@ fn axis_name(axis: TargetAxis) -> &'static str {
 /// The fault where no document is at hand: each node by its tag.
 impl core::fmt::Display for MateFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 

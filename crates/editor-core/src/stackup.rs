@@ -116,6 +116,7 @@
 //! (floats as exact bits, one line per row) and [`Stackup::content_key`]
 //! keys it, derived on demand; [`Stackup::render`] is the human form.
 
+use crate::Said;
 use crate::{say, sentence};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -345,10 +346,11 @@ impl crate::Say for BindingViolation {
             ),
             Self::Unpinned {
                 refusal: Some(refusal),
-            } => write!(
+            } => say!(
                 f,
                 "the document does not canonicalize, so no build of it can be bound by \
-                 revision: {refusal}"
+                 revision: ",
+                Said(&refusal, by)
             ),
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
@@ -387,7 +389,7 @@ impl crate::Say for BindingViolation {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for BindingViolation {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -488,7 +490,7 @@ impl crate::Say for DivergedAt {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for DivergedAt {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -506,13 +508,15 @@ impl crate::Say for SensitivityRefusal {
                  parameters — it was driven over a different parameter set and certifies \
                  nothing here",
             ),
-            Self::VerdictNotOfThisBuild { node, .. } => write!(
+            Self::VerdictNotOfThisBuild { node, .. } => say!(
                 f,
                 "the chamber verdict is not of this build: its certified leaf replays with \
-                 a different content key at {node} — the document changed since the \
+                 a different content key at ",
+                Said(&node, by),
+                " — the document changed since the \
                  drive, or the verdict is another document's; drive again"
             ),
-            Self::Binding(v) => write!(f, "binding violation: {v}"),
+            Self::Binding(v) => say!(f, "binding violation: ", Said(&v, by)),
             Self::LeafStopped(stopped) => write!(f, "a certified leaf's replay stopped: {stopped}"),
             Self::MeasuredValueDrift { param, pass, base } => say!(
                 f,
@@ -530,7 +534,7 @@ impl crate::Say for SensitivityRefusal {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for SensitivityRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1318,7 +1322,7 @@ impl crate::Say for Unavailable {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for Unavailable {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1814,7 +1818,7 @@ pub enum StackupRefusal {
 impl crate::Say for StackupRefusal {
     fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Sensitivity(r) => write!(f, "{r}"),
+            Self::Sensitivity(r) => say!(f, Said(&r, by)),
             Self::ForeignBox => f.write_str(
                 "the analyzed box is not the box the verdict was driven over — the two \
                  name different axes or spans, and pairing them would price one box's \
@@ -1862,7 +1866,7 @@ impl crate::Say for StackupRefusal {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for StackupRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

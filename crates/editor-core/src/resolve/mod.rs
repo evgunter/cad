@@ -254,11 +254,7 @@ impl ResolveError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for ResolveError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -637,11 +633,7 @@ impl crate::spoken::Say for GroupCutters {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for GroupCutters {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -735,11 +727,7 @@ impl crate::spoken::Say for UpstreamCause {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for UpstreamCause {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -912,11 +900,7 @@ impl Diagnosis {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for Diagnosis {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -1005,11 +989,7 @@ impl crate::spoken::Say for RecipeEditRef {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for RecipeEditRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -1070,11 +1050,7 @@ impl crate::spoken::Say for ResolveRefusal {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for ResolveRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -1180,11 +1156,7 @@ impl crate::spoken::Say for ResolveIndeterminate {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for ResolveIndeterminate {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 

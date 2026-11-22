@@ -45,6 +45,7 @@
 //! lane exists to put a labeled second opinion beside the certified
 //! number, not to resolve a tail to six digits.
 
+use crate::Said;
 use crate::say;
 use std::sync::Arc;
 
@@ -126,9 +127,11 @@ pub enum McRefusal {
 impl crate::Say for McRefusal {
     fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::BandHasNoMeasure(e) => write!(
+            Self::BandHasNoMeasure(e) => say!(
                 f,
-                "the Monte-Carlo lane cannot draw from a band: {e} — the certified lane \
+                "the Monte-Carlo lane cannot draw from a band: ",
+                Said(&e, by),
+                " — the certified lane \
                  answers over a band's limits, which is what a band is for"
             ),
             Self::NoSamples => {
@@ -151,7 +154,7 @@ impl crate::Say for McRefusal {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for McRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

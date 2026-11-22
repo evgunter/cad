@@ -606,11 +606,7 @@ impl crate::spoken::Say for SubjectStanding {
 
 impl core::fmt::Display for SubjectStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -661,11 +657,7 @@ impl crate::spoken::Say for NodeStanding {
 /// The standing where no document is at hand: each node by its tag.
 impl core::fmt::Display for NodeStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -2373,8 +2365,8 @@ impl crate::spoken::Say for NodeErrorKind {
                 "document ε {document_eps:e} conflicts with the process ε {process_eps:e} \
                  (one process, one ε)"
             ),
-            Self::ParamBox { source } => write!(f, "{source}"),
-            Self::Seed { source } => write!(f, "{source}"),
+            Self::ParamBox { source } => say!(f, Said(&source, by)),
+            Self::Seed { source } => say!(f, Said(&source, by)),
             Self::RecordRefused => f.write_str(
                 "the build of record built no value at this node; where it refused the node, \
                  its refusal is the record's own, at the same node. Recourse: answer the \
@@ -2605,7 +2597,7 @@ impl crate::spoken::Say for NodeErrorKind {
                  geometry whose carrier has one",
                 crate::sentence::article(&pose.to_string())
             ),
-            Self::PoseDegenerate { construction } => write!(f, "{construction}"),
+            Self::PoseDegenerate { construction } => say!(f, Said(&construction, by)),
             Self::PoseScalar { var: _, source } => {
                 write!(f, "a scalar the pose reads did not evaluate: {source}")
             }
@@ -2661,7 +2653,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 var: _,
                 error,
             } => {
-                write!(f, "the measure's {slot} could not be read back: {error}")
+                say!(
+                    f,
+                    format_args!("the measure's {slot} could not be read back: "),
+                    Said(&error, by)
+                )
             }
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
             Self::MeasureNotParallel {
@@ -2695,7 +2691,7 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             // The reference is data, not prose: the typed arm keeps it,
             // and a surface names the part by what it knows it as.
-            Self::Part { fault, .. } => write!(f, "instantiating the part: {fault}"),
+            Self::Part { fault, .. } => say!(f, "instantiating the part: ", Said(&fault, by)),
         }
     }
 }
@@ -2703,11 +2699,7 @@ impl crate::spoken::Say for NodeErrorKind {
 /// The kind where no document is at hand: each node by its tag.
 impl core::fmt::Display for NodeErrorKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 

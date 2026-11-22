@@ -892,11 +892,7 @@ impl crate::spoken::Say for CheckFinding {
 /// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for CheckFinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -964,11 +960,7 @@ impl crate::spoken::Say for ChecksReport {
 /// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for ChecksReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -1125,11 +1117,7 @@ impl crate::spoken::Say for ChecksError {
 /// The sentence where no document is at hand: each node by its tag.
 impl fmt::Display for ChecksError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -1171,11 +1159,7 @@ impl crate::spoken::Say for CheckRefusal {
 /// The sentence where no document is at hand: each placement by its tag.
 impl fmt::Display for CheckRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 

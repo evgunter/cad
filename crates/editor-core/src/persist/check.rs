@@ -100,7 +100,7 @@ impl crate::Say for NonFiniteSite {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for NonFiniteSite {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1978,7 +1978,11 @@ impl crate::Say for SnapshotError {
                 say!(f, crate::edit::PicksNoPiece(by.var(var), *at))
             }
             Self::ProductRead { read, fault } => {
-                write!(f, "the product slot reads {read}, and {fault}")
+                say!(
+                    f,
+                    format_args!("the product slot reads {read}, and "),
+                    Said(&fault, by)
+                )
             }
             Self::EpsilonInvalid { value, k } => write!(
                 f,
@@ -2000,7 +2004,10 @@ impl crate::Say for SnapshotError {
             } => say!(
                 f,
                 by.mention(node),
-                format_args!("'s constraint {constraint} is refused: {fault}")
+                sentence!(
+                    format_args!("'s constraint {constraint} is refused: "),
+                    Said(&fault, by)
+                )
             ),
             Self::ReaderOfUnmintedVar { node, var } => say!(
                 f,
@@ -2098,7 +2105,7 @@ impl crate::Say for SnapshotError {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for SnapshotError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

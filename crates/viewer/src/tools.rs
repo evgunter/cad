@@ -351,19 +351,18 @@ pub enum ToolNotice {
 /// the tool kept it.
 impl Say for ToolNotice {
     fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
-        let said = match self {
-            Self::Mate(event) => return ToolKind::Mate.says_into(f, Said(event, by)),
-            Self::Blend(event) => return ToolKind::Blend.says_into(f, Said(event, by)),
-            Self::Mirror(event) => return ToolKind::Mirror.says_into(f, Said(event, by)),
-            Self::Split(event) => return ToolKind::Split.says_into(f, Said(event, by)),
-            Self::Assertion(event) => return ToolKind::Assertion.says_into(f, Said(event, by)),
-            Self::Seated { tool, event } => tool.says(event),
-            Self::Missed { tool, kinds } => tool.says(&format_args!(
-                "{} under the cursor — no pick taken",
-                kinds.nothing()
-            )),
-        };
-        f.write_str(&said)
+        match self {
+            Self::Mate(event) => ToolKind::Mate.says_into(f, Said(event, by)),
+            Self::Blend(event) => ToolKind::Blend.says_into(f, Said(event, by)),
+            Self::Mirror(event) => ToolKind::Mirror.says_into(f, Said(event, by)),
+            Self::Split(event) => ToolKind::Split.says_into(f, Said(event, by)),
+            Self::Assertion(event) => ToolKind::Assertion.says_into(f, Said(event, by)),
+            Self::Seated { tool, event } => tool.says_into(f, Said(event, by)),
+            Self::Missed { tool, kinds } => tool.says_into(
+                f,
+                format_args!("{} under the cursor — no pick taken", kinds.nothing()),
+            ),
+        }
     }
 }
 
@@ -480,11 +479,7 @@ impl core::fmt::Display for PanelRefusal {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for ToolNotice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 

@@ -107,11 +107,7 @@ impl crate::spoken::Say for AtRestEvidence {
 /// The evidence where no document is at hand.
 impl core::fmt::Display for AtRestEvidence {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 

@@ -727,7 +727,7 @@ impl crate::Say for SeedError {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for SeedError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -921,7 +921,7 @@ impl crate::Say for ParamBoxError {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for ParamBoxError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1363,7 +1363,7 @@ impl crate::Say for MeasureUnavailable {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for MeasureUnavailable {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

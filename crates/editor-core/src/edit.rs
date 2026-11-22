@@ -3877,7 +3877,7 @@ impl Say for EditError {
 /// Its sentence, each node said by tag ([`Speaker::TAG`]).
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", Said(self, Speaker::TAG).sentence())
+        crate::spoken::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -5214,9 +5214,10 @@ impl EditError {
                     f,
                     "redefining ",
                     by.var(source),
-                    format_args!(
+                    sentence!(
                         " so would leave what reads it holding what no \
-                     document holds: {reader}"
+                     document holds: ",
+                        Said(&reader, by)
                     )
                 )?;
                 tail.recourse(
@@ -5365,7 +5366,7 @@ impl EditError {
                 )
             }
             Self::ProductRead { read, fault } => {
-                write!(f, "{read} is no product: {fault}")?;
+                say!(f, format_args!("{read} is no product: "), Said(&fault, by))?;
                 tail.recourse(f, format_args!("set the product to a body in the world"))
             }
             Self::SpaceMismatch { node, a, b } => {
@@ -5408,9 +5409,10 @@ impl EditError {
                 tail.recourse(f, format_args!("name a constraint the placement holds"))
             }
             Self::PlacementAxis { error } => {
-                write!(
+                say!(
                     f,
-                    "the placement frame's rotation axis is unusable: {error}"
+                    "the placement frame's rotation axis is unusable: ",
+                    Said(&error, by)
                 )?;
                 tail.recourse(
                     f,
@@ -6036,7 +6038,7 @@ impl crate::Say for Maintenance {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for Maintenance {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -8067,13 +8069,20 @@ pub enum FaceUnread {
     Face(crate::InterrogateError),
 }
 
-impl core::fmt::Display for FaceUnread {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for FaceUnread {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::NoBody => f.write_str("the face is read through no node of the document"),
             Self::NoMember => f.write_str("the family has no such face at the member read"),
-            Self::Face(e) => write!(f, "{e}"),
+            Self::Face(e) => say!(f, Said(&e, by)),
         }
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for FaceUnread {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -10540,7 +10549,7 @@ impl crate::Say for ProductReadFault {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for ProductReadFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

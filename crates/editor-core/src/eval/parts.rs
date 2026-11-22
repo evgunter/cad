@@ -513,12 +513,19 @@ impl PartFault {
     }
 }
 
+/// The fault, each of the part's nodes as the pinned part holds it and
+/// mentioned in the part: its ids are numbered there, so the speaker of
+/// the sentence it is written into is not asked.
+impl Say for PartFault {
+    fn say(&self, f: &mut crate::Sentence, _: Speaker<'_>) -> core::fmt::Result {
+        self.say_by(f, self.speaker())
+    }
+}
+
 /// The fault, each of the part's nodes as the pinned part holds it.
 impl core::fmt::Display for PartFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let mut out = crate::Sentence::new();
-        self.say_by(&mut out, self.speaker())?;
-        write!(f, "{out}")
+        crate::spoken::display_said(self, Speaker::TAG, f)
     }
 }
 

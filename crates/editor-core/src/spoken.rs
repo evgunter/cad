@@ -1206,7 +1206,7 @@ pub fn held_by<T: Say + ?Sized, P: ProfilePayload>(value: &T, doc: &Doc<P>) -> H
     };
     // The sentence is written only to be heard: the nodes it names are
     // what is kept.
-    let _ = value.say(&mut Sentence::new(), speaker);
+    let _ = sentence::saying(|| value.say(&mut Sentence::new(), speaker));
     recording.held()
 }
 
@@ -1607,9 +1607,27 @@ impl<T: Say + ?Sized> Said<'_, T> {
     #[must_use]
     pub fn sentence(&self) -> Sentence {
         let mut out = Sentence::new();
-        let _ = self.0.say(&mut out, self.1);
+        let _ = sentence::saying(|| self.0.say(&mut out, self.1));
         out
     }
+}
+
+/// **The one `Display` of a [`Say`] value**: its sentence, each node
+/// said by `by`, as text — refused inside a sentence being said, like
+/// every spelling of a sentence (`Sentence`'s `Display`). Every
+/// sentence-bearing type's `Display` is this one line, so `{value}` in
+/// a `say` body is caught on this road rather than at each type.
+///
+/// # Errors
+///
+/// The formatter's.
+pub fn display_said<T: Say + ?Sized>(
+    value: &T,
+    by: Speaker<'_>,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    let said = Said(value, by).sentence();
+    write!(f, "{said}")
 }
 
 /// `value`'s sentence as `doc` speaks its nodes now.

@@ -152,6 +152,7 @@ pub(crate) mod refusal;
 pub(crate) mod strict;
 pub(crate) mod wire;
 
+use crate::Said;
 use crate::say;
 use std::collections::BTreeMap;
 
@@ -476,7 +477,7 @@ impl PersistError {
     /// The sentence after the stage word, each node mentioned by `by`.
     fn fmt_said(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::NonFinite { site } => write!(f, "non-finite float at {site}"),
+            Self::NonFinite { site } => say!(f, "non-finite float at ", Said(&site, by)),
             Self::ProfileProgram { node, refusal } => {
                 say!(f, by.mention(node), format_args!("'s program: {refusal}"))
             }
@@ -531,7 +532,7 @@ impl PersistError {
                 "body line {line} column {column}: refused by the document \
                  layer's dimension checker: {error}"
             ),
-            Self::Snapshot(e) => write!(f, "invalid snapshot: {e}"),
+            Self::Snapshot(e) => say!(f, "invalid snapshot: ", Said(&e, by)),
             Self::ToleranceConflict { process, document } => write!(
                 f,
                 "document ε {document:e} conflicts with the process ε {process:e} \

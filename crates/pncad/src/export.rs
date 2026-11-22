@@ -149,7 +149,7 @@ impl Say for ExportError {
 /// by their tags.
 impl core::fmt::Display for ExportError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", Said(self, Speaker::TAG).sentence())
+        crate::document::display_said(self, Speaker::TAG, f)
     }
 }
 

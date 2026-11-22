@@ -115,7 +115,7 @@ impl Say for LeafRole<'_> {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for LeafRole<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -231,7 +231,7 @@ pub(crate) fn table_details(table: &NameTable) -> BTreeMap<NameRef, Detail> {
     let mut alike: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (i, name) in names.iter().enumerate() {
         alike
-            .entry(words(name, by, &bare).to_string())
+            .entry(words(name, by, &bare).key())
             .or_default()
             .push(i);
     }
@@ -245,7 +245,7 @@ pub(crate) fn table_details(table: &NameTable) -> BTreeMap<NameRef, Detail> {
     let mut said: Vec<String> = names
         .iter()
         .zip(&details)
-        .map(|(name, detail)| words(name, by, detail).to_string())
+        .map(|(name, detail)| words(name, by, detail).key())
         .collect();
     loop {
         let mut groups: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
@@ -270,7 +270,7 @@ pub(crate) fn table_details(table: &NameTable) -> BTreeMap<NameRef, Detail> {
         }
         for i in opened {
             details[i] = Detail::Full;
-            said[i] = words(names[i], by, &Detail::Full).to_string();
+            said[i] = words(names[i], by, &Detail::Full).key();
         }
     }
     names.into_iter().cloned().zip(details).collect()
@@ -302,9 +302,7 @@ impl<'n> Alike<'n> {
             .entry(open.clone())
             .or_insert_with(|| vec![None; len]);
         let name = self.names[i];
-        row[i].get_or_insert_with(|| {
-            words(name, Speaker::TAG, &Detail::Open(open.clone())).to_string()
-        })
+        row[i].get_or_insert_with(|| words(name, Speaker::TAG, &Detail::Open(open.clone())).key())
     }
 
     /// How many of `among` read alike with the `i`th name at `open`.

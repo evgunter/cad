@@ -89,6 +89,7 @@
 //! viewer must keep drawing a document it can diagnose.
 
 use crate::say;
+use crate::sentence;
 use std::sync::Arc;
 
 use geom_core::Decide;
@@ -303,8 +304,9 @@ impl ProductError {
             Self::Frame { node, kind } => say!(
                 f,
                 piece(*node),
-                format_args!(
-                    "'s body could not be read into the frame the product computes in: {kind}"
+                sentence!(
+                    "'s body could not be read into the frame the product computes in: ",
+                    Said(&kind, by)
                 )
             ),
             Self::Graft { node, source } => say!(

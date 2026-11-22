@@ -149,7 +149,7 @@ pub use editor_core::{
 // the full-width id a machine channel prints.
 pub use editor_core::{
     FullId, HeldNodes, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode, SaidVar,
-    Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, held_by,
+    Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said, held_by,
     node_kind_noun, say, sentence, spell, spoken_by, spoken_within,
 };
 

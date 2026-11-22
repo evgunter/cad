@@ -564,7 +564,7 @@ impl crate::Say for RangeRefusal {
                 "the derived document's box varies on {varying} axes — this query certifies ONE \
                  field, and a box over several is `drive`'s own answer"
             ),
-            Self::Drive(e) => write!(f, "the drive refused: {e}"),
+            Self::Drive(e) => say!(f, "the drive refused: ", Said(&e, by)),
             Self::LeavesAreNotAPartition { at: (lo, hi) } => write!(
                 f,
                 "the drive's leaves do not tile the seed: [{lo}, {hi}] leaves a gap, overlaps a \
@@ -577,7 +577,7 @@ impl crate::Say for RangeRefusal {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for RangeRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

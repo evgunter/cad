@@ -1240,20 +1240,14 @@ impl Say for MateToolEvent {
 impl core::fmt::Display for MateToolEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { pick, .. } => write!(
-                f,
-                "{}",
-                pncad::document::Said(self, Speaker::held(pick.said())).sentence()
-            ),
+            Self::PickLost { pick, .. } => {
+                pncad::document::display_said(self, Speaker::held(pick.said()), f)
+            }
             Self::Reloaded { .. }
             | Self::PlacementGone { .. }
             | Self::NotPlaceable { .. }
             | Self::HalfUnchosen { .. }
-            | Self::PatternFamily { .. } => write!(
-                f,
-                "{}",
-                pncad::document::Said(self, Speaker::TAG).sentence()
-            ),
+            | Self::PatternFamily { .. } => pncad::document::display_said(self, Speaker::TAG, f),
         }
     }
 }

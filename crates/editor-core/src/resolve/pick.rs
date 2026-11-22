@@ -683,11 +683,7 @@ impl crate::spoken::Say for NodePickError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for NodePickError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -760,11 +756,7 @@ impl crate::spoken::Say for NameLookupError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for NameLookupError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -851,11 +843,7 @@ impl crate::spoken::Say for RimNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for RimNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 

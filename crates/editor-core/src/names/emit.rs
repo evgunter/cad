@@ -1163,11 +1163,7 @@ fn held_refusal_text(refusal: &topo::HeldRefusal) -> String {
 /// The refusal where no document is at hand: each node by its tag.
 impl core::fmt::Display for NamingError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 

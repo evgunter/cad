@@ -155,7 +155,7 @@ pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged};
 pub use spoken::{
     FullId, HeldNodes, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode, SaidVar,
-    Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, held_by,
+    Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said, held_by,
     node_kind_noun, spell, spoken_by, spoken_within,
 };
 

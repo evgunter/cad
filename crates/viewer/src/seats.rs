@@ -367,11 +367,7 @@ impl pncad::document::Say for SeatEvent {
 /// Its sentence, each node as the seat kept it.
 impl core::fmt::Display for SeatEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 

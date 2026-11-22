@@ -1304,7 +1304,7 @@ impl crate::Say for SplitError {
                 "split: ",
                 by.mention(reader),
                 sentence!(
-                    format_args!(" stays and reads cut material, and {why}. "),
+                    sentence!(" stays and reads cut material, and ", Said(&why, by), ". "),
                     Recourse(&sentence!(
                         "cut ",
                         by.mention(reader),
@@ -1321,7 +1321,7 @@ impl crate::Say for SplitError {
                     ", which is cut, and "
                 )?;
                 match why {
-                    Some(why) => write!(f, "{why}")?,
+                    Some(why) => say!(f, Said(&why, by))?,
                     None => f.write_str("the part's world carries no copy of it")?,
                 }
                 say!(
@@ -1572,11 +1572,11 @@ impl crate::Say for SplitError {
             // the save validator agrees with, so its pin refusing is
             // this module's defect: the forwarded sentence is evidence
             // for the report, and the stage it names is this one's.
-            Self::Pin { error } => write!(
+            Self::Pin { error } => say!(
                 f,
-                "split: the new document's pin would not compute: {}. {}",
+                "split: the new document's pin would not compute: ",
                 error.sentence(),
-                geom_core::KERNEL_DEFECT_ENDING
+                format_args!(". {}", geom_core::KERNEL_DEFECT_ENDING)
             ),
             Self::PartEdit { error } => say!(
                 f,
@@ -1600,7 +1600,7 @@ impl crate::Say for SplitError {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for SplitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1712,7 +1712,7 @@ impl crate::Say for Uncarried {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for Uncarried {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -2059,7 +2059,7 @@ impl crate::Say for InlineError {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for InlineError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -5469,7 +5469,7 @@ impl crate::Say for FlattenError {
                 "flatten: the copy is named {name} and the shape it copies {held}. {}",
                 Recourse(&format!("clear the name {name} (RenameVar), then flatten"))
             ),
-            Self::Edit { error } => write!(f, "flatten: {error}"),
+            Self::Edit { error } => say!(f, "flatten: ", Said(&error, by)),
         }
     }
 }
@@ -5477,7 +5477,7 @@ impl crate::Say for FlattenError {
 /// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
 impl core::fmt::Display for FlattenError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", crate::Said(self, crate::Speaker::TAG).sentence())
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

@@ -844,11 +844,7 @@ impl Say for DrawnBody {
 /// The sentence where no document is at hand: the node by its tag.
 impl core::fmt::Display for DrawnBody {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -927,11 +923,7 @@ impl Say for PickedName<'_> {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickedName<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -1061,11 +1053,7 @@ impl<P: PickedEntity> Say for HeldPick<P> {
 /// The sentence where no document is at hand: each node as kept.
 impl<P: PickedEntity> core::fmt::Display for HeldPick<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::held(&self.said)).sentence()
-        )
+        pncad::document::display_said(self, Speaker::held(&self.said), f)
     }
 }
 

@@ -774,16 +774,12 @@ impl Say for PlaneEvent {
 impl core::fmt::Display for PlaneEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PlaneLost { plane, .. } => write!(
-                f,
-                "{}",
-                pncad::document::Said(self, Speaker::held(plane.said())).sentence()
-            ),
-            Self::DefinedLost { .. } | Self::NotAPlane { .. } => write!(
-                f,
-                "{}",
-                pncad::document::Said(self, Speaker::TAG).sentence()
-            ),
+            Self::PlaneLost { plane, .. } => {
+                pncad::document::display_said(self, Speaker::held(plane.said()), f)
+            }
+            Self::DefinedLost { .. } | Self::NotAPlane { .. } => {
+                pncad::document::display_said(self, Speaker::TAG, f)
+            }
         }
     }
 }
@@ -1160,18 +1156,12 @@ impl Say for AssertionEvent {
 impl core::fmt::Display for AssertionEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::FaceLost { face, .. } => write!(
-                f,
-                "{}",
-                pncad::document::Said(self, Speaker::held(face.said())).sentence()
-            ),
+            Self::FaceLost { face, .. } => {
+                pncad::document::display_said(self, Speaker::held(face.said()), f)
+            }
             Self::SeveralCopies { node, .. } => {
                 let held = HeldNodes::of_nodes(None, [node.clone()]);
-                write!(
-                    f,
-                    "{}",
-                    pncad::document::Said(self, Speaker::held(&held)).sentence()
-                )
+                pncad::document::display_said(self, Speaker::held(&held), f)
             }
         }
     }

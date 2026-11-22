@@ -103,6 +103,7 @@
 //! the path and no re-witnessing: this lane cannot express a document
 //! write, which is a stronger statement than one it does not perform.
 
+use crate::Said;
 use crate::say;
 use crate::sentence;
 use std::collections::BTreeMap;
@@ -760,11 +761,7 @@ impl crate::spoken::Say for ClearanceRefusal {
 /// The refusal where no document is at hand: each node by its tag.
 impl core::fmt::Display for ClearanceRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -947,9 +944,9 @@ impl crate::spoken::Say for SelectionRefusal {
             Self::Frame { node, refusal } => say!(
                 f,
                 by.node(*node),
-                format_args!(
-                    "'s body could not be read into the frame the clearance is asked in: {}",
-                    refusal.kind()
+                sentence!(
+                    "'s body could not be read into the frame the clearance is asked in: ",
+                    Said(&refusal.kind(), by)
                 )
             ),
         }
@@ -959,11 +956,7 @@ impl crate::spoken::Say for SelectionRefusal {
 /// The refusal where no document is at hand: each node by its tag.
 impl core::fmt::Display for SelectionRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            crate::Said(self, crate::spoken::Speaker::TAG).sentence()
-        )
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 

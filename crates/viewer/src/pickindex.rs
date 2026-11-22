@@ -471,11 +471,7 @@ impl Say for IdMapError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for IdMapError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -502,11 +498,7 @@ impl Say for PickIndexError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickIndexError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -554,11 +546,7 @@ impl Say for UndrawnBody {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for UndrawnBody {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3257,12 +3245,23 @@ pub enum VertexNameFault {
     Unnamed(UnnamedEntity),
 }
 
-impl core::fmt::Display for VertexNameFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl pncad::document::Say for VertexNameFault {
+    fn say(
+        &self,
+        f: &mut pncad::document::Sentence,
+        by: pncad::document::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::Lookup(error) => write!(f, "{error}"),
-            Self::Unnamed(error) => write!(f, "{error}"),
+            Self::Unnamed(error) => pncad::document::say!(f, Said(error, by)),
         }
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for VertexNameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        pncad::document::display_said(self, pncad::document::Speaker::TAG, f)
     }
 }
 
@@ -3308,11 +3307,7 @@ impl Say for PatchNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PatchNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3381,11 +3376,7 @@ impl Say for EdgeNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for EdgeNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3450,11 +3441,7 @@ impl Say for EdgeNamesRefused {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for EdgeNamesRefused {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3504,11 +3491,7 @@ impl Say for VertexNamesRefused {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for VertexNamesRefused {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3527,7 +3510,9 @@ impl Say for PickError {
             Self::EdgeName(fault) => {
                 say!(f, "the picked edge has no name: ", Said(fault, by))
             }
-            Self::VertexName(fault) => write!(f, "the picked vertex has no name: {fault}"),
+            Self::VertexName(fault) => {
+                say!(f, "the picked vertex has no name: ", Said(fault, by))
+            }
         }
     }
 }
@@ -3535,11 +3520,7 @@ impl Say for PickError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            pncad::document::Said(self, Speaker::TAG).sentence()
-        )
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 

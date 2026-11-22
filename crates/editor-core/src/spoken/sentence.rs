@@ -4,12 +4,50 @@
 //! into one through [`say!`](crate::say) and the [`Put`] pieces;
 //! [`spell`] is the one spelling of a mention as text.
 
+use core::cell::Cell;
 use core::fmt;
 
 use super::{Said, Say, Speaker, SpokenNode, SpokenVar};
 use crate::DocumentId;
 use crate::names::StableName;
 use crate::node::RecipeNodeId;
+
+std::thread_local! {
+    /// How many sentences this thread is saying now ([`saying`]).
+    static SAYING: Cell<u32> = const { Cell::new(0) };
+}
+
+/// **Runs `say` as a sentence being said**: while it runs, spelling a
+/// sentence as text ([`flattening`]) is a kernel bug, and a debug
+/// assertion (on in every profile) says so.
+pub(crate) fn saying<R>(say: impl FnOnce() -> R) -> R {
+    struct Depth;
+    impl Drop for Depth {
+        fn drop(&mut self) {
+            SAYING.with(|depth| depth.set(depth.get().saturating_sub(1)));
+        }
+    }
+    SAYING.with(|depth| depth.set(depth.get() + 1));
+    let _depth = Depth;
+    say()
+}
+
+/// **The rule a sentence's text keeps** (DESIGN.md Band 1, "Node
+/// labels"): a sentence, and a [`Say`] value's sentence, becomes text
+/// only where no sentence is being said. Inside a `say` body a value
+/// with a sentence is written as a piece — `Said(&value, by)`, or the
+/// sentence itself — so its mentions are kept; spelling it into the
+/// words (`{value}`, `.to_string()`) would make each mention a word the
+/// viewer cannot link. `Arguments` erases the type a `{}` formats, so
+/// this cannot be refused at compile time; it is refused here, on the
+/// one road every such text takes ([`Sentence`]'s `Display`).
+fn flattening() {
+    debug_assert!(
+        SAYING.with(Cell::get) == 0,
+        "a sentence was spelled as text inside a sentence being said, so its mentions became \
+         words: write the value as a piece (`Said(&value, by)`, or the sentence itself)"
+    );
+}
 
 /// A name said ([`Speaker::name`]), for [`Sentence::name`]: the one
 /// spelling of a name in words ([`crate::LeafRole`]), [`SpokenName`]'s
@@ -147,7 +185,7 @@ impl Sentence {
     /// part of a sentence.
     pub(super) fn written(write: impl FnOnce(&mut Sentence) -> fmt::Result) -> Self {
         let mut out = Self::new();
-        let _ = write(&mut out);
+        let _ = saying(|| write(&mut out));
         out
     }
 
@@ -210,7 +248,7 @@ impl Sentence {
     /// None; a sentence's write cannot fail.
     pub fn name(&mut self, said: SaidName<'_>) -> fmt::Result {
         let SaidName(name, by) = said;
-        crate::names::LeafRole(name).say(self, by)
+        saying(|| crate::names::LeafRole(name).say(self, by))
     }
 
     /// Writes `value`'s sentence, each node said by `by`.
@@ -219,7 +257,7 @@ impl Sentence {
     ///
     /// None; a sentence's write cannot fail.
     pub fn say<T: Say + ?Sized>(&mut self, value: &T, by: Speaker<'_>) -> fmt::Result {
-        value.say(self, by)
+        saying(|| value.say(self, by))
     }
 
     /// Writes `words` ([`fmt::Write::write_str`], callable with no
@@ -301,16 +339,35 @@ impl From<&str> for Sentence {
     }
 }
 
-/// Its text: the words, and each mention [`spell`]ed.
+/// Its text: the words, and each mention [`spell`]ed — never inside a
+/// sentence being said ([`flattening`]).
 impl fmt::Display for Sentence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for piece in &self.0 {
-            match piece {
+        flattening();
+        self.spell_into(f)
+    }
+}
+
+impl Sentence {
+    /// Its text, into `f`.
+    fn spell_into(&self, f: &mut dyn fmt::Write) -> fmt::Result {
+        for run in &self.0 {
+            match run {
                 Run::Words(words) => f.write_str(words)?,
                 Run::Mention(mention) => spell(mention, f)?,
             }
         }
         Ok(())
+    }
+
+    /// **Its text as a comparison key**, never shown: how two names'
+    /// words are told apart while a sentence is being said (the detail a
+    /// table says a name at), where spelling the sentence for a reader
+    /// would be a flattening.
+    pub(crate) fn key(&self) -> String {
+        let mut key = String::new();
+        let _ = self.spell_into(&mut key);
+        key
     }
 }
 
@@ -461,7 +518,7 @@ impl Put for geom_core::Recourse<&Sentence> {
 
 impl<T: Say + ?Sized> Put for Said<'_, T> {
     fn put(self, out: &mut Sentence) {
-        let _ = self.0.say(out, self.1);
+        let _ = saying(|| self.0.say(out, self.1));
     }
 }
 
