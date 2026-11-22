@@ -2449,15 +2449,13 @@ these. All are shipped in `editor-core` except where noted:
   node id to label beside the node, never inside it, so it is in
   neither the id's mint nor any content key. One edit sets or clears
   it; it is not unique and never identity (references hold ids, and
-  nothing resolves a label). A kernel sentence names a node as a
-  mention: its id, kind and label, and the document its id is spelled
-  in, read off that document when the sentence is made. Each surface
-  spells a mention. Plain text says a labelled node as its quoted label
-  and tag, `"base plate" (3fa9c1d2a0b1)`, a node with no label as its
-  kind and tag, `Extrude 3fa9c1d2a0b1`, and an id its document does not
-  hold as `node 3fa9c1d2a0b1`. The viewer says it by its label, as a
-  link to the node when the document on screen is the mention's. A
-  spoken label is never one its value can
+  nothing resolves a label). Kernel sentences speak a node as its
+  kind, label and tag, `Extrude "base plate" (3fa9c1d2a0b1)`, or kind
+  and tag when it has none. A sentence carries each node it names as
+  a mention (its id, kind and label, and the document its id is spelled
+  in) rather than as text, so each surface spells it: plain text as
+  above, and the viewer by its label alone, as a link to the node when
+  the document on screen is the mention's. A spoken label is never one its value can
   outlive: a value the evaluation memo reuses holds a label only when
   its memo key fixes that label. A document's own labels are outside
   its evaluation key (a rename re-evaluates nothing), so what it
