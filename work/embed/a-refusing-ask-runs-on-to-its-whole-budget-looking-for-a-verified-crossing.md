@@ -178,3 +178,53 @@ at a fresh subtree root; 33 at the depth floor (40), deep in the walk. In
 ask's first refusal. So a continuation that, after the first refusal,
 probes and splits only non-touching cell pairs would still find 32 of the
 38.
+
+## Evidence: where the straddling distance pairs are (the gate lane, 2026-11-22)
+
+`embed/gate-measure` at `1811b44d1a` (merged with main `b99f71c3da`).
+Each task now carries the reasons of its first and nearest touching
+ancestors that split; each distance split records whether its two faces
+share a cell, and, per face pair, the least upper end of a straddling
+separation and the deepest straddling split with its enclosure. The four
+tests behind the dearest asks (11 refusing asks this run, 3,365 s); the
+depth-floor sample from a partial run (40 asks).
+
+| straddling distance splits | dearest (647,151) | depth-floor sample (18,040) |
+|---|---:|---:|
+| faces share a cell, descending from a touching pair whose certificate split | 20.5% | 53.5% |
+| faces share nothing, no touching ancestor | 79.5% | 46.5% |
+
+The two columns line up exactly: every straddle between faces that share a
+cell descends from a failed touching pair, and no straddle between faces
+that share nothing does.
+
+**The faces that share nothing do not come within the band.** On the
+dearest asks, 52 such face pairs straddle. The least upper end of any of
+their separations is 3.1e-3 m (median 0.14 m): about 3 mm apart at the
+very least, far outside K·ε. Their deepest straddling split is at depth 16
+to 40 (median 17.5), and there the separation's enclosure still has its
+lower end at exactly 0 in all 52 (upper end median 0.27 m; one pair at
+depth 40 reads [0, 4.4e-3]). So the cells' boxes still overlap where the
+surfaces are millimetres to decimetres apart: the enclosures do not
+shrink with the cells. This is neither near-tangency nor the
+neighbourhood of a failed local certificate; it is enclosure looseness on
+these torus, ball and rod bodies.
+
+**Descendants of a failed touching pair, by its reason** (dearest; the
+nearest touching ancestor): one part `Local` in `unread` 77,915, in
+`present_chart` 39,555; one part `Structural` 15,260.
+
+**Per refusing face pair, the spend under the first touching pair whose
+certificate split, by its reason**
+
+| first touching ancestor | dearest: seconds | depth-floor sample |
+|---|---:|---:|
+| none (the share-nothing pairs) | 2,498 (74.6%) | 28% |
+| both parts `Local` in `unread` | 820 (24.5%) | — |
+| both parts `Local` in `present_chart` | 32 (1.0%) | — |
+| both parts `Local` in `present_plane`'s catch-all | — | 72% |
+
+So refusing a touching pair by its reason, descendants included, would
+save about a quarter on the dearest asks and most of the depth-floor
+sample's; the dearest asks' other three quarters are the loose
+enclosures between faces that share nothing.
