@@ -88,3 +88,5 @@ and its DESIGN.md diff writes the frame-only reading.
 A class finding with no home: the placement editor never writes a slid
 far side. Filed as P0 on DOORS:
 `the-placement-editor-cannot-author-an-offset-from-a-face`.
+
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7374 (seat-vocab) merged after a style review with correctness claims and a fix pass. It closes `a-fifth-spelling-of-this-seat-is-empty`, `four-pick-state-vocabularies-in-one-create-module` and the ride-along `a-per-kind-sentence-lives-in-the-widget-not-on-the-choice`. Merged on the fix pass's green CI and the orchestrator's read, without a delta review.
