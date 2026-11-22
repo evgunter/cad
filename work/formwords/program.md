@@ -2,7 +2,7 @@
 id: formwords
 kind: program
 title: FORMWORDS — the viewer forms' shared vocabulary and the body-seat gate they consult
-status: ready
+status: active
 opened: 2026-11-02
 group: gui/author
 prefix: formwords/
@@ -16,10 +16,9 @@ keep_out: [opened 2026-11-02 by FORMS' split (52 of 30) - the rows moved by git 
 *What is this button waiting for*, *is this seat empty*, *how fast
 does this field drag*, *which dimensions have a unit*, *how many ways
 may a circle split*: each question has several homes, and the homes
-already disagree in places. Two rows are the seat gate those forms
-consult: `combine::denotes_body` judges a body seat by node kind
-where the evaluator reads a value, and a projection's source can only
-be picked from the tree.
+already disagree in places. The seat gate those forms consult is the
+other half: what a body seat admits (`session::refuse::admits`), and
+what it means when it is handed a family whole.
 
 Charter and order: `work/formwords/plan.md`; narrative in
 `work/formwords/log.md`.

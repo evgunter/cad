@@ -71,19 +71,23 @@ pub struct Built<T: Real> {
 
 fn cylinder<T: Real>() -> Surface<T> {
     Surface::Cylinder {
-        origin: CYL_ORIGIN.map(T::from_f64),
-        axis: Vec3::new(T::zero(), T::zero(), T::one()),
+        frame: geom::Frame::new(
+            CYL_ORIGIN.map(T::from_f64),
+            Vec3::new(T::zero(), T::zero(), T::one()),
+            Vec3::new(T::one(), T::zero(), T::zero()),
+        ),
         radius: T::from_f64(CYL_RADIUS),
-        u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
     }
 }
 
 fn sphere<T: Real>() -> Surface<T> {
     Surface::Sphere {
-        center: Point3::new(T::zero(), T::zero(), T::zero()),
+        frame: geom::Frame::new(
+            Point3::new(T::zero(), T::zero(), T::zero()),
+            Vec3::new(T::zero(), T::zero(), T::one()),
+            Vec3::new(T::one(), T::zero(), T::zero()),
+        ),
         radius: T::from_f64(SPH_RADIUS),
-        axis: Vec3::new(T::zero(), T::zero(), T::one()),
-        u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
     }
 }
 

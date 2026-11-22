@@ -125,7 +125,8 @@ fn tier_three_refuses_a_hand_flipped_face_sense() {
 fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     // The seed face carrying the honest "no description yet" Nurbs
     // state at rest: tier 1/2 fine, tier 3 rejects it by name (put the
-    // state back through the public setter).
+    // state back through the public setter), by the session box, which
+    // cannot bound a face whose net bounds no region, before check 1.
     let t = geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
     let seed_face = t.seed.face;
@@ -140,10 +141,10 @@ fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     assert_eq!(validate_closed(&body), Ok(()));
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
-        errs.iter().any(|e| matches!(
-            e,
-            topo::ValidationError::UncertifiableSurface { face } if *face == seed_face
-        )),
+        matches!(
+            &errs[..],
+            [topo::ValidationError::SessionBoxUncovered { face, .. }] if *face == seed_face
+        ),
         "{errs:?}"
     );
 }
@@ -313,9 +314,11 @@ fn near_tangent_intersection_attachment_escalates() {
             EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)),
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(0.0, 0.0, 0.0),
-                    normal: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::unit_z(),
+                        Vec3::unit_x(),
+                    ),
                 },
                 sense: true,
             },
@@ -328,9 +331,11 @@ fn near_tangent_intersection_attachment_escalates() {
             seed.face,
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(0.0, 0.0, 0.0),
-                    normal: Vec3::new(0.0, theta.sin(), theta.cos()),
-                    u_ref: Vec3::unit_x(),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, theta.sin(), theta.cos()),
+                        Vec3::unit_x(),
+                    ),
                 },
                 sense: true,
             },

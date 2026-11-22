@@ -336,6 +336,11 @@ pub mod crossing;
 /// body, so beside [`solid_truth`].
 pub mod op_census;
 
+/// The refusals at ε 1e-12 the carrier frames cost (PR 7131), with
+/// their two causes: what a re-pinned row checks of its refusal, so
+/// beside [`op_census`].
+pub mod frame_cost;
+
 use geom::NurbsCurve3;
 use geom_core::{Affine3, Band, Mat3, Point2, Point3, RigidMotion, Tol, UnitVec3, Vec3};
 use profile::{Open, Profile, SketchPlane, Start};
@@ -913,6 +918,11 @@ pub fn to_offset(d: f64) -> sweep::Extrusion<f64> {
     }
 }
 
+/// **The session box's recourse** where the body or its cover reaches
+/// past the box: the geometry moves.
+pub const SESSION_BOX_RECOURSE: &str =
+    "Recourse: place the geometry nearer the origin, or model it at a smaller size";
+
 /// **The session box's refusal** (`[tolerance.units]`): `got`, a door's
 /// answer on a body whose largest `|coordinate|` is `reach`, past the
 /// 1 km box, is its refusal by the box: `OutsideSessionBox`, and its
@@ -921,7 +931,8 @@ pub fn to_offset(d: f64) -> sweep::Extrusion<f64> {
 /// its margin the box's extent less `reach` (to a part in 1e9 of
 /// `reach`); an edge's certification refuses at the first edge past the
 /// box, a point of the body, so its margin lies between that and zero.
-/// `what` names the body.
+/// Its sentence is the box's recourse ([`SESSION_BOX_RECOURSE`]). `what`
+/// names the body.
 ///
 /// # Panics
 ///
@@ -934,9 +945,7 @@ pub fn refused_by_the_session_box<T, E: geom_brep::recourse::Ended + core::fmt::
     let Err(e) = got else {
         panic!("{what}: past the session box, yet the door builds it");
     };
-    let recourse = topo::FindingFamily::SessionBox
-        .recourse()
-        .expect("the box has one recourse");
+    let recourse = SESSION_BOX_RECOURSE;
     let (said, debug) = (
         e.ended(geom_brep::recourse::Reading::Build.into()),
         format!("{e:?}"),
@@ -985,9 +994,7 @@ pub fn refused_as_a_session_box_limit<T, E: core::fmt::Display + core::fmt::Debu
         "{what}: the limit's margin is the box's extent less the cover's reach {cover_reach}, \
          {want}, got {margin}"
     );
-    let recourse = topo::FindingFamily::SessionBox
-        .recourse()
-        .expect("the box has one recourse");
+    let recourse = SESSION_BOX_RECOURSE;
     assert!(
         said.contains(recourse) && said.contains("not built yet"),
         "{what}: the limit says it and the box's recourse: {said}"

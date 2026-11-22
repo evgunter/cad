@@ -10,9 +10,10 @@
 //! bit pattern, and bit patterns are read:
 //!
 //! * the importer compares floats **bitwise** in several places (its
-//!   `to_bits` uses) — among them `adopt::surface_sig`, which restores
-//!   writer-side key sharing, so two records identical as geometry
-//!   would fail to share a key on a printed sign alone; and
+//!   `to_bits` uses) — among them `on_built::bitwise_twin`, which reads
+//!   a printed spline carrier as the wall column it repeats bit for bit
+//!   (`build`'s `column_match`), so a carrier identical to its column as
+//!   geometry would fail to match it on a printed sign alone; and
 //! * the writer prints `-0.0` verbatim while a re-import normalizes it
 //!   back, so an unflushed mint makes the adoption pass fail to be a
 //!   fixed point of the writer over that one printed sign.
@@ -82,47 +83,73 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(plus_zero_point(origin), plus_zero(dir))
         }
-        Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                ..
-            },
-        ) => {
-            let radius = conic_k.radius();
-            Curve3::circle(
-                plus_zero_point(center),
-                plus_zero(axis),
-                radius,
-                plus_zero(u_ref),
-            )
+        // A conic's frame is carried with each `−0` entry folded: the
+        // stored rotation within one kind, never squared again.
+        Curve3::Circle(circle) => {
+            Curve3::Circle(circle.with_frame(circle.frame.map_scalar(fold_signed_zero)))
         }
-        Curve3::Ellipse(
-            ellipse @ geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                ..
-            },
-        ) => {
-            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
-            Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame {
-                    origin: plus_zero_point(center),
-                    axis: plus_zero(axis),
-                    u_ref: plus_zero(u_ref),
-                },
-                semi_u,
-                semi_v,
-            ))
+        Curve3::Ellipse(ellipse) => {
+            Curve3::Ellipse(ellipse.with_frame(ellipse.frame.map_scalar(fold_signed_zero)))
         }
         other => other,
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use geom::Curve3;
+    use geom_core::{Point3, Vec3};
+
+    /// The stored motion's entries, as bits.
+    fn bits(frame: &geom::Frame<f64>) -> Vec<u64> {
+        let m = frame.motion();
+        let o = m.origin();
+        [o.x, o.y, o.z]
+            .into_iter()
+            .chain(
+                [m.u().get(), m.v().get(), m.w().get()]
+                    .into_iter()
+                    .flat_map(|c| [c.x, c.y, c.z]),
+            )
+            .map(f64::to_bits)
+            .collect()
+    }
+
+    /// **A rebuilt import conic keeps its stored frame, each `−0` folded**:
+    /// on tilted frames a rounding off rigid (`Frame::new` of skew
+    /// directions, with `−0` origin and axis entries), the circle's and
+    /// the ellipse's frames come back entry for entry, each `−0` read
+    /// `+0` and nothing else moved. Red under the frame re-squared from
+    /// its folded directions (`Frame::new`, the merge's arm), and under
+    /// the circle rebuilt through `Curve3::circle`.
+    #[test]
+    fn a_rebuilt_import_conic_keeps_its_stored_frame() {
+        let mut moved = 0;
+        for k in 0..512_u32 {
+            let t = f64::from(k) * 0.0123;
+            let frame = geom::Frame::new(
+                Point3::new(-0.0, 1e3 * t.sin(), -0.0),
+                Vec3::new(-0.0, t.cos() + 0.3, t.sin() + 1.7),
+                Vec3::new(1.0 + 0.1 * t.cos(), 0.2 * t.sin(), -0.0),
+            );
+            let want: Vec<u64> = bits(&frame)
+                .into_iter()
+                .map(|b| if b == (-0.0_f64).to_bits() { 0 } else { b })
+                .collect();
+            let circle = super::plus_zero_curve(Curve3::Circle(geom::Circle::new(frame, 2.0)));
+            let ellipse =
+                super::plus_zero_curve(Curve3::Ellipse(geom::Ellipse::new(frame, 3.0, 2.0)));
+            for c in [circle, ellipse] {
+                let got = match &c {
+                    Curve3::Circle(c) => bits(&c.frame),
+                    Curve3::Ellipse(e) => bits(&e.frame),
+                    _ => unreachable!(),
+                };
+                assert_eq!(got, want, "pose {k}: {c:?}");
+            }
+            moved += usize::from(bits(&frame) != want);
+        }
+        assert!(moved > 0, "some pose carries a −0 to fold");
     }
 }

@@ -1140,7 +1140,11 @@ pub enum ValidationError {
     /// (`session_box_reach`) and no point known to lie on it does: the
     /// kernel's bound on its faces' regions is too loose to show the body
     /// in the box. A limit (`[failure.taxonomy]` row 2: a tighter bound
-    /// is not built), not a finding that the body leaves the box.
+    /// is not built), not a finding that the body leaves the box. A body
+    /// with a spindle or spline face can be past the box and refused so:
+    /// the kernel reads no point on such a face
+    /// (`cover::face_extreme_points`), so only its vertices and edges can
+    /// show it past.
     /// Reported alone, as [`Self::OutsideSessionBox`] is.
     SessionBoxUnshown {
         /// The box's extent less the cover's reach, metres (negative).
@@ -1148,12 +1152,21 @@ pub enum ValidationError {
     },
     /// A face of the body has no cover, so the session box cannot bound
     /// its region, and no point known to lie on the body is past the box.
-    /// A limit, as [`Self::SessionBoxUnshown`] is. Reported alone, and at
-    /// the finished-body gate only where tier 3's checks find nothing:
-    /// they name why a carrier or boundary bounds nothing.
+    /// Reported alone, before any of tier 3's checks runs, as
+    /// [`Self::OutsideSessionBox`] is. Its sentence and recourse are its
+    /// cause's ([`uncovered_face`]): an unbounded surface no loop bounds,
+    /// a control net that bounds no region, a datum that is not a finite
+    /// number, or a boundary edge or vertex with no cover. A net that
+    /// bounds no region reads alike whether the face's surface is not
+    /// described yet (a seed face mid-construction) or a value of its
+    /// net bounds nothing, since the cover's refusal does not tell the
+    /// two apart (`work/oneround/a-face-covers-refusal-names-no-placeholder-net.md`);
+    /// its one sentence is true of both.
     SessionBoxUncovered {
         /// The face with no cover (the first, in key order).
         face: FaceKey,
+        /// The cover's own refusal ([`crate::cover::face_cover`]).
+        why: crate::cover::FaceUncovered,
     },
     /// Tier 3: the run's tolerance could not produce a valid
     /// classification band (absurd ε — see `Band::linear`). Reported
@@ -3325,6 +3338,74 @@ pub(crate) const TOLERANCE: &str = geom_brep::recourse::BAND_TOLERANCE_RECOURSE;
 /// the model, not the tolerance, so the geometry moves.
 pub(crate) const SESSION_BOX: &str = geom_brep::session_box::SESSION_BOX_RECOURSE;
 
+/// **What a face with no cover says, and its recourse, by its cause**
+/// ([`ValidationError::SessionBoxUncovered`]), read off the cover's own
+/// refusal: the carrier's first, where it is a net or a datum, else the
+/// boundary's that left an unbounded carrier unread.
+///
+/// - A control net that bounds no region: the face's surface may not be
+///   described yet (a seed face mid-construction), or a value of its net
+///   bounds nothing. The two read alike, so the recourse is the one true
+///   of both: describe the surface.
+/// - A datum that is not a finite number: it describes no locus, which
+///   no construction stores, so the ending is the defect's.
+/// - An unbounded carrier with a boundary edge with no cover: the edge's
+///   own standing ([`crate::cover::EdgeUncovered::refusal`]), a reading
+///   not built yet or a defect; with a lone vertex that is not a finite
+///   point, or with no loop that bounds it, a defect.
+fn uncovered_face(why: &crate::cover::FaceUncovered) -> (String, &'static str) {
+    use crate::cover::BoundaryUnknown;
+    use geom::cover::{Entity, Unknown};
+    let kind = |entity: &Entity| match entity {
+        Entity::Surface(kind) => kind.name(),
+        Entity::Curve(kind) => kind.name(),
+    };
+    let carrier = why.carrier().unknowns();
+    let first = |what: Unknown| {
+        carrier
+            .iter()
+            .find(|(_, u)| *u == what)
+            .map(|(e, _)| kind(e))
+    };
+    if let Some(surface) = first(Unknown::PoisonedNet) {
+        return (
+            format!(
+                "a face's {surface} surface has a control net that bounds no region: its surface \
+                 may not be described yet"
+            ),
+            geom_brep::recourse::PLACEHOLDER_RECOURSE,
+        );
+    }
+    if let Some(surface) = first(Unknown::NonFinite) {
+        return (
+            format!(
+                "a datum of a face's {surface} surface is not a finite number, so it describes no locus"
+            ),
+            DEFECT,
+        );
+    }
+    let surface = carrier.first().map_or("unbounded", |(e, _)| kind(e));
+    match why.boundary().first() {
+        Some(BoundaryUnknown::Edge(_, edge)) => (
+            format!("a face's {surface} surface is unbounded and its boundary is unread: {edge}"),
+            match edge.refusal() {
+                Ok(geom_core::ladder::Refusal::Limit) => geom_core::NOT_YET_ENDING,
+                _ => DEFECT,
+            },
+        ),
+        Some(BoundaryUnknown::Vertex(_)) => (
+            format!(
+                "a face's {surface} surface is unbounded and a lone vertex of its boundary is not a finite point"
+            ),
+            DEFECT,
+        ),
+        None => (
+            format!("a face's {surface} surface is unbounded and no loop of the face bounds it"),
+            DEFECT,
+        ),
+    }
+}
+
 /// The ending of a margin the band could not decide, where a coincidence
 /// between two things has an object to declare: the shared menu
 /// ([`geom_core::COINCIDENCE_RECOURSE`], which
@@ -4692,23 +4773,25 @@ impl ValidationError {
             Self::OutsideSessionBox { margin } => write!(
                 f,
                 "the body reaches {} m past the {SESSION_BOX_EXTENT:e} m session box, which no \
-                 coordinate of a model may exceed (D4 ¶4)",
+                 coordinate of a model may exceed (D4 ¶4). {SESSION_BOX}",
                 margin.readable_below_zero()
             ),
             Self::SessionBoxUnshown { margin } => write!(
                 f,
-                "the region the body's faces may occupy, as the kernel bounds it, reaches {} m \
-                 past the {SESSION_BOX_EXTENT:e} m session box, and no point known to lie on the \
-                 body does: the body may lie inside the box, but a tighter bound of its faces is \
-                 not built yet",
+                "the kernel's bound on the body's faces reaches {} m past the \
+                 {SESSION_BOX_EXTENT:e} m session box, and no point it reads on the body does: \
+                 the body may lie inside the box or past it, and a tighter bound, or a point read \
+                 on such a face, is not built yet. {SESSION_BOX}",
                 margin.readable_below_zero()
             ),
-            Self::SessionBoxUncovered { .. } => write!(
-                f,
-                "a face of the body has no bound on the region it may occupy, so the kernel \
-                 cannot show the body inside the {SESSION_BOX_EXTENT:e} m session box, and no \
-                 point known to lie on the body is past it"
-            ),
+            Self::SessionBoxUncovered { why, .. } => {
+                let (cause, recourse) = uncovered_face(why);
+                write!(
+                    f,
+                    "{cause}, so the kernel cannot show the body inside the \
+                     {SESSION_BOX_EXTENT:e} m session box. {recourse}"
+                )
+            }
             Self::Band { error } => write!(
                 f,
                 "the tolerance the body was checked at is not usable: {}",
@@ -6662,7 +6745,7 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
     let band = Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])?;
-    let uncovered = crate::session_box::asked_before_the_checks(body, band)?;
+    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
     let mut marks = slotmap::SecondaryMap::new();
     let (errors, certificate) = tier3_local_checks_marked(
         body,
@@ -6671,10 +6754,10 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
         plus_v,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
-    match (errors.is_empty(), uncovered) {
-        (true, None) => Ok(certificate),
-        (true, Some(uncovered)) => Err(vec![uncovered]),
-        (false, _) => Err(errors),
+    if errors.is_empty() {
+        Ok(certificate)
+    } else {
+        Err(errors)
     }
 }
 
@@ -8287,9 +8370,10 @@ pub(crate) fn tier3_local_checks_marked<
     // be falsified rather than as a sign to be honored.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(face.surface) else {
+        let Some(&Surface::Plane { frame, .. }) = body.surfaces.get(face.surface) else {
             continue;
         };
+        let normal = frame.axis();
         // The face's outward normal through the one door: the bit is
         // read here for what it CLAIMS (which side is material), and
         // the loop's stored winding is falsified against that claim.
@@ -9050,6 +9134,12 @@ pub(crate) fn joinable_at_rest_errors<T: geom_core::Decide>(
         .collect()
 }
 
+/// [`ring_pairs`]' query.
+const RING_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "validate_ring_pairs",
+    "the rings whose boxes meet a ring's",
+);
+
 /// The pairs `(i, j)`, `j < i`, of `rings` whose padded certified
 /// boxes meet, ascending in `i` and then `j`: the order a loop over
 /// every pair reads them in, less the pairs the boxes clear (D9).
@@ -9094,7 +9184,7 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
     let tree = bvh::Bvh::build(&boxes);
     let mut pairs = Vec::new();
     for (k, ring_box) in boxes.iter().enumerate() {
-        for m in tree.overlapping(ring_box) {
+        for m in tree.overlapping(RING_PAIRS, ring_box) {
             if m < k {
                 pairs.push((index[k], index[m]));
             }
@@ -9858,7 +9948,7 @@ fn ring_outer_meeting<T: Decide>(
         crate::contain::loop_circle(body, ring, band),
     ) {
         return match circle_pair(
-            circles_of(o.frame.origin, o.radius(), r.frame.origin, r.radius()),
+            circles_of(o.frame.origin(), o.radius(), r.frame.origin(), r.radius()),
             band,
         ) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
@@ -10000,15 +10090,15 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
         }
         geom::Curve3::Circle(
             circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame: carrier_frame_47,
                 ..
             },
         ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_47.origin(),
+                carrier_frame_47.axis(),
+                carrier_frame_47.u_ref(),
+            );
             let radius = circle.radius();
             let (t0, t1) = geom.params();
             MeetSegment::Arc {
@@ -10342,11 +10432,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             t1,
         } => {
             let carrier = geom::Curve3::Circle(geom::Circle::new(
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+                geom::Frame::new(center, axis, u_ref),
                 radius,
             ));
             let span = geom_brep::curve_pair::Span::new(&carrier, (t0, t1));
@@ -10382,7 +10468,10 @@ fn plane_chart_normal<T: Real>(
     surface: crate::geometry::SurfaceKey,
 ) -> Option<geom_core::Vec3<T>> {
     match body.surfaces.get(surface) {
-        Some(&Surface::Plane { normal, .. }) => Some(normal),
+        Some(&Surface::Plane { frame, .. }) => {
+            let normal = frame.axis();
+            Some(normal)
+        }
         _ => None,
     }
 }
@@ -10561,21 +10650,12 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
-        geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                ..
-            },
-        ) => {
+        geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let radius = circle.radius();
             let (along, rho) = geom::Line {
-                origin: *center,
-                dir: *axis,
+                origin: center,
+                dir: axis,
             }
             .height_and_distance(p);
             let radial = rho - radius;
@@ -11029,13 +11109,10 @@ fn pseudomanifold_certificate_via<
     // predicate ([`structural_via`]), so a body past it refuses here as
     // there, and a tier-3′ pass records the one decision a finish then a
     // census over a kept verdict records.
-    let uncovered = crate::session_box::asked_before_the_checks(body, band)?;
+    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
     let (errors, certificate) = tier3_local_checks(body, tol, quad_lane);
     if !errors.is_empty() {
         return Err(errors);
-    }
-    if let Some(uncovered) = uncovered {
-        return Err(vec![uncovered]);
     }
     census_verdict(body, contacts, band, tol, region)?;
     Ok(certificate_of_a_clean_verdict(certificate))
@@ -12085,22 +12162,27 @@ mod tests {
         let face = FaceKey::default();
         let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
         let plane = |normal: Vec3<f64>| Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal,
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), normal, Vec3::unit_y()),
         };
         let cone = |half_angle: f64| Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
             half_angle,
-            u_ref: Vec3::unit_x(),
         };
         let half_pi = core::f64::consts::FRAC_PI_2;
-        let normal_verdict = vec![ValidationError::PoisonedSurfaceDatum {
-            face,
-            kind: K::Plane,
-            datum: D::Normal,
-        }];
+        // A normal that is not a number poisons the seam squared against
+        // it too.
+        let normal_verdict = vec![
+            ValidationError::PoisonedSurfaceDatum {
+                face,
+                kind: K::Plane,
+                datum: D::Normal,
+            },
+            ValidationError::PoisonedSurfaceDatum {
+                face,
+                kind: K::Plane,
+                datum: D::URef,
+            },
+        ];
         let rows: Vec<(&str, Surface<f64>, Vec<ValidationError>)> = vec![
             (
                 "zero normal",
@@ -13745,17 +13827,13 @@ mod tests {
         use geom_core::Vec3;
         let band = Band::linear(Tol::witness()).unwrap();
         let plane = |normal: Vec3<f64>, u_ref| Surface::Plane {
-            origin: Point3::origin(),
-            normal,
-            u_ref,
+            frame: geom::Frame::new(Point3::origin(), normal, u_ref),
         };
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
         let wall = plane(Vec3::unit_x(), Vec3::unit_y());
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: std::f64::consts::FRAC_PI_6,
-            u_ref: Vec3::unit_x(),
         };
         let theta = 3.0 * Tol::witness().get().eps;
         let tilted = plane(Vec3::new(theta.sin(), 0.0, theta.cos()), Vec3::unit_y());
@@ -14772,10 +14850,12 @@ mod tests {
                     bottom,
                     crate::construction::FaceSurface::New {
                         surface: crate::Surface::Cone {
-                            apex,
-                            axis: geom_core::Vec3::new(1.0, 0.0, 0.0),
+                            frame: geom::Frame::new(
+                                apex,
+                                geom_core::Vec3::new(1.0, 0.0, 0.0),
+                                geom_core::Vec3::new(0.0, 0.0, -1.0),
+                            ),
                             half_angle: alpha,
-                            u_ref: geom_core::Vec3::new(0.0, 0.0, -1.0),
                         },
                         sense: true,
                     },
@@ -14926,9 +15006,7 @@ mod tests {
             }
             let centre = frame.origin + frame.axis * v0;
             let plane = body.add_surface(geom::Surface::Plane {
-                origin: centre,
-                normal: frame.axis,
-                u_ref: frame.u_ref,
+                frame: geom::Frame::new(centre, frame.axis, frame.u_ref),
             });
             let (axis, seam, t0, t1) = if u1 > u0 {
                 (frame.axis, frame.u_ref, u0, u1)
@@ -15245,11 +15323,7 @@ mod tests {
         let radius = (s - center).norm();
         let u_ref = (s - center) / radius;
         let carrier = geom::Curve3::Circle(geom::Circle::new(
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            geom::Frame::new(center, axis, u_ref),
             radius,
         ));
         let spec =
@@ -15721,9 +15795,10 @@ mod tests {
             )
         {
             let f = body.get_face(face).unwrap();
-            let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(f.surface) else {
+            let Some(&Surface::Plane { frame, .. }) = body.surfaces.get(f.surface) else {
                 panic!("a plane")
             };
+            let normal = frame.axis();
             let render = |v: RingNestingVerdict| match v {
                 RingNestingVerdict::Inside => "Inside".to_string(),
                 RingNestingVerdict::Outside { ring_vertex } => format!("Outside({ring_vertex:?})"),
@@ -15935,9 +16010,10 @@ mod tests {
             });
             b.faces.get_mut(face).unwrap().rings.push(lone);
             let f = b.get_face(face).unwrap();
-            let Some(&Surface::Plane { normal, .. }) = b.surfaces.get(f.surface) else {
+            let Some(&Surface::Plane { frame, .. }) = b.surfaces.get(f.surface) else {
                 panic!("a plane")
             };
+            let normal = frame.axis();
             let verdict = ring_nesting(&b, f.outer, lone, normal, band);
             if outside {
                 assert!(
@@ -16305,9 +16381,11 @@ mod tests {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
         let spiric = geom::Curve3::Spiric {
-            center: Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
-            u_ref: geom_core::Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
             major_radius: 2.0,
             minor_radius: 1.0,
             offset: 0.5,
@@ -16316,16 +16394,20 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.5, 0.0, 0.0),
-            normal: geom_core::Vec3::unit_x(),
-            u_ref: geom_core::Vec3::unit_y(),
+            frame: geom::Frame::new(
+                Point3::new(0.5, 0.0, 0.0),
+                geom_core::Vec3::unit_x(),
+                geom_core::Vec3::unit_y(),
+            ),
         });
         let torus = body.add_surface(Surface::Torus {
-            center: Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                geom_core::Vec3::unit_z(),
+                geom_core::Vec3::unit_x(),
+            ),
             major_radius: 2.0,
             minor_radius: 1.0,
-            u_ref: geom_core::Vec3::unit_x(),
         });
         let arc = body
             .mev(
@@ -16514,11 +16596,7 @@ mod tests {
             })
             .expect("one sense of the circle is the arc asked for");
         let carrier = geom::Curve3::Circle(geom::Circle::new(
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+            geom::Frame::new(center, axis, u_ref),
             radius,
         ));
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1).unwrap();
@@ -19115,11 +19193,13 @@ mod door_roster {
             let face = body.faces().next().unwrap().0;
             let key = body.get_face(face).unwrap().surface;
             *body.surfaces.get_mut(key).unwrap() = geom::Surface::Spindle {
-                center: geom_core::Point3::new(0.5, 0.5, 0.5),
-                axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    geom_core::Point3::new(0.5, 0.5, 0.5),
+                    geom_core::Vec3::new(0.0, 0.0, 1.0),
+                    geom_core::Vec3::new(1.0, 0.0, 0.0),
+                ),
                 major_radius,
                 minor_radius: 0.5,
-                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
             };
             crate::AtRestBody::validate(body, tol)
                 .err()
@@ -19176,11 +19256,13 @@ mod door_roster {
             .unwrap();
         let key = body.get_face(face).unwrap().surface;
         *body.surfaces.get_mut(key).unwrap() = geom::Surface::Spindle {
-            center,
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                center,
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius,
             minor_radius,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
         crate::AtRestBody::validate(body, tol)
             .err()
@@ -19294,11 +19376,13 @@ mod door_roster {
         assert_eq!(geom::spindle_sheet(major, minor, band), Ok(()));
         let center = geom_core::Point3::new(0.5, 0.5, 1.0);
         let sheet = geom::Surface::Spindle {
-            center,
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                center,
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: major,
             minor_radius: minor,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
         let poles = crate::chart::Chart::of(&sheet).unwrap().poles();
         assert_eq!(poles.len(), 1, "{poles:?}");

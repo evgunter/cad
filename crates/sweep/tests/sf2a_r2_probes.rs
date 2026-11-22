@@ -183,9 +183,10 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     };
     let mut moves: Vec<ChartMove<f64>> = Vec::new();
     for (k, _) in chamfered.faces() {
-        let Some(Surface::Plane { origin, normal, .. }) = chamfered.face_surface(k) else {
+        let Some(Surface::Plane { frame, .. }) = chamfered.face_surface(k) else {
             panic!("a chamfered cube carries planes only");
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         let nonzero = normal.to_array().iter().filter(|v| v.abs() > 1e-9).count();
         let dist = match nonzero {
             1 => t, // a shrunk cube face
@@ -294,9 +295,10 @@ fn r2a_a_face_named_twice_across_moves() {
     let centroid = (1.0, 1.5, 2.0);
     let mut moves: Vec<ChartMove<f64>> = Vec::new();
     for (k, _) in body.faces() {
-        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(k) else {
+        let Some(Surface::Plane { frame, .. }) = body.face_surface(k) else {
             panic!("a box is planes");
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         let toward_inside = normal.x * (centroid.0 - origin.x)
             + normal.y * (centroid.1 - origin.y)
             + normal.z * (centroid.2 - origin.z);
@@ -348,9 +350,10 @@ fn r2a_one_move_spanning_two_planes() {
     let centroid = (1.0, 1.5, 2.0);
     let mut per_face: Vec<(FaceKey, f64)> = Vec::new();
     for (k, _) in body.faces() {
-        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(k) else {
+        let Some(Surface::Plane { frame, .. }) = body.face_surface(k) else {
             panic!("a box is planes");
         };
+        let (origin, normal) = (frame.origin(), frame.axis());
         let toward_inside = normal.x * (centroid.0 - origin.x)
             + normal.y * (centroid.1 - origin.y)
             + normal.z * (centroid.2 - origin.z);

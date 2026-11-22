@@ -1801,12 +1801,15 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             margin: geom_core::MarginDiag::value(-75.0),
         },
     ));
-    s.push((
-        "SessionBoxUncovered".into(),
-        ValidationError::SessionBoxUncovered {
-            face: crate::entity::FaceKey::default(),
-        },
-    ));
+    for (cause, why) in session_box_uncovered_causes() {
+        s.push((
+            format!("SessionBoxUncovered({cause})"),
+            ValidationError::SessionBoxUncovered {
+                face: crate::entity::FaceKey::default(),
+                why,
+            },
+        ));
+    }
     s.push((
         "Unmovable".into(),
         ValidationError::Unmovable {
@@ -2390,6 +2393,51 @@ fn touch_reasons() -> impl Iterator<Item = crate::link::TouchUnread> {
                 .filter(|&c| c != crate::link::CurvedUnread::default())
                 .map(crate::link::TouchUnread::Curved),
         )
+}
+
+/// One face-cover refusal per cause class the session box names
+/// ([`ValidationError::SessionBoxUncovered`]): a net that bounds no
+/// region, a datum that is not a finite number, an unbounded carrier
+/// with a boundary edge not built yet, one with a defective edge, one
+/// with a lone vertex that is no point, and one no loop bounds.
+fn session_box_uncovered_causes() -> Vec<(&'static str, crate::cover::FaceUncovered)> {
+    use crate::cover::{BoundaryUnknown, EdgeUncovered, FaceUncovered};
+    use geom::cover::{Entity, Uncovered, Unknown};
+    let surface = |kind, what| Uncovered::new(Entity::Surface(kind), what);
+    let plane = || surface(geom::SurfaceKind::Plane, Unknown::Unbounded);
+    let edge = crate::entity::EdgeKey::default();
+    vec![
+        (
+            "net",
+            FaceUncovered::of_carrier(surface(geom::SurfaceKind::Nurbs, Unknown::PoisonedNet)),
+        ),
+        (
+            "datum",
+            FaceUncovered::of_carrier(surface(geom::SurfaceKind::Torus, Unknown::NonFinite)),
+        ),
+        (
+            "edge not built",
+            FaceUncovered::with_boundary(
+                plane(),
+                vec![BoundaryUnknown::Edge(edge, EdgeUncovered::Scaffold)],
+            ),
+        ),
+        (
+            "edge defect",
+            FaceUncovered::with_boundary(
+                plane(),
+                vec![BoundaryUnknown::Edge(edge, EdgeUncovered::Ends)],
+            ),
+        ),
+        (
+            "vertex",
+            FaceUncovered::with_boundary(
+                plane(),
+                vec![BoundaryUnknown::Vertex(crate::entity::VertexKey::default())],
+            ),
+        ),
+        ("no loop", FaceUncovered::of_carrier(plane())),
+    ]
 }
 
 #[cfg(test)]

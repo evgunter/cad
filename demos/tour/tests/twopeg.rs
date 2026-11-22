@@ -67,7 +67,8 @@ mod rounded_mate {
         let hits: Vec<_> = body
             .faces()
             .filter(|(fk, _)| match body.face_surface(*fk) {
-                Some(pncad::geom::Surface::Plane { origin, normal, .. }) => {
+                Some(pncad::geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     let facing = normal.z.f();
                     facing.abs() > 0.5 && (facing > 0.0) == up && (origin.z.f() - z).abs() < 1e-12
                 }

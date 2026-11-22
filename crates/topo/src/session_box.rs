@@ -26,9 +26,9 @@
 //! ([`ValidationError::SessionBoxUnshown`],
 //! [`ValidationError::SessionBoxUncovered`]). The finished-body gate,
 //! tier 3′, every move's image and the door that places a body
-//! ([`in_session_box_at`]) all ask it. The gate and tier 3′ refuse a
-//! face with no cover after their checks, which name why it bounds
-//! nothing ([`asked_before_the_checks`]).
+//! ([`in_session_box_at`]) all ask it, the gate and tier 3′ before
+//! their checks: each refusal is reported alone, a face with no cover
+//! with the cover's own refusal.
 //!
 //! **What is decided before the box admits.** Stage 1 decides nothing
 //! but its own margin. Stage 3 admits nothing: it chooses which refusal.
@@ -264,28 +264,6 @@ pub(crate) fn in_session_box<T: Decide>(body: &Body<T>, band: Band) -> Result<()
     past_its_carriers(body, reads.points, band)
 }
 
-/// **[`in_session_box`] as the finished-body gate and tier 3′ ask it,
-/// before their checks**: a body past the box, or shown in it by no
-/// cover, refuses first and alone; a face with no cover
-/// ([`ValidationError::SessionBoxUncovered`]) is handed back, to refuse
-/// after the checks, which name why its carrier or boundary bounds
-/// nothing (check 1 names a poisoned or placeholder carrier). The body
-/// is refused either way.
-///
-/// # Errors
-///
-/// The box's other refusals, as [`in_session_box`] gives them.
-pub(crate) fn asked_before_the_checks<T: Decide>(
-    body: &Body<T>,
-    band: Band,
-) -> Result<Option<ValidationError>, Vec<ValidationError>> {
-    match in_session_box(body, band) {
-        Ok(()) => Ok(None),
-        Err(uncovered @ ValidationError::SessionBoxUncovered { .. }) => Ok(Some(uncovered)),
-        Err(finding) => Err(vec![finding]),
-    }
-}
-
 /// **`session_box_reach` of `body` where it stands under `motion`**:
 /// [`in_session_box`] of its image, read off the body unmoved
 /// ([`reads_at`]) where its carriers and boundaries bound it in the box,
@@ -346,7 +324,7 @@ fn past_its_carriers<T: Decide>(
     geom_brep::session_box::region_in_box(cover, inside, band).map_err(|refusal| match refusal {
         BoxRefusal::Point { margin } => ValidationError::OutsideSessionBox { margin },
         BoxRefusal::Unshown { margin } => ValidationError::SessionBoxUnshown { margin },
-        BoxRefusal::Uncovered((face, _)) => ValidationError::SessionBoxUncovered { face },
+        BoxRefusal::Uncovered((face, why)) => ValidationError::SessionBoxUncovered { face, why },
     })
 }
 
@@ -755,5 +733,87 @@ mod tests {
                 None => assert!(gate.is_ok() && door.is_none(), "the apex 0.5 m inside"),
             }
         }
+    }
+
+    /// **A face with no cover refuses at the gate, alone and by its
+    /// cause**, before any of tier 3's checks runs, at tier 3 and at
+    /// tier 3′. One body per cause class that reaches the gate:
+    ///
+    /// - a cube whose faces are the seed's placeholder NURBS (a net that
+    ///   bounds no region): "its surface may not be described yet",
+    ///   ending in the placeholder's recourse;
+    /// - a sphere cap whose radius is NaN (a datum that is not a finite
+    ///   number): the defect ending;
+    /// - a brick with one vertex at NaN (a plane face whose boundary
+    ///   edge has no cover): the defect ending.
+    ///
+    /// A lone-vertex loop whose point is NaN never reaches the box: tier 2
+    /// refuses it as scaffolding first, as it does a face no loop bounds
+    /// and a null edge, so those causes are not met at the gate. *Breaks
+    /// if* the box's refusal is deferred behind the checks (check 1 then
+    /// names the net or the datum, and the brick's checks their own
+    /// findings), or reported beside them.
+    #[test]
+    fn a_face_with_no_cover_refuses_at_the_gate_alone_by_its_cause() {
+        let tol = Tol::witness();
+        let net = crate::test_support_fixtures::declined_cube::<f64>(tol).body;
+        let (mut datum, cap) = crate::test_support_fixtures::sphere_cap(0.5, tol);
+        let key = datum.get_face(cap).unwrap().surface;
+        let Some(Surface::Sphere { radius, .. }) = datum.surfaces.get_mut(key) else {
+            panic!("the cap's carrier is a sphere");
+        };
+        *radius = f64::NAN;
+        let mut edge = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let corner = edge.vertices().next().unwrap().1.point;
+        *edge.points.get_mut(corner).unwrap() = Point3::new(f64::NAN, 0.0, 0.0);
+        let records = Default::default();
+        for (what, body, says, ends) in [
+            (
+                "the placeholder cube",
+                &net,
+                "a face's nurbs surface has a control net that bounds no region: its surface may \
+                 not be described yet",
+                geom_brep::recourse::PLACEHOLDER_RECOURSE,
+            ),
+            (
+                "the NaN-radius cap",
+                &datum,
+                "a datum of a face's sphere surface is not a finite number",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "the NaN-cornered brick",
+                &edge,
+                "a face's plane surface is unbounded and its boundary is unread: an end vertex of \
+                 the edge is not a finite point",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+        ] {
+            for (tier, errors) in [
+                ("tier 3", crate::validate::validate_geometric(body, tol)),
+                (
+                    "tier 3′",
+                    crate::validate::validate_pseudomanifold(body, &records, tol),
+                ),
+            ] {
+                let errors = errors.expect_err(what);
+                let [ValidationError::SessionBoxUncovered { .. }] = &errors[..] else {
+                    panic!("{what}, {tier}: the box's refusal, alone: {errors:?}");
+                };
+                let said = errors[0].to_string();
+                assert!(
+                    said.starts_with(says) && said.contains("session box") && said.ends_with(ends),
+                    "{what}, {tier}: {said}"
+                );
+            }
+        }
+        let (mut ring, _, lone) = crate::test_support_fixtures::box_with_a_lone_ring(tol);
+        let at = ring.get_vertex(lone).unwrap().point;
+        *ring.points.get_mut(at).unwrap() = Point3::new(f64::NAN, 0.5, 1.0);
+        let errors = crate::validate::validate_geometric(&ring, tol).unwrap_err();
+        assert!(
+            matches!(&errors[..], [ValidationError::ScaffoldingEmptyLoop { .. }]),
+            "tier 2 refuses the lone ring before the box: {errors:?}"
+        );
     }
 }

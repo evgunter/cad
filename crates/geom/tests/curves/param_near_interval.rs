@@ -212,17 +212,17 @@ fn the_line_arm_has_no_cut_to_widen_at() {
 fn the_anchored_form_costs_the_lane_a_few_ulps_and_no_selection() {
     let (carrier64, carrier) = pair();
     let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+        frame: carrier_frame,
         ..
     }) = carrier
     else {
         panic!("a circle fixture")
     };
+    let (center, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let v_ref = axis.cross(u_ref);
     for near in [0.0_f64, 0.3, 1.0, 2.031_350_318_476_219_4, 3.0] {
         for delta in [-1.0_f64, -0.1, 0.0, 0.1, 1.0] {

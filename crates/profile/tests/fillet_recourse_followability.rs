@@ -624,7 +624,7 @@ fn the_offset_lever_recourse_reaches_the_caller_at_its_own_site() {
 /// At (2) the corner is not degenerate at all, which is what the
 /// sentence used to assert: the identical carriers with a leg long
 /// enough to take the setback build and validate. That is the clause the
-/// sentence now names — give the shorter leg a longer extent — and it is
+/// sentence now names — lengthen the shorter leg — and it is
 /// executed here. The reviewer rows
 /// `review_fillet_recourse_arm_r1_probes::the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle`
 /// and

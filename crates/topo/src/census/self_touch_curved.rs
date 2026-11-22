@@ -98,7 +98,7 @@ fn seat(c: Point3<f64>, at: Seat, edges: [[f64; 3]; 3]) -> (Body<f64>, VertexKey
                     matches!(
                         body.curves.get(edge.curve).and_then(crate::null::CurveGeom::certified)
                             .map(|c| c.carrier().clone()),
-                        Some(geom::Curve3::Circle(arc)) if (arc.frame.origin.z - c.z).abs() < 1e-12
+                        Some(geom::Curve3::Circle(arc)) if (arc.frame.origin().z - c.z).abs() < 1e-12
                     )
                 })
                 .map(|(k, _)| k)
@@ -349,15 +349,11 @@ fn a_cusp_corner_is_read_one_order_down() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(a, true).unwrap();
     let plane = body.add_surface(geom::Surface::Plane {
-        origin: o,
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(o, Vec3::unit_z(), Vec3::unit_x()),
     });
     let wall = body.add_surface(geom::Surface::Cylinder {
-        origin: o,
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(o, Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     });
     let arc = body
         .mev(
@@ -653,9 +649,7 @@ fn thorn_and_corner(c: Point3<f64>, edges: [Vec3<f64>; 3]) -> (Body<f64>, Vertex
         body.set_edge_curve(e, spec, tol).unwrap();
     }
     let plane = |origin: Point3<f64>, normal: Vec3<f64>, u_ref: Vec3<f64>| geom::Surface::Plane {
-        origin,
-        normal,
-        u_ref,
+        frame: geom::Frame::new(origin, normal, u_ref),
     };
     let faces: Vec<FaceKey> = body.faces().map(|(f, _)| f).collect();
     for f in faces {
@@ -672,10 +666,8 @@ fn thorn_and_corner(c: Point3<f64>, edges: [Vec3<f64>; 3]) -> (Body<f64>, Vertex
             (false, true, true, true) => (plane(base, x, Vec3::unit_y()), true),
             (true, false, true, true) => (
                 geom::Surface::Sphere {
-                    center: centre,
+                    frame: geom::Frame::new(centre, x, Vec3::unit_y()),
                     radius,
-                    axis: x,
-                    u_ref: Vec3::unit_y(),
                 },
                 false,
             ),

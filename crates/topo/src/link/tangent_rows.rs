@@ -57,14 +57,16 @@ fn edges(n: usize) -> Vec<EdgeKey> {
 
 fn plane(n: Vec3<f64>) -> geom::Surface<f64> {
     geom::Surface::Plane {
-        origin: Point3::origin(),
-        normal: n,
-        u_ref: (if n.z.abs() < 0.9 {
-            n.cross(v(0.0, 0.0, 1.0))
-        } else {
-            n.cross(v(1.0, 0.0, 0.0))
-        })
-        .normalize(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            n,
+            (if n.z.abs() < 0.9 {
+                n.cross(v(0.0, 0.0, 1.0))
+            } else {
+                n.cross(v(1.0, 0.0, 0.0))
+            })
+            .normalize(),
+        ),
     }
 }
 
@@ -72,10 +74,8 @@ fn plane(n: Vec3<f64>) -> geom::Surface<f64> {
 /// tangent plane there `z = 0`.
 fn sphere(c: f64) -> geom::Surface<f64> {
     geom::Surface::Sphere {
-        center: Point3::new(0.0, 0.0, c),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, c), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
         radius: c.abs(),
-        axis: v(0.0, 0.0, 1.0),
-        u_ref: v(1.0, 0.0, 0.0),
     }
 }
 
@@ -84,10 +84,12 @@ fn sphere(c: f64) -> geom::Surface<f64> {
 /// `z = 0`.
 fn cylinder() -> geom::Surface<f64> {
     geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, -1.0),
-        axis: v(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, -1.0),
+            v(1.0, 0.0, 0.0),
+            v(0.0, 0.0, 1.0),
+        ),
         radius: 1.0,
-        u_ref: v(0.0, 0.0, 1.0),
     }
 }
 
@@ -339,10 +341,8 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
 /// A ball of radius `r` about `c`, its axis `a`.
 fn ball(c: Point3<f64>, r: f64, a: Vec3<f64>) -> geom::Surface<f64> {
     geom::Surface::Sphere {
-        center: c,
+        frame: geom::Frame::new(c, a, a.cross(v(0.3, -0.7, 0.2)).normalize()),
         radius: r,
-        axis: a,
-        u_ref: a.cross(v(0.3, -0.7, 0.2)).normalize(),
     }
 }
 
@@ -577,16 +577,16 @@ fn corner_on(other: geom::Surface<f64>, sense: bool) -> TouchVerdict {
 fn a_line_in_a_huge_carriers_plane_is_kept_only_along_a_ruling() {
     let big = 1e9;
     let sphere = geom::Surface::Sphere {
-        center: Point3::new(0.0, 0.0, -big),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, -big),
+            v(0.0, 0.0, 1.0),
+            v(1.0, 0.0, 0.0),
+        ),
         radius: big,
-        axis: v(0.0, 0.0, 1.0),
-        u_ref: v(1.0, 0.0, 0.0),
     };
     let tube = |axis: Vec3<f64>| geom::Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, -big),
-        axis,
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, -big), axis, v(0.0, 0.0, 1.0)),
         radius: big,
-        u_ref: v(0.0, 0.0, 1.0),
     };
     let refused = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let fall = 0.5 / big;
