@@ -32,3 +32,15 @@ A slow-set test whose input is a shared list (a fixture corpus, a census table, 
 ## Done when
 
 A diff that adds an entry to a shared fixture list runs, on its PR, the slow-set rows that iterate that list.
+
+## Not closed by the file rule (GREEN `green/slow-row-selection`, 2026-11-21)
+
+The slow-set step now also selects a slow row whose own file the diff
+edits (`scripts/slow_set.py`, `is_edited`), and a file whose string
+literals spell an edited data file's name. Neither reaches this row:
+replaying PR 7077's merge `d1d7edf0fd` with only
+`crates/step-export/tests/common/mod.rs` and
+`crates/step-import/tests/common/mod.rs` in the diff selects nothing
+through them (`step-export:file:common` names a module no slow row's path
+carries). A helper module's edit reaches its readers only when it moves an
+item another file names, which needs item-level reading across files.

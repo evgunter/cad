@@ -2,12 +2,14 @@
 id: the-plane-and-sphere-conic-pairs-on-the-section-value
 kind: unit
 title: Plane × sphere, sphere × sphere and plane × cylinder are built on the section value and ride the carried lane; their frame arms retire
-status: dispatched
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: H
 parent: conic-germ-pairs-rank-by-the-frames-turn-not-the-foot-parameter
 branch: sectcone/conic-pairs-on-the-value
+closed: 2026-11-22
+pr: 7354
 ---
 
 
@@ -39,3 +41,13 @@ The first of three units on `conic-germ-pairs-rank-by-the-frames-turn-not-the-fo
 **Coupling:** ONEROUND's open PRs 7228 (`oneround/lever-sites-topo`) and 7262 (`oneround/turn-lever`) edit `join.rs`'s `frame_lever` and `frame_reading`, and 7203 edits `pair_section.rs`. Run `python3 scripts/work.py territory --base origin/main`, read those PRs' diffs before you edit the same functions, and say in the PR how the two interact.
 
 **Owed by U3, not this unit:** a germ along a conic edge has no face-pair section (`along_edge_conic` → `germ_section_loops`, and `germ_branch`'s `Only` lane). So "the turn lane is gone" needs a foot ordering on the edge's carrier for it.
+
+## Closed (2026-11-22, PR 7354)
+
+Plane × sphere, sphere × sphere and plane × cylinder are built on the section value (`pair_section/conic_pairs.rs`) and ride the carried lane. Their frame arms, `GermLane::Radical`, `FrameExtent::Wall`, `chord_join::wall_face_section` and the section certificate's three hand classifiers retired.
+
+- **Foot-slack fork:** weighed by two designers (log, 2026-11-22). No along-section slack is owed. The join's foot travel meters at a certified-positive speed floor between the two feet (`FootSpeed`, `speed_between`), and a foot tie is a decided tie.
+- **Review:** single FULL Opus review, APPROVE-WITH-FIXES with two MAJORs, both fixed with rows that were red before the fix:
+  - the glue face filter dropped implicit faces against spline partners;
+  - an unguarded speed floor.
+- **Still open:** the germs along a conic edge keep the turn lane, which is U3's on the parent row.
