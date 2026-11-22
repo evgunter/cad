@@ -761,13 +761,12 @@ impl<T: Real> UnitVec3<T> {
     /// **The unit chord along `v`, and its length**: `v / |v|` and `|v|`
     /// ([`Vec3::direction_and_length`], read through its one prescale),
     /// unit over the reals wherever `v` is not zero. Nothing is decided
-    /// and nothing measured, so no band and no refusal: a chord with no
-    /// direction is poison, the direction and its length both, in a
-    /// release build as in a debug one. That is a zero chord (`0/0`), a
-    /// chord with an entry that is not finite, and a finite one whose
-    /// length overflows the format: a component's value read as
-    /// unbounded or no number poisons all three and the length, never
-    /// one of them.
+    /// and nothing measured, so no band and no refusal, in a release build
+    /// as in a debug one. A zero chord has no direction: its quotient is
+    /// `0/0`, poison, beside its true length, zero, which a span reader
+    /// refuses typed. A chord with an entry that is not finite, or whose
+    /// length overflows the format, has neither: the direction and the
+    /// length are both poison, never one component of them.
     #[must_use]
     pub fn chord(v: Vec3<T>) -> (Self, T) {
         let (d, len) = v.direction_and_length();
@@ -776,7 +775,7 @@ impl<T: Real> UnitVec3<T> {
                 .ends()
                 .is_some_and(|(lo, hi)| lo.is_finite() && hi.is_finite())
         };
-        if finite(len) && finite(d.x) && finite(d.y) && finite(d.z) {
+        if finite(len) && finite(v.x) && finite(v.y) && finite(v.z) {
             (Self(d), len)
         } else {
             (Self::poisoned(), crate::poison())
@@ -1563,10 +1562,11 @@ mod stated_rows {
     /// **A refuted direction is poison in every build**: a chord of
     /// length 5, a NaN entry, and an enclosure that holds no unit vector
     /// each come out of the door poisoned, never a direction carried on,
-    /// with no debug assertion between; and a chord with no direction (its
-    /// length overflowed, an entry infinite, or zero) is poison whole, its
-    /// length too. Red under the door adopting a value its measurement
-    /// refutes, and under the chord keeping a half-poisoned direction.
+    /// with no debug assertion between; a chord whose length overflowed or
+    /// with an infinite entry is poison whole, its length too, and a zero
+    /// chord's direction is poison beside its length, zero. Red under the
+    /// door adopting a value its measurement refutes, and under the chord
+    /// keeping a half-poisoned direction.
     #[test]
     fn a_refuted_direction_is_poison_in_every_build() {
         let poisoned = |u: UnitVec3<f64>| {
@@ -1587,11 +1587,12 @@ mod stated_rows {
                 "a chord whose length overflows",
             ),
             (Vec3::new(f64::INFINITY, 1.0, 0.0), "an infinite entry"),
-            (Vec3::new(0.0, 0.0, 0.0), "a zero chord"),
         ] {
             let (d, len) = UnitVec3::chord(v);
             assert!(poisoned(d) && len.is_nan(), "{what}: {d:?}, {len}");
         }
+        let (d, len) = UnitVec3::chord(Vec3::new(0.0, 0.0, 0.0));
+        assert!(poisoned(d) && len == 0.0, "a zero chord: {d:?}, {len}");
         let far = Vec3::new(1.0, 0.0, 0.0).map(|x| Interval::from_bounds(x + 0.5, x + 0.6));
         let got = UnitVec3::checked(far).get();
         assert!(
