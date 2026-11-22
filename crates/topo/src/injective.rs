@@ -6094,7 +6094,7 @@ fn wedges_apart(px: &Presented<'_>, py: &Presented<'_>) -> Option<Vec3<f64>> {
         };
         let (su, sv) = if s.axis() == Axis::U { (s, t) } else { (t, s) };
         let (x, y) = (p.bound(su), p.bound(sv));
-        let (fx, fy, _) = p.jet_on((x, x), (y, y));
+        let (fx, fy, _) = if std::env::var_os("CV_WHOLE_JET").is_some() { p.jet() } else { p.jet_on((x, x), (y, y)) };
         Some([unit(vmid(fx) * su.into())?, unit(vmid(fy) * sv.into())?])
     };
     let ([a1, a2], [b1, b2]) = (axes(px)?, axes(py)?);
@@ -6242,7 +6242,7 @@ fn planes_through(
                     wedges_apart(px, py)
                         .filter(|_| std::env::var_os("CV_NO_WEDGE").is_none())
                         .into_iter()
-                        .chain(headings().and_then(|(hx, hy)| unit(hx - hy)))
+                        .chain(headings().and_then(|(hx, hy)| unit(hx - hy)).filter(|_| std::env::var_os("CV_NO_HEADING").is_none()))
                         .map(at_vertex)
                         .collect(),
                 )
