@@ -5456,10 +5456,14 @@ fn tip_points<T: Real>(
 /// the order given: a loop's cycle, or a chain of half-edges from
 /// several faces that closes on itself.
 ///
+/// The raw mass-properties door reads it over a body tier 1 has not
+/// vouched for, so a record the run names that does not resolve is
+/// [`LoopEdgesError::Corrupt`].
+///
 /// # Panics
 ///
-/// Where a half-edge's edge, or that edge's curve, does not resolve:
-/// each is a link of the record before it (D2 row 4).
+/// Where a resolved edge's curve does not resolve
+/// ([`crate::live::EdgeView::curve`]).
 #[track_caller]
 pub(crate) fn run_edges<T: Decide>(
     body: &Body<T>,
@@ -5480,7 +5484,9 @@ pub(crate) fn run_edges<T: Decide>(
         let Some(he) = body.half_edges.get(he_key) else {
             return Err(corrupt("half-edge key does not resolve"));
         };
-        let edge = body.linked_edge(he.edge, crate::entity::EntityId::HalfEdge(he_key), "edge");
+        let Some(edge) = body.edge(he.edge) else {
+            return Err(corrupt("edge key does not resolve"));
+        };
         let Some(curve) = edge.certified() else {
             return Err(LoopEdgesError::NullScaffoldEdge { edge: he.edge });
         };
