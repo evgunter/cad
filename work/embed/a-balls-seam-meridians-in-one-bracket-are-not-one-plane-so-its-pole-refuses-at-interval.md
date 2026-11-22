@@ -104,8 +104,10 @@ radii. The review of PR 7328 measured 135 pairs with one origin and one
 `w` bit for bit, radius 1, and `u` one or two ulps off, whose lifted `w`
 enclosures are disjoint: two planes for certain, each read as one circle.
 `one_stated_conic` now compares the frames by `one_stated_plane`, and
-`one_conic` reads the lifts as one value besides, which keeps the
-answers on exactly rigid frames, the frames whose axis is a point.
+`one_conic` reads the lifts as one value besides. Comparing `w` alone
+was sound on two populations: frames one up to signs, which the stored
+arm now reads, and exactly rigid frames, whose axis is a point, which
+the lifts' arm keeps.
 
 **What is left on this row** is the `Interval` half without PR 7315's
 reading: no stored fact reaches the engine at `Interval`. Weighed:
