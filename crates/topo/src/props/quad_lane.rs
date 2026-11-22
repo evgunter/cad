@@ -1427,9 +1427,9 @@ fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
                 .find(|(c, _)| c.fixed == across && c.end == end)
             else {
                 return Err(refuse(
-                    "the NURBS-face boundary steps between two lines of one axis across \
-                     a side of its chart that is not collapsed to a point — a trimmed \
-                     region is outside the rectangle lane (the cut-loft unit's)",
+                    "a NURBS-face side's pieces lie on different chart lines, with no \
+                     collapsed side of its chart between them — a stepped trim is outside \
+                     the rectangle lane (the cut-loft unit's)",
                 ));
             };
             let pole = Side {
@@ -2820,13 +2820,14 @@ mod tests {
         fn three_five_and_notched_sides_refuse() {
             fn each<T: Reads>() {
                 // Three: the bottom, the right side and the top, the top's
-                // row joined to the bottom's.
+                // row joined to the bottom's across a side no net
+                // collapses (`a_collapsed_side_is_a_side_of_the_rectangle`).
                 let three = vec![
                     from_to((0.0, 0.0), (1.0, 0.0)),
                     from_to((1.0, 0.0), (1.0, 1.0)),
                     from_to((1.0, 1.0), (0.0, 1.0)),
                 ];
-                refused::<T>(three, "not four sides");
+                refused::<T>(three, "different chart lines");
                 // Five: the square with its left side stopped half way
                 // and a row at `v = 1/2` back to the start's column.
                 let five = vec![
@@ -2857,6 +2858,62 @@ mod tests {
                     ],
                 );
                 refused::<T>(stepped, "different chart lines");
+            }
+            each::<f64>();
+            each::<Interval>();
+        }
+
+        /// **A collapsed side is a side of the rectangle**: the three
+        /// sides above, the top's row joined to the bottom's across the
+        /// net's collapsed `u = 0` column, read the whole square, with
+        /// the joint into the bottom row walking that column; across the
+        /// collapsed `u = 1` column instead, which the top row does not
+        /// reach, they refuse.
+        #[test]
+        fn a_collapsed_side_is_a_side_of_the_rectangle() {
+            use geom_brep::{ChartAxis, ChartEnd, ChartSide};
+            fn each<
+                T: Reads + geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
+            >() {
+                let three = || {
+                    vec![
+                        from_to::<T>((0.0, 0.0), (1.0, 0.0)),
+                        from_to((1.0, 0.0), (1.0, 1.0)),
+                        from_to((1.0, 1.0), (0.0, 1.0)),
+                    ]
+                };
+                let side = |end| ChartSide {
+                    fixed: ChartAxis::U,
+                    end,
+                };
+                let read = |collapsed: &[(ChartSide, f64)]| {
+                    trim_rectangle(&Lift::stated_for_tests(three(), closed()), collapsed)
+                };
+                let got = read(&[(side(ChartEnd::Low), 0.0)]).unwrap();
+                assert_eq!(
+                    (got.rect, got.turn),
+                    (rect(0.0, 1.0, 0.0, 1.0), Turn::CounterClockwise),
+                    "{}: the square",
+                    T::NAME
+                );
+                assert_eq!(
+                    got.jumps
+                        .iter()
+                        .map(|(row, s)| (*row, s.axis, s.value))
+                        .collect::<Vec<_>>(),
+                    vec![(0, ChartAxis::U, 0.0)],
+                    "{}: the joint into the bottom row walks the column",
+                    T::NAME
+                );
+                assert!(
+                    matches!(
+                        read(&[(side(ChartEnd::High), 1.0)]),
+                        Err(PropsError::QuadratureUnsupported { what })
+                            if what.contains("different chart lines")
+                    ),
+                    "{}: the other column is not the one the top row reaches",
+                    T::NAME
+                );
             }
             each::<f64>();
             each::<Interval>();

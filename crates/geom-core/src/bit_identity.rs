@@ -79,16 +79,20 @@ pub fn eq_bits<T: crate::Real>(a: &T, b: &T) -> Option<bool> {
 }
 
 /// **Whether `a` and `b` are one stored point**: every coordinate the
-/// same description ([`eq_bits`]), and `false` at a scalar with no
-/// channel. The one reading of a spline net's collapsed side (DESIGN
+/// same description ([`eq_bits`]) or both a zero of either sign (`−0`
+/// and `+0` are one value, so a net revolved from the axis, whose apex
+/// row is `0·x` for `x` of either sign, holds one point there), and
+/// `false` at a scalar with no channel. The one reading of a spline net's collapsed side (DESIGN
 /// `[extensibility]`: a boundary iso whose control points are all one
 /// stored point is a chart singularity), which the singular set's home
 /// reads, and which the knot algebra keeps by carrying such a pair's
 /// blend as the point itself.
 pub fn one_stored_point<T: crate::Real>(a: &crate::Point3<T>, b: &crate::Point3<T>) -> bool {
+    let zero =
+        |x: &T| eq_bits(x, &T::zero()) == Some(true) || eq_bits(x, &-T::zero()) == Some(true);
     [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
         .iter()
-        .all(|(p, q)| eq_bits(p, q) == Some(true))
+        .all(|(p, q)| eq_bits(p, q) == Some(true) || (zero(p) && zero(q)))
 }
 
 /// [`eq_bits`] of two `Sym<V>`s, or `None` when `T` is not `Sym<V>`.
@@ -120,6 +124,20 @@ mod tests {
         let nan2 = f64::from_bits(0x7ff8_0000_0000_0002);
         assert_eq!(eq_bits(&nan1, &nan2), Some(false));
         assert_eq!(eq_bits(&nan1, &nan1), Some(true));
+    }
+
+    /// **One stored point**: the same bits, or zeros of either sign, in
+    /// every coordinate; a point one ulp off is another.
+    #[test]
+    fn one_stored_point_reads_bits_and_either_zero() {
+        use crate::Point3;
+        let p = Point3::new(0.0, -0.0, 1.0);
+        assert!(
+            one_stored_point(&p, &Point3::new(-0.0, 0.0, 1.0)),
+            "zeros of either sign"
+        );
+        let ulp = Point3::new(0.0, 0.0, f64::from_bits(1.0_f64.to_bits() + 1));
+        assert!(!one_stored_point(&p, &ulp), "one ulp off");
     }
 
     /// A channel-less scalar yields `None` — the conservative rung.

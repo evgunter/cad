@@ -353,3 +353,29 @@ fn a_half_disc_turned_about_its_chord_builds_a_lune() {
     assert_eq!(collapsed_sides(&l), 2, "half disc: the lune's two sides");
     holds("half disc", measured(&l), divergence_volume(&l), 1e-9);
 }
+
+/// **A side one ulp wide is no collapsed side** (DESIGN
+/// `[extensibility]`: no band decides a collapse), so a face that holds
+/// an edge along it holds an edge one ulp long, which the attach gate
+/// refuses. The other shape, a face that walks such a side with no edge
+/// on it, refuses at its joint's chart gap (`topo`'s
+/// `collapsed_side_rows`). The loft never meets either: its door writes
+/// a corner it decides pinned as one point.
+#[test]
+fn an_edge_along_a_side_one_ulp_wide_refuses_at_the_attach_gate() {
+    use topo::construction::{Construct, MevSite};
+    let tol = Tol::witness();
+    let p = Point3::new(1.0, 1.0, 0.0);
+    let q = Point3::new(f64::from_bits(1.0_f64.to_bits() + 1), 1.0, 0.0);
+    let mut body = topo::Body::<f64>::new();
+    let seed = body.mvfs(p, true).unwrap();
+    let out = body.mev(
+        MevSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        q,
+        geom_brep::EdgeCurveSpec::line_between(p, q),
+        tol,
+    );
+    assert!(out.is_err(), "an edge one ulp long is refused, got {out:?}");
+}
