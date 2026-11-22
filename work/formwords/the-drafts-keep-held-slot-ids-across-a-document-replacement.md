@@ -7,6 +7,7 @@ opened: 2026-10-31
 priority: P3
 cost: E
 refs: [viewerapp-document-derived-state-has-no-boundary]
+parent: a-creation-forms-held-pick-survives-a-document-swap
 ---
 
 
@@ -68,3 +69,10 @@ field is reset by being declared there.
 Cut from DOORS into HELD (DOORS over budget at 52 of 30 once D′3's triggers fired; `work/doors/log.md`, 2026-11-01). Id and body unchanged. (DOORS orchestrator)
 
 Moved from HELD to DOORS on 2026-11-20, by `git mv`, when HELD merged into DOORS: HELD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one DOORS carries.
+
+## Claimed by FORMWORDS (2026-11-22)
+
+Moved from DOORS by `git mv`: the FORMWORDS row
+`a-creation-forms-held-pick-survives-a-document-swap` was ruled to the
+structural reset over every document-bound field of the viewer's app
+state, which is this row's fix, and its unit carries both.
