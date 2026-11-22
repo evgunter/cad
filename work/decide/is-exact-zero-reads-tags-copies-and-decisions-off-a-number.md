@@ -75,3 +75,14 @@ say first what breaks without it. Also for this audit: a bulge leg
 that stores a sign nothing decided (`arc_bulge`, `literal_sign(b)`,
 and what its tie arm stores), found by BOXFINISH's signed-radius lane.
 (BOXFINISH orchestrator)
+
+**Met again by BOXFINISH's expression-question sweep (2026-11-22),
+none moved by it:** the three `profile` callers, as listed above
+(`lower_to`, `bulge_leg`, `path.rs` `chord_director`).
+`chord_director`'s zero-chord `+x` stand-in is now also the quotient
+the hop's mint is handed (`path::hop_director`), so it is still what a
+zero chord stores at every scalar. One read of the same family that is
+not `is_exact_zero`: `ValidatedProfile::value_channel` picks the `f64`
+witness's spelling of a recorded direction by whether its components
+are single points (`point_value`), a structural read off a number that
+learns no identity and stores the same real either way.
