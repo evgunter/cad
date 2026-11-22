@@ -453,3 +453,4 @@ body has the reasons):
 
   The lane creates and closes the traced-carriage row in 7151 itself, so
   this branch drops its copy to avoid an add/add conflict.
+- 2026-11-22 06:15 — **7353 merged** (`b2accf7`).
