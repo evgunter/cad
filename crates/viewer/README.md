@@ -2568,7 +2568,8 @@ deletes nothing. Nothing about how the node was made is recorded or inferred:
 the plan is read off the recipe, so adding a feature and deleting it
 leaves the document as it was, and a mirror's image or a sketch's
 profile (the piece its gesture made) deleted collapses the union back
-to the body. The delete button prices the nodes that go
+to the body. The delete button prices the nodes that go and the
+names the delete strands, counted off a rehearsal of the delete itself
 (`DeleteAffordance`).
 
 **A body reaches the product through one door.** Nothing joins the
