@@ -7,7 +7,6 @@ opened: 2026-09-13
 refs: [1183]
 priority: P1
 cost: H
-design: true
 ---
 
 Filed by DOCM-9, which built the kernel side and was forbidden by its
@@ -166,3 +165,24 @@ The `within` pair and the straddling span go.
 - The undecided ground between a proven end and a point proven different is never called valid. Outside the sampled range the proof says nothing.
 
 **When the proof replaces the sampled reading:** when both sides reach the seed's ends, the line reads "proven c…d". Otherwise it reads "proven a…b, of the sampled c…d", then says what stopped each side.
+
+## Decided (Ev, 2026-11-22, on PR #7340)
+
+The sampling probe goes. `range?` was never meant to sample, and nothing is to be kept solely to support it. `range?` becomes the certified query, rebuilt as the kernel search described in `## Design` above. The `## Design` section's kernel half stands as written. Its viewer half is replaced by what follows.
+
+- **The search.** `range?` on a slot or variable starts the certified search on its own seam. It runs off the frame, and its busy state is separate from `Session::busy()`.
+  - While it runs, the line reads "proving… proven a…b so far · stop".
+  - Stop keeps what has been proven. An edit cancels the run and drops its result.
+- **The seed** is how far the search looks. No sampled reading exists to supply one. It comes from the field's own admissible domain where the kernel states one, such as a length's lower bound. Otherwise it is a fixed span relative to the current value, chosen in the unit and stated on the reading ("checked to …").
+  - The directed search spends steps near the current value first, so a wide seed costs little.
+  - The reading never says "unbounded".
+- **The readings, and their wording.** Every number goes through `props::shown_text`.
+  - "proven a…b";
+  - per side, one of:
+    - "at y it builds, differently";
+    - "node stops building at y";
+    - "not decided past x", followed by "more proving may go further" or "more time will not help";
+  - "nothing proven around v";
+  - "holding names at their current values".
+- **Admission.** One kernel admission door, which runs no geometry, greys `range?` with the refusal's own words.
+- **What is deleted.** The sampling probe: `viewer::bounds`'s probe and `BoundsProbe`, `Session::probe_bounds`, `SessionOp::ProbeBounds` as a sampler, and `crates/viewer/tests/docm9_range_vs_probe.rs`. `work/offer/the-bounds-probe-runs-inline-on-the-frame` therefore has nothing left to fix.
