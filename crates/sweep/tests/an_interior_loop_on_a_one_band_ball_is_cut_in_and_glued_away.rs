@@ -12,6 +12,8 @@
 //!
 //! - the unit ball poled on `y`, its seam on `+x`, against the slab
 //!   `x ∈ (−0.5, 0.5)`: the circle `x = −0.5` misses the seam;
+//! - the same ball against the box `x < 0.8, z > −0.7`, whose circle
+//!   `z = −0.7` lies parallel to the seam's plane beside one crossing it;
 //! - the same ball less the cap `x > 0.5` (a trimmed one-band face)
 //!   against the slab `x ∈ (−0.5, 0.3)` and the half-space `x < −0.5`.
 //!
@@ -155,4 +157,23 @@ fn a_trimmed_ball_and_a_far_half_space() {
     let (t, h) = (trimmed(), slab((-2.0, -0.5)));
     let vt = ball_volume(1.0) - cap_volume(1.0, 0.5);
     every_op_sound(&t, &h, (vt, 1.5 * 16.0, cap_volume(1.0, 0.5)));
+}
+
+/// The ball against the box `x < 0.8, z > −0.7`: the circle `x = 0.8`
+/// crosses the seam, so the op takes the crossings path, and the circle
+/// `z = −0.7` lies in a plane parallel to the seam's, missing every
+/// meridian of that plane, the class a ball cut in two lunes met too.
+#[test]
+fn a_circle_parallel_to_the_seams_plane_beside_a_crossing_one() {
+    let (b, x) = (
+        ball(),
+        finished(
+            "the box",
+            brick::<f64>((-2.0, 0.8), (-2.0, 2.0), (-0.7, 2.0), tol()),
+            tol(),
+        ),
+    );
+    let v = ball_volume(1.0);
+    let both = v - cap_volume(1.0, 0.2) - cap_volume(1.0, 0.3);
+    every_op_sound(&b, &x, (v, 2.8 * 4.0 * 2.7, both));
 }
