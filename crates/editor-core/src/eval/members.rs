@@ -424,7 +424,7 @@ pub(super) fn member_key(key: ContentKey, at: &[(VarId, i64)]) -> ContentKey {
 /// each body named at its member's place; any other as
 /// [`ValuePayload::Family`] with no output. Its keys are its members',
 /// in order.
-pub(super) fn family_value<T: topo::AtRestPolicy + Decide>(
+fn family_value<T: topo::AtRestPolicy + Decide>(
     id: RecipeNodeId,
     members: Members<T>,
 ) -> Result<NodeValue<T>, NodeErrorKind> {

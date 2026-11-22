@@ -1,8 +1,10 @@
-//! **A split of a family evaluates** (D10 `[repetition]`): the split
-//! door over every family form the body gate admits, and over a pattern
-//! a placement reads, which the door re-points onto the split's
-//! `above ⊔ below`. A split of a family is a family of splits; each of
-//! its halves is a family, read whole by the assemble the door writes.
+//! **A split of a family evaluates without panicking** (D10
+//! `[repetition]`): the split door over every family form the body
+//! gate admits, and over a pattern a placement reads, which the door
+//! re-points onto the split's `above ⊔ below`. A split of a family is a
+//! family of splits; a read of one of its halves by a reader of no
+//! member refuses typed (`HalfOfAFamily`). What such a read should be
+//! waits on `work/formwords/a-family-read-at-a-body-seat-maps-implicitly.md`.
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
@@ -17,7 +19,6 @@ use viewer::session::{DocSession, FaceSelection, NodeKindWanted, PatternRuleSpec
 
 /// The box every family repeats: x, y in [-0.01, 0.01], z in [0, 0.01].
 const BOX: [f64; 3] = [0.02, 0.02, 0.01];
-const B_VOL: f64 = 0.02 * 0.02 * 0.01;
 /// Where the split cuts the box, up from its start cap.
 const CUT: f64 = 0.0025;
 
@@ -231,10 +232,12 @@ fn split_of_a_read_pattern(
     (session, split)
 }
 
-/// **A split of a pattern a placement reads evaluates**: the door
-/// re-points the placement onto the split's `above ⊔ below`, an
-/// assemble reading each half whole, so the placement moves both
-/// halves of both members, the pattern's volume.
+/// **A split of a pattern a placement reads evaluates, the read of its
+/// halves refusing typed**: the door re-points the placement onto the
+/// split's `above ⊔ below`. A split of a family is a family of splits,
+/// so that assemble, which reads no member, has no one half to read: it
+/// refuses `HalfOfAFamily` naming the split, and the placement is
+/// poisoned through it. No evaluation panics.
 #[test]
 fn a_split_of_a_transformed_pattern_evaluates() {
     let tol = Tol::witness();
@@ -252,32 +255,29 @@ fn a_split_of_a_transformed_pattern_evaluates() {
     let moved = moved.expect("the placement");
     let got = caught(|| {
         session.pump();
-        (
-            described(&session, split, tol),
-            described(&session, moved, tol),
-        )
+        described(&session, split, tol)
     });
-    let Ok((split_is, moved_is)) = got else {
-        panic!("the evaluation panicked: {got:?}");
-    };
     assert_eq!(
-        split_is, "Family",
+        got.as_deref(),
+        Ok("Family"),
         "a split of a pattern is a family of splits"
     );
     let doc = session.committed_doc();
-    let Some(Node::Place { source, .. }) = doc.node(moved) else {
-        panic!("the placement stands");
-    };
-    let assemble = doc
-        .operation_of(doc.through_sources(source.read).read)
-        .expect("the placement reads an operation");
+    let eval = session.evaluation().expect("landed");
+    let assemble = common::authored_ids(doc)
+        .into_iter()
+        .find(|&id| matches!(doc.node(id), Some(Node::Assemble { .. })))
+        .expect("the door wrote above ⊔ below");
     assert!(
-        matches!(doc.node(assemble), Some(Node::Assemble { .. })),
-        "the door re-pointed the placement onto above ⊔ below"
+        matches!(
+            eval.node_error(assemble).map(|e| &e.kind),
+            Some(pncad::document::NodeErrorKind::HalfOfAFamily { input, .. }) if *input == split
+        ),
+        "the assemble refuses its half of a family: {:?}",
+        eval.node_error(assemble).map(|e| &e.kind)
     );
-    assert_eq!(
-        moved_is,
-        format!("Body {:.3e}", 2.0 * B_VOL),
-        "the placement moves both halves of both members"
+    assert!(
+        eval.value(moved).is_none(),
+        "and the placement reading it has no value"
     );
 }
