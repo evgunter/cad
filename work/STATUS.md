@@ -1351,10 +1351,10 @@ prefix `profile/`; tag `(PROFILE orchestrator)`.
 |---|---|---|---|---|---|---|---|
 | P1 | `a-faces-loop-or-closed-trace-cannot-become-a-profile-loop` | issue | M | open | A picked edge loop, or a face's whole closed trace, cannot become a profile loop: an elbow off a hollow cylinder's end is re-typed by hand |  |  |
 | P1 | `a-fillet-refusal-names-the-step-that-resolved-it-not-the-fillet` | issue | M | open | A fillet that cannot be resolved is reported at the step that resolved it, not at the fillet's own step, though the chain already records the fillet's step |  |  |
-| P1 | `a-loop-cannot-repeat-inside-a-profile` | issue | M +design | open | A loop or a run of pieces cannot repeat inside one profile: patterns exist for bodies only |  |  |
+| P1 | `a-loop-cannot-repeat-inside-a-profile` | issue | M | open | A loop or a run of pieces cannot repeat inside one profile: patterns exist for bodies only |  |  |
 | P1 | `a-pen-drawn-rectangle-with-a-boxed-side-refuses-line-span-over-any-box` | issue | M | open | A pen-drawn rectangle with a boxed side refuses the profile's line-span gate over any parameter box, on main |  |  |
 | P1 | `a-real-junction-on-a-short-leg-refuses-as-tangent` | issue | M | open | JunctionTangent and SeamTangent name tangency at a real angle on a short leg: their levered turn margin cannot tell a short arm from a small turn |  |  |
-| P1 | `an-ovoid-cannot-be-authored` | issue | M +design | open | An ovoid cannot be authored: a profile has no ellipse arc to revolve, and a body cannot be scaled non-uniformly |  |  |
+| P1 | `an-ovoid-cannot-be-authored` | issue | M | open | An ovoid cannot be authored: a profile has no ellipse arc to revolve, and a body cannot be scaled non-uniformly |  |  |
 | P1 | `check-9-arm-5-is-a-second-copy-of-seg-planar-edge-pair-intersector` | issue | H | open | tier 3 check 9's arm 5 is a second copy of profile::seg's planar edge-pair intersector, with at least four drifts, and the circle-pair margins have a third spelling in arc_fillet |  |  |
 | P1 | `circle-lowers-to-one-segment` | unit | H | open | circle and circle_split(n ≥ 1) lower to one full-turn segment per arc; lily migrates; re-baseline |  |  |
 | P1 | `tangent-arc-to-needs-an-explicit-tangent-where-line-takes-the-directed-point` | issue | M +design | open | tangent_arc_to needs an explicit .tangent() after a leg, while line(len) takes the leg's directed point |  |  |
@@ -4864,7 +4864,6 @@ prefix `measuredoor/`; tag `(MEASUREDOOR orchestrator)`; ab_band `15800-15899`.
 | 28 | `a-torus-meridian-rims-span-bound-is-wider-than-the-band` | tang | open | The jet schedule's span bound on a circle carrier off a torus's axis (the G1 tube chain's meridian rim) is ~1.2 m, so its declared Seam cannot verify |
 | 28 | `a-vertex-near-a-tilted-faces-carrier-but-w-from-its-face-refuses-vertex-on-face` | hone | open | A cavity corner 0.894w from a tilted fill face's carrier, but w from the face itself, refuses Coincidence(VertexOnFace) at 10.5ε |
 | 28 | `a-wall-trimmed-to-an-inexact-iso-row-has-no-rectangle` | shell | open | A NURBS wall trimmed to an iso-row its rim reaches only to rounding refuses the rectangle lane |
-| 28 | `an-ovoid-cannot-be-authored` | profile | open | An ovoid cannot be authored: a profile has no ellipse arc to revolve, and a body cannot be scaled non-uniformly |
 | 28 | `chart-trim-has-no-row-for-a-spiric-chart-image` | charttail | open | A curved face's chart trim has no row for a spiric chart image, so a torus wall or cap bounded by one cannot enter it |
 | 28 | `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart` | encl | open | the offset fit's certified bound rises from round 6 on, from Bézier-insertion width, so tight-eps fits refuse; and no NURBS-walled body shells, so the body-level cost has no operand |
 | 28 | `revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet` | topo | open | Body::revert refuses a body with coincident edges on one line: build the re-pairing the complement's material sectors decide |
