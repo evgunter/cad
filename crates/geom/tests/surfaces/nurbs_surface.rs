@@ -74,10 +74,8 @@ fn nurbs_cylinder() -> NurbsSurface<f64> {
 
 fn analytic_cylinder() -> Surface<f64> {
     Surface::Cylinder {
-        origin: origin(),
-        axis: axis(),
+        frame: geom::Frame::new(origin(), axis(), u_ref()),
         radius: RADIUS,
-        u_ref: u_ref(),
     }
 }
 

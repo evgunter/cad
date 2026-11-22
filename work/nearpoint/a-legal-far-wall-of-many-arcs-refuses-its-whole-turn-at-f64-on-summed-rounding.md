@@ -24,12 +24,18 @@ citing this row are in `crates/geom-brep/tests/far_walls_of_many_arcs.rs`.
   - torus major 600, 200 arcs a parallel;
   - torus major 990, 200 arcs a parallel.
 - **Escalated on `props_chart_loop_whole`:**
-  - cylinder r 213, 200 arcs: margin 2.62e-12;
-  - cylinder r 410, 200 arcs: 6.91e-12;
-  - cylinder r 990, 40 arcs: 1.24e-12;
-  - torus major 100, 200 arcs: 1.58e-12;
-  - torus major 300, 200 arcs: 5.33e-12;
-  - torus major 990, 40 arcs: 1.50e-12.
+  - cylinder r 213, 200 arcs: margin 3.66e-12;
+  - cylinder r 410, 200 arcs: 8.80e-12;
+  - cylinder r 990, 40 arcs: 2.35e-12;
+  - torus major 100, 200 arcs: 1.25e-12;
+  - torus major 300, 200 arcs: 5.79e-12;
+  - torus major 990, 40 arcs: 2.10e-12.
+
+These are the margins with the fixture's frame squared once at `f64`
+(`geom::Frame::new`) and its points placed by that frame's motion (PR
+7131). Before that the frame was the stated, unsquared columns and the
+points `o + x·c + y·s + n·h`: 2.62e-12, 6.91e-12, 1.24e-12, 1.58e-12,
+5.33e-12 and 1.50e-12, the same refusals.
 
 At ε = 1e-9 and 1e-6 every one of them measures.
 

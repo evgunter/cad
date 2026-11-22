@@ -203,10 +203,8 @@ fn the_sphere_trim_panics_on_a_torn_curve() {
             face,
             (
                 &geom::Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     radius: 1.0,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
                 },
                 Point3::origin(),
                 1.0,

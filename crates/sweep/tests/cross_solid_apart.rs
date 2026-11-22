@@ -342,8 +342,8 @@ fn a_rod_wider_than_an_elliptical_rim_refuses_on_the_plate() {
     let top = |f| {
         matches!(
             pair.face_surface(f),
-            Some(geom::Surface::Plane { origin, normal, .. })
-                if (origin.z - 1.0).abs() < 1e-9 && normal.x == 0.0 && normal.y == 0.0
+            Some(geom::Surface::Plane { frame, .. })
+                if (frame.origin().z - 1.0).abs() < 1e-9 && frame.axis().x == 0.0 && frame.axis().y == 0.0
         )
     };
     let top_on_rod = errs.iter().any(|e| match e {
@@ -836,7 +836,10 @@ fn refusals_on(
     on_block: fn(Vec3<f64>) -> bool,
 ) -> usize {
     let normal = |f| match body.face_surface(f) {
-        Some(geom::Surface::Plane { normal, .. }) => Some(*normal),
+        Some(geom::Surface::Plane { frame, .. }) => {
+            let normal = frame.axis();
+            Some(normal)
+        }
         _ => None,
     };
     let plate = body

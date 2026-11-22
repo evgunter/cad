@@ -200,7 +200,8 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         | T::TrimLoopOrientation { .. }
         | T::FoldedTriangle { .. }
         | T::UnclearedSharedSide { .. }
-        | T::WrapStripTurn { .. } => Ok(()),
+        | T::WrapStripTurn { .. }
+        | T::LiftedColumnOff { .. } => Ok(()),
     };
     if let Err(failed) = projected {
         return failed;

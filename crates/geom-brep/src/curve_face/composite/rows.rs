@@ -26,9 +26,7 @@ fn band() -> Band {
 /// The plane `z = 0`.
 fn ground() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     }
 }
 
@@ -185,9 +183,7 @@ fn a_meeting_at_a_crease_refuses_and_one_off_it_crosses() {
         "{got:?}"
     );
     let half = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.5),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), Vec3::unit_x()),
     };
     let roots = read(&net, &half).unwrap();
     assert_eq!(roots.len(), 1, "{roots:?}");
@@ -222,9 +218,11 @@ fn a_rational_arc_crosses_a_plane_and_a_cylinder() {
     ];
     let arc = NurbsCurve3::new(kv, control, vec![1.0, FRAC_1_SQRT_2, 1.0]).unwrap();
     let diagonal = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(FRAC_1_SQRT_2, -FRAC_1_SQRT_2, 0.0),
-        u_ref: Vec3::unit_z(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(FRAC_1_SQRT_2, -FRAC_1_SQRT_2, 0.0),
+            Vec3::unit_z(),
+        ),
     };
     let roots = read(&arc, &diagonal).unwrap();
     assert_eq!(roots.len(), 1, "{roots:?}");
@@ -234,10 +232,8 @@ fn a_rational_arc_crosses_a_plane_and_a_cylinder() {
         "{p:?}"
     );
     let wall = Surface::Cylinder {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let roots = read(&arc, &wall).unwrap();
     assert_eq!(roots.len(), 1, "{roots:?}");
@@ -249,10 +245,8 @@ fn a_rational_arc_crosses_a_plane_and_a_cylinder() {
     // The arc lies on the unit cylinder about the origin: the composite is
     // zero to rounding everywhere, which no cut reads a sign of.
     let own = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let got = read(&arc, &own);
     assert!(
@@ -268,10 +262,8 @@ fn a_rational_arc_crosses_a_plane_and_a_cylinder() {
 fn a_cubic_leaves_a_sphere_through_the_door() {
     let net = cubic([0.0, 0.0, 0.0, 0.0]);
     let ball = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 0.5,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let lane = crate::NurbsLane::<f64>::certified();
     let roots = lane
@@ -332,9 +324,7 @@ fn a_crossing_within_band_of_a_crease_refuses() {
     ];
     let net = NurbsCurve3::new(kv, control, vec![1.0; 5]).unwrap();
     let lifted = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1e-11),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 1e-11), Vec3::unit_z(), Vec3::unit_x()),
     };
     let got = read(&net, &lifted);
     assert!(
@@ -370,19 +360,15 @@ fn a_frame_off_orthonormal_reads_the_surface_it_names() {
     };
     // Outside the unit cylinder at radius 1.05, along its axis.
     let wall = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::new(1.0, 0.0, 0.1)),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.1),
     };
     let along = line(Point3::new(1.05, 0.0, -1.0), Point3::new(1.05, 0.0, 1.0));
     assert_eq!(read(&along, &wall).unwrap(), vec![], "outside the wall");
     // Inside the unit sphere, up its axis to 0.95.
     let ball = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::new(0.0, 0.0, 1.1), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.1),
-        u_ref: Vec3::unit_x(),
     };
     let up = line(Point3::new(0.0, 0.0, 0.5), Point3::new(0.0, 0.0, 0.95));
     assert_eq!(read(&up, &ball).unwrap(), vec![], "inside the ball");
@@ -460,10 +446,8 @@ fn the_divisor_is_a_pointwise_factor_of_the_form() {
 #[test]
 fn a_reference_direction_along_the_axis_is_a_degenerate_face() {
     let along = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_z()),
         radius: 1.0,
-        u_ref: Vec3::unit_z(),
     };
     let got = read(&cubic([-1.0, -0.5, 0.5, 1.0]), &along);
     assert!(
