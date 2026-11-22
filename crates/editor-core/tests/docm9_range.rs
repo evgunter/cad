@@ -844,8 +844,7 @@ fn admission_refuses_a_document_that_does_not_build_from_the_callers_build() {
 }
 
 /// **The seed this module chooses** reaches from zero to twice the
-/// current value, and one unit either way for a field at zero; it is
-/// stated on the answer.
+/// current value, and one unit either way for a field at zero.
 #[test]
 fn the_chosen_seed_spans_zero_to_twice_the_current_value() {
     for (value, half) in [(0.25, 0.25), (-4.0, 4.0), (0.0, 1.0)] {
@@ -860,17 +859,6 @@ fn the_chosen_seed_spans_zero_to_twice_the_current_value() {
     };
     let seed = RangeSeed::of(&doc, &field).expect("a seed");
     assert_eq!(seed, RangeSeed::symmetric(1.5));
-    let r = certified_range(
-        &doc,
-        &field,
-        seed,
-        &budget(2, 4),
-        None,
-        &editor_core::Stop::default(),
-        tol(),
-    )
-    .expect("admitted");
-    assert_eq!(r.seed(), seed, "the answer states how far it looked");
     assert_eq!(
         RangeSeed::of(&doc, &RangeField::Slot { node, slot: INDEX }),
         Err(RangeRefusal::UnknownSlot {

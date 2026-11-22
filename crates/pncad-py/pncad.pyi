@@ -1136,6 +1136,41 @@ class McRefusal(PncadError):
     node: Optional[NodeId]
     cause: Optional[str]
 
+class RangeRefusal(PncadError):
+    """A certified range could not be searched.
+
+    `variant` is the stable tag; the rest are the arms' payloads,
+    present on every arm and `None` where that arm does not carry one.
+
+    Decided before any geometry runs: the seed does not bracket the
+    field's current value (`seed_not_a_bracket`, the offsets asked for
+    as `lo` and `hi`, in the kernel's units); the document declares no
+    such continuous parameter (`not_a_continuous_param`, `param`); it
+    has no such node (`unknown_node`, `node`), or the node carries no
+    such slot (`unknown_slot`, `node` and `slot`); the slot is a
+    count, which selects between shapes and has no interval
+    (`structural_slot`); or the slot reads a variable defined by a
+    formula, which has no interval of its own (`slot_is_defined`).
+
+    From the nominal build: a node does not build, so there is no
+    build to prove an interval the same as (`witness_does_not_build`,
+    `node` and `cause`), or the build was stopped (`stopped`).
+
+    `derivation` (`cause`), `seed_is_not_the_analyzed_axis` (`lo`,
+    `hi` and `analyzed`), `more_than_one_axis_varies` (`varying`) and
+    `nothing_varies` are the kernel's guards on a document it derives
+    itself; reading one is a kernel defect."""
+
+    variant: str
+    lo: Optional[float]
+    hi: Optional[float]
+    analyzed: Optional[tuple[float, float]]
+    param: Optional[str]
+    node: Optional[NodeId]
+    slot: Optional[str]
+    cause: Optional[str]
+    varying: Optional[int]
+
 class AnalysisPolicyError(PncadError):
     """An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is
     not a finite number strictly inside `(0, 1)`.
@@ -3263,6 +3298,273 @@ def sample_offset(param: VarName, dist: Distribution, u: float) -> _Offset:
     from the analyzed box: the tail the box excludes is exactly the
     region the certified answer does not cover. Raises
     MeasureUnavailable for a band, which `param` names."""
+
+class RangeField:
+    """The field a certified range is asked about: one document
+    parameter, or one slot of one node.
+
+    A slot is boxed through the free variable it reads, so the range is
+    that variable's — every slot reading it moves with it — reported
+    against the slot it was asked through.
+
+    A value, not a lookup: a parameter written by name is resolved in
+    the document each door is handed, and a name that document does
+    not hold refuses there (RangeRefusal, `not_a_continuous_param`)."""
+
+    @staticmethod
+    def param(var: Var | VarName) -> RangeField:
+        """A document parameter, by identity or by name."""
+    @staticmethod
+    def slot(node: NodeId, slot: str) -> RangeField:
+        """One slot of `node`, by the slot's own word (`"distance"`,
+        `"radius"`) — the word `Doc.slot` and `DocEdit.set_param`
+        take. A word outside the slot alphabet is a ValueError."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class RangeSeed:
+    """How far a range search looks, as OFFSETS from the field's
+    nominal in the field's own dimension: `lo <= 0 <= hi` with some
+    width.
+
+    Constructing one checks only that its two offsets share a
+    dimension (QuantityOpMismatch). Whether it brackets the field's
+    value is asked where the seed meets a field (RangeRefusal,
+    `seed_not_a_bracket`), and a seed written in another dimension
+    than the field's is a QuantityOpMismatch there."""
+
+    def __init__(self, lo: _Offset, hi: _Offset) -> None: ...
+    @staticmethod
+    def symmetric(w: _Offset) -> RangeSeed:
+        """The symmetric seed `[-w, w]`."""
+    @staticmethod
+    def of(doc: Doc, field: RangeField) -> RangeSeed:
+        """The seed the kernel chooses for `field`: from zero to twice
+        its current value, and `±1` for a field at zero. What every
+        range door searches when it is handed no seed. Raises
+        RangeRefusal for a field with no axis."""
+    @property
+    def lo(self) -> _Offset: ...
+    @property
+    def hi(self) -> _Offset: ...
+    @property
+    def dimension(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Admission:
+    """What `admit_range` resolved a request to."""
+
+    @property
+    def axis(self) -> Var:
+        """The free variable the field is boxed through: the parameter
+        itself, or the variable the slot reads."""
+    @property
+    def nominal(self) -> _Offset:
+        """The field's value in the document."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class ProvenDifferent:
+    """A point at which the document is proven NOT the nominal's
+    build: the near edge of the nearest interval the search decided
+    definitely otherwise."""
+
+    @property
+    def at(self) -> _Offset:
+        """The point, as an offset from the field's nominal."""
+    @property
+    def kind(self) -> str:
+        """`"standing_change"` — a node that built does not, or the
+        reverse — or `"builds_differently"`: every node stands as it
+        did and a recorded decision goes the other way, which is the
+        boundary of the CERTIFICATE and not of validity."""
+    @property
+    def node(self) -> Optional[NodeId]:
+        """The first node whose standing changed; `None` for
+        `"builds_differently"`."""
+
+class NotDecided:
+    """Ground a range search did not decide, outward from `past`.
+
+    Not a bound, and never to be shown as one: nothing here says the
+    document is valid past `past`, or that it is not."""
+
+    @property
+    def past(self) -> _Offset:
+        """The offset the undecided ground starts at: the proven
+        frontier."""
+    @property
+    def reason(self) -> str:
+        """Why the interval at the frontier is undecided: `"budget"`,
+        or the driver's own `"sliver_terminal"`, `"bifurcation"` or
+        `"infeasible"`."""
+    @property
+    def budget(self) -> Optional[str]:
+        """Which bound a `"budget"` ran out of — `"leaves"` (the
+        replays taken so far), `"depth"` (the halvings one side may
+        take) or `"resolution"` (the float grid) — and `None` for
+        another reason."""
+    @property
+    def predicate(self) -> Optional[str]:
+        """The predicate a `"sliver_terminal"` could not decide."""
+    @property
+    def more_time_helps(self) -> bool:
+        """Whether more replays can move the frontier. Only a spent
+        replay count answers yes."""
+
+class RangeSide:
+    """One side of a certified range.
+
+    `proven_to` is the far end of the proven interval on this side.
+    Between it and a point proven `different` lies ground the search
+    did NOT decide (`not_decided`), which is never valid by default.
+
+    `reached_seed_end` and `different` say how the side ends, and both
+    are empty exactly when the side is undecided with nothing proven
+    different beyond; `not_decided` is `None` exactly when the proven
+    interval reaches the seed's end, or runs up to the point proven
+    different."""
+
+    @property
+    def proven_to(self) -> _Offset:
+        """The far end of the proven interval, as an offset: zero when
+        nothing is proven."""
+    @property
+    def reached_seed_end(self) -> bool:
+        """Whether everything from the current value to the seed's end
+        is proven. Never a claim about values outside the seed, which
+        were not replayed."""
+    @property
+    def different(self) -> Optional[ProvenDifferent]: ...
+    @property
+    def not_decided(self) -> Optional[NotDecided]: ...
+
+class CertifiedRange:
+    """A range search's answer: a proven interval around the field's
+    current value, and one RangeSide per direction.
+
+    A CONDITIONAL answer that carries its condition: `pinned` are the
+    parameters held at their nominals for the whole certificate."""
+
+    @property
+    def field(self) -> RangeField: ...
+    @property
+    def nominal(self) -> _Offset:
+        """The field's value in the document: the origin every offset
+        here is measured from."""
+    @property
+    def seed(self) -> RangeSeed:
+        """How far the search looked."""
+    @property
+    def pinned(self) -> list[Var]:
+        """The parameters whose declared distribution the search
+        cleared, in declaration order; empty means the document
+        declared no other spread. By identity, because a parameter
+        carrying a spread need not be named; `Doc.var_name` speaks a
+        handle."""
+    @property
+    def steps(self) -> int:
+        """How many replays this answer is the answer after."""
+    @property
+    def lo(self) -> RangeSide: ...
+    @property
+    def hi(self) -> RangeSide: ...
+    @property
+    def proven_offsets(self) -> tuple[_Offset, _Offset]:
+        """The proven interval as offsets: every value in it builds
+        exactly what the nominal built, with `pinned` at their
+        nominals. Both zero when nothing is proven."""
+    @property
+    def proven_interval(self) -> tuple[_Offset, _Offset]:
+        """The proven interval in ABSOLUTE field values. The proof is
+        over the offsets; this sum rounds."""
+    @property
+    def nothing_proven(self) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class RangeSearch:
+    """The stepped search for a certified range: over which interval
+    around a field's current value the document is PROVABLY the same
+    build.
+
+    Constructing one admits the request and builds the document once,
+    at its nominal; `step` replays ONE interval; `answer` can be read
+    after any step and is a function of the request and the number of
+    steps taken, so stopping keeps what was proven.
+
+    `seed` is the kernel's own (`RangeSeed.of`) where none is handed.
+    `max_replays` bounds how many intervals the search will ever
+    replay and `max_depth` how many times one side may be halved; both
+    default to the driver's, which is far more replays than a caller
+    should wait for, so the loop calling `step` is the budget that
+    matters. `resolver` is how a document that instantiates parts
+    reaches them, as `evaluate` takes it. `cancel` stops the nominal
+    build and any later replay.
+
+    Raises RangeRefusal: the request's own refusals before any
+    geometry runs, then a nominal that does not build or was
+    stopped."""
+
+    def __init__(
+        self,
+        doc: Doc,
+        field: RangeField,
+        seed: Optional[RangeSeed] = None,
+        *,
+        max_depth: Optional[int] = None,
+        max_replays: Optional[int] = None,
+        resolver: Optional[Workspace] = None,
+        cancel: Optional[CancelToken] = None,
+    ) -> None: ...
+    def step(self) -> str:
+        """One replay. `"advanced"` when an interval was replayed,
+        `"finished"` when nothing was — every interval is decided or
+        at its floor, or `max_replays` is spent — and `"stopped"` when
+        the replay stopped short and decided nothing."""
+    @property
+    def steps(self) -> int:
+        """How many intervals have been replayed."""
+    def answer(self) -> CertifiedRange:
+        """The answer after the steps taken so far."""
+
+def admit_range(
+    doc: Doc,
+    field: RangeField,
+    seed: Optional[RangeSeed] = None,
+    *,
+    built: Optional[Evaluation] = None,
+) -> Admission:
+    """Whether a certified range can be searched at all, decided with
+    no geometry run.
+
+    `built` is the caller's finished evaluation of this same document,
+    where it holds one: a node that did not build there refuses as the
+    nominal build would (`witness_does_not_build`) without building it
+    again. An evaluation of another document is a ValueError.
+
+    Raises RangeRefusal: a seed that does not bracket the field's
+    value, then a field with no axis."""
+
+def certified_range(
+    doc: Doc,
+    field: RangeField,
+    seed: Optional[RangeSeed] = None,
+    *,
+    max_replays: int,
+    max_depth: Optional[int] = None,
+    resolver: Optional[Workspace] = None,
+    cancel: Optional[CancelToken] = None,
+) -> CertifiedRange:
+    """The certified range of one field: a RangeSearch stepped until
+    it finishes, `max_replays` is spent, or `cancel` stops it.
+
+    `max_replays` is required: a replay is a document evaluation at
+    the certified scalar, and the driver's own default admits far more
+    of them than a caller should wait for. A stop after the nominal
+    build keeps what was proven and is not a refusal. Raises
+    RangeRefusal as RangeSearch does."""
 
 DEFINITION_NODE_BOUND: Final[int]
 """The most expression nodes a variable's expansion through the

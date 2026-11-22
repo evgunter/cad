@@ -121,8 +121,10 @@
 //! diff that teaches the reader too, never a silent hole.
 
 use crate::errors::{BoundaryEdit, EvalReason, StlRefusal, UnmirroredSelect, ValidationRefusal};
+use pncad::analysis::range::Step as RangeStep;
 use pncad::analysis::{
-    AnalysisPolicyError, McRefusal, MeasureUnavailable, ParamBoxError, SeedError,
+    AnalysisPolicyError, BudgetKind, DifferenceKind, DriveRefusal, McRefusal, MeasureUnavailable,
+    ParamBoxError, RangeRefusal, RefusalReason, SeedError,
 };
 use pncad::document::LabelFault;
 use pncad::document::{
@@ -792,6 +794,78 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
         McRefusal::NoSamples => "no_samples",
         McRefusal::NominalDoesNotBuild { .. } => "nominal_does_not_build",
         McRefusal::Stopped(_) => "stopped",
+    }
+}
+
+/// The stable tag for a range request that could not be searched
+/// (`RangeRefusal.variant`).
+///
+/// The driver's arm DELEGATES to [`drive_refusal_tag`]: it carries that
+/// refusal verbatim, so the word a caller reads is the witness build's
+/// own.
+pub fn range_refusal_tag(refusal: &RangeRefusal) -> &'static str {
+    match refusal {
+        RangeRefusal::SeedNotABracket { .. } => "seed_not_a_bracket",
+        RangeRefusal::NotAContinuousParam { .. } => "not_a_continuous_param",
+        RangeRefusal::UnknownNode { .. } => "unknown_node",
+        RangeRefusal::UnknownSlot { .. } => "unknown_slot",
+        RangeRefusal::StructuralSlot { .. } => "structural_slot",
+        RangeRefusal::SlotIsDefined { .. } => "slot_is_defined",
+        RangeRefusal::Derivation(_) => "derivation",
+        RangeRefusal::SeedIsNotTheAnalyzedAxis { .. } => "seed_is_not_the_analyzed_axis",
+        RangeRefusal::MoreThanOneAxisVaries { .. } => "more_than_one_axis_varies",
+        RangeRefusal::Drive(refusal) => drive_refusal_tag(refusal),
+    }
+}
+
+/// The stable tag for a witness build the driver could not take.
+pub fn drive_refusal_tag(refusal: &DriveRefusal) -> &'static str {
+    match refusal {
+        DriveRefusal::WitnessDoesNotBuild { .. } => "witness_does_not_build",
+        DriveRefusal::NothingVaries => "nothing_varies",
+        DriveRefusal::Stopped(_) => "stopped",
+    }
+}
+
+/// The stable tag for why an interval is undecided
+/// (`NotDecided.reason`): the reason's class. Which budget a `budget`
+/// ran out of is [`budget_kind_tag`]'s word, beside it.
+pub fn refusal_reason_tag(reason: &RefusalReason) -> &'static str {
+    match reason {
+        RefusalReason::SliverTerminal { .. } => "sliver_terminal",
+        RefusalReason::FlipCrossing { .. } => "flip_crossing",
+        RefusalReason::Bifurcation(_) => "bifurcation",
+        RefusalReason::Infeasible => "infeasible",
+        RefusalReason::Budget(_) => "budget",
+    }
+}
+
+/// The stable tag for the bound that stopped a refinement
+/// (`NotDecided.budget`).
+pub fn budget_kind_tag(kind: &BudgetKind) -> &'static str {
+    match kind {
+        BudgetKind::Depth { .. } => "depth",
+        BudgetKind::Leaves { .. } => "leaves",
+        BudgetKind::Resolution => "resolution",
+    }
+}
+
+/// The stable tag for what a proven difference is
+/// (`ProvenDifferent.kind`).
+pub fn difference_kind_tag(kind: &DifferenceKind) -> &'static str {
+    match kind {
+        DifferenceKind::StandingChange { .. } => "standing_change",
+        DifferenceKind::BuildsDifferently => "builds_differently",
+    }
+}
+
+/// The stable tag for what one step of a range search did
+/// (`RangeSearch.step`'s answer).
+pub fn range_step_tag(step: &RangeStep) -> &'static str {
+    match step {
+        RangeStep::Advanced => "advanced",
+        RangeStep::Finished => "finished",
+        RangeStep::Stopped(_) => "stopped",
     }
 }
 

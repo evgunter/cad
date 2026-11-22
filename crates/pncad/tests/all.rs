@@ -5117,23 +5117,12 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-///
-///   **The CERTIFIED-RANGE query is interior** (`CertifiedRange`,
-///   `DerivedRange`, `RangeField`, `RangeRefusal`, `RangeSeed`,
-///   `RangeSide`, `certified_range`). It is the on-demand answer to
-///   "how far can this field move before the build stops being this
-///   build" — the proof the sampling probe stands in for — and the
-///   Python door for it is FILED and not built, which is the whole of
-///   why these are here rather than in `crate::analysis`. The row is
-///   `work/pydoor/certified-range-has-no-python-door`, and carrying this
-///   family is part of what it schedules; a promise made only in this
-///   comment would be gone the moment someone edited it.
 /// - **The mint** (`Mint` and its log's `Minted` entries): the chain
 ///   and log a document mints its node and profile step ids from,
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 101] = [
+const NOT_CARRIED: [&str; 94] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5147,11 +5136,9 @@ const NOT_CARRIED: [&str; 101] = [
     "BindingViolation",
     "BranchCertification",
     "BranchMarginEvidence",
-    "CertifiedRange",
     "ClearanceSeat",
     "ContentKey",
     "Coset",
-    "DerivedRange",
     "Diagnosis",
     "DocDiff",
     "EntityKey",
@@ -5179,10 +5166,6 @@ const NOT_CARRIED: [&str; 101] = [
     "ProfileLane",
     "ProfilePayload",
     "Qualifier",
-    "RangeField",
-    "RangeRefusal",
-    "RangeSeed",
-    "RangeSide",
     "RecipeEditRef",
     "Resolved",
     "Rgba8",
@@ -5208,7 +5191,6 @@ const NOT_CARRIED: [&str; 101] = [
     "appearance_rebind_suggestions",
     "apply_with_names",
     "body_name",
-    "certified_range",
     "derivation_nodes",
     "derivation_reads",
     "diff_summaries",
