@@ -147,8 +147,9 @@ pub struct Quieting {
 pub struct QuietingEdits<P: crate::ProfilePayload> {
     /// The document the edits produce.
     pub doc: Doc<P>,
-    /// The edits, in order: the measure's insert, which mints each
-    /// reference's selection and pose, then the assertion's.
+    /// The edits, in order: the naming of a split's unnamed tool, the
+    /// measure's insert, which mints each reference's selection and
+    /// pose, then the assertion's.
     pub edits: Vec<DocEdit<P>>,
     /// The maintenance they reported.
     pub maintenance: Vec<Maintenance>,
@@ -186,7 +187,11 @@ impl Quieting {
 
     /// **The edits that author it in `doc`**: a [`Node::Measure`] over
     /// [`Self::primitive`], then a [`Node::Assertion`] of
-    /// [`Self::claim`] over its output.
+    /// [`Self::claim`] over its output. A variable the measure reads as
+    /// it is ([`QuietingRef::Read`]) gains a reader, and an unnamed
+    /// variable has one (VARIABLES VR2), so an unnamed one is named
+    /// first ([`DocEdit::RenameVar`]): `tool`, or `tool_2` and on where
+    /// the document holds that name.
     ///
     /// # Errors
     ///
@@ -197,6 +202,19 @@ impl Quieting {
         tol: geom_core::Tol,
     ) -> Result<QuietingEdits<P>, EditError> {
         let mut action = Recording::start(doc, tol);
+        for reference in &self.references {
+            let QuietingRef::Read(var) = reference else {
+                continue;
+            };
+            let shared_unnamed = doc.var_name(*var).is_none()
+                && doc.var(*var).is_some_and(|v| v.def().output().is_none());
+            if shared_unnamed {
+                action.apply(DocEdit::RenameVar {
+                    var: (*var).into(),
+                    name: Some(fresh_name(doc)),
+                })?;
+            }
+        }
         let measured = action.measure(&[self.primitive()])?;
         let (measure, value) = (measured.measures[0], measured.outputs[0]);
         let assertion = action.insert(Node::Assertion(Self::claim(value)))?;
@@ -238,6 +256,21 @@ impl Quieting {
             reference(b)
         )
     }
+}
+
+/// A name `doc` does not hold, for a split's tool a second reader
+/// reads: `tool`, else the first of `tool_2`, `tool_3`, … that is free.
+fn fresh_name<P: crate::ProfilePayload>(doc: &Doc<P>) -> crate::VarName {
+    let free = |name: &str| doc.var_named(name).is_none();
+    let text = if free("tool") {
+        "tool".to_owned()
+    } else {
+        (2u32..)
+            .map(|n| format!("tool_{n}"))
+            .find(|name| free(name))
+            .unwrap_or_else(|| unreachable!("a document holds finitely many names"))
+    };
+    crate::VarName::new(text).unwrap_or_else(|fault| unreachable!("a written name: {fault}"))
 }
 
 /// **The two faces a `Gap` that would quiet an interference is written

@@ -152,7 +152,8 @@ fn holds_the_rule(label: &str, doc: &ProfileDoc) -> Vec<bool> {
             );
         }
         assert_eq!(
-            finding.quieting.is_some(), quieted,
+            finding.quieting.is_some(),
+            quieted,
             "{label}: a pair is carried exactly where an assertion quiets it: {finding:?}"
         );
         quietable.push(quieted);
@@ -389,7 +390,10 @@ fn a_tilted_press_fit_is_quiet_and_its_axes_are_decided_in_band() {
         let [loud] = findings(&doc)
             .try_into()
             .unwrap_or_else(|f: Vec<_>| panic!("{pose_name}: one finding: {f:?}"));
-        assert!(loud.is_loud() && loud.quieting.is_some(), "{pose_name}: {loud:?}");
+        assert!(
+            loud.is_loud() && loud.quieting.is_some(),
+            "{pose_name}: {loud:?}"
+        );
         for (why, outer, inner, quiets) in [
             ("bore first", (p, bore.clone()), (q, wall.clone()), true),
             ("pin first", (q, wall.clone()), (p, bore.clone()), true),

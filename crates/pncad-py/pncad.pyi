@@ -6560,9 +6560,11 @@ class Quieting:
         then inner."""
 
     def edits(self, doc: Doc) -> list[DocEdit]:
-        """The edits that author it in `doc`, in order: the measure's
-        insert, which mints each reference's selection and pose, then
-        the assertion's, `= 0` over the measure's output. Apply each
+        """The edits that author it in `doc`, in order: the naming of a
+        split's unnamed tool (a variable two readers share is named),
+        the measure's insert, which mints each reference's selection
+        and pose, then the assertion's, `= 0` over the measure's output.
+        Apply each
         with `Doc.apply`; the last one's node is the assertion the
         quieted finding names. `doc` is untouched, and the edits are
         spelled for `doc` as it stands. A refusal of the insert door

@@ -816,16 +816,18 @@ impl Quieting {
         Ok((reference(a)?, reference(b)?))
     }
 
-    /// The edits that author it in `doc`, in order: the measure's
-    /// insert, which mints each reference's selection and pose, then
-    /// the assertion's, `= 0` over the measure's output. Apply each
+    /// The edits that author it in `doc`, in order: the naming of a
+    /// split's unnamed tool (a variable two readers share is named),
+    /// the measure's insert, which mints each reference's selection
+    /// and pose, then the assertion's, `= 0` over the measure's output.
+    /// Apply each
     /// with `Doc.apply`; the last one's node is the assertion the
     /// quieted finding names. `doc` is untouched, and the edits are
     /// spelled for `doc` as it stands.
     fn edits(&self, py: Python<'_>, doc: &super::doc::Doc) -> PyResult<Vec<super::doc::DocEdit>> {
         let authored = self
             .0
-            .edits(&doc.inner, geom_core::Tol::witness())
+            .edits(&doc.inner, pncad::tolerance::Tol::witness())
             .map_err(|err| super::doc::edit_err(py, &err))?;
         Ok(authored
             .edits

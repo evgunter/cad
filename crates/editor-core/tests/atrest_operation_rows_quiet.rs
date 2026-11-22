@@ -17,6 +17,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::a_check_carries_the_assertion_that_quiets_it::every_offered_assertion_quiets as law;
 use crate::blocks::{block, failure, run};
 use crate::fixture::{against, axes_at, insert, len, union_over};
 
@@ -325,6 +326,8 @@ fn turned_rest() -> (ProfileDoc, RecipeNodeId) {
 #[test]
 fn a_booleans_glue_is_quiet_under_its_gap_and_nothing_else() {
     let (doc, union) = turned_rest();
+    let offers = law("a glue", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let got = rows(&ev, union);
     let glue = got
@@ -401,6 +404,8 @@ fn a_flush_glue_is_quiet_under_its_gap() {
     let (doc, left) = against(doc, anchor, left, &at);
     let (doc, right) = against(doc, anchor, right, &at);
     let (doc, union) = union_over(doc, &[left, right]);
+    let offers = law("a flush glue", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let flush: Vec<NamedCoincidence> = rows(&ev, union)
         .into_iter()
@@ -515,6 +520,8 @@ fn a_splits_on_row_is_quiet_under_its_tool_gap() {
         ),
     ] {
         let (doc, prism, split) = pinched(id, normal);
+        let offers = law(id, &doc);
+        assert!(offers >= 1, "the document offers an assertion: {offers}");
         let ev = run(&doc);
         let got = rows(&ev, split);
         assert_eq!(got.len(), 2, "{id}: one row per tip vertex: {got:?}");
@@ -613,6 +620,7 @@ fn a_blends_turn_is_quieted_by_no_gap_and_never_refuses() {
     assert_eq!(rims.len(), 8, "both rims: {rims:?}");
     let (doc, copy) = against(doc, anchor, the_box, &turned([0.3, -0.2, 0.5]));
     let (doc, fillet) = insert(doc, Node::fillet(copy, len(0.1), rims));
+    law("a blend's turns", &doc);
     let ev = run(&doc);
     let turns = rows(&ev, fillet);
     assert_eq!(turns.len(), 8, "one turn per corner: {turns:?}");
@@ -675,6 +683,8 @@ fn a_rod_on_a_plate_is_quiet_under_its_gap() {
     let (doc, plate) = against(doc, anchor, plate, &at);
     let (doc, rod) = against(doc, anchor, rod, &at);
     let (doc, union) = union_over(doc, &[plate, rod]);
+    let offers = law("a rod on a plate", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let got = rows(&ev, union);
     let tangent = got
@@ -1130,6 +1140,8 @@ fn crossing_axes_are_quiet_under_their_distance_and_a_radius_is_not() {
             .compose(&down),
     );
     let (doc, union) = union_over(doc, &[a_copy, b]);
+    let offers = law("crossing axes", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let meet = row_at(
         &ev,
@@ -1205,6 +1217,8 @@ fn r1_probe_a_split_by_a_face_plane_is_quiet_under_its_tool_gap() {
             tool: tool.into(),
         },
     );
+    let offers = law("a split by a frame's plane", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let got = rows(&ev, split);
     let row = got
@@ -1285,6 +1299,8 @@ fn r2_probe_a_split_by_a_faces_plane_is_quiet_under_its_tool_gap() {
             tool,
         },
     );
+    let offers = law("a split by a face's plane", &doc);
+    assert!(offers >= 1, "the document offers an assertion: {offers}");
     let ev = run(&doc);
     let got = rows(&ev, split);
     let row = got

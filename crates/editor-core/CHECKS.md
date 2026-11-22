@@ -142,11 +142,20 @@ centre on an axis, two axes meeting, or two axes one, where the two
 axes read parallel; a `Gap` or a `Distance` between a split's tool and
 its vertex. Only `= 0` quiets, since a bound is a tolerance; and only an
 opposed pair's `Gap` quiets an interference. A finding refuses only
-where such an assertion could hold, which the rule evaluates
-(`row_quietable`). A row no
-assertion says (a blend turn's two feet, two radii written apart, a
-profile junction, a blend's joint) is loud, refuses at no severity, and
-its recourse names the construction alone (`coincide::Recourse::words`).
+where such an assertion could hold, and then it carries that assertion
+as data: the rule that matches a holding assertion mints the one that
+would quiet the row (`checks::at_rest::quieting`), the measure, its two
+references as it reads them, `= 0`, with the edits that author it
+(`Quieting`), and the recourse is worded from it
+(`coincide::Recourse::words`). An interference carries the opposed pair
+of faces its `Gap` is written over (`InterferenceFinding::quieting`),
+the bound being the author's. A row of one family member carries the
+one assertion whose reads reach the family's index, which quiets each
+member's row by its own member (DESIGN `[assertions]`, "Families"). A
+row no assertion says (a blend turn's two feet, two radii written
+apart, a profile junction, a blend's joint, two members of families) is
+loud, refuses at no severity, and its recourse names the construction
+alone.
 
 **The unused resident: `CheckId::Unused`.** Kind Certified, it reads
 the recipe alone (`Doc::unused`), nothing evaluated and no subject

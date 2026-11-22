@@ -279,6 +279,12 @@ pub(crate) const AT_REST_QUIET_CONTACT_BOUND: &str = "at_rest_quiet_contact_boun
 /// until they only meet, the kernel records the meeting instead, which
 /// the same assertion says.
 ///
+/// **Families.** An assertion whose reads reach an index is one
+/// assertion per member (D10 `[assertions]`, "Families"), each by its
+/// own verdict, and each member's reference names its cell as that
+/// member reads it ([`member_name`]): the member at `k` quiets the row
+/// over member `k`'s cell, and no other member's.
+///
 /// The rule matches cells, so another contact between the same two
 /// reads stays loud, and it reads verdicts only, so an assertion that
 /// failed or did not evaluate quiets nothing.
@@ -350,7 +356,10 @@ where
     let band = Band::linear(tol).ok()?;
     let said = saying(row)?;
     let read = said.read(doc, evaluation)?;
-    let tool = said.cells.iter().position(|c| matches!(c, RowCell::Tool(_)));
+    let tool = said
+        .cells
+        .iter()
+        .position(|c| matches!(c, RowCell::Tool(_)));
     let (kinds, carriers): (_, [Carrier<'_, T>; 2]) = if let Some(t) = tool {
         // A split's ON row: its tool read as its plane, in its space's
         // coordinates, against the vertex.
@@ -1779,12 +1788,14 @@ fn localize(
             Quiet::Refused(_) => None,
         };
         // Each face of the pair bounds the component, which names it.
-        let quieting = pair.filter(|_| covered(component)).and_then(|(outer, inner)| {
-            Some(OpposedPair {
-                outer: site(outer)?,
-                inner: site(inner)?,
-            })
-        });
+        let quieting = pair
+            .filter(|_| covered(component))
+            .and_then(|(outer, inner)| {
+                Some(OpposedPair {
+                    outer: site(outer)?,
+                    inner: site(inner)?,
+                })
+            });
         out.push(match verdict {
             Quiet::Loud => finding(Overlap::Bounded { faces }, None, quieting),
             Quiet::By(assertion, at, _) if covered(component) => {
