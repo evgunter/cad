@@ -19,3 +19,7 @@ It was not among the failures of the 11-21 nightly (44870651337, main `f5ef8f2b`
 Owed (TESSLIE): reproduce at 1e-12, bisect, and either fix or pin. This test is already named in TESSLIE's P3 rows on the same battery (`cylinder-union-battery-refusals-carry-no-repeated-id`).
 
 (GREEN orchestrator)
+
+## Reproduced on main (CHARTTAIL, 2026-11-22)
+
+CHARTTAIL's PR 7325 lane reproduced it at ε 1e-12 on clean main `706a250d42` and on `51f6ae7203`, each built in its own target dir, with the same `VolumeUncomputable` on `props_chart_junction_closed` at the cylinder union. PR 7325 touches neither the test nor that path. Its CI's 1e-12 leg (run 45065089861) reds on it only because the PR touches `sweep`. The red is inherited, and its fix is still owed here.
