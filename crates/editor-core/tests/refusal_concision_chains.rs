@@ -985,7 +985,7 @@ mod kernel {
             Band, ConeCornerEscalated, ConeCornerUnread, WedgeEscalated, Undescribed,
             WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
-            NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
+            UnplacedHole, NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, EdgeJoin, Merge,
         ];
     }
@@ -2878,6 +2878,20 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::SectionWindingUndecided {
                 face,
                 diag: Some(diag()),
+            },
+        ),
+        (
+            "UnplacedHole(outline)",
+            F::UnplacedHole {
+                hole: face,
+                beside: None,
+            },
+        ),
+        (
+            "UnplacedHole(beside)",
+            F::UnplacedHole {
+                hole: face,
+                beside: Some(face),
             },
         ),
         (

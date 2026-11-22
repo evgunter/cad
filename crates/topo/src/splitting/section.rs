@@ -183,8 +183,8 @@ pub enum SectionError<T: Real> {
     /// Nothing decides which outline encloses a hole — an outline edge
     /// on a spiric or NURBS carrier, or a contact or containment in the
     /// band ([`super::section_loops`]'s `nest` says what else could).
-    /// The split keeps such a hole as a face of its own; a region list
-    /// cannot state it.
+    /// The split refuses the same hole
+    /// ([`super::SplitFinishError::UnplacedHole`]).
     UnplacedHole {
         /// A corner of the hole.
         corner: Point3<T>,
