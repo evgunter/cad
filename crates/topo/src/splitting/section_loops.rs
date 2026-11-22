@@ -580,3 +580,198 @@ mod torn_hop_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::panic, clippy::unwrap_used, clippy::float_cmp)]
+mod review_nesting_probes {
+    //! Review probes for PR 7436: `arc_clears` against dense sampling.
+    use super::{Other, arc_clears};
+    use geom::{Conic, Ellipse, Frame};
+    use geom_core::{Band, Point3, Vec3};
+
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).unwrap()
+    }
+
+    /// A tiny deterministic generator.
+    struct Lcg(u64);
+    impl Lcg {
+        fn f(&mut self) -> f64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+        }
+        fn r(&mut self, lo: f64, hi: f64) -> f64 {
+            lo + (hi - lo) * self.f()
+        }
+    }
+
+    fn seg_dist(x: Point3<f64>, p: Point3<f64>, q: Point3<f64>) -> f64 {
+        let d = q - p;
+        let t = ((x - p).dot(d) / d.dot(d)).clamp(0.0, 1.0);
+        (x - (p + d * t)).norm()
+    }
+
+    fn ellipse(c: Point3<f64>, a: f64, b: f64, rot: f64) -> Ellipse<f64> {
+        Ellipse::new(
+            Frame::new(c, Vec3::unit_z(), Vec3::new(rot.cos(), rot.sin(), 0.0)),
+            a,
+            b,
+        )
+    }
+
+    fn min_seg(e: &Ellipse<f64>, (t0, t1): (f64, f64), p: Point3<f64>, q: Point3<f64>) -> f64 {
+        let n = 20000;
+        (0..=n)
+            .map(|i| seg_dist(e.point_at(t0 + (t1 - t0) * i as f64 / n as f64), p, q))
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    /// Random segments against random (often very eccentric) arcs,
+    /// spans up to a full turn: a "clear" is never a sampled meeting.
+    #[test]
+    fn a_clear_segment_never_meets_the_arc() {
+        let mut g = Lcg(7436);
+        let (mut clear, mut false_clear, mut near) = (0, 0, f64::INFINITY);
+        for _ in 0..20000 {
+            let a = g.r(0.01, 10.0);
+            let b = a * [1.0, g.r(0.001, 1.0), 1e-3][(g.f() * 3.0) as usize % 3];
+            let e = ellipse(Point3::new(g.r(-1.0, 1.0), g.r(-1.0, 1.0), 0.0), a, b, g.r(0.0, 6.3));
+            let t0 = g.r(-7.0, 7.0);
+            let span = (t0, t0 + g.r(0.01, std::f64::consts::TAU));
+            let s = 1.5 * a;
+            let p = Point3::new(g.r(-s, s), g.r(-s, s), 0.0);
+            let q = Point3::new(g.r(-s, s), g.r(-s, s), 0.0);
+            if arc_clears(&e, span, &Other::Segment(p, q), band()) {
+                clear += 1;
+                let m = min_seg(&e, span, p, q);
+                near = near.min(m);
+                if m < 1e-12 {
+                    false_clear += 1;
+                }
+            }
+        }
+        eprintln!("segment: {clear} clear, {false_clear} false, nearest clear {near:e}");
+        assert_eq!(false_clear, 0);
+        assert!(clear > 1000, "too few clears to mean anything: {clear}");
+    }
+
+    /// Tangent and endpoint-sharing segments, and a near touch either
+    /// side of the band.
+    #[test]
+    fn tangent_shared_and_near_touch() {
+        let e = ellipse(Point3::origin(), 5.0, 0.05, 0.0);
+        let span = (0.3, 2.8);
+        // Tangent at the top of the minor axis, y = 0.05.
+        let tan = Other::Segment(Point3::new(-1.0, 0.05, 0.0), Point3::new(1.0, 0.05, 0.0));
+        assert!(!arc_clears(&e, span, &tan, band()), "tangent");
+        // A segment from the arc's start point outward.
+        let p0 = e.point_at(0.3);
+        let out = Other::Segment(p0, p0 + Vec3::new(1.0, 1.0, 0.0));
+        assert!(!arc_clears(&e, span, &out, band()), "shared end");
+        for gap in [1e-12, 1e-10, 1e-8, 1e-6, 1e-4] {
+            let s = Other::Segment(
+                Point3::new(-1.0, 0.05 + gap, 0.0),
+                Point3::new(1.0, 0.05 + gap, 0.0),
+            );
+            eprintln!("gap {gap:e}: clear {}", arc_clears(&e, span, &s, band()));
+        }
+        // A circle.
+        let c = ellipse(Point3::origin(), 1.0, 1.0, 0.0);
+        let s = Other::Segment(Point3::new(-2.0, 1.0 + 1e-6, 0.0), Point3::new(2.0, 1.0 + 1e-6, 0.0));
+        eprintln!("circle 1e-6 above: clear {}", arc_clears(&c, (0.0, 6.0), &s, band()));
+        let s = Other::Segment(Point3::new(-2.0, 0.5, 0.0), Point3::new(2.0, 0.5, 0.0));
+        assert!(!arc_clears(&c, (0.0, 6.0), &s, band()), "a chord");
+        // A chord the span > π skips.
+        assert!(arc_clears(&c, (std::f64::consts::PI + 0.2, std::f64::consts::TAU - 0.2), &s, band()), "below-half arc clears a chord above");
+    }
+
+    /// Random arc pairs: a "clear" is never a sampled meeting.
+    #[test]
+    fn a_clear_arc_pair_never_meets() {
+        let mut g = Lcg(9);
+        let (mut clear, mut false_clear) = (0, 0);
+        for _ in 0..4000 {
+            let mk = |g: &mut Lcg| {
+                let a = g.r(0.05, 3.0);
+                let b = a * [1.0, g.r(0.01, 1.0), 2e-3][(g.f() * 3.0) as usize % 3];
+                let t0 = g.r(-7.0, 7.0);
+                (
+                    ellipse(Point3::new(g.r(-1.0, 1.0), g.r(-1.0, 1.0), 0.0), a, b, g.r(0.0, 6.3)),
+                    (t0, t0 + g.r(0.01, std::f64::consts::TAU)),
+                )
+            };
+            let (c, s) = mk(&mut g);
+            let (d, t) = mk(&mut g);
+            if arc_clears(&c, s, &Other::Arc(&d, t), band()) {
+                clear += 1;
+                let n = 1500;
+                let pd: Vec<_> = (0..=n).map(|j| d.point_at(t.0 + (t.1 - t.0) * j as f64 / n as f64)).collect();
+                let (mut m, mut bi, mut bj) = (f64::INFINITY, 0usize, 0usize);
+                for i in 0..=n {
+                    let x = c.point_at(s.0 + (s.1 - s.0) * i as f64 / n as f64);
+                    for (j, y) in pd.iter().enumerate() {
+                        let g = (x - *y).norm();
+                        if g < m { m = g; bi = i; bj = j; }
+                    }
+                }
+                // Zoom on the nearest pair.
+                let (mut lo_s, mut hi_s) = (s.0 + (s.1 - s.0) * (bi.saturating_sub(2)) as f64 / n as f64, s.0 + (s.1 - s.0) * ((bi + 2).min(n)) as f64 / n as f64);
+                let (mut lo_t, mut hi_t) = (t.0 + (t.1 - t.0) * (bj.saturating_sub(2)) as f64 / n as f64, t.0 + (t.1 - t.0) * ((bj + 2).min(n)) as f64 / n as f64);
+                for _ in 0..12 {
+                    let k = 200;
+                    let (mut bm, mut bu, mut bv) = (f64::INFINITY, 0.0, 0.0);
+                    for i in 0..=k {
+                        let u = lo_s + (hi_s - lo_s) * i as f64 / k as f64;
+                        let x = c.point_at(u);
+                        for j in 0..=k {
+                            let v = lo_t + (hi_t - lo_t) * j as f64 / k as f64;
+                            let g = (x - d.point_at(v)).norm();
+                            if g < bm { bm = g; bu = u; bv = v; }
+                        }
+                    }
+                    m = m.min(bm);
+                    let (ws, wt) = ((hi_s - lo_s) / 20.0, (hi_t - lo_t) / 20.0);
+                    lo_s = (bu - ws).max(s.0.min(s.1)); hi_s = (bu + ws).min(s.0.max(s.1));
+                    lo_t = (bv - wt).max(t.0.min(t.1)); hi_t = (bv + wt).min(t.0.max(t.1));
+                }
+                // Sampling 1500 points each: a crossing reads below the sample spacing.
+                let spacing = 3.0 * std::f64::consts::TAU / n as f64;
+                if m < 1e-9 {
+                    false_clear += 1;
+                    eprintln!("FALSE CLEAR: {m:e} c {:?} {:?} {s:?} d {:?} {:?} {t:?}", c.frame(), c.semi_axes(), d.frame(), d.semi_axes());
+                }
+            }
+        }
+        eprintln!("arc pairs: {clear} clear, {false_clear} suspect");
+        assert_eq!(false_clear, 0);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic, clippy::unwrap_used)]
+mod review_nesting_threshold {
+    use super::{Other, arc_clears};
+    use geom::{Conic, Ellipse, Frame};
+    use geom_core::{Band, Point3, Vec3};
+
+    /// The least gap a segment parallel to the major axis, above the
+    /// minor vertex, clears at; and the old carrier reading's verdict.
+    #[test]
+    fn threshold_above_a_vertex() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        for (a, b) in [(1.0, 1.0), (1.0, 0.5), (5.0, 0.05), (10.0, 1.0)] {
+            let e = Ellipse::new(Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()), a, b);
+            let mut first = None;
+            for k in 0..60 {
+                let gap = 10f64.powf(-12.0 + k as f64 * 0.2);
+                let s = Other::Segment(Point3::new(-0.5 * a, b + gap, 0.0), Point3::new(0.5 * a, b + gap, 0.0));
+                if arc_clears(&e, (0.3, 2.8), &s, band) {
+                    first = Some(gap);
+                    break;
+                }
+            }
+            eprintln!("a {a} b {b}: first clear gap {first:?}; band {band:?}");
+        }
+        let _ = Conic::point_at(&Ellipse::new(Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()), 1.0, 1.0), 0.0);
+    }
+}
