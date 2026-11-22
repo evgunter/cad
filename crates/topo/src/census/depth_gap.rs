@@ -51,14 +51,13 @@
 //! covers are measured about ([`Cover::about`]) aim more ([`across`]). That proposes; it decides nothing.
 
 use geom::cover::{Around, Cover, Site};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
+use geom_core::{Band, Decide, Point3, Vec3, is_finite_length};
 
 use crate::body::Body;
 use crate::boxes::sweep_pad;
 use crate::cover::{edge_end_point, face_cover, face_nearest};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
-use crate::validate::decide;
 
 /// K name: the gap between one face's least depth and the other's
 /// greatest, less both faces' pads (metres).
