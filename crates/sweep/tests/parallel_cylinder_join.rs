@@ -458,6 +458,10 @@ fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
 /// the band, so the row asks the same question at every tolerance.
 #[test]
 fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let parallel = tipped(0.3, 0.6, 5.0, band.zero() / 10.0 / 10.0);
+    let bad = unsound(&[parallel]);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
     // At 1e-6 the first tip past the band builds its union
     // (`work/onehome/main-red-a-rod-tipped-past-the-band-builds-at-1e-6-since-the-span-foot.md`).
     test_utils::pinned_red::row(
@@ -469,8 +473,10 @@ fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door() {
     );
 }
 
-/// The row [`a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door`]
-/// runs, under its pin.
+/// The tips past the band
+/// [`a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door`]
+/// reads, under its pin; the tip inside the zero band is read ahead of
+/// it.
 fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door_row() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     for half in [50.0, 200.0] {
@@ -488,9 +494,6 @@ fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door_row() {
             }
         }
     }
-    let parallel = tipped(0.3, 0.6, 5.0, band.zero() / 10.0 / 10.0);
-    let bad = unsound(&[parallel]);
-    assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
 /// A rod of radius `r` about `(x, y)`, extruded over `z ∈ [−far, far]`
@@ -939,7 +942,9 @@ fn a_tipped_rod_refuses_alike_in_both_operand_orders() {
         Tol::witness().eps(),
         &[1e-6],
         "a tipped rod refuses alike in both operand orders",
-        &["drum × rod r 0.2 at 0.5, half-length 50, tipped 2e-7 | U ab: refuses"],
+        &[
+            "drum × rod r 0.2 at 0.5, half-length 50, tipped 2e-7 | U ab: builds, where every op refuses",
+        ],
         a_tipped_rod_refuses_alike_in_both_operand_orders_row,
     );
 }
@@ -957,7 +962,7 @@ fn a_tipped_rod_refuses_alike_in_both_operand_orders_row() {
                     .into_iter()
                     .map(|(op, res, _)| match res {
                         Err(e) => (op, e.kind()),
-                        Ok(_) => panic!("{} | {op}: refuses", pose.label),
+                        Ok(_) => panic!("{} | {op}: builds, where every op refuses", pose.label),
                     })
                     .collect();
                 assert!(

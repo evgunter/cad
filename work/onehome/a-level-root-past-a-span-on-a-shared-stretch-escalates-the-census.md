@@ -22,12 +22,25 @@ and fail on main `12a43a7e68`, the only code merge between them being
 PR 7208. Every new failure is this escalation on a body at its volume
 (`OK BAD t2=true t3p=false cert=true operand=true`, `census=curve_pair_span_past_reach_straddle`),
 on the crossings within 1e-3 rad of the edge where the boss bends into
-the disc: `review_curved` at `r = 0.5` (`c = 0.5`, `θ = 1e-4` and
-`1e-3`; `c = −0.5`, `θ = −1e-4` and `−1e-3`) and at `r = 0.05`
-(`θ = ±1e-3`, both `lb`), 20 runs; `review_curved_plate` at `r = 0.5`
-(`θ = 1e-4`, `1e-3`) and `r = 0.05` (`θ = 1e-3`), 6 runs. No body is
-at a wrong volume; at the first parent the same runs passed tier 3′. The filters know that class at 1e-6
-(`at_coarse_band`, `crossing`).
+the disc. No body is at a wrong volume (every one is within 1e-9 of its
+closed form), and at the first parent the same runs passed tier 3′.
+
+At 1e-6 the rows' filters (`straddles_at_coarse_band`) accept exactly
+these runs, each only as that reading, with `v=` within `VOLUME_CLAIM`
+of `want=`. Anything else is red: another run, another census, or a
+volume off.
+- `review_curved`, 20 runs:
+  - `A ∪ B`, `B ∪ A` and `B ∖ A` on the disc above (`c = +r`):
+    `r = 0.5, lb = 0.4` at `θ = 1e-4` and `1e-3`, and `r = 0.05` at
+    `θ = 1e-3` with `lb = 0.04` and with `lb = 0.4`;
+  - `A ∪ B` and `B ∪ A` on the disc below (`c = −r`): `r = 0.5,
+    lb = 0.4` at `θ = −1e-4` and `−1e-3`, and `r = 0.05` at
+    `θ = −1e-3` with `lb = 0.04` and with `lb = 0.4`.
+- `review_curved_plate`, 6 runs: `A ∪ B` and `B ∪ A` at `r = 0.5,
+  lb = 0.4`, `θ = 1e-4` and `1e-3`, and at `r = 0.05, lb = 0.04`,
+  `θ = 1e-3`.
+
+The default-ε clauses read the volume the same way.
 
 **The answer.** `sweep`'s `review_arm_vs_reach_probes::review_curved`
 (`r = 0.05`, `c = 0.05`, `θ = 1e-4`, both `lb`: `A ∪ B`, `B ∪ A`,

@@ -15,7 +15,7 @@ use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::AtRestBody;
 
-use crate::common::differential::{Verdict, every_op_both_orders, judged};
+use crate::common::differential::{VOLUME_CLAIM, Verdict, every_op_both_orders, judged};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -269,24 +269,37 @@ fn review_curved() {
     // (`work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`).
     let straddle = " census=curve_pair_span_past_reach_straddle";
     report(bad, |b| {
-        let below = b.contains(" c=-");
-        let main =
-            below && b.contains("∪") && b.contains("t3p=false") && b.ends_with(" census=none");
+        let main = b.contains(" c=-")
+            && b.contains("∪")
+            && b.contains("t3p=false")
+            && b.ends_with(" census=none")
+            && at_volume(b);
         let srec = b.contains("surviving record with an On code after srecledges");
         let vertex = (b.starts_with("r=0.05 c=0.05 ") && b.contains(" θ=0.0001: "))
             || (b.starts_with("r=0.05 c=-0.05 ") && b.contains(" θ=-0.0001: "));
         let shared = vertex
             && (b.contains("∪") || b.contains("B ∖ A"))
             && b.contains("t3p=false")
-            && b.ends_with(straddle);
+            && b.ends_with(straddle)
+            && at_volume(b);
         // At 1e-6 the same straddle reaches both discs' crossings within
-        // 1e-3 rad of the edge, where the boss bends into the disc.
-        let into = (crossing(b, "") && !below) || (crossing(b, "-") && below);
-        let coarse = at_coarse_band()
-            && into
-            && (b.contains("∪") || b.contains("B ∖ A"))
-            && b.contains(": OK BAD t2=true t3p=false cert=true operand=true ")
-            && b.ends_with(straddle);
+        // 1e-3 rad of the edge, where the boss bends into the disc: these
+        // 20 runs, each a body at its volume.
+        let up: &[&str] = &["A ∪ B", "B ∪ A", "B ∖ A"];
+        let down: &[&str] = &["A ∪ B", "B ∪ A"];
+        let coarse = straddles_at_coarse_band(
+            b,
+            &[
+                ("r=0.5 c=0.5 lb=0.4 θ=0.0001", up),
+                ("r=0.5 c=0.5 lb=0.4 θ=0.001", up),
+                ("r=0.5 c=-0.5 lb=0.4 θ=-0.0001", down),
+                ("r=0.5 c=-0.5 lb=0.4 θ=-0.001", down),
+                ("r=0.05 c=0.05 lb=0.04 θ=0.001", up),
+                ("r=0.05 c=-0.05 lb=0.04 θ=-0.001", down),
+                ("r=0.05 c=0.05 lb=0.4 θ=0.001", up),
+                ("r=0.05 c=-0.05 lb=0.4 θ=-0.001", down),
+            ],
+        );
         main || srec || shared || coarse
     });
 }
@@ -332,27 +345,50 @@ fn review_curved_plate() {
         let vertex = b.starts_with("plate r=0.05 lb=0.04 θ=0.0001: ")
             && b.contains("∪")
             && b.contains("t3p=false")
-            && b.ends_with(straddle);
-        // At 1e-6, as in `review_curved`.
-        let coarse = at_coarse_band()
-            && crossing(b, "")
-            && b.contains("∪")
-            && b.contains(": OK BAD t2=true t3p=false cert=true operand=true ")
-            && b.ends_with(straddle);
+            && b.ends_with(straddle)
+            && at_volume(b);
+        // At 1e-6, as in `review_curved`: these 6 runs.
+        let union: &[&str] = &["A ∪ B", "B ∪ A"];
+        let coarse = straddles_at_coarse_band(
+            b,
+            &[
+                ("plate r=0.5 lb=0.4 θ=0.0001", union),
+                ("plate r=0.5 lb=0.4 θ=0.001", union),
+                ("plate r=0.05 lb=0.04 θ=0.001", union),
+            ],
+        );
         vertex || coarse
     });
 }
 
-/// Whether a failure line's crossing angle is `sign`1e-4 or `sign`1e-3.
-fn crossing(b: &str, sign: &str) -> bool {
-    b.contains(&format!(" θ={sign}0.0001: ")) || b.contains(&format!(" θ={sign}0.001: "))
+/// Whether a failure line is one of `runs` (a pose's row and its ops) at
+/// the 1e-6 row, where the census's straddle on the disc's arc and the
+/// boss's edge reaches more poses than at the default: a body passing
+/// every check but tier 3′, at its volume, its census escalating on the
+/// straddle
+/// (`work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`).
+fn straddles_at_coarse_band(b: &str, runs: &[(&str, &[&str])]) -> bool {
+    test_utils::kernel_limit::at_row(tol().eps(), &[1e-6])
+        && runs.iter().any(|(row, ops)| {
+            ops.iter().any(|op| {
+                b.starts_with(&format!(
+                    "{row}: {op}: OK BAD t2=true t3p=false cert=true operand=true "
+                ))
+            })
+        })
+        && b.ends_with(" census=curve_pair_span_past_reach_straddle")
+        && at_volume(b)
 }
 
-/// Whether this run is the 1e-6 row, where the census's straddle on the
-/// disc's arc and the boss's edge reaches more poses than at the default
-/// (`work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md`).
-fn at_coarse_band() -> bool {
-    test_utils::kernel_limit::at_row(tol().eps(), &[1e-6])
+/// Whether a failure line's body holds its closed form: its `v=` within
+/// [`VOLUME_CLAIM`] of its `want=`. A line with either missing does not.
+fn at_volume(b: &str) -> bool {
+    let field = |key: &str| {
+        b.split_whitespace()
+            .find_map(|w| w.strip_prefix(key))
+            .and_then(|x| x.parse::<f64>().ok())
+    };
+    matches!((field("v="), field("want=")), (Some(v), Some(w)) if (v - w).abs() <= VOLUME_CLAIM)
 }
 
 /// Near-coplanar: the boss's slab turned by `φ` about `x` or `y` through
