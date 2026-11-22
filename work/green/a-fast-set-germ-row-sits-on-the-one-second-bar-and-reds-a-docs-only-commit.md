@@ -59,3 +59,8 @@ took 1.314 s against its 1.0 s bar in run 44967278913 (PR 7120's head
 the run passed, 12,649 at the default ε and 6,985 at each of 1e-6 and
 1e-12; the kernel job failed on the bar alone. At 31% over the bar this
 row is not jitter: it wants the slow set.
+
+The second run (44969619240, head `34a244086`) read the same row at
+1.347 s. PR 7120 moves it into the slow set with both times in
+`.config/nextest.toml`, as the gate's message prescribes, so its gate
+can conclude; making the row cheaper is its owner's.
