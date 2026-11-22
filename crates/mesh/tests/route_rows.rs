@@ -257,50 +257,64 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
 /// each of its dispatch's calls (the chord pass's sides and lattices,
 /// each face's target, the face's turn), nine a face on the prism, on a
 /// run and on a memo hit alike: the reading this route makes once.
+///
+/// **One removal, on every curved-lane body.** The chord rule reads each
+/// curved-lane edge's iso family from the shape door's answer
+/// (`curved::Rectangle`), where it used to classify the carrier by its
+/// axis (a nearest fit, retired since) and keep only the family: the row or
+/// column coordinate that call also read (`Chart::rim_v`,
+/// `chart_iso::mid_azimuth`, each recording `pcurve_chart_cut_side` and
+/// `chart_point_on_axis`, and `chart_point_on_tube_circle` on the donut
+/// (16) and `chart_point_cone_nappe` on the cone (4)) was thrown away. Those reads are gone from the
+/// run of the rounded prism, the washer, the ball, the cone and the
+/// donut — 16 decisions on the prism, at the head of its run, every
+/// other decision the same in order and sign — and they were all a memo
+/// hit recorded, so a hit on those five now records nothing. The mesh is
+/// byte-identical on all nine bodies.
 #[test]
 fn a_body_that_meshes_records_mains_k_stream() {
     const MAIN: [(&str, u64, u64, u64); 9] = [
         (
             "rounded prism",
-            0x044b_53af_fca7_a0cd,
-            0xde76_e44f_a8f7_6685,
+            0x8253_f6a4_2039_78ed,
+            0xcbf2_9ce4_8422_2325,
             0x6760_9721_f7b4_9e2f,
         ),
         (
             "washer",
-            0xbef8_a160_c1f1_4d1d,
-            0x2949_ec2c_247d_ebf5,
+            0x1cc4_b5fe_4e83_728d,
+            0xcbf2_9ce4_8422_2325,
             0x83a3_9809_1983_f94c,
         ),
         (
             "ball",
-            0x5172_8b12_4ed0_a3c1,
-            0x6958_59e5_b31e_fdcd,
-            0x5812_1400_df62_e576,
+            0x5aaf_8fe2_c8bd_5999,
+            0xcbf2_9ce4_8422_2325,
+            0x8403_8e18_2870_7107,
         ),
         (
             "cone",
-            0x50ab_de99_0198_e8ed,
-            0x2212_a44a_a3dd_7fcd,
+            0x84b3_064b_95c6_8ad5,
+            0xcbf2_9ce4_8422_2325,
             0xee15_493c_99b8_730d,
         ),
         (
             "donut",
-            0x9ff4_f3d7_e4f0_9c13,
-            0x9f64_3853_64cd_16f5,
+            0x8e3d_031d_bf7e_b783,
+            0xcbf2_9ce4_8422_2325,
             0x10e7_f0a2_46fd_3c81,
         ),
         (
             "ball less a slab turned 0.3",
             0x5dae_4d58_bce4_166f,
             0xcbf2_9ce4_8422_2325,
-            0x9809_23f1_eddf_8051,
+            0xc7c8_23ba_ac8c_455f,
         ),
         (
             "pipe cut on a tilt",
             0xcbf2_9ce4_8422_2325,
             0xcbf2_9ce4_8422_2325,
-            0x4299_0881_b1b2_3fb5,
+            0x3f32_81cc_55e5_8d9a,
         ),
         (
             "ball less a slab at 0.3 turned 2e-9",
@@ -317,6 +331,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
     ];
     let corpus = k_corpus();
     assert_eq!(corpus.len(), MAIN.len(), "one row per body");
+    let mut moved = Vec::new();
     for ((name, body), (want_name, run, hit, bytes)) in corpus.iter().zip(MAIN) {
         assert_eq!(name, want_name, "the corpus and the table agree on order");
         let got = k_digest(|| {
@@ -329,8 +344,15 @@ fn a_body_that_meshes_records_mains_k_stream() {
             let _ = mesh::tessellate_with(body, 5e-2, Tol::witness(), &mut memo);
         });
         assert_eq!(got, hit, "{name}: a memo hit's K stream is main's");
-        assert_eq!(mesh_digest(body, 5e-2), bytes, "{name}: main's bytes");
+        let got = mesh_digest(body, 5e-2);
+        if got != bytes {
+            moved.push(format!("{name}: {got:#x}, main's {bytes:#x}"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "main's bytes, every row that moved: {moved:#?}"
+    );
 }
 
 /// The cylinder wider by [`in_band`]: the poison of
@@ -338,16 +360,19 @@ fn a_body_that_meshes_records_mains_k_stream() {
 fn wider_in_band(s: &Surface<f64>) -> Surface<f64> {
     match *s {
         Surface::Cylinder {
-            origin,
-            axis,
+            frame: carrier_frame,
             radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin,
-            axis,
-            radius: radius + in_band(),
-            u_ref,
-        },
+        } => {
+            let (origin, axis, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            Surface::Cylinder {
+                frame: geom::Frame::new(origin, axis, u_ref),
+                radius: radius + in_band(),
+            }
+        }
         _ => unreachable!("the poisoned face is a cylinder wall"),
     }
 }
@@ -468,10 +493,12 @@ fn outer_edges(body: &Body<f64>, fk: topo::FaceKey) -> Vec<topo::EdgeKey> {
 #[test]
 fn an_edge_off_its_surface_refuses_with_that_cause() {
     let (body, face) = poisoned_washer(|_| Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 4.0),
-        axis: Vec3::new(0.0, 0.0, -1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 4.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     });
     assert_eq!(
         mesh::tessellate(&body, 5e-2, Tol::witness()).map(|_| ()),
@@ -497,23 +524,24 @@ fn poisoned_ellipse_wall() -> (Body<f64>, topo::FaceKey) {
         .map(|(fk, f)| (fk, f.sense, body.face_surface(fk).unwrap().clone()))
         .expect("the wall");
     let Surface::Cylinder {
-        origin,
-        axis,
+        frame: carrier_frame,
         radius,
-        u_ref,
     } = was
     else {
         unreachable!("the wall is a cylinder")
     };
+    let (origin, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     // Lifts RechartStrandsDescriptions: the poisoned surface is the mesher's input, edges as they were.
     body.set_face_surface_unvouched_for_tests(
         fk,
         topo::construction::FaceSurface::New {
             surface: Surface::Cylinder {
-                origin,
-                axis,
+                frame: geom::Frame::new(origin, axis, u_ref),
                 radius: radius + in_band(),
-                u_ref,
             },
             sense,
         },

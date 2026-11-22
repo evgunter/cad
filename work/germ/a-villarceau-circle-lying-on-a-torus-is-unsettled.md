@@ -43,3 +43,14 @@ derivation, because the tilt here is not the meridian's second-order
 cost. No consumer reaches it today, which is why this is P3.
 
 Moved from HONEROOT to GERM on 2026-11-20, by `git mv`, when HONEROOT merged into GERM: HONEROOT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.
+
+## The pose's general not-`Lies` rung (U3a, PR 7226)
+
+The curve × face pose (`curve_face::pose`) now reads a circle × torus
+past its coaxial and meridian rungs through `curve_face_pose_not_lies`:
+one span point whose residual is decided past the band, else an
+escalation. A Villarceau circle reads every point in the zero band, so
+it escalates `InBand(NotLies)` (the gate's rejection of the zero
+reading) rather than answering `Uncertain`
+(`curve_face::pose_rows::each_rung_escalates_on_itself`). The row still
+owes the rung above, under which it would read `Lies`.

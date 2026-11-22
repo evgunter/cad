@@ -158,7 +158,6 @@ pub mod chart_region;
 pub(crate) mod chart_window;
 pub(crate) mod chord_join;
 pub mod clearance;
-pub mod coherence;
 pub mod coincidence;
 pub mod construction;
 pub mod contact;
@@ -1555,16 +1554,12 @@ pub use sweep_trace::SweepPairs;
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart::{Chart, ChartKind};
-pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth};
+pub use chart_iso::{TravKind, iso_side_starts, mid_azimuth, traversal_kind};
 pub use chart_region::{
     CarrierPremise, ChartOverlap, ChartRegionError, RegionLane, RegionLaneOf, WITNESS_CELL_CAP,
     WITNESS_SEGMENT_CAP, chart_region_overlap, glued_pair_overlap,
 };
 pub use clearance::{ClearanceLane, ClearanceLaneOf};
-pub use coherence::{
-    CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
-    examine_chart_coherence, gap_is_noise,
-};
 pub use coincidence::{
     Backing, Cited, Cites, Coincidence, DecisionSite, Discharge, Relation, RowCell,
 };
@@ -1618,6 +1613,7 @@ pub use finish::{
     FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay, finish,
     session_box_at, take,
 };
+pub use geom_brep::curve_face::CrossWhy;
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use mirror::{Reflection, mirror_body};

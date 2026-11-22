@@ -1442,7 +1442,7 @@ fn a_fused_incomings_start_tangent_is_the_arcs() {
         let got = arriving((start.cos(), start.sin()))
             .arc_fillet(profile::Bulge { p, b }, 0.25, t)
             .map(|_| ());
-        if !matches!(got, Err(PathError::JunctionTangent { .. })) {
+        if !matches!(got, Err(PathError::JunctionTurnWithinTolerance { .. })) {
             wrong.push(format!("Bulge to {p:?}, b = {b}: {got:?}"));
         }
     }
@@ -1460,7 +1460,7 @@ fn a_fused_incomings_start_tangent_is_the_arcs() {
         let got = arriving((-s * v.y / r, s * v.x / r))
             .arc_fillet(profile::Center { c, winding, p }, 0.25, t)
             .map(|_| ());
-        if !matches!(got, Err(PathError::JunctionTangent { .. })) {
+        if !matches!(got, Err(PathError::JunctionTurnWithinTolerance { .. })) {
             wrong.push(format!("Center {c:?} {winding:?} to {p:?}: {got:?}"));
         }
     }

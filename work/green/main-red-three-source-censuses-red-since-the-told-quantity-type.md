@@ -5,6 +5,8 @@ title: Main red (slow set): hand_written_impl_census (two rows) and pncad-py's p
 status: closed
 opened: 2026-11-21
 priority: P1
+cost: E
+refs: [7267]
 closed: 2026-11-21
 ---
 
@@ -32,4 +34,4 @@ The two `told.rs` impls destructured exhaustively, as the row's message says, an
 
 ## 2026-11-21: closed (SCALAR)
 
-`told.rs`'s `impl Debug for Read` binds `Enclosure { lo: _, hi: _ }` and `impl PartialEq for Quantity` destructures `Self { held: _, dimension }`; `told.rs` is on `IMPL_FILES_TODAY`. The four `program.rs` sites are decided: `Refused`'s and `Takes`'s sentences spell `identifier()` and render no payload through `Debug`, so they leave `UNDECIDED`.
+`told.rs`'s `impl Debug for Read` binds `Enclosure { lo: _, hi: _ }` and `impl PartialEq for Quantity` destructures `Self { held: _, dimension, canonical_only }` (`canonical_only` came with PR 7229); `told.rs` is on `IMPL_FILES_TODAY`. The four `program.rs` sites are decided: `Refused`'s and `Takes`'s sentences spell `identifier()` and render no payload through `Debug`, so they leave `UNDECIDED` (main's `4985847554` dropped the same four lines; the merge takes it).

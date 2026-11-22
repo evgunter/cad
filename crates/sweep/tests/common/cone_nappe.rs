@@ -112,9 +112,14 @@ pub fn corners(body: &Body<f64>, face: FaceKey) -> Vec<Point3<f64>> {
 
 /// `face`'s corner stations `(p − apex)·axis` on its own cone.
 pub fn stations(body: &Body<f64>, face: FaceKey) -> Vec<f64> {
-    let Surface::Cone { apex, axis, .. } = surface_of(body, face) else {
+    let Surface::Cone {
+        frame: carrier_frame,
+        ..
+    } = surface_of(body, face)
+    else {
         panic!("stations: {face:?} does not wear a cone");
     };
+    let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
     corners(body, face)
         .iter()
         .map(|p| (*p - apex).dot(axis))
@@ -128,19 +133,17 @@ pub fn stations(body: &Body<f64>, face: FaceKey) -> Vec<f64> {
 /// answer no revolve can build.
 pub fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Surface<f64> {
     let Surface::Cone {
-        axis,
+        frame: carrier_frame,
         half_angle,
-        u_ref,
         ..
     } = surface_of(body, group[0])
     else {
         panic!("reanchor_cone: the group does not wear a cone");
     };
+    let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
     let moved = Surface::Cone {
-        apex: Point3::new(0.0, apex_y, 0.0),
-        axis,
+        frame: geom::Frame::new(Point3::new(0.0, apex_y, 0.0), axis, u_ref),
         half_angle,
-        u_ref,
     };
     // Lifts RechartStrandsDescriptions: the re-anchored cone is geometric nonsense on purpose.
     let key = body

@@ -30,3 +30,7 @@ The fix is a chamber whose leaves need visibly different amounts again — a doc
 ## The 8-leaf race now certifies, red on main (ONEHOME, 2026-11-19)
 
 (ONEHOME's PR 7088 lane, a local run) Since the signed depth, the 8-leaf race certifies a leaf. On main at `8e7e7b5f4` the row is red at `m10_sym_drive_memo_interval.rs:539`. The arm `race` expects `certifies: false`, and its drive reads `Receipt { certified: 1, refused: 7, splits: 7 }`, with leaves' need `[36 ×8]` and frozen 36. The receipt is identical on PR 7088's merge of that main (`5b8bf47eb`) and with that PR's placement asks switched off. What re-pinning it means is this row's question: whether the arm's `certifies` flag moves to `true`, and whether its distinct-needs floor still has anything to read when every leaf needs 36.
+
+## The same red at every ε (GREEN, 2026-11-22)
+
+(GREEN U3, `green/editor-1e-12`) On the scheduled nightly 44870651337 (main `f5ef8f2b`) this row is red at the default ε, 1e-6 and 1e-12 with one message, `race: the row's certified arm is vacuous unless this drive certifies: Receipt { certified: 1, refused: 7, splits: 7 }` at `m10_sym_drive_memo_interval.rs:539`. So the re-pin this row owes greens the 1e-6 and 1e-12 rows too, and GREEN's 1e-12 row defers to it.
