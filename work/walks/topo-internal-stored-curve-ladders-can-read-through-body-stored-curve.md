@@ -2,8 +2,10 @@
 id: topo-internal-stored-curve-ladders-can-read-through-body-stored-curve
 kind: issue
 title: topo's own edge-to-certified-curve ladders could read through Body::stored_curve
-status: open
+status: closed
 opened: 2026-10-20
+closed: 2026-11-22
+parent: edge-carrier-walks-and-tag-matches-outside-the-one-door
 ---
 
 
@@ -26,3 +28,5 @@ Not in scope here:
 - Reads that resolve the edge through `proven`/`Link` (the plan-phase contract, e.g. `attach.rs` `carried_spec`), and test code (`tier3_tests.rs`, `test_support_*.rs`, `boolean/boxes.rs` tests, `boolean/node_probe_rows.rs`, `boolean/carrier_cross.rs` tests).
 
 - 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` site is gone.
+
+- 2026-11-22 (WALKS, `walks/edge-view`) — closed by the edge view: topo's production ladders read an edge's curve through `EdgeView` (`Body::edge` / `proven_edge` / `linked_edge`, then `curve()` / `certified()`), and a live edge's dangling curve link panics there naming the edge. `props.rs` `run_edges` resolves the edge as a link of its half-edge (both link misses panic; the `Corrupt` arms for them are gone). Left raw on purpose: `validate.rs` `certified_carrier` and `census/curved.rs`'s tangent read, which report a miss as a finding; `transform.rs`'s arena remap, which rewrites curve keys and refuses an orphan; `euler_kill.rs` `kev_merge_moves`, which already panics naming the edge on a link miss.

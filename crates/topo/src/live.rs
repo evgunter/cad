@@ -2,7 +2,8 @@
 //! that say where their key came from: the [`KeySource`] doors, and
 //! [`FaceView`], a face resolved once by where its key came from, which
 //! every walk from a face (its surface, its loops, its boundary members
-//! and its edges) reads.
+//! and its edges) reads, and [`EdgeView`], its edge twin, which every
+//! read of an edge's curve goes through.
 //!
 //! [`Body::link_half_edges`] splices by writing `next`/`prev`, and under
 //! the D2 addendum a failed lookup there is a kernel bug announced with
@@ -70,6 +71,15 @@
 //! [`crate::entity::Face::loop_keys`]), read raw only by a reader that
 //! reports a miss itself, which reads [`Body::unchecked_face_boundary`]
 //! for the loops.
+//!
+//! # The curve of an edge
+//!
+//! An edge's record links its curve, and every read of it goes through
+//! [`EdgeView`], built by the same four sources: [`Body::proven_edge`],
+//! [`Body::linked_edge`], [`Body::edge`] (a caller's key, `None` where
+//! stale) and [`Body::edge_views`]. The curve hop is a link, so it
+//! panics on a torn body (D2 row 4); null scaffolding is the one
+//! absence [`EdgeView::certified`] answers.
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,

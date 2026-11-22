@@ -122,12 +122,7 @@ fn read<T: Decide>(
 /// `q` on the span or refuses, or for an edge with no certified curve,
 /// leaving the question to the reading.
 pub(super) fn may_rest_on<T: Decide>(body: &Body<T>, e: EdgeKey, q: Point3<T>, band: Band) -> bool {
-    let Some(curve) = body
-        .edges
-        .get(e)
-        .and_then(|d| body.curves.get(d.curve))
-        .and_then(crate::null::CurveGeom::certified)
-    else {
+    let Some(curve) = body.edge(e).and_then(crate::live::EdgeView::certified) else {
         return true;
     };
     let (t0, t1) = curve.params();

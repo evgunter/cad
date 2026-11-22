@@ -333,7 +333,6 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey}
 use crate::face_normal::NormalAbort;
 use crate::geometry::PointKey;
 use crate::live::proven;
-use crate::null::CurveGeom;
 use crate::solid_contain::SolidContainment;
 use crate::sweep_trace::SweepPairs;
 
@@ -2425,11 +2424,7 @@ fn edge_line_span<T: Real>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
 ) -> Option<(geom::Line<T>, (T, T))> {
-    let curve = body
-        .edges
-        .get(ek)
-        .and_then(|e| body.curves.get(e.curve))
-        .and_then(CurveGeom::certified)?;
+    let curve = body.edge(ek)?.certified()?;
     Some((curve.carrier().as_line()?, curve.params()))
 }
 

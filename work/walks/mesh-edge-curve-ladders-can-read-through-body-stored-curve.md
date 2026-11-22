@@ -2,10 +2,12 @@
 id: mesh-edge-curve-ladders-can-read-through-body-stored-curve
 kind: issue
 title: mesh's edge-to-certified-curve ladders could read through topo::Body::stored_curve
-status: open
+status: closed
 opened: 2026-10-20
 priority: P4
 cost: E
+closed: 2026-11-22
+parent: edge-carrier-walks-and-tag-matches-outside-the-one-door
 ---
 
 
@@ -26,3 +28,5 @@ Routing them is a `map_err` from `EulerOpError::NullScaffoldCurve` to `NullScaff
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
 
 Moved from TESSWORD to TESSLIE on 2026-11-20, by `git mv`, when TESSWORD merged into TESSLIE: TESSWORD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TESSLIE carries.
+
+- 2026-11-22 (WALKS, `walks/edge-view`) — closed by the edge view, not by `stored_curve`: `walk.rs` (both reads), `memo.rs`, `chords.rs` `certified`, `sizing.rs` and `trimmed.rs` `carried_by_a_line` read `body.edge(ek)` then `EdgeView::certified`. A stale edge stays `MissingEntity { what: "edge" }`, a null edge `NullScaffoldEdge` (now told apart in `walk.rs`'s second read too), and a dangling curve link panics. `carried_by_a_line` reads straightness as `!Curve3::is_curved()`.

@@ -2,11 +2,12 @@
 id: edge-carrier-walks-and-tag-matches-outside-the-one-door
 kind: issue
 title: Nine hand-written edge to carrier walks and six tag-only carrier comparisons still read past readback::edge_carrier_ref
-status: open
+status: review
 opened: 2026-09-14
 refs: [edge-carrier-kind-has-no-readback-door, 2587]
 priority: P1
 cost: E
+branch: walks/edge-view
 ---
 
 
@@ -94,3 +95,30 @@ gone with them; a site that reads an edge key out of the body maps
 `Dangling` to `unreachable!` rather than to a refusal of its own.
 
 - 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` rung (`Unexaminable`) is gone.
+
+## Decided
+
+An edge is read through a resolved handle, as a face is (`FaceView`):
+`topo::EdgeView` in `crates/topo/src/live.rs`. The door that builds it
+states where the key came from, once (DESIGN D2): `Body::edge` (public,
+`None` = the caller's key is stale), `Body::edge_views` (every edge),
+and crate-private `Body::proven_edge` (miss panics) and
+`Body::linked_edge` (miss panics naming the holding record). On the
+view: `key()`, the record (crate-private), `curve() -> &CurveGeom` (a
+link; a miss panics naming the edge) and `certified() ->
+Option<&EdgeCurve>` (`None` = null scaffolding, the one absence left).
+`BoundaryMember::Edge` carries its edge as a view.
+
+`readback::edge_carrier_ref`, `CarrierAbsence` and
+`Body::edge_curve_linked` are gone; readback's crate-private
+`carrier_curve` is the edge twin of `carrier_surface`, and
+`edge_carrier_kind`/`edge_pose` read through it. `Body::stored_curve` /
+`stored_curve_as` remain as sugar over the view for operator doors that
+take a caller's key. A kernel reader's tag question (is it straight, is
+it a circle) is the carrier's own (`is_curved`, `as_line`,
+`as_circle`) on the carrier the view reaches, so a torn link panics
+rather than reading as "no"; `query::edge_carrier_matches` stays the
+selection predicate only. `validate::certified_carrier` and
+`census/curved.rs`'s tangent read stay raw arena reads (they report a
+miss as a finding).
+
