@@ -3311,3 +3311,95 @@ fn review_probe_turned_wedge_alone() {
     let float = embedding(&wedge::<f64>(&place, 5.5));
     println!("[review turned] {:?} {:?}", float.verdict, float.receipt);
 }
+
+/// REVIEW PROBE (from embed/one-plane's rows, verdicts printed only):
+/// the unit ball on two turned frames at both scalars, and two
+/// overlapping turned balls.
+#[test]
+fn review_probe_one_plane_turned_balls() {
+    fn turned_about(turn: ((f64, f64, f64), f64), at: (f64, f64, f64)) -> SketchPlane<f64> {
+        use geom_core::{Affine3, Mat3, Vec3};
+        let ((x, y, z), th) = turn;
+        let a = Vec3::new(x, y, z) * (1.0 / (x * x + y * y + z * z).sqrt());
+        let (c, s) = (f64::cos(th), f64::sin(th));
+        let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+        let m = Mat3::from_cols(
+            col(Vec3::new(1.0, 0.0, 0.0)),
+            col(Vec3::new(0.0, 1.0, 0.0)),
+            col(Vec3::new(0.0, 0.0, 1.0)),
+        );
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::from_parts(m, Vec3::new(at.0, at.1, at.2)),
+            tol(),
+        ))
+    }
+    fn ball_on<T: Scalar>(plane: &SketchPlane<f64>, y0: f64) -> Body<T> {
+        let loops = [profile::test_support::bulge_loop(vec![
+            (Point2::new(0.0, y0 - 1.0), 1.0),
+            (Point2::new(0.0, y0 + 1.0), 0.0),
+        ])];
+        let place = SketchPlane::from_frame(plane.frame().map_scalar(T::from_f64));
+        let profile = Profile::new(place, lifted::<T>(&loops)).validate(tol()).unwrap();
+        revolve(&profile, axis_y(), Revolution::Full, tol()).unwrap().body.into_body()
+    }
+    let turned: [(((f64, f64, f64), f64), (f64, f64, f64)); 2] = [
+        (((1.0, 2.0, 3.0), 0.7), (0.3, -1.1, 2.9)),
+        (((0.0, 1.0, 1.0), 1.1), (60.0, -48.0, 64.0)),
+    ];
+    for (k, &(turn, at)) in turned.iter().enumerate() {
+        let plane = turned_about(turn, at);
+        let f = embedding(&ball_on::<f64>(&plane, 0.0));
+        let t = embedding(&ball_on::<Interval>(&plane, 0.0));
+        println!("[review ball] frame {k}: f64 {:?} {:?} | Interval {:?} {:?}", f.verdict, f.receipt, t.verdict, t.receipt);
+    }
+    let plane = turned_about(turned[0].0, turned[0].1);
+    let mut body = ball_on::<f64>(&plane, 0.0);
+    topo::graft_disjoint(&mut body, &ball_on::<f64>(&plane, 1.5)).expect("a second solid");
+    let r = embedding(&body);
+    println!("[review ball] two overlapping: {:?} {:?}", r.verdict, r.receipt);
+}
+
+/// REVIEW PROBE: the wedge revolved by −θ (the mirror image of +θ).
+#[test]
+fn review_probe_apex_wedge_negative_turn() {
+    fn wedge<T: Scalar>(theta: f64) -> Result<Body<T>, String> {
+        let profile = Profile::new(
+            plane_at::<T>(&SketchPlane::xy()),
+            lifted(&[ProfileLoop::polygon(
+                [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
+            )]),
+        )
+        .validate(tol())
+        .map_err(|e| format!("{e:?}"))?;
+        Ok(revolve(&profile, axis_y(), Revolution::Partial(T::from_f64(theta)), tol())
+            .map_err(|e| format!("{e:?}"))?
+            .body
+            .into_body())
+    }
+    for theta in [-(1.5 * core::f64::consts::PI + 0.01), -5.5] {
+        match (wedge::<f64>(theta), wedge::<Interval>(theta)) {
+            (Ok(f), Ok(t)) => {
+                let (f, t) = (embedding(&f), embedding(&t));
+                println!("[review wedge neg] θ={theta}: f64 {:?} {:?} | Interval {:?} {:?}", f.verdict, f.receipt.splits, t.verdict, t.receipt.splits);
+            }
+            (a, _) => println!("[review wedge neg] θ={theta}: not built {:?}", a.err()),
+        }
+    }
+}
+
+/// REVIEW PROBE: the turned wedge at θ from CAD_REVIEW_THETA, for CAD_REVIEW_TRACE.
+#[test]
+fn review_probe_turned_wedge_theta() {
+    let theta: f64 = std::env::var("CAD_REVIEW_THETA").ok().and_then(|s| s.parse().ok()).unwrap_or(5.5);
+    let profile = Profile::new(
+        plane_at::<f64>(&apex_frames()[1].1),
+        lifted(&[ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
+        )]),
+    )
+    .validate(tol())
+    .unwrap();
+    let body: Body<f64> = revolve(&profile, axis_y(), Revolution::Partial(theta), tol()).unwrap().body.into_body();
+    let r = embedding(&body);
+    println!("[review turned θ] {theta}: {:?} {:?}", r.verdict, r.receipt);
+}

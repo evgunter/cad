@@ -5365,6 +5365,9 @@ impl Psi {
     /// and along a ruling, where `v` is the axis, that part is all of it.
     fn rate(&self, p: Point3<Interval>, v: Vec3<Interval>) -> Interval {
         let unit = |w: Vec3<Interval>| w * (at(1.0) / w.norm());
+        // REVIEW: iso-end's square_to only under CAD_REVIEW_ISO; else main's gradient·v.
+        let iso = std::env::var_os("CAD_REVIEW_ISO").is_some();
+        let square_to = |axis: Vec3<Interval>, v: Vec3<Interval>| if iso { square_to(axis, v) } else { v };
         match *self {
             Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n.dot(v),
             Self::Carrier(Implicit::Cylinder { o, axis, .. }) => {
