@@ -676,9 +676,9 @@ fn built_on(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BuiltOn {
 /// Read off what `node` is built on ([`built_on`]), which reads bodies
 /// as bodies only. `node` is built on a copy where it reads at least one
 /// copy as a body and reads no other body other than through a copy —
-/// `fillet(C)`, `chamfer(fillet(C))`, `C ∪ mirror(C)`, a sketch fused
-/// onto `C` (whose boss is a copy of the sketch's own extrude, a member
-/// of the union with `C`). A body that reaches `C` only through a plane
+/// `fillet(C)`, `chamfer(fillet(C))`, `C ∪ mirror(C)`, a boss placed
+/// on `C` and fused with it (the boss a copy of its own extrude, a
+/// member of the union with `C`). A body that reaches `C` only through a plane
 /// or a frame — a mirror of another body whose plane is picked on `C`,
 /// an extrude of a profile drawn on `C`'s face — is not on `C`. `∪[B, C]`, which reads the body `B` as
 /// well as a copy of it, is built on no copy, whichever operand comes
@@ -754,7 +754,7 @@ pub fn placement_reading(
 
 /// **The copy a profile's sketch is built on**: among the nodes made
 /// from `profile` at any depth, those built on a copy ([`built_on_copy`])
-/// — the union a sketch on a copy's face fuses into the copy — the copy
+/// — the union a boss placed on a copy's face fuses into the copy — the copy
 /// minted first; `None` where none is.
 fn copy_downstream_of(
     doc: &Doc<ProfileProgram>,

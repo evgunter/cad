@@ -27,8 +27,8 @@ use common::drawn;
 use common::{displayed_face_at, len, plate_index};
 use pncad::document::Bodies;
 use pncad::document::{
-    AuthoredNode, Dimension, Doc, DocEdit, Formula, Node, Operand, OperandSlot, ProfileProgram,
-    RecipeNodeId, SlotId, VarId, VarName,
+    AuthoredNode, Doc, DocEdit, Formula, Node, Operand, OperandSlot, ProfileProgram, RecipeNodeId,
+    SlotId, VarId, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -150,19 +150,6 @@ fn lateral_edges(session: &DocSession, node: RecipeNodeId) -> Vec<StableName> {
         .collect()
 }
 
-/// `body`'s top cap, picked on the drawn `on`.
-fn top(body: RecipeNodeId, on: RecipeNodeId) -> FaceSelection {
-    FaceSelection {
-        name: StableName {
-            kind: EntityKind::Face,
-            node: body,
-            path: vec![RoleSeg::Cap(CapEnd::End)],
-        },
-        node: on,
-        body: 0,
-    }
-}
-
 /// `body`'s `+x` wall picked on `on`, as a ray toward `−x` meets it.
 fn plus_x_wall(session: &DocSession, y: f64) -> FaceSelection {
     let index = plate_index(session);
@@ -174,7 +161,6 @@ fn plus_x_wall(session: &DocSession, y: f64) -> FaceSelection {
 /// pattern's is undo).
 fn gestures_on(
     session: &DocSession,
-    body: RecipeNodeId,
     copy: RecipeNodeId,
     other: RecipeNodeId,
 ) -> Vec<(&'static str, SessionOp, bool)> {
@@ -207,16 +193,6 @@ fn gestures_on(
             SessionOp::AddMirror {
                 body: copy.into(),
                 plane: viewer::session::ToolPlane::Face(plus_x_wall(session, 0.0)),
-            },
-            true,
-        ),
-        (
-            "sketch on face",
-            SessionOp::SketchOnFace {
-                face: top(body, copy),
-                loops: vec![common::rectangle_loop([0.0, 0.0], 0.004, 0.004)],
-                distance: len(0.003),
-                spin: Formula::zero(Dimension::Angle),
             },
             true,
         ),
@@ -308,19 +284,19 @@ fn says_on_copy(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: RecipeNodeI
 /// copies placing the bracket, the second drawn, and the node the
 /// gesture made — the one the app selects after it, so the one the
 /// pane speaks of — said to be on the first copy, with the way to the
-/// bracket. Deleting what a fillet, a chamfer, a mirror or a sketch
-/// made is the identity; a split's, a pattern's, a fused pattern's and
+/// bracket. Deleting what a fillet, a chamfer or a mirror made is the
+/// identity; a split's, a pattern's, a fused pattern's and
 /// a combine's inverse is one undo. Answers the failures.
 fn every_gesture_on(
     make: impl Fn(Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNodeId),
 ) -> Vec<String> {
     let tol = Tol::witness();
     let mut bad = Vec::new();
-    let (probe, body, first, second) = make(tol);
-    let count = gestures_on(&probe, body, first, second).len();
+    let (probe, _, first, second) = make(tol);
+    let count = gestures_on(&probe, first, second).len();
     for at in 0..count {
         let (mut session, body, first, second) = make(tol);
-        let (name, op, inverse) = gestures_on(&session, body, first, second).swap_remove(at);
+        let (name, op, inverse) = gestures_on(&session, first, second).swap_remove(at);
         let before = world(session.committed_doc());
         let read = session.committed_doc().output(body, 0);
         let out = session.perform(op);
@@ -383,8 +359,7 @@ fn every_gesture_on(
 ///
 /// *Breaks if* a seat reads through a copy to its body (the result reads
 /// the bracket, and the copies are re-pointed), a gesture writes a
-/// placement, the made node does not say it is on the copy (a sketch's
-/// profile), or a delete is not the gesture's inverse.
+/// placement, the made node does not say it is on the copy, or a delete is not the gesture's inverse.
 #[test]
 fn a_feature_picked_on_a_copy_reads_that_copy_alone() {
     let bad = every_gesture_on(two_world_copies);
@@ -1462,8 +1437,9 @@ fn rows_ok(session: &DocSession, when: &str) -> Vec<String> {
         .collect()
 }
 
-/// fillet(C) → chamfer → sketch on its top → fillet of what the sketch
-/// made, on the copy `copy` of `body`: answers the made nodes.
+/// fillet(C) → chamfer → `K ∪ mirror(K)` across a plane clear of its
+/// top → fillet of the union, on the copy `copy` of `body`: answers the
+/// made nodes.
 fn mixed_chain(
     session: &mut DocSession,
     body: RecipeNodeId,
@@ -1491,28 +1467,17 @@ fn mixed_chain(
     );
     session.pump();
     let face = face_carrying(session, k, &top_name(body));
-    let out = session.perform(SessionOp::SketchOnFace {
-        face: FaceSelection {
-            name: face,
-            node: k,
-            body: 0,
-        },
-        loops: vec![common::rectangle_loop([0.0, 0.0], 0.004, 0.004)],
-        distance: len(0.003),
-        spin: Formula::zero(Dimension::Angle),
+    let out = session.perform(SessionOp::AddMirror {
+        body: k.into(),
+        plane: common::plane_inside(Operand::select(Operand::Node(k), vec![face]), -0.005),
     });
-    assert!(out.refusal.is_none(), "sketch: {:?}", out.refusal);
+    assert!(out.refusal.is_none(), "mirror: {:?}", out.refusal);
     session.pump();
     let made: Vec<RecipeNodeId> = out.minted.clone();
     let fused = *made
         .iter()
-        .find(|&&n| {
-            matches!(
-                session.committed_doc().node(n),
-                Some(Node::Union { .. } | Node::Assemble { .. })
-            )
-        })
-        .unwrap_or_else(|| panic!("the sketch's union among {made:?}"));
+        .find(|&&n| matches!(session.committed_doc().node(n), Some(Node::Union { .. })))
+        .unwrap_or_else(|| panic!("the mirror's union among {made:?}"));
     let e2 = edge_carrying(session, fused, &edges[2]);
     let h = common::session_insert(
         session,
@@ -1549,7 +1514,7 @@ fn fillet_and_repoint(session: &mut DocSession, body: RecipeNodeId) -> RecipeNod
     f
 }
 
-/// **Delete is the inverse four features deep** (re-check, claim 2): a mixed chain (fillet, chamfer, sketch, fillet) on
+/// **Delete is the inverse four features deep** (re-check, claim 2): a mixed chain (fillet, chamfer, mirror, fillet) on
 /// the copy BEFORE the re-point; F = fillet(B), re-point, delete F: the
 /// document (nodes, product, drawn) is the one before F, rows well.
 #[test]
@@ -1697,7 +1662,7 @@ fn an_intersection_left_with_a_member_keeps_it() {
     assert_eq!(source_of(doc, reader), doc.output(i, 0), "reads the ∩");
 }
 
-/// **On this copy at depth** (re-check, claim 4): a copy of a copy, four features deep with a sketch, says it
+/// **On this copy at depth** (re-check, claim 4): a copy of a copy, four features deep, says it
 /// is on the copy and goes to B; a copy of a member copy reaches B.
 #[test]
 fn on_this_copy_at_depth_and_through_member_copies() {
