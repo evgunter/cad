@@ -489,3 +489,7 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - Verified on CI: a throwaway branch with a one-job workflow at all three ε. The bisect pushed 18 branches at once, before the 3-4 rule.
   - STYLE review (Opus) dispatched, with claims on the untraced digest and the folded ε pins. A re-bless that blesses an unexplained move is what the 11-14 reviews kept catching.
   - Found: `isolation: remote` agents run in a harness worktree under `/home/evan/projects/cad/.claude/worktrees/`, and the harness refuses their git elsewhere.
+- 2026-11-22 — PR 7389's review is in (Opus): APPROVE-WITH-FIXES, one MAJOR, demonstrated in part. The plate ledger's re-pin blesses a `Plain/Decision` digest move that is not PR 7183's: the old pin reads exactly on PR 7131's 11-19 branch, and reverting 7183's readers on main does not restore it. Untraced; the doc credited it to the readers.
+  - The other three re-blesses hold. Folding the e2e pins makes the row stricter, but ε 1e-7 and 1e-11, where the old dependence showed, are gated by no run.
+  - Fix pass sent: bisect the digest in 3-4 branch rounds, or name it untraced at the claim site with a row; plus MINOR-1-3, rows on ONEHOME and HELPER, labelled floors, and a trimmed doc. NOTE-1 (count−1 floors) argued down as pre-existing.
+  - Class, logged again: a re-pin "every count comes back" can still bless a digest that does not.
