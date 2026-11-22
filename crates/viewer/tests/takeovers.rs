@@ -137,19 +137,17 @@ fn draw_on(face: FaceSelection) -> SessionOp {
     }
 }
 
-/// [`draw_on`] `face`, extruded 3 mm off it, landed: the boss a combine
-/// fuses onto the face's body. Answers the extrude.
+/// [`draw_on`] `face`, extruded 3 mm off it: the boss a combine fuses
+/// onto the face's body. Answers the extrude.
 fn boss_on(session: &mut DocSession, face: FaceSelection) -> RecipeNodeId {
     let profile = common::session_insert(session, draw_on(face));
-    let boss = common::session_insert(
+    common::session_insert(
         session,
         SessionOp::AddExtrude {
             profile,
             distance: len(0.003),
         },
-    );
-    session.pump();
-    boss
+    )
 }
 
 /// The ops on the block picked as itself this suite re-points by, each

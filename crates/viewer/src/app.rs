@@ -7931,11 +7931,11 @@ mod properties_pane_tests {
         }
 
         /// **A 2 mm square drawn on `face` and extruded 1 mm**, each
-        /// step its own op and landed: the profile on the face's chart
+        /// step its own op, then landed: the profile on the face's chart
         /// ([`SessionOp::DrawOnFace`]), then its extrude. Answers the
         /// extrude.
         fn boss_on(&mut self, face: &crate::session::FaceSelection) -> RecipeNodeId {
-            self.perform(draw_op(face));
+            self.app.perform_batch(vec![draw_op(face)]);
             let profile = self.the_one(|node| {
                 matches!(node, pncad::document::Node::Profile(program) if program.on.is_some())
             });
