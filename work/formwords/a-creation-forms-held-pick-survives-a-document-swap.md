@@ -2,10 +2,12 @@
 id: a-creation-forms-held-pick-survives-a-document-swap
 kind: issue
 title: A creation form's held pick survives a document swap and resolves against the new document
-status: open
+status: review
 opened: 2026-09-21
 priority: P1
 cost: D
+pr: 7376
+branch: formwords/held-pick
 ---
 
 

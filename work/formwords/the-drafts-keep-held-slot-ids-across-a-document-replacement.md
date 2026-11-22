@@ -2,12 +2,14 @@
 id: the-drafts-keep-held-slot-ids-across-a-document-replacement
 kind: issue
 title: Drafts::document_replaced drops the held faces but keeps the refused-expression draft and the naming field, both keyed by ids of the outgoing document
-status: open
+status: review
 opened: 2026-10-31
 priority: P3
 cost: E
 refs: [viewerapp-document-derived-state-has-no-boundary]
 parent: a-creation-forms-held-pick-survives-a-document-swap
+pr: 7376
+branch: formwords/held-pick
 ---
 
 
