@@ -337,9 +337,9 @@ rewrites the row.
   `cylinder_sphere_frame::every_segment_joins_neighbouring_sites_along_its_loop`
   (the matcher on that pose) and `topo`
   `ring_path::spline_fuzz::a_path_across_a_carried_loop_reads_the_membership_parity`
-  (`PairSection::carry` itself). On hosted CI at ε = 1e-6 the two sweep
-  rows pass at PR 7052's first parent `fa4e9ba921` and fail at its merge
-  `6c2430e888`; all three fail on main `12a43a7e68`. Each is pinned to
+  (`PairSection::carry` itself). On hosted CI at ε = 1e-6 all three
+  pass at PR 7052's first parent `fa4e9ba921` and fail at its merge
+  `6c2430e888`, and fail on main `12a43a7e68`. Each is pinned to
   that refusal at 1e-6 (the first by `test_utils::pinned_red::row`, the
   other two by an in-line check on the pose, as
   `pair_section::a_seated_loop_has_no_start` does), so it goes red the

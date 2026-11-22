@@ -45,3 +45,11 @@ The rim-ball row (`a_ball_across_a_cylinder_wall_r_0_1_across_the_rim`,
 U2's) was not in these runs; nothing here shares its cause as far as
 these bisects reach: the sliver family is the carry of one pose, and
 the rim row is a different pose and every ε.
+
+## 2026-11-22 — fix pass (PR 7383's review)
+
+- The topo row (`ring_path::spline_fuzz::a_path_across_a_carried_loop_reads_the_membership_parity`) is now bisected too: it passes at `fa4e9ba921` and fails at `6c2430e888` (7052) at 1e-6, `boxes: 437`.
+- 7112's first parent is `f7f9c07ada`, not `e7d1a14b11` (7114). The three DOCTAIL merges between them touch no geometry crate, so the attribution stands.
+- The review_curved filters now read each body's volume and name their 20 + 6 runs at 1e-6. The sliver pin is the whole six-run list. The tipped rods' parallel pose runs ahead of the pin.
+- On `827f317373`, all seven pinned or filtered rows pass at 1e-6 (hosted probe), and `gate ok` passes.
+- Filed `review-curved-accepts-an-invariant-refusal-at-any-pose` (P2, here) for the pre-existing srec clause.
