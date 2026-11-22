@@ -373,6 +373,15 @@ enum Piece {
     /// clear, with every solution in the window within ε of the side by
     /// the side's cover ([`side_stretch`]).
     Side(ChartSide),
+    /// A node's box at an end of the chain (C2's node end), whose claim
+    /// is the node's own reading, read before the chain is
+    /// ([`super::node::node_box`]): `∇φ`'s one zero in the box is a node
+    /// within the band of the carrier's end, and the box is at most
+    /// [`super::certify::NODE_BOX_REACH`]² of the node's settle reach
+    /// across. What it waives there is bounded by that box: the
+    /// transverse enclosure and the count of the piece in it are not
+    /// read, the node's four arcs meeting in it.
+    Node,
 }
 
 /// The coordinate `side` fixes, of `r`'s edge on that side.
@@ -679,6 +688,7 @@ fn reaches_end<'p, T: CertifiedBounds>(
 ) -> Result<(), Shortfall> {
     let partner = partner.into();
     match piece {
+        Piece::Node => Ok(()),
         Piece::Side(side) => {
             let t = split(q, side).1;
             let (a, b) = super::boundary::along(side, r);
@@ -792,7 +802,10 @@ fn pcurve_at<T: CertifiedBounds>(pcurve: &NurbsCurve2<T>, t: f64) -> Option<Poin
 ///
 /// - **Hypothesis:** a zero-free `∂φ/∂e⊥` over every window, each
 ///   clipped to the wall's `domain` as every enclosure over it is.
-/// - **Each window:** it holds one piece ([`piece`]).
+/// - **Each window:** it holds one piece ([`piece`]), or it is a node's
+///   box at an end of the chain ([`super::certify::ChartWindow::node`]),
+///   whose claim is the node's own reading and whose arc ends at the
+///   node, the carrier's end.
 /// - **Consecutive windows:** their pieces meet ([`link`]).
 /// - **The carrier's ends:** the first window's piece reaches the
 ///   carrier's start, the last window's its end ([`reaches_end`]).
@@ -851,7 +864,12 @@ pub(crate) fn one_arc<'p, T: CertifiedBounds>(
         ),
     ];
     let readers = side_readers(boxes, partner);
-    let piece_at = |k: usize| piece(boxes, partner, (domain, &readers), clipped[k], band);
+    let piece_at = |k: usize| {
+        if windows[k].0.node {
+            return Ok(Piece::Node);
+        }
+        piece(boxes, partner, (domain, &readers), clipped[k], band)
+    };
     let pieces = (0..clipped.len())
         .map(piece_at)
         .collect::<Result<Vec<Piece>, Shortfall>>();
@@ -861,6 +879,7 @@ pub(crate) fn one_arc<'p, T: CertifiedBounds>(
     // arc's where none does. No chain reaches that end, whatever the
     // undecided window holds.
     let unreached = |&(k, q, end): &(usize, (f64, f64), CarrierEnd)| match piece_at(k) {
+        Ok(Piece::Node) => false,
         Ok(p @ Piece::Side(_)) => {
             reaches_end(
                 boxes,
@@ -1241,9 +1260,11 @@ mod tests {
     /// The plane `z = 0`, by its form.
     fn ground() -> super::super::residual::ImplicitForm {
         super::super::residual::ImplicitForm::of(&geom::Surface::Plane {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
         })
         .expect("a plane has a form")
     }
@@ -1570,9 +1591,7 @@ mod tests {
         };
         let u = (u - normal * u.dot(normal)) / (u - normal * u.dot(normal)).norm();
         Surface::Plane {
-            origin,
-            normal,
-            u_ref: u,
+            frame: geom::Frame::new(origin, normal, u),
         }
     }
 
@@ -1584,10 +1603,12 @@ mod tests {
     #[test]
     fn a_face_graze_resolves_no_count() {
         let sphere = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let ground = plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let graze = bx((0.5, 1.0), (-0.3, 0.3), (-0.1, 0.1));
@@ -1624,16 +1645,20 @@ mod tests {
     #[test]
     fn two_boxes_on_two_arcs_do_not_link() {
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let sphere = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 3.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let z0 = 8.0f64.sqrt();
         let slab = bx(

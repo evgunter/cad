@@ -209,10 +209,6 @@ fn lift(v: f64) -> Interval {
     <Interval as geom_core::Real>::from_computed(v)
 }
 
-fn lift3(v: Vec3<f64>) -> Vec3<Interval> {
-    v.map(lift)
-}
-
 /// Whether the interval `x` excludes zero; never where it is refused.
 fn clears(x: Interval) -> bool {
     x.is_certified() && (x.lo() > 0.0 || x.hi() < 0.0)
@@ -224,40 +220,49 @@ impl Channel {
             Self::Axis(frame) => frame.azimuth(p),
             Self::Core(circle) => {
                 let frame = circle.frame;
-                let (_, rho) = super::square_part(p - frame.origin, frame.axis);
-                geom::Azimuth::tube(frame.height(p), rho, circle.radius)
+                let (_, rho) = super::square_part(p - frame.origin(), frame.axis());
+                geom::Azimuth::tube(frame.height(p), rho, circle.radius())
             }
         }
     }
 
-    /// Whether the box `b` clears the centre in the channel's plane.
+    /// Whether the box `b` clears the centre in the channel's plane: a
+    /// certified sign, so the frame is read as every certified partner
+    /// read takes a stored frame, the enclosure of its polar factor
+    /// ([`crate::ssi::residual::certified_frame`]). The channel's `f64`
+    /// azimuth ([`Self::azimuth`]) reads the stored entries, which are
+    /// that rotation to rounding: the box is cleared on the carrier the
+    /// azimuth rounds.
     fn clear(self, b: Box3) -> bool {
-        let b = Point3::new(b.x, b.y, b.z);
-        let w = |o: Point3<f64>| Vec3::new(b.x - lift(o.x), b.y - lift(o.y), b.z - lift(o.z));
+        let b = Vec3::new(b.x, b.y, b.z);
         match self {
-            // The frame's own `in_plane` is not read here: it would lift
-            // the frame and form `v_ref` as the lifted axis × the lifted
-            // `u_ref`, an enclosure of the exact cross product, where this
-            // reads the lift of the `f64` `v_ref` the channel's azimuth
-            // reads (`Self::azimuth`). The box is cleared against that
-            // same `v_ref`, so the two readings stay one frame's.
             Self::Axis(frame) => {
-                let w = w(frame.origin);
-                clears(w.dot(lift3(frame.u_ref))) || clears(w.dot(lift3(frame.v_ref())))
+                let [x, y] = in_plane(&frame, b);
+                clears(x) || clears(y)
             }
             Self::Core(circle) => {
-                let (frame, big_r) = (circle.frame, circle.radius);
-                let w = w(frame.origin);
-                let a = lift3(frame.axis);
-                // The box's height over the core's plane: `w` is already
-                // the offset from the lifted centre.
-                let h = w.dot(a);
-                let perp = a.cross(w.cross(a));
-                let rho = perp.norm();
-                clears(rho - lift(big_r)) || clears(h)
+                let (h, rho) = over_core(&circle.frame, b);
+                clears(rho - lift(circle.radius())) || clears(h)
             }
         }
     }
+}
+
+/// The box `b`'s offset from `frame`'s origin along its polar factor's
+/// `u` and `v` ([`crate::ssi::residual::certified_frame`]).
+fn in_plane(frame: &geom::Frame<f64>, b: Vec3<Interval>) -> [Interval; 2] {
+    let (o, [u, v, _]) = crate::ssi::residual::certified_frame(frame);
+    let w = b - o;
+    [w.dot(u), w.dot(v)]
+}
+
+/// The box `b`'s height over the core's plane and its reach from the
+/// core's axis, the frame read on its polar factor as [`in_plane`] reads
+/// it.
+fn over_core(frame: &geom::Frame<f64>, b: Vec3<Interval>) -> (Interval, Interval) {
+    let (o, [_, _, a]) = crate::ssi::residual::certified_frame(frame);
+    let w = b - o;
+    (w.dot(a), a.cross(w.cross(a)).norm())
 }
 
 /// The essential channels of `surface`.
@@ -289,7 +294,7 @@ pub(crate) fn winding(
     if chans.is_empty() {
         return Ok(Winding::default());
     }
-    let Curve3::Nurbs(net) = carrier else {
+    let Some(Ok(net)) = carrier.clamped_net((lo, hi)) else {
         return Err(WindsRefusal::NotSpline);
     };
     let tiled = pieces.first().is_some_and(|(_, _, (a, _))| *a == lo)
@@ -479,9 +484,35 @@ fn gated(pieces: &[Piece]) -> bool {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use super::{Box3, Piece, Winding, WindsRefusal, gated, lift, once_round, winding};
+    use super::{
+        Box3, Piece, Winding, WindsRefusal, gated, in_plane, lift, once_round, over_core, winding,
+    };
     use geom::{Curve3, Surface};
     use geom_core::{Interval, Point3, Real as _, Vec3};
+
+    /// **A channel clears a box on its frame's polar factor** (decision
+    /// 1, PR 7131), the carrier the `Interval` lift reads: on 4,096 tilted
+    /// frames placed out to 10 km, a point a near-graze `≤ 1e-12` off each
+    /// stored plane 10 to 20 km out along its seam, the axis channel's
+    /// in-plane offsets and the core's height hold their double-double
+    /// truths on the polar factor ([`crate::ssi::residual::polar_truth`]).
+    /// Red under the stored entries lifted as points (the old `clear`),
+    /// and under them squared at the scalar.
+    #[test]
+    fn a_channel_clears_a_box_on_its_frames_polar_factor() {
+        use crate::ssi::residual::polar_truth::{coordinate, holds, poses};
+        for (n, (frame, p)) in poses(4096, 1e4).into_iter().enumerate() {
+            let b = Vec3::new(p.x, p.y, p.z).map(Interval::from_f64);
+            let [x, y] = in_plane(&frame, b);
+            let (h, _) = over_core(&frame, b);
+            for (j, got) in [(0, x), (1, y), (2, h)] {
+                assert!(
+                    holds(got, coordinate(&frame, p, j)),
+                    "draw {n}, column {j}: {got:?} misses the polar truth"
+                );
+            }
+        }
+    }
 
     /// The loop's pieces: each knot span's control hull, padded by `pad`.
     fn pieces(c: &Curve3<f64>, pad: f64) -> Vec<Piece> {
@@ -530,11 +561,9 @@ mod tests {
 
     fn torus() -> Surface<f64> {
         Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -620,10 +649,8 @@ mod tests {
     #[test]
     fn a_piece_reaching_the_axis_refuses() {
         let wall = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         let ring = polygon(64, |s| {
             Point3::new(0.5 * s.cos(), 0.5 * s.sin(), 0.1 * s.sin())
@@ -686,10 +713,8 @@ mod tests {
     /// The cylinder of radius `1/2` about `z`.
     fn wall() -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 0.5,
-            u_ref: Vec3::unit_x(),
         }
     }
 

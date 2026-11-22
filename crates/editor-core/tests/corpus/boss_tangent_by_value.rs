@@ -65,7 +65,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "boss_tangent_by_value",
         about: "a boss whose wall's offset is typed equal to a cylinder's radius, unioned",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(whole),
         pin: None, // the cylinder is π-valued

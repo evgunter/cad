@@ -24,7 +24,7 @@ aimed ray crossed the ellipse-trimmed wall and met the cylinder chart
 trim's period guard (`bool_wall_trim_period`).
 
 The branch reads cylinder and cone faces from their boundary edges
-(`topo::boolean::ruled_region`) and deletes that guard. The aimed ray
+(`topo::ruled_region`) and deletes that guard. The aimed ray
 now reads the side, the enclosure is never asked, and the row is
 re-pinned to that (`a_far_points_side_on_the_wall_piece_is_read_by_an_aimed_ray`).
 No row in the tree now drives the enclosure's certified sign.

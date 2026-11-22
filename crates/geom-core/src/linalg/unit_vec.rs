@@ -41,11 +41,21 @@
 //!   [`RigidMotion`](super::RigidMotion) can build its axes and act on
 //!   a direction, and they are documented on their own doors.
 //!
-//! A witness exists at a scalar only by being minted there, and has no
-//! public crossing. It crosses down as an axis of its frame, through
-//! [`RigidMotion::point_value`](super::RigidMotion::point_value) (its
-//! module's "Crossing scalars"), and never up (Ev on #5068,
-//! 2026-10-14).
+//! **A witness enters a lane only by being minted there**; no read
+//! carries one into a lane. Two reads take it out of the lane that
+//! holds it, as for a frame ([`RigidMotion`](super::RigidMotion)'s
+//! "Crossing scalars"): its point value, down to `f64` as an axis of
+//! its frame ([`RigidMotion::point_value`](super::RigidMotion::point_value)),
+//! and its enclosure, to `Interval` ([`UnitVec3::map_scalar`]): from
+//! `Interval` the direction itself, from `Dual` or `Sym` over an
+//! enclosure each component's bracket, and from `f64` the unit vector
+//! nearest the stored one, `v/|v|`, enclosed component by component with
+//! no decision ([`Real::enclose_unit`], which
+//! normalizes the one column directly, not through a frame). No read
+//! carries a direction into `Dual` or `Sym` from another scalar's lane:
+//! [`UnitVec3::map_scalar`] across witness
+//! kinds into any target but `Interval` fails a debug assertion, and a
+//! release build answers the direction poisoned.
 //!
 //! The deciding doors in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto
@@ -61,12 +71,11 @@
 //!
 //! # What is NOT this type
 //!
-//! The geometry carriers' direction fields — `Line.dir`, `Plane.normal`,
-//! the axes of the conics — stay bare `Vec3` under the at-rest rule
-//! stated in `geom`'s crate docs (conventional, unchecked, certified
-//! at rest by tier 3). The witness is a FUNCTION-boundary type. The
-//! 2-D analogue, `profile::path::Dir<T>`, is that crate's own and is
-//! left where it is.
+//! A line's `dir` (`geom::Line`) stays a bare `Vec3`: a line is also an
+//! affine chord whose parameter is scaled by `|dir|`. The carriers'
+//! frames are [`RigidMotion`](super::RigidMotion)s, whose axes are this
+//! type. The 2-D analogue, `profile::path::Dir<T>`, is that crate's own
+//! and is left where it is.
 
 use core::ops::Neg;
 
@@ -317,11 +326,11 @@ impl From<LengthOutOfFormat> for UnitVec3Error {
 
 /// The three questions of [`decide_unit_direction`], the third asked of
 /// `margin(v)`.
-fn decide_direction_by<T: Decide>(
+fn decide_direction_by<T: Decide, A: crate::predicate::MarginTerms>(
     v: Vec3<T>,
     site: &'static str,
     band: Band,
-    margin: impl FnOnce(Vec3<T>) -> Margin<T>,
+    margin: impl FnOnce(Vec3<T>) -> Margin<T, A>,
 ) -> Result<Vec3<T>, UnitVec3Error> {
     // `margin` recomputes the plain norm the rule read (`Vec3::norm` is
     // deterministic), so the gates and the margin read the one length;
@@ -335,6 +344,22 @@ fn decide_direction_by<T: Decide>(
 }
 
 impl<T: Real> UnitVec3<T> {
+    /// **Whether this is `other` exactly**: every component's difference
+    /// an exact zero of either sign in every channel the scalar carries
+    /// ([`Real::is_exact_zero_in_every_channel`]), so `+0` and `−0` agree,
+    /// and at the dual scalar a pair whose values agree while their
+    /// derivatives differ is not one direction. Structure read as
+    /// structure, not a tolerance decision: the least turn's identity
+    /// (`RigidMotion::least_turn`), the value chart's, and the path
+    /// sweep's still step all ask it.
+    #[must_use]
+    pub fn is_exactly(self, other: Self) -> bool {
+        let (a, b) = (self.0, other.0);
+        [a.x - b.x, a.y - b.y, a.z - b.z]
+            .into_iter()
+            .all(Real::is_exact_zero_in_every_channel)
+    }
+
     /// The direction itself, unit.
     #[must_use]
     pub fn get(self) -> Vec3<T> {
@@ -394,6 +419,47 @@ impl<T: Real> UnitVec3<T> {
         let read = |x: T| x.point_value().filter(|x| x.is_finite());
         let v = self.0;
         Some(UnitVec3(Vec3::new(read(v.x)?, read(v.y)?, read(v.z)?)))
+    }
+
+    /// **A direction squared with no decision**: `v` over its own
+    /// length, unit over the reals wherever that length is not zero,
+    /// and poison where it is (`0/0`, the totality policy's NaN or NaI,
+    /// which the predicate layer catches). Nothing is decided, so no
+    /// band and no refusal: a degenerate input is a poisoned witness,
+    /// not a typed one.
+    ///
+    /// It is the door a carrier's stated direction enters the type
+    /// through until its construction mints it ([`UnitVec3::new`]); a
+    /// construction that can decide its direction decides it.
+    #[must_use]
+    pub fn squared(v: Vec3<T>) -> Self {
+        Self(v.normalize())
+    }
+
+    /// **This direction at another scalar**, `f` a lift that keeps each
+    /// component's point: carried as it is between two scalars of one
+    /// [`Witness`](crate::Witness) kind, and from `f64` to `Interval`
+    /// the unit vector nearest the stored one, enclosed
+    /// ([`Real::enclose_unit`]). Across kinds into any other target there
+    /// is no read (the module docs): it fails a debug assertion, and a
+    /// release build answers the direction poisoned.
+    #[must_use]
+    pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> UnitVec3<U> {
+        let v = self.0.map(f);
+        if T::WITNESS == U::WITNESS {
+            UnitVec3(v)
+        } else {
+            match U::enclose_unit([v.x, v.y, v.z]) {
+                Some([x, y, z]) => UnitVec3(Vec3::new(x, y, z)),
+                None => {
+                    debug_assert!(
+                        false,
+                        "no read carries a direction into a lane: the target is not a plain enclosure"
+                    );
+                    UnitVec3(Vec3::new(crate::poison(), crate::poison(), crate::poison()))
+                }
+            }
+        }
     }
 
     /// The exact `x̂`, unit as its literal bits at every scalar that
@@ -465,24 +531,34 @@ impl<T: Decide> UnitVec3<T> {
         decide_unit_direction(v, site, band).map(Self)
     }
 
-    /// **`v` normalized, its length decided at `scale`**: the decision
-    /// [`UnitVec3::new`] takes of `v · scale` (the same gates, the same
-    /// margin, one sample under `site`), and the direction of `v` itself.
-    /// A caller levering a pure number into a length over an arm it has
-    /// already decided keeps the arm out of the direction it mints, so
-    /// the direction is a function of `v` alone at every scalar (at
-    /// `Sym`, no factor of the arm to cancel under a square root).
+    /// **`v` normalized, its length decided levered at an `f64` arm**:
+    /// [`UnitVec3::new`]'s gates on `v`, and its margin `|v| · |arm|`
+    /// ([`Margin::levered_at`], one sample under `site`), the levered
+    /// vector's length; then the direction of `v` itself. A caller
+    /// levering a pure number into a length over an arm it read as a
+    /// bound keeps the arm out of the direction it mints, which is a
+    /// function of `v` alone at every scalar. An arm's sign is no part
+    /// of the length it levers by, so a negative arm decides as its
+    /// magnitude.
     ///
     /// # Errors
     ///
-    /// [`UnitVec3::new`]'s, of `v · scale`.
+    /// [`UnitVec3Error::NonFiniteLength`] for an arm whose square is not
+    /// finite (no levered length of a unit-scale vector is then a
+    /// number); otherwise [`UnitVec3::new`]'s gates on `v` and its
+    /// refusals of the levered length.
     pub fn new_scaled(
         v: Vec3<T>,
-        scale: T,
+        arm: Lever<f64>,
         site: &'static str,
         band: Band,
     ) -> Result<Self, UnitVec3Error> {
-        decide_unit_direction(v * scale, site, band).map(|_| Self(v.normalize()))
+        let arm = arm.magnitude();
+        if !arm.length().powi(2).is_finite() {
+            return Err(UnitVec3Error::NonFiniteLength);
+        }
+        decide_direction_by(v, site, band, |v| Margin::levered_at(v.norm(), arm))
+            .map(|_| Self(v.normalize()))
     }
 
     /// **The normalizing constructor for a dimensionless vector**: a
@@ -592,7 +668,14 @@ mod tests {
     #[test]
     fn the_levered_door_decides_the_arm_then_the_levered_length() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let ask = |v: Vec3<f64>, arm: f64| UnitVec3::levered(v, "test_direction", band, Lever(arm));
+        let ask = |v: Vec3<f64>, arm: f64| {
+            UnitVec3::levered(
+                v,
+                "test_direction",
+                band,
+                crate::test_support::fixture_lever(arm),
+            )
+        };
         let z = |len: f64| Vec3::new(0.0, 0.0, len);
         let up = ask(z(1.0), 1e-3)
             .expect("a unit normal over a 1 mm reach")
@@ -1087,5 +1170,50 @@ mod interval_tests {
             UnitVec3::new(Vec3::new(zero, zero, zero), "test_direction", band()).err(),
             Some(UnitVec3Error::Degenerate)
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod new_scaled_rows {
+    use super::{Band, UnitVec3, UnitVec3Error, Vec3};
+    use crate::interval::Interval;
+    use crate::test_support::fixture_lever;
+
+    /// **The levered length is decided as `|v · arm|` was, over the arm
+    /// grid**: a unit-scale `v` levered at an ordinary arm mints its
+    /// direction; an arm that puts the length inside the zero band, or
+    /// between the band's edges, refuses or escalates; a negative arm is
+    /// its magnitude; a non-finite or NaN arm, or one whose square
+    /// overflows, is no length. Each at `f64` and at a point `Interval`.
+    #[test]
+    fn new_scaled_decides_the_levered_length_at_each_arm() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        fn rows<T: crate::predicate::Decide>(label: &str, band: Band) {
+            let v = Vec3::new(T::from_f64(0.6), T::from_f64(0.8), T::from_f64(0.0));
+            let at = |arm: f64| UnitVec3::new_scaled(v, fixture_lever(arm), "row", band);
+            assert!(at(1.0).is_ok(), "{label}: an ordinary arm");
+            assert!(at(-1.0).is_ok(), "{label}: a negative arm is its magnitude");
+            assert!(
+                matches!(at(0.0), Err(UnitVec3Error::Degenerate)),
+                "{label}: zero"
+            );
+            assert!(
+                matches!(at(1e-10), Err(UnitVec3Error::Degenerate)),
+                "{label}: in the zero band"
+            );
+            assert!(
+                matches!(at(5e-9), Err(UnitVec3Error::Escalated(_))),
+                "{label}: between the edges"
+            );
+            for arm in [f64::INFINITY, f64::NEG_INFINITY, 1e300, f64::MAX, f64::NAN] {
+                assert!(
+                    matches!(at(arm), Err(UnitVec3Error::NonFiniteLength)),
+                    "{label}: arm {arm:e} levers no length"
+                );
+            }
+        }
+        rows::<f64>("f64", band);
+        rows::<Interval>("interval", band);
     }
 }

@@ -701,7 +701,7 @@ fn a_slab_flush_with_the_slit_floor_intersects_it_keeping_the_keel() {
 /// trench (`0.3 z` wide at height `z` for the box, `0.96 / 13` of the
 /// triangle's section for the prisms) along their x overlap. Tier 3′
 /// refuses an `EdgeEdgeOverlap` the result carries no record of
-/// (`work/touchrec/a-union-beside-a-slit-misses-an-edge-overlap-record.md`);
+/// (`work/heldrecords/a-union-beside-a-slit-misses-an-edge-overlap-record.md`);
 /// the Boolean door certifies tier 3, and 3′ waits on REACHHOLD's census
 /// over its result. At every pose.
 #[test]

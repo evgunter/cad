@@ -9,7 +9,7 @@ cost: E
 ---
 
 
-Filed by the SPLICE lane that built `topo::boolean::spline_region`
+Filed by the SPLICE lane that built `topo::spline_region`
 (PR 5805), from both reviewers of its dual review (r1 NOTE-1, r2).
 This is a completeness gap; the reading stays sound.
 

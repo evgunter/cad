@@ -1014,7 +1014,9 @@ mod growth_tripwire {
             s::CurveKind::Circle => CurveKind::Circle,
             s::CurveKind::Ellipse => CurveKind::Ellipse,
             s::CurveKind::Spiric => CurveKind::Spiric,
-            s::CurveKind::Nurbs => CurveKind::Nurbs,
+            // An edge on a periodic cubic reads as its clamped view, a
+            // spline: the kind a selection sees.
+            s::CurveKind::Nurbs | s::CurveKind::Periodic => CurveKind::Nurbs,
         }
     }
 

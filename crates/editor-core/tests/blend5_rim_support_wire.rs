@@ -85,14 +85,14 @@ fn both_roles() -> ProfileDoc {
 #[test]
 fn both_rim_roles_round_trip() {
     let doc = both_roles();
-    let text = save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = save(&doc, Tol::witness()).expect("the document saves");
     assert!(text.contains("\"Host\""), "the host role is on the wire");
     assert!(text.contains("\"Mate\""), "the mate role is on the wire");
     assert!(
         !text.contains("\"Curved\""),
         "the retired kind vocabulary is gone: {text}"
     );
-    let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
+    let back = load(&text, Tol::witness()).expect("its own bytes load");
     // Profile, the block, then the fillet over it.
     let (block, fillet) = (back.ids()[1], back.ids()[2]);
     let selection = match back.node(fillet) {
@@ -111,7 +111,7 @@ fn both_rim_roles_round_trip() {
         ],
         "both roles survive the round trip, and stay two distinct names"
     );
-    let again = save(&back, &[], Tol::witness()).expect("the reloaded document saves");
+    let again = save(&back, Tol::witness()).expect("the reloaded document saves");
     assert_eq!(text, again, "save . load is not a fixpoint");
 }
 
@@ -126,7 +126,7 @@ fn both_rim_roles_round_trip() {
 /// unit variants.
 #[test]
 fn the_retired_spelling_is_unreadable_by_this_build() {
-    let text = save(&both_roles(), &[], Tol::witness()).expect("the document saves");
+    let text = save(&both_roles(), Tol::witness()).expect("the document saves");
     let retired = text.replace("\"Host\"", "\"Plane\"");
     assert_ne!(retired, text, "the substitution must actually land");
     match load(&retired, Tol::witness()) {

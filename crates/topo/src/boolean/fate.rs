@@ -39,6 +39,7 @@
 
 use geom_brep::LeverBounds;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::period::Period;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
 use super::sectors::reading_lever;
@@ -484,6 +485,13 @@ pub(super) fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<Le
 /// `secant` along the unit chord from `he`'s start to its edge's
 /// midpoint, which tells apart two curves leaving one point tangent to
 /// each other, with none. `None` for null scaffolding.
+///
+/// The tangent and its bend are the star's one reading of where a
+/// half-edge leaves its vertex ([`crate::star::departure`]): a line's
+/// chord, a curved edge's departure tangent with its bend. What is the
+/// cut's own is the secant and the reach, a [`LeverBounds`] off the
+/// edge's cover ([`crate::cover::edge_reach_bounds`]) where the star
+/// levers at the edge's extent from below.
 fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<Leaving<T>> {
     let h = body.get_half_edge(he)?;
     let edge = body.get_edge(h.edge)?;
@@ -496,19 +504,32 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
         }
         _ => crate::cover::edge_reach_bounds(body, h.edge, edge, base)?,
     };
-    let (dir, bend) = match curve.carrier() {
-        _ if secant => (curve.mid_point() - base, None),
-        geom::Curve3::Line(_) => (end - base, Some(Vec3::new(T::zero(), T::zero(), T::zero()))),
-        geom::Curve3::Circle(..)
-        | geom::Curve3::Ellipse(..)
-        | geom::Curve3::Spiric { .. }
-        | geom::Curve3::Nurbs(_) => {
-            let departure = geom_brep::ConicDeparture::of(curve, he == edge.he_plus, (end, base));
-            let bend = match departure.bend.bounds {
-                geom_brep::BendBounds::Planar { .. } => Some(departure.bend.curvature),
-                geom_brep::BendBounds::Unbounded => None,
-            };
-            (departure.dir, bend)
+    let (dir, bend) = if secant {
+        (curve.mid_point() - base, None)
+    } else {
+        // The edge's curve is certified (above), so the star's one refusal
+        // here, a null edge, does not arise: a refusal is no scaffolding,
+        // and must not read as this door's `None`.
+        let (tangent, support) = crate::star::departure(body, h.start, he).unwrap_or_else(|e| {
+            unreachable!("the star refused a certified edge's departure: {e:?}")
+        });
+        match support {
+            crate::bound_side::BoundSupport::Chord { .. } => {
+                (tangent, Some(Vec3::new(T::zero(), T::zero(), T::zero())))
+            }
+            crate::bound_side::BoundSupport::Conic { bend, .. } => (
+                tangent,
+                match bend.bounds {
+                    geom_brep::BendBounds::Planar { .. } => Some(bend.curvature),
+                    geom_brep::BendBounds::Unbounded => None,
+                },
+            ),
+            crate::bound_side::BoundSupport::Extent(_)
+            | crate::bound_side::BoundSupport::Bisector { .. } => {
+                unreachable!(
+                    "the star's departure reads an edge, a chord or a curve, never a probe"
+                )
+            }
         }
     };
     Some(Leaving {
@@ -662,7 +683,7 @@ pub(super) fn corner_holds<T: Decide>(
         crate::validate::decide_at_lever(
             ("bool_fate_corner_bend", "bool_fate_corner_bend_straddle"),
             lever,
-            |l| geom_brep::parting(k - kb, u, l.length()),
+            |l| geom_brep::parting(k - kb, u, l),
             band,
         )
         .map(Some)
@@ -898,12 +919,15 @@ fn tip_wraps<T: Decide>(
             turned = turned + across.atan2(ahead);
         }
     }
+    // The runs' turning is an angle by construction: one turn of it is
+    // its period.
+    let turn = Period::<T>::angle();
     let whole = if outer {
-        T::tau()
+        turn.length()
     } else {
-        T::zero() - T::tau()
+        T::zero() - turn.length()
     };
-    let half_turns = (whole - turned) / T::pi();
+    let half_turns = (whole - turned) / turn.half();
     match (
         sign(half_turns + halves, T::one(), band)?,
         sign(half_turns - halves, T::one(), band)?,
@@ -1009,7 +1033,7 @@ enum End {
 
 /// Where the dropped operand meets kept vertex `x`, which lies in the
 /// face divided from `root`.
-fn end_at<T: geom_core::Real>(
+fn end_at<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     holder: Operand,
     x: VertexKey,
@@ -1148,7 +1172,7 @@ fn lies<T: Decide>(
     for f in pieces(body, root, divisions) {
         let end =
             crate::held::Held::constructed(p, "a fate cut's end, a point of the face it divides");
-        let at = match super::contain::placement_on_carrier(body, f, end, band)
+        let at = match crate::contain::placement_on_carrier(body, f, end, band)
             .map_err(unplaced)?
             .0
         {
@@ -1378,7 +1402,7 @@ fn rehome<T: Decide>(
                 "a vertex of a ring of the face divided into this one",
             );
             let at =
-                super::contain::placement_on_carrier(body, new, held, band).map(|(at, _, _)| {
+                crate::contain::placement_on_carrier(body, new, held, band).map(|(at, _, _)| {
                     match at {
                         // OffCarrier → Out (trusted on carrier).
                         super::CurvedPlacement::OffCarrier => Some(super::FaceContainment::Out),
@@ -1391,7 +1415,7 @@ fn rehome<T: Decide>(
                 // The face was just made by the driver: one that does not
                 // resolve is a desync.
                 Err(super::ContainError::StaleFace(face)) => {
-                    super::contain::driver_face_stale(face)
+                    crate::contain::driver_face_stale(face)
                 }
                 // Every other refusal is kept, or aborts, as the door's
                 // refusal states it is ([`super::ContainError::refusal`]).

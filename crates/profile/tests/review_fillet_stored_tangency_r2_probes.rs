@@ -223,10 +223,10 @@ fn outcome(built: Result<ConstructedLoop<f64>, PathError<f64>>) -> Outcome {
     match built {
         Err(PathError::FilletArcFlattenedInStorage {
             predicate, margin, ..
-        }) => Outcome::DoorStoredForm(predicate, margin),
+        }) => Outcome::DoorStoredForm(predicate, crate::common::told(&margin)),
         Err(PathError::FilletCarrierBelowSceneResolution {
             predicate, margin, ..
-        }) => Outcome::DoorSceneResolution(predicate, margin),
+        }) => Outcome::DoorSceneResolution(predicate, crate::common::told(&margin)),
         Err(PathError::Escalated { source, .. }) => {
             Outcome::DoorEscalated(source.predicate.unwrap_or("?").to_string())
         }

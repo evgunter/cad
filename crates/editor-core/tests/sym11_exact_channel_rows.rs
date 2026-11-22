@@ -75,12 +75,49 @@ use crate::m10_9_pins_interval::measured_studies;
 /// `Terms` freeze classes down, the pad's `Coefficient` classes down
 /// (`Powi` 1885 → 1467). No dispute fired and no registration was
 /// contradicted, at any document.
+///
+/// **Then moved by the decided least-turn mint** (fork 270, PR 6988): a
+/// pair that is one direction exactly turns by the identity with no pole
+/// verdict (its chord is 2), so each mate chart whose mated directions
+/// agree exactly logs no `mate_chart_pole` row. Numeric only: the plate
+/// `1048 → 1046`, the annulus `549 → 548`, the link `944 → 943`, the
+/// bracket `1547 → 1545` and the pad `1710 → 1709`; no symbolic or frozen
+/// count moves. Measured by deciding the pole at the identity again,
+/// which puts back every receipt above
+/// (`sym11_the_exact_channel_never_contradicts_past_the_ceiling` reads
+/// them). (PR 6988's gate did not run this
+/// slow row:
+/// `work/onehome/main-red-sym11s-numeric-column-fell-on-five-documents-after-the-least-turn-mint.md`.)
+///
+/// **Then moved by the session box's move from the readers to the
+/// placing doors** (PR 7088; the review rulings that a reading between
+/// two operands asks no session box of an image in its own frame, and
+/// that the door placing a copy asks it of where the copy stands,
+/// `topo::session_box_at`). Each document's measure reads its placed
+/// operand through their relative motion (`topo::Seat`) and asks no box;
+/// each placement asks one. Numeric only: the plate `1046 → 1047` and the
+/// bracket `1545 → 1546`, two placements where one measure asked; the
+/// annulus, the link and the pad unmoved, one for one. No symbolic or
+/// frozen count moves, and no dispute fired. Measured by dropping the
+/// placement's ask, which takes each document one numeric per placement
+/// below these.
+///
+/// Then the carriers held their frames as rigid motions
+/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): the sweeps'
+/// walls, caps and revolve frames are minted from the sketch plane's
+/// frame and a surface's evaluation reads its stored frame, so fewer of
+/// the forms the reads build reach the budget and freeze. Frozen only:
+/// the plate and the annulus `54 → 36`, the link `2738 → 2600`, the
+/// bracket `84 → 57` and the pad `2773 → 1967`; no symbolic or numeric
+/// count moves, and under `SymRules::without_canonical_root` the plate's
+/// 2,025 recorded decisions answer as on the merge base, each with its
+/// outcome, its 64 blocked residuals the same predicates.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [979, 1048, 54]),
-    ("r1_annulus", [511, 549, 54]),
-    ("r2_link", [786, 944, 2738]),
-    ("r2_filleted_bracket", [1367, 1547, 84]),
-    ("r2_rounded_pad", [1483, 1710, 2773]),
+    ("two_hole_plate", [979, 1047, 36]),
+    ("r1_annulus", [511, 548, 36]),
+    ("r2_link", [786, 943, 2600]),
+    ("r2_filleted_bracket", [1367, 1546, 57]),
+    ("r2_rounded_pad", [1483, 1709, 1967]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

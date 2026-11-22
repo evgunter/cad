@@ -79,7 +79,7 @@
 //! [`rest::by_round`] refuse it).
 
 use geom_core::ladder::{
-    Aborts, Answering, Climb, FreeOf, Refusal, Rung, Undecided, Unpicked, argmin_decided, climb,
+    Aborts, Answering, Climb, FreeOf, Refusal, Rung, Undecided, argmin_decided, climb,
 };
 
 use crate::validate::EdgeTangentUnread;
@@ -243,15 +243,17 @@ pub(crate) mod metric {
         /// the leading Taylor term of its point's distance from the face
         /// at arc length `arm`, not that distance itself, `bend` its bend
         /// past the face's normal section along it
-        /// ([`geom_brep::parting`]). Both together (`Jet`), for a bound a
-        /// slack tied: the point's distance to second order.
+        /// ([`geom_brep::parting`]). Both together (`Jet`), for a bound
+        /// tied with a first order the band decided, a slack hiding it or
+        /// the curvature charge refusing it
+        /// ([`crate::bound_side::TiedBy`]): the point's distance to second
+        /// order.
         pub(crate) fn departure(d: Departure<T>, n: Vec3<T>, arm: geom_core::Lever<T>) -> Self {
             Self(match d {
                 Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),
-                Departure::Parted(bend) => geom_brep::parting(bend, n, arm.length()).value(),
+                Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),
                 Departure::Jet(dir, bend) => {
-                    geom_brep::rise(dir, n, arm).value()
-                        + geom_brep::parting(bend, n, arm.length()).value()
+                    geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()
                 }
                 Departure::Charge { slope, lever } => {
                     crate::bound_side::sagitta_charge(slope, lever, arm.length())
@@ -285,7 +287,8 @@ pub(crate) mod metric {
         /// Its bend past the face's normal section along it, one order down.
         Parted(Vec3<T>),
         /// Its direction and its bend: the rise and the parting together,
-        /// for a bound whose first order a slack hid.
+        /// for a bound whose first order the band decided and a slack hid
+        /// or the curvature charge refused.
         Jet(Vec3<T>, Vec3<T>),
         /// Its tangent ray's least separation from a curved face within
         /// the reach `arm`, the ray leaving at `slope` (a sine) past a
@@ -1381,23 +1384,16 @@ pub(crate) fn face_piece<T: Decide>(
                     Greater => Sign::Positive,
                 })
             };
-            match argmin_decided(passes, cmp, FreeOf::Ties) {
-                Ok(best) => best.map(|b| b.1),
-                Err(
-                    Unpicked::Contested {
-                        in_band: Some(why), ..
-                    }
-                    | Unpicked::Aborted(why),
-                ) => {
-                    return Err(why);
-                }
-                Err(Unpicked::Contested { in_band: None, .. }) => {
-                    unreachable!("free of ties, an argmin with no in-band pair picks")
-                }
-                // The turn, then the side within one turn's half-plane:
-                // a total order, which ranks in no cycle.
-                Err(Unpicked::Cyclic) => unreachable!("the turn order ranks in no cycle"),
-            }
+            argmin_decided(passes, cmp, FreeOf::Ties)
+                .map_err(|unpicked| {
+                    unpicked.refusal(
+                        || unreachable!("free of ties, an argmin with no in-band pair picks"),
+                        // The turn, then the side within one turn's
+                        // half-plane: a total order, which ranks in no cycle.
+                        || unreachable!("the turn order ranks in no cycle"),
+                    )
+                })?
+                .map(|b| b.1)
         }
         PieceAt::Inside => None,
     };
@@ -1784,9 +1780,11 @@ impl<T: Real> FaceSector<T> {
     #[cfg(test)]
     pub(crate) fn planar(sector: Sector<T>) -> Self {
         let surface = geom::Surface::Plane {
-            origin: sector.apex,
-            normal: sector.outward,
-            u_ref: (sector.wedges[0].0 - sector.apex).normalize(),
+            frame: geom::Frame::new(
+                sector.apex,
+                sector.outward,
+                (sector.wedges[0].0 - sector.apex).normalize(),
+            ),
         };
         Self {
             sector,
@@ -2378,7 +2376,7 @@ impl<T: Decide> Cone<T> {
         // Every reference reads one material where the cone closes, so any
         // reference that reads would answer alike. That is a premise about
         // the input, not a theorem of the rule
-        // (`work/oneread/a-cones-parity-reference-is-off-its-sectors-plane-by-the-tie.md`
+        // (`work/honeone/a-cones-parity-reference-is-off-its-sectors-plane-by-the-tie.md`
         // shows it failing), so the ladder climbs under
         // [`Answering::First`]: a reference refused ahead of the answer
         // stays live on the record, pending 6592's `Alike`
@@ -2840,9 +2838,10 @@ impl<T: Decide> FaceSector<T> {
     ) -> Result<Vec<Self>, TouchUnread> {
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
-        let geom::Surface::Plane { u_ref, .. } = surface else {
+        let geom::Surface::Plane { frame, .. } = surface else {
             return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
         };
+        let u_ref = frame.u_ref();
         if holds.iter().any(|h| matches!(h, Hold::Corner(_))) {
             return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
         }
@@ -3223,7 +3222,10 @@ impl<T: Decide> FaceSector<T> {
         use Sign::{Negative, Positive, Zero};
         let apex = match face.surface {
             geom::Surface::Cylinder { .. } => None,
-            geom::Surface::Cone { apex, .. } => Some(apex),
+            geom::Surface::Cone { frame, .. } => {
+                let apex = frame.origin();
+                Some(apex)
+            }
             _ => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
         };
         let line = face
@@ -4059,19 +4061,18 @@ impl<T: Decide> Round<T> {
     /// `None` off a sphere or a cylinder.
     pub fn of(surface: &geom::Surface<T>, sense: bool) -> Option<Self> {
         match *surface {
-            geom::Surface::Sphere { center, radius, .. } => {
+            geom::Surface::Sphere { frame, radius, .. } => {
+                let center = frame.origin();
                 Some(Self::sphere(center, radius, sense))
             }
-            geom::Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => Some(Self::cylinder(
-                geom::Line { origin, dir: axis },
-                radius,
-                sense,
-            )),
+            geom::Surface::Cylinder { frame, radius, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
+                Some(Self::cylinder(
+                    geom::Line { origin, dir: axis },
+                    radius,
+                    sense,
+                ))
+            }
             _ => None,
         }
     }
@@ -4639,9 +4640,10 @@ pub(crate) mod rest {
         r: Point3<T>,
         rd: Reading<T>,
     ) -> bool {
-        let geom::Surface::Cylinder { axis, .. } = face.surface else {
+        let geom::Surface::Cylinder { frame, .. } = face.surface else {
             return false;
         };
+        let axis = frame.axis();
         let along = p + axis * (r - p).norm();
         wedge_side(p, m, along, r, rd) == Some(Sign::Zero)
             && Round::of(&face.surface, face.sense)
@@ -7126,7 +7128,7 @@ mod tests {
         assert!(
             door[departure.start - metric.start..departure.end - metric.start].contains(
                 "Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),\n                \
-                 Departure::Parted(bend) => geom_brep::parting(bend, n, arm.length()).value(),"
+                 Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),"
             ),
             "`Distance::departure` is a first-order rise or a second-order parting, and \
              nothing else"
@@ -7134,15 +7136,14 @@ mod tests {
         assert!(
             door[departure.start - metric.start..departure.end - metric.start].contains(
                 "Departure::Jet(dir, bend) => {\n                    \
-                 geom_brep::rise(dir, n, arm).value()\n                        \
-                 + geom_brep::parting(bend, n, arm.length()).value()"
+                 geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()"
             ),
             "`Distance::departure`'s jet is the rise and the parting together, and nothing else"
         );
         // A bound's side of a face is decided at the metric's door at both
         // orders: no gate of its own in the first order or the descent.
         let bound_side = include_str!("bound_side.rs");
-        for anchor in ["\nfn first_order_as<", "\n    pub(crate) fn descend("] {
+        for anchor in ["\nfn first_order_as<", "\n    fn read_down("] {
             let reading = item(bound_side, anchor);
             for needle in [
                 "decide(",

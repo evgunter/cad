@@ -10,9 +10,9 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #
 
 ## What
 
-- `contain::face_placement` (`crates/topo/src/boolean/contain.rs:870`) delegates `_ =>` to the curved door.
+- `contain::face_placement` (`crates/topo/src/contain.rs:870`) delegates `_ =>` to the curved door.
 - `curved_interior_placement` (`:935`) returns `Trim(None)` for plane, Nurbs, Approx and ringed non-sphere faces. Its cylinder outline chain is a fallback.
-- `solid_contain::face_geo` (`crates/topo/src/boolean/solid_contain.rs:995`):
+- `solid_contain::face_geo` (`crates/topo/src/solid_contain.rs:995`):
   - a `Some(s) => KindUnsupported` catch-all;
   - cone and sphere arms that are fallback chains;
   - face trims read differently from `contain`'s.
@@ -30,7 +30,7 @@ Re-aimed to D3 "One reading per question". Point-in-face is a reading over trimm
 ## Moved by CHART (2026-10-24)
 
 Branch `chart/ringed-curved-doors` gives cylinder and cone faces one
-reading, `topo::boolean::ruled_region`. `curved_face_containment` and
+reading, `topo::ruled_region`. `curved_face_containment` and
 `face_geo` both read it, and `curved_interior_placement` is now one
 exhaustive match over the surface kinds. The cylinder outline chain is
 deleted, and so is `face_geo`'s cone chain (the wrapped group's

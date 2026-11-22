@@ -17,7 +17,7 @@ Found by the sweep of `a-tangent-reading-returns-a-verdict-and-only-a-record-is-
 D4 ¶1 (ii): "the decision is a closed type at its site, so its recourse is an exhaustive match, never a lookup by predicate name." Three sites outside test code pick a decision, and so an ending, by comparing an escalation's `Indeterminate::predicate` string:
 
 - `crates/topo/src/boolean/join.rs`, the `Uncarried::Section(SectionError::Escalated(diag)) if diag.predicate == Some(geom_brep::CcDecision::Parallel.name())` arm: the cylinder pose's parallelism becomes `BooleanDecision::CylinderAxes`.
-- `crates/topo/src/boolean/spline_region.rs`, `(diag.predicate == Some(CARRIER)).then_some(ContainDecision::Carrier)`: the carrier rows' escalation becomes the containment's carrier decision.
+- `crates/topo/src/spline_region.rs`, `(diag.predicate == Some(CARRIER)).then_some(ContainDecision::Carrier)`: the carrier rows' escalation becomes the containment's carrier decision.
 - `crates/topo/src/chord_join.rs` `order_ending`: `match diag.predicate { Some(FRAME_AXIS | FRAME_ARM) => lever_ending, _ => ending }`.
 
 Each is an in-band escalation, not a verdict, so it ends in its lever either way; what the string picks is which decision's lever. A renamed row silently moves the refusal to the other ending.

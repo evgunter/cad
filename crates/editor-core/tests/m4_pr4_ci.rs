@@ -96,7 +96,14 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// **Re-pinned for sources** (VARIABLES VR4): a placement mints the
 /// source it reads its body through, one more variable per placement,
 /// so every mint id after it moved: a spelling change.
-const DIAGNOSIS_DIGEST: u64 = 0x78cb_ae44_b9e1_ef78;
+///
+/// **Re-pinned for the first turn** (N5: a flip is the first choice two
+/// runs take differently along one recorded path): the flip-vanish row's
+/// union parts where its box queries hand on other candidates, before
+/// any choice turns, so it records no flip and answers by its group
+/// size, `PredicateFlip` → `GroupResized`: a change of diagnosis. Every
+/// other row keeps its shape.
+const DIAGNOSIS_DIGEST: u64 = 0x677e_d787_2dd8_93f5;
 
 #[test]
 fn diagnosis_corpus_is_golden() {
@@ -104,7 +111,7 @@ fn diagnosis_corpus_is_golden() {
     // Each row's shape, so a drift says whether a row changed its
     // diagnosis or only its spelling.
     for ((label, res), shape) in rows.iter().zip([
-        "diagnosis: PredicateFlip",
+        "diagnosis: GroupResized",
         "diagnosis: Cascade",
         "diagnosis: IndexCount",
         "error: NodeGone",

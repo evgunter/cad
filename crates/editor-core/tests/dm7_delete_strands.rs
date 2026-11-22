@@ -449,12 +449,12 @@ fn a_round_tripped_document_reports_the_same_strands() {
         },
     );
 
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
-    assert!(loaded.doc.bit_eq(&doc), "the snapshot round-trips");
+    assert!(loaded.bit_eq(&doc), "the snapshot round-trips");
 
     let direct = delete(&doc, b);
-    let after_load = delete(&loaded.doc, b);
+    let after_load = delete(&loaded, b);
     assert!(
         !crate::fixture::without_anonymous(&direct.maintenance).is_empty(),
         "the delete strands the fillet's selected name"
@@ -749,12 +749,12 @@ fn a_round_tripped_document_reports_the_same_appearance_strands() {
     let doc = paint(&doc, &fname(victim, wall(&doc, victim, 0)));
     let doc = paint(&doc, &fname(victim, wall(&doc, victim, 2)));
 
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
-    assert!(loaded.doc.bit_eq(&doc), "the snapshot round-trips");
+    assert!(loaded.bit_eq(&doc), "the snapshot round-trips");
 
     let direct = delete(&doc, victim);
-    let after_load = delete(&loaded.doc, victim);
+    let after_load = delete(&loaded, victim);
     assert_eq!(
         appearance_strands(&crate::fixture::without_anonymous(&direct.maintenance)).len(),
         2,

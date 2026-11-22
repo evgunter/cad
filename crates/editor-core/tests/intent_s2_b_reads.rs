@@ -166,9 +166,9 @@ fn a_delete_leaves_its_reader_unresolved_and_typed() {
         ev.node_error(fillet)
     );
 
-    let text = save(&deleted.doc, &[], Tol::witness()).expect("a stranded read saves");
+    let text = save(&deleted.doc, Tol::witness()).expect("a stranded read saves");
     let loaded = load(&text, Tol::witness()).expect("and loads");
-    assert!(loaded.doc.bit_eq(&deleted.doc), "as itself");
+    assert!(loaded.bit_eq(&deleted.doc), "as itself");
 
     let replayed = applied(&deleted.doc, DocEdit::DeleteNode { id: fillet }).doc;
     assert!(
@@ -213,9 +213,9 @@ fn a_forward_member_saves_loads_and_cascades() {
         "the union reads its forward member"
     );
 
-    let text = save(&doc, &[], Tol::witness()).expect("a forward member saves");
+    let text = save(&doc, Tol::witness()).expect("a forward member saves");
     let loaded = load(&text, Tol::witness()).expect("and loads");
-    assert!(loaded.doc.bit_eq(&doc), "as itself");
+    assert!(loaded.bit_eq(&doc), "as itself");
 
     let doomed = editor_core::cascade_delete_order(&doc, c);
     assert!(
@@ -418,8 +418,8 @@ fn the_slot_door_takes_a_formula_or_a_read_by_the_slots_kind() {
     .doc;
     assert_eq!(by_read.slot(extrude, SlotId::Distance), Some(depth));
     assert_eq!(
-        save(&by_read, &[], Tol::witness()).expect("saves"),
-        save(&by_formula, &[], Tol::witness()).expect("saves"),
+        save(&by_read, Tol::witness()).expect("saves"),
+        save(&by_formula, Tol::witness()).expect("saves"),
         "a read at a scalar slot is the formula of its one variable"
     );
 
@@ -519,7 +519,7 @@ fn the_comparator_reads_reads_as_inputs_and_catches_a_re_pointed_one() {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let new = crate::wire::wire_body(&text);
     let as_inputs = up_to_ids::reads_as_inputs(&new);
     up_to_ids::same_up_to_ids(&as_inputs, &as_inputs).expect("a document is itself");
@@ -564,7 +564,7 @@ fn the_comparator_catches_a_read_re_pointed_from_one_port_to_another() {
             ]),
         },
     );
-    let new = crate::wire::wire_body(&save(&doc, &[], Tol::witness()).expect("saves"));
+    let new = crate::wire::wire_body(&save(&doc, Tol::witness()).expect("saves"));
     let as_inputs = up_to_ids::reads_as_inputs(&new);
     up_to_ids::same_up_to_ids(&as_inputs, &as_inputs).expect("a document is itself");
     let (above, below) = (
@@ -624,10 +624,8 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
         // An edit log's reads name outputs its replay mints: the
         // replayed document's table says whose they are.
         let text = std::fs::read_to_string(here.join(file)).expect("reads");
-        let replayed = load(&text, Tol::witness())
-            .expect("the re-blessed file loads")
-            .doc;
-        let table = crate::wire::wire_body(&save(&replayed, &[], Tol::witness()).expect("saves"));
+        let replayed = load(&text, Tol::witness()).expect("the re-blessed file loads");
+        let table = crate::wire::wire_body(&save(&replayed, Tol::witness()).expect("saves"));
         let new = up_to_ids::reads_as_inputs_by(&new, &table);
         let (old, new) = (
             up_to_ids::without_nodes(&old, &up_to_ids::tube_subgraph(&old)),
@@ -643,8 +641,7 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
 /// value meets a length bound `AssertionDimension`. The value is
 /// payload (D), so no slot addresses it, and the definition it reads is
 /// the one way it re-points. That door refuses the same re-point: a
-/// definition's kind is fixed (`VarKindFixed`). The log that would carry
-/// it does not save, because it replays through that door.
+/// definition's kind is fixed (`VarKindFixed`).
 #[test]
 fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
     let mut r = fixture::Recorder::new();
@@ -692,7 +689,7 @@ fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
         def: editor_core::VarDecl::Defined(as_angle),
         fresh: Vec::new(),
     };
-    let by_definition = refused(&r.doc, edit.clone());
+    let by_definition = refused(&r.doc, edit);
     assert!(
         matches!(
             &by_definition,
@@ -711,17 +708,6 @@ fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
         }),
         Some(web),
         "and the assertion still reads the length"
-    );
-    let mut log = r.edits.clone();
-    log.push(edit);
-    assert!(
-        save(
-            &ProfileDoc::empty_derived("mod", Tol::witness()),
-            &log,
-            Tol::witness()
-        )
-        .is_err(),
-        "a log carrying the re-definition does not save"
     );
 }
 
@@ -948,7 +934,7 @@ fn member_re_read(text: &str, from: &str, to: &str) -> String {
 #[test]
 fn a_file_whose_reads_close_a_loop_refuses_read_cycle() {
     let (doc, b, union, moved) = union_under_a_placement();
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let out = |node| doc.output(node, 0).expect("an output").0.to_string();
     let corrupt = member_re_read(&text, &out(b), &out(moved));
     let refusal = load(&corrupt, Tol::witness()).err();
@@ -969,7 +955,7 @@ fn a_file_whose_reads_close_a_loop_refuses_read_cycle() {
 #[test]
 fn a_file_reading_an_unminted_variable_refuses_operand_unminted() {
     let (doc, b, union, _) = union_under_a_placement();
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let out_b = doc.output(b, 0).expect("an output").0.to_string();
     // The member spelled as the node id, as a pre-B file spells it.
     let corrupt = member_re_read(&text, &out_b, &b.0.to_string());
@@ -1046,7 +1032,7 @@ fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
         "{:?}",
         ev.node_error(measure)
     );
-    let text = save(&deleted, &[], Tol::witness()).expect("a stranded site saves");
+    let text = save(&deleted, Tol::witness()).expect("a stranded site saves");
     let loaded = load(&text, Tol::witness()).expect("and loads");
-    assert!(loaded.doc.bit_eq(&deleted), "as itself");
+    assert!(loaded.bit_eq(&deleted), "as itself");
 }

@@ -305,7 +305,7 @@ fn r2_a_tube_bearing_save_refuses_typed_on_a_build_that_lacks_the_vocabulary() {
             fresh: Vec::new(),
         },
     );
-    let bytes = save(&doc, &[], Tol::witness()).expect("the document saves");
+    let bytes = save(&doc, Tol::witness()).expect("the document saves");
     assert!(
         bytes.contains("Tube"),
         "the save must actually name the new vocabulary: {bytes}"

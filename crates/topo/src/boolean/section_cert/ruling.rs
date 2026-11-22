@@ -103,6 +103,7 @@
 //! R-tan.
 
 use crate::rows::ChartRows;
+use geom_core::period::Period;
 use geom_core::running::{self, Rounded};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
@@ -866,7 +867,9 @@ fn assemble<T: Decide>(
         let hi = if i + 1 < count {
             folds[i + 1]
         } else {
-            folds[0] + T::tau()
+            // The folds are angles by construction: the last arc wraps
+            // one turn round.
+            folds[0] + Period::<T>::angle().length()
         };
         let mid = (lo + hi) / two;
         match side(mid) {

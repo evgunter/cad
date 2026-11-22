@@ -2,11 +2,13 @@
 id: a-quadric-pairs-section-spline-carries-a-c0-knot-the-chord-pass-refuses
 kind: issue
 title: a closed section loop seated off its start carries a full-multiplicity join knot inside an edge, so booleans of four quadric pairs build and never mesh (and tier 3 will refuse them)
-status: open
+status: closed
+closed: 2026-11-17
 opened: 2026-11-14
 priority: P0
 cost: M
-design: true
+branch: sectarms/periodic-loop-carrier
+pr: 7052
 ---
 
 
@@ -27,6 +29,41 @@ So no boolean of a cylinder and a ball in a general pose can be drawn.
 `nurbs_chord_count`'s secant bound needs C¹, and it refuses any interior knot of multiplicity above `p − 1`. Ev's ruling on PR 5913 (DESIGN `[topology]`) says an edge carrier is C¹ by its knot structure strictly inside its cell, and that a construction whose carrier is not puts a vertex there; no reader carries a crease arm. Read with that, the carrier this section mints is the defect, and the chord pass is right to refuse it. Not yet measured: whether the knot is a true tangent break or a full-multiplicity knot on a smooth curve (a piecewise-Bézier fit), which decides between cutting the edge at the knot and minting the curve with a C¹ knot vector.
 
 The mint is on other ground: `geom-brep`'s `ssi.rs` (`cylinder_sphere_ssi`; SSIARITH, SSIEDGE) and `pair_section.rs` (the SECT family). This row sits here because the refusal is the mesh's and the mint's owner is not yet identified; whoever owns the mint claims it by moving it. `tier-3-refuses-a-carrier-with-an-interior-c0-knot` (MEASUREDOOR) will refuse these bodies at rest once it lands, so this row is on its path too.
+
+## Decided (Ev, PR 7042, 2026-11-17; fork-log row 279)
+
+A closed fitted section loop is fitted as a periodic cubic: C² by its
+knot structure everywhere, with no start. It is a carrier kind of its
+own, a distinct `Curve3` arm with a period, as a circle has. It is
+seated by its span; an edge on it is the loop's carrier and a span,
+and a reader reads the clamped view of that span, whose interior knots
+are simple. `seat_at`'s knot edit, `rotated`, the second certificate at
+the seat and the near-start refusal go. The 5913 clause is unchanged;
+C11 admits this one periodic form. Making section chords spans rather
+than cut nets is its own item
+(`a-section-chord-cut-as-its-own-net-never-rejoins`), which this
+decision needs for its join benefit.
+
+## Built (PR 7052)
+
+The decision is built: the periodic fit, the `Curve3::Periodic` arm,
+the span seat, loop chords as spans, the certificate on the base
+opening and each edge on its own view, and the join across a loop's
+vertices. No section edge reads an interior knot past multiplicity
+one, so the chord pass takes every carrier of the four pairs.
+
+"Done when" below is not met and cannot be from the section's ground.
+Cylinder × cylinder meshes at every op. The measured pose, sphere ×
+torus and cylinder × torus stop at the next gate, the trimmed lane's
+bound for a spline's projected image on a sphere or torus face
+(`work/tesslane/cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm.md`,
+`work/tesslane/a-torus-face-bounded-by-a-projected-spline-image-has-no-chord-bound.md`).
+
+Left by it:
+`a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band`
+(a pose lost at ε = 1e-6) and
+`a-clamped-view-ending-within-three-ulps-of-a-knot-holds-a-span-no-hull-reads`
+(a design fork).
 
 ## Done when
 
@@ -56,3 +93,7 @@ Read, not run: torus × torus takes the same route; a closed circle or ellipse i
 **Who else is on its path.** Tier 3 has no knot-structure check today; `tier-3-refuses-a-carrier-with-an-interior-c0-knot` (MEASUREDOOR) will refuse every body above, and names two predecessors, neither of them this. Readers that already carry their own handling of a creased edge carrier: `mesh::chords::nurbs_chord_count` (refuses), `geom::nonrational_second_derivative_sup`, `NurbsCurve3::accel_upper_bound` (∞), `topo::boolean::edge_join::crease_at`, `geom_brep::curve_face::composite::creases`, `step_import::knot_split::split_edges`.
 
 **Why SECTARMS.** `pair_section.rs` is SECT's, SECTARMS's, SECTCONE's and SECTTORUS's; the seat is SECT's step 1b by charter, and SECTARMS is the one of the four with an orchestrator. Moved there by `git mv`; if SECT is the better home, its owner moves it on. `work/tesslane/cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm` stays parked on it, and `reach_probes::a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass` pins the pose.
+
+## Closed (PR 7052, 2026-11-17)
+
+The closed loop is a periodic carrier and no edge cut from it carries an interior knot of full multiplicity, at s = 0.01, 1 and 100 and the three ε. Cylinder × cylinder meshes and passes `check_mesh`. Cylinder × sphere, sphere × torus and cylinder × torus pass the chord pass and stop at `chords::chart_image`, a TESSLANE gate: `work/tesslane/cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm.md` and `work/tesslane/a-torus-face-bounded-by-a-projected-spline-image-has-no-chord-bound.md`. That stop is a different defect, so this row closes.

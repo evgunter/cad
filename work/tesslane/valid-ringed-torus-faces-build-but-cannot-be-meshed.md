@@ -2,12 +2,12 @@
 id: valid-ringed-torus-faces-build-but-cannot-be-meshed
 kind: issue
 title: A valid body whose torus wall holds a spiric ring builds and measures, but tessellation refuses it RingOnCurvedFace as a kernel bug
-status: parked
+status: closed
 opened: 2026-10-21
 priority: P0
 cost: M
 refs: [5567]
-blocked_on: [a-curved-faces-domain-is-read-from-every-loop]
+closed: 2026-11-14
 ---
 
 
@@ -75,3 +75,24 @@ Run at `d6e1eb1f` (probes `reach_probes::a_torus_wall_holding_a_spiric_ring_refu
 - The refusal's `Display` still says no construction produces a ring on a curved face and that it is a kernel bug.
 
 **P0**: a union of a ball and a tube through it, or of a donut and a bar, is a normal verb on normal geometry, and the body cannot be drawn. It is one cell of the gap `trimmed-tessellation-lacks-torus-and-plane-arms` describes, and is with designers with it (`design: true`).
+
+## Closed
+
+2026-11-14 (TESSLANE unit 3, `a-curved-faces-domain-is-read-from-every-loop`,
+branch `tesslane/domain-loops`). A curved face that holds a ring goes to
+the trimmed lane (`tessellate::lane_of`), which reads the face's domain
+from `topo::Body::face_lift` (the outer loop's lift and every ring's,
+placed in its sheet) and triangulates the outer loop less the rings by
+the planar lane's even-odd reading. `RingOnCurvedFace` is gone, and a
+face whose loops have no reading in one sheet refuses `DomainUnread`
+with the door's cause. The donut and B2 mesh in every op at δ `2e-2`
+and `5e-3`, and the ball and the tilted tube, ball ∖ tube's displaced
+ring included, at `2e-2`, `5e-3` and `10⁻³`
+(`reach_probes::a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row`,
+`a_ball_face_holding_a_tilted_ring_meshes_on_the_sphere_row`). At
+`10⁻³` the ringed torus faces keep two triangles of no area beside a
+spiric chord point a lattice point falls within rounding of, the class
+`a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area`
+holds, measured there and on main's tilted sphere pair. The lily's
+seamed lantern draws; giving the scene's lanterns their seams is
+`the-lily-lanterns-can-take-their-three-tepal-seams`.

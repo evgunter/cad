@@ -41,14 +41,13 @@
 use geom_core::{Decide, Point3, Real};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
+use super::BlendError;
 use super::battery::{Chain, Convexity, JointVerdict, Link, joint_verdict};
 use super::build::{fan_at, outward_of};
 use super::junction::{self, JUNCTION_ON_ONE_PAIR};
 use super::surgery::{
-    CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
-    unresolved, unwalked,
+    CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_chain, unbuilt_geometry, unresolved, unwalked,
 };
-use super::{BlendError, CornerConfig};
 
 /// **One link of an admitted open band**, whose arm is plane–plane
 /// (the band between trivalent corners) or ruled (the cylinder band
@@ -161,11 +160,11 @@ impl Joint {
 
 /// **A junction of an admitted open band**: an interior vertex of the
 /// chain where two links on DIFFERENT supports meet tangentially, their
-/// bands sharing the rolling ball's section there (predicate 4's band
-/// reading certified it).
+/// bands sharing one section there, the rolling ball's circle or the
+/// chamfer's generator (predicate 4's band reading certified it).
 ///
-/// Each link is a rolling-ball band with a section, a cylinder over two
-/// planes or a torus; the two share exactly one support, the HOST, which
+/// Each link is a band with a section: a cylinder or a strip over two
+/// planes, or a torus or a frustum about its supports' axis; the two share exactly one support, the HOST, which
 /// is a plane; and the vertex carries one edge besides the two links,
 /// which separates their other supports, the two MATES. That is the
 /// junction of a closed mixed rim ([`super::junction`]), here between
@@ -228,8 +227,8 @@ impl Junction {
 }
 
 /// **A chain admitted through the open-chain door**: its links, in
-/// walk order, every one plane–plane or ruled, or a torus between two
-/// junctions, and every junction between them a [`Joint`] or a
+/// walk order, every one plane–plane or ruled, or a band of revolution
+/// (a torus or a frustum) between two junctions, and every junction between them a [`Joint`] or a
 /// [`Junction`].
 ///
 /// A one-link chain is a band of one link and no joints. A chain of
@@ -237,8 +236,8 @@ impl Junction {
 /// faces on the plane–plane arm — a rim a valence-2 vertex splits,
 /// which is what a coplanar-face merge leaves of a subdivided wall —
 /// and where each consecutive pair meets at a [`Junction`], the MIXED
-/// chain: a rounded outline's run of lines and arcs, whose torus links
-/// lie between two junctions. A chain is one or the other: a joint
+/// chain: a rounded outline's run of lines and arcs, whose torus or
+/// frustum links lie between two junctions. A chain is one or the other: a joint
 /// inside a mixed chain refuses.
 ///
 /// Non-emptiness is the shape, as on [`super::battery::Chain`]: the
@@ -257,18 +256,17 @@ impl<'a, T: Decide> OpenBand<'a, T> {
     /// # Errors
     ///
     /// [`Junction::admit`]'s refusals at a junction between links on
-    /// different supports; [`BlendError::UnsupportedCorner`] at a joint
-    /// vertex carrying other edges, and [`BlendError::BodyNotIntact`]
-    /// where its orbit does not walk; [`BlendError::UnsupportedChain`]
-    /// when a link's arm is neither plane–plane nor ruled nor a torus
-    /// between two junctions, or a chain mixes joints and junctions.
+    /// different supports; [`BlendError::BodyNotIntact`] at a joint
+    /// vertex carrying other edges, or where its orbit does not walk; [`BlendError::UnsupportedChain`]
+    /// when a link's arm is neither plane–plane nor ruled nor a band of
+    /// revolution between two junctions, or a chain mixes joints and junctions.
     pub(super) fn admit(body: &Body<T>, chain: &'a Chain<T>) -> Result<Self, BlendError> {
         // Three open links are built: the plane–plane link, terminating
         // in trivalent corners, cut-offs or turns; the RULED link — a
         // cylinder band about a straight spine over supports sharing
         // the ruling — terminating in plane caps the band is cut off
-        // at; and a torus between two junctions, which terminates in
-        // neither. The battery's predicate 6 has already classified each
+        // at; and a torus or a frustum between two junctions, which
+        // terminates in neither. The battery's predicate 6 has already classified each
         // end as the one its arm needs.
         //
         // No convexity clause, and no verb: neither band asks for
@@ -293,10 +291,11 @@ impl<'a, T: Decide> OpenBand<'a, T> {
                 JointVerdict::NotPlanar | JointVerdict::OtherFaces => {
                     junctions.push(Junction::admit(body, j.vertex, a, b, chain.first().edge)?);
                 }
-                JointVerdict::Valence(valence) => {
-                    return Err(unbuilt_corner_config(
-                        j.vertex,
-                        CornerConfig::NEdgeVertex { valence },
+                JointVerdict::Valence => {
+                    return Err(disagrees(
+                        EntityId::Vertex(j.vertex),
+                        "a joint's two links bound the same two faces, yet its vertex carries \
+                         other edges",
                     ));
                 }
                 JointVerdict::OrbitBroken => {
@@ -312,15 +311,7 @@ impl<'a, T: Decide> OpenBand<'a, T> {
         }
         let at_junction = |v: VertexKey| junctions.iter().any(|j| j.vertex == v);
         for link in chain.links() {
-            let between =
-                link.arm.is_coaxial_torus() && at_junction(link.start) && at_junction(link.end);
-            if !(link.arm.is_plane_plane() || link.arm.is_ruled() || between) {
-                return Err(unbuilt_chain(
-                    link.edge,
-                    "an open chain link is not plane–plane, ruled, or a torus between two \
-                     junctions",
-                ));
-            }
+            open_link(link, at_junction(link.start) && at_junction(link.end))?;
         }
         let first = AdmittedOpen::admitted(chain.first());
         let rest = chain.rest().iter().map(AdmittedOpen::admitted).collect();
@@ -362,6 +353,24 @@ impl<'a, T: Decide> OpenBand<'a, T> {
     pub(super) fn junctions(&self) -> &[Junction] {
         &self.junctions
     }
+}
+
+/// **The open-chain door's one test of a link**: plane–plane, ruled, or
+/// a band of revolution `between` two junctions of its chain. A link
+/// that ends a chain is between none.
+///
+/// # Errors
+///
+/// [`BlendError::UnsupportedChain`] on the link otherwise.
+pub(super) fn open_link<T: Real>(link: &Link<T>, between: bool) -> Result<(), BlendError> {
+    if link.arm.is_plane_plane() || link.arm.is_ruled() || (between && link.arm.is_coaxial()) {
+        return Ok(());
+    }
+    Err(unbuilt_chain(
+        link.edge,
+        "an open chain link is not plane–plane, ruled, or a band of revolution between two \
+         junctions",
+    ))
 }
 
 /// **The admitted open links incident to one corner vertex** — at
@@ -506,15 +515,13 @@ impl CornerFaces {
     /// Walk a corner's face orbit and admit it as a trivalent corner.
     ///
     /// The valence checked here is the FACE orbit's; on a manifold
-    /// body it is the edge valence the caller checked, and a
-    /// disagreement is itself the refusal.
+    /// body it is the edge valence the caller checked, so a
+    /// disagreement is a body that does not hold together.
     ///
     /// # Errors
     ///
-    /// [`BlendError::BodyNotIntact`] when the orbit does not walk, or
-    /// when it returns a face twice;
-    /// [`BlendError::UnsupportedCorner`] when the corner is not
-    /// trivalent.
+    /// [`BlendError::BodyNotIntact`] when the orbit does not walk, holds
+    /// other than three faces, or returns a face twice.
     pub(super) fn admit<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Self, BlendError> {
         let faces = fan_at(body.faces_of_vertex(vertex)).ok_or_else(|| {
             unwalked(
@@ -523,11 +530,9 @@ impl CornerFaces {
             )
         })?;
         let [f0, f1, f2] = faces[..] else {
-            return Err(unbuilt_corner_config(
-                vertex,
-                CornerConfig::NEdgeVertex {
-                    valence: faces.len(),
-                },
+            return Err(disagrees(
+                EntityId::Vertex(vertex),
+                "a trivalent corner's face orbit does not hold three faces",
             ));
         };
         // Distinctness is what makes `third` total, so it is checked

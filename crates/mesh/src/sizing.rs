@@ -80,9 +80,9 @@
 //! of δ is a typed choice nothing has measured as the coarsest
 //! (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
 //! The lanes without a theorem say so at their call sites: the trimmed
-//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and a cone face
-//! whose side carries a point keeps the lattice `curved::grid_counts`
-//! names.
+//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and so
+//! does a cylinder or cone face whose straight side holds a point, which
+//! is the trimmed lane's (`walk::splits_a_straight_side`).
 //!
 //! **One sizing question has a separate ratified answer**:
 //! `docs/TESS-BUDGET.md`'s *split schedule's aspect policy*
@@ -261,9 +261,8 @@ impl Eps {
     /// and [`crate::cert::verdict`], which applies a certificate's
     /// rounding allowance only while the band dominates it (four times
     /// over, `cert::ALLOWANCE_SHARE`). Nothing reads it to measure the
-    /// quality of a body's own coordinates: that question is
-    /// `topo::coherence`'s, and it carries its own band. So this
-    /// operation has no deviation to record.
+    /// quality of a body's own coordinates. So this operation has no
+    /// deviation to record.
     pub(crate) fn dominates(self, scaled: f64) -> bool {
         scaled < self.0
     }
@@ -355,14 +354,17 @@ pub(crate) struct SizingTols {
     pub eps: Eps,
     /// The linear decision band props classifies with, minted from
     /// the same [`Tol`] as `eps` at operation entry (the calling
-    /// convention `Band::linear` prescribes). Consumed by three sites —
-    /// `curved`'s shape door, which hands it to
-    /// `geom_brep::props::require_iso_rectangle` and then to
-    /// `require_one_chart_branch`, the walk's wrap strip, and the trimmed
-    /// lane's singular vertices (`crate::chart_table::AnalyticRow::is_singular`),
-    /// both of which hand it to
-    /// `geom_brep::chart_singularity::vertex_at_singular_point` — and by
-    /// no rule of this crate's own: `mesh` decides nothing
+    /// convention `Band::linear` prescribes). The same band routes every
+    /// face before this value exists (`tessellate::Routes::of`, whose
+    /// doors hand it to `geom_brep::props::require_iso_rectangle` and then
+    /// to `require_one_chart_branch`). This field is consumed by three
+    /// sites — the walk's wrap strip and the trimmed lane's singular
+    /// vertices (`crate::chart_table::AnalyticRow::is_singular`), both of
+    /// which hand it to
+    /// `geom_brep::chart_singularity::vertex_at_singular_point`, and a
+    /// trimmed face's domain read at its turn (`tessellate::Route::ready`,
+    /// which hands it to `topo::Body::face_lift`) — and
+    /// by no rule of this crate's own: `mesh` decides nothing
     /// against it, it carries the band to geom-brep's predicates. Not an
     /// ε read of this crate, and the inventory pin does not count it as
     /// one.
@@ -480,9 +482,10 @@ pub(crate) fn spiric_step(target: f64, major: f64, minor: f64, offset: f64) -> f
 ///
 /// # The theorem
 ///
-/// [`crate::cert::cert_cone`] bounds a triangle by
-/// `cos α · ρ_maxᵀ · (1 − cos(Δu/2))`, with `ρ_maxᵀ` its largest
-/// radius and Δu its non-apex azimuth extent. The cone is ruled in v,
+/// [`crate::cert::cert_cone`] bounds a triangle by the largest sag of
+/// its chords, and a chord between radii `ρ₁ ≤ ρ₂` across `Δu` sags at
+/// most `cos α · ρ₂ · (1 − cos(Δu/2))`, with equality at `ρ₁ = ρ₂`
+/// (`cert::cone_chord_sag`). The cone is ruled in v,
 /// so rows never enter the bound, and the curved lane takes none: its
 /// only rows are the face's two rims (or a rim and the apex), both
 /// chorded within the column step `h` (the chord pass's tightening,
@@ -586,9 +589,8 @@ pub(crate) fn sphere_face_widest_cos(
     surface: &geom::Surface<f64>,
 ) -> Result<f64, TessellateError> {
     let geom::Surface::Sphere {
-        center,
+        frame: carrier_frame,
         radius,
-        axis,
         ..
     } = *surface
     else {
@@ -596,13 +598,12 @@ pub(crate) fn sphere_face_widest_cos(
             what: "a sphere face's widest latitude on a non-sphere surface",
         });
     };
+    let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
     for (hek, ek, curve) in outer_loop_curves(body, fk)? {
         let (z0, z1) = match *curve.carrier() {
-            geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: cc, .. },
-                ..
-            }) => {
+            geom::Curve3::Circle(geom::Circle { frame, .. }) => {
+                let cc = frame.origin();
                 let height = |p: geom_core::Point3<f64>| (p - center).dot(axis);
                 let c = height(cc);
                 let a = height(curve.carrier().eval(0.0)) - c;
@@ -626,7 +627,7 @@ pub(crate) fn sphere_face_widest_cos(
             }
             // A section with another curved surface (a cylinder's, as in
             // `sweep`'s `cylinder_sphere_frame`) is a spline.
-            geom::Curve3::Nurbs(_) => {
+            geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                 let w = image_box(
                     body,
                     hek,
@@ -853,9 +854,12 @@ pub(crate) fn cone_face_rho_max(
     let mut rho_max: Option<f64> = None;
     for (hek, ek, curve) in outer_loop_curves(body, fk)? {
         let rho = match *curve.carrier() {
-            geom::Curve3::Circle(geom::Circle { radius, .. }) => radius,
+            geom::Curve3::Circle(circle) => circle.radius(),
             geom::Curve3::Line(_) => continue,
-            geom::Curve3::Ellipse(..) | geom::Curve3::Nurbs(_) | geom::Curve3::Spiric { .. } => {
+            geom::Curve3::Ellipse(..)
+            | geom::Curve3::Nurbs(_)
+            | geom::Curve3::Periodic(_)
+            | geom::Curve3::Spiric { .. } => {
                 let w = image_box(
                     body,
                     hek,
@@ -913,8 +917,18 @@ pub(crate) fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError>
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    /// The run's tolerances at `delta` under `Tol::witness()`, as
+    /// `tessellate` mints them.
+    pub(crate) fn witness_tols(delta: f64) -> SizingTols {
+        SizingTols {
+            delta,
+            eps: Eps::at(Tol::witness()),
+            band: Band::linear(Tol::witness()).unwrap(),
+        }
+    }
 
     /// **[`ellipse_step`] reads the semi-axes in either order.** An
     /// ellipse stored with `minor` the larger is the same locus; read as

@@ -34,6 +34,9 @@ topo = { path = "../topo" }
 geom-brep = { path = "../geom-brep" }
 
 [dev-dependencies]
+# The agreement pin of a certificate read by its support (geom-brep's
+# `read-pins-testing`), on in this crate's tests only.
+geom-brep = { path = "../geom-brep", features = ["read-pins-testing"] }
 # The blend fixtures the `param_flow` exhaustiveness rows run against —
 # a rim body is what mints the `bands` role family, and hand-building
 # one here would be a second copy of a fixture `sweep` already owns.

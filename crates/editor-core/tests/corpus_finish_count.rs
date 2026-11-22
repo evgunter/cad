@@ -56,6 +56,28 @@ fn the_corpus_runs_its_pinned_count_of_finishes() {
 /// own frame and then moved at 443 on that merged corpus, and reverted it
 /// at the box scalars: a box-scalar leaf's tier 3 alone is not decided
 /// over a box (its orientation, its seams), which is why the switch keeps
-/// it tier 2 there.
+/// it tier 2 there. Then the readings between two operands (measure, the
+/// quieting rule, the replay's carrier verdict, clearance and its
+/// witness) read the other through its seat and move no body (PR 7088),
+/// so no moved f64 sweep leaf is finished again on its image for them:
+/// 662 -> 466, the 196 exactly those re-finishes (routing the seat back
+/// through the whole-body move puts back 662). Then a gather of placed
+/// copies grafts each through its seat (`topo::boolean::graft_placed`,
+/// PR 7099): the image is the aggregate's construction state, and the
+/// aggregate finishes once, so no mapped f64 leaf is finished on its
+/// image at the gather: 466 -> 445 (heat_sink 44 -> 39, declared_tangency
+/// 6 -> 4, kitchen_sink 21 -> 15, part_select 8 -> 6, pin_in_bore
+/// 12 -> 6). Then the n-ary fold and the at-rest intersection take placed
+/// operands (`topo::nary_placed`, `topo::boolean_placed`): a member, or a
+/// copy, is finished in its own frame and the door moves the finished
+/// body, carrying its verdict, so no mapped f64 leaf is finished again on
+/// its image there: 445 -> 390, the fold 50 (die_composed_tour 94 -> 74,
+/// die_tool 27 -> 22, heat_sink 39 -> 34, corner_table 23 -> 19,
+/// heat_sink_fins 10 -> 6, nested_islands_106_depth2 12 -> 10, kiss_carry
+/// 13 -> 11, and one each in nested_islands_105, nested_islands_106_depth1,
+/// kitchen_sink, boss_union, face_sketch, plate_param, axis_projection and
+/// blocks_on_one_floor) and the localization 5 (heat_sink 34 -> 29).
+/// Moving each member's leaf before its take again puts back 440, and the
+/// copies' as well, 445.
 #[cfg(debug_assertions)]
-const PINNED: u64 = 662;
+const PINNED: u64 = 390;

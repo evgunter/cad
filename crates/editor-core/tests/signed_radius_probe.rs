@@ -41,7 +41,10 @@ pub(crate) fn one_arc(
             dim,
             value: nominal,
             display_unit: UnitSym::canonical_for(dim),
-            distribution: Some(Distribution::Uniform { lo: -half, hi: half }),
+            distribution: Some(Distribution::Uniform {
+                lo: -half,
+                hi: half,
+            }),
         }),
     });
     let mut steps = vec![
@@ -109,81 +112,91 @@ pub(crate) fn verb_doc(name: &str) -> ProfileDoc {
         ),
         (
             "via",
-            Box::new(move || one_arc(
-                "s",
-                Dimension::Length,
-                4.6e-3,
-                5.0e-5,
-                vec![ProgramStep::ArcTo(ProgramArcData::Via {
-                    q: [named("s", Dimension::Length), len(1.0e-3)],
-                    target: top(),
-                })],
-                true,
-            )),
+            Box::new(move || {
+                one_arc(
+                    "s",
+                    Dimension::Length,
+                    4.6e-3,
+                    5.0e-5,
+                    vec![ProgramStep::ArcTo(ProgramArcData::Via {
+                        q: [named("s", Dimension::Length), len(1.0e-3)],
+                        target: top(),
+                    })],
+                    true,
+                )
+            }),
         ),
         (
             "via_cw",
-            Box::new(move || one_arc(
-                "s",
-                Dimension::Length,
-                3.4e-3,
-                5.0e-5,
-                vec![ProgramStep::ArcTo(ProgramArcData::Via {
-                    q: [named("s", Dimension::Length), len(1.0e-3)],
-                    target: top(),
-                })],
-                true,
-            )),
+            Box::new(move || {
+                one_arc(
+                    "s",
+                    Dimension::Length,
+                    3.4e-3,
+                    5.0e-5,
+                    vec![ProgramStep::ArcTo(ProgramArcData::Via {
+                        q: [named("s", Dimension::Length), len(1.0e-3)],
+                        target: top(),
+                    })],
+                    true,
+                )
+            }),
         ),
         (
             "bulge",
-            Box::new(move || one_arc(
-                "b",
-                Dimension::Scalar,
-                0.5,
-                0.02,
-                vec![ProgramStep::ArcTo(ProgramArcData::Bulge {
-                    target: top(),
-                    b: named("b", Dimension::Scalar),
-                })],
-                true,
-            )),
+            Box::new(move || {
+                one_arc(
+                    "b",
+                    Dimension::Scalar,
+                    0.5,
+                    0.02,
+                    vec![ProgramStep::ArcTo(ProgramArcData::Bulge {
+                        target: top(),
+                        b: named("b", Dimension::Scalar),
+                    })],
+                    true,
+                )
+            }),
         ),
         (
             "bulge_cw",
-            Box::new(move || one_arc(
-                "b",
-                Dimension::Scalar,
-                -0.3,
-                0.02,
-                vec![ProgramStep::ArcTo(ProgramArcData::Bulge {
-                    target: top(),
-                    b: named("b", Dimension::Scalar),
-                })],
-                true,
-            )),
+            Box::new(move || {
+                one_arc(
+                    "b",
+                    Dimension::Scalar,
+                    -0.3,
+                    0.02,
+                    vec![ProgramStep::ArcTo(ProgramArcData::Bulge {
+                        target: top(),
+                        b: named("b", Dimension::Scalar),
+                    })],
+                    true,
+                )
+            }),
         ),
         (
             "fillet",
-            Box::new(move || one_arc(
-                "r",
-                Dimension::Length,
-                0.5e-3,
-                2.0e-5,
-                vec![
-                    ProgramStep::Toward {
-                        dx: scl(0.0),
-                        dy: scl(1.0),
-                    },
-                    ProgramStep::Fillet(named("r", Dimension::Length)),
-                    ProgramStep::Toward {
-                        dx: scl(-1.0),
-                        dy: scl(0.0),
-                    },
-                    ProgramStep::FarEndTo([len(0.0), len(2.0e-3)]),
-                ],
-                false,
-            )),
+            Box::new(move || {
+                one_arc(
+                    "r",
+                    Dimension::Length,
+                    0.5e-3,
+                    2.0e-5,
+                    vec![
+                        ProgramStep::Toward {
+                            dx: scl(0.0),
+                            dy: scl(1.0),
+                        },
+                        ProgramStep::Fillet(named("r", Dimension::Length)),
+                        ProgramStep::Toward {
+                            dx: scl(-1.0),
+                            dy: scl(0.0),
+                        },
+                        ProgramStep::FarEndTo([len(0.0), len(2.0e-3)]),
+                    ],
+                    false,
+                )
+            }),
         ),
     ];
     let (_, build) = all
@@ -217,17 +230,25 @@ fn probe_each_verb_over_a_box() {
             println!("== {name} / {label}: {counts:?}");
             println!(
                 "   first refusal: {}",
-                refusal.as_deref().map_or("none".to_owned(), |r| head(r, 1500))
+                refusal
+                    .as_deref()
+                    .map_or("none".to_owned(), |r| head(r, 1500))
             );
             for (pred, (invalid, indeterminate, all)) in blocked(&shapes) {
-                println!("   blocked {pred}: invalid {invalid} indeterminate {indeterminate} of {all}");
+                println!(
+                    "   blocked {pred}: invalid {invalid} indeterminate {indeterminate} of {all}"
+                );
             }
             for s in shapes
                 .iter()
                 .filter(|s| matches!(s.outcome, ShapeOutcome::Indeterminate))
                 .take(2)
             {
-                println!("   shape {}: {}", s.predicate, head(&format!("{s:?}"), 1200));
+                println!(
+                    "   shape {}: {}",
+                    s.predicate,
+                    head(&format!("{s:?}"), 1200)
+                );
             }
         }
     }

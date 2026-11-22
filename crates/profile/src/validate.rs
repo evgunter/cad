@@ -182,7 +182,7 @@ use core::fmt;
 use crate::gate::{Escalation, Gate, decide, prove};
 use geom_core::{
     Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
+    Margin, MarginDiag, Point2, Real, Sign, Tell, Tol, Told, Vec2,
 };
 
 /// The recourse of [`ProfileError::ArcBelowSceneResolution`], and of
@@ -237,7 +237,6 @@ pub(crate) const JUNCTION_TANGENT_LEVER: &str = "for tangency onto a new carrier
      seam); for a straight continuation spell it line(len) off the directed point; otherwise \
      move the geometry";
 
-use crate::path::num;
 use crate::seg::{
     self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_loop_seg,
 };
@@ -459,34 +458,30 @@ impl OverrunLegs {
 /// leg's setback and length are linear distances; a circular leg's are
 /// **arc lengths** `R·Δθ`, and the same fit margin is also reported in
 /// radians so the author can read the angular room directly.
-///
-/// Diagnostic payload only (`f64`, the enclosure's lower bound at
-/// interval scalars) — for messages, never for re-deciding.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FilletLegCarrier {
     /// A straight leg: setback and length are linear distances (m).
     Line,
-    /// A circular leg on a carrier of radius `radius` (m): setback and
+    /// A circular leg on a carrier of radius `radius`: setback and
     /// length are arc lengths, and `angular_margin` is the leg's fit
-    /// margin `(length − setback)/radius` in radians (negative when the
-    /// tangent point overruns the leg's swept extent).
+    /// margin `(length − setback)/radius` (negative when the tangent
+    /// point overruns the leg's swept extent).
     Arc {
-        /// The leg carrier's radius, meters.
-        radius: f64,
-        /// The fit margin in radians (see the variant docs).
-        angular_margin: f64,
+        /// The leg carrier's radius.
+        radius: Told,
+        /// The fit margin as an angle (see the variant docs).
+        angular_margin: Told,
     },
 }
 
 impl fmt::Display for FilletLegCarrier {
-    /// Both scalars render through `path::num`, the one grid
-    /// this crate's refusal sentences are spelled on: this sentence is
-    /// interpolated into
-    /// [`crate::path::CornerReason::AnchorOutsideTrimmedExtent`]'s,
-    /// whose own scalars are already shortened, so a raw `f64` here
-    /// would put the arithmetic's noise inside a sentence otherwise
-    /// free of it.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.tell(geom_core::Notation::CANONICAL, f)
+    }
+}
+
+impl geom_core::Tell for FilletLegCarrier {
+    fn tell(&self, notation: geom_core::Notation, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Line => f.write_str("straight"),
             Self::Arc {
@@ -494,9 +489,9 @@ impl fmt::Display for FilletLegCarrier {
                 angular_margin,
             } => write!(
                 f,
-                "circular (carrier radius {radius} m, angular margin {angular_margin} rad)",
-                radius = num(radius),
-                angular_margin = num(angular_margin)
+                "circular (carrier radius {}, angular margin {})",
+                radius.told_in(notation),
+                angular_margin.told_in(notation)
             ),
         }
     }
@@ -823,9 +818,9 @@ impl fmt::Display for ProfileError {
             ),
             Self::MultipleOuterLoops { outer_loops } => write!(
                 f,
-                "profile has {} outer boundaries {:?}; one face region per profile",
+                "profile has {} outer boundaries {}; one face region per profile",
                 outer_loops.len(),
-                outer_loops
+                crate::structure::index_list(outer_loops)
             ),
             Self::NestingTooDeep { loop_index, depth } => write!(
                 f,
@@ -2411,6 +2406,21 @@ fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>) -> Result<bool, Escalation> {
 
 /// The index of a chain's lexicographically minimal vertex — the
 /// containment representative point.
+///
+/// **Not the decided argmin** (`scripts/gates/argmin-folds.tsv`,
+/// lex-total): the order is strict and total on what this fold reads, so
+/// the fold's n − 1 reads find the minimum the door's every-pair read
+/// would. Its band is `prove`'s hairline (the exact-order band, module
+/// docs), not the tolerance band: a tie there is two coordinates at most
+/// a minimum subnormal apart. Validation's simplicity pass runs first
+/// and refuses two vertices of one loop that close (a contact), so no
+/// two vertices tie in both x and y; every undecided read
+/// escalates (`?`); and a strict total order's minimum is unique and the
+/// same in every order of the vertices. What can depend on the vertices'
+/// order is *which* undecided read refuses, since the fold reads n − 1
+/// pairs and not all of them; no answer rests on that. The door would
+/// read about n²/2 pairs, and abort on an undecided pair between two
+/// vertices both beaten, a validation the kernel passes today.
 fn lex_min_index<T: Decide>(
     vertices: &[Point2<T>],
     loop_index: usize,
@@ -2631,7 +2641,8 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Esca
             SegKind::Arc(g) => {
                 let theta = g.arc.sweep;
                 // Circular-segment correction: (r²/2)(θ − sin θ),
-                // doubled here since we accumulate 2A. `r²` is the tight
+                // doubled here since we accumulate 2A, the difference read
+                // conditioned (`Real::less_sin`). `r²` is the tight
                 // square, and here it is the tight square of something
                 // already known nonnegative: `Seg::radius` is
                 // `signed_radius.abs()`, so at `Interval` the enclosure
@@ -2640,7 +2651,7 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Esca
                 // bound at any instantiation — it is here so the file
                 // spells a square the one way the rule names, not
                 // because this site was wide.
-                twice_area = twice_area + g.arc.radius.powi(2) * (theta - theta.sin());
+                twice_area = twice_area + g.arc.radius.powi(2) * theta.less_sin();
                 perimeter = perimeter + g.arc.radius * theta.abs();
             }
         }

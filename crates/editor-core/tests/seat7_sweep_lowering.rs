@@ -110,12 +110,9 @@ fn turn(axis: [f64; 3], angle: f64) -> Frame {
 // 1. Nothing observable moved
 // ------------------------------------------------------------------
 
-/// The two-sweep fixture: what to save, what to evaluate, and the two
-/// sweep nodes' ids.
+/// The two-sweep fixture: the document and the two sweep nodes' ids.
 struct BothSweeps {
-    snapshot: ProfileDoc,
     doc: ProfileDoc,
-    edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     sweeps: [RecipeNodeId; 2],
 }
 
@@ -124,7 +121,6 @@ struct BothSweeps {
 /// file exercises both wire spellings and both lowering paths.
 fn both_sweeps() -> BothSweeps {
     let mut r = corpus::Recorder::new();
-    let snapshot = r.doc.clone();
     let square_loop = LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap();
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![square_loop],
@@ -149,9 +145,7 @@ fn both_sweeps() -> BothSweeps {
         ang(PI / 2.0),
     ));
     BothSweeps {
-        snapshot,
         doc: r.doc,
-        edits: r.edits,
         sweeps: [extruded, revolved],
     }
 }
@@ -165,16 +159,13 @@ fn both_sweeps() -> BothSweeps {
 #[test]
 fn an_extrude_and_revolve_document_round_trips_byte_identical() {
     let fixture = both_sweeps();
-    let first =
-        persist::save(&fixture.snapshot, &fixture.edits, tol()).expect("the document saves");
+    let first = persist::save(&fixture.doc, tol()).expect("the document saves");
     let loaded = persist::load(&first, tol()).expect("its own bytes load back");
-    assert_eq!(loaded.edits, fixture.edits, "the edit log did not survive");
     assert!(
-        loaded.doc.bit_eq(&fixture.doc),
-        "the replayed document is not bit-identical to the authored one"
+        loaded.bit_eq(&fixture.doc),
+        "the loaded document is not bit-identical to the authored one"
     );
-    let second = persist::save(&loaded.snapshot, &loaded.edits, tol())
-        .expect("the loaded document re-saves");
+    let second = persist::save(&loaded, tol()).expect("the loaded document re-saves");
     assert_eq!(
         first, second,
         "an extrude+revolve document does not round-trip byte-identically"
@@ -237,11 +228,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xc686_a31f_3ed0_5da1),
-        ("corner_table", 0x9bb3_8bc3_e36e_e4df),
-        ("cut_cylinder", 0xd978_3279_a614_f38c),
-        ("boss_union", 0xfd20_14fc_b006_3a85),
-        ("kitchen_sink", 0x76e9_14eb_4322_b8fb),
+        ("die", 0x0319_7db7_bec3_d32f),
+        ("corner_table", 0x7da6_d69a_c91e_7f29),
+        ("cut_cylinder", 0xe5a6_6d83_0fff_478c),
+        ("boss_union", 0x9242_6dc9_578f_e111),
+        ("kitchen_sink", 0x4080_aff5_e382_f53d),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

@@ -137,7 +137,10 @@ pub(crate) fn surface_outward_normal<T: Real>(
 pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
     let f = body.face(face)?;
     match f.surface() {
-        geom::Surface::Plane { normal, .. } => Some(plane_outward_normal(f.record(), *normal)),
+        geom::Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            Some(plane_outward_normal(f.record(), normal))
+        }
         _ => None,
     }
 }
@@ -159,8 +162,9 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 pub fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
     let f = body.face(face)?;
     match f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => {
-            Some(plane_desc_of(f.record(), *origin, *normal))
+        geom::Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some(plane_desc_of(f.record(), origin, normal))
         }
         _ => None,
     }
@@ -199,58 +203,76 @@ pub(crate) fn plane_desc_of<T: Real>(
 /// surface is not a carrier outside the inventory.
 pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.face(face)?;
+    carrier_desc_on(f.record(), f.surface())
+}
+
+/// [`face_carrier_desc`] of a face read from another operand's frame
+/// ([`crate::Seat`]): the description of its surface mapped through the
+/// seat's motion, which is to the bit the description a body moved by
+/// that motion holds.
+#[must_use]
+pub fn seated_carrier_desc<T: Decide>(
+    seat: crate::Seat<'_, T>,
+    face: FaceKey,
+) -> Option<CarrierDesc<T>> {
+    let f = seat.body().face(face)?;
+    carrier_desc_on(f.record(), &seat.surface(f.surface())?)
+}
+
+/// The description of a face whose record is `record` on `surface`.
+fn carrier_desc_on<T: Decide>(
+    record: &crate::entity::Face,
+    surface: &geom::Surface<T>,
+) -> Option<CarrierDesc<T>> {
     // `sense` is the material-side bit: true means the face's outward
     // normal IS the chart normal, which for a sphere/cylinder chart
     // points away from the centre/axis. Read as a BIT, never as a
     // comparison on `T` — the scalar backends order intervals, not
     // signs (S10's exact-bit discipline).
-    let outward = f.sense();
-    match f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane(plane_desc_of(
-            f.record(),
-            *origin,
-            *normal,
+    let outward = record.sense;
+    match surface {
+        geom::Surface::Plane { frame, .. } => Some(CarrierDesc::Plane(plane_desc_of(
+            record,
+            frame.origin(),
+            frame.axis(),
         ))),
-        geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
-            center: *center,
+        geom::Surface::Sphere { frame, radius, .. } => Some(CarrierDesc::Sphere {
+            center: frame.origin(),
             radius: *radius,
             outward,
         }),
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some(CarrierDesc::Cylinder {
-            origin: *origin,
-            axis: *axis,
+        geom::Surface::Cylinder { frame, radius, .. } => Some(CarrierDesc::Cylinder {
+            origin: frame.origin(),
+            axis: frame.axis(),
             radius: *radius,
             outward,
         }),
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => Some(CarrierDesc::Torus {
-            center: *center,
-            axis: *axis,
-            major_radius: *major_radius,
-            minor_radius: *minor_radius,
-            outward,
-        }),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            Some(CarrierDesc::Torus {
+                center,
+                axis,
+                major_radius: *major_radius,
+                minor_radius: *minor_radius,
+                outward,
+            })
+        }
         geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => Some(CarrierDesc::Cone {
-            apex: *apex,
-            axis: *axis,
-            half_angle: *half_angle,
-            outward,
-        }),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            Some(CarrierDesc::Cone {
+                apex,
+                axis,
+                half_angle: *half_angle,
+                outward,
+            })
+        }
         geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
@@ -270,7 +292,7 @@ pub enum NormalAtError {
     /// shape with no regular normal on its tube, refused with the lever
     /// the in-band arm of the same half names. As the convention states a
     /// torus decided outside it
-    /// ([`geom_brep::TorusRefusal::refusal`]): an abort.
+    /// ([`geom_brep::TorusRefusal::standing`]): an abort.
     DegenerateTorus {
         /// The half of the convention that refused.
         convention: TorusConvention,
@@ -328,7 +350,7 @@ pub enum NormalAbort {
     /// Row 1(a), an invalid input: a torus decided outside the ring
     /// convention, a shape the kernel's model never represents, as the
     /// torus convention's own standing states it
-    /// ([`geom_brep::TorusRefusal::refusal`]). It carries the half that
+    /// ([`geom_brep::TorusRefusal::standing`]). It carries the half that
     /// refused and its decided verdict, which a caller renders through
     /// the convention's own clause and lever
     /// ([`geom_brep::TorusConvention::refused`],
@@ -386,10 +408,7 @@ impl NormalAbort {
             Self::InvalidInput {
                 convention,
                 verdict,
-            } => Some(geom_brep::TorusRefusal {
-                convention,
-                verdict: geom_brep::TorusVerdict::Refused(verdict),
-            }),
+            } => Some(geom_brep::TorusRefusal::decided(convention, verdict)),
             Self::KernelFault => None,
         }
     }
@@ -415,21 +434,15 @@ impl NormalAtError {
                 Ok(Refusal::of_crease(*reading))
             }
             Self::AtConeApex { .. } => Ok(Refusal::of_apex()),
+            // A torus decided outside the convention: invalid input, by
+            // its type (`geom_brep::TorusStanding::InvalidInput`).
             Self::DegenerateTorus {
                 convention,
                 verdict,
-            } => match (geom_brep::TorusRefusal {
+            } => Err(NormalAbort::InvalidInput {
                 convention: *convention,
-                verdict: geom_brep::TorusVerdict::Refused(*verdict),
-            })
-            .refusal()
-            {
-                Ok(standing) => Ok(standing),
-                Err(geom_core::ladder::Aborts) => Err(NormalAbort::InvalidInput {
-                    convention: *convention,
-                    verdict: *verdict,
-                }),
-            },
+                verdict: *verdict,
+            }),
             Self::OffSurface => Err(NormalAbort::KernelFault),
         }
     }
@@ -569,7 +582,10 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     };
     let surface = f.surface();
     match surface {
-        geom::Surface::Plane { normal, .. } => Ok(Some(plane_outward_normal(f.record(), *normal))),
+        geom::Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            Ok(Some(plane_outward_normal(f.record(), normal)))
+        }
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
         | geom::Surface::Torus { .. } => {
@@ -610,16 +626,14 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             }
         }
         geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let nappe = face_nappe_or_double(body, face, band);
             let elevation = geom_brep::cone_elevation(
                 geom::Line {
-                    origin: *apex,
-                    dir: *axis,
+                    origin: apex,
+                    dir: axis,
                 },
                 *half_angle,
                 nappe,
@@ -631,8 +645,8 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             }
             cone_axis_clearance(
                 geom::Line {
-                    origin: *apex,
-                    dir: *axis,
+                    origin: apex,
+                    dir: axis,
                 },
                 p,
                 band,
@@ -696,14 +710,20 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     };
     let surface = f.surface();
     match *surface {
-        geom::Surface::Plane { normal, .. } => {
+        geom::Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
             return Ok(Some(plane_outward_normal(f.record(), normal)));
         }
-        geom::Surface::Cylinder { origin, axis, .. } => {
+        geom::Surface::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             clear(Margin::norm3(geom::Line { origin, dir: axis }.offset(p)))?;
         }
-        geom::Surface::Sphere { center, .. } => clear(Margin::norm3(p - center))?,
-        geom::Surface::Cone { apex, axis, .. } => {
+        geom::Surface::Sphere { frame, .. } => {
+            let center = frame.origin();
+            clear(Margin::norm3(p - center))?
+        }
+        geom::Surface::Cone { frame, .. } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             cone_axis_clearance(
                 geom::Line {
                     origin: apex,
@@ -716,11 +736,11 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             clear(Margin::of((p - apex).dot(axis)))?;
         }
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let radial = geom::Line {
                 origin: center,
                 dir: axis,
@@ -939,7 +959,7 @@ mod tests {
     /// and one whose standing moves reds before a caller names its answer
     /// by it ([`NormalAtError::standing`]). The point off the surface is a
     /// kernel fault; a torus decided outside the ring convention an
-    /// invalid input, as [`geom_brep::TorusRefusal::refusal`] states its
+    /// invalid input, as [`geom_brep::TorusRefusal::standing`] states its
     /// class; every other variant keeps its query.
     #[test]
     fn each_normal_refusal_states_its_abort_row() {
@@ -1077,9 +1097,7 @@ mod tests {
     fn on_a_plane_the_two_doors_agree_bit_for_bit() {
         let normal = Vec3::new(0.0, 0.0, 1.0);
         let (mut body, face) = face_on(geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 3.0),
-            normal,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 3.0), normal, Vec3::new(1.0, 0.0, 0.0)),
         });
         for sense in [true, false] {
             body.set_face_sense(face, sense).unwrap();
@@ -1114,10 +1132,12 @@ mod tests {
     #[test]
     fn on_a_wall_the_normal_is_radial_at_the_point() {
         let (mut body, face) = face_on(geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 2.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         for (p, radial) in [
             (Point3::new(2.0, 0.0, 5.0), Vec3::new(1.0, 0.0, 0.0)),
@@ -1159,10 +1179,12 @@ mod tests {
             "an `Approx` face has no arm here"
         );
         let (body, face) = face_on(geom::Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 2.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         assert!(matches!(
             face_outward_normal_at(&body, face, Point3::new(5.0, 0.0, 0.0), band()),
@@ -1185,10 +1207,12 @@ mod tests {
     fn frustum_wall(axis_sign: f64) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
         let (mut body, face) = crate::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
         let cone = geom::Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, axis_sign),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, axis_sign),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: ALPHA,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         body.lifting_rechart_refusals_for_tests(|body| {
             body.set_face_surfaces_describing(
@@ -1336,10 +1360,8 @@ mod tests {
             .map(|(_, p)| p)
             .unwrap();
         let (body, face) = face_on(geom::Surface::Cone {
-            apex: corner,
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(corner, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
             half_angle: ALPHA,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         for z in [0.7, -0.7] {
             let (p, chart) = on_wall(0.4, z);
@@ -1419,7 +1441,10 @@ mod tests {
 
     /// The hand folds of a face's bit in one source file's CODE view:
     /// for every `if … <ident containing "sense"> … { A } else { -A }`
-    /// (and the reversed `{ -A } else { A }`), the negated `A`. The
+    /// (and the reversed `{ -A } else { A }`), the negated `A`; and the
+    /// same under `interior_is_left`, the bit read through
+    /// [`geom_brep::PolygonOrientation`], whose own `to_interior` and
+    /// `interior_is_on` are the folded forms. The
     /// view has comments and string literals blanked and its whitespace
     /// collapsed, so a comment cannot hit and a rustfmt line break
     /// cannot hide an arm.
@@ -1453,7 +1478,7 @@ mod tests {
             let cond = &view[if_at + 3..open];
             let conditioned_on_sense = cond
                 .split(|c: char| !is_ident(c))
-                .any(|word| word.contains("sense"));
+                .any(|word| word.contains("sense") || word == "interior_is_left");
             if conditioned_on_sense {
                 out.push(a.trim_start_matches('-').to_string());
             }
@@ -1483,7 +1508,8 @@ mod tests {
     /// is folded (`side`, `inside`, `reversed` — the blend arms' `sided`
     /// is keyed on `side`); a fold spelled as a `copysign`, a multiply
     /// by a `±1` local minted elsewhere, a `match` on the bool, or an
-    /// arm whose expression contains a `;` or a brace; a fold in
+    /// arm whose expression contains a `;` or a brace; a side compared
+    /// with `interior_is_left` and not folded under an `if`; a fold in
     /// `crates/*/tests`, `demos/`, `tools/` or `benches/`, which the
     /// walk does not enter; a macro body. The walk is over the source
     /// tree at test time, so a crate outside `crates/` is not seen.
@@ -1504,20 +1530,6 @@ mod tests {
             ("crates/geom-brep/src/props/curved.rs", "enclosed"),
             ("crates/geom-brep/src/props/curved.rs", "radial"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
-            // The quarter-turn that rotates a line edge's chart direction
-            // toward its face, in the plane's chart frame: once each in
-            // `present_plane`, `present_plane_corner` and
-            // `present_plane_vertex`.
-            ("crates/topo/src/injective.rs", "1.0"),
-            ("crates/topo/src/injective.rs", "1.0"),
-            ("crates/topo/src/injective.rs", "1.0"),
-            // A face's side of an iso edge's line, as the sign of the held
-            // chart coordinate.
-            ("crates/topo/src/injective.rs", "side"),
-            // The whole turn a face takes round a singular point of its
-            // chart, in periods: the side the azimuth advances on, as an
-            // integer (`pcurves::singular_turn`), a chart count, no normal.
-            ("crates/topo/src/pcurves/decision.rs", "1"),
             ("crates/topo/src/shell.rs", "thickness"),
             // The loop rule's start: a test sheet's loop is walked from
             // the mirrored chart coordinate at sense `false`
@@ -1601,11 +1613,13 @@ mod tests {
     fn the_torus_arm_is_the_tube_normal_and_refuses_on_the_axis() {
         let (big_r, r, v) = (0.8, 0.5, 2.3_f64);
         let (mut body, face) = face_on(geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: big_r,
             minor_radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         let (sv, cv) = v.sin_cos();
         let p = Point3::new(big_r + r * cv, r * sv, 0.0);
@@ -1638,11 +1652,13 @@ mod tests {
     #[test]
     fn a_fat_ring_meters_at_the_tube_and_a_horn_torus_is_refused() {
         let torus = |big_r: f64, r: f64| geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: big_r,
             minor_radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (body, face) = face_on(torus(0.8, 0.5));
         // Off the tube by one and a half escalation widths: definite at
@@ -1675,11 +1691,13 @@ mod tests {
     #[test]
     fn a_nonpositive_tube_is_refused_though_its_ring_margin_is_definite() {
         let (body, face) = face_on(geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 0.75,
             minor_radius: -0.3,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         });
         let got = face_outward_normal_at(&body, face, Point3::new(1.05, 0.0, 0.0), band());
         assert!(
@@ -1915,9 +1933,7 @@ mod tests {
             super::spline_outward_normal_at(body, face, (0.5, 0.5), p, band())
         };
         let (plane, face) = face_on(geom::Surface::Plane {
-            origin: p,
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(p, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
         });
         assert!(matches!(
             read(&plane, face),

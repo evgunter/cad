@@ -63,7 +63,10 @@ pub(crate) fn spade_point(u: f64, v: f64) -> SpadePoint<f64> {
 /// are one location, and so are a sub-floor coordinate and `0.0`; a
 /// `to_bits` or a raw `f64` compare would read "apart" exactly where
 /// spade dedupes. Two entries spade merges are one CDT vertex and
-/// cannot be fanned apart; two it keeps can.
+/// cannot be fanned apart; two it keeps can. In `trimmed` a vertex
+/// the walk meets twice on one chart branch is already one location
+/// (`one_location_per_branch`), so on an analytic chart an id here is
+/// a singular point's copies or one vertex on two branches.
 ///
 /// A lane whose CDT applies a further map (the trimmed lane's lattice
 /// metric) keeps this agreement only if that map is injective on

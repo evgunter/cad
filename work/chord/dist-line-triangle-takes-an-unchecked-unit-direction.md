@@ -42,3 +42,17 @@ stated in the PR.
 ## Re-homed at S-MESH's exit (2026-09-16)
 
 Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Evidence (2026-11-16, TESSLANE's cylinder-certificate unit)
+
+`dist_line_triangle` no longer states a unit direction. It scales `d` by
+a power of two to a largest coordinate in `[1, 2)` before it reads the
+shadow through `geom::Line::offset`, which divides by `|dir|²`: handed
+`d` as stored, that quotient overflows at a length near `10¹⁵⁴` and
+answers a finite wrong distance (2.449 for 0.5385 at `10¹⁵⁵`), and loses
+digits to underflow near `10⁻¹⁶⁰`. Its doc says any nonzero finite `d`, a
+zero or non-finite `d` answers NaN (the certificate then refuses), and
+`cert::tests::the_two_distances_are_the_distance_on_triangles_built_to_be_degenerate`
+runs it at directions from a tenth to ten times unit length, each again
+at `2⁻⁹⁰⁰` to `2⁹⁰⁰` times that, to the bit. `geom::Line::offset` itself
+is as it was. Whether that closes this row is its owner's call.

@@ -59,6 +59,7 @@ pub mod conic;
 pub mod fit;
 pub mod nurbs;
 mod on_carrier;
+pub mod periodic_nurbs;
 pub mod projection;
 pub mod second_derivative;
 
@@ -78,6 +79,9 @@ pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use on_carrier::{
     CarrierEscalation, CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep,
     PieceWalkRefusal, ellipse_level_clearance,
+};
+pub use periodic_nurbs::{
+    PERIODIC_DEGREE, PERIODIC_MIN_KNOTS, PeriodicError, PeriodicNurbs3, PeriodicViewError,
 };
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
@@ -168,14 +172,11 @@ pub enum Curve3<T: Real> {
     /// The locus is a bicircular quartic of genus 1 — no rational
     /// parameterization exists, so no `Nurbs` is its exact locus.
     Spiric {
-        /// The torus's centre.
-        center: Point3<T>,
-        /// The torus's unit axis (conventional, unchecked); the winding
-        /// sense of `v` is fixed with `u_ref` as described above.
-        axis: Vec3<T>,
-        /// The unit normal of the cutting plane, ⊥ `axis` (conventional,
-        /// unchecked); the plane stands `offset` along it from `center`.
-        u_ref: Vec3<T>,
+        /// The torus's placement: its centre, its axis (which fixes the
+        /// winding sense of `v` with `u_ref`, as described above), and as
+        /// `u_ref` the cutting plane's normal, square to the axis; the
+        /// plane stands `offset` along it from the centre.
+        frame: Frame<T>,
         /// The torus's major radius `R` in meters.
         major_radius: T,
         /// The torus's minor radius `r` in meters (`R > r > 0`).
@@ -193,6 +194,14 @@ pub enum Curve3<T: Real> {
     /// [`Curve3::nurbs_placeholder`] — a poison-valued payload with the
     /// same all-poison evaluation behavior.
     Nurbs(Arc<NurbsCurve3<T>>),
+
+    /// **The periodic cubic**: a closed C² cubic spline with no start
+    /// and a period, as a circle has ([`PeriodicNurbs3`]). A closed
+    /// fitted section loop is one. It is a kind of its own and not a
+    /// [`Curve3::Nurbs`] with a flag: its knots and control points are
+    /// cyclic, so a clamped reader asks for the clamped view over the
+    /// span it reads ([`Curve3::clamped_net`]).
+    Periodic(Arc<PeriodicNurbs3<T>>),
 }
 
 /// Which [`Curve3`] variant a carrier is: the workspace's one fieldless
@@ -215,6 +224,8 @@ pub enum CurveKind {
     Spiric,
     /// A [`Curve3::Nurbs`], described or the placeholder.
     Nurbs,
+    /// A [`Curve3::Periodic`].
+    Periodic,
 }
 
 impl<T: SpanLocate> Curve3<T> {
@@ -228,77 +239,68 @@ impl<T: SpanLocate> Curve3<T> {
     /// than a point, a derivative, a symbol) answers no.
     #[must_use]
     pub fn same_content(&self, other: &Self) -> bool {
-        let same = |a: T, b: T| matches!((a.plain_constant(), b.plain_constant()), (Some(x), Some(y)) if x == y);
+        self.same_content_by(other, |a: T, b: T| {
+            matches!((a.plain_constant(), b.plain_constant()), (Some(x), Some(y)) if x == y)
+        })
+    }
+}
+
+impl<T: Real> Curve3<T> {
+    /// **Whether `other` is this carrier by content, each value read by
+    /// `same`**: one kind, and every value that states it one by `same`
+    /// (a spline's knots, control points and weights by
+    /// [`NurbsCurve3::same_content`], a periodic loop's data and sense by
+    /// [`PeriodicNurbs3::same_content`]). The one home of the walk;
+    /// [`Self::same_content`] reads it with plain constants, and a
+    /// certificate's support compare reads it with
+    /// [`geom_core::Real::same_value`].
+    #[must_use]
+    pub fn same_content_by(&self, other: &Self, same: impl Fn(T, T) -> bool) -> bool {
         let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
         let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
         let frame = |f: &Frame<T>, g: &Frame<T>| {
-            let Frame {
-                origin: center,
-                axis,
-                u_ref,
-            } = *f;
-            let Frame {
-                origin: c,
-                axis: a,
-                u_ref: u,
-            } = *g;
-            point(center, c) && vec(axis, a) && vec(u_ref, u)
+            point(f.origin(), g.origin()) && vec(f.axis(), g.axis()) && vec(f.u_ref(), g.u_ref())
         };
         match (self, other) {
             (Self::Line(Line { origin, dir }), Self::Line(Line { origin: o, dir: d })) => {
                 point(*origin, *o) && vec(*dir, *d)
             }
-            (
-                Self::Circle(Circle { frame: f, radius }),
-                Self::Circle(Circle {
-                    frame: g,
-                    radius: r,
-                }),
-            ) => frame(f, g) && same(*radius, *r),
-            (
-                Self::Ellipse(Ellipse {
-                    frame: f,
-                    semi_u,
-                    semi_v,
-                }),
-                Self::Ellipse(Ellipse {
-                    frame: g,
-                    semi_u: su,
-                    semi_v: sv,
-                }),
-            ) => frame(f, g) && same(*semi_u, *su) && same(*semi_v, *sv),
+            (Self::Circle(c), Self::Circle(k)) => {
+                frame(&c.frame, &k.frame) && same(c.radius(), k.radius())
+            }
+            (Self::Ellipse(e), Self::Ellipse(k)) => {
+                frame(&e.frame, &k.frame)
+                    && same(e.semi_u(), k.semi_u())
+                    && same(e.semi_v(), k.semi_v())
+            }
             (
                 Self::Spiric {
-                    center,
-                    axis,
-                    u_ref,
+                    frame: f,
                     major_radius,
                     minor_radius,
                     offset,
                 },
                 Self::Spiric {
-                    center: c,
-                    axis: a,
-                    u_ref: u,
+                    frame: g,
                     major_radius: big,
                     minor_radius: small,
                     offset: off,
                 },
             ) => {
-                point(*center, *c)
-                    && vec(*axis, *a)
-                    && vec(*u_ref, *u)
+                frame(f, g)
                     && same(*major_radius, *big)
                     && same(*minor_radius, *small)
                     && same(*offset, *off)
             }
-            (Self::Nurbs(n), Self::Nurbs(m)) => n.same_content(m, same),
+            (Self::Nurbs(n), Self::Nurbs(m)) => n.same_content(m, &same),
+            (Self::Periodic(n), Self::Periodic(m)) => n.same_content(m, &same),
             (
                 Self::Line(_)
                 | Self::Circle(_)
                 | Self::Ellipse(_)
                 | Self::Spiric { .. }
-                | Self::Nurbs(_),
+                | Self::Nurbs(_)
+                | Self::Periodic(_),
                 _,
             ) => false,
         }
@@ -352,6 +354,7 @@ impl<T: Real> Curve3<T> {
             Self::Ellipse { .. } => CurveKind::Ellipse,
             Self::Spiric { .. } => CurveKind::Spiric,
             Self::Nurbs(_) => CurveKind::Nurbs,
+            Self::Periodic(_) => CurveKind::Periodic,
         }
     }
 }
@@ -379,6 +382,7 @@ impl CurveKind {
             Self::Ellipse => "ellipse",
             Self::Spiric => "spiric",
             Self::Nurbs => "nurbs",
+            Self::Periodic => "periodic",
         }
     }
 
@@ -392,6 +396,7 @@ impl CurveKind {
             Self::Ellipse => "elliptical",
             Self::Spiric => "toric-section",
             Self::Nurbs => "spline",
+            Self::Periodic => "periodic-spline",
         }
     }
 }
@@ -657,6 +662,8 @@ pub enum CurveData<'a, T: Real> {
     Analytic(crate::AnalyticData<T, CurveDatum>),
     /// A spline net, unread.
     Nurbs(&'a Arc<NurbsCurve3<T>>),
+    /// A periodic cubic, unread.
+    Periodic(&'a Arc<PeriodicNurbs3<T>>),
 }
 
 /// **A straight line** `origin + dir·t`: what [`Curve3::as_line`] reads
@@ -1031,23 +1038,29 @@ impl<T: Real> Curve3<T> {
     pub fn as_line(&self) -> Option<Line<T>> {
         match *self {
             Curve3::Line(line) => Some(line),
-            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
-                None
-            }
+            Curve3::Circle(_)
+            | Curve3::Ellipse(_)
+            | Curve3::Spiric { .. }
+            | Curve3::Nurbs(_)
+            | Curve3::Periodic(_) => None,
         }
     }
 
-    /// **The carrier's period, where its parameter repeats**: a conic's
-    /// ([`conic_period`]) and a spiric oval's ([`spiric_period`]), each
-    /// kind's own statement; a line and a spline do not repeat (`None`).
+    /// **The carrier's period, where its parameter repeats**: a circle's
+    /// and an ellipse's ([`Circle::period`], [`Ellipse::period`]) and a
+    /// spiric oval's ([`spiric_period`]) and a periodic cubic's
+    /// ([`PeriodicNurbs3::period`]), each kind's own statement; a line
+    /// and a clamped spline do not repeat (`None`).
     /// Matched exhaustively over the kinds. A renaming by whole periods,
     /// or a reading on a copy a period away ([`Period::span_margins`]),
     /// reads it.
     #[must_use]
     pub fn period(&self) -> Option<Period<T>> {
         match self {
-            Curve3::Circle(_) | Curve3::Ellipse(_) => Some(conic_period()),
+            Curve3::Circle(c) => Some(c.period()),
+            Curve3::Ellipse(e) => Some(e.period()),
             Curve3::Spiric { .. } => Some(spiric_period()),
+            Curve3::Periodic(p) => Some(Period::new(p.period())),
             Curve3::Line(_) | Curve3::Nurbs(_) => None,
         }
     }
@@ -1059,7 +1072,40 @@ impl<T: Real> Curve3<T> {
     pub fn as_circle(&self) -> Option<&Circle<T>> {
         match self {
             Self::Circle(c) => Some(c),
-            Self::Line(_) | Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
+            Self::Line(_)
+            | Self::Ellipse(_)
+            | Self::Spiric { .. }
+            | Self::Nurbs(_)
+            | Self::Periodic(_) => None,
+        }
+    }
+
+    /// **The carrier read as a periodic cubic**: its own
+    /// [`PeriodicNurbs3`], `None` for every other kind.
+    #[must_use]
+    pub fn as_periodic(&self) -> Option<&PeriodicNurbs3<T>> {
+        match self {
+            Self::Periodic(p) => Some(p),
+            Self::Line(_)
+            | Self::Circle(_)
+            | Self::Ellipse(_)
+            | Self::Spiric { .. }
+            | Self::Nurbs(_) => None,
+        }
+    }
+
+    /// **The net that holds a whole spline carrier**: a clamped spline's
+    /// own, and a periodic cubic's base opening
+    /// ([`PeriodicNurbs3::whole_loop`]), whose hull holds the whole loop
+    /// and whose rate bounds are the loop's. `None` for the closed
+    /// forms. For a reading that depends on neither a span nor the
+    /// parameter; a reader of a span asks [`Self::clamped_net`].
+    #[must_use]
+    pub fn whole_net(&self) -> Option<&NurbsCurve3<T>> {
+        match self {
+            Self::Nurbs(n) => Some(n),
+            Self::Periodic(p) => Some(p.whole_loop()),
+            Self::Line(_) | Self::Circle(_) | Self::Ellipse(_) | Self::Spiric { .. } => None,
         }
     }
 
@@ -1071,15 +1117,8 @@ impl<T: Real> Curve3<T> {
         match *self {
             Self::Circle(c) => Some(c.frame),
             Self::Ellipse(e) => Some(e.frame),
-            Self::Spiric {
-                center,
-                axis,
-                u_ref,
-                major_radius: _,
-                minor_radius: _,
-                offset: _,
-            } => Some(Frame::new(center, axis, u_ref)),
-            Self::Line(_) | Self::Nurbs(_) => None,
+            Self::Spiric { frame, .. } => Some(frame),
+            Self::Line(_) | Self::Nurbs(_) | Self::Periodic(_) => None,
         }
     }
 
@@ -1112,52 +1151,37 @@ impl<T: Real> Curve3<T> {
             Curve3::Line(Line { origin, dir }) => {
                 AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
             }
-            Curve3::Circle(Circle {
-                frame:
-                    Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) => AnalyticData::new([
-                (D::Center, Point(center)),
-                (D::Axis, Direction(axis)),
-                (D::Radius, Scalar(radius)),
-                (D::URef, Direction(u_ref)),
+            Curve3::Circle(c) => AnalyticData::new([
+                (D::Center, Point(c.frame.origin())),
+                (D::Axis, Direction(c.frame.axis())),
+                (D::Radius, Scalar(c.radius())),
+                (D::URef, Direction(c.frame.u_ref())),
             ]),
-            Curve3::Ellipse(Ellipse {
-                frame:
-                    Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                semi_u,
-                semi_v,
-            }) => AnalyticData::new([
-                (D::Center, Point(center)),
-                (D::Axis, Direction(axis)),
-                (D::SemiU, Scalar(semi_u)),
-                (D::SemiV, Scalar(semi_v)),
-                (D::URef, Direction(u_ref)),
+            Curve3::Ellipse(e) => AnalyticData::new([
+                (D::Center, Point(e.frame.origin())),
+                (D::Axis, Direction(e.frame.axis())),
+                (D::SemiU, Scalar(e.semi_u())),
+                (D::SemiV, Scalar(e.semi_v())),
+                (D::URef, Direction(e.frame.u_ref())),
             ]),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
-            } => AnalyticData::new([
-                (D::Center, Point(center)),
-                (D::Axis, Direction(axis)),
-                (D::URef, Direction(u_ref)),
-                (D::MajorRadius, Scalar(major_radius)),
-                (D::MinorRadius, Scalar(minor_radius)),
-                (D::Offset, Scalar(offset)),
-            ]),
+            } => {
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                AnalyticData::new([
+                    (D::Center, Point(center)),
+                    (D::Axis, Direction(axis)),
+                    (D::URef, Direction(u_ref)),
+                    (D::MajorRadius, Scalar(major_radius)),
+                    (D::MinorRadius, Scalar(minor_radius)),
+                    (D::Offset, Scalar(offset)),
+                ])
+            }
             Curve3::Nurbs(ref n) => return CurveData::Nurbs(n),
+            Curve3::Periodic(ref n) => return CurveData::Periodic(n),
         })
     }
 }
@@ -1201,27 +1225,30 @@ impl<T: Real> Curve3<T> {
             frame_margins(axis, u_ref, arm, band, CurveDatum::Axis, CurveDatum::URef)
         };
         match self {
-            Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius))
-                .chain(frame(c.frame.axis, c.frame.u_ref, c.radius))
+            Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius()))
+                .chain(frame(c.frame.axis(), c.frame.u_ref(), c.radius()))
                 .collect(),
             Curve3::Ellipse(e) => [
-                lower(CurveDatum::SemiU, e.semi_u),
-                lower(CurveDatum::SemiV, e.semi_v),
+                lower(CurveDatum::SemiU, e.semi_u()),
+                lower(CurveDatum::SemiV, e.semi_v()),
             ]
             .into_iter()
-            .chain(frame(e.frame.axis, e.frame.u_ref, e.speed_hi()))
+            .chain(frame(e.frame.axis(), e.frame.u_ref(), e.speed_hi()))
             .collect(),
             Curve3::Spiric {
-                center: _,
-                axis,
-                u_ref,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
                 offset: _,
-            } => core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
-                .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
-                .collect(),
-            Curve3::Line(Line { origin: _, dir: _ }) | Curve3::Nurbs(_) => Vec::new(),
+            } => {
+                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
+                core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
+                    .chain(frame(axis, u_ref, *major_radius + *minor_radius))
+                    .collect()
+            }
+            Curve3::Line(Line { origin: _, dir: _ }) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+                Vec::new()
+            }
         }
     }
 
@@ -1275,12 +1302,14 @@ impl<T: Decide> Curve3<T> {
             Curve3::Circle(c) => Some(c.azimuth(p)),
             Curve3::Ellipse(e) => Some(e.azimuth(p)),
             Curve3::Spiric {
-                center,
-                axis,
+                frame,
                 major_radius,
                 ..
-            } => Some(tube_section(*center, *axis, *major_radius, p)),
-            Curve3::Line(_) | Curve3::Nurbs(_) => None,
+            } => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                Some(tube_section(center, axis, *major_radius, p))
+            }
+            Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
         }
     }
 
@@ -1305,9 +1334,11 @@ impl<T: Decide> Curve3<T> {
     }
 
     /// The one deciding door into [`Curve3::Ellipse`]: refuses a
-    /// non-finite semi-axis ([`EllipseInvalid::SemiAxisNotFinite`], a
-    /// value-channel read, no band) and a non-positive minor semi-axis
-    /// through a named Q1 trilean, and nothing else. Equal or near-equal semi-axes are a genuine
+    /// semi-axis that is not bounded ([`EllipseInvalid::SemiAxisNotFinite`],
+    /// [`Real::is_bounded`], no band) and a non-positive minor semi-axis
+    /// through a named Q1 trilean, both before it builds the ellipse
+    /// ([`Ellipse::new`] panics on a definitely negative one), and nothing
+    /// else. Equal or near-equal semi-axes are a genuine
     /// `Ellipse`: the caller's pose decides the kind once (a square
     /// section is its `Circle`, a definitely-off-square one this door's
     /// `Ellipse`, however near-circular). The semi-axes come in either
@@ -1335,17 +1366,20 @@ impl<T: Decide> Curve3<T> {
         u_ref: Vec3<T>,
         band: Band,
     ) -> Result<Self, EllipseInvalid> {
-        if !(geom_core::is_finite_length(semi_u) && geom_core::is_finite_length(semi_v)) {
+        if !(semi_u.is_bounded() && semi_v.is_bounded()) {
             return Err(EllipseInvalid::SemiAxisNotFinite);
         }
-        let e = Ellipse::new(Frame::new(center, axis, u_ref), semi_u, semi_v);
-        let minor = e.semi_axes_by_size().1;
+        let minor = semi_u.min(semi_v);
         match geom_core::k_stats::decide("ellipse_minor_positive", Margin::of(minor), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(EllipseInvalid::MinorNotPositive),
             Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
         }
-        Ok(Curve3::Ellipse(e))
+        Ok(Curve3::Ellipse(Ellipse::new(
+            Frame::new(center, axis, u_ref),
+            semi_u,
+            semi_v,
+        )))
     }
 
     /// The one deciding door into [`Curve3::Spiric`]: refuses a
@@ -1420,9 +1454,7 @@ impl<T: Decide> Curve3<T> {
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
         Ok(Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame: crate::Frame::new(center, axis, u_ref),
             major_radius,
             minor_radius,
             offset,
@@ -1457,35 +1489,36 @@ impl<T: Real> Curve3<T> {
     /// −θ about the flipped axis, `v_ref = axis × u_ref` flipping with
     /// it); a spiric flips its axis, its `u_ref` and its offset, the
     /// two spellings its docs name as one oval in opposite senses.
-    /// `None` for a NURBS, whose knot vector a reversal would mirror.
+    /// `None` for a NURBS, whose knot vector a reversal would mirror; a
+    /// periodic cubic is the same data read back
+    /// ([`PeriodicNurbs3::reversed`]).
     #[must_use]
     pub fn reversed(&self) -> Option<Self> {
         Some(match self.clone() {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin, -dir),
-            Curve3::Circle(c) => Curve3::Circle(Circle {
-                frame: c.frame.reversed(),
-                ..c
-            }),
-            Curve3::Ellipse(e) => Curve3::Ellipse(Ellipse {
-                frame: e.frame.reversed(),
-                ..e
-            }),
+            Curve3::Circle(c) => Curve3::Circle(c.with_frame(c.frame.reversed())),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(e.frame.reversed())),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
                 offset,
-            } => Curve3::Spiric {
-                center,
-                axis: -axis,
-                u_ref: -u_ref,
-                major_radius,
-                minor_radius,
-                offset: T::zero() - offset,
-            },
+            } => {
+                // The axis and the seam both run back, `v` kept: a signed
+                // permutation of the stored frame, nothing squared.
+                let turned = carrier_frame
+                    .motion()
+                    .with_signed_axes((0, true), (1, false))
+                    .unwrap_or_else(|| unreachable!("u and v are two axes"));
+                Curve3::Spiric {
+                    frame: crate::Frame::of_motion(&turned),
+                    major_radius,
+                    minor_radius,
+                    offset: T::zero() - offset,
+                }
+            }
             Curve3::Nurbs(_) => return None,
+            Curve3::Periodic(p) => Curve3::Periodic(Arc::new(p.reversed())),
         })
     }
 }
@@ -1500,30 +1533,27 @@ impl<T: Real> Curve3<T> {
     pub fn translated(&self, by: Vec3<T>) -> Option<Self> {
         Some(match self.clone() {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin + by, dir),
-            Curve3::Circle(c) => Curve3::Circle(Circle {
-                frame: c.frame.translated(by),
-                ..c
-            }),
-            Curve3::Ellipse(e) => Curve3::Ellipse(Ellipse {
-                frame: e.frame.translated(by),
-                ..e
-            }),
+            Curve3::Circle(c) => Curve3::Circle(c.with_frame(c.frame.translated(by))),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(e.frame.translated(by))),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
                 offset,
-            } => Curve3::Spiric {
-                center: center + by,
-                axis,
-                u_ref,
-                major_radius,
-                minor_radius,
-                offset,
-            },
-            Curve3::Nurbs(_) => return None,
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                Curve3::Spiric {
+                    frame: crate::Frame::new(center + by, axis, u_ref),
+                    major_radius,
+                    minor_radius,
+                    offset,
+                }
+            }
+            Curve3::Nurbs(_) | Curve3::Periodic(_) => return None,
         })
     }
 }
@@ -1719,6 +1749,34 @@ pub fn spiric_radial<T: Real>(major: T, minor: T, offset: T, c: T) -> (T, T) {
     (rho, (rho.powi(2) - offset.powi(2)).sqrt())
 }
 
+impl<T: SpanLocate> Curve3<T> {
+    /// **The clamped net a reader of the span `(t0, t1)` reads**: a
+    /// clamped spline's own net, whatever the span; a periodic cubic's
+    /// clamped view over the span ([`PeriodicNurbs3::clamped_view`]),
+    /// whose interior knots are simple. `None` for the closed forms,
+    /// which have no net.
+    ///
+    /// # Errors
+    ///
+    /// [`PeriodicViewError`] where a periodic cubic has no view over the
+    /// span, an end that is no single point among them.
+    pub fn clamped_net(
+        &self,
+        (t0, t1): (T, T),
+    ) -> Option<Result<Arc<NurbsCurve3<T>>, PeriodicViewError>> {
+        match self {
+            Curve3::Nurbs(net) => Some(Ok(Arc::clone(net))),
+            Curve3::Periodic(p) => Some(
+                p.clamped_view((t0.value_channel(), t1.value_channel()))
+                    .map(Arc::new),
+            ),
+            Curve3::Line(_) | Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
+                None
+            }
+        }
+    }
+}
+
 impl Curve3<geom_core::Interval> {
     /// **The same curve, remembering what its net restricts**
     /// ([`NurbsCurve3::with_span_memo`], whose caller contract this
@@ -1731,6 +1789,18 @@ impl Curve3<geom_core::Interval> {
             other => other.clone(),
         }
     }
+}
+
+/// **Which side of a parameter a reading stands on**: the parameters
+/// below it or those above it. A one-sided reading at a knot
+/// ([`Curve3::ders1_from`]) reads the span on that side, and a window
+/// held at a span's end reads the side its span runs to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParamSide {
+    /// The parameters below.
+    Below,
+    /// The parameters above.
+    Above,
 }
 
 impl<T: SpanLocate> Curve3<T> {
@@ -1759,18 +1829,18 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.point_at(t),
             Curve3::Ellipse(e) => e.point_at(t),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let ((s, c), m) = azimuth::basis(frame, t);
                 let (_, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
-                *center + *u_ref * *offset + m * f + *axis * (*minor_radius * s)
+                center + u_ref * *offset + m * f + axis * (*minor_radius * s)
             }
             Curve3::Nurbs(n) => n.eval(t),
+            Curve3::Periodic(n) => n.eval(t),
         }
     }
 
@@ -1807,19 +1877,19 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.derivative_at(t),
             Curve3::Ellipse(e) => e.derivative_at(t),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
+                let axis = frame.axis();
+                let ((s, c), m) = azimuth::basis(frame, t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
-                m * f1 + *axis * (*minor_radius * c)
+                m * f1 + axis * (*minor_radius * c)
             }
             Curve3::Nurbs(n) => n.deriv(t),
+            Curve3::Periodic(n) => n.deriv(t),
         }
     }
 
@@ -1858,22 +1928,32 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.jet_at(t),
             Curve3::Ellipse(e) => e.jet_at(t),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let ((s, c), m) = azimuth::basis(frame, t);
                 let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
                 let f1 = -(*minor_radius * rho * s) / f;
                 (
-                    *center + *u_ref * *offset + m * f + *axis * (*minor_radius * s),
-                    m * f1 + *axis * (*minor_radius * c),
+                    center + u_ref * *offset + m * f + axis * (*minor_radius * s),
+                    m * f1 + axis * (*minor_radius * c),
                 )
             }
             Curve3::Nurbs(n) => n.ders1(t),
+            Curve3::Periodic(n) => n.ders1(t),
+        }
+    }
+
+    /// **[`Self::ders1`] from one side of `t`** (`side`): a spline's
+    /// [`NurbsCurve3::ders1_from`], the one-sided derivative at a crease.
+    /// Every other kind is smooth, and reads [`Self::ders1`].
+    pub fn ders1_from(&self, t: T, side: ParamSide) -> (Point3<T>, Vec3<T>) {
+        match self {
+            Curve3::Nurbs(n) => n.ders1_from(t, side),
+            _ => self.ders1(t),
         }
     }
 
@@ -1896,21 +1976,21 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Circle(c) => c.second_derivative_at(t),
             Curve3::Ellipse(e) => e.second_derivative_at(t),
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
-                let ((s, c), m) = azimuth::basis(&Frame::new(*center, *axis, *u_ref), t);
+                let axis = frame.axis();
+                let ((s, c), m) = azimuth::basis(frame, t);
                 let r = *minor_radius;
                 let (rho, f) = spiric_radial(*major_radius, r, *offset, c);
                 let f2 = -(r
                     * ((rho * c - r * s.powi(2)) / f + r * rho.powi(2) * s.powi(2) / f.powi(3)));
-                m * f2 - *axis * (r * s)
+                m * f2 - axis * (r * s)
             }
             Curve3::Nurbs(n) => n.deriv2(t),
+            Curve3::Periodic(n) => n.deriv2(t),
         }
     }
 }
@@ -1961,9 +2041,7 @@ mod tests {
             Curve3::Circle(Circle::new(frame, 1.5)),
             Curve3::Ellipse(Ellipse::new(frame, 2.0, 1.0)),
             Curve3::Spiric {
-                center: frame.origin,
-                axis: frame.axis,
-                u_ref: frame.u_ref,
+                frame,
                 major_radius: 3.0,
                 minor_radius: 1.0,
                 offset: 0.5,
@@ -1975,8 +2053,8 @@ mod tests {
         }
         let open = [
             Curve3::Line(Line {
-                origin: frame.origin,
-                dir: frame.axis,
+                origin: frame.origin(),
+                dir: frame.axis(),
             }),
             Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder())),
         ];
@@ -2114,9 +2192,7 @@ mod tests {
             Curve3::circle(c, n, 0.7, u),
             Curve3::Ellipse(crate::Ellipse::new(crate::Frame::new(c, n, u), 0.9, 0.4)),
             Curve3::Spiric {
-                center: c,
-                axis: n,
-                u_ref: u,
+                frame: crate::Frame::new(c, n, u),
                 major_radius: 2.0,
                 minor_radius: 0.5,
                 offset: 0.3,
@@ -2213,7 +2289,7 @@ mod tests {
         fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(k) => (k.frame.origin(), k.frame.axis(), k.radius()),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2229,7 +2305,7 @@ mod tests {
         fn circle_derivative_geometry(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(k) => (k.frame.origin(), k.frame.axis(), k.radius()),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2407,6 +2483,83 @@ mod tests {
         );
     }
 
+    /// **A quarter turn of an ellipse's seam keeps the merge base's
+    /// bits**: the turned seam is the merge base's own formula,
+    /// `axis × u_ref` normalized with no re-projection onto the plane
+    /// square to the axis (`f7f9c07ad`'s `quarter_turned_where`:
+    /// `u_ref = v_ref().normalize()`, `v_ref = axis × u_ref`), spelled
+    /// here off the stored axis and seam with the plain vector cross and
+    /// `Vec3::normalize`, neither of which this change touched. The axis
+    /// is kept bit for bit. Over 4096 random poses and 512 near-axis ones
+    /// (an axis a few ulps to `1e-3` off a world axis, a seam nearly along
+    /// it), and a pose where the re-squared spelling and the frame's own
+    /// `v` each part from it. Red under `Frame::quarter_turned()` (the
+    /// exact permutation) and under the seam re-squared to the axis
+    /// (`RigidMotion::squared_about` of `v_ref.normalize()`, the arm this
+    /// row replaced).
+    #[test]
+    fn a_quarter_turned_seam_is_the_base_formula_bit_for_bit() {
+        let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut unit = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut poses = Vec::new();
+        for _ in 0..4096 {
+            let mut v = || Vec3::new(2.0 * unit() - 1.0, 2.0 * unit() - 1.0, 2.0 * unit() - 1.0);
+            poses.push((v(), v()));
+        }
+        for k in 0..512 {
+            let tilt = 10f64.powf(-3.0 - 12.0 * unit());
+            let world = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()][k % 3];
+            let off = Vec3::new(unit() - 0.5, unit() - 0.5, unit() - 0.5) * tilt;
+            let seam = Vec3::new(unit() - 0.5, unit() - 0.5, unit() - 0.5);
+            poses.push((world + off, seam + world * (10.0 * unit())));
+        }
+        let (mut parted_squared, mut parted_exact) = (0, 0);
+        for (k, &(axis, u_ref)) in poses.iter().enumerate() {
+            let e = crate::Ellipse::new(
+                crate::Frame::new(Point3::new(1.0, -2.0, 0.5), axis, u_ref),
+                5.0,
+                2.0,
+            );
+            let (a, u) = (e.frame.axis(), e.frame.u_ref());
+            let base = Vec3::new(
+                a.y * u.z - a.z * u.y,
+                a.z * u.x - a.x * u.z,
+                a.x * u.y - a.y * u.x,
+            )
+            .normalize();
+            let turned = e.quarter_turned_where(1.0);
+            assert_eq!(bits(turned.frame.u_ref()), bits(base), "pose {k}");
+            assert_eq!(
+                bits(turned.frame.axis()),
+                bits(a),
+                "pose {k}: the axis is kept"
+            );
+            assert_eq!((turned.semi_u(), turned.semi_v()), (2.0, 5.0), "pose {k}");
+            if bits(
+                geom_core::RigidMotion::squared_about(e.frame.origin(), e.frame.axis_unit(), base)
+                    .u()
+                    .get(),
+            ) != bits(base)
+            {
+                parted_squared += 1;
+            }
+            if bits(e.frame.v_ref()) != bits(base) {
+                parted_exact += 1;
+            }
+        }
+        assert!(
+            parted_squared > 0 && parted_exact > 0,
+            "no pose parts the base formula from the re-squared seam ({parted_squared}) or \
+             from the frame's own v ({parted_exact}): the row pins nothing"
+        );
+    }
+
     /// **A re-seam goes to the principal vertex its direction names**,
     /// with the documented tie-break: an exact tie keeps the seam's own
     /// axis, and a zero component points forward. The turned seam is
@@ -2437,11 +2590,12 @@ mod tests {
             (-0.0, 0.0, x, 5.0),
             (0.0, -0.0, x, 5.0),
         ] {
-            let Ellipse {
-                frame: Frame { u_ref, .. },
-                semi_u: u,
-                semi_v: v,
+            let ellipse @ Ellipse {
+                frame: carrier_frame,
+                ..
             } = e.as_ellipse().unwrap().seamed_toward(cos, sin);
+            let u_ref = carrier_frame.u_ref();
+            let (u, v) = (ellipse.semi_u(), ellipse.semi_v());
             assert_eq!(
                 ((u_ref - seam).norm(), u, u + v),
                 (0.0, semi_u, 7.0),
@@ -2458,7 +2612,7 @@ mod tests {
             .unwrap()
             .quarter_turned_where(1.0)
             .frame
-            .u_ref;
+            .u_ref();
         assert!(
             (u_ref.norm() - 1.0).abs() <= ulp,
             "the turned seam is unit: {:e}",
@@ -2542,7 +2696,7 @@ mod tests {
         ] {
             let c = mk(u, v).unwrap_or_else(|e| panic!("semi-axes ({u}, {v}) refused: {e}"));
             assert!(
-                matches!(c, Curve3::Ellipse(crate::Ellipse { semi_u, semi_v, .. }) if semi_u == u && semi_v == v),
+                matches!(c, Curve3::Ellipse(e) if e.semi_axes() == (u, v)),
                 "({u}, {v}): {c:?}"
             );
         }
@@ -2573,9 +2727,13 @@ mod tests {
         #[test]
         fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, u_ref }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(ellipse @ crate::Ellipse {
+                frame: carrier_frame,
+                ..
+            }) = e else {
                 panic!("fixture is an ellipse");
-            };
+            }; let (center, axis, u_ref) = (carrier_frame.origin(), carrier_frame.axis(), carrier_frame.u_ref());
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = axis.cross(u_ref);
             let p = e.eval(theta);
             let d = p - center;
@@ -2591,9 +2749,13 @@ mod tests {
         #[test]
         fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, .. }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(ellipse @ crate::Ellipse {
+                frame,
+                ..
+            }) = e else {
                 panic!("fixture is an ellipse");
-            };
+            }; let (center, axis) = (frame.origin(), frame.axis());
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let p = e.eval(theta);
             let d1 = e.deriv(theta);
             let d2 = e.deriv2(theta);
@@ -2745,9 +2907,7 @@ mod tests {
 
     fn spiric_fields(c: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64) {
         let Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame,
             major_radius,
             minor_radius,
             offset,
@@ -2755,6 +2915,7 @@ mod tests {
         else {
             panic!("fixture is a spiric");
         };
+        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         (center, axis, u_ref, major_radius, minor_radius, offset)
     }
 
@@ -2857,9 +3018,7 @@ mod tests {
         let c = tilted_spiric();
         let (center, axis, u_ref, big_r, r, d) = spiric_fields(&c);
         let other = Curve3::Spiric {
-            center,
-            axis,
-            u_ref: -u_ref,
+            frame: crate::Frame::new(center, axis, -u_ref),
             major_radius: big_r,
             minor_radius: r,
             offset: -d,
@@ -3039,9 +3198,11 @@ mod tests {
         fn spiric_wide_bracket_box_contains_every_member_twin() {
             let iv = Interval::from_f64;
             let ci = Curve3::Spiric {
-                center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                frame: crate::Frame::new(
+                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                ),
                 major_radius: iv(1.2),
                 minor_radius: iv(0.225),
                 offset: Interval::from_bounds(0.05, 0.06),
@@ -3051,9 +3212,11 @@ mod tests {
             let mut worst = f64::NEG_INFINITY;
             for d in [0.05, 0.06] {
                 let twin = Curve3::Spiric {
-                    center: Point3::new(0.0, 0.0, 0.0),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    frame: crate::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                     major_radius: 1.2,
                     minor_radius: 0.225,
                     offset: d,
@@ -3088,19 +3251,21 @@ mod tests {
         fn ellipse_residuals_enclose_zero() {
             let e = super::tilted_ellipse();
             let ei = e.map_scalar(geom_core::Interval::from_f64);
-            let Curve3::Ellipse(crate::Ellipse {
-                frame:
-                    crate::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                semi_u,
-                semi_v,
-            }) = ei
+            let Curve3::Ellipse(
+                ellipse @ crate::Ellipse {
+                    frame: carrier_frame_4,
+                    ..
+                },
+            ) = ei
             else {
                 panic!("fixture is an ellipse");
             };
+            let (center, axis, u_ref) = (
+                carrier_frame_4.origin(),
+                carrier_frame_4.axis(),
+                carrier_frame_4.u_ref(),
+            );
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = axis.cross(u_ref);
             for theta in [0.0, 0.7, 2.9, -14.6, 300.0] {
                 let p = ei.eval(Interval::from_f64(theta));
@@ -3464,15 +3629,11 @@ mod tests {
             let c = super::tilted_circle();
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
-                Curve3::Circle(crate::Circle {
-                    frame:
-                        crate::Frame {
-                            origin: center,
-                            axis,
-                            ..
-                        },
-                    radius,
-                }) => (center, axis, radius),
+                Curve3::Circle(circle @ crate::Circle { frame, .. }) => {
+                    let (center, axis) = (frame.origin(), frame.axis());
+                    let radius = circle.radius();
+                    (center, axis, radius)
+                }
                 _ => panic!("fixture is a circle"),
             };
             for theta in [0.0, 0.7, 2.9, -14.6, 300.0] {

@@ -115,17 +115,6 @@ fn read<T: Decide>(
     })
 }
 
-/// `e`'s certified carrier, or `None` with the typed refusal pushed
-/// ([`read`]).
-pub(super) fn carrier<T: Decide>(
-    body: &Body<T>,
-    e: EdgeKey,
-    band: Band,
-    errors: &mut Vec<ValidationError>,
-) -> Option<Curve3<T>> {
-    read(body, e, band, errors).map(|r| r.curve)
-}
-
 /// **Whether `q` may rest on `e`'s span** — pass 2′'s skip, a consumer of
 /// the point-on-span reading ([`Span::contact`] at `q`'s foot): `false`
 /// only where it decides `q` off the span, so a vertex the sweep passes by
@@ -362,7 +351,7 @@ pub(super) fn curved_interiors_meet<T: Decide>(
 
 /// **An edge's span as these lanes read it**: its certified curve over
 /// its span, with no ends where it is closed on a conventional vertex
-/// ([`span`]). The ray's edge read (`boolean::solid_contain`) reads a
+/// ([`span`]). The ray's edge read (`solid_contain`) reads a
 /// point against an edge through it, so the census and the ray read one
 /// span.
 pub(crate) struct EdgeSpan<T: Real> {
@@ -408,7 +397,17 @@ pub(crate) fn edge_span<T: Decide>(
     edge: EdgeKey,
     band: Band,
 ) -> Option<EdgeSpan<T>> {
-    let read = read(body, edge, band, &mut Vec::new())?;
+    span_of(body, edge, band, &mut Vec::new())
+}
+
+/// [`edge_span`], its refusal pushed.
+pub(super) fn span_of<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<EdgeSpan<T>> {
+    let read = read(body, edge, band, errors)?;
     let endless = on_conventional_vertex(body, &read);
     Some(EdgeSpan { read, endless })
 }
@@ -899,9 +898,11 @@ mod tests {
                 "spiric × line",
                 read(
                     Curve3::Spiric {
-                        center: Point3::new(0.0, 0.0, 0.0),
-                        axis: Vec3::unit_z(),
-                        u_ref: Vec3::unit_x(),
+                        frame: geom::Frame::new(
+                            Point3::new(0.0, 0.0, 0.0),
+                            Vec3::unit_z(),
+                            Vec3::unit_x(),
+                        ),
                         major_radius: 2.0,
                         minor_radius: r,
                         offset: d,

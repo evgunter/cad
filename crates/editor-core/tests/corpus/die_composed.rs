@@ -341,7 +341,7 @@ pub fn document() -> CorpusDoc {
         name: "die_composed",
         about: "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the \
                 pip-rim torus band in one body",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(composed),
         // π-valued closed forms are not dyadic — module docs.

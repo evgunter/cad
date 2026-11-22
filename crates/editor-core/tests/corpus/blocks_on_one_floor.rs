@@ -88,7 +88,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "blocks_on_one_floor",
         about: "two cubes each resting on one floor by a mate, abutting, unioned",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(both),
         // The two cubes, side by side.

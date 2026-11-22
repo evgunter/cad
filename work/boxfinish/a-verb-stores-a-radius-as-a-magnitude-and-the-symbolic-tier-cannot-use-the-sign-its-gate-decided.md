@@ -2,11 +2,12 @@
 id: a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided
 kind: issue
 title: A verb stores a radius as its magnitude, and the symbolic tier cannot use the sign the verb's gate decided, so an arc read through its recorded radial misses its own description by |r| − r over a box
-status: open
+status: dispatched
 opened: 2026-11-15
 priority: P0
 cost: H
-design: true
+branch: boxfinish/signed-radius
+refs: [a-radial-distance-and-a-rulings-azimuth-recover-the-radius-through-a-root]
 ---
 
 
@@ -79,3 +80,58 @@ the edge's description read the radial.
 - The row red on a wrong side through the curved edge arm (carried
   from PR 6979's review through the doors' row), if no curved body
   finishes over a box before this row's change.
+
+## Weighed (2026-11-15): the designers agree; the build goes ahead
+
+Two designers (the draw's two-designer arm), three rounds, the doors'
+lane's three measurements between the second and third. Both recommend
+one final state:
+
+- **An arc's radius is stored signed**, as the literal its construction
+  decided: `r` for the circle and the fillet (their gates decided it
+  positive), `σ·ρ` for the tangent, via and bulge arcs (σ the ±1 of
+  the side or turn the verb already holds), `sgn·side·ρ` for the
+  fillet's intermediate offset circles. No `abs`. An arc whose radius
+  is a measured distance keeps its norm. This is Ev's route B on the
+  bulge's turn (#3186) applied to the radius.
+- **Readers use a sign-free form of what they hold.** An arc that
+  records its radials is read as `centre + radius·radial`; a measured
+  distance is compared with a stored radius only through the
+  rationalized gap; a direction is made unit by dividing by the stored
+  radius. Two readers in `geom-brep`
+  (`a-radial-distance-and-a-rulings-azimuth-recover-the-radius-through-a-root`),
+  about ten in `profile`.
+- **The symbolic tier is unchanged and nothing about a sign is
+  registered.** `Arc2::register_radials`, the rim pair of
+  `register_endpoints`, `register_rigidity`'s rim fact and the doors'
+  placed-carrier registrations retire: with `r` stored they would
+  state `√(r²) ≡ r` as if it held everywhere, and the witness cannot
+  tell.
+- **Not built:** a session record of decided signs for the tier to
+  read (`work/decide/the-symbolic-tier-does-not-use-a-sign-a-decision-proved.md`).
+
+**Measured in its support:** with `r` stored and the doors reading the
+radial, the carrier's start, end and mapped source certify with no
+registration; registering `|r| ≡ r` instead reaches one check further
+and stops at an angle no registration reaches.
+
+**Not waiting on Ev (the orchestrator's call, logged):** no ratified
+decision changes, and the answer applies a ruling Ev made. One wording
+question goes to Ev on its own `[ev]` PR: which of E12's two readings
+of a symbolic Zero ("for every parameter value"; "for every value at
+which the construction takes the decisions it took here") it states.
+
+**The units.**
+1. The readers' two re-posings
+   (`a-radial-distance-and-a-rulings-azimuth-recover-the-radius-through-a-root`),
+   on main.
+2. This row: the verbs store the signed spelling at every site, the
+   bulge lowering takes its sign from the caller that decided the turn
+   (a tie refuses), the profile's own rim readers are re-pointed, the
+   registrations retire with their allowlist rows, and the doors' arc
+   arms read the recorded radials (the arc half kept on
+   `boxfinish/doors-read-arcs`). E12's description of the plate's
+   chart phase is re-worded with the code.
+3. Afterwards, small: a source gate against the raw `norm() − radius`
+   spelling outside the one function, with a sweep of the readers the
+   designers listed.

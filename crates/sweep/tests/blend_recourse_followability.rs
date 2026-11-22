@@ -60,15 +60,15 @@ use crate::common::operands::half_round_end;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
-use sweep::blend::battery::corner_config;
+use sweep::blend::battery::corner_independence;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
-    ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig,
-    FILLET3_ASSEMBLY_RECOURSE, FILLET3_BALL_ROOM_RECOURSE, FILLET3_CHAIN_RECOURSE,
-    FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE,
-    FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_KNIFE_RECOURSE,
-    FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
-    FILLET3_SPINE_RECOURSE, FILLET3_TURN_RECOURSE, KnifeRefusal,
+    ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, FILLET3_ASSEMBLY_RECOURSE,
+    FILLET3_BALL_ROOM_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
+    FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
+    FILLET3_GEOMETRY_RECOURSE, FILLET3_KNIFE_RECOURSE, FILLET3_RADIUS_RECOURSE,
+    FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
+    FILLET3_TURN_RECOURSE, KnifeRefusal, UnbuiltEnd,
 };
 use sweep::test_support::{
     ROD_FILLET, circle_arcs_at_z, cube, disc_of_arcs, dome, one_edge_rim_at, prism, realized,
@@ -418,8 +418,7 @@ fn the_chain_recourse_is_followed_by_a_tangent_continuous_chain() {
 /// **`FILLET3_CORNER_RECOURSE` — the ends it names, each built, and the
 /// residue it names, refused.**
 ///
-/// An edge ending at a curved end face refuses as a run-out with this
-/// sentence. Its three positive clauses are then executed on a cube: the
+/// An edge ending at a curved end face refuses with this sentence. Its three positive clauses are then executed on a cube: the
 /// edge alone, cut off in the plane end faces at both ends; two edges
 /// of one corner whose feet on the third meet (a cube's, symmetric about
 /// it), meeting in a mitre, or stand clearly apart, the far band
@@ -432,10 +431,13 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
     let (round, edge) = half_round_end();
     let err = refusal(&round, &[edge], 0.1, "a curved end face", false);
     assert!(
-        matches!(err, BlendError::UnsupportedRunOut { .. }),
-        "a curved end face is a run-out, got {err:?}"
+        matches!(
+            err,
+            BlendError::UnbuiltEnd(UnbuiltEnd::CurvedEndFace { .. })
+        ),
+        "a curved end face, got {err:?}"
     );
-    carries(&err, FILLET3_CORNER_RECOURSE, "run-out");
+    carries(&err, FILLET3_CORNER_RECOURSE, "curved end face");
     let body = cube(1.0, tol());
     let edges = query::all_edges(&body);
     let corner = edges_at_first_vertex(&body);
@@ -488,10 +490,7 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
     assert!(
         matches!(
             later,
-            BlendError::UnsupportedCorner {
-                corner: sweep::blend::CornerConfig::NEdgeVertex { valence: 4 },
-                ..
-            }
+            BlendError::UnbuiltEnd(UnbuiltEnd::Valence { valence: 4, .. })
         ),
         "the turn foot has four edges, got {later:?}"
     );
@@ -740,7 +739,7 @@ fn fillet_turn_recourse_at_a_box_corner() {
 /// uniform trivalent corner needs three faces all nearly parallel to
 /// one line — two faces nearly coplanar, or the apex of a tall, sharp
 /// three-sided pyramid — and no builder these rows use mints either. So
-/// the row runs the classifier both doors run (`battery::corner_config`)
+/// the row runs the classifier both doors run (`battery::corner_independence`)
 /// on such a trihedron, reads the refusal it carries, and executes each
 /// lever the sentence names on the same corner: a face tilted clear, a
 /// larger blend size, and the tolerance the ending offers.
@@ -754,7 +753,7 @@ fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
     let t = (band.zero() + band.escalate()) / 2.0;
     let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
     let near = [x, y, Vec3::new((1.0 - t * t).sqrt(), 0.0, t)];
-    let err = corner_config(vertex, 3, 3, near, 1.0, band).unwrap_err();
+    let err = corner_independence(vertex, near, 1.0, band).unwrap_err();
     assert!(
         matches!(
             err,
@@ -771,19 +770,22 @@ fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
         "{text}"
     );
     // The faces tilted clear of one line.
-    corner_config(vertex, 3, 3, [x, y, Vec3::new(0.0, 0.0, 1.0)], 1.0, band)
+    corner_independence(vertex, [x, y, Vec3::new(0.0, 0.0, 1.0)], 1.0, band)
         .expect("an orthonormal corner passes");
     // A larger size, which the margin grows with.
-    corner_config(vertex, 3, 3, near, 2.0 * k, band).expect("the same corner at a larger size");
+    corner_independence(vertex, near, 2.0 * k, band).expect("the same corner at a larger size");
     // The tolerance the ending names, at the margin's own value.
     let offered: f64 = text
         .split_once("tighten the tolerance below ")
         .and_then(|(_, tail)| tail.strip_suffix(" m"))
         .and_then(|v| v.parse().ok())
         .unwrap_or_else(|| panic!("the ending offers a valued tolerance: {text}"));
-    assert_eq!(offered, t / k, "{text}");
+    assert!(
+        geom_core::test_support::is_told_offer_of(offered, t / k),
+        "{text}"
+    );
     let tighter = Band::new(offered / 2.0, offered / 2.0 * k).unwrap();
-    corner_config(vertex, 3, 3, near, 1.0, tighter).expect("decided passing below the offer");
+    corner_independence(vertex, near, 1.0, tighter).expect("decided passing below the offer");
 }
 
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
@@ -845,20 +847,21 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // several other `UnsupportedChain` arms also satisfy.
     assert!(
         matches!(&err, BlendError::UnsupportedChain { detail, .. }
-            if *detail == "an open chain link is not plane–plane, ruled, or a torus between \
-                 two junctions"),
-        "an open chain whose link is neither plane–plane, nor ruled, nor a torus between two \
-         junctions has no built termination: {err:?}"
+            if *detail == "an open chain link is not plane–plane, ruled, or a band of revolution \
+                 between two junctions"),
+        "an open chain whose link is neither plane–plane, nor ruled, nor a band of revolution \
+         between two junctions has no built termination: {err:?}"
     );
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
-    // The corner clause's two conditions, each true of every corner the
-    // surgery carves and each a reader needs: a fully requested corner
-    // that is not trivalent, or is of mixed convexity, still refuses.
-    // Pinned one by one, so dropping either is red.
+    // The clause's conditions, each true of every open chain the surgery
+    // carves and each a reader needs: a link neither plane–plane nor a
+    // band of revolution between tangent junctions, or an end that is
+    // not a trivalent vertex between planes, still refuses. Pinned one
+    // by one, so dropping any is red.
     for condition in [
-        "trivalent plane\u{2013}plane vertices of one convexity",
-        "chains whose links share both faces",
-        "junction carry-through and the other run-outs are not implemented",
+        "chains of plane\u{2013}plane links",
+        "joined by bands of revolution where they meet tangentially",
+        "ending at trivalent vertices between planes",
     ] {
         assert!(
             FILLET3_ASSEMBLY_RECOURSE.contains(condition),
@@ -998,11 +1001,12 @@ fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
 }
 
 /// **`CHAMFER_ARM_RECOURSE` — "chamfer edges whose two supports are
-/// both planes".**
+/// both planes, or where a cylinder meets a plane square to its axis,
+/// round a whole rim or between the lines of a rounded outline".**
 ///
 /// The dome's equator is plane–sphere: the ruled strip has no arm over
-/// it. The both-planes request the sentence names is the cube, and it
-/// chamfers.
+/// it. The requests the sentence names are the cube, a post's top rim
+/// and a rounded outline's top, and each chamfers.
 #[test]
 fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
     let d = dome(1.0, tol());
@@ -1026,6 +1030,39 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
         0.1,
         "a both-planes chamfer request",
     );
+    let post =
+        sweep::test_support::cylinder_of_arcs_at(2, 0.5, Point2::new(0.0, 0.0), 0.0, 1.0, tol());
+    chamfers(&post, &circle_arcs_at_z(&post, 1.0), 0.1, "a whole rim");
+    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    let rounded = prism(
+        vec![
+            (Point2::new(0.3, 0.0), 0.0),
+            (Point2::new(1.7, 0.0), q),
+            (Point2::new(2.0, 0.3), 0.0),
+            (Point2::new(2.0, 0.9), q),
+            (Point2::new(1.7, 1.2), 0.0),
+            (Point2::new(0.3, 1.2), q),
+            (Point2::new(0.0, 0.9), 0.0),
+            (Point2::new(0.0, 0.3), q),
+        ],
+        0.5,
+        tol(),
+    );
+    let top: Vec<EdgeKey> = query::all_edges(&rounded)
+        .into_iter()
+        .filter(|&e| {
+            let (a, b) = rounded.edge_vertices(e).unwrap();
+            let z = |v| {
+                rounded
+                    .get_point(rounded.get_vertex(v).unwrap().point)
+                    .unwrap()
+                    .z
+            };
+            z(a) > 0.25 && z(b) > 0.25
+        })
+        .collect();
+    assert_eq!(top.len(), 8, "the rounded outline's top");
+    chamfers(&rounded, &top, 0.1, "a rounded outline's top");
 }
 
 // ------------------------------------------------------------------
@@ -1187,7 +1224,7 @@ fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_
 ///
 /// The L prism is that body: its reflex edge makes its two ends
 /// mixed-convexity vertices, and a request naming the reflex edge with
-/// one other edge of its corner meets `UnsupportedCorner`, never
+/// one other edge of its corner meets the run-out at the corner, never
 /// `ConvexitySignFlip` (the whole body builds, through the mixed
 /// corner). The adversarial
 /// corpus agrees — `review_d2_adv_probes::d2_reached_variants` reaches
@@ -1218,10 +1255,7 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
     assert!(
         matches!(
             err,
-            BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { .. },
-                ..
-            }
+            BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: Some(_), .. })
         ),
         "mixed convexity is met at the CORNER, not along a chain, got {err:?}"
     );
@@ -1577,4 +1611,87 @@ fn a_blind_hole_from_the_support_face_inside_the_region_goes_with_the_band() {
             "a blind hole from the support face",
         );
     }
+}
+
+/// **`FOOT_INSIDE_A_FACE_RECOURSE` names a request that builds at each
+/// site it is read at.** The inset boss's root edge alone, a pair edge
+/// of a corner whose edges round both ways, puts its foot inside the odd
+/// edge's face at any size: adding every edge at the vertex where it
+/// refused, step by step, builds the corner's mixed outline. On the leaning corner, where that would be
+/// oblique, the pair edge alone refuses the same and the odd edge alone
+/// builds. And a wedge's edge whose feet stand just past its end face's
+/// rim builds at a smaller size.
+#[test]
+fn the_foot_inside_a_face_recourse_names_a_request_that_builds() {
+    let foot_inside = |err: &BlendError, what: &str| {
+        let BlendError::UnbuiltEnd(UnbuiltEnd::FootInsideAFace { vertex }) = *err else {
+            panic!("{what}: a foot inside a face, got {err:?}");
+        };
+        carries(err, sweep::blend::FOOT_INSIDE_A_FACE_RECOURSE, what);
+        vertex
+    };
+    let inset = crate::band_mixed_vertex::plate_boss(1.0);
+    let root = crate::band_planar_cut_off::edge(&inset, [1.0, 0.5, 0.5], [1.5, 0.5, 0.5]);
+    for size in [0.1, 0.02] {
+        // Followed: each refusal's vertex, its every edge added, moves the
+        // refusal on along the outline or builds.
+        let mut request = vec![root];
+        let mut steps = 0;
+        loop {
+            let got = fillet_edges(
+                &sweep::test_support::at_rest(&inset, tol()),
+                &request,
+                size,
+                tol(),
+            )
+            .map_err(|r| r.error);
+            let Err(err) = got else { break };
+            let vertex = foot_inside(&err, "the inset boss's root edge, followed");
+            let before = request.len();
+            for e in inset.edges_of_vertex(vertex).expect("the vertex's edges") {
+                if !request.contains(&e) {
+                    request.push(e);
+                }
+            }
+            assert!(request.len() > before, "each step adds an edge, at {size}");
+            steps += 1;
+            assert!(
+                steps <= 6,
+                "the request builds within the corner's outline, at {size}"
+            );
+        }
+        builds(
+            &inset,
+            &request,
+            size,
+            "every edge at each vertex where the band ended",
+        );
+    }
+
+    let leaning = crate::band_mixed_corner::leaning();
+    let [odd, up] = crate::band_mixed_corner::leaning_odd_and_one(&leaning);
+    let err = refusal(
+        &leaning,
+        &[up],
+        0.1,
+        "the leaning corner's pair edge alone",
+        false,
+    );
+    foot_inside(&err, "the leaning corner's pair edge alone");
+    builds(
+        &leaning,
+        &[odd],
+        0.1,
+        "the edge rounding unlike the other two alone",
+    );
+
+    let wedge = prism(
+        vec![v(0.0, 0.0, 0.0), v(2.0, 0.0, 0.0), v(1.9, 0.05, 0.0)],
+        1.0,
+        tol(),
+    );
+    let edge = crate::band_planar_cut_off::edge(&wedge, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let err = refusal(&wedge, &[edge], 0.2, "the wedge's edge", false);
+    foot_inside(&err, "the wedge's edge");
+    builds(&wedge, &[edge], 0.02, "the wedge's edge at a smaller size");
 }

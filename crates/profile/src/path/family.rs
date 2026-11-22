@@ -159,7 +159,9 @@ pub(super) fn open_ray<T: geom_core::Decide>(
 ) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
     verbs::gate_positive(Gate::PathFilletRadius, radius, band, |r| {
-        PathError::NonpositiveFilletRadius { radius: r }
+        PathError::NonpositiveFilletRadius {
+            radius: super::authored_length(r),
+        }
     })?;
     let meta = PendingMeta {
         bound_at: core.current_step()?,
@@ -185,7 +187,9 @@ pub(super) fn open_arc<T: ArcCarrierScalar>(
 ) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
     verbs::gate_positive(Gate::PathFilletRadius, arc.radius, band, |r| {
-        PathError::NonpositiveFilletRadius { radius: r }
+        PathError::NonpositiveFilletRadius {
+            radius: super::authored_length(r),
+        }
     })?;
     let meta = PendingMeta {
         bound_at: core.current_step()?,
@@ -1026,7 +1030,13 @@ pub trait TangentIncoming<T: ArcCarrierScalar> {
 
 impl<T: ArcCarrierScalar> TangentIncoming<T> for Sweep<T> {
     fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
-        verbs::tangent_arc_leg(dp, self.r, self.side, self.angle, linear_band(tol)?)
+        verbs::tangent_arc_leg(
+            dp,
+            self.r,
+            self.side,
+            verbs::SweepDatum::Angle(self.angle),
+            linear_band(tol)?,
+        )
     }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::Sweep {
@@ -1039,7 +1049,16 @@ impl<T: ArcCarrierScalar> TangentIncoming<T> for Sweep<T> {
 
 impl<T: ArcCarrierScalar> TangentIncoming<T> for ArcLen<T> {
     fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
-        verbs::tangent_arc_leg(dp, self.r, self.side, self.len / self.r, linear_band(tol)?)
+        verbs::tangent_arc_leg(
+            dp,
+            self.r,
+            self.side,
+            verbs::SweepDatum::ArcLength {
+                len: self.len,
+                r: self.r,
+            },
+            linear_band(tol)?,
+        )
     }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::ArcLen {
@@ -1097,11 +1116,13 @@ type PointCarrier<T> = (Point2<T>, crate::sugar::ArcSweep, Dir<T>, Point2<T>);
 
 /// The shared Bulge-shaped derivation: carrier from chord + bulge (the
 /// existing closed form), winding from the bulge's sign, start tangent
-/// from [`super::chord_tangents`].
+/// from [`super::chord_tangents`]. `told` is the bulge's role in a
+/// refusal: the author's own, or derived from a through-point.
 fn bulge_carrier<T: geom_core::Decide>(
     at: Point2<T>,
     p: Point2<T>,
     b: T,
+    told: fn(T) -> geom_core::Told,
     tol: Tol,
 ) -> Result<(Point2<T>, crate::sugar::ArcSweep, Dir<T>), PathError<T>> {
     let band = linear_band(tol)?;
@@ -1110,7 +1131,9 @@ fn bulge_carrier<T: geom_core::Decide>(
     let winding = match crate::gate::decide(Gate::PathArcBulge, geom_core::Margin::of(b), band) {
         Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Ccw,
         Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Cw,
-        Ok(geom_core::Sign::Zero) => return Err(PathError::DegenerateArcSpec { value: b }),
+        Ok(geom_core::Sign::Zero) => {
+            return Err(PathError::DegenerateArcSpec { value: told(b) });
+        }
         Err(source) => return Err(PathError::escalated(source)),
     };
     let arc = crate::lower_arc(at, p, b, winding.sign());
@@ -1123,9 +1146,11 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for verbs::Bulge<T, Point2<T>> {
         let band = linear_band(tol)?;
         let chord = (self.p - at).norm_squared().sqrt();
         verbs::gate_positive(Gate::PathArcChord, chord, band, |c| {
-            PathError::DegenerateArcChord { chord: c }
+            PathError::DegenerateArcChord {
+                chord: super::length(c),
+            }
         })?;
-        let (c, w, start) = bulge_carrier(at, self.p, self.b, tol)?;
+        let (c, w, start) = bulge_carrier(at, self.p, self.b, super::authored_ratio, tol)?;
         Ok((c, w, start, self.p))
     }
     fn to_wire(&self) -> ArcData<T> {
@@ -1142,7 +1167,9 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
         let chord_v = self.p - at;
         let chord = chord_v.norm_squared().sqrt();
         verbs::gate_positive(Gate::PathArcChord, chord, band, |c| {
-            PathError::DegenerateArcChord { chord: c }
+            PathError::DegenerateArcChord {
+                chord: super::length(c),
+            }
         })?;
         // The collinear gate, then the existing closed form — the sharp
         // `Via` leg mode's own derivation, verbatim.
@@ -1159,13 +1186,17 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
             geom_core::Margin::of(offset),
             band,
         ) {
-            Ok(geom_core::Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
+            Ok(geom_core::Sign::Zero) => {
+                return Err(PathError::ArcViaCollinear {
+                    offset: super::length(offset),
+                });
+            }
             Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Cw,
             Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Ccw,
             Err(source) => return Err(PathError::escalated(source)),
         };
         let b = crate::bulge_from_via(at, self.q, self.p);
-        let (c, _, start) = bulge_carrier(at, self.p, b, tol)?;
+        let (c, _, start) = bulge_carrier(at, self.p, b, super::ratio, tol)?;
         Ok((c, winding, start, self.p))
     }
     fn to_wire(&self) -> ArcData<T> {
@@ -1185,7 +1216,9 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
         let r_end = (self.p - self.c).norm_squared().sqrt();
         for radius in [r_tip, r_end] {
             verbs::gate_positive(Gate::PathArcCenterRadius, radius, band, |r| {
-                PathError::DegenerateArcCenter { radius: r }
+                PathError::DegenerateArcCenter {
+                    radius: super::length(r),
+                }
             })?;
         }
         match crate::gate::decide(
@@ -1196,15 +1229,17 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
             Ok(geom_core::Sign::Zero) => {}
             Ok(_) => {
                 return Err(PathError::ArcCenterNotEquidistant {
-                    tip_radius: r_tip,
-                    end_radius: r_end,
+                    tip_radius: super::length(r_tip),
+                    end_radius: super::length(r_end),
                 });
             }
             Err(source) => return Err(PathError::escalated(source)),
         }
         let chord = (self.p - at).norm_squared().sqrt();
         verbs::gate_positive(Gate::PathArcChord, chord, band, |c| {
-            PathError::DegenerateArcChord { chord: c }
+            PathError::DegenerateArcChord {
+                chord: super::length(c),
+            }
         })?;
         let theta = super::center_sweep(at, self.p, self.c, r_tip, self.winding);
         let (start, _) = super::chord_tangents(self.p - at, theta);
@@ -1523,6 +1558,13 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
         radius: T,
         tol: Tol,
     ) -> Result<(), PathError<T>> {
+        // A plain point is a fillet's open arrival anchor after
+        // `fillet(r).at(p)`: an incoming arc authored from it would
+        // claim that arrival a second time, as an `arc_to` leg would.
+        super::order::arc_leg_leaves_no_open_fillet(
+            self.core.pending.is_some(),
+            super::order::site::ARC_FILLET,
+        )?;
         let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
             site: "fused arc incoming on a tip without a position",
         })?;
@@ -1740,6 +1782,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Point2<
             target: Target::Point(spec.p),
             b: spec.b,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO)?;
         let leg = path.arc_bulge(spec.p, spec.b)?;
         path.arc_to_point(spec.p, leg, tol)
     }
@@ -1752,6 +1795,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
             target: Target::Start,
             b: spec.b,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_bulge(path.start_target()?, spec.b)?;
         path.arc_to_start(leg, SeamArrival::Undeclared, tol)
     }
@@ -1767,6 +1811,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::
             target: Target::StartArriving,
             b: spec.b,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_bulge(path.start_target()?, spec.b)?;
         path.arc_to_start(leg, SeamArrival::Checked, tol)
     }
@@ -1779,6 +1824,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Point2<T>> {
             q: spec.q,
             target: Target::Point(spec.p),
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO)?;
         let leg = path.arc_via(spec.q, spec.p, tol)?;
         path.arc_to_point(spec.p, leg, tol)
     }
@@ -1791,6 +1837,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
             q: spec.q,
             target: Target::Start,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_via(spec.q, path.start_target()?, tol)?;
         path.arc_to_start(leg, SeamArrival::Undeclared, tol)
     }
@@ -1805,6 +1852,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, super::ArrivesTa
             q: spec.q,
             target: Target::StartArriving,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_via(spec.q, path.start_target()?, tol)?;
         path.arc_to_start(leg, SeamArrival::Checked, tol)
     }
@@ -1818,6 +1866,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Point2<T>> {
             winding: spec.winding,
             target: Target::Point(spec.p),
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO)?;
         let leg = path.arc_center(spec.c, spec.p, spec.winding, tol)?;
         path.arc_to_point(spec.p, leg, tol)
     }
@@ -1831,6 +1880,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
             winding: spec.winding,
             target: Target::Start,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_center(spec.c, path.start_target()?, spec.winding, tol)?;
         path.arc_to_start(leg, SeamArrival::Undeclared, tol)
     }
@@ -1846,6 +1896,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, super::Arrive
             winding: spec.winding,
             target: Target::StartArriving,
         }));
+        path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
         let leg = path.arc_center(spec.c, path.start_target()?, spec.winding, tol)?;
         path.arc_to_start(leg, SeamArrival::Checked, tol)
     }

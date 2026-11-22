@@ -76,11 +76,11 @@ fn every_distribution_form_round_trips() {
             ),
         ),
     ]);
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     for form in ["Band", "Uniform", "Normal", "TruncatedNormal"] {
         assert!(text.contains(form), "{form} is on the wire: {text}");
     }
-    let back = load(&text, Tol::witness()).expect("loads").doc;
+    let back = load(&text, Tol::witness()).expect("loads");
     assert!(back.bit_eq(&doc), "every form round-trips bit for bit");
 }
 
@@ -91,7 +91,7 @@ fn every_distribution_form_round_trips() {
 #[test]
 fn an_unannotated_param_stays_absent_from_the_wire() {
     let doc = doc_with(&[("plain", FreeVar::continuous(Dimension::Length, 1.0))]);
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     assert!(
         !text.contains("distribution"),
         "an unannotated param says nothing: {text}"
@@ -106,8 +106,8 @@ fn distribution_offsets_round_trip_by_bits() {
         "signed_zero",
         annotated(1.0, Distribution::Band { lo: -0.0, hi: 0.5 }),
     )]);
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let back = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let back = load(&text, Tol::witness()).expect("loads");
     assert!(back.bit_eq(&doc));
     let other = doc_with(&[(
         "signed_zero",
@@ -125,7 +125,7 @@ fn distribution_offsets_round_trip_by_bits() {
 #[test]
 fn a_hand_written_negative_sigma_refuses_at_load() {
     let doc = doc_with(&[("s", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let corrupt = text.replace("\"sigma\": 0.01", "\"sigma\": -1.0");
     assert_ne!(corrupt, text, "the corruption must actually land");
     match load(&corrupt, Tol::witness()) {
@@ -145,43 +145,16 @@ fn a_hand_written_negative_sigma_refuses_at_load() {
 #[test]
 fn the_same_document_refuses_at_save() {
     let doc = doc_with(&[("s", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
-    let text = save(&doc, &[], Tol::witness()).expect("the healthy document saves");
+    let text = save(&doc, Tol::witness()).expect("the healthy document saves");
     let corrupt = text.replace("\"sigma\": 0.01", "\"sigma\": -1.0");
     assert_ne!(corrupt, text, "the corruption must actually land");
     let broken = past_the_load_door(&corrupt);
-    match save(&broken, &[], Tol::witness()) {
+    match save(&broken, Tol::witness()) {
         Err(PersistError::Distribution { var, fault }) => {
             assert_eq!(var.name().map(VarName::as_str), Some("s"));
             assert_eq!(fault, DistributionFault::SigmaNotPositive { sigma: -1.0 });
         }
         other => panic!("save must refuse the same fault, got {other:?}"),
-    }
-}
-
-/// An UNAPPLIED edit log is DATA, and a log carrying a broken
-/// distribution never reaches disk: save replays the log through the
-/// edit door before writing a byte.
-#[test]
-fn a_broken_distribution_in_the_edit_log_refuses_at_save() {
-    let doc = ProfileDoc::empty(DocumentId::derive("m10-1-log"), Tol::witness());
-    let def = editor_core::VarDecl::Free(annotated(1.0, Distribution::Normal { sigma: -1.0 }));
-    let spoken = doc.spoken_declare(&VarName::from_static("s"), &def);
-    let bad = DocEdit::DeclareVar {
-        name: VarName::from_static("s"),
-        def,
-    };
-    match save(&doc, &[bad], Tol::witness()) {
-        Err(PersistError::EditReplay { index, error }) => {
-            assert_eq!(index, 0);
-            assert_eq!(
-                *error,
-                EditError::InvalidDistribution {
-                    var: spoken,
-                    fault: DistributionFault::SigmaNotPositive { sigma: -1.0 },
-                }
-            );
-        }
-        other => panic!("an unreplayable log must refuse at save, got {other:?}"),
     }
 }
 
@@ -311,98 +284,18 @@ fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
     // read from a corrupted body past both other doors —
     // the technique the save-door row above uses, for the same reason.
     let healthy = doc_with(&[("s", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
-    let text = save(&healthy, &[], Tol::witness()).expect("the healthy document saves");
+    let text = save(&healthy, Tol::witness()).expect("the healthy document saves");
     let corrupt = text
         .replace("\"sigma\": 0.01", "\"sigma\": -1.0")
         .replace("\"dim\": \"Length\"", "\"dim\": \"Count\"");
     assert_ne!(corrupt, text, "the corruption must actually land");
     let doubly = past_the_load_door(&corrupt);
-    match save(&doubly, &[], Tol::witness()) {
+    match save(&doubly, Tol::witness()) {
         Err(PersistError::Distribution { var: n, fault }) => {
             assert_eq!(n.name(), Some(&name), "the same parameter");
             assert_eq!(fault, DistributionFault::SigmaNotPositive { sigma: -1.0 });
         }
         other => panic!("expected the distribution fault, got {other:?}"),
-    }
-}
-
-/// **The non-finite walk names the FIELD.** A distribution offset that
-/// is not finite joins the same non-finite class every other float in
-/// the document belongs to — and the site now says WHICH offset,
-/// because the walk has to find one in order to answer at all. An
-/// unapplied edit log is the door for this: a log is data, so it can
-/// carry a parameter no edit door would have accepted.
-#[test]
-fn a_non_finite_offset_names_which_offset_it_was() {
-    use editor_core::persist::NonFiniteSite;
-    let doc = ProfileDoc::empty(DocumentId::derive("m10-1-nonfinite"), Tol::witness());
-    let cases = [
-        (
-            Distribution::TruncatedNormal {
-                sigma: f64::NAN,
-                lo: -1.0,
-                hi: 2.0,
-            },
-            DistributionField::Sigma,
-        ),
-        (
-            Distribution::TruncatedNormal {
-                sigma: 0.5,
-                lo: f64::NEG_INFINITY,
-                hi: 2.0,
-            },
-            DistributionField::Lo,
-        ),
-        (
-            Distribution::Band {
-                lo: -1.0,
-                hi: f64::INFINITY,
-            },
-            DistributionField::Hi,
-        ),
-    ];
-    for (dist, expected) in cases {
-        let edit = DocEdit::DeclareVar {
-            name: VarName::from_static("p"),
-            def: editor_core::VarDecl::Free(annotated(1.0, dist)),
-        };
-        match save(&doc, &[edit], Tol::witness()) {
-            Err(PersistError::NonFinite {
-                site: NonFiniteSite::Edit { index: 0, inner },
-            }) => match *inner {
-                NonFiniteSite::DocParam { ref var, field } => {
-                    assert_eq!(*var, editor_core::VarRef::Name(VarName::from_static("p")));
-                    assert_eq!(
-                        field,
-                        editor_core::DocParamField::Offset(expected),
-                        "the site names the offending offset"
-                    );
-                }
-                ref other => panic!("expected a doc-param site, got {other:?}"),
-            },
-            other => panic!("expected a non-finite refusal for {dist:?}, got {other:?}"),
-        }
-    }
-    // The NOMINAL's own non-finiteness is the same class, and the
-    // field names it rather than standing for it by absence.
-    let edit = DocEdit::DeclareVar {
-        name: VarName::from_static("p"),
-        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, f64::NAN)),
-    };
-    match save(&doc, &[edit], Tol::witness()) {
-        Err(PersistError::NonFinite {
-            site: NonFiniteSite::Edit { inner, .. },
-        }) => assert!(
-            matches!(
-                *inner,
-                NonFiniteSite::DocParam {
-                    field: editor_core::DocParamField::Nominal,
-                    ..
-                }
-            ),
-            "a broken nominal names the nominal"
-        ),
-        other => panic!("expected a non-finite refusal, got {other:?}"),
     }
 }
 

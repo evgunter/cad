@@ -4,6 +4,8 @@ kind: issue
 title: No door builds a trimmed spindle face: the trimmed lane's spindle row is unreached
 status: open
 opened: 2026-11-14
+priority: P3
+cost: M
 ---
 
 

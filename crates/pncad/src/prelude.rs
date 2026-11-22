@@ -327,7 +327,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //
 // The reach is worse here than for a payload at `topo`'s root, which
 // `pncad::topo::` names; `sweep` re-exports NOTHING from `blend`, so before this line the
-// only spelling was `pncad::sweep::blend::CornerConfig` — and
+// only spelling was `pncad::sweep::blend::CornerConfig` (since retired) — and
 // `pncad::sweep::blend::battery::Convexity`, three submodules deep.
 // Contract clause 1 was met (one crate, a longer path); what was not
 // met is that a caller holding a prelude-curated `BlendError` could
@@ -336,14 +336,17 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // What each one decides, which is why matchability is worth carrying
 // each:
 //
-// - `CornerConfig` is `UnsupportedCorner`'s whole content (the OQ6
-//   vocabulary, decided at #85). A valence-4 vertex says "request the
-//   other edges"; a `SeamVertex` says "ask for the rim whole", a door
-//   that EXISTS — and `CornerConfig::policy` is the map that keeps a
-//   refusal from disagreeing with its own tag. Different recourses,
-//   so a caller branches, which is exactly CUR3's test.
-// - `RunOutPolicy` is that arm's second field, and `None` is a fact
-//   of its own: a seam vertex is not a corner, so no run-out helps.
+// - `UnbuiltEnd` is `BlendError::UnbuiltEnd`'s whole content: why a
+//   band's end is not built, one tag per reason, each carrying its own
+//   site. A valence-4 vertex says "end the band at a flat-faced
+//   trivalent corner"; a seam says "ask for the rim whole", a door that
+//   EXISTS; a tangent run-out names the edge the run goes on into, whose
+//   request carries the band on. Different recourses, so a caller
+//   branches, which
+//   is exactly CUR3's test. What a built end IS stays the blend's own:
+//   no end-kind type is public.
+// - `OddEdge` is the run-out's payload at a vertex whose edges round
+//   both ways: the edge that rounds the other way, and its convexity.
 // - `BlendSite` is `Escalated`'s: link, joint, or the chain whole —
 //   the payload half of the two-tolerance shape (D4 ¶1 addendum).
 // - `BlendDecision` is `Escalated`'s too: the question that could not
@@ -368,9 +371,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // here to split and none to pin. That the blend door is unprojected
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
-pub use sweep::blend::{
-    BlendDecision, BlendSite, Breach, CornerConfig, RunOutPolicy, UnsettledWedge,
-};
+pub use sweep::blend::{BlendDecision, BlendSite, Breach, OddEdge, UnbuiltEnd, UnsettledWedge};
 // **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
 // value over: the payloads above are what a carried REFUSAL says, this
 // is what a carried RESULT says, and a curated list owes matchability
@@ -652,13 +653,19 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `StructureNormalization` is the re-minted boundary graph (its
 // `NormalizationKind` and the `FaceCensus` pair it maps between),
 // `CurvePromotion` the analytic carrier a NURBS one certified as (its
-// `PromotedCurveKind`), and `PlacedInstance` the A7 assembly record.
+// `PromotedCurveKind`), read off that ledger, and `PlacedInstance` the
+// A7 assembly record.
+// `SnapRelation` is `NormalizationKind::Snapped`'s discriminant: which
+// catalogue construction moved a surface.
 // `PromotedKind` was already here as the refusal's discriminant and
 // is `NormalizationKind::SurfacePromotion`'s too — one type, two
 // carriers, and the entry above says what it means on the refusal.
-// The `Wireframe` arm's payload needs nothing new: its carriers are
-// `Curve3`, on this list at group 2's `topo` re-export, and its
-// promotions are the same `CurvePromotion`.
+// The `Wireframe` arm's payload is `step_import::WireframeCurve`, a
+// `Curve3` (on this list at group 2's `topo` re-export) and the span of
+// it the file states; no Python door reads the arm (it is the import
+// door's typed refusal there), so it is reached at `pncad::step_import`
+// rather than named here. Its ledger is the same
+// `StructureNormalization`.
 //
 // The Python half follows the carrier rule again, and lands on the
 // opposite side from `ImportOptions`. `StepImport::Solid` crosses as
@@ -673,49 +680,11 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // twice — and on an admitted body whose volume is not measurable at
 // this ε, reading it raises the measurement refusal with the
 // bracket the measurement held (`ImportReport.enclosure`).
-//
-// **`StepImport::Solid::coherence` is the one field whose type is not
-// step-import's**, and the curated-type rule reaches through it
-// anyway: it is `topo`'s `CoherenceReport`, handed across whole
-// rather than restated, so a caller able to hold the answer must be
-// able to spell the answer's vocabulary. `CoherenceFinding` is the
-// measurement and `CoherenceCondition` says which of the three
-// conditions it is about; `Unexamined` is a loop out of the door's
-// reach and `Unexaminable` is why. Both discriminants are closed
-// enums the kernel put there to be MATCHED, and a prelude carrying
-// the report without them would hand a caller a value it could only
-// print.
-//
-// **`StructureRead` is NOT here**, one level further in: it is
-// `Unexaminable::Corrupt`'s payload, saying which arena read failed
-// on a loop whose structure did not resolve. Its own recourse routes
-// out of this vocabulary entirely — a corrupt loop is a tier-1
-// defect and `validate` is the door that names it — so a consumer
-// that wants the read is already holding a validation refusal, and
-// one matching `Corrupt { at }` here binds `at` without naming the
-// type. Reachable at `pncad::topo::StructureRead`, one module hop,
-// which is this prelude's rule for a name the corpus reaches for
-// less than corpus-wide.
-//
-// **The falsifier**: a curated consumer that BRANCHES on which read
-// failed rather than handing the loop to `validate`. The moment one
-// does, the eight arms are eight different facts a prelude caller
-// acts on differently and the rung is a discriminant like the two
-// above it, not a detail of a defer. Today the only consumer in tree
-// renders it — `editor_core`'s resident reaches a user with `{at:?}`
-// — which is the second-vocabulary hazard `topo`'s own module names
-// and not a branch. Stated so the next curation pass re-measures
-// rather than re-deriving.
-//
-// The report has no Python half: the binding's import door asks for
-// no examination, and `pncad-py`'s surface census carries that as a
-// `NotBound` row with its reason.
 pub use step_import::{
     CurvePromotion, FaceCensus, ImportOptions, NormalizationKind, PlacedInstance,
-    PromotedCurveKind, PromotedKind, SingularityFound, StepImport, StepImportError,
+    PromotedCurveKind, PromotedKind, SingularityFound, SnapRelation, StepImport, StepImportError,
     StructureNormalization, import_step,
 };
-pub use topo::{CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined};
 // `StlError` is the writers' own refusal type — what `write_ascii` and
 // `write_binary` return. The option errors beside it
 // (`BinaryHeaderError`, `SolidNameError`) refuse at option

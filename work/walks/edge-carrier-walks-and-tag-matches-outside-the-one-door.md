@@ -61,7 +61,7 @@ false. Two groups:
   straight" the new door's doc offers:
   `crates/topo/src/validate.rs` (`all_lines`),
   `crates/topo/src/merge_faces.rs` (`straight`),
-  `crates/topo/src/boolean/surface_group.rs` (the circle skip),
+  `crates/topo/src/surface_group.rs` (the circle skip),
   `crates/mesh/src/trimmed.rs` (the `Ellipse | Nurbs` test — a
   `CurveKindSet` comparand, and `mesh` is not this program's).
 - **Already holds the carrier for other reasons**, so reading its tag
@@ -92,3 +92,5 @@ names that does not resolve panics naming the edge
 (`Body::edge_curve_linked`). The `From` delegation sketched above is
 gone with them; a site that reads an edge key out of the body maps
 `Dangling` to `unreachable!` rather than to a refusal of its own.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` rung (`Unexaminable`) is gone.

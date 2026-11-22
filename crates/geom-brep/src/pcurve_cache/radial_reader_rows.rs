@@ -107,10 +107,8 @@ fn a_point_built_on_a_cylinder_is_on_it_over_a_box_on_the_radius() {
         for (name, x) in radial_directions() {
             for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
                 let cylinder = Surface::Cylinder {
-                    origin: point(c),
-                    axis: lit3(axis),
+                    frame: geom::Frame::new(point(c), lit3(axis), lit3(u_ref)),
                     radius,
-                    u_ref: lit3(u_ref),
                 };
                 let p = point(c) + x * r + lit3(axis) * h;
                 assert_eq!(
@@ -143,10 +141,8 @@ fn a_point_built_on_a_sphere_is_on_it_over_a_box_on_the_radius() {
         for (name, x) in directions {
             for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
                 let sphere = Surface::Sphere {
-                    center: point(c),
+                    frame: geom::Frame::new(point(c), lit3(axis), lit3(u_ref)),
                     radius,
-                    axis: lit3(axis),
-                    u_ref: lit3(u_ref),
                 };
                 assert_eq!(
                     reading(chart_distance(&sphere, point(c) + x * r)),
@@ -185,10 +181,8 @@ fn a_ruling_built_on_a_cylinder_is_placed_at_its_own_angle_over_a_box() {
         let r = boxed("radial_reader_radius", RADIUS);
         for (name, x, angle, folds) in directions {
             let cylinder = Surface::Cylinder {
-                origin: point(c),
-                axis: lit3(axis),
+                frame: geom::Frame::new(point(c), lit3(axis), lit3(u_ref)),
                 radius: r,
-                u_ref: lit3(u_ref),
             };
             let line = geom::Line {
                 origin: point(c) + lit3(x) * r,
@@ -305,31 +299,23 @@ fn the_distance_is_the_measured_norm_less_the_radius_to_its_rounding() {
                         let (surface, surface_iv) = if sphere {
                             (
                                 Surface::Sphere {
-                                    center: c,
+                                    frame: geom::Frame::new(c, axis, u_ref),
                                     radius: radius_f,
-                                    axis,
-                                    u_ref,
                                 },
                                 Surface::Sphere {
-                                    center: ivp(c),
+                                    frame: geom::Frame::new(ivp(c), iv3(axis), iv3(u_ref)),
                                     radius: Interval::from_f64(radius_f),
-                                    axis: iv3(axis),
-                                    u_ref: iv3(u_ref),
                                 },
                             )
                         } else {
                             (
                                 Surface::Cylinder {
-                                    origin: c,
-                                    axis,
+                                    frame: geom::Frame::new(c, axis, u_ref),
                                     radius: radius_f,
-                                    u_ref,
                                 },
                                 Surface::Cylinder {
-                                    origin: ivp(c),
-                                    axis: iv3(axis),
+                                    frame: geom::Frame::new(ivp(c), iv3(axis), iv3(u_ref)),
                                     radius: Interval::from_f64(radius_f),
-                                    u_ref: iv3(u_ref),
                                 },
                             )
                         };

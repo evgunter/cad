@@ -63,3 +63,7 @@ pinned frontier before the walls, as before).
 The Probe arm is a pin, not the wanted reading. What is still open, and
 the unbisected candidate merge (PR 6862), moved to the owner:
 `work/sectarms/the-torus-spline-germ-section-has-no-march-lane-at-the-recording-scalar.md`.
+
+## After the close (2026-11-17)
+
+The wall-8 pin held on the 11-16 and 11-17 nightlies, and the two rows then stopped one assertion later: `bracketed bodies at eps 1e-9` / `1e-6`, measured `{}` against `{"lily_leaf_a"}`. That expectation had been stale since PR 6092 (QUAD, 10-30), hidden behind the wall-8 stop. Re-blessed in GREEN's 11-17 PR; QUAD's log has the bisect.

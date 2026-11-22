@@ -662,7 +662,7 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
                 f.rings.is_empty()
                     && matches!(
                         body.face_surface(face),
-                        Some(geom::Surface::Plane { normal, .. }) if normal.z.abs() > 0.5
+                        Some(geom::Surface::Plane { frame, .. }) if frame.axis().z.abs() > 0.5
                     ),
                 "the face named is a cap, the channel in its outer cycle"
             );

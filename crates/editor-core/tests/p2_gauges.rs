@@ -451,15 +451,15 @@ fn values_at_a_composed_parametric_pose_places_its_instance_and_a_parameter_move
 /// until its bundle is written, and the seat written to it places it in
 /// an edit that replays without solving.** Pinned at the identity it sits at the world's origin. The
 /// seat's edits record no frame, a replay with no reach produces the
-/// same document and report, and the whole log saved from empty loads
-/// with no store; the seat then places the top in the world.
+/// same document and report, and the document saves and loads with no
+/// store; the seat then places the top in the world.
 #[test]
 fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_replayably() {
     let p = parts("p2-door");
     let o = p.opts();
     let empty = ProfileDoc::empty(DocumentId::derive("p2-door"), Tol::witness());
-    // Inserted through the door alone: the log below is these edits,
-    // and a fixture insert would write the product beside them.
+    // Inserted through the door alone: a fixture insert would write the
+    // product beside them.
     let insert = |doc: ProfileDoc, node| {
         let applied = apply(
             &doc,
@@ -473,7 +473,7 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
         let id = applied.record.minted.expect("an insert mints its node");
         (applied.doc, id)
     };
-    let (doc, base) = insert(empty.clone(), crate::fixture::mated_instance(p.base));
+    let (doc, base) = insert(empty, crate::fixture::mated_instance(p.base));
     assert_eq!(
         fixture::bundle(&doc, base).len(),
         6,
@@ -489,7 +489,7 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
         )
         .collect();
     let pin = editor_core::Placed::of(&doc, Vec::new(), typed).write(base);
-    let doc = step(doc, pin.clone()).0;
+    let doc = step(doc, pin).0;
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     assert!(offset_of(&doc, base).is_some(), "the base is pinned");
     assert!(
@@ -544,28 +544,11 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
             .doc
     });
     assert!(replayed.bit_eq(&applied), "the replay is the edit");
-    let log: Vec<DocEdit<ProfileProgram>> = [
-        DocEdit::InsertNode {
-            node: Box::new(crate::fixture::mated_instance(p.base)),
-            fresh: Vec::new(),
-        },
-        pin,
-        DocEdit::InsertNode {
-            node: Box::new(fixture::mated_instance(p.top)),
-            fresh: Vec::new(),
-        },
-    ]
-    .into_iter()
-    .chain(seat)
-    .collect();
-    let text = save(&empty, &log, Tol::witness()).expect("the log saves");
-    let loaded = load(&text, Tol::witness()).expect("the log loads with no store");
-    assert!(
-        loaded.doc.bit_eq(&applied),
-        "and replays to the same document"
-    );
+    let text = save(&applied, Tol::witness()).expect("the document saves");
+    let loaded = load(&text, Tol::witness()).expect("the document loads with no store");
+    assert!(loaded.bit_eq(&applied), "and loads to the same document");
     // The seat places: the top on the base, in the world.
-    let poses = solve(&loaded.doc, &o, Tol::witness());
+    let poses = solve(&loaded, &o, Tol::witness());
     assert_eq!(poses.fault(top), None);
     assert_eq!(
         poses.space(top),
@@ -573,10 +556,7 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
         "the seat placed the top"
     );
     close(
-        poses
-            .placement(&loaded.doc, top)
-            .expect("placed")
-            .translation,
+        poses.placement(&loaded, top).expect("placed").translation,
         [1.0, 1.0, BASE_HEIGHT],
         "the top seats on the base",
     );
@@ -740,7 +720,7 @@ fn an_old_file_refuses_and_a_loose_instance_saves_and_loads() {
     let doc = ProfileDoc::empty(DocumentId::derive("p2-file"), Tol::witness());
     let (doc, base) = pinned(doc, p.base, literal([0.0, 5.0, 0.0]), &o);
     let pin = fixture::bundle(&doc, base)[0].id;
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
 
     let registry = doctored(&text, |wire| {
         wire["snapshot"]["placements"] = serde_json::json!({});
@@ -752,6 +732,8 @@ fn an_old_file_refuses_and_a_loose_instance_saves_and_loads() {
         ),
         "a registry table refuses"
     );
+    // A file holds the document's state: an old file's edit log is a
+    // field this build has no name for.
     let logged = doctored(&text, |wire| {
         wire["edits"] = serde_json::json!([{
             "edit": serde_json::to_value(
@@ -764,20 +746,22 @@ fn an_old_file_refuses_and_a_loose_instance_saves_and_loads() {
             "maintenance": [],
         }]);
     });
-    assert!(
-        matches!(
-            load(&logged, Tol::witness()),
-            Err(PersistError::Unreadable { .. })
-        ),
-        "a maintenance-carrying log entry refuses"
-    );
+    match load(&logged, Tol::witness()) {
+        Err(PersistError::Unreadable { detail, .. }) => {
+            assert!(
+                detail.contains("edits"),
+                "the refusal names the field: {detail}"
+            );
+        }
+        other => panic!("an old file's edit log refuses Unreadable, got {other:?}"),
+    }
 
     let own = set_pin(doc, base, None, &o);
-    let text = save(&own, &[], Tol::witness()).expect("an instance in its own space saves");
+    let text = save(&own, Tol::witness()).expect("an instance in its own space saves");
     let loaded = load(&text, Tol::witness()).expect("and loads");
-    assert!(loaded.doc.bit_eq(&own));
+    assert!(loaded.bit_eq(&own));
     assert_eq!(
-        solve(&loaded.doc, &o, Tol::witness()).space(base),
+        solve(&loaded, &o, Tol::witness()).space(base),
         own.node_space(base)
     );
     assert_ne!(own.node_space(base), Some(VarId::WORLD));

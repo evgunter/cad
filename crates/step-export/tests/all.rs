@@ -69,6 +69,8 @@ mod m7_swept_elbow;
 mod onb_wall_normal_census;
 #[path = "orientation_oracle.rs"]
 mod orientation_oracle;
+#[path = "periodic_loop_edge.rs"]
+mod periodic_loop_edge;
 #[path = "r2_probes.rs"]
 mod r2_probes;
 #[path = "rev_probe.rs"]

@@ -510,7 +510,7 @@ fn the_load_door_refuses_a_doubled_shared_unminted_or_missing_section_id() {
             v_degree: Formula::count(1),
         },
     );
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("the fixture saves");
     editor_core::load(&text, Tol::witness()).expect("the fixture loads");
     let ids = section_ids(&doc, loft);
     let theirs = section_ids(&doc, other);

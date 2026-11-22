@@ -186,25 +186,34 @@ fn carrier(rng: &mut fuzz::Rng) -> Curve3<f64> {
 /// itself can cancel far below it.
 fn harmonic_of(carrier: &Curve3<f64>, n: Vec3<f64>) -> (f64, f64, f64, f64) {
     let (center, axis, u, a, b) = match *carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => (center, axis, u_ref, radius, radius),
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => (center, axis, u_ref, semi_u, semi_v),
+        Curve3::Circle(
+            circle @ geom::Circle {
+                frame: carrier_frame_2,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_2.origin(),
+                carrier_frame_2.axis(),
+                carrier_frame_2.u_ref(),
+            );
+            let radius = circle.radius();
+            (center, axis, u_ref, radius, radius)
+        }
+        Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame: carrier_frame_1,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_1.origin(),
+                carrier_frame_1.axis(),
+                carrier_frame_1.u_ref(),
+            );
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            (center, axis, u_ref, semi_u, semi_v)
+        }
         _ => unreachable!("the sweep draws circles and ellipses"),
     };
     let v = axis.cross(u);
@@ -221,7 +230,8 @@ fn harmonic_of(carrier: &Curve3<f64>, n: Vec3<f64>) -> (f64, f64, f64, f64) {
 /// trough stands antipodal to the middle, where `cos h` and the
 /// crest's cosine against the middle tie: both doors must read
 /// `c ± A`, the f64 door to rounding and the certified door as an
-/// enclosure no wider than rounding.
+/// enclosure no wider than rounding (twice the f64 door's bar: its
+/// harmonic takes twice the roundings).
 #[test]
 fn past_a_full_turn_both_doors_read_both_crests() {
     let mut rng = fuzz::start("arc_window::past_a_turn");
@@ -257,8 +267,13 @@ fn past_a_full_turn_both_doors_read_both_crests() {
         );
         let (blo, bhi) =
             conic_arc_extent_along_bracketed(&arc, t0, t1, Point3::origin(), n).unwrap();
+        // The harmonic is read through `Conic::along`'s cancellation-free
+        // form, about twice the roundings of a plain dot, each widening
+        // the enclosure: its width is held to twice the f64 door's bar,
+        // its containment to the bar itself.
+        let wide = 2.0 * tol;
         assert!(
-            blo <= c - a + tol && bhi >= c + a - tol && blo >= c - a - tol && bhi <= c + a + tol,
+            blo <= c - a + tol && bhi >= c + a - tol && blo >= c - a - wide && bhi <= c + a + wide,
             "{arc:?} along {n:?} over [{t0}, {t1}]: certified door [{blo}, {bhi}] vs \
              [{}, {}] — {}",
             c - a,
