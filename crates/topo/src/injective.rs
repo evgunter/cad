@@ -53,8 +53,7 @@
 //! where it is decided. Every point dropped lies within a few ulps, in
 //! the chart, of a line the face's boundary or extent is placed on, or
 //! within a few ulps, in the curve's parameter, of a closed edge's
-//! vertex, or within the band, in metres, of a shared edge's image or
-//! of a corner's other edge:
+//! vertex, or within the band, in metres, of a corner's other edge:
 //!
 //! - **the sheet's overlap** ([`sheets`]): a cell overlapping a copy of
 //!   the face's extent by no more than [`chart_slack`] meets none of it,
@@ -6743,8 +6742,8 @@ mod presentation_rows {
     /// turn, and the other half turn holds none of it. On the
     /// complement's sheet its own lines put it outside its extent
     /// ([`face_extent`]), so it is not presented at any depth: neither
-    /// the whole window's zero-width rectangle `u = π`, read as a sliver
-    /// beside the shared meridian, nor its own half turn, which meets no
+    /// the whole window's zero-width rectangle `u = π` beside the shared
+    /// meridian, nor its own half turn, which meets no
     /// copy of that extent, is read vacuous. Red if either reading is
     /// taken from an extent its lines contradict.
     #[test]
@@ -6787,8 +6786,8 @@ mod presentation_rows {
     /// the other, each with room in its extent `u ∈ [1, 2]`, so the
     /// extent agrees with both ([`face_extent`]). In a cell across them
     /// they clip `u` to `3/2` from both sides. They contradict each other,
-    /// and the rectangle they leave is no sliver beside the shared line.
-    /// Red if the zero width is read vacuous.
+    /// and the rectangle they leave is no thin strip beside the shared
+    /// line to present. Red if the zero width is read vacuous.
     #[test]
     fn a_rectangle_its_own_clips_leave_no_width_refuses() {
         let s = cylinder();
@@ -7245,9 +7244,10 @@ mod presentation_rows {
     /// `v = 1`, its `u = 1` wall shared. A cell across the finger's foot
     /// holds the face's points beside the finger, `0.1` from the shared
     /// wall; its rectangle clipped to the finger is a subset, which the
-    /// coverage test refuses. Read as a sliver first, it was vacuous.
+    /// coverage test refuses. Red if the clipped rectangle is presented
+    /// as the face's part of the cell, or read vacuous.
     #[test]
-    fn a_finger_beside_a_shared_wall_is_not_read_as_a_sliver() {
+    fn a_finger_beside_a_shared_wall_is_not_presented_by_its_clip() {
         let s = cylinder();
         let w = 1.0 + 1e-13;
         let b = Boundary {
@@ -11896,10 +11896,10 @@ mod presentation_rows {
 
     /// **A reflex line corner's thin cell is not read vacuous**
     /// ([`present_line_corner`]): the cell reaching just past the
-    /// parallel onto its non-face side clips to a sliver, but the corner
-    /// is reflex, the face beyond the vertex is in the cell, and the
-    /// reading refuses `Structural` before the sliver is read. Red if the
-    /// sliver is read first.
+    /// parallel onto its non-face side clips to a thin rectangle, but the
+    /// corner is reflex, the face beyond the vertex is in the cell, and
+    /// the reading refuses `Structural`. Red if the thin rectangle is
+    /// presented, or read vacuous.
     #[test]
     fn a_reflex_line_corners_thin_cell_is_not_read_vacuous() {
         let b = wall_corner(-0.5, true, 1.0);
