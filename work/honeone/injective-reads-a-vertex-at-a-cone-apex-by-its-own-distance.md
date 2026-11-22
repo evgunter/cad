@@ -2,8 +2,9 @@
 id: injective-reads-a-vertex-at-a-cone-apex-by-its-own-distance
 kind: issue
 title: The self-intersection door decides a cone piece's vertex at the apex by a reading of its own
-status: open
+status: closed
 opened: 2026-10-30
+closed: 2026-11-22
 ---
 
 
@@ -40,3 +41,8 @@ went with the site. One reading serves both: the quantity was the same
 distance at the same band, under a second name. The apex is spelled
 off the `Surface::Cone` arm, not through `singular_points`, as the
 door holds a lifted `Surface` and no `ChartInverse`.
+
+## Closed (2026-11-22)
+
+Closed by PR 7115, as the note above says: the door calls the one
+reading at the cone's apex, and its own site is retired.

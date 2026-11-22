@@ -2,8 +2,9 @@
 id: a-step-import-row-runs-at-1-65-s-and-two-sweep-rows-at-the-bar-and-red-a-pr-off-their-path
 kind: issue
 title: A step-import fast-set row runs at 1.65 s on the PR gate and two sweep rows sit on the one-second bar, so the gate goes red on a PR that touches none of them
-status: open
+status: closed
 opened: 2026-11-22
+closed: 2026-11-22
 priority: P1
 ---
 
@@ -40,3 +41,9 @@ on main `b99f71c3d`.
 The step-import row is 60% past the bar on both attempts, so it is
 slow, not noisy: make it faster or move it to the slow set. The two
 sweep rows sit on the bar and trip it by noise.
+
+## Closed (2026-11-22)
+
+Answered by two PRs that move the rows to the slow set under the
+0.5 s rule: PR 7120 for the step-import row (on main at `55e8566eeb`),
+and PR 7321 (`embed/step-import-bar`) for the two sweep rows.
