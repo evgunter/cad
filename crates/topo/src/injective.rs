@@ -4225,7 +4225,7 @@ fn coplanar(e: &Rim, o: &Rim) -> bool {
     lifted(e)
         .zip(lifted(o))
         .is_some_and(|(f, g)| one_plane(f, g))
-        || std::env::var_os("OP_OFF").is_none() && stated(e)
+        || std::env::var_os("OP_OFF").is_none() && std::env::var_os("OPS_OFF").is_none() && stated(e)
             .zip(stated(o))
             .is_some_and(|(f, g)| one_stated_plane(&f, &g))
 }
@@ -6365,13 +6365,14 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         return split;
     };
     crate::gate_measure::clear_margin();
-    let opposite = |(psi, on): (Psi, On)| match (
+    let apart = |qx: &Presented<'_>, qy: &Presented<'_>, (psi, on): (Psi, On)| match (
         sign_on(&psi, Some(&on), qx, Some(qy), band),
         sign_on(&psi, Some(&on), qy, Some(qx), band),
     ) {
         (Some(a), Some(b)) => a == flip(b),
         _ => false,
     };
+    let opposite = |sep| apart(qx, qy, sep);
     let corner = qx.corner || qy.corner;
     if planes_through(x, near, qx, qy).into_iter().any(opposite) {
         return Outcome::Certified { corner };
@@ -6379,11 +6380,46 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     if graph_of(x, y, near, qx, qy, band).is_some_and(opposite) {
         return Outcome::Certified { corner };
     }
+    if let Some(alone) = at_end_vertex(near) {
+        let (rx, ry) = (
+            present(x, &[], &alone.vertices, band),
+            present(y, &[], &alone.vertices, band),
+        );
+        if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (&rx, &ry)
+            && planes_through(x, &alone, rx, ry)
+                .into_iter()
+                .any(|sep| apart(rx, ry, sep))
+        {
+            return Outcome::Certified {
+                corner: rx.corner || ry.corner,
+            };
+        }
+    }
     if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
         return Outcome::Cusp { shared };
     }
     crate::gate_measure::set_reason_undecided();
     split
+}
+
+/// **The pair's one shared vertex, as the shared cell alone**, where the
+/// pair is near shared edges too. Each face presented against the vertex
+/// alone has its zero set at the vertex, so a plane through it that signs
+/// the two opposite holds them apart but there. A shared edge's points in
+/// both cells would read both signs, so it signs nothing there. It is the
+/// separator a plane through the edges cannot be: a plane face and a cone
+/// face sharing a ruling to the apex, the cone's cell about the second
+/// ruling the plane's carrier holds through the apex. With no shared edge
+/// the presentations against the vertex are the pair's own, which
+/// [`planes_through`] has read already.
+fn at_end_vertex(near: &Near) -> Option<Near> {
+    match near.vertices.as_slice() {
+        [v] if !near.edges.is_empty() => Some(Near {
+            edges: Vec::new(),
+            vertices: vec![*v],
+        }),
+        _ => None,
+    }
 }
 
 /// **Whether a face's part of a cell pair is refused as unreadable**:
@@ -11887,6 +11923,102 @@ mod presentation_rows {
     /// lifts are held, with the second's `u` turned about the shared axis
     /// (the polar factor's axis leans on `u`), or with its origin an ulp
     /// off. Red if the stated frames are not read, or read by `w` alone.
+    /// Review probe: frames with `v` and `w` stored bit for bit and `u` an
+    /// ulp or a few off, as `Frame::admitted` mints them; their lifted
+    /// axes, and whether `coplanar` reads them one plane.
+    #[test]
+    fn review_probe_u_off_with_v_w_kept() {
+        let mut seed: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = || {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            ((seed >> 11) as f64) / ((1u64 << 53) as f64) * 2.0 - 1.0
+        };
+        let o = Point3::new(0.3, -1.1, 2.9);
+        let (mut pairs, mut disjoint, mut read_one) = (0, 0, 0);
+        for _ in 0..400 {
+            let a = Vec3::new(next(), next(), next()).normalize();
+            let th = 3.0 * next();
+            let (c, s) = (th.cos(), th.sin());
+            let rot = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+            let (u, w) = (rot(Vec3::new(1.0, 0.0, 0.0)), rot(Vec3::new(0.0, 0.0, 1.0)));
+            let Some(f) = geom::Frame::admitted(o, w, u) else { continue };
+            for comp in 0..3 {
+                for k in [-2i32, -1, 1, 2] {
+                    let nudge = |x: f64| {
+                        let mut y = x;
+                        for _ in 0..k.abs() {
+                            y = if k > 0 { y.next_up() } else { y.next_down() };
+                        }
+                        y
+                    };
+                    let mut u2 = u;
+                    match comp {
+                        0 => u2.x = nudge(u.x),
+                        1 => u2.y = nudge(u.y),
+                        _ => u2.z = nudge(u.z),
+                    }
+                    let Some(g) = geom::Frame::admitted(o, w, u2) else { continue };
+                    let (m, n) = (f.motion(), g.motion());
+                    if !(m.v().get().same_bits(n.v().get()) && m.w().get().same_bits(n.w().get())) {
+                        continue;
+                    }
+                    pairs += 1;
+                    let (lf, lg) = (
+                        f.map_scalar(Interval::from_f64).motion().w().get(),
+                        g.map_scalar(Interval::from_f64).motion().w().get(),
+                    );
+                    let apart = |x: Interval, y: Interval| x.hi() < y.lo() || y.hi() < x.lo();
+                    if apart(lf.x, lg.x) || apart(lf.y, lg.y) || apart(lf.z, lg.z) {
+                        disjoint += 1;
+                        if disjoint <= 3 {
+                            eprintln!("DISJOINT w lifts: u {u:?} u2 {u2:?}\n  {lf:?}\n  {lg:?}");
+                        }
+                    }
+                    let circle = |fr: geom::Frame<f64>| Curve3::Circle(geom::Circle::new(fr, 1.0));
+                    let rim = |cv: Curve3<f64>| Rim {
+                        key: edge(1),
+                        arc: Some((cv.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
+                        stated: Some(cv),
+                        ends: [vertex(1), vertex(2)],
+                        uses: Vec::new(),
+                    };
+                    if coplanar(&rim(circle(f)), &rim(circle(g))) {
+                        read_one += 1;
+                    }
+                }
+            }
+        }
+        eprintln!("PAIRS {pairs} with v, w kept and u off; w lifts disjoint {disjoint}; coplanar {read_one}");
+        // The same with `u`, `v` kept and `w` a few ulps off.
+        let (mut pairs, mut disjoint) = (0, 0);
+        for _ in 0..400 {
+            let a = Vec3::new(next(), next(), next()).normalize();
+            let th = 3.0 * next();
+            let (c, s) = (th.cos(), th.sin());
+            let rot = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+            let (u, w) = (rot(Vec3::new(1.0, 0.0, 0.0)), rot(Vec3::new(0.0, 0.0, 1.0)));
+            let Some(f) = geom::Frame::admitted(o, w, u) else { continue };
+            for comp in 0..3 {
+                for step in [-2i32, -1, 1, 2] {
+                    let mut w2 = w;
+                    let nudge = |x: f64| (0..step.abs()).fold(x, |y, _| if step > 0 { y.next_up() } else { y.next_down() });
+                    match comp { 0 => w2.x = nudge(w.x), 1 => w2.y = nudge(w.y), _ => w2.z = nudge(w.z) }
+                    let Some(g) = geom::Frame::admitted(o, w2, u) else { continue };
+                    let (m, n) = (f.motion(), g.motion());
+                    if !(m.u().get().same_bits(n.u().get()) && m.v().get().same_bits(n.v().get())) { continue; }
+                    pairs += 1;
+                    let (lf, lg) = (
+                        f.map_scalar(Interval::from_f64).motion().w().get(),
+                        g.map_scalar(Interval::from_f64).motion().w().get(),
+                    );
+                    let apart = |x: Interval, y: Interval| x.hi() < y.lo() || y.hi() < x.lo();
+                    if apart(lf.x, lg.x) || apart(lf.y, lg.y) || apart(lf.z, lg.z) { disjoint += 1; }
+                }
+            }
+        }
+        eprintln!("PAIRS {pairs} with u, v kept and w off; w lifts disjoint {disjoint}");
+    }
+
     #[test]
     fn two_meridians_stored_one_up_to_signs_are_coplanar_in_a_turned_frame() {
         let o = Point3::new(0.299_999_999_999_999_9, -1.1, 2.9);
@@ -13823,6 +13955,145 @@ mod presentation_rows {
             sign_on(&graph((0.0, 0.4)), Some(&on), &q, None, band()),
             None,
             "the shared edge's far end"
+        );
+    }
+
+    /// **A wedge plane and a cone face sharing a ruling to the apex.** The
+    /// cone `Φ(u, v) = v·(cos u, sin u, 1)/√2` about `z`, its face over
+    /// `u ∈ [0, 3π/2]`, `v ∈ [0, 1]`, its apex `A` a collapsed side, its
+    /// rulings at `u = 0` (edge 1, shared) and `u = 3π/2` (edge 2). The
+    /// plane `y = 0`, charted `(z, x)`, holds the shared ruling, whose
+    /// direction there is `(1, 1)`, and a second edge from `A` along
+    /// `far`; so it holds the cone's ruling at `u = π`, along `(1, −1)`,
+    /// on the cone face. The pair is read in the plane's cell at `A` and
+    /// the cone's at `A` about `u = π`, where they share `A` and are near
+    /// the shared ruling: [`certify_pair`]'s outcome.
+    fn wedge_at_the_apex(far: (f64, f64)) -> Outcome {
+        let s2 = core::f64::consts::FRAC_1_SQRT_2;
+        let pi = core::f64::consts::PI;
+        let p3 = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
+        let line = |a: Point3<Interval>, b: Point3<Interval>| {
+            Some((Curve3::line(a, b - a), (iv0(0.0), iv0(1.0))))
+        };
+        let apex = origin();
+        let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
+        // The plane's second edge ends at `q`, its chart point `far`.
+        let q = p3(far.1, 0.0, far.0);
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        };
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            ),
+        };
+        let mut c = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 2], Axis::U, 0.0, (0.0, 0.0), (0.0, 1.0)),
+                rim(
+                    2,
+                    [1, 3],
+                    Axis::U,
+                    1.5 * pi,
+                    (1.5 * pi, 0.0),
+                    (1.5 * pi, 1.0),
+                ),
+                rim(3, [3, 2], Axis::V, 1.0, (1.5 * pi, 1.0), (0.0, 1.0)),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(3), p1)]),
+            extent: Some([(0.0, 1.5 * pi), (0.0, 1.0)]),
+        };
+        c.edges[0].arc = line(apex, p0);
+        c.edges[0].uses[0].plus = false;
+        c.edges[1].arc = line(apex, p1);
+        let unread = |n: u64, ends: [u64; 2], arc, plus| Rim {
+            key: edge(n),
+            arc,
+            stated: None,
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let w = Boundary {
+            sense: true,
+            edges: vec![
+                unread(1, [1, 2], line(apex, p0), false),
+                unread(4, [1, 4], line(apex, q), true),
+                unread(5, [4, 2], line(q, p0), true),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(4), q)]),
+            extent: None,
+        };
+        let (lw, lc) = (
+            Local {
+                edges: vec![0, 1],
+                vertices: vec![vertex(1)],
+            },
+            Local {
+                edges: vec![0, 1],
+                vertices: vec![vertex(1)],
+            },
+        );
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: vec![vertex(1)],
+        };
+        let piece = |face: FaceKey, surface, boundary, u, v, local| Piece {
+            face,
+            surface,
+            whole: false,
+            boundary,
+            u,
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let a = piece(face(1), &plane, &w, (0.0, 1e-3), (-1e-3, 1e-3), &lw);
+        let b = piece(face(2), &cone, &c, (pi - 3e-3, pi + 3e-3), (0.0, 1e-3), &lc);
+        certify_pair(&a, &b, &near, band())
+    }
+
+    /// **The cone's cell about the second ruling is parted from the wedge
+    /// plane at the apex** ([`wedge_at_the_apex`], the plane's second edge
+    /// the axis): no plane through the shared ruling signs the cone there,
+    /// as the plane's carrier holds the cone's ruling at `u = π`, and the
+    /// plane through the apex alone, both faces presented against it,
+    /// does. Red while [`departure`] reads no separator but those through
+    /// the shared edge, where the pair splits.
+    #[test]
+    fn a_cone_cell_about_the_wedge_planes_second_ruling_is_parted_at_the_apex() {
+        let got = wedge_at_the_apex((1.0, 0.0));
+        assert!(
+            matches!(got, Outcome::Certified { .. }),
+            "the plane through the apex parts the pair: {got:?}"
+        );
+    }
+
+    /// **A wedge plane holding the cone's second ruling is not parted
+    /// from it** ([`wedge_at_the_apex`], the plane's sector run on past
+    /// the axis to `(1, −2)`): the plane face holds the cone's ruling at
+    /// `u = π`, so the two faces meet along it, off the shared cell, and
+    /// no separator through the apex reads them apart. Red if the plane
+    /// through the apex certifies a pair that meets.
+    #[test]
+    fn a_wedge_plane_holding_the_cones_second_ruling_is_not_parted() {
+        let got = wedge_at_the_apex((1.0, -2.0));
+        assert!(
+            !matches!(got, Outcome::Certified { .. }),
+            "the faces meet along the ruling at u = π: {got:?}"
         );
     }
 }
