@@ -8,3 +8,4 @@ tokens (harness subagent_tokens): A first 154829 / total 195800; B first 144846 
 B model: Fable (version per harness: claude-fable-5-2 configured; dispatched 2026-11-22)
 A, C model: Opus 5.5
 B exposure: B read the item's "design fork, in flight" section (written by the orchestrator 2026-11-18), which summarised A's and C's split; it saw no report text. Its first report is not fully independent.
+tokens after round 3 (harness subagent_tokens totals): A 268989; B 208106; C 281492
