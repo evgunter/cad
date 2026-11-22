@@ -851,25 +851,6 @@ pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds
     )
 }
 
-/// **The confirmation direction alone**: each of `contacts` read where
-/// it lies ([`confirm_records`]), and every finding is one record's that
-/// did not confirm: stale, contradicted, in the band, outside a lane.
-/// A deciding door's gate runs this over the records it is handed
-/// (`[topology.tiers]`); it searches for no meeting, so it pays nothing
-/// for the body's other cells.
-pub(crate) fn confirm_only<T: Decide + crate::props::AtRestPolicy + Bounds>(
-    body: &Body<T>,
-    contacts: &ContactRecords,
-    band: Band,
-    region: Option<T::RegionLane>,
-) -> Vec<ValidationError> {
-    let mut errors = Vec::new();
-    if !contacts.is_empty() {
-        confirm_records(body, &snapshot(body), contacts, band, region, &mut errors);
-    }
-    errors
-}
-
 /// The differential door: the census under `strategy`, with every
 /// sweep's examined and accepted pairs recorded. Reference surface
 /// (`sweep-testing`), exactly like [`crate::boolean::sweep_traces`].
@@ -7839,8 +7820,10 @@ enum Recorded {
 // section too, from this banner to the backstop's header, and holds
 // that it decides nothing of its own.
 
+mod confirm_only;
 mod curved;
 mod finding_solids;
+pub(crate) use confirm_only::confirm_only;
 pub(crate) use curved::{EdgeSpan, edge_span};
 pub use finding_solids::census_finding_solids;
 mod depth_gap;

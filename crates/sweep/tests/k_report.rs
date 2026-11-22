@@ -96,7 +96,7 @@ fn run_shape(build: impl FnOnce() -> topo::Body<Probe>) -> Vec<MarginSample> {
     let body = build();
     validate(&body).expect("tier 1");
     validate_closed(&body).expect("tier 2");
-    let body = topo::finish(body, Tol::witness()).expect("tier 3");
+    let body = topo::finish(topo::Built::of(body), Tol::witness()).expect("tier 3");
     mass_properties(
         &body,
         Tol::witness(),

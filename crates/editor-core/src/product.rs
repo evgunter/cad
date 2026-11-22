@@ -1608,6 +1608,17 @@ fn carry_names(
     }
 }
 
+/// Whether two bodies hold the same solid, face, edge and vertex keys:
+/// what two grafts of the same sources in the same order leave.
+fn same_arena<T: geom_core::Real>(a: &Body<T>, b: &Body<T>) -> bool {
+    a.solids().map(|(k, _)| k).eq(b.solids().map(|(k, _)| k))
+        && a.faces().map(|(k, _)| k).eq(b.faces().map(|(k, _)| k))
+        && a.edges().map(|(k, _)| k).eq(b.edges().map(|(k, _)| k))
+        && a.vertex_points()
+            .map(|(k, _)| k)
+            .eq(b.vertex_points().map(|(k, _)| k))
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -1802,15 +1813,4 @@ mod tests {
             format!("product: the body the slot reads: {standing}")
         );
     }
-}
-
-/// Whether two bodies hold the same solid, face, edge and vertex keys:
-/// what two grafts of the same sources in the same order leave.
-fn same_arena<T: geom_core::Real>(a: &Body<T>, b: &Body<T>) -> bool {
-    a.solids().map(|(k, _)| k).eq(b.solids().map(|(k, _)| k))
-        && a.faces().map(|(k, _)| k).eq(b.faces().map(|(k, _)| k))
-        && a.edges().map(|(k, _)| k).eq(b.edges().map(|(k, _)| k))
-        && a.vertex_points()
-            .map(|(k, _)| k)
-            .eq(b.vertex_points().map(|(k, _)| k))
 }

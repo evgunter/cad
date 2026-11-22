@@ -6882,7 +6882,7 @@ mod gate_reads_carried_records {
             .expect("the fixture's face-face record");
         match shell_open(&operand, 0.1, &[open], tol) {
             Err(ShellError::Carry { refusal }) => assert!(
-                matches!(refusal, crate::CarryRefusal::Unread { record: 1, .. }),
+                format!("{refusal:?}").starts_with("Unread { record: 1,"),
                 "{refusal:?}"
             ),
             other => panic!("the shell's carry refuses: {:?}", other.map(|_| ())),
