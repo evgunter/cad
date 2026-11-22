@@ -1724,3 +1724,14 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-22 19:05 — **`co-surface-direction-table-and-spiric-plane-door` dispatched** (cloud session `session_01BJC3B2fEBuFeA4Gp8cwkvT`, branch `germ/co-surface-table`). The implementer arm was drawn and recorded on `analysis/model-compare/germ-2026-11-22`. The brief is arm-free: no Co-Authored-By trailer, no self-naming. The reviewer arm is drawn at review dispatch.
 - 2026-11-22 21:50 — **Friction: runner backlog.** 79 workflow runs are queued repo-wide and 4 are in progress. GERM's far-frame PR 7411 has waited 77 minutes for a runner (run 45067090130, queued since 20:33), and the direction-table PR 7431 about 30 minutes. Queue time counts against neither CI bar (`memories/orchestration-model.md`, "Friction is a finding"); this note records it. There is nothing to combine, since the two PRs are distinct units under review tiers of their own.
 - 2026-11-22 22:52 — **Far-frame (PR 7411) review dispatched** on head `b8ddc4b87b`: single FULL, Opus (an outage unit, no row). Every job is green except the `gate ok` aggregator, which is still waiting on a runner (92 queued repo-wide). The direction-table PR 7431's CI is still entirely queued.
+- 2026-11-22 23:30 — **Far-frame (PR 7411) review adjudicated: APPROVE-WITH-FIXES** (single FULL, Opus).
+  - Demonstrated: the re-posed offset holds against an exact oracle, worst 0.994 u-relative over 20k poses per far, for far 1e4–1e12. No charge was added. The ring-path row is green uncharged at every ε and reds under two mutants.
+  - Fix pass sent to the lane:
+    - **m3**: `plane_roots` mapped fault and contradiction refusals to "says nothing". It must fail loud, with an exhaustive match.
+    - **m1**: a sweep miss, `on_surface::across` rebuilding the stored frame and re-squaring the axis.
+    - Style items.
+  - **Class findings, rows to be filed by the lane:**
+    - **M1**, pre-existing: the plane arm's harmonic amplitude `k.along(n)` cancels against the now-exact `d₀` when the curve is a conic stored far from its arc. 359/2000 wrong-sign definite readings at far 1e6.
+    - `plane_line`'s `origin + dir*mid` formula loss.
+    - The ring path's adjacent readings still charged `slack`.
+  - **m2**: C5 (PR 7301) says the ring path reads its plane roots "through the co-surface arm", but the code reads `cross` directly. The README is not edited. Routed to the direction-table unit (PR 7431) as that table's consumer.
