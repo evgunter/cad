@@ -2,10 +2,12 @@
 id: a-plane-other-than-a-face-cannot-be-authored-in-the-viewer
 kind: issue
 title: No viewer gesture defines a plane other than a picked face, so a split or mirror cannot cut elsewhere
-status: open
+status: review
 opened: 2026-11-03
 priority: P1
 cost: M
+pr: 7382
+branch: formwords/datum
 ---
 
 
