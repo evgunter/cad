@@ -1,6 +1,7 @@
 //! **A chain's shape, with values erased**: the walk over its verbs,
 //! target forms and arc modes, the refusals its step order earns at
-//! every value, and the pieces that structure can draw.
+//! every value, the pieces that structure can draw, and which of their
+//! joints it constructs onto one carrier.
 //!
 //! A replay ([`super::program::replay`]) answers all three at one set
 //! of values, and refuses where those values do; the shape answers what
@@ -362,10 +363,24 @@ impl ShapeFault {
 /// runs fit with length to spare, and may go undrawn at others (a run
 /// that fits `Zero`). Whether the chain replays at any value at all is
 /// geometry's question, not the shape's.
+///
+/// A piece `continues` the one before it where the step order
+/// constructs it onto that piece's carrier: a straight segment departing
+/// along a straight segment's own ray (a straight continuation, a
+/// station kept on a side, a fillet's run in after its leg), every
+/// station of a `circle` or a `circle_split`, and both joints of a
+/// loop of two arcs whose closing `tangent_arc_to` leaves the first
+/// along its own tangent. Every other joint is a corner at generic
+/// values: no verb reads an incoming arc's circle but that closer,
+/// and a `line_to` computes its direction, so two pieces on one carrier
+/// there is a coincidence of values.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChainShape {
     /// The pieces, in the order the chain emits their segments.
     pub pieces: Vec<Piece>,
+    /// Per piece, whether it continues the carrier of the piece before
+    /// it (the last, for the first) by construction.
+    pub continues: Vec<bool>,
     /// The tip's state before each step, in step order.
     pub entered: Vec<TipState>,
 }
@@ -378,12 +393,14 @@ enum Seg {
     Arc,
 }
 
-/// An opened fillet awaiting a straight arrival: its step and the kind
-/// of its run in.
+/// An opened fillet awaiting a straight arrival: its step, the kind
+/// of its run in, and whether the run in departs along the incoming
+/// segment's own ray.
 #[derive(Clone, Copy, Debug)]
 struct Opened {
     step: usize,
     run_in: Seg,
+    along: bool,
 }
 
 /// How a straight arrival ends its fillet: riding on, so the run out
@@ -400,7 +417,12 @@ enum Arrival {
 #[derive(Default)]
 struct Walk {
     pieces: Vec<Piece>,
+    continues: Vec<bool>,
     first: Option<Seg>,
+    last: Option<Seg>,
+    /// Whether the director that bound the tip's heading was
+    /// `.tangent()`, which keeps the incoming segment's own ray.
+    tangent: bool,
     opened: Option<Opened>,
     run_out: Option<usize>,
     /// Whether an `arc_onto(Start)` awaiting its director had a leg
@@ -410,8 +432,9 @@ struct Walk {
 
 impl Walk {
     /// A segment `piece` would be, which a pending run out takes when
-    /// it is straight.
-    fn emit(&mut self, piece: Piece, seg: Seg) {
+    /// it is straight; `along` where it departs along the tip's own
+    /// ray, so a straight segment continues a straight one before it.
+    fn emit(&mut self, piece: Piece, seg: Seg, along: bool) {
         let run_out = self.run_out.take();
         let piece = match run_out {
             Some(step) if seg == Seg::Straight && piece.role != PieceRole::Arc => Piece {
@@ -421,17 +444,54 @@ impl Walk {
             _ => piece,
         };
         self.first.get_or_insert(seg);
+        self.continues
+            .push(along && seg == Seg::Straight && self.last == Some(Seg::Straight));
+        self.last = Some(seg);
         self.pieces.push(piece);
     }
 
-    fn leg(&mut self, step: usize, seg: Seg) {
+    fn leg(&mut self, step: usize, seg: Seg, along: bool) {
         self.emit(
             Piece {
                 step,
                 role: PieceRole::Leg,
             },
             seg,
+            along,
         );
+    }
+
+    /// Whether a step departing from a tip in `state` along its bound
+    /// heading departs along the incoming segment's own ray: a leg end
+    /// with no director, or one `.tangent()` bound.
+    fn along(&self, state: TipState) -> bool {
+        match state {
+            TipState::DirectedPoint => true,
+            TipState::DirectedIncoming => self.tangent,
+            _ => false,
+        }
+    }
+
+    /// **A closing arc that lies on the first piece's circle**, where
+    /// that piece is an arc and the only one drawn before it: an arc
+    /// back to the entry tangent to that arc at the tip (`rounds`, a
+    /// `tangent_arc_to` off its own ray) is the one circle through those
+    /// two points with that tangent, so both of the loop's joints
+    /// continue it. (`arc_onto(StartArriving)` would be too, and departs
+    /// tangent to that arc, which its junction check refuses.)
+    fn close_on_the_first_circle(&mut self, rounds: bool) {
+        if rounds && self.first == Some(Seg::Arc) && self.pieces.len() == 2 {
+            self.continues.fill(true);
+        }
+    }
+
+    /// A fillet opened at a tip in `state`.
+    fn open(&mut self, step: usize, run_in: Seg, state: TipState) {
+        self.opened = Some(Opened {
+            step,
+            run_in,
+            along: self.along(state),
+        });
     }
 
     fn drawn(&self) -> bool {
@@ -441,22 +501,28 @@ impl Walk {
     /// The opened fillet's run in and arc, and its run out where the
     /// arrival rides on.
     fn resolve(&mut self, arrival: Arrival) {
-        let Some(Opened { step, run_in }) = self.opened.take() else {
+        let Some(Opened {
+            step,
+            run_in,
+            along,
+        }) = self.opened.take()
+        else {
             return;
         };
-        self.fillet_runs(step, run_in);
+        self.fillet_runs(step, run_in, along);
         if arrival == Arrival::Continues {
             self.run_out = Some(step);
         }
     }
 
-    fn fillet_runs(&mut self, step: usize, run_in: Seg) {
+    fn fillet_runs(&mut self, step: usize, run_in: Seg, along: bool) {
         self.emit(
             Piece {
                 step,
                 role: PieceRole::RunIn,
             },
             run_in,
+            along,
         );
         self.emit(
             Piece {
@@ -464,19 +530,22 @@ impl Walk {
                 role: PieceRole::Arc,
             },
             Seg::Arc,
+            false,
         );
     }
 
-    /// A fillet whose arrival arc the step authors: its three pieces,
-    /// the run out that arc.
-    fn authored_arrival(&mut self, step: usize, run_in: Seg) {
-        self.fillet_runs(step, run_in);
+    /// A fillet whose arrival arc the step authors, opened at a tip in
+    /// `state`: its three pieces, the run out that arc.
+    fn authored_arrival(&mut self, step: usize, run_in: Seg, state: TipState) {
+        let along = self.along(state);
+        self.fillet_runs(step, run_in, along);
         self.emit(
             Piece {
                 step,
                 role: PieceRole::RunOut,
             },
             Seg::Arc,
+            false,
         );
     }
 
@@ -540,8 +609,12 @@ fn admitted(state: TipState, step: StepForm) -> bool {
 /// there in the same class.
 pub fn chain_shape(steps: &[StepForm]) -> Result<ChainShape, ShapeFault> {
     let mut entered = Vec::with_capacity(steps.len());
-    let pieces = walk_chain(steps, &mut entered)?;
-    Ok(ChainShape { pieces, entered })
+    let (pieces, continues) = walk_chain(steps, &mut entered)?;
+    Ok(ChainShape {
+        pieces,
+        continues,
+        entered,
+    })
 }
 
 /// **The tip's state before each step of `steps`, as far as
@@ -560,7 +633,11 @@ pub fn chain_states(steps: &[StepForm]) -> Vec<TipState> {
     entered
 }
 
-fn walk_chain(steps: &[StepForm], entered: &mut Vec<TipState>) -> Result<Vec<Piece>, ShapeFault> {
+/// The pieces a closed chain draws, and per piece whether it continues
+/// the carrier before it.
+type Drawn = (Vec<Piece>, Vec<bool>);
+
+fn walk_chain(steps: &[StepForm], entered: &mut Vec<TipState>) -> Result<Drawn, ShapeFault> {
     use TipState as S;
     let mut walk = Walk::default();
     let mut state = S::Entry;
@@ -596,7 +673,10 @@ fn walk_chain(steps: &[StepForm], entered: &mut Vec<TipState>) -> Result<Vec<Pie
                     walk.resolve(Arrival::Continues);
                     S::DirectedPlain
                 }
-                S::DirectedPoint => S::DirectedIncoming,
+                S::DirectedPoint => {
+                    walk.tangent = false;
+                    S::DirectedIncoming
+                }
                 S::RadiusArrival => S::RadiusArrivalDir,
                 S::ViaArrivalStart => S::Closed,
                 S::ArcOntoStart => {
@@ -605,20 +685,25 @@ fn walk_chain(steps: &[StepForm], entered: &mut Vec<TipState>) -> Result<Vec<Pie
                 }
                 _ => S::DirectedPoint,
             },
-            (_, StepForm::Tangent | StepForm::Cusp | StepForm::Turn) => S::DirectedIncoming,
+            (_, StepForm::Tangent | StepForm::Cusp | StepForm::Turn) => {
+                walk.tangent = step == StepForm::Tangent;
+                S::DirectedIncoming
+            }
             (_, StepForm::Line) => {
-                walk.leg(i, Seg::Straight);
+                let along = walk.along(state);
+                walk.leg(i, Seg::Straight, along);
                 S::DirectedPoint
             }
             (_, StepForm::LineTo(target) | StepForm::ContinueTo(target)) => {
                 walk.resolve(Arrival::Continues);
                 walk.classified_close(target, Seg::Straight)
                     .map_err(order)?;
-                walk.leg(i, Seg::Straight);
+                let along = matches!(step, StepForm::ContinueTo(_));
+                walk.leg(i, Seg::Straight, along);
                 reaches(target, S::DirectedPoint)
             }
             (S::DirectedPlain | S::DirectedIncoming, StepForm::ArcTo(_)) => {
-                walk.leg(i, Seg::Arc);
+                walk.leg(i, Seg::Arc, false);
                 S::DirectedPoint
             }
             (_, StepForm::ArcTo(spec)) => {
@@ -629,12 +714,14 @@ fn walk_chain(steps: &[StepForm], entered: &mut Vec<TipState>) -> Result<Vec<Pie
                 };
                 order::arc_leg_leaves_no_open_fillet(walk.opened.is_some(), site).map_err(order)?;
                 walk.classified_close(target, Seg::Arc).map_err(order)?;
-                walk.leg(i, Seg::Arc);
+                walk.leg(i, Seg::Arc, false);
                 reaches(target, S::DirectedPoint)
             }
             (_, StepForm::TangentArcTo(target)) => {
                 walk.classified_close(target, Seg::Arc).map_err(order)?;
-                walk.leg(i, Seg::Arc);
+                let rounds = target != TargetKind::Point && walk.along(state);
+                walk.leg(i, Seg::Arc, false);
+                walk.close_on_the_first_circle(rounds);
                 reaches(target, S::DirectedPoint)
             }
             (_, StepForm::ArcOnto(target)) => {
@@ -644,48 +731,42 @@ fn walk_chain(steps: &[StepForm], entered: &mut Vec<TipState>) -> Result<Vec<Pie
                 walk.onto_start_drawn = drawn;
                 match target {
                     TargetKind::Point => {
-                        walk.leg(i, Seg::Arc);
+                        walk.leg(i, Seg::Arc, false);
                         S::ArcOnto
                     }
                     TargetKind::Start => {
-                        walk.leg(i, Seg::Arc);
+                        walk.leg(i, Seg::Arc, false);
                         S::ArcOntoStart
                     }
                     TargetKind::StartArriving => {
                         order::a_closing_arc_leaves_its_entry(drawn).map_err(order)?;
-                        walk.leg(i, Seg::Arc);
+                        walk.leg(i, Seg::Arc, false);
                         S::Closed
                     }
                 }
             }
             (_, StepForm::Fillet) => {
-                walk.opened = Some(Opened {
-                    step: i,
-                    run_in: Seg::Straight,
-                });
+                walk.open(i, Seg::Straight, state);
                 S::Open
             }
             (_, StepForm::ArcFillet(_)) => {
                 fused_leaves_no_open_fillet(&walk, state).map_err(order)?;
-                walk.opened = Some(Opened {
-                    step: i,
-                    run_in: Seg::Arc,
-                });
+                walk.open(i, Seg::Arc, state);
                 S::Open
             }
             (_, StepForm::FilletArc(spec)) => {
-                walk.authored_arrival(i, Seg::Straight);
+                walk.authored_arrival(i, Seg::Straight, state);
                 arrival_lands(spec)
             }
             (_, StepForm::ArcFilletArc(_, spec2)) => {
                 fused_leaves_no_open_fillet(&walk, state).map_err(order)?;
-                walk.authored_arrival(i, Seg::Arc);
+                walk.authored_arrival(i, Seg::Arc, state);
                 arrival_lands(spec2)
             }
             (_, StepForm::FarEndTo) => {
                 order::far_end_ends_an_open_fillet(walk.opened.is_some()).map_err(order)?;
                 walk.resolve(Arrival::Continues);
-                walk.leg(i, Seg::Straight);
+                walk.leg(i, Seg::Straight, false);
                 S::DirectedPoint
             }
             (_, StepForm::CloseTo) => {
@@ -696,10 +777,11 @@ fn walk_chain(steps: &[StepForm], entered: &mut Vec<TipState>) -> Result<Vec<Pie
             }
             (_, StepForm::CircleSplit { n }) => {
                 order::circle_split_count(n).map_err(order)?;
-                carrier(&mut walk, i, carrier_pieces(Verb::CircleSplit, n))
+                carrier(&mut walk, i, carrier_pieces(Verb::CircleSplit, n), true)
             }
-            (_, StepForm::Circle | StepForm::Rectangle) => {
-                carrier(&mut walk, i, carrier_pieces(step.verb(), 0))
+            (_, StepForm::Circle) => carrier(&mut walk, i, carrier_pieces(Verb::Circle, 0), true),
+            (_, StepForm::Rectangle) => {
+                carrier(&mut walk, i, carrier_pieces(Verb::Rectangle, 0), false)
             }
         };
     }
@@ -710,7 +792,7 @@ fn walk_chain(steps: &[StepForm], entered: &mut Vec<TipState>) -> Result<Vec<Pie
             kind: ShapeFaultKind::Lattice { verb: None },
         });
     }
-    Ok(walk.pieces)
+    Ok((walk.pieces, walk.continues))
 }
 
 /// A fused verb's incoming arc from a plain point, which is an open
@@ -723,12 +805,16 @@ fn fused_leaves_no_open_fillet(walk: &Walk, state: TipState) -> Result<(), Order
 }
 
 /// A complete-loop form's `pieces`, drawn whole: the chain is closed.
-fn carrier(walk: &mut Walk, step: usize, pieces: u32) -> TipState {
+/// Where `one_carrier`, the form is one circle cut at stations (a
+/// `circle`'s, a `circle_split`'s), so each joint of two pieces or more
+/// continues it.
+fn carrier(walk: &mut Walk, step: usize, pieces: u32, one_carrier: bool) -> TipState {
     for k in 0..pieces {
         walk.pieces.push(Piece {
             step,
             role: PieceRole::Piece(k),
         });
+        walk.continues.push(one_carrier && pieces >= 2);
     }
     TipState::Closed
 }

@@ -160,7 +160,7 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
     // a one-carrier pair once its census is read.
     let mut found: Vec<Option<GluedPair<T>>> = Vec::new();
     let mut ones = Vec::new();
-    for (fa, fb) in overlapping_pairs(a, b, |_| true, band)? {
+    for (fa, fb) in overlapping_pairs(GLUE_PAIRS, a, b, |_| true, band)? {
         if declared(fa, fb) {
             continue;
         }
@@ -299,13 +299,15 @@ fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
 
 /// **The cross pairs whose face boxes overlap**: each face of `a` against
 /// each face of `b` that `keep` admits, in `a`'s face order and `b`'s
-/// within each — the candidates both of this door's scans read.
+/// within each — the candidates both of this door's scans read, marked
+/// under the caller's `site`.
 ///
 /// # Errors
 ///
 /// A face box's own refusal; [`BooleanError::ClassificationInvariant`]
 /// where the face tree returns an index past its input.
 pub(super) fn overlapping_pairs<T: Decide + Bounds>(
+    site: geom_core::k_stats::QuerySite,
     a: &Body<T>,
     b: &Body<T>,
     keep: impl Fn(&geom::Surface<T>) -> bool,
@@ -318,8 +320,24 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
             .map(|face| Ok((face.key(), boxes::face_box(body, face.key(), pad, band))))
             .collect()
     };
-    pairs_among(&boxed(a)?, &boxed(b)?)
+    pairs_among(site, &boxed(a)?, &boxed(b)?)
 }
+
+/// [`decided_glue`]'s face pairs.
+const GLUE_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "bool_glue_pairs",
+    "the face pairs whose boxes meet, read for glue",
+);
+/// [`section_door`]'s face pairs the section reads.
+const SECTION_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "bool_section_pairs",
+    "the face pairs whose boxes meet, read for their sections",
+);
+/// [`section_door`]'s plane and cone pairs.
+const PLANE_CONE_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "bool_plane_cone_pairs",
+    "the plane and cone face pairs whose boxes meet",
+);
 
 /// **The cross pairs among two lists of face boxes whose boxes
 /// overlap**, in `a`'s order and `b`'s within each.
@@ -329,6 +347,7 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
 /// [`BooleanError::ClassificationInvariant`] where the face tree returns
 /// an index past its input.
 fn pairs_among(
+    site: geom_core::k_stats::QuerySite,
     a: &[(FaceKey, bvh::Aabb)],
     b: &[(FaceKey, bvh::Aabb)],
 ) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
@@ -336,7 +355,7 @@ fn pairs_among(
     let tree = bvh::Bvh::build(&b_boxes);
     let mut out = Vec::new();
     for &(fa, box_a) in a {
-        for i in tree.overlapping(&box_a) {
+        for i in tree.overlapping(site, &box_a) {
             let &(fb, _) = b.get(i).ok_or(BooleanError::ClassificationInvariant {
                 what: "the glue door: the face tree returned an index past its input",
             })?;
@@ -458,7 +477,11 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
     };
     let mut table = SectionTable::reader(lane, region, band);
     let mut rows = Vec::new();
-    for (fa, fb) in pairs_among(&served(a, &a_boxes, b), &served(b, &b_boxes, a))? {
+    for (fa, fb) in pairs_among(
+        SECTION_PAIRS,
+        &served(a, &a_boxes, b),
+        &served(b, &b_boxes, a),
+    )? {
         let ((ka, sa), (kb, sb)) = (surface(a, fa), surface(b, fb));
         if !pair_read(&sa, &sb) {
             continue;
@@ -497,7 +520,7 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
     };
     let mut met: std::collections::BTreeMap<_, (geom::Surface<T>, geom::Surface<T>, Vec<_>)> =
         std::collections::BTreeMap::new();
-    for (fa, fb) in pairs_among(&kept(a, &a_boxes), &kept(b, &b_boxes))? {
+    for (fa, fb) in pairs_among(PLANE_CONE_PAIRS, &kept(a, &a_boxes), &kept(b, &b_boxes))? {
         let ((ka, sa), (kb, sb)) = (surface(a, fa), surface(b, fb));
         if super::join::plane_and_cone(&sa, &sb).is_none() {
             continue;

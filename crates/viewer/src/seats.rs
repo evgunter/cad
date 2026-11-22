@@ -137,10 +137,10 @@ vocabulary! {
         PartInstance,
         /// The body a mirror reflects.
         MirrorBody,
-        /// A clearance requirement's first seat, held as a body.
-        ClearedFirst,
+        /// An assertion's first seat, held as a body.
+        AssertedFirst,
         /// Its second seat, held as a body.
-        ClearedSecond,
+        AssertedSecond,
     }
 
     /// Every seat, so a sweep over the vocabulary cannot silently
@@ -174,8 +174,8 @@ impl Seat {
             | Self::SplitTarget
             | Self::PatternBody
             | Self::MirrorBody
-            | Self::ClearedFirst
-            | Self::ClearedSecond => NodeKindWanted::Body,
+            | Self::AssertedFirst
+            | Self::AssertedSecond => NodeKindWanted::Body,
         }
     }
 
@@ -190,8 +190,8 @@ impl Seat {
             | Self::PatternBody
             | Self::PartInstance
             | Self::MirrorBody
-            | Self::ClearedFirst
-            | Self::ClearedSecond => false,
+            | Self::AssertedFirst
+            | Self::AssertedSecond => false,
         }
     }
 
@@ -205,8 +205,8 @@ impl Seat {
             Self::PatternBody => "patterned body",
             Self::PartInstance => "pattern to project",
             Self::MirrorBody => "mirrored body",
-            Self::ClearedFirst => FaceRole::ClearedFirst.name(),
-            Self::ClearedSecond => FaceRole::ClearedSecond.name(),
+            Self::AssertedFirst => FaceRole::AssertedFirst.name(),
+            Self::AssertedSecond => FaceRole::AssertedSecond.name(),
         }
     }
 }
@@ -220,11 +220,11 @@ pub enum FaceRole {
     /// The plane a split cuts along: a face, or a plane the document
     /// defines.
     SplitPlane,
-    /// A clearance requirement's first seat, held as a face — the
-    /// seat [`Seat::ClearedFirst`] holds as a body, and named as it is.
-    ClearedFirst,
+    /// An assertion's first seat, held as a face — the
+    /// seat [`Seat::AssertedFirst`] holds as a body, and named as it is.
+    AssertedFirst,
     /// Its second seat, held as a face.
-    ClearedSecond,
+    AssertedSecond,
 }
 
 impl FaceRole {
@@ -233,8 +233,8 @@ impl FaceRole {
         match self {
             Self::MirrorPlane => "mirror plane",
             Self::SplitPlane => "split plane",
-            Self::ClearedFirst => "first seat",
-            Self::ClearedSecond => "second seat",
+            Self::AssertedFirst => "first seat",
+            Self::AssertedSecond => "second seat",
         }
     }
 }

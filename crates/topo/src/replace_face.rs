@@ -774,15 +774,15 @@ pub enum ReplaceFaceError<T: Real> {
     /// certify.** A cone wall's section with a plane parallel to the axis
     /// that stands off the moved apex is a hyperbola, minted as a
     /// rational-quadratic NURBS arc (`geom_brep`'s C1) between the moved
-    /// corners. Its uniqueness tube has no cone enclosure, so it rests
-    /// only where the plane×cone section states the bounds that retire
-    /// the tube (C2); an arc whose pose states none
+    /// corners. It rests where the plane×cone section states the bounds
+    /// that retire its uniqueness tube (C2), or where that tube
+    /// certifies; an arc whose pose states none
     /// (`geom_brep::intersect::Unstated`: its stretch at the apex's
     /// height, the overlap not clear of its tube, no section point
-    /// certified beside it, or a box too wide for any of these) is
-    /// refused here, read off the re-chart's refusal of that edge
-    /// (`EulerOpError::RechartFalsifies` with the cone's
-    /// `NoTubeEnclosure`).
+    /// certified beside it, or a box too wide for any of these) and whose
+    /// tube refuses is refused here, read off the re-chart's refusal of
+    /// that edge (`EulerOpError::RechartFalsifies` with the tube's
+    /// refusal).
     ///
     /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     TogetherConicArc {
@@ -1139,8 +1139,8 @@ impl<T: Real> ReplaceFaceError<T> {
             Self::TogetherConicArc { conic, .. } => write!(
                 f,
                 "an edge of the body would follow the offset along {}, where the moved flat \
-                 face cuts the cone off its axis, and the section states no bound that \
-                 certifies that arc there. {NOT_YET_ENDING}",
+                 face cuts the cone off its axis, and neither the section's bounds nor the \
+                 uniqueness tube certify that arc there. {NOT_YET_ENDING}",
                 conic.named()
             ),
             Self::DegenerateTorus { refusal, .. } => write!(f, "{}", read_at(refusal, at)),
