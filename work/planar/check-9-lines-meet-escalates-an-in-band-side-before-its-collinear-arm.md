@@ -1,12 +1,13 @@
 ---
 id: check-9-lines-meet-escalates-an-in-band-side-before-its-collinear-arm
 kind: issue
-title: "Check 9's lines_meet escalates an in-band side before reading a collinear pair, an order profile::seg dropped; reachable only in a sliver, with the same verdict"
+title: Check 9's lines_meet escalates an in-band side before reading a collinear pair, an order profile::seg dropped; reachable only in a sliver, with the same verdict
 status: open
 opened: 2026-10-21
 priority: P3
 cost: E
 refs: [5542, check-9-lines-meet-reads-each-end-against-the-other-line-before-the-overlap]
+parent: check-9-reads-ring-against-outer-through-the-plane-instance
 ---
 
 ## What
@@ -55,3 +56,9 @@ edge's ends within the band's zero of the other's carrier put the whole
 edge within it, so the overlap along that carrier decides the pair.
 Land it so that the two doors stay one reading. PR 5542 left check 9's
 order alone because the only reach is that sliver, with the same verdict.
+
+## Claimed by PLANAR (2026-11-22)
+
+Moved from RESTFRONT by `git mv` when PROFILE cut Ev's plane ruling (PR 7290)
+into PLANAR's units (`work/planar/plan.md`). Its fix is part of
+`check-9-reads-ring-against-outer-through-the-plane-instance` (`parent:`), which closes it; build nothing for it on its own.

@@ -285,10 +285,12 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    radius, at ±R·cot α from the apex (cone_cylinder_section) — no \
                    tangency sub-case exists, a coaxial cylinder always cuts \
                    transversally; a tilted cylinder and a parallel-but-OFFSET one \
-                   both cut a QUARTIC and route to the general rung, whose \
-                   cone×cylinder arm has not retired — the uniqueness tube has no \
-                   cone arm, so its certificate, not its trace, is what is missing \
-                   (arms retire one at a time, each with its proof)",
+                   both cut a QUARTIC, classified by the section value \
+                   (geom_brep::pair_section) on the sweep along the cone's rulings \
+                   and not marched: the general rung has no march door for the pair, \
+                   and the uniqueness tube has no cone arm, so its certificate, not its \
+                   trace, is what is missing (arms retire one at a time, each with its \
+                   proof)",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ³ implicit-pair
         // march. Both operands' C9 composites convert to meters
@@ -314,9 +316,11 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the uniqueness \
-                   tube's cone arm; the common-apex line-pair special case is \
-                   not classified here",
+                   trace shape (the general-rung marcher): classified by the section \
+                   value (geom_brep::pair_section) on the sweep along one cone's \
+                   rulings, and not marched, blocked on the uniqueness tube's cone arm \
+                   and a march door for the pair; the common-apex line-pair special \
+                   case is not classified here",
         },
         (Cone, Sphere) | (Sphere, Cone) => PairRoute {
             rung: Rung::General,
