@@ -771,8 +771,8 @@ impl Real for Interval {
     fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
         let plain = || (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2];
         let in_range = |x: &f64| *x == 0.0 || (2f64.powi(-450)..=2f64.powi(450)).contains(&x.abs());
-        let Some([q, o, n]) = stated_points(&[q, o, n])
-            .filter(|a| a.iter().flatten().all(in_range))
+        let Some([q, o, n]) =
+            stated_points(&[q, o, n]).filter(|a| a.iter().flatten().all(in_range))
         else {
             return plain();
         };

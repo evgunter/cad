@@ -2889,6 +2889,64 @@ mod tests {
         assert_eq!(f64::copysign(3.0, f64::NAN).abs(), 3.0);
     }
 
+    proptest! {
+        /// **A plane's offset read across a far stored origin keeps its
+        /// own digits** ([`Real::difference_dot`]): `q` near the world
+        /// origin, `o` on a plane through it a megametre and more along
+        /// that plane. The `f64` value is within an ulp or two of the
+        /// exact sum and `Dot2`'s second-order term, where the plain
+        /// formula rounds at `ulp(far)`; the
+        /// enclosure stated at points holds the exact sum within a few
+        /// ulps of it.
+        #[test]
+        fn a_far_origins_offset_is_read_to_its_own_digits(
+            far in 1e3f64..1e9,
+            c in prop::array::uniform3(-10.0f64..10.0),
+            n in prop::array::uniform3(-1.0f64..1.0),
+            t in prop::array::uniform3(-1.0f64..1.0),
+            gap in -1.0f64..1.0,
+        ) {
+            use crate::exact::Expansion;
+            let n = crate::Vec3::new(n[0], n[1], n[2]);
+            prop_assume!(n.norm() > 0.1);
+            let n = n.normalize();
+            let w = n.cross(crate::Vec3::new(t[0], t[1], t[2]));
+            prop_assume!(w.norm() > 0.1);
+            let w = w.normalize();
+            let q = crate::Point3::new(c[0], c[1], c[2]);
+            let o = q - n * gap + w * far;
+            let (q, o, n) = ([q.x, q.y, q.z], [o.x, o.y, o.z], [n.x, n.y, n.z]);
+            let mut e = Expansion::default();
+            for i in 0..3 {
+                e.add_expansion(&Expansion::product(q[i], n[i]));
+                e.add_expansion(&Expansion::product(-o[i], n[i]));
+            }
+            let exact: f64 = e.components().iter().sum();
+            let ulp = |x: f64| f64::EPSILON * x.abs().max(f64::MIN_POSITIVE);
+            let got = f64::difference_dot(q, o, n);
+            // `Dot2`'s bound: the result's rounding and a second-order term.
+            let terms: f64 = (0..3).map(|i| (n[i] * (q[i] - o[i])).abs()).sum();
+            let u = f64::EPSILON / 2.0;
+            prop_assert!(
+                (got - exact).abs() <= 2.0 * ulp(exact) + 16.0 * u * u * terms,
+                "f64: {got:e} against the exact {exact:e} (far {far:e})"
+            );
+            let point = |a: [f64; 3]| a.map(crate::Interval::from_f64);
+            let enclosed = crate::Interval::difference_dot(point(q), point(o), point(n));
+            // `exact` is the expansion's sum rounded, so the true sum is
+            // within an ulp of it.
+            prop_assert!(
+                enclosed.lo() <= exact + ulp(exact) && exact - ulp(exact) <= enclosed.hi(),
+                "interval: [{:e}, {:e}] misses the exact {exact:e}", enclosed.lo(), enclosed.hi()
+            );
+            prop_assert!(
+                enclosed.hi() - enclosed.lo() <= 8.0 * ulp(exact),
+                "interval: [{:e}, {:e}] is wider than a few ulps of {exact:e}",
+                enclosed.lo(), enclosed.hi()
+            );
+        }
+    }
+
     /// The door at `f64`: a total order, sign-blind at the tie, and
     /// poisoned only by the decision.
     #[test]

@@ -802,6 +802,8 @@ pub(crate) struct Oval<T: Real> {
     major: T,
     minor: T,
     offset: T,
+    /// Its plane's frame: the axis the spiric's `u_ref`, kept bit for bit.
+    plane: geom::Frame<T>,
     span: (T, T),
     /// The side of its plane's two loops the oval's own lies on; `None`
     /// only where a row strips it to show what it guards.
@@ -967,15 +969,13 @@ impl<T: Decide> LoopArc<T> {
     fn plane(&self) -> Option<SectionArc<T>> {
         match self {
             Self::Conic(c) => Some(SectionArc {
-                origin: c.conic().frame().origin(),
-                normal: c.conic().frame().axis(),
+                plane: *c.conic().frame(),
                 span: c.span,
                 speed: c.conic().speed_lo(),
                 own: c.own,
             }),
             &Self::Oval(o) => Some(SectionArc {
-                origin: o.centre + o.u_ref * o.offset,
-                normal: o.u_ref,
+                plane: o.plane,
                 span: o.span,
                 speed: o.minor,
                 own: o.own,
@@ -1022,8 +1022,7 @@ impl<T: Decide> Oval<T> {
 /// levered by ([`LoopArc::plane`]).
 #[derive(Clone, Copy)]
 struct SectionArc<T: Real> {
-    origin: Point3<T>,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     span: (T, T),
     speed: T,
     own: Option<ArcLoop<T>>,
@@ -1174,6 +1173,11 @@ impl<T: Decide> Quadric<T> {
             major: major_radius,
             minor: minor_radius,
             offset,
+            plane: geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+                center + u_ref * offset,
+                spiric_frame.u_ref_unit(),
+                axis,
+            )),
             span: (t0.min(t1), t0.max(t1)),
             own: Some(ArcLoop {
                 split: LoopSplit::Side {
@@ -1446,22 +1450,20 @@ pub(crate) fn path_parity<T: Decide>(
                     // A conic decided apart from the piece's circle misses
                     // it whatever the planes ([`coplanar_apart`]), so it
                     // answers past a plane meeting read in band.
-                    let roots =
-                        match plane_roots(&p, (sec.origin, sec.normal), arrival, band) {
-                            Ok(roots) => roots,
-                            Err(diag) => {
-                                return match arc {
-                                    LoopArc::Conic(conic)
-                                        if !arrival
-                                            && coplanar_apart(&p, conic, slack, band)
-                                                == Ok(true) =>
-                                    {
-                                        Ok(Some(flip))
-                                    }
-                                    _ => Err(diag),
-                                };
-                            }
-                        };
+                    let roots = match plane_roots(&p, &sec.plane, arrival, band) {
+                        Ok(roots) => roots,
+                        Err(diag) => {
+                            return match arc {
+                                LoopArc::Conic(conic)
+                                    if !arrival
+                                        && coplanar_apart(&p, conic, slack, band) == Ok(true) =>
+                                {
+                                    Ok(Some(flip))
+                                }
+                                _ => Err(diag),
+                            };
+                        }
+                    };
                     let Some(roots) = roots else {
                         if let LoopArc::Conic(conic) = arc
                             && !arrival
@@ -1518,8 +1520,12 @@ pub(crate) fn path_parity<T: Decide>(
                 ) => {
                     let e = geom::Line { origin: c, dir: a }.offset(p.circle.frame.origin());
                     let e = e.normalize();
-                    let Some(roots) =
-                        plane_roots(&p, (p.circle.frame.origin(), e), arrival, band)?
+                    let Some(roots) = plane_roots(
+                        &p,
+                        &geom::Frame::new(p.circle.frame.origin(), e, e.orthonormal_basis().0),
+                        arrival,
+                        band,
+                    )?
                     else {
                         return Ok(None);
                     };
@@ -1606,7 +1612,7 @@ pub(crate) fn path_parity<T: Decide>(
                         return Ok(Some(flip));
                     }
                     let sec = section(arc);
-                    let offset = |x: Point3<T>| geom::plane_offset(sec.origin, sec.normal, x);
+                    let offset = |x: Point3<T>| sec.plane.height(x);
                     let (d0, d1) = (offset(from), offset(to));
                     let side =
                         |d| decide_m("split_ring_path_segment_side", Margin::of(charge(d, slack)));
@@ -2149,8 +2155,11 @@ fn coplanar_apart<T: Decide>(
     )? == Sign::Positive)
 }
 
-/// **Where the circle piece `p` meets the plane through `o` with unit
-/// normal `n`**: the crossing reading's meetings
+/// **Where the circle piece `p` meets the plane of `plane`, with unit
+/// normal `n`**, the plane its loop arc lies in (C5's direction table:
+/// the piece is read across the arc's plane, which is transversal to the
+/// surface all along the arc; a crest's, which touches it, is read across
+/// the cylinder instead): the crossing reading's meetings
 /// ([`geom_brep::curve_face::cross()`]) on the piece's span, each with
 /// the slope `|n̂·τ̂|` the piece crosses the plane at. A meeting inside
 /// the span is its parameter and reads inside the piece; one at an end
@@ -2162,17 +2171,16 @@ fn coplanar_apart<T: Decide>(
 /// the reading orders them, with no decision of its own.
 fn plane_roots<T: Decide>(
     p: &CircleArc<T>,
-    (o, n): (Point3<T>, Vec3<T>),
+    plane: &geom::Frame<T>,
     arrival: bool,
     band: Band,
-) -> Result<Option<Vec<(InSpan<T>, T)>>, Indeterminate> {
+) -> Result<Option<Vec<Crossing<T>>>, Indeterminate> {
     use geom_brep::curve_face::{CrossWhy, OnSpan, Pose, PoseRefusal};
     use geom_brep::curve_pair::MeetFault;
     let carrier = p.carrier();
     let span = geom_brep::curve_pair::Span::new(&carrier, p.span);
-    let plane = geom::Surface::Plane {
-        frame: geom::Frame::new(o, n, n.orthonormal_basis().0),
-    };
+    let n = plane.axis();
+    let plane = geom::Surface::Plane { frame: *plane };
     let meetings = match geom_brep::curve_face::cross(&span, &plane, band) {
         Ok(read) => match read.pose {
             Pose::Apart | Pose::Isolated(_) => read.meetings,
@@ -2226,6 +2234,9 @@ fn plane_roots<T: Decide>(
             .collect(),
     ))
 }
+
+/// A meeting [`plane_roots`] read, with the slope the piece crosses at.
+type Crossing<T> = (InSpan<T>, T);
 
 /// **Where a meeting [`plane_roots`] read sits on the piece**: inside its
 /// span, at its parameter, or on an end, at the end's parameter.
@@ -3622,7 +3633,7 @@ mod tests {
         .expect("a circle is a conic arc");
         let sec = arc.plane().expect("a conic's plane");
         assert!(
-            plane_roots(&piece, (sec.origin, sec.normal), false, band()).is_err(),
+            plane_roots(&piece, &sec.plane, false, band()).is_err(),
             "the plane meeting is in band"
         );
         let path = Path {
