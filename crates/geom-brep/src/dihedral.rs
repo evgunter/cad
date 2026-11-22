@@ -1367,6 +1367,10 @@ pub(crate) fn second_order_walk<T: Decide, H: StationHook<T>>(
     band: Band,
     hook: &mut H,
 ) -> SecondOrderWalk<H::Break> {
+    // The sign of the first station's relative curvature: a later one of
+    // the other sign has `κ_rel` pass through zero between them, so it
+    // is not bounded away from zero along the edge.
+    let mut first: Option<bool> = None;
     for (station, item) in stations {
         let (p, tau) = (station.p, station.tau);
         let station = JetStation {
@@ -1383,6 +1387,21 @@ pub(crate) fn second_order_walk<T: Decide, H: StationHook<T>>(
             }) => {}
             Ok(_) => return SecondOrderWalk::UnderDetermined,
             Err(source) => return SecondOrderWalk::InBand(source),
+        }
+        // Its sign, on the margin whose magnitude just decided positive.
+        let above = matches!(
+            decide_reported(
+                TANGENT_SECOND_ORDER,
+                Margin::sagitta(station.jet.kappa_rel, station.arm),
+                band,
+            ),
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            })
+        );
+        if *first.get_or_insert(above) != above {
+            return SecondOrderWalk::UnderDetermined;
         }
         if let ControlFlow::Break(b) = hook.after_positive(&station, &item) {
             return SecondOrderWalk::Stopped(b);
