@@ -281,7 +281,13 @@ def build(binaries: set[str], cwd: Path, clock: Clock) -> dict[str, str]:
     why: dict[str, str] = {}
     for b in sorted(binaries):
         t0 = time.monotonic()
-        rc, tail = sh(["cargo", "test", "--no-run", *target_args(b)], cwd, dict(os.environ), clock.left())
+        cmd = ["cargo", "test", "--no-run", *target_args(b)]
+        rc, tail = sh(cmd, cwd, dict(os.environ), clock.left())
+        if rc not in (0, None) and "SIGKILL" in tail:
+            # A rustc killed for memory says nothing about the commit; two
+            # jobs is the build's own fallback before calling it untestable.
+            print(f"  {b}: a rustc was killed (memory?); retrying at -j 2", flush=True)
+            rc, tail = sh([*cmd, "-j", "2"], cwd, dict(os.environ), clock.left())
         took = time.monotonic() - t0
         if rc == 0:
             why[b] = ""
