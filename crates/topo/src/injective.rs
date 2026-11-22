@@ -5693,7 +5693,11 @@ impl Psi {
             }
             Self::Carrier(Implicit::Sphere { c, .. }) => {
                 let w = p - c;
-                w.dot(v) / w.norm()
+                if iso_prev() {
+                    radial(w).dot(v)
+                } else {
+                    w.dot(v) / w.norm()
+                }
             }
             Self::Carrier(Implicit::Cone {
                 apex,
@@ -5706,10 +5710,21 @@ impl Psi {
                     origin: apex,
                     dir: axis,
                 };
-                radial(line.offset(p)).dot(square_to(axis, v)) * cos
-                    - axis.dot(v) / axis.norm() * (nappe * sin)
+                if iso_prev() {
+                    radial(line.offset(p)).dot(square_to(axis, v)) * cos
+                        - axis.dot(v) * (nappe * sin)
+                } else {
+                    radial(line.offset(p)).dot(square_to(axis, v)) * cos
+                        - axis.dot(v) / axis.norm() * (nappe * sin)
+                }
             }
-            Self::Graph { m, t, slope, .. } => m.dot(v) - t.dot(v) * slope,
+            Self::Graph { m, t, slope, .. } => {
+                if iso_prev() {
+                    (m - t * slope).dot(v)
+                } else {
+                    m.dot(v) - t.dot(v) * slope
+                }
+            }
         }
     }
 
@@ -5754,6 +5769,12 @@ impl Psi {
 /// Its width grows with the axis enclosure's width over `|axis|`, and
 /// with `v`'s. An axis enclosure holding zero makes `|axis|²` hold zero,
 /// and the quotient is unbounded or not a number: no sign is read off it.
+/// MEASUREMENT ONLY: `ISO_PREV=1` (or `ISO_OLD=1`) restores the sphere,
+/// graph and cone-axial spellings before the review's fix pass.
+fn iso_prev() -> bool {
+    std::env::var_os("ISO_PREV").is_some() || std::env::var_os("ISO_OLD").is_some()
+}
+
 fn square_to(axis: Vec3<Interval>, v: Vec3<Interval>) -> Vec3<Interval> {
     if std::env::var_os("ISO_OLD").is_some() {
         return v;
