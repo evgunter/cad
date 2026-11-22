@@ -2,7 +2,7 @@
 id: the-cone-torus-pair-door
 kind: unit
 title: Cone × torus in general pose has its rung-3 door: a pose on the section value with its tangency and apex margins, the ssi door, route flipped, the join carried
-status: spec
+status: dispatched
 opened: 2026-11-22
 priority: P0
 cost: H
