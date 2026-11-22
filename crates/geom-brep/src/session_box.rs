@@ -413,7 +413,7 @@ mod tests {
         spec: &crate::EdgeCurveSpec<f64>,
         held: &crate::EdgeCurve<f64>,
         (a, b): (Point3<f64>, Point3<f64>),
-    ) -> [Result<(), crate::CertifyError>; 4] {
+    ) -> [Result<(), crate::CertifyError>; 5] {
         use crate::{EdgeCurve, NurbsLane};
         let lever = || geom_core::test_support::fixture_lever(1.0);
         let lane = NurbsLane::certified;
@@ -421,6 +421,18 @@ mod tests {
             EdgeCurve::certify(spec.clone(), a, b, |_| None, lever(), band(), lane()).map(drop),
             EdgeCurve::certify_stated(spec.clone(), a, b, |_| None, lever(), band(), lane(), None)
                 .map(drop),
+            EdgeCurve::certify_carrying(
+                spec.clone(),
+                a,
+                b,
+                |_| None,
+                lever(),
+                band(),
+                lane(),
+                None,
+                &[],
+            )
+            .map(drop),
             held.recertify(a, b, |_| None, lever(), band(), lane())
                 .map(drop),
             held.recertify_stated(a, b, |_| None, lever(), band(), lane(), None)
@@ -430,7 +442,8 @@ mod tests {
 
     /// **Every certification door asks the box first, of the edge with its
     /// ends.** A line edge 2 km out whose stated end misses its carrier by
-    /// a metre: each of the four doors refuses it as
+    /// a metre: each of the five doors (`certify`, `certify_stated`,
+    /// `certify_carrying`, `recertify`, `recertify_stated`) refuses it as
     /// [`crate::CertifyError::OutsideSessionBox`], not as the endpoint
     /// residual a check after the box would read. The same edge moved home
     /// (by `EdgeCurve::carried`, the image a move holds) certifies at each
@@ -482,6 +495,131 @@ mod tests {
             assert!(
                 matches!(got, Err(CertifyError::OutsideSessionBox { .. })),
                 "door {door}: an end 2 km out is past the box: {got:?}"
+            );
+        }
+    }
+
+    /// The degree-2 spline through `p0`, `p1` (its middle control) and
+    /// `p2` over `[0, 1]`.
+    fn quadratic(p0: Point3<f64>, p1: Point3<f64>, p2: Point3<f64>) -> Curve3<f64> {
+        let knots =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(knots, vec![p0, p1, p2], vec![1.0; 3]).unwrap(),
+        ))
+    }
+
+    /// **An end alone past the box is read from inside, whatever the
+    /// carrier**: a spline in the box (its cover not the edge's own, so
+    /// the inside read is its samples) with a stated end 2 km out is past
+    /// the box by that end, not a limit. *Breaks if* the inside read drops
+    /// the ends (on a line or an arc the cover's box already holds them).
+    #[test]
+    fn a_splines_end_alone_past_the_box_is_a_point_past_it() {
+        let o = Point3::origin();
+        let carrier = quadratic(o, Point3::new(0.5, 0.5, 0.0), Point3::new(1.0, 0.0, 0.0));
+        let got = edge_in_box(
+            &carrier,
+            (0.0, 1.0),
+            (o, Point3::new(2e3, 0.0, 0.0)),
+            band(),
+        );
+        assert!(matches!(got, Err(BoxRefusal::Point { .. })), "{got:?}");
+    }
+
+    /// **Geometry within the band of the box's edge is in it, and past
+    /// the band is past it**: a segment ending half a band's zero beyond
+    /// 1 km, or as far short of it, is in the box; one ending ten band
+    /// widths beyond it is past it, by that end. *Breaks if* a margin the
+    /// band reads as zero refuses.
+    #[test]
+    fn the_boxs_edge_is_read_in_the_band() {
+        let o = Point3::origin();
+        let band = band();
+        let at = |x: f64| {
+            let (carrier, span) = line(o, Point3::new(x, 0.0, 0.0));
+            edge_in_box(&carrier, span, (o, Point3::new(x, 0.0, 0.0)), band)
+        };
+        for x in [1e3 - 0.5 * band.zero(), 1e3 + 0.5 * band.zero()] {
+            assert_eq!(
+                at(x),
+                Ok(()),
+                "an end at {x} m is within the band of the box's edge"
+            );
+        }
+        let past = 1e3 + 10.0 * band.escalate();
+        assert!(
+            matches!(at(past), Err(BoxRefusal::Point { .. })),
+            "an end at {past} m is past the box: {:?}",
+            at(past)
+        );
+    }
+
+    /// **An ellipse arc whose crest alone is past the box is a point past
+    /// it**: an arc of semi-axis `1000.003 m` about the origin whose span
+    /// straddles its crest between two of its sixteen samples (each short
+    /// of the box) reads its crest in closed form, 3 mm past the box.
+    /// *Breaks if* the inside read of an ellipse is its samples alone,
+    /// which call the arc a limit.
+    #[test]
+    fn an_ellipses_crest_between_its_samples_is_a_point_past_the_box() {
+        let carrier = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            1000.003,
+            1.0,
+        ));
+        let span = (-0.03, 0.037);
+        let ends = (carrier.eval(span.0), carrier.eval(span.1));
+        let got = edge_in_box(&carrier, span, ends, band());
+        let Err(BoxRefusal::Point { margin }) = got else {
+            panic!("the crest is past the box: {got:?}");
+        };
+        let past = margin.readable_below_zero().to_string();
+        assert!(past.starts_with("0.003"), "3 mm past the box: {past}");
+    }
+
+    /// **A limit at certification ends as the gate's does, at every
+    /// door**: a quadratic spline whose curve peaks 995 m out while the
+    /// net of the piece about its peak reaches past 1 km (the cover is the
+    /// net met with the pieces' nets, four to a window) is the box's
+    /// limit, [`crate::CertifyError::SessionBoxUnshown`], at each minting
+    /// door, before any check, and ends in the box's one recourse. *Breaks
+    /// if* the limit is admitted at certification, or ends otherwise.
+    #[test]
+    fn a_splines_cover_alone_past_the_box_is_the_limit_at_every_door() {
+        use crate::{CertifyError, EdgeCurveSpec};
+        let o = Point3::origin();
+        let carrier = quadratic(o, Point3::new(1990.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0));
+        let (t0, t1) = (0.0, 0.9);
+        let (a, b) = (carrier.eval(t0), carrier.eval(t1));
+        let spec = EdgeCurveSpec {
+            carrier: carrier.clone(),
+            param_start: t0,
+            param_end: t1,
+            ..EdgeCurveSpec::line_between(a, b)
+        };
+        let held = crate::EdgeCurve::certify(
+            EdgeCurveSpec::line_between(o, Point3::new(1.0, 0.0, 0.0)),
+            o,
+            Point3::new(1.0, 0.0, 0.0),
+            |_| None,
+            geom_core::test_support::fixture_lever(1.0),
+            band(),
+            crate::NurbsLane::certified(),
+        )
+        .unwrap();
+        for (door, got) in every_door(&spec, &held, (a, b))
+            .into_iter()
+            .enumerate()
+            .take(3)
+        {
+            let Err(e @ CertifyError::SessionBoxUnshown { .. }) = got else {
+                panic!("door {door}: the box's limit: {got:?}");
+            };
+            assert_eq!(
+                e.ending(crate::recourse::Reading::Build),
+                Some(SESSION_BOX_RECOURSE.to_owned()),
+                "door {door}"
             );
         }
     }

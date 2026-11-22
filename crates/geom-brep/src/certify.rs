@@ -6940,7 +6940,7 @@ mod tests {
                 "the edge's line carrier has no cover over its span: a datum of it is not a \
                  finite number, so the kernel cannot show the edge inside the 1e3 m session box. \
                  {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                crate::recourse::defect_ending(crate::recourse::Reading::Build)
             )
         );
     }
@@ -8376,7 +8376,7 @@ mod tests {
         );
         assert_eq!(
             err.ending(crate::recourse::Reading::Build),
-            Some(geom_core::KERNEL_OR_FILE_DEFECT_ENDING.to_owned())
+            Some(crate::recourse::defect_ending(crate::recourse::Reading::Build).to_owned())
         );
         // Poisoned endpoints: typed, no panic (totality). The end that is
         // not a finite point leaves the edge no cover, refused first.
