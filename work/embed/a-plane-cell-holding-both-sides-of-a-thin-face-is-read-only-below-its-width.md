@@ -44,7 +44,8 @@ The departure margin is never reached: no sign is read on a face that
 is not presented. So this is not the sliver concession's margin
 (`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`,
 PR 7095), though a fix will meet that margin once the strip is
-presented. Whether the presented pair then passes is unchecked.
+presented. What the presented pair reads is in "Measured and landed,
+2026-11-22" below.
 
 ## Trace
 
@@ -110,9 +111,77 @@ floor first. Not checked by a flip.
 ## What a fix needs
 
 A planar presentation of a strip: the cell clipped to the face between
-two parallel line edges, or at a short edge between its two
-neighbours. The face there is an intersection of half-planes, convex,
+two line edges across it from each other (parallel or not), or at a
+short edge between its two neighbours. The face there is an intersection of half-planes, convex,
 so the same affine reading serves, with the shared side on `y = 0` and
 the far lines as the rectangle's bounds. `present_chart`'s clip sides
 already read several lines on one axis (`run_on`,
 `sides_are_the_faces`). The plane's own arm is the one that does not.
+
+## Measured and landed, 2026-11-22
+
+`embed/strip`. `present_plane` reads one thing: the face's part of
+the cell where the face is convex there, the intersection of the
+half-planes of the line edges the cell holds, inside a parallelogram
+two of whose sides lie on one edge or on a convex corner's two edges.
+A further edge across the face from them caps the far side at the
+highest point of its line over the cell's reach. The cases are one
+edge, a corner, a strip (two edges with no common end, or a wedge
+whose tip is clear of the cell), and a strip's end (an edge with a
+neighbour at each end). Convexity is decided by the leans alone. Each
+corner in the cell is convex, and each cap and the edge it caps stand
+on each other's face side over the reach, at
+`SELF_INTERSECTION_CORNER`. No edge or vertex but these is near the
+cell, so the disk inside the ball meets the boundary only in these
+chords. Loop membership is not read: a rim and a hole's side that face
+each other bound a strip, and two sides of a slot or a hole do not
+(the leans fail).
+
+**The census tests of this cause** (61 of the census of `c2a0c41f40`,
+picked by the families above from the 116 departure/edge/plane-plane
+and 124 `Budget(Pairs)` rows, run through the gate on
+`embed/strip-measure`). Before: 0 pass, 37 `Uncertified { Departure }`
+at an edge and 24 `Budget(Pairs)`. After: 39 pass and 22 fail. What the
+22 read now, per `STRIP_TRACE` (every unpresented plane exit and every
+departure margin the band does not decide):
+
+- **In band by construction (6)**, the pair presented and its own
+  width below Kε:
+  - `sliver_shell_role`'s needle and wedge (2, `Budget(Pairs)`): the
+    wedge's far end is 8.4e-8 wide, so cells near its tip read the
+    strip's width in band. One presented pair's margin is −9.70e-9:
+    rate −2.12 times extent 4.57e-9, the strip's own reach across.
+  - `sliver_shell_role::a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it` (1).
+  - `missed_ray_side` (3): slabs 10ε (= Kε) thick, whose cap leans at
+    the end read the width at the band.
+- **contact9's dipping chords (4)**: the strip arm is reached, and
+  its leans or the departure read widths of 1e-16 to 1e-15. One
+  margin is −4.5e-15: rate −9.33 times extent 4.8e-16. These are
+  near-coincident faces by construction. One of them,
+  `a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`,
+  moved from `Budget(Pairs)` to `Crosses` at a station pair 4.8e-10
+  apart, below ε. That is a distance verdict, not a reading.
+- **Elsewhere (10)**:
+  - `a_long_bound_beside_a_short_arm` (3, depth and vertex) and
+    contact9's `a_near_coincident_pair_at_a_corner_refuses_typed`:
+    their undecided margins have rate 0 (coplanar faces, a
+    separator that does not depart). Their unpresented exits are
+    mostly the corner's lean.
+  - `review_fillet_h6_r1_probes` (corner lean).
+  - `fillet_h6_cap_rim`, `germ_torus_doors::subtract_and_intersect…`
+    and `band_closed_mixed_chain_shapes`: the undecided margins
+    are on curved faces.
+  - `review_arm_vs_reach_probes::review_tilted` and
+    `shell_role_reader::a_needle_channel…` (depth, four-edge plane
+    cells).
+- **Not the gate (2)**:
+  `a_corner_reads_only_its_own_sectors::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt`
+  and `m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_dials`
+  fail with the gate off, and the first fails on main as well.
+
+So 6 of the 22 stop at a width in the band, the re-metering's ground,
+and none of the 39 that now hold needed the margin changed.
+
+**Not checked here**: the ten thin curved shoulder and strut rows
+(`wedge_end_doors` and the rest). They are not in the 61.
+
