@@ -13616,4 +13616,269 @@ mod presentation_rows {
             "a cell whose face has points on both sides of the run is presented by one side: {r:?}"
         );
     }
+
+    /// REVIEW PROBE (claim 9, `graph_run`'s advance along `t`, unpinned
+    /// at the frozen head): **the graph does not run on along an edge
+    /// that turns back along `t`.** The unit circle's arc from 30° (vertex
+    /// 1) to 90°, its face inside the circle, and a line reaching the
+    /// vertex from up-right at 45°: a reflex corner that is one run over
+    /// `u` (the arc falls to the vertex, the line rises from it), while
+    /// along the arc's tangent the line comes back the way the arc went:
+    /// `γ` would be two-valued over `s`. Red if [`graph_run`] does not
+    /// decide the other edge's advance along `t`.
+    #[test]
+    fn review_probe_the_graph_does_not_run_on_along_an_edge_that_turns_back_along_t() {
+        let a = core::f64::consts::FRAC_PI_6;
+        let (vx, vy) = (a.cos(), a.sin());
+        let mut b = quarter(segment(20, [3, 1], (vx + 0.5, vy + 0.5), (vx, vy)), Vec::new());
+        let (carrier, _) = b.edges[0].arc.clone().expect("the arc");
+        b.edges[0].arc = Some((carrier, (iv0(a), iv0(core::f64::consts::FRAC_PI_2))));
+        b.vertices
+            .insert(vertex(1), Point3::new(iv0(vx), iv0(vy), iv0(0.0)));
+        let s = floor();
+        let local = both_arcs();
+        let x = Piece {
+            u: (vx - 0.02, vx + 0.02),
+            v: (vy - 0.02, vy + 0.02),
+            ..piece_on(&s, &b, &local, 1)
+        };
+        let presented = present_plane(&x, &[0], &[], band());
+        let Ok(Presentation::Of(p)) = presented else {
+            panic!("the kinked reflex corner is not presented: {:?}", read(presented));
+        };
+        let Zero::Curve(side, c) = &p.zero else {
+            panic!("not a curve");
+        };
+        eprintln!("RUN side {side:?} t {:?} run {:?} x {:?} y {:?}", c.t, c.run, p.x, p.y);
+        assert!(c.run.is_some(), "the corner is one run over u");
+        let cyl = cylinder();
+        let wall = Presented {
+            surface: &cyl,
+            map: Map::Chart,
+            x: (a, a + 0.02),
+            y: (0.0, 0.02),
+            zero: Zero::Side(
+                Side::YLo,
+                Along {
+                    edges: vec![edge(10)],
+                    vertex: None,
+                    whole: true,
+                    params: Some(Params {
+                        t: (a, a + 0.02),
+                        periodic: true,
+                    }),
+                    on_edges: true,
+                },
+            ),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let g = graph_of(&x, &x, &near, &p, &wall, band());
+        if let Some((psi, on)) = &g {
+            eprintln!(
+                "GRAPH on.run {:?} signs floor {:?} wall {:?}",
+                on.run,
+                sign_on(psi, Some(on), &p, Some(&wall), band()),
+                sign_on(psi, Some(on), &wall, Some(&p), band())
+            );
+        }
+        assert!(g.is_none(), "a graph two-valued over s is no separator");
+    }
+
+    /// REVIEW PROBE (claim 9, [`sign_on`]'s refusal of a run under a
+    /// plane, unpinned at the frozen head): the cylinder face of
+    /// [`a_rim_the_continued_curve_comes_back_across_is_read_as_one_run`],
+    /// whose shared curve `v = -0.4 + sin(u + a)` is the section of the
+    /// unit cylinder by the plane `z = -0.4 + x sin a + y cos a`. That
+    /// plane holds the curve continued past the vertex, where it comes
+    /// back down across the rim at `u = 0.90` inside the cell: the face
+    /// between the rim and the curve continued is on its other side. So
+    /// the run is not zero under it. Red if a run is read zero under a
+    /// plane holding its curve's whole conic.
+    #[test]
+    fn review_probe_a_run_is_not_zero_under_the_plane_of_its_conic() {
+        let a = phase();
+        let mut curve = harmonic_rim(
+            10,
+            [2, 1],
+            harmonic([0.0, -0.4], 1.0, (a.sin(), a.cos(), 0.0)),
+            (-1.5, 0.0),
+        );
+        curve.uses[0].plus = false;
+        let rim_line = Rim {
+            stated: None,
+            key: edge(11),
+            arc: Some((
+                Curve3::line(
+                    Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
+                (iv0(0.0), iv0(1.0)),
+            )),
+            ends: [vertex(3), vertex(1)],
+            uses: vec![Use {
+                plus: true,
+                image: Some([p2((2.5, 0.5)), p2((0.0, 0.5))]),
+                iso: Some(Iso {
+                    held: Axis::V,
+                    at: iv0(0.5),
+                    full: false,
+                }),
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let b = Boundary {
+            sense: true,
+            edges: vec![curve, rim_line],
+            vertices: BTreeMap::from([
+                (vertex(1), on_cyl(0.0, 0.5)),
+                (vertex(2), on_cyl(-1.5, -0.4 + (a - 1.5).sin())),
+                (vertex(3), on_cyl(2.5, 0.5)),
+            ]),
+            extent: Some([(-1.6, 2.6), (-1.5, 0.6)]),
+        };
+        let s = cylinder();
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (-0.1, 1.0),
+            v: (0.4, 0.62),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let Ok(Presentation::Of(mut p)) = present_chart(&piece, &[0], &[vertex(1)], band()) else {
+            panic!("the run is presented");
+        };
+        // The fixture's carrier is a stand-in line; the section is an
+        // ellipse, whose own plane holds it whole.
+        let Zero::Curve(_, c) = &mut p.zero else {
+            panic!("a curve");
+        };
+        assert!(c.run.is_some(), "a run");
+        c.along.whole = true;
+        let plane = Psi::Linear {
+            n: Vec3::new(iv0(-a.sin()), iv0(-a.cos()), iv0(1.0)),
+            q: Point3::new(iv0(0.0), iv0(0.0), iv0(-0.4)),
+        };
+        let on = On {
+            edges: vec![edge(10)],
+            vertices: Vec::new(),
+            whole: true,
+            run: None,
+        };
+        let fl = floor();
+        let exact = Presented {
+            surface: &fl,
+            map: Map::Chart,
+            x: (0.9, 1.1),
+            y: (-0.1, 0.1),
+            zero: Zero::None,
+            corner: false,
+            cache: Cache::default(),
+        };
+        let under_run = sign_on(&plane, Some(&on), &p, Some(&exact), band());
+        // The same side with its run forgotten is read: the fixture
+        // reaches the arm, so the refusal above is the run's.
+        let Zero::Curve(_, c) = &mut p.zero else {
+            panic!("a curve");
+        };
+        c.run = None;
+        let p = Presented {
+            cache: Cache::default(),
+            ..*p
+        };
+        let without = sign_on(&plane, Some(&on), &p, Some(&exact), band());
+        eprintln!("UNDER PLANE with run {under_run:?} without {without:?}");
+        assert!(without.is_some(), "the fixture reaches the plane arm: {without:?}");
+        assert_eq!(under_run, None, "a run under the plane of its conic");
+    }
+
+    /// REVIEW PROBE (claim 9, M6): **a line that runs back over the
+    /// columns the arc came across is no run.** The quarter disc's line
+    /// reaches `(1, 0)` from `(1.3, 0.5)`: outside the circle (reflex),
+    /// and over `v` on the arc's own columns, so the two are two points
+    /// to a column. Red if [`line_onward`] takes the way the line runs
+    /// for the way the run must go.
+    #[test]
+    fn review_probe_a_line_that_runs_back_over_the_columns_is_not_a_run() {
+        let b = quarter(segment(20, [3, 1], (1.3, 0.5), (1.0, 0.0)), Vec::new());
+        assert_eq!(
+            on_floor(&b, vec![0, 1], vec![vertex(1)], (0.98, 1.02), (-0.02, 0.02)),
+            Read::Structural,
+            "a hairpin reflex corner"
+        );
+    }
+
+    /// REVIEW PROBE (claim 4): how far past the vertex along the circle
+    /// option (b) reads a partner's side as the vertex. The partner here
+    /// names no vertex and no edge ending there: the stretch is admitted
+    /// on its length alone. Prints the ladder; pins only that a side past
+    /// the vertex by more than a rounding, on no key, is still read.
+    #[test]
+    fn review_probe_how_far_past_the_vertex_option_b_reads() {
+        let s = floor();
+        let local = both_arcs();
+        let b = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        let x = piece_on(&s, &b, &local, 1);
+        let Ok(Presentation::Of(p)) = present_plane(&x, &[0], &[], band()) else {
+            panic!("presented");
+        };
+        let cyl = cylinder();
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let mut widest = 0.0_f64;
+        for k in 3..=16 {
+            let d = 10f64.powi(-k);
+            let wall = Presented {
+                surface: &cyl,
+                map: Map::Chart,
+                x: (-d, 0.02),
+                y: (0.0, 0.02),
+                zero: Zero::Side(
+                    Side::YLo,
+                    Along {
+                        edges: vec![edge(10)],
+                        vertex: None,
+                        whole: true,
+                        params: Some(Params {
+                            t: (-d, 0.02),
+                            periodic: true,
+                        }),
+                        on_edges: true,
+                    },
+                ),
+                corner: false,
+                cache: Cache::default(),
+            };
+            let g = graph_of(&x, &x, &near, &p, &wall, band());
+            let parts = g.as_ref().is_some_and(|(psi, on)| {
+                matches!(
+                    (
+                        sign_on(psi, Some(on), &p, Some(&wall), band()),
+                        sign_on(psi, Some(on), &wall, Some(&p), band())
+                    ),
+                    (Some(a), Some(b)) if a == flip(b)
+                )
+            });
+            eprintln!("PAST {d:e}: graph {} parts {parts}", g.is_some());
+            if parts {
+                widest = widest.max(d);
+            }
+        }
+        eprintln!("WIDEST past the vertex still certified: {widest:e} (band {:?})", band());
+        assert!(widest <= 4.0e-16, "a side {widest:e} past the vertex, on no key, parts");
+    }
 }
