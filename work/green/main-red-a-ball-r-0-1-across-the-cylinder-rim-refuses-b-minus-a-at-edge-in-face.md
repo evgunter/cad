@@ -34,3 +34,20 @@ pass on both.
 `work/embed/the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause.md`
 lists this row among those red in a mutation build "whether they are
 red on a clean main was not checked": it is.
+
+## 2026-11-21: the nightlies' junit (U2, `green/rim-ball`)
+
+Read from each scheduled nightly's `full-suite-junit-default` artifact:
+
+| nightly | main | this row |
+|---|---|---|
+| 43561237293 (11-14) | `ff2b5f5d54` | pass, 24.4 s |
+| 43680833019 (11-15) | `dbb21b4a12` | pass, 24.8 s |
+| 44023697569 (11-17) | `cdee746161` | pass, 13.9 s |
+| 44243918484, 44464826302 (11-18, 11-19) | | no full-suite leg ran (the build-once job failed) |
+| 44680731754 (11-20) | `8039ba062e` | FAIL, the stop above, 19.5 s |
+| 44870651337 (11-21) | `f5ef8f2ba0` | FAIL, the same stop, at every ε |
+
+So it went red between `cdee746161` and `8039ba062e`: 172 first-parent
+commits, 49 merges touching some `crates/*/src/`. The test file itself
+last changed in PR 6864 (11-12), so a kernel merge moved it.
