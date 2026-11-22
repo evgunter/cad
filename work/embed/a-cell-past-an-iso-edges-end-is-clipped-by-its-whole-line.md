@@ -160,3 +160,51 @@ Second pass, `embed/trace-cylinder-measure` (`CVF`, `CVC` rows).
   construction"). That the plane's curve meets its other edge tangent at
   `V`, the same G1 ground read in another function, is likely but
   unchecked. A fix to the cylinder side alone will not close these ten.
+
+## Measured and landed (EMBED lane `embed/iso-end`, 2026-11-22)
+
+**The cause, told apart from the row's.** In the cheapest reproducer
+(`s58_iso_rectangle::tee_…`) the cylinder cell beside the reflex vertex
+is refused at `sides_are_the_faces`, as above, but its partner, the
+column's side plane, is presented (`Of(Side(YLo))`). The departure arm's
+carrier separator, the cylinder's own carrier against that presentation,
+reads `ψ ∈ ±1.14e-8` along the plane's side on the ruling: the centred
+form's middle is ±7e-18 and its rate term ±1.17e-5, because `Psi`'s
+gradient was a box enclosure of the cylinder's radial unit (z ±0.00195
+over a cell 1.2e-5 tall), dotted with the side's direction, which along
+a ruling is the axis. Flipping that read alone (a projector probe,
+then the landed reading) makes every ask of the tee `Embedded`.
+
+**What landed.** `Psi::rate(box, v)` replaces the gradient: a cylinder's
+radial unit is dotted with `v` less its part along the axis
+(`square_to`), and a cone's radial term likewise; the sphere, plane,
+linear and graph arms read the old gradient against `v`. No
+presentation changed. The argument that no presentation of the corner
+would be signed is at What a fix needs, and at `present_chart`'s
+refusal.
+
+**Measured** through the at-rest gate on `embed/iso-end-measure2`
+(`origin/embed/gate-measure` @ `ebb2e6f8e` plus this diff, `ISO_OLD=1`
+restoring the old reads; one build), `f64`, over the three cylinder
+buckets of the census (Departure/Edge plane/cyl, cyl/plane, cyl/cyl:
+236 tests; 5 `intent_s6_*` names no longer exist):
+
+- before: 230 refuse, 1 passes; after: 182 refuse, 49 pass; none worse.
+- **reflex shape** (two clips uncovered, the corner not convex; 66 of
+  the 199 tests ≤ 30 s, classed by the trace run): 43 pass, 19 now
+  refuse at another pair (a partner's exit), 4 stay where both faces are
+  unpresented. The residue is on its owners' rows by name
+  (`departure-reads-no-curved-corner-off-its-shared-edge`,
+  `a-line-tangent-to-an-arc-at-their-vertex-is-read-by-no-corner-presentation`,
+  `a-plane-faces-corner-that-is-not-strictly-convex-is-read-at-no-depth`,
+  `the-second-order-arm-certifies-a-declared-wedge-0-edge`,
+  `zero-of-reads-local-where-a-shared-vertex-is-the-corner-of-no-one-clip-pair`,
+  `a-shared-vertex-the-chart-holds-on-one-clip-only-reads-no-zero`,
+  `presented-partners-the-carrier-arm-still-does-not-sign-at-a-cylinder-or-plane-corner`).
+- **lone clip** (16): none close. They are tangent contacts (bosses
+  typed tangent, rods in bores, tangent cylinders along a ruling, whose
+  rate across the side straddles 0) and partners unread at
+  `present_curved` or `graph`; listed on the same rows.
+- One test past its refusal now reads `Crosses` at a line contact its
+  body holds unrecorded
+  (`work/contacthold/a-ringed-walls-pocketed-pair-against-the-plate-holds-its-line-contact-unrecorded.md`).
