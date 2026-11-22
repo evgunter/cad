@@ -2169,7 +2169,7 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
 mod tests {
     use geom_core::Tol;
 
-    use super::{FullId, HeldNodes, Speaker, SpokenNode, node_kind_noun};
+    use super::{FullId, HeldNodes, Mention, Run, Speaker, SpokenNode, node_kind_noun};
     use crate::doc::Doc;
     use crate::edit::DocEdit;
     use crate::label::Label;
@@ -2295,6 +2295,91 @@ mod tests {
             said(Speaker::of(&empty).or_held(&kept), stranger),
             format!("node {}", test_utils::refusal::tag(stranger.0.digest())),
             "neither holds it: its tag"
+        );
+    }
+
+    /// **A sentence keeps each node as a mention, stamped with the
+    /// document of the speaker that said it**, and spells it once: a
+    /// labelled node by its label (escaped) and tag with no kind beside
+    /// it, an unlabelled one by its kind and tag, an id the document
+    /// does not hold as `node` and the tag. Said by tag, the mention
+    /// carries no document; said from a hold, the hold's.
+    #[test]
+    fn a_mention_carries_its_node_and_the_speakers_document_and_spells_once() {
+        let tol = Tol::witness();
+        let empty: Doc<ProfileProgram> = Doc::empty_derived("spoken-mention", tol);
+        let tube = |doc: &Doc<ProfileProgram>| {
+            doc.apply(
+                &DocEdit::InsertNode {
+                    node: Box::new(crate::node::Node::Tube {
+                        major_radius: test_support::len(1.0),
+                        window: crate::node::TubeWindow::Full,
+                        minor_radius: test_support::len(0.25),
+                    }),
+                    fresh: Vec::new(),
+                },
+                tol,
+            )
+            .expect("the tube inserts")
+            .doc
+        };
+        let plain = tube(&empty);
+        let id = *plain.ids().last().expect("the inserted tube");
+        let labelled = plain
+            .apply(
+                &DocEdit::SetLabel {
+                    node: id,
+                    label: Some(Label::new(r#"floor "A" \ 2"#).expect("a label")),
+                },
+                tol,
+            )
+            .expect("the label applies")
+            .doc;
+        let t = test_utils::refusal::tag(id.0.digest());
+        let said = |by: Speaker<'_>| crate::sentence!("see ", by.node(id), " now");
+        let by_doc = said(Speaker::of(&labelled));
+        let [Run::Words(lead), Run::Mention(mention), Run::Words(tail)] = by_doc.runs() else {
+            panic!("words, one mention, words: {by_doc:?}");
+        };
+        assert_eq!((lead.as_str(), tail.as_str()), ("see ", " now"));
+        assert_eq!(
+            mention.node().map(SpokenNode::id),
+            Some(id),
+            "the mention is the node"
+        );
+        assert_eq!(
+            mention.document(),
+            Some(labelled.id()),
+            "stamped with the speaker's document"
+        );
+        assert_eq!(
+            by_doc.to_string(),
+            format!(r#"see "floor \"A\" \\ 2" ({t}) now"#),
+            "a label and its tag, escaped, and no kind beside them"
+        );
+        assert_eq!(
+            said(Speaker::of(&plain)).to_string(),
+            format!("see Tube {t} now")
+        );
+        assert_eq!(
+            said(Speaker::of(&empty)).to_string(),
+            format!("see node {t} now")
+        );
+        let by_tag = said(Speaker::TAG);
+        assert_eq!(
+            by_tag.mentions().map(Mention::document).collect::<Vec<_>>(),
+            vec![None],
+            "said by tag, the mention names no document"
+        );
+        let held = HeldNodes::of_nodes(labelled.id(), [labelled.spoken(id)]);
+        let by_held = said(Speaker::held(&held));
+        assert_eq!(
+            (
+                by_held.to_string(),
+                by_held.mentions().next().and_then(Mention::document)
+            ),
+            (by_doc.to_string(), Some(labelled.id())),
+            "said from a hold, as held and in the hold's document"
         );
     }
 }
