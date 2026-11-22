@@ -4001,7 +4001,6 @@ MEMBERS_BOUND_AS = {
     "TessellateError::UnresolvedWinding": "TessellateError.variant",
     "TessellateError::UnclearedSharedSide": "TessellateError.variant",
     "TessellateError::OverusedSide": "TessellateError.variant",
-    "TessellateError::RouterDefect": "TessellateError.variant",
     "TessellateError::SphereTrimShape": "TessellateError.variant",
     "TessellateError::WrapStripTurn": "TessellateError.variant",
     "TessellateError::LiftedColumnOff": "TessellateError.variant",

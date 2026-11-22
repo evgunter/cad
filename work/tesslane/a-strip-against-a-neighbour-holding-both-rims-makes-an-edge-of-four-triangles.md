@@ -27,8 +27,8 @@ and `mesh::validate::check_mesh` refuses `NonManifoldEdge { count: 4 }`: the
 first such edge is the bore's seam itself, `(0, 1)`, which the bore uses on
 both its sides and the neighbour's strip makes as a chord.
 
-Measured, placed obliquely: the sphere neighbour at δ 3, 1 and 0.3, the
-torus neighbour at δ 3, 1, 0.3 and 0.1, at the default ε. The review measured
+Measured, placed obliquely: the torus neighbour (sign +1) at δ 3, 1 and
+0.3, the sphere neighbour (sign −1) at δ 3, 1, 0.3 and 0.1, at the default ε. The review measured
 54 such cells over its family, the same on main and on the branch.
 
 ## Class
@@ -69,8 +69,8 @@ every trimmed arm and a census where the patches join
 and `work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge.md`.
 The unsplit bored ball now refuses typed instead of answering a
 non-manifold `Ok`: `TessellateError::OverusedSide { uses: 4 }` at sign +1
-δ 3, 1, 0.3 and sign −1 δ 3, 1, 0.3, 0.1 (the torus neighbour is sign −1
-here, the sphere sign +1), placed obliquely at the default ε; it meshes at
+δ 3, 1, 0.3 and sign −1 δ 3, 1, 0.3, 0.1 (sign +1 is the torus
+neighbour, sign −1 the sphere), placed obliquely at the default ε; it meshes at
 the finer δ (sign +1 from 0.1, sign −1 from 0.05). Split, it meshes on
 main at every cell (the chart lane's CDT and the rule), and on this
 branch's walk.

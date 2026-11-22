@@ -178,7 +178,7 @@ use crate::walk::{Chart, UvPoint, gap_is_noise, loop_polygon};
 /// defect, since `tessellate::route_of` sends a ringed face to the trimmed
 /// lane.
 pub(crate) const RINGED_FACE_ROUTED_HERE: &str =
-    "a ringed face reached the curved lane, which reads the outer loop only";
+    "a ringed face reached the curved lane, which reads the outer loop only (router defect)";
 
 /// What [`tessellate_curved`] refuses a face with whose outer loop passes
 /// one point record at two vertices ([`crate::walk::pinches`]): the walk
@@ -187,7 +187,8 @@ pub(crate) const RINGED_FACE_ROUTED_HERE: &str =
 /// (`tessellate::route_of`'s pinch fact), and one here is the router's
 /// defect.
 pub(crate) const PINCHED_FACE_ROUTED_HERE: &str = "a face whose outer loop passes one point at \
-     two vertices reached the curved lane, whose walk places junctions by position";
+     two vertices reached the curved lane, whose walk places junctions by position (router \
+     defect)";
 
 /// What [`tessellate_curved`] refuses a ruled face with when a chord
 /// point lies inside one of its straight sides, as
@@ -224,14 +225,12 @@ pub(crate) fn tessellate_curved(
     // meshed as face. A ringed face is the trimmed lane's
     // (`tessellate::route_of`), and one here is the router's defect.
     if !face.rings.is_empty() {
-        return Err(TessellateError::RouterDefect {
-            face: fk,
+        return Err(TessellateError::MissingEntity {
             what: RINGED_FACE_ROUTED_HERE,
         });
     }
     if crate::walk::pinches(body, face.outer)? {
-        return Err(TessellateError::RouterDefect {
-            face: fk,
+        return Err(TessellateError::MissingEntity {
             what: PINCHED_FACE_ROUTED_HERE,
         });
     }
@@ -642,9 +641,9 @@ pub(crate) fn iso_rectangle_shape(
         // The door answers one side per outer-loop edge, in loop order;
         // a count that differs is a router defect, refused rather than
         // truncated by the zip.
-        Ok(sides) if sides.len() != half_edges.len() => Err(TessellateError::RouterDefect {
-            face: fk,
-            what: "the shape door answered a side count other than the loop's half-edge count",
+        Ok(sides) if sides.len() != half_edges.len() => Err(TessellateError::MissingEntity {
+            what: "the shape door answered a side count other than the loop's half-edge count \
+                   (router defect)",
         }),
         Ok(sides) => Ok(Shape::Rectangle(Rectangle {
             sides: half_edges.into_iter().zip(sides).collect(),
@@ -1350,7 +1349,7 @@ mod tests {
                     &[],
                     &tol
                 ),
-                Err(TessellateError::RouterDefect { what, .. }) if what == RINGED_FACE_ROUTED_HERE
+                Err(TessellateError::MissingEntity { what }) if what == RINGED_FACE_ROUTED_HERE
             ),
             "a ringed face refuses at the curved lane's door"
         );
@@ -1484,7 +1483,7 @@ mod tests {
         assert!(
             matches!(
                 answer,
-                Err(TessellateError::RouterDefect { what, .. }) if what == PINCHED_FACE_ROUTED_HERE
+                Err(TessellateError::MissingEntity { what }) if what == PINCHED_FACE_ROUTED_HERE
             ),
             "a pinched face refuses at the curved lane's door: {:?}",
             answer.map(|p| p.triangles.len())

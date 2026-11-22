@@ -663,20 +663,6 @@ pub enum TessellateError {
         /// The triangles using it.
         uses: usize,
     },
-    /// The route answered something of a face its lane finds untrue: a
-    /// kernel defect, not a property of the body, and not a key that
-    /// failed to resolve ([`TessellateError::MissingEntity`]). Raised where
-    /// a lane meets a face the route (`tessellate::route_of`) should not
-    /// have sent it: a ringed or pinched face on the curved lane, a
-    /// half-edge or a side count the shape door did not answer, a walked
-    /// face whose chart is a spline or whose polygon is not the walk's two
-    /// rows.
-    RouterDefect {
-        /// The face the route misread.
-        face: FaceKey,
-        /// What the lane found.
-        what: &'static str,
-    },
     /// A trimmed face on a chart with singular rows — a sphere's poles,
     /// a cone's apex, a spindle sheet's apexes — whose shape about one
     /// the trimmed lane does not mesh ([`SphereTrimCause`] names which;
@@ -1095,12 +1081,6 @@ impl TessellateError {
                  is not a closed manifold; a different δ may clear it",
                 faces.len()
             ),
-            Self::RouterDefect { what, .. } => {
-                write!(
-                    f,
-                    "tessellate: the route misread a face (a kernel defect): {what}"
-                )
-            }
             Self::SphereTrimShape { cause, .. } => {
                 let what = match cause {
                     SphereTrimCause::PastPole => {

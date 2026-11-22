@@ -126,9 +126,7 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             fields[4] = ("note", PyString::new(py, note).unbind().into_any());
             Ok(())
         }
-        // A router defect's face is a key and does not cross, as no
-        // variant's face does; its sentence is the payload.
-        T::MissingEntity { what } | T::RouterDefect { what, .. } => {
+        T::MissingEntity { what } => {
             fields[4] = ("note", PyString::new(py, what).unbind().into_any());
             Ok(())
         }

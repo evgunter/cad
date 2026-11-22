@@ -229,7 +229,7 @@ pub(crate) fn traversals(
         if !forward {
             ids.reverse();
         }
-        let kind = side_of(chart, rectangle, half_edge, curve, face)?;
+        let kind = side_of(chart, rectangle, half_edge, curve)?;
         out.push(Trav {
             edge: ek,
             half_edge,
@@ -260,17 +260,15 @@ fn side_of(
     rectangle: &crate::curved::Rectangle,
     half_edge: topo::HalfEdgeKey,
     curve: &geom_brep::EdgeCurve<f64>,
-    face: FaceKey,
 ) -> Result<TravKind, TessellateError> {
     let family = rectangle
         .side(half_edge)
-        .ok_or(TessellateError::RouterDefect {
-            face,
-            what: "a half-edge the shape door did not certify reached the iso-rectangle walk",
+        .ok_or(TessellateError::MissingEntity {
+            what: "a half-edge the shape door did not certify reached the iso-rectangle walk \
+                   (router defect)",
         })?;
-    topo::chart_iso::traversal_kind(chart, curve, family).ok_or(TessellateError::RouterDefect {
-        face,
-        what: "a rim the shape door certified on a carrier with no row",
+    topo::chart_iso::traversal_kind(chart, curve, family).ok_or(TessellateError::MissingEntity {
+        what: "a rim the shape door certified on a carrier with no row (router defect)",
     })
 }
 

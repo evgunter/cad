@@ -593,11 +593,21 @@ pub(crate) fn tessellate_trimmed(
     );
     let orientation = trim_orientation(fk, face.sense, spline, &polygon)?;
     if walked {
+        // `[failure.taxonomy]` row 0: could the route hand this lane a
+        // type that only a cylinder or cone face's row inhabits, as
+        // `curved::Rectangle` is the rectangle lane's? No, not locally:
+        // whether a face's row is analytic or a spline's is `ChartRow::of`'s
+        // run-time match on the surface's kind, the constructor every arm of
+        // this lane shares, and a walked row by type would change it for
+        // all of them. So row 4.
         let ChartRow::Analytic(ref a) = row else {
-            return Err(TessellateError::RouterDefect {
-                face: fk,
-                what: "a face the route walks has a spline chart",
-            });
+            unreachable!(
+                "face {fk:?}: the route walks only a face whose split-side fact \
+                 held (`walk::splits_a_straight_side`, which answers no off a \
+                 cylinder or a cone, `chart_table::ruled`), and a cylinder's or a \
+                 cone's chart row is analytic (`ChartRow::of`); a spline row here \
+                 means the route and the row read two surfaces"
+            );
         };
         return walk_face(body, fk, a, &polygon, &singular, chords, shared, tol);
     }
@@ -3600,9 +3610,7 @@ fn may_make(
 ///
 /// # Errors
 ///
-/// [`TessellateError::RouterDefect`] where the polygon does not read as
-/// the two rows the route found in the loop ([`walkable`]); and the lane's
-/// per-triangle refusals: [`TessellateError::UnresolvedWinding`],
+/// The lane's per-triangle refusals: [`TessellateError::UnresolvedWinding`],
 /// [`TessellateError::FoldedTriangle`],
 /// [`TessellateError::CertificateExceeded`],
 /// [`TessellateError::RoundingUnresolved`].
@@ -3627,13 +3635,26 @@ fn walk_face(
         .iter()
         .map(|&ek| carried_by_a_line(body, ek))
         .collect();
-    let rows = (polygon.ends.len() == 1)
+    // `[failure.taxonomy]` row 0: no. The two rows are read again here off
+    // the polygon the chord pass built, after the route read the loop's
+    // carriers (`walkable`); the route cannot hand the lane the polygon,
+    // which does not exist when it runs. A re-derivation that a correct
+    // kernel always passes is row 4.
+    let Some(rows) = (polygon.ends.len() == 1)
         .then(|| crate::ruled_walk::Rows::of(points, &line, singular))
         .flatten()
-        .ok_or(TessellateError::RouterDefect {
-            face: fk,
-            what: "a face the route walks does not read as the walk's two rows",
-        })?;
+    else {
+        unreachable!(
+            "face {fk:?}: the route walks a face only where its outer loop, with no \
+             ring, is lines and rims in the walk's shape (`walkable`, deciding its \
+             vertices on the apex at the run's band), and the trim polygon is that \
+             loop in order with chord points added along its edges and the apex \
+             decided at the same band (`singular_vertices`), so it reads as the same \
+             two rows: here it has {} loop(s) and {} point(s)",
+            polygon.ends.len(),
+            points.len()
+        );
+    };
     let across = faces_across(body, fk, chords)?;
     // Each boundary id's places on the polygon: the apex's copies are one
     // point, and so are a full turn's seam ends.
