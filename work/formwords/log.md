@@ -88,3 +88,13 @@ and its DESIGN.md diff writes the frame-only reading.
 A class finding with no home: the placement editor never writes a slid
 far side. Filed as P0 on DOORS:
 `the-placement-editor-cannot-author-an-offset-from-a-face`.
+
+## 2026-11-22 — mirror-plane reviewed
+
+(FORMWORDS orchestrator) PR 7373's review found it mergeable. It
+raised two MINORs: a variable picked before a face was silently
+dropped, and a hover sentence pointed at a pick the GUI cannot make. A
+fix pass is running on both. A class to watch: seats that decline a
+pick **silently** although `Tools::feed`'s doc promises a notice. The
+fix pass closes it for the plane seats; a datum or seat unit that adds
+a pick route checks its own seats against that doc.
