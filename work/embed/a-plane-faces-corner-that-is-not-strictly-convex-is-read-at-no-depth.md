@@ -26,11 +26,12 @@ edges, so they fail it at every depth:
 
 - **a straight corner**, a vertex in the middle of one straight run of
   the face's boundary. A Boolean leaves one wherever it splits a face's
-  edge at a vertex of the other operand. Both leans are exactly 0 where
-  the face's chart holds one coordinate fixed along both edges (an
-  axis-aligned body); on any other placement each is a rounding wide and
-  decides `Zero` at the band. The exact ones are read since 2026-11-22
-  (the section at the end); the others are not.
+  edge at a vertex of the other operand. Both leans are exactly 0 only
+  where every chart operation on the two edges is exact in floating
+  point, which is dyadic coordinates, not axis alignment (PR 7338's
+  review); anywhere else each is a rounding wide and decides `Zero` at
+  the band. A reading of the exact ones was built and dropped (the
+  sections at the end).
 - **a reflex corner**. Both leans are negative. That the arm does not
   present a reflex corner as its quadrant is right, and
   `a_planes_reflex_corner_of_two_lines_is_not_its_wedge` holds it. No
@@ -38,8 +39,8 @@ edges, so they fail it at every depth:
   the defect (`embed/iso-end`, 2026-11-22): a reflex face is read
   through its own carrier, by the carrier arm, which reads the PARTNER's
   presentation. So a pair at a reflex corner refuses where the partner
-  is not presented, or is presented as a sliver. An exactly straight
-  corner on the partner is one such exit, and is read since 2026-11-22.
+  is not presented, or is presented as a sliver. A straight corner on
+  the partner is one such exit.
 
 When the pair's shared cell is that vertex, or an edge ending there, the
 pair is `Split { Departure }` down to the depth floor and the walk
@@ -106,7 +107,7 @@ Cheapest edge reproducer:
 `topo::all records_cite_their_decision::a_cell_reached_from_both_sides_cites_its_shortest_chain`
 (0.12 s).
 
-## Measured and landed: the exact straight corner (embed/straight-corner, 2026-11-22)
+## Measured, built and dropped: the exact straight corner (embed/straight-corner, PR 7338, 2026-11-22)
 
 Main `9bc9d6517`, gate and trace harness merged on
 `embed/straight-corner-measure`. Population: the census's plane/plane
@@ -121,7 +122,7 @@ two records, two origins, opposed directions. A reading of "one stored
 line" (same origin and direction) was built first and moved 3 of 215,
 so it is not what landed.
 
-**What landed.** `present_plane` reads two line edges as one run where
+**What was built.** `present_plane` read two line edges as one run where
 each edge's far end lies on the other's line as the point 0 (the lean's
 enclosure is exactly `[0, 0]`; no band is asked) and the two leave the
 vertex opposite ways, one into it and one out. The run presents its
@@ -136,7 +137,9 @@ and holds whole lines, against a partner whose zero is nothing, a
 corner point or its own run.
 
 **Census, before and after.** Tests that pass with the gate asking: 0
-of 215 before, 24 after. By each test's first non-`Embedded` ask:
+of 215 before, 24 after. 22 of the 24 have every ask `Embedded`; the
+other 2 pass with an ask that is not, which their test tolerates. By
+each test's first non-`Embedded` ask:
 
 | before | after | tests |
 |---|---|---|
@@ -153,9 +156,11 @@ of 215 before, 24 after. By each test's first non-`Embedded` ask:
 tests that still refused, each lean classed exact 0, `Zero` at the
 band, negative or undecided):
 
-- **78 exit only at reflex corners** (both leans negative). The trace
-  counted 10 of the 57 vertex tests it re-ran. The reflex corner is the
-  larger part of this row, not the smaller.
+- **78 have reflex exits and no straight-in-band ones** (both leans
+  negative): 71 show only reflex exits and 7 also show exact-zero ones
+  (PR 7338's review). The trace counted 10 of the 57 vertex tests it
+  re-ran. The reflex corner is the larger part of this row, not the
+  smaller.
 - **32 exit at corners straight only to rounding**: both leans decide
   `Zero` at the band and neither is exactly 0. The widest enclosure in
   any of them is 3.3e-14 m, against ε = 1e-9 m. These are bodies off
@@ -172,12 +177,25 @@ refuses `Budget(Depth)` at both scalars, 20 pairs refused: its runs'
 leans are a rounding wide. A mutant reading the run at the band's
 `Zero` instead of the point 0 makes that turned body hold.
 
+**Why it was dropped** (PR 7338's review at `815d12e37`, probes on
+`origin/embed/straight-corner-review`; no unsoundness found in a body).
+The reading's reach is dyadic placements. The flush union moved by
+`(0.5, 0.25, 0.125)` or `(3, 0, 0)` holds at both scalars; moved by
+`(0.1, 0.2, 0.3)`, built there, or with sides 0.7, it refuses at both;
+moved by `(1/3, 10.1, −7.7)` it holds at `f64` and refuses at
+`Interval`, a valid body in two verdict classes where main had both
+refusing. It also added a zero variant, a reader and two plane arms the
+design below deletes, and its two-run plane lists edges it holds only
+where two stored lines meet
+(`work/embed/the-two-line-plane-lists-a-second-edge-it-holds-only-where-the-stored-lines-meet.md`).
+The PR does not land; its branch stays.
+
 ## Owed
 
 **Design: a two-line corner read as two convex pieces**
-(`embed/corner-pieces`, 2026-11-22; a design, nothing built). It
-replaces the exact run above and takes the corner straight only to
-rounding, the reflex corner and every turned body as one reading. The
+(`embed/corner-pieces`, 2026-11-22; a design, nothing built). It takes
+the straight corner at any placement, the reflex corner and every
+turned body as one reading. The
 band-scale reading considered before it (a lean decided `Zero` at
 `SELF_INTERSECTION_CORNER`, a line held within ε, edges listed under a
 separator that holds them within ε) is not needed and is not taken.
@@ -200,7 +218,9 @@ pair shares `V`, else `None`. The side along `m` is never a zero.
 1. **The two pieces cover the face's part of the cell.** The face near
    `V` is the sector from `a` round to `b` on the face's side. A ray
    strictly inside that sector cuts it into the sectors `(a, m)` and
-   `(m, b)`, whatever the corner's angle short of a full turn. Guard:
+   `(m, b)`, whatever the corner's angle short of a full turn. Each
+   piece must itself be convex (under a half turn), so toward 360°, a
+   slit, no ray serves and the cell refuses. Guard:
    `m` strictly inside on both sides, which is two strict signs, the
    chart determinants `a × m` and `m × b` on the face's orientation,
    decided `Positive` or the cell refuses `Local`. They are levered as
@@ -308,6 +328,13 @@ the calls themselves should fall; that was not measured. A piece pair
 is not a cell pair: the receipt's pairs and `Budget(Pairs)` do not
 move by it.
 
+How many of the 78 reflex tests the pieces close that the carrier arm
+does not already is not measured and cannot be before the build: it
+turns on whether each refusing pair's PARTNER is a two-line corner the
+pieces now present (`embed/iso-end` counts 18 of its 32 reflex pairs
+with an unpresented partner and 14 with a sliver one, which is
+`embed/remeter`'s). The build measures it through the gate.
+
 ### What goes, and its pins
 
 - The lean gate and the convex quadrant: its rows
@@ -315,12 +342,41 @@ move by it.
   convex-corner rows) are re-pinned on the pieces: a convex corner
   presents two pieces whose union is its quadrant, a reflex one two
   pieces that cover its three quadrants, never the wedge.
-- The run, `Zero::Through`, `through_read`, the two run arms of
-  `planes_through` and its second-piece parameter (all PR 7338's): its
-  four unit rows go; the band's-edge row becomes "a spike within the
-  band refuses"; the flush-union body row stays; the turned row flips
-  from `Budget(Depth)` to holding and is the acceptance test; the flap
-  row must stay `Violated`.
+- PR 7338 does not land, so the run, `Zero::Through`, `through_read`
+  and its plane arms are not on the base and nothing of them is
+  deleted. Its rows are re-created here where they still say something:
+  the band's-edge row becomes "a spike within the band refuses"; the
+  flush-union, turned and flap body rows come over as below.
+
+### Rows the unit owes
+
+Holding at BOTH scalars, each through `topo::clearance::embedded`: the
+flush union as built; moved by `(0.1, 0.2, 0.3)` and by
+`(1/3, 10.1, −7.7)`; built at `(0.1, 0.2, 0.3)`; with sides 0.7; turned
+about a generic axis; mirrored; at the session box's wall. These are
+the rows the stopgap failed.
+
+Never certified, or `Violated` (the review's partners and flaps): a
+partner's edge along the run either way; a run on the same line in
+another plane; a coplanar partner straddling the line; a steep
+crossing; the flap through the run at its vertex. Certified, rightly: a
+coplanar partner across the line. And one hazard the pieces must not
+open (`review_m8_a_past_side_is_not_read_in_the_carrier_arm`): a wall's
+edge lying in a reflex floor's interior, read by the carrier arm
+against the floor's carrier, must stay `Split`. With pieces the floor
+IS presented, so that pair is asked piece by piece: the floor's piece
+that holds the wall's second edge in its interior shares a ray with the
+wall's piece on that edge and is not parted. That is argued, not
+probed: the unit pins it.
+
+### The two-line plane's gap
+
+A plane face's piece holds at most one edge of its corner, so a piece
+pair with a plane piece never shares two line edges and never reaches
+`planes_through`'s two-line arm: each piece pair's separator lists at
+most that pair's one shared edge, which it holds by construction. The
+arm keeps its gap for pairs with no plane piece; that is filed
+(`work/embed/the-two-line-plane-lists-a-second-edge-it-holds-only-where-the-stored-lines-meet.md`).
 
 ### Not covered
 
