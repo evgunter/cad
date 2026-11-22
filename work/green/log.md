@@ -488,3 +488,4 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - The saving is re-attributed: about 13 min from opt 1 and about 10 from the scalpel move.
   - The P1 shutdown row closes on the change, watched by `the-nightly-build-job-holds-over-five-scheduled-main-nights` (P2). The margin row (P2) carries the trend.
   - FULL single review, Opus; no model-compare row (Fable outage).
+- 2026-11-22 — U9 (`green/held-reds`): the held-by-closed-rows P0. Re-read on the nightly and on current main at every ε. The tilted rod (SECTARMS, P2), offer rows (SCALAR, P1, PR 7267) and the drive-memo race (SCALAR, P3) are each held by a live row, with per-ε evidence added. The plates ledger and the spline fuzz are green on main. The seamless pipe's enclosure row joins its junction sibling's GREEN P0 (one payload). The kite moat is bisected to PR 7131 (Plane `Debug` spelling) and re-blessed. The row stays open.
