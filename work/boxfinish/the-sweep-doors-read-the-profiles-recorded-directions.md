@@ -2,11 +2,12 @@
 id: the-sweep-doors-read-the-profiles-recorded-directions
 kind: issue
 title: The sweep doors read the profile's recorded directions where they derive one from a segment's ends, so the tour's stop and the cut plate certify
-status: dispatched
+status: review
 opened: 2026-11-14
 priority: P0
 cost: M
 branch: boxfinish/doors-read
+pr: 7384
 ---
 
 
@@ -119,46 +120,18 @@ a wrong side or a wrong containment answer under the old rule
 adopts from its review are the tripwires to run first.
 
 
-## Re-stated at dispatch (2026-11-15), on the tree with PRs 6972 and 6990
+## Ruled (2026-11-22): this unit ships the type move only
 
-- **The sites are two functions.** PR 6972 funnelled every direction
-  the doors derive from a segment's ends into `swept::sketch_direction`
-  (a line's director; an arc's start radial, `(a − centre)` over its
-  own length) and `swept::sketch_chord` (a line's director and length),
-  read by four arms: `extrude::side_surface`'s line and arc arms and
-  `swept::placed_segment_spec_about`'s line and arc arms, the second
-  being every door's rim. `swept::SweptSeg` copies a validated
-  segment's ends and kind and drops its directions, so `crates/sweep`
-  reads a recorded direction nowhere. The older spellings this file and
-  the extrude-mint row cite (`rim.normalize()`,
-  `(q_to − q_from).normalize()`) are gone.
-- **"The axis rule's two lanes, driven" describes PR 6963's rule.**
-  After PR 6990 two different variables equal at the nominal take the
-  quotient in every lane (the bullet after it, and audit row F43). What
-  the door is driven for instead: a leaf the driver certifies holds
-  every member of its box, on a document whose hop director is the
-  quotient with a width (two variables equal at the nominal) and on one
-  whose hop is an identity (the slab's `W − W`), in the lanes a drive
-  runs in.
-- **The mint and the verbs are not this unit's.** Which directions are
-  minted where, and how the mint asks whether a component is zero, is
-  `the-axis-mint-asks-for-proof-only-where-the-value-reads-zero`, with
-  Ev on `[ev]` PR 6993. This unit reads what a validated segment
-  holds and changes where it is held (`SegmentKind`'s arms), not how it
-  is made.
-- **The tour's blank is a polygon, its holes circles.** The plate's
-  hole radials are recorded by the circle verb; its blank's directors
-  are minted hop by hop. So whether the tour's certified stop and the
-  cut plate certify after this unit also turns on what the mint stores
-  in the session a drive runs in. The closing tests say which
-  directions held them, by payload.
-- **A wall that goes red by design.** `tolerance::cut_wall`
-  (`demos/tour`) asserts the cut plate certifies no leaf over the
-  study, citing
-  `work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`.
-  If the doors make it certify, the wall is re-stated with what was
-  measured and that row gets the evidence.
-- **The slab's row exists and is loose.**
-  `a_sweep_keeps_the_frame_it_is_handed::a_slab_over_a_width_box_stores_its_fixed_faces_exact_and_holds_the_moving_walls`
-  asserts only a rounding width on the three moving walls; this unit
-  tightens it to exact where the profile's direction is exact.
+On the lane's measurement (with the line arm reading the recorded
+director the slow sets go about 20 rows red against a green base, by
+two mechanisms: a minted axis beside a quotient-minted partner, and a
+projection span that folds only under rule A), no door reads a
+recorded direction in this unit. What ships is the validated type: a
+segment holds its directions in its kind's arm, and the sweep's
+traversal carries them. The "tests that say it is closed" above are
+not met by it and move with the work: the line half to
+`a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners`,
+the arc half to
+`a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided`.
+This row closes when PR 7384 merges; `delete-the-box-scalar-sweep-leaf-switch`
+is re-parked on those two at that merge.
