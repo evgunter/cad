@@ -2,10 +2,12 @@
 id: probe-seed-respells-props-authored-in
 kind: issue
 title: probe_seed re-spells props::authored_in by hand
-status: open
+status: review
 opened: 2026-09-21
 priority: P1
 cost: E
+pr: 7372
+branch: formwords/dimension-ladders
 ---
 
 

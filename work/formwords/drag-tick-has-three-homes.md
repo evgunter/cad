@@ -2,11 +2,13 @@
 id: drag-tick-has-three-homes
 kind: issue
 title: The drag tick has three homes and a count field has two answers — the creation forms pick from the four constants by hand
-status: open
+status: review
 opened: 2026-09-04
 refs: [1776]
 priority: P1
 cost: E
+pr: 7372
+branch: formwords/dimension-ladders
 ---
 
 

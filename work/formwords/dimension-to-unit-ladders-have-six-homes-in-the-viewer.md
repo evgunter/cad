@@ -2,10 +2,12 @@
 id: dimension-to-unit-ladders-have-six-homes-in-the-viewer
 kind: issue
 title: Six Dimension-to-unit ladders in the viewer, each answering which dimensions have a notation
-status: open
+status: review
 opened: 2026-09-21
 priority: P1
 cost: D
+pr: 7372
+branch: formwords/dimension-ladders
 ---
 
 
