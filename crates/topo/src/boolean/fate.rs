@@ -2638,27 +2638,26 @@ mod bisector_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tip_count_rows {
-    use geom_core::{Band, Point3, Tol};
+    use geom_core::{Band, Decide, ErrorTextReading, Interval, Point3, Tol};
 
     use super::tip_wraps;
     use crate::body::Body;
     use crate::boolean::{BooleanError, Operand, SlitFaceGap};
-    use crate::entity::{FaceKey, HalfEdgeKey};
+    use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
     use crate::euler::{MefSite, MevSite};
+    use crate::props::AtRestPolicy;
     use crate::test_support_fixtures::{plane_every_face, plant_ring_face};
 
-    /// The spike's tip.
-    const TIP: (f64, f64) = (0.0, 0.0);
-
-    /// A spike whose two sides leave [`TIP`] `0.9e-6 rad` apart, one
-    /// `1 mm` long and the other a metre, so at the corner's lever
-    /// (`1 mm`) they part by `0.9e-9 m`: one ray within a band of
+    /// A spike whose two sides leave its tip, the origin, `0.9e-6 rad`
+    /// apart, one `1 mm` long and the other a metre, so at the corner's
+    /// lever (`1 mm`) they part by `0.9e-9 m`: one ray within a band of
     /// `1e-9 m`. Its shortest run, a `0.2 mm` jog, is far from the tip,
-    /// and every other corner is square. Counterclockwise about `+z`.
-    fn spike() -> Vec<Point3<f64>> {
+    /// and every other corner is square. Counterclockwise about `+z`,
+    /// the tip first.
+    fn spike<T: Decide>() -> Vec<Point3<T>> {
         let far = 1.0 + 2e-4;
         [
-            TIP,
+            (0.0, 0.0),
             (1e-3, 0.0),
             (1e-3, -1.0),
             (1.0, -1.0),
@@ -2666,18 +2665,18 @@ mod tip_count_rows {
             (far, -0.5),
             (far, 0.9e-6 * far),
         ]
-        .map(|(x, y)| Point3::new(x, y, 0.0))
+        .map(|(x, y)| Point3::new(x, y, 0.0).map(T::from_f64))
         .to_vec()
     }
 
     /// A square lamina holding [`spike`] as a ring of one face and as
     /// the outline of the face that covers it: `[host, cover]`, each
     /// with its half-edge leaving the tip.
-    fn spiked_lamina() -> (Body<f64>, [(FaceKey, HalfEdgeKey); 2]) {
+    fn spiked_lamina<T: Decide + AtRestPolicy>() -> (Body<T>, [(FaceKey, HalfEdgeKey); 2]) {
         let tol = Tol::witness();
         let outer = [(-3.0, -3.0), (3.0, -3.0), (3.0, 3.0), (-3.0, 3.0)]
-            .map(|(x, y)| Point3::new(x, y, 0.0));
-        let mut body = Body::<f64>::new();
+            .map(|(x, y)| Point3::new(x, y, 0.0).map(T::from_f64));
+        let mut body = Body::<T>::new();
         let seed = body.mvfs(outer[0], true).unwrap();
         let first = body
             .mev_line(
@@ -2716,35 +2715,26 @@ mod tip_count_rows {
                 tol,
             )
             .unwrap();
-        plant_ring_face(&mut body, front.he_plus, &spike(), tol);
+        let tip = plant_ring_face(&mut body, front.he_plus, &spike(), tol)
+            .strut
+            .vertex;
         plane_every_face(&mut body, tol);
-        let at_tip = |he: HalfEdgeKey| {
-            body.half_edge_start_point(he)
-                .is_some_and(|p| (p.x, p.y) == TIP)
-        };
-        let leaving_tip = |first: HalfEdgeKey| {
+        let leaving_tip = |l: LoopKey| {
+            let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary else {
+                panic!("a walked loop");
+            };
             body.loop_cycle(first)
                 .unwrap()
                 .into_iter()
-                .find(|&he| at_tip(he))
-                .unwrap()
-        };
-        let cycle_of = |l: crate::entity::LoopKey| match body.get_loop(l).unwrap().boundary {
-            crate::entity::LoopBoundary::Cycle { first } => first,
-            crate::entity::LoopBoundary::Empty { .. } => panic!("a walked loop"),
+                .find(|&he| body.get_half_edge(he).unwrap().start == tip)
         };
         let mut host = None;
         let mut cover = None;
         for (f, face) in body.faces() {
             if let [ring] = face.rings.as_slice() {
-                host = Some((f, leaving_tip(cycle_of(*ring))));
-            } else if body
-                .loop_cycle(cycle_of(face.outer))
-                .unwrap()
-                .iter()
-                .any(|&he| at_tip(he))
-            {
-                cover = Some((f, leaving_tip(cycle_of(face.outer))));
+                host = Some((f, leaving_tip(*ring).unwrap()));
+            } else if let Some(he) = leaving_tip(face.outer) {
+                cover = Some((f, he));
             }
         }
         (body, [host.unwrap(), cover.unwrap()])
@@ -2754,58 +2744,69 @@ mod tip_count_rows {
     /// one.** The spike's tip turns `0.9e-6 rad` short of a half-turn,
     /// which leaves the loop's other corners `2.9e-7` half-turns off a
     /// whole count: the face the spike is a ring of wraps the tip, and
-    /// the face it outlines holds a spur there.
+    /// the face it outlines holds a spur there. On both lanes.
     #[test]
     fn a_tip_admitted_at_a_millimetre_reach_is_counted_as_its_half_turn() {
-        let band = Band::new(1e-9, 1e-8).unwrap();
-        let (body, [host, cover]) = spiked_lamina();
-        assert!(
-            matches!(tip_wraps((&body, Operand::A), host, band), Ok(true)),
-            "the ring's tip, wrapped: {:?}",
-            tip_wraps((&body, Operand::A), host, band)
-        );
-        assert!(
-            matches!(tip_wraps((&body, Operand::A), cover, band), Ok(false)),
-            "the outline's spur: {:?}",
-            tip_wraps((&body, Operand::A), cover, band)
-        );
+        fn row<T: Decide + AtRestPolicy>(lane: &str) {
+            let band = Band::new(1e-9, 1e-8).unwrap();
+            let (body, [host, cover]) = spiked_lamina::<T>();
+            assert!(
+                matches!(tip_wraps((&body, Operand::A), host, band), Ok(true)),
+                "{lane}: the ring's tip, wrapped: {:?}",
+                tip_wraps((&body, Operand::A), host, band)
+            );
+            assert!(
+                matches!(tip_wraps((&body, Operand::A), cover, band), Ok(false)),
+                "{lane}: the outline's spur: {:?}",
+                tip_wraps((&body, Operand::A), cover, band)
+            );
+        }
+        row::<f64>("f64");
+        row::<Interval>("Interval");
     }
 
     /// **The count is metered at the loop's least reach.** A quarter
     /// turn at the `0.2 mm` jog is `3.1e-4 m`: in a band that holds it
     /// the count escalates as a corner does, and in a band whose zero
     /// holds it the tip is unread. The tip's own corner reads at its
-    /// `1 mm` lever and is a half-turn in both.
+    /// `1 mm` lever and is a half-turn in both. On both lanes.
     #[test]
     fn a_quarter_turn_within_the_band_at_the_least_reach_counts_nothing() {
-        let (body, [_, cover]) = spiked_lamina();
-        let in_band = Band::new(2.5e-4, 9e-4).unwrap();
-        let quarter_turn = core::f64::consts::FRAC_PI_2 * 2e-4;
-        assert!(
-            matches!(
-                tip_wraps((&body, Operand::A), cover, in_band),
-                Err(BooleanError::Escalated { ref diag, .. })
-                    if diag.predicate == Some("bool_fate_corner")
-                        && matches!(
-                            diag.margin.diagnostic_f64_for_error_text(),
-                            geom_core::ErrorTextReading::Value(m)
-                                if (m - quarter_turn).abs() < 1e-9
-                        )
-            ),
-            "{:?}",
-            tip_wraps((&body, Operand::A), cover, in_band)
-        );
-        let on_mark = Band::new(4e-4, 9e-4).unwrap();
-        assert!(
-            matches!(
-                tip_wraps((&body, Operand::A), cover, on_mark),
-                Err(BooleanError::SlitFaceGlued {
-                    gap: SlitFaceGap::TipUnread,
-                    ..
-                })
-            ),
-            "{:?}",
-            tip_wraps((&body, Operand::A), cover, on_mark)
-        );
+        fn row<T: Decide + AtRestPolicy>(lane: &str) {
+            let (body, [_, cover]) = spiked_lamina::<T>();
+            let in_band = Band::new(2.5e-4, 9e-4).unwrap();
+            let quarter_turn = core::f64::consts::FRAC_PI_2 * 2e-4;
+            let holds = |m: ErrorTextReading| match m {
+                ErrorTextReading::Value(m) => (m - quarter_turn).abs() < 1e-9,
+                ErrorTextReading::Enclosure { lo, hi } => {
+                    lo - 1e-9 < quarter_turn && quarter_turn < hi + 1e-9 && hi - lo < 1e-9
+                }
+                ErrorTextReading::Invalid => false,
+            };
+            assert!(
+                matches!(
+                    tip_wraps((&body, Operand::A), cover, in_band),
+                    Err(BooleanError::Escalated { ref diag, .. })
+                        if diag.predicate == Some("bool_fate_corner")
+                            && holds(diag.margin.diagnostic_f64_for_error_text())
+                ),
+                "{lane}: {:?}",
+                tip_wraps((&body, Operand::A), cover, in_band)
+            );
+            let on_mark = Band::new(4e-4, 9e-4).unwrap();
+            assert!(
+                matches!(
+                    tip_wraps((&body, Operand::A), cover, on_mark),
+                    Err(BooleanError::SlitFaceGlued {
+                        gap: SlitFaceGap::TipUnread,
+                        ..
+                    })
+                ),
+                "{lane}: {:?}",
+                tip_wraps((&body, Operand::A), cover, on_mark)
+            );
+        }
+        row::<f64>("f64");
+        row::<Interval>("Interval");
     }
 }

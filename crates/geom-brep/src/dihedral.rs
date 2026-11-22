@@ -3168,39 +3168,51 @@ mod tests {
     /// the offered tolerance would leave it in band, and the refusal
     /// quotes it. The offer is the told one: a wedge between the told
     /// tolerance and the raw `arm/K` is quoted too, and one below the
-    /// told tolerance leaves the arm binding.
+    /// told tolerance leaves the arm binding. On both lanes.
     #[test]
     fn the_arms_wedge_is_read_in_the_band_the_arms_refusal_offers() {
-        let b = Band::new(1e-9, 1e-8).unwrap();
-        let floor = plane(Vec3::unit_z(), Vec3::unit_x());
-        let quoted = |arm: f64, sin: f64| {
-            let leaning = plane(
-                Vec3::new(0.0, sin, (1.0 - sin * sin).sqrt()),
-                Vec3::unit_x(),
-            );
-            classify_dihedral(&floor, &leaning, Point3::origin(), fixture_lever(arm), b)
+        fn row<T: Decide>(lane: &str) {
+            let b = Band::new(1e-9, 1e-8).unwrap();
+            let lean = |sin: f64| Surface::<T>::Plane {
+                frame: geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, sin, (1.0 - sin * sin).sqrt()).map(T::from_f64),
+                    Vec3::unit_x().map(T::from_f64),
+                ),
+            };
+            let quoted = |arm: f64, sin: f64| {
+                classify_dihedral(
+                    &lean(0.0),
+                    &lean(sin),
+                    Point3::origin(),
+                    fixture_lever(T::from_f64(arm)),
+                    b,
+                )
                 .map(|d| d.class())
                 .unwrap_err()
                 .diag()
                 .predicate
-        };
-        assert_eq!(quoted(1.5e-9, 0.5), Some("dihedral_arm_wedge"));
-        let arm = 7.123_456_789e-9;
-        let (told, raw) = (b.offer_deciding(arm).unwrap(), b.tolerance_deciding(arm));
-        assert!(
-            told < raw,
-            "the fixture's offer is told below {raw:e}: {told:e}"
-        );
-        assert_eq!(
-            quoted(arm, 0.5 * (told + raw) / arm),
-            Some("dihedral_arm_wedge"),
-            "between the told offer and the raw one"
-        );
-        assert_eq!(
-            quoted(arm, 0.999 * told / arm),
-            Some("dihedral_arm"),
-            "below the told offer"
-        );
+            };
+            assert_eq!(quoted(1.5e-9, 0.5), Some("dihedral_arm_wedge"), "{lane}");
+            let arm = 7.123_456_789e-9;
+            let (told, raw) = (b.offer_deciding(arm).unwrap(), b.tolerance_deciding(arm));
+            assert!(
+                told < raw,
+                "the fixture's offer is told below {raw:e}: {told:e}"
+            );
+            assert_eq!(
+                quoted(arm, 0.5 * (told + raw) / arm),
+                Some("dihedral_arm_wedge"),
+                "{lane}: between the told offer and the raw one"
+            );
+            assert_eq!(
+                quoted(arm, 0.999 * told / arm),
+                Some("dihedral_arm"),
+                "{lane}: below the told offer"
+            );
+        }
+        row::<f64>("f64");
+        row::<geom_core::Interval>("Interval");
     }
 
     /// **A pairing's refusal reads the wedge in the band it offers.**
@@ -3209,37 +3221,48 @@ mod tests {
     /// bands, is within the run's zero and past the offer's, and is
     /// quoted. At `0.05 rad` the wedge is `0.2` bands, zero at the
     /// offer, and the pairing keeps its own margin. The offer is the
-    /// told one, as at the arm.
+    /// told one, as at the arm. On both lanes.
     #[test]
     fn a_pairings_wedge_is_read_in_the_band_the_pairings_refusal_offers() {
-        let b = Band::new(1e-9, 1e-8).unwrap();
-        let refused = |theta: f64, arm: f64| {
-            smooth_pairing(
-                OutwardNormal::from_chart(Vec3::unit_z(), true),
-                OutwardNormal::from_chart(Vec3::new(0.0, theta.sin(), theta.cos()), true),
-                fixture_lever(arm),
-                b,
-            )
-            .unwrap_err()
-            .predicate
-        };
-        assert_eq!(refused(0.2, 4e-9), Some("material_pairing_wedge"));
-        assert_eq!(refused(0.05, 4e-9), Some("material_wedge_side"));
-        let arm = 7.123_456_789e-9;
-        let k = b.escalate() / b.zero();
-        let cosine = (1.0 / k).atan().cos() * arm;
-        let share = b.offer_deciding(cosine).unwrap() / b.tolerance_deciding(cosine);
-        assert!(
-            share < 1.0,
-            "the fixture's offer is told below the raw one: {share}"
-        );
-        let theta = (0.5 * (1.0 + share) / k).atan();
-        let (wedge, cosine) = (theta.sin() * arm, theta.cos() * arm);
-        assert!(
-            b.offer_deciding(cosine).unwrap() < wedge && wedge < b.tolerance_deciding(cosine),
-            "the wedge lies between the told offer and the raw one"
-        );
-        assert_eq!(refused(theta, arm), Some("material_pairing_wedge"));
+        fn row<T: Decide>(lane: &str) {
+            let b = Band::new(1e-9, 1e-8).unwrap();
+            let refused = |theta: f64, arm: f64| {
+                smooth_pairing(
+                    OutwardNormal::from_chart(Vec3::unit_z().map(T::from_f64), true),
+                    OutwardNormal::from_chart(
+                        Vec3::new(0.0, theta.sin(), theta.cos()).map(T::from_f64),
+                        true,
+                    ),
+                    fixture_lever(T::from_f64(arm)),
+                    b,
+                )
+                .unwrap_err()
+                .predicate
+            };
+            assert_eq!(refused(0.2, 4e-9), Some("material_pairing_wedge"), "{lane}");
+            assert_eq!(refused(0.05, 4e-9), Some("material_wedge_side"), "{lane}");
+            let arm = 7.123_456_789e-9;
+            let k = b.escalate() / b.zero();
+            let cosine = (1.0 / k).atan().cos() * arm;
+            let share = b.offer_deciding(cosine).unwrap() / b.tolerance_deciding(cosine);
+            assert!(
+                share < 1.0,
+                "the fixture's offer is told below the raw one: {share}"
+            );
+            let theta = (0.5 * (1.0 + share) / k).atan();
+            let (wedge, cosine) = (theta.sin() * arm, theta.cos() * arm);
+            assert!(
+                b.offer_deciding(cosine).unwrap() < wedge && wedge < b.tolerance_deciding(cosine),
+                "the wedge lies between the told offer and the raw one"
+            );
+            assert_eq!(
+                refused(theta, arm),
+                Some("material_pairing_wedge"),
+                "{lane}"
+            );
+        }
+        row::<f64>("f64");
+        row::<geom_core::Interval>("Interval");
     }
 
     /// **Two faces' outward normals read one way, opposite ways or

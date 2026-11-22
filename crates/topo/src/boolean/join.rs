@@ -6383,26 +6383,31 @@ mod travel_rows {
         );
     }
     /// [`germ_arm`] of the germ at `t = −π/4` turning clockwise and a
-    /// partner `bands` bands of arc past its antipode.
-    fn half_turn_arm(k: f64, bands: f64) -> Result<GermArm, BooleanError> {
+    /// partner `bands` bands of arc past its antipode, on lane `T`.
+    fn half_turn_arm_on<T: geom_core::Decide>(k: f64, bands: f64) -> Result<GermArm, BooleanError> {
         let (germ, dir) = at(k, -FRAC_PI_4);
         let speed = (k * k * 0.5 + 0.5).sqrt();
         let (site, tangent) = at(
             k,
             -FRAC_PI_4 + core::f64::consts::PI + bands * band().zero() / speed,
         );
-        let turn = Turn::facing(
+        let turn = Turn::<T>::facing(
             geom::Line {
                 origin: Point3::origin(),
-                dir: Vec3::unit_z(),
+                dir: Vec3::unit_z().map(T::from_f64),
             },
-            (germ, dir * -1.0),
-            (site, tangent),
+            (germ.map(T::from_f64), (dir * -1.0).map(T::from_f64)),
+            (site.map(T::from_f64), tangent.map(T::from_f64)),
             band(),
         )
         .unwrap();
         assert!(turn.is_some(), "the germ and its partner face");
         germ_arm(turn, band())
+    }
+
+    /// [`half_turn_arm_on`] at `f64`.
+    fn half_turn_arm(k: f64, bands: f64) -> Result<GermArm, BooleanError> {
+        half_turn_arm_on::<f64>(k, bands)
     }
 
     /// **A partner at the germ's half-turn reads `Ahead` only where the
@@ -6431,7 +6436,7 @@ mod travel_rows {
     /// so the sites' slack is `0.8` of the band's zero; a partner `0.8`
     /// bands of arc past the half-turn reads as far. Either alone is a
     /// tie, and the two sum to `1.6` bands, which is no tie: the row
-    /// escalates under the reading's own name.
+    /// escalates under the reading's own name, on both lanes.
     #[test]
     fn a_reading_and_a_slack_each_within_the_band_do_not_tie_together() {
         let k = 0.4 + 1.16_f64.sqrt();
@@ -6445,16 +6450,26 @@ mod travel_rows {
             "the reading alone: {:?}",
             half_turn_arm(1.0, 0.8).err()
         );
-        for bands in [0.8, -0.8] {
-            assert!(
-                matches!(
-                    half_turn_arm(k, bands),
-                    Err(BooleanError::Escalated { ref diag, .. })
-                        if diag.predicate == Some("bool_join_arc_ahead")
+        // The slack is two sites' stand-off, not one's: `0.4` bands of
+        // arc beside it are `1.2` together.
+        for bands in [0.8, -0.8, 0.4] {
+            for (lane, arm) in [
+                ("f64", half_turn_arm(k, bands)),
+                (
+                    "Interval",
+                    half_turn_arm_on::<geom_core::Interval>(k, bands),
                 ),
-                "{bands} bands past the half-turn: {:?}",
-                half_turn_arm(k, bands).err()
-            );
+            ] {
+                assert!(
+                    matches!(
+                        arm,
+                        Err(BooleanError::Escalated { ref diag, .. })
+                            if diag.predicate == Some("bool_join_arc_ahead")
+                    ),
+                    "{lane}, {bands} bands past the half-turn: {:?}",
+                    arm.err()
+                );
+            }
         }
     }
 }
