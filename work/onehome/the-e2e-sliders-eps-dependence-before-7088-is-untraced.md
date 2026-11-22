@@ -11,7 +11,7 @@ cost: M
 
 Found by GREEN's U3 (PR 7389), refined by that PR's review (2026-11-22).
 
-`crates/editor-core/tests/m10_5_r1_probes_interval.rs`, `e2e_channel_slider_over_an_epsilon_box`: before PR 7088 (`onehome/operand-coordinates`, merge `36395dff`), the slider's whole-body receipt took three values across ε, with no monotone order, over a box ε/64 wide. On 7088's first parent `be4e656d` it read `(10, 1258, 1248, 526)` at ε 1e-7 and 1e-11, and `(10, 1264, 1254, 532)` at 1e-8 and 1e-10. Since 7088, main `1aa4a931` reads `(10, 1264, 1254, 532)` at every ε from 1e-6 to 1e-12, and PR 7389 holds one pin for every ε.
+`crates/editor-core/tests/m10_5_r1_probes_interval.rs`, `e2e_channel_slider_over_an_epsilon_box`: before PR 7088 (`onehome/operand-coordinates`, merge `36395dff`), the slider's whole-body receipt took three values across ε, with no monotone order, over a box ε/64 wide. On 7088's first parent `be4e656d` it read `(10, 1282, 1272, 572)` at ε 1e-6, `(10, 1258, 1248, 526)` at 1e-7, 1e-11 and 1e-12, and `(10, 1264, 1254, 532)` at 1e-8 and 1e-10. Since 7088, main `1aa4a931` reads `(10, 1264, 1254, 532)` at every ε from 1e-6 to 1e-12, and PR 7389 holds one pin for every ε.
 
 Two things are open:
 
