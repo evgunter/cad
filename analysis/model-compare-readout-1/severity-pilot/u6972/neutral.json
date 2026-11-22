@@ -1,0 +1,277 @@
+{
+  "context": "PR 6972 changes how the sweep crate (extrude, loft, revolve) builds the planes and directions it stores: caps and walls now take their normal, origin and u_ref from the sketch frame carried by the placement, instead of fitting a Newell plane to the built vertices. A cap's origin becomes the carried sketch origin and a line wall's origin becomes its segment's start vertex; the Newell and CapPlane machinery and its refusals are deleted, and new helpers (`Course`, `Sweep`, `Placing::direction`, `sketch_direction`, `section_centre`) are added. The PR claims every stored direction equals main's fitted one at f64, that over an epsilon box the caps and walls are stored exactly, and that the ratified sweep README now holds that no sweep divides a difference of two placed points by its length. It re-baselines a number of committed test rows whose pins moved with the new origins, pins one viewer row red with a filed cause, and keeps the vector-extrusion strut as disclosed. Its body states that hosted CI runs the slow test set and cites a render run and switch-off counts. Both head-versus-base differentials found stored normals, u_refs and carriers equal to the base within 1e-12 or better across 33 and 59 f64 builds, with only plane origins differing.",
+  "items": [
+    {
+      "row": 1,
+      "title": "Committed slow-set test rows fail on head, pass on merge base",
+      "where": "editor-core, viewer and step-export slow-set test files (rows 1a and 1b)",
+      "what": "Six committed slow-set rows fail on the PR head and pass on the merge base. Their names do not appear on the diff's added lines, so the per-PR gate did not select them. They fall in two disjoint groups, listed in rows 1a and 1b.",
+      "evidence": "Each group was found by running slow rows on head and base: one run covered 89 slow rows in the touched modules at three epsilons, the other the sweep and step-export slow set (806 rows) at default epsilon.",
+      "consequence": "Main would carry six failing committed rows after merge. The two runs covered different crates and neither found the other group."
+    },
+    {
+      "row": "1a",
+      "title": "Four editor-core and viewer slow rows fail on head, pass on base",
+      "where": "editor-core seat8_split_lowering.rs, m10_5_r1_probes_interval.rs, coincidence_door.rs; viewer index_memo.rs",
+      "what": "`the_split_documents_evaluate_to_their_committed_digests` fails at every epsilon: three document digests changed; the PR re-cut a sibling row hashing the same planes. `a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both` panics at index_memo.rs:1317 at every epsilon; it is the unpinned sibling of the pinned ring row. `e2e_channel_slider_over_an_epsilon_box` gives receipts (10,1282,1272,572) at 1e-6 and (10,1258,1248,526) at 1e-12 against the pinned (10,1264,1254,532). In `coincidence_door`, `shaft_and_bearing_ball` is pinned to escalate at 1e-12 and now builds Ok.",
+      "evidence": "Run on head and base at default, 1e-6 and 1e-12 under the CI profile; all four pass on base at all three. Main's last nightly (run 43561237293) lists none of them among its failures.",
+      "consequence": "Two rows hold baselines the origin move changed and the PR did not re-cut, one is an unpinned viewer behaviour row, and one fails because head certifies a case the pin expects to escalate."
+    },
+    {
+      "row": "1b",
+      "title": "Two step-export rows fail: exported placement point and volume pad changed",
+      "where": "crates/step-export/tests/export.rs `committed_fixtures_are_byte_golden`; kernel_sidecars.rs `kernel_sidecar_fields_match_live_kernel`",
+      "what": "In `boss_union.step`, `#1 = CARTESIAN_POINT` was (2.0, 2.0, 1.0) and is (0.0, 0.0, 1.0): exported plane placements moved with the cap origin. The `swept_elbow` sidecar expects KERNEL_VOLUME_PAD_MM3 1.7046561015447784E-5 and the kernel now gives 1.6986412276764902E-5. The PR touches nothing under crates/step-export. The plane itself is unchanged, and by reading the code import does not treat the location as a face point.",
+      "evidence": "`cargo test -p step-export --test all`: 59 passed on base; 57 passed, 2 failed on head. A reading of writer.rs:793-796 shows the same move; no import round-trip was run.",
+      "consequence": "Exported STEP files differ in bytes from before, the committed fixture and sidecar no longer match, and the PR body does not state that exported files change."
+    },
+    {
+      "row": 2,
+      "title": "Gate ran four slow-set rows on this head; body says CI ran them",
+      "where": "CI run 43669842805 on 032ac185; ci.yml slow-set step; PR body coverage statement",
+      "what": "The gate's slow-set step runs only the slow rows whose identifiers appear on the diff's added lines. On this head it ran 4 rows (1 kernel, 3 app) at default epsilon; about 2,100 to 2,180 slow-set rows ran nowhere. The 1e-6 and 1e-12 rows ran the fast set only. Topo-release, step import, interval and tools jobs were skipped. The author's local runs used `--profile ci`, which excludes the slow set, while the body says \"hosted CI runs it\".",
+      "evidence": "Read from the gate's job logs. The fast set, Python (959 OK), demos (97/97), viewer (1554) and lint ran and passed.",
+      "consequence": "The body's coverage claim and its 13,988-row epsilon counts do not cover the slow set, where row 1's failures sit. The discipline text says the gate runs the slow tests a diff edits; the step selects fewer."
+    },
+    {
+      "row": "2a",
+      "title": "No render ran on this head; cited render run concluded failure",
+      "where": "PR body's render citation (run 43658737118 on 68c5ce7e)",
+      "what": "No render job ran on 032ac185. The render run the body cites is on commit 68c5ce7e, two commits before the head, one of which is a merge of main. That cited run concluded with failure: two lanes died in matplotlib under Python 3.14, and its check text reads \"partial render: re-render before merging\".",
+      "evidence": "Read from the CI run records and the cited run's check text.",
+      "consequence": "The rendered outputs for this head have not been produced, and the body's render evidence comes from an earlier commit whose run did not complete."
+    },
+    {
+      "row": "2b",
+      "title": "Two sweep slow rows fail on the merge base as well as head",
+      "where": "sweep slow set: `split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image`, `m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image`",
+      "what": "Of the 806 sweep and step-export slow-set rows run on head, 4 failed. Two are the step-export rows of row 1b. The other two also fail on the merge base, so they come from main and are not introduced by this PR.",
+      "evidence": "Run on head (802 pass, 4 fail) and the two rows re-run on base, where they also fail.",
+      "consequence": "Main already carries two failing sweep slow rows on the chart-ends ground; this PR does not change their status."
+    },
+    {
+      "row": 3,
+      "title": "PlaneDistance selector returns different faces after carrier origins moved",
+      "where": "editor-core names/geompred.rs:145-155, names/interrogate.rs:374-381 (`entity_point`); pncad-py tests/test_document.py:1028-1033; test_selectors.py:93-96",
+      "what": "`GeomPred::PlaneDistance` measures a face at its carrier origin, which its doc says need not lie on the entity. A line wall's origin moved from its quad centroid (mid-height) to its start vertex (the floor), and a cap's to the sketch origin. On a 1 m cube, \"faces more than 0.9 m behind the top\" went from the floor to the floor plus four walls; \"faces 0.5 above the floor\" no longer finds the walls. A wall's answer depends on its segment's start end and sweep direction.",
+      "evidence": "Read from the code and the rewritten Python test, which now asserts 5. No work/ row names it; the body presents it as a test adaptation; test_selectors.py:93-96 still says wall origins are centroids.",
+      "consequence": "Users of this public selector get different face sets for the same query. Pose doors read normal and offset only (eval/wire/pose.rs:666-674), so mates are unaffected."
+    },
+    {
+      "row": 4,
+      "title": "Vector-extrusion walls keep a computed, normalized normal with no pinning row",
+      "where": "crates/sweep/src/extrude.rs `Course::wall_normal` (Vector arm, extrude.rs:694, 831)",
+      "what": "On the vector arm the wall normal is `place.direction(d).cross(dir).normalize()` with `dir = v.normalize()`, a computed vector divided by its own length. No row pins it over a box and no work/ file schedules it; the body discloses the kept strut, not the wall width. Two probes give different results: over z in [0.95, 1.05] at `Sym<Interval>` the body builds, caps exact, all four wall normals of width 0.403, as on base; over z in [1.95, 2.05] and its negative it refuses at EndpointEnd on both trees.",
+      "evidence": "Both measured by probes on head and base; refusal widths [0, 0.100] head, [0, 0.156] base.",
+      "consequence": "Where the boxed vector extrusion builds, its walls store normals of width 0.403. No document path uses `Vector` (one tour call), so the reach is the public door."
+    },
+    {
+      "row": 5,
+      "title": "README clause forbidding difference-over-length divisions is contradicted by loft code",
+      "where": "crates/sweep/README.md:945-947; loft.rs:1326, 1344, 1513; swept.rs:911; geom-brep certify.rs:1963-1977",
+      "what": "The ratified README states that no sweep divides the difference of two placed points by its own length, and that walls, rims and struts take the frame turning a direction the sketch holds. Loft struts use `EdgeCurveSpec::line_between` (loft.rs:1326, 1344) and `mev_line` (loft.rs:1513), and the hole bridge uses `mev_line` (swept.rs:911); `line_between` computes (p1 - p0)/|p1 - p0|. The vector-arm wall normal and `sketch_direction` also divide a computed vector by its length.",
+      "evidence": "Read from the code. The body lists loft struts under \"looked at, not filed\"; no work/ file schedules them.",
+      "consequence": "A ratified design clause states something the code does not do. The struts are scaffolds restated or killed before rest and no frame holds a loft strut's direction; the README sentence carries no \"at rest\" qualifier."
+    },
+    {
+      "row": 6,
+      "title": "Washer registration row removed; replacement row does not test the identity",
+      "where": "revolve_washer registration row (deleted); `a_full_revolves_latitudes_over_a_width_box_are_exact`; work/decide/revolve-carriers-state-only-the-rim.md",
+      "what": "The deleted row pinned that the identity the registration discharged is a theorem at `Sym`. The replacement asserts an exact unit `u_ref` and a build; a build that decides the endpoint numerically passes it. The replacement claim (\"door open and shut read 497/457\") exists in prose and an allowlist script only. Every new revolve row is on `SketchPlane::xy()`.",
+      "evidence": "Symbolic/numeric/frozen counts measured on the washer fixture: full revolve head 501/461/24, base 501/461/36; partial revolve head 493/611/227, base 501/613/221. The numeric count did not rise.",
+      "consequence": "No test would go red if the washer identity fell to a numeric decision, and no revolve row tests a frame other than xy."
+    },
+    {
+      "row": 7,
+      "title": "Comments and crate docs still describe the deleted Newell and CapPlane machinery",
+      "where": "sweep lib.rs:14, 131-135; revolve/partial.rs:9; revolve/mod.rs:747, 759, 1134; revolve/tube.rs:472; topo/src/geometry.rs:24; euler.rs:283",
+      "what": "The sweep crate doc's Caps bullet (lib.rs:131-135) still describes caps as `geom_brep::newell_plane` over vertices and apexes flipped by winding, and lib.rs:14 says \"Newell-certified cap planes\". revolve/mod.rs:747 and 759 refer to \"the CapPlane posture\"; extrude's copies of that wording were updated and revolve's were not. mod.rs:1134 mentions \"Newell failures\". tube.rs:472 cites the cap-plane Newell fit as an observed downstream refusal, which no longer exists. topo geometry.rs:24 and euler.rs:283 carry similar text.",
+      "evidence": "Read from the code at the cited lines.",
+      "consequence": "Readers of the crate docs and comments are told about construction and refusals the code no longer has; the code itself is unaffected."
+    },
+    {
+      "row": 8,
+      "title": "Overlap with PR 6953: conflicts, unequal probe copies, duplicate helper names",
+      "where": "PR 6953; swept.rs; both mesh probes; four editor-core pin files; `Placing::vector` / `Placing::direction`",
+      "what": "A trial merge with PR 6953 conflicts in 7 files (swept.rs in 3 hunks, both mesh probes, four editor-core ledgers). The mesh probe edits are not byte-identical: 6953 moved later and assertion messages differ. `Placing::vector` (6953) and `Placing::direction` (here) are one act under two names. The body names `register_placed_line_end`, which exists nowhere (6953 removed it). One reading finds nothing beyond the conflicts; another finds two more spots needing hand work: 6953's new swept.rs rows call the six-argument form, and 6953's `q_to` row merges in open.",
+      "evidence": "Shown with `git merge-tree`, `git grep` and `git diff`.",
+      "consequence": "Whichever PR merges second needs manual resolution in at least 7 files, and the body's statements about the overlap do not match the trees."
+    },
+    {
+      "row": 9,
+      "title": "Cause stated for the pinned ring row's mesh change is disputed",
+      "where": "crates/viewer/tests/index_memo.rs:1069-1074; work/vgeom/the-wide-candidate-row-...md; crates/mesh/src/planar.rs:42-48, 182-184",
+      "what": "The ring row's mesh flipped about the vertex (1.48 - 0.031 to 1.48 + 0.031) while `u_ref` is unchanged. The filing says a planar face is triangulated in its chart, whose origin is now the sketch frame's. One reading: a chart-origin translation moved the mesh, so the triangulator is translation-sensitive and the filing is accurate. Another: planar.rs re-derives the chart from boundary points without reading the stored plane, so the stated cause is absent; ulp moves flipping a near-degenerate diagonal are offered, not traced.",
+      "evidence": "Both readings are from the code; u_ref equality is from a differential. The pin passed at three epsilons in CI.",
+      "consequence": "If the second reading holds, the filing's closing condition targets a mechanism that is not present; if the first holds, the mesher has an undiagnosed translation sensitivity."
+    },
+    {
+      "row": 10,
+      "title": "Containment test rows cover few parameters and accept wide enclosures",
+      "where": "the PR's varying (epsilon-box) rows; `assert_holds_its_members`; `vertex_box()`",
+      "what": "Every containment row varies one parameter, checking 5 members including both ends; the `spread > vertex_box()` guard is real. No row boxes a revolve angle, a loft placement, the vector arm, two parameters at once, or a revolve off `xy()`. `assert_holds_its_members` has no upper bound on enclosure width, so a degraded enclosure passes. At epsilon 1e-12, `ROUNDING` is 1e-14 and `vertex_box()` is 1.56e-14, so a midpoint-only enclosure escapes by 5e-15.",
+      "evidence": "Read from the tests. Added probe rows (boxed frame under extrude and revolve, boxed loft tilt and height, boxed revolve angle, hole loop, Against) found zero escape with five members.",
+      "consequence": "A regression that widens a varying datum's enclosure, or one in the uncovered doors, would not turn any committed row red; the macroscopic turned-frame row is the one with margin."
+    },
+    {
+      "row": 11,
+      "title": "section_centre re-implements the deleted Newell centroid as a vertex mean",
+      "where": "revolve/partial.rs:589-611 `section_centre`; `Revolved.joints`; `revolved_caps`",
+      "what": "`section_centre` reports the unweighted mean of collapsed vertices and apexes, reproducing the old Newell origin, so `revolved_caps` keeps reporting the value base reported. The value depends on how the loop is cut, which is the reason given for rejecting ruling (B). A circle authored as two unequal arcs would not report its centre. `joints` sits beside caps that state their own origin.",
+      "evidence": "A probe found `revolved_caps` equal to base within 1e-9 on 13 partial revolves. The two-arc circle case was read from the code, not built.",
+      "consequence": "The reported joint depends on authoring choices rather than the section's geometry. The only consumer is the tour's lily, on a full circle."
+    },
+    {
+      "row": 12,
+      "title": "Unit-direction invariant held by comment, not by type",
+      "where": "swept.rs:147-151; extrude.rs:665-680, 786; `Placing::direction`, `sketch_direction`, `Course::dir`, `wall_normal`, `cap_plane`",
+      "what": "The doc states that \"a rigid frame carries a unit direction to a unit direction\", but `Placing::direction` returns `Vec3`, and `sketch_direction`, `Course::dir`, `wall_normal` and `cap_plane` pass bare `Vec2`/`Vec3`. Carriers take these as unit. `UnitVec3` exists and is unwrapped at extrude.rs:786.",
+      "evidence": "Read from the code.",
+      "consequence": "Nothing in the types prevents a non-unit vector reaching a carrier that assumes a unit one; the invariant rests on the comment."
+    },
+    {
+      "row": 13,
+      "title": "\"Decided once\" sketch direction is recomputed at each use site",
+      "where": "swept.rs:555-561, 740-743; extrude.rs:1415-1421; `placed_segment_spec`; loft sections",
+      "what": "`sketch_direction`'s doc says the direction is decided once, but it is computed again at the bottom rim, the top rim and the wall, and per loft section; the line's length is computed a second time beside it. The sites call the same function, so they get the same value, and they form one Sym node because Sym hashes content.",
+      "evidence": "Read from the code.",
+      "consequence": "Agreement between the sites holds by convention and by content hashing; the structure does not enforce a single decision."
+    },
+    {
+      "row": 14,
+      "title": "Revolved.joints is an Option guarded by unreachable!",
+      "where": "revolve/mod.rs:532-544 `Revolved.joints`",
+      "what": "`Revolved.joints` is an `Option` that only the `Partial` kind sets, and the code reaches it through an `unreachable!` on `None` for a partial. Carrying the field on the kind would make the missing case unrepresentable.",
+      "evidence": "Read from the code.",
+      "consequence": "A future path that builds a partial revolve without joints would panic at run time instead of failing to compile."
+    },
+    {
+      "row": 15,
+      "title": "Survey's \"not re-verified site by site\" and other deferred items unscheduled",
+      "where": "PR body's origin-reader survey; work/",
+      "what": "The body says the survey's classification was \"not re-verified site by site\", and no work/ file schedules that verification. Also without a schedule: \"about 230 readers out of scope\", `torus_radial`, enum-carried directions and description payloads from the blind spot, the slow set, the kept vector-arm geometry and the loft struts.",
+      "evidence": "Searched work/ for rows covering these items; none found. `extrude-arc-walls...` concerns a different question.",
+      "consequence": "Work the PR defers has no tracker entry, so nothing records that it is owed."
+    },
+    {
+      "row": 16,
+      "title": "Rewritten mate_tool_flow assertion does not distinguish copy from master",
+      "where": "crates/viewer/tests/mate_tool_flow.rs:473-480, 509-514",
+      "what": "The old comparison `|underside.x - cap.x| < SHELF_LENGTH` tested the authored x and could not tell copy 1 from the master, since the rest fixes only the plane. The new assertion reads the picked copy's own face through the new origin convention. It would also hold if the mate had read the master; the assertion that discriminates is at :473-480. The new assertion also ties the test to the origin convention.",
+      "evidence": "Read from the test; the row's history was not read.",
+      "consequence": "The rewritten row does not test which copy the mate used, and would change if the origin convention changed again."
+    },
+    {
+      "row": 17,
+      "title": "sketch_direction re-derives a direction the profile already records",
+      "where": "swept.rs:562-567 `sketch_direction`; work/boxfinish/the-sweep-doors-read-the-profiles-recorded-directions.md",
+      "what": "`sketch_direction` divides a difference of sketch points by its length (two normalizes), although the profile on this head already records the directions. The change that removes re-derivation from built geometry re-derives one level down. The body discloses it as an interim seam, and a work/ file schedules the replacement.",
+      "evidence": "Read from the code and the tracker file.",
+      "consequence": "Sweep directions come from point differences rather than recorded values until the scheduled change lands; it is one of the falsifiers of the README clause in row 5."
+    },
+    {
+      "row": 18,
+      "title": "PR body misstates what changed for two coincidence-door rows",
+      "where": "editor-core coincidence_door.rs diff; PR body; brief",
+      "what": "The body says `two_blocks...` and `ring_serving...` \"now prove with recourse OneConstruction instead of Budget\". In the diff they stay `unproven/Numeric/OneConstruction`: the recourse changed, the status did not. The one new proof is the at-rest row `SameOpposite CensusAtRest CarrierVerdict`, which is geometrically true. The brief repeats the statement. A separate reading reports the door count as 21 to 28 of 42; whether that and the per-row reading measure the same thing is not established.",
+      "evidence": "Read from the coincidence_door.rs diff.",
+      "consequence": "Readers of the body are told two rows gained proofs that they did not gain."
+    },
+    {
+      "row": 19,
+      "title": "Course::wall_normal states one rule in two different forms",
+      "where": "extrude.rs:684-696 `Course::wall_normal`",
+      "what": "The wall normal is d x dir on both arms, but the depth arm writes it as a right normal and the vector arm as cross-then-normalize. Only the doc says the two match.",
+      "evidence": "Read from the code; whether the two forms differ in any case was not tested.",
+      "consequence": "Agreement between the arms is asserted in prose rather than by shared code or a test."
+    },
+    {
+      "row": 20,
+      "title": "register_placed_carrier_end proof text covers only radial equal to place",
+      "where": "swept.rs:640-664 `register_placed_carrier_end`; full.rs:889 `placed_segment_spec_about`",
+      "what": "The function's doc reasons about `u_ref` coming from `sketch_direction` through `place`. `placed_segment_spec_about` passes a separate `radial` placing (full.rs:889). The proof in the doc covers the case `radial == place` only.",
+      "evidence": "Read from the code.",
+      "consequence": "The documented argument does not cover the call path that passes a different radial placing; that path's behaviour was not tested."
+    },
+    {
+      "row": 21,
+      "title": "Sketch origin far from profile raises carrier residuals; one cell now refuses",
+      "where": "swept `placed_segment_spec_about` (line arm), `cap_plane`",
+      "what": "A line rim now ends at q_from + |b - a| * place(d) instead of the placed far vertex, missing by the placement's rounding, about u times the sketch coordinate. On a turned frame, edge-end residual went 0 to 1.6e-13 and plane/vertex residual 3e-15 to 3.4e-13 at origin distance 1.4e3; 1.5e-12 at 1.4e4; 1.4e-10 at 1.4e6. The 1e8 m mesh probes' new `ResidualExceeded` has the same mechanism.",
+      "evidence": "Measured by probe on head and base. At epsilon 1e-12 a cell at 4.2e3 built on base and refuses on head (`AnalyticRung3(KernelLimit { operand: Plane, bound: 1.8e-12 })`).",
+      "consequence": "Inside the 1e3 m session box nothing flips, but a third of epsilon is spent where none was. No row has a profile away from its sketch origin; the in-box case is not filed."
+    },
+    {
+      "row": 22,
+      "title": "Refusal-shape pins deleted without replacement in three rows",
+      "where": "editor-core tests m10_3_driver_interval.rs `the_certification_width_is_no_longer_bounded_by_epsilon`; `sym_9_the_drive_writes_the_ladders_receipt`; `docm2`",
+      "what": "In the m10_3 row, the two-sided band, the \"just past certifies after bisection\" assertion and both refusal-shape pins were removed; one inequality remains, and what stops the leaf at the new ceiling is named only in a comment. `sym_9` can no longer pin a non-zero `retried=`. `docm2`'s ladder now refuses on `bool_faces_parallel` where it refused on `plane_eq_offset`, with no reason given.",
+      "evidence": "Read from the test diffs.",
+      "consequence": "These rows no longer detect a change in where or how the refusals happen."
+    },
+    {
+      "row": 23,
+      "title": "Several rewritten test rows assert less than their messages say",
+      "where": "mate7a_r1_probes.rs:233-237; mate7a_torus_rest.rs:438-458; mesh newell_probes.rs:193-199, r2_cert9_probes.rs:267-273; shell_cavity_embedded.rs:226; sym11 cells; torax_axial",
+      "what": "In the two mate7a rows \"cap centred here\" became \"some plane holds this point\". Both mesh probes' assertions became a disjunction while the message still says \"the session box refuses it\". `shell_cavity_embedded.rs:226` accepts any `CavityCrosses`. The `sym11` cells check `Ok` only. The `torax_axial` bound was loosened by 10x, and the measured value went up 11x.",
+      "evidence": "Read from the test diffs; the mate7a reading was not confirmed by a run.",
+      "consequence": "Each rewritten row passes on a wider set of outcomes than before, so regressions in those outcomes would not be caught."
+    },
+    {
+      "row": 24,
+      "title": "Tracker rows left open or citing outdated pins and counts",
+      "where": "work/lathe/an-extrude-cap-plane-normal-reads-the-profile-variables.md; work/onehome/three-path-sweeps-refuse-at-1e-12-...md; work/pcert/the-cylinder-rim-axial-decision-...md; work/sym/the-ladders-receipt-row-...md; work/onehome/an-arc-on-a-turned-plane-...md; m10_9_pins_interval.rs:266-270",
+      "what": "The lathe row is closed in effect by this PR and is still `open`. The onehome three-path row and the pcert row say rows are pinned red; this PR lifts those pins. The sym row says [1400, 1762, 0] while the test pins [1412, 1780, 0]. The turned-plane row cites certify.rs:4907-4920 while the pins are at 4926-4940, and its reproducer exists only on an unmerged probe branch. m10_9_pins_interval.rs:266-270 quotes outdated base counts.",
+      "evidence": "Read from the tracker files and tests.",
+      "consequence": "The board would show five work/ rows whose status or numbers do not match the tree after merge."
+    },
+    {
+      "row": 25,
+      "title": "Band row's site list omits blend sites of the same kind",
+      "where": "band row in work/; surgery.rs:4536, 4596, 4915; junction.rs:720; open/end_face.rs:1262; open/planar.rs:1187, 1343, 1763",
+      "what": "The band row files blend scaffolds that divide a difference by its length. Sites of the same kind in surgery.rs, junction.rs, open/end_face.rs and open/planar.rs (eight locations) are not in its list. `newell_plane` has no non-test caller on this head.",
+      "evidence": "Found by a read-only search of the code; not confirmed site by site.",
+      "consequence": "The tracker's inventory of such sites is incomplete by up to eight locations."
+    },
+    {
+      "row": 26,
+      "title": "Montage sheet: five closure gaps changed from 0 to nonzero",
+      "where": "montage-uv.svg; PR body's montage description",
+      "what": "In montage-uv.svg no `<path>` line changed; the 54 changed lines are captions in 25 cells (closure-gap and `-0.00000` annotations), and the plots are pixel-identical. The sheet draws no planar chart. Five gaps that were exactly 0 are now nonzero; the body mentions only one gap, the one that became 0.",
+      "evidence": "One reading compared the diff text only; another compared captions and plot pixels.",
+      "consequence": "The body's account of the montage omits five changed values; the sheet does not show the planar charts the PR changes."
+    },
+    {
+      "row": 27,
+      "title": "Switch-off certification counts differ from those in the PR body",
+      "where": "probe branch merged into head, switch off: slab +/-0.05 row; m10_8 plain row",
+      "what": "With the switch off, the slab +/-0.05 row certified in one leaf with counts 816/1207, where the body states 812/1245. `m10_8` plain gave 2448/3115/108 against the body's 2412/3150/108. The width slab, the derived-frame twin row, the freeze row (`frozen` 210) and the turned-plane door's refusal widths matched the body.",
+      "evidence": "Run on the head with the probe branch merged in. Not run: current main merged in, the tour's stop, `AIM=mid`.",
+      "consequence": "Two count pairs in the body do not match a re-run; the qualitative results match."
+    },
+    {
+      "row": 28,
+      "title": "Loft with tilted top: mesh volume differs between base and head",
+      "where": "loft with a tilted top; mesh output",
+      "what": "For a loft with a tilted top, the mesh volume differs by 3.3e-7 relative between base and head, while every stored surface and carrier is equal within 1e-9. The cause was not traced; mesh sensitivity to ulp changes is the offered explanation.",
+      "evidence": "Measured by probe on head and base.",
+      "consequence": "One loft case's mesh output changes with no change in stored geometry, for a reason not established."
+    },
+    {
+      "row": 29,
+      "title": "Measure lever and census bound grow with origin-to-face distance",
+      "where": "editor-core eval/measure.rs:613-662; topo/src/census.rs:4045",
+      "what": "The measure lever and the census bound scale with the distance between a carrier's origin and its face. Since cap origins are now the sketch origin and wall origins the start vertex, that distance can be larger than before. The bounds remain valid but are wider.",
+      "evidence": "Read from the code.",
+      "consequence": "Measurements and census checks on faces whose origin is far from the face use looser bounds than before."
+    },
+    {
+      "row": 30,
+      "title": "Duplicated dispatch and two sources for one frame or turn",
+      "where": "extrude.rs:789-845; revolve/mod.rs:532-544; `Placing::point`, `Placing::carry`",
+      "what": "`extrusion` is matched twice in extrude.rs:789-845, once for `(w, course)` and again for `length`. In revolve/mod.rs:532-544 a `Pose` takes its origin from `joints` and its axis from the face. `Placing::point` turns by Rodrigues' formula while `Placing::carry` uses the anchored motion, two spellings of one turn.",
+      "evidence": "Read from the code; whether the two turn spellings ever give different results was not tested.",
+      "consequence": "These are code-form issues: each rule has two places whose agreement is kept by hand."
+    }
+  ]
+}

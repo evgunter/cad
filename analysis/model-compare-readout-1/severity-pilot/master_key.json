@@ -1,0 +1,370 @@
+{
+ "F683": {
+  "unit": "u6972",
+  "row": "1a"
+ },
+ "F617": {
+  "unit": "u6972",
+  "row": "1b"
+ },
+ "F343": {
+  "unit": "u6972",
+  "row": "2"
+ },
+ "F741": {
+  "unit": "u6972",
+  "row": "2a"
+ },
+ "F493": {
+  "unit": "u6972",
+  "row": "2b"
+ },
+ "F784": {
+  "unit": "u6972",
+  "row": "3"
+ },
+ "F731": {
+  "unit": "u6972",
+  "row": "4"
+ },
+ "F137": {
+  "unit": "u6972",
+  "row": "5"
+ },
+ "F163": {
+  "unit": "u6972",
+  "row": "6"
+ },
+ "F743": {
+  "unit": "u6972",
+  "row": "7"
+ },
+ "F496": {
+  "unit": "u6972",
+  "row": "8"
+ },
+ "F923": {
+  "unit": "u6972",
+  "row": "9"
+ },
+ "F117": {
+  "unit": "u6972",
+  "row": "10"
+ },
+ "F275": {
+  "unit": "u6972",
+  "row": "11"
+ },
+ "F547": {
+  "unit": "u6972",
+  "row": "12"
+ },
+ "F609": {
+  "unit": "u6972",
+  "row": "13"
+ },
+ "F835": {
+  "unit": "u6972",
+  "row": "14"
+ },
+ "F604": {
+  "unit": "u6972",
+  "row": "15"
+ },
+ "F332": {
+  "unit": "u6972",
+  "row": "16"
+ },
+ "F746": {
+  "unit": "u6972",
+  "row": "17"
+ },
+ "F470": {
+  "unit": "u6972",
+  "row": "18"
+ },
+ "F406": {
+  "unit": "u6972",
+  "row": "19"
+ },
+ "F508": {
+  "unit": "u6972",
+  "row": "20"
+ },
+ "F640": {
+  "unit": "u6972",
+  "row": "21"
+ },
+ "F367": {
+  "unit": "u6972",
+  "row": "22"
+ },
+ "F808": {
+  "unit": "u6972",
+  "row": "23"
+ },
+ "F820": {
+  "unit": "u6972",
+  "row": "24"
+ },
+ "F925": {
+  "unit": "u6972",
+  "row": "25"
+ },
+ "F629": {
+  "unit": "u6972",
+  "row": "26"
+ },
+ "F582": {
+  "unit": "u6972",
+  "row": "27"
+ },
+ "F389": {
+  "unit": "u6972",
+  "row": "28"
+ },
+ "F444": {
+  "unit": "u6972",
+  "row": "29"
+ },
+ "F240": {
+  "unit": "u6972",
+  "row": "30"
+ },
+ "F500": {
+  "unit": "box-region",
+  "row": "1"
+ },
+ "F874": {
+  "unit": "box-region",
+  "row": "2"
+ },
+ "F631": {
+  "unit": "box-region",
+  "row": "3"
+ },
+ "F477": {
+  "unit": "box-region",
+  "row": "4"
+ },
+ "F719": {
+  "unit": "box-region",
+  "row": "5"
+ },
+ "F974": {
+  "unit": "box-region",
+  "row": "6"
+ },
+ "F546": {
+  "unit": "box-region",
+  "row": "7"
+ },
+ "F712": {
+  "unit": "box-region",
+  "row": "8"
+ },
+ "F329": {
+  "unit": "box-region",
+  "row": "9"
+ },
+ "F891": {
+  "unit": "box-region",
+  "row": "10"
+ },
+ "F748": {
+  "unit": "box-region",
+  "row": "11"
+ },
+ "F667": {
+  "unit": "box-region",
+  "row": "12"
+ },
+ "F384": {
+  "unit": "box-region",
+  "row": "13"
+ },
+ "F696": {
+  "unit": "box-region",
+  "row": "14"
+ },
+ "F324": {
+  "unit": "box-region",
+  "row": "15"
+ },
+ "F608": {
+  "unit": "box-region",
+  "row": "16"
+ },
+ "F317": {
+  "unit": "box-region",
+  "row": "17"
+ },
+ "F886": {
+  "unit": "box-region",
+  "row": "18"
+ },
+ "F721": {
+  "unit": "box-region",
+  "row": "19"
+ },
+ "F513": {
+  "unit": "box-region",
+  "row": "20"
+ },
+ "F368": {
+  "unit": "box-region",
+  "row": "21"
+ },
+ "F785": {
+  "unit": "box-region",
+  "row": "22"
+ },
+ "F161": {
+  "unit": "box-region",
+  "row": "23"
+ },
+ "F203": {
+  "unit": "box-region",
+  "row": "24"
+ },
+ "F560": {
+  "unit": "anchored-conic",
+  "row": "1"
+ },
+ "F965": {
+  "unit": "anchored-conic",
+  "row": "2"
+ },
+ "F452": {
+  "unit": "anchored-conic",
+  "row": "3"
+ },
+ "F568": {
+  "unit": "anchored-conic",
+  "row": "4"
+ },
+ "F291": {
+  "unit": "anchored-conic",
+  "row": "5"
+ },
+ "F286": {
+  "unit": "anchored-conic",
+  "row": "6"
+ },
+ "F666": {
+  "unit": "anchored-conic",
+  "row": "7"
+ },
+ "F404": {
+  "unit": "anchored-conic",
+  "row": "8"
+ },
+ "F878": {
+  "unit": "anchored-conic",
+  "row": "9"
+ },
+ "F788": {
+  "unit": "anchored-conic",
+  "row": "10"
+ },
+ "F503": {
+  "unit": "anchored-conic",
+  "row": "11"
+ },
+ "F371": {
+  "unit": "anchored-conic",
+  "row": "12"
+ },
+ "F288": {
+  "unit": "anchored-conic",
+  "row": "13"
+ },
+ "F650": {
+  "unit": "anchored-conic",
+  "row": "14"
+ },
+ "F680": {
+  "unit": "anchored-conic",
+  "row": "15"
+ },
+ "F231": {
+  "unit": "anchored-conic",
+  "row": "16"
+ },
+ "F847": {
+  "unit": "anchored-conic",
+  "row": "17"
+ },
+ "F534": {
+  "unit": "anchored-conic",
+  "row": "18"
+ },
+ "F688": {
+  "unit": "anchored-conic",
+  "row": "19"
+ },
+ "F323": {
+  "unit": "anchored-conic",
+  "row": "20"
+ },
+ "F561": {
+  "unit": "anchored-conic",
+  "row": "21"
+ },
+ "F184": {
+  "unit": "anchored-conic",
+  "row": "22"
+ },
+ "F686": {
+  "unit": "anchored-conic",
+  "row": "23"
+ },
+ "F447": {
+  "unit": "anchored-conic",
+  "row": "24"
+ },
+ "F429": {
+  "unit": "anchored-conic",
+  "row": "25"
+ },
+ "F516": {
+  "unit": "anchored-conic",
+  "row": "26"
+ },
+ "F237": {
+  "unit": "anchored-conic",
+  "row": "27"
+ },
+ "F819": {
+  "unit": "anchored-conic",
+  "row": "28"
+ },
+ "F569": {
+  "unit": "anchored-conic",
+  "row": "29"
+ },
+ "F711": {
+  "unit": "anchored-conic",
+  "row": "30"
+ },
+ "F676": {
+  "unit": "anchored-conic",
+  "row": "31"
+ },
+ "F471": {
+  "unit": "anchored-conic",
+  "row": "32"
+ },
+ "F831": {
+  "unit": "anchored-conic",
+  "row": "33"
+ },
+ "F963": {
+  "unit": "anchored-conic",
+  "row": "34"
+ },
+ "F524": {
+  "unit": "anchored-conic",
+  "row": "35"
+ }
+}

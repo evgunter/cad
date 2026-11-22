@@ -1,0 +1,2529 @@
+{
+ "summary": {
+  "Fable only": {
+   "n": 29,
+   "mean_grade": 1.57,
+   "mean_grade_by_opus_raters": 1.72,
+   "mean_grade_by_sonnet_raters": 1.41,
+   "mean_rank_pct": 0.485,
+   "share_bottom_third": 0.345,
+   "share_top_third": 0.379,
+   "act_share": 0.543,
+   "consensus_grade_counts": {
+    "MAJOR": 2,
+    "MINOR": 15,
+    "NOTE": 10,
+    "STYLE": 2
+   },
+   "per_unit": {
+    "u6972": 12,
+    "box-region": 6,
+    "anchored-conic": 11
+   }
+  },
+  "both": {
+   "n": 48,
+   "mean_grade": 1.56,
+   "mean_grade_by_opus_raters": 1.66,
+   "mean_grade_by_sonnet_raters": 1.46,
+   "mean_rank_pct": 0.49,
+   "share_bottom_third": 0.271,
+   "share_top_third": 0.354,
+   "act_share": 0.583,
+   "consensus_grade_counts": {
+    "MAJOR": 6,
+    "MINOR": 25,
+    "NOTE": 9,
+    "STYLE": 8
+   },
+   "per_unit": {
+    "u6972": 17,
+    "box-region": 13,
+    "anchored-conic": 18
+   }
+  },
+  "Opus only": {
+   "n": 15,
+   "mean_grade": 1.38,
+   "mean_grade_by_opus_raters": 1.5,
+   "mean_grade_by_sonnet_raters": 1.27,
+   "mean_rank_pct": 0.561,
+   "share_bottom_third": 0.333,
+   "share_top_third": 0.267,
+   "act_share": 0.5,
+   "consensus_grade_counts": {
+    "MAJOR": 2,
+    "MINOR": 5,
+    "NOTE": 5,
+    "STYLE": 3
+   },
+   "per_unit": {
+    "u6972": 4,
+    "box-region": 5,
+    "anchored-conic": 6
+   }
+  },
+  "test: rank pct, Fable-only minus Opus-only (within-unit permutation)": {
+   "observed_fable_minus_opus": -0.076,
+   "p_two_sided": 0.4018
+  },
+  "test: grade, Fable-only minus Opus-only (within-unit permutation)": {
+   "observed_fable_minus_opus": 0.186,
+   "p_two_sided": 0.4757
+  },
+  "harshness (own label minus blind consensus, grade points; MAJOR=3 .. STYLE=0)": {
+   "Fable reviewer, unilateral": {
+    "n": 24,
+    "own_label_mean": 1.29,
+    "blind_grade_mean": 1.55,
+    "inflation": -0.26
+   },
+   "Fable reviewer, bilateral": {
+    "n": 45,
+    "own_label_mean": 1.31,
+    "blind_grade_mean": 1.55,
+    "inflation": -0.24
+   },
+   "Fable reviewer, all": {
+    "n": 69,
+    "own_label_mean": 1.3,
+    "blind_grade_mean": 1.55,
+    "inflation": -0.25
+   },
+   "Opus reviewer, unilateral": {
+    "n": 15,
+    "own_label_mean": 0.87,
+    "blind_grade_mean": 1.38,
+    "inflation": -0.52
+   },
+   "Opus reviewer, bilateral": {
+    "n": 41,
+    "own_label_mean": 1.15,
+    "blind_grade_mean": 1.57,
+    "inflation": -0.42
+   },
+   "Opus reviewer, all": {
+    "n": 56,
+    "own_label_mean": 1.07,
+    "blind_grade_mean": 1.52,
+    "inflation": -0.45
+   }
+  },
+  "bilateral, labelled by both": {
+   "n": 39,
+   "fable_higher": 12,
+   "opus_higher": 5,
+   "same": 22,
+   "fable_abs_err": 0.42,
+   "opus_abs_err": 0.56,
+   "fable_signed": -0.21,
+   "opus_signed": -0.44
+  },
+  "rater agreement (Spearman on ranks)": {
+   "PR-A r0(O) vs r1(S)": 0.96,
+   "PR-A r0(O) vs r2(O)": 0.99,
+   "PR-A r0(O) vs r3(S)": 0.92,
+   "PR-A r1(S) vs r2(O)": 0.97,
+   "PR-A r1(S) vs r3(S)": 0.94,
+   "PR-A r2(O) vs r3(S)": 0.89,
+   "PR-B r0(O) vs r1(S)": 0.84,
+   "PR-B r0(O) vs r2(O)": 0.98,
+   "PR-B r0(O) vs r3(S)": 0.86,
+   "PR-B r1(S) vs r2(O)": 0.89,
+   "PR-B r1(S) vs r3(S)": 0.98,
+   "PR-B r2(O) vs r3(S)": 0.91,
+   "PR-C r0(O) vs r1(S)": 0.91,
+   "PR-C r0(O) vs r2(O)": 0.92,
+   "PR-C r0(O) vs r3(S)": 0.88,
+   "PR-C r1(S) vs r2(O)": 0.87,
+   "PR-C r1(S) vs r3(S)": 0.94,
+   "PR-C r2(O) vs r3(S)": 0.87
+  },
+  "grade agreement: all four raters within one grade": 0.946,
+  "tails by unit": {
+   "PR-A": {
+    "n": 33,
+    "top_third": [
+     "Opus only",
+     "Fable only",
+     "both",
+     "both",
+     "both",
+     "both",
+     "Opus only",
+     "Fable only",
+     "Fable only",
+     "both",
+     "Fable only"
+    ],
+    "bottom_third": [
+     "Fable only",
+     "Fable only",
+     "both",
+     "Fable only",
+     "both",
+     "Fable only",
+     "both",
+     "Opus only",
+     "both",
+     "both",
+     "Fable only"
+    ]
+   },
+   "PR-B": {
+    "n": 24,
+    "top_third": [
+     "Fable only",
+     "both",
+     "both",
+     "both",
+     "Fable only",
+     "Fable only",
+     "both",
+     "both"
+    ],
+    "bottom_third": [
+     "Opus only",
+     "Opus only",
+     "both",
+     "Fable only",
+     "Fable only",
+     "Opus only",
+     "both",
+     "both"
+    ]
+   },
+   "PR-C": {
+    "n": 35,
+    "top_third": [
+     "both",
+     "both",
+     "both",
+     "Fable only",
+     "both",
+     "both",
+     "Fable only",
+     "Fable only",
+     "Opus only",
+     "Opus only",
+     "Fable only"
+    ],
+    "bottom_third": [
+     "Opus only",
+     "Fable only",
+     "Fable only",
+     "both",
+     "both",
+     "Fable only",
+     "Opus only",
+     "Opus only",
+     "both",
+     "both",
+     "both"
+    ]
+   }
+  }
+ },
+ "items": [
+  {
+   "id": "F683",
+   "unit": "u6972",
+   "row": "1a",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "MAJOR",
+   "grade": 3,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 3,
+   "pct": 0.0078125,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 3,
+    "2": 3,
+    "3": 3
+   },
+   "pcts": {
+    "0": 0.0,
+    "1": 0.03125,
+    "2": 0.0,
+    "3": 0.0
+   }
+  },
+  {
+   "id": "F617",
+   "unit": "u6972",
+   "row": "1b",
+   "src": "Fable only",
+   "lab_f": "MAJOR",
+   "lab_o": null,
+   "grade": 3,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 3,
+   "pct": 0.0234375,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 3,
+    "2": 3,
+    "3": 3
+   },
+   "pcts": {
+    "0": 0.03125,
+    "1": 0.0,
+    "2": 0.03125,
+    "3": 0.03125
+   }
+  },
+  {
+   "id": "F343",
+   "unit": "u6972",
+   "row": "2",
+   "src": "both",
+   "lab_f": "MAJOR",
+   "lab_o": "MAJOR",
+   "grade": 3,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 3,
+   "pct": 0.1015625,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 3,
+    "2": 3,
+    "3": 3
+   },
+   "pcts": {
+    "0": 0.0625,
+    "1": 0.09375,
+    "2": 0.09375,
+    "3": 0.15625
+   }
+  },
+  {
+   "id": "F741",
+   "unit": "u6972",
+   "row": "2a",
+   "src": "both",
+   "lab_f": "UNLABELLED",
+   "lab_o": "UNLABELLED",
+   "grade": 3,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 3,
+   "pct": 0.1640625,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 3,
+    "2": 3,
+    "3": 3
+   },
+   "pcts": {
+    "0": 0.15625,
+    "1": 0.125,
+    "2": 0.1875,
+    "3": 0.1875
+   }
+  },
+  {
+   "id": "F493",
+   "unit": "u6972",
+   "row": "2b",
+   "src": "Fable only",
+   "lab_f": "UNLABELLED",
+   "lab_o": null,
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.828125,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.84375,
+    "1": 0.84375,
+    "2": 0.84375,
+    "3": 0.78125
+   }
+  },
+  {
+   "id": "F784",
+   "unit": "u6972",
+   "row": "3",
+   "src": "both",
+   "lab_f": "MAJOR",
+   "lab_o": "MINOR",
+   "grade": 3,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 3,
+   "pct": 0.1015625,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 3,
+    "2": 3,
+    "3": 3
+   },
+   "pcts": {
+    "0": 0.09375,
+    "1": 0.15625,
+    "2": 0.0625,
+    "3": 0.09375
+   }
+  },
+  {
+   "id": "F731",
+   "unit": "u6972",
+   "row": "4",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "MINOR",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.40625,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.40625,
+    "1": 0.34375,
+    "2": 0.40625,
+    "3": 0.46875
+   }
+  },
+  {
+   "id": "F137",
+   "unit": "u6972",
+   "row": "5",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "MINOR",
+   "grade": 3,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 3,
+   "pct": 0.09375,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 3,
+    "2": 3,
+    "3": 3
+   },
+   "pcts": {
+    "0": 0.125,
+    "1": 0.0625,
+    "2": 0.125,
+    "3": 0.0625
+   }
+  },
+  {
+   "id": "F163",
+   "unit": "u6972",
+   "row": "6",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "MINOR",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.3046875,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.3125,
+    "1": 0.28125,
+    "2": 0.3125,
+    "3": 0.3125
+   }
+  },
+  {
+   "id": "F743",
+   "unit": "u6972",
+   "row": "7",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "NOTE",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.5703125,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.625,
+    "1": 0.5,
+    "2": 0.59375,
+    "3": 0.5625
+   }
+  },
+  {
+   "id": "F496",
+   "unit": "u6972",
+   "row": "8",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "NOTE",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.4140625,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.5,
+    "1": 0.375,
+    "2": 0.375,
+    "3": 0.40625
+   }
+  },
+  {
+   "id": "F923",
+   "unit": "u6972",
+   "row": "9",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "NOTE",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.453125,
+   "act": 0.75,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.34375,
+    "1": 0.625,
+    "2": 0.5,
+    "3": 0.34375
+   }
+  },
+  {
+   "id": "F117",
+   "unit": "u6972",
+   "row": "10",
+   "src": "both",
+   "lab_f": "NOTE",
+   "lab_o": "UNLABELLED",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.4140625,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.375,
+    "1": 0.4375,
+    "2": 0.34375,
+    "3": 0.5
+   }
+  },
+  {
+   "id": "F275",
+   "unit": "u6972",
+   "row": "11",
+   "src": "both",
+   "lab_f": "NOTE",
+   "lab_o": "STYLE",
+   "grade": 1.25,
+   "grade_opus_r": 1.5,
+   "grade_sonnet_r": 1,
+   "pct": 0.734375,
+   "act": 0.25,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.75,
+    "1": 0.71875,
+    "2": 0.65625,
+    "3": 0.8125
+   }
+  },
+  {
+   "id": "F547",
+   "unit": "u6972",
+   "row": "12",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "STYLE",
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.90625,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.875,
+    "1": 0.90625,
+    "2": 0.875,
+    "3": 0.96875
+   }
+  },
+  {
+   "id": "F609",
+   "unit": "u6972",
+   "row": "13",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "STYLE",
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.9453125,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 1.0,
+    "1": 0.875,
+    "2": 1.0,
+    "3": 0.90625
+   }
+  },
+  {
+   "id": "F835",
+   "unit": "u6972",
+   "row": "14",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "STYLE",
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.953125,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.90625,
+    "1": 1.0,
+    "2": 0.90625,
+    "3": 1.0
+   }
+  },
+  {
+   "id": "F604",
+   "unit": "u6972",
+   "row": "15",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "STYLE",
+   "grade": 1.75,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 1.5,
+   "pct": 0.5703125,
+   "act": 0.75,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.59375,
+    "1": 0.46875,
+    "2": 0.5625,
+    "3": 0.65625
+   }
+  },
+  {
+   "id": "F332",
+   "unit": "u6972",
+   "row": "16",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "UNLABELLED",
+   "grade": 1.5,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 2,
+   "pct": 0.609375,
+   "act": 0.25,
+   "grades": {
+    "0": 1,
+    "1": 2,
+    "2": 1,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.78125,
+    "1": 0.59375,
+    "2": 0.8125,
+    "3": 0.25
+   }
+  },
+  {
+   "id": "F746",
+   "unit": "u6972",
+   "row": "17",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "UNLABELLED",
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.8125,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.8125,
+    "1": 0.8125,
+    "2": 0.78125,
+    "3": 0.84375
+   }
+  },
+  {
+   "id": "F470",
+   "unit": "u6972",
+   "row": "18",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "MINOR",
+   "grade": 2.75,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 2.5,
+   "pct": 0.1796875,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 2,
+    "2": 3,
+    "3": 3
+   },
+   "pcts": {
+    "0": 0.1875,
+    "1": 0.1875,
+    "2": 0.21875,
+    "3": 0.125
+   }
+  },
+  {
+   "id": "F406",
+   "unit": "u6972",
+   "row": "19",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "STYLE",
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.9296875,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.9375,
+    "1": 0.9375,
+    "2": 0.96875,
+    "3": 0.875
+   }
+  },
+  {
+   "id": "F508",
+   "unit": "u6972",
+   "row": "20",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "STYLE",
+   "grade": 1.75,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 1.5,
+   "pct": 0.59375,
+   "act": 0.75,
+   "grades": {
+    "0": 2,
+    "1": 1,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.5625,
+    "1": 0.65625,
+    "2": 0.625,
+    "3": 0.53125
+   }
+  },
+  {
+   "id": "F640",
+   "unit": "u6972",
+   "row": "21",
+   "src": "Fable only",
+   "lab_f": "MINOR",
+   "lab_o": null,
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.3125,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.25,
+    "1": 0.3125,
+    "2": 0.25,
+    "3": 0.4375
+   }
+  },
+  {
+   "id": "F367",
+   "unit": "u6972",
+   "row": "22",
+   "src": "Fable only",
+   "lab_f": "MINOR",
+   "lab_o": null,
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.2734375,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.28125,
+    "1": 0.25,
+    "2": 0.28125,
+    "3": 0.28125
+   }
+  },
+  {
+   "id": "F808",
+   "unit": "u6972",
+   "row": "23",
+   "src": "Fable only",
+   "lab_f": "MINOR",
+   "lab_o": null,
+   "grade": 2.25,
+   "grade_opus_r": 2.5,
+   "grade_sonnet_r": 2,
+   "pct": 0.203125,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 3,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.21875,
+    "1": 0.21875,
+    "2": 0.15625,
+    "3": 0.21875
+   }
+  },
+  {
+   "id": "F820",
+   "unit": "u6972",
+   "row": "24",
+   "src": "Fable only",
+   "lab_f": "MINOR",
+   "lab_o": null,
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.4453125,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.46875,
+    "1": 0.40625,
+    "2": 0.53125,
+    "3": 0.375
+   }
+  },
+  {
+   "id": "F925",
+   "unit": "u6972",
+   "row": "25",
+   "src": "Fable only",
+   "lab_f": "UNLABELLED",
+   "lab_o": null,
+   "grade": 1.5,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 1,
+   "pct": 0.6875,
+   "act": 0.5,
+   "grades": {
+    "0": 2,
+    "1": 1,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.65625,
+    "1": 0.6875,
+    "2": 0.6875,
+    "3": 0.71875
+   }
+  },
+  {
+   "id": "F629",
+   "unit": "u6972",
+   "row": "26",
+   "src": "Fable only",
+   "lab_f": "UNLABELLED",
+   "lab_o": null,
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.515625,
+   "act": 0.5,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.4375,
+    "1": 0.5625,
+    "2": 0.46875,
+    "3": 0.59375
+   }
+  },
+  {
+   "id": "F582",
+   "unit": "u6972",
+   "row": "27",
+   "src": "Fable only",
+   "lab_f": "UNLABELLED",
+   "lab_o": null,
+   "grade": 1.75,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 1.5,
+   "pct": 0.546875,
+   "act": 0.5,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.53125,
+    "1": 0.53125,
+    "2": 0.4375,
+    "3": 0.6875
+   }
+  },
+  {
+   "id": "F389",
+   "unit": "u6972",
+   "row": "28",
+   "src": "Fable only",
+   "lab_f": "NOTE",
+   "lab_o": null,
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.703125,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.6875,
+    "1": 0.75,
+    "2": 0.75,
+    "3": 0.625
+   }
+  },
+  {
+   "id": "F444",
+   "unit": "u6972",
+   "row": "29",
+   "src": "Fable only",
+   "lab_f": "NOTE",
+   "lab_o": null,
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.7421875,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.71875,
+    "1": 0.78125,
+    "2": 0.71875,
+    "3": 0.75
+   }
+  },
+  {
+   "id": "F240",
+   "unit": "u6972",
+   "row": "30",
+   "src": "Fable only",
+   "lab_f": "STYLE",
+   "lab_o": null,
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.953125,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.96875,
+    "1": 0.96875,
+    "2": 0.9375,
+    "3": 0.9375
+   }
+  },
+  {
+   "id": "F500",
+   "unit": "box-region",
+   "row": "1",
+   "src": "Fable only",
+   "lab_f": "MAJOR",
+   "lab_o": null,
+   "grade": 3,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 3,
+   "pct": 0.010869565217391304,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 3,
+    "2": 3,
+    "3": 3
+   },
+   "pcts": {
+    "0": 0.0,
+    "1": 0.043478260869565216,
+    "2": 0.0,
+    "3": 0.0
+   }
+  },
+  {
+   "id": "F874",
+   "unit": "box-region",
+   "row": "2",
+   "src": "both",
+   "lab_f": "MAJOR",
+   "lab_o": "NOTE",
+   "grade": 1.5,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 1,
+   "pct": 0.5434782608695652,
+   "act": 0.5,
+   "grades": {
+    "0": 2,
+    "1": 1,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.391304347826087,
+    "1": 0.7391304347826086,
+    "2": 0.43478260869565216,
+    "3": 0.6086956521739131
+   }
+  },
+  {
+   "id": "F631",
+   "unit": "box-region",
+   "row": "3",
+   "src": "both",
+   "lab_f": "MAJOR",
+   "lab_o": "NOTE",
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.8152173913043479,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.8695652173913043,
+    "1": 0.782608695652174,
+    "2": 0.782608695652174,
+    "3": 0.8260869565217391
+   }
+  },
+  {
+   "id": "F477",
+   "unit": "box-region",
+   "row": "4",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "NOTE",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.13043478260869565,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.17391304347826086,
+    "1": 0.13043478260869565,
+    "2": 0.13043478260869565,
+    "3": 0.08695652173913043
+   }
+  },
+  {
+   "id": "F719",
+   "unit": "box-region",
+   "row": "5",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "MINOR",
+   "grade": 3,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 3,
+   "pct": 0.043478260869565216,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 3,
+    "2": 3,
+    "3": 3
+   },
+   "pcts": {
+    "0": 0.08695652173913043,
+    "1": 0.0,
+    "2": 0.043478260869565216,
+    "3": 0.043478260869565216
+   }
+  },
+  {
+   "id": "F974",
+   "unit": "box-region",
+   "row": "6",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "MINOR",
+   "grade": 2.5,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 2,
+   "pct": 0.11956521739130435,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 2,
+    "2": 3,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.043478260869565216,
+    "1": 0.17391304347826086,
+    "2": 0.08695652173913043,
+    "3": 0.17391304347826086
+   }
+  },
+  {
+   "id": "F546",
+   "unit": "box-region",
+   "row": "7",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "MINOR",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.5217391304347826,
+   "act": 0.75,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.5652173913043478,
+    "1": 0.5217391304347826,
+    "2": 0.5652173913043478,
+    "3": 0.43478260869565216
+   }
+  },
+  {
+   "id": "F712",
+   "unit": "box-region",
+   "row": "8",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "MINOR",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.40217391304347827,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.4782608695652174,
+    "1": 0.43478260869565216,
+    "2": 0.391304347826087,
+    "3": 0.30434782608695654
+   }
+  },
+  {
+   "id": "F329",
+   "unit": "box-region",
+   "row": "9",
+   "src": "Fable only",
+   "lab_f": "MINOR",
+   "lab_o": null,
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.2391304347826087,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.2608695652173913,
+    "1": 0.2608695652173913,
+    "2": 0.21739130434782608,
+    "3": 0.21739130434782608
+   }
+  },
+  {
+   "id": "F891",
+   "unit": "box-region",
+   "row": "10",
+   "src": "Fable only",
+   "lab_f": "STYLE",
+   "lab_o": null,
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.13043478260869565,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.13043478260869565,
+    "1": 0.08695652173913043,
+    "2": 0.17391304347826086,
+    "3": 0.13043478260869565
+   }
+  },
+  {
+   "id": "F748",
+   "unit": "box-region",
+   "row": "11",
+   "src": "both",
+   "lab_f": "NOTE",
+   "lab_o": "MINOR",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.32608695652173914,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.30434782608695654,
+    "1": 0.34782608695652173,
+    "2": 0.2608695652173913,
+    "3": 0.391304347826087
+   }
+  },
+  {
+   "id": "F667",
+   "unit": "box-region",
+   "row": "12",
+   "src": "both",
+   "lab_f": "NOTE",
+   "lab_o": "MINOR",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.32608695652173914,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.34782608695652173,
+    "1": 0.30434782608695654,
+    "2": 0.30434782608695654,
+    "3": 0.34782608695652173
+   }
+  },
+  {
+   "id": "F384",
+   "unit": "box-region",
+   "row": "13",
+   "src": "both",
+   "lab_f": "NOTE",
+   "lab_o": "NOTE",
+   "grade": 1.5,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 1,
+   "pct": 0.4891304347826087,
+   "act": 0.5,
+   "grades": {
+    "0": 2,
+    "1": 1,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.21739130434782608,
+    "1": 0.6956521739130435,
+    "2": 0.34782608695652173,
+    "3": 0.6956521739130435
+   }
+  },
+  {
+   "id": "F696",
+   "unit": "box-region",
+   "row": "14",
+   "src": "both",
+   "lab_f": "NOTE",
+   "lab_o": "STYLE",
+   "grade": 1.75,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 1.5,
+   "pct": 0.5760869565217391,
+   "act": 0.75,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.6086956521739131,
+    "1": 0.4782608695652174,
+    "2": 0.6521739130434783,
+    "3": 0.5652173913043478
+   }
+  },
+  {
+   "id": "F324",
+   "unit": "box-region",
+   "row": "15",
+   "src": "Fable only",
+   "lab_f": "NOTE",
+   "lab_o": null,
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.8152173913043479,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.8260869565217391,
+    "1": 0.8260869565217391,
+    "2": 0.8260869565217391,
+    "3": 0.782608695652174
+   }
+  },
+  {
+   "id": "F608",
+   "unit": "box-region",
+   "row": "16",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "MINOR",
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.9347826086956521,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.9565217391304348,
+    "1": 0.9130434782608695,
+    "2": 0.9565217391304348,
+    "3": 0.9130434782608695
+   }
+  },
+  {
+   "id": "F317",
+   "unit": "box-region",
+   "row": "17",
+   "src": "Fable only",
+   "lab_f": "STYLE",
+   "lab_o": null,
+   "grade": 1,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 0,
+   "pct": 0.8369565217391304,
+   "act": 0.5,
+   "grades": {
+    "0": 2,
+    "1": 0,
+    "2": 2,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.6521739130434783,
+    "1": 0.9565217391304348,
+    "2": 0.7391304347826086,
+    "3": 1.0
+   }
+  },
+  {
+   "id": "F886",
+   "unit": "box-region",
+   "row": "18",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "STYLE",
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.9891304347826086,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 1.0,
+    "1": 1.0,
+    "2": 1.0,
+    "3": 0.9565217391304348
+   }
+  },
+  {
+   "id": "F721",
+   "unit": "box-region",
+   "row": "19",
+   "src": "Fable only",
+   "lab_f": "UNLABELLED",
+   "lab_o": null,
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.6195652173913043,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.6956521739130435,
+    "1": 0.5652173913043478,
+    "2": 0.6956521739130435,
+    "3": 0.5217391304347826
+   }
+  },
+  {
+   "id": "F513",
+   "unit": "box-region",
+   "row": "20",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "NOTE",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.4782608695652174,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.5217391304347826,
+    "1": 0.391304347826087,
+    "2": 0.5217391304347826,
+    "3": 0.4782608695652174
+   }
+  },
+  {
+   "id": "F368",
+   "unit": "box-region",
+   "row": "21",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "NOTE",
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.7826086956521738,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.9130434782608695,
+    "1": 0.6086956521739131,
+    "2": 0.8695652173913043,
+    "3": 0.7391304347826086
+   }
+  },
+  {
+   "id": "F785",
+   "unit": "box-region",
+   "row": "22",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "NOTE",
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.8586956521739131,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.782608695652174,
+    "1": 0.8695652173913043,
+    "2": 0.9130434782608695,
+    "3": 0.8695652173913043
+   }
+  },
+  {
+   "id": "F161",
+   "unit": "box-region",
+   "row": "23",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "NOTE",
+   "grade": 1.25,
+   "grade_opus_r": 1.5,
+   "grade_sonnet_r": 1,
+   "pct": 0.6630434782608696,
+   "act": 0.25,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.7391304347826086,
+    "1": 0.6521739130434783,
+    "2": 0.6086956521739131,
+    "3": 0.6521739130434783
+   }
+  },
+  {
+   "id": "F203",
+   "unit": "box-region",
+   "row": "24",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "NOTE",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.34782608695652173,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.43478260869565216,
+    "1": 0.21739130434782608,
+    "2": 0.4782608695652174,
+    "3": 0.2608695652173913
+   }
+  },
+  {
+   "id": "F560",
+   "unit": "anchored-conic",
+   "row": "1",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "MINOR",
+   "grade": 3,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 3,
+   "pct": 0.0,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 3,
+    "2": 3,
+    "3": 3
+   },
+   "pcts": {
+    "0": 0.0,
+    "1": 0.0,
+    "2": 0.0,
+    "3": 0.0
+   }
+  },
+  {
+   "id": "F965",
+   "unit": "anchored-conic",
+   "row": "2",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "MINOR",
+   "grade": 2.25,
+   "grade_opus_r": 2.5,
+   "grade_sonnet_r": 2,
+   "pct": 0.044117647058823525,
+   "act": 1,
+   "grades": {
+    "0": 3,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.029411764705882353,
+    "1": 0.058823529411764705,
+    "2": 0.058823529411764705,
+    "3": 0.029411764705882353
+   }
+  },
+  {
+   "id": "F452",
+   "unit": "anchored-conic",
+   "row": "3",
+   "src": "Fable only",
+   "lab_f": "MINOR",
+   "lab_o": null,
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.11764705882352941,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.14705882352941177,
+    "1": 0.11764705882352941,
+    "2": 0.11764705882352941,
+    "3": 0.08823529411764706
+   }
+  },
+  {
+   "id": "F568",
+   "unit": "anchored-conic",
+   "row": "4",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "MINOR",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.09558823529411765,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.08823529411764706,
+    "1": 0.08823529411764706,
+    "2": 0.14705882352941177,
+    "3": 0.058823529411764705
+   }
+  },
+  {
+   "id": "F291",
+   "unit": "anchored-conic",
+   "row": "5",
+   "src": "both",
+   "lab_f": "UNLABELLED",
+   "lab_o": "MINOR",
+   "grade": 1.25,
+   "grade_opus_r": 1.5,
+   "grade_sonnet_r": 1,
+   "pct": 0.5,
+   "act": 0.25,
+   "grades": {
+    "0": 2,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.5,
+    "1": 0.4117647058823529,
+    "2": 0.5882352941176471,
+    "3": 0.5
+   }
+  },
+  {
+   "id": "F286",
+   "unit": "anchored-conic",
+   "row": "6",
+   "src": "Fable only",
+   "lab_f": "MINOR",
+   "lab_o": null,
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.2647058823529412,
+   "act": 0.75,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.20588235294117646,
+    "1": 0.35294117647058826,
+    "2": 0.20588235294117646,
+    "3": 0.29411764705882354
+   }
+  },
+  {
+   "id": "F666",
+   "unit": "anchored-conic",
+   "row": "7",
+   "src": "Fable only",
+   "lab_f": "MINOR",
+   "lab_o": null,
+   "grade": 2.25,
+   "grade_opus_r": 3,
+   "grade_sonnet_r": 1.5,
+   "pct": 0.16176470588235295,
+   "act": 0.75,
+   "grades": {
+    "0": 3,
+    "1": 2,
+    "2": 3,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.058823529411764705,
+    "1": 0.23529411764705882,
+    "2": 0.029411764705882353,
+    "3": 0.3235294117647059
+   }
+  },
+  {
+   "id": "F404",
+   "unit": "anchored-conic",
+   "row": "8",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "NOTE",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.15441176470588236,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.17647058823529413,
+    "1": 0.029411764705882353,
+    "2": 0.17647058823529413,
+    "3": 0.23529411764705882
+   }
+  },
+  {
+   "id": "F878",
+   "unit": "anchored-conic",
+   "row": "9",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "NOTE",
+   "grade": 1.5,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 1,
+   "pct": 0.375,
+   "act": 0.5,
+   "grades": {
+    "0": 2,
+    "1": 1,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.2647058823529412,
+    "1": 0.38235294117647056,
+    "2": 0.29411764705882354,
+    "3": 0.5588235294117647
+   }
+  },
+  {
+   "id": "F788",
+   "unit": "anchored-conic",
+   "row": "10",
+   "src": "both",
+   "lab_f": "MINOR",
+   "lab_o": "STYLE",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.15441176470588236,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.11764705882352941,
+    "1": 0.14705882352941177,
+    "2": 0.23529411764705882,
+    "3": 0.11764705882352941
+   }
+  },
+  {
+   "id": "F503",
+   "unit": "anchored-conic",
+   "row": "11",
+   "src": "both",
+   "lab_f": "NOTE",
+   "lab_o": "NOTE",
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.7647058823529411,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.8235294117647058,
+    "1": 0.7058823529411765,
+    "2": 0.8235294117647058,
+    "3": 0.7058823529411765
+   }
+  },
+  {
+   "id": "F371",
+   "unit": "anchored-conic",
+   "row": "12",
+   "src": "both",
+   "lab_f": "NOTE",
+   "lab_o": "MINOR",
+   "grade": 1.75,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 1.5,
+   "pct": 0.32352941176470584,
+   "act": 0.75,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.23529411764705882,
+    "1": 0.2647058823529412,
+    "2": 0.4117647058823529,
+    "3": 0.38235294117647056
+   }
+  },
+  {
+   "id": "F288",
+   "unit": "anchored-conic",
+   "row": "13",
+   "src": "both",
+   "lab_f": "NOTE",
+   "lab_o": "UNLABELLED",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.33088235294117646,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.4117647058823529,
+    "1": 0.3235294117647059,
+    "2": 0.3235294117647059,
+    "3": 0.2647058823529412
+   }
+  },
+  {
+   "id": "F650",
+   "unit": "anchored-conic",
+   "row": "14",
+   "src": "both",
+   "lab_f": "NOTE",
+   "lab_o": "NOTE",
+   "grade": 1.5,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 1,
+   "pct": 0.4485294117647059,
+   "act": 0.5,
+   "grades": {
+    "0": 2,
+    "1": 1,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.4411764705882353,
+    "1": 0.5294117647058824,
+    "2": 0.47058823529411764,
+    "3": 0.35294117647058826
+   }
+  },
+  {
+   "id": "F680",
+   "unit": "anchored-conic",
+   "row": "15",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "NOTE",
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.6102941176470589,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.7352941176470589,
+    "1": 0.5,
+    "2": 0.7352941176470589,
+    "3": 0.47058823529411764
+   }
+  },
+  {
+   "id": "F231",
+   "unit": "anchored-conic",
+   "row": "16",
+   "src": "both",
+   "lab_f": "NOTE",
+   "lab_o": "UNLABELLED",
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.6617647058823529,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.7647058823529411,
+    "1": 0.5882352941176471,
+    "2": 0.7058823529411765,
+    "3": 0.5882352941176471
+   }
+  },
+  {
+   "id": "F847",
+   "unit": "anchored-conic",
+   "row": "17",
+   "src": "Fable only",
+   "lab_f": "NOTE",
+   "lab_o": null,
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.6544117647058824,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.6764705882352942,
+    "1": 0.6764705882352942,
+    "2": 0.6470588235294118,
+    "3": 0.6176470588235294
+   }
+  },
+  {
+   "id": "F534",
+   "unit": "anchored-conic",
+   "row": "18",
+   "src": "Fable only",
+   "lab_f": "NOTE",
+   "lab_o": null,
+   "grade": 1.25,
+   "grade_opus_r": 1.5,
+   "grade_sonnet_r": 1,
+   "pct": 0.41911764705882354,
+   "act": 0.25,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.6176470588235294,
+    "1": 0.5588235294117647,
+    "2": 0.08823529411764706,
+    "3": 0.4117647058823529
+   }
+  },
+  {
+   "id": "F688",
+   "unit": "anchored-conic",
+   "row": "19",
+   "src": "Fable only",
+   "lab_f": "NOTE",
+   "lab_o": null,
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.7205882352941176,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.7941176470588235,
+    "1": 0.6470588235294118,
+    "2": 0.7647058823529411,
+    "3": 0.6764705882352942
+   }
+  },
+  {
+   "id": "F323",
+   "unit": "anchored-conic",
+   "row": "20",
+   "src": "Fable only",
+   "lab_f": "NOTE",
+   "lab_o": null,
+   "grade": 1.25,
+   "grade_opus_r": 1.5,
+   "grade_sonnet_r": 1,
+   "pct": 0.5735294117647058,
+   "act": 0.25,
+   "grades": {
+    "0": 2,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.47058823529411764,
+    "1": 0.6176470588235294,
+    "2": 0.6764705882352942,
+    "3": 0.5294117647058824
+   }
+  },
+  {
+   "id": "F561",
+   "unit": "anchored-conic",
+   "row": "21",
+   "src": "Fable only",
+   "lab_f": "NOTE",
+   "lab_o": null,
+   "grade": 1.5,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 1,
+   "pct": 0.4117647058823529,
+   "act": 0.5,
+   "grades": {
+    "0": 2,
+    "1": 1,
+    "2": 2,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.29411764705882354,
+    "1": 0.47058823529411764,
+    "2": 0.4411764705882353,
+    "3": 0.4411764705882353
+   }
+  },
+  {
+   "id": "F184",
+   "unit": "anchored-conic",
+   "row": "22",
+   "src": "Fable only",
+   "lab_f": "NOTE",
+   "lab_o": null,
+   "grade": 0.75,
+   "grade_opus_r": 1.5,
+   "grade_sonnet_r": 0,
+   "pct": 0.7132352941176471,
+   "act": 0.25,
+   "grades": {
+    "0": 1,
+    "1": 0,
+    "2": 2,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.7058823529411765,
+    "1": 0.7647058823529411,
+    "2": 0.5588235294117647,
+    "3": 0.8235294117647058
+   }
+  },
+  {
+   "id": "F686",
+   "unit": "anchored-conic",
+   "row": "23",
+   "src": "Fable only",
+   "lab_f": "STYLE",
+   "lab_o": null,
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.27941176470588236,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.38235294117647056,
+    "1": 0.20588235294117646,
+    "2": 0.38235294117647056,
+    "3": 0.14705882352941177
+   }
+  },
+  {
+   "id": "F447",
+   "unit": "anchored-conic",
+   "row": "24",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "STYLE",
+   "grade": 1,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 0,
+   "pct": 0.6470588235294117,
+   "act": 0.5,
+   "grades": {
+    "0": 2,
+    "1": 0,
+    "2": 2,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.5294117647058824,
+    "1": 0.7941176470588235,
+    "2": 0.5,
+    "3": 0.7647058823529411
+   }
+  },
+  {
+   "id": "F429",
+   "unit": "anchored-conic",
+   "row": "25",
+   "src": "Fable only",
+   "lab_f": "STYLE",
+   "lab_o": null,
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.8602941176470588,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.8529411764705882,
+    "1": 0.8529411764705882,
+    "2": 0.8529411764705882,
+    "3": 0.8823529411764706
+   }
+  },
+  {
+   "id": "F516",
+   "unit": "anchored-conic",
+   "row": "26",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "STYLE",
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.9044117647058824,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.8823529411764706,
+    "1": 0.9411764705882353,
+    "2": 0.8823529411764706,
+    "3": 0.9117647058823529
+   }
+  },
+  {
+   "id": "F237",
+   "unit": "anchored-conic",
+   "row": "27",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "STYLE",
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.9411764705882353,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.9411764705882353,
+    "1": 0.8823529411764706,
+    "2": 0.9411764705882353,
+    "3": 1.0
+   }
+  },
+  {
+   "id": "F819",
+   "unit": "anchored-conic",
+   "row": "28",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "STYLE",
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.9705882352941176,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.9705882352941176,
+    "1": 0.9705882352941176,
+    "2": 0.9705882352941176,
+    "3": 0.9705882352941176
+   }
+  },
+  {
+   "id": "F569",
+   "unit": "anchored-conic",
+   "row": "29",
+   "src": "both",
+   "lab_f": "STYLE",
+   "lab_o": "UNLABELLED",
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.9485294117647058,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 1.0,
+    "1": 1.0,
+    "2": 1.0,
+    "3": 0.7941176470588235
+   }
+  },
+  {
+   "id": "F711",
+   "unit": "anchored-conic",
+   "row": "30",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "MINOR",
+   "grade": 1,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 1,
+   "pct": 0.5735294117647058,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1
+   },
+   "pcts": {
+    "0": 0.5882352941176471,
+    "1": 0.4411764705882353,
+    "2": 0.6176470588235294,
+    "3": 0.6470588235294118
+   }
+  },
+  {
+   "id": "F676",
+   "unit": "anchored-conic",
+   "row": "31",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "NOTE",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.2720588235294118,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.3235294117647059,
+    "1": 0.29411764705882354,
+    "2": 0.2647058823529412,
+    "3": 0.20588235294117646
+   }
+  },
+  {
+   "id": "F471",
+   "unit": "anchored-conic",
+   "row": "32",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "STYLE",
+   "grade": 1,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 0,
+   "pct": 0.6617647058823529,
+   "act": 0.5,
+   "grades": {
+    "0": 2,
+    "1": 0,
+    "2": 2,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.5588235294117647,
+    "1": 0.8235294117647058,
+    "2": 0.5294117647058824,
+    "3": 0.7352941176470589
+   }
+  },
+  {
+   "id": "F831",
+   "unit": "anchored-conic",
+   "row": "33",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "STYLE",
+   "grade": 2,
+   "grade_opus_r": 2,
+   "grade_sonnet_r": 2,
+   "pct": 0.2647058823529412,
+   "act": 1,
+   "grades": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+   },
+   "pcts": {
+    "0": 0.35294117647058826,
+    "1": 0.17647058823529413,
+    "2": 0.35294117647058826,
+    "3": 0.17647058823529413
+   }
+  },
+  {
+   "id": "F963",
+   "unit": "anchored-conic",
+   "row": "34",
+   "src": "both",
+   "lab_f": "UNLABELLED",
+   "lab_o": "STYLE",
+   "grade": 0.75,
+   "grade_opus_r": 1,
+   "grade_sonnet_r": 0.5,
+   "pct": 0.7794117647058824,
+   "act": 0,
+   "grades": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.6470588235294118,
+    "1": 0.7352941176470589,
+    "2": 0.7941176470588235,
+    "3": 0.9411764705882353
+   }
+  },
+  {
+   "id": "F524",
+   "unit": "anchored-conic",
+   "row": "35",
+   "src": "Opus only",
+   "lab_f": null,
+   "lab_o": "STYLE",
+   "grade": 0,
+   "grade_opus_r": 0,
+   "grade_sonnet_r": 0,
+   "pct": 0.8970588235294117,
+   "act": 0,
+   "grades": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0
+   },
+   "pcts": {
+    "0": 0.9117647058823529,
+    "1": 0.9117647058823529,
+    "2": 0.9117647058823529,
+    "3": 0.8529411764705882
+   }
+  }
+ ]
+}

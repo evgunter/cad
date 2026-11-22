@@ -126,7 +126,7 @@ a { color: var(--accent); }
   <h2>What the rows say</h2>
   <ol class="findings">
     <li><strong>Fable 5.2 is the more thorough reviewer.</strong> Per review it raises about {{MAJ_RR}} times the MAJORs Opus 5.5 does ({{MAJ_F}} vs {{MAJ_O}} in total), adjusted for the implementer and the letter, and the excess holds for DEMONSTRATED MAJORs alone. It returns NOT-MERGEABLE-AS-IS on {{NM_F}} reviews against Opus's {{NM_O}}.</li>
-    <li><strong>On the same code, Fable finds what Opus misses, rarely the reverse.</strong> In the {{UNI_N}} concurrent pairs with a correspondence count, Fable raised more unilateral findings in {{UNI_WIN}}: {{UNI_F}} against {{UNI_O}} in total. Unilateral MAJORs: {{UMAJ_F}} Fable, {{UMAJ_O}} Opus. Fable also grades a little harder: where both raised one finding at different severities, Fable put it higher in 9 units and Opus in 4 (5 against 3 at the MAJOR line). But in the pairs Fable's MAJOR excess is 16 against 8, and 7 of those 8 come from findings Opus never raised, so the gap is mostly coverage.</li>
+    <li><strong>On the same code, Fable finds what Opus misses, rarely the reverse.</strong> In the {{UNI_N}} concurrent pairs with a correspondence count, Fable raised more unilateral findings in {{UNI_WIN}}: {{UNI_F}} against {{UNI_O}} in total. Unilateral MAJORs: {{UMAJ_F}} Fable, {{UMAJ_O}} Opus. Fable also grades a little harder: where both raised one finding at different severities, Fable put it higher in 9 units and Opus in 4 (5 against 3 at the MAJOR line). But in the pairs Fable's MAJOR excess is 16 against 8, and 7 of those 8 come from findings Opus never raised, so the gap is mostly coverage. A blind severity pilot (below) finds no long tail of low-value Fable findings.</li>
     <li><strong>Fable's review costs more.</strong> About 1.4× the wall clock (median {{RV_T_F}} vs {{RV_T_O}} min) and about 2× the dollars (median ${{RV_C_F}} vs ${{RV_C_O}}), for roughly the same token volume: the dollar gap is price per token, not reading more. Within pairs: time ×{{PT_RATIO}}, cost ×{{PC_RATIO}} (n={{PC_N}}), tokens ×{{PTOK_RATIO}} (n={{PTOK_N}}).</li>
     <li><strong>As implementers, no difference shows.</strong> MAJORs received per review: Fable/Opus {{IMP_MAJ_RR}}. Time and cost intervals straddle 1. Fable's code scores slightly higher on the reviewer's idiom rubric, the only implementer interval that clears zero.</li>
     <li><strong>But the implementer comparison depends on who reviews.</strong> Opus reviewers raised almost no MAJORs on Fable's code; Fable reviewers raised the most on it. Judged by Opus reviews, Fable writes the cleaner code; judged by Fable reviews, Opus does. This is post hoc and the cells are small; it says the implementer question cannot be read off pooled MAJOR counts.</li>
@@ -146,6 +146,27 @@ a { color: var(--accent); }
   <div class="legend"><span><span class="sw fable"></span>Fable reviewer</span><span><span class="sw opus"></span>Opus reviewer</span></div>
   <div class="chart" id="pairs"></div>
   <p class="cap">Every concurrent unit is H-lettered, so the paired result is a result about hard units. Implementer of each unit in brackets.</p>
+</section>
+
+<section>
+  <h2 id="severity">Harsher, or more thorough?</h2>
+  <p class="prose">A follow-up pilot on the three concurrent pairs whose full reports and blind coding survive (PRs 6972, 7203, 7225; all H). Each of the 92 underlying defects was rewritten into one neutral template with severity, confidence and attribution stripped, then graded and ranked blind by four raters (two Opus, two Sonnet: the Fable raters hit the usage limit, and a model that is neither reviewer is a fair stand-in).</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Who raised it</th><th>Findings</th><th>Blind grade (MAJOR 3 … STYLE 0)</th><th>Rank percentile (0 = most severe)</th><th>In the unit's bottom third</th><th>Raters would ask to act</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><span class="sw fable"></span>Fable only</th><td class="num">29</td><td class="num">1.57</td><td class="num">0.49</td><td class="num">34%</td><td class="num">54%</td></tr>
+        <tr><th scope="row">Both</th><td class="num">48</td><td class="num">1.56</td><td class="num">0.49</td><td class="num">27%</td><td class="num">58%</td></tr>
+        <tr><th scope="row"><span class="sw opus"></span>Opus only</th><td class="num">15</td><td class="num">1.38</td><td class="num">0.56</td><td class="num">33%</td><td class="num">50%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ol class="findings">
+    <li><strong>No long tail.</strong> Fable's unilateral findings grade like the ones both reviewers raised, and no lower than Opus's unilateral ones (within-unit permutation: rank p = 0.40, grade p = 0.48). Each unit on its own shows the same.</li>
+    <li><strong>Opus is the lenient grader, not Fable the harsh one.</strong> Against the blind grade, Fable's own labels sit 0.25 grade points low and Opus's 0.45 low. On the 39 shared findings both labelled, Fable was higher in 12, Opus in 5, the same in 22, and Fable was nearer the blind grade (mean absolute error 0.42 vs 0.56).</li>
+    <li><strong>The raters agree</strong> (Spearman 0.84–0.99 on ranks; all four within one grade on 95% of findings), and the Opus raters did not favour Opus-found findings.</li>
+  </ol>
+  <p class="cap">Three units is a pilot. The raters take each finding's facts as true, so a wrong finding is not penalised here. Materials and scripts: <code>severity-pilot/</code>.</p>
 </section>
 
 <section>

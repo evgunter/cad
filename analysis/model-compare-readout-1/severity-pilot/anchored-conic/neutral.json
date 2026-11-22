@@ -1,0 +1,285 @@
+{
+  "context": "PR 7203 changes how a far-centred cone section (an ellipse or circle whose centre lies far from the part of it in use) is stored in `crates/geom/src/curves/conic.rs`. Such a conic is minted anchored at a point on it, with a reference direction, its semi-axes and a phase pair, and its centre is derived from these rather than stored. The evaluator, the running error bound and the `Interval` lift sum from the anchor, and a re-seam permutes the phase while keeping the anchor's bits. The PR claims that points near the anchor are right at their own scale (under 7e-16 m), that the running bound holds, that the anchor survives re-seams and reversals, and that `Interval` widths on the cone-ring rows are narrower than on the centre-stored base. It also claims that three production doors rebuild a conic through a centre constructor, that the readers part the two forms and nothing outside `conic.rs` asks which form, and that the suite and gates read as on the base. Follow-ups (one stored form, a general anchor, the chart image built from the derived centre) are filed as open rows. The unit is the diff from `ec8749552` to `8d5978300`, 193 files.",
+  "items": [
+    {
+      "row": 1,
+      "title": "PR body width table's centre-stored base column does not match commit ec8749552",
+      "where": "PR body \"What the phase bought\"; closed row `work/oneround/an-anchored-cone-section-encloses-wider-at-interval.md`",
+      "what": "The \"centre-stored base\" widths in the PR body's table and in the closed row's closing table are not what the base `ec8749552` gives. The row's first table names its commit, `3df3b1d41`; the PR body and closing table name none.",
+      "evidence": "The two cone-ring slow rows were run with a width print on base and head; the head reproduces the PR to the digit, the base differs on all six: 3.79e-11 against a stated 4.86e-11 (certified, cone ∪ box), 1.03e-12 against 2.09e-12 (point maps, cone ∖ box).",
+      "consequence": "The head is narrower than its base on all six rows by 5 to 15%, not the stated 31 to 55%; the difference is the base's own change. The closed row is closed on the stated figures."
+    },
+    {
+      "row": 2,
+      "title": "Conic identity's form check and the key's phase datum have no test that fails",
+      "where": "`conic.rs` `same_content` / `same_placement` (`:589`, `:594`, `:861`, `:867`); `Curve3::data()` phase datum (`curves.rs:1168-1174`, `conic.rs:852`); assertion `conic.rs:1320`",
+      "what": "Mutants making `same_content` ignore the form or the phase, `data()` omit the phase, or `Circle::map_scalar` drop the form all pass. The one `same_content` assertion on two forms (`:1320`) compares an anchored conic with a centred one at the derived centre, so their origins already differ and the form arm never decides.",
+      "evidence": "Mutation runs over `geom`, scoped `geom-brep` rows, 528 `topo` rows and 10 `sweep` rows. The form and phase-datum mutants, run together with a third, produced 0 new reds over all 17,467 `ci` rows.",
+      "consequence": "The PR's statement that two conics differing only in form are never taken for one, and that the key reads the phase, is held by code that no row checks."
+    },
+    {
+      "row": 3,
+      "title": "step-import carrier signature's anchor mark is not covered by any test row",
+      "where": "`crates/step-import/src/build.rs:1753` (`carrier_sig`)",
+      "what": "Removing the anchor mark from `carrier_sig` leaves every `step-import` row passing. The brief and the PR body each cite \"a row\" for both keys' anchor marks; only the mesh key's mark has a row that fails when the mark is removed.",
+      "evidence": "Mutant R14 (`carrier_sig`'s anchor mark removed) passed the whole `step-import` suite. The author's mutant A6 (the mesh key's mark removed) failed in `mesh`.",
+      "consequence": "The import signature's distinction between a centred and an anchored conic is unchecked; a change that loses it would pass the suite. The PR's account of a row for both keys is not accurate for the import key."
+    },
+    {
+      "row": 4,
+      "title": "Readers of a re-seamed anchored ellipse are exercised only at the unshifted phase",
+      "where": "`conic.rs` anchored `azimuth` phase terms (`:1101`, `:1111-1112`), `Ellipse::map_scalar` phase (`:824`, `:832`), `Ellipse::placed` phase (`:800`); tests `:1347`, `:1442`, `:1458`",
+      "what": "The unit's rows read these arms only at phase `(1, 0)`, where dropping the phase changes nothing; `param_in` is read back on un-re-seamed conics only, and the `Interval` centre's width, not value, is checked. Production reaches these arms through `SectionConic::seamed_near` on every minted section the chord join seams.",
+      "evidence": "Mutants dropping the phase in `map_scalar`, `placed` and either azimuth term passed `geom`, `geom-brep`, `mesh` anchored rows and 528 `topo` rows. They failed in 2 to 7 `sweep` cone rows and in pre-existing `mesh` cone rows.",
+      "consequence": "A wrong value in these arms shows up only as a body failing to build in integration rows two or three crates away; the unit's own rows do not detect it."
+    },
+    {
+      "row": 5,
+      "title": "zero_point of a re-seamed anchored ellipse is unchecked and has no production reader",
+      "where": "`Conic::zero_point` (`conic.rs:259`; impls `:690`, `:1119-1124`; forward `:385`); test `:1442`",
+      "what": "A mutant making `zero_point` of an anchored ellipse return the anchor after a re-seam passes. The re-seam row checks `point_at(0)` against the vertex but never `zero_point()`. Its only call outside its own impls is the `&C` forward at `:385`, so no production code reads it.",
+      "evidence": "One mutation run found the mutant passing all 17,467 `ci` rows. A second run found it failing only in a review probe row that builds no anchored conic; that failure was read as the probe's own flake, and the cause was not traced.",
+      "consequence": "The method's correctness after a re-seam rests on its doc alone. No production result currently depends on it."
+    },
+    {
+      "row": 6,
+      "title": "Offsets-bound test passes when the half-angle square's rounding is left uncharged",
+      "where": "test `the_anchored_offsets_bound_charges_the_squares_rounding` (`conic.rs:1264`); `running_offsets` (`:499-507`)",
+      "what": "With the square's error reduced to the sine's share, the row still passes: `doubled − (1 − c0)` is charged `u·2sh²` by `Rounded::sub` although it is exact at `c0 = 1`, and that charge covers `2·rounding`. The row's doc sentence \"Red where the square is not charged\" does not hold; dropping the plain `sin θ` charge also passes.",
+      "evidence": "The author's mutant A5, re-planted, and mutant R16 passed; halving every sine's charge fails the row. The bound held on 15,228 coordinates at up to 0.957 of itself.",
+      "consequence": "The bound itself is not shown false. The row does not detect the omission its doc names, and the margin it protects is about 4%."
+    },
+    {
+      "row": 7,
+      "title": "Ellipse::placed given a reversal produces a different ellipse on anchored curves",
+      "where": "`Ellipse::placed` (`conic.rs:795-808`); `Curve3::reversed` (`curves.rs:1537`)",
+      "what": "`Ellipse::placed` lists a reversal among the maps it accepts. On an anchored ellipse seamed a quarter turn on, `placed(Frame::reversed)` evaluated at `−t` lies `2a` from the ellipse at `t`. `Ellipse::reversed` gives zero difference, and `Circle::placed(Frame::reversed)` is correct. The four production callers pass a translation or `map_frame`, not a reversal.",
+      "evidence": "A head-only probe measured the gap at 60 m for `a = 30` and 3,000 m for `a = 1,500`.",
+      "consequence": "No current production path is affected. A future caller passing a reversal to this door on an anchored ellipse would receive a curve displaced by twice the semi-major axis."
+    },
+    {
+      "row": 8,
+      "title": "Flat-cone image ceiling raised from 48 to 104 u, fitted to readings",
+      "where": "`crates/geom-brep/tests/pcurve_cone_section.rs:884-907` (`FLAT_IMAGE_ULPS`)",
+      "what": "The ceiling went from 48 to 104 `u` against readings of 50, 81 and 95 (about 10% over the worst), marked \"fitted … not derived\". Its stated mutant reads 42, 160, 82, below the unmutated reading at two poses and above the ceiling at one. The comment no longer lists two other changes that used to fail it.",
+      "evidence": "Read from the row's numbers and the pcert row, not run. On the base, the corresponding mutant read 54, 63, 70 against 48, failing at all three poses.",
+      "consequence": "The row now detects its mutant at one pose of three, where before it did at three. The owning row (pcert row, P3, cited in the PR but not at the constant) is open."
+    },
+    {
+      "row": 9,
+      "title": "Production sites rebuilding a conic through a centre constructor beyond the three named",
+      "where": "`geom/src/pole_form.rs:58` and further sites in `ring_path.rs`, `rim_wedge.rs`, `boolean/mod.rs`, `validate.rs`, `on_surface.rs`, `swept.rs`, `junction.rs`, `end_face.rs`, `sweep/src/blend/surgery.rs`",
+      "what": "The PR names three doors; their ellipse arms return `None`. A grep within 20 lines of a conic read found a fourth, `pole_form::half_turn_curve`, which also re-squares the frame. A wider reading lists about a dozen more: same-locus circle rebuilds (`ring_path.rs:1286`, `rim_wedge.rs:1038`→`:1127`, `boolean/mod.rs:8268`, `:8388`, `validate.rs:9979`→`:10317`, `on_surface.rs:442`, `swept.rs:798`), moved curves (`junction.rs:685`, `end_face.rs:898`), and ellipse rebuilds from the derived-centre frame (`ring_path.rs:1896`, `surgery.rs:2599`).",
+      "evidence": "Reading and grep; part of the wider list came from delegated readers, spot-checked at the sites cited.",
+      "consequence": "Every same-locus site takes a circle and no production door mints an anchored circle, so no form is lost today. These sites would lose the form once one is minted."
+    },
+    {
+      "row": 10,
+      "title": "Module doc gives two different accounts of what an anchored conic's anchor is",
+      "where": "`conic.rs:28-56` (incl. `:39-49`), `:137-144`, `:256-263`; `curves.rs:610`",
+      "what": "\"The two stored forms\" says an anchored conic's stored point is its point at `θ = 0` and its centre is `anchor − u_ref·a`. About twenty lines later the re-seam paragraph says the anchor stays and parameter zero moves. The docs of `Born::Anchored`, `Conic::anchor`, `Conic::zero_point` and `CurveDatum::Anchor` repeat the first account. The code follows the second; the first holds only at phase `(1, 0)`, and the text does not mark it as a special case.",
+      "evidence": "Reading `conic.rs` end to end.",
+      "consequence": "A reader relying on the module doc, or on the docs of four public items, gets a description that is wrong for any re-seamed anchored ellipse. The PR's re-seam claim (C8) is stated in terms of this doc."
+    },
+    {
+      "row": 11,
+      "title": "Review brief's premise that RESOLUTION_ROUNDINGS changed does not hold",
+      "where": "`crates/geom-brep/src/carrier_resolution.rs:40`",
+      "what": "The brief's C2 premise says the constant changed. `RESOLUTION_ROUNDINGS` is `32.0` at both base and head. It went 32 → 40 in `801623f7` and back to 32 in `4545b953`, both inside the branch, so the net diff does not change it. The constant is fitted and guarded by `the_resolution_bounds_each_section_tables_carrier` at a tenfold margin.",
+      "evidence": "Reading the constant at both trees and the branch's commits; the guard row failed under two mutants (`quarter-wrong-way`, `half-keeps-pair`), so it is live.",
+      "consequence": "The premise of the review question is wrong; there is no corresponding change in the code."
+    },
+    {
+      "row": 12,
+      "title": "Code outside conic.rs asks which stored form a conic has",
+      "where": "`crates/step-import/src/build.rs:1753`; `crates/mesh/src/memo.rs:1098`; `Conic::anchor()` (`conic.rs:263`)",
+      "what": "`build.rs:1753`, production, asks `carrier.conic().is_some_and(|k| k.anchor().is_some())`, and `memo.rs:1098` matches `CurveDatum::Anchor`. This contradicts the statement that no reader outside `conic.rs` matches on the form. One reading attributes that wording to the review brief and notes the PR body names both sites; another reads it as the PR's own claim. `Conic::anchor()` is a public trait method returning `Option`, so the form is public API.",
+      "evidence": "Reading and grep.",
+      "consequence": "The account of the form as private to `conic.rs` is inaccurate; two crates depend on the distinction, and any caller can query it."
+    },
+    {
+      "row": 13,
+      "title": "Near-gap row asserts centred counts as floors, not as unchanged values",
+      "where": "the near-gap row (C2), `geom-brep` tests",
+      "what": "The row asserts its centred counts with `>=`, so it pins a lower bound and not the \"unchanged\" counts the claim describes. Printed at head, the counts are 7, 7, 7, 7, 1 centred and 40 in each anchored family.",
+      "evidence": "The counts were printed on the head; the `>=` comparisons were read in the row.",
+      "consequence": "A change that raises any centred count passes the row, so it does not confirm the counts are unchanged."
+    },
+    {
+      "row": 14,
+      "title": "Interval enclosures occasionally exclude the exact value of the stated f64 curve",
+      "where": "`Interval` lift of an anchored section; `Frame::map_scalar`, `RigidMotion::map_scalar` (`geom-core/src/linalg/rigid_motion.rs:1346-1352`)",
+      "what": "Some `Interval` enclosures exclude the exact stored formula on the stated `f64` vectors, though not the exact surfaces. Both readings place the cause in the base's frame handling (`map_scalar` enclosing a nearby exact rotation, not the stated vectors). Whether the `Interval` curve is meant to be the stated one was not established.",
+      "evidence": "One oracle found 1 miss in 15,228 coordinates (8.9e-14 m, at semi-axis 3,980.85, `t = π`), against 33 on the base. Another found 48 of 5,184 at quarter and half turns, up to 40% of the box width (1e-12 outside a 2.7e-12 box at `a = 1e5`).",
+      "consequence": "A check against the stated vectors fails on 1 to 48 points per sample set; the true surfaces stayed contained."
+    },
+    {
+      "row": 15,
+      "title": "f64 arc cover does not contain the evaluator's points near the anchor",
+      "where": "`cover_over` / `range_along` on a short arc of an anchored section; open row `work/oneround/the-arc-cover-misses-a-far-centred-arc-…`",
+      "what": "At `f64` the cover of a short arc next to the anchor misses the evaluator's own points, equally on base and head. The cover is still read from the derived centre. Before, evaluator and cover were both `u·a` off the true arc; now the cover alone is. At `Interval` one probe found the head containing the points where the base did not.",
+      "evidence": "Two probes over `a` = 1e2 … 1e7: worst head miss 2.4e-13 to 1.0e-8 m (1.5 to 4.1 `u·a`) in one, 7.1e-15 to 1.75e-9 m in the other, each near the base figure.",
+      "consequence": "The miss predates the unit and has an open row; the unit changes which of the two is off the true arc."
+    },
+    {
+      "row": 16,
+      "title": "Chart image of an anchored section remains u·a off its carrier",
+      "where": "chart image of a far-centred anchored section; open row `work/pcert/the-cone-sections-image-is-built-from-its-derived-centre.md` (P3)",
+      "what": "The chart image is built from the derived centre, so near the anchor it stands about `u·a` off its carrier, as on the base. None of the anchor's precision reaches the image. The image's construction is scheduled on the open pcert row, which the PR cites.",
+      "evidence": "A probe measured the certificate envelope's worst per decade, head against base: 1e4 1.0e-10 / 8.5e-11; 1e5 6.2e-10 / 7.3e-10; 1e6 8.1e-9 / 9.8e-9; 1e7 5.2e-8 / 7.8e-8. Certified counts at ε 1e-9 match within noise (1e6: 25 of 42 against 17).",
+      "consequence": "No regression at far sizes was measured; the image does not gain the accuracy the evaluator gains."
+    },
+    {
+      "row": 17,
+      "title": "point_at(0) differs from the anchor in the sign of a zero coordinate",
+      "where": "`conic.rs:1072`",
+      "what": "The claim is that `point_at(0)` returns the anchor bit for bit. Where an anchor coordinate is `−0.0`, `point_at(0)` returns `+0.0` for that coordinate. The magnitude is identical.",
+      "evidence": "Shown by a probe on the head reading the coordinate's sign at parameter zero.",
+      "consequence": "A bitwise comparison of `point_at(0)` with the anchor fails for anchors with a negative-zero coordinate; numeric comparison is unaffected."
+    },
+    {
+      "row": 18,
+      "title": "At epsilon 1e-12 the ring row fails in the join on head",
+      "where": "`sweep` `a_ring_on_a_cone_face` certified-scalar row at ε 1e-12",
+      "what": "At ε 1e-12 the base builds the ring and refuses in the volume (`VolumeUncomputable`, 1.094e-12); the head refuses earlier, in the join (`SurfaceResidual`, sample 7, ±1.058e-12). So one residual on that edge is wider at `Interval` on the head than on the base. The row and the PR body disclose it. The \"same payload\" wording is the brief's, not the PR's.",
+      "evidence": "The ring row was run on head and base at ε 1e-12 and the refusals compared.",
+      "consequence": "The claim \"narrower\" holds for the six measured volumes but not for every reading; at ε 1e-12 the head refuses at a different stage with a different error."
+    },
+    {
+      "row": 19,
+      "title": "carrier_resolution charges an anchored conic the same u·a as a centred one",
+      "where": "`carrier_resolution::resolution`; its module doc",
+      "what": "`resolution` charges an anchored conic `u·a`, as it does a centred one, and its module doc still says an ellipse resolves its arc \"only to about `u·A`\". The charge errs on the conservative side for an anchored section, whose points near the anchor resolve at their own scale.",
+      "evidence": "Reading the function and its doc.",
+      "consequence": "Whether any reader can now be given a lower resolution for an anchored conic was not established; the doc statement does not describe the anchored form."
+    },
+    {
+      "row": 20,
+      "title": "plus_zero_curve keeps the phase, so a half turn's minus zero reaches keys",
+      "where": "`signed_zero::plus_zero_curve`; `Curve3::data()`",
+      "what": "`plus_zero_curve` restates the placement with positive zeros but leaves the phase as it is. A half turn stores the phase as `(−1.0, −0.0)`, and `data()` carries that `−0.0` into both keys. Two otherwise equal conics differing only in the sign of the phase's zero could then key differently.",
+      "evidence": "Reading. Every route tried to one seam produced the same signs; no case of two different keys was produced, and whether it occurs was not established.",
+      "consequence": "Possible key mismatch for equal curves reached with differently signed zeros; no instance was shown."
+    },
+    {
+      "row": 21,
+      "title": "Seam turn decided on a straddling Interval widens the phase and derived centre",
+      "where": "re-seam at `Interval` (`quarter_turned_where` / `seamed_near` arms); `Ellipse::map_scalar` phase (`conic.rs:832`)",
+      "what": "When the seam turn is decided on an `Interval` that straddles the decision, the phase is hulled to `([0, 1], [−1, 0])`. The derived centre is then about a semi-axis wide, where a centred ellipse kept its centre exact. Separately, `map_scalar` passes the phase through `f`, so a widening `f` widens the pair.",
+      "evidence": "Reading only; not probed.",
+      "consequence": "In that case values read from the derived centre would carry a width of order the semi-axis. How often a straddling decision occurs was not established."
+    },
+    {
+      "row": 22,
+      "title": "Seven new conic.rs bare-rounding entries carry the reason far-centre",
+      "where": "bare-rounding allowlist (`bare-rounding-sites.tsv`), seven new `conic.rs` entries",
+      "what": "The seven new `conic.rs` entries in the bare-rounding list carry the reason `far-centre`. They are the anchored chain's own running bound, which is the remedy for a far centre, not a form awaiting re-posing. The gate passes at head with 618 sites (234 in production) against the base's 607 / 231.",
+      "evidence": "Reading the list against the code; the entry counts were checked by the gate. Whether a different reason label is intended was not established.",
+      "consequence": "The list's reason column misdescribes these seven sites, which could misdirect later work that uses the label."
+    },
+    {
+      "row": 23,
+      "title": "Doc on seaming at the nearest vertex is false for an anchored ellipse",
+      "where": "`conic.rs:104-106`; test `a_re_seamed_ellipse_resolves_near_its_anchor_at_the_semi_axis`",
+      "what": "The doc says a caller seams an ellipse at the principal vertex nearest the part in use, so the parameter there resolves to the scale of that part. For an anchored ellipse the unit's own row pins the opposite: a re-seamed anchored ellipse resolves near its anchor at the semi-axis. The code behaves as intended; the doc was not updated.",
+      "evidence": "Reading the doc against the row's assertion.",
+      "consequence": "A reader following the doc would expect resolution at the part's scale after a re-seam, which the code does not give for an anchored ellipse."
+    },
+    {
+      "row": 24,
+      "title": "quarter_turned_where doc says built through Self::new; it is a literal",
+      "where": "`conic.rs:959-961`, `:988-997`",
+      "what": "The doc of `quarter_turned_where` says it is \"Built through `Self::new`\". It is a struct literal that passes the string `\"Ellipse::new\"` to `stored_size` so that the panic text reads as before. The panic text names `Ellipse::new` for an anchored ellipse as well.",
+      "evidence": "Reading the function body and its doc.",
+      "consequence": "The doc misstates the construction path, and a panic from an anchored ellipse names a constructor that was not called."
+    },
+    {
+      "row": 25,
+      "title": "born and phase stored as separate fields; phase meaningful only when anchored",
+      "where": "`conic.rs:158-164`; `same_placement` (`:869`); `stored_phase` (`:853`); `Conic::phase()`",
+      "what": "`born` and `phase` are two fields of which the second carries meaning only under one value of the first. `same_placement` special-cases it, `stored_phase` guards it, `quarter_turned_where` permutes it on a centred ellipse anyway, and `Conic::phase()` hands a centred, re-seamed ellipse's `(0, −1)` to any caller. Holding it as `Anchored { phase }` is the alternative proposed.",
+      "evidence": "Reading the struct and its readers.",
+      "consequence": "Code form: a centred ellipse carries and exposes a phase value with no meaning, and each reader has to guard against it."
+    },
+    {
+      "row": 26,
+      "title": "Phase held as a numeric pair rather than a four-valued quarter-turn index",
+      "where": "`conic.rs` phase field; `map_scalar` (`:832`)",
+      "what": "The phase is stored as a `(T, T)` pair that only ever holds one of four exact values, `(±1, 0)` or `(0, ±1)`, and it is mapped through `f` like a size, so a widening `f` widens it. A four-valued quarter-turn index would make the `map_scalar` phase-dropping mutant (row 4) unrepresentable.",
+      "evidence": "Reading the type and `map_scalar`. Whether the index form is preferable overall was not established.",
+      "consequence": "Code form: the representation admits values the design never intends, including widened intervals."
+    },
+    {
+      "row": 27,
+      "title": "Circle and Ellipse carry near-verbatim copies of placement and form-matching code",
+      "where": "`conic.rs` `stored` (`:579`, `:841`), `centred_at` (`:601`, `:878`), `same_placement` (`:594`, `:867`), `anchor()` (`:697`, `:1126`), `offsets`/`running_offsets` (`:473`, `:496`); `in_band_sweep.rs` test-local `Born`",
+      "what": "`Circle` and `Ellipse` each carry the same bodies for `stored`, `centred_at`, `same_placement` and `anchor()`, and the `Born` match is repeated in `frame`, `point_at`, `azimuth`, `zero_point` and `running_point` of each: 19 sites across the two impls. `offsets` and `running_offsets` are one formula in two arithmetics, kept in step by a bit-equality row. A `topo` test defines a second `Born` enum beside the private one.",
+      "evidence": "Reading `conic.rs` end to end.",
+      "consequence": "Code form: a further stored form would touch each of the 19 sites and both copies."
+    },
+    {
+      "row": 28,
+      "title": "Re-seam code carries documentation far exceeding the code it describes",
+      "where": "`conic.rs:944-961` (`quarter_turned_where`); module docs and `seamed_toward` comments",
+      "what": "`quarter_turned_where` has eighteen lines of doc for a body whose anchored arm is three lines. Across the module docs and the `quarter_turned_where` and `seamed_toward` comments, about 90 lines of prose sit over about 60 lines of re-seam code. Several of the stale statements in rows 10, 23, 24 and 33 are in this prose.",
+      "evidence": "Line counts from reading the file.",
+      "consequence": "Code form: the volume of prose makes the stale statements in it harder to find and keep in step with the code."
+    },
+    {
+      "row": 29,
+      "title": "Typo \"a ellipse\" in the Ellipse centred_at doc comment",
+      "where": "`conic.rs:875` (doc of `Ellipse::centred_at`)",
+      "what": "The doc comment reads \"a ellipse\" where \"an ellipse\" is meant. It sits in the second of the two near-identical `centred_at` docs.",
+      "evidence": "Reading the file.",
+      "consequence": "Code form: a spelling error in one doc comment; no behaviour is affected."
+    },
+    {
+      "row": 30,
+      "title": "Verification account reports two red gates; one run found three",
+      "where": "`scripts/run-gates.sh`; PR body verification account; gate `cover-kind-match`",
+      "what": "The PR's account lists two red gates, `engine-leaves` and `pin-cites-an-open-row`. One run on clean head and base worktrees found a third red, `cover-kind-match` (`RAISED ball crates/geom-brep/src/curve_face/line_quadric.rs: 0 -> 2`), red on the base with the same payload; `line_quadric.rs` is not in the unit's diff. Another run of the same script on clean worktrees recorded two red, the same on base.",
+      "evidence": "`scripts/run-gates.sh` run on clean head and base worktrees in two separate runs, with the two results above. The difference between the runs was not traced.",
+      "consequence": "If the three-red result holds, the PR's account omits a gate failure that is not caused by the unit."
+    },
+    {
+      "row": 31,
+      "title": "An f64 quarter-turn re-seam moves the derived centre about 1.2 u·a",
+      "where": "`conic.rs:968` (`turned_to(normalize(v))`); doc `conic.rs:72-73`",
+      "what": "At `f64` a quarter turn re-squares the turned frame, so the derived centre of an anchored ellipse moves by about 1.2 `u·a` across the re-seam; after a half turn it is bit-exact. The anchor's bits are kept in both cases. The doc says the centre is \"derived once from the anchor whatever seam the ellipse is read at\", which reads as invariance across seams.",
+      "evidence": "A head probe re-seamed anchored sections and compared derived centres: 1.3e-10 m at `a = 1e6`.",
+      "consequence": "Readers that work from the derived centre (cover, image, distance floors) see a centre that differs between seams of the same curve; the doc does not describe this."
+    },
+    {
+      "row": 32,
+      "title": "Comment in intersect.rs describes the tilt.centre code the diff removed",
+      "where": "`crates/geom-brep/src/intersect.rs:2574-2578`",
+      "what": "The comment explains that the centre is the apex's foot on the plane moved along the major axis, reading a vector that cancels to K along the normal and dividing by K. That describes `tilt.centre(apex_gap)`, which this diff removed (`-let center = apex - n * apex_gap + u_major * tilt.centre(apex_gap)`). The new paragraph was appended beneath the old comment.",
+      "evidence": "Reading the diff hunk and the surviving comment.",
+      "consequence": "The comment describes code that no longer exists at that site; the code itself is correct."
+    },
+    {
+      "row": 33,
+      "title": "Four conic.rs doc statements are false for an anchored conic",
+      "where": "`conic.rs:8`, `:120`, `:147`, `:215` (with `:663`, `:1082`)",
+      "what": "`conic.rs:8` says the placement is a frame \"centred on the conic\". `:120` and `:147` give `Circle`'s and `Ellipse`'s headline formulas as `P(θ) = origin + …`. `:215` says `jet_at` works \"from one `sin_cos`\", while both kinds' arms now call `point_at`, which on the anchored form reads two more sines (`:663`, `:1082`).",
+      "evidence": "Reading `conic.rs` against the anchored arms.",
+      "consequence": "Each doc describes only the centred form; a reader of these items gets a wrong description of the anchored form's placement, formula or evaluation cost."
+    },
+    {
+      "row": 34,
+      "title": "Anchored circle is production code reached only from tests",
+      "where": "`Circle::anchored` and anchored arms of `Circle::frame`, `point_at`, `azimuth`, `running_point` (`conic.rs:541`, `:635`, `:648`, `:679`, `:716`); callers `in_band_sweep.rs:754`, `memo.rs:1788`, `implicit.rs:3383`, `:3469`, `:3471`",
+      "what": "`Circle::anchored` and the anchored arms of the circle's readers are in production code, but every call to `Circle::anchored` is in a test. No production path mints an anchored circle. The near-gap row's 40/40 anchored circle result concerns a form nothing in production creates.",
+      "evidence": "Grep for `Circle::anchored` callers and reading the arms.",
+      "consequence": "Code form: production code with no production caller. The same fact is why the rebuild doors in row 9 lose no form today."
+    },
+    {
+      "row": 35,
+      "title": "Two hand-written anchor-mark bits restate the datum name that data() provides",
+      "where": "`crates/mesh/src/memo.rs:1098`; `crates/step-import/src/build.rs:1753` (`tag | (anchored << 8)`)",
+      "what": "Two key builders each compute their own anchor-mark bit, restating what `data()` already conveys by the datum's name, and they read the fact two different ways. A consumer that serialises `data()`'s scalars without their names would treat a circle centred at P and one anchored at P as the same. `pcurve_cache.rs:4303` keys on datum names and so parts them; `validate.rs:7558` needs no key.",
+      "evidence": "Reading the two key builders and the two other `data()` readers named. Other `.data()` readers were not checked.",
+      "consequence": "Code form: duplicated encoding of one fact in two crates; other unnamed-scalar consumers of `data()` were not examined."
+    }
+  ]
+}

@@ -1,0 +1,753 @@
+{
+ "PR-A": {
+  "context": "PR 6972 changes how the sweep crate (extrude, loft, revolve) builds the planes and directions it stores: caps and walls now take their normal, origin and u_ref from the sketch frame carried by the placement, instead of fitting a Newell plane to the built vertices. A cap's origin becomes the carried sketch origin and a line wall's origin becomes its segment's start vertex; the Newell and CapPlane machinery and its refusals are deleted, and new helpers (`Course`, `Sweep`, `Placing::direction`, `sketch_direction`, `section_centre`) are added. The PR claims every stored direction equals main's fitted one at f64, that over an epsilon box the caps and walls are stored exactly, and that the ratified sweep README now holds that no sweep divides a difference of two placed points by its length. It re-baselines a number of committed test rows whose pins moved with the new origins, pins one viewer row red with a filed cause, and keeps the vector-extrusion strut as disclosed. Its body states that hosted CI runs the slow test set and cites a render run and switch-off counts. Both head-versus-base differentials found stored normals, u_refs and carriers equal to the base within 1e-12 or better across 33 and 59 f64 builds, with only plane origins differing.",
+  "findings": [
+   {
+    "id": "F332",
+    "title": "Rewritten mate_tool_flow assertion does not distinguish copy from master",
+    "where": "crates/viewer/tests/mate_tool_flow.rs:473-480, 509-514",
+    "what": "The old comparison `|underside.x - cap.x| < SHELF_LENGTH` tested the authored x and could not tell copy 1 from the master, since the rest fixes only the plane. The new assertion reads the picked copy's own face through the new origin convention. It would also hold if the mate had read the master; the assertion that discriminates is at :473-480. The new assertion also ties the test to the origin convention.",
+    "evidence": "Read from the test; the row's history was not read.",
+    "consequence": "The rewritten row does not test which copy the mate used, and would change if the origin convention changed again."
+   },
+   {
+    "id": "F808",
+    "title": "Several rewritten test rows assert less than their messages say",
+    "where": "mate7a_r1_probes.rs:233-237; mate7a_torus_rest.rs:438-458; mesh newell_probes.rs:193-199, r2_cert9_probes.rs:267-273; shell_cavity_embedded.rs:226; sym11 cells; torax_axial",
+    "what": "In the two mate7a rows \"cap centred here\" became \"some plane holds this point\". Both mesh probes' assertions became a disjunction while the message still says \"the session box refuses it\". `shell_cavity_embedded.rs:226` accepts any `CavityCrosses`. The `sym11` cells check `Ok` only. The `torax_axial` bound was loosened by 10x, and the measured value went up 11x.",
+    "evidence": "Read from the test diffs; the mate7a reading was not confirmed by a run.",
+    "consequence": "Each rewritten row passes on a wider set of outcomes than before, so regressions in those outcomes would not be caught."
+   },
+   {
+    "id": "F137",
+    "title": "README clause forbidding difference-over-length divisions is contradicted by loft code",
+    "where": "crates/sweep/README.md:945-947; loft.rs:1326, 1344, 1513; swept.rs:911; geom-brep certify.rs:1963-1977",
+    "what": "The ratified README states that no sweep divides the difference of two placed points by its own length, and that walls, rims and struts take the frame turning a direction the sketch holds. Loft struts use `EdgeCurveSpec::line_between` (loft.rs:1326, 1344) and `mev_line` (loft.rs:1513), and the hole bridge uses `mev_line` (swept.rs:911); `line_between` computes (p1 - p0)/|p1 - p0|. The vector-arm wall normal and `sketch_direction` also divide a computed vector by its length.",
+    "evidence": "Read from the code. The body lists loft struts under \"looked at, not filed\"; no work/ file schedules them.",
+    "consequence": "A ratified design clause states something the code does not do. The struts are scaffolds restated or killed before rest and no frame holds a loft strut's direction; the README sentence carries no \"at rest\" qualifier."
+   },
+   {
+    "id": "F444",
+    "title": "Measure lever and census bound grow with origin-to-face distance",
+    "where": "editor-core eval/measure.rs:613-662; topo/src/census.rs:4045",
+    "what": "The measure lever and the census bound scale with the distance between a carrier's origin and its face. Since cap origins are now the sketch origin and wall origins the start vertex, that distance can be larger than before. The bounds remain valid but are wider.",
+    "evidence": "Read from the code.",
+    "consequence": "Measurements and census checks on faces whose origin is far from the face use looser bounds than before."
+   },
+   {
+    "id": "F731",
+    "title": "Vector-extrusion walls keep a computed, normalized normal with no pinning row",
+    "where": "crates/sweep/src/extrude.rs `Course::wall_normal` (Vector arm, extrude.rs:694, 831)",
+    "what": "On the vector arm the wall normal is `place.direction(d).cross(dir).normalize()` with `dir = v.normalize()`, a computed vector divided by its own length. No row pins it over a box and no work/ file schedules it; the body discloses the kept strut, not the wall width. Two probes give different results: over z in [0.95, 1.05] at `Sym<Interval>` the body builds, caps exact, all four wall normals of width 0.403, as on base; over z in [1.95, 2.05] and its negative it refuses at EndpointEnd on both trees.",
+    "evidence": "Both measured by probes on head and base; refusal widths [0, 0.100] head, [0, 0.156] base.",
+    "consequence": "Where the boxed vector extrusion builds, its walls store normals of width 0.403. No document path uses `Vector` (one tour call), so the reach is the public door."
+   },
+   {
+    "id": "F493",
+    "title": "Two sweep slow rows fail on the merge base as well as head",
+    "where": "sweep slow set: `split_edge_loft_charts::a_split_on_a_spline_chart_carries_the_parents_image`, `m8_4_intersection_iso::a_boundary_column_intersection_mints_its_iso_image`",
+    "what": "Of the 806 sweep and step-export slow-set rows run on head, 4 failed. Two are the step-export rows of row 1b. The other two also fail on the merge base, so they come from main and are not introduced by this PR.",
+    "evidence": "Run on head (802 pass, 4 fail) and the two rows re-run on base, where they also fail.",
+    "consequence": "Main already carries two failing sweep slow rows on the chart-ends ground; this PR does not change their status."
+   },
+   {
+    "id": "F925",
+    "title": "Band row's site list omits blend sites of the same kind",
+    "where": "band row in work/; surgery.rs:4536, 4596, 4915; junction.rs:720; open/end_face.rs:1262; open/planar.rs:1187, 1343, 1763",
+    "what": "The band row files blend scaffolds that divide a difference by its length. Sites of the same kind in surgery.rs, junction.rs, open/end_face.rs and open/planar.rs (eight locations) are not in its list. `newell_plane` has no non-test caller on this head.",
+    "evidence": "Found by a read-only search of the code; not confirmed site by site.",
+    "consequence": "The tracker's inventory of such sites is incomplete by up to eight locations."
+   },
+   {
+    "id": "F275",
+    "title": "section_centre re-implements the deleted Newell centroid as a vertex mean",
+    "where": "revolve/partial.rs:589-611 `section_centre`; `Revolved.joints`; `revolved_caps`",
+    "what": "`section_centre` reports the unweighted mean of collapsed vertices and apexes, reproducing the old Newell origin, so `revolved_caps` keeps reporting the value base reported. The value depends on how the loop is cut, which is the reason given for rejecting ruling (B). A circle authored as two unequal arcs would not report its centre. `joints` sits beside caps that state their own origin.",
+    "evidence": "A probe found `revolved_caps` equal to base within 1e-9 on 13 partial revolves. The two-arc circle case was read from the code, not built.",
+    "consequence": "The reported joint depends on authoring choices rather than the section's geometry. The only consumer is the tour's lily, on a full circle."
+   },
+   {
+    "id": "F784",
+    "title": "PlaneDistance selector returns different faces after carrier origins moved",
+    "where": "editor-core names/geompred.rs:145-155, names/interrogate.rs:374-381 (`entity_point`); pncad-py tests/test_document.py:1028-1033; test_selectors.py:93-96",
+    "what": "`GeomPred::PlaneDistance` measures a face at its carrier origin, which its doc says need not lie on the entity. A line wall's origin moved from its quad centroid (mid-height) to its start vertex (the floor), and a cap's to the sketch origin. On a 1 m cube, \"faces more than 0.9 m behind the top\" went from the floor to the floor plus four walls; \"faces 0.5 above the floor\" no longer finds the walls. A wall's answer depends on its segment's start end and sweep direction.",
+    "evidence": "Read from the code and the rewritten Python test, which now asserts 5. No work/ row names it; the body presents it as a test adaptation; test_selectors.py:93-96 still says wall origins are centroids.",
+    "consequence": "Users of this public selector get different face sets for the same query. Pose doors read normal and offset only (eval/wire/pose.rs:666-674), so mates are unaffected."
+   },
+   {
+    "id": "F820",
+    "title": "Tracker rows left open or citing outdated pins and counts",
+    "where": "work/lathe/an-extrude-cap-plane-normal-reads-the-profile-variables.md; work/onehome/three-path-sweeps-refuse-at-1e-12-...md; work/pcert/the-cylinder-rim-axial-decision-...md; work/sym/the-ladders-receipt-row-...md; work/onehome/an-arc-on-a-turned-plane-...md; m10_9_pins_interval.rs:266-270",
+    "what": "The lathe row is closed in effect by this PR and is still `open`. The onehome three-path row and the pcert row say rows are pinned red; this PR lifts those pins. The sym row says [1400, 1762, 0] while the test pins [1412, 1780, 0]. The turned-plane row cites certify.rs:4907-4920 while the pins are at 4926-4940, and its reproducer exists only on an unmerged probe branch. m10_9_pins_interval.rs:266-270 quotes outdated base counts.",
+    "evidence": "Read from the tracker files and tests.",
+    "consequence": "The board would show five work/ rows whose status or numbers do not match the tree after merge."
+   },
+   {
+    "id": "F923",
+    "title": "Cause stated for the pinned ring row's mesh change is disputed",
+    "where": "crates/viewer/tests/index_memo.rs:1069-1074; work/vgeom/the-wide-candidate-row-...md; crates/mesh/src/planar.rs:42-48, 182-184",
+    "what": "The ring row's mesh flipped about the vertex (1.48 - 0.031 to 1.48 + 0.031) while `u_ref` is unchanged. The filing says a planar face is triangulated in its chart, whose origin is now the sketch frame's. One reading: a chart-origin translation moved the mesh, so the triangulator is translation-sensitive and the filing is accurate. Another: planar.rs re-derives the chart from boundary points without reading the stored plane, so the stated cause is absent; ulp moves flipping a near-degenerate diagonal are offered, not traced.",
+    "evidence": "Both readings are from the code; u_ref equality is from a differential. The pin passed at three epsilons in CI.",
+    "consequence": "If the second reading holds, the filing's closing condition targets a mechanism that is not present; if the first holds, the mesher has an undiagnosed translation sensitivity."
+   },
+   {
+    "id": "F163",
+    "title": "Washer registration row removed; replacement row does not test the identity",
+    "where": "revolve_washer registration row (deleted); `a_full_revolves_latitudes_over_a_width_box_are_exact`; work/decide/revolve-carriers-state-only-the-rim.md",
+    "what": "The deleted row pinned that the identity the registration discharged is a theorem at `Sym`. The replacement asserts an exact unit `u_ref` and a build; a build that decides the endpoint numerically passes it. The replacement claim (\"door open and shut read 497/457\") exists in prose and an allowlist script only. Every new revolve row is on `SketchPlane::xy()`.",
+    "evidence": "Symbolic/numeric/frozen counts measured on the washer fixture: full revolve head 501/461/24, base 501/461/36; partial revolve head 493/611/227, base 501/613/221. The numeric count did not rise.",
+    "consequence": "No test would go red if the washer identity fell to a numeric decision, and no revolve row tests a frame other than xy."
+   },
+   {
+    "id": "F470",
+    "title": "PR body misstates what changed for two coincidence-door rows",
+    "where": "editor-core coincidence_door.rs diff; PR body; brief",
+    "what": "The body says `two_blocks...` and `ring_serving...` \"now prove with recourse OneConstruction instead of Budget\". In the diff they stay `unproven/Numeric/OneConstruction`: the recourse changed, the status did not. The one new proof is the at-rest row `SameOpposite CensusAtRest CarrierVerdict`, which is geometrically true. The brief repeats the statement. A separate reading reports the door count as 21 to 28 of 42; whether that and the per-row reading measure the same thing is not established.",
+    "evidence": "Read from the coincidence_door.rs diff.",
+    "consequence": "Readers of the body are told two rows gained proofs that they did not gain."
+   },
+   {
+    "id": "F741",
+    "title": "No render ran on this head; cited render run concluded failure",
+    "where": "PR body's render citation (run 43658737118 on 68c5ce7e)",
+    "what": "No render job ran on 032ac185. The render run the body cites is on commit 68c5ce7e, two commits before the head, one of which is a merge of main. That cited run concluded with failure: two lanes died in matplotlib under Python 3.14, and its check text reads \"partial render: re-render before merging\".",
+    "evidence": "Read from the CI run records and the cited run's check text.",
+    "consequence": "The rendered outputs for this head have not been produced, and the body's render evidence comes from an earlier commit whose run did not complete."
+   },
+   {
+    "id": "F746",
+    "title": "sketch_direction re-derives a direction the profile already records",
+    "where": "swept.rs:562-567 `sketch_direction`; work/boxfinish/the-sweep-doors-read-the-profiles-recorded-directions.md",
+    "what": "`sketch_direction` divides a difference of sketch points by its length (two normalizes), although the profile on this head already records the directions. The change that removes re-derivation from built geometry re-derives one level down. The body discloses it as an interim seam, and a work/ file schedules the replacement.",
+    "evidence": "Read from the code and the tracker file.",
+    "consequence": "Sweep directions come from point differences rather than recorded values until the scheduled change lands; it is one of the falsifiers of the README clause in row 5."
+   },
+   {
+    "id": "F617",
+    "title": "Two step-export rows fail: exported placement point and volume pad changed",
+    "where": "crates/step-export/tests/export.rs `committed_fixtures_are_byte_golden`; kernel_sidecars.rs `kernel_sidecar_fields_match_live_kernel`",
+    "what": "In `boss_union.step`, `#1 = CARTESIAN_POINT` was (2.0, 2.0, 1.0) and is (0.0, 0.0, 1.0): exported plane placements moved with the cap origin. The `swept_elbow` sidecar expects KERNEL_VOLUME_PAD_MM3 1.7046561015447784E-5 and the kernel now gives 1.6986412276764902E-5. The PR touches nothing under crates/step-export. The plane itself is unchanged, and by reading the code import does not treat the location as a face point.",
+    "evidence": "`cargo test -p step-export --test all`: 59 passed on base; 57 passed, 2 failed on head. A reading of writer.rs:793-796 shows the same move; no import round-trip was run.",
+    "consequence": "Exported STEP files differ in bytes from before, the committed fixture and sidecar no longer match, and the PR body does not state that exported files change."
+   },
+   {
+    "id": "F367",
+    "title": "Refusal-shape pins deleted without replacement in three rows",
+    "where": "editor-core tests m10_3_driver_interval.rs `the_certification_width_is_no_longer_bounded_by_epsilon`; `sym_9_the_drive_writes_the_ladders_receipt`; `docm2`",
+    "what": "In the m10_3 row, the two-sided band, the \"just past certifies after bisection\" assertion and both refusal-shape pins were removed; one inequality remains, and what stops the leaf at the new ceiling is named only in a comment. `sym_9` can no longer pin a non-zero `retried=`. `docm2`'s ladder now refuses on `bool_faces_parallel` where it refused on `plane_eq_offset`, with no reason given.",
+    "evidence": "Read from the test diffs.",
+    "consequence": "These rows no longer detect a change in where or how the refusals happen."
+   },
+   {
+    "id": "F743",
+    "title": "Comments and crate docs still describe the deleted Newell and CapPlane machinery",
+    "where": "sweep lib.rs:14, 131-135; revolve/partial.rs:9; revolve/mod.rs:747, 759, 1134; revolve/tube.rs:472; topo/src/geometry.rs:24; euler.rs:283",
+    "what": "The sweep crate doc's Caps bullet (lib.rs:131-135) still describes caps as `geom_brep::newell_plane` over vertices and apexes flipped by winding, and lib.rs:14 says \"Newell-certified cap planes\". revolve/mod.rs:747 and 759 refer to \"the CapPlane posture\"; extrude's copies of that wording were updated and revolve's were not. mod.rs:1134 mentions \"Newell failures\". tube.rs:472 cites the cap-plane Newell fit as an observed downstream refusal, which no longer exists. topo geometry.rs:24 and euler.rs:283 carry similar text.",
+    "evidence": "Read from the code at the cited lines.",
+    "consequence": "Readers of the crate docs and comments are told about construction and refusals the code no longer has; the code itself is unaffected."
+   },
+   {
+    "id": "F640",
+    "title": "Sketch origin far from profile raises carrier residuals; one cell now refuses",
+    "where": "swept `placed_segment_spec_about` (line arm), `cap_plane`",
+    "what": "A line rim now ends at q_from + |b - a| * place(d) instead of the placed far vertex, missing by the placement's rounding, about u times the sketch coordinate. On a turned frame, edge-end residual went 0 to 1.6e-13 and plane/vertex residual 3e-15 to 3.4e-13 at origin distance 1.4e3; 1.5e-12 at 1.4e4; 1.4e-10 at 1.4e6. The 1e8 m mesh probes' new `ResidualExceeded` has the same mechanism.",
+    "evidence": "Measured by probe on head and base. At epsilon 1e-12 a cell at 4.2e3 built on base and refuses on head (`AnalyticRung3(KernelLimit { operand: Plane, bound: 1.8e-12 })`).",
+    "consequence": "Inside the 1e3 m session box nothing flips, but a third of epsilon is spent where none was. No row has a profile away from its sketch origin; the in-box case is not filed."
+   },
+   {
+    "id": "F406",
+    "title": "Course::wall_normal states one rule in two different forms",
+    "where": "extrude.rs:684-696 `Course::wall_normal`",
+    "what": "The wall normal is d x dir on both arms, but the depth arm writes it as a right normal and the vector arm as cross-then-normalize. Only the doc says the two match.",
+    "evidence": "Read from the code; whether the two forms differ in any case was not tested.",
+    "consequence": "Agreement between the arms is asserted in prose rather than by shared code or a test."
+   },
+   {
+    "id": "F629",
+    "title": "Montage sheet: five closure gaps changed from 0 to nonzero",
+    "where": "montage-uv.svg; PR body's montage description",
+    "what": "In montage-uv.svg no `<path>` line changed; the 54 changed lines are captions in 25 cells (closure-gap and `-0.00000` annotations), and the plots are pixel-identical. The sheet draws no planar chart. Five gaps that were exactly 0 are now nonzero; the body mentions only one gap, the one that became 0.",
+    "evidence": "One reading compared the diff text only; another compared captions and plot pixels.",
+    "consequence": "The body's account of the montage omits five changed values; the sheet does not show the planar charts the PR changes."
+   },
+   {
+    "id": "F835",
+    "title": "Revolved.joints is an Option guarded by unreachable!",
+    "where": "revolve/mod.rs:532-544 `Revolved.joints`",
+    "what": "`Revolved.joints` is an `Option` that only the `Partial` kind sets, and the code reaches it through an `unreachable!` on `None` for a partial. Carrying the field on the kind would make the missing case unrepresentable.",
+    "evidence": "Read from the code.",
+    "consequence": "A future path that builds a partial revolve without joints would panic at run time instead of failing to compile."
+   },
+   {
+    "id": "F609",
+    "title": "\"Decided once\" sketch direction is recomputed at each use site",
+    "where": "swept.rs:555-561, 740-743; extrude.rs:1415-1421; `placed_segment_spec`; loft sections",
+    "what": "`sketch_direction`'s doc says the direction is decided once, but it is computed again at the bottom rim, the top rim and the wall, and per loft section; the line's length is computed a second time beside it. The sites call the same function, so they get the same value, and they form one Sym node because Sym hashes content.",
+    "evidence": "Read from the code.",
+    "consequence": "Agreement between the sites holds by convention and by content hashing; the structure does not enforce a single decision."
+   },
+   {
+    "id": "F343",
+    "title": "Gate ran four slow-set rows on this head; body says CI ran them",
+    "where": "CI run 43669842805 on 032ac185; ci.yml slow-set step; PR body coverage statement",
+    "what": "The gate's slow-set step runs only the slow rows whose identifiers appear on the diff's added lines. On this head it ran 4 rows (1 kernel, 3 app) at default epsilon; about 2,100 to 2,180 slow-set rows ran nowhere. The 1e-6 and 1e-12 rows ran the fast set only. Topo-release, step import, interval and tools jobs were skipped. The author's local runs used `--profile ci`, which excludes the slow set, while the body says \"hosted CI runs it\".",
+    "evidence": "Read from the gate's job logs. The fast set, Python (959 OK), demos (97/97), viewer (1554) and lint ran and passed.",
+    "consequence": "The body's coverage claim and its 13,988-row epsilon counts do not cover the slow set, where row 1's failures sit. The discipline text says the gate runs the slow tests a diff edits; the step selects fewer."
+   },
+   {
+    "id": "F496",
+    "title": "Overlap with PR 6953: conflicts, unequal probe copies, duplicate helper names",
+    "where": "PR 6953; swept.rs; both mesh probes; four editor-core pin files; `Placing::vector` / `Placing::direction`",
+    "what": "A trial merge with PR 6953 conflicts in 7 files (swept.rs in 3 hunks, both mesh probes, four editor-core ledgers). The mesh probe edits are not byte-identical: 6953 moved later and assertion messages differ. `Placing::vector` (6953) and `Placing::direction` (here) are one act under two names. The body names `register_placed_line_end`, which exists nowhere (6953 removed it). One reading finds nothing beyond the conflicts; another finds two more spots needing hand work: 6953's new swept.rs rows call the six-argument form, and 6953's `q_to` row merges in open.",
+    "evidence": "Shown with `git merge-tree`, `git grep` and `git diff`.",
+    "consequence": "Whichever PR merges second needs manual resolution in at least 7 files, and the body's statements about the overlap do not match the trees."
+   },
+   {
+    "id": "F508",
+    "title": "register_placed_carrier_end proof text covers only radial equal to place",
+    "where": "swept.rs:640-664 `register_placed_carrier_end`; full.rs:889 `placed_segment_spec_about`",
+    "what": "The function's doc reasons about `u_ref` coming from `sketch_direction` through `place`. `placed_segment_spec_about` passes a separate `radial` placing (full.rs:889). The proof in the doc covers the case `radial == place` only.",
+    "evidence": "Read from the code.",
+    "consequence": "The documented argument does not cover the call path that passes a different radial placing; that path's behaviour was not tested."
+   },
+   {
+    "id": "F683",
+    "title": "Four editor-core and viewer slow rows fail on head, pass on base",
+    "where": "editor-core seat8_split_lowering.rs, m10_5_r1_probes_interval.rs, coincidence_door.rs; viewer index_memo.rs",
+    "what": "`the_split_documents_evaluate_to_their_committed_digests` fails at every epsilon: three document digests changed; the PR re-cut a sibling row hashing the same planes. `a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both` panics at index_memo.rs:1317 at every epsilon; it is the unpinned sibling of the pinned ring row. `e2e_channel_slider_over_an_epsilon_box` gives receipts (10,1282,1272,572) at 1e-6 and (10,1258,1248,526) at 1e-12 against the pinned (10,1264,1254,532). In `coincidence_door`, `shaft_and_bearing_ball` is pinned to escalate at 1e-12 and now builds Ok.",
+    "evidence": "Run on head and base at default, 1e-6 and 1e-12 under the CI profile; all four pass on base at all three. Main's last nightly (run 43561237293) lists none of them among its failures.",
+    "consequence": "Two rows hold baselines the origin move changed and the PR did not re-cut, one is an unpinned viewer behaviour row, and one fails because head certifies a case the pin expects to escalate."
+   },
+   {
+    "id": "F117",
+    "title": "Containment test rows cover few parameters and accept wide enclosures",
+    "where": "the PR's varying (epsilon-box) rows; `assert_holds_its_members`; `vertex_box()`",
+    "what": "Every containment row varies one parameter, checking 5 members including both ends; the `spread > vertex_box()` guard is real. No row boxes a revolve angle, a loft placement, the vector arm, two parameters at once, or a revolve off `xy()`. `assert_holds_its_members` has no upper bound on enclosure width, so a degraded enclosure passes. At epsilon 1e-12, `ROUNDING` is 1e-14 and `vertex_box()` is 1.56e-14, so a midpoint-only enclosure escapes by 5e-15.",
+    "evidence": "Read from the tests. Added probe rows (boxed frame under extrude and revolve, boxed loft tilt and height, boxed revolve angle, hole loop, Against) found zero escape with five members.",
+    "consequence": "A regression that widens a varying datum's enclosure, or one in the uncovered doors, would not turn any committed row red; the macroscopic turned-frame row is the one with margin."
+   },
+   {
+    "id": "F389",
+    "title": "Loft with tilted top: mesh volume differs between base and head",
+    "where": "loft with a tilted top; mesh output",
+    "what": "For a loft with a tilted top, the mesh volume differs by 3.3e-7 relative between base and head, while every stored surface and carrier is equal within 1e-9. The cause was not traced; mesh sensitivity to ulp changes is the offered explanation.",
+    "evidence": "Measured by probe on head and base.",
+    "consequence": "One loft case's mesh output changes with no change in stored geometry, for a reason not established."
+   },
+   {
+    "id": "F604",
+    "title": "Survey's \"not re-verified site by site\" and other deferred items unscheduled",
+    "where": "PR body's origin-reader survey; work/",
+    "what": "The body says the survey's classification was \"not re-verified site by site\", and no work/ file schedules that verification. Also without a schedule: \"about 230 readers out of scope\", `torus_radial`, enum-carried directions and description payloads from the blind spot, the slow set, the kept vector-arm geometry and the loft struts.",
+    "evidence": "Searched work/ for rows covering these items; none found. `extrude-arc-walls...` concerns a different question.",
+    "consequence": "Work the PR defers has no tracker entry, so nothing records that it is owed."
+   },
+   {
+    "id": "F240",
+    "title": "Duplicated dispatch and two sources for one frame or turn",
+    "where": "extrude.rs:789-845; revolve/mod.rs:532-544; `Placing::point`, `Placing::carry`",
+    "what": "`extrusion` is matched twice in extrude.rs:789-845, once for `(w, course)` and again for `length`. In revolve/mod.rs:532-544 a `Pose` takes its origin from `joints` and its axis from the face. `Placing::point` turns by Rodrigues' formula while `Placing::carry` uses the anchored motion, two spellings of one turn.",
+    "evidence": "Read from the code; whether the two turn spellings ever give different results was not tested.",
+    "consequence": "These are code-form issues: each rule has two places whose agreement is kept by hand."
+   },
+   {
+    "id": "F582",
+    "title": "Switch-off certification counts differ from those in the PR body",
+    "where": "probe branch merged into head, switch off: slab +/-0.05 row; m10_8 plain row",
+    "what": "With the switch off, the slab +/-0.05 row certified in one leaf with counts 816/1207, where the body states 812/1245. `m10_8` plain gave 2448/3115/108 against the body's 2412/3150/108. The width slab, the derived-frame twin row, the freeze row (`frozen` 210) and the turned-plane door's refusal widths matched the body.",
+    "evidence": "Run on the head with the probe branch merged in. Not run: current main merged in, the tour's stop, `AIM=mid`.",
+    "consequence": "Two count pairs in the body do not match a re-run; the qualitative results match."
+   },
+   {
+    "id": "F547",
+    "title": "Unit-direction invariant held by comment, not by type",
+    "where": "swept.rs:147-151; extrude.rs:665-680, 786; `Placing::direction`, `sketch_direction`, `Course::dir`, `wall_normal`, `cap_plane`",
+    "what": "The doc states that \"a rigid frame carries a unit direction to a unit direction\", but `Placing::direction` returns `Vec3`, and `sketch_direction`, `Course::dir`, `wall_normal` and `cap_plane` pass bare `Vec2`/`Vec3`. Carriers take these as unit. `UnitVec3` exists and is unwrapped at extrude.rs:786.",
+    "evidence": "Read from the code.",
+    "consequence": "Nothing in the types prevents a non-unit vector reaching a carrier that assumes a unit one; the invariant rests on the comment."
+   }
+  ]
+ },
+ "PR-C": {
+  "context": "PR 7203 changes how a far-centred cone section (an ellipse or circle whose centre lies far from the part of it in use) is stored in `crates/geom/src/curves/conic.rs`. Such a conic is minted anchored at a point on it, with a reference direction, its semi-axes and a phase pair, and its centre is derived from these rather than stored. The evaluator, the running error bound and the `Interval` lift sum from the anchor, and a re-seam permutes the phase while keeping the anchor's bits. The PR claims that points near the anchor are right at their own scale (under 7e-16 m), that the running bound holds, that the anchor survives re-seams and reversals, and that `Interval` widths on the cone-ring rows are narrower than on the centre-stored base. It also claims that three production doors rebuild a conic through a centre constructor, that the readers part the two forms and nothing outside `conic.rs` asks which form, and that the suite and gates read as on the base. Follow-ups (one stored form, a general anchor, the chart image built from the derived centre) are filed as open rows. The unit is the diff from `ec8749552` to `8d5978300`, 193 files.",
+  "findings": [
+   {
+    "id": "F676",
+    "title": "An f64 quarter-turn re-seam moves the derived centre about 1.2 u\u00b7a",
+    "where": "`conic.rs:968` (`turned_to(normalize(v))`); doc `conic.rs:72-73`",
+    "what": "At `f64` a quarter turn re-squares the turned frame, so the derived centre of an anchored ellipse moves by about 1.2 `u\u00b7a` across the re-seam; after a half turn it is bit-exact. The anchor's bits are kept in both cases. The doc says the centre is \"derived once from the anchor whatever seam the ellipse is read at\", which reads as invariance across seams.",
+    "evidence": "A head probe re-seamed anchored sections and compared derived centres: 1.3e-10 m at `a = 1e6`.",
+    "consequence": "Readers that work from the derived centre (cover, image, distance floors) see a centre that differs between seams of the same curve; the doc does not describe this."
+   },
+   {
+    "id": "F788",
+    "title": "Module doc gives two different accounts of what an anchored conic's anchor is",
+    "where": "`conic.rs:28-56` (incl. `:39-49`), `:137-144`, `:256-263`; `curves.rs:610`",
+    "what": "\"The two stored forms\" says an anchored conic's stored point is its point at `\u03b8 = 0` and its centre is `anchor \u2212 u_ref\u00b7a`. About twenty lines later the re-seam paragraph says the anchor stays and parameter zero moves. The docs of `Born::Anchored`, `Conic::anchor`, `Conic::zero_point` and `CurveDatum::Anchor` repeat the first account. The code follows the second; the first holds only at phase `(1, 0)`, and the text does not mark it as a special case.",
+    "evidence": "Reading `conic.rs` end to end.",
+    "consequence": "A reader relying on the module doc, or on the docs of four public items, gets a description that is wrong for any re-seamed anchored ellipse. The PR's re-seam claim (C8) is stated in terms of this doc."
+   },
+   {
+    "id": "F561",
+    "title": "Seam turn decided on a straddling Interval widens the phase and derived centre",
+    "where": "re-seam at `Interval` (`quarter_turned_where` / `seamed_near` arms); `Ellipse::map_scalar` phase (`conic.rs:832`)",
+    "what": "When the seam turn is decided on an `Interval` that straddles the decision, the phase is hulled to `([0, 1], [\u22121, 0])`. The derived centre is then about a semi-axis wide, where a centred ellipse kept its centre exact. Separately, `map_scalar` passes the phase through `f`, so a widening `f` widens the pair.",
+    "evidence": "Reading only; not probed.",
+    "consequence": "In that case values read from the derived centre would carry a width of order the semi-axis. How often a straddling decision occurs was not established."
+   },
+   {
+    "id": "F847",
+    "title": "point_at(0) differs from the anchor in the sign of a zero coordinate",
+    "where": "`conic.rs:1072`",
+    "what": "The claim is that `point_at(0)` returns the anchor bit for bit. Where an anchor coordinate is `\u22120.0`, `point_at(0)` returns `+0.0` for that coordinate. The magnitude is identical.",
+    "evidence": "Shown by a probe on the head reading the coordinate's sign at parameter zero.",
+    "consequence": "A bitwise comparison of `point_at(0)` with the anchor fails for anchors with a negative-zero coordinate; numeric comparison is unaffected."
+   },
+   {
+    "id": "F371",
+    "title": "Code outside conic.rs asks which stored form a conic has",
+    "where": "`crates/step-import/src/build.rs:1753`; `crates/mesh/src/memo.rs:1098`; `Conic::anchor()` (`conic.rs:263`)",
+    "what": "`build.rs:1753`, production, asks `carrier.conic().is_some_and(|k| k.anchor().is_some())`, and `memo.rs:1098` matches `CurveDatum::Anchor`. This contradicts the statement that no reader outside `conic.rs` matches on the form. One reading attributes that wording to the review brief and notes the PR body names both sites; another reads it as the PR's own claim. `Conic::anchor()` is a public trait method returning `Option`, so the form is public API.",
+    "evidence": "Reading and grep.",
+    "consequence": "The account of the form as private to `conic.rs` is inaccurate; two crates depend on the distinction, and any caller can query it."
+   },
+   {
+    "id": "F516",
+    "title": "Phase held as a numeric pair rather than a four-valued quarter-turn index",
+    "where": "`conic.rs` phase field; `map_scalar` (`:832`)",
+    "what": "The phase is stored as a `(T, T)` pair that only ever holds one of four exact values, `(\u00b11, 0)` or `(0, \u00b11)`, and it is mapped through `f` like a size, so a widening `f` widens it. A four-valued quarter-turn index would make the `map_scalar` phase-dropping mutant (row 4) unrepresentable.",
+    "evidence": "Reading the type and `map_scalar`. Whether the index form is preferable overall was not established.",
+    "consequence": "Code form: the representation admits values the design never intends, including widened intervals."
+   },
+   {
+    "id": "F534",
+    "title": "At epsilon 1e-12 the ring row fails in the join on head",
+    "where": "`sweep` `a_ring_on_a_cone_face` certified-scalar row at \u03b5 1e-12",
+    "what": "At \u03b5 1e-12 the base builds the ring and refuses in the volume (`VolumeUncomputable`, 1.094e-12); the head refuses earlier, in the join (`SurfaceResidual`, sample 7, \u00b11.058e-12). So one residual on that edge is wider at `Interval` on the head than on the base. The row and the PR body disclose it. The \"same payload\" wording is the brief's, not the PR's.",
+    "evidence": "The ring row was run on head and base at \u03b5 1e-12 and the refusals compared.",
+    "consequence": "The claim \"narrower\" holds for the six measured volumes but not for every reading; at \u03b5 1e-12 the head refuses at a different stage with a different error."
+   },
+   {
+    "id": "F963",
+    "title": "Anchored circle is production code reached only from tests",
+    "where": "`Circle::anchored` and anchored arms of `Circle::frame`, `point_at`, `azimuth`, `running_point` (`conic.rs:541`, `:635`, `:648`, `:679`, `:716`); callers `in_band_sweep.rs:754`, `memo.rs:1788`, `implicit.rs:3383`, `:3469`, `:3471`",
+    "what": "`Circle::anchored` and the anchored arms of the circle's readers are in production code, but every call to `Circle::anchored` is in a test. No production path mints an anchored circle. The near-gap row's 40/40 anchored circle result concerns a form nothing in production creates.",
+    "evidence": "Grep for `Circle::anchored` callers and reading the arms.",
+    "consequence": "Code form: production code with no production caller. The same fact is why the rebuild doors in row 9 lose no form today."
+   },
+   {
+    "id": "F503",
+    "title": "Review brief's premise that RESOLUTION_ROUNDINGS changed does not hold",
+    "where": "`crates/geom-brep/src/carrier_resolution.rs:40`",
+    "what": "The brief's C2 premise says the constant changed. `RESOLUTION_ROUNDINGS` is `32.0` at both base and head. It went 32 \u2192 40 in `801623f7` and back to 32 in `4545b953`, both inside the branch, so the net diff does not change it. The constant is fitted and guarded by `the_resolution_bounds_each_section_tables_carrier` at a tenfold margin.",
+    "evidence": "Reading the constant at both trees and the branch's commits; the guard row failed under two mutants (`quarter-wrong-way`, `half-keeps-pair`), so it is live.",
+    "consequence": "The premise of the review question is wrong; there is no corresponding change in the code."
+   },
+   {
+    "id": "F404",
+    "title": "Flat-cone image ceiling raised from 48 to 104 u, fitted to readings",
+    "where": "`crates/geom-brep/tests/pcurve_cone_section.rs:884-907` (`FLAT_IMAGE_ULPS`)",
+    "what": "The ceiling went from 48 to 104 `u` against readings of 50, 81 and 95 (about 10% over the worst), marked \"fitted \u2026 not derived\". Its stated mutant reads 42, 160, 82, below the unmutated reading at two poses and above the ceiling at one. The comment no longer lists two other changes that used to fail it.",
+    "evidence": "Read from the row's numbers and the pcert row, not run. On the base, the corresponding mutant read 54, 63, 70 against 48, failing at all three poses.",
+    "consequence": "The row now detects its mutant at one pose of three, where before it did at three. The owning row (pcert row, P3, cited in the PR but not at the constant) is open."
+   },
+   {
+    "id": "F831",
+    "title": "Four conic.rs doc statements are false for an anchored conic",
+    "where": "`conic.rs:8`, `:120`, `:147`, `:215` (with `:663`, `:1082`)",
+    "what": "`conic.rs:8` says the placement is a frame \"centred on the conic\". `:120` and `:147` give `Circle`'s and `Ellipse`'s headline formulas as `P(\u03b8) = origin + \u2026`. `:215` says `jet_at` works \"from one `sin_cos`\", while both kinds' arms now call `point_at`, which on the anchored form reads two more sines (`:663`, `:1082`).",
+    "evidence": "Reading `conic.rs` against the anchored arms.",
+    "consequence": "Each doc describes only the centred form; a reader of these items gets a wrong description of the anchored form's placement, formula or evaluation cost."
+   },
+   {
+    "id": "F568",
+    "title": "Readers of a re-seamed anchored ellipse are exercised only at the unshifted phase",
+    "where": "`conic.rs` anchored `azimuth` phase terms (`:1101`, `:1111-1112`), `Ellipse::map_scalar` phase (`:824`, `:832`), `Ellipse::placed` phase (`:800`); tests `:1347`, `:1442`, `:1458`",
+    "what": "The unit's rows read these arms only at phase `(1, 0)`, where dropping the phase changes nothing; `param_in` is read back on un-re-seamed conics only, and the `Interval` centre's width, not value, is checked. Production reaches these arms through `SectionConic::seamed_near` on every minted section the chord join seams.",
+    "evidence": "Mutants dropping the phase in `map_scalar`, `placed` and either azimuth term passed `geom`, `geom-brep`, `mesh` anchored rows and 528 `topo` rows. They failed in 2 to 7 `sweep` cone rows and in pre-existing `mesh` cone rows.",
+    "consequence": "A wrong value in these arms shows up only as a body failing to build in integration rows two or three crates away; the unit's own rows do not detect it."
+   },
+   {
+    "id": "F323",
+    "title": "plus_zero_curve keeps the phase, so a half turn's minus zero reaches keys",
+    "where": "`signed_zero::plus_zero_curve`; `Curve3::data()`",
+    "what": "`plus_zero_curve` restates the placement with positive zeros but leaves the phase as it is. A half turn stores the phase as `(\u22121.0, \u22120.0)`, and `data()` carries that `\u22120.0` into both keys. Two otherwise equal conics differing only in the sign of the phase's zero could then key differently.",
+    "evidence": "Reading. Every route tried to one seam produced the same signs; no case of two different keys was produced, and whether it occurs was not established.",
+    "consequence": "Possible key mismatch for equal curves reached with differently signed zeros; no instance was shown."
+   },
+   {
+    "id": "F471",
+    "title": "Comment in intersect.rs describes the tilt.centre code the diff removed",
+    "where": "`crates/geom-brep/src/intersect.rs:2574-2578`",
+    "what": "The comment explains that the centre is the apex's foot on the plane moved along the major axis, reading a vector that cancels to K along the normal and dividing by K. That describes `tilt.centre(apex_gap)`, which this diff removed (`-let center = apex - n * apex_gap + u_major * tilt.centre(apex_gap)`). The new paragraph was appended beneath the old comment.",
+    "evidence": "Reading the diff hunk and the surviving comment.",
+    "consequence": "The comment describes code that no longer exists at that site; the code itself is correct."
+   },
+   {
+    "id": "F560",
+    "title": "PR body width table's centre-stored base column does not match commit ec8749552",
+    "where": "PR body \"What the phase bought\"; closed row `work/oneround/an-anchored-cone-section-encloses-wider-at-interval.md`",
+    "what": "The \"centre-stored base\" widths in the PR body's table and in the closed row's closing table are not what the base `ec8749552` gives. The row's first table names its commit, `3df3b1d41`; the PR body and closing table name none.",
+    "evidence": "The two cone-ring slow rows were run with a width print on base and head; the head reproduces the PR to the digit, the base differs on all six: 3.79e-11 against a stated 4.86e-11 (certified, cone \u222a box), 1.03e-12 against 2.09e-12 (point maps, cone \u2216 box).",
+    "consequence": "The head is narrower than its base on all six rows by 5 to 15%, not the stated 31 to 55%; the difference is the base's own change. The closed row is closed on the stated figures."
+   },
+   {
+    "id": "F286",
+    "title": "Offsets-bound test passes when the half-angle square's rounding is left uncharged",
+    "where": "test `the_anchored_offsets_bound_charges_the_squares_rounding` (`conic.rs:1264`); `running_offsets` (`:499-507`)",
+    "what": "With the square's error reduced to the sine's share, the row still passes: `doubled \u2212 (1 \u2212 c0)` is charged `u\u00b72sh\u00b2` by `Rounded::sub` although it is exact at `c0 = 1`, and that charge covers `2\u00b7rounding`. The row's doc sentence \"Red where the square is not charged\" does not hold; dropping the plain `sin \u03b8` charge also passes.",
+    "evidence": "The author's mutant A5, re-planted, and mutant R16 passed; halving every sine's charge fails the row. The bound held on 15,228 coordinates at up to 0.957 of itself.",
+    "consequence": "The bound itself is not shown false. The row does not detect the omission its doc names, and the margin it protects is about 4%."
+   },
+   {
+    "id": "F524",
+    "title": "Two hand-written anchor-mark bits restate the datum name that data() provides",
+    "where": "`crates/mesh/src/memo.rs:1098`; `crates/step-import/src/build.rs:1753` (`tag | (anchored << 8)`)",
+    "what": "Two key builders each compute their own anchor-mark bit, restating what `data()` already conveys by the datum's name, and they read the fact two different ways. A consumer that serialises `data()`'s scalars without their names would treat a circle centred at P and one anchored at P as the same. `pcurve_cache.rs:4303` keys on datum names and so parts them; `validate.rs:7558` needs no key.",
+    "evidence": "Reading the two key builders and the two other `data()` readers named. Other `.data()` readers were not checked.",
+    "consequence": "Code form: duplicated encoding of one fact in two crates; other unnamed-scalar consumers of `data()` were not examined."
+   },
+   {
+    "id": "F688",
+    "title": "carrier_resolution charges an anchored conic the same u\u00b7a as a centred one",
+    "where": "`carrier_resolution::resolution`; its module doc",
+    "what": "`resolution` charges an anchored conic `u\u00b7a`, as it does a centred one, and its module doc still says an ellipse resolves its arc \"only to about `u\u00b7A`\". The charge errs on the conservative side for an anchored section, whose points near the anchor resolve at their own scale.",
+    "evidence": "Reading the function and its doc.",
+    "consequence": "Whether any reader can now be given a lower resolution for an anchored conic was not established; the doc statement does not describe the anchored form."
+   },
+   {
+    "id": "F819",
+    "title": "Re-seam code carries documentation far exceeding the code it describes",
+    "where": "`conic.rs:944-961` (`quarter_turned_where`); module docs and `seamed_toward` comments",
+    "what": "`quarter_turned_where` has eighteen lines of doc for a body whose anchored arm is three lines. Across the module docs and the `quarter_turned_where` and `seamed_toward` comments, about 90 lines of prose sit over about 60 lines of re-seam code. Several of the stale statements in rows 10, 23, 24 and 33 are in this prose.",
+    "evidence": "Line counts from reading the file.",
+    "consequence": "Code form: the volume of prose makes the stale statements in it harder to find and keep in step with the code."
+   },
+   {
+    "id": "F686",
+    "title": "Doc on seaming at the nearest vertex is false for an anchored ellipse",
+    "where": "`conic.rs:104-106`; test `a_re_seamed_ellipse_resolves_near_its_anchor_at_the_semi_axis`",
+    "what": "The doc says a caller seams an ellipse at the principal vertex nearest the part in use, so the parameter there resolves to the scale of that part. For an anchored ellipse the unit's own row pins the opposite: a re-seamed anchored ellipse resolves near its anchor at the semi-axis. The code behaves as intended; the doc was not updated.",
+    "evidence": "Reading the doc against the row's assertion.",
+    "consequence": "A reader following the doc would expect resolution at the part's scale after a re-seam, which the code does not give for an anchored ellipse."
+   },
+   {
+    "id": "F680",
+    "title": "f64 arc cover does not contain the evaluator's points near the anchor",
+    "where": "`cover_over` / `range_along` on a short arc of an anchored section; open row `work/oneround/the-arc-cover-misses-a-far-centred-arc-\u2026`",
+    "what": "At `f64` the cover of a short arc next to the anchor misses the evaluator's own points, equally on base and head. The cover is still read from the derived centre. Before, evaluator and cover were both `u\u00b7a` off the true arc; now the cover alone is. At `Interval` one probe found the head containing the points where the base did not.",
+    "evidence": "Two probes over `a` = 1e2 \u2026 1e7: worst head miss 2.4e-13 to 1.0e-8 m (1.5 to 4.1 `u\u00b7a`) in one, 7.1e-15 to 1.75e-9 m in the other, each near the base figure.",
+    "consequence": "The miss predates the unit and has an open row; the unit changes which of the two is off the true arc."
+   },
+   {
+    "id": "F237",
+    "title": "Circle and Ellipse carry near-verbatim copies of placement and form-matching code",
+    "where": "`conic.rs` `stored` (`:579`, `:841`), `centred_at` (`:601`, `:878`), `same_placement` (`:594`, `:867`), `anchor()` (`:697`, `:1126`), `offsets`/`running_offsets` (`:473`, `:496`); `in_band_sweep.rs` test-local `Born`",
+    "what": "`Circle` and `Ellipse` each carry the same bodies for `stored`, `centred_at`, `same_placement` and `anchor()`, and the `Born` match is repeated in `frame`, `point_at`, `azimuth`, `zero_point` and `running_point` of each: 19 sites across the two impls. `offsets` and `running_offsets` are one formula in two arithmetics, kept in step by a bit-equality row. A `topo` test defines a second `Born` enum beside the private one.",
+    "evidence": "Reading `conic.rs` end to end.",
+    "consequence": "Code form: a further stored form would touch each of the 19 sites and both copies."
+   },
+   {
+    "id": "F447",
+    "title": "quarter_turned_where doc says built through Self::new; it is a literal",
+    "where": "`conic.rs:959-961`, `:988-997`",
+    "what": "The doc of `quarter_turned_where` says it is \"Built through `Self::new`\". It is a struct literal that passes the string `\"Ellipse::new\"` to `stored_size` so that the panic text reads as before. The panic text names `Ellipse::new` for an anchored ellipse as well.",
+    "evidence": "Reading the function body and its doc.",
+    "consequence": "The doc misstates the construction path, and a panic from an anchored ellipse names a constructor that was not called."
+   },
+   {
+    "id": "F666",
+    "title": "Ellipse::placed given a reversal produces a different ellipse on anchored curves",
+    "where": "`Ellipse::placed` (`conic.rs:795-808`); `Curve3::reversed` (`curves.rs:1537`)",
+    "what": "`Ellipse::placed` lists a reversal among the maps it accepts. On an anchored ellipse seamed a quarter turn on, `placed(Frame::reversed)` evaluated at `\u2212t` lies `2a` from the ellipse at `t`. `Ellipse::reversed` gives zero difference, and `Circle::placed(Frame::reversed)` is correct. The four production callers pass a translation or `map_frame`, not a reversal.",
+    "evidence": "A head-only probe measured the gap at 60 m for `a = 30` and 3,000 m for `a = 1,500`.",
+    "consequence": "No current production path is affected. A future caller passing a reversal to this door on an anchored ellipse would receive a curve displaced by twice the semi-major axis."
+   },
+   {
+    "id": "F650",
+    "title": "Interval enclosures occasionally exclude the exact value of the stated f64 curve",
+    "where": "`Interval` lift of an anchored section; `Frame::map_scalar`, `RigidMotion::map_scalar` (`geom-core/src/linalg/rigid_motion.rs:1346-1352`)",
+    "what": "Some `Interval` enclosures exclude the exact stored formula on the stated `f64` vectors, though not the exact surfaces. Both readings place the cause in the base's frame handling (`map_scalar` enclosing a nearby exact rotation, not the stated vectors). Whether the `Interval` curve is meant to be the stated one was not established.",
+    "evidence": "One oracle found 1 miss in 15,228 coordinates (8.9e-14 m, at semi-axis 3,980.85, `t = \u03c0`), against 33 on the base. Another found 48 of 5,184 at quarter and half turns, up to 40% of the box width (1e-12 outside a 2.7e-12 box at `a = 1e5`).",
+    "consequence": "A check against the stated vectors fails on 1 to 48 points per sample set; the true surfaces stayed contained."
+   },
+   {
+    "id": "F569",
+    "title": "Typo \"a ellipse\" in the Ellipse centred_at doc comment",
+    "where": "`conic.rs:875` (doc of `Ellipse::centred_at`)",
+    "what": "The doc comment reads \"a ellipse\" where \"an ellipse\" is meant. It sits in the second of the two near-identical `centred_at` docs.",
+    "evidence": "Reading the file.",
+    "consequence": "Code form: a spelling error in one doc comment; no behaviour is affected."
+   },
+   {
+    "id": "F711",
+    "title": "Verification account reports two red gates; one run found three",
+    "where": "`scripts/run-gates.sh`; PR body verification account; gate `cover-kind-match`",
+    "what": "The PR's account lists two red gates, `engine-leaves` and `pin-cites-an-open-row`. One run on clean head and base worktrees found a third red, `cover-kind-match` (`RAISED ball crates/geom-brep/src/curve_face/line_quadric.rs: 0 -> 2`), red on the base with the same payload; `line_quadric.rs` is not in the unit's diff. Another run of the same script on clean worktrees recorded two red, the same on base.",
+    "evidence": "`scripts/run-gates.sh` run on clean head and base worktrees in two separate runs, with the two results above. The difference between the runs was not traced.",
+    "consequence": "If the three-red result holds, the PR's account omits a gate failure that is not caused by the unit."
+   },
+   {
+    "id": "F291",
+    "title": "zero_point of a re-seamed anchored ellipse is unchecked and has no production reader",
+    "where": "`Conic::zero_point` (`conic.rs:259`; impls `:690`, `:1119-1124`; forward `:385`); test `:1442`",
+    "what": "A mutant making `zero_point` of an anchored ellipse return the anchor after a re-seam passes. The re-seam row checks `point_at(0)` against the vertex but never `zero_point()`. Its only call outside its own impls is the `&C` forward at `:385`, so no production code reads it.",
+    "evidence": "One mutation run found the mutant passing all 17,467 `ci` rows. A second run found it failing only in a review probe row that builds no anchored conic; that failure was read as the probe's own flake, and the cause was not traced.",
+    "consequence": "The method's correctness after a re-seam rests on its doc alone. No production result currently depends on it."
+   },
+   {
+    "id": "F288",
+    "title": "Near-gap row asserts centred counts as floors, not as unchanged values",
+    "where": "the near-gap row (C2), `geom-brep` tests",
+    "what": "The row asserts its centred counts with `>=`, so it pins a lower bound and not the \"unchanged\" counts the claim describes. Printed at head, the counts are 7, 7, 7, 7, 1 centred and 40 in each anchored family.",
+    "evidence": "The counts were printed on the head; the `>=` comparisons were read in the row.",
+    "consequence": "A change that raises any centred count passes the row, so it does not confirm the counts are unchanged."
+   },
+   {
+    "id": "F878",
+    "title": "Production sites rebuilding a conic through a centre constructor beyond the three named",
+    "where": "`geom/src/pole_form.rs:58` and further sites in `ring_path.rs`, `rim_wedge.rs`, `boolean/mod.rs`, `validate.rs`, `on_surface.rs`, `swept.rs`, `junction.rs`, `end_face.rs`, `sweep/src/blend/surgery.rs`",
+    "what": "The PR names three doors; their ellipse arms return `None`. A grep within 20 lines of a conic read found a fourth, `pole_form::half_turn_curve`, which also re-squares the frame. A wider reading lists about a dozen more: same-locus circle rebuilds (`ring_path.rs:1286`, `rim_wedge.rs:1038`\u2192`:1127`, `boolean/mod.rs:8268`, `:8388`, `validate.rs:9979`\u2192`:10317`, `on_surface.rs:442`, `swept.rs:798`), moved curves (`junction.rs:685`, `end_face.rs:898`), and ellipse rebuilds from the derived-centre frame (`ring_path.rs:1896`, `surgery.rs:2599`).",
+    "evidence": "Reading and grep; part of the wider list came from delegated readers, spot-checked at the sites cited.",
+    "consequence": "Every same-locus site takes a circle and no production door mints an anchored circle, so no form is lost today. These sites would lose the form once one is minted."
+   },
+   {
+    "id": "F965",
+    "title": "Conic identity's form check and the key's phase datum have no test that fails",
+    "where": "`conic.rs` `same_content` / `same_placement` (`:589`, `:594`, `:861`, `:867`); `Curve3::data()` phase datum (`curves.rs:1168-1174`, `conic.rs:852`); assertion `conic.rs:1320`",
+    "what": "Mutants making `same_content` ignore the form or the phase, `data()` omit the phase, or `Circle::map_scalar` drop the form all pass. The one `same_content` assertion on two forms (`:1320`) compares an anchored conic with a centred one at the derived centre, so their origins already differ and the form arm never decides.",
+    "evidence": "Mutation runs over `geom`, scoped `geom-brep` rows, 528 `topo` rows and 10 `sweep` rows. The form and phase-datum mutants, run together with a third, produced 0 new reds over all 17,467 `ci` rows.",
+    "consequence": "The PR's statement that two conics differing only in form are never taken for one, and that the key reads the phase, is held by code that no row checks."
+   },
+   {
+    "id": "F429",
+    "title": "born and phase stored as separate fields; phase meaningful only when anchored",
+    "where": "`conic.rs:158-164`; `same_placement` (`:869`); `stored_phase` (`:853`); `Conic::phase()`",
+    "what": "`born` and `phase` are two fields of which the second carries meaning only under one value of the first. `same_placement` special-cases it, `stored_phase` guards it, `quarter_turned_where` permutes it on a centred ellipse anyway, and `Conic::phase()` hands a centred, re-seamed ellipse's `(0, \u22121)` to any caller. Holding it as `Anchored { phase }` is the alternative proposed.",
+    "evidence": "Reading the struct and its readers.",
+    "consequence": "Code form: a centred ellipse carries and exposes a phase value with no meaning, and each reader has to guard against it."
+   },
+   {
+    "id": "F231",
+    "title": "Chart image of an anchored section remains u\u00b7a off its carrier",
+    "where": "chart image of a far-centred anchored section; open row `work/pcert/the-cone-sections-image-is-built-from-its-derived-centre.md` (P3)",
+    "what": "The chart image is built from the derived centre, so near the anchor it stands about `u\u00b7a` off its carrier, as on the base. None of the anchor's precision reaches the image. The image's construction is scheduled on the open pcert row, which the PR cites.",
+    "evidence": "A probe measured the certificate envelope's worst per decade, head against base: 1e4 1.0e-10 / 8.5e-11; 1e5 6.2e-10 / 7.3e-10; 1e6 8.1e-9 / 9.8e-9; 1e7 5.2e-8 / 7.8e-8. Certified counts at \u03b5 1e-9 match within noise (1e6: 25 of 42 against 17).",
+    "consequence": "No regression at far sizes was measured; the image does not gain the accuracy the evaluator gains."
+   },
+   {
+    "id": "F452",
+    "title": "step-import carrier signature's anchor mark is not covered by any test row",
+    "where": "`crates/step-import/src/build.rs:1753` (`carrier_sig`)",
+    "what": "Removing the anchor mark from `carrier_sig` leaves every `step-import` row passing. The brief and the PR body each cite \"a row\" for both keys' anchor marks; only the mesh key's mark has a row that fails when the mark is removed.",
+    "evidence": "Mutant R14 (`carrier_sig`'s anchor mark removed) passed the whole `step-import` suite. The author's mutant A6 (the mesh key's mark removed) failed in `mesh`.",
+    "consequence": "The import signature's distinction between a centred and an anchored conic is unchecked; a change that loses it would pass the suite. The PR's account of a row for both keys is not accurate for the import key."
+   },
+   {
+    "id": "F184",
+    "title": "Seven new conic.rs bare-rounding entries carry the reason far-centre",
+    "where": "bare-rounding allowlist (`bare-rounding-sites.tsv`), seven new `conic.rs` entries",
+    "what": "The seven new `conic.rs` entries in the bare-rounding list carry the reason `far-centre`. They are the anchored chain's own running bound, which is the remedy for a far centre, not a form awaiting re-posing. The gate passes at head with 618 sites (234 in production) against the base's 607 / 231.",
+    "evidence": "Reading the list against the code; the entry counts were checked by the gate. Whether a different reason label is intended was not established.",
+    "consequence": "The list's reason column misdescribes these seven sites, which could misdirect later work that uses the label."
+   }
+  ]
+ },
+ "PR-B": {
+  "context": "PR 7225 (branch oneround/box-region, head 5c3bb9b9, merge base 1d320404) changes how the kernel decides whether a body lies inside the 1e3 m session box: instead of reading points, it reads a cover of each face. The check runs in three stages: stage 1 bounds each face cheaply (the new face_cover_unproven) and admits if that bound is in the box; stage 2 reads each face's face_cover, with proven windows; stage 3 reads points known to lie on the body (face_extreme_points and edge points) to tell a body past the box (OutsideSessionBox) from a limit of the bound. Two refusal variants are added, SessionBoxUnshown (the body may lie inside but the bound is too loose) and SessionBoxUncovered (a face has no cover), both in FindingFamily::SessionBox; the placing door asks on the unmoved body. The PR claims that no body past the box is admitted, that the inside read claims only points on the body, and that the placing door agrees with asking the moved image. It reports that the ask costs 1 to 4 percent of the structural gate, that the common path costs and logs what main's did, and that the new limits on bodies inside the box are two spline-net fixtures, filed as one P3 work row. It lists five mutants its rows catch, discloses gaps for spline, spindle and torus-window faces, and makes two corrections to the review brief's premises.",
+  "findings": [
+   {
+    "id": "F203",
+    "title": "C6 says the common path costs what main's did; time rose",
+    "where": "PR claim C6; session_box_reach ledger; face_cover_unproven at Sym",
+    "what": "Stage 1 makes no decision and the one decide_reported(SESSION_BOX_REACH, ...) sample in within is as main made it, so decision and log counts hold. Time per ask rose: the brick's ask about tripled and curved bodies' rose 1.0 to 1.5 times. Form counts grew (+2, +14, +14, +20) because face_cover_unproven builds each face's boundary hull and convex() at Sym.",
+    "evidence": "Debug f64 timing, mean of 200 asks: brick 34-38 to 97 us, ball 20-26 to 24, torus 32-36 to 40-45, loft 226-241 to 342-347; the ask is 1 to 3 percent of the gate. Another re-timing (brick 31-51 to 78-142 us) found the author's figures within its noise.",
+    "consequence": "The claim's wording holds for decisions and logs, not for time."
+   },
+   {
+    "id": "F721",
+    "title": "Filed work row's front matter names PR 7140 instead of 7225",
+    "where": "work/boxes/a-spline-faces-cover-is-its-whole-control-net.md front matter",
+    "what": "The row filed by this PR reads pr: 7140, which is the design PR, not 7225.",
+    "evidence": "Reading of the row's front matter.",
+    "consequence": "The tracker links the row to the design PR rather than to the PR that filed it."
+   },
+   {
+    "id": "F324",
+    "title": "A finished spindle body turned rigidly stops being finished (present on main)",
+    "where": "gate on transform_rigid images of spindle bodies; outside this PR's change",
+    "what": "For the two spindles and the frustum with a spindle cap under generic turns, the gate on the moved image refuses with one non-box finding where the unmoved body is finished. The finding was not identified.",
+    "evidence": "Differential of 756 placements: 32 cases at the merge base, 17 at head, where the box's refusal now comes first on the others. A separate 22 540-ask sample, football included, found no other tier-3 finding on any image.",
+    "consequence": "A rigid motion changes the finish status of some spindle bodies; the behaviour predates this PR."
+   },
+   {
+    "id": "F477",
+    "title": "Hosted CI slow-set step for edited tests ran zero tests",
+    "where": "CI run 44859392555, jobs test (kernel) and test (app), step 'the slow-set tests this diff adds or edits'; tcost_k3_certificate rows; m10_sym_profile_interval",
+    "what": "The step selects tests by names spelled in the diff's added lines; the PR edits the bodies of tcost_k3_certificate's two rows and their helper without spelling either name. The interval and tools (k-lint, tess-lint, tess-meter) jobs were skipped.",
+    "evidence": "The kernel log reads 'Starting 0 tests across 0 binaries ... Summary 0 tests run'; the step ended within its starting second. The app job's step took one second; its log was not read. Locally at 1e-9 the tcost_k3 rows and m10_sym_profile_interval pass.",
+    "consequence": "The green run covers neither the two rows asserting the new limit nor the re-baselined ledger; the k-lint baselines and the Interval lane, where SessionBoxUnshown is reachable, rest on local runs."
+   },
+   {
+    "id": "F719",
+    "title": "Several planted mutants survive every box row the PR adds",
+    "where": "box rows in topo, sweep, editor-core; face_extreme_points placement filter (cover.rs:520); stage 2; gate arm for SessionBoxUncovered",
+    "what": "Surviving mutants: the placement filter dropped; stage 2 never admitting; the gate dropping SessionBoxUncovered; an uncovered face counted as within at stage 1; a Zero margin read as past; the cone apex dropped from stage 1; the torus compass points dropped; stage 3 reading no edge points. The author's five mutants go red.",
+    "evidence": "Seven survive 228 rows; the filter and Uncovered-drop mutants also survive the whole fast set (10 045 tests). Two added rows, a sphere-zone barrel and an arc cylinder, kill three survivors.",
+    "consequence": "With the filter dropped, the in-box ball wedge is refused as past by 200 m and a dimple 5 m past reads 65 m; with stage 2 never admitting, every dimple whose ball pokes out refuses as a limit. No current row detects either."
+   },
+   {
+    "id": "F891",
+    "title": "Cost table omits the ask for bodies that stage 1 does not admit",
+    "where": "PR claim C5(b) cost table; session box stages 2-3",
+    "what": "The PR's timings cover bodies that stage 1 admits and report the ask as 1 to 4 percent of the structural gate. Bodies that go on to stages 2 and 3 are not in the table.",
+    "evidence": "Debug timings, three runs, plus or minus 30 percent, base to head: a ball wedge at the wall 18-22 to 419-601 us (stages 1-3); a dome 300 m inside whose ball pokes out 38-50 to 490-660 us (stages 1-2, admitted). The gate is 2-4 ms. Timing of stage-1-admitted bodies alone gives 1 to 3 percent.",
+    "consequence": "For such bodies the ask is 10 to 30 times the old ask and about a fifth of the gate, at every finish, move and placement."
+   },
+   {
+    "id": "F667",
+    "title": "Torus bodies truly past the box are refused as a limit",
+    "where": "face_extreme_points torus arm (cover.rs), compass-point branch; claim C2",
+    "what": "For some torus faces the inside read does not show the far point. One reading of the code: off = e - a(a.e) keeps about 1e-16 error, so for an axis nearly along e the candidate lands R*1e-16/theta off the torus, is placed Out and dropped; the compass branch runs only when off is exactly zero. Another reading: that regime keeps two top-circle points instead of sixteen. Whether the differential's cases share either cause was not traced.",
+    "evidence": "Differential: 13 torus-part placements (part on a cylinder, lens). Probe on a full torus R 300, r 100: theta 0.3 to 1e-5 gives exact OutsideSessionBox; 1e-6 gives Unshown(0.00015); 1e-7 gives Unshown(1.5e-5).",
+    "consequence": "Refused, with a text saying the body may lie inside; no row pins or files it."
+   },
+   {
+    "id": "F500",
+    "title": "In-box bodies with windowless sphere, torus or spindle faces now refuse as a limit",
+    "where": "session box stages 1-2 (cover.rs, session_box.rs); PR body item (c); work/boxes/a-spline-faces-cover-is-its-whole-control-net.md",
+    "what": "A face with no proven window is bounded by its whole carrier (ball, tube or net), so an in-box body refuses as a limit wherever that carrier reaches past the box: sphere faces through both poles, windowless torus faces, every spindle face. The PR body's (c) and the filed row name two spline fixtures only.",
+    "evidence": "756 placements at head and base: of 391 in-box placements the base passes all, the head refuses 85 as a limit, 77 of them admitted at base (spindles 40, two-torus lens 18, ball wedge 15, torus part 12). A radius-300 ball wedge at x = 900 is refused as 200 m past.",
+    "consequence": "Valid bodies main admits are refused, overshoot up to the carrier's diameter. Windowed sphere zones and dimples are still admitted."
+   },
+   {
+    "id": "F608",
+    "title": "face_cover_unproven restates the face-region rule a third time, kept by hand",
+    "where": "cover::face_cover_unproven (cover.rs:414); face_cover_in (cover.rs:307); geom Surface::face_region (readings.rs:99); bounded tests (session_box.rs:197, cover.rs:318); [one-way.places]",
+    "what": "The rule 'a ruled face is in its boundary hull, a cone with its apex, any other kind in its carrier' is stated in geom's face_region, in face_cover_in's arms, and in the new function, which repeats the lone-vertex bounded and cylinder is_direction tests. Its doc says it holds face_cover's region, but face_cover_in does not call it; the superset property that makes 'the staging changes no verdict' true is kept by hand across two matches. The fold over faces is also written twice (session_box.rs:209-213, :343-347).",
+    "evidence": "Reading and a grep sweep; the readers ledger registers the function as a door. Whether it breaches [one-way.places] ('never a second reading') is not established.",
+    "consequence": "Code form: nothing checks per kind that stage 1 contains stage 2's region."
+   },
+   {
+    "id": "F384",
+    "title": "An undecided or escalated session-box margin admits the body",
+    "where": "within and stage 2 (session_box.rs:301, :355); README 'in the box only where its cover is'",
+    "what": "Both admit on anything but a definite Negative margin, an escalation included. The merge base did the same on points; now an escalated cover margin admits without the inside read running. At the Interval lane a cover margin straddling the band could admit a body whose point margin would decide it past.",
+    "evidence": "Reading of the code. No such body was built; at f64 no finite body reaches the case, and the Interval lane was not exercised.",
+    "consequence": "Admission on escalation differs from the README's wording; any effect is confined to the band's width at the Interval lane and is not demonstrated."
+   },
+   {
+    "id": "F368",
+    "title": "Torus compass-point and cone-apex inside-read arms are never the deciding read",
+    "where": "face_extreme_points torus compass points and cone apex candidate",
+    "what": "Every full-turn torus the kernel mints has a meridian seam edge reaching the top circle's height, so any face holding an arc of that circle has a boundary crossing it and the eight compass points are never the only read. Every cone fixture's apex is a vertex, so the apex candidate is never the only read. Both arms are sound and neither has a row.",
+    "evidence": "Reading of the code; the compass-point mutant survives all rows, and no body needing either arm could be built.",
+    "consequence": "Two code paths are untested and have no demonstrated case that depends on them."
+   },
+   {
+    "id": "F748",
+    "title": "Spindle bodies truly past the box are refused as a limit",
+    "where": "face_extreme_points (no spindle or spline candidate); README 'one with a point past it is refused as past the box'; spline work row",
+    "what": "face_extreme_points has no candidate for spindle or spline faces, as the PR body discloses, so a body whose far point lies on such a face is told it 'may lie inside the box'. A spline face with an interior bulge behaves the same. The spline row schedules a tighter cover, not an inside read, and its 'read off points on it' does not hold for splines; no work/ row schedules either inside read.",
+    "evidence": "Differential: 23 of 365 past-box placements (apple, lemon, frustum cap). A spindle football probe: equator at 1010 m gives Unshown(10), 1030 m gives Unshown(30), 1040 m gives OutsideSessionBox(8.12) read off rim edges.",
+    "consequence": "Bodies up to tens of metres past the box are refused with a text saying they may be inside; nothing is admitted, and the recourse still applies."
+   },
+   {
+    "id": "F785",
+    "title": "Stage 2 keeps computing after an uncovered face; one log name for two stages",
+    "where": "session box stage 2; log name session_box_reach",
+    "what": "After the first uncovered face, stage 2 still runs every remaining face's face_cover; their constraint decisions land on the open log and decide nothing. The name session_box_reach logs both the stage-1 and the stage-2 decision.",
+    "evidence": "Reading of session_box.rs.",
+    "consequence": "Extra work on refused bodies, and a verdict log cannot tell which stage made a decision."
+   },
+   {
+    "id": "F546",
+    "title": "SessionBoxUncovered carries a recourse that placement cannot satisfy",
+    "where": "FindingFamily::SessionBox recourse (finish.rs:855); family heading (finish.rs:830)",
+    "what": "Both new variants take the family's recourse, 'place the geometry nearer the origin, or model it at a smaller size'. For a face with no cover (a poisoned, placeholder or seed net, an edge with no cover, a datum describing no locus) no placement gives it one; the PR body does not address that case. Where findings span families, the heading over a limit reads 'the body reaches past the session box' above a sentence saying it may lie inside.",
+    "evidence": "Reading of finish.rs and the PR body. The author states no finished body reaches Uncovered at the move and placing doors, where it refuses directly.",
+    "consequence": "A user given SessionBoxUncovered is pointed at an action that does not resolve it; the limit's heading and sentence disagree."
+   },
+   {
+    "id": "F886",
+    "title": "reach_of takes many closures; body_reach and cover_of_edge are test-shaped",
+    "where": "session_box.rs reach_of, body_reach, cover_of_edge",
+    "what": "reach_of takes four closures by one count and five by another. cover_of_edge is edge_cover_where in every caller but one test. body_reach is compiled under #[cfg(test)] only, yet is documented as the file's first item.",
+    "evidence": "Reading of session_box.rs.",
+    "consequence": "Code form: the function's interface and a test-only item affect how the file reads; no behaviour changes."
+   },
+   {
+    "id": "F631",
+    "title": "Rational-arc overshoot depends on arc radius, not distance from the origin",
+    "where": "review brief premise (a rational-arc face beyond about 707 m refuses); spline cover by control net",
+    "what": "A rational quarter arc's net overshoots the arc by at most (sqrt(2) - 1) times the arc's own radius, along the bisector of its end tangents; a 120-degree segment loses up to one radius. Distance from the origin enters only because the suite fixture is scaled about the origin. A lofted arc wall refuses where it stands within that overshoot of a box face, wherever it is.",
+    "evidence": "Reading of the rational-arc geometry; not executed.",
+    "consequence": "The 707 m figure describes the fixture, not the rule. Affected bodies are lofts and sweeps of large arcs standing within about 0.4 to 1 radius of the 1 km face, at any distance from the origin."
+   },
+   {
+    "id": "F712",
+    "title": "tcost_k3_certificate rows no longer test their subject at the default epsilon",
+    "where": "exhausting_lofts (tcost_k3_certificate.rs:215); the two tcost_k3_certificate slow rows",
+    "what": "At epsilon 1e-9 the exhausting arc prism's net (1272.8 m) passes the box, so both rows stand the exhausting arm down and assert the box's limit instead. Their subject, a certificate split across rounds and a refusing arm returning no properties, now runs only at 1e-12; it already stood down at 1e-6. The fixture was not re-stood where its net fits the box, although box_unit already takes a reach.",
+    "evidence": "Reading of the test file and its helper; the rows pass locally at 1e-9.",
+    "consequence": "The two rows' subject is exercised only by the nightly slow set at 1e-12, until the P3 spline row lands."
+   },
+   {
+    "id": "F513",
+    "title": "boxes.rs states the box never admits a body past it, despite open row",
+    "where": "boxes.rs new sentence; BOXES clockwise torus window row (P3); stage 2",
+    "what": "Stage 2 admits on a torus face's window alone, so the open clockwise-window row now sits on a path that bears on admission. It stays latent at the doors: the gate asks before tier 3, tier 3 then refuses a clockwise face, and the move and placing doors see only finished bodies. The new sentence 'never admits one past it' states more than the open row allows.",
+    "evidence": "Reading of boxes.rs and the row; no clockwise face was built.",
+    "consequence": "A doc sentence asserts an unconditional guarantee that rests on an open tracker row."
+   },
+   {
+    "id": "F329",
+    "title": "A fast-suite cone fixture and slender cones at the origin reach stage 2",
+    "where": "PR body sentence on which bodies reach stages 2-3; face_cover_unproven cone arm (cover.rs:428); sweep revolve_axis_gaps::a_kink_in_a_pocket_has_the_outer_loops_reading; claim C6",
+    "what": "The PR body says only its own rows and the two tcost_k3 rows reach stages 2 and 3. Stage 1 always hulls a cone's apex, so any cone face whose apex lies past the box reaches stage 2 wherever the body stands, and logs stage 2's decisions at every finish, move and placement. Whether a cone loop winding the axis, as an import could state, refuses as a limit at the origin was not established.",
+    "evidence": "With stage 2 disabled the fast test goes red, 'reaches 3999002.2 m past'. A 1 m ring tapered 1 mm (apex 10 km) is admitted; ask 500-730 us against 145-165 us at 0.1 m taper. Another reading of the code holds that C6 holds for the logs and that every cone fixture's apex is a vertex.",
+    "consequence": "The PR body's sentence and C6's logging claim do not hold for these bodies; their ask costs 3 to 5 times more."
+   },
+   {
+    "id": "F317",
+    "title": "cover.rs module doc says geom's readings hold the only kind matches",
+    "where": "cover.rs:7",
+    "what": "The module doc says geom's two readings 'hold the only kind matches'. The file now holds three matches on Surface's kind.",
+    "evidence": "Reading of cover.rs. A separate reading notes that face_extreme_points' in-file kind match is permitted under the gate, whose counter does not see it.",
+    "consequence": "A module doc no longer describes the file it heads."
+   },
+   {
+    "id": "F974",
+    "title": "Gate decides tier 3 before reporting SessionBoxUncovered, unlike the README sentence",
+    "where": "session_box::asked_before_the_checks (session_box.rs:264); structural_via; validate.rs:6669, :11038; session-box README bullet",
+    "what": "The gate hands SessionBoxUncovered back and runs tier 3 first, reporting the box's refusal only where tier 3 finds nothing. The README says the door asks the box 'before anything is decided on that region'. The PR body discloses the deferral; the README is unchanged, no ruling was asked for, and its justification is an unguarded suite measurement.",
+    "evidence": "Reading of the code: every stage combination refuses a body with an uncovered face. The mutant removing the arm (true, Some(uncovered)) => Err(vec![uncovered]) survives all rows.",
+    "consequence": "No admission results. Tier 3 reads margins on a region the box did not admit and its findings replace the box's; ratified text and code differ without a recorded decision."
+   },
+   {
+    "id": "F696",
+    "title": "Stages 2 and 3 decide margins before the box answers; doc line stale",
+    "where": "session box stages 2-3; OutsideSessionBox doc in validate.rs ('Reported alone, before any check reads a margin on the geometry')",
+    "what": "Stages 2 and 3 take band decisions (a sphere's chart trim, the ring-torus test, face_cover's window decisions, each placement) on a body whose carriers already reach past the box, before the box answers and before tier 3. The OutsideSessionBox doc still says it is reported before any check reads a margin, which no longer describes that path.",
+    "evidence": "Reading of session_box.rs and validate.rs. No way was found for these decisions to admit a body past the box beyond the band.",
+    "consequence": "A doc comment misdescribes when margins are read; the ordering bears on the README's 'before anything is decided' (row 6)."
+   },
+   {
+    "id": "F161",
+    "title": "Placing door runs stages 2-3 on a built image; row pins stage 1 only",
+    "where": "placing door (topo::session_box_at), reach_of; the to-the-bit door/gate row",
+    "what": "At the placing door, stage 1 runs through the fold off the unmoved body while stages 2 and 3 run on a built image, a separate path from the gate's. The to-the-bit row pins only stage-1 equality, on a brick and a sphere cap, so agreement for stages 2 and 3 rests on differentials.",
+    "evidence": "A 22 540-ask differential found 0 disagreements; a 756-placement differential found 756 of 756 agreeing. A mutant making the door read stages 2 and 3 off the unmoved body went red on 12 rows.",
+    "consequence": "Two paths implement one predicate; their equality for stages 2 and 3 is checked by sampled differentials and by rows that catch at least one deviation."
+   },
+   {
+    "id": "F874",
+    "title": "New-limit measure for spline faces rests on one near-origin suite fixture",
+    "where": "PR claim C5(c); the filed spline work row and its P3 priority",
+    "what": "The PR's account of which valid spline bodies newly refuse comes from one suite fixture; suite fixtures stand near the origin and place almost no spline bodies near the box's face. Imported trimmed NURBS are not named: face_cover uses the base surface's whole net, which can reach far past the trim, so the loss is the trim-to-net distance, not a fixed factor.",
+    "evidence": "Reading of the PR body, the row and face_cover; the differential behind C5(c) was not re-run. The row carries priority P3 and names splines only.",
+    "consequence": "Site-scale models and imported trimmed surfaces near the box face are unmeasured, and the row's scope and P3 priority are set from that one measurement."
+   }
+  ]
+ }
+}

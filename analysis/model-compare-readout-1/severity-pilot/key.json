@@ -1,0 +1,938 @@
+{
+ "u6972": [
+  {
+   "row": "1",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MAJOR",
+   "label_B": "MAJOR",
+   "code": "BILATERAL as a class; instances disjoint (1a, 1b)",
+   "label_opus": "MAJOR",
+   "label_fable": "MAJOR"
+  },
+  {
+   "row": "1a",
+   "src": "A",
+   "src_model": "Opus",
+   "label_A": "MAJOR",
+   "label_B": null,
+   "code": "UNILATERAL-A",
+   "label_opus": "MAJOR",
+   "label_fable": null
+  },
+  {
+   "row": "1b",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": null,
+   "label_B": "MAJOR",
+   "code": "UNILATERAL-B",
+   "label_opus": null,
+   "label_fable": "MAJOR"
+  },
+  {
+   "row": "2",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MAJOR",
+   "label_B": "MAJOR",
+   "code": "BILATERAL",
+   "label_opus": "MAJOR",
+   "label_fable": "MAJOR"
+  },
+  {
+   "row": "2a",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "UNLABELLED",
+   "label_B": "UNLABELLED",
+   "code": "BILATERAL",
+   "label_opus": "UNLABELLED",
+   "label_fable": "UNLABELLED"
+  },
+  {
+   "row": "2b",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": null,
+   "label_B": "UNLABELLED",
+   "code": "UNILATERAL-B",
+   "label_opus": null,
+   "label_fable": "UNLABELLED"
+  },
+  {
+   "row": "3",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "MAJOR",
+   "code": "BILATERAL, severity diverges",
+   "label_opus": "MINOR",
+   "label_fable": "MAJOR"
+  },
+  {
+   "row": "4",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "MINOR",
+   "code": "BILATERAL",
+   "label_opus": "MINOR",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "5",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "MINOR",
+   "code": "BILATERAL",
+   "label_opus": "MINOR",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "6",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "MINOR",
+   "code": "BILATERAL",
+   "label_opus": "MINOR",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "7",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "MINOR",
+   "code": "BILATERAL",
+   "label_opus": "NOTE",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "8",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "MINOR",
+   "code": "BILATERAL",
+   "label_opus": "NOTE",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "9",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "MINOR",
+   "code": "BILATERAL topic, opposite diagnoses",
+   "label_opus": "NOTE",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "10",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "UNLABELLED",
+   "label_B": "NOTE",
+   "code": "BILATERAL as a class",
+   "label_opus": "UNLABELLED",
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "11",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "NOTE",
+   "code": "BILATERAL",
+   "label_opus": "STYLE",
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "12",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "STYLE",
+   "code": "BILATERAL",
+   "label_opus": "STYLE",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "13",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "STYLE",
+   "code": "BILATERAL",
+   "label_opus": "STYLE",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "14",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "STYLE",
+   "code": "BILATERAL",
+   "label_opus": "STYLE",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "15",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "STYLE",
+   "code": "BILATERAL",
+   "label_opus": "STYLE",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "16",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "UNLABELLED",
+   "label_B": "MINOR",
+   "code": "BILATERAL, weak",
+   "label_opus": "UNLABELLED",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "17",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "UNLABELLED",
+   "label_B": "STYLE",
+   "code": "BILATERAL (mention only on A's side)",
+   "label_opus": "UNLABELLED",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "18",
+   "src": "A",
+   "src_model": "Opus",
+   "label_A": "MINOR",
+   "label_B": null,
+   "code": "UNILATERAL-A",
+   "label_opus": "MINOR",
+   "label_fable": null
+  },
+  {
+   "row": "19",
+   "src": "A",
+   "src_model": "Opus",
+   "label_A": "STYLE",
+   "label_B": null,
+   "code": "UNILATERAL-A",
+   "label_opus": "STYLE",
+   "label_fable": null
+  },
+  {
+   "row": "20",
+   "src": "A",
+   "src_model": "Opus",
+   "label_A": "STYLE",
+   "label_B": null,
+   "code": "UNILATERAL-A",
+   "label_opus": "STYLE",
+   "label_fable": null
+  },
+  {
+   "row": "21",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": null,
+   "label_B": "MINOR",
+   "code": "UNILATERAL-B",
+   "label_opus": null,
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "22",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": null,
+   "label_B": "MINOR",
+   "code": "UNILATERAL-B",
+   "label_opus": null,
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "23",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": null,
+   "label_B": "MINOR",
+   "code": "UNILATERAL-B",
+   "label_opus": null,
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "24",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": null,
+   "label_B": "MINOR",
+   "code": "UNILATERAL-B",
+   "label_opus": null,
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "25",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": null,
+   "label_B": "UNLABELLED",
+   "code": "UNILATERAL-B",
+   "label_opus": null,
+   "label_fable": "UNLABELLED"
+  },
+  {
+   "row": "26",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": "UNLABELLED",
+   "label_B": "UNLABELLED",
+   "code": "UNILATERAL-B",
+   "label_opus": "UNLABELLED",
+   "label_fable": "UNLABELLED"
+  },
+  {
+   "row": "27",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": "UNLABELLED",
+   "label_B": "UNLABELLED",
+   "code": "UNILATERAL-B",
+   "label_opus": "UNLABELLED",
+   "label_fable": "UNLABELLED"
+  },
+  {
+   "row": "28",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": null,
+   "label_B": "NOTE",
+   "code": "UNILATERAL-B",
+   "label_opus": null,
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "29",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": null,
+   "label_B": "NOTE",
+   "code": "UNILATERAL-B",
+   "label_opus": null,
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "30",
+   "src": "B",
+   "src_model": "Fable",
+   "label_A": null,
+   "label_B": "STYLE",
+   "code": "UNILATERAL-B",
+   "label_opus": null,
+   "label_fable": "STYLE"
+  }
+ ],
+ "box-region": [
+  {
+   "row": "1",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "MAJOR",
+   "label_B": null,
+   "code": "UNILATERAL-A, MAJOR",
+   "label_opus": null,
+   "label_fable": "MAJOR"
+  },
+  {
+   "row": "2",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MAJOR",
+   "label_B": "NOTE",
+   "code": "BILATERAL, MAJOR (part) vs NOTE",
+   "label_opus": "NOTE",
+   "label_fable": "MAJOR"
+  },
+  {
+   "row": "3",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MAJOR",
+   "label_B": "NOTE",
+   "code": "BILATERAL (weak), unlabelled vs NOTE",
+   "label_opus": "NOTE",
+   "label_fable": "MAJOR"
+  },
+  {
+   "row": "4",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "NOTE",
+   "code": "BILATERAL, MINOR vs NOTE",
+   "label_opus": "NOTE",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "5",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "MINOR",
+   "code": "BILATERAL, MINOR vs MINOR",
+   "label_opus": "MINOR",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "6",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "MINOR",
+   "code": "BILATERAL, MINOR vs MINOR",
+   "label_opus": "MINOR",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "7",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "MINOR",
+   "code": "BILATERAL, MINOR vs MINOR sub-item",
+   "label_opus": "MINOR",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "8",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "MINOR",
+   "code": "BILATERAL, MINOR vs MINOR",
+   "label_opus": "MINOR",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "9",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "MINOR",
+   "label_B": null,
+   "code": "UNILATERAL-A, MINOR",
+   "label_opus": null,
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "10",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "STYLE",
+   "label_B": null,
+   "code": "UNILATERAL-A, unlabelled",
+   "label_opus": null,
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "11",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "MINOR",
+   "code": "BILATERAL, NOTE vs MINOR",
+   "label_opus": "MINOR",
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "12",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "MINOR",
+   "code": "BILATERAL at symptom level, NOTE vs MINOR",
+   "label_opus": "MINOR",
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "13",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "NOTE",
+   "code": "BILATERAL, NOTE vs NOTE",
+   "label_opus": "NOTE",
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "14",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "STYLE",
+   "code": "BILATERAL, NOTE vs Style",
+   "label_opus": "STYLE",
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "15",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "NOTE",
+   "label_B": null,
+   "code": "UNILATERAL-A, NOTE",
+   "label_opus": null,
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "16",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "MINOR",
+   "code": "BILATERAL, Style vs MINOR",
+   "label_opus": "MINOR",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "17",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "STYLE",
+   "label_B": null,
+   "code": "UNILATERAL-A, Style",
+   "label_opus": null,
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "18",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "STYLE",
+   "code": "BILATERAL, Style vs Style",
+   "label_opus": "STYLE",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "19",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "UNLABELLED",
+   "label_B": null,
+   "code": "UNILATERAL-A, unlabelled",
+   "label_opus": null,
+   "label_fable": "UNLABELLED"
+  },
+  {
+   "row": "20",
+   "src": "B",
+   "src_model": "Opus",
+   "label_A": null,
+   "label_B": "NOTE",
+   "code": "UNILATERAL-B, NOTE (doc)",
+   "label_opus": "NOTE",
+   "label_fable": null
+  },
+  {
+   "row": "21",
+   "src": "B",
+   "src_model": "Opus",
+   "label_A": null,
+   "label_B": "NOTE",
+   "code": "UNILATERAL-B, NOTE",
+   "label_opus": "NOTE",
+   "label_fable": null
+  },
+  {
+   "row": "22",
+   "src": "B",
+   "src_model": "Opus",
+   "label_A": null,
+   "label_B": "NOTE",
+   "code": "UNILATERAL-B, NOTE",
+   "label_opus": "NOTE",
+   "label_fable": null
+  },
+  {
+   "row": "23",
+   "src": "B",
+   "src_model": "Opus",
+   "label_A": null,
+   "label_B": "NOTE",
+   "code": "UNILATERAL-B, NOTE",
+   "label_opus": "NOTE",
+   "label_fable": null
+  },
+  {
+   "row": "24",
+   "src": "B",
+   "src_model": "Opus",
+   "label_A": null,
+   "label_B": "NOTE",
+   "code": "UNILATERAL-B, NOTE (claim)",
+   "label_opus": "NOTE",
+   "label_fable": null
+  }
+ ],
+ "anchored-conic": [
+  {
+   "row": "1",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "MINOR",
+   "code": "BILATERAL, same severity; the six measured figures are identical",
+   "label_opus": "MINOR",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "2",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "MINOR",
+   "code": "BILATERAL, same severity. A-only instances: R5 (`same_content` ignores phase), R",
+   "label_opus": "MINOR",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "3",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "MINOR",
+   "label_B": null,
+   "code": "UNILATERAL A (MINOR component)",
+   "label_opus": null,
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "4",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "MINOR",
+   "code": "BILATERAL, same severity. A-only instance: `placed` dropping the phase (R7)",
+   "label_opus": "MINOR",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "5",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "UNLABELLED",
+   "label_B": "MINOR",
+   "code": "BILATERAL (A in passing); divergence: table-only/unsure vs MINOR",
+   "label_opus": "MINOR",
+   "label_fable": "UNLABELLED"
+  },
+  {
+   "row": "6",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "MINOR",
+   "label_B": null,
+   "code": "UNILATERAL A (MINOR)",
+   "label_opus": null,
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "7",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "MINOR",
+   "label_B": null,
+   "code": "UNILATERAL A (MINOR)",
+   "label_opus": null,
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "8",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "NOTE",
+   "code": "BILATERAL; MINOR vs NOTE",
+   "label_opus": "NOTE",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "9",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "NOTE",
+   "code": "BILATERAL; MINOR vs NOTE; A's site list far longer",
+   "label_opus": "NOTE",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "10",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "MINOR",
+   "label_B": "STYLE",
+   "code": "BILATERAL; MINOR vs Style",
+   "label_opus": "STYLE",
+   "label_fable": "MINOR"
+  },
+  {
+   "row": "11",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "NOTE",
+   "code": "BILATERAL, same",
+   "label_opus": "NOTE",
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "12",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "MINOR",
+   "code": "BILATERAL; NOTE vs MINOR",
+   "label_opus": "MINOR",
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "13",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "UNLABELLED",
+   "code": "BILATERAL (B in passing)",
+   "label_opus": "UNLABELLED",
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "14",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "NOTE",
+   "code": "BILATERAL, same",
+   "label_opus": "NOTE",
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "15",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "NOTE",
+   "code": "BILATERAL; claim-text/Style vs NOTE",
+   "label_opus": "NOTE",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "16",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "NOTE",
+   "label_B": "UNLABELLED",
+   "code": "BILATERAL (B in passing)",
+   "label_opus": "UNLABELLED",
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "17",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "NOTE",
+   "label_B": null,
+   "code": "UNILATERAL A (NOTE)",
+   "label_opus": null,
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "18",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "NOTE",
+   "label_B": null,
+   "code": "UNILATERAL A (NOTE)",
+   "label_opus": null,
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "19",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "NOTE",
+   "label_B": null,
+   "code": "UNILATERAL A (NOTE)",
+   "label_opus": null,
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "20",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "NOTE",
+   "label_B": null,
+   "code": "UNILATERAL A (NOTE)",
+   "label_opus": null,
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "21",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "NOTE",
+   "label_B": null,
+   "code": "UNILATERAL A (NOTE)",
+   "label_opus": null,
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "22",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "NOTE",
+   "label_B": null,
+   "code": "UNILATERAL A (NOTE)",
+   "label_opus": null,
+   "label_fable": "NOTE"
+  },
+  {
+   "row": "23",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "STYLE",
+   "label_B": "UNLABELLED",
+   "code": "UNILATERAL A (Style)",
+   "label_opus": "UNLABELLED",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "24",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "STYLE",
+   "code": "BILATERAL, same",
+   "label_opus": "STYLE",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "25",
+   "src": "A",
+   "src_model": "Fable",
+   "label_A": "STYLE",
+   "label_B": null,
+   "code": "UNILATERAL A (Style)",
+   "label_opus": null,
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "26",
+   "src": "B",
+   "src_model": "Opus",
+   "label_A": null,
+   "label_B": "STYLE",
+   "code": "UNILATERAL B (Style)",
+   "label_opus": "STYLE",
+   "label_fable": null
+  },
+  {
+   "row": "27",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "STYLE",
+   "code": "BILATERAL, same",
+   "label_opus": "STYLE",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "28",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "STYLE",
+   "code": "BILATERAL, same",
+   "label_opus": "STYLE",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "29",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "STYLE",
+   "label_B": "UNLABELLED",
+   "code": "BILATERAL",
+   "label_opus": "UNLABELLED",
+   "label_fable": "STYLE"
+  },
+  {
+   "row": "30",
+   "src": "B",
+   "src_model": "Opus",
+   "label_A": null,
+   "label_B": "MINOR",
+   "code": "UNILATERAL B (MINOR)",
+   "label_opus": "MINOR",
+   "label_fable": null
+  },
+  {
+   "row": "31",
+   "src": "B",
+   "src_model": "Opus",
+   "label_A": null,
+   "label_B": "NOTE",
+   "code": "UNILATERAL B (NOTE)",
+   "label_opus": "NOTE",
+   "label_fable": null
+  },
+  {
+   "row": "32",
+   "src": "B",
+   "src_model": "Opus",
+   "label_A": null,
+   "label_B": "STYLE",
+   "code": "UNILATERAL B (Style)",
+   "label_opus": "STYLE",
+   "label_fable": null
+  },
+  {
+   "row": "33",
+   "src": "B",
+   "src_model": "Opus",
+   "label_A": null,
+   "label_B": "STYLE",
+   "code": "UNILATERAL B (Style)",
+   "label_opus": "STYLE",
+   "label_fable": null
+  },
+  {
+   "row": "34",
+   "src": "both",
+   "src_model": "both",
+   "label_A": "UNLABELLED",
+   "label_B": "STYLE",
+   "code": "BILATERAL (A in passing)",
+   "label_opus": "STYLE",
+   "label_fable": "UNLABELLED"
+  },
+  {
+   "row": "35",
+   "src": "B",
+   "src_model": "Opus",
+   "label_A": null,
+   "label_B": "STYLE",
+   "code": "UNILATERAL B (Style)",
+   "label_opus": "STYLE",
+   "label_fable": null
+  }
+ ]
+}

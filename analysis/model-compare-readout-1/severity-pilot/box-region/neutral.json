@@ -1,0 +1,197 @@
+{
+  "context": "PR 7225 (branch oneround/box-region, head 5c3bb9b9, merge base 1d320404) changes how the kernel decides whether a body lies inside the 1e3 m session box: instead of reading points, it reads a cover of each face. The check runs in three stages: stage 1 bounds each face cheaply (the new face_cover_unproven) and admits if that bound is in the box; stage 2 reads each face's face_cover, with proven windows; stage 3 reads points known to lie on the body (face_extreme_points and edge points) to tell a body past the box (OutsideSessionBox) from a limit of the bound. Two refusal variants are added, SessionBoxUnshown (the body may lie inside but the bound is too loose) and SessionBoxUncovered (a face has no cover), both in FindingFamily::SessionBox; the placing door asks on the unmoved body. The PR claims that no body past the box is admitted, that the inside read claims only points on the body, and that the placing door agrees with asking the moved image. It reports that the ask costs 1 to 4 percent of the structural gate, that the common path costs and logs what main's did, and that the new limits on bodies inside the box are two spline-net fixtures, filed as one P3 work row. It lists five mutants its rows catch, discloses gaps for spline, spindle and torus-window faces, and makes two corrections to the review brief's premises.",
+  "items": [
+    {
+      "row": 1,
+      "title": "In-box bodies with windowless sphere, torus or spindle faces now refuse as a limit",
+      "where": "session box stages 1-2 (cover.rs, session_box.rs); PR body item (c); work/boxes/a-spline-faces-cover-is-its-whole-control-net.md",
+      "what": "A face with no proven window is bounded by its whole carrier (ball, tube or net), so an in-box body refuses as a limit wherever that carrier reaches past the box: sphere faces through both poles, windowless torus faces, every spindle face. The PR body's (c) and the filed row name two spline fixtures only.",
+      "evidence": "756 placements at head and base: of 391 in-box placements the base passes all, the head refuses 85 as a limit, 77 of them admitted at base (spindles 40, two-torus lens 18, ball wedge 15, torus part 12). A radius-300 ball wedge at x = 900 is refused as 200 m past.",
+      "consequence": "Valid bodies main admits are refused, overshoot up to the carrier's diameter. Windowed sphere zones and dimples are still admitted."
+    },
+    {
+      "row": 2,
+      "title": "New-limit measure for spline faces rests on one near-origin suite fixture",
+      "where": "PR claim C5(c); the filed spline work row and its P3 priority",
+      "what": "The PR's account of which valid spline bodies newly refuse comes from one suite fixture; suite fixtures stand near the origin and place almost no spline bodies near the box's face. Imported trimmed NURBS are not named: face_cover uses the base surface's whole net, which can reach far past the trim, so the loss is the trim-to-net distance, not a fixed factor.",
+      "evidence": "Reading of the PR body, the row and face_cover; the differential behind C5(c) was not re-run. The row carries priority P3 and names splines only.",
+      "consequence": "Site-scale models and imported trimmed surfaces near the box face are unmeasured, and the row's scope and P3 priority are set from that one measurement."
+    },
+    {
+      "row": 3,
+      "title": "Rational-arc overshoot depends on arc radius, not distance from the origin",
+      "where": "review brief premise (a rational-arc face beyond about 707 m refuses); spline cover by control net",
+      "what": "A rational quarter arc's net overshoots the arc by at most (sqrt(2) - 1) times the arc's own radius, along the bisector of its end tangents; a 120-degree segment loses up to one radius. Distance from the origin enters only because the suite fixture is scaled about the origin. A lofted arc wall refuses where it stands within that overshoot of a box face, wherever it is.",
+      "evidence": "Reading of the rational-arc geometry; not executed.",
+      "consequence": "The 707 m figure describes the fixture, not the rule. Affected bodies are lofts and sweeps of large arcs standing within about 0.4 to 1 radius of the 1 km face, at any distance from the origin."
+    },
+    {
+      "row": 4,
+      "title": "Hosted CI slow-set step for edited tests ran zero tests",
+      "where": "CI run 44859392555, jobs test (kernel) and test (app), step 'the slow-set tests this diff adds or edits'; tcost_k3_certificate rows; m10_sym_profile_interval",
+      "what": "The step selects tests by names spelled in the diff's added lines; the PR edits the bodies of tcost_k3_certificate's two rows and their helper without spelling either name. The interval and tools (k-lint, tess-lint, tess-meter) jobs were skipped.",
+      "evidence": "The kernel log reads 'Starting 0 tests across 0 binaries ... Summary 0 tests run'; the step ended within its starting second. The app job's step took one second; its log was not read. Locally at 1e-9 the tcost_k3 rows and m10_sym_profile_interval pass.",
+      "consequence": "The green run covers neither the two rows asserting the new limit nor the re-baselined ledger; the k-lint baselines and the Interval lane, where SessionBoxUnshown is reachable, rest on local runs."
+    },
+    {
+      "row": 5,
+      "title": "Several planted mutants survive every box row the PR adds",
+      "where": "box rows in topo, sweep, editor-core; face_extreme_points placement filter (cover.rs:520); stage 2; gate arm for SessionBoxUncovered",
+      "what": "Surviving mutants: the placement filter dropped; stage 2 never admitting; the gate dropping SessionBoxUncovered; an uncovered face counted as within at stage 1; a Zero margin read as past; the cone apex dropped from stage 1; the torus compass points dropped; stage 3 reading no edge points. The author's five mutants go red.",
+      "evidence": "Seven survive 228 rows; the filter and Uncovered-drop mutants also survive the whole fast set (10 045 tests). Two added rows, a sphere-zone barrel and an arc cylinder, kill three survivors.",
+      "consequence": "With the filter dropped, the in-box ball wedge is refused as past by 200 m and a dimple 5 m past reads 65 m; with stage 2 never admitting, every dimple whose ball pokes out refuses as a limit. No current row detects either."
+    },
+    {
+      "row": 6,
+      "title": "Gate decides tier 3 before reporting SessionBoxUncovered, unlike the README sentence",
+      "where": "session_box::asked_before_the_checks (session_box.rs:264); structural_via; validate.rs:6669, :11038; session-box README bullet",
+      "what": "The gate hands SessionBoxUncovered back and runs tier 3 first, reporting the box's refusal only where tier 3 finds nothing. The README says the door asks the box 'before anything is decided on that region'. The PR body discloses the deferral; the README is unchanged, no ruling was asked for, and its justification is an unguarded suite measurement.",
+      "evidence": "Reading of the code: every stage combination refuses a body with an uncovered face. The mutant removing the arm (true, Some(uncovered)) => Err(vec![uncovered]) survives all rows.",
+      "consequence": "No admission results. Tier 3 reads margins on a region the box did not admit and its findings replace the box's; ratified text and code differ without a recorded decision."
+    },
+    {
+      "row": 7,
+      "title": "SessionBoxUncovered carries a recourse that placement cannot satisfy",
+      "where": "FindingFamily::SessionBox recourse (finish.rs:855); family heading (finish.rs:830)",
+      "what": "Both new variants take the family's recourse, 'place the geometry nearer the origin, or model it at a smaller size'. For a face with no cover (a poisoned, placeholder or seed net, an edge with no cover, a datum describing no locus) no placement gives it one; the PR body does not address that case. Where findings span families, the heading over a limit reads 'the body reaches past the session box' above a sentence saying it may lie inside.",
+      "evidence": "Reading of finish.rs and the PR body. The author states no finished body reaches Uncovered at the move and placing doors, where it refuses directly.",
+      "consequence": "A user given SessionBoxUncovered is pointed at an action that does not resolve it; the limit's heading and sentence disagree."
+    },
+    {
+      "row": 8,
+      "title": "tcost_k3_certificate rows no longer test their subject at the default epsilon",
+      "where": "exhausting_lofts (tcost_k3_certificate.rs:215); the two tcost_k3_certificate slow rows",
+      "what": "At epsilon 1e-9 the exhausting arc prism's net (1272.8 m) passes the box, so both rows stand the exhausting arm down and assert the box's limit instead. Their subject, a certificate split across rounds and a refusing arm returning no properties, now runs only at 1e-12; it already stood down at 1e-6. The fixture was not re-stood where its net fits the box, although box_unit already takes a reach.",
+      "evidence": "Reading of the test file and its helper; the rows pass locally at 1e-9.",
+      "consequence": "The two rows' subject is exercised only by the nightly slow set at 1e-12, until the P3 spline row lands."
+    },
+    {
+      "row": 9,
+      "title": "A fast-suite cone fixture and slender cones at the origin reach stage 2",
+      "where": "PR body sentence on which bodies reach stages 2-3; face_cover_unproven cone arm (cover.rs:428); sweep revolve_axis_gaps::a_kink_in_a_pocket_has_the_outer_loops_reading; claim C6",
+      "what": "The PR body says only its own rows and the two tcost_k3 rows reach stages 2 and 3. Stage 1 always hulls a cone's apex, so any cone face whose apex lies past the box reaches stage 2 wherever the body stands, and logs stage 2's decisions at every finish, move and placement. Whether a cone loop winding the axis, as an import could state, refuses as a limit at the origin was not established.",
+      "evidence": "With stage 2 disabled the fast test goes red, 'reaches 3999002.2 m past'. A 1 m ring tapered 1 mm (apex 10 km) is admitted; ask 500-730 us against 145-165 us at 0.1 m taper. Another reading of the code holds that C6 holds for the logs and that every cone fixture's apex is a vertex.",
+      "consequence": "The PR body's sentence and C6's logging claim do not hold for these bodies; their ask costs 3 to 5 times more."
+    },
+    {
+      "row": 10,
+      "title": "Cost table omits the ask for bodies that stage 1 does not admit",
+      "where": "PR claim C5(b) cost table; session box stages 2-3",
+      "what": "The PR's timings cover bodies that stage 1 admits and report the ask as 1 to 4 percent of the structural gate. Bodies that go on to stages 2 and 3 are not in the table.",
+      "evidence": "Debug timings, three runs, plus or minus 30 percent, base to head: a ball wedge at the wall 18-22 to 419-601 us (stages 1-3); a dome 300 m inside whose ball pokes out 38-50 to 490-660 us (stages 1-2, admitted). The gate is 2-4 ms. Timing of stage-1-admitted bodies alone gives 1 to 3 percent.",
+      "consequence": "For such bodies the ask is 10 to 30 times the old ask and about a fifth of the gate, at every finish, move and placement."
+    },
+    {
+      "row": 11,
+      "title": "Spindle bodies truly past the box are refused as a limit",
+      "where": "face_extreme_points (no spindle or spline candidate); README 'one with a point past it is refused as past the box'; spline work row",
+      "what": "face_extreme_points has no candidate for spindle or spline faces, as the PR body discloses, so a body whose far point lies on such a face is told it 'may lie inside the box'. A spline face with an interior bulge behaves the same. The spline row schedules a tighter cover, not an inside read, and its 'read off points on it' does not hold for splines; no work/ row schedules either inside read.",
+      "evidence": "Differential: 23 of 365 past-box placements (apple, lemon, frustum cap). A spindle football probe: equator at 1010 m gives Unshown(10), 1030 m gives Unshown(30), 1040 m gives OutsideSessionBox(8.12) read off rim edges.",
+      "consequence": "Bodies up to tens of metres past the box are refused with a text saying they may be inside; nothing is admitted, and the recourse still applies."
+    },
+    {
+      "row": 12,
+      "title": "Torus bodies truly past the box are refused as a limit",
+      "where": "face_extreme_points torus arm (cover.rs), compass-point branch; claim C2",
+      "what": "For some torus faces the inside read does not show the far point. One reading of the code: off = e - a(a.e) keeps about 1e-16 error, so for an axis nearly along e the candidate lands R*1e-16/theta off the torus, is placed Out and dropped; the compass branch runs only when off is exactly zero. Another reading: that regime keeps two top-circle points instead of sixteen. Whether the differential's cases share either cause was not traced.",
+      "evidence": "Differential: 13 torus-part placements (part on a cylinder, lens). Probe on a full torus R 300, r 100: theta 0.3 to 1e-5 gives exact OutsideSessionBox; 1e-6 gives Unshown(0.00015); 1e-7 gives Unshown(1.5e-5).",
+      "consequence": "Refused, with a text saying the body may lie inside; no row pins or files it."
+    },
+    {
+      "row": 13,
+      "title": "An undecided or escalated session-box margin admits the body",
+      "where": "within and stage 2 (session_box.rs:301, :355); README 'in the box only where its cover is'",
+      "what": "Both admit on anything but a definite Negative margin, an escalation included. The merge base did the same on points; now an escalated cover margin admits without the inside read running. At the Interval lane a cover margin straddling the band could admit a body whose point margin would decide it past.",
+      "evidence": "Reading of the code. No such body was built; at f64 no finite body reaches the case, and the Interval lane was not exercised.",
+      "consequence": "Admission on escalation differs from the README's wording; any effect is confined to the band's width at the Interval lane and is not demonstrated."
+    },
+    {
+      "row": 14,
+      "title": "Stages 2 and 3 decide margins before the box answers; doc line stale",
+      "where": "session box stages 2-3; OutsideSessionBox doc in validate.rs ('Reported alone, before any check reads a margin on the geometry')",
+      "what": "Stages 2 and 3 take band decisions (a sphere's chart trim, the ring-torus test, face_cover's window decisions, each placement) on a body whose carriers already reach past the box, before the box answers and before tier 3. The OutsideSessionBox doc still says it is reported before any check reads a margin, which no longer describes that path.",
+      "evidence": "Reading of session_box.rs and validate.rs. No way was found for these decisions to admit a body past the box beyond the band.",
+      "consequence": "A doc comment misdescribes when margins are read; the ordering bears on the README's 'before anything is decided' (row 6)."
+    },
+    {
+      "row": 15,
+      "title": "A finished spindle body turned rigidly stops being finished (present on main)",
+      "where": "gate on transform_rigid images of spindle bodies; outside this PR's change",
+      "what": "For the two spindles and the frustum with a spindle cap under generic turns, the gate on the moved image refuses with one non-box finding where the unmoved body is finished. The finding was not identified.",
+      "evidence": "Differential of 756 placements: 32 cases at the merge base, 17 at head, where the box's refusal now comes first on the others. A separate 22 540-ask sample, football included, found no other tier-3 finding on any image.",
+      "consequence": "A rigid motion changes the finish status of some spindle bodies; the behaviour predates this PR."
+    },
+    {
+      "row": 16,
+      "title": "face_cover_unproven restates the face-region rule a third time, kept by hand",
+      "where": "cover::face_cover_unproven (cover.rs:414); face_cover_in (cover.rs:307); geom Surface::face_region (readings.rs:99); bounded tests (session_box.rs:197, cover.rs:318); [one-way.places]",
+      "what": "The rule 'a ruled face is in its boundary hull, a cone with its apex, any other kind in its carrier' is stated in geom's face_region, in face_cover_in's arms, and in the new function, which repeats the lone-vertex bounded and cylinder is_direction tests. Its doc says it holds face_cover's region, but face_cover_in does not call it; the superset property that makes 'the staging changes no verdict' true is kept by hand across two matches. The fold over faces is also written twice (session_box.rs:209-213, :343-347).",
+      "evidence": "Reading and a grep sweep; the readers ledger registers the function as a door. Whether it breaches [one-way.places] ('never a second reading') is not established.",
+      "consequence": "Code form: nothing checks per kind that stage 1 contains stage 2's region."
+    },
+    {
+      "row": 17,
+      "title": "cover.rs module doc says geom's readings hold the only kind matches",
+      "where": "cover.rs:7",
+      "what": "The module doc says geom's two readings 'hold the only kind matches'. The file now holds three matches on Surface's kind.",
+      "evidence": "Reading of cover.rs. A separate reading notes that face_extreme_points' in-file kind match is permitted under the gate, whose counter does not see it.",
+      "consequence": "A module doc no longer describes the file it heads."
+    },
+    {
+      "row": 18,
+      "title": "reach_of takes many closures; body_reach and cover_of_edge are test-shaped",
+      "where": "session_box.rs reach_of, body_reach, cover_of_edge",
+      "what": "reach_of takes four closures by one count and five by another. cover_of_edge is edge_cover_where in every caller but one test. body_reach is compiled under #[cfg(test)] only, yet is documented as the file's first item.",
+      "evidence": "Reading of session_box.rs.",
+      "consequence": "Code form: the function's interface and a test-only item affect how the file reads; no behaviour changes."
+    },
+    {
+      "row": 19,
+      "title": "Filed work row's front matter names PR 7140 instead of 7225",
+      "where": "work/boxes/a-spline-faces-cover-is-its-whole-control-net.md front matter",
+      "what": "The row filed by this PR reads pr: 7140, which is the design PR, not 7225.",
+      "evidence": "Reading of the row's front matter.",
+      "consequence": "The tracker links the row to the design PR rather than to the PR that filed it."
+    },
+    {
+      "row": 20,
+      "title": "boxes.rs states the box never admits a body past it, despite open row",
+      "where": "boxes.rs new sentence; BOXES clockwise torus window row (P3); stage 2",
+      "what": "Stage 2 admits on a torus face's window alone, so the open clockwise-window row now sits on a path that bears on admission. It stays latent at the doors: the gate asks before tier 3, tier 3 then refuses a clockwise face, and the move and placing doors see only finished bodies. The new sentence 'never admits one past it' states more than the open row allows.",
+      "evidence": "Reading of boxes.rs and the row; no clockwise face was built.",
+      "consequence": "A doc sentence asserts an unconditional guarantee that rests on an open tracker row."
+    },
+    {
+      "row": 21,
+      "title": "Torus compass-point and cone-apex inside-read arms are never the deciding read",
+      "where": "face_extreme_points torus compass points and cone apex candidate",
+      "what": "Every full-turn torus the kernel mints has a meridian seam edge reaching the top circle's height, so any face holding an arc of that circle has a boundary crossing it and the eight compass points are never the only read. Every cone fixture's apex is a vertex, so the apex candidate is never the only read. Both arms are sound and neither has a row.",
+      "evidence": "Reading of the code; the compass-point mutant survives all rows, and no body needing either arm could be built.",
+      "consequence": "Two code paths are untested and have no demonstrated case that depends on them."
+    },
+    {
+      "row": 22,
+      "title": "Stage 2 keeps computing after an uncovered face; one log name for two stages",
+      "where": "session box stage 2; log name session_box_reach",
+      "what": "After the first uncovered face, stage 2 still runs every remaining face's face_cover; their constraint decisions land on the open log and decide nothing. The name session_box_reach logs both the stage-1 and the stage-2 decision.",
+      "evidence": "Reading of session_box.rs.",
+      "consequence": "Extra work on refused bodies, and a verdict log cannot tell which stage made a decision."
+    },
+    {
+      "row": 23,
+      "title": "Placing door runs stages 2-3 on a built image; row pins stage 1 only",
+      "where": "placing door (topo::session_box_at), reach_of; the to-the-bit door/gate row",
+      "what": "At the placing door, stage 1 runs through the fold off the unmoved body while stages 2 and 3 run on a built image, a separate path from the gate's. The to-the-bit row pins only stage-1 equality, on a brick and a sphere cap, so agreement for stages 2 and 3 rests on differentials.",
+      "evidence": "A 22 540-ask differential found 0 disagreements; a 756-placement differential found 756 of 756 agreeing. A mutant making the door read stages 2 and 3 off the unmoved body went red on 12 rows.",
+      "consequence": "Two paths implement one predicate; their equality for stages 2 and 3 is checked by sampled differentials and by rows that catch at least one deviation."
+    },
+    {
+      "row": 24,
+      "title": "C6 says the common path costs what main's did; time rose",
+      "where": "PR claim C6; session_box_reach ledger; face_cover_unproven at Sym",
+      "what": "Stage 1 makes no decision and the one decide_reported(SESSION_BOX_REACH, ...) sample in within is as main made it, so decision and log counts hold. Time per ask rose: the brick's ask about tripled and curved bodies' rose 1.0 to 1.5 times. Form counts grew (+2, +14, +14, +20) because face_cover_unproven builds each face's boundary hull and convex() at Sym.",
+      "evidence": "Debug f64 timing, mean of 200 asks: brick 34-38 to 97 us, ball 20-26 to 24, torus 32-36 to 40-45, loft 226-241 to 342-347; the ask is 1 to 3 percent of the gate. Another re-timing (brick 31-51 to 78-142 us) found the author's figures within its noise.",
+      "consequence": "The claim's wording holds for decisions and logs, not for time."
+    }
+  ]
+}
