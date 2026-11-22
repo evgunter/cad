@@ -4426,7 +4426,6 @@ mod limb2_memo {
 /// few spans where [`crate::carrier_net::ORDER`] needs tens.
 mod limb2_quick {
     use super::twin_span_hulls;
-    use crate::offset::Nappe;
     use crate::pcurve_cache::projected::{NetSize, ProjectedHull, SpanHull};
     use geom::{Curve3, Surface};
     use geom_core::CertifiedBounds;

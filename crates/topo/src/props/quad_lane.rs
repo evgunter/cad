@@ -922,7 +922,8 @@ fn rim_face<T: Decide + geom_core::CertifiedBounds>(
             let apex = Point3::new(iv(apex.x), iv(apex.y), iv(apex.z));
             let axis = geom_core::Vec3::new(iv(axis.x), iv(axis.y), iv(axis.z));
             let axis = axis / (axis.x.sqr() + axis.y.sqr() + axis.z.sqr()).sqrt();
-            let (sin_a, _) = geom_brep::implicit::cone_sin_cos(half_angle, iv);
+            let (sin_a, _) =
+                geom_brep::implicit::cone_sin_cos(half_angle, Interval::from_certified);
             let face = cap_about(&loops, apex, apex - centre)?;
             return spiric::cone_cap_rounds::<T>(&face, (rv(axis), sin_a), band, window, accept);
         }

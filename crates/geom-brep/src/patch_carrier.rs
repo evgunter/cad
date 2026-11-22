@@ -64,7 +64,6 @@ use geom_core::spline::compose::tensor::SurfaceCertData;
 use geom_core::{Bounds, Interval};
 
 use crate::curve_face::composite::framed_form;
-use crate::offset::Nappe;
 use crate::pcurve_cache::projected::{Locus, Meters, part_reach};
 
 /// A certified upper bound in metres on the distance of every point of
@@ -465,7 +464,11 @@ mod tests {
         let patch = flat((0.1, 0.2), (0.0, 0.1), -0.999);
         let surface = cone(80.0_f64.to_radians(), Point3::new(0.0, -1.0, 0.0));
         let double = distance_sup_on(&patch, &surface, Locus::Carrier);
-        let nappe = distance_sup_on(&patch, &surface, Locus::Nappe(Nappe::Opening));
+        let nappe = distance_sup_on(
+            &patch,
+            &surface,
+            Locus::Nappe(crate::offset::Nappe::Opening),
+        );
         let truth = dense_sup(&patch, &surface);
         assert!(
             truth <= double && double < nappe,
