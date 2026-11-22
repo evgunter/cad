@@ -1231,6 +1231,13 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    quieted by an assertion that the gap is zero at the site: the equivalence with a natively built twin whose parts
    touch by value.
 
+**Records follow the file.** A surface entity the file states is one
+surface record, worn by every face of one shell that cites it; two
+entities are two records unless healing's reported one-record act joins
+them (step 3); each face is certified against its record; and the writer
+emits one surface entity per surface record. No comparison of printed
+values decides which record a face wears.
+
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
 *input tolerance* ε_in — defaulted from the STEP file's declared
 `uncertainty_measure_with_unit`, overridable per call. **ε_in governs
@@ -2449,9 +2456,14 @@ these. All are shipped in `editor-core` except where noted:
   node id to label beside the node, never inside it, so it is in
   neither the id's mint nor any content key. One edit sets or clears
   it; it is not unique and never identity (references hold ids, and
-  nothing resolves a label). Kernel sentences speak a node as its
-  kind, label and tag, `Extrude "base plate" (3fa9c1d2a0b1)`, or kind
-  and tag when it has none. A spoken label is never one its value can
+  nothing resolves a label). A node is spoken as its label and tag,
+  `"base plate" (3fa9c1d2a0b1)`, or as its kind and tag when it has no
+  label, `Extrude 3fa9c1d2a0b1`: the label and the tag already say
+  which node, so the kind is not repeated. A sentence carries each node
+  it names as a mention (its id, kind and label, and the document its
+  id is spelled in) rather than as text, so the viewer draws it as a
+  link to the node when the document on screen is the mention's. A
+  spoken label is never one its value can
   outlive: a value the evaluation memo reuses holds a label only when
   its memo key fixes that label. A document's own labels are outside
   its evaluation key (a rename re-evaluates nothing), so what it
