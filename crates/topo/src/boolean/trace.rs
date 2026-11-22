@@ -188,10 +188,20 @@ fn meetings<T: Decide>(
     band: Band,
 ) -> Result<Vec<(T, Point3<T>)>, TraceFault> {
     let found = cross(span, surface, band).map_err(|refusal| refused(surface, &refusal))?;
+    // A touch is no crossing: it grazes the piece where it is on the
+    // span read, and is no meeting there where it is not (at an end the
+    // read skips).
+    let touches = |m: &&geom_brep::curve_face::Meeting<T>| {
+        matches!(m.kind, geom_brep::curve_face::MeetingKind::Touch { .. })
+            && !matches!(m.on_span, OnSpan::End(end) if skip.contains(&end))
+    };
     match found.pose {
         Pose::Lies => return Err(TraceFault::OnCarrier),
         Pose::Through(_) => return Err(TraceFault::Apex),
-        Pose::Tangent(_) => return Err(TraceFault::Grazing),
+        Pose::Tangent(_) if found.meetings.iter().any(|m| touches(&m)) => {
+            return Err(TraceFault::Grazing);
+        }
+        Pose::Tangent(_) => return Ok(Vec::new()),
         Pose::Apart | Pose::Isolated(_) => {}
     }
     let (t0, t1) = span.params();
