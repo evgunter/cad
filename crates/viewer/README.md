@@ -2139,9 +2139,21 @@ yet`. A panel line says an open pick `none picked`
   `body ∪ image` for every body, placed or not, and answers the image
   as what it made, so the image is labelled `Mirror N` and selected.
   The union takes no label.
-- **Clearance.** The form asks for the two seats and the bound's shape
-  (at least, at most, exactly, between), which decides how many bound
-  slots the requirement has. The insert writes every end at contact,
+- **Assertion.** One tool authors every claim between two seats
+  (`SessionOp::AddAssertion`). The form asks for the two seats and the
+  measure: a clearance, a `Gap` or a `Distance`. A `Gap` or a
+  `Distance` is the measure node over the seats and a value assertion
+  over its output, inserted as one action. One bound choice serves
+  every measure (at least, at most, exactly, between); a band bounds
+  only a clearance, and the commit is withheld for a band over a value.
+  A value claim's insert writes the bound at contact, `0`. A holding
+  `= 0` over a measure that says what an unproven coincidence decided
+  quiets it, by the rule `[assertions.quiet]` states
+  (`checks::at_rest::saying`: a `Gap` over two faces at rest, a
+  `Distance` between the poses read off two cells, a `Gap` or a
+  `Distance` against a split's tool); a clearance quiets nothing. For a
+  clearance the bound choice decides how many bound slots the
+  requirement has. The insert writes every end at contact,
   `0`. Each end is then a slot row of the requirement,
   `SlotId::ClearanceBound` (`Low` or `High`; `= c` holds the low end),
   taking a number or a formula. The evaluator reads a bound slot with
