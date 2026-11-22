@@ -1481,7 +1481,8 @@ pub fn said_target(doc: &Doc<ProfileProgram>, target: &PlaceTarget) -> String {
 
 /// **A face read as its plane**: `face`, a one-name face selection,
 /// read plainly as the plane of that face — a plane mate's side, and
-/// the plane a mirror reflects across (`crate::combine::mirror_node`).
+/// the plane a split or a mirror reads off a picked face
+/// (`crate::session::ToolPlane::Face`).
 pub(crate) fn plane_of(face: Operand) -> Operand {
     Operand::Pose(Box::new(pose::PoseDef::Plane { face }))
 }

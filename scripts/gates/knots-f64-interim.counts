@@ -29,7 +29,10 @@ crates/geom 212
 # geom-brep 221 -> 224: patch_carrier's patch × analytic surface
 # certificate reads the patch's knots and weights for SurfaceCertData, as
 # composite_rows does for CurveCertData (EXCH, whole-patch promotion).
-crates/geom-brep 224
+# geom-brep 224 -> 223: the search's analytic limb 2 reads through the
+# edge certificate's reader, and its own ring composite's grid reader
+# (`analytic_limbs`' `cert_grid` arm) goes with it (SECTCONE).
+crates/geom-brep 223
 crates/geom-core 18
 crates/mesh 29
 crates/step-export 9
@@ -43,7 +46,9 @@ crates/step-export 9
 # 33 -> 30: the iso rung's bitwise twin moved to `on_built`, and a
 # printed spline's distance from a built line is read off its cover
 # (EXCH, adoption by description).
-crates/step-import 30
+# step-import 30 -> 25: surface_sig's knot and weight reads went with it
+# (records follow the file, EXPORT).
+crates/step-import 25
 crates/sweep 139
 crates/topo 36
 demos/tour 2
