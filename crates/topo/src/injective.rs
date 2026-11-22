@@ -260,7 +260,8 @@ pub(crate) struct Rim {
     pub(crate) arc: Option<(Curve3<Interval>, (Interval, Interval))>,
     /// The carrier as the body stores it, where the body's scalar is a
     /// point scalar (`f64`): the claim its lift encloses. Two edges whose
-    /// stored carriers are one conic bit for bit name one exact conic,
+    /// stored carriers are one conic as values, their frames one up to the
+    /// signs of their axes ([`one_stated_plane`]), name one exact conic,
     /// which their lifts, enclosures of it a rounding wide, cannot show
     /// as one value ([`one_conic`]). `None` on a body held as enclosures,
     /// and for null scaffolding.
@@ -3826,14 +3827,16 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
     }
 }
 
-/// **Whether two edges' stored carriers are one conic, as one value**:
-/// one plane through one centre ([`coplanar`]) and the same radius; on
-/// an ellipse the same semi-axes along the same lines (`u_ref` equal or
-/// opposed, a half-turn of the parameter). Every comparison of the lifts
-/// is [`one_value`]'s, so a component held as a bracket wider than a
-/// point is never one conic, even against itself; a point-scalar body's
-/// carriers are compared as it stores them ([`one_stated_conic`]). The
-/// two parametrizations may differ; the reading never maps one onto the
+/// **Whether two edges' carriers are one conic, as one value**: a
+/// point-scalar body's stored carriers one conic ([`one_stated_conic`]),
+/// or their lifts one plane through one centre ([`one_plane`]) and the
+/// same radius, and on an ellipse the same semi-axes along the same lines
+/// (`u_ref` equal or opposed, a half-turn of the parameter). Every
+/// comparison of the lifts is [`one_value`]'s, so a component held as a
+/// bracket wider than a point is never one conic, even against itself:
+/// the lifts are one value only where the frames are exactly rigid,
+/// where a frame's axis is the one value of its polar factor. The two
+/// parametrizations may differ; the reading never maps one onto the
 /// other ([`continues`]).
 fn one_conic(e: &Rim, o: &Rim) -> bool {
     if let (Some(se), Some(so)) = (e.stated.as_ref(), o.stated.as_ref())
@@ -3879,40 +3882,19 @@ fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
     }
 }
 
-/// **Whether two planar conics hold one plane**: their lifted frames do
-/// as one value ([`one_plane`]), or a point-scalar body stores frames
-/// that place one plane ([`one_stated_plane`]).
-fn coplanar(e: &Rim, o: &Rim) -> bool {
-    let lifted = |r: &Rim| match r.arc.as_ref()? {
-        (
-            Curve3::Circle(geom::Circle { frame, .. })
-            | Curve3::Ellipse(geom::Ellipse { frame, .. }),
-            _,
-        ) => Some((frame.origin(), frame.axis())),
-        _ => None,
-    };
-    let stated = |r: &Rim| match r.stated.as_ref()? {
-        Curve3::Circle(geom::Circle { frame, .. })
-        | Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(*frame),
-        _ => None,
-    };
-    lifted(e)
-        .zip(lifted(o))
-        .is_some_and(|(f, g)| one_plane(f, g))
-        || stated(e)
-            .zip(stated(o))
-            .is_some_and(|(f, g)| one_stated_plane(&f, &g))
-}
-
 /// **Whether two stored `f64` frames place one plane as their lifts
 /// read it**: one origin, and each of the second's axes `u`, `v`, `w` the
 /// first's or its negation, as numbers (a signed zero is its negation).
 /// A stored frame is lifted as the enclosure of its polar factor, the
 /// rotation nearest its stored axes; the polar factor of `M·D`, with `D`
 /// a diagonal of signs, is `M`'s times `D`, so the two lifts enclose one
-/// origin and one axis line, the one value each holds. The axes `w`
+/// origin and one axis line, the one value each holds. The axis `w`
 /// alone would not do: the polar factor's axis leans on all three stored
-/// axes wherever they are not exactly rigid.
+/// axes wherever they are not exactly rigid, and two frames with one `w`
+/// and a `u` an ulp apart lift to disjoint enclosures of `w`. The sign
+/// patterns admitted are wider than the argument needs: one of
+/// determinant −1 would make one of two stored frames a reflection,
+/// which no stored frame is (a reflection lifts to poison).
 fn one_stated_plane(f: &geom::Frame<f64>, g: &geom::Frame<f64>) -> bool {
     let (m, n) = (f.motion(), g.motion());
     f.origin().equals_exactly(g.origin())
@@ -6006,8 +5988,9 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
 ///
 /// - where every shared edge is a planar conic, each one's own plane in
 ///   turn: `n` its stored axis, `q` its stored centre. It lists that
-///   conic, every other in the same plane ([`coplanar`]), and their
-///   ends; a plane already listed is not built twice;
+///   conic, every other whose stored plane is the same value
+///   ([`one_plane`]), and their ends; a plane already listed is not
+///   built twice;
 /// - through one line edge: `n` a chosen direction bisecting the faces'
 ///   headings about the line, less its part along the line's stored
 ///   direction, `q` a point of the line. It lists the edge and its ends;
@@ -6057,13 +6040,14 @@ fn planes_through(
         return frames
             .iter()
             .enumerate()
-            .filter(|&(i, _)| !rims[..i].iter().any(|g| coplanar(g, rims[i])))
+            .filter(|&(i, &f)| !frames[..i].iter().any(|&g| one_plane(g, f)))
             .map(|(i, &(q, n))| {
                 let held: Vec<&Rim> = rims
                     .iter()
+                    .zip(&frames)
                     .enumerate()
-                    .filter(|&(j, r)| j == i || coplanar(rims[i], r))
-                    .map(|(_, r)| *r)
+                    .filter(|&(j, (_, &g))| j == i || one_plane((q, n), g))
+                    .map(|(_, (r, _))| *r)
                     .collect();
                 (Psi::Linear { n, q }, through(&held))
             })
@@ -6121,7 +6105,7 @@ fn planes_through(
     plane().into_iter().collect()
 }
 
-/// **Whether two planar conics' stored frames hold one plane, as one
+/// **Whether two planar conics' lifted frames hold one plane, as one
 /// value**: every component of the first's centre and axis is a point,
 /// and the second's are the same points, its axis the first's or its
 /// negation. A point is the one value every member has, so the plane
@@ -10778,161 +10762,116 @@ mod presentation_rows {
         assert!(!one_plane((o, wide), (o, wide)), "one bracket twice");
     }
 
-    /// **A point-scalar body's two conics hold one plane where it stores
-    /// their frames one up to the signs of their axes** ([`coplanar`],
+    /// **A point-scalar body's two circles are one where it stores their
+    /// frames one up to the signs of their axes, and not where one axis
+    /// alone is a rounding off** ([`one_conic`], [`one_stated_conic`],
     /// [`one_stated_plane`]): a ball's two seam meridians in a turned
     /// frame, one origin and one `u`, the second's `v` and `w` turned
-    /// over. Their lifts, the enclosures of the frames' polar factors,
-    /// are a rounding wide and not one value. Not coplanar where only the
-    /// lifts are held, with the second's `u` turned about the shared axis
-    /// (the polar factor's axis leans on `u`), or with its origin an ulp
-    /// off. Red if the stated frames are not read, or read by `w` alone.
-    /// Review probe: frames with `v` and `w` stored bit for bit and `u` an
-    /// ulp or a few off, as `Frame::admitted` mints them; their lifted
-    /// axes, and whether `coplanar` reads them one plane.
+    /// over, are one circle though their lifts (the enclosures of the
+    /// frames' polar factors) are not one value. Against the first: each
+    /// of `u`, `v` and `w` a rounding off with the other two and the
+    /// origin kept bit for bit, and the origin an ulp off, are not one
+    /// circle; with `u.z` two ulps off, the two lifted `w` are disjoint
+    /// enclosures, two planes for certain, which comparing the origin and
+    /// `w` alone reads as one; another radius is another circle. Not one
+    /// circle where only the lifts are held. Two exactly rigid frames with
+    /// one axis and two `u`, whose lifts are points, are one circle by
+    /// their lifts. Red if any one of the comparisons is dropped, or
+    /// either reading is not read.
     #[test]
-    fn review_probe_u_off_with_v_w_kept() {
-        let mut seed: u64 = 0x9e37_79b9_7f4a_7c15;
-        let mut next = || {
-            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-            ((seed >> 11) as f64) / ((1u64 << 53) as f64) * 2.0 - 1.0
-        };
-        let o = Point3::new(0.3, -1.1, 2.9);
-        let (mut pairs, mut disjoint, mut read_one) = (0, 0, 0);
-        for _ in 0..400 {
-            let a = Vec3::new(next(), next(), next()).normalize();
-            let th = 3.0 * next();
-            let (c, s) = (th.cos(), th.sin());
-            let rot = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
-            let (u, w) = (rot(Vec3::new(1.0, 0.0, 0.0)), rot(Vec3::new(0.0, 0.0, 1.0)));
-            let Some(f) = geom::Frame::admitted(o, w, u) else { continue };
-            for comp in 0..3 {
-                for k in [-2i32, -1, 1, 2] {
-                    let nudge = |x: f64| {
-                        let mut y = x;
-                        for _ in 0..k.abs() {
-                            y = if k > 0 { y.next_up() } else { y.next_down() };
-                        }
-                        y
-                    };
-                    let mut u2 = u;
-                    match comp {
-                        0 => u2.x = nudge(u.x),
-                        1 => u2.y = nudge(u.y),
-                        _ => u2.z = nudge(u.z),
-                    }
-                    let Some(g) = geom::Frame::admitted(o, w, u2) else { continue };
-                    let (m, n) = (f.motion(), g.motion());
-                    if !(m.v().get().same_bits(n.v().get()) && m.w().get().same_bits(n.w().get())) {
-                        continue;
-                    }
-                    pairs += 1;
-                    let (lf, lg) = (
-                        f.map_scalar(Interval::from_f64).motion().w().get(),
-                        g.map_scalar(Interval::from_f64).motion().w().get(),
-                    );
-                    let apart = |x: Interval, y: Interval| x.hi() < y.lo() || y.hi() < x.lo();
-                    if apart(lf.x, lg.x) || apart(lf.y, lg.y) || apart(lf.z, lg.z) {
-                        disjoint += 1;
-                        if disjoint <= 3 {
-                            eprintln!("DISJOINT w lifts: u {u:?} u2 {u2:?}\n  {lf:?}\n  {lg:?}");
-                        }
-                    }
-                    let circle = |fr: geom::Frame<f64>| Curve3::Circle(geom::Circle::new(fr, 1.0));
-                    let rim = |cv: Curve3<f64>| Rim {
-                        key: edge(1),
-                        arc: Some((cv.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
-                        stated: Some(cv),
-                        ends: [vertex(1), vertex(2)],
-                        uses: Vec::new(),
-                    };
-                    if coplanar(&rim(circle(f)), &rim(circle(g))) {
-                        read_one += 1;
-                    }
-                }
-            }
-        }
-        eprintln!("PAIRS {pairs} with v, w kept and u off; w lifts disjoint {disjoint}; coplanar {read_one}");
-        // The same with `u`, `v` kept and `w` a few ulps off.
-        let (mut pairs, mut disjoint) = (0, 0);
-        for _ in 0..400 {
-            let a = Vec3::new(next(), next(), next()).normalize();
-            let th = 3.0 * next();
-            let (c, s) = (th.cos(), th.sin());
-            let rot = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
-            let (u, w) = (rot(Vec3::new(1.0, 0.0, 0.0)), rot(Vec3::new(0.0, 0.0, 1.0)));
-            let Some(f) = geom::Frame::admitted(o, w, u) else { continue };
-            for comp in 0..3 {
-                for step in [-2i32, -1, 1, 2] {
-                    let mut w2 = w;
-                    let nudge = |x: f64| (0..step.abs()).fold(x, |y, _| if step > 0 { y.next_up() } else { y.next_down() });
-                    match comp { 0 => w2.x = nudge(w.x), 1 => w2.y = nudge(w.y), _ => w2.z = nudge(w.z) }
-                    let Some(g) = geom::Frame::admitted(o, w2, u) else { continue };
-                    let (m, n) = (f.motion(), g.motion());
-                    if !(m.u().get().same_bits(n.u().get()) && m.v().get().same_bits(n.v().get())) { continue; }
-                    pairs += 1;
-                    let (lf, lg) = (
-                        f.map_scalar(Interval::from_f64).motion().w().get(),
-                        g.map_scalar(Interval::from_f64).motion().w().get(),
-                    );
-                    let apart = |x: Interval, y: Interval| x.hi() < y.lo() || y.hi() < x.lo();
-                    if apart(lf.x, lg.x) || apart(lf.y, lg.y) || apart(lf.z, lg.z) { disjoint += 1; }
-                }
-            }
-        }
-        eprintln!("PAIRS {pairs} with u, v kept and w off; w lifts disjoint {disjoint}");
-    }
-
-    #[test]
-    fn two_meridians_stored_one_up_to_signs_are_coplanar_in_a_turned_frame() {
+    fn two_stored_circles_are_one_only_with_every_axis_one_up_to_its_sign() {
         let o = Point3::new(0.299_999_999_999_999_9, -1.1, 2.9);
-        let w = Vec3::new(
-            -0.394_739_798_173_799_8,
-            0.071_392_499_417_875_87,
-            -0.916_015_066_887_317_3,
-        );
         let u = Vec3::new(
             -0.482_929_284_214_212_1,
             0.832_030_133_774_634_8,
             0.272_956_338_888_314_3,
         );
-        let circle = |o, w, u| {
-            Curve3::Circle(geom::Circle::new(
-                geom::Frame::admitted(o, w, u).expect("rigid within its rounding"),
-                1.0,
-            ))
+        let w = Vec3::new(
+            -0.394_739_798_173_799_8,
+            0.071_392_499_417_875_87,
+            -0.916_015_066_887_317_3,
+        );
+        let v = w.cross(u);
+        let frame = |o: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, w: Vec3<f64>| {
+            let map = geom_core::Affine3 {
+                linear: geom_core::Mat3::from_cols(u, v, w),
+                translation: o - Point3::origin(),
+            };
+            geom::Frame::of_motion(
+                &geom_core::RigidMotion::check_rigid(&map).expect("rigid within its rounding"),
+            )
         };
-        let rim = |c: &Curve3<f64>, stated: bool| Rim {
-            key: edge(1),
-            arc: Some((c.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
-            stated: stated.then(|| c.clone()),
-            ends: [vertex(1), vertex(2)],
-            uses: Vec::new(),
+        let rim = |f: geom::Frame<f64>, stated: bool| {
+            let c = Curve3::Circle(geom::Circle::new(f, 1.0));
+            Rim {
+                key: edge(1),
+                arc: Some((c.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
+                stated: stated.then_some(c),
+                ends: [vertex(1), vertex(2)],
+                uses: Vec::new(),
+            }
         };
-        let lifted = |r: &Rim| match r.arc.as_ref() {
-            Some((Curve3::Circle(c), _)) => (c.frame.origin(), c.frame.axis()),
+        let lifted_w = |r: &Rim| match r.arc.as_ref() {
+            Some((Curve3::Circle(c), _)) => c.frame.axis(),
             _ => panic!("a circle"),
         };
-        let (a, b) = (circle(o, w, u), circle(o, -w, u));
-        let (ra, rb) = (rim(&a, true), rim(&b, true));
+        let a = rim(frame(o, u, v, w), true);
+        let b = rim(frame(o, u, -v, -w), true);
         assert!(
-            !one_plane(lifted(&ra), lifted(&rb)),
+            !one_vector(lifted_w(&a), lifted_w(&b) * at(-1.0)),
             "the lifts are no one value"
         );
-        assert!(coplanar(&ra, &rb), "stored one up to signs");
-        assert!(one_conic(&ra, &rb), "one circle");
+        assert!(one_conic(&a, &b), "stored one up to signs");
         assert!(
-            !coplanar(&rim(&a, false), &rim(&b, false)),
+            !one_conic(
+                &rim(frame(o, u, v, w), false),
+                &rim(frame(o, u, -v, -w), false)
+            ),
             "the lifts alone"
         );
-        let turned = u * 0.6 + w.cross(u) * 0.8;
-        let c = rim(&circle(o, w, turned), true);
-        assert!(!coplanar(&ra, &c), "another u about one w");
-        assert!(!one_conic(&ra, &c), "another u is another circle");
-        let moved = Point3::new(o.x.next_up(), o.y, o.z);
+        let up = |x: Vec3<f64>| Vec3::new(x.x.next_up(), x.y, x.z);
+        let u_off = rim(
+            frame(o, Vec3::new(u.x, u.y, u.z.next_up().next_up()), v, w),
+            true,
+        );
+        let apart = |x: Interval, y: Interval| x.hi() < y.lo() || y.hi() < x.lo();
+        let (wa, wu) = (lifted_w(&a), lifted_w(&u_off));
         assert!(
-            !coplanar(&ra, &rim(&circle(moved, -w, u), true)),
-            "an origin an ulp off"
+            apart(wa.x, wu.x) || apart(wa.y, wu.y) || apart(wa.z, wu.z),
+            "u two ulps off lifts w apart: {wa:?} {wu:?}"
+        );
+        for (what, other) in [
+            ("u two ulps off", u_off),
+            ("v an ulp off", rim(frame(o, u, up(v), w), true)),
+            ("w an ulp off", rim(frame(o, u, v, up(w)), true)),
+            (
+                "the origin an ulp off",
+                rim(frame(Point3::new(o.x.next_up(), o.y, o.z), u, v, w), true),
+            ),
+        ] {
+            assert!(!one_conic(&a, &other), "{what} is another circle");
+        }
+        let wider = Rim {
+            stated: Some(Curve3::Circle(geom::Circle::new(frame(o, u, -v, -w), 2.0))),
+            arc: Some((
+                Curve3::Circle(geom::Circle::new(frame(o, u, -v, -w), 2.0))
+                    .map_scalar(Interval::from_f64),
+                (iv0(0.0), iv0(1.0)),
+            )),
+            ..b.clone()
+        };
+        assert!(!one_conic(&a, &wider), "another radius is another circle");
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        assert!(
+            one_conic(
+                &rim(frame(o, x, y, z), true),
+                &rim(frame(o, y, Vec3::new(-1.0, 0.0, 0.0), z), true)
+            ),
+            "exactly rigid frames with one axis and two u are one circle, by their lifts"
         );
     }
 
