@@ -50,3 +50,7 @@ unit did not keep.
 The CDT arms could read `may_make` beside `faces_holding_side`, and skip
 the sides it excludes. That moves their meshes, so it is TESSLIE's call
 with a count in hand, not a change this unit makes.
+
+## The premise the exclusion rests on, and where it is not shown (2026-11-22)
+
+`may_make` compares the neighbour's TRUE surface distance with `δ·(1 + ALLOWANCE_SHARE)`, while the neighbour's pass is on its COMPUTED bound. The exclusion is sound while the band's decided margin exceeds the certificate's allowance plus the distance's own rounding (about `6·10⁻¹²` m at the session box's edge). Every ε the rows run satisfies that with room (`Kε ≥ 10⁻¹¹`). It is NOT shown from the admission floor alone: the smallest admitted ε (about `2·10⁻¹³`) on a body at the box's edge leaves `Kε` near `2·10⁻¹²`, and there the band could decide "farther" on a side a passed triangle still holds. The census then refuses `OverusedSide`: a wrong refusal, never a wrong `Ok`. No row reaches it. Stated at the site; found by both delta reviews of PR 7096 and bounded by its implementer.

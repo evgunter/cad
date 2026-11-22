@@ -4,7 +4,7 @@ kind: issue
 title: a ruled face's strip and a neighbour holding both of its rims make one rim-to-rim chord, an edge of four triangles tessellate returns
 status: open
 opened: 2026-11-17
-priority: P1
+priority: P2
 cost: M
 ---
 
@@ -83,3 +83,7 @@ That argument does not cover TWO chains held by one neighbour: the
 bore's two rims, each an iso line, which the bore's strip joins by
 construction and the neighbour's triangles join too where it lays no
 point between them. The census is what catches it.
+
+## 2026-11-22 — band, and where the cure is decided (TESSLANE orchestrator)
+
+Banded P1 when it was a non-manifold `Ok`. It is now a typed refusal of a valid body, on seven cells, all at a δ several times the shell's thickness (a ball of 1.05 with a bore of 1 at δ 0.1 and coarser; a ball of 1.3 meshes at every δ run), so P2: it neither blocks authoring nor entrenches. The cure is not chosen here: the walk's rule would mesh these cells and over-cut others, and which rule the rectangle lane takes is one question with the other lanes', `the-mesh-cures-a-side-two-faces-can-both-make-three-ways` (design).
