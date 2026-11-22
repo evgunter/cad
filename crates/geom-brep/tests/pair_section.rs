@@ -18,20 +18,24 @@ fn band() -> Band {
 /// A cylinder of radius `r` about `z` through the origin.
 fn cylinder(r: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, -3.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, -3.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 /// A sphere of radius `big` about `(d, 0, 0.2)`.
 fn sphere(d: f64, big: f64) -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(d, 0.0, 0.2),
+        frame: geom::Frame::new(
+            Point3::new(d, 0.0, 0.2),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: big,
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -548,18 +552,33 @@ fn a_seated_loop_has_no_start() {
     }
 }
 
-/// **Every other kind pair is read elsewhere**, with `route`'s own arm.
+/// **Every other kind pair is read elsewhere**, with `route`'s own arm,
+/// and `serves` says so.
 #[test]
 fn every_other_pair_is_read_elsewhere() {
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
-    for (a, b) in [
-        (&plane, &sphere(0.0, 1.0)),
-        (&sphere(0.0, 1.0), &sphere(0.5, 1.0)),
-    ] {
+    let torus = Surface::Torus {
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+    };
+    for (a, b) in [(&plane, &plane), (&plane, &torus), (&torus, &plane)] {
+        assert!(
+            !geom_brep::pair_section::serves(a.kind(), b.kind()),
+            "{:?} × {:?} is not served",
+            a.kind(),
+            b.kind()
+        );
         match geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()) {
             Ok(SectionRead::Elsewhere(route)) => {
                 assert_eq!(route, geom_brep::route(a.kind(), b.kind()));
@@ -592,20 +611,16 @@ fn square_to(a: Vec3<f64>) -> Vec3<f64> {
 /// A cylinder of radius `r` about `axis` through `origin`.
 fn cylinder_about(origin: Point3<f64>, axis: Vec3<f64>, r: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, square_to(axis)),
         radius: r,
-        u_ref: square_to(axis),
     }
 }
 
 /// A sphere of radius `big` about `center`.
 fn sphere_at(center: Point3<f64>, big: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
         radius: big,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 

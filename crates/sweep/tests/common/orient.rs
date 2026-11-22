@@ -216,10 +216,11 @@ pub fn assert_caps_face_out(lofted: &Lofted<f64>, oracle: &Oracle<'_>, delta: f6
     assert_probe_step(delta);
     for (what, face, t) in [("bottom", lofted.bottom, 0.0), ("top", lofted.top, 1.0)] {
         let f = lofted.body.get_face(face).expect("cap face resolves");
-        let Some(Surface::Plane { normal, .. }) = lofted.body.face_surface(face) else {
+        let Some(Surface::Plane { frame, .. }) = lofted.body.face_surface(face) else {
             panic!("{what} cap carries a plane");
         };
-        let outward = OutwardNormal::from_chart(*normal, f.sense).vec();
+        let normal = frame.axis();
+        let outward = OutwardNormal::from_chart(normal, f.sense).vec();
         let p = ring_centroid(lofted, t);
         assert_eq!(
             probe_sides(oracle, p, outward, delta),

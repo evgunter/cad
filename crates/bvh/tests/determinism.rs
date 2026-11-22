@@ -23,6 +23,10 @@ use bvh::test_support::boxed;
 use bvh::{Aabb, Bvh};
 use proptest::prelude::*;
 
+/// The query site every call in this file marks under.
+const SITE: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("bvh_test", "the test's query");
+
 /// The idealized candidate set: brute-force filter, input order.
 fn brute(boxes: &[Aabb], query: &Aabb) -> Vec<usize> {
     boxes
@@ -48,7 +52,7 @@ proptest! {
         query in arb_box(),
     ) {
         let tree = Bvh::build(&boxes);
-        prop_assert_eq!(tree.overlapping(&query), brute(&boxes, &query));
+        prop_assert_eq!(tree.overlapping(SITE, &query), brute(&boxes, &query));
     }
 
     /// Same input ⇒ bit-identical tree (Debug form pins arena layout,
@@ -65,7 +69,7 @@ proptest! {
 fn empty_tree_answers_empty() {
     let tree = Bvh::build(&[]);
     assert!(tree.is_empty());
-    assert_eq!(tree.overlapping(&Aabb::poison()), Vec::<usize>::new());
+    assert_eq!(tree.overlapping(SITE, &Aabb::poison()), Vec::<usize>::new());
 }
 
 #[test]
@@ -76,7 +80,7 @@ fn poison_item_is_never_pruned() {
     // A query far away from every real box still returns the poison
     // item: NaN can never witness disjointness.
     let far = boxed([500.0; 3], [501.0; 3]);
-    assert_eq!(tree.overlapping(&far), vec![7]);
+    assert_eq!(tree.overlapping(SITE, &far), vec![7]);
 }
 
 #[test]
@@ -84,7 +88,7 @@ fn poison_query_returns_everything() {
     let boxes = vec![boxed([0.0; 3], [1.0; 3]); 13];
     let tree = Bvh::build(&boxes);
     assert_eq!(
-        tree.overlapping(&Aabb::poison()),
+        tree.overlapping(SITE, &Aabb::poison()),
         (0..13).collect::<Vec<_>>()
     );
 }
@@ -97,7 +101,7 @@ fn touching_boxes_overlap_and_identical_centroids_split_by_index() {
     let tree = Bvh::build(&boxes);
     // Touching at a corner counts as overlap (closed boxes).
     let corner = boxed([1.0; 3], [2.0; 3]);
-    assert_eq!(tree.overlapping(&corner), (0..20).collect::<Vec<_>>());
+    assert_eq!(tree.overlapping(SITE, &corner), (0..20).collect::<Vec<_>>());
 }
 
 #[test]
@@ -148,7 +152,7 @@ fn co_located_centroids_keep_the_whole_permutation() {
         ),
     ] {
         assert_eq!(
-            tree.overlapping(&query),
+            tree.overlapping(SITE, &query),
             brute(&boxes, &query),
             "the tree and brute force disagree on {query:?}"
         );
@@ -184,10 +188,10 @@ fn a_deep_tree_answers_the_brute_force_set_and_its_whole_permutation() {
         boxed([-1.0, -1.0, -1.0], [101.0, 61.0, 31.0]),
         boxed([500.0, 500.0, 500.0], [501.0, 501.0, 501.0]),
     ] {
-        assert_eq!(tree.overlapping(&query), brute(&boxes, &query));
+        assert_eq!(tree.overlapping(SITE, &query), brute(&boxes, &query));
     }
     let everything = boxed([-1.0, -1.0, -1.0], [101.0, 61.0, 31.0]);
-    assert_eq!(tree.overlapping(&everything).len(), boxes.len());
+    assert_eq!(tree.overlapping(SITE, &everything).len(), boxes.len());
 }
 
 /// `is_over` answers for the build input in its order and for nothing

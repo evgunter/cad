@@ -332,39 +332,39 @@ fn boxed(b: Box3) -> V3 {
 impl Quadric {
     fn of<T: CertifiedBounds>(s: &Surface<T>) -> Option<Self> {
         Some(match *s {
-            Surface::Plane { origin, normal, .. } => Self::Plane {
-                origin: point(origin),
-                normal: unit(normal),
-            },
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => Self::Cylinder {
-                origin: point(origin),
-                axis: unit(axis),
-                radius: Interval::from_certified(radius),
-            },
-            Surface::Sphere { center, radius, .. } => Self::Sphere {
-                center: point(center),
-                radius: Interval::from_certified(radius),
-            },
+            Surface::Plane { frame, .. } => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                Self::Plane {
+                    origin: point(origin),
+                    normal: unit(normal),
+                }
+            }
+            Surface::Cylinder { frame, radius, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
+                Self::Cylinder {
+                    origin: point(origin),
+                    axis: unit(axis),
+                    radius: Interval::from_certified(radius),
+                }
+            }
+            Surface::Sphere { frame, radius, .. } => {
+                let center = frame.origin();
+                Self::Sphere {
+                    center: point(center),
+                    radius: Interval::from_certified(radius),
+                }
+            }
             Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
+                frame, half_angle, ..
             } => {
-                // Lane evaluation at `T`, crossed in through its bracket
-                // as the composite's cone form crosses it: certification
-                // calls no transcendental (C9).
-                let (sin_a, cos_a) = half_angle.sin_cos();
+                let (apex, axis) = (frame.origin(), frame.axis());
+                let (sin_a, cos_a) =
+                    crate::implicit::cone_sin_cos(half_angle, Interval::from_certified);
                 Self::Cone {
                     apex: point(apex),
                     axis: unit(axis),
-                    sin_a: Interval::from_certified(sin_a),
-                    cos_a: Interval::from_certified(cos_a),
+                    sin_a,
+                    cos_a,
                 }
             }
             Surface::Torus { .. }

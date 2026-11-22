@@ -627,10 +627,7 @@ fn options_doors() -> Vec<Roster> {
     } = &step;
 
     let import = ImportOptions::default();
-    let ImportOptions {
-        eps_in: _,
-        examine_chart_coherence: _,
-    } = &import;
+    let ImportOptions { eps_in: _ } = &import;
 
     let ascii = AsciiOptions::default();
     let AsciiOptions { solid_name: _ } = &ascii;
@@ -672,29 +669,7 @@ fn options_doors() -> Vec<Roster> {
         options_roster(
             "ImportOptions",
             "import_step",
-            vec![
-                ("eps_in", Bound(&["eps_in"])),
-                // The flag is a `bool` a Python keyword could carry
-                // trivially; what it cannot carry is the ANSWER. The
-                // field it turns on reports a `topo::CoherenceReport`
-                // on `StepImport::Solid`, and that type has no Python
-                // spelling, so a bound keyword would set a switch
-                // whose result `ImportReport` does not expose — a
-                // caller could ask and never read. **So the pair is
-                // unbound together**: binding the flag without the
-                // report is the shape this census exists to prevent,
-                // and the decay check is what stops that reason
-                // outliving the fact.
-                (
-                    "examine_chart_coherence",
-                    Spelling::NotBound {
-                        would_be: &["examine_chart_coherence"],
-                        reason: "the report it produces (`topo::CoherenceReport`) has no Python \
-                                 spelling and no field on `ImportReport`, so the keyword would \
-                                 set a switch whose answer a caller cannot read",
-                    },
-                ),
-            ],
+            vec![("eps_in", Bound(&["eps_in"]))],
         ),
         options_roster(
             "AsciiOptions",

@@ -123,8 +123,8 @@
 //!   face side at the closest crossing, at the sphere's radius.
 //! - `bool_sphere_region_component`: an arc's offset from a leg's plane
 //!   it is parallel to: on the leg's circle, or apart from it.
-//! - `plane_crossing_*`: where an arc crosses a leg's plane, the plane
-//!   door's own rows.
+//! - `curve_face_pose_*` and `curve_face_cross_*`: where an arc crosses
+//!   a leg's plane, the curve × face pose's and crossing's rows.
 //! - `bool_sphere_region_arc_span`: an arc's gap to a period. Where `p`
 //!   sits against the arc is [`ConicArc::hit`](crate::splitting::containment::ConicArc::hit), the on-carrier and span
 //!   readings' rows (`curve_carrier_*`, `curve_pair_span_*`). `bool_sphere_region_arc_straddle`
@@ -234,9 +234,10 @@ impl<T: Decide> SphereFaceRegion<T> {
     ///
     /// Where `charted` is not a sphere: the caller reads the record first.
     fn on(charted: Charted<T>, sense: bool, outer: LoopKey, edges: Vec<Arc<T>>) -> Self {
-        let &geom::Surface::Sphere { center, radius, .. } = charted.surface() else {
+        let &geom::Surface::Sphere { frame, radius, .. } = charted.surface() else {
             unreachable!("a sphere region is built on a sphere record")
         };
+        let center = frame.origin();
         Self {
             charted,
             center,
@@ -530,10 +531,12 @@ mod tests {
         Charted::record(
             Default::default(),
             &geom::Surface::Sphere {
-                center,
+                frame: geom::Frame::new(
+                    center,
+                    Vec3::new(zero, zero, one),
+                    Vec3::new(one, zero, zero),
+                ),
                 radius,
-                axis: Vec3::new(zero, zero, one),
-                u_ref: Vec3::new(one, zero, zero),
             },
         )
     }
@@ -598,10 +601,8 @@ mod tests {
                 .iter()
                 .map(|&(axis, u_ref)| {
                     let sphere = geom::Surface::Sphere {
-                        center: Point3::origin(),
+                        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
                         radius: 1.0,
-                        axis,
-                        u_ref,
                     };
                     carved_on(Charted::record(Default::default(), &sphere), forward)
                 })
@@ -1164,10 +1165,8 @@ mod tests {
             seed.face,
             FaceSurface::New {
                 surface: geom::Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     radius: 1.0,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },

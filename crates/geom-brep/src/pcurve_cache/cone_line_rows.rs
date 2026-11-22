@@ -16,10 +16,12 @@ use super::*;
 
 fn cone(half_angle: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.4, 0.1, -0.3),
-        axis: Vec3::new(0.1, -0.2, 1.0).normalize(),
+        frame: geom::Frame::new(
+            Point3::new(0.4, 0.1, -0.3),
+            Vec3::new(0.1, -0.2, 1.0).normalize(),
+            Vec3::new(1.0, 0.0, -0.1).normalize(),
+        ),
         half_angle,
-        u_ref: Vec3::new(1.0, 0.0, -0.1).normalize(),
     }
 }
 
@@ -45,11 +47,12 @@ fn generator(surface: &Surface<f64>, phi: f64, sigma: f64) -> (Vec3<f64>, Vec3<f
 /// cone's normal, at unit speed.
 fn ruling(surface: &Surface<f64>, phi: f64, sigma: f64, h: f64, off: f64) -> Curve3<f64> {
     let Surface::Cone {
-        apex, half_angle, ..
+        frame, half_angle, ..
     } = *surface
     else {
         unreachable!("the rows' chart is a cone")
     };
+    let apex = frame.origin();
     let (g, n) = generator(surface, phi, sigma);
     Curve3::line(apex + g * (h / half_angle.cos()) + n * off, g)
 }

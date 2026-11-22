@@ -131,8 +131,8 @@ fn cover_of<T: Real>(piece: Piece<T>) -> Cover<T> {
             half_angle,
             heights: (lo, hi),
         } => {
-            let a = frame.axis.normalize();
-            let within = Cover::segment(frame.origin + a * lo, frame.origin + a * hi).unwrap();
+            let a = frame.axis().normalize();
+            let within = Cover::segment(frame.origin() + a * lo, frame.origin() + a * hi).unwrap();
             Cover::cone(&frame, half_angle, &within)
         }
         Piece::Wall {
@@ -140,8 +140,8 @@ fn cover_of<T: Real>(piece: Piece<T>) -> Cover<T> {
             radius,
             heights: (lo, hi),
         } => {
-            let a = frame.axis.normalize();
-            let within = Cover::segment(frame.origin + a * lo, frame.origin + a * hi).unwrap();
+            let a = frame.axis().normalize();
+            let within = Cover::segment(frame.origin() + a * lo, frame.origin() + a * hi).unwrap();
             Cover::wall(&frame, radius, &within)
         }
         Piece::Segment(a, b) => Cover::segment(a, b),
@@ -306,7 +306,7 @@ fn lift_depth(d: Around<f64>) -> Around<Interval> {
 }
 
 fn lift_frame(f: geom::Frame<f64>) -> geom::Frame<Interval> {
-    geom::Frame::new(ip(f.origin), ivec(f.axis), ivec(f.u_ref))
+    geom::Frame::new(ip(f.origin()), ivec(f.axis()), ivec(f.u_ref()))
 }
 
 fn lift_piece(piece: Piece<f64>) -> Piece<Interval> {
@@ -398,12 +398,15 @@ fn carrier(
     };
     let a = (n + skew(r)) * r.range(0.95, 1.05);
     let u = e1 / e1.norm() + skew(r);
+    // Drawn skewed and stated so: the frame squares them, and the
+    // samples are placed on the frame it holds.
     let frame = geom::Frame::new(centre(r, far), a, u);
+    let (a, u) = (frame.axis(), frame.u_ref());
     let sign = |r: &mut Rng| if r.unit() < 0.5 { -1.0 } else { 1.0 };
     let rho = |t: f64| u * t.cos() + a.cross(u) * t.sin();
     let tau = core::f64::consts::TAU;
     let on = |t: f64, v: f64, (major, minor): (f64, f64)| {
-        frame.origin + rho(t) * (major + minor * v.cos()) + a * (minor * v.sin())
+        frame.origin() + rho(t) * (major + minor * v.cos()) + a * (minor * v.sin())
     };
     let mut depth = depth;
     let (piece, samples): (Piece<f64>, Vec<Point3<f64>>) = if i % 7 == 2
@@ -428,7 +431,7 @@ fn carrier(
         if i.is_multiple_of(4) {
             depth = Around::Circle(Core {
                 axis: geom::Line {
-                    origin: frame.origin,
+                    origin: frame.origin(),
                     dir: a,
                 },
                 radius: major,
@@ -479,14 +482,14 @@ fn carrier(
                 } else {
                     r.range(v0, v1)
                 };
-                frame.origin + (a * c_a + rho(r.range(0.0, tau)) * s_a) * v
+                frame.origin() + (a * c_a + rho(r.range(0.0, tau)) * s_a) * v
             })
             .collect::<Vec<_>>();
         let unit_axis = a / a.norm();
         let heights = samples
             .iter()
             .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &x| {
-                let h = (x - frame.origin).dot(unit_axis);
+                let h = (x - frame.origin()).dot(unit_axis);
                 (lo.min(h), hi.max(h))
             });
         (
@@ -507,14 +510,14 @@ fn carrier(
                 } else {
                     r.range(v0, v1)
                 };
-                frame.origin + rho(r.range(0.0, tau)) * radius + a * v
+                frame.origin() + rho(r.range(0.0, tau)) * radius + a * v
             })
             .collect::<Vec<_>>();
         let unit_axis = a / a.norm();
         let heights = samples
             .iter()
             .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &x| {
-                let h = (x - frame.origin).dot(unit_axis);
+                let h = (x - frame.origin()).dot(unit_axis);
                 (lo.min(h), hi.max(h))
             });
         (
