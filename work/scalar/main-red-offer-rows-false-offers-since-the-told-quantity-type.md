@@ -61,3 +61,7 @@ at the default ε, 1e-6 and 1e-12 with one message
 Some(3.535e-11), its margin gives Some(3.535533905932738e-11)`,
 `conic_bend_short_of_the_band` and `tangent_side_in_band` 5.499e-10
 against 5.5e-10, …), so PR 7267's fix is owed at every ε row.
+
+On current main (`5ea1ac0a70`, hosted, throwaway run 45051677551, the
+row out of the slow set) it is still red at all three ε, with the same
+message.

@@ -68,3 +68,7 @@ three ε, each time the view asked past its window:
 
 So the fix this row names greens the 1e-6 and 1e-12 rows too, and the
 pin it asks for is per ε.
+
+On current main (`5ea1ac0a70`, hosted, throwaway run 45051677551) it
+is still red at the default ε with the ε 1e-9 message above, to the
+digit.
