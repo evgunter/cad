@@ -112,3 +112,17 @@
   - The slow set is run on head and base before reporting.
 
   **Class, logged:** *a per-PR gate that runs only the `ci` profile cannot see a moved slow-set verdict*. Every brief that claims "no verdict moved" for a change to a shared reading now owes a slow-set head-against-base diff. (HELDRECORDS orchestrator)
+- 2026-11-22 — **PR 7463's dual review is in (R2 23:18Z, R1 23:38Z): both NOT MERGEABLE as frozen, with the same two MAJORs found independently.**
+  - **MAJOR-1:** `end_root`'s `whole` ignores the quarter-turn clip. The (Zero, ±) arm turns that into `NoInterior`, a false "no crossing" past π/2. Both reviewers show it at unit level; no operand-level fixture has reached it yet.
+  - **MAJOR-2:** the side premise I made a condition is not decided in this PR. It is in PR 7471's `junction_side`, which decides it against the full circle and not the glued arc.
+  - **Other findings:** five gates turn no pin red when mutated (charge, c₁, far end, spread, on-rim). A refusal belt sits 1.6e-8 to 1.6e-4 rad off a neutral point. `composite()` is a fifth spelling of the canonical forms.
+  - **Verdicts:** ci verdicts did not move.
+
+  **Fix pass ruled (23:45Z), queued behind PR 7432's:**
+  - `whole` is derived from `at`;
+  - the side check moves into this PR and is decided on the glued extent;
+  - door-level pins for every gate;
+  - the belt gets a P1 row and a true recourse;
+  - one home for the composites, or a P1 row naming all five.
+
+  **The class beneath both PRs' MAJORs:** a door's documented contract ("whole span", "nothing sampled") went untested because no pin could go red against it. Three reviews in a row show mutants surviving at the gate this program builds, so every fix-pass brief now asks for a mutant table. (HELDRECORDS orchestrator)
