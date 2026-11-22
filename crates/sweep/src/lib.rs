@@ -177,7 +177,10 @@ pub(crate) const EMPTY_PROFILE: &str =
     "profile has no loops — nothing to sweep. Recourse: add a loop to the profile";
 
 pub use extrude::{ExtrudeError, ExtrudeSide, Extruded, Extrusion, SideWall, extrude};
-pub use loft::{LoftError, Lofted, LoopSegment, PinnedSite, loft_body, loft_profiles, sweep_body};
+pub use loft::{
+    LoftError, Lofted, LoftedFace, LoftedMeeting, LoopSegment, PinnedSite, loft_body,
+    loft_profiles, sweep_body,
+};
 pub use revolve::tube::{
     TubeDecision, TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow,
 };
