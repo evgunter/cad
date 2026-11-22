@@ -1215,8 +1215,9 @@ mod chain_rows {
 
     /// **A brick moved forty times keeps its lines unit and on their
     /// vertices** (`[topology.tiers]`): sixty poses, each a chain of forty
-    /// rigid motions about skew axes through far points, applied to a
-    /// long brick in turn. After every chain each line carrier's direction
+    /// rigid motions about skew axes, each with a short translation,
+    /// applied to a long brick about the origin in turn, so it stays in
+    /// the session box. After every chain each line carrier's direction
     /// is unit to its rounding ([`UnitVec3::stated`]), each line edge's
     /// ends lie on its vertices, and the body validates, structurally and
     /// at tier 3, at the run's ε. Some chain carries a direction past its
@@ -1237,7 +1238,7 @@ mod chain_rows {
             (state >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
         };
         let start =
-            crate::test_support_fixtures::brick::<f64>((0.0, 4e3), (0.0, 3.0), (0.0, 2.0), tol);
+            crate::test_support_fixtures::brick::<f64>((-300.0, 300.0), (-1.0, 2.0), (-1.0, 1.0), tol);
         let spans = |body: &Body<f64>| -> Vec<(u64, u64)> {
             body.edges()
                 .filter_map(|(_, e)| match body.curves.get(e.curve) {
@@ -1257,7 +1258,7 @@ mod chain_rows {
                 let motion = RigidMotion::rotation_then_translation(
                     axis,
                     3.0 * next(),
-                    Vec3::new(next(), next(), next()) * 50.0,
+                    Vec3::new(next(), next(), next()) * 5.0,
                 )
                 .expect("a rotation about a unit axis");
                 body = transform_rigid(&body, &motion).expect("a brick moves");
@@ -1278,7 +1279,7 @@ mod chain_rows {
                 let (t0, t1) = c.params();
                 for (t, v) in [(t0, v0), (t1, v1)] {
                     let off = (line.at(t) - at(v)).norm();
-                    assert!(off <= 1e-11, "pose {pose}: an end {off:e} m off its vertex");
+                    assert!(off <= 1e-12, "pose {pose}: an end {off:e} m off its vertex");
                 }
             }
             crate::validate(&body).unwrap_or_else(|e| panic!("pose {pose}: {e:?}"));
