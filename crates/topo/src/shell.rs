@@ -345,9 +345,11 @@
 //! A chart need not arrive that way: it may be several faces meeting
 //! along edges only they share — two half-discs meeting at an apex —
 //! or one face SLIT, its loop walking one edge both ways to join a hole
-//! to its outer cycle. A full revolve mints neither (each plane wall is
-//! one face, a disc or an annulus carrying its hole as a ring), but the
-//! glue's hypothesis does not name where the operand came from. Gluing
+//! to its outer cycle. A full revolve's plane walls are neither (each is
+//! one face, a disc or an annulus carrying its hole as a ring), and its
+//! curved cap walks its seam out to the pole and back, a spur step 3
+//! kills like the apex; the glue's hypothesis does not name where the
+//! operand came from. Gluing
 //! onto either puts the counterpart's boundary ON the designated face's
 //! own — sharing the apex, running back along the slit — and the result
 //! is a body every structural tier blesses and no triangulator accepts.
