@@ -192,9 +192,10 @@ fn plane_label(ev: &Evaluation<f64>, node: RecipeNodeId, of: &StableName) -> Str
     };
     let body = body_of(ev, node);
     let s = body.face_surface(f).unwrap();
-    let topo::Surface::Plane { origin, normal, .. } = s else {
+    let topo::Surface::Plane { frame, .. } = s else {
         return "curved".to_owned();
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     let (n, o) = (normal.to_array(), origin.to_array());
     for (i, axis) in ["x", "y", "z"].into_iter().enumerate() {
         if (n[i].abs() - 1.0).abs() < 1e-9 {

@@ -86,8 +86,8 @@ their own).
 
 ## Since (PR 3513's third fix pass)
 
-One more reader drops the rung: `topo::boolean::rim_wedge::classify_shared_rim`
-(`crates/topo/src/boolean/rim_wedge.rs`, its first-order screen's
+One more reader drops the rung: `topo::rim_wedge::classify_shared_rim`
+(`crates/topo/src/rim_wedge.rs`, its first-order screen's
 `.map_err(|escalation| escalation.diag())`). Its only caller, the
 declared-`Tangent` door's shared-rim route
 (`boolean::verify_tangent_declaration`), reads any escalation there as

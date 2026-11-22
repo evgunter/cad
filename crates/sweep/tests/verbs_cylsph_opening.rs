@@ -182,7 +182,7 @@ fn coaxial_poses_build_every_op_at_their_volumes() {
 /// **The non-coaxial transversal pose crosses, passes the germ frame
 /// and the join, and builds.** The crossing that used to keep the pierce
 /// door is certified now by the conic × quadric root door
-/// (`topo::boolean::conic_quadric`), its pierce's sector side
+/// (`geom_brep::curve_face::conic_quadric`), its pierce's sector side
 /// certifies, the matcher pairs the cylinder × sphere germs by foot on
 /// the section's one loop (`R < r + d`), and the join cuts both sides'
 /// chords from that loop; the cylinder and sphere faces they bound
@@ -407,7 +407,7 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
 /// circle×torus crossing has a root lane (`geom_brep::curve_face::circle_torus`),
 /// as the OTHER direction's does — a circle of the torus against the
 /// cylinder's wall, the conic × quadric root door
-/// (`topo::boolean::conic_quadric`). Their pierces' sector sides
+/// (`geom_brep::curve_face::conic_quadric`). Their pierces' sector sides
 /// certify, and what refuses is a germ pair's section — never a body.
 /// A germ's branch is read where it is minted: the wall × torus pair
 /// stands square to the torus's axis, a section the value counts and

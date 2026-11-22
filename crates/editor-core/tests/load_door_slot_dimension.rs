@@ -105,7 +105,7 @@ fn a_retyped_extrude_distance_is_refused_at_both_doors() {
         other => panic!("the edit door must refuse an angle distance, got {other:?}"),
     }
 
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
         retype_to_angle(wire, |wire| {
@@ -190,7 +190,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
         other => panic!("the edit door must refuse an undeclared parameter, got {other:?}"),
     }
 
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let id = doc.var_named(name.as_str()).expect("a declared variable");
     let corrupt = doctored(&text, |wire| {
@@ -235,7 +235,7 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
         other => panic!("the edit door must refuse the retyping, got {other:?}"),
     }
 
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = save(&doc, Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
         crate::wire::wire_retype(wire, name.as_str(), "Length", "Angle", "rad");

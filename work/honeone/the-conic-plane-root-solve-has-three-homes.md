@@ -27,7 +27,7 @@ its own what the tangent arm (`R − |D|` within the band) means:
   takes `acos` of the residue's ratio. Measured: with the plane dipped
   5e-10 in, the line is 2.4e-5 rad off the tangent generator
   (`work/germ/a-plane-cone-apex-tangent-reads-a-residue-generator-off-the-tangency.md`).
-- `topo::boolean::rim_wedge::crossings`, `Locus::Rim` arm. It keeps both
+- `topo::rim_wedge::crossings`, `Locus::Rim` arm. It keeps both
   `alpha ± delta` candidates whenever `|ratio| − 1` might not be
   positive, then filters them by `on_locus`. Near tangency both residue
   roots can survive as two cuts on the locus about √(2ε/R) apart. Not

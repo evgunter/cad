@@ -78,6 +78,25 @@ impl PolygonOrientation {
     pub fn interior_is_left(self) -> bool {
         self == Self::CounterClockwise
     }
+
+    /// A signed value read on the LEFT of the polygon's sides — a
+    /// coordinate, a direction, a step — taken to its region's side:
+    /// itself where the region is on the left, negated where it is on
+    /// the right.
+    #[must_use]
+    pub fn to_interior<V: core::ops::Neg<Output = V>>(self, left: V) -> V {
+        match self {
+            Self::CounterClockwise => left,
+            Self::Clockwise => -left,
+        }
+    }
+
+    /// Whether the polygon's region lies on some side of its sides,
+    /// given whether their LEFT does.
+    #[must_use]
+    pub fn interior_is_on(self, left_is_on: bool) -> bool {
+        left_is_on == self.interior_is_left()
+    }
 }
 
 #[cfg(test)]
@@ -109,35 +128,27 @@ mod tests {
             NurbsSurface::new(k(), k(), control, vec![1.0; 4]).unwrap()
         };
         let cone = || Surface::Cone {
-            apex: O,
-            axis: Z,
+            frame: geom::Frame::new(O, Z, X),
             half_angle: 0.4,
-            u_ref: X,
         };
         let torus = || Surface::Torus {
-            center: O,
-            axis: Z,
+            frame: geom::Frame::new(O, Z, X),
             major_radius: 2.0,
             minor_radius: 0.5,
-            u_ref: X,
         };
         vec![
             (
                 "plane",
                 Surface::Plane {
-                    origin: O,
-                    normal: Z,
-                    u_ref: X,
+                    frame: geom::Frame::new(O, Z, X),
                 },
                 (0.3, -0.4),
             ),
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: O,
-                    axis: Z,
+                    frame: geom::Frame::new(O, Z, X),
                     radius: 0.7,
-                    u_ref: X,
                 },
                 (1.1, 0.4),
             ),
@@ -146,10 +157,8 @@ mod tests {
             (
                 "sphere",
                 Surface::Sphere {
-                    center: O,
+                    frame: geom::Frame::new(O, Z, X),
                     radius: 0.9,
-                    axis: Z,
-                    u_ref: X,
                 },
                 (4.0, -0.6),
             ),
@@ -158,11 +167,9 @@ mod tests {
             (
                 "spindle",
                 Surface::Spindle {
-                    center: O,
-                    axis: Z,
+                    frame: geom::Frame::new(O, Z, X),
                     major_radius: -0.4,
                     minor_radius: 1.0,
-                    u_ref: X,
                 },
                 (5.0, 0.2),
             ),
@@ -254,6 +261,23 @@ mod tests {
                     "{name}, sense {sense}: chart {chart:?} against implicit {implicit:?}"
                 );
             }
+        }
+    }
+
+    /// The folded forms agree with `interior_is_left`: a value on the
+    /// left is kept exactly where the region is on the left, and a side
+    /// holds the region exactly where it holds the left there.
+    #[test]
+    fn the_folded_forms_read_the_interior_side() {
+        for orientation in [
+            PolygonOrientation::CounterClockwise,
+            PolygonOrientation::Clockwise,
+        ] {
+            let left = orientation.interior_is_left();
+            assert_eq!(orientation.to_interior(1.0) > 0.0, left, "{orientation:?}");
+            assert_eq!(orientation.to_interior(-2_i32) < 0, left, "{orientation:?}");
+            assert_eq!(orientation.interior_is_on(true), left, "{orientation:?}");
+            assert_eq!(orientation.interior_is_on(false), !left, "{orientation:?}");
         }
     }
 

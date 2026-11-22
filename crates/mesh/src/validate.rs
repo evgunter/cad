@@ -4,7 +4,9 @@
 
 use std::collections::BTreeMap;
 
+use crate::cert;
 use crate::types::Mesh;
+use geom_core::{Point3, Vec3};
 use topo::FaceKey;
 
 /// Typed mesh-validity failure (closed enum).
@@ -275,7 +277,198 @@ pub fn check_volume(mesh: &Mesh, volume: f64, area: f64, delta: f64) -> Result<(
     }
 }
 
+/// **A triangle whose winding is inside the rounding of its own
+/// positions** ([`resolved_normal`]): what it is, in the numbers the one
+/// definition reads.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Unresolved {
+    /// The triangle's corners, as wound, each `[x, y, z]`.
+    pub corners: [[f64; 3]; 3],
+    /// Its height over its longest side: its cross product over that
+    /// side's length.
+    pub height: f64,
+    /// The height it would have to exceed: [`cert::ROUNDING_ULPS`] f64
+    /// epsilons of the largest of its corners' norms.
+    pub allowance: f64,
+}
+
+/// **A triangle's normal as wound, `(b − a) × (c − a)`, where its
+/// winding is resolved above the rounding of its own positions**
+/// (`crates/mesh/README.md` `[mesh.winding]`, the one definition): its
+/// cross product exceeds [`cert::rounding_allowance`] at its coordinate
+/// scale ([`cert::coordinate_scale`]) times its longest side. The cross
+/// product is the longest side times the height over it, so this holds
+/// the height against the allowance.
+///
+/// It reads no ε and no δ: a triangle may be thin, and small beside
+/// either, and be resolved.
+///
+/// # Errors
+///
+/// [`Unresolved`] otherwise, and for a triangle with a corner that is
+/// not finite.
+pub(crate) fn resolved_normal(tri: [Point3<f64>; 3]) -> Result<Vec3<f64>, Unresolved> {
+    let [a, b, c] = tri;
+    let normal = (b - a).cross(c - a);
+    let longest = (b - a).norm().max((c - b).norm()).max((a - c).norm());
+    let allowance = cert::rounding_allowance(cert::coordinate_scale(tri));
+    if normal.norm() > allowance * longest {
+        Ok(normal)
+    } else {
+        Err(Unresolved {
+            corners: tri.map(Point3::to_array),
+            height: normal.norm() / longest,
+            allowance,
+        })
+    }
+}
+
+/// The first of `triangles`, indices into `positions`, whose winding is
+/// not resolved ([`resolved_normal`]), with what it is.
+pub(crate) fn first_unresolved(
+    positions: &[Point3<f64>],
+    triangles: &[[u32; 3]],
+) -> Option<([u32; 3], Unresolved)> {
+    triangles.iter().find_map(|&t| {
+        resolved_normal(t.map(|i| positions[i as usize]))
+            .err()
+            .map(|unresolved| (t, unresolved))
+    })
+}
+
+/// A triangle whose winding f64 does not resolve ([`check_winding`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct UnresolvedWinding {
+    /// The face whose patch holds the triangle.
+    pub face: FaceKey,
+    /// The triangle, as indices into [`Mesh::positions`].
+    pub triangle: [u32; 3],
+    /// Its corners, its height and the allowance it does not exceed.
+    pub unresolved: Unresolved,
+}
+
+/// Whether **every triangle's winding is resolved above the rounding of
+/// its own positions** (`crates/mesh/README.md` `[mesh.winding]`): its
+/// height over its longest side exceeds [`cert::ROUNDING_ULPS`] f64
+/// epsilons of the largest of its corners' norms (its cross product
+/// exceeds that allowance times the side). Shape is not otherwise read:
+/// a thin triangle passes, and so does one small beside the kernel's ε.
+///
+/// [`fn@crate::tessellate`] refuses a face with a triangle that fails
+/// this ([`crate::TessellateError::UnresolvedWinding`]), by the same
+/// definition, so a mesh it returns passes; this re-derives it from the
+/// mesh alone, for a mesh of any provenance. That each winding is
+/// *outward* is not read here: it needs the body, and [`check_volume`]
+/// is the check that has it.
+///
+/// As [`signed_volume`], it indexes [`Mesh::positions`] unchecked:
+/// [`check_mesh`] is what refuses an index out of range.
+///
+/// # Errors
+///
+/// The first unresolved triangle in patch order, with its face.
+pub fn check_winding(mesh: &Mesh) -> Result<(), UnresolvedWinding> {
+    mesh.patches.iter().try_for_each(|patch| {
+        first_unresolved(&mesh.positions, &patch.triangles).map_or(
+            Ok(()),
+            |(triangle, unresolved)| {
+                Err(UnresolvedWinding {
+                    face: patch.face,
+                    triangle,
+                    unresolved,
+                })
+            },
+        )
+    })
+}
+
 /// Total triangle count across all patches.
 pub fn triangle_count(mesh: &Mesh) -> usize {
     mesh.patches.iter().map(|p| p.triangles.len()).sum()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::types::FacePatch;
+
+    /// A triangle of longest side `scale/4` and height `h` over it, its
+    /// farthest corner at distance `scale` from the origin exactly.
+    fn sliver(scale: f64, h: f64) -> [Point3<f64>; 3] {
+        let l = scale / 4.0;
+        [
+            Point3::new(scale - l, 0.0, 0.0),
+            Point3::new(scale, 0.0, 0.0),
+            Point3::new(scale - l / 2.0, h, 0.0),
+        ]
+    }
+
+    /// **The one definition's edge** ([`resolved_normal`]): the height
+    /// over the longest side is held against eight f64 epsilons of the
+    /// largest corner norm, written out here and not read from `cert`.
+    /// One and a half allowances resolve and three quarters of one do
+    /// not, at every scale, so an allowance or a scale off by a factor of
+    /// two either way reds a cell; the longest side is a quarter of the
+    /// scale, so a threshold read at the side's length does too. The same
+    /// triangle a thousand times farther out is unresolved: the verdict
+    /// depends on where the body sits.
+    #[test]
+    fn a_winding_is_resolved_above_eight_epsilons_of_its_coordinate_scale() {
+        for scale in [1e-3, 1.0, 1e3] {
+            let allowance = 8.0 * f64::EPSILON * scale;
+            assert!(
+                resolved_normal(sliver(scale, 1.5 * allowance)).is_ok(),
+                "scale {scale:e}: a height of 1.5 allowances resolves"
+            );
+            assert!(
+                resolved_normal(sliver(scale, 0.75 * allowance)).is_err(),
+                "scale {scale:e}: a height of 0.75 allowances does not"
+            );
+        }
+        let near = sliver(1.0, 12.0 * f64::EPSILON);
+        let far = near.map(|p| p + Vec3::new(0.0, 0.0, 1e3));
+        assert!(resolved_normal(near).is_ok() && resolved_normal(far).is_err());
+        let none = [Point3::new(1.0, 2.0, 3.0); 3];
+        assert!(resolved_normal(none).is_err(), "three corners at one point");
+        let mut poison = sliver(1.0, 0.5);
+        poison[2].y = f64::NAN;
+        assert!(
+            resolved_normal(poison).is_err(),
+            "a corner that is not finite"
+        );
+    }
+
+    /// **The public check names the first unresolved triangle and its
+    /// face** ([`check_winding`]), in patch order, and passes a mesh
+    /// whose triangles are thin and resolved.
+    #[test]
+    fn check_winding_names_the_first_unresolved_triangle() {
+        let positions: Vec<Point3<f64>> = sliver(1.0, 0.1)
+            .into_iter()
+            .chain([Point3::new(0.875, 4.0 * f64::EPSILON, 0.0)])
+            .chain([Point3::new(0.875, 1e-9, 0.0)])
+            .collect();
+        let patch = |triangles: Vec<[u32; 3]>| FacePatch {
+            face: FaceKey::default(),
+            triangles,
+        };
+        let mut mesh = Mesh {
+            positions,
+            patches: vec![patch(vec![[0, 1, 2]]), patch(vec![[0, 1, 4]])],
+            boundaries: Vec::new(),
+        };
+        assert_eq!(check_winding(&mesh), Ok(()), "thin, and resolved");
+        mesh.patches[1].triangles.push([0, 1, 3]);
+        let found = check_winding(&mesh).expect_err("the last triangle is unresolved");
+        assert_eq!(
+            (found.face, found.triangle),
+            (FaceKey::default(), [0, 1, 3])
+        );
+        // The numbers it names: the triangle's own height, half the
+        // allowance at its scale, written out here.
+        assert_eq!(found.unresolved.height, 4.0 * f64::EPSILON);
+        assert_eq!(found.unresolved.allowance, 8.0 * f64::EPSILON);
+        assert_eq!(found.unresolved.corners[2], mesh.positions[3].to_array());
+    }
 }

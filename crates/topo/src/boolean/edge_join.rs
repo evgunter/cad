@@ -54,7 +54,12 @@
 //! The joined edge runs on the kept edge's carrier through the vertex,
 //! so the kept edge is one whose carrier has no crease there
 //! ([`crease_at`]: a spline carrier at its clamped end, or at an
-//! interior knot of multiplicity at least its degree). A spline that
+//! interior knot of multiplicity at least its degree). The carrier read
+//! is the one the edge stores: an edge on a periodic cubic reads a
+//! clamped view that ends at each of its vertices, but the loop it is a
+//! span of runs on through them with simple knots only, so a periodic
+//! stored carrier has no crease anywhere in its loop and its vertices
+//! join as a circle's do. A spline that
 //! ends at the vertex beside a line or a circle on the same locus is
 //! the edge the join kills. Where both carriers crease there, as two
 //! spline pieces meeting at a knot of full multiplicity do, the vertex
@@ -426,9 +431,16 @@ pub(super) fn singular_at<T: Decide>(
         geom::Line { origin, dir: axis }.distance(p)
     };
     let arm = match *s {
-        geom::Surface::Cone { apex, .. } => (p - apex).norm(),
-        geom::Surface::Sphere { center, axis, .. } => off_axis(center, axis),
-        geom::Surface::Torus { center, axis, .. } | geom::Surface::Spindle { center, axis, .. } => {
+        geom::Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
+            (p - apex).norm()
+        }
+        geom::Surface::Sphere { frame, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            off_axis(center, axis)
+        }
+        geom::Surface::Torus { frame, .. } | geom::Surface::Spindle { frame, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             off_axis(center, axis)
         }
         _ => return Ok(false),
@@ -468,7 +480,10 @@ fn crease_at<T: Decide>(
     let Some(c) = body.edge_curve_linked(e, d).certified() else {
         return Ok(Crease::No);
     };
-    let geom::Curve3::Nurbs(n) = c.carrier() else {
+    // The stored carrier: an edge on a periodic cubic reads a clamped
+    // view that ends at `w`, but the loop it is a span of runs on
+    // through `w` with no knot of that multiplicity, as a circle does.
+    let geom::Curve3::Nurbs(n) = c.stored_carrier() else {
         return Ok(Crease::No);
     };
     let (t0, t1) = c.params();
@@ -1154,7 +1169,12 @@ fn carried_far<T: Decide>(
 
 /// **`gone`'s far end read off `kept`'s carrier**: the parameter of
 /// `gone`'s middle near `tw`, then of `far` near that, so the reading
-/// walks from the vertex along `gone`. Where `gone` lies on the very
+/// walks from the vertex along `gone`. A closed form inverts in closed
+/// form; a periodic cubic by its foot ([`geom::Curve3::foot`]), which is
+/// the one reading of a far end on a loop that [`carried_far`] does not
+/// carry: an arc stated a whole turn away across the loop's seat, an
+/// arc stated on the loop run back, and one whose parameter at the
+/// vertex is not the kept edge's bit for bit. Where `gone` lies on the very
 /// carrier ([`carried_far`]), this names `gx`'s point, and the two
 /// spellings agree up to rounding (ledger row F39).
 fn read_far<T: Decide>(
@@ -1164,6 +1184,13 @@ fn read_far<T: Decide>(
     far: geom_core::Point3<T>,
     tw: T,
 ) -> Option<T> {
+    // A periodic cubic inverts by its foot, read in the turn nearest the
+    // parameter walked from.
+    if let Some(p) = carrier.as_periodic() {
+        let turn = geom_core::period::Period::new(p.period());
+        let near = |q: geom_core::Point3<T>, from: T| turn.near(carrier.foot(q, from).seed(), from);
+        return Some(near(far, near(gone.mid_point(g0, g1), tw)));
+    }
     carrier
         .param_near(gone.mid_point(g0, g1), tw)
         .and_then(|tm| carrier.param_near(far, tm))
@@ -1189,7 +1216,9 @@ fn joined_spec<T: Decide>(
     let ((kept, kd), (gone, gd)) = curve(join.kept)
         .zip(curve(join.gone))
         .ok_or(desync("a joined edge is not certified"))?;
-    let carrier = kept.carrier();
+    // The carrier the joined edge is stated on is the kept edge's stored
+    // one: on a periodic cubic the loop, which runs on through `w`.
+    let carrier = kept.stored_carrier();
     let (t0, t1) = kept.params();
     let backward = body.get_half_edge(kd.he_plus).map(|h| h.start) == Some(w);
     let (g0, g1) = gone.params();
@@ -1200,20 +1229,21 @@ fn joined_spec<T: Decide>(
     let tw = if backward { t0 } else { t1 };
     let gone_from_w = body.get_half_edge(gd.he_plus).map(|h| h.start) == Some(w);
     let at_w = if gone_from_w { (g0, g1) } else { (g1, g0) };
-    let carried = carried_far(carrier, tw, backward, gone.carrier(), at_w);
+    let carried = carried_far(carrier, tw, backward, gone.stored_carrier(), at_w);
     let tx = if let Some(tx) = carried {
         tx
     } else if join.closed {
-        let period = T::from_f64(core::f64::consts::TAU);
-        match carrier {
-            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
+        // The carrier's own period (`Curve3::period`), which a closed
+        // join runs once round: at `Interval`, τ's enclosure.
+        match carrier.period() {
+            Some(period) => {
                 if backward {
-                    t1 - period
+                    t1 - period.length()
                 } else {
-                    t0 + period
+                    t0 + period.length()
                 }
             }
-            _ => {
+            None => {
                 return Err(BooleanError::JoinCarrierUnsupported {
                     edge: join.kept,
                     carrier: carrier.kind(),
@@ -1222,7 +1252,7 @@ fn joined_spec<T: Decide>(
             }
         }
     } else {
-        read_far(carrier, gone.carrier(), (g0, g1), far, tw).ok_or(
+        read_far(carrier, gone.stored_carrier(), (g0, g1), far, tw).ok_or(
             BooleanError::JoinCarrierUnsupported {
                 edge: join.kept,
                 carrier: carrier.kind(),
@@ -1427,19 +1457,23 @@ mod crease {
                 seed.face,
                 FaceSurface::New {
                     surface: geom::Surface::Sphere {
-                        center: p3(0.0, 0.0),
+                        frame: geom::Frame::new(
+                            p3(0.0, 0.0),
+                            Vec3::new(c(0.0), c(0.0), c(1.0)),
+                            Vec3::new(c(1.0), c(0.0), c(0.0)),
+                        ),
                         radius: c(1.0),
-                        axis: Vec3::new(c(0.0), c(0.0), c(1.0)),
-                        u_ref: Vec3::new(c(1.0), c(0.0), c(0.0)),
                     },
                     sense: true,
                 },
             )
             .unwrap();
         let plane = body.add_surface(geom::Surface::Plane {
-            origin: p3(0.0, 0.0),
-            normal: Vec3::new(c(0.0), c(0.0), c(-1.0)),
-            u_ref: Vec3::new(c(1.0), c(0.0), c(0.0)),
+            frame: geom::Frame::new(
+                p3(0.0, 0.0),
+                Vec3::new(c(0.0), c(0.0), c(-1.0)),
+                Vec3::new(c(1.0), c(0.0), c(0.0)),
+            ),
         });
         let on_both = |carrier, (t0, t1): (f64, f64), at: (f64, f64)| geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
@@ -1580,9 +1614,7 @@ mod carry {
             ))
         };
         let spiric = |offset: f64| Curve3::Spiric {
-            center: o,
-            axis: z,
-            u_ref: x,
+            frame: geom::Frame::new(o, z, x),
             major_radius: 2.0,
             minor_radius: 0.5,
             offset,
@@ -1598,24 +1630,13 @@ mod carry {
             ),
             (
                 "circle",
-                Curve3::Circle(geom::Circle { frame, radius: 1.5 }),
-                Curve3::Circle(geom::Circle {
-                    frame,
-                    radius: up(1.5),
-                }),
+                Curve3::Circle(geom::Circle::new(frame, 1.5)),
+                Curve3::Circle(geom::Circle::new(frame, up(1.5))),
             ),
             (
                 "ellipse",
-                Curve3::Ellipse(geom::Ellipse {
-                    frame,
-                    semi_u: 2.0,
-                    semi_v: 1.0,
-                }),
-                Curve3::Ellipse(geom::Ellipse {
-                    frame,
-                    semi_u: 2.0,
-                    semi_v: up(1.0),
-                }),
+                Curve3::Ellipse(geom::Ellipse::new(frame, 2.0, 1.0)),
+                Curve3::Ellipse(geom::Ellipse::new(frame, 2.0, up(1.0))),
             ),
             ("spiric", spiric(0.75), spiric(up(0.75))),
             ("nurbs", net(0.8), net(up(0.8))),
@@ -1722,12 +1743,8 @@ mod carry {
     fn a_piece_of_a_circle_turned_in_its_reference_direction_carries_nothing() {
         let o = Point3::new(0.0, 0.0, 0.0);
         let z = Vec3::new(0.0, 0.0, 1.0);
-        let circle = |u: Vec3<f64>| {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame::new(o, z, u),
-                radius: 1.0,
-            })
-        };
+        let circle =
+            |u: Vec3<f64>| Curve3::Circle(geom::Circle::new(geom::Frame::new(o, z, u), 1.0));
         let (kept, turned) = (
             circle(Vec3::new(1.0, 0.0, 0.0)),
             circle(Vec3::new(0.0, 1.0, 0.0)),
@@ -2431,10 +2448,8 @@ mod class_zero_rows {
             seed.face,
             FaceSurface::New {
                 surface: geom::Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     radius: c(1.0),
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
                 },
                 sense: true,
             },

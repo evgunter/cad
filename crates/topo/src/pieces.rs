@@ -57,9 +57,9 @@
 use geom_core::{Band, Decide, Tol};
 
 use crate::body::Body;
-use crate::boolean::PointInSolidError;
 use crate::entity::{FaceKey, ShellKey, SolidKey};
-use crate::props::{QuadLane, ShellClassifyError, ShellRole};
+use crate::props::{ShellClassifyError, ShellRole};
+use crate::solid_contain::PointInSolidError;
 use crate::stands::{Insides, ShellRead, witness_insides};
 
 /// Why the sort could not read which piece a shell belongs to
@@ -201,7 +201,7 @@ pub(crate) fn sort_into_pieces<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     band: Band,
     tol: Tol,
-    quad: Option<QuadLane<T>>,
+    quad: Option<T::QuadLane>,
     face_box: Option<FaceBox<'_, T>>,
 ) -> Result<(), PieceSortError> {
     let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
@@ -223,7 +223,7 @@ fn pieces_of<T: Decide + crate::props::AtRestPolicy>(
     solid: SolidKey,
     band: Band,
     tol: Tol,
-    quad: Option<QuadLane<T>>,
+    quad: Option<T::QuadLane>,
     face_box: Option<FaceBox<'_, T>>,
 ) -> Result<Vec<Vec<ShellKey>>, PieceSortError> {
     let Some(shells) = body.shells_of_solid(solid) else {
@@ -518,8 +518,8 @@ mod tests {
         };
         let mut poisoned = brick((6.0, 7.0), (0.0, 1.0), (0.0, 1.0), tol);
         for surface in poisoned.surfaces.values_mut() {
-            if let geom::Surface::Plane { origin, .. } = surface {
-                *origin = geom_core::Point3::new(f64::NAN, f64::NAN, f64::NAN);
+            if let geom::Surface::Plane { frame, .. } = surface {
+                *frame = frame.with_origin(geom_core::Point3::new(f64::NAN, f64::NAN, f64::NAN));
             }
         }
         crate::graft_disjoint_all_keyed(&mut body, &poisoned).unwrap();

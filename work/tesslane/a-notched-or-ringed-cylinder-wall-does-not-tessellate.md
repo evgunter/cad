@@ -2,11 +2,12 @@
 id: a-notched-or-ringed-cylinder-wall-does-not-tessellate
 kind: issue
 title: A cylinder wall notched by rulings and an arc, or carrying a hole, builds and measures but does not tessellate
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
-blocked_on: [a-curved-face-is-routed-by-its-domain-not-its-carriers]
+closed: 2026-11-17
+pr: 7041
 ---
 
 
@@ -87,3 +88,23 @@ Run at `d6e1eb1f` (probes `reach_probes::a_notched_or_holed_pipe_wall_refuses_at
 - ∩ and bar ∖ pipe mesh and pass `check_mesh`; with the turned brick they mesh through the trimmed cylinder arm.
 
 **P0**: a pipe with a boss or a slot through its wall is as ordinary as a body gets, and it cannot be drawn. With designers alongside `trimmed-tessellation-lacks-torus-and-plane-arms` (`design: true`).
+
+## The ring half is closed (2026-11-14, TESSLANE unit 3)
+
+A cylinder or cone wall with a hole meshes: a curved face holding a
+ring goes to the trimmed lane, which reads every loop of its domain
+from `topo::Body::face_lift` (`a-curved-faces-domain-is-read-from-every-loop`,
+branch `tesslane/domain-loops`). Bar 3, the brick turned 0.3 and cone
+T1 mesh in every op at every δ the probes use
+(`reach_probes::a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes`,
+`a_cone_wall_holding_a_ring_meshes_on_the_cone_row`), and so do the
+D-section's window (`sweep`'s `shell_curved_mouth`) and `cone_join_lane`'s
+T1 ops. The notch is what is left, and it is unit 4's
+(`a-curved-face-is-routed-by-its-domain-not-its-carriers`): bars 1 and 2
+still refuse `NotIsoRectangle` at the curved lane's shape door.
+
+## Closed (2026-11-17, PR 7041)
+
+The notch meshes. A face bounded by rims and rulings that is no rectangle is decided `props_rim_level` at the shape door and routed to the chart lane (`tessellate::route_of`), which reads its domain from the body's stored images. Bars 1 and 2 mesh in every op at δ 5·10⁻³, 10⁻³ and 2·10⁻⁴ and pass `reach_probes::geometry` (`reach_probes::a_notched_or_holed_pipe_wall_meshes`); a ball less a quarter-turn wedge, the same shape on a sphere, meshes too (`a_notched_sphere_face_meshes_on_the_sphere_row`). No triangle of no area over the 30 notched bodies at nine δ.
+
+Left, each filed: where a notch's corner sits on the wall's seam, the rectangle face beside it refuses `CertificateExceeded` at every δ, on main as here (`a-seam-cornered-cylinder-notchs-rectangle-neighbour-exceeds-its-certificate`); a notched face sizes with the chart lane's headroom, not at δ (`a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line`).

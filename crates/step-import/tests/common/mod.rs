@@ -35,7 +35,9 @@ pub fn at_rest(body: &Body<f64>) -> AtRestBody<f64> {
 /// curved-path `sweep_body`. Both are non-rational NURBS-walled, so
 /// they put M7-3's surface arm, its IsoCurve seam rung and its rim
 /// pcurve re-mint on bodies the writer could not produce until #210.
-pub const SOLID_FIXTURES: [&str; 17] = [
+///
+/// `voided` is the first hollow body: one `BREP_WITH_VOIDS`.
+pub const SOLID_FIXTURES: &[&str] = &[
     "cube",
     "die",
     "kiss_assembly",
@@ -53,6 +55,7 @@ pub const SOLID_FIXTURES: [&str; 17] = [
     "loft_prism",
     "nonuniform_loft",
     "swept_elbow",
+    "voided",
 ];
 
 /// A fixture file's text.
@@ -149,21 +152,15 @@ pub fn arena_census(body: &Body<f64>) -> (usize, usize, usize, usize, usize) {
 /// (1, 1, 1), the corpus's only touching assembly, is recorded by the
 /// shared tier-3′ gate as a contact between its two instances
 /// (`topo::record_at_rest`).
-///
-/// `examine` is [`step_import::ImportOptions::examine_chart_coherence`],
-/// which every caller but the coherence-channel suite leaves `false`.
-pub fn own_import_options(examine: bool) -> step_import::ImportOptions {
-    step_import::ImportOptions {
-        examine_chart_coherence: examine,
-        ..step_import::ImportOptions::default()
-    }
+pub fn own_import_options() -> step_import::ImportOptions {
+    step_import::ImportOptions::default()
 }
 
 /// Imports a fixture's committed `.step`, panicking on refusal (the
 /// suites' entry point for files that must import).
 pub fn import_fixture(name: &str) -> step_import::StepImport {
     let text = fixture(name, "step");
-    step_import::import_step(&text, &own_import_options(false), Tol::witness())
+    step_import::import_step(&text, &own_import_options(), Tol::witness())
         .unwrap_or_else(|e| panic!("importing {name}: {e_at}", e_at = e.render()))
 }
 
@@ -200,12 +197,10 @@ pub fn halfcap_with_its_arc_through_the_pole(tol: Tol) -> Body<f64> {
     let (centre, axis, radius) = body
         .faces()
         .find_map(|(fk, _)| match body.face_surface(fk) {
-            Some(geom::Surface::Sphere {
-                center,
-                axis,
-                radius,
-                ..
-            }) => Some((*center, *axis, *radius)),
+            Some(geom::Surface::Sphere { frame, radius, .. }) => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                Some((center, axis, *radius))
+            }
             _ => None,
         })
         .expect("a sphere face");
@@ -321,5 +316,24 @@ pub fn arc_section(s: f64) -> sweep::Section {
 pub fn stacked(z: &[f64], s: f64) -> Vec<profile::SketchPlane<f64>> {
     z.iter()
         .map(|h| profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, h * s)))
+        .collect()
+}
+
+/// **The structure normalizations of an import's ledger**: every entry but
+/// the build's moves (`VertexBuilt`, `CarrierBuilt`), which the build
+/// records for any move of a vertex or carrier off what the file printed,
+/// rounding included, and which change no face, edge or vertex.
+pub fn structural(
+    normalizations: Vec<step_import::StructureNormalization>,
+) -> Vec<step_import::StructureNormalization> {
+    normalizations
+        .into_iter()
+        .filter(|n| {
+            !matches!(
+                n.kind,
+                step_import::NormalizationKind::VertexBuilt { .. }
+                    | step_import::NormalizationKind::CarrierBuilt { .. }
+            )
+        })
         .collect()
 }

@@ -68,8 +68,8 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
 use crate::boxes::sweep_pad;
+use crate::contain::{CurvedPlacement, FaceContainment, face_placement};
 use crate::cover::{edge_cover, edge_end_point};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey};
 use crate::live::{BoundaryMember, proven};
@@ -189,9 +189,10 @@ fn standing<T: Decide>(
     band: Band,
 ) -> bool {
     let face = body.proven_face(a);
-    let geom::Surface::Plane { origin, .. } = *face.surface() else {
+    let geom::Surface::Plane { frame, .. } = *face.surface() else {
         return false;
     };
+    let origin = frame.origin();
     let (Some((n, _)), Some((nb, lever))) = (normal(body, a, band), normal(body, b, band)) else {
         return false;
     };

@@ -123,7 +123,7 @@ fn radius_spelling(doc: &ProfileDoc, blend: RecipeNodeId) -> Vec<u8> {
 
 /// The doc's snapshot saved, doctored by `edit`, and loaded.
 fn load_doctored(doc: &ProfileDoc, edit: impl FnOnce(&mut serde_json::Value)) -> PersistError {
-    let text = save(doc, &[], Tol::witness()).unwrap();
+    let text = save(doc, Tol::witness()).unwrap();
     load(&text, Tol::witness()).expect("the undoctored save loads");
     let corrupt = crate::wire::doctored(&text, |wire| edit(&mut wire["snapshot"]));
     load(&corrupt, Tol::witness()).expect_err("the doctored save must refuse")
@@ -737,8 +737,8 @@ fn split_and_inline_carry_definitions() {
         ),
         "h reads the part's w"
     );
-    let text = save(&out.part, &[], Tol::witness()).expect("the part saves");
-    assert!(load(&text, Tol::witness()).unwrap().doc.bit_eq(&out.part));
+    let text = save(&out.part, Tol::witness()).expect("the part saves");
+    assert!(load(&text, Tol::witness()).unwrap().bit_eq(&out.part));
 
     let mut store = PartStore::default();
     let doc_ref = store.insert(out.part.clone(), Tol::witness());
@@ -771,27 +771,12 @@ fn split_and_inline_carry_definitions() {
 
 // ------------------------------------------------------ persistence
 
-/// A defined variable round-trips through the snapshot and through a
-/// replayed log, its log entry read by name and lowered on replay.
+/// A defined variable round-trips through save and load.
 #[test]
-fn a_definition_round_trips_through_snapshot_and_log() {
+fn a_definition_round_trips_through_save_and_load() {
     let doc = w_and_h("intent-literals-a-round-trip");
-    let text = save(&doc, &[], Tol::witness()).unwrap();
-    assert!(load(&text, Tol::witness()).unwrap().doc.bit_eq(&doc));
-
-    let mut r = Recorder::new();
-    r.push(DocEdit::DeclareVar {
-        name: n("w"),
-        def: free(W),
-    });
-    r.push(DocEdit::DeclareVar {
-        name: n("h"),
-        def: VarDecl::defined(times(2, "w")),
-    });
-    let empty = ProfileDoc::empty_derived("mod", Tol::witness());
-    let text = save(&empty, &r.edits, Tol::witness()).unwrap();
-    let loaded = load(&text, Tol::witness()).unwrap();
-    assert!(loaded.doc.bit_eq(&r.doc), "the log replays to the document");
+    let text = save(&doc, Tol::witness()).unwrap();
+    assert!(load(&text, Tol::witness()).unwrap().bit_eq(&doc));
 }
 
 /// A definition no door wrote refuses at load: one holding a name is
@@ -885,7 +870,7 @@ fn a_file_past_the_expansion_bound_refuses_at_load() {
 fn the_load_door_reads_liveness_through_definitions() {
     let doc = w_and_h("intent-literals-a-load-live");
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
-    let text = save(&doc, &[], Tol::witness()).unwrap();
+    let text = save(&doc, Tol::witness()).unwrap();
     let unnamed_w = crate::wire::doctored(&text, |wire| {
         let names = wire["snapshot"]["var_names"].as_object_mut().unwrap();
         names.remove(&w.0.to_string()).expect("w had a name");

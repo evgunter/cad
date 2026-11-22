@@ -395,9 +395,9 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
-use super::contain::FaceContainment;
+use crate::contain::FaceContainment;
 use crate::validate::decide;
-use geom_brep::pair_section::{Pinch, signs, signs_across};
+use geom_brep::pair_section::{Pinch, signs_across, signs_as};
 use geom_brep::{AxisPose, ExtentBall, Reach, Turn, axis_pose};
 
 /// Which face of the pair a statement is about.
@@ -432,7 +432,7 @@ pub(crate) struct Component<T: Real> {
     /// a box of its uniqueness tube holds both the witness and a piece of
     /// the component), zero for a closed form. W3
     /// reads the witness `w` against the band padded by twice it
-    /// (`certify`): a face's placement margins are lengths read at a
+    /// (`certify_section_pair`): a face's placement margins are lengths read at a
     /// point's foot on the face's surface, and for the point `c` of the
     /// component nearest `w`, which lies on the surface (its own foot),
     /// `|foot(w) − c| ≤ |foot(w) − w| + |w − c| ≤ 2·|w − c| ≤ 2·pad`:
@@ -507,7 +507,7 @@ pub(crate) struct Touch<T: Real> {
     /// margin. Each arm says which point it reads.
     pub at: Point3<T>,
     /// Whether it is two cones' touch at their common apex, which
-    /// [`certify`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
+    /// [`certify_section_pair`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
     pub apex: bool,
 }
 
@@ -719,12 +719,12 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 /// region, which the section value reads a pair with no bounded side
 /// over (two cylinders), and the band.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn classify<T: Decide>(
+pub(crate) fn classify<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     classify_known(
@@ -740,12 +740,12 @@ pub(crate) fn classify<T: Decide>(
 
 /// [`classify`] with what the boolean knows of a spline pair handed in
 /// (`known`, read by the spline pair's arm alone).
-pub(crate) fn classify_known<T: Decide>(
+pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
     known: geom_brep::KnownPair<T>,
 ) -> Section<T> {
@@ -756,7 +756,7 @@ pub(crate) fn classify_known<T: Decide>(
         | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
         | (S::Sphere { .. } | S::Cylinder { .. }, S::Cylinder { .. })
         | (S::Cylinder { .. }, S::Sphere { .. }) => {
-            match geom_brep::pair_section(f, g, region, None, band) {
+            match geom_brep::pair_section(f, g, region, None::<geom_core::NoLane>, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
                     of_pair_section(&Ok(section), band, marched)
                 }
@@ -777,24 +777,50 @@ pub(crate) fn classify_known<T: Decide>(
         }
         (S::Cylinder { .. }, S::Plane { .. }) => cylinder_plane(),
         (S::Plane { .. }, S::Cylinder { .. }) => swapped(cylinder_plane()),
-        (&S::Sphere { center, radius, .. }, &S::Plane { origin, normal, .. }) => {
+        (
+            &S::Sphere {
+                frame: sphere_frame,
+                radius,
+                ..
+            },
+            &S::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let center = sphere_frame.origin();
+            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
             sphere_plane(center, radius, origin, normal.normalize(), band)
         }
-        (&S::Plane { origin, normal, .. }, &S::Sphere { center, radius, .. }) => {
+        (
+            &S::Plane {
+                frame: plane_frame, ..
+            },
+            &S::Sphere {
+                frame: sphere_frame,
+                radius,
+                ..
+            },
+        ) => {
+            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
+            let center = sphere_frame.origin();
             sphere_plane(center, radius, origin, normal.normalize(), band)
         }
         (
             &S::Sphere {
-                center: c1,
+                frame: sphere_frame_2,
                 radius: r1,
                 ..
             },
             &S::Sphere {
-                center: c2,
+                frame: sphere_frame,
                 radius: r2,
                 ..
             },
-        ) => sphere_sphere(c1, r1, c2, r2, band),
+        ) => {
+            let c1 = sphere_frame_2.origin();
+            let c2 = sphere_frame.origin();
+            sphere_sphere(c1, r1, c2, r2, band)
+        }
         (
             S::Nurbs(_) | S::Approx(_),
             S::Plane { .. } | S::Cylinder { .. } | S::Sphere { .. } | S::Torus { .. },
@@ -817,11 +843,11 @@ pub(crate) fn classify_known<T: Decide>(
 /// `Corner` region reaching the sides they end on, cleared by W1′ where
 /// one bounds its face), its refusals mapped by name. With no lane it is
 /// R-lane.
-fn spline_pair<T: Decide>(
+fn spline_pair<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     known: geom_brep::KnownPair<T>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     let read = geom_brep::spline_pair_section(f, g, known, lane, band);
@@ -838,10 +864,10 @@ fn spline_pair<T: Decide>(
 /// whole; any other pose is C3's whole reading, which a curved partner
 /// does not have (intractable). With no lane a plane's pose the hull
 /// does not decide, and every curved partner's, is R-lane.
-fn spline_implicit<T: Decide>(
+fn spline_implicit<T: crate::props::AtRestPolicy>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    lane: Option<geom_brep::SsiLane<T>>,
+    lane: Option<T::SsiLane>,
     band: Band,
 ) -> Section<T> {
     let whole = |s: &geom_brep::PairSection<T>| Some(s.read_whole(lane, band));
@@ -883,8 +909,7 @@ fn torus_pair<T: Decide>(
     band: Band,
 ) -> Section<T> {
     let &geom::Surface::Torus {
-        center: c,
-        axis,
+        frame: carrier_frame,
         major_radius: big_r,
         minor_radius: r,
         ..
@@ -892,25 +917,27 @@ fn torus_pair<T: Decide>(
     else {
         return Section::Intractable;
     };
+    let (c, axis) = (carrier_frame.origin(), carrier_frame.axis());
     if geom::require_ring_torus(big_r, r, band).is_err() {
         return Section::Intractable;
     }
     let a = axis.normalize();
     match *p {
-        geom::Surface::Plane { origin, normal, .. } => torus_plane(
-            geom::Line { origin: c, dir: a },
-            big_r,
-            r,
-            origin,
-            normal.normalize(),
-            band,
-        ),
+        geom::Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            torus_plane(
+                geom::Line { origin: c, dir: a },
+                big_r,
+                r,
+                origin,
+                normal.normalize(),
+                band,
+            )
+        }
         geom::Surface::Cone {
-            apex,
-            axis: d,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, d) = (frame.origin(), frame.axis());
             let d = d.normalize();
             // `z` is read along the cone's axis from its own apex: the
             // turn onto the torus axis moves it by the torus centre's
@@ -1045,7 +1072,7 @@ enum PlaneCut {
 }
 
 fn plane_cut<T: Decide>(big_r: T, r: T, h: T, s: T, band: Band) -> PlaneCut {
-    let [near, far] = match signs(
+    let [near, far] = match signs_as(
         [
             (NEAR, r - (h - s * big_r).abs()),
             (FAR, r - (h + s * big_r).abs()),
@@ -1057,7 +1084,7 @@ fn plane_cut<T: Decide>(big_r: T, r: T, h: T, s: T, band: Band) -> PlaneCut {
     };
     match (near, far) {
         (true, true) => PlaneCut::AroundAxis,
-        (false, false) => match signs(
+        (false, false) => match signs_as(
             [("section_torus_plane_between", s * big_r - r - h.abs())],
             band,
         ) {
@@ -1102,110 +1129,118 @@ fn cone_pair<T: Decide>(
     band: Band,
 ) -> Section<T> {
     let &geom::Surface::Cone {
-        apex,
-        axis,
+        frame: carrier_frame,
         half_angle,
-        u_ref,
     } = k
     else {
         return Section::Intractable;
     };
+    let (apex, axis, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let cone = Cone::new(apex, axis, half_angle, u_ref);
     match *p {
-        geom::Surface::Plane { origin, normal, .. } => {
+        geom::Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
             cone_plane(&cone, origin, normal.normalize(), reach, band)
         }
-        geom::Surface::Sphere { center, radius, .. } => cone_sphere(&cone, center, radius, band),
+        geom::Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            cone_sphere(&cone, center, radius, band)
+        }
         geom::Surface::Cylinder {
-            origin,
-            axis: d,
-            radius: rc,
-            ..
-        } => match axis_pose(
-            geom::Line {
-                origin: apex,
-                dir: cone.a,
-            },
-            geom::Line {
-                origin,
-                dir: d.normalize(),
-            },
-            |_| T::zero(),
-            reach.ball(),
-            band,
-        ) {
-            // The meridians meet at `h = ±r_c/τ`: a parallel per nappe.
-            AxisPose::Coaxial { .. } => essential_pair(true, true),
-            AxisPose::Parallel { e, toward, slack } => {
-                cone_parallel_cylinder(&cone, (e, slack), toward, rc, band)
-            }
-            // The ruling charts read the pose as it stands, with nothing
-            // bridged, so an offset neither reading claims is theirs.
-            AxisPose::Undecided(_) | AxisPose::Other => cone_cylinder(
-                &cone,
+            frame, radius: rc, ..
+        } => {
+            let (origin, d) = (frame.origin(), frame.axis());
+            match axis_pose(
+                geom::Line {
+                    origin: apex,
+                    dir: cone.a,
+                },
                 geom::Line {
                     origin,
                     dir: d.normalize(),
                 },
-                rc,
-                reach,
-                band,
-            ),
-        },
-        geom::Surface::Cone {
-            apex: apex2,
-            axis: d,
-            half_angle: half_angle2,
-            u_ref: u_ref2,
-        } => match axis_pose(
-            geom::Line {
-                origin: apex,
-                dir: cone.a,
-            },
-            geom::Line {
-                origin: apex2,
-                dir: d.normalize(),
-            },
-            // The apexes' gap is read off `apex2` itself, which the turn
-            // onto the first axis moves along it by its station from the
-            // pivot times `1 − cos`, at most `sin²`.
-            |t| (apex2 - t.at).dot(d.normalize()).abs() * t.tilt.powi(2),
-            reach.ball(),
-            band,
-        ) {
-            // The meridians `ρ = |h|τ₁` and `ρ = |h − d|τ₂` meet in one or
-            // two parallels, each essential on both. Apexes decided one
-            // (Zero) are a touch at the apex: the forms differ by
-            // `(cos²α₂ − cos²α₁)·|X − A|²` up to the apexes' gap, so the
-            // carriers meet within the band of the apex, about that one
-            // point (or are one double cone, whose faces' overlap is the
-            // glue door's). Undecided, it stays R-tan.
-            AxisPose::Coaxial { slack, .. } => match signs_across(
-                [(
-                    "section_cone_coaxial_apexes",
-                    "section_cone_coaxial_apexes_floor",
-                    (apex2 - apex).dot(cone.a).abs(),
-                )],
-                slack,
+                |_| T::zero(),
+                reach.ball(),
                 band,
             ) {
-                Ok(_) => essential_pair(true, true),
-                Err(tan) => match touch(tan, &["section_cone_coaxial_apexes"], || apex) {
-                    Section::Touch(t) => Section::Touch(Touch { apex: true, ..t }),
-                    other => other,
+                // The meridians meet at `h = ±r_c/τ`: a parallel per nappe.
+                AxisPose::Coaxial { .. } => essential_pair(true, true),
+                AxisPose::Parallel { e, toward, slack } => {
+                    cone_parallel_cylinder(&cone, (e, slack), toward, rc, band)
+                }
+                // The ruling charts read the pose as it stands, with nothing
+                // bridged, so an offset neither reading claims is theirs.
+                AxisPose::Undecided(_) | AxisPose::Other => cone_cylinder(
+                    &cone,
+                    geom::Line {
+                        origin,
+                        dir: d.normalize(),
+                    },
+                    rc,
+                    reach,
+                    band,
+                ),
+            }
+        }
+        geom::Surface::Cone {
+            frame,
+            half_angle: half_angle2,
+        } => {
+            let (apex2, d, u_ref2) = (frame.origin(), frame.axis(), frame.u_ref());
+            match axis_pose(
+                geom::Line {
+                    origin: apex,
+                    dir: cone.a,
                 },
-            },
-            AxisPose::Parallel { .. } => {
-                let other = Cone::new(apex2, d, half_angle2, u_ref2);
-                cone_cone(&cone, &other, true, reach, band)
+                geom::Line {
+                    origin: apex2,
+                    dir: d.normalize(),
+                },
+                // The apexes' gap is read off `apex2` itself, which the turn
+                // onto the first axis moves along it by its station from the
+                // pivot times `1 − cos`, at most `sin²`.
+                |t| (apex2 - t.at).dot(d.normalize()).abs() * t.tilt.powi(2),
+                reach.ball(),
+                band,
+            ) {
+                // The meridians `ρ = |h|τ₁` and `ρ = |h − d|τ₂` meet in one or
+                // two parallels, each essential on both. Apexes decided one
+                // (Zero) are a touch at the apex: the forms differ by
+                // `(cos²α₂ − cos²α₁)·|X − A|²` up to the apexes' gap, so the
+                // carriers meet within the band of the apex, about that one
+                // point (or are one double cone, whose faces' overlap is the
+                // glue door's). Undecided, it stays R-tan.
+                AxisPose::Coaxial { slack, .. } => match signs_across(
+                    [(
+                        "section_cone_coaxial_apexes",
+                        "section_cone_coaxial_apexes_floor",
+                        (apex2 - apex).dot(cone.a).abs(),
+                    )],
+                    slack,
+                    band,
+                ) {
+                    Ok(_) => essential_pair(true, true),
+                    Err(tan) => match touch(tan, &["section_cone_coaxial_apexes"], || apex) {
+                        Section::Touch(t) => Section::Touch(Touch { apex: true, ..t }),
+                        other => other,
+                    },
+                },
+                AxisPose::Parallel { .. } => {
+                    let other = Cone::new(apex2, d, half_angle2, u_ref2);
+                    cone_cone(&cone, &other, true, reach, band)
+                }
+                // As against a cylinder, the ruling charts take an offset
+                // neither reading claims.
+                AxisPose::Undecided(_) | AxisPose::Other => {
+                    let other = Cone::new(apex2, d, half_angle2, u_ref2);
+                    cone_cone(&cone, &other, false, reach, band)
+                }
             }
-            // As against a cylinder, the ruling charts take an offset
-            // neither reading claims.
-            AxisPose::Undecided(_) | AxisPose::Other => {
-                let other = Cone::new(apex2, d, half_angle2, u_ref2);
-                cone_cone(&cone, &other, false, reach, band)
-            }
-        },
+        }
         _ => Section::Intractable,
     }
 }
@@ -1326,7 +1361,7 @@ fn cone_cylinder<T: Decide>(
     let (off, dist) = perp_to(cone.apex - o, d);
     let foot = cone.apex - off;
     let lever = reach.lever_from(cone.apex).length();
-    if let Err(tan) = signs([("section_cone_cylinder_apex", dist - rc)], band) {
+    if let Err(tan) = signs_as([("section_cone_cylinder_apex", dist - rc)], band) {
         return tan.into();
     }
     match sign_as(
@@ -1427,7 +1462,7 @@ fn cone_cone<T: Decide>(
             single: false,
         };
     }
-    if let Err(tan) = signs(
+    if let Err(tan) = signs_as(
         [
             (APEX, two.elevation(one.apex)),
             (APEX, one.elevation(two.apex)),
@@ -1595,7 +1630,7 @@ fn cone_plane<T: Decide>(
 /// component carries a witness on its extreme line.
 fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> Section<T> {
     let delta = cone.apex - cs;
-    let apex_out = match signs([("section_cone_sphere_apex", delta.norm() - rho)], band) {
+    let apex_out = match signs_as([("section_cone_sphere_apex", delta.norm() - rho)], band) {
         Ok([out]) => out,
         Err(tan) => return tan.into(),
     };
@@ -1629,9 +1664,9 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
     // apex: its roots' side is `−b`'s, and `|b| > √k > 0` wherever it
     // meets.
     let meets = |b: T, d: T, name: &'static str| -> Result<Option<bool>, Section<T>> {
-        match signs([("section_cone_sphere_generator", rho - d)], band)? {
+        match signs_as([("section_cone_sphere_generator", rho - d)], band)? {
             [false] => Ok(None),
-            [true] => match signs([(name, b)], band)? {
+            [true] => match signs_as([(name, b)], band)? {
                 [up] => Ok(Some(!up)),
             },
         }
@@ -1724,7 +1759,7 @@ fn sphere_plane<T: Decide>(
 ) -> Section<T> {
     let d = (cs - p0).dot(n);
     const REACH: &str = "section_sphere_plane_reach";
-    match signs([(REACH, rho - d.abs())], band) {
+    match signs_as([(REACH, rho - d.abs())], band) {
         Ok([true]) => {
             let rad = ((rho - d.abs()) * (rho + d.abs())).sqrt();
             // A witness picked off the axes. No output keeps it, but W3
@@ -1745,7 +1780,7 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
     let (k, dd) = (c2 - c1).direction_and_length();
     const REACH: &str = "section_sphere_pair_reach";
     const NEST: &str = "section_sphere_pair_nest";
-    match signs([(REACH, r1 + r2 - dd), (NEST, dd - (r1 - r2).abs())], band) {
+    match signs_as([(REACH, r1 + r2 - dd), (NEST, dd - (r1 - r2).abs())], band) {
         Ok([true, true]) => {
             let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
             let rad = ((r1 - x) * (r1 + x)).sqrt();
@@ -1829,6 +1864,7 @@ pub(super) fn of_pair_section<T: Decide>(
         Err(
             SectionError::RadiusEscalated { .. }
             | SectionError::DegenerateOperand { .. }
+            | SectionError::ConeAtTheBand { .. }
             | SectionError::DegenerateTorus(_)
             | SectionError::WrongLane { .. }
             | SectionError::RoutesToGeneralRung { .. }
@@ -1984,7 +2020,6 @@ pub(super) fn of_carried<T: Decide>(
             | CarryError::Refused(CarryRefusal::PadsMeet { .. })
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
-            | CarryError::Refused(CarryRefusal::Seat(_))
             | CarryError::Refused(CarryRefusal::Unwalked(_)),
         ) => return Section::Unmarched,
     };
@@ -2017,7 +2052,7 @@ pub(super) fn of_carried<T: Decide>(
 /// # Errors
 ///
 /// The pair's [`Refusal`].
-pub(crate) fn certify<T: Decide>(
+pub(crate) fn certify_section_pair<T: Decide>(
     section: &Section<T>,
     evented: bool,
     band: Band,

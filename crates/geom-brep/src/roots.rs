@@ -18,7 +18,7 @@
 
 use core::convert::Infallible;
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Real};
 
 /// A root finder's decided answer about a residual along a carrier
 /// (module docs).
@@ -164,7 +164,10 @@ pub enum Unsettled {
     /// tangent plane.
     AtApex,
     /// The residual's form degenerates where the band reads its leading
-    /// term zero (a line along a cone's generator).
+    /// term zero (a line along a cone's generator), or reads zero at
+    /// every point the pose samples with no rung deciding the span lies
+    /// on the surface (a Villarceau circle on a torus: the curve × face
+    /// pose's not-`Lies` rung in its zero band).
     Degenerate,
     /// A meeting within the band of a crease of a spline carrier, where
     /// it has no tangent to read a crossing by.
@@ -309,29 +312,14 @@ impl From<Indeterminate> for RootRefusal {
     }
 }
 
-/// The signs of both ends of `[value − spread, value + spread]`, each
-/// decided under `row`: the one reading of a value known only to within
-/// `spread`.
+/// **The two ends of `[value − spread, value + spread]`, each decided
+/// under `row`**: the one reading of a value known only to within
+/// `spread`, each end's reading kept for a caller that names a straddle
+/// of the two ([`geom_core::k_stats::straddle`]).
 ///
 /// # Errors
 ///
 /// The band's escalation when either end lies in its gap.
-pub fn spread_signs<T: Decide>(
-    row: &'static str,
-    value: T,
-    spread: T,
-    band: Band,
-) -> Result<(Sign, Sign), Indeterminate> {
-    let (below, above) = spread_readings(row, value, spread, band)?;
-    Ok((below.sign, above.sign))
-}
-
-/// [`spread_signs`], keeping each end's reading, for a caller that names
-/// a straddle of the two ([`geom_core::k_stats::straddle`]).
-///
-/// # Errors
-///
-/// As [`spread_signs`].
 pub fn spread_readings<T: Decide>(
     row: &'static str,
     value: T,
@@ -341,23 +329,6 @@ pub fn spread_readings<T: Decide>(
     let below = geom_core::k_stats::decide_reported(row, Margin::of(value - spread), band)?;
     let above = geom_core::k_stats::decide_reported(row, Margin::of(value + spread), band)?;
     Ok((below, above))
-}
-
-/// The sign of a residual's extreme read as `value` with error at most
-/// `noise` ([`spread_signs`]): ends that disagree read `Zero`. `noise`
-/// must bound the whole error, rounding included.
-///
-/// # Errors
-///
-/// As [`spread_signs`].
-pub fn extreme_sign<T: Decide>(
-    row: &'static str,
-    value: T,
-    noise: T,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    let (below, above) = spread_signs(row, value, noise, band)?;
-    Ok(if below == above { below } else { Sign::Zero })
 }
 
 /// The angle from an extreme of a first harmonic `c₀ + A·cos ψ` to its

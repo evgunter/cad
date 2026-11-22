@@ -4,7 +4,6 @@ kind: issue
 title: SSI_MAX_FIT_SAMPLES is a fixed cap on a sample count the marcher grows as epsilon shrinks, so a well-posed intersection refuses at fine eps
 status: closed
 opened: 2026-09-15
-refs: [D70]
 priority: P1
 cost: D
 pr: 4028

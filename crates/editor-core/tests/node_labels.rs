@@ -159,36 +159,24 @@ fn set_label_refuses_a_dead_node_and_a_no_op_and_delete_drops_the_label() {
     }
 }
 
-/// The label is in the save file — as the snapshot's and as a logged
-/// edit's — and an unlabelled document's file has no label section.
+/// The label is in the save file, and an unlabelled document's file has
+/// no label section.
 #[test]
-fn a_label_survives_save_and_load_and_replays_from_the_log() {
+fn a_label_survives_save_and_load() {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-save", tol);
     let (doc, [_, extrude]) = block(doc, 0.0);
-    let plain = save(&doc, &[], tol).expect("saves");
+    let plain = save(&doc, tol).expect("saves");
     assert!(
         !plain.contains("\"labels\""),
         "an unlabelled document writes no label section"
     );
 
     let labelled = set_label(doc.clone(), extrude, Some("base plate"));
-    let text = save(&labelled, &[], tol).expect("saves");
+    let text = save(&labelled, tol).expect("saves");
     let loaded = load(&text, tol).expect("loads");
-    assert_eq!(loaded.doc.label(extrude), Some(&label("base plate")));
-    assert!(loaded.doc.bit_eq(&labelled), "the snapshot round-trips");
-
-    let edits = [DocEdit::SetLabel {
-        node: extrude,
-        label: Some(label("base plate")),
-    }];
-    let logged = load(&save(&doc, &edits, tol).expect("saves"), tol).expect("loads");
-    assert_eq!(
-        logged.snapshot.label(extrude),
-        None,
-        "the snapshot is unlabelled"
-    );
-    assert!(logged.doc.bit_eq(&labelled), "the log's label edit replays");
+    assert_eq!(loaded.label(extrude), Some(&label("base plate")));
+    assert!(loaded.bit_eq(&labelled), "the document round-trips");
 }
 
 /// The load door holds a file to the edit door's rules: a label's text
@@ -201,7 +189,7 @@ fn the_load_door_refuses_a_blank_or_direction_setting_label_and_a_label_on_a_dea
     let (doc, [_, gone]) = block(doc, 5.0);
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: gone });
     let doc = set_label(doc, live, Some("lid"));
-    let text = save(&doc, &[], tol).expect("saves");
+    let text = save(&doc, tol).expect("saves");
     let key = |id: RecipeNodeId| serde_json::to_string(&id.0.to_string()).expect("a string");
     let entry = format!("{}: \"lid\"", key(live));
     assert!(text.contains(&entry), "the file holds {entry}");
@@ -241,7 +229,7 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
     let (doc, [_, other]) = block(doc, 2.0);
     let doc = set_label(doc, profile, Some("outline"));
     let doc = set_label(doc, extrude, Some("base \"plate\""));
-    let text = save(&doc, &[], tol).expect("saves");
+    let text = save(&doc, tol).expect("saves");
     let (header, body) = text.split_once('\n').expect("a header line, then the body");
     let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
     let read = &mut v["snapshot"]["nodes"][extrude.0.to_string()]["Extrude"]["profile"];

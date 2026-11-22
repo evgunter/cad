@@ -2,7 +2,9 @@
 id: dependent-normals-names-a-run-out-policy-the-tag-says-cannot-help
 kind: issue
 title: blend: CornerConfig::DependentNormals names RunOutStopAtVertex, whose corner patch its own doc says the configuration does not determine
-status: open
+status: closed
+closed: 2026-11-17
+pr: 7072
 opened: 2026-10-01
 priority: P3
 cost: E
@@ -31,3 +33,4 @@ corner_tag_dependent_normals_refuses_definitely` pins the current
 answer.
 
 - 2026-11-02 — moved from BANDRULE to BAND by `git mv` when BANDRULE merged into BAND, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and BANDRULE had fallen far under it).
+- 2026-11-17 — closed by bracket step 3, cut 3 (`band/bracket-end-vocabulary`): `RunOutPolicy` retired, and `UnbuiltEnd::DependentNormals` names no end policy; its text says what the trihedron is and its recourse is the independence decision's lever.

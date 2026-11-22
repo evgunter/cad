@@ -180,9 +180,10 @@ pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
 pub fn pin_axis<T: pncad::geom_core::Real>(body: &Body<T>) -> (T, T) {
     let mut found: Option<(SurfaceKey, (T, T))> = None;
     for (fk, face) in body.faces() {
-        let Some(Surface::Cylinder { origin, .. }) = body.face_surface(fk) else {
+        let Some(Surface::Cylinder { frame, .. }) = body.face_surface(fk) else {
             continue;
         };
+        let origin = frame.origin();
         match found {
             Some((key, _)) => assert_eq!(
                 key, face.surface,
@@ -400,7 +401,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         .chain([&target])
         .map(|&copy| pncad::document::Operand::Node(copy))
         .collect();
-    doc = crate::world::set_product(&placed.doc, &made, tol).doc;
+    doc = crate::world::set_product(&placed.doc, &made, tol);
 
     // The wall names come from the SELECTION door, the way a user gets
     // them: evaluate what is built so far, then ask each pin for its

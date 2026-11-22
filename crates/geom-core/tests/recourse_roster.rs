@@ -98,6 +98,10 @@ const INDIRECT: &[(&str, &str)] = &[
         "ladder.rs: an_agreeing_ladder_reads_every_rung_and_checks_its_answers: name",
         LOOP_ROWS,
     ),
+    (
+        "ladder.rs: a_lazily_read_rung_is_superseded_like_one_its_reader_reads: name",
+        LOOP_ROWS,
+    ),
     ("ladder.rs: data_beneath_sum: straddle", CROSS_CRATE),
     ("ladder.rs: decide_magnitude: name", FORWARDS),
     ("ladder.rs: decided: name", FORWARDS),
@@ -134,7 +138,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("linalg/unit_vec.rs: decide_unit_direction: v", NOT_FIRST),
     ("linalg/unit_vec.rs: levered: v", NOT_FIRST),
     ("linalg/unit_vec.rs: new: v", NOT_FIRST),
-    ("linalg/unit_vec.rs: new_scaled: v * scale", NOT_FIRST),
+    ("linalg/unit_vec.rs: new_scaled: v", NOT_FIRST),
     (
         "linalg/unit_vec.rs: the_direction_door_tells_an_underflowed_length_from_a_zero_one: good",
         NOT_FIRST,

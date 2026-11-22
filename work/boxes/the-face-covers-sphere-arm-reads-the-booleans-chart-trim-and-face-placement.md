@@ -18,17 +18,17 @@ engine hosts, so `cover.rs` carries a cited `names-boolean` pin
 (`scripts/gates/engine-leaves.counts`):
 
 - the sphere arm's chart window (`cover.rs` `sphere_window`) reads
-  `boolean::solid_contain::sphere_chart_trim` and its
+  `solid_contain::sphere_chart_trim` and its
   `PointInSolidError`;
 - the pole-side cut along an aim (`cover.rs` `pole_side`) reads
-  `boolean::contain::curved_face_placement`, `CurvedPlacement` and
+  `contain::curved_face_placement`, `CurvedPlacement` and
   `FaceContainment`.
 
 They answer in engine types (`PointInSolidError`, `CurvedPlacement`,
 `FaceContainment`, `ContainError`, all declared under `boolean/`), so
 this is not a two-function move: it is the curved containment door's
-move to the root (`boolean/contain.rs`, the sphere chart trim in
-`boolean/solid_contain.rs`, and the region readers they read, with
+move to the root (`contain.rs`, the sphere chart trim in
+`solid_contain.rs`, and the region readers they read, with
 their refusal types), after which the face cover reads it from there.
 The face's nearest-distance reading (`cover.rs` `face_nearest`) reads
 the planar `face_placement` through the same door, and is in the same
@@ -50,7 +50,7 @@ once the door moves.
 ## Note from `onecopy/face-placement` (2026-11-09)
 
 The boolean's one placement dispatch is now
-`boolean::contain::placement_on_carrier` (a point held on the face's
+`contain::placement_on_carrier` (a point held on the face's
 carrier; `face_placement` is the decided-on-plane form), engine-private
 under `[topo.homes]`. Two crate-root sites still spell their own
 plane/curved split over `contfp` and `curved_face_containment`, because

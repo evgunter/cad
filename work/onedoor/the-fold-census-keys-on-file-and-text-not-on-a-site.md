@@ -58,7 +58,7 @@ by that unit's review with a grep for `== sense` / `!= sense`:
   (`work/importgate/step-import-spells-the-polygon-orientation-rule-by-hand.md`);
 - `demos/tour/src/uvdump.rs`: `(area > 0.0) == sense`, in a root the census
   does not walk;
-- test code: `topo/src/boolean/sphere_region.rs` (`forward == sense`),
+- test code: `topo/src/sphere_region.rs` (`forward == sense`),
   `geom-brep/tests/chart_singularity_sweep.rs` (four).
 
 The mesh sites that unit routed included two of this shape

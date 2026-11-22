@@ -53,7 +53,7 @@ fn name(n: &'static str) -> Operand {
 
 /// What `doc` writes saves and loads back.
 fn round_trips(what: &str, doc: &ProfileDoc) {
-    let text = editor_core::save(doc, &[], Tol::witness())
+    let text = editor_core::save(doc, Tol::witness())
         .unwrap_or_else(|e| panic!("{what}: save refuses: {e:?}"));
     let loaded = editor_core::load(&text, Tol::witness());
     assert!(
@@ -314,7 +314,7 @@ fn the_load_refuses_an_anonymous_self_source() {
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, c) = insert(doc, placed(Operand::Node(b)));
     let s = doc.copied_read(c).expect("a source");
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("saves");
     let spell = |var: VarId| serde_json::to_string(&var).expect("an id spells");
     let needle = format!("\"Source\": {}", spell(out(&doc, b)));
     assert_eq!(text.matches(&needle).count(), 1);
@@ -631,7 +631,7 @@ fn the_redefinition_door_cost_scales() {
         let door = t.elapsed() / reps;
         let t = std::time::Instant::now();
         for _ in 0..reps {
-            editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+            editor_core::save(&doc, Tol::witness()).expect("saves");
         }
         eprintln!(
             "N = {n} ({} nodes): one DefineVar door run {door:?}; one save (the load's \

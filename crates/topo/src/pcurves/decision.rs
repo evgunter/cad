@@ -606,9 +606,10 @@ type FittedDoor<'a, T, K> = &'a dyn Fn(&Walked<T, K>) -> Result<PcurveCache<T>, 
 /// is not certified again. Every other image goes to the door its kind
 /// names ([`Pcurve::certifying_door`]): the `Decide`-scalar door,
 /// [`PcurveCache::certify`], or `fitted` — the fitted door, which only
-/// the pass holds. Without it a fitted or general image meets the
-/// closed-form door, which refuses it, and a projected one is read
-/// there.
+/// the pass holds. Without it an image only the fitted door certifies
+/// ([`Pcurve::needs_fitted_door`]: a fitted or general one, a projected
+/// net's) is refused unread, and a projected circle's or line's is read
+/// at the closed-form door.
 ///
 /// # Errors
 ///
@@ -635,6 +636,9 @@ pub(super) fn certify_walked<T: Decide, K: Copy>(
         let (t0, t1) = w.window();
         let cache = match (w.pcurve().certifying_door(), fitted) {
             (CertifyingDoor::Fitted | CertifyingDoor::Either, Some(fitted)) => fitted(&w),
+            (_, None) if w.pcurve().needs_fitted_door() => {
+                Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })
+            }
             _ => PcurveCache::certify(w.pcurve().clone(), t0, t1, &w.carrier, surface, band),
         };
         // An image the walk derived: a lane choice's refusal of its own
@@ -927,6 +931,59 @@ pub(super) fn singular_at<T: Decide>(
     }
 }
 
+/// **Which ends of `half_edge`'s edge lie on `surface`'s singular set**,
+/// for the image of `carrier` that reads them
+/// ([`geom_brep::reads_singular_ends`]: a conic's on a sphere): each end's
+/// vertex decided on a pole by [`singular_at`]'s reading,
+/// [`geom_brep::chart_singularity::vertex_at_singular_point`], the one the
+/// loop walk decides a joint there by. Every other pair decides nothing
+/// and states no end. The image is derived wherever the edge's own joints
+/// are read, by the mint, the lift and the site mint. An end undecided in
+/// the band reads as off it: its image then takes the lane that reads no
+/// pole end, and the joint's own reading refuses it.
+pub(crate) fn singular_ends<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+    carrier: &geom::Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> geom_brep::SingularEnds {
+    if !geom_brep::reads_singular_ends(carrier, surface) {
+        return geom_brep::SingularEnds::default();
+    }
+    let (start, end) = super::mint::edge_vertex_points(body, half_edge);
+    geom_brep::SingularEnds {
+        start: on_a_pole(carrier, surface, start, band),
+        end: on_a_pole(carrier, surface, end, band),
+    }
+}
+
+/// Whether `point` is decided on one of `carrier`'s chart's poles, where
+/// `carrier`'s image on `surface` reads a stated end
+/// ([`geom_brep::reads_singular_ends`]: a conic's on a sphere); `false`,
+/// deciding nothing, for every other pair. The point is an end's vertex,
+/// or for an edge an Euler operator has yet to mint, or a split's new
+/// vertex, the carrier's point there: the point the site walk decides
+/// that joint at ([`super::site::site_rows`]), so the end and its joint
+/// read one point.
+pub(crate) fn on_a_pole<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    surface: &Surface<T>,
+    point: geom_core::Point3<T>,
+    band: Band,
+) -> bool {
+    use geom_brep::chart_singularity::{singular_points, vertex_at_singular_point};
+    if !geom_brep::reads_singular_ends(carrier, surface) {
+        return false;
+    }
+    let Ok(inverse) = geom::ChartInverse::of(surface) else {
+        unreachable!("on_a_pole: a sphere's chart has a closed inverse")
+    };
+    singular_points(&inverse)
+        .iter()
+        .any(|&(_, p)| matches!(vertex_at_singular_point(point, p, band), Ok(true)))
+}
+
 /// Whether `surface`'s chart has a singular point at all, asked of the
 /// chart's own list ([`geom_brep::chart_singularity::singular_points`])
 /// rather than of a kind roster: a tip off every point of a non-empty
@@ -958,10 +1015,16 @@ fn axis_distance<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point
     };
     match *chart.surface() {
         Surface::Cylinder { radius, .. } => Some(radius),
-        Surface::Sphere { center, axis, .. }
-        | Surface::Torus { center, axis, .. }
-        | Surface::Spindle { center, axis, .. } => Some(off_axis(center, axis)),
-        Surface::Cone { apex, axis, .. } => Some(off_axis(apex, axis)),
+        Surface::Sphere { frame, .. }
+        | Surface::Torus { frame, .. }
+        | Surface::Spindle { frame, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            Some(off_axis(center, axis))
+        }
+        Surface::Cone { frame, .. } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            Some(off_axis(apex, axis))
+        }
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
@@ -1090,7 +1153,10 @@ fn singular_turn<T: Decide>(
             arrived
         }
     };
-    let step = if above == sides.sense { 1 } else { -1 };
+    // The step of a face on the loop's left: it advances along a
+    // latitude it lies above.
+    let left = if above { 1 } else { -1 };
+    let step = geom_brep::PolygonOrientation::of_face(sides.sense).to_interior(left);
     if sides.mates {
         return Ok((step, false));
     }
@@ -1163,9 +1229,9 @@ fn half_turn_off<T: Decide>(
     // along, less its part along the axis.
     let near = edge.at + (edge.far - edge.at) * T::from_f64(0.125);
     let chord = edge.carrier.eval(near) - edge.carrier.eval(edge.at);
-    let across = chord - frame.axis * chord.dot(frame.axis);
+    let across = chord - frame.axis() * chord.dot(frame.axis());
     let (sin, cos) = u.sin_cos();
-    let along = frame.u_ref * cos + frame.v_ref() * sin;
+    let along = frame.u_ref() * cos + frame.v_ref() * sin;
     match decide(
         "pcurve_singular_sheet",
         Margin::levered(across.dot(along) / across.norm(), lever),
@@ -1468,7 +1534,7 @@ pub(super) fn decide_plain_joint<T: Decide>(
         Ok(inverse) => {
             let frame = inverse.frame();
             let (sin, cos) = u.sin_cos();
-            frame.u_ref * cos + frame.v_ref() * sin
+            frame.u_ref() * cos + frame.v_ref() * sin
         }
         Err(_) => geom_core::Vec3::unit_x(),
     };
@@ -1725,12 +1791,12 @@ pub(crate) fn lever_periods<T: Decide>(
 pub(crate) fn branches_astride_as<T: Decide>(
     name: &'static str,
     gap: T,
-    period: T,
+    period: Period<T>,
     meter: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<[i32; 2], BranchMiss> {
-    let j = Period::new(period)
-        .decide(name, gap - period * T::from_f64(0.5), meter, band)
+    let j = period
+        .decide(name, gap - period.half(), meter, band)
         .map_err(|stop| stop.miss)?;
     Ok([j, j + 1])
 }

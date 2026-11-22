@@ -2,8 +2,12 @@
 id: two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge
 kind: issue
 title: two faces that both cut the same ear of a shared chord chain leave an edge of four triangles that only check_mesh sees
-status: open
+status: closed
 opened: 2026-10-28
+branch: tesslie/four-use-edge
+rides_with: a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles
+closed: 2026-11-21
+pr: 7198
 ---
 
 
@@ -78,3 +82,15 @@ ear, and the planar lane cuts them by design. A face pair where neither
 side is an analytic trimmed face (curved lane against planar, say) is
 not covered. A census at the fold that reads triangle uses across
 patches would cover every lane.
+
+**The class reaches past the ear** (2026-11-16). An ear is its nearest
+case. Two faces across one chain can both use a chord between two of its
+points any number of steps apart as an interior edge, with no triangle made
+twice and none on three consecutive points, so the ear test cannot fire:
+`a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles.md` measures it
+on the cone arm (cured there by a rule on the side, not the triangle) and
+counts it on the cylinder and sphere arms, which still read the ear.
+
+## Closed (TESSLIE, PR 7198, 2026-11-21)
+
+Rode `a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles`. The ear is the nearest case of the shared-side rule, which now runs on every trimmed arm, and the fold census refuses any over-used side on every lane, which is the backstop this row asked for.

@@ -436,17 +436,28 @@ fn a_two_annuli_laminas_outer_and_ring_hosted_rims_carve() {
     }
 }
 
+/// The washer's inner bottom rim is a cylinder meeting a plane square
+/// to its axis, so the chamfer cuts it with a frustum: the triangle
+/// `s²/2` carried round at `1 + s/3`.
 #[test]
-fn a_washer_rim_chamfer_refuses_typed() {
+fn a_washer_rim_chamfers_at_its_frustum_ring() {
     let b = washer();
     let e = rim_arcs_at(&b, 1.0, 0.0);
-    let err = chamfer_edges(&sweep::test_support::at_rest(&b, tol()), &e, 0.2, tol())
-        .expect_err("plane × cylinder")
-        .error;
-    assert!(
-        matches!(err, BlendError::ChamferArmUnsupported { .. }),
-        "{err:?}"
-    );
+    let s = 0.2;
+    let out = chamfer_edges(&sweep::test_support::at_rest(&b, tol()), &e, s, tol())
+        .unwrap_or_else(|r| panic!("plane × cylinder chamfers, got {r:?}"));
+    validate_geometric(&out.body, tol()).expect("tier-3 valid");
+    let v = |x: &Body<f64>| {
+        topo::test_support::pinned_volume(
+            "v",
+            &topo::test_support::finished("v", topo::Body::clone(x), tol()),
+            tol(),
+        )
+        .volume
+    };
+    let want = -PI * s * s * (1.0 + s / 3.0);
+    let got = v(&out.body) - v(&b);
+    assert!((got - want).abs() < 1e-12, "ΔV {got} against {want}");
 }
 
 #[test]
@@ -564,7 +575,8 @@ fn a_ruled_band_on_a_plane_support_carrying_the_bore_carves_at_the_closed_form()
         let bottom_rings: usize = body
             .faces()
             .filter(|(fk, _)| match body.face_surface(*fk) {
-                Some(Surface::Plane { origin, normal, .. }) => {
+                Some(Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     origin.y.abs() < 1e-12 && normal.y.abs() > 0.5
                 }
                 _ => false,
@@ -686,7 +698,7 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()
@@ -1027,7 +1039,7 @@ fn the_lone_host_trim_keeps_the_hosts_key_and_designations() {
                         .certified()
                         .unwrap();
                     match *c.carrier() {
-                        geom::Curve3::Circle(geom::Circle { radius, .. }) => radius,
+                        geom::Curve3::Circle(circle) => circle.radius(),
                         _ => f64::NAN,
                     }
                 })

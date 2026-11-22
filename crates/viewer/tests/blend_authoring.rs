@@ -1376,7 +1376,7 @@ fn axis_cylinder(session: &mut DocSession) -> RecipeNodeId {
 /// draws one circle: the index answers the circle for either arc, a
 /// click on it holds both arcs as one pick, a second click drops both,
 /// and the fillet one click commits builds a tier-3 valid body rather
-/// than refusing `UnsupportedCorner { SeamVertex }` at the seam vertex.
+/// than refusing `UnbuiltEnd::Seam` at the seam vertex.
 #[test]
 fn a_click_on_a_seam_split_rim_blends_the_whole_rim() {
     use pncad::select::RoleSeg;

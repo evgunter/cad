@@ -67,8 +67,12 @@ Pinned:
 - `crates/sweep/tests/tilted_sphere_pair.rs`:
   - `a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`:
     `ChordBudget` at 1e-4 and 1e-5, δ 1e-2;
-  - `a_circle_near_the_pole_folds_at_a_coarse_delta`: 1e-3 meshes at
-    δ 1e-2 and refuses `FoldedTriangle` at 4e-2;
+  - `a_circle_near_the_pole_meshes_at_a_coarse_delta`: 1e-3 meshes at
+    δ 1e-2 and 4e-2. At 4e-2 the boundary-only fold is a triangle with a
+    side the other ball's face may make too, so the trimmed lane's
+    shared-side cure (carried to the sphere arm by
+    `work/tesslie/a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles.md`)
+    splits it, and the fold goes with it;
   - `a_section_near_a_pole_meshes_at_every_delta`: the (1, 0.8, 0)
     pose at every δ from 0.1 to 1e-3.
 - `crates/sweep/tests/spheres_crossing_off_every_edge.rs`,
@@ -88,3 +92,12 @@ points' 3-D positions rather than the stored image; either retires
 the budget and the folds together.
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+## As a ring (2026-11-14, TESSLANE unit 3)
+
+A tube of radius 0.3 tilted 0.22 about `x` and turned 3 about `z`, on
+`ball_poled_z(√2)`, rings a ball face about 0.006 rad from its pole. The
+ringed ops (both unions, ball ∖ tube) refuse `FoldedTriangle` at
+δ `2·10⁻²` and mesh at `5·10⁻³` and `10⁻³`; turned 0 about `z`, they mesh
+at every δ. Pinned by
+`reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.

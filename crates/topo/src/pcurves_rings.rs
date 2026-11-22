@@ -37,7 +37,7 @@ use geom_core::{Decide, Indeterminate, InfSpeed, Margin, Point2, Real, Sign};
 
 use super::{ChartPeriods, Lift, LiftGap, polar_arm};
 use crate::body::Body;
-use crate::chain_parity::{ChainPiece, PieceBox, RayQuery, ray_parity_as};
+use crate::chain_parity::{ChainPiece, Gap, PieceBox, RayQuery, ray_parity_as};
 use crate::entity::{FaceKey, LoopKey};
 use crate::joint::{Deck, Winding};
 use crate::validate::decide;
@@ -148,6 +148,18 @@ pub enum RingPlacementError {
         /// How far it winds.
         winding: Winding,
     },
+    /// The outer loop is one vertex (`LoopBoundary::Empty`) and the face
+    /// holds rings: there is no region to place them in. Tier 2 admits
+    /// one at rest. A face with no ring is answered its empty lift, which
+    /// a reader walks and finds empty.
+    OuterEmpty,
+    /// A ring is one vertex (`LoopBoundary::Empty`): it has no edge, so
+    /// no lift and no place in the chart, and it bounds no region of the
+    /// face. Tier 2 admits one at rest, as a lone vertex inside a face.
+    RingEmpty {
+        /// The ring.
+        ring: LoopKey,
+    },
     /// No whole-period shift puts the ring's first point in the outer
     /// loop's region.
     NoShift {
@@ -187,6 +199,25 @@ pub enum RingPlacementError {
         /// Why.
         cause: SplineTrimGap,
     },
+}
+
+impl RingPlacementError {
+    /// The cause as a sortable word.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Gap(_) => "gap",
+            Self::OuterOpen { .. } => "outer_open",
+            Self::RingOpen { .. } => "ring_open",
+            Self::OuterEmpty => "outer_empty",
+            Self::RingEmpty { .. } => "ring_empty",
+            Self::NoShift { .. } => "no_shift",
+            Self::Shifts { .. } => "shifts",
+            Self::Copies { .. } => "copies",
+            Self::Undecided { .. } => "undecided",
+            Self::SplineTrimUnread { .. } => "spline_trim_unread",
+        }
+    }
 }
 
 /// Why a spline face's trim is not read
@@ -345,6 +376,9 @@ pub(crate) fn face_lift<T: Decide>(
     };
     let rings: Vec<LoopKey> = loops.collect();
     let outer = Lift::read(body, outer_loop).map_err(RingPlacementError::Gap)?;
+    if outer.is_empty() && !rings.is_empty() {
+        return Err(RingPlacementError::OuterEmpty);
+    }
     let winding = outer
         .winding()
         .unwrap_or_else(|| unreachable!("a read lift is a whole loop"));
@@ -354,6 +388,9 @@ pub(crate) fn face_lift<T: Decide>(
     let mut read = Vec::with_capacity(rings.len());
     for &ring in &rings {
         let lift = Lift::read(body, ring).map_err(RingPlacementError::Gap)?;
+        if lift.is_empty() {
+            return Err(RingPlacementError::RingEmpty { ring });
+        }
         let winding = lift
             .winding()
             .unwrap_or_else(|| unreachable!("a read lift is a whole loop"));
@@ -470,8 +507,8 @@ impl<T: Decide> ChainPiece<T> for Piece<'_, T> {
         let b = self.bbox();
         Some(PieceBox {
             gap: [
-                (b.u_min - q.x).max(q.x - b.u_max).max(T::zero()),
-                (b.v_min - q.y).max(q.y - b.v_max).max(T::zero()),
+                Gap::Read((b.u_min - q.x).max(q.x - b.u_max).max(T::zero())),
+                Gap::Read((b.v_min - q.y).max(q.y - b.v_max).max(T::zero())),
             ],
             extent: [
                 (b.u_min.value_channel(), b.u_max.value_channel()),
@@ -605,10 +642,10 @@ impl<'a, T: Decide> Outer<'a, T> {
         let mut pending = None;
         for halving in 0..HALVINGS {
             let scale = WINDOW_SHARE * f64::from(1u32 << halving);
-            let (ru, rv) = (
-                T::from_computed(size[0] / scale),
-                T::from_computed(size[1] / scale),
-            );
+            let room = [size[0] / scale, size[1] / scale];
+            // The window's ends are places the arms are read over, not
+            // bounds decided against.
+            let rv = T::from_computed(room[1]);
             let arms = match self.arms(v - rv, v + rv, band) {
                 Ok(arms) => arms,
                 Err(diag) => {
@@ -616,8 +653,8 @@ impl<'a, T: Decide> Outer<'a, T> {
                     continue;
                 }
             };
-            for (room, arm) in [(ru, arms.0), (rv, arms.1)] {
-                match decide(RING_PLACE_CLEAR, Margin::metered(room, arm), band) {
+            for (room, arm) in [(room[0], arms.0), (room[1], arms.1)] {
+                match decide(RING_PLACE_CLEAR, Margin::metered_bound(room, arm), band) {
                     Ok(Sign::Positive) => {}
                     Ok(_) => return Side::Near(pending),
                     Err(diag) => return Side::Near(Some(diag)),
@@ -769,10 +806,12 @@ mod tests {
     fn an_analytic_outer_loop_reads_a_point_in_out_or_near_and_a_copy_past_the_pole() {
         let eps = Tol::witness().eps();
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let outer = sphere_half_band(&sphere);
         let band = Band::linear(Tol::witness()).unwrap();
@@ -828,10 +867,12 @@ mod tests {
 
     fn unit_sphere() -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -933,10 +974,12 @@ mod tests {
             "a sliver thinner than the band"
         );
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: 0.4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let wedge = chain(
             &cone,
@@ -988,11 +1031,13 @@ mod tests {
     fn a_torus_places_a_ring_in_both_channels() {
         let band = Band::linear(Tol::witness()).unwrap();
         let torus = Surface::Torus {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: 3.0,
             minor_radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let square = chain(
             &torus,

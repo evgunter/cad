@@ -2,10 +2,13 @@
 id: signed-zero-module-hand-counts-the-bitwise-readers-it-exists-for
 kind: issue
 title: step-import — signed_zero.rs says the importer reads bit patterns twice; it is a hand-maintained count and there are more
-status: open
+status: closed
 opened: 2026-09-15
 priority: P4
 cost: E
+branch: export/walks-and-zeros
+pr: 7067
+closed: 2026-11-17
 ---
 
 
@@ -57,3 +60,7 @@ inventory in the same header.
   enumerations.
 - `crates/step-import/src/adopt.rs`, `entities.rs`, `assemble.rs` —
   the readers, found by grepping `to_bits()` in the crate.
+
+## Closed (2026-11-17)
+
+PR 7067 (`export/walks-and-zeros`). It had a single style review and a fix pass. The signed-zero fold has one home, `geom_core::fold_signed_zero`, and the importer's half-edge walks go through `topo::Body::face_of_half_edge` or the local `body_loop`/`loop_face` helpers. The PR body lists each site and what was done.

@@ -25,7 +25,7 @@
 // door it reads, the band and the rounding charge they decide with.
 test_utils::gated_to![
     "crates/topo/src/census.rs",
-    "crates/topo/src/boolean/contain.rs",
+    "crates/topo/src/contain.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/k_stats.rs",
@@ -91,7 +91,7 @@ fn found(errors: &[ValidationError]) -> Found {
 fn move_origin<T: Real>(body: &mut Body<T>, face: FaceKey, o: Point3<T>) {
     let s = body.get_face(face).unwrap().surface;
     match body.surfaces.get_mut(s).unwrap() {
-        geom::Surface::Plane { origin, .. } => *origin = o,
+        geom::Surface::Plane { frame, .. } => *frame = frame.with_origin(o),
         _ => panic!("a planar face"),
     }
 }
@@ -173,9 +173,10 @@ fn exact_crossing(o: Point3<f64>, n: Vec3<f64>, [p0, p1]: [Point3<f64>; 2]) -> O
 fn plane(pose: &Pose) -> (Point3<f64>, Vec3<f64>) {
     let prism = crate::test_support_fixtures::prism_z::<f64>(&PROFILE, 0.0, 1.0, Tol::witness());
     let s = prism.body.get_face(prism.side_faces[0]).unwrap().surface;
-    let geom::Surface::Plane { origin, normal, .. } = *prism.body.surfaces.get(s).unwrap() else {
+    let geom::Surface::Plane { frame, .. } = *prism.body.surfaces.get(s).unwrap() else {
         panic!("a prism's side is a plane")
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     let along = normal.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
     (
         origin + along * pose.far.0 + Vec3::new(0.0, 0.0, pose.far.1),

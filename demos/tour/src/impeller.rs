@@ -163,7 +163,6 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
         &[pncad::document::Operand::Node(placed.placement)],
         tol,
     )
-    .doc
 }
 
 fn build_doc(tol: Tol) -> Recipe {

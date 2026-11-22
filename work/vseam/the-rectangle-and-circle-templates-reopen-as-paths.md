@@ -70,7 +70,7 @@ Ev's answers on PR 6143:
   loops, so a bore is a second circle loop authored like any other.
 - How part of a profile refers to earlier parts of the same profile
   (written values and derived ones, such as an arc's centre) is its own
-  question: `work/vseam/a-profile-cannot-refer-to-its-own-earlier-parts`.
+  question: `work/selfref/a-profile-cannot-refer-to-its-own-earlier-parts`.
 
 ## 2026-11-02 — parked on multi-loop authoring
 

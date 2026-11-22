@@ -4,7 +4,6 @@ kind: issue
 title: three EulerOpError variants and one BlendError nest a certification error with four spellings of the same refusal
 status: open
 opened: 2026-09-14
-refs: [S93]
 priority: P1
 cost: E
 ---

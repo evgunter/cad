@@ -15,7 +15,7 @@ cost: M
 - **Where**: `crates/topo/src/validate.rs`, tier 3's must-carry and
   material arm (`tangent_jet(s_plus, s_minus, ..)`,
   `folded_lever_arm(s_plus, s_minus, ..)`);
-  `crates/topo/src/boolean/rim_wedge.rs`
+  `crates/topo/src/rim_wedge.rs`
   (`tangent_second_order(s_plus, s_minus, ..)`); and
   `crates/topo/src/boolean/contact_verify.rs`
   (`tangent_jet(s1, s2, ..)` over a declared contact's A and B faces).
@@ -40,7 +40,7 @@ Re-read on main 2026-10-26 (tracker sweep): the finding stands, now
 through one walk. Tier 3 and `rim_wedge` both hand
 `geom_brep::second_order_walk` (`crates/geom-brep/src/dihedral.rs:656`)
 the pair as `(s_plus, s_minus)`, at `crates/topo/src/validate.rs:7323`
-and `crates/topo/src/boolean/rim_wedge.rs:1117`. The walk reads
+and `crates/topo/src/rim_wedge.rs:1117`. The walk reads
 `tangent_jet(s1, s2, ..)` and `folded_lever_arm(s1, s2, ..)` in that
 order, and the material sign is read off `sense_plus`
 (`validate.rs:6226`). `contact_verify.rs:612` still reads

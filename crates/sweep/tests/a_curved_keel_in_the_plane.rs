@@ -192,21 +192,31 @@ fn keeled_round(s: f64) -> Body<f64> {
     }
 }
 
-/// **A round keel splits sound, and its section reads two annuli
-/// today.** The [`keeled_round`] body, its tip on `y = 1` and `0.6 ε`
+/// **A round keel splits sound, and its section reads the side it is
+/// read from.** The [`keeled_round`] body, its tip on `y = 1` and `0.6 ε`
 /// either side, split by that plane either way up. The halves keep the
-/// body's volume. The section SHOULD be one annulus with the keel a slit
-/// inside it, as `drop_slits` promises, but the join cannot prune a
-/// closed edge, which has no free end, so it reads the two annuli
-/// either side of the circle, `0.5..2` and `2..3`. This pins the current
-/// reading as the witness of
-/// `work/onehome/a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions.md`.
+/// body's volume.
+///
+/// - **Read from below the keel** (the plane's normal `+y`, the side
+///   whose material runs on under the circle): one annulus, `0.5..3`.
+///   That side's two section loops at the circle are its one edge walked
+///   both ways and bound no area (`section::closed_keels`), as the finish
+///   merges that half's section into one face. *Breaks if* the reading
+///   keeps the two loops, which reads the two annuli either side of the
+///   circle.
+/// - **Read from the V's side** (normal `−y`): that side is two pieces
+///   touching along the circle, and the section reads them as they are
+///   built, the two annuli `0.5..2` and `2..3`, by `plane_section`'s
+///   contract: it reads the reading side's section faces, and takes out
+///   only the slits where a piece touches itself (`drop_slits`), which
+///   two pieces touching each other are not.
 #[test]
-fn a_round_keel_in_the_plane_reads_two_annuli_today() {
-    // Pinned red at 1e-6: with the tip 0.6 ε off the plane the section's
-    // two regions each read 1.5e-6 over their annulus, where the row
-    // holds them to 1e-8
-    // (`work/onehome/a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions.md`).
+fn a_round_keel_in_the_plane_reads_the_side_it_is_read_from() {
+    // Pinned red at 1e-6, read from the V's side alone: with the tip
+    // 0.6 ε off the plane each piece's boundary is its wall's trace on the
+    // plane, 0.2 × 0.6 ε off the keel, so the two regions overlap and each
+    // reads 1.5e-6 over its annulus, where the row holds them to 1e-8
+    // (`work/onehome/the-v-sides-keel-regions-read-their-walls-plane-traces-off-the-keel.md`).
     test_utils::pinned_red::row(
         tol().eps(),
         &[1e-6],
@@ -216,22 +226,24 @@ fn a_round_keel_in_the_plane_reads_two_annuli_today() {
             "the section's regions hold [11.78097395",
             "15.70796477",
         ],
-        a_round_keel_in_the_plane_reads_two_annuli_today_row,
+        a_round_keel_in_the_plane_reads_the_side_it_is_read_from_row,
     );
 }
 
-/// The row [`a_round_keel_in_the_plane_reads_two_annuli_today`] runs,
-/// under its pin.
-fn a_round_keel_in_the_plane_reads_two_annuli_today_row() {
-    for s in [0.0, 0.6, -0.6] {
-        let body = keeled_round(s);
-        let whole = topo::test_support::pinned_volume(
-            "the measured body",
-            &finished("the body", body.clone(), tol()),
-            tol(),
-        )
-        .volume;
-        for up in [1.0, -1.0] {
+/// The row [`a_round_keel_in_the_plane_reads_the_side_it_is_read_from`]
+/// runs, under its pin.
+fn a_round_keel_in_the_plane_reads_the_side_it_is_read_from_row() {
+    // Read from under the keel first, at every tip, then from the V's
+    // side: the pin at 1e-6 is the V's side's alone.
+    for up in [1.0, -1.0] {
+        for s in [0.0, 0.6, -0.6] {
+            let body = keeled_round(s);
+            let whole = topo::test_support::pinned_volume(
+                "the measured body",
+                &finished("the body", body.clone(), tol()),
+                tol(),
+            )
+            .volume;
             let what = format!("the V's tip {s} ε off the plane, the plane's normal {up} y");
             let plane = topo::test_support::split_plane(
                 Point3::new(0.0, 1.0, 0.0),
@@ -257,12 +269,16 @@ fn a_round_keel_in_the_plane_reads_two_annuli_today_row() {
                 .unwrap_or_else(|e| panic!("{what}: the section refused: {e:?}"));
             let mut areas: Vec<f64> = cut.regions.iter().map(|r| r.area()).collect();
             areas.sort_by(f64::total_cmp);
-            let annuli = [PI * (4.0 - 0.25), PI * (9.0 - 4.0)];
+            let want: &[f64] = if up > 0.0 {
+                &[PI * (9.0 - 0.25)]
+            } else {
+                &[PI * (4.0 - 0.25), PI * (9.0 - 4.0)]
+            };
             assert!(
-                areas.len() == 2
-                    && areas.iter().zip(annuli).all(|(a, b)| (a - b).abs() < 1e-8)
+                areas.len() == want.len()
+                    && areas.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-8)
                     && cut.regions.iter().all(|r| r.holes.len() == 1),
-                "{what}: the section's regions hold {areas:?}, not the annuli {annuli:?}"
+                "{what}: the section's regions hold {areas:?}, not {want:?}"
             );
         }
     }

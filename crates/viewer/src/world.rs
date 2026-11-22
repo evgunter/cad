@@ -1151,8 +1151,9 @@ pub fn body_read(
 
 /// **The copy the product door moves into the world rather than copy**:
 /// `node`'s copy where `node` is a placement (a `Place` or an instance)
-/// into a space other than the world whose copy nothing reads — no
-/// operand, no mate pose, no pick ([`Doc::reader_counts`]). `None` for
+/// into a space other than the world whose copy nothing but the product
+/// slot reads — no operand, no mate pose, no pick
+/// ([`Doc::read_by_nothing_but_the_product`]). `None` for
 /// any other node. A copy whose own bundle reads that space is movable
 /// all the same: the door's target change is then held in its placement
 /// editor ([`crate::session::Refusal::TargetHeld`]).
@@ -1165,7 +1166,7 @@ pub fn movable_into_world(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Opti
         return None;
     }
     doc.output(node, 0)
-        .filter(|copy| !doc.reader_counts().contains_key(copy))
+        .filter(|&copy| doc.read_by_nothing_but_the_product(copy))
 }
 
 /// **The world copies of the body `read` names**, in document order:

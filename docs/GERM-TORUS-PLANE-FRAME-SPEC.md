@@ -174,7 +174,7 @@ every pose:
   cuts the tube transversally, decided Zero by the crossing layer's
   margins, as TANG's rim is (§2, not held). Containment reads their ∪
   and `T ∖ P` bodies, whose torus walls are no chart rectangle, by the
-  torus region (RESTREAD, `boolean::torus_region`).
+  torus region (RESTREAD, `torus_region`).
 - **A slab across the one-face torus** refuses `JoinDesync` in
   `choose_roles` at some vertex phases (filed on GERM,
   `a-slab-against-a-one-face-torus-desyncs-its-chord-roles`).
