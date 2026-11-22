@@ -435,6 +435,14 @@ struct WalkRec {
     /// The crossing's (depth, fresh subtree root, touching split after
     /// the first refusal in its lineage).
     crossed_at: Option<(u32, bool, bool)>,
+    /// Straddling distance splits by (faces share, nearest touching
+    /// ancestor's reason, first touching ancestor's reason).
+    straddle: std::collections::BTreeMap<(&'static str, String, String), (usize,)>,
+    /// Per face pair, the least upper end of a straddling separation.
+    min_hi: std::collections::BTreeMap<(FaceKey, FaceKey), f64>,
+    pair_share: std::collections::BTreeMap<(FaceKey, FaceKey), &'static str>,
+    /// Per walk event, its (first, nearest) touching ancestors.
+    lineage: Vec<(u32, u32)>,
 }
 
 thread_local! {
@@ -443,6 +451,7 @@ thread_local! {
     static MARGIN: RefCell<Option<&'static str>> = const { RefCell::new(None) };
     static CODES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static CUR: std::cell::Cell<(u32, bool, bool)> = const { std::cell::Cell::new((0, true, false)) };
+    static LINEAGE: std::cell::Cell<(u32, u32)> = const { std::cell::Cell::new((0, 0)) };
 }
 
 pub fn local_site(tag: &'static str, line: u32) {
@@ -484,6 +493,9 @@ pub fn set_reason_undecided() {
 pub fn reason<O>(tag: &str, o: O) -> O {
     REASON.with(|x| *x.borrow_mut() = Some(tag.to_owned()));
     o
+}
+pub fn current_lineage(first: u32, near: u32) {
+    LINEAGE.with(|l| l.set((first, near)));
 }
 pub fn current_task(depth: u32, fresh: bool, after: bool) {
     CUR.with(|c| c.set((depth, fresh, after)));
@@ -569,6 +581,7 @@ pub fn walk_event(pair: (FaceKey, FaceKey), splits: usize, secs: f64, refused: b
     WALK.with(|w| {
         if let Some(w) = w.borrow_mut().as_mut() {
             let kind = w.pending.take();
+            w.lineage.push(LINEAGE.with(|l| l.get()));
             if let Some(sp) = w.pending_split.take() {
                 let n = w.events.len();
                 w.splits.insert(n, sp);
@@ -756,6 +769,38 @@ pub fn walk_finish(r: &EmbeddingReport, secs: f64) {
         matches!(r.verdict, Embedding::Crosses(_)),
         refusing.len(),
     ));
+    {
+        let mut sub: std::collections::BTreeMap<String, (usize, f64)> = Default::default();
+        for (n, e) in rec.events.iter().enumerate() {
+            if !refusing.contains_key(&key(e.0, e.1)) {
+                continue;
+            }
+            let first = rec.lineage.get(n).map_or(0, |l| l.0);
+            let class = if first == 0 {
+                "no-touching-ancestor".to_owned()
+            } else {
+                key_of(first).split('#').next().unwrap_or("").to_owned()
+            };
+            let x = sub.entry(class).or_default();
+            x.0 += e.2;
+            x.1 += e.3;
+        }
+        let near: Vec<String> = rec
+            .min_hi
+            .iter()
+            .filter(|(k, _)| rec.pair_share.get(*k) == Some(&"shares-nothing"))
+            .map(|(_, h)| format!("{h:.3e}"))
+            .collect();
+        let st: Vec<String> = rec
+            .straddle
+            .iter()
+            .map(|((a, b, c), (n,))| format!("{a}|{b}|{c}={n}"))
+            .collect();
+        write(&format!(
+            "STRADDLE\t{}\tsecs={secs:.4}\tsplits={st:?}\tshare_nothing_min_hi={near:?}\trefusing_spend_by_first_touching_ancestor={sub:?}\n",
+            test_name()
+        ));
+    }
     let kinds: Vec<String> = refusing.values().map(|(_, k)| k.join("+")).collect();
     let verdict = match &r.verdict {
         Embedding::Crosses(_) => "Crosses".to_owned(),
@@ -812,7 +857,14 @@ pub fn continue_cost<T: geom_core::Decide + geom_core::CertifiedBounds>(
 
 /// M5: a non-touching cell pair split because its distance is undecided:
 /// classed by its separation's enclosure against the band.
-pub fn distance_split(lo: f64, hi: f64, esc: f64, parent: u32) -> u32 {
+pub fn distance_split(
+    lo: f64,
+    hi: f64,
+    esc: f64,
+    parent: u32,
+    shares: u8,
+    pair: (FaceKey, FaceKey),
+) -> u32 {
     let class = if hi < esc {
         "distance:separation-wholly-in-band"
     } else if lo < esc {
@@ -821,9 +873,32 @@ pub fn distance_split(lo: f64, hi: f64, esc: f64, parent: u32) -> u32 {
         "distance:separation-past-band-undecided"
     };
     let code = code_of(format!("{class}#distance"));
+    let (tfirst, tnear) = LINEAGE.with(|l| l.get());
     WALK.with(|w| {
         if let Some(w) = w.borrow_mut().as_mut() {
             w.pending_split = Some((code, parent == code));
+            if lo < esc {
+                let share =
+                    ["shares-nothing", "shares-a-cell", "same-face"][usize::from(shares.min(2))];
+                let anc = if tnear == 0 {
+                    "no-touching-ancestor".to_owned()
+                } else {
+                    key_of(tnear).split('#').next().unwrap_or("").to_owned()
+                };
+                let first = if tfirst == 0 {
+                    String::new()
+                } else {
+                    key_of(tfirst).split('#').next().unwrap_or("").to_owned()
+                };
+                let e = w.straddle.entry((share, anc, first)).or_default();
+                e.0 += 1;
+                let k = (pair.0.min(pair.1), pair.0.max(pair.1));
+                let m = w.min_hi.entry(k).or_insert(f64::INFINITY);
+                if hi < *m {
+                    *m = hi;
+                }
+                w.pair_share.insert(k, share);
+            }
         }
     });
     code

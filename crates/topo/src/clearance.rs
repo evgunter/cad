@@ -1718,6 +1718,8 @@ impl Sweep {
                     open,
                     m_why: 0,
                     m_after: false,
+                    m_tfirst: 0,
+                    m_tnear: 0,
                 });
             }
 
@@ -1890,6 +1892,7 @@ fn walk<T: Real, Q: Question<T>>(
                 std::time::Instant::now(),
             );
             crate::gate_measure::current_task(task.pair.depth, task.pair.fresh, task.m_after);
+            crate::gate_measure::current_lineage(task.m_tfirst, task.m_tnear);
             let m_flow = q.pair(&mut w, task, x, y);
             crate::gate_measure::walk_event(
                 (x.face, y.face),
@@ -2310,6 +2313,12 @@ where
                         let task = Task {
                             m_why: m_code,
                             m_after: task.m_after || self.lower_refusal.is_some(),
+                            m_tfirst: if task.m_tfirst == 0 {
+                                m_code
+                            } else {
+                                task.m_tfirst
+                            },
+                            m_tnear: m_code,
                             ..task
                         };
                         // A cell paired with itself splits into its two
@@ -2506,6 +2515,12 @@ where
             m_sep.hi(),
             self.sweep.band.escalate(),
             task.m_why,
+            if x.face == y.face {
+                2
+            } else {
+                u8::from(!sh.is_empty())
+            },
+            (x.face, y.face),
         );
         let task = Task {
             open: split,
@@ -3141,6 +3156,8 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
                 },
                 m_why: 0,
                 m_after: false,
+                m_tfirst: 0,
+                m_tnear: 0,
             });
         }
         let receipt = CellReceipt {
@@ -4379,6 +4396,10 @@ struct Task {
     /// MEASUREMENT ONLY: a touching split after the ask's first refusal
     /// lies in its lineage.
     m_after: bool,
+    /// MEASUREMENT ONLY: the reason codes of its first and nearest
+    /// touching ancestors that split (0: none).
+    m_tfirst: u32,
+    m_tnear: u32,
 }
 
 /// One cell's interval enclosure on its carrier.
@@ -5924,6 +5945,8 @@ mod trv_rows {
             },
             m_why: 0,
             m_after: false,
+            m_tfirst: 0,
+            m_tnear: 0,
         }
     }
 
