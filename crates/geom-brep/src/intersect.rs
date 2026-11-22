@@ -1098,22 +1098,33 @@ pub fn plane_cylinder_section_read<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> Result<(PlaneCylinderSection<T>, Decided), SectionError> {
+    plane_cylinder_classified(plane, cylinder, reach, band)
+        .map(|(section, parallel, _)| (section, parallel))
+}
+
+/// [`plane_cylinder_section_read`], with the margin `pc_parallel_gap`
+/// decided `Zero` on where the section is the tangent ruling.
+pub(crate) fn plane_cylinder_classified<T: Decide>(
+    plane: &impl SectionPlane<T>,
+    cylinder: &Surface<T>,
+    reach: &Reach<T>,
+    band: Band,
+) -> Result<(PlaneCylinderSection<T>, Decided, Option<MarginDiag>), SectionError> {
     let (pc, cyl_u) = plane_cylinder_data(plane, cylinder)?;
     let (parallel, ruled) =
         plane_cylinder_ruled_read(&pc, reach, band).map_err(SectionError::Escalated)?;
     if let Some(ruled) = ruled {
-        return Ok((
-            match ruled {
-                RuledSection::ParallelLines { l1, l2, .. } => {
-                    PlaneCylinderSection::ParallelLines { l1, l2 }
-                }
-                RuledSection::TangentLine { line, .. } => {
-                    PlaneCylinderSection::TangentLine(Curve3::Line(line))
-                }
-                RuledSection::Empty { .. } => PlaneCylinderSection::Empty,
-            },
-            parallel,
-        ));
+        let (section, tangent) = match ruled {
+            RuledSection::ParallelLines { l1, l2, .. } => {
+                (PlaneCylinderSection::ParallelLines { l1, l2 }, None)
+            }
+            RuledSection::TangentLine { line, gap } => (
+                PlaneCylinderSection::TangentLine(Curve3::Line(line)),
+                Some(gap),
+            ),
+            RuledSection::Empty { .. } => (PlaneCylinderSection::Empty, None),
+        };
+        return Ok((section, parallel, tangent));
     }
     let PlaneCylinder { q, n, o, a, r } = pc;
     // Bounded cut: rim circle vs tilted ellipse.
@@ -1135,7 +1146,7 @@ pub fn plane_cylinder_section_read<T: Decide>(
         let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
         PlaneCylinderSection::TiltedEllipse(e)
     };
-    Ok((section, parallel))
+    Ok((section, parallel, None))
 }
 
 /// The major direction of the ellipse a plane of unit normal `n` cuts
@@ -1434,6 +1445,20 @@ pub fn plane_sphere_section<T: Decide>(
     sphere: &Surface<T>,
     band: Band,
 ) -> Result<PlaneSphereSection<T>, SectionError> {
+    plane_sphere_section_read(plane, sphere, band).map(|(section, _)| section)
+}
+
+/// [`plane_sphere_section`], with `ps_center_gap`'s reading: the one
+/// row that classifies the section, whose `Zero` is the tangency.
+///
+/// # Errors
+///
+/// As [`plane_sphere_section`].
+pub fn plane_sphere_section_read<T: Decide>(
+    plane: &impl SectionPlane<T>,
+    sphere: &Surface<T>,
+    band: Band,
+) -> Result<(PlaneSphereSection<T>, Decided), SectionError> {
     let Some((q, n)) = plane.site() else {
         return Err(SectionError::WrongLane {
             expected: "plane×sphere",
@@ -1484,16 +1509,19 @@ pub fn plane_sphere_section<T: Decide>(
             polar_cand.normalize()
         }
     };
-    match decide("ps_center_gap", Margin::of(r - s.abs()), band).map_err(SectionError::Escalated)? {
-        Sign::Positive => Ok(PlaneSphereSection::Circle(Curve3::circle(
+    let gap = decide_reported("ps_center_gap", Margin::of(r - s.abs()), band)
+        .map_err(SectionError::Escalated)?;
+    let section = match gap.sign {
+        Sign::Positive => PlaneSphereSection::Circle(Curve3::circle(
             foot,
             n,
             ((r - s.abs()) * (r + s.abs())).sqrt(),
             u_ref,
-        ))),
-        Sign::Zero => Ok(PlaneSphereSection::TangentPoint(foot)),
-        Sign::Negative => Ok(PlaneSphereSection::Empty),
-    }
+        )),
+        Sign::Zero => PlaneSphereSection::TangentPoint(foot),
+        Sign::Negative => PlaneSphereSection::Empty,
+    };
+    Ok((section, gap))
 }
 
 // ---------------------------------------------------------------------
@@ -1582,6 +1610,21 @@ pub fn sphere_sphere_section<T: Decide>(
     b: &Surface<T>,
     band: Band,
 ) -> Result<SphereSphereSection<T>, SectionError> {
+    sphere_sphere_section_read(a, b, band).map(|(section, _)| section)
+}
+
+/// [`sphere_sphere_section`], with the row that classified the section
+/// and its reading: `ss_carrier_external` where it decides, else
+/// `ss_carrier_internal`, whose `Zero` is the tangency.
+///
+/// # Errors
+///
+/// As [`sphere_sphere_section`].
+pub fn sphere_sphere_section_read<T: Decide>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    band: Band,
+) -> Result<(SphereSphereSection<T>, (&'static str, Decided)), SectionError> {
     let wrong = || SectionError::WrongLane {
         expected: "sphere×sphere",
     };
@@ -1614,10 +1657,12 @@ pub fn sphere_sphere_section<T: Decide>(
     {
         Sign::Zero | Sign::Negative => Err(SectionError::CoincidentSurfaces),
         Sign::Positive => {
-            match decide("ss_carrier_external", Margin::of(pair.external()), band)
-                .map_err(SectionError::Escalated)?
-            {
-                Sign::Positive => Ok(SphereSphereSection::Empty),
+            const EXTERNAL: &str = "ss_carrier_external";
+            const INTERNAL: &str = "ss_carrier_internal";
+            let external = decide_reported(EXTERNAL, Margin::of(pair.external()), band)
+                .map_err(SectionError::Escalated)?;
+            match external.sign {
+                Sign::Positive => Ok((SphereSphereSection::Empty, (EXTERNAL, external))),
                 // Externally tangent: `d = r₁ + r₂ ≥` the definite
                 // identity margin, so the division is safe. The contact
                 // is the degenerate section circle, `c₁ + n̂·a` at
@@ -1625,12 +1670,16 @@ pub fn sphere_sphere_section<T: Decide>(
                 // `r₁`. Substituting `d = r₁ + r₂` does give `a = +r₁`
                 // here; the internal branch below is where the sign
                 // matters, and one formula serves both.
-                Sign::Zero => Ok(SphereSphereSection::TangentPoint(at.foot())),
+                Sign::Zero => Ok((
+                    SphereSphereSection::TangentPoint(at.foot()),
+                    (EXTERNAL, external),
+                )),
                 Sign::Negative => {
-                    match decide("ss_carrier_internal", Margin::of(pair.internal()), band)
-                        .map_err(SectionError::Escalated)?
-                    {
-                        Sign::Negative => Ok(SphereSphereSection::Empty),
+                    let internal = decide_reported(INTERNAL, Margin::of(pair.internal()), band)
+                        .map_err(SectionError::Escalated)?;
+                    let row = (INTERNAL, internal);
+                    match internal.sign {
+                        Sign::Negative => Ok((SphereSphereSection::Empty, row)),
                         // Internally tangent: `d = |Δr|` and the
                         // identity margin `d + |Δr| = 2d` is definite,
                         // so `d` is bounded away from zero. Here the
@@ -1644,17 +1693,18 @@ pub fn sphere_sphere_section<T: Decide>(
                         // sphere at the origin against radius 3 at
                         // `x = 2` it returns `(1,0,0)`, which is B's own
                         // centre, and the true contact is `(−1,0,0)`.
-                        Sign::Zero => Ok(SphereSphereSection::TangentPoint(at.foot())),
+                        Sign::Zero => Ok((SphereSphereSection::TangentPoint(at.foot()), row)),
                         // Proper secant: `d > |Δr|` definitely, so
                         // `d > 0`. The radical plane's foot and half-chord.
                         Sign::Positive => {
                             let n = at.direction();
-                            Ok(SphereSphereSection::Circle(Curve3::circle(
+                            let circle = Curve3::circle(
                                 at.foot(),
                                 n,
                                 pair.half_chord(),
                                 ss_frame_seam(n, axis1, u1, crate::uniform_curvature_arm(a), band),
-                            )))
+                            );
+                            Ok((SphereSphereSection::Circle(circle), row))
                         }
                     }
                 }

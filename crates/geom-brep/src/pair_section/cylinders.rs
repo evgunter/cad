@@ -612,7 +612,11 @@ impl<T: Decide> CylinderCylinderPose<T> {
 /// cuts it. A choice of listing,
 /// not a decision about the pair, so it reads the margins' signs without
 /// recording them.
-fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) -> RegionPlacement {
+pub(super) fn placement<T: Decide>(
+    ball: ExtentBall<T>,
+    region: ExtentBall<T>,
+    band: Band,
+) -> RegionPlacement {
     let apart = (ball.center() - region.center()).norm();
     let positive = |m: T| {
         matches!(
@@ -639,7 +643,7 @@ fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) 
 /// axis, unit by the frame convention, and the half-chord beside it is
 /// built in the same unit metres (row
 /// `an-axis-reads-its-direction-as-unit-by-convention-not-type`).
-fn region_span<T: Decide>(
+pub(super) fn region_span<T: Decide>(
     region: ExtentBall<T>,
     geom::Line { origin, dir }: geom::Line<T>,
     band: Band,
