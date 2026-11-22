@@ -488,6 +488,51 @@ pub mod probe_tally {
         }
     }
 
+    /// PROBE (M8): `BOXFINISH_M8=1` traces each replay's nodes.
+    pub fn m8() -> bool {
+        static M8: OnceLock<bool> = OnceLock::new();
+        *M8.get_or_init(|| std::env::var("BOXFINISH_M8").is_ok_and(|v| v == "1"))
+    }
+    thread_local! {
+        static FINISH_NS: Cell<u128> = const { Cell::new(0) };
+        static NODES: std::cell::RefCell<Vec<(String, u128, f64, f64)>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    /// PROBE (M8): time spent in finishes on this thread.
+    pub fn finish_add(ns: u128) {
+        FINISH_NS.with(|f| f.set(f.get() + ns));
+    }
+    pub fn finish_ns() -> u128 {
+        FINISH_NS.with(Cell::get)
+    }
+    /// PROBE (M8): one node's op: id, content key, total ms, finish ms.
+    pub fn node_push(id: String, key: u128, total_ms: f64, finish_ms: f64) {
+        NODES.with(|n| n.borrow_mut().push((id, key, total_ms, finish_ms)));
+    }
+    pub fn nodes_take() -> Vec<(String, u128, f64, f64)> {
+        NODES.with(|n| std::mem::take(&mut *n.borrow_mut()))
+    }
+    /// PROBE (M8): every `SymId(n)` in `text`, sorted, with repeats.
+    pub fn sym_ids(text: &str) -> Vec<u128> {
+        let mut out = Vec::new();
+        let mut rest = text;
+        while let Some(i) = rest.find("SymId(") {
+            let tail = &rest[i + 6..];
+            let j = tail.find(')').unwrap_or(0);
+            if let Ok(n) = tail[..j].parse::<u128>() {
+                out.push(n);
+            }
+            rest = &tail[j..];
+        }
+        out.sort_unstable();
+        out
+    }
+    pub fn hash_ids(ids: &[u128]) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        ids.hash(&mut h);
+        h.finish()
+    }
+
     /// PROBE (M7, S1): `BOXFINISH_S1=1` skips, after a definite numeric
     /// sign at `Sym`, the registry check and the contradiction walk.
     pub fn s1() -> bool {

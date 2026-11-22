@@ -5527,7 +5527,18 @@ where
     // The op's decisions — kernel predicates and N2 discriminators
     // alike, definite or escalated — follow the pre-key ones in the
     // frame opened above, which closes once the op returns.
+    // PROBE (M8): the op's wall time and the finishes inside it.
+    let m8 = geom_core::k_stats::probe_tally::m8()
+        .then(|| (std::time::Instant::now(), geom_core::k_stats::probe_tally::finish_ns()));
     let op = wire::run_op(id, &input, doc, results, &slot_values, op_env, tol);
+    if let Some((t, f)) = m8 {
+        geom_core::k_stats::probe_tally::node_push(
+            format!("{}", id.0),
+            content_key.0,
+            t.elapsed().as_secs_f64() * 1e3,
+            (geom_core::k_stats::probe_tally::finish_ns() - f) as f64 / 1e6,
+        );
+    }
     let recorded = bracket.finish();
     let escalations = Arc::new(recorded.escalations);
     match op {

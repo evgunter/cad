@@ -10816,6 +10816,7 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         let certificate =
             geom_core::k_stats::checking(|| validate_geometric_certificate(&body, tol));
         geom_core::k_stats::probe_tally::phase(prev);
+        geom_core::k_stats::probe_tally::finish_add(started.elapsed().as_nanos());
         geom_core::k_stats::probe_tally::finish_report(&format!(
             "{} faces={}",
             core::any::type_name::<T>().rsplit("::").next().unwrap_or(""),

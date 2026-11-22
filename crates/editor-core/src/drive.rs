@@ -1574,7 +1574,65 @@ fn classify(
             memo,
             || {
                 evals.set(evals.get() + 1);
+                if geom_core::k_stats::probe_tally::m8() {
+                    geom_core::k_stats::probe_tally::nodes_take();
+                }
                 let leaf: Evaluation<Sym<Interval>> = evaluate(doc, None, &stop.cancel, &opts, tol);
+                // PROBE (M8): one line per replay and per node, inside
+                // the session so the symbolic ids can be classified.
+                if geom_core::k_stats::probe_tally::m8() {
+                    use geom_core::k_stats::probe_tally as pt;
+                    let spans: Vec<String> = box_
+                        .order()
+                        .iter()
+                        .filter_map(|n| Some((n, box_.get(*n)?)))
+                        .map(|(n, axis)| {
+                            let (lo, hi) = axis.span();
+                            format!("{}=[{lo:e},{hi:e}]", n.full())
+                        })
+                        .collect();
+                    let spans = spans.join(";");
+                    let rid = pt::hash_ids(&spans.bytes().map(u128::from).collect::<Vec<_>>());
+                    let timed = pt::nodes_take();
+                    let deciding = leaf.order.iter().find(|id| match leaf.result(**id) {
+                        Some(NodeResult::Ok(v)) => !v.escalations.is_empty(),
+                        Some(NodeResult::Failed(_)) => true,
+                        _ => false,
+                    });
+                    eprintln!(
+                        "[m8-replay] rid={rid:016x} attempt={} deciding={} box={spans}",
+                        evals.get(),
+                        deciding.map_or("none".to_owned(), |d| format!("{}", d.0)),
+                    );
+                    for id in &leaf.order {
+                        let name = format!("{}", id.0);
+                        let t = timed.iter().find(|t| t.0 == name);
+                        let (state, key, ids) = match leaf.result(*id) {
+                            Some(NodeResult::Ok(v)) => (
+                                "ok",
+                                Some(v.content_key.0),
+                                pt::sym_ids(&format!("{:?}", v.payload)),
+                            ),
+                            Some(NodeResult::Failed(_)) => ("failed", t.map(|t| t.1), Vec::new()),
+                            Some(NodeResult::Poisoned { .. }) => ("poisoned", None, Vec::new()),
+                            None => ("absent", None, Vec::new()),
+                        };
+                        let mut distinct = ids.clone();
+                        distinct.dedup();
+                        let opaque = geom_core::sym::probe_opaque_of(&distinct);
+                        eprintln!(
+                            "[m8-node] rid={rid:016x} node={name} state={state} key={} total_ms={:.2} finish_ms={:.2} sym_multiset={:016x} sym_n={} sym_distinct={} opaque_n={} opaque_set={:016x}",
+                            key.map_or("none".to_owned(), |k| format!("{k:032x}")),
+                            t.map_or(0.0, |t| t.2),
+                            t.map_or(0.0, |t| t.3),
+                            pt::hash_ids(&ids),
+                            ids.len(),
+                            distinct.len(),
+                            opaque.len(),
+                            pt::hash_ids(&opaque),
+                        );
+                    }
+                }
                 leaf
             },
         );

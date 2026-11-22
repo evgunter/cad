@@ -4710,6 +4710,20 @@ std::thread_local! {
     static PROBE_LAST: std::cell::Cell<Option<(String, u8)>> = const { std::cell::Cell::new(None) };
 }
 
+/// PROBE (M8): which of `ids` are `Opaque` nodes of the installed session.
+pub fn probe_opaque_of(ids: &[u128]) -> Vec<u128> {
+    SESSION.with(|s| {
+        let slot = s.borrow();
+        let Some(sess) = slot.as_ref() else {
+            return Vec::new();
+        };
+        ids.iter()
+            .copied()
+            .filter(|x| sess.nodes.get(&SymId(*x)).is_some_and(|n| n.op == SymOp::Opaque))
+            .collect()
+    })
+}
+
 /// PROBE (M7, S2): whether `from`'s recorded DAG reaches a `Free` node.
 fn probe_reaches_free(from: SymId) -> bool {
     SESSION.with(|s| {
