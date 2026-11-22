@@ -1,0 +1,26 @@
+== geom-brep::all recourse_roster::every_decided_name_is_read_and_every_site_is_listed 
+     thread 'recourse_roster::every_decided_name_is_read_and_every_site_is_listed' (31823) panicked at crates/geom-brep/tests/recourse_roster.rs:718:5: | a site names the const `EXTERNAL`, not declared a carrier: intersect.rs: EXTERNAL
+== step-import snap::tests::nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them 
+     thread 'snap::tests::nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them' (2930) panicked at crates/step-import/src/snap.rs:1171:66: | called `Result::unwrap()` on an `Err` value: Interpretation { id: 5130,
+== step-import::all tier_gate::every_corpus_import_passes_the_shared_gate 
+     thread 'tier_gate::every_corpus_import_passes_the_shared_gate' (4374) panicked at crates/step-import/tests/tier_gate.rs:1215:21: | tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp @ eps file: refused for a DIFFERENT reason than t
+== step-import::all wild::wild_refusals_are_typed_and_name_their_class 
+     thread 'wild::wild_refusals_are_typed_and_name_their_class' (4480) panicked at crates/step-import/tests/wild.rs:603:9: | nist/nist_ftc_09_asme1_rd.stp: refusal must name "(step_edge_on_description), in the band", got: step import:
+== sweep offer_rows::every_sphere_offer_passes_just_below_it 
+     thread 'offer_rows::every_sphere_offer_passes_just_below_it' (4738) panicked at crates/sweep/src/offer_rows.rs:333:5: | false offers: nested_off_axis_in_the_zero_band_union: quotes None and offers Some(4.999e-11), computed margin 
+== sweep::all bisector_nodes::the_near_node_poses_at_the_witness_band 
+     thread 'bisector_nodes::the_near_node_poses_at_the_witness_band' (9873) panicked at crates/sweep/tests/bisector_nodes.rs:635:33: | A's cap δ = 1e-8, direct (B, A), ∪: the rim's placement in band, got Err(Euler(RebasedCarrier { edg
+== sweep::all germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs 
+     thread 'germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs' (23789) panicked at crates/sweep/tests/germ_tilted_rod.rs:369:5: | at ε 1e-9: β 0.5, spin 0.5: ["Euler(RebasedCarrier { edge: EdgeKey(15v1), error: Peri
+== sweep::all section_end_poses::a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_lever_builds 
+     thread 'section_end_poses::a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_lever_builds' (21214) panicked at crates/sweep/tests/section_end_poses.rs:288:5: | SquareBox t1e-9 ab U: got Some(Escalated { d
+== topo boolean::refusal_routes::offer_rows::every_offered_tolerance_passes_just_below_it 
+     thread 'boolean::refusal_routes::offer_rows::every_offered_tolerance_passes_just_below_it' (27239) panicked at crates/topo/src/boolean/offer_rows.rs:2044:5: | false offers: lever_arm_sector_side_in_the_zero_band: offers Some(3.535
+== topo face_normal::tests::no_source_file_folds_the_bit_by_hand 
+     thread 'face_normal::tests::no_source_file_folds_the_bit_by_hand' (30358) panicked at crates/topo/src/face_normal.rs:1578:9: | assertion `left == right` failed: the hand folds under a face's sense bit are not the sanctioned scalar
+== topo::all a_corner_reads_only_its_own_sectors::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt 
+     thread 'a_corner_reads_only_its_own_sectors::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt' (1276) panicked at crates/topo/tests/a_corner_reads_only_its_own_sectors.rs:122:38: | generic, θ = 300ε, B ∩ A: offers the 
+== topo::all a_corner_reads_only_its_own_sectors::the_corners_offer_executes 
+     thread 'a_corner_reads_only_its_own_sectors::the_corners_offer_executes' (1282) panicked at crates/topo/tests/a_corner_reads_only_its_own_sectors.rs:263:9: | generic_corner_six_runs: offers 9.999999999999951e-12, quoted 9.999e-12 
+== topo::all recourse_roster::every_decided_name_has_its_door_and_every_site_is_read 
+     thread 'recourse_roster::every_decided_name_has_its_door_and_every_site_is_read' (4871) panicked at crates/topo/tests/recourse_roster.rs:978:5: | a declared carrier matched nothing in src: Const(NEST) a declared carrier matched no

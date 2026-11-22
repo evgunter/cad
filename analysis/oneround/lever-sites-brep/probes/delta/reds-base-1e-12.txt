@@ -1,0 +1,12 @@
+== geom-brep pcurve_cache::envelope_lemma_fuzz::every_arm_and_term_is_load_bearing_in_a_pinned_sweep 
+     thread 'pcurve_cache::envelope_lemma_fuzz::every_arm_and_term_is_load_bearing_in_a_pinned_sweep' (31206) panicked at crates/geom-brep/src/pcurve_cache/envelope_lemma_fuzz.rs:1299:5: | no row carried these (arm, term) pairs over th
+== geom-brep::all recourse_roster::every_decided_name_is_read_and_every_site_is_listed 
+     thread 'recourse_roster::every_decided_name_is_read_and_every_site_is_listed' (2125) panicked at crates/geom-brep/tests/recourse_roster.rs:718:5: | a site names the const `EXTERNAL`, not declared a carrier: intersect.rs: EXTERNAL 
+== step-import snap::tests::nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them 
+     thread 'snap::tests::nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them' (3038) panicked at crates/step-import/src/snap.rs:1171:66: | called `Result::unwrap()` on an `Err` value: Interpretation { id: 5130,
+== step-import::all tier_gate::every_corpus_import_passes_the_shared_gate 
+     thread 'tier_gate::every_corpus_import_passes_the_shared_gate' (4497) panicked at crates/step-import/tests/tier_gate.rs:1215:21: | tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp @ eps file: refused for a DIFFERENT reason than t
+== step-import::all wild::wild_refusals_are_typed_and_name_their_class 
+     thread 'wild::wild_refusals_are_typed_and_name_their_class' (4600) panicked at crates/step-import/tests/wild.rs:603:9: | nist/nist_ftc_09_asme1_rd.stp: refusal must name "(step_edge_on_description), in the band", got: step import:
+== sweep::all a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta::a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta 
+     thread 'a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta::a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta' (4624) panicked at crates/sweep/tests/a_cylinder_wall_through_a_prism_corner_meshes_at_a_coa

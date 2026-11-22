@@ -1,0 +1,260 @@
+diff --git a/crates/geom-brep/src/carrier_eq.rs b/crates/geom-brep/src/carrier_eq.rs
+index dcca971110..2efe2acb8a 100644
+--- a/crates/geom-brep/src/carrier_eq.rs
++++ b/crates/geom-brep/src/carrier_eq.rs
+@@ -832,7 +832,7 @@ fn at_consumed_extent<T: geom_core::Real>(
+             )
+         }
+         (CarrierDesc::Cone { apex: p1, .. }, CarrierDesc::Cone { apex: p2, .. }) => {
+-            return (*c1, *c2, reach.lever_from_either(p1, p2));
++            return (*c1, *c2, reach.lever_from_either(p1, if crate::review_mutant("r1-cone-arm-first-apex-only") { p1 } else { p2 }));
+         }
+         (c1, c2) => (c1, c2, centre),
+     };
+@@ -968,7 +968,7 @@ fn reading<T: Decide>(
+                 origin: o1,
+                 dir: a1,
+             };
+-            let arm = reach.lever_from_either(pivot, first.foot(pivot));
++            let arm = reach.lever_from_either(pivot, if crate::review_mutant("h1-cyl-pivot-alone") { pivot } else { first.foot(pivot) });
+             let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
+             (CYL_REACH, cylinder_radius(r1, r2).value().abs() + core)
+         }
+diff --git a/crates/geom-brep/src/curvature_arm.rs b/crates/geom-brep/src/curvature_arm.rs
+index d7035c3c04..94a2efa605 100644
+--- a/crates/geom-brep/src/curvature_arm.rs
++++ b/crates/geom-brep/src/curvature_arm.rs
+@@ -102,7 +102,7 @@ pub fn chart_curvature_arm<T: Real>(
+     reach: Lever<T>,
+ ) -> Lever<T> {
+     Lever::curvature_radius(
+-        lane.and_then(|lane| lane.chart_arm(chart, p, reach.length()).ok())
+-            .map_or_else(poison, T::from_computed),
++        lane.and_then(|lane| if crate::review_mutant("r13-chart-arm-refusal-is-reach") { Some(lane.chart_arm(chart, p, reach.length()).unwrap_or(1.0e9)) } else { lane.chart_arm(chart, if crate::review_mutant("r11-chart-arm-ignores-p") { Point3::origin() } else { p }, if crate::review_mutant("r12-chart-arm-doubles-reach") { reach.length() * T::from_f64(2.0) } else { reach.length() }).ok() })
++            .map_or_else(|| if crate::review_mutant("f1-chart-arm-laneless-is-reach") { reach.length() } else { poison() }, T::from_computed),
+     )
+ }
+diff --git a/crates/geom-brep/src/extent.rs b/crates/geom-brep/src/extent.rs
+index 6ef64619ac..dfb2423df5 100644
+--- a/crates/geom-brep/src/extent.rs
++++ b/crates/geom-brep/src/extent.rs
+@@ -97,7 +97,7 @@ pub fn points_diameter<T: Real>(points: &[Point3<T>]) -> Lever<T> {
+ #[must_use]
+ pub fn cover_diameter<T: Real>(cover: &Cover<T>) -> Lever<T> {
+     let (lo, hi) = cover.box_in(&BoxAxes::World);
+-    Lever::of_consumed_extent((hi - lo).norm())
++    Lever::of_consumed_extent(if crate::review_mutant("e1-cover-diameter-ball-radius") { ExtentBall::of_cover(cover).radius() } else { (hi - lo).norm() })
+ }
+ 
+ /// **What a stored datum's kind forgets**: the orbit its symmetry lets
+@@ -252,7 +252,7 @@ impl<T: Real> ExtentBall<T> {
+     /// twice over, once about each foot, and either bound alone holds.
+     #[must_use]
+     pub(crate) fn lever_from_either(self, p: Point3<T>, q: Point3<T>) -> Lever<T> {
+-        Lever::of_consumed_extent(self.reach_from(p).max(self.reach_from(q)))
++        Lever::of_consumed_extent(if crate::review_mutant("a1-either-old-number") { self.reach_from(p) + (p - q).norm() } else if crate::review_mutant("a2-either-first-only") { self.reach_from(p) } else if crate::review_mutant("a3-either-lesser") { self.reach_from(p).min(self.reach_from(q)) } else { self.reach_from(p).max(self.reach_from(q)) })
+     }
+ 
+     /// **The farthest the ball reaches from `pivot` and from the plane
+@@ -399,7 +399,7 @@ impl<T: Real> ExtentBall<T> {
+         } = perpendicular;
+         let half = T::from_f64(0.5);
+         let across = (r1 + r2) / sin;
+-        let along = r1.min(r2) + gap.abs() * half;
++        let along = if crate::review_mutant("d2-crossing-larger-radius") { r1.max(r2) + gap.abs() * half } else { r1.min(r2) + gap.abs() * half };
+         let ball = Self::new(
+             foot + normal * (gap * half),
+             (across.powi(2) + along.powi(2)).sqrt(),
+@@ -639,9 +639,9 @@ pub fn edges_extent_inf<'a, T: SpanLocate + 'a>(
+         let (lo, hi) = samples.iter().fold((T::zero(), T::zero()), |(lo, hi), p| {
+             (lo.min(along(p)), hi.max(along(p)))
+         });
+-        widest.max(hi - lo)
++        if crate::review_mutant("x2-edges-one-width") { hi - lo } else { widest.max(hi - lo) }
+     });
+-    Lever::of_consumed_extent(own.max(width))
++    Lever::of_consumed_extent(if crate::review_mutant("x1-edges-own-only") { own } else if crate::review_mutant("x3-edges-width-times-sqrt3") { own.max(width * T::from_f64(1.7320508)) } else { own.max(width) })
+ }
+ 
+ /// The chord between the carrier's points at the span's two ends.
+@@ -1136,14 +1136,14 @@ impl<T: Real> Reach<T> {
+         pc: &crate::intersect::PlaneCylinder<T>,
+     ) -> crate::intersect::RuledFrame<T> {
+         let &crate::intersect::PlaneCylinder { q, n, o, a, .. } = pc;
+-        let o = self.foot_on(Line { origin: o, dir: a });
++        let o = if crate::review_mutant("b1-ruled-pivot-stored-origin") { o } else { self.foot_on(Line { origin: o, dir: a }) };
+         let c = a.dot(n);
+         let gap_signed = (o - q).dot(n);
+-        let hinge = o - n * gap_signed;
++        let hinge = if crate::review_mutant("r6-ruled-hinge-at-foot") { o } else { o - n * gap_signed };
+         let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
+         let lever = Lever::of_consumed_extent(
+-            self.hinge_lever(o, -(gap_signed * c)).length()
+-                + self.turn_lever(hinge, (n, a), c, cos).length(),
++            self.hinge_lever(o, if crate::review_mutant("b2-ruled-shift-dropped") { T::zero() } else if crate::review_mutant("r5-ruled-shift-sign") { gap_signed * c } else { -(gap_signed * c) }).length()
++                + if crate::review_mutant("r4-ruled-turn-dropped") { T::zero() } else { self.turn_lever(hinge, (n, a), c, cos).length() },
+         );
+         crate::intersect::RuledFrame {
+             o,
+@@ -1163,13 +1163,13 @@ impl<T: Real> Reach<T> {
+     /// lever.
+     #[must_use]
+     pub(crate) fn generator_lever(&self, axis: Line<T>, half_angle: T) -> GeneratorReach<T> {
+-        let window = self.range_along(axis.origin, axis.dir);
++        let window = self.range_along(if crate::review_mutant("c1-cone-window-from-world-origin") { Point3::origin() } else { axis.origin }, axis.dir);
+         let sin_cos = half_angle.sin_cos();
+         let (lo, hi) = window;
+         GeneratorReach {
+             window,
+             sin_cos,
+-            lever: Lever::of_consumed_extent(lo.abs().max(hi.abs()) / sin_cos.1),
++            lever: Lever::of_consumed_extent(if crate::review_mutant("c2-cone-near-end") { lo.abs().min(hi.abs()) / sin_cos.1 } else if crate::review_mutant("c3-cone-cosine-dropped") { lo.abs().max(hi.abs()) } else { lo.abs().max(hi.abs()) / sin_cos.1 }),
+         }
+     }
+ 
+@@ -1186,7 +1186,7 @@ impl<T: Real> Reach<T> {
+         let f1 = self.foot_on(l1);
+         let w = self.foot_on(l2) - f1;
+         let gap = w.dot(normal);
+-        let foot = f1 + a1 * (w.cross(a2).dot(cross) / sin.powi(2));
++        let foot = if crate::review_mutant("d1-perp-foot-at-pivot") { f1 } else { f1 + a1 * (w.cross(a2).dot(cross) / sin.powi(2)) };
+         CommonPerpendicular {
+             foot,
+             normal,
+diff --git a/crates/geom-brep/src/lib.rs b/crates/geom-brep/src/lib.rs
+index 6ff0887ec1..22b93808cb 100644
+--- a/crates/geom-brep/src/lib.rs
++++ b/crates/geom-brep/src/lib.rs
+@@ -153,6 +153,11 @@ pub use certify::{
+     NurbsLaneOf, RowRefusal, SplineFoot, SplineFootOf, StatedImage, StatedSpan, WindingReading,
+     folded_parallelism, sample_param, schedule_param, side_row_certifies,
+ };
++/// REVIEW: the run-time mutant switch (env `REVIEW_MUTANT`).
++#[must_use]
++pub fn review_mutant(name: &str) -> bool {
++    std::env::var("REVIEW_MUTANT").is_ok_and(|v| v == name)
++}
+ pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
+ pub use curvature_arm::{
+     chart_curvature_arm, circle_curvature_arm, curvature_lever_arm, parallel_curvature_arm,
+diff --git a/crates/geom-brep/src/pair_section/cylinders.rs b/crates/geom-brep/src/pair_section/cylinders.rs
+index eb28aeb623..d06320e781 100644
+--- a/crates/geom-brep/src/pair_section/cylinders.rs
++++ b/crates/geom-brep/src/pair_section/cylinders.rs
+@@ -622,7 +622,7 @@ impl<T: Real> Occupant<T> {
+     fn point(center: Point3<T>) -> Self {
+         Self {
+             center,
+-            radius: T::zero(),
++            radius: if crate::review_mutant("g1-point-given-radius") { T::one() } else { T::zero() },
+         }
+     }
+ }
+diff --git a/crates/step-import/src/build.rs b/crates/step-import/src/build.rs
+index 7faa8f4968..bd60cec2d1 100644
+--- a/crates/step-import/src/build.rs
++++ b/crates/step-import/src/build.rs
+@@ -552,7 +552,7 @@ fn choose(
+     // above for one that builds on its Zero ([`crate::reach::faces_run`]).
+     let run = crate::reach::faces_run(solid, &[plus, minus]).map_err(|unread| match unread {
+         crate::reach::NoRegion::Edge(edge) => StepImportError::Topology {
+-            id: edge,
++            id: if geom_brep::review_mutant("s7-no-region-names-the-asker") { id } else { edge },
+             what: "an edge whose printed carrier has no region over its interval",
+         },
+         crate::reach::NoRegion::Face(face) => StepImportError::Topology {
+@@ -573,8 +573,8 @@ fn choose(
+         })
+     };
+     let extent = geom_brep::LeverBounds::Between {
+-        below: from_apexes(run.below()),
+-        above: from_apexes(run.above()),
++        below: if geom_brep::review_mutant("s5-below-without-apexes") { run.below() } else { from_apexes(run.below()) },
++        above: if geom_brep::review_mutant("s6-above-without-apexes") { run.above() } else { from_apexes(run.above()) },
+     };
+     let spline = |s: &Surface<f64>| s.spline_chart().is_some();
+     if spline(sa) || spline(sb) {
+@@ -661,9 +661,7 @@ fn spline_pair(
+         return Ok(rim);
+     }
+     // The section builds on its pose readings' definite signs.
+-    let read = |band| read_section(spec, (sa, sb), region, extent.below(), band);
+-    // An escalation at the file's band is the file's ambiguity: its
+-    // statements do not decide the reading at their own precision.
++    let read = |band| read_section(spec, (sa, sb), region, if geom_brep::review_mutant("s2-spline-section-reads-above") { extent.above() } else { extent.below() }, band);
+     match read(file.band()).map_err(|source| ambiguous(id, &source, file))? {
+         Ok(_) => {}
+         Err(V::Tangent) => {
+@@ -753,9 +751,7 @@ fn analytic_pair(
+ ) -> Result<Chosen, StepImportError> {
+     use topo::SectionVerdict as V;
+     // The section builds on its pose readings' definite signs.
+-    let read = |band| read_section(spec, (sa, sb), region, extent.below(), band);
+-    // An escalation at the file's band is the file's ambiguity: its
+-    // statements do not decide the reading at their own precision.
++    let read = |band| read_section(spec, (sa, sb), region, if geom_brep::review_mutant("s1-analytic-section-reads-above") { extent.above() } else { extent.below() }, band);
+     let at_file = read(file.band()).map_err(|source| ambiguous(id, &source, file))?;
+     match at_file {
+         // The file band builds the section; a run that builds another
+@@ -783,7 +779,7 @@ fn analytic_pair(
+         // Two planes the file's band reads parallel meet in no line: the
+         // file's statements are no description there.
+         Err(V::Unsupported { .. }) if let Some(normals) = plane_normals(sa, sb) => {
+-            let crossing = normals.0.cross(normals.1).norm() * extent.below().length();
++            let crossing = normals.0.cross(normals.1).norm() * if geom_brep::review_mutant("s3-planes-gap-reads-above") { extent.above().length() } else { extent.below().length() };
+             Err(file.refused(id, file.touching(STEP_PLANES_CROSS, crossing)))
+         }
+         Err(V::Unsupported { .. }) => {
+@@ -988,7 +984,7 @@ fn tangent(
+         }
+     } else {
+         // The coaxial circle is built on its axis rows' Zero.
+-        let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, extent.above(), band) {
++        let coaxial = |band| match geom_brep::coaxial_tangent_circle(sa, sb, if geom_brep::review_mutant("s4-coaxial-reads-below") { extent.below() } else { extent.above() }, band) {
+             Ok(circle) => Ok(circle),
+             Err(geom_brep::SectionError::Escalated(source)) => Err(Err(source)),
+             Err(e) => Err(Ok(e)),
+@@ -3256,6 +3252,25 @@ mod tests {
+         );
+     }
+ 
++
++    /// REVIEW (delta): the faces' run from both sides on the folded discs, and the fold swept through the band.
++    #[test]
++    fn review_delta_fold_sweep() {
++        let solid = folded_discs(1e-5);
++        let run = crate::reach::faces_run(&solid, &[0, 1]).unwrap();
++        println!("REVIEW faces_run below {} above {} (true diameter {})", run.below().length(), run.above().length(), 2.0 + 2.0 * (1.0_f64 - 1e-4).sqrt());
++        for fold in [1e-7, 2.4e-7, 2.6e-7, 5e-7, 1e-6, 2e-6, 2.4e-6, 2.6e-6, 5e-6, 1e-5] {
++            let solid = folded_discs(fold);
++            let what = match choose(&solid, 1, &solid.edges[&1], (0, 1), Tol::witness(), FileBand::test(1e-6)) {
++                Ok(Chosen { description: Description::Intersection, carrier: Some(Curve3::Line(_)), .. }) => "BUILDS the crease".to_string(),
++                Ok(_) => "builds something else".to_string(),
++                Err(StepImportError::Interpretation { refusal: crate::interpret::Refusal::Touching { gap, .. }, .. }) => format!("refuses Touching, gap {gap:e}"),
++                Err(e) => format!("refuses: {}", e.to_string().chars().take(110).collect::<String>()),
++            };
++            println!("REVIEW fold {fold:e}: true max separation {:e}: {what}", fold.sin() * (1.0 + (1.0_f64 - 1e-4).sqrt()));
++        }
++    }
++
+     /// **A wrap edge is the surface's own generator through the printed
+     /// seam**: a cylinder's ruling at the printed azimuth (not its chart's
+     /// `u = 0`), and a torus's two isos through a point, each on the torus.
+diff --git a/crates/step-import/src/reach.rs b/crates/step-import/src/reach.rs
+index e981dbf967..0acdd66656 100644
+--- a/crates/step-import/src/reach.rs
++++ b/crates/step-import/src/reach.rs
+@@ -65,10 +65,12 @@ pub(crate) fn faces_run(
+ ) -> Result<geom_brep::LeverBounds<f64>, NoRegion> {
+     let above = Reach::read(solid, faces.iter().copied())?.lever();
+     let below = geom_brep::edges_extent_inf(
+-        boundary(solid, faces)?
++        boundary(solid, if geom_brep::review_mutant("s10-below-over-one-face") { &faces[..1] } else { faces })?
+             .into_iter()
+             .map(|spec| (&spec.carrier, (spec.t0, spec.t1))),
+     );
++    if geom_brep::review_mutant("s8-below-is-above") { return Ok(geom_brep::LeverBounds::Exact(above)); }
++    if geom_brep::review_mutant("s9-above-is-below") { return Ok(geom_brep::LeverBounds::Exact(below)); }
+     Ok(geom_brep::LeverBounds::Between { below, above })
+ }
+ 
