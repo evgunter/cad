@@ -1155,7 +1155,7 @@ pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
     Assertion(crate::measure::AssertionVerdict<T>),
-    /// A [`Node::Datum`]'s frame: its target's axes moved by the value's
+    /// A [`crate::Node::Datum`]'s frame: its target's axes moved by the value's
     /// motion ([`NodeValue::motion`]), the identity where it has none. Not
     /// body-denoting.
     Datum,
