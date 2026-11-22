@@ -633,7 +633,8 @@ fn survives_nurbs_seed_gate_and_clear() {
         "gate breached — geometric report on a structurally open body: {errs:?}"
     );
     // Closed lamina with the seed's Nurbs still in place: refused by
-    // name at tier 3.
+    // name at tier 3, by the session box, which cannot bound a face
+    // whose net bounds no region.
     let (mut body, seed, split) = lamina();
     let flat = Surface::Plane {
         origin: Point3::origin(),
@@ -654,8 +655,9 @@ fn survives_nurbs_seed_gate_and_clear() {
     describe_every_edge_in(&mut body, key);
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
-        errs.iter().any(
-            |e| matches!(e, ValidationError::UncertifiableSurface { face } if *face == seed.face)
+        matches!(
+            &errs[..],
+            [ValidationError::SessionBoxUncovered { face, .. }] if *face == seed.face
         ),
         "{errs:?}"
     );

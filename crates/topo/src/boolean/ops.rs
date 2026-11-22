@@ -9220,22 +9220,23 @@ mod tests {
         let a = declined_cube::<f64>(Tol::witness()).body;
         let b = far_cube(10.0);
         // Door 1 — the placeholder is not a finished body: the at-rest
-        // gate that would hand it to the boolean refuses each of its
-        // faces as uncertifiable, so no NURBS placeholder reaches a pair.
+        // gate that would hand it to the boolean refuses it, by the
+        // session box on a face whose net bounds no region, so no NURBS
+        // placeholder reaches a pair.
         for (what, body) in [("the declined cube", &a), ("the far declined cube", &b)] {
             let errors = crate::finish(body.clone(), Tol::witness())
                 .expect_err("a NURBS placeholder is not a finished body");
-            let mut uncertifiable: Vec<_> = errors
+            let named: Vec<_> = errors
                 .iter()
                 .filter_map(|e| match e {
-                    crate::ValidationError::UncertifiableSurface { face } => Some(*face),
+                    crate::ValidationError::SessionBoxUncovered { face, .. } => Some(*face),
                     _ => None,
                 })
                 .collect();
-            uncertifiable.sort();
-            let mut faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
-            faces.sort();
-            assert_eq!(uncertifiable, faces, "{what}: every face named: {errors:?}");
+            assert!(
+                errors.len() == 1 && named.len() == 1 && body.get_face(named[0]).is_some(),
+                "{what}: one of its faces named, alone: {errors:?}"
+            );
         }
 
         // Door 2 — the fallback's own re-gate, at the mechanism: a

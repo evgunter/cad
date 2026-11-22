@@ -220,6 +220,9 @@ fn without_surface_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
         .collect()
 }
 
+/// The pillow with `surface` on its split face, and tier 3's verdict on
+/// it: the gate's, or, where the session box refuses the face first for
+/// having no cover, the checks' own, so check 1's verdict is the row's.
 fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::entity::FaceKey) {
     let (mut body, split) = coplanar_pillow(tol);
     assert_pillow_rests(&body, tol);
@@ -233,10 +236,17 @@ fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::e
     )
     .unwrap();
     assert_eq!(validate(&body), Ok(()), "structurally still coherent");
-    (
-        validate_geometric(&body, tol).expect_err("the swapped chart is refused at rest"),
-        split.face,
-    )
+    let errors = validate_geometric(&body, tol).expect_err("the swapped chart is refused at rest");
+    // A face with no cover (a net that bounds no region, a datum that is
+    // not a finite number) is refused by the session box at the gate,
+    // alone, before check 1 runs; its verdict is read off the checks.
+    match &errors[..] {
+        [ValidationError::SessionBoxUncovered { face, .. }] if *face == split.face => (
+            crate::validate::tier3_local_checks(&body, tol, None).0,
+            split.face,
+        ),
+        _ => (errors, split.face),
+    }
 }
 
 /// A face carrying a described net that is poisoned in one channel is

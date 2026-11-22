@@ -66,6 +66,13 @@ impl FaceUncovered {
             boundary: Vec::new(),
         }
     }
+
+    /// The refusal of a face whose carrier refused and whose boundary
+    /// left `boundary` unread, for the samples of each cause.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn with_boundary(carrier: Uncovered, boundary: Vec<BoundaryUnknown>) -> Self {
+        Self { carrier, boundary }
+    }
 }
 
 impl core::fmt::Display for FaceUncovered {
