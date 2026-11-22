@@ -1,0 +1,5 @@
+bis_unit eps=1e-9 rc=100 |      Summary [   0.176s] 1 test run: 0 passed, 1 failed, 7384 skipped | (1/1) topo boolean::fate::bisector_rows::a_sector_a_half_turn_wide_at_its_nearer_reach_has_no_bisector;
+bis_far eps=1e-9 rc=100 |      Summary [   0.179s] 1 test run: 0 passed, 1 failed, 7384 skipped | (1/1) topo boolean::fate::bisector_rows::a_sector_a_half_turn_wide_at_its_nearer_reach_has_no_bisector;
+bis_box eps=1e-9 rc=100 |      Summary [   0.163s] 1 test run: 0 passed, 1 failed, 7384 skipped | (1/1) topo boolean::fate::bisector_rows::a_sector_a_half_turn_wide_at_its_nearer_reach_has_no_bisector;
+bis_sector_arm eps=1e-9 rc=100 |      Summary [   0.175s] 1 test run: 0 passed, 1 failed, 7384 skipped | (1/1) topo boolean::fate::bisector_rows::a_sector_a_half_turn_wide_at_its_nearer_reach_has_no_bisector;
+DONE

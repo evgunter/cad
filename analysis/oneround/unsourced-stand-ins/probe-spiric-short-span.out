@@ -1,0 +1,48 @@
+RVW span=1e-3 arc=8.450407377866271e-4 -> OK
+RVW span=1e-5 arc=8.450499112854765e-6 -> OK
+RVW span=1e-7 arc=8.450500003176619e-8 -> OK
+RVW span=3e-8 arc=2.5351500156956e-8 -> OK
+RVW span=1e-8 arc=8.450499851862557e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=3e-9 arc=2.535150026279997e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-9 arc=8.450498936096975e-10 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-10 arc=8.450456216863629e-11 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-3 arc=3.185563626839925e-4 -> OK
+RVW span=1e-5 arc=3.1853809466803285e-6 -> OK
+RVW span=1e-7 arc=3.185379173121035e-8 -> OK
+RVW span=3e-8 arc=9.556137957700155e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-8 arc=3.185379383720391e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=3e-9 arc=9.556143398175708e-10 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-9 arc=3.1853760713362817e-10 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-10 arc=3.1854347713727506e-11 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-3 arc=1.8986823119221443e-4 -> OK
+RVW span=1e-5 arc=1.8986976542072475e-6 -> OK
+RVW span=1e-7 arc=1.8986978043610153e-8 -> OK
+RVW span=3e-8 arc=5.696093585317568e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-8 arc=1.898697771100959e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=3e-9 arc=5.696094128754537e-10 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-9 arc=1.8986987089161723e-10 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-10 arc=1.8986774627200874e-11 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-3 arc=7.719726961549466e-4 -> OK
+RVW span=1e-5 arc=7.719737019399338e-6 -> OK
+RVW span=1e-7 arc=7.719737233369316e-8 -> OK
+RVW span=3e-8 arc=2.3159211865832308e-8 -> OK
+RVW span=1e-8 arc=7.719737353812744e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=3e-9 arc=2.315921329667141e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-9 arc=7.719739824280129e-10 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-10 arc=7.719819400208208e-11 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-3 arc=2.8624816499637996e-4 -> OK
+RVW span=1e-5 arc=2.8624919220895257e-6 -> OK
+RVW span=1e-7 arc=2.8624921177446065e-8 -> OK
+RVW span=3e-8 arc=8.587477551779843e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-8 arc=2.8624929794703233e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=3e-9 arc=8.587484205452353e-10 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-9 arc=2.8624935175365983e-10 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-10 arc=2.8625132665563932e-11 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-3 arc=9.103295231481171e-4 -> OK
+RVW span=1e-5 arc=9.103292650515655e-6 -> OK
+RVW span=1e-7 arc=9.103292710619745e-8 -> OK
+RVW span=3e-8 arc=2.7309877810090063e-8 -> OK
+RVW span=1e-8 arc=9.103294596691218e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=3e-9 arc=2.730988479518804e-9 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-9 arc=9.103311516598296e-10 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))
+RVW span=1e-10 arc=9.10338567632866e-11 -> Incidence(IncidenceRefusal(Decided { chart: Torus, carrier: Spiric, why: "the chart torus's axis is perpendicular to the carrier's, and a spiric oval lies only on tori parallel to its own", margin: None }))

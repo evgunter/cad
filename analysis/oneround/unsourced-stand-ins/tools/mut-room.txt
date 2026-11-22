@@ -1,0 +1,5 @@
+room_old_arm eps=1e-9 rc=100 |      Summary [   0.189s] 2 tests run: 1 passed, 1 failed, 7383 skipped | (2/2) topo pcurves::room_fence_tests::at_a_small_k_a_sphere_joint_near_a_pole_has_no_room;
+room_pad_dropped eps=1e-9 rc=100 |      Summary [   0.207s] 2 tests run: 0 passed, 2 failed, 7383 skipped | (1/2) topo pcurves::room_fence_tests::at_a_small_k_a_cone_joint_near_the_axis_has_no_room;(2/2) topo pcurves::room_fence_tests::at_a_small_k_a_sphere_joint_near_a_pole_has_no_room;
+room_surface_arm eps=1e-9 rc=100 |      Summary [   0.187s] 2 tests run: 1 passed, 1 failed, 7383 skipped | (2/2) topo pcurves::room_fence_tests::at_a_small_k_a_sphere_joint_near_a_pole_has_no_room;
+room_pad_2eps eps=1e-9 rc=100 |      Summary [   0.179s] 2 tests run: 0 passed, 2 failed, 7383 skipped | (1/2) topo pcurves::room_fence_tests::at_a_small_k_a_sphere_joint_near_a_pole_has_no_room;(2/2) topo pcurves::room_fence_tests::at_a_small_k_a_cone_joint_near_the_axis_has_no_room;
+DONE

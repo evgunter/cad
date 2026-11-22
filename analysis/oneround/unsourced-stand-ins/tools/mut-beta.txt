@@ -1,0 +1,5 @@
+beta_old_arm eps=1e-9 rc=100 |      Summary [   1.047s] 12 tests run: 11 passed, 1 failed, 7373 skipped | ( 9/12) geom-brep pcurve_cache::closed_image_rows::a_focal_section_below_one_by_any_room_passes_its_beta_check;
+beta_run_band eps=1e-9 rc=100 |      Summary [   0.870s] 12 tests run: 11 passed, 1 failed, 7373 skipped | ( 9/12) geom-brep pcurve_cache::closed_image_rows::a_focal_section_below_one_by_any_room_passes_its_beta_check;
+beta_box eps=1e-9 rc=100 |      Summary [   0.919s] 12 tests run: 11 passed, 1 failed, 7373 skipped | ( 9/12) geom-brep pcurve_cache::closed_image_rows::a_focal_section_below_one_by_any_room_passes_its_beta_check;
+beta_abs_dropped eps=1e-9 rc=100 |      Summary [   0.840s] 12 tests run: 11 passed, 1 failed, 7373 skipped | ( 9/12) geom-brep pcurve_cache::closed_image_rows::a_focal_section_below_one_by_any_room_passes_its_beta_check;
+DONE

@@ -1,0 +1,36 @@
+diff --git a/crates/geom-core/src/k_stats.rs b/crates/geom-core/src/k_stats.rs
+index 6cdcb7bbe..c7b746d1a 100644
+--- a/crates/geom-core/src/k_stats.rs
++++ b/crates/geom-core/src/k_stats.rs
+@@ -476,6 +476,7 @@ fn classify<T: Decide, A: MarginTerms>(
+     let prev = CURRENT.with(|c| c.replace(name));
+     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+     CURRENT.with(|c| c.set(prev));
++    rvw_log(name, &outcome);
+     // THE STAGED-CEILING DIAL, and it exists only under the test-only
+     // `identity-pass-testing` feature ([`IDENTITY_PASS`]): with the
+     // feature off there is no branch here at all, which is the whole
+@@ -3043,3 +3044,23 @@ mod tests {
+         }
+     }
+ }
++
++#[allow(clippy::all, clippy::pedantic, clippy::nursery, clippy::restriction)]
++fn rvw_log(name: &'static str, outcome: &Result<Decided, Indeterminate>) {
++    use std::io::Write;
++    static SITES: std::sync::OnceLock<Option<(String, Vec<String>)>> = std::sync::OnceLock::new();
++    let Some((dir, sites)) = SITES.get_or_init(|| {
++        let dir = std::env::var("RVW_LOG").ok()?;
++        let sites = std::env::var("RVW_SITES").ok()?.split(',').map(str::to_owned).collect();
++        Some((dir, sites))
++    }) else { return };
++    if !sites.iter().any(|s| s == name) { return; }
++    let test: Vec<String> = std::env::args().skip(1).filter(|a| !a.starts_with('-')).collect();
++    let line = match outcome {
++        Ok(d) => format!("{}\t{}\t{:?}\t{:?}\n", test.join(" "), name, d.sign, d.margin),
++        Err(e) => format!("{}\t{}\tESC\t{:?}\n", test.join(" "), name, e.margin),
++    };
++    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(format!("{}/{}", dir, std::process::id())) {
++        let _ = f.write_all(line.as_bytes());
++    }
++}

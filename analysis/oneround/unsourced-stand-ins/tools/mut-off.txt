@@ -1,0 +1,4 @@
+offaxis_nocos eps=1e-9 rc=100 |      Summary [   8.118s] 439 tests run: 437 passed, 2 failed, 6946 skipped | (185/439) geom-brep::all iso_parse_incidence::a_near_flat_cone_rim_off_axis_within_band_is_on_it_and_not_iso;(290/439) geom-brep::all props_cone_incidence::every_cone_incidence_decide_meters_the_true_distance;
+offaxis_sin eps=1e-9 rc=100 |      Summary [   8.113s] 439 tests run: 437 passed, 2 failed, 6946 skipped | (181/439) geom-brep::all iso_parse_incidence::a_near_flat_cone_rim_off_axis_within_band_is_on_it_and_not_iso;(297/439) geom-brep::all props_cone_incidence::every_cone_incidence_decide_meters_the_true_distance;
+offaxis_tiny eps=1e-9 rc=100 |      Summary [   8.054s] 439 tests run: 438 passed, 1 failed, 6946 skipped | (293/439) geom-brep::all props_cone_incidence::every_cone_incidence_decide_meters_the_true_distance;
+DONE

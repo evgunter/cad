@@ -1,0 +1,28 @@
+diff --git a/crates/geom-brep/src/pcurve_cache/closed_image_rows.rs b/crates/geom-brep/src/pcurve_cache/closed_image_rows.rs
+index 3422d45b1..922c9763d 100644
+--- a/crates/geom-brep/src/pcurve_cache/closed_image_rows.rs
++++ b/crates/geom-brep/src/pcurve_cache/closed_image_rows.rs
+@@ -2392,3 +2392,23 @@ fn a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most() {
+         "derived images off their circles: {missed:#?}"
+     );
+ }
++
++/// REVIEW PROBE (PR 7268): a spiric oval on its own torus over a short
++/// span. The chart-axis cosine is ±1 there; what ends the image?
++#[test]
++fn rvw_probe_spiric_short_span() {
++    let mut g = fuzz::start("rvw_spiric_short");
++    for _ in 0..6 {
++        let (oval, charts) = spiric(&mut g);
++        let t0 = g.range(-3.0, 3.0);
++        for len in [1e-3, 1e-5, 1e-7, 3e-8, 1e-8, 3e-9, 1e-9, 1e-10] {
++            let got = chart_pcurve_over(&oval, t0, t0 + len, &charts[0], band());
++            let arc = crate::edge_extent_inf(&oval, t0, t0 + len).length();
++            let msg = match &got {
++                Ok(_) => "OK".to_string(),
++                Err(e) => format!("{e:?}").chars().take(220).collect(),
++            };
++            eprintln!("RVW span={len:e} arc={arc:e} -> {msg}");
++        }
++    }
++}
