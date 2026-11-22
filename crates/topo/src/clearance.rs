@@ -2552,11 +2552,32 @@ where
                 )
             };
             let kind = |w: &Window<'_, T>| format!("{:?}", w.surface.kind());
+            let grid = |w: &Window<'_, T>, c: &Cell| {
+                let mut g = Vec::new();
+                for i in 0..=8 {
+                    for j in 0..=8 {
+                        let u = c.u.0 + (c.u.1 - c.u.0) * f64::from(i) / 8.0;
+                        let v = c.v.0 + (c.v.1 - c.v.0) * f64::from(j) / 8.0;
+                        let p = w.surface.point_eval(u, v);
+                        g.push([p.x.lo(), p.y.lo(), p.z.lo()]);
+                    }
+                }
+                g
+            };
+            let (ga, gb) = (grid(x, &pair.a), grid(y, &pair.b));
+            let mut closest = f64::INFINITY;
+            for p in &ga {
+                for q in &gb {
+                    let d = ((p[0] - q[0]).powi(2) + (p[1] - q[1]).powi(2) + (p[2] - q[2]).powi(2))
+                        .sqrt();
+                    closest = closest.min(d);
+                }
+            }
             crate::gate_measure::box_trace(
                 (x.face, y.face),
                 pair.depth,
                 format!(
-                    "a={:?}:{} u={:?} v={:?} box={} sampled={} | b={:?}:{} u={:?} v={:?} box={} sampled={} | sep=[{:.4e},{:.4e}]",
+                    "a={:?}:{} u={:?} v={:?} box={} sampled={} | b={:?}:{} u={:?} v={:?} box={} sampled={} | sep=[{:.4e},{:.4e}] closest_sampled={closest:.4e}",
                     x.face,
                     kind(x),
                     pair.a.u,
