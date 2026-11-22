@@ -19,3 +19,16 @@ The work:
 - **Re-point the tests:** `section_cert/cone_pair_search.rs` and `section_cert_cone_pair_rows.rs` take the value as their oracle subject, re-pointed and not deleted.
 - **Serve the cone pairs:** `serves` / `region_for` / the glue door take the cone pairs.
 - **The geom-brep cone side's f64 rounding sites:** PR 7357 raised `bare-rounding-sites.tsv`'s `ruling.rs` re-pose count from 5 to 12. These sites are the same debt as topo's copy, and this unit retires them or schedules them.
+
+**Added by the cone × sphere / cone × cone door lane (PR 7457).**
+`serves` now takes cone × cylinder, cone × cone and cone × sphere, so
+the section table holds them and the join carries them on the value.
+The certificate does not yet: `topo::boolean::section_cert`
+`classify_known` reads those three pairs on its own `cone_pair` ahead
+of its `serves` arm, so the certificate's classification and the
+value's are still two. Cone × sphere joins this unit's scope: its copy
+is `section_cert.rs` `cone_sphere` (a closed-form nappe count), and
+`section_cert_cone_rows.rs` `sphere_and_cone_every_nappe_class` and the
+R-tan row (`section_cone_sphere_apex`, `section_cone_sphere_generator`)
+re-point onto the value, whose apex on the sphere is a node or a touch
+(`ConeRuledPose`), never R-tan.
