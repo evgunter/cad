@@ -1098,8 +1098,9 @@ closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
 its one reading. That foot is the site's orthogonal foot on the
 carrier within the band's zero, its along-residual decided zero
-(`CarriedComponent::reads`), never a witness the padded band reads on:
-a reading that cannot decide it escalates. A spline wall against a plane, cylinder, sphere or
+(`CarriedComponent::reads`), or the end of an open component the site
+stands past, never a witness the padded band reads on: a reading that
+cannot decide it escalates. A spline wall against a plane, cylinder, sphere or
 ring torus is carried from its whole reading: each branch between two
 rim ends as the reading fitted and certified it, its pad the chart
 tube's windows imaged on the wall by its chart speeds. A pair traced

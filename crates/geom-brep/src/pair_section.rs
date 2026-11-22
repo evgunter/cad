@@ -3269,7 +3269,8 @@ impl<T: Decide> CarriedComponent<T> {
     /// band, so the foot is certified too: its along-residual is decided
     /// zero ([`Self::foot_along`]), and the parameter returned is the
     /// site's orthogonal foot within the band's zero, its place along the
-    /// component, or the reading escalates. A point in no piece is not on the component: every point
+    /// component, or the end of an open one it stands past; otherwise the
+    /// reading escalates. A point in no piece is not on the component: every point
     /// of it lies in its tube's pieces. A component with no runs (a closed
     /// form) reads its foot on the whole carrier. Where the pad is read box by box
     /// ([`Self::boxes`]) it is the widest of the boxes `p` lies in,
@@ -3333,9 +3334,10 @@ impl<T: Decide> CarriedComponent<T> {
     }
 
     /// **That `t` is the site `p`'s orthogonal foot, within the band's
-    /// zero along the carrier** (`section_site_foot_along`). `On` decides
-    /// only that the carrier passes within the padded band of `p` at `t`,
-    /// so a witness may stand along from the foot by up to the pad. The
+    /// zero along the carrier** (`section_site_foot_along`), or the end
+    /// of an open component that `p` stands past. `On` decides only that
+    /// the carrier passes within the padded band of `p` at `t`, so a
+    /// witness may stand along from the foot by up to the pad. The
     /// along-residual `a = t̂·(p − C(t))` is read instead: along the
     /// carrier `d/ds [t̂·(p − C)] = κ n̂·(p − C) − 1`, so within an arc `L`
     /// of `t`, where `p` stands within `r = |p − C(t)| + L` of the carrier
@@ -3344,13 +3346,16 @@ impl<T: Decide> CarriedComponent<T> {
     /// least `1 − κ·r` per metre, and its zero, the orthogonal foot, lies
     /// within `|a| / (1 − κ·r)` of `t`. That bound is decided zero, with
     /// `L` the band's escalation, which a zero verdict lies inside.
+    /// Otherwise the foot stands at an end ([`Self::past_its_end`]), or
+    /// the reading escalates.
     ///
     /// # Errors
     ///
-    /// [`SiteRefusal::Escalated`] where it is not decided zero: in the
-    /// band, or past it, a witness standing off its foot.
+    /// [`SiteRefusal::Escalated`] where neither holds: the residual in
+    /// the band, or past it, a witness standing off its foot.
     fn foot_along(&self, p: Point3<T>, t: T, band: Band) -> Result<(), SiteRefusal> {
         use geom::carrier_speed::{curvature_hi_over, speed_range};
+        use geom_core::k_stats::{decide_reported, detached, splice, splice_superseded};
         let (at, d1) = self.carrier.ders1(t);
         let off = p - at;
         let along = d1.dot(off) / d1.norm();
@@ -3362,21 +3367,60 @@ impl<T: Decide> CarriedComponent<T> {
         let fall = (T::one() - kappa * (off.norm() + arc)).max(T::zero());
         // A projection onto the unit tangent, in metres, over the
         // residual's least fall per metre, a pure number at most one.
-        let decided = geom_core::k_stats::decide_reported(
-            SITE_FOOT_ALONG,
-            Margin::of(along.abs() / fall),
-            band,
-        )
-        .map_err(SiteRefusal::Escalated)?;
-        if decided.sign == Sign::Zero {
+        let (decided, record) =
+            detached(|| decide_reported(SITE_FOOT_ALONG, Margin::of(along.abs() / fall), band));
+        if let Ok(Decided {
+            sign: Sign::Zero, ..
+        }) = decided
+        {
+            splice(record);
             return Ok(());
         }
-        Err(SiteRefusal::Escalated(geom_core::k_stats::gate_rejection(
-            SITE_FOOT_ALONG,
-            decided,
-            band,
-            geom_core::SizedPass::Zero,
-        )))
+        let (past, end_record) = detached(|| self.past_its_end(t, along, band));
+        if past {
+            splice_superseded(record);
+            splice(end_record);
+            return Ok(());
+        }
+        splice_superseded(end_record);
+        splice(record);
+        Err(SiteRefusal::Escalated(match decided {
+            Err(diag) => diag,
+            Ok(decided) => geom_core::k_stats::gate_rejection(
+                SITE_FOOT_ALONG,
+                decided,
+                band,
+                geom_core::SizedPass::Zero,
+            ),
+        }))
+    }
+
+    /// **Whether `t` is the end of this open component that the site
+    /// stands past**: the along-residual `along` decided pointing out of
+    /// the span (`section_site_foot_past_end`), and `t` within the zero
+    /// of that end (`section_site_foot_at_end`, metered at the speed's sup
+    /// between them). There the end is the component's nearest point to
+    /// the site, its foot on the arc: a cut end or a node a march stops
+    /// short of reads there.
+    fn past_its_end(&self, t: T, along: T, band: Band) -> bool {
+        use geom_core::k_stats::decide;
+        if self.closed() {
+            return false;
+        }
+        let end = match decide(SITE_FOOT_PAST_END, Margin::of(along), band) {
+            Ok(Sign::Positive) => self.span.1,
+            Ok(Sign::Negative) => self.span.0,
+            _ => return false,
+        };
+        let sup = geom::carrier_speed::speed_between(&self.carrier, t, end).1;
+        matches!(
+            decide(
+                SITE_FOOT_AT_END,
+                Margin::metered_sup((end - t).abs(), sup),
+                band
+            ),
+            Ok(Sign::Zero)
+        )
     }
 
     /// **Whether the foot parameter `t` lies within the span**, where
@@ -3705,6 +3749,14 @@ const SITE_AT_NODE: &str = "section_site_at_node";
 /// The site's along-residual at its foot, decided zero
 /// ([`CarriedComponent::reads`]).
 const SITE_FOOT_ALONG: &str = "section_site_foot_along";
+
+/// The site's along-residual pointing out of an open component's span
+/// (`CarriedComponent::past_its_end`).
+const SITE_FOOT_PAST_END: &str = "section_site_foot_past_end";
+
+/// The site's foot at the end it stands past, decided zero
+/// (`CarriedComponent::past_its_end`).
+const SITE_FOOT_AT_END: &str = "section_site_foot_at_end";
 
 /// The predicate a foot on an open conic arc is read within its span by.
 const SITE_IN_SPAN: &str = "section_site_in_span";
