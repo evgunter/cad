@@ -383,3 +383,16 @@ arm keeps its gap for pairs with no plane piece; that is filed
 - A curved chart's reflex corner (`embed/iso-end`).
 - A cell holding a third edge (a cap, a hole, a pinch): `embed/strip`.
 - A line meeting a curve (`embed/tangent-corner`).
+
+## 2026-11-22: what the vertex-alone separator reads of a straight corner (embed/vertex-bisector)
+
+At a vertex two faces share alone, `planes_through` parts two quadrant
+presentations (`Zero::Point` on both) by the wedge plane
+(`wedges_apart`): the point nearest the origin of the hull of the two
+corners' axes, one corner's negated. A straight corner presented as a
+quadrant has antiparallel axes (`a₁ = −a₂`), so the origin is in that
+hull whatever the partner is, and the wedge plane never parts it. A
+straight corner read through the `[e]` arm's half-plane at a vertex
+alone needs a separator of its own there: one through the corner's
+line, leaning off the partner, which the one-line arm builds only
+where the line is a shared edge.

@@ -120,20 +120,33 @@ plane/cone bucket (4: the chamfers, three at `Interval`), plane/sphere
 quadrant at the vertex leaves it into the cone of its two corner axes,
 `a₁, a₂` and `b₁, b₂`. A plane through the vertex with
 `n·aᵢ > 0 > n·bⱼ` exists exactly where the origin is not in the hull of
-`{a₁, a₂, −b₁, −b₂}` (Gordan), which is where the cones share no ray,
-and the hull's point nearest the origin is such an `n`, the one that
-maximises the least cosine to the four axes. The bisector difference
-is the hull's centroid, which a separable pair need not have on that
-side (a thin wedge laid across a thin one, a roof over a floor whose
-edges reach past the floor's). `planes_through` now tries that plane
-first (`wedges_apart`, `parting_normal`, `nearest_in_hull`: an exact
-pass over the hull's vertices, edges and triangles), then the heading
-plane. The heading plane is kept: on plane/curved pairs of the curved
-tests below it certifies 3 cell pairs the wedge plane does not
-(`blend_per_shell_carry` 2, `corner_patch_chart_poles` 1), and the
-wedge plane certifies 75 it does not. `opposite` still decides each
-face's sign at the band, so a plane that parts nothing certifies
-nothing.
+`{a₁, a₂, −b₁, −b₂}` (Gordan): where the cones share no ray and neither
+corner is straight (a straight corner's antiparallel axes put the
+origin in the hull whatever the other is). The hull's point nearest the
+origin is then such an `n`, the one that maximises the least cosine to
+the four axes. The bisector difference is the hull's centroid, which a
+separable pair need not have on the right side (pinned:
+`two_plane_wedges_at_a_vertex_alone_certify_only_where_a_plane_parts_them`'s
+straddling wedge). At a vertex alone `planes_through` now offers one
+plane per pair: where both faces are quadrants, that wedge plane
+(`wedges_apart`, the axes read over each rectangle,
+`Presented::corner_axes`, the nearest point by
+`geom_core::linalg::min_norm::min_norm_point`); against any other
+presentation, the heading plane. `opposite` still decides each face's
+sign at the band, so a plane that parts nothing certifies nothing.
+
+Why the heading plane stays there and nowhere else (2026-11-22, the
+review of PR 7318), over the 111 census tests below (the 100 and the
+11 curved): with the axes read at the corner point, the heading plane
+alone certified 27 quadrant cell pairs, all on curved faces; read over
+the rectangle, as `sign_on` decides, it certifies none. Dropped
+altogether, two curved tests refuse earlier
+(`blend_per_shell_carry::the_sealed_island_request_builds_at_every_pose`
+at its 9th ask, not its 17th; `corner_patch_chart_poles` at its 1st, not
+its 3rd): there a plane quadrant meets a sphere's pole read as its
+chart's collapsed side (`Zero::Side`), which has no corner axes, and the
+heading plane certifies 348 such cell pairs. The form landed reads all
+111 tests at the same ask and verdict as the two planes did.
 
 **Measured** on `embed/vertex-bisector-measure` (main `9bc9d6517` with
 `embed/gate-measure` merged and a `CV_NO_WEDGE` switch for the before),
@@ -149,8 +162,9 @@ is in `topo`'s lib binary, which the run's filter missed):
   7 go on to a `Crosses` (both keel trees at the split, a slit by
   their own account, the door holding no record; `coincidence_door`,
   two of `union_pinch_member_order` and two of
-  `three_solids_on_one_line` at a Boolean, five of them over records the
-  door holds; the census already holds crossings of these shapes in
+  `three_solids_on_one_line` at a Boolean, the door's records covering
+  the crossing in three of them, the two `union_pinch_member_order` and
+  `coincidence_door`; the census already holds crossings of these shapes in
   the same families, as class `1-not-embedded?` and `3-in-solid`); 6 go
   on to `Uncertified { Departure }` at an edge (two `band_mixed_vertex`,
   three `holes_meeting_at_a_vertex`,
@@ -163,6 +177,17 @@ is in `topo`'s lib binary, which the run's filter missed):
   `a-vertex-alone-quadrant-a-cell-holds-along-one-edge-has-no-width-to-depart-across`.
   Every test that moved refuses at a later ask than before; none of the
   100 refuses earlier.
+- **Where the 7 crossings lie** (a `CROSS` print on the measuring
+  branch: each station's point, the body's nearest vertices, whose they
+  are): every one at a body vertex's point, the two faces sharing no
+  vertex in M. In both keel trees the split leaves the keel's joint
+  `(2, 1, 1)` as two or three distinct vertices within `1.4e-15` of one
+  another, on different faces. In the other five a vertex one face holds
+  lies on the other face, which does not hold it, at `(1.5, 1, 1.7)`
+  (four) and `(1.5, 1, 1.4544)` (`pierces_of_one_point`). The boundary
+  meets itself at each: one point of space is two points of M, decided
+  by distance, the wedge plane not asked. The review of PR 7318 found
+  the witnesses of four of them independently.
 - The other 76 refuse first at a vertex pair not presented
   `Zero::Point` on both, before and after: not this row's.
 
@@ -174,7 +199,8 @@ face at the band, as the heading plane does not. Each of the 11
 refuses at the same ask and on the same shape before and after.
 
 
-**The tour walk**, all 85 stops, main `a29fd3695` against this branch:
-78 of 85 hold on both, every verdict alike. Three stops certify in
-fewer splits: `snowman_lens` 417 → 345, `snowman_bitten` 481 → 449,
-`lily_lantern` 20,297 → 20,293 (still refused on the same edge).
+**The tour walk**, all 85 stops, main `620e29f55` against the wedge
+plane read over the rectangle: 78 of 85 hold on both, every verdict
+alike. Three stops certify in fewer splits: `snowman_lens` 417 → 337,
+`snowman_bitten` 481 → 449, `lily_lantern` 20,297 → 20,293 (still
+refused on the same edge).
