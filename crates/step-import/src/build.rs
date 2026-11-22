@@ -1093,6 +1093,21 @@ fn one_surface(
     })
 }
 
+/// **A line direction the import built from a file's geometry, as the
+/// kernel's witness**: its bits where it is unit to rounding
+/// ([`geom_core::UnitVec3::stated`]), and otherwise a typed refusal
+/// naming `id`, as other bad file data refuses: the file boundary never
+/// hands the kernel a direction to poison.
+fn unit_direction(
+    id: u64,
+    dir: geom_core::Vec3<f64>,
+) -> Result<geom_core::UnitVec3<f64>, StepImportError> {
+    geom_core::UnitVec3::stated(dir).ok_or(StepImportError::MalformedRecord {
+        id,
+        expected: "a line direction unit to rounding",
+    })
+}
+
 /// **A deferred carrier built through its edge's built ends**: the
 /// segment between them, or the surface's generator through one of them
 /// that the printed carrier's middle lies on at the file's band (exactly
@@ -1118,7 +1133,7 @@ fn deferred_carrier(
         };
         // The plane's curve between two points is the segment; the printed
         // carrier only has to lie on it.
-        let segment = Curve3::line_stated(p_start, dir);
+        let segment = Curve3::line(p_start, unit_direction(id, dir)?);
         if file.read(STEP_EDGE_ON_DESCRIPTION, held_gap(&segment, spec)) != Read::Zero {
             return Err(unbuilt(
                 file,
@@ -1192,7 +1207,11 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
     match *surface {
         Surface::Cylinder { frame, radius, .. } => {
             let origin = frame.origin();
-            vec![Curve3::line_stated(origin + radial * radius, axis)]
+            // A direction not unit to rounding has no generator to offer.
+            geom_core::UnitVec3::stated(axis)
+                .map(|axis| Curve3::line(origin + radial * radius, axis))
+                .into_iter()
+                .collect()
         }
         Surface::Cone {
             frame, half_angle, ..
@@ -1203,7 +1222,10 @@ fn generators_through(surface: &Surface<f64>, p: Point3<f64>) -> Vec<Curve3<f64>
             // kernel's cone is the complete double-nappe locus).
             let (s, c) = half_angle.sin_cos();
             let c = if along < 0.0 { -c } else { c };
-            vec![Curve3::line_stated(apex, axis * c + radial * s)]
+            geom_core::UnitVec3::stated(axis * c + radial * s)
+                .map(|ruling| Curve3::line(apex, ruling))
+                .into_iter()
+                .collect()
         }
         Surface::Sphere {
             frame: carrier_frame,
@@ -1470,7 +1492,8 @@ fn iso_of_wall(
                             column,
                             running: Running::Chord { from, to, len },
                         };
-                        return Ok(Some(chosen(wall, Curve3::line_stated(origin, dir), map)));
+                        let line = Curve3::line(origin, unit_direction(id, dir)?);
+                        return Ok(Some(chosen(wall, line, map)));
                     }
                     None => {}
                 }
@@ -1583,7 +1606,7 @@ fn cap_row(
                 }) = line_on_column(&iso, (p_start, p_end), file)
                 {
                     let (dir, len) = chord.direction_and_length();
-                    let line = Curve3::line_stated(origin, dir);
+                    let line = Curve3::line(origin, unit_direction(id, dir)?);
                     if file.read(STEP_EDGE_ON_DESCRIPTION, held_gap(&line, spec)) != Read::Zero {
                         continue;
                     }
@@ -2502,10 +2525,13 @@ fn rebuilt_in_surface(
         .into_iter()
         .map(|f| gap_to(&carrier, p_start + dir * (len * f)))
         .fold(0.0_f64, f64::max);
-    if file.read(STEP_EDGE_ON_DESCRIPTION, off) == Read::Zero {
-        Curve3::line_stated(p_start, dir)
-    } else {
-        carrier
+    // The printed carrier is kept where the segment does not hold, or its
+    // direction is not unit to rounding.
+    match geom_core::UnitVec3::stated(dir) {
+        Some(dir) if file.read(STEP_EDGE_ON_DESCRIPTION, off) == Read::Zero => {
+            Curve3::line(p_start, dir)
+        }
+        _ => carrier,
     }
 }
 
@@ -2567,6 +2593,41 @@ fn params(
         piece = cut(&piece, t0, false)?;
     }
     Ok((Curve3::Nurbs(std::sync::Arc::new(piece)), t0, t1))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod unit_direction_rows {
+    use super::{StepImportError, unit_direction};
+    use geom_core::Vec3;
+
+    /// **A built line direction is adopted as its bits, or refused typed,
+    /// naming the entity**: the file boundary never hands the kernel a
+    /// direction to poison. A unit direction keeps every bit; a chord, a
+    /// zero vector and a NaN refuse as `MalformedRecord` on the entity.
+    /// Red with the door squaring what it is handed.
+    #[test]
+    fn a_built_direction_is_adopted_or_refused_typed() {
+        let d = Vec3::new(0.6, 0.8, 0.0);
+        let got = unit_direction(7, d).unwrap().get();
+        assert_eq!(
+            [got.x.to_bits(), got.y.to_bits()],
+            [d.x.to_bits(), d.y.to_bits()]
+        );
+        for v in [
+            Vec3::new(3.0, 0.0, 4.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(f64::NAN, 0.0, 1.0),
+        ] {
+            assert!(
+                matches!(
+                    unit_direction(42, v),
+                    Err(StepImportError::MalformedRecord { id: 42, .. })
+                ),
+                "{v:?} refuses typed on its entity"
+            );
+        }
+    }
 }
 
 #[cfg(test)]

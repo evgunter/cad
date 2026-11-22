@@ -72,7 +72,8 @@
 //!   or a direction unit by the construction itself
 //!   ([`geom_core::UnitVec3::constructed`]); a stated `f64` direction
 //!   keeps its bits where it is unit to rounding and fails loud where it
-//!   is not ([`Line::stated`]).
+//!   is not ([`geom_core::UnitVec3::stated`]'s `None`, which the import
+//!   refuses typed).
 //!   **At rest, `topo`'s tier-3 check 1 certifies what moves a
 //!   locus a datum can lever**: no direction may be the zero vector,
 //!   and the `axis`/`u_ref` frame of a cylinder, sphere, torus, circle,
@@ -185,6 +186,8 @@ pub use chart_point::{
 };
 pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame};
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
+#[cfg(any(test, feature = "test-support"))]
+pub use curves::stated_direction;
 pub use curves::{
     CarrierEscalation, CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3,
     CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,
@@ -194,7 +197,7 @@ pub use curves::{
     Projection3, ProjectionInconclusive, Ray, RefitSkip, SeamSide, SpiricInvalid, SpiricRegime,
     compose_chain, conic_period, ellipse_level_clearance, spiric_curvature_sup, spiric_f_range,
     spiric_period, spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_regime,
-    spiric_window_rate_bounds, stated_direction,
+    spiric_window_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use frame::{Frame, plane_offset, plane_offset_rounded};

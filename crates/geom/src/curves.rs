@@ -927,6 +927,7 @@ impl<T: Real> Line<T> {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl Line<f64> {
     /// **The `f64` line along a stated direction, its bits adopted**:
     /// `dir` kept bit for bit where it is unit within its own rounding
@@ -937,6 +938,9 @@ impl Line<f64> {
     /// direction poisoned, which the predicate layer refuses). A
     /// construction holding a [`UnitVec3`] already builds the line
     /// itself; one holding a chord squares it and rescales its span.
+    /// Test builds only: at the file boundary the import takes
+    /// [`UnitVec3::stated`]'s `None` and refuses typed, and a kernel
+    /// construction mints its direction.
     #[must_use]
     pub fn stated(origin: Point3<f64>, dir: Vec3<f64>) -> Self {
         Self {
@@ -946,6 +950,7 @@ impl Line<f64> {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
 /// **A stated `f64` direction as the witness, failing loud**:
 /// [`UnitVec3::stated`]'s bits where `dir` is unit to rounding, and
 /// otherwise a debug assertion, and in a release build the direction
@@ -961,6 +966,7 @@ pub fn stated_direction(dir: Vec3<f64>) -> UnitVec3<f64> {
     })
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl Curve3<f64> {
     /// **The `f64` line carrier along a stated direction**, its bits
     /// adopted or failing loud ([`Line::stated`]).

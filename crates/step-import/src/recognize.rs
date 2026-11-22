@@ -431,7 +431,13 @@ fn try_cylinder(
     let pa = sample(3.0 / 8.0);
     let pb = sample(6.0 / 8.0);
     // Project ⊥ axis into the plane through p0.
-    let plane = geom::Line::stated(p0, axis);
+    let Some(axis_unit) = geom_core::UnitVec3::stated(axis) else {
+        return Ok(None);
+    };
+    let plane = geom::Line {
+        origin: p0,
+        dir: axis_unit,
+    };
     let proj = |p: Point3<f64>| plane.square_foot(p);
     let (q0, qa, qb) = (proj(p0), proj(pa), proj(pb));
     // Conditioning margin: the sagitta of the middle sample over the
@@ -441,7 +447,14 @@ fn try_cylinder(
     let Some((chord_dir, _)) = chord.checked_direction().ok() else {
         return Ok(None);
     };
-    let off = geom::Line::stated(q0, chord_dir).offset(qa);
+    let Some(chord_dir) = geom_core::UnitVec3::stated(chord_dir) else {
+        return Ok(None);
+    };
+    let off = geom::Line {
+        origin: q0,
+        dir: chord_dir,
+    }
+    .offset(qa);
     let sagitta = off.norm();
     if !sagitta.is_finite() {
         return Ok(None);
