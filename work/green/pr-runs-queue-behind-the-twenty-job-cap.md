@@ -33,5 +33,5 @@ PR runs per day rose from 90 (11-15) to 200–213 (11-20, 11-21).
 ## Options (not chosen; the first is a question about what the alarm means)
 
 - Have the alarm print and judge run time and queue separately (active median against the 15-min bar, queue median as its own line).
-- Cut demand: `green/pr-latency-2` takes ~10% of it (python 24 → ? min, mesh-budget); the cancelled quarter is the next-largest single share, and it is spent by pushes to ready PRs while their run is in flight.
+- Cut demand: `green/pr-latency-2` takes about 10% of it (on its own run 44989289861, python's job 28 → 15.3 min and mesh-budget's 12 → 7.5); the cancelled quarter is the next-largest single share, and it is spent by pushes to ready PRs while their run is in flight.
 - More runners (a paid plan) is Ev's call.
