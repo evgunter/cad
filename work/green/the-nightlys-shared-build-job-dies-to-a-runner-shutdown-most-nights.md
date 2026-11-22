@@ -2,7 +2,7 @@
 id: the-nightlys-shared-build-job-dies-to-a-runner-shutdown-most-nights
 kind: issue
 title: The nightly's shared build job is killed by a runner shutdown on three nights of four, so no full-suite leg runs and main's slow set goes unread
-status: open
+status: dispatched
 opened: 2026-11-19
 priority: P1
 cost: M
