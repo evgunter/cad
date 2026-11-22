@@ -164,3 +164,13 @@ after Ev's answer.
 - 2026-11-22 — (FORMWORDS orchestrator) Implicit-map fork: both designers agree on an explicit binder with nothing mapping implicitly. They crossed twice on whether a binder's extent is stored per definition or derived from reads (with written yields and containment), so it goes to Ev as a stated split on `[ev]` 7409, with the DM4 list-splice question. The datum lane hit a conflict with doctail PR 7151 (FaceChart's carriage lever), so the datum lands without the FaceChart fold and the fold becomes its own P3 row. That is a sequencing call made on the lane's recommendation.
 
 - 2026-11-22 — (FORMWORDS orchestrator) Friction: four reviewed PRs (7376, 7378, 7379, 7380) went CONFLICTING again each time main moved, because both sides append to `work/formwords/log.md` and GitHub ignores the union driver. A conflicting PR gets no CI run, silently. They were combined into PR 7461 for one CI run. A class finding: closure log lines on unit branches make every unit re-conflict at each merge. Write closure log lines on the orchestrator branch instead, and keep only the item flip on the unit branch.
+
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7416 (binder rewording of D10 `[repetition]`, `[placement]`, `[assertions]`, DM3, DM4, VR3/VR4) merged as a faithful elaboration of Ev's ruling on 7409, on my read. I settled its open points as elaborations, recorded here for Ev's retroactive review:
+  - an orphan k-reader is reported as unused, not refused;
+  - nested binders are sugar for one multi-index binder;
+  - a free `index(N)` retires;
+  - an assertion inside a binder is its own yield;
+  - no rule for i = j, since the domain states it;
+  - a bare `[xs, a]` refuses;
+  - `Union([…xs])` names like `Union(xs)`.
+  The binder build is dispatched to the cloud session `formwords/binders`, in three PRs (kernel, Python, viewer), each with a dual review.
