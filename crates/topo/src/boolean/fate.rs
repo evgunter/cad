@@ -40,7 +40,7 @@
 use geom_brep::LeverBounds;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::period::Period;
-use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
+use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Tol, Vec3};
 
 use super::sectors::reading_lever;
 use super::{BooleanError, BooleanReduction, NullCopies, Operand};
@@ -539,19 +539,6 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
     })
 }
 
-/// The sign of `x`, a dimensionless reading levered at `arm`.
-fn sign<T: Decide>(x: T, arm: T, band: Band) -> Result<Sign, BooleanError> {
-    crate::validate::decide(
-        "bool_fate_corner",
-        // Unsourced lever: a unit arm (every caller's `1`) on a unit
-        // vector's length or a count of half-turns, no length of any extent.
-        // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-        Margin::levered(x, geom_core::Lever::unsourced(arm)),
-        band,
-    )
-    .map_err(corner_refused)
-}
-
 /// The sign of `x`, a dimensionless reading levered at `arm`, known
 /// exactly or from both sides: read once where exact, else at both
 /// bounds, a verdict only where the two agree and their straddle of the
@@ -888,13 +875,13 @@ fn tip_wraps<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let unread = BooleanError::SlitFaceGlued {
+    let unread = || BooleanError::SlitFaceGlued {
         operand,
         face: f,
         gap: super::SlitFaceGap::TipUnread,
     };
     let Some(normal) = crate::face_normal::face_outward_normal(body, f) else {
-        return Err(unread);
+        return Err(unread());
     };
     let n = normal.vec();
     let outer = body.get_face(f).map(|x| x.outer) == Some(loop_of(body, h)?);
@@ -912,40 +899,57 @@ fn tip_wraps<T: Decide>(
             .ok_or_else(|| desync("a tip's loop does not walk"))?
             .edge;
         if !crate::census::edge_is_line(body, edge) {
-            return Err(unread);
+            return Err(unread());
         }
         runs.push(run);
     }
-    let (mut turned, mut halves, mut any) = (T::zero(), T::zero(), false);
+    let (mut turned, mut halves) = (T::zero(), 0_i32);
     for (k, b) in runs.iter().enumerate() {
         let a = runs[(k + runs.len() - 1) % runs.len()];
         let (across, ahead) = (n.dot(a.dir.cross(b.dir)), a.dir.dot(b.dir));
         let arm = reading_lever(b.reach, Some(a.reach));
         if sign_at(across, arm, band)? == Sign::Zero && sign_at(ahead, arm, band)? == Sign::Negative
         {
-            halves = halves + T::one();
-            any = true;
+            halves += 1;
         } else {
             turned = turned + across.atan2(ahead);
         }
     }
+    // Every corner's lever is the shorter of its two runs' reaches, so
+    // the least over the corners is the least over the runs; the count
+    // claims a side of each mark, so each reach is read from below.
+    let Some(least) = runs.iter().map(|r| r.reach.below()).reduce(Lever::min) else {
+        return Err(unread());
+    };
+    if halves == 0 {
+        return Err(unread());
+    }
     // The runs' turning is an angle by construction: one turn of it is
-    // its period.
+    // its period, and what the half-turn corners turn is a whole number
+    // of half-turns, counted as one (`Period::decide`).
     let turn = Period::<T>::angle();
     let whole = if outer {
         turn.length()
     } else {
         T::zero() - turn.length()
     };
-    let half_turns = (whole - turned) / turn.half();
-    match (
-        sign(half_turns + halves, T::one(), band)?,
-        sign(half_turns - halves, T::one(), band)?,
-    ) {
-        _ if !any => Err(unread),
-        (Sign::Zero, _) => Ok(true),
-        (_, Sign::Zero) => Ok(false),
-        _ => Err(unread),
+    let count = Period::new(turn.half())
+        .decide(
+            "bool_fate_corner",
+            whole - turned,
+            |off| Margin::levered(off, least),
+            band,
+        )
+        .map_err(|stop| match stop.miss {
+            geom_core::period::BranchMiss::Undecided(diag) => corner_refused(diag),
+            geom_core::period::BranchMiss::OnMark => unread(),
+        })?;
+    if count == -halves {
+        Ok(true)
+    } else if count == halves {
+        Ok(false)
+    } else {
+        Err(unread())
     }
 }
 

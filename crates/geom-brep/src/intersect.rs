@@ -2505,7 +2505,6 @@ pub fn plane_cone_section<T: Decide>(
             per_unit * (x.x.abs() * y.x.abs() + x.y.abs() * y.y.abs() + x.z.abs() * y.z.abs())
         };
         let gap_err = rounding(apex - q, n, T::from_f64(2.5 * f64::EPSILON));
-        let size = apex_gap.abs() + gap_err;
         const PN_APEX_PAIR_REACH: &str = "pn_apex_pair_reach";
         const PN_APEX_TANGENT_REACH: &str = "pn_apex_tangent_reach";
         const PN_APEX_POINT_REACH: &str = "pn_apex_point_reach";
@@ -2524,18 +2523,13 @@ pub fn plane_cone_section<T: Decide>(
                     ),
                 ),
             ),
-            // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum
-            // length rather than an extent; its honest door `levered_inv(size, steep)` rounds apart.
-            // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
             Sign::Zero => (
                 PN_APEX_TANGENT_REACH,
-                Margin::levered(T::one() / steep, geom_core::Lever::unsourced(size)),
+                Margin::of(apex_start((apex_gap, gap_err), steep)),
             ),
-            // Unsourced lever: as `pn_apex_tangent_reach`'s, over the discriminant.
-            // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
             Sign::Negative => (
                 PN_APEX_POINT_REACH,
-                Margin::levered(T::one() / discr.abs(), geom_core::Lever::unsourced(size)),
+                Margin::of(apex_start((apex_gap, gap_err), discr.abs())),
             ),
         };
         if decide_magnitude(name, bound, band).map_err(SectionError::Escalated)? == Magnitude::Zero
@@ -2653,6 +2647,16 @@ pub fn plane_cone_section<T: Decide>(
     }
 }
 
+/// **Where the real plane's section starts from the apex** along a
+/// direction whose sine against the plane is `sine`: the plane's
+/// stand-off from the apex, read as `|δ̂| + e_δ` (step 2), over that
+/// sine. `sine` is positive on the arm that asks: the steepest
+/// generator's `M`, and the discriminant `D` or `|D|` on the side of
+/// the apex outcome it was decided definite on.
+fn apex_start<T: geom_core::Real>((gap, gap_err): (T, T), sine: T) -> T {
+    (gap.abs() + gap_err) / sine
+}
+
 /// **How far [`PlaneConeSection::ApexLinePair`] stands from the real
 /// plane's section over what `reach` consumes** (step 2b): the lesser of
 /// the far start `|δ|/D`, read at the apex, and the bound over the
@@ -2748,13 +2752,8 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
 ) -> Margin<T> {
     let zero = T::zero();
     let size = gap.abs() + gap_err;
-    // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum length
-    // rather than an extent; its honest door `levered_inv(size, d)` rounds apart.
-    // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-    let far = Margin::levered(T::one() / d, geom_core::Lever::unsourced(size)).value();
-    // Unsourced lever: as `far`'s, over `m`.
-    // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-    let near = Margin::levered(T::one() / m, geom_core::Lever::unsourced(size)).value();
+    let far = apex_start((gap, gap_err), d);
+    let near = apex_start((gap, gap_err), m);
     let (lo, hi) = reach.range_along(apex, a);
     let rho = lo.max(zero - hi).max(zero) / cos_a;
     // `δ·c < 0` puts the near start on `+a`; read only where both signs
@@ -2777,13 +2776,7 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
     let sigma_sq = d * m / sin_a.powi(2);
     let floor = T::from_f64(f64::MIN_POSITIVE);
     let lean = T::from_f64(2.0) * s * size / (sin_a * rho.max(floor));
-    // Unsourced lever: as `far`'s, over the pair's own divisor.
-    // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-    let offset = Margin::levered(
-        T::from_f64(2.0) / (sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt()),
-        geom_core::Lever::unsourced(size),
-    )
-    .value();
+    let offset = T::from_f64(2.0) * size / (sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt());
     // The seam's tilt `τ/u` (step 5): `6` where `width ≥ 16u`, else whole.
     let tau = (seam_width - T::from_f64(8.0 * f64::EPSILON))
         .select_le_zero(T::from_f64(2.0 / f64::EPSILON), T::from_f64(6.0));

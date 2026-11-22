@@ -1042,12 +1042,7 @@ fn wedge_of<T: Decide>(
     // The collapsed-arm gate (module docs): the wedge margin is only
     // meaningful through a definitely-positive arm.
     decide_positive("dihedral_arm", Margin::of(arm.length()), band).map_err(|gate| {
-        FirstOrderEscalation::Lever(at_wedge(
-            LeverEscalation::arm(gate),
-            arm.length(),
-            sin_theta,
-            band,
-        ))
+        FirstOrderEscalation::Lever(at_wedge(LeverEscalation::arm(gate), arm, sin_theta, band))
     })?;
     let margin = Margin::levered(sin_theta, arm);
     // The cause of an invalid margin, read only once the decision has
@@ -1087,8 +1082,8 @@ fn wedge_of<T: Decide>(
 /// arm but leaves that wedge in band reads no class, so the escalation
 /// carries the wedge's own margin, through the arm gate's funnel
 /// (`"dihedral_arm_wedge"`), and the tolerance it offers decides both.
-/// Where the wedge reads zero at the tolerance that decides the arm
-/// ([`wedge_reads_zero_at_the_arm`]), it reads smooth at every tolerance
+/// Where the wedge reads zero at the tolerance the arm's refusal offers
+/// ([`wedge_reads_zero_at_the_offer`]), it reads smooth at every tolerance
 /// from there down to its own, so the arm binds and keeps its own margin:
 /// an exactly zero wedge, and one that is only rounding on a tangent
 /// seam, whose own value would offer a tolerance many decades below the
@@ -1099,20 +1094,26 @@ fn wedge_of<T: Decide>(
 /// ([`LeverEscalation::re_quotes`]).
 fn at_wedge<T: Decide>(
     escalation: LeverEscalation,
-    arm: T,
+    arm: geom_core::Lever<T>,
     sin_theta: T,
     band: Band,
 ) -> LeverEscalation {
-    let wedge = sin_theta * arm;
+    let wedge = Margin::levered(sin_theta, arm);
+    let Some(offered) = escalation
+        .diag()
+        .offered_band()
+        .filter(|_| escalation.re_quotes())
+    else {
+        return escalation;
+    };
     // `arm / wedge` is finite unless the wedge is exactly zero, or poison
     // (a gradient the arm's decided zero leaves unread, at a cone's apex).
-    if !escalation.re_quotes()
-        || !geom_core::is_finite_length(arm / wedge)
-        || wedge_reads_zero_at_the_arm(sin_theta, band)
+    if !geom_core::is_finite_length(arm.length() / wedge.value())
+        || wedge_reads_zero_at_the_offer("dihedral_wedge_at_arm", wedge, offered)
     {
         return escalation;
     }
-    match decide_positive("dihedral_arm_wedge", Margin::of(wedge.abs()), band) {
+    match decide_positive("dihedral_arm_wedge", Margin::of(wedge.value().abs()), band) {
         Err(diag) => escalation.quoting_reading(diag),
         // Only where `sin θ`'s in-band excess over one carries the wedge
         // past the band: the arm keeps its own margin, whose tolerance
@@ -1121,27 +1122,17 @@ fn at_wedge<T: Decide>(
     }
 }
 
-/// **Whether the wedge reads zero at the arm's own tolerance**: the
-/// tolerance that decides the arm, `arm/K`, is the one whose band
-/// escalates at the arm, and in that band the wedge `sin θ · arm` reads
-/// as `sin θ · escalate` does in `band` (both scaled by `escalate/arm`).
-/// So the reading is the wedge levered over `band`'s own escalation
-/// edge, decided in `band` (`"dihedral_wedge_at_arm"`): zero exactly
-/// where `sin θ · arm ≤ arm/K`, with no threshold of its own.
-fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
+/// **Whether the wedge reads zero at the tolerance a refusal offers**:
+/// the wedge `sin θ · arm`, at its own arm, decided under `name` in the
+/// band at that tolerance ([`Indeterminate::offered_band`]), where the
+/// refused margin (the arm, or the pairing's cosine at it) decides.
+fn wedge_reads_zero_at_the_offer<T: Decide>(
+    name: &'static str,
+    wedge: Margin<T>,
+    offered: Band,
+) -> bool {
     matches!(
-        decide_reported(
-            "dihedral_wedge_at_arm",
-            // Unsourced lever: the band's own escalation edge, the arm
-            // rescaled to the tolerance that decides it; a tolerance, not
-            // an extent, a curvature or a rate.
-            // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-            Margin::levered(
-                sin_theta,
-                geom_core::Lever::unsourced(T::from_f64(band.escalate()))
-            ),
-            band,
-        ),
+        decide_reported(name, wedge, offered),
         Ok(Decided {
             sign: Sign::Zero,
             ..
@@ -2279,12 +2270,12 @@ fn smooth_pairing<T: Decide>(
         .and_then(|reading| reading.pairing())
         .map_err(|refusal| {
             let (a, b) = (n_plus.vec(), n_minus.vec());
-            pairing_at_wedge(refusal, a.dot(b), a.cross(b).norm(), arm, band)
+            pairing_at_wedge(refusal, a.cross(b).norm(), arm, band)
         })
 }
 
 /// **The pairing's refusal, quoted at the wedge where its tolerance would
-/// not decide the wedge.** At a tolerance below `|cos θ|·arm/K` the
+/// not decide the wedge.** At the tolerance its refusal offers the
 /// pairing decides, but the same smaller tolerance re-reads the wedge
 /// `sin θ · arm` the smooth verdict was read on, and where that lands in
 /// band the edge refuses on its dihedral instead. So where the wedge does
@@ -2297,47 +2288,21 @@ fn smooth_pairing<T: Decide>(
 /// crease every smaller tolerance keeps.
 fn pairing_at_wedge<T: Decide>(
     refusal: Indeterminate,
-    cos_theta: T,
     sin_theta: T,
     arm: geom_core::Lever<T>,
     band: Band,
 ) -> Indeterminate {
-    if !refusal.offers_tolerance() || wedge_reads_zero_at_the_offer(sin_theta, cos_theta, band) {
+    let Some(offered) = refusal.offered_band() else {
+        return refusal;
+    };
+    let wedge = Margin::levered(sin_theta, arm);
+    if wedge_reads_zero_at_the_offer("material_pairing_offer_wedge", wedge, offered) {
         return refusal;
     }
-    match decide_positive(
-        "material_pairing_wedge",
-        Margin::levered(sin_theta, arm),
-        band,
-    ) {
+    match decide_positive("material_pairing_wedge", wedge, band) {
         Err(wedge) => wedge,
         Ok(()) => refusal,
     }
-}
-
-/// **Whether the wedge reads zero at the pairing's offered tolerance**,
-/// `|cos θ|·arm/K`: in the band that escalates at the pairing's margin
-/// the wedge reads as `tan θ · escalate` does in `band`, so the reading
-/// is `|tan θ|` levered over `band`'s own escalation edge, decided in
-/// `band` (`"material_pairing_offer_wedge"`).
-fn wedge_reads_zero_at_the_offer<T: Decide>(sin_theta: T, cos_theta: T, band: Band) -> bool {
-    matches!(
-        decide_reported(
-            "material_pairing_offer_wedge",
-            // Unsourced lever: the band's own escalation edge, as
-            // `wedge_reads_zero_at_the_arm`'s.
-            // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-            Margin::levered(
-                sin_theta / cos_theta.abs(),
-                geom_core::Lever::unsourced(T::from_f64(band.escalate()))
-            ),
-            band,
-        ),
-        Ok(Decided {
-            sign: Sign::Zero,
-            ..
-        })
-    )
 }
 
 /// **The cusp/slit discriminant**: the jet's relative transverse
@@ -2424,7 +2389,7 @@ mod tests {
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
         let arm = (b.zero() + b.escalate()) / 2.0;
         // A wedge that reads zero over the in-band arm, but not at the
-        // arm's own tolerance (`wedge_reads_zero_at_the_arm`).
+        // arm's own tolerance (`wedge_reads_zero_at_the_offer`).
         let sin = (b.zero() / b.escalate() + b.zero() / arm) / 2.0;
         let leaning = plane(
             Vec3::new(0.0, sin, (1.0 - sin * sin).sqrt()),
@@ -2663,7 +2628,7 @@ mod tests {
     }
 
     /// **A wedge that reads zero at the arm's own tolerance leaves the arm
-    /// binding** (`wedge_reads_zero_at_the_arm`; the coincv5 review's
+    /// binding** (`wedge_reads_zero_at_the_offer`; the coincv5 review's
     /// NF-1, whose poses these are): over an in-band arm, a tangent
     /// cylinder and plane turned generically (`sin θ` is rounding, about
     /// `1.5e-16`), and plane pairs at 3e-3, 1e-7 and 1e-9 rad, quote the

@@ -759,6 +759,19 @@ impl Band {
         }
         Self::new(self.zero + pad, self.escalate + pad)
     }
+
+    /// **The band one K-step finer**, `(ε/K, ε)` for this band's
+    /// `(ε, K·ε)`: a length decided Zero in it lies within the `ε/K`
+    /// share of this band's zero, and one decided past it reaches that
+    /// zero itself.
+    ///
+    /// # Errors
+    ///
+    /// [`Band::new`]'s, where `ε/K` is no positive number below `ε`: a
+    /// subnormal band, which no run's is.
+    pub fn a_step_finer(self) -> Result<Self, BandError> {
+        Self::new(self.zero / (self.escalate / self.zero), self.zero)
+    }
 }
 
 /// **A verdict's lever arm**: the length at which a dimensionless
@@ -3452,6 +3465,26 @@ impl Indeterminate {
     #[must_use]
     pub fn offers_tolerance(&self) -> bool {
         matches!(self.margin.shows(self.band, self.passes()), Shows::Offer(_))
+    }
+
+    /// **The band at the tolerance this refusal offers**: `(ε′, K·ε′)`,
+    /// `ε′` the tolerance [`Indeterminate::ending`] offers to tighten
+    /// below, the float its sentence spells, and `K` this escalation's
+    /// band's. At it the refused margin stands at or past the
+    /// escalation edge, so a reading decided in it is decided as a run
+    /// at the offered tolerance decides it. `None` where the refusal
+    /// offers no tolerance ([`Indeterminate::offers_tolerance`]).
+    #[must_use]
+    pub fn offered_band(&self) -> Option<Band> {
+        let Shows::Offer(offer) = self.margin.shows(self.band, self.passes()) else {
+            return None;
+        };
+        let k = self.band.escalate / self.band.zero;
+        offer.spelled().map(|eps| {
+            Band::from_thresholds(eps, k).unwrap_or_else(|e| {
+                unreachable!("an offered tolerance is above the least a run admits: {e:?}")
+            })
+        })
     }
 }
 

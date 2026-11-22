@@ -179,7 +179,7 @@ use crate::face_normal::{NormalAtError, face_outward_normal};
 use crate::loop_winding::{RunClosing, RunMissesEnd, Unwound};
 use crate::null::NullFacePair;
 use crate::ring_path::LoopSplit;
-use crate::validate::{decide, decide_positive};
+use crate::validate::decide;
 use geom_core::Tol;
 use geom_core::ladder::{Climb, FreeOf, Rung, Undecided, argmin_decided, climb_agreeing};
 
@@ -2280,44 +2280,32 @@ fn turned_past<T: geom_core::Real>(from: Turn<T>, p: geom_core::Point3<T>) -> Ma
 /// `k` passes about 10. `cot ψ` is
 /// `|t̂·(site − c)|·|axis|` over `|turn(t̂)|`, the axis's length
 /// cancelling with [`turn_of`]'s.
-fn off_conic_slack<T: geom_core::Real>(from: Turn<T>, band: Band) -> Margin<T> {
+fn off_conic_slack<T: geom_core::Real>(from: Turn<T>, band: Band) -> T {
     let axis = from.frame();
     let cot = from.tangent().dot(from.site() - axis.origin).abs() * axis.dir.norm()
         / turn_of(from.frame(), from.site(), from.tangent()).abs();
-    // Unsourced lever: the band's ε, how far a site may stand off the
-    // conic, which is a tolerance and no extent, curvature or box.
-    // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-    Margin::levered(
-        cot + cot,
-        geom_core::Lever::unsourced(T::from_f64(band.zero())),
-    )
+    (cot + cot) * T::from_f64(band.zero())
 }
 
-/// **[`turned_past`] decided under `name`, clear of the sites' slack**:
-/// a definite sign stands only where the margin's size definitely
-/// exceeds [`off_conic_slack`] (`bool_join_arc_clear`), and a tie only
-/// where the slack itself is within the band (`bool_join_arc_slack`).
-/// Anything else is two sites the conic cannot order, and escalates.
+/// **[`turned_past`] decided under `name` across the sites' slack**
+/// ([`geom_core::k_stats::decide_across`], [`off_conic_slack`] its
+/// swing): a tie only where the reading and the slack together stand
+/// within the band, and a definite sign only where the reading clears
+/// the slack by the band's escalation (`bool_join_arc_clear`). Anything
+/// else is two sites the conic cannot order, and escalates.
 fn travel<T: Decide>(
     name: &'static str,
     from: Turn<T>,
     p: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Sign, BooleanError> {
-    let margin = turned_past(from, p);
-    let slack = off_conic_slack(from, band);
-    let sign = decide(name, margin, band).map_err(join_escalate)?;
-    let tie_clear = sign == Sign::Zero
-        && decide("bool_join_arc_slack", slack, band).map_err(join_escalate)? == Sign::Zero;
-    if !tie_clear {
-        decide_positive(
-            "bool_join_arc_clear",
-            Margin::of(margin.value().abs() - slack.value()),
-            band,
-        )
-        .map_err(join_escalate)?;
-    }
-    Ok(sign)
+    geom_core::k_stats::decide_across(
+        [name, "bool_join_arc_clear"],
+        turned_past(from, p).value(),
+        off_conic_slack(from, band),
+        band,
+    )
+    .map_err(join_escalate)
 }
 
 /// **Which half-turn of the germ's section conic its partner lies in**:
@@ -2327,10 +2315,11 @@ fn travel<T: Decide>(
 /// at the germ's own azimuth (no travel) or at the half-turn, and both
 /// sort ahead of every site genuinely `Behind`; within `Ahead`,
 /// [`along_sign`] orders a half-turn site by its turn like any other.
-/// A tie stands only where [`travel`]'s slack is itself within the band,
-/// so a partner at the half-turn reads `Ahead` on a circle and on a
-/// mild ellipse, and escalates where `cot ψ` at the germ's site makes
-/// the slack leave the band (from about `cot ψ = 0.5` on).
+/// A tie stands only where the distance and [`travel`]'s slack together
+/// are within the band, so a partner at the half-turn reads `Ahead` on a
+/// circle and on a mild ellipse, and escalates where `cot ψ` at the
+/// germ's site makes the slack leave the band (from about `cot ψ = 0.5`
+/// on).
 ///
 /// A straight germ line has no turn to read, so every partner is
 /// `Ahead` and the order is the chord alone — the planar pairing.
@@ -6397,7 +6386,8 @@ mod travel_rows {
     /// slack is within the band.** The germ at `t = −π/4` turning
     /// clockwise, its partner at the antipode: the margin is zero, a tie,
     /// which stands on a circle (`cot ψ` 0) and escalates at `k = 10`,
-    /// where `cot ψ` is 4.95 there.
+    /// where `cot ψ` is 4.95 there and the slack, 9.9 bands, leaves the
+    /// tie's own row in band.
     #[test]
     fn a_partner_at_the_half_turn_reads_ahead_only_where_the_slack_is_in_band() {
         let arm = |k: f64| {
@@ -6421,7 +6411,7 @@ mod travel_rows {
             matches!(
                 arm(10.0),
                 Err(BooleanError::Escalated { ref diag, .. })
-                    if matches!(diag.predicate, Some("bool_join_arc_slack" | "bool_join_arc_clear"))
+                    if diag.predicate == Some("bool_join_arc_ahead")
             ),
             "k = 10: {:?}",
             arm(10.0).err()
