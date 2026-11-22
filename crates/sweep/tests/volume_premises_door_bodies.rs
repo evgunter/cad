@@ -340,9 +340,9 @@ fn a_misfit_wall_by_every_amount_reads_no_volume_it_lacks() {
         for (mode, defer) in [("eager", false), ("deferring", true)] {
             let run = |f: &mut dyn FnMut()| {
                 if defer {
-                    deferring(|| f())
+                    deferring(&mut *f)
                 } else {
-                    eager(|| f())
+                    eager(&mut *f)
                 }
             };
             run(&mut || {
