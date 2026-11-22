@@ -165,7 +165,10 @@ pub(crate) struct SolidSpec {
     /// The shell's surface records, each worn by every face that names
     /// it (`[import]`, "Records follow the file"): a surface entity the
     /// file states, keyed by its entity id, or a record a normalization
-    /// mints, keyed by a minted id.
+    /// mints, keyed by a minted id. While the shell is read it may hold a
+    /// record no face wears any more (one a join emptied, a split's
+    /// source); the finished shell holds exactly the records its faces
+    /// wear.
     pub(crate) surfaces: BTreeMap<u64, SurfaceRecord>,
     /// Edge ids of seam generators MINTED by the band re-mint
     /// (M7-5): D1 states each one spatially as its surface's u_ref
@@ -187,21 +190,18 @@ impl SolidSpec {
         &self.surfaces[&face.record].surface
     }
 
-    /// Record `record` as one-record's and snap's reading names it.
-    pub(crate) fn record(&self, record: u64) -> crate::one_record::Record {
-        crate::one_record::Record {
-            position: self.surfaces[&record].position,
-            id: record,
-        }
+    /// Where record `record` stands in the file, the order "earlier"
+    /// reads: its position in the DATA section, then its id.
+    pub(crate) fn order(&self, record: u64) -> (usize, u64) {
+        (self.surfaces[&record].position, record)
     }
 
     /// A new record of `surface`, minted from record `from` under the
     /// fresh id `id`: it stands where `from` stands in the file.
-    pub(crate) fn mint_record(&mut self, id: u64, from: u64, surface: Surface<f64>) -> u64 {
+    pub(crate) fn mint_record(&mut self, id: u64, from: u64, surface: Surface<f64>) {
         let position = self.surfaces[&from].position;
         self.surfaces
             .insert(id, SurfaceRecord { surface, position });
-        id
     }
 }
 
@@ -360,6 +360,9 @@ pub(crate) struct Resolver<'a> {
     /// Each surface entity as interpretation reads it, keyed by entity
     /// id: recognition acts on the record, once, whichever faces cite it.
     interpreted: std::cell::RefCell<BTreeMap<u64, Interpreted>>,
+    /// The surface entities whose promotion is reported, once each,
+    /// against the first face citing it ([`NormalizationKind::SurfacePromotion`]).
+    promotions_reported: std::cell::RefCell<std::collections::BTreeSet<u64>>,
 }
 
 /// One surface entity as interpretation reads it: the kernel surface,
@@ -1472,15 +1475,17 @@ impl<'a> Resolver<'a> {
             if flipped {
                 sense = !sense;
             }
-            let census = bounds_census(&bound_specs, edges);
-            self.normalizations
-                .borrow_mut()
-                .push(StructureNormalization {
-                    face: id,
-                    kind: NormalizationKind::SurfacePromotion { to: kind, residual },
-                    file_census: census,
-                    kernel_census: census,
-                });
+            if self.promotions_reported.borrow_mut().insert(surface_id) {
+                let census = bounds_census(&bound_specs, edges);
+                self.normalizations
+                    .borrow_mut()
+                    .push(StructureNormalization {
+                        face: id,
+                        kind: NormalizationKind::SurfacePromotion { to: kind, residual },
+                        file_census: census,
+                        kernel_census: census,
+                    });
+            }
         }
         if let std::collections::btree_map::Entry::Vacant(slot) = surfaces.entry(surface_id) {
             let position = self.instance(id, surface_id)?.position;
@@ -2213,6 +2218,10 @@ impl<'a> Resolver<'a> {
             &mut || self.mint_id(),
             &mut self.normalizations.borrow_mut(),
         )?;
+        // A record a join or a split left unworn is no surface of the
+        // shell.
+        let worn: std::collections::BTreeSet<u64> = solid.faces.iter().map(|f| f.record).collect();
+        solid.surfaces.retain(|id, _| worn.contains(id));
         Ok(solid)
     }
 
@@ -3518,6 +3527,7 @@ fn unit_pass_resolver(file: &StepFile, tol: geom_core::Tol) -> Resolver<'_> {
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
         partial_promotions: std::cell::RefCell::new(BTreeMap::new()),
         interpreted: std::cell::RefCell::new(BTreeMap::new()),
+        promotions_reported: std::cell::RefCell::new(std::collections::BTreeSet::new()),
     }
 }
 
@@ -3579,6 +3589,7 @@ pub(crate) fn resolve(
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
         partial_promotions: std::cell::RefCell::new(BTreeMap::new()),
         interpreted: std::cell::RefCell::new(BTreeMap::new()),
+        promotions_reported: std::cell::RefCell::new(std::collections::BTreeSet::new()),
     };
     let (shape, owners) = resolve_shape(&r, file)?;
     // The instance list is resolved for a SOLID model only: a

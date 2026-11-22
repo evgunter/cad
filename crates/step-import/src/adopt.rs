@@ -1,5 +1,5 @@
 //! D7 adoption (Leg C, phases B–C): loop→face designation, surface
-//! attachment with key sharing, `same_sense` honored verbatim, and the
+//! attachment by record, `same_sense` honored verbatim, and the
 //! certification of every edge's built description by the kernel's
 //! own gates.
 //!
@@ -10,10 +10,9 @@
 //! ring-designated loop to its own face (`mfkrh`), then each file
 //! face's rings are demoted onto its outer loop's face (`kfmrh`) —
 //! pure topology, no certification, ending with exactly the file's
-//! loop→face partition. Surfaces then attach: **bitwise-identical
-//! surface records share one kernel surface key** (`FaceSurface::
-//! Shared`), restoring the writer-side sharing that the per-face
-//! record emission flattened — this is what makes a seam edge's
+//! loop→face partition. Surfaces then attach: **each surface record is
+//! one kernel surface key**, worn by every face that names it
+//! (`FaceSurface::Shared`) — this is what makes a seam edge's
 //! same-surface-both-sides state visible to the build. `same_sense`
 //! is stated beside the surface exactly as read (the corpus's reversed
 //! faces are deliberate kernel output — honored, never healed).
@@ -623,17 +622,17 @@ mod tests {
     use super::*;
 
     /// A degree-1×2 loft-wall-shaped surface.
-    fn wall(dx: f64) -> Surface<f64> {
+    fn wall() -> Surface<f64> {
         let ku = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let kv =
             geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let control = vec![
-            Point3::new(dx, 0.0, 0.0),
-            Point3::new(dx, 0.0, 1.0),
-            Point3::new(dx, 0.0, 2.0),
-            Point3::new(dx + 1.0, 0.0, 0.0),
-            Point3::new(dx + 1.0, 0.0, 1.0),
-            Point3::new(dx + 1.0, 0.0, 2.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(0.0, 0.0, 2.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 2.0),
         ];
         let payload = geom::NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
         Surface::Nurbs(std::sync::Arc::new(payload))
@@ -715,7 +714,7 @@ mod tests {
             "a crossing is not offered the pair"
         );
         assert!(
-            rung(&wall(0.0), &cylinder, band.zero() / 100.0).is_none(),
+            rung(&wall(), &cylinder, band.zero() / 100.0).is_none(),
             "a spline record is not read by the rule"
         );
     }
