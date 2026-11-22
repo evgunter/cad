@@ -1538,6 +1538,7 @@ impl Sweep {
         T: Decide + CertifiedBounds,
         F: FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
     {
+        let _sd = SdGuard;
         // Two sides of one body are in one frame: the same-body arms read
         // each window's boundary beside its carrier, both in that frame.
         debug_assert!(
@@ -5091,11 +5092,20 @@ pub struct EmbeddingReport {
 /// candidate's carriers ([`Candidate::enclosure`]), is least at its
 /// upper end, decided at the strict site, where a separation in the band
 /// is a coincidence.
+/// MEASUREMENT ONLY: dumps the same-defect counters when a sweep ends.
+struct SdGuard;
+impl Drop for SdGuard {
+    fn drop(&mut self) {
+        crate::injective::sd_dump();
+    }
+}
+
 pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
     side: &Side<'_, T>,
     band: Band,
     budgets: Budgets,
 ) -> EmbeddingReport {
+    let _sd = SdGuard;
     let lane = ClearanceLane::<T>::certified();
     let windows = match k_stats::unlogged("F41", || lane.windows(side, Which::First)) {
         Ok(windows) => windows,
