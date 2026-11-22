@@ -376,13 +376,21 @@ fn a_hinge_in_its_first_middle_or_last_slab_builds() {
     }
 }
 
+/// The half disc's turn about its chord, and the lune's volume
+/// `(2/3)·sin 0.8`.
+fn turned_dee() -> (Affine3<f64>, f64) {
+    (
+        turn([0.0; 3], [1.0, 0.0, 0.0], 0.8),
+        2.0 / 3.0 * 0.8_f64.sin(),
+    )
+}
+
 /// **A half disc turned about its chord**: the chord is a hinge both
 /// caps hold, and the arc's wall a lune with a collapsed side at each
-/// end, whose volume is `(2/3)·sin 0.8`. Stacked under a lifted half
-/// disc, the hinge is the last slab's and the lune its only wall there.
+/// end, whose volume is `(2/3)·sin 0.8`.
 #[test]
 fn a_half_disc_turned_about_its_chord_builds_a_lune() {
-    let turned = turn([0.0; 3], [1.0, 0.0, 0.0], 0.8);
+    let (turned, lune) = turned_dee();
     let l = build(
         "half disc",
         &vec![dee(); 2],
@@ -391,9 +399,15 @@ fn a_half_disc_turned_about_its_chord_builds_a_lune() {
     );
     assert_eq!(census(&l), (2, 3, 3), "half disc: two caps and a lune");
     assert_eq!(collapsed_sides(&l), 2, "half disc: the lune's two sides");
-    let lune = 2.0 / 3.0 * 0.8_f64.sin();
     holds("half disc", measured(&l), lune, 1e-9);
     close("half disc, its faces", divergence_volume(&l), lune, 1e-9);
+}
+
+/// **The lune in the last slab**: stacked under a lifted half disc, the
+/// hinge is the last slab's and the lune its only wall there.
+#[test]
+fn a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab() {
+    let (turned, lune) = turned_dee();
     let stacked = build(
         "half disc in the last slab",
         &vec![dee(); 3],
