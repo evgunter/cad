@@ -195,6 +195,7 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
         (0usize, 0usize, 0usize, 0usize);
     let mut wrong = Vec::new();
     let mut on_refused = 0usize;
+    let mut unminted = 0usize;
     for case in 0..cases {
         let t = torus(&mut rng);
         // Keep scale near metres so the band is meaningful relative to it.
@@ -216,6 +217,12 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
         // so the stream after it does not move.
         let _ = rng.below(2);
         let span = (v0, v0 + w);
+        // A cut the mint refuses at this band (its regime in band, or
+        // read past the inner equator) is no carrier a body holds.
+        if geom::Curve3::<f64>::spiric(c, fr.0, fr.1, t.big, t.r, t.o, band).is_err() {
+            unminted += 1;
+            continue;
+        }
         let cs = Case { t, fr, c };
         let cf: geom::Curve3<f64> = carrier(cs.t, cs.c, cs.fr);
         let k = SpiricArc::new(
@@ -368,7 +375,7 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
         }
     }
     println!(
-        "{lane}: {asked} far asked, {abandoned} rays abandoned, {near_asked} near asked, {refused_far} refused past band, {on_refused} on-arc refused"
+        "{lane}: {asked} far asked, {abandoned} rays abandoned, {near_asked} near asked, {refused_far} refused past band, {on_refused} on-arc refused, {unminted} cuts the mint refuses"
     );
     assert!(
         wrong.is_empty(),
