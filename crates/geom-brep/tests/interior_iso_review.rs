@@ -432,17 +432,15 @@ fn r1_c2_shared_space_interval() {
 
 // ------------------------------------------------------------------ C3
 
-/// Soundness of the envelope against a dense residual on both routes:
-/// a `u_start` inside the boundary band with the boundary row as
-/// carrier, and a DRIFTING seam (`pl.x ≠ 0`) with the inserted row as
-/// carrier — the interior route's drift-only slack is what keeps the
-/// second sound. Wherever the door certifies, `envelope ≥ residual`
-/// up to the residual's own rounding: it is the distance of two `f64`
-/// evaluations, each rounded at the coordinates' magnitude, and the
-/// boundary route's slack `δ·sup ‖S_u‖` meets it with nothing to spare,
-/// because the stretch bound reads the chart's derivative at its
-/// boundary exactly. The smallest drift certifies at every ε, so the
-/// term is exercised.
+/// Soundness of the envelope against a dense residual: a `u_start`
+/// inside the boundary band with the boundary row as carrier, and the
+/// boundary row claimed beyond the band. Wherever the door certifies,
+/// `envelope ≥ residual` up to the residual's own rounding: it is the
+/// distance of two `f64` evaluations, each rounded at the coordinates'
+/// magnitude, and the boundary route's slack `δ·sup ‖S_u‖` meets it with
+/// nothing to spare, because the stretch bound reads the chart's
+/// derivative at its boundary exactly. (A seam whose held channel drifts
+/// is unwritable: an iso image holds its line as structure.)
 fn c3_body<T: Decide + Bounds>(lane: &str) {
     let s = cubic_chart(Net::CaseA, 1.0);
     let (v0, v1) = s.knots_v_f64_interim().domain();
@@ -464,32 +462,6 @@ fn c3_body<T: Decide + Bounds>(lane: &str) {
             );
         }
     }
-    let row = inserted_row(&s, 0.5);
-    let mut certified = 0;
-    for eta in [1e-12, 1e-9, 1e-7, 1e-5] {
-        let (p0, pl) = ((0.5, v0), (eta, v1 - v0));
-        let res = dense_residual(&s, &row, p0, pl);
-        match certify_line::<T>(&s, &row, p0, pl) {
-            Ok(c) => {
-                certified += 1;
-                let env = c.certificate().envelope.hi();
-                assert!(
-                    env >= res,
-                    "{lane}: UNSOUND envelope {env:e} < residual {res:e} at drift {eta:e}"
-                );
-                assert!(
-                    c.certificate().statement == EnvelopeStatement::MapResidualIsoHull && env > 0.0,
-                    "{lane}: the drift is paid by the interior route's slack: {env:e}"
-                );
-            }
-            Err(e) => assert!(
-                eta > 1e-12,
-                "{lane}: the smallest drift certifies at every ε: {e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            ),
-        }
-    }
-    assert!(certified >= 1, "{lane}: the drift slack was exercised");
     // The interior route with a WRONG carrier (the boundary row claimed
     // beyond the band): certified or not, never unsound.
     for delta in [1e-6, 1e-5, 1e-3] {

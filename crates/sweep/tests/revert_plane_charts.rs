@@ -346,14 +346,10 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
         .unwrap()
     };
     let kinds: Vec<(&str, Pcurve<f64>)> = vec![
-        (
-            "IsoLine",
-            Pcurve::IsoLine {
-                p0: Point2::new(0.0, 0.0),
-                pl: Vec2::new(c, s),
-                ends: None,
-            },
-        ),
+        // TODO(iso-image): diagonal. This row stated the 60° line
+        // `P(t) = (0, 0) + (c, s)·t` as a `Pcurve::IsoLine`, which a
+        // `ChartLine` cannot write; the `IsoLine` arm is out of this
+        // test until it is restated.
         ("Fitted", Pcurve::Fitted(Arc::new(lin()))),
         ("General", Pcurve::General(Arc::new(lin()))),
     ];

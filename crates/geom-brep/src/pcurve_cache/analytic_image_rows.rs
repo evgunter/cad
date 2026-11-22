@@ -981,7 +981,8 @@ fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
         for (surface, [p0, pl], net, carrier, name) in rows {
             // The plane's line is slanted in its chart, so it is stated as
             // the curve in UV alone; the cylinder's ruling is a column.
-            let iso = Image::iso(p0, pl).map(|iso| certify_both(surface, iso.at(), iso.at(), carrier));
+            let iso =
+                Image::iso(p0, pl).map(|iso| certify_both(surface, iso.at(), iso.at(), carrier));
             assert_eq!(
                 iso.is_some(),
                 name == "cylinder",

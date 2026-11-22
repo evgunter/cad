@@ -118,11 +118,17 @@ fn stated<T: AtRestPolicy + Bounds>(
         carrier.eval(T::one()) - carrier.eval(T::zero()),
     );
     let zero = |x: T| x.lo() == 0.0 && x.hi() == 0.0;
-    let image = if zero(d.x) || zero(d.y) {
+    let image = if zero(d.x) {
         Pcurve::IsoLine {
-            p0: Point2::new(o.x, o.y),
-            pl: Vec2::new(d.x, d.y),
-            ends: None,
+            line: geom_brep::ChartLine::column(o.x),
+            at0: o.y,
+            rate: d.y,
+        }
+    } else if zero(d.y) {
+        Pcurve::IsoLine {
+            line: geom_brep::ChartLine::row(o.y),
+            at0: o.x,
+            rate: d.x,
         }
     } else {
         let (a, b) = (carrier.eval(t0), carrier.eval(t1));

@@ -123,26 +123,22 @@ fn row_carrier<T: Real>() -> Curve3<T> {
 /// **An image whose carrier misses its edge's end is refused.** The row
 /// `v = 0` over an edge that stops at `u = 0.9`: minted where its edge
 /// ends it certifies; minted to the chart's corner `u = 1` its map runs
-/// to where the carrier does not, and check 3 refuses at the span's last
-/// station, at both scalars. An image states no end apart from its map,
-/// so there is no corner to state past the edge any other way.
+/// to where the carrier does not, and check 3 refuses it on the schedule
+/// (the map is affine, so it leaves the carrier from the first station
+/// on, and by the whole tenth at the last), at both scalars. An image
+/// states no end apart from its map, so there is no corner to state past
+/// the edge any other way.
 ///
-/// Red under check 3 skipping its last station (`schedule_residuals`
-/// reading `0..CERT_SAMPLES - 1`).
+/// Red under check 3 reading no station (`schedule_residuals` returning
+/// before its loop): the refusal is then check 4's envelope, not the
+/// schedule's.
 #[test]
 fn an_image_whose_carrier_misses_its_edges_end_is_refused() {
     fn at<T: Decide>(scalar: &str) {
         let f = T::from_f64;
         let span = (T::zero(), f(0.9));
         let certify = |image: Pcurve<T>| {
-            PcurveCache::certify(
-                image,
-                span.0,
-                span.1,
-                &row_carrier(),
-                &unit_chart(),
-                band(),
-            )
+            PcurveCache::certify(image, span.0, span.1, &row_carrier(), &unit_chart(), band())
         };
         assert!(
             certify(Pcurve::iso_row(T::zero(), (T::zero(), f(0.9)), span)).is_ok(),
@@ -154,12 +150,11 @@ fn an_image_whose_carrier_misses_its_edges_end_is_refused() {
                 got,
                 Err(PcurveCertifyError::ResidualExceeded {
                     check: PcurveCheck::MapResidual,
-                    sample: 8,
                     ..
                 })
             ),
-            "{scalar}: a map that runs past where its edge ends is refused at the last \
-             station: {got:?}"
+            "{scalar}: a map that runs past where its edge ends is refused on the \
+             schedule: {got:?}"
         );
     }
     at::<f64>("f64");
@@ -253,7 +248,11 @@ fn a_period_moved_seam_column_is_its_other_end() {
             // takes the period as a length.
             let row = Pcurve::iso_row(f(0.5), (f(lo), f(hi)), (T::zero(), T::one()));
             let lifted = row.shift_branch(1, period);
-            assert_eq!(point(held(&lifted)), Some(0.5), "{scalar}: the row keeps its line");
+            assert_eq!(
+                point(held(&lifted)),
+                Some(0.5),
+                "{scalar}: the row keeps its line"
+            );
             let (start, want) = (lifted.eval(T::zero()).x, f(lo) + (f(hi) - f(lo)));
             assert_eq!(
                 (start.lo(), start.hi()),
@@ -267,6 +266,10 @@ fn a_period_moved_seam_column_is_its_other_end() {
     // The sum the stated ends replace, at `f64`: on these domains it is
     // not the other end.
     for (lo, hi) in [(0.4_f64, 1.7_f64), (0.6, 1.7), (0.7, 3.1)] {
-        assert_ne!(lo + (hi - lo), hi, "[{lo}, {hi}]: the computed sum misses hi");
+        assert_ne!(
+            lo + (hi - lo),
+            hi,
+            "[{lo}, {hi}]: the computed sum misses hi"
+        );
     }
 }

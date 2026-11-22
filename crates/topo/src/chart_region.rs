@@ -4469,19 +4469,26 @@ mod tests {
     #[test]
     fn iso_line_and_iso_arc_entry_points_are_exact() {
         let line = geom_brep::Pcurve::IsoLine {
-            p0: Point2::new(0.25, 0.0),
-            pl: Vec2::new(0.5, 1.0),
-            ends: None,
+            line: geom_brep::ChartLine::column(0.25),
+            at0: 0.0,
+            rate: 1.0,
         };
         assert_pt(
-            pcurve_entry(&line, geom_brep::StoredSpan::for_tests(0.0, 2.0), true).unwrap(),
+            pcurve_entry(&line, (0.0, 2.0), true, None).unwrap(),
             0.25,
             0.0,
         );
         assert_pt(
-            pcurve_entry(&line, geom_brep::StoredSpan::for_tests(0.0, 2.0), false).unwrap(),
-            1.25,
+            pcurve_entry(&line, (0.0, 2.0), false, None).unwrap(),
+            0.25,
             2.0,
+        );
+        // Read in a loop's lift, an iso image enters at the joint the lift
+        // hands in (a corner's meet), whatever its own map reads there.
+        assert_pt(
+            pcurve_entry(&line, (0.0, 2.0), true, Some(Point2::new(0.25, -0.125))).unwrap(),
+            0.25,
+            -0.125,
         );
 
         let arc = geom_brep::Pcurve::IsoArc {
@@ -4493,36 +4500,34 @@ mod tests {
             breaks: geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
             ends: Box::default(),
         };
-        // The UV image is the straight segment p0 → p0 + pd by
-        // variant; a span that is the whole arc ends at its ends,
-        // structurally.
+        // The UV image is a straight segment of its row by variant;
+        // read outside a lift, an end is the image's own value there.
         let quarter = core::f64::consts::FRAC_PI_2;
         assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, quarter), true).unwrap(),
+            pcurve_entry(&arc, (0.0, quarter), true, None).unwrap(),
             0.0,
             1.0,
         );
-        assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, quarter), false).unwrap(),
-            1.0,
-            1.0,
+        let whole = pcurve_entry(&arc, (0.0, quarter), false, None).unwrap();
+        assert!(
+            (whole.x - 1.0).abs() < 1e-15 && whole.y == 1.0,
+            "the whole arc's own map ends at its segment's end: {whole:?}"
         );
         // A span covering part of the arc (a split rim's child) ends
         // where the image is at its parameter: on one sub-arc of a
         // quarter turn, `g(π/4)` is the Bézier midpoint, `½`.
         let half = core::f64::consts::FRAC_PI_4;
         assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(0.0, half), false).unwrap(),
+            pcurve_entry(&arc, (0.0, half), false, None).unwrap(),
             0.5,
             1.0,
         );
         assert_pt(
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(half, quarter), true).unwrap(),
+            pcurve_entry(&arc, (half, quarter), true, None).unwrap(),
             0.5,
             1.0,
         );
-        let end =
-            pcurve_entry(&arc, geom_brep::StoredSpan::for_tests(half, quarter), false).unwrap();
+        let end = pcurve_entry(&arc, (half, quarter), false, None).unwrap();
         assert!(
             (end.x - 1.0).abs() < 1e-15 && end.y == 1.0,
             "the child ending at the arc's end ends at its corner: {end:?}"
@@ -4538,7 +4543,7 @@ mod tests {
             Vec2::new(1.0, 0.0),
         );
         assert_pt(
-            pcurve_entry(&linear, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).unwrap(),
+            pcurve_entry(&linear, (0.0, 3.0), true, None).unwrap(),
             0.0,
             0.5,
         );
@@ -4550,7 +4555,7 @@ mod tests {
             Vec2::new(0.0, 0.3),
             Vec2::new(1.0, 0.0),
         );
-        assert!(pcurve_entry(&sinusoid, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).is_err());
+        assert!(pcurve_entry(&sinusoid, (0.0, 3.0), true, None).is_err());
     }
 
     #[test]
@@ -4563,7 +4568,7 @@ mod tests {
             Vec2::zero(),
             Vec2::new(1.0, 0.0),
         );
-        assert!(pcurve_entry(&nearly, geom_brep::StoredSpan::for_tests(0.0, 3.0), true).is_err());
+        assert!(pcurve_entry(&nearly, (0.0, 3.0), true, None).is_err());
     }
 
     // ------------------------------------------------------------------
@@ -4993,14 +4998,7 @@ mod tests {
             Vec2::new(0.0, 0.5),
             Vec2::new(1.0, 0.0),
         );
-        assert!(
-            pcurve_entry(
-                &sinusoid,
-                geom_brep::StoredSpan::for_tests(0.0, core::f64::consts::PI),
-                true
-            )
-            .is_err()
-        );
+        assert!(pcurve_entry(&sinusoid, (0.0, core::f64::consts::PI), true, None,).is_err());
     }
 
     // ------------------------------------------------------------------
@@ -5373,7 +5371,7 @@ mod tests {
                         Vec2::new(1.0, 0.0),
                     );
                     assert!(
-                        pcurve_entry(&h, geom_brep::StoredSpan::for_tests(0.0, 1.0), true).is_err(),
+                        pcurve_entry(&h, (0.0, 1.0), true, None).is_err(),
                         "a {tiny:e} trig channel must refuse typed"
                     );
                 }
@@ -5390,11 +5388,7 @@ mod tests {
                 Vec2::new(0.0, -0.0),
                 Vec2::new(1.0, 2.0),
             );
-            assert_pt(
-                pcurve_entry(&h, geom_brep::StoredSpan::for_tests(0.5, 1.0), true).unwrap(),
-                0.75,
-                1.5,
-            );
+            assert_pt(pcurve_entry(&h, (0.5, 1.0), true, None).unwrap(), 0.75, 1.5);
         }
 
         // ---- Claim 2: the same-chart lane is airtight, its boundary

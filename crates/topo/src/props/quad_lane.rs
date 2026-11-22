@@ -1408,9 +1408,9 @@ fn exact_value(x: Interval, moved: bool) -> Result<f64, PropsError> {
         Ok(x.lo())
     } else if moved {
         Err(PropsError::QuadratureUnsupported {
-            what: "a NURBS-face line the lift moved one period of a closed chart is \
-                   held at a computed `lo + (hi − lo)`, which is no single number — the \
-                   period is stated by a length, not by the domain's two ends",
+            what: "a NURBS-face line the lift moved by periods of a closed chart is held \
+                   at a computed sum, which is no single number — only a line at an end \
+                   of the chart's domain, moved one period, is the other end exactly",
         })
     } else {
         Err(PropsError::QuadratureUnsupported {
@@ -2459,15 +2459,30 @@ mod tests {
         use crate::joint::{Deck, Winding};
         use crate::pcurves::{Lift, LiftedRow};
         use geom_brep::props::PropsError;
-        use geom_brep::{Pcurve, StoredSpan};
+        use geom_brep::{ChartLine, Pcurve};
         use geom_core::{Bounds as _, Interval, Point2, Real, Vec2};
 
-        /// One side piece `p0 + pl·t` over `t ∈ [0, 1]`, traversed forward.
+        /// One side piece `p0 + pl·t` over `t ∈ [0, 1]`, traversed forward:
+        /// the row through `p0` where the fixture's `pl` has no `v` part,
+        /// the column through it otherwise (so `pl = (0, 0)` is a column
+        /// that does not move).
         fn piece<T: Real>(p0: (T, T), pl: (f64, f64)) -> LiftedRow<T> {
-            let pcurve = Pcurve::IsoLine {
-                p0: Point2::new(p0.0, p0.1),
-                pl: Vec2::new(T::from_f64(pl.0), T::from_f64(pl.1)),
-                ends: None,
+            assert!(
+                pl.0 == 0.0 || pl.1 == 0.0,
+                "a side piece is a row or a column"
+            );
+            let pcurve = if pl.1 == 0.0 && pl.0 != 0.0 {
+                Pcurve::IsoLine {
+                    line: ChartLine::row(p0.1),
+                    at0: p0.0,
+                    rate: T::from_f64(pl.0),
+                }
+            } else {
+                Pcurve::IsoLine {
+                    line: ChartLine::column(p0.0),
+                    at0: p0.1,
+                    rate: T::from_f64(pl.1),
+                }
             };
             LiftedRow::stated_for_tests(pcurve, (T::zero(), T::one()), true)
         }
@@ -2584,9 +2599,9 @@ mod tests {
             let (zero, one) = (Interval::zero(), Interval::one());
             let first = piece((zero, zero), (1.0, 0.0));
             let mut first_short = first.clone();
-            first_short.params = StoredSpan::for_tests(zero, cut);
+            first_short.params = (zero, cut);
             let mut second = first;
-            second.params = StoredSpan::for_tests(cut, one);
+            second.params = (cut, one);
             rows.splice(0..1, [first_short, second]);
             let lift = Lift::stated_for_tests(rows, closed());
             assert_eq!(
@@ -2728,17 +2743,26 @@ mod tests {
             each::<Interval>();
         }
 
-        /// A side carrying an image on no held line refuses, naming why: a
-        /// diagonal iso map, a harmonic image (no iso image at all), and a
-        /// point image, both of whose slopes are an exact zero.
+        /// A side that is no line the certificate reads refuses, naming
+        /// why: a slanted line (a curve in UV: no iso image holds one), a
+        /// harmonic image (no iso image at all), and an iso image that
+        /// does not move, whose way along its line is undecided.
         #[test]
         fn a_side_on_no_held_line_refuses_and_says_why() {
             fn each<T: Reads>() {
-                let mut diagonal = polygon::<T>(&SQUARE);
-                diagonal[1] = piece((T::one(), T::zero()), (1e-3, 1.0));
-                refused::<T>(diagonal, "not axis-aligned");
-                let mut harmonic = polygon::<T>(&SQUARE);
+                // A slanted line is no iso image: it is stated as a curve
+                // in UV, which holds no line however straight its net.
                 let f = T::from_f64;
+                let mut diagonal = polygon::<T>(&SQUARE);
+                let slanted = geom::NurbsCurve2::new(
+                    geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                    vec![Point2::new(1.0, 0.0), Point2::new(1.0 + 1e-3, 1.0)],
+                    vec![1.0, 1.0],
+                )
+                .unwrap();
+                diagonal[1].pcurve = Pcurve::General(std::sync::Arc::new(slanted.map_scalar(f)));
+                refused::<T>(diagonal, "not an iso image");
+                let mut harmonic = polygon::<T>(&SQUARE);
                 harmonic[1].pcurve = Pcurve::free_harmonic(
                     Point2::new(f(1.0), f(0.0)),
                     Vec2::new(f(0.0), f(0.0)),
@@ -2748,7 +2772,7 @@ mod tests {
                 refused::<T>(harmonic, "not an iso image");
                 let mut point = polygon::<T>(&SQUARE);
                 point.insert(1, piece((T::one(), T::zero()), (0.0, 0.0)));
-                refused::<T>(point, "one chart point");
+                refused::<T>(point, "not decided");
             }
             each::<f64>();
             each::<Interval>();
@@ -2876,46 +2900,56 @@ mod tests {
             }
         }
 
-        /// **A seam column moved one period of a closed chart** whose
-        /// domain is `[lo, hi]`: the lift states it at `lo + (hi − lo)`,
-        /// computed. At `Interval` that sum has width, so the column's
-        /// value is no point and the certificate refuses it, naming the
-        /// period. At `f64` it is a point, and the certificate reads the
-        /// sum's rounding as the column: on `[0.3, 1.7]` that lands on
-        /// `1.7`, and on `[0.4, 1.7]`, `[0.6, 1.7]` and `[0.7, 3.1]` it
-        /// misses `hi` by an ulp, below, above (outside the domain) and
-        /// above. (The period's statement is
-        /// `work/boxfinish/a-seam-column-moved-a-period-reads-lo-plus-the-period.md`'s.)
+        /// **A seam column moved one period of a closed chart is its
+        /// domain's other end**, on domains that do not start at 0: the
+        /// column stored at `lo` and lifted one period
+        /// ([`geom_brep::Period::of_domain`], as [`crate::joint::Deck::apply`]
+        /// moves it) is held at `hi` itself, so the certificate reads the
+        /// rectangle `[lo, hi]` at `f64` and at `Interval` alike. The sum
+        /// `lo + (hi − lo)` it replaces has width at `Interval` on every
+        /// one of these domains and at `f64` misses `hi` by an ulp on
+        /// three of them. A column that is NOT at an end moves by the sum,
+        /// and at `Interval` the certificate refuses it, naming the move.
+        ///
+        /// Red under `Period::moved` adding `k·(hi − lo)` to every value:
+        /// the `Interval` rectangles refuse and three `f64` ones miss `hi`.
         #[test]
-        fn a_seam_column_moved_one_period_is_its_computed_sum() {
-            fn moved<T: Reads>((lo, hi): (f64, f64)) -> (T, Result<TrimRectangle, PropsError>) {
+        fn a_seam_column_moved_one_period_is_the_domains_other_end() {
+            const ONCE: Deck = Deck {
+                u: 1,
+                v: 0,
+                twin: false,
+            };
+            /// The square on `[lo, hi] × [0, 1]` whose far column is the
+            /// column stored at `at`, lifted one period of `[lo, hi]`.
+            fn moved<T: Reads>((lo, hi): (f64, f64), at: f64) -> Result<TrimRectangle, PropsError> {
                 let f = T::from_f64;
-                let column = f(lo) + (f(hi) - f(lo));
                 let mut rows = polygon::<T>(&[(lo, 0.0), (hi, 0.0), (hi, 1.0), (lo, 1.0)]);
-                rows[1] = piece((column, T::zero()), (0.0, 1.0)).moved_for_tests(Deck {
-                    u: 1,
-                    v: 0,
-                    twin: false,
-                });
-                (column, read(rows))
+                let mut column = piece((f(at), T::zero()), (0.0, 1.0)).moved_for_tests(ONCE);
+                column.pcurve = column
+                    .pcurve
+                    .shift_branch(1, geom_brep::Period::of_domain(f(lo), f(hi)));
+                rows[1] = column;
+                read(rows)
             }
-            match moved::<Interval>((0.3, 1.7)).1 {
-                Err(PropsError::QuadratureUnsupported { what }) if what.contains("one period") => {}
-                other => panic!("Interval: the moved column is no point: {other:?}"),
+            fn each<T: Reads>() {
+                for (lo, hi) in [(0.3, 1.7), (0.4, 1.7), (0.6, 1.7), (0.7, 3.1)] {
+                    assert_eq!(
+                        moved::<T>((lo, hi), lo).unwrap().rect,
+                        rect(lo, hi, 0.0, 1.0),
+                        "the seam at {lo} lifted one period of [{lo}, {hi}] is the column {hi}"
+                    );
+                }
             }
-            for ((lo, hi), lands) in [
-                ((0.3, 1.7), 1.7),
-                ((0.4, 1.7), 1.699_999_999_999_999_7),
-                ((0.6, 1.7), 1.700_000_000_000_000_2),
-                ((0.7, 3.1), 3.100_000_000_000_000_5),
-            ] {
-                let (column, r) = moved::<f64>((lo, hi));
-                assert_eq!(column, lands, "f64: the sum on [{lo}, {hi}]");
-                assert_eq!(
-                    r.unwrap().rect,
-                    rect(lo, lands, 0.0, 1.0),
-                    "f64: the column read on [{lo}, {hi}] is the sum, not `hi`"
-                );
+            each::<f64>();
+            each::<Interval>();
+            // A column an ulp inside the domain is no end: it moves by the
+            // sum, which at `Interval` is no point.
+            let (lo, hi) = (0.4_f64, 1.7_f64);
+            match moved::<Interval>((lo, hi), f64::from_bits(lo.to_bits() + 1)) {
+                Err(PropsError::QuadratureUnsupported { what })
+                    if what.contains("computed sum") => {}
+                other => panic!("Interval: a moved interior column is no point: {other:?}"),
             }
         }
 

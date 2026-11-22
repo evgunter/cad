@@ -9812,17 +9812,19 @@ fn run_iso_checks<T: Decide>(
     let (stretch_u, stretch_v) = nurbs_stretch_bounds(payload);
     // The moving channel moves: its extent over the span, in metres
     // through its own stretch, is decided past the band.
-    let (moves, stretch_along) = match line.axis {
-        crate::ssi::ChartAxis::U => ("pcurve_iso_axis_v", stretch_v),
-        crate::ssi::ChartAxis::V => ("pcurve_iso_axis_u", stretch_u),
+    let moves = match line.axis {
+        crate::ssi::ChartAxis::U => decide(
+            "pcurve_iso_axis_v",
+            Margin::metered_sup(rate.abs() * span, stretch_v),
+            band,
+        ),
+        crate::ssi::ChartAxis::V => decide(
+            "pcurve_iso_axis_u",
+            Margin::metered_sup(rate.abs() * span, stretch_u),
+            band,
+        ),
     };
-    if let Sign::Zero = decide(
-        moves,
-        Margin::metered_sup(rate.abs() * span, stretch_along),
-        band,
-    )
-    .map_err(esc)?
-    {
+    if let Sign::Zero = moves.map_err(esc)? {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "a DEGENERATE iso line (its moving chart channel does not definitely \
                    move over the span)",
@@ -16199,14 +16201,7 @@ mod tests {
     fn an_image_leaving_the_column_domain_refuses() {
         let carrier = ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let image = || Pcurve::iso_column(0.0, (0.0, 1.0), (0.0, 1.0));
-        let at_door = PcurveCache::certify(
-            image(),
-            0.0,
-            1.5,
-            &carrier,
-            &ruled_wall(),
-            band(),
-        );
+        let at_door = PcurveCache::certify(image(), 0.0, 1.5, &carrier, &ruled_wall(), band());
         assert!(
             matches!(
                 at_door.as_ref().err().and_then(IncidenceRead::of),
@@ -16214,14 +16209,7 @@ mod tests {
             ),
             "a ruling past the patch's end is off the patch: {at_door:?}"
         );
-        let got = run_iso_checks(
-            &image(),
-            0.0,
-            1.5,
-            &carrier,
-            &ruled_wall(),
-            band(),
-        );
+        let got = run_iso_checks(&image(), 0.0, 1.5, &carrier, &ruled_wall(), band());
         match got {
             Err(PcurveCertifyError::IsoUnsupported { what }) => {
                 assert!(

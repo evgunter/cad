@@ -88,14 +88,11 @@ fn sheet(cfg: Cfg) -> (Body<f64>, FaceKey) {
         let line = EdgeCurveSpec::line_between(on(a), on(b));
         let len = line.param_end;
         EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::chart_image(
-                key,
-                geom_brep::Pcurve::IsoLine {
-                    p0: cfg.chart(a),
-                    pl: (cfg.chart(b) - cfg.chart(a)) / len,
-                    ends: None,
-                },
-            ),
+            description: geom_brep::EdgeDescriptionSpec::chart_image(key, {
+                let (p0, pl) = (cfg.chart(a), (cfg.chart(b) - cfg.chart(a)) / len);
+                geom_brep::Pcurve::iso_line_for_tests([p0.x, p0.y], [pl.x, pl.y])
+                    .expect("the ring's edges run along the chart's axes")
+            }),
             ..line
         }
     };

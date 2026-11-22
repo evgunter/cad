@@ -144,4 +144,3 @@ fn probe_c_closed_chart_both_columns_certify() {
     certify_seam(0.0, &carrier).expect("the start column certifies");
     certify_seam(WIDE, &carrier).expect("the end column of a closed chart is the same locus");
 }
-
