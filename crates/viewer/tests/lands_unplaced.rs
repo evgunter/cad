@@ -578,34 +578,74 @@ fn a_pick_through_a_copy_of_a_copy_is_guarded() {
     assert!(session.committed_doc().bit_eq(&before), "nothing recorded");
 }
 
-/// **A copy of one piece of a family is a reader along a seen path**
-/// (`world::is_seen`), so a seat keeps member reads off the family
-/// (`seats::Port::at_seat`): the pick copy covers its piece, and a
-/// member read of that piece would leave it drawn beside the result,
-/// as a whole copy would. Without the pick nothing else reads the
-/// `⊔`'s copy, so it is the pick alone that decides.
+/// **A copy of one piece of a placement reads it, and copies no body of
+/// it**: the pick's copy is in the `⊔`'s copy's read-by at the source
+/// seat, but neither placement query counts it, so the copy carries no
+/// world badge for it and stays unseen (`world::is_seen`), as it was
+/// before read-by existed.
 ///
-/// *Breaks if* a pick's copy stops counting as a reader of the copy it
-/// picks from, or anything else starts reading it.
+/// *Breaks if* a pick's copy is counted as a copy of the placement it
+/// picks from, by the node or by the body, or drops out of its read-by.
 #[test]
-fn a_copy_of_one_piece_keeps_member_reads_off_its_family() {
-    let (mut session, _, assemble) = a_pick_through_a_union(Tol::witness());
+fn a_copy_of_one_piece_reads_the_placement_and_copies_none_of_it() {
+    use pncad::document::OperandSlot;
+    let (session, _, assemble) = a_pick_through_a_union(Tol::witness());
     let doc = session.committed_doc();
     let [held] = doc.placements_of(assemble)[..] else {
         panic!("the ⊔ is copied into the world once")
     };
-    let [picked] = doc.placements_of(held)[..] else {
-        panic!("the pick copies a piece of the ⊔'s copy")
+    let pickers: Vec<RecipeNodeId> = doc
+        .read_by(held)
+        .into_iter()
+        .filter(|&(_, seat)| seat == OperandSlot::Source)
+        .map(|(reader, _)| reader)
+        .collect();
+    let [_picked] = pickers[..] else {
+        panic!("the pick's copy reads the ⊔'s copy at its source: {pickers:?}")
     };
-    assert!(
-        viewer::world::is_seen(doc, held),
-        "the pick's copy reads it"
+    assert_eq!(doc.placements_of(held), [], "no copy of the ⊔'s copy");
+    let held_out = doc.output(held, 0).expect("the copy's body");
+    assert_eq!(
+        doc.placements_of_var(held_out),
+        [],
+        "asked by its body, none"
     );
-    let out = session.perform(SessionOp::DeleteNode { node: picked });
-    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    assert_eq!(doc.read_index().placements_of(held), [], "the index agrees");
+    assert!(!viewer::world::is_seen(doc, held), "nothing sees it");
+}
+
+/// **A clearance seated on a placement whose piece a pick copies reads
+/// the placement**: the pick's copy is no world copy of it, so the seat
+/// is not taken over by the one piece it draws.
+///
+/// *Breaks if* the clearance door reads the pick's copy's body instead.
+#[test]
+fn a_clearance_on_a_placement_whose_piece_is_picked_reads_the_placement() {
+    let tol = Tol::witness();
+    let (mut session, _, assemble) = a_pick_through_a_union(tol);
+    let far = common::xy_box_in(&mut session, BOX);
+    let (doc, far_copy) = common::world_copy(session.committed_doc(), far, tol);
+    let mut session = common::inline_without_door(doc, tol);
     session.pump();
+    let doc = session.committed_doc().clone();
+    let [held] = doc.placements_of(assemble)[..] else {
+        panic!("the ⊔ is copied into the world once")
+    };
+    let out = session.perform(SessionOp::AddAssertion {
+        a: viewer::session::AssertedSeat::Body(Operand::Node(held)),
+        b: viewer::session::AssertedSeat::Body(Operand::Node(far_copy)),
+        claim: viewer::session::AssertedClaim::Clearance(
+            pncad::document::ClearanceBounds::AtLeast(viewer::test_support::len(0.005)),
+        ),
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let made = out.made.expect("the clearance");
+    let doc = session.committed_doc();
     assert!(
-        !viewer::world::is_seen(session.committed_doc(), held),
-        "with the pick gone nothing reads it"
+        doc.operand_reads(made)
+            .iter()
+            .any(|read| Some(read.read) == doc.output(held, 0)),
+        "the clearance reads the ⊔'s copy, not the pick's one piece: {:?}",
+        doc.operand_reads(made)
     );
 }

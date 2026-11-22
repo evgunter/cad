@@ -780,3 +780,35 @@ fn read_by_inverts_operand_reads_at_source_and_space_seats() {
         "B's body, directly and down both sources"
     );
 }
+
+/// **A copy of a member of a named family source is a copy of the body
+/// the family reads, by both placement queries**: `xs = Row`, `m =
+/// xs[1]`, `Place(m)`. The copy reads Row's member, so it is among Row's
+/// copies whether asked by the node or by its body.
+///
+/// *Breaks if* the variable walk stops at the family source `xs` and
+/// misses the body below it, or the two queries part.
+#[test]
+fn a_copy_of_a_named_familys_member_copies_the_body_the_family_reads() {
+    let doc = ProfileDoc::empty_derived("member-of-a-named-family", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, _, row) = crate::fixture::row(doc, b, ("k", 3), editor_core::TargetAxis::X, 2.0);
+    let doc = declared(doc, "xs", VarDecl::source(Operand::Node(row)));
+    let doc = declared(
+        doc,
+        "m",
+        VarDecl::source(editor_core::BodyRead::indexed(
+            Operand::Name(VarName::from_static("xs")),
+            vec![editor_core::Formula::count(1)],
+        )),
+    );
+    let (doc, copy) = insert(doc, placed(Operand::Name(VarName::from_static("m"))));
+    assert_eq!(doc.placements_of(row), [copy], "a copy of Row's member");
+    assert_eq!(
+        doc.placements_of_var(out(&doc, row)),
+        doc.placements_of(row),
+        "asked by Row's body, the same answer"
+    );
+    let xs = doc.var_named("xs").expect("declared");
+    assert_eq!(doc.placements_of_var(xs), [copy], "and a copy of xs");
+}

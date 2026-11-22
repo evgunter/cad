@@ -1245,6 +1245,18 @@ fn an_instances_own_copy_side_links_nowhere_either_way() {
         "no read links the instance to itself: {:?}",
         related.reads
     );
+    // A constraint's seats are said by its position, never its minted id.
+    let labels: Vec<String> = related.reads.iter().map(|row| row.seat.label()).collect();
+    assert!(
+        labels
+            .iter()
+            .any(|label| label.starts_with("constraint 1 side ")),
+        "a mate's sides by the constraint's position: {labels:?}"
+    );
+    assert!(
+        labels.iter().all(|label| !label.contains('#')),
+        "no seat spells an arena key: {labels:?}"
+    );
     assert!(
         index
             .read_by(shelf)

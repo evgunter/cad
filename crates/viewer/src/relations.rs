@@ -11,7 +11,9 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, OperandRead, OperandSlot, ProfileProgram, ReadIndex, RecipeNodeId};
+use pncad::document::{
+    Doc, Node, OperandRead, OperandSlot, ProfileProgram, ReadIndex, RecipeNodeId,
+};
 
 use crate::parts::PartFiles;
 use crate::session::Selection;
@@ -55,22 +57,72 @@ impl Related {
     }
 }
 
-/// **Where a row reads**: an operand seat, or an instance's part.
+/// **Where a row reads**: an operand seat, one side of a placement's
+/// constraint, or an instance's part.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Seat {
     /// The part an instance places: another document.
     Part,
-    /// An operand seat.
+    /// An operand seat that is no constraint's.
     Operand(OperandSlot),
+    /// A seat of the constraint at 1-based position `at` in its
+    /// placement's bundle, as the feature tree numbers it
+    /// (`tree::constraint_said`): its minted id is an arena key, no word
+    /// a person can find.
+    Constraint {
+        /// The constraint's position in its bundle, from 1.
+        at: usize,
+        /// The seat: a side, a direction or an axis.
+        slot: OperandSlot,
+    },
 }
 
 impl Seat {
-    /// The seat as a reader says it: `profile`, `part`.
+    /// **The seat `slot` of `node`, as a person finds it**: a
+    /// constraint's seat by the constraint's position in `node`'s
+    /// bundle, any other seat as it is.
+    #[must_use]
+    pub fn of(node: &Node<ProfileProgram>, slot: OperandSlot) -> Self {
+        let constraint = match slot {
+            OperandSlot::Side { constraint, .. }
+            | OperandSlot::Along { constraint }
+            | OperandSlot::About { constraint } => constraint,
+            _ => return Self::Operand(slot),
+        };
+        let bundle = match node {
+            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
+                constraints.as_slice()
+            }
+            _ => &[],
+        };
+        bundle
+            .iter()
+            .position(|held| held.id == constraint)
+            .map_or(Self::Operand(slot), |at| Self::Constraint {
+                at: at + 1,
+                slot,
+            })
+    }
+
+    /// The seat as a reader says it: `profile`, `part`, `constraint 2
+    /// side on`.
     #[must_use]
     pub fn label(self) -> String {
         match self {
             Self::Part => "part".to_owned(),
-            Self::Operand(slot) => slot.label(),
+            Self::Constraint {
+                at,
+                slot: OperandSlot::Side { side, .. },
+            } => format!("constraint {at} side {}", side.name()),
+            Self::Constraint {
+                at,
+                slot: OperandSlot::Along { .. },
+            } => format!("constraint {at} direction"),
+            Self::Constraint {
+                at,
+                slot: OperandSlot::About { .. },
+            } => format!("constraint {at} axis"),
+            Self::Operand(slot) | Self::Constraint { slot, .. } => slot.label(),
         }
     }
 }
@@ -129,14 +181,16 @@ pub fn relations(
     let seats = doc
         .operand_reads(node)
         .into_iter()
-        .map(|read| read_row(doc, &read, files));
+        .map(|read| read_row(doc, held, &read, files));
     let read_by = index
         .read_by(node)
         .iter()
-        .map(|&(reader, seat)| RelationRow {
-            seat: Seat::Operand(seat),
-            entries: vec![Related::node(doc, reader, files)],
-            through: None,
+        .filter_map(|&(reader, seat)| {
+            Some(RelationRow {
+                seat: Seat::of(doc.node(reader)?, seat),
+                entries: vec![Related::node(doc, reader, files)],
+                through: None,
+            })
         })
         .collect();
     Relations {
@@ -149,7 +203,12 @@ pub fn relations(
 /// as its name, since it is no node a click selects — through the
 /// variable read where that is named, and words for a read that reaches
 /// no node.
-fn read_row(doc: &Doc<ProfileProgram>, read: &OperandRead, files: &PartFiles) -> RelationRow {
+fn read_row(
+    doc: &Doc<ProfileProgram>,
+    held: &Node<ProfileProgram>,
+    read: &OperandRead,
+    files: &PartFiles,
+) -> RelationRow {
     let mut entries: Vec<Related> = read
         .reaches
         .iter()
@@ -166,7 +225,7 @@ fn read_row(doc: &Doc<ProfileProgram>, read: &OperandRead, files: &PartFiles) ->
         }));
     }
     RelationRow {
-        seat: Seat::Operand(read.seat),
+        seat: Seat::of(held, read.seat),
         entries,
         through: Related::named(doc, read.read),
     }

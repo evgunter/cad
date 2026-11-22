@@ -270,8 +270,9 @@ pub struct TreeRow {
     /// **The placements copying a body this node defines**, wherever
     /// they stand ([`pncad::document::ReadIndex::placements_of`]): the
     /// node's readers at the source seat, which its Properties lists,
-    /// and the placed badge (A10) that counts them. A placement is
-    /// badged too when another copies a piece of its own (a pick).
+    /// and the placed badge (A10) that counts them. A copy of one piece
+    /// of a placement (a pick) reads it, and its Properties list it, but
+    /// it is no copy of it and the badge does not count it.
     pub placements: Vec<RecipeNodeId>,
     /// What the evaluation said about it.
     pub status: RowStatus,
@@ -1117,7 +1118,7 @@ pub fn rows(
             id,
             spoken: doc.spoken(id),
             which: part_file(node, files),
-            placements: index.placements_of(id),
+            placements: index.placements_of(id).to_vec(),
             status,
             repair_at,
             readout,

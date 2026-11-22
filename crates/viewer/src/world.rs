@@ -966,9 +966,10 @@ pub fn seat_read(
 }
 
 /// **Whether something reads a body of `node` along a seen path**: a
-/// copy of one of its outputs ([`Doc::placements_of`]), a `⊔` operand reading
-/// one whole, or the product slot — the readers a gesture's takeover
-/// re-points (`crate::session`'s `Takeover`).
+/// copy of one of its bodies ([`Doc::placements_of`]; a pick's copy of
+/// one piece is none), a `⊔` operand reading one whole, or the product
+/// slot — the readers a gesture's takeover re-points
+/// (`crate::session`'s `Takeover`).
 pub fn is_seen(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     let outputs = doc.outputs(node);
     let assembled = doc.ids().into_iter().any(|id| {
