@@ -242,19 +242,21 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
     Ok(Cow::Owned(out))
 }
 
-/// **What the witness lane certifies of `fa` and `fb` tangent** along a
-/// locus ([`glued_tangency`]), asked only of a pair it has a locus for:
-/// a plane and a cylinder, two cylinders, or two faces ending on one
-/// circle. Along a rim the routing must also read the junction the two
-/// faces make as one the zip builds, the smooth seam.
+/// **What the glue door glues of `fa` and `fb` as `Tangent`**
+/// ([`glued_tangency`]), asked only of a pair it has a locus for: a
+/// plane and a cylinder or two cylinders, tangent along a line the
+/// witness lane certifies through both faces' interiors, or two faces
+/// that both end on one circle. The second is a junction: the rim's
+/// identity and the wedge the routing reads, the smooth seam the zip
+/// builds, and nothing sampled along it.
 ///
-/// A verdict that the pair is not tangent, a pair outside the lane and a
-/// junction the routing places outside what the zip builds are no
-/// tangency (`None`). A refusal no
+/// A verdict that the pair is not tangent, a rim that is a corner all
+/// round, a pair outside the lane and a junction the routing places
+/// outside what the zip builds are no tangency (`None`). A refusal no
 /// reading of the pair settles (an in-band margin, an undecidable rim
-/// identity, an unreadable face) is the operation's: a pair the lane has
-/// a locus for never reaches a later stage unglued on a reading the
-/// door could not take (C8).
+/// identity, a rim that is not one wedge, an unreadable face) is the
+/// operation's: a pair the lane has a locus for never reaches a later
+/// stage unglued on a reading the door could not take (C8).
 ///
 /// # Errors
 ///

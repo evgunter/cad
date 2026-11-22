@@ -22,11 +22,12 @@
 //! the glue door's tangency ([`tangency_reading`]) claims neither. Both
 //! read the second-order margin `κ_rel` as the glue door does: it must
 //! be definite (jet-determinate), and in band, or exactly zero at an
-//! isolated point, it escalates. The #175 clause, which bridged an exact
-//! zero so that a G1 tube chain's two neutral meridian points stayed
-//! declarable, binds nothing now: no contact is declared, and the glue
-//! door refuses such a chain at those points, as D10 has it
-//! (`mate7a_torus_rest::the_g1_tube_chain_refuses_at_the_glue_door`).
+//! isolated point, it escalates. Both are tangencies along a locus
+//! through the faces' interiors. Two faces that both end on one rim are
+//! a junction, not a tangency, and never reach this table: the glue door
+//! decides the rim's identity and its wedge, as tier 3 decides the edge
+//! it becomes, and a G1 tube chain's neutral meridian points are no
+//! question there.
 //!
 //! **The Tangent lane reuses the jet machinery, it does not restate
 //! it.** `tangent_jet`, `tangent_certificate_lane`,
@@ -260,12 +261,10 @@ pub fn tangent_locus_relation<T: Decide>(
 /// the whole locus, and the crescent between the sheets may be void or
 /// shared.
 ///
-/// The touch is read at every sample of the held locus, the residual
-/// every carrier owes however its pair decided its tangency: a pair's
-/// pose decides whether the surfaces are tangent and where
-/// (`geom_brep::pair_section::gap`), not that the held rim stands within
-/// ε of both all the way round, so a rim of a pair its pose decides
-/// tangent can still escalate here.
+/// The glue door asks it along a tangent line through both faces'
+/// interiors; a rim both faces end on is a junction it never reads. The
+/// touch is read at every sample of the locus, the residual every
+/// carrier owes however its pair decided its tangency.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn tangency_reading<T: Decide>(
     s1: &geom::Surface<T>,

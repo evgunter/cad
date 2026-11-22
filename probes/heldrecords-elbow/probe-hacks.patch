@@ -1,0 +1,148 @@
+diff --git a/crates/topo/src/boolean/mod.rs b/crates/topo/src/boolean/mod.rs
+index b524c00fa6..6c38451f2a 100644
+--- a/crates/topo/src/boolean/mod.rs
++++ b/crates/topo/src/boolean/mod.rs
+@@ -8310,6 +8310,9 @@ fn verify_tangency<T: Decide>(
+                 )
+             }
+         };
++    if matches!(locus, crate::rim_wedge::Locus::Rim(_)) && std::env::var_os("ELBOW_RIM").is_some() {
++        return Ok(Tangency { kinds, locus, margin: located, line: None, overlap });
++    }
+     // 2. The tangency table along the witness.
+     use crate::contact::{TangentVerdict, Uncertified};
+     let margin = match contact_verify::tangency_reading(
+@@ -8456,7 +8459,9 @@ fn route_rim<T: Decide>(
+         // The table verified the pair tangent with a definite
+         // second-order margin, so neither a crossing nor an osculating
+         // lamina remains for the routing to find.
++        crate::rim_wedge::RimRouting::Transverse if std::env::var_os("ELBOW_RIM").is_some() => Err(Unrouted),
+         crate::rim_wedge::RimRouting::Transverse | crate::rim_wedge::RimRouting::Lamina => {
++            if std::env::var_os("ELBOW_RIM").is_some() { eprintln!("ELBOWDBG lamina"); }
+             Err(Refused(BooleanError::ClassificationInvariant {
+                 what: "rim routing: a verified tangency read as a crossing or a lamina",
+             }))
+diff --git a/crates/topo/src/boolean/reduce.rs b/crates/topo/src/boolean/reduce.rs
+index 49b8c7513c..e261e1e78d 100644
+--- a/crates/topo/src/boolean/reduce.rs
++++ b/crates/topo/src/boolean/reduce.rs
+@@ -2491,7 +2491,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+                 Ok(Sign::Zero | Sign::Negative) | Err(_)
+                     if covered && !on_carrier && matches!(surface, geom::Surface::Cone { .. }) =>
+                 {
+-                    return Err(frontier());
++                    return Err({eprintln!("ELBOWDBG frontier line 2494 kind {:?} curve {:?}", kind, curve.carrier().kind()); frontier()});
+                 }
+                 // The one-sided cover rung: a covered zero-clearance
+                 // circle takes the planar sweep's endpoint posture —
+@@ -2603,7 +2603,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+                             // side is a crossing the certificate rules
+                             // out, and keeps the door.
+                             sign if admitted(sign) => {}
+-                            Sign::Positive | Sign::Negative => return Err(frontier()),
++                            Sign::Positive | Sign::Negative => return Err({eprintln!("ELBOWDBG frontier line 2606 kind {:?} curve {:?}", kind, curve.carrier().kind()); frontier()}),
+                         }
+                     }
+                     let on = OnCurved {
+@@ -2649,7 +2649,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+                 // Uncovered, an arc reaching here with a decided
+                 // clearance is against a kind with no root lane; covered,
+                 // it definitely crosses. The frontier door either way.
+-                Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
++                Ok(Sign::Zero | Sign::Negative) => return Err({eprintln!("ELBOWDBG frontier line 2652 kind {:?} curve {:?}", kind, curve.carrier().kind()); frontier()}),
+                 // An uncovered ESCALATED clearance cannot reach here: a
+                 // plane face never reaches this arm (`face_plane` routes it
+                 // to the planar lane first), and NURBS and `Approx` have no
+@@ -2825,7 +2825,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+         (Sign::Zero, Sign::Positive | Sign::Negative)
+         | (Sign::Positive | Sign::Negative, Sign::Zero) => {
+             let (t0, t1) = curve.params();
+-            match wall_crossing(
++            let hackv = wall_crossing(
+                 y,
+                 face,
+                 x_is.other(),
+@@ -2835,7 +2835,10 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+                 t1,
+                 band,
+                 &escalate,
+-            )? {
++            );
++            let hackv = match hackv { Err(e) if std::env::var_os("ELBOW_RIM2").is_some() => { eprintln!("ELBOWDBG err->noint {e}"); SpanVerdict::NoInterior } r => r? };
++            let hackv = match hackv { SpanVerdict::Unsettled if std::env::var_os("ELBOW_RIM2").is_some() => { eprintln!("ELBOWDBG unsettled->noint"); SpanVerdict::NoInterior } v => v };
++            match hackv {
+                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
+                     t,
+                     p,
+@@ -2850,7 +2853,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+                 // both CONTRADICT the endpoint
+                 // rows that routed here, and a contradiction between
+                 // two certified predicates keeps the door.
+-                SpanVerdict::LiesOn | SpanVerdict::Miss | SpanVerdict::Unsettled => Err(frontier()),
++                SpanVerdict::LiesOn | SpanVerdict::Miss | SpanVerdict::Unsettled => Err({eprintln!("ELBOWDBG frontier line 2853 kind {:?} curve {:?}", kind, curve.carrier().kind()); frontier()}),
+                 SpanVerdict::AtApex => Err(at_apex()),
+                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::OffFace => {
+                     // UNDECLARED: the undeclared `NoInterior` rule
+@@ -2960,7 +2963,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+                     lying_on(&arc, y, contacts)?.ok_or_else(frontier)
+                 }
+                 SpanVerdict::AtApex => Err(at_apex()),
+-                _ => Err(frontier()),
++                _ => Err({eprintln!("ELBOWDBG frontier line 2963 kind {:?} curve {:?}", kind, curve.carrier().kind()); frontier()}),
+             }
+         }
+         // **A definite surface crossing: the pierce RING lane.** The
+@@ -3005,7 +3008,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+                 // pair, not this one.
+                 SpanVerdict::Elsewhere => Ok(CurvedEvent::None),
+                 SpanVerdict::AtApex => Err(at_apex()),
+-                _ => Err(frontier()),
++                _ => Err({eprintln!("ELBOWDBG frontier line 3008 kind {:?} curve {:?}", kind, curve.carrier().kind()); frontier()}),
+             }
+         }
+         // **Both endpoints on one side of a TORUS or a CONE, or of
+@@ -3058,7 +3061,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+                 | SpanVerdict::Elsewhere
+                 | SpanVerdict::Miss
+                 | SpanVerdict::OffFace => Ok(CurvedEvent::None),
+-                SpanVerdict::LiesOn | SpanVerdict::Unsettled => Err(frontier()),
++                SpanVerdict::LiesOn | SpanVerdict::Unsettled => Err({eprintln!("ELBOWDBG frontier line 3061 kind {:?} curve {:?}", kind, curve.carrier().kind()); frontier()}),
+                 SpanVerdict::AtApex => Err(at_apex()),
+             }
+         }
+@@ -3108,7 +3111,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+         // sends more pairs to the typed frontier door, never accepts.
+         (Sign::Positive, Sign::Positive) => {
+             let Some(geom::Line { origin: _, dir }) = curve.carrier().as_line() else {
+-                return Err(frontier()); // unreachable: matched above
++                return Err({eprintln!("ELBOWDBG frontier line 3111 kind {:?} curve {:?}", kind, curve.carrier().kind()); frontier()}); // unreachable: matched above
+             };
+             let (t0, t1) = curve.params();
+             // f″ per kind (the residual's second derivative along the
+@@ -3122,7 +3125,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+                 geom::Surface::Sphere { radius, .. } => dir.norm_squared() / radius,
+                 // Post-gate/pre-check unreachable kinds keep the
+                 // frontier door.
+-                _ => return Err(frontier()),
++                _ => return Err({eprintln!("ELBOWDBG frontier line 3125 kind {:?} curve {:?}", kind, curve.carrier().kind()); frontier()}),
+             };
+             let span = t1 - t0;
+             let r_u = geom_brep::implicit_residual(&surface, pu);
+@@ -3195,7 +3198,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+                         // verdict, levered by the selection's reach,
+                         // because its pre-pass has put `q` definitely off
+                         // the wall.)
+-                        SpanVerdict::LiesOn => Err(frontier()),
++                        SpanVerdict::LiesOn => Err({eprintln!("ELBOWDBG frontier line 3198 kind {:?} curve {:?}", kind, curve.carrier().kind()); frontier()}),
+                         SpanVerdict::AtApex => Err(at_apex()),
+                         // Covered, the edge lies in one closed side of
+                         // the carrier, so a root set the lane cannot
+@@ -3205,7 +3208,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
+                         // point or one interval and a fragment's ends
+                         // see it: deferred for the fragments.
+                         SpanVerdict::Unsettled if covered => Ok(CurvedEvent::Deferred),
+-                        SpanVerdict::Unsettled => Err(frontier()),
++                        SpanVerdict::Unsettled => Err({eprintln!("ELBOWDBG frontier line 3208 kind {:?} curve {:?}", kind, curve.carrier().kind()); frontier()}),
+                     }
+                 }
+                 Err(diag) => {

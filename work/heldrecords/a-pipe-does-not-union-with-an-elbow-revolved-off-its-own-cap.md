@@ -123,3 +123,33 @@ order kept for loci derived from values; (B) keep the table, grow
 exact span bounds for a circle carrier and bridge an isolated
 `κ_rel` zero on a π-routed rim only; (C) keep refusing, with a
 recourse that is true.
+
+## 2026-11-22 — Ruled a junction; what stands behind the glue door
+
+Ruled (HELDRECORDS orchestrator, two designers converging on option
+(A)): two faces that both end on one curve are a junction, owing the
+curve's identity and its wedge, nothing sampled along it; the C4
+`Tangent` table keeps the tangencies along a locus through the faces'
+interiors. The glue door's half lands first (`heldrecords/elbow`).
+
+Measured behind it, with the probe hacks in `probes/heldrecords-elbow/`:
+
+- **Routing first** makes the rim routing's `Transverse` arm
+  reachable: a wall against the other body's coplanar cap shares the
+  rim at a right angle (the extrude neighbour), which the table used to
+  rule out first. It now means unglued, the crossing lanes'.
+- **The crossing layer** (`reduce::curved_face_arm`, the one-end-on-
+  the-carrier arm), both directions: the pipe's seam ruling ends on the
+  rim tangent to the torus (`wall_crossing` → `SpanVerdict::Unsettled`
+  → `CurvedPierceUnsupported`), and the elbow's sweep arcs ending on the
+  rim graze the pipe's cylinder in band (`ArcCylinderRoots`, margins
+  ±1.3e-9 … ±3.3e-9). The ruling x = 1 meets the torus CARRIER again at
+  z = 2 − √12, off the face, so only a reading at the edge's end is
+  true, never a global one-sided cover. Next: `heldrecords/elbow-ends`.
+- Passed blind, an inward pose stops at a third arm of
+  `curved_face_arm` (Circle × Cylinder, untraced), and an outward pose
+  reaches the finish and refuses four edges still carrying the
+  construction stand-in description: the seam's description where a
+  station is not jet-determinate, untraced.
+- **Inward poses**: End cap +π/2 and Start cap −π/2 bend back into the
+  pipe; filed as `work/tang/an-elbow-bent-back-into-its-pipe-meets-it-along-a-rim-and-a-crossing.md`.

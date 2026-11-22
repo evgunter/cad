@@ -40,7 +40,8 @@ pub enum GlueClass {
     Rest,
     /// One carrier, senses aligned.
     Continuation,
-    /// Distinct carriers tangent along a certified locus.
+    /// Distinct carriers tangent along a certified locus, or two faces
+    /// that both end on one rim, joined there in a smooth seam.
     Tangent,
 }
 

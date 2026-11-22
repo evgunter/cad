@@ -300,7 +300,8 @@ one, `ContactPair`). No mate states a contact; at rest two flush
 walls carry no contact,
 and their alignment is the flush pair the at-rest census records
 (DESIGN.md [assertions]). A glued `Tangent` is the tangency of two distinct carriers
-along a locus the witness lane certifies, and says nothing of the
+along a locus the witness lane certifies, or the junction of two faces
+that both end on one rim (C4's `Tangent` row), and says nothing of the
 materials: whether the pair is a contact (a void crescent between the
 sheets), an overlap (a crescent both materials fill), a seam or a nested
 touch is read where it is consumed, by the lump and by the wedge of the
@@ -327,8 +328,10 @@ on the result, not glued on the operands: the boolean glues the two
 faces' tangency (`Tangent`), and the op and the membership decide which
 edge the result carries on the locus. One tangent pair can leave a seam
 under one op, a knife edge under another and no edge under a third.
-Rim routing by material wedge (C7) decides the rim, and the zip mints a
-seam carrying `TangentIntersection`. A G1 joint authored inside one
+Where both faces end on a rim, the pair is a junction (C4's `Tangent`
+row): rim routing by material wedge (C7) decides it on the rim's
+identity and the wedge alone, and the zip mints a seam carrying
+`TangentIntersection`. A G1 joint authored inside one
 profile is the structural form of the same fact.
 
 **The crossing layer's one-sided cover.** An edge touching the other
@@ -464,8 +467,12 @@ once, so at full engagement union volume is the operands' sum.
 
 A rim with a determinate G1 jet carries `TangentIntersection`. Rim
 routing reads the material wedge of a junction, an edge of the result
-that both tangent faces bound (`docs/MATE-7-TANGENCY-DESIGN.md`): π ⇒
-smooth seam; 0/2π ⇒ the cusp family. A wedge-0 junction along a line
+that both tangent faces bound (`docs/MATE-7-TANGENCY-DESIGN.md`), before
+anything is read along the rim: π ⇒ smooth seam, whatever its bend; a
+corner all round ⇒ no junction, the crossing lanes'; 0/2π ⇒ the cusp
+family; stations that disagree on the class or a corner's sign, or
+sheets osculating across it, refuse on the wedge's recourse
+(`RimJunctionUnsettled`). A wedge-0 junction along a line
 locus builds through the ON-edge lane and passes tier 3 on its jet
 (κ_rel determinate); `BooleanError::RimCuspArmUnbuilt` remains where no
 locus arm exists. Two operands whose materials overlap beside a tangent
@@ -1135,6 +1142,17 @@ sides of a face (`MaterialOnBothSides`).
   circle of two coaxial surfaces of revolution is, `n₁·n₂` is constant,
   so neither reaches it; a Villarceau circle two tori share can. An
   in-band κ_rel, or an exact zero at an isolated point, escalates.
+  The row is a tangency along a locus through the two faces'
+  interiors (a line of the witness lane, a kiss). Two faces that both
+  end on one curve are a *junction*, not a tangency: their interiors
+  do not meet there, and the pair owes what tier 3 owes the edge it
+  becomes — the curve's identity (`rim_wedge::shared_rim`, decided Zero
+  or refused in band) and the wedge the routing reads over it (C7),
+  with nothing sampled along it, each face's edge lying on its carrier
+  being its operand's own certificate. The glue door glues a π
+  junction as `Tangent` whatever its bend, so a straight tube leaving a
+  bend G1, whose `κ_rel` passes through zero at two points of the rim,
+  is no second-order question.
 
 The two doors are coupled: Door 2 receives the band Door 1's reading
 leaves its premise (`glued_pair_overlap`'s `premise`) — the run's own

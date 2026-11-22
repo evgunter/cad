@@ -2207,6 +2207,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::UnderflowedSectorChord
         | BooleanErrorKind::TangencyUnsupported
         | BooleanErrorKind::RimCuspArmUnbuilt
+        | BooleanErrorKind::RimJunctionUnsettled
         | BooleanErrorKind::HeldPierceUnbuilt
         | BooleanErrorKind::InvalidInput
         | BooleanErrorKind::PairingMismatch

@@ -7,10 +7,14 @@
 //! the path its centroid runs). The neighbours: the same with a solid
 //! rod, and an extrude off the same cap.
 //!
-//! The verdicts await the ruling on the rim's tangency
-//! (`work/heldrecords/a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap.md`),
-//! so every row is `#[ignore]`d until its assertion is written; run one
-//! with `cargo nextest run -p editor-core --run-ignored all a_pipe_unions_with_its_elbow`.
+//! The pipe's walls and the elbow's both end on the cap's two rims: a
+//! junction, which the glue door decides on each rim's identity and its
+//! π wedge, so the straight wall and the bend, whose relative curvature
+//! passes through zero at two points of each rim, are no second-order
+//! question there. Every elbow pose, the four that bend back into the
+//! pipe among them, then stops at the crossing layer: an edge of one
+//! body ends on a rim tangent to the other's wall, which that layer
+//! cannot yet settle (`work/heldrecords/a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::{FRAC_PI_2, PI};
@@ -197,32 +201,107 @@ fn the_eight_poses() -> [(CapEnd, OffCap); 8] {
     ]
 }
 
+/// The refusal the union reached, which must be the crossing layer's
+/// for an edge ending on a rim: past the glue door, which no longer
+/// reads the rim's second order.
+#[track_caller]
+fn stops_at_the_crossing_layer(j: &Joined, what: &str) {
+    let refusal =
+        j.ev.node_error(j.union)
+            .unwrap_or_else(|| panic!("{what}: the union refuses"));
+    assert!(
+        matches!(
+            &refusal.kind,
+            editor_core::NodeErrorKind::Boolean(topo::BooleanError::CurvedPierceUnsupported { .. })
+        ),
+        "{what}: the crossing layer's refusal of an edge ending on the rim: {:?}",
+        refusal.kind
+    );
+}
+
 #[test]
-#[ignore = "the verdict awaits the ruling on the rim's tangency"]
-fn a_pipe_unions_with_an_elbow_off_either_cap_in_every_pose() {
+fn a_pipe_and_an_elbow_off_either_cap_pass_the_glue_door_in_every_pose() {
     for (end, off) in the_eight_poses() {
-        let joined = join(true, end, off);
-        let _ = (joined.ev.node_error(joined.union), closed_form(true, off));
-        // VERDICT: per the ruling.
+        stops_at_the_crossing_layer(
+            &join(true, end, off),
+            &format!("pipe, {end:?} cap, {off:?}"),
+        );
     }
 }
 
 #[test]
-#[ignore = "the verdict awaits the ruling on the rim's tangency"]
-fn a_rod_unions_with_its_elbow() {
+fn a_rod_and_its_elbow_pass_the_glue_door() {
     let (end, off) = the_eight_poses()[0];
-    let joined = join(false, end, off);
-    let _ = (joined.ev.node_error(joined.union), closed_form(false, off));
-    // VERDICT: per the ruling.
+    stops_at_the_crossing_layer(&join(false, end, off), "rod");
 }
 
+/// The neutral points moved off the routing's stations: the axis turned
+/// a few ε about the cap's normal, and far.
 #[test]
-#[ignore = "the verdict awaits the ruling on the rim's tangency"]
+fn an_elbow_whose_neutral_points_sit_between_the_stations_passes_the_glue_door() {
+    for k in [2.0, 1e3] {
+        let off = OffCap::Elbow {
+            axis_x: BEND,
+            heading: -FRAC_PI_2 + k * Tol::witness().eps(),
+            angle: -FRAC_PI_2,
+        };
+        stops_at_the_crossing_layer(&join(true, CapEnd::End, off), &format!("turned {k}ε"));
+    }
+}
+
+/// The extrude's walls continue the pipe's on one carrier, and each wall
+/// meets the other body's coplanar cap at a corner all round its rim:
+/// no junction is glued there, and the union is the one straight pipe.
+#[test]
 fn a_pipe_unions_with_an_extrude_off_its_own_cap() {
     let off = OffCap::Extrude(1.0);
-    let joined = join(true, CapEnd::End, off);
-    let _ = (joined.ev.node_error(joined.union), closed_form(true, off));
-    // VERDICT: per the ruling.
+    let j = join(true, CapEnd::End, off);
+    let built = built(&j);
+    assert_eq!(built.solids, 1, "one solid");
+    assert_eq!(built.records, 0, "the continuation records no contact");
+    assert!(built.tier3.is_ok(), "tier 3: {:?}", built.tier3);
+    assert!(
+        built.tier3_prime.is_ok(),
+        "tier 3′: {:?}",
+        built.tier3_prime
+    );
+    let want = closed_form(true, off);
+    assert!(
+        (built.volume - want).abs() <= 1e-12 * want,
+        "volume {} against the closed form {want}",
+        built.volume
+    );
+}
+
+/// What a union that builds came to.
+struct Built {
+    solids: usize,
+    records: usize,
+    tier3: Result<(), Vec<topo::ValidationError>>,
+    tier3_prime: Result<(), Vec<topo::ValidationError>>,
+    volume: f64,
+}
+
+#[track_caller]
+fn built(j: &Joined) -> Built {
+    if let Some(e) = j.ev.node_error(j.union) {
+        panic!("the union builds: {}", e.kind);
+    }
+    let body = crate::corpus::body_of(&j.ev, j.union);
+    let none = ContactRecords::default();
+    let value = j.ev.value(j.union).expect("a value");
+    let contacts = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { .. }) => &*value.carry.contacts,
+        _ => &none,
+    };
+    let finished = topo::test_support::finished("the union", body.clone(), Tol::witness());
+    Built {
+        solids: body.solids().count(),
+        records: contacts.len(),
+        tier3: topo::validate_geometric(&body, Tol::witness()),
+        tier3_prime: topo::validate_pseudomanifold(&body, contacts, Tol::witness()),
+        volume: topo::test_support::pinned_volume("the union", &finished, Tol::witness()).volume,
+    }
 }
 
 /// What the union came to: its refusal, or its volume against the
@@ -258,8 +337,12 @@ fn outcome(j: &Joined, expect: f64) -> String {
     )
 }
 
+/// **A probe, asserting nothing**: what every pose, the rod's, the
+/// turned axes' and the extrude's unions come to, printed. Run with
+/// `cargo nextest run -p editor-core --test all --run-ignored only zz_probe_outcomes --no-capture`
+/// (`probes/heldrecords-elbow/` for the instrumented runs).
 #[test]
-#[ignore = "a probe"]
+#[ignore = "a probe: prints, asserts nothing"]
 fn zz_probe_outcomes() {
     for (end, off) in the_eight_poses() {
         let j = join(true, end, off);
@@ -281,6 +364,18 @@ fn zz_probe_outcomes() {
         println!(
             "PROBE rod {end:?} {off:?}: {}",
             outcome(&join(false, end, off), closed_form(false, off))
+        );
+    }
+    for k in [0.5, 1.0, 2.0, 5.0, 20.0, 1e3, 1e6] {
+        let d = k * Tol::witness().eps();
+        let off = OffCap::Elbow {
+            axis_x: BEND,
+            heading: -FRAC_PI_2 + d,
+            angle: -FRAC_PI_2,
+        };
+        println!(
+            "PROBE near-neutral k={k}: {}",
+            outcome(&join(true, CapEnd::End, off), closed_form(true, off))
         );
     }
     let off = OffCap::Extrude(1.0);
