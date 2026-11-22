@@ -25,3 +25,20 @@
   - **`heldrecords/split-keys`** (`session_018u3gVHHv8KFJerXYYc6H5t`): step 2, crossings on one recorded locus share one point key (Ev, PR 5967), **stacked on `embed/records`** (PR base `embed/records`) rather than waiting for PR 7124: the reviews judged the type and the carries the right shape, and the fix pass is in confirmation, not the split's carry. Tier: single FULL review.
   - Not dispatched: step 3 (the curved slit's `SplitOn` record and the exemption's retirement) waits on step 2's report; `a-cut-of-a-nested-assemble-piece-reads-its-own-records-not-its-census` waits on EMBED's `an-op-over-an-assembly-answers-only-for-what-it-made`, which waits on `embed/records`; the gate flip is last. With the five dispatched rows marked (the X row as PR 7124's), the load is back under budget, so no split. (HELDRECORDS orchestrator)
 - 2026-11-22 — **`heldrecords/elbow` traced the P0 and stopped at a design fork (19:25Z).** The trace is on the row (branch `heldrecords/elbow`, `9a4aed0b03`). The pipe's wall (cylinder) and the elbow's (torus) are glued as `Tangent` along the rim both faces end on. The table's second-order row needs a definite κ_rel, and the bend's normal curvature changes sign at θ = ±π/2, so κ_rel is exactly 0 there, which every elbow off a round tube has. Behind that, the sampled touch cannot reach the band along a curved rim (sag ≈ 1e-3 after six halvings). The C4 text that makes an isolated zero refuse came from PR 6079, an agent PR; Ev's MATE-7 ruling puts second order on the cusp arm only. **Designers dispatched (19:28Z), two Opus** (Fable unavailable), on one statement of the problem with the trace's facts and none of the lane's options (`~/.local/share/cad-work/heldrecords/fork-elbow-statement.md`). The lane holds. (HELDRECORDS orchestrator)
+- 2026-11-22 — **Elbow fork ruled by the orchestrator (19:45Z): the designers agreed, so it does not go to Ev.** Both designers, blind to each other and to the lane, recommended the same final state. Two faces, one per operand, that both *end* on one curve form a junction, not a tangency: their interiors do not meet. The glue door owes it what tier 3 owes the edge it becomes, and nothing more:
+  - the curve's identity (`shared_rim`);
+  - the wedge, routed by Ev's MATE-7 table: π is a seam whatever the bend, 0/2π is the jet-determinate cusp arm, a crease goes to the crossing lanes, in band refuses.
+  - The junction writes no face–face record.
+  - The C4 `Tangent` table (definite κ_rel, sampled touch) keeps applying to a locus through the faces' interiors.
+
+  **Why it is mine to rule:** the only text it retires is C4's "an exact zero at an isolated point escalates" as applied to rims. PR 6079 wrote that (an agent PR, not `[ev]`), and it contradicted Ev's MATE-7 π arm and tier 3's legal seam (`WedgeVerdict::Seam`, bend under-determined). Nothing Ev ratified changes. The rejected answers:
+  - bringing back #175's bridge of an exact zero: D10 forbids it, and it fixes only the samples that land exactly on a neutral point;
+  - a better second-order reading: the carriers truly cross at the neutral points along (z−2)² = 12x, so no reading of the surfaces alone can certify the pair;
+  - refusing with a true recourse.
+
+  Risks handed to the lane to probe before building:
+  - the result seam edge's description must be the plain circle where a station is not jet-determinate;
+  - the crossing layer's (Cylinder, Torus) exclusion in `tangency_certifies_side`;
+  - poses that turn the elbow back into the pipe, where the departures are `Same` and the overlap is real.
+
+  **Class, filed via the lane:** `second_order_walk` returns `InBand` on a decided-π seam whose description choice is undecided (P2). **Tier upgraded to dual** (two Opus): the glue door's semantics are broad and hard to change later. (HELDRECORDS orchestrator)
