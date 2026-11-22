@@ -100,16 +100,23 @@ fn roots_along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> Vec<f64>
         }
         _ => panic!("the oracle reads a cylinder or a cone partner"),
     };
+    // A ruling through an apex on the partner, in its tangent plane,
+    // has a double root there, which rounding reads a hair below zero:
+    // the rows are of unit scale, so `1e-14` is far past that rounding
+    // and far inside every discriminant the rows read off zero.
     let disc = a1 * a1 - 4.0 * a2 * a0;
-    if disc < 0.0 {
+    if disc < -1e-14 {
         return Vec::new();
     }
+    let disc = disc.max(0.0);
     let q = -0.5 * (a1 + a1.signum() * disc.sqrt());
     let mut out = Vec::new();
     if a2 != 0.0 {
         out.push(q / a2);
     }
-    if q != 0.0 {
+    // `q` at rounding's scale is that double root at the apex, which
+    // `q/a2` already places: `a0/q` would read rounding over rounding.
+    if q.abs() > 1e-12 {
         out.push(a0 / q);
     }
     out

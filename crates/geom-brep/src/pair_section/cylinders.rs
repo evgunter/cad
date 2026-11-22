@@ -612,11 +612,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
 /// cuts it. A choice of listing,
 /// not a decision about the pair, so it reads the margins' signs without
 /// recording them.
-pub(super) fn placement<T: Decide>(
-    ball: ExtentBall<T>,
-    region: ExtentBall<T>,
-    band: Band,
-) -> RegionPlacement {
+fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) -> RegionPlacement {
     let apart = (ball.center() - region.center()).norm();
     let positive = |m: T| {
         matches!(

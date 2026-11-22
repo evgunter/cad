@@ -2348,9 +2348,11 @@ pub(crate) fn coverage(
             })
         }
         geom::Surface::Cone { frame, half_angle } => {
-            let axis = frame.axis();
-            let (n, m) = axis.orthonormal_basis();
-            let (apex, axis, n, m) = (p3(frame.origin()), v3(axis), v3(n), v3(m));
+            let Some(square) = ruled.frame().map(|f| f.square()) else {
+                return Err(unread);
+            };
+            let (axis, n) = (square.axis, square.u_ref);
+            let (apex, axis, n, m) = (p3(frame.origin()), v3(axis), v3(n), v3(axis.cross(n)));
             let (s, c) = lift(half_angle).sin_cos();
             Box::new(move |cell| {
                 let a = along(axis * c)

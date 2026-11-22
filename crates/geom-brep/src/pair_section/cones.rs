@@ -37,7 +37,6 @@ use geom::Surface;
 use geom_core::k_stats::decide_reported;
 use geom_core::{Band, Decide, Decided, Margin, Point3, Real, Sign, Vec3};
 
-use super::cylinders::{RegionPlacement, placement};
 use super::ruling::{self, End, Form, RuledCone};
 use super::{
     ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NoCarrier, NodeEnd,
@@ -150,6 +149,8 @@ pub enum ConeRead<T: Real> {
 struct Carrier<T: Real> {
     apex: Point3<T>,
     axis: Vec3<T>,
+    /// The cone's own seam, squared to its axis.
+    seam: Vec3<T>,
     sc: (T, T),
 }
 
@@ -195,22 +196,23 @@ fn carrier<T: Decide>(
             Sign::Negative => return Err(SectionError::DegenerateOperand { what: outside }),
         }
     }
+    let square = frame.square();
     Ok(Some(Carrier {
         apex,
-        axis: frame.axis(),
+        axis: square.axis,
+        seam: square.u_ref,
         sc,
     }))
 }
 
-/// The cone's rulings against `partner`, its seam a selection square to
-/// the axis.
+/// The cone's rulings against `partner`, the ruling angle from the
+/// cone's own seam.
 fn ruled<T: Real>(cone: Carrier<T>, partner: Form<T>, region: ExtentBall<T>) -> RuledCone<T> {
-    let (n, m) = cone.axis.orthonormal_basis();
     RuledCone {
         apex: cone.apex,
         axis: cone.axis,
-        n,
-        m,
+        n: cone.seam,
+        m: cone.axis.cross(cone.seam),
         sc: cone.sc,
         partner,
         lever: region.lever_from(cone.apex),
@@ -421,7 +423,20 @@ impl<T: Decide> ConeRuledPose<T> {
         band: Band,
     ) -> Result<ConeStance<T>, SectionError> {
         let normal = normal_at(ruled);
-        let (e1, e2) = normal.orthonormal_basis();
+        // A unit pair spanning the plane: the cone's axis or its seam
+        // projected onto it, whichever stands longer there (they are
+        // square, so one does), a selection the form's determinant and
+        // null lines do not depend on.
+        let onto = |x: Vec3<T>| x - normal * normal.dot(x);
+        let (pa, pn) = (onto(ruled.axis), onto(ruled.n));
+        let pick = pa.norm() - pn.norm();
+        let e1 = Vec3::new(
+            pick.select_le_zero(pn.x, pa.x),
+            pick.select_le_zero(pn.y, pa.y),
+            pick.select_le_zero(pn.z, pa.z),
+        )
+        .normalize();
+        let e2 = normal.cross(e1);
         let (a, c) = (ruled.axis, ruled.sc.1);
         let form = |x: Vec3<T>, y: Vec3<T>| a.dot(x) * a.dot(y) - c.powi(2) * x.dot(y);
         let (q11, q12, q22) = (form(e1, e1), form(e1, e2), form(e2, e2));
@@ -513,7 +528,7 @@ impl<T: Real> RuledCone<T> {
     fn partner_residual(&self, p: Point3<T>) -> T {
         let Form { at, d, .. } = self.partner;
         match (self.partner.radius(), self.partner_cos()) {
-            (Some(r), _) => (p - at).cross(d).norm() - r,
+            (Some(r), _) => geom::Line { origin: at, dir: d }.distance(p) - r,
             (None, Some(cos)) => {
                 let sin = (T::one() - cos.powi(2)).max(T::zero()).sqrt();
                 let (h, rho) = ((p - at).dot(d), ((p - at) - d * (p - at).dot(d)).norm());
@@ -540,8 +555,21 @@ pub(super) fn cone_ruled<T: Decide>(
     let mut decided = Vec::new();
     let mut nodes = Vec::new();
     let mut listed = Vec::new();
-    let held =
-        |p: Point3<T>| placement(ExtentBall::point(p), region, band) != RegionPlacement::Outside;
+    // A point the region holds, or stands within the band of its
+    // boundary (the region is padded, so nothing the operation uses lies
+    // there): a choice of listing, as the cylinder pair's placement is.
+    let held = |p: Point3<T>| {
+        let past = (p - region.center()).norm() - region.radius();
+        // NO-DECISION: which listing of the pair to take, each sound.
+        let read = past.sign_within(band);
+        !matches!(
+            read,
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            })
+        )
+    };
     let point = |at: Point3<T>, why: NoCarrier| {
         SectionComponent::closed_form(
             ComponentShape::Point,
@@ -654,9 +682,14 @@ pub(super) fn cone_ruled<T: Decide>(
         }
     }
     let node_sets = node_joined(&listed, nodes.len(), [false, false]);
-    let partner_arm = match pose.ruled.partner.radius() {
-        Some(r) => geom_core::Lever::curvature_radius(r),
-        None => region.lever_from(pose.ruled.partner.at),
+    let partner = if pose.ruled_first {
+        &pose.second
+    } else {
+        &pose.first
+    };
+    let partner_arm = match partner {
+        Surface::Cylinder { .. } => crate::uniform_curvature_arm(partner),
+        _ => region.lever_from(pose.ruled.partner.at),
     };
     let lever = pose.ruled.lever.min(partner_arm);
     let pose = match (&pose.first, &pose.second) {
@@ -691,9 +724,8 @@ fn apex_node<T: Decide>(
     let w = l0 + l1;
     let inside = a.dot(w).powi(2) - c.powi(2) * w.norm_squared();
     let cone = pose.ruled_side();
+    // NO-DECISION: a label for the sectors, which no reader decides on.
     let above = match inside.sign_within(band) {
-        // NO-DECISION: a label for the sectors, which no reader decides
-        // on.
         Ok(Decided {
             sign: Sign::Positive,
             ..
@@ -726,9 +758,9 @@ fn node_end<T: Decide>(
 ) -> Result<NodeEnd, SectionError> {
     let v = pose.ruled.dir(&ruling::Cell::at(phi)).mid() - Point3::origin();
     let along = |l: Vec3<T>| v.dot(l).abs();
+    // Which of two lines a ruling found near one of them is nearer.
+    // NO-DECISION: a selection between two lines, each the ruling's to its precision.
     let line = match (along(node.lines[0]) - along(node.lines[1])).sign_within(band) {
-        // NO-DECISION: which of two lines a ruling found near one of them
-        // is nearer, a selection.
         Ok(Decided {
             sign: Sign::Negative,
             ..
@@ -741,9 +773,8 @@ fn node_end<T: Decide>(
     };
     let nappe = (witness - pose.ruled.apex).dot(pose.ruled.axis);
     let ray = v * nappe.unit_sign();
+    // NO-DECISION: the sense of a ruling along the line it lies on, a selection.
     let sense = match ray.dot(l).sign_within(band) {
-        // NO-DECISION: the sense of a ruling read along a line it lies on
-        // to the sweep's precision, a selection.
         Ok(Decided {
             sign: Sign::Positive,
             ..
