@@ -3390,14 +3390,11 @@ pub(crate) fn with_article(words: &str) -> String {
 }
 
 /// What a datum's undecided convention reading is, as the clause after
-/// "whether": its value inside its range, a frame direction unit length,
-/// or square to the axis.
+/// "whether": its value inside its range.
 fn convention_question(field: &'static str, measure: geom::ConventionMeasure) -> String {
     let words = datum_words(field);
     match measure {
         geom::ConventionMeasure::Value => format!("its {words} lies inside the range it allows"),
-        geom::ConventionMeasure::Length => format!("its {words} is unit length"),
-        geom::ConventionMeasure::Tilt => format!("its {words} is perpendicular to the axis"),
     }
 }
 
@@ -3418,8 +3415,7 @@ fn undecided_scalar_recourse(margin: &geom_core::MarginDiag) -> &'static str {
 }
 
 /// What is wrong with a stored datum that fails its convention, as the
-/// object of "stores …": its value out of range, a frame direction's
-/// length, or its tilt off the axis.
+/// object of "stores …": its value out of range.
 fn convention_breach(
     field: &'static str,
     measure: geom::ConventionMeasure,
@@ -3434,8 +3430,6 @@ fn convention_breach(
                 geom::ConventionEnd::Upper => "at or above",
             }
         ),
-        geom::ConventionMeasure::Length => format!("{datum} that is not unit length"),
-        geom::ConventionMeasure::Tilt => format!("{datum} that is not perpendicular to its axis"),
     }
 }
 
@@ -3445,15 +3439,6 @@ fn convention_recourse(field: &'static str, measure: geom::ConventionMeasure) ->
     match measure {
         geom::ConventionMeasure::Value => {
             format!("Recourse: give the {words} a value inside its range")
-        }
-        geom::ConventionMeasure::Length => {
-            format!("Recourse: store a unit {words}")
-        }
-        geom::ConventionMeasure::Tilt => {
-            format!(
-                "Recourse: store {words} perpendicular to the axis",
-                words = with_article(&words)
-            )
         }
     }
 }
@@ -7622,7 +7607,7 @@ pub(crate) fn surface_datum_errors<T: geom_core::Bounds>(
     DatumVerdict::into_errors(
         analytic_datum_verdicts(
             poisoned_datums(surface),
-            surface.representability_margins(band),
+            surface.representability_margins(),
             band,
         ),
         |datum| ValidationError::PoisonedSurfaceDatum { face, kind, datum },
@@ -7655,7 +7640,7 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
     DatumVerdict::into_errors(
         analytic_datum_verdicts(
             poisoned_curve_datums(carrier),
-            carrier.representability_margins(band),
+            carrier.representability_margins(),
             band,
         ),
         |datum| ValidationError::PoisonedCurveDatum { edge, kind, datum },

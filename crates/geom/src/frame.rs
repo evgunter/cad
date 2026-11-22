@@ -258,6 +258,18 @@ impl<T: Real> Frame<T> {
         Some(Frame::of_motion(&self.motion.point_value()?))
     }
 
+    /// **How far this frame's stored axes may be from the rotation they
+    /// hold**, at this scalar: `(axis, seam)`, bounds on `‖axis − n̂‖` and
+    /// `‖u_ref − ê₁‖`, `n̂` and `ê₁` the rotation's own axes
+    /// ([`RigidMotion::rounding`], whose doc carries the argument: zero
+    /// at an enclosure scalar, measured at a point scalar). A reader that
+    /// levers a frame charges these in place of reading the frame's
+    /// convention off its entries (fork 274 decision 1).
+    #[must_use]
+    pub fn rounding(&self) -> (T, T) {
+        self.motion.rounding()
+    }
+
     /// **The basis squared** ([`SquareFrame`]): the axis over its length
     /// and the seam taken as `a × (u_ref × a)` over the unit `a`. The
     /// stored axes are already unit and square, so this moves them only
@@ -383,5 +395,159 @@ mod tests {
             (placed.v_ref() - m.v().get()).norm() < 1e-15,
             "the frame a motion places derives the motion's own v"
         );
+    }
+    /// The frame's invariants on its `f64` entries, read in double-double
+    /// arithmetic (an error-free product and sum, then a pair kept to
+    /// about `10⁻³¹`): `|A − 1|` and `θ + |U − 1| + θ²`, each within
+    /// `10⁻³⁰` of the exact value on those entries.
+    fn true_defect(f: &Frame<f64>) -> (f64, f64) {
+        // `(hi, lo)` pairs: a product split exactly by a fused multiply,
+        // and sums by two-sum.
+        let two_sum = |a: f64, b: f64| {
+            let s = a + b;
+            let bb = s - a;
+            (s, (a - (s - bb)) + (b - bb))
+        };
+        let add = |(ah, al): (f64, f64), (bh, bl): (f64, f64)| {
+            let (s, e) = two_sum(ah, bh);
+            two_sum(s, e + al + bl)
+        };
+        let prod = |a: f64, b: f64| {
+            let p = a * b;
+            (p, a.mul_add(b, -p))
+        };
+        let dot =
+            |x: Vec3<f64>, y: Vec3<f64>| add(add(prod(x.x, y.x), prod(x.y, y.y)), prod(x.z, y.z));
+        let (axis, u_ref) = (f.axis(), f.u_ref());
+        let less_one = |(h, l): (f64, f64)| {
+            let (h, l) = add((h, l), (-1.0, 0.0));
+            (h + l).abs()
+        };
+        let a2 = dot(axis, axis);
+        let along = dot(axis, u_ref);
+        let theta = (along.0 + along.1).abs() / (a2.0 + a2.1).sqrt();
+        let slop = 1e-30;
+        (
+            less_one(a2) - slop,
+            theta + less_one(dot(u_ref, u_ref)) + theta * theta - slop,
+        )
+    }
+
+    /// **A frame's `f64` rounding covers its true defect at every depth of
+    /// composition** ([`Frame::rounding`]): random turns composed to depth
+    /// 64, each frame's measured `(axis, seam)` at least the invariants
+    /// read on its entries in double-double arithmetic. Composition adds rounding at
+    /// every step, so no constant bounds it; the measure follows it. Red
+    /// where the invariants are read in plain `f64` with no running bound,
+    /// as `frame_defect` read them before.
+    #[test]
+    fn a_frames_rounding_covers_its_defect_through_a_chain_of_turns() {
+        let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            #[allow(clippy::cast_precision_loss)]
+            let x = (seed >> 11) as f64 / (1u64 << 53) as f64;
+            x
+        };
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mut worst = (0.0f64, 0.0f64);
+        for chain in 0..16 {
+            let mut frame = tilted();
+            for depth in 0..64 {
+                let axis = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5);
+                let axis = UnitVec3::new(axis, "test_chain_axis", band).unwrap();
+                let turn = RigidMotion::rotation(axis, 6.0 * next()).unwrap();
+                frame = frame.moved(&turn);
+                let (d_axis, d_seam) = frame.rounding();
+                let (t_axis, t_seam) = true_defect(&frame);
+                worst = (worst.0.max(t_axis), worst.1.max(t_seam));
+                assert!(
+                    d_axis >= t_axis && d_seam >= t_seam,
+                    "chain {chain}, depth {depth}: rounding ({d_axis:e}, {d_seam:e}) under the \
+                     defect ({t_axis:e}, {t_seam:e})"
+                );
+            }
+        }
+        assert!(
+            worst.0 > 0.0 || worst.1 > 0.0,
+            "the chains carry a defect to cover"
+        );
+    }
+
+    /// **At an enclosure scalar every mint encloses the rotation it
+    /// stands for**, so [`Frame::rounding`] is zero there: for each mint
+    /// path, the same mint at `f64` at points of the inputs' box has
+    /// every entry inside the enclosure's, widened by that `f64` mint's
+    /// own rounding (a few ulps of a unit entry). The paths: the polar
+    /// read of an `f64` frame (`map_scalar`), a stated frame squared
+    /// (`Frame::new`), a turn by a boxed angle, a composition, an
+    /// inverse, the turn helpers and a reversal.
+    #[test]
+    fn every_enclosure_mint_encloses_the_rotation_it_stands_for() {
+        use geom_core::{Bounds, Interval, Real};
+        let box_ = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let pad = 1e-15;
+        let inside = |name: &str, i: &Frame<Interval>, f: &Frame<f64>| {
+            assert_eq!(i.rounding().0.hi(), 0.0, "{name}: zero at an enclosure");
+            for (ia, fa) in [
+                (i.axis(), f.axis()),
+                (i.u_ref(), f.u_ref()),
+                (i.v_ref(), f.v_ref()),
+            ] {
+                for (ie, fe) in [(ia.x, fa.x), (ia.y, fa.y), (ia.z, fa.z)] {
+                    assert!(
+                        ie.lo() - pad <= fe && fe <= ie.hi() + pad,
+                        "{name}: the f64 entry {fe:e} lies outside [{:e}, {:e}]",
+                        ie.lo(),
+                        ie.hi()
+                    );
+                }
+            }
+        };
+        let f = tilted();
+        inside("polar read", &f.map_scalar(Interval::from_f64), &f);
+        let (lo, hi) = (0.52, 0.54);
+        let stated = |t: f64| (Vec3::new(2.0, 2.0, t), Vec3::new(1.0, -2.0, 2.0));
+        let o = Point3::origin();
+        let boxed = Frame::new(
+            o.map(Interval::from_f64),
+            Vec3::new(box_(2.0, 2.0), box_(2.0, 2.0), box_(lo, hi)),
+            stated(lo).1.map(Interval::from_f64),
+        );
+        let theta = box_(0.5, 0.52);
+        let turn_i = RigidMotion::rotation(UnitVec3::<Interval>::exact_y(), theta).unwrap();
+        for t in [lo, 0.5 * (lo + hi), hi] {
+            let (a, u) = stated(t);
+            inside("stated and squared", &boxed, &Frame::new(o, a, u));
+        }
+        for th in [0.5, 0.51, 0.52] {
+            let turn_f = RigidMotion::rotation(UnitVec3::<f64>::exact_y(), th).unwrap();
+            let base = Frame::new(o, stated(lo).0, stated(lo).1);
+            let base_i = Frame::new(
+                o.map(Interval::from_f64),
+                stated(lo).0.map(Interval::from_f64),
+                stated(lo).1.map(Interval::from_f64),
+            );
+            inside(
+                "a boxed turn",
+                &Frame::of_motion(&turn_i),
+                &Frame::of_motion(&turn_f),
+            );
+            inside("composed", &base_i.moved(&turn_i), &base.moved(&turn_f));
+            inside(
+                "inverted",
+                &Frame::of_motion(&turn_i.inverse().unwrap()),
+                &Frame::of_motion(&turn_f.inverse().unwrap()),
+            );
+            inside(
+                "quarter turned",
+                &base_i.quarter_turned(),
+                &base.quarter_turned(),
+            );
+            inside("half turned", &base_i.half_turned(), &base.half_turned());
+            inside("reversed", &base_i.reversed(), &base.reversed());
+        }
     }
 }

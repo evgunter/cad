@@ -1931,9 +1931,11 @@ pub struct CircleSphereHarmonic<T> {
     /// from the factored form, in metres of residual at every `θ`. The
     /// form assumes the frame orthonormal; with `G = [û, n̂ × û, n̂]` the
     /// two differ by `(|e|² − |Gᵀe|² + ρ²(|w|² − 1))/2r`, at most
-    /// `(|e|² + ρ²)·‖GᵀG − I‖/2r`. The frame's defect is read off
-    /// `|û|² − 1`, `|n̂|² − 1` and `n̂·û` with their own running bounds,
-    /// so an exactly orthonormal axis-aligned frame is charged nothing.
+    /// `(|e|² + ρ²)·‖GᵀG − I‖/2r`. At a point scalar the frame's defect
+    /// is read off `|û|² − 1`, `|n̂|² − 1` and `n̂·û` with their own
+    /// running bounds, so an exactly orthonormal axis-aligned frame is
+    /// charged nothing; at an enclosure scalar it is zero, the frame
+    /// enclosing its rotation ([`geom::Frame::rounding`]).
     pub frame_error: T,
 }
 
@@ -1950,9 +1952,11 @@ impl<T: Real> CircleSphereHarmonic<T> {
 }
 
 /// [`CircleSphereHarmonic`] for `circle` against the sphere
-/// `(s_center, s_radius)`. The circle's frame need not be orthonormal:
-/// its defect is charged to [`CircleSphereHarmonic::frame_error`]. Total
-/// arithmetic.
+/// `(s_center, s_radius)`. The circle's frame holds a rotation to its
+/// rounding at a point scalar, measured and charged to
+/// [`CircleSphereHarmonic::frame_error`]; at an enclosure scalar it
+/// encloses one, and the charge is zero ([`geom::Frame::rounding`]).
+/// Total arithmetic.
 #[must_use]
 pub fn circle_sphere_harmonic<T: Real>(
     circle: &geom::Circle<T>,
@@ -1984,7 +1988,14 @@ pub fn circle_sphere_harmonic<T: Real>(
         + a.value.abs() * b.error
         + b.value.abs() * a.error
         + two * c.value.abs() * c.error;
-    let defect = (a.magnitude().max(b.magnitude()) + c.magnitude()).max(middle);
+    // At an enclosure scalar the frame encloses the rotation it holds,
+    // so nothing lies between its entries and the claim
+    // ([`geom::Frame::rounding`]); at a point scalar the measured defect.
+    let defect = if T::WITNESS == geom_core::Witness::Exact {
+        T::zero()
+    } else {
+        (a.magnitude().max(b.magnitude()) + c.magnitude()).max(middle)
+    };
     let e_sq = e.map(|x| x.value.powi(2));
     CircleSphereHarmonic {
         e_u: e_u.value,

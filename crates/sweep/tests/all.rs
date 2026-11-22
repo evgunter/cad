@@ -1477,3 +1477,4 @@ mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
 #[path = "a_station_frame_is_minted_to_its_floor.rs"]
 mod a_station_frame_is_minted_to_its_floor;
+mod check_1_reads_no_frame_on_a_turned_disc;

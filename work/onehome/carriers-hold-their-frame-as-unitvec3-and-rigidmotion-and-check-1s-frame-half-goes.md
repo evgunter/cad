@@ -70,3 +70,30 @@ behind check 1 is
 `a-sweep-on-a-boxed-turned-sketch-plane-refuses-its-ends-at-first-order-in-the-box`
 and
 `a-body-moved-by-a-boxed-turn-refuses-its-edges-and-pcurves-at-first-order-in-the-box`.
+
+## Check 1's frame half: gone (2026-11-21)
+
+By ONEHOME, on `onehome/check1-frame-half`. After PR 7131 every carrier
+that `geom::convention::frame_margins` read holds a `Frame` (cylinder,
+sphere, torus, spindle, circle, ellipse, spiric); lines and planes had
+no check-1 margin. So:
+
+- `frame_margins` and the `representability_margins` frame terms are
+  deleted, with `ConventionMeasure::{Length, Tilt}` and `topo`'s
+  renderings of them; `representability_margins` takes no band.
+- **The open point, settled at the types.** A frame's distance from the
+  rotation it holds is `geom::Frame::rounding`. At an enclosure scalar it
+  is zero, by the argument in its doc: every mint there encloses an exact
+  rotation (the polar read of an `f64` frame; a formula that yields a
+  rotation in exact arithmetic; a product, transpose or signed
+  permutation of such), and no production door mints one from raw
+  entries. At a point scalar the defect is measured from the entries
+  with their running bounds, exact apart from rounding, so composition's
+  drift is followed with no constant to prove.
+- `pcurve_cache`'s `frame_defect` (check 4's `EnvelopeTerm::Frame`, its
+  projected and focal arms) reads `Frame::rounding`; `implicit`'s
+  circle–sphere `frame_error` is zero at an enclosure scalar and
+  measured at a point scalar.
+
+What remains of this row is the directions of a line and a plane, the
+frames lane's `UnitVec3` half.

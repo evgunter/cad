@@ -1,7 +1,8 @@
-//! **A rounded unit axis far out is never read under its residual.**
-//! A chart's frame is a rigid motion, so no row here builds one off its
-//! convention; the one row pins the rounding a frame carries at a far
-//! placement, at each scalar's mint.
+//! **A chart's frame rounding is never read under its residual.** A
+//! chart's frame is a rigid motion, so no row here builds one off its
+//! convention: one row pins the rounding a frame carries at a far
+//! placement, at each scalar's mint, and one the rounding a composed frame
+//! carries at a large radius, which check 4 charges at `f64`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -40,7 +41,7 @@ fn a_rounded_unit_axis_at_a_far_placement_is_never_under_its_residual() {
         radius,
     };
     assert!(
-        cyl.representability_margins(band())
+        cyl.representability_margins()
             .iter()
             .all(|m| m.margin > 0.0)
     );
@@ -95,4 +96,141 @@ fn a_rounded_unit_axis_at_a_far_placement_is_never_under_its_residual() {
         Err(e) => by_incidence("Interval", &e),
     }
     assert!(minted > 0, "at least the f64 mint images the ruling");
+}
+
+/// Double-double helpers for [`a_composed_frames_rounding_is_charged_at_a_large_radius`]'s
+/// oracle: an error-free product and sum, a pair kept to about `10⁻³¹`
+/// of its size.
+fn dd_sum(a: f64, b: f64) -> (f64, f64) {
+    let s = a + b;
+    let bb = s - a;
+    (s, (a - (s - bb)) + (b - bb))
+}
+
+fn dd_add((ah, al): (f64, f64), (bh, bl): (f64, f64)) -> (f64, f64) {
+    let (s, e) = dd_sum(ah, bh);
+    dd_sum(s, e + al + bl)
+}
+
+fn dd_mul(a: f64, b: f64) -> (f64, f64) {
+    let p = a * b;
+    (p, a.mul_add(b, -p))
+}
+
+/// `o + Σ cᵢ·vᵢ` per component in double-double, each `cᵢ` an `f64`.
+fn dd_point(o: Point3<f64>, terms: &[(f64, Vec3<f64>)]) -> [(f64, f64); 3] {
+    let mut out = [(o.x, 0.0), (o.y, 0.0), (o.z, 0.0)];
+    for &(c, v) in terms {
+        for (k, x) in [v.x, v.y, v.z].into_iter().enumerate() {
+            out[k] = dd_add(out[k], dd_mul(c, x));
+        }
+    }
+    out
+}
+
+fn dd_distance(p: [(f64, f64); 3], q: [(f64, f64); 3]) -> f64 {
+    let d = |k: usize| {
+        let (h, l) = dd_add(p[k], (-q[k].0, -q[k].1));
+        h + l
+    };
+    (d(0).powi(2) + d(1).powi(2) + d(2).powi(2)).sqrt()
+}
+
+/// The defect of a frame's `f64` entries, `max(|A − 1|, |U − 1|, |axis·u_ref|)`,
+/// in double-double: what its rounding must cover.
+fn dd_defect(f: &geom::Frame<f64>) -> f64 {
+    let dot = |x: Vec3<f64>, y: Vec3<f64>| {
+        dd_add(dd_add(dd_mul(x.x, y.x), dd_mul(x.y, y.y)), dd_mul(x.z, y.z))
+    };
+    let less_one = |(h, l): (f64, f64)| {
+        let (h, l) = dd_add((h, l), (-1.0, 0.0));
+        (h + l).abs()
+    };
+    let (a, u) = (f.axis(), f.u_ref());
+    let c = dot(a, u);
+    less_one(dot(a, a))
+        .max(less_one(dot(u, u)))
+        .max((c.0 + c.1).abs())
+}
+
+/// **A composed frame's rounding is charged at a large radius** (check 4's
+/// `EnvelopeTerm::Frame`, read off [`geom::Frame::rounding`]). Composition
+/// adds rounding at every turn, so a cylinder whose frame is 256 random
+/// turns composed stores axes a measurable defect `d` off the rotation
+/// they hold (read in double-double). At a radius that levers it to a
+/// tenth of the band's zero, the rim drawn on the frame's squared twin
+/// images on the chart, and check 4's envelope covers the residual,
+/// measured in double-double with `f64` trigonometry (each `cos` and `sin`
+/// within an ulp, `2u·R` a point; [`SLACK_ULPS`] of the radius covers
+/// both points). Red where the frame's `f64` rounding is read as zero:
+/// the envelope then falls under the stored chart's slip off its twin.
+#[test]
+fn a_composed_frames_rounding_is_charged_at_a_large_radius() {
+    use geom_core::{RigidMotion, UnitVec3};
+    /// The oracle's own error, in `u` of the radius: two points, each
+    /// `cos` and `sin` within an ulp.
+    const SLACK_ULPS: f64 = 4.0;
+    let b = band();
+    let mut seed = 0x2545_f491_4f6c_dd1d_u64;
+    let mut next = || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        #[allow(clippy::cast_precision_loss)]
+        let x = (seed >> 11) as f64 / (1u64 << 53) as f64;
+        x
+    };
+    let mut motion = RigidMotion::<f64>::world();
+    for _ in 0..256 {
+        let axis = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5);
+        let axis = UnitVec3::new(axis, "test_composed_axis", b).unwrap();
+        let turn = RigidMotion::rotation(axis, 6.0 * next()).unwrap();
+        motion = turn.compose(motion).unwrap();
+    }
+    let frame = geom::Frame::of_motion(&motion);
+    let defect = dd_defect(&frame);
+    assert!(
+        defect > 2e-15,
+        "256 turns carry a defect to charge: {defect:e}"
+    );
+    let radius = 0.1 * b.zero() / defect;
+    let cyl = Surface::Cylinder { frame, radius };
+    let square = frame.square();
+    let twin = geom::Frame::new(frame.origin(), square.axis, square.u_ref);
+    let rim = Curve3::Circle(geom::Circle::new(twin, radius));
+    let image = chart_pcurve(&rim, &cyl, b).expect("the rim images on its cylinder");
+    let (t0, t1) = (0.0, core::f64::consts::TAU);
+    let cache = PcurveCache::certify(image.clone(), t0, t1, &rim, &cyl, b)
+        .expect("the rim certifies on its cylinder");
+    let envelope = cache.certificate().envelope;
+    let on = |f: &geom::Frame<f64>, u: f64, v: f64| {
+        let (s, c) = u.sin_cos();
+        dd_point(
+            f.origin(),
+            &[
+                (radius * c, f.u_ref()),
+                (radius * s, f.v_ref()),
+                (v, f.axis()),
+            ],
+        )
+    };
+    let mut residual = 0.0f64;
+    for i in 0..=4096 {
+        let t = t0 + (t1 - t0) * f64::from(i) / 4096.0;
+        let q = image.eval(t);
+        residual = residual.max(dd_distance(on(&frame, q.x, q.y), on(&twin, t, 0.0)));
+    }
+    let slack = SLACK_ULPS * 0.5 * f64::EPSILON * radius;
+    println!(
+        "defect {defect:e}, radius {radius:e}: envelope {envelope:e}, residual {residual:e}, \
+         slack {slack:e}"
+    );
+    assert!(
+        residual > 2.0 * slack,
+        "the stored chart slips off its twin measurably"
+    );
+    assert!(
+        envelope >= residual - slack,
+        "UNSOUND: envelope {envelope:e} under the residual {residual:e} less its slack {slack:e}"
+    );
 }

@@ -2,10 +2,11 @@
 id: tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis
 kind: issue
 title: Tier 3's frame check refuses a section ellipse on its frame's own rounding, amplified by a semi-axis up to 1e6, as an unrepresentable datum
-status: open
+status: closed
 opened: 2026-10-14
 priority: P2
 cost: M
+closed: 2026-11-21
 refs: [4861, 4812]
 ---
 
@@ -90,3 +91,20 @@ family `crates/sweep/tests/split_seam_vanishing_tilt.rs` reaches it at
 φ = 0.9.
 
 Moved from RESTDATUM to RESTFRONT on 2026-11-20, by `git mv`, when RESTDATUM merged into RESTFRONT: RESTDATUM held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one RESTFRONT carries.
+
+## Closed (2026-11-21): check 1 reads no frame
+
+By ONEHOME, on `onehome/check1-frame-half` (fork 274 decision 1, built by
+`carriers-hold-their-frame-as-unitvec3-and-rigidmotion-and-check-1s-frame-half-goes`).
+A carrier's frame is a `geom::Frame`, rigid by its type, so check 1's
+frame margins are gone and `geom::convention::frame_margins` with them.
+The frame's `f64` rounding is charged where it is levered, check 4's
+envelope and the circle–sphere harmonic (`geom::Frame::rounding`), not
+refused as a datum.
+
+`crates/sweep/tests/section_ellipse_seam_poses.rs` at ε = 1e-12: the 32
+through-axis poses this row counted now build, and the row asserts that
+every pose that answers measures the cylinder's closed form on each side
+of its plane (to `1e-6 + 4ε`), at the 1e-6, 1e-9 and 1e-12 rows alike.
+CLEAVE's off-axis census family (`axial`, 704 poses, 38 refusing this
+way) was not re-run here.

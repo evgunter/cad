@@ -2,10 +2,11 @@
 id: check-1-reads-a-turning-frames-length-off-its-bracket
 kind: issue
 title: Check 1 reads a stored frame's unit length off its bracket, so a frame that truly turns over the box reads non-unit at first order in the box
-status: open
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: H
+closed: 2026-11-21
 design: true
 refs: [6936]
 ---
@@ -161,3 +162,15 @@ their own numbers:
   (the door, first order, before check 1);
 - `a-body-moved-by-a-boxed-turn-refuses-its-edges-and-pcurves-at-first-order-in-the-box`
   (the moved body's finish past check 1).
+
+## Closed (2026-11-21)
+
+By ONEHOME, on `onehome/check1-frame-half`: check 1 has no frame half.
+`crates/sweep/tests/check_1_reads_no_frame_on_a_turned_disc.rs` reads the
+case above (a disc moved by `30° ± δ` about `y`) and finds no datum
+finding at check 1 at any `δ` from `1°` to `10⁻¹⁰°`; restoring the
+entry-read margin reds it at `1°` with this row's `[−7.50e-5, 7.61e-5]`.
+What stands behind check 1 on the case is its two rows,
+`a-sweep-on-a-boxed-turned-sketch-plane-refuses-its-ends-at-first-order-in-the-box`
+and
+`a-body-moved-by-a-boxed-turn-refuses-its-edges-and-pcurves-at-first-order-in-the-box`.
