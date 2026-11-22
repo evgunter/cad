@@ -2,10 +2,13 @@
 id: main-red-seven-sweep-and-topo-rows-red-at-1e-6-since-11-17
 kind: issue
 title: Main red (ε = 1e-6): seven sweep and topo rows no row held, red since between the 11-17 and 11-20 nightlies (TubeStraddles near the node ×3, parallel_cylinder_join's tipped rod ×2, review_curved ×2)
-status: dispatched
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: M
+closed: 2026-11-22
+pr: 7383
+branch: green/eps-1e-6-sweep
 ---
 
 
