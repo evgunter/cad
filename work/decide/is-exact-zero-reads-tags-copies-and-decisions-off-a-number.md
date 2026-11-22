@@ -75,3 +75,23 @@ say first what breaks without it. Also for this audit: a bulge leg
 that stores a sign nothing decided (`arc_bulge`, `literal_sign(b)`,
 and what its tie arm stores), found by BOXFINISH's signed-radius lane.
 (BOXFINISH orchestrator)
+
+**Evidence (boxfinish/signed-radius, 2026-11-22): the `Bulge` leg stores
+a sign nothing decided.** `profile::path`'s `arc_bulge` lowers
+`arc_to(Bulge)` through `crate::bulge_leg(start, end, bulge, turn)`,
+and the turn it passes is `seg::literal_sign(bulge)`: the bulge's own
+sign where the number reads definite, read off the number and not
+through a predicate. Since the arcs' radii are stored signed, that sign
+is in what the leg stores:
+- **where it reads a sign** the leg stores the radius as
+  `σ·L(1 + b²)/(4b)` and records the arc's radials
+  (`Arc2::from_chord_radials`), so the stored arc is one a turn `σ`
+  fixes;
+- **at a tie** (a bulge boxed across zero) it stores the radius as the
+  start's measured distance from the centre (`Arc2::rim`) and records
+  no radial, and validation mints the directions from the vertices.
+
+The family's bulge legs are not this: they pass their decided winding.
+The leg was not made to decide `path_arc_bulge`, since refusing an
+authored bulge in band at `f64` changes what builds; the line-or-arc
+choice and this sign are one question, this row's.
