@@ -1860,6 +1860,14 @@ impl fmt::Display for Sentence {
     }
 }
 
+/// Its text ([`spell`]ing each mention): where a sentence leaves the
+/// kernel as text.
+impl From<Sentence> for String {
+    fn from(sentence: Sentence) -> Self {
+        sentence.to_string()
+    }
+}
+
 /// A sentence equals the text it reads.
 impl PartialEq<str> for Sentence {
     fn eq(&self, text: &str) -> bool {

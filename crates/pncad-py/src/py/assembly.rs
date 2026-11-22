@@ -44,8 +44,10 @@ enum SpokenFrom {
 impl SpokenFrom {
     fn say<T: d::Say>(&self, value: &T) -> String {
         match self {
-            Self::Doc(doc) => d::spoken_by(value, doc),
-            Self::Held(held) => d::Said(value, d::Speaker::held(held)).to_string(),
+            Self::Doc(doc) => d::spoken_by(value, doc).to_string(),
+            Self::Held(held) => d::Said(value, d::Speaker::held(held))
+                .sentence()
+                .to_string(),
         }
     }
 }

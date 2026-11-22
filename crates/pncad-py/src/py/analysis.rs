@@ -260,7 +260,13 @@ fn measure_err(py: Python<'_>, err: &a::MeasureUnavailable) -> PyErr {
             ),
             (
                 "param",
-                PyString::new(py, &param.to_string()).unbind().into_any(),
+                PyString::new(
+                    py,
+                    &pncad::document::sentence!(pncad::document::Speaker::TAG.var(&&param))
+                        .to_string(),
+                )
+                .unbind()
+                .into_any(),
             ),
         ],
     )
@@ -773,9 +779,9 @@ fn analyzed_box(doc: &super::doc::Doc, policy: Option<&AnalysisPolicy>) -> Analy
 fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
     let param = match refusal {
-        a::McRefusal::BandHasNoMeasure(a::MeasureUnavailable::BandHasNoMeasure { param }) => {
-            text(&param.to_string())
-        }
+        a::McRefusal::BandHasNoMeasure(a::MeasureUnavailable::BandHasNoMeasure { param }) => text(
+            &pncad::document::sentence!(pncad::document::Speaker::TAG.var(&&param)).to_string(),
+        ),
         a::McRefusal::NoSamples
         | a::McRefusal::NominalDoesNotBuild { .. }
         | a::McRefusal::Stopped(_) => py.None(),

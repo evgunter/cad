@@ -679,7 +679,9 @@ impl CheckFinding {
     /// checks ran over. The recourse is in that story; nothing is
     /// appended here.
     fn __str__(&self) -> String {
-        d::Said(&self.finding, d::Speaker::of(&*self.doc)).to_string()
+        d::Said(&self.finding, d::Speaker::of(&*self.doc))
+            .sentence()
+            .to_string()
     }
 
     /// The same finding over the same document; labels are not
@@ -828,7 +830,7 @@ impl ChecksReport {
     /// The report, each placement spoken from the document the checks ran
     /// over.
     fn __str__(&self) -> String {
-        self.report.spoken(&*self.doc)
+        self.report.spoken(&*self.doc).to_string()
     }
 
     /// The same findings and skips over the same document (the
@@ -963,7 +965,7 @@ pub(crate) fn run_checks(
             report,
             doc: evaluation.doc_shared(),
         })
-        .map_err(|err| checks_err_saying(py, &err, err.spoken(evaluation.doc())))
+        .map_err(|err| checks_err_saying(py, &err, err.spoken(evaluation.doc()).to_string()))
 }
 
 /// A mispaired `(doc, evaluation)` as this door's own refusal.
