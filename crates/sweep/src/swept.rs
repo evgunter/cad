@@ -1849,8 +1849,9 @@ mod tests {
         );
     }
 
-    /// **A constructed arc places with one fact registered, rigidity at
-    /// its far end.** A clockwise bulge arc over a box of bulges wide
+    /// **A constructed arc places with rigidity registered at its carrier's
+    /// ends, and here only the far end needs it.** A clockwise bulge arc
+    /// over a box of bulges wide
     /// enough that no enclosure decides, placed by a translation (a
     /// frame whose axes are literals, as a sketch plane's are):
     ///
