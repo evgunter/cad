@@ -236,13 +236,18 @@ pub fn collapsed_sides<T: Real>(
         .collect()
 }
 
-/// **Whether `a` and `b` are one stored point**, the reading a spline
-/// net's collapsed side is decided by ([`collapsed_sides`],
-/// [`geom_core::bit_identity::one_stored_point`]): a constructor that
-/// writes a pinned point into a net asks it to keep the point one.
+/// **Whether a row of points is one stored point**: every point the
+/// first by the scalar's identity channel
+/// ([`geom_core::bit_identity::one_stored_point`]), and `false` for an
+/// empty row. The one reading of a collapsed side
+/// ([`spline_collapsed_row`]), and of a skin's pinned row, which the loft
+/// writes as one point so that the wall's side is collapsed.
 #[must_use]
-pub fn one_stored_point<T: Real>(a: &Point3<T>, b: &Point3<T>) -> bool {
-    geom_core::bit_identity::one_stored_point(a, b)
+pub fn one_stored_row<T: Real>(row: &[Point3<T>]) -> bool {
+    row.first().is_some_and(|first| {
+        row.iter()
+            .all(|p| geom_core::bit_identity::one_stored_point(p, first))
+    })
 }
 
 /// **One loop of a face**, as [`locate`] reads it: its edges in
@@ -541,8 +546,7 @@ pub fn locate<T: Decide>(
             .map(|&(singularity, x)| Located {
                 singularity,
                 point: x,
-                lies: place_on_boundary(loops, x, band)
-                    .and_then(|on| on.ok_or(Unread::SplineSide)),
+                lies: place_on_boundary(loops, x, band).and_then(|on| on.ok_or(Unread::SplineSide)),
             })
             .collect();
     };
@@ -1613,10 +1617,11 @@ pub fn spline_collapsed_row<T: Real>(
 ) -> Option<Vec<usize>> {
     let row = side_row(net, side);
     let control = net.control();
-    let first = *row.first().and_then(|&i| control.get(i))?;
-    row.iter()
-        .all(|&i| control.get(i).is_some_and(|p| one_stored_point(p, &first)))
-        .then_some(row)
+    let points: Vec<Point3<T>> = row
+        .iter()
+        .filter_map(|&i| control.get(i).copied())
+        .collect();
+    (points.len() == row.len() && one_stored_row(&points)).then_some(row)
 }
 
 /// [`Unread::refusal`], the one ranking of what [`place_on_boundary`]

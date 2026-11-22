@@ -338,8 +338,9 @@ pub enum LoftError {
     /// A one-segment loop's vertex (a full turn's) is pinned: a legal
     /// body, whose wall is the whole turn with a collapsed side at its
     /// wrap edge, which the assembly does not build yet (it sweeps a full
-    /// turn's wall around a strut). A limit of the kernel, not a fault in
-    /// the sections. Every other pinned corner builds: one vertex, no
+    /// turn's wall around a strut;
+    /// `work/lathe/a-full-turns-pinned-vertex-refuses-at-the-loft-door.md`).
+    /// A limit of the kernel, not a fault in the sections. Every other pinned corner builds: one vertex, no
     /// strut, and each wall beside it a collapsed side there.
     PinnedCornerUnsupported {
         /// The loop, in canonical order (the outer first).
@@ -444,26 +445,6 @@ pub enum LoftError {
         slab: usize,
         /// The predicate-layer escalation.
         source: Indeterminate,
-    },
-    /// A hinge's edge (a segment every section holds, so the two caps
-    /// meet along it) has a wedge too close to call between the caps.
-    SliverRim {
-        /// The loop, in canonical order (the outer first).
-        loop_index: usize,
-        /// The hinged segment.
-        segment_index: usize,
-        /// The wedge read's escalation.
-        escalation: geom_brep::WedgeEscalation,
-    },
-    /// A hinge's edge reads crease at some stations and smooth at
-    /// others ([`geom_brep::MixedStations`]).
-    SmoothJoinRefuted {
-        /// The loop, in canonical order (the outer first).
-        loop_index: usize,
-        /// The hinged segment.
-        segment_index: usize,
-        /// The stations that disagree.
-        mixed: geom_brep::MixedStations,
     },
 }
 
@@ -729,26 +710,6 @@ impl LoftError {
                     format_args!("whether loft {} stack forward", SlabPair(*slab)),
                     source.ending(geom_core::COINCIDENCE_RECOURSE),
                 )
-            ),
-            Self::SliverRim {
-                loop_index,
-                segment_index,
-                escalation,
-            } => {
-                let rim = format!(
-                    "the hinge where loop {loop_index} segment {segment_index} joins the two caps"
-                );
-                crate::swept::sliver_text(f, &rim, *escalation)
-            }
-            Self::SmoothJoinRefuted {
-                loop_index,
-                segment_index,
-                mixed,
-            } => write!(
-                f,
-                "along the hinge where loop {loop_index} segment {segment_index} joins the two \
-                 caps, {mixed}. {}",
-                geom_core::MOVE_RECOURSE
             ),
         }
     }
@@ -1261,11 +1222,14 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
 
 /// **A hinge's edge at rest**, between the two caps that hold it: the
 /// description its wedge demands ([`topo::edge_wedge_description`]), as
-/// extrude's cap rims rest, and its refusals typed.
+/// extrude's cap rims rest. The wedge is the caps' dihedral about the
+/// hinge, the angle the stack turns about it, so one in band is the
+/// stack's step escalating ([`LoftError::StackingEscalated`]); the door
+/// has read that step for every slab already, so no hinge built at rest
+/// reaches it.
 fn hinge_at_rest<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
-    (loop_index, segment_index): (usize, usize),
     band: Band,
     tol: Tol,
 ) -> Result<(), LoftError> {
@@ -1278,19 +1242,14 @@ fn hinge_at_rest<T: Decide + topo::AtRestPolicy>(
         }
         Ok(geom_brep::MustCarryDescription::Conventional) => body.describe_at_rest(edge, tol)?,
         Err(geom_brep::WedgeRefusal::InBand(escalation)) => {
-            return Err(LoftError::SliverRim {
-                loop_index,
-                segment_index,
-                escalation,
+            return Err(LoftError::StackingEscalated {
+                slab: 0,
+                source: escalation.diag(),
             });
         }
-        Err(geom_brep::WedgeRefusal::Mixed(mixed)) => {
-            return Err(LoftError::SmoothJoinRefuted {
-                loop_index,
-                segment_index,
-                mixed,
-            });
-        }
+        Err(geom_brep::WedgeRefusal::Mixed(mixed)) => unreachable!(
+            "a hinge is a line between two planes, whose dihedral is one at every station: {mixed}"
+        ),
     }
     Ok(())
 }
@@ -1698,7 +1657,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 let Some(edge) = body.get_half_edge(he).map(|h| h.edge) else {
                     unreachable!("a cap rim's half-edge is live until the assembly ends")
                 };
-                hinge_at_rest(&mut body, edge, (li, j), band, tol)?;
+                hinge_at_rest(&mut body, edge, band, tol)?;
             }
         }
     }

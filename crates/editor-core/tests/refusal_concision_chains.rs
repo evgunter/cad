@@ -859,7 +859,7 @@ mod kernel {
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
             PinnedCorner, PinnedCornerUnsupported, CornerEscalated, SectionsTouch,
             ClearanceUndecided, ClearanceFault, FarSectionNotForward, FarStackingEscalated,
-            StackingEscalated, NotFinished, SliverRim, SmoothJoinRefuted,
+            StackingEscalated, NotFinished,
         ];
     }
 
@@ -3629,28 +3629,6 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
                 loop_index: 1,
                 at: sweep::PinnedSite::Corner(0),
                 slab: 10,
-            },
-        ),
-        (
-            "SliverRim",
-            E::SliverRim {
-                loop_index: 0,
-                segment_index: 3,
-                escalation: geom_brep::WedgeEscalation::at(
-                    geom_brep::WedgeRung::Wedge,
-                    named("dihedral_wedge"),
-                ),
-            },
-        ),
-        (
-            "SmoothJoinRefuted",
-            E::SmoothJoinRefuted {
-                loop_index: 0,
-                segment_index: 3,
-                mixed: geom_brep::MixedStations::Class {
-                    transverse: 3,
-                    smooth: 4,
-                },
             },
         ),
         (

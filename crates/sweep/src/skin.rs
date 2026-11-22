@@ -940,11 +940,7 @@ fn chord_length_parameters<T: SpanLocate>(
         // by rounding counts as moving. A row that moves for some values
         // its bracket stands for and not others would abstain for some
         // members only, so it refuses.
-        let one_point = row.first().is_some_and(|p| {
-            row.iter()
-                .all(|q| geom_brep::chart_singularity::one_stored_point(q, p))
-        });
-        if one_point {
+        if geom_brep::chart_singularity::one_stored_row(&row) {
             continue;
         }
         if !total.structure_positive() {
@@ -1213,19 +1209,18 @@ fn skin_with<T: SpanLocate>(
         .map_err(|e| SkinError::Fit(Built::new(e)))?;
     // Into the surface's u-major layout, `idx = iu · nv + iv`. A lane
     // whose sections all hold one stored point (a pinned corner) is that
-    // point in every row, and at v-degree 1 every row is its section's
-    // own control point: both pass through unsolved, so a corner the
-    // loft wrote as one point is a collapsed side of the net exactly
-    // (DESIGN `[extensibility]`).
+    // point in every row, passed through unsolved, so a corner the loft
+    // wrote as one point is a collapsed side of the net exactly (DESIGN
+    // `[extensibility]`).
     let nv = solved.len();
     let mut control = Vec::with_capacity(n * nv);
     let mut weights = Vec::with_capacity(n * nv);
     let mut at = 0;
     for (i, lane) in constant.iter().enumerate() {
         let first = sections[0].control()[i];
-        let one_point = sections
-            .iter()
-            .all(|c| geom_brep::chart_singularity::one_stored_point(&c.control()[i], &first));
+        let one_point = geom_brep::chart_singularity::one_stored_row(
+            &sections.iter().map(|c| c.control()[i]).collect::<Vec<_>>(),
+        );
         for (r, row) in solved.iter().enumerate() {
             let (point, weight) = if let Some(c) = lane {
                 (Point3::new(row[at], row[at + 1], row[at + 2]), *c)
@@ -1233,9 +1228,7 @@ fn skin_with<T: SpanLocate>(
                 let (x, y, z, w) = (row[at], row[at + 1], row[at + 2], row[at + 3]);
                 (Point3::new(x / w, y / w, z / w), w)
             };
-            let (point, weight) = if v_degree == 1 {
-                (sections[r].control()[i], sections[r].weights()[i])
-            } else if one_point {
+            let (point, weight) = if one_point {
                 (first, weight)
             } else {
                 (point, weight)

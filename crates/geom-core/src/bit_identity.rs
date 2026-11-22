@@ -7,11 +7,14 @@
 //!
 //! # What this is, and is not
 //!
-//! This is an **identity channel, not a comparison door**: NO
-//! production coincidence path consults it (see the retirement note
-//! below) — a coincidence is its margin's to decide (D10), and what
-//! remains is exact-representation plumbing. It never orders
-//! values, never bands, and is deliberately NOT part of the
+//! This is an **identity channel, not a comparison door**: no
+//! coincidence between two cells consults it (see the retirement note
+//! below) — a coincidence is its margin's to decide (D10). What remains
+//! is exact-representation plumbing, and one decision DESIGN
+//! `[extensibility]` makes on stored values: a spline net's collapsed
+//! side, a boundary iso whose control points are all one stored point
+//! ([`one_stored_point`]), which is a chart singularity there. It never
+//! orders values, never bands, and is deliberately NOT part of the
 //! [`Real`](crate::Real) trait surface — evaluation code stays
 //! comparison-free.
 //!
@@ -23,10 +26,11 @@
 //!   sources (allowlist: this file, plus `interval.rs` which defines
 //!   `Interval::repr_bits` over its own storage).
 //! - **Retired from production coincidence (NAMING-DESIGN N6)**: no
-//!   production path checks coincidence through this channel. The CI
-//!   tripwires stay armed with an EMPTY production-consumer
-//!   allowlist; the remaining allowlisted files are non-consumers
-//!   (scalar plumbing).
+//!   production path checks a coincidence between two cells through
+//!   this channel. The CI tripwire (`scripts/gates/bit-identity-consumer.sh`)
+//!   stays armed: every file that reaches the channel is listed there
+//!   with what it reads it for, scalar plumbing or the collapsed-side
+//!   reading and the knot algebra that keeps it.
 //!
 //! A scalar type without an arm below (e.g. `Dual`, which no `Body`
 //! instantiates) yields `None`: no bit channel, so a caller takes the
@@ -67,9 +71,10 @@ pub fn repr_bits<T: crate::Real>(x: &T) -> Option<ScalarBits> {
 /// same expression) and a bit-equal numeric channel. Any other `Sym`
 /// value type has no channel.
 ///
-/// **An identity, never a verdict.** A caller reads it only to choose
-/// between two sound paths, where a false "no" costs the slower one:
-/// it decides nothing about geometry, and a coincidence is still its
+/// **An identity, never a coincidence verdict.** A caller reads it to
+/// choose between two sound paths, where a false "no" costs the slower
+/// one, or to read which description is stored, as [`one_stored_point`]
+/// reads a collapsed side; a coincidence between two cells is still its
 /// margin's to decide (D10).
 pub fn eq_bits<T: crate::Real>(a: &T, b: &T) -> Option<bool> {
     if let Some(same) = eq_sym::<f64, T>(a, b).or_else(|| eq_sym::<crate::Interval, T>(a, b)) {

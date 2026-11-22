@@ -424,29 +424,64 @@ fn a_half_disc_turned_about_its_chord_builds_a_lune() {
 }
 
 /// **A side one ulp wide is no collapsed side** (DESIGN
-/// `[extensibility]`: no band decides a collapse), so a face that holds
-/// an edge along it holds an edge one ulp long, which the attach gate
-/// refuses. The other shape, a face that walks such a side with no edge
-/// on it, refuses at its joint's chart gap (`topo`'s
-/// `collapsed_side_rows`). The loft never meets either: its door writes
-/// a corner it decides pinned as one point.
+/// `[extensibility]`: no band decides a collapse), so a face whose loop
+/// runs along it with an edge there holds an edge one ulp long, which
+/// the attach gate refuses: the edge's span meter collapses, the spline
+/// carrier's reading of a stated interval that is not forward (a line's
+/// is `IntervalNotForward`). The edge is the side's own iso, on a bilinear net whose `u = 0` column runs
+/// from (1, 1, 0) to the point an ulp along `x`. The other shape, a face
+/// that walks such a side with no edge on it, refuses at its joint's
+/// chart gap (`topo`'s `collapsed_side_rows`). The loft never meets
+/// either: its door writes a corner it decides pinned as one point.
 #[test]
 fn an_edge_along_a_side_one_ulp_wide_refuses_at_the_attach_gate() {
-    use topo::construction::{Construct, MevSite};
+    use geom_core::spline::{KnotVector, Knots};
+    use topo::construction::{Construct, FaceSurface, MevSite};
     let tol = Tol::witness();
     let p = Point3::new(1.0, 1.0, 0.0);
     let q = Point3::new(f64::from_bits(1.0_f64.to_bits() + 1), 1.0, 0.0);
+    let kv = || Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap());
+    let net = geom::NurbsSurface::new(
+        kv(),
+        kv(),
+        vec![p, q, Point3::new(3.0, 0.0, 0.0), Point3::new(3.0, 2.0, 0.0)],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    assert!(
+        singular_points(&geom::Surface::Nurbs(std::sync::Arc::new(net.clone()))).is_empty(),
+        "one ulp wide: no collapsed side"
+    );
     let mut body = topo::Body::<f64>::new();
     let seed = body.mvfs(p, true).unwrap();
+    let chart = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: geom::Surface::Nurbs(std::sync::Arc::new(net.clone())),
+                sense: true,
+            },
+        )
+        .unwrap();
+    let side = geom_brep::boundary_iso_u(&net, false).unwrap();
     let out = body.mev(
         MevSite::Lone {
             r#loop: seed.r#loop,
         },
         q,
-        geom_brep::EdgeCurveSpec::line_between(p, q),
+        geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::iso(chart, 0.0, 0.0, 1.0, 0.0, 1.0),
+            carrier: geom::Curve3::Nurbs(std::sync::Arc::new(side)),
+            param_start: 0.0,
+            param_end: 1.0,
+        },
         tol,
     );
-    assert!(out.is_err(), "an edge one ulp long is refused, got {out:?}");
+    let read = format!("{out:?}");
+    assert!(
+        read.contains("SpanMeterCollapsed"),
+        "an edge along the side one ulp long refuses its span, read {read}"
+    );
 }
 
 /// **Tier 3 reads a spline face's collapsed side as it reads a pole**: a
@@ -505,4 +540,27 @@ fn a_collapsed_side_inside_an_edge_is_refused_at_rest() {
         )),
         "the side's point inside the rim is refused, read {findings:?}"
     );
+}
+
+/// **A pinned corner stays one point through the skin's solve**: a
+/// corner pinned through four sections at v-degree 3, the stack set off
+/// at (0.1, 0.7, 1/3) so its coordinates are no short binary fractions,
+/// is one stored point in every row of the wall's net only because the
+/// skin passes a constant row through unsolved; the interpolation's
+/// solve rounds it apart. Both walls beside it read their collapsed side,
+/// and the body builds.
+#[test]
+fn a_corner_pinned_through_a_cubic_solve_stays_one_point() {
+    let at = Affine3::translation(Vec3::new(0.1, 0.7, 1.0 / 3.0));
+    let ms: Vec<Affine3<f64>> = [0.0, 0.2, 0.45, 0.7]
+        .into_iter()
+        .map(|a| at * about_corner(a))
+        .collect();
+    let l = build("cubic", &vec![square(); 4], &ms, 3);
+    assert_eq!(
+        collapsed_sides(&l),
+        2,
+        "cubic: the two walls beside the corner"
+    );
+    holds("cubic", measured(&l), divergence_volume(&l), 1e-9);
 }

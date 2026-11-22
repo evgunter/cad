@@ -2547,3 +2547,64 @@ mod beside_tests {
         );
     }
 }
+
+/// **The knot algebra keeps a collapsed side one stored point**: a net
+/// whose side `v = 0` is one point (a `−0` coordinate in it), through
+/// `u` insertion, refinement and elevation, at `f64` and at the symbolic
+/// scalar, whose blend of a node with itself is another node unless it
+/// is kept (`Column::through`).
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod a_collapsed_side_through_the_knot_algebra {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    fn net() -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let p = Point3::new(0.1, -0.0, 0.3);
+        let mut control = Vec::new();
+        for iu in 0..3_u32 {
+            for iv in 0..3_u32 {
+                control.push(if iv == 0 {
+                    p
+                } else {
+                    Point3::new(
+                        f64::from(iu) + 0.37,
+                        f64::from(iv) * 1.3,
+                        0.7 * f64::from(iu),
+                    )
+                });
+            }
+        }
+        let w = vec![1.0, 1.3, 0.8, 0.9, 1.1, 1.2, 1.0, 0.7, 1.4];
+        NurbsSurface::new(ku, kv, control, w).unwrap()
+    }
+
+    fn v_low_one<T: Real>(s: &NurbsSurface<T>) -> bool {
+        let (nu, nv) = s.control_counts();
+        let c = s.control();
+        (0..nu).all(|iu| geom_core::bit_identity::one_stored_point(&c[iu * nv], &c[0]))
+    }
+
+    #[test]
+    fn a_collapsed_side_stays_one_point_through_insertion_refinement_and_elevation() {
+        let s = net();
+        assert!(v_low_one(&s), "as built");
+        for (what, t) in [
+            ("insert", s.insert_knot_u(0.37, 1).unwrap()),
+            ("refine", s.refine_knots_u(&[0.2, 0.61]).unwrap()),
+            ("elevate", s.elevate_degree_u(2).unwrap()),
+        ] {
+            assert!(v_low_one(&t), "f64 {what}");
+        }
+        let sym = s.map_scalar(geom_core::Sym::<f64>::from_f64);
+        for (what, t) in [
+            ("insert", sym.insert_knot_u(0.37, 1).unwrap()),
+            ("refine", sym.refine_knots_u(&[0.2, 0.61]).unwrap()),
+            ("elevate", sym.elevate_degree_u(2).unwrap()),
+        ] {
+            assert!(v_low_one(&t), "symbolic {what}");
+        }
+    }
+}

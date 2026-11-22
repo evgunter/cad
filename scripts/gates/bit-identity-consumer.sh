@@ -4,8 +4,9 @@
 #
 # Bit-identity coincidence checking is RETIRED from production
 # (M4 PR 5; DESIGN.md roadmap; Ev, #53): a coincidence is its
-# margin's to decide (D10), and the production-consumer allowlist is
-# EMPTY. The remaining rows are NON-consumers:
+# margin's to decide (D10), and no row reads a coincidence between two
+# cells. The rows are scalar plumbing, or the one decision DESIGN
+# [extensibility] (#7287) makes on stored values, a collapsed side:
 #  - bit_identity.rs — the sanctioned seam itself;
 #  - interval.rs — Interval::repr_bits over its OWN storage:
 #    scalar plumbing (exact-representation access), never a

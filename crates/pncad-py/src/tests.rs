@@ -5104,8 +5104,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "section_structure",
             "sections_touch",
             "skin",
-            "sliver_rim",
-            "smooth_join_refuted",
             "stacking_escalated",
         ],
         delegates: &[],
@@ -6592,13 +6590,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("shell", 2),
     ("skin", 2),
     ("sliver_join", 2),
-    // One fact at three sweep doors: a rim's wedge in band, extrude's and
-    // revolve's cap rims and a loft's hinge between its caps.
-    ("sliver_rim", 3),
+    ("sliver_rim", 2),
     // The slot-addressed half of the two above, same pin.
     ("slot_var_kind", 2),
-    // One fact at the same three doors: a rim's stations disagree.
-    ("smooth_join_refuted", 3),
+    ("smooth_join_refuted", 2),
     // One fact (D10 `[placement.spaces]`): a node whose reads lie in two
     // spaces, refused at the edit door or, a re-target having left it
     // so, at evaluation;

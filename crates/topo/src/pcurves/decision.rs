@@ -333,8 +333,10 @@ pub enum SingularMiss {
     NoLever,
     /// The joint is on a spline net's collapsed side that runs along a
     /// channel the net closes (a NURBS cone's apex, a revolved cap's
-    /// pole): the turn about that point and the face's side of it have
-    /// no reading on a spline chart yet, so the case refuses as unbuilt.
+    /// pole), and its marks decide no integer: the turn about that point
+    /// and the face's side of it have no reading on a spline chart yet,
+    /// so the case refuses as unbuilt
+    /// (`work/charttail/a-closed-collapsed-side-has-no-turn-or-side-reading.md`).
     ClosedSide,
 }
 

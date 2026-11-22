@@ -8628,10 +8628,7 @@ pub(crate) fn tier3_local_checks_marked<
                     // not place: no reading through a spline chart states
                     // its side yet.
                     Ok(None)
-                        if matches!(
-                            point,
-                            geom_brep::chart_singularity::Singularity::Side(_)
-                        ) =>
+                        if matches!(point, geom_brep::chart_singularity::Singularity::Side(_)) =>
                     {
                         errors.push(ValidationError::ChartSingularityUndecided {
                             face,
