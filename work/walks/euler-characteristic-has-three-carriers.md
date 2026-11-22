@@ -4,6 +4,7 @@ kind: issue
 title: The Euler characteristic has three carriers: readback::EulerCounts, validate's ComponentCounts and review_m1_pr4's ShellComponent
 status: review
 branch: walks/euler-theorem
+pr: 7430
 opened: 2026-09-12
 refs: [no-public-census-or-genus-query, 2131]
 priority: P1
