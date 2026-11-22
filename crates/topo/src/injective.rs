@@ -8632,14 +8632,15 @@ mod presentation_rows {
     }
 
     /// **A strip turned in its chart presents at every cell size**: the
-    /// face `[0, 10] × [0, w]` turned by up to 45° in its chart, read in
-    /// square cells about its middle from a unit half-size down. Red
+    /// face `[0, 10] × [0, w]`, `w` a millimetre and `100Kε`, turned by
+    /// up to 45° in its chart, read in square cells about its middle from
+    /// a unit half-size down. Red
     /// where a cap's lean is read per chart coordinate over the reach,
     /// picking up reach·|sin·cos| of slack.
     #[test]
     fn a_strip_turned_in_its_chart_presents_at_every_cell_size() {
         let l = 10.0;
-        for w in [1e-3_f64, 1e-5] {
+        for w in [1e-3_f64, 100.0 * band().escalate()] {
             for turn in [0.0_f64, 0.01, 0.3, 0.785] {
                 let (c, s) = (turn.cos(), turn.sin());
                 let r = |(x, y): (f64, f64)| (c * x - s * y, s * x + c * y);
