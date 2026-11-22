@@ -36,10 +36,17 @@ button. Both are the rows of `InputMap::DEFAULT.bindings`
 draws them, and `tests/controls_guide.rs` holds this page's copy to
 them, so neither can name a binding the viewport does not honour.
 
-A click selects a face, edge or vertex, or a profile by its drawn
-outline, and feeds the mate tool's picks. Alt + left drag is the
-trackpad's orbit. A wheel turned with ctrl or ⌘ held zooms as a plain
-scroll does.
+Selecting picks a face, edge or vertex, or a profile by its drawn
+outline, and feeds the mate tool's picks. A modifier key a row does not
+name does not change what its gesture does (`input::Held::met_by`), and
+of two rows a drag fits, the one naming more keys is the one it means.
+
+**The wheel's modifiers are not in the table.** The toolkit adapter
+decides them before the table is asked (`pane/viewport.rs`,
+`configure_input` and `scroll_event`, with the rows beside them that
+hold it): a wheel turned with ctrl, ⌘ or alt held reaches the table as
+a plain scroll, and one turned with shift held is a sideways scroll,
+which is no gesture here.
 
 **A pinch zooms** with the model's apparent size following the
 fingers: a trackpad pinch where the
@@ -49,9 +56,8 @@ that turns a pinch into a ctrl+wheel instead hands the viewer a scroll,
 which zooms at the scroll rate — by that mechanism, what a Windows
 precision touchpad's pinch would be.
 
-A plain left drag in the viewport is inert **by design** — primary is
-reserved for selection. Moving a body's space is not a viewport drag
-either: the free-move probe is the typed
+A drag no row names moves nothing. Moving a body's space is not a
+viewport drag either: the free-move probe is the typed
 x/y/z fields in the selected body's display section of the Properties
 panel (display-only, in the working length unit).
 
@@ -299,8 +305,8 @@ Four things are known-absent by design:
   download/upload or OPFS story GUI-5 owns.
 - **No touch orbit or pan.** A pinch zooms — a touchscreen's, and a
   trackpad's the browser reports as a gesture, through
-  `ViewportEvent::Pinch` — but `InputMap` binds orbit to a middle drag
-  and pan to a secondary drag, and a phone has neither. egui delivers the touch events and `Context::multi_touch`
+  `ViewportEvent::Pinch` — but every drag row of the table
+  (`input::Binding::Drag`) names a mouse button, and a phone has none. egui delivers the touch events and `Context::multi_touch`
   is there, but only its zoom is consumed, so orbiting and panning are
   unreachable on a phone until a touch vocabulary for them lands.
   `InputMap::map` is a pure `ViewportEvent → CameraOp` function, so

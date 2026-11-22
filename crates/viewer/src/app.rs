@@ -2113,7 +2113,7 @@ impl ViewerApp {
             }
             if ui
                 .button(CONTROLS)
-                .on_hover_text("how the mouse orbits, pans, zooms and selects in the viewport")
+                .on_hover_text("what each pointer gesture does in the viewport")
                 .clicked()
             {
                 self.controls_shown = !self.controls_shown;
@@ -7520,12 +7520,14 @@ mod properties_pane_tests {
         );
     }
 
-    /// **The Controls button opens a guide that lists every binding of
-    /// the session's input map, and closes it again.** The rows are
-    /// read off the map the app holds, here one no preset registers,
-    /// so a window that worded its own bindings would not show them.
+    /// **The Controls button opens a guide whose rows are exactly the
+    /// bindings of the session's input map, and closes it again.** The
+    /// map installed is one no preset registers, so a window that
+    /// worded its own bindings would not show them; and everything
+    /// the opened window paints is accounted for, so a row written
+    /// beside the table is red too.
     #[test]
-    fn the_controls_button_shows_every_binding_of_the_sessions_input_map() {
+    fn the_controls_button_shows_exactly_the_bindings_of_the_sessions_input_map() {
         use crate::app::CONTROLS;
         use crate::input::{Binding, Held, InputMap, Navigation, PointerButton};
         let mut driven = Driven::with(Vec::new());
@@ -7551,41 +7553,34 @@ mod properties_pane_tests {
             ],
             ..InputMap::DEFAULT
         };
-        let rows: Vec<(String, &str)> = driven
-            .app
-            .input
-            .bindings
-            .iter()
-            .map(|binding| (binding.gesture(), binding.action()))
+        // The window's title, then each row's gesture and its action.
+        let guide: Vec<String> = std::iter::once(CONTROLS.to_owned())
+            .chain(
+                driven
+                    .app
+                    .input
+                    .bindings
+                    .iter()
+                    .flat_map(|binding| [binding.gesture(), binding.action().to_owned()]),
+            )
             .collect();
-        let shown = |painted: &[(String, egui::Rect)]| -> Vec<(String, &str)> {
-            rows.iter()
-                .filter(|(gesture, action)| {
-                    // One row: the gesture, and its action beside it
-                    // on the same line.
-                    painted.iter().any(|(run, at)| {
-                        run == gesture
-                            && painted.iter().any(|(other, beside)| {
-                                other == action
-                                    && beside.left() > at.right()
-                                    && beside.y_range().intersects(at.y_range())
-                            })
-                    })
-                })
-                .cloned()
-                .collect()
-        };
         let before = driven.quiet();
-        assert_eq!(shown(&before), vec![], "no guide before it is asked for");
+        // What a frame paints that the closed app did not, in reading
+        // order: down the lines, and along each.
+        let added = |painted: &[(String, egui::Rect)]| -> Vec<String> {
+            let mut new: Vec<&(String, egui::Rect)> =
+                painted.iter().filter(|run| !before.contains(run)).collect();
+            new.sort_by(|(_, a), (_, b)| {
+                a.center()
+                    .y
+                    .total_cmp(&b.center().y)
+                    .then(a.left().total_cmp(&b.left()))
+            });
+            new.into_iter().map(|(run, _)| run.clone()).collect()
+        };
         driven.click(CONTROLS);
         let open = driven.quiet();
-        assert_eq!(shown(&open), rows, "the guide's rows: {open:?}");
-        assert!(
-            !open
-                .iter()
-                .any(|(run, _)| run == "Scroll" || run == "Hover"),
-            "a gesture this map does not bind is not listed: {open:?}"
-        );
+        assert_eq!(added(&open), guide, "the opened window, whole: {open:?}");
         // The button and the window's title both read `Controls`;
         // the button was there first.
         let button = before
@@ -7605,7 +7600,11 @@ mod properties_pane_tests {
                 .to_vec(),
         );
         let closed = driven.quiet();
-        assert_eq!(shown(&closed), vec![], "the button closes it: {closed:?}");
+        assert_eq!(
+            added(&closed),
+            Vec::<String>::new(),
+            "the button closes it: {closed:?}"
+        );
     }
 
     /// **"Add to the product" is offered on a drawn body's tree row, and

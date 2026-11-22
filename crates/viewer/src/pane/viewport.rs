@@ -833,8 +833,8 @@ const LIGHT_DIRECTION: [f32; 3] = [0.408_248_3, 0.408_248_3, -0.816_496_6];
 /// **A side button gets `None` because there is nothing for it to
 /// be.** [`input::InputMap::bindings`] names buttons from the three
 /// main ones; no preset, preferences key or API call can name a
-/// fourth; and the bindings follow mainstream CAD (`input`'s module
-/// docs), which has no side-button gesture. A variant for one would
+/// fourth; and the bindings follow mainstream CAD
+/// ([`input::InputMap::DEFAULT`]), which has no side-button gesture. A variant for one would
 /// be a word of the vocabulary that no sentence could use — and on
 /// the web backend these two are the browser's back and forward.
 /// Binding them is a product decision, and it arrives as a variant on
@@ -898,11 +898,10 @@ fn egui_buttons() -> [egui::PointerButton; egui::NUM_POINTER_BUTTONS] {
 /// indistinguishable downstream from a part nobody touched.
 ///
 /// **Two, because [`input::Held`] has two a binding can require**:
-/// `alt`, which the default table's trackpad orbit asks for, and
-/// `shift`, which turns its orbit drag into a pan. `ctrl`, `command`
-/// and `mac_cmd` are not gestures in this viewport — no binding row,
-/// preset or preferences key names one, and [`ViewportEvent::Drag`] carries a bare `shift` and a bare
-/// `alt` and nothing else, so a ctrl-drag is a plain drag at every
+/// `shift` and `alt`. `ctrl`, `command` and `mac_cmd` are not
+/// gestures in this viewport — no binding row, preset or preferences
+/// key names one, and [`ViewportEvent::Drag`] carries a bare `shift`
+/// and a bare `alt` and nothing else, so a ctrl-drag is a plain drag at every
 /// reader downstream. Binding one arrives the way a side button's
 /// would ([`viewer_button`]): a field on [`ViewportEvent::Drag`] that
 /// can carry it, a binding that can name it, and a pattern here that

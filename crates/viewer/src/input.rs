@@ -15,12 +15,17 @@
 //! Nothing else in this crate uses a y-down axis; the flip happens
 //! once, here.
 //!
-//! # Which drag does what
+//! # Which gesture does what
 //!
-//! The bindings follow mainstream CAD (rotate on the middle button,
-//! pan on the middle button with shift, zoom on the wheel), with the
-//! secondary button as a second pan binding for mice without a usable
-//! middle click:
+//! That is **data**: [`InputMap::bindings`], a slice of [`Binding`]
+//! rows, and [`InputMap::DEFAULT`] is where the starting table and the
+//! reason for each of its rows are written. The mapper
+//! ([`InputMap::map`], [`InputMap::pick`]) honours a gesture because a
+//! row names it, and the controls guide the running viewer shows is
+//! the same rows through [`Binding::gesture`] and [`Binding::action`].
+//! Nothing in this page says which button or key a gesture is on.
+//!
+//! What each action does, whichever gesture carries it:
 //!
 //! - **Orbit**: dragging right spins the model right, i.e. the camera
 //!   orbits left; dragging down tips the model's top toward the
@@ -34,28 +39,6 @@
 //!   is read as one: spreading the fingers by a factor brings the eye
 //!   that factor closer, so the model's apparent size follows the
 //!   fingers, with no rate between.
-//!
-//! **The primary (left) button selects, and a plain drag of it moves
-//! no camera.** It is the button click-to-select takes — the first of
-//! `crates/viewer/GUI-DESIGN.md` G3's four items — so it is bound to
-//! [`PickAction::Select`] and, unmodified, to nothing in the
-//! navigation vocabulary. Navigation lives on middle and secondary,
-//! which is mainstream CAD convention independently of that.
-//!
-//! The one modifier exception: **alt + primary drag orbits**. First
-//! light (#1097) was a laptop trackpad, where a middle-button drag is
-//! impractical; a modifier-gated second orbit binding keeps plain
-//! primary purely selection while making orbit reachable with one hand
-//! on a trackpad.
-//!
-//! # One table, two readers
-//!
-//! Which gesture does what is **data**: [`InputMap::bindings`], a
-//! slice of [`Binding`] rows. The mapper ([`InputMap::map`],
-//! [`InputMap::pick`]) honours a gesture because a row names it, and
-//! the controls guide the running viewer shows is the same rows through
-//! [`Binding::gesture`] and [`Binding::action`] — so the guide cannot
-//! list a binding the mapper lacks, or miss one it has.
 //!
 //! # Two mappings over one event stream
 //!
@@ -267,8 +250,9 @@ impl Held {
         alt: true,
     };
 
-    /// Whether a drag with these keys down meets the requirement.
-    fn met_by(self, shift: bool, alt: bool) -> bool {
+    /// Whether a drag with these keys down meets the requirement:
+    /// every key named here is down, and no other key is asked about.
+    pub fn met_by(self, shift: bool, alt: bool) -> bool {
         (!self.shift || shift) && (!self.alt || alt)
     }
 
@@ -288,11 +272,46 @@ pub enum Navigation {
     Pan,
 }
 
+crate::vocab::vocabulary! {
+    /// What a bound gesture does.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub enum Action {
+        /// [`CameraOp::Orbit`].
+        Orbit,
+        /// [`CameraOp::Pan`].
+        Pan,
+        /// [`CameraOp::Dolly`].
+        Zoom,
+        /// [`PickAction::Select`].
+        Select,
+        /// [`PickAction::Hover`].
+        Highlight,
+    }
+
+    /// Every action a binding can have.
+    pub const ALL;
+}
+
+impl Action {
+    /// The action, as the controls guide names it.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Orbit => "orbit",
+            Self::Pan => "pan",
+            Self::Zoom => "zoom",
+            Self::Select => "select what is under the pointer",
+            Self::Highlight => "highlight what is under the pointer",
+        }
+    }
+}
+
 /// One row of the binding table: a gesture and what it does.
 ///
 /// Each variant is a gesture together with the only kinds of action
-/// that gesture can carry, so a row the mapper could not honour — a
-/// scroll that orbits, a click that pans — cannot be written.
+/// that gesture can carry, so a row pairing a gesture with an action
+/// of another kind — a scroll that orbits, a click that pans — cannot
+/// be written. The type does not make rows distinct: of two rows for
+/// one gesture, [`InputMap::bindings`]' rule honours one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Binding {
     /// A drag of `button` with at least `held` down navigates.
@@ -338,21 +357,26 @@ impl Binding {
         }
     }
 
-    /// What the gesture does, as the controls guide names it.
-    pub fn action(&self) -> &'static str {
+    /// What the gesture does.
+    pub fn does(&self) -> Action {
         match *self {
             Self::Drag {
                 moves: Navigation::Orbit,
                 ..
-            } => "orbit",
+            } => Action::Orbit,
             Self::Drag {
                 moves: Navigation::Pan,
                 ..
-            } => "pan",
-            Self::Scroll | Self::Pinch => "zoom",
-            Self::Click { .. } => "select what is under the pointer",
-            Self::Hover => "highlight what is under the pointer",
+            } => Action::Pan,
+            Self::Scroll | Self::Pinch => Action::Zoom,
+            Self::Click { .. } => Action::Select,
+            Self::Hover => Action::Highlight,
         }
+    }
+
+    /// What the gesture does, as the controls guide names it.
+    pub fn action(&self) -> &'static str {
+        self.does().label()
     }
 }
 
@@ -381,9 +405,9 @@ pub struct InputMap {
     /// the rows the controls guide shows.
     ///
     /// A drag denotes the matching [`Binding::Drag`] row that requires
-    /// the most modifiers, so `shift + middle` can pan where plain
-    /// `middle` orbits; between rows requiring equally many, the
-    /// earlier.
+    /// the most modifiers, so a row naming one takes the drag from
+    /// the row on that button naming none; between rows requiring
+    /// equally many, the earlier.
     pub bindings: &'static [Binding],
 }
 
@@ -405,16 +429,23 @@ impl InputMap {
         orbit_radians_per_px: 0.008,
         zoom_rate_per_notch: 0.1,
         bindings: &[
+            // Mainstream CAD: rotate on this button, pan on it with a
+            // modifier (the fourth row), zoom on the wheel.
             Binding::Drag {
                 button: PointerButton::Middle,
                 held: Held::NONE,
                 moves: Navigation::Orbit,
             },
+            // A trackpad has no practical drag of the first row's
+            // button (first light, #1097), and the select button's
+            // plain drag has to stay inert; a modifier gives it an
+            // orbit without taking that.
             Binding::Drag {
                 button: PointerButton::Primary,
                 held: Held::ALT,
                 moves: Navigation::Orbit,
             },
+            // A second pan, for a mouse whose wheel does not click.
             Binding::Drag {
                 button: PointerButton::Secondary,
                 held: Held::NONE,
@@ -427,6 +458,8 @@ impl InputMap {
             },
             Binding::Scroll,
             Binding::Pinch,
+            // Click-to-select, the first of
+            // `crates/viewer/GUI-DESIGN.md` G3's four items.
             Binding::Click {
                 button: PointerButton::Primary,
             },
