@@ -481,7 +481,11 @@ session box, and its conditioning by the carriage that consumes it. A formula th
   merge base
   (`work/ciw/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
 - **A verdict's lever arm** (`Lever<T>`, the arm of
-  `Margin::levered`). It is built only from its sources: a read of the
+  `Margin::levered`). It is the length at which a tilt (a sine, a
+  cosine, an angle between directions) displaces the geometry it
+  governs, and a reading is levered only where that displacement is
+  what is held against the tolerance. It is built only from its
+  sources: a read of the
   consumed extent, a curvature arm `1/κ_rel`, or the session box where
   no geometry is in hand. Rates are not levers: they go through
   `levered_inv` and the metric doors. A length that is the reading
