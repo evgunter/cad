@@ -7526,7 +7526,8 @@ mod properties_pane_tests {
     /// so a window that worded its own bindings would not show them.
     #[test]
     fn the_controls_button_shows_every_binding_of_the_sessions_input_map() {
-        use crate::input::{Binding, Held, Navigation, PointerButton};
+        use crate::app::CONTROLS;
+        use crate::input::{Binding, Held, InputMap, Navigation, PointerButton};
         let mut driven = Driven::with(Vec::new());
         driven.app.input = InputMap {
             bindings: &[
@@ -7593,14 +7594,16 @@ mod properties_pane_tests {
             .expect("the button")
             .1;
         driven.frame(vec![egui::Event::PointerMoved(button.center())]);
-        for pressed in [true, false] {
-            driven.frame(vec![egui::Event::PointerButton {
-                pos: button.center(),
-                button: egui::PointerButton::Primary,
-                pressed,
-                modifiers: egui::Modifiers::NONE,
-            }]);
-        }
+        driven.frame(
+            [true, false]
+                .map(|pressed| egui::Event::PointerButton {
+                    pos: button.center(),
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                })
+                .to_vec(),
+        );
         let closed = driven.quiet();
         assert_eq!(shown(&closed), vec![], "the button closes it: {closed:?}");
     }
