@@ -153,3 +153,122 @@ Measured behind it, with the probe hacks in `probes/heldrecords-elbow/`:
   station is not jet-determinate, untraced.
 - **Inward poses**: End cap +π/2 and Start cap −π/2 bend back into the
   pipe; filed as `work/tang/an-elbow-bent-back-into-its-pipe-meets-it-along-a-rim-and-a-crossing.md`.
+
+## 2026-11-22 — Design: an edge that ends on a glued junction (`heldrecords/elbow-ends`)
+
+**The wall.** `reduce::curved_face_arm` meets an edge `e` of operand X
+against a curved face `Q` of Y, where `e` lies in a face `P` of X and
+one end `a` of `e` lies on a rim that `P` and `Q` both end on, glued as
+a π junction by the glue door (`TangentCert { line: false }`). The
+residual `f(t) = F_Q(c(t))` has a root at `a` of multiplicity at least
+two, so the root doors refuse at `a`: `wall_crossing` reads
+`Unsettled` for Line × Torus, and `ArcCylinderRoots` escalates in band
+(|margin| 1.3e-9 … 3.3e-9) for Circle × Cylinder. Two arms reach it:
+`(Zero, ±)`, one end on `Q`'s carrier, and `(Zero, Zero)` undeclared,
+the arm that ran untraced at ~3008. That second arm is an arc already
+split at a real pierce, so both its ends are roots and one of them is
+the tangent rim end; it is the inward poses' (filed on TANG) and the
+same question at that end.
+
+**The reading, in two halves of one.**
+
+1. *Structural (the junction).* `a` is a root: the vertex lies on `Q`'s
+   carrier, which the endpoint row decides Zero. Its order is at least
+   two: `f′(a) = ∇F_Q·c′(a)`, `c′(a)` lies in `T_P`, and `T_P = T_Q`
+   at a π junction's rim. Near `a`, `e` runs inside `P`, which leaves
+   the rim on the side opposite `Q`'s face (departures `Opposite`), so
+   the end's root is the end's own incidence: the vertex on `Q`'s
+   boundary, which `vertex_on_curved_face` already places. No value
+   decides any of this. The vertex has to lie on the glued rim
+   (point-on-circle, D10: Zero is on it, in band refuses), not just on
+   `Q`'s carrier.
+2. *Certified (the rest of the span).* `f` is expanded about `a`,
+   `f(a + s) = Σ c_j s^j`, polynomial in the line's `t`, or in the
+   conic's angle with the end at phase zero. `c_0` and `c_1` are
+   dropped on the structural half. The quotient's roots on the span
+   are certified by the door's own lower-degree arm and placed against
+   `Q`'s trim exactly as any crossing is. This is deflation, after the
+   precedent `conic_quadric_roots` already sets for a cone's apex
+   (`conic_quadric_cone_deflated_*`): its `G` after the apex's double
+   root, and its spread bound.
+
+**Where the multiplicity comes from: decided, never guessed.** `m` is
+the least `j ≥ 2` whose coefficient `c_j` is decided nonzero over a
+window at the end, as the apex's spread reads `|G(0)|` with a lower
+bound across its window. `c_2 ∝ κ_rel(c′)`, the carriers' relative
+normal curvature in the edge's direction at `a`.
+- Decided nonzero gives `m = 2`.
+- Decided Zero (D10's coincidence, as the glue reads one) moves to
+  `c_3`, and so on. At a neutral point (the bend's κ_rel crossing zero)
+  that is where the higher-order root comes from.
+- Any `c_j` in band refuses typed. A new `Unsettled` arm, "the end's
+  order is undecided", escalates with that coefficient's diag.
+- Every `c_j` up to the door's degree decided Zero is the edge lying on
+  the carrier: the existing `LiesOn` arm.
+
+The dropped `c_0`, `c_1` are bounded by the geometry and not by the
+rounded coefficients, as in the apex's spread: `c_0` by the vertex's
+distance from the carrier, `c_1` by the tangency's angle at the
+vertex, levered. The roots they move lie within
+`(|c_1| + √(c_1² + 2λ|c_0|))/λ` of `a`, with `λ` the lower bound on
+`|c_m|`, and are `a`'s own incidence. A spread past the band refuses
+typed, never as a crossing.
+
+**Kind pairs covered** (each door with its arm after the end root):
+- `line_quadric_roots`: Line × {Cylinder, Sphere, Cone}. A quadratic
+  with a double root at `a` is `c_2 s²` and nothing else.
+- Line × Torus: the quartic leaves a quadratic.
+- `conic_quadric_roots`: {Circle, Ellipse} × {Sphere, Cylinder, Cone}.
+  A degree-2 trigonometric form with a double root at phase 0 is
+  `2 sin²(φ/2) · G(φ)`, with `G` of degree 1. That is the apex's
+  factorisation, at the end in place of the apex.
+- `circle_torus_roots`, `ellipse_torus_roots`: degree 4, leaving degree
+  3 after the double root.
+- The plane lane (`plane_crossing`, conic × plane: a torus's meridian
+  ending on a plane–torus junction) is reached only where the cover
+  does not already answer. `tangency_certifies_side` admits
+  plane–torus, so that pair keeps its covered arm and is not touched.
+
+The junction's pairs that the cover excludes are the ones this serves:
+cylinder–torus (the elbow), torus–torus (the G1 tube chain), and cone–
+sphere and cone–torus wherever a π rim exists. Every covered arm stays
+upstream and unchanged.
+
+**Fail loud.**
+- An end on a glued junction rim whose (curve kind, surface kind) has
+  no end-root lane (Spiric, NURBS or periodic carriers, spline faces)
+  refuses a new typed Limit, `BooleanError::JunctionEndUnread
+  { operand, edge, face, curve, surface }`, naming the two kinds. It is
+  never `CurvedPierceUnsupported`'s "move the geometry", which cannot
+  be followed when the parts meet by construction.
+- An end not on a glued rim keeps today's arms verbatim.
+- An end on a rim the glue left unglued (an inward pose's `Same`
+  departures, a cusp) is not a junction and gets nothing from this
+  reading. It refuses as today, and its true answer is TANG's row.
+
+**No false global cover is possible.**
+- The reading asserts no side of `Q`'s carrier for `e`. It factors one
+  root at one end, which the junction supplies, and leaves every other
+  root to the door's certification and the trim.
+- `edge_covers` and `tangency_certifies_side` are untouched:
+  Cylinder × Torus stays excluded, and the README's reason (a straight
+  tube leaving a bend G1 crosses its continuation) stays true.
+- The pin for this is a pipe long enough that its seam ruling `x = 1`
+  meets the torus CARRIER again inside the edge's span, at
+  `z = 2 − √12` for a pipe longer than √12. That root has to be
+  certified and placed off the torus face (`SpanVerdict::Elsewhere`),
+  and the union builds at its closed form. A cover would have skipped
+  the root; this reading finds it.
+
+**Pins planned.**
+- The four outward poses at the closed form, with tier 3 and 3′ (once
+  PR 3's seam description lands, if the stand-in still stands).
+- The rod.
+- The long pipe above.
+- The G1 tube chain, flipped to building, with tier 3, 3′ and the
+  Pappus volume.
+- A neutral-point end, a seam ruling placed at θ = π/2 where
+  `c_2 = 0`, giving `m = 3`.
+- An end whose `c_2` is put in band, refusing typed on the end's order.
+- An uncovered kind pair refusing `JunctionEndUnread`.
+- The inward poses still refusing typed, as filed.
