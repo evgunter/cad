@@ -783,12 +783,16 @@ today.
   `…::a_hole_over_a_wide_arcs_band_refuses_and_one_clear_of_it_builds`),
   as that section said a wider plane reading alone would leave them.
 - Of the 23, 18 are plane against plane and 5 plane against cylinder.
-- **The 6 crossings and the 5 budget refusals are later asks.** In each
-  of those tests the ask that refused before now holds, the test goes
-  on, and a body it builds afterwards is asked: 6 read a crossing the
-  verifier confirmed (4 of them with contact records held at that
-  door), 5 run out of depth or pairs. None is the pair that refused
-  before.
+- **The 6 crossings are later asks.** In each of those tests the ask
+  that refused before now holds, the test goes on, and a body it builds
+  afterwards reads a crossing the verifier confirmed (3 of the 6 with
+  contact records held at that door, 3 with none).
+- **Of the 5 budget refusals, 4 are later asks** (out of depth). **One
+  is the same ask refusing differently**:
+  `band_closed_mixed_chain::a_rounded_plate_filleted_all_round_removes_pappuss_volume_at_interval`
+  (`Interval`, 26 faces, at the blend's door) refused `Uncertified` at
+  a plane and a cylinder across their edge, and now runs out of its
+  65,536 pairs.
 - **The thin-face families still refuse where they did**
   (`a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`):
   their faces are not presented, so no margin is read. The slab 20 ε
