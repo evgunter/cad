@@ -87,5 +87,5 @@ fills: the second run is the detached one. It was not chased.
 **Not established.** Whether the lever moved each recorded margin at all. The
 folded arm can sit at a face's curvature arm, below both bounds, so an equal
 pair may be one the lever never reached. The ratio counts in M-d say how often
-the two bounds differ at the door (about 21% of reads at 1e-9 have
-above / below > 1.01).
+the two bounds differ at the door: at 1e-9, 3.46 M of 19.56 M f64 door reads
+(17.7%) have above / below > 1.01.
