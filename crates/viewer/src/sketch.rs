@@ -48,7 +48,7 @@ use pncad::document::{
     RecordedProgramError, SlotId, SpokenNode, StepArg, StepId, StepShape, TraceCrossing,
     TracePassage, TraceRefusal, TraceSense, ValuePayload, WrittenLoopFault, resolve_written_loops,
 };
-use pncad::geom_core::{Arc2, Point2, Point3, Tol, Vec2};
+use pncad::geom_core::{Arc2, Point2, Point3, Tell, Tol, Vec2};
 use pncad::profile::path::program::{FilletConstruction, replay_drawn};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, ConstructedLoop, ConstructedProfile, PathErrorKind,
@@ -1257,11 +1257,17 @@ impl PreviewHold<'_> {
 
 impl core::fmt::Display for PreviewHold<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.tell(Notation::CANONICAL, f)
+    }
+}
+
+impl Tell for PreviewHold<'_> {
+    fn tell(&self, notation: Notation, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OpenChain => {
                 f.write_str("the chain does not close yet — its last step has to target the start")
             }
-            Self::Refusal(refused) | Self::Unfinished(refused) => write!(f, "{refused}"),
+            Self::Refusal(refused) | Self::Unfinished(refused) => refused.tell(notation, f),
             Self::Invalid(invalid) => write!(f, "does not validate: {invalid}"),
         }
     }
@@ -1333,8 +1339,9 @@ pub enum PreviewError {
         step: usize,
         /// Which refusal it is.
         kind: PathErrorKind,
-        /// The driver's refusal, in its own words.
-        rendered: String,
+        /// The driver's refusal, in its own words, kept to be told in
+        /// the reader's notation.
+        rendered: pncad::geom_core::Sentence,
     },
 }
 
@@ -1349,6 +1356,12 @@ pub enum PreviewError {
 // that sentence differs.
 impl core::fmt::Display for PreviewError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.tell(Notation::CANONICAL, f)
+    }
+}
+
+impl Tell for PreviewError {
+    fn tell(&self, notation: Notation, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Lowering(error) => write!(f, "{error}"),
             Self::Resolve { slot, source } => write!(f, "{}: {source}", slot.label()),
@@ -1381,7 +1394,11 @@ impl core::fmt::Display for PreviewError {
                 step,
                 rendered,
                 ..
-            } => write!(f, "loop {loop_} step {step}: {rendered}"),
+            } => write!(
+                f,
+                "loop {loop_} step {step}: {}",
+                rendered.told_in(notation)
+            ),
         }
     }
 }
@@ -1725,15 +1742,18 @@ fn preview_replayed(
 /// drew which piece.
 ///
 /// The close is `line_to Start`, re-spelled the way the lattice spells
-/// the same leg for each refusal that says it is tangent, one
-/// declaration per kind, until it replays: `continue_to` where it runs
-/// straight on from the last leg (`JunctionTangent`), and a start
-/// declared tangent where it arrives continuing the entry's first side
-/// (`SeamTangent`). A close that does both takes both. Only a decided
-/// tangency is re-spelled: an escalation is the kernel declining to
-/// say whether the close runs straight on, and another spelling that
-/// happens to replay is not an answer to that. Any other refusal is
-/// said in `line_to Start`'s words.
+/// the same leg for each refusal whose turn is zero at tolerance, one
+/// declaration per kind, until it replays: `continue_to` where it may
+/// run straight on from the last leg (`JunctionTurnWithinTolerance`),
+/// and a start declared tangent where it may arrive continuing the
+/// entry's first side (`SeamTurnWithinTolerance`). A close that does
+/// both takes both. Each re-spelling is checked by the replay, so a
+/// real angle over a short leg that the declared spelling does not fit
+/// still refuses in `line_to Start`'s words. Only a decided zero turn
+/// is re-spelled: an escalation is the kernel declining to say whether
+/// the close runs straight on, and another spelling that happens to
+/// replay is not an answer to that. Any other refusal is said in
+/// `line_to Start`'s words.
 fn replay_provisionally_closed(
     steps: &[Step<f64>],
     tol: Tol,
@@ -1765,8 +1785,8 @@ fn replay_provisionally_closed(
     let mut kind = kind_of(&first);
     loop {
         match kind {
-            Some(PathErrorKind::JunctionTangent) if !straight_on => straight_on = true,
-            Some(PathErrorKind::SeamTangent) if !seam_declared => seam_declared = true,
+            Some(PathErrorKind::JunctionTurnWithinTolerance) if !straight_on => straight_on = true,
+            Some(PathErrorKind::SeamTurnWithinTolerance) if !seam_declared => seam_declared = true,
             _ => return Err(first),
         }
         match closed_by(straight_on, seam_declared) {
@@ -2204,7 +2224,7 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
             loop_,
             step: error.step,
             kind: source.kind(),
-            rendered: source.to_string(),
+            rendered: pncad::geom_core::Sentence::new(source.clone()),
         },
     }
 }
@@ -2585,8 +2605,8 @@ mod tests {
                 PreviewError::Geometry {
                     loop_: 0,
                     step: 1,
-                    kind: PathErrorKind::JunctionTangent,
-                    rendered: String::new(),
+                    kind: PathErrorKind::JunctionTurnWithinTolerance,
+                    rendered: String::new().into(),
                 },
                 Tone::Actionable,
             ),

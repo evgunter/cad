@@ -58,38 +58,30 @@ fn quarter_arc(h: f64, r: f64) -> Curve3<f64> {
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn ring_torus() -> Surface<f64> {
     Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn cylinder(radius: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn cone() -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: FRAC_PI_4,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -353,46 +345,6 @@ fn a_still_parallel_reads_its_pair_whole() {
         at_f64,
         at_interval,
     );
-}
-
-/// `frame`: a unit sphere whose stored axis is `1 + e` long (`u_ref`
-/// unit and normal to it) has its axial and radial frame defects both
-/// `D = 0.6·zero`; they ride `sin v` and `cos v`, so the frame term is
-/// `√2·D = 0.85·zero` and a parallel on that chart certifies at `f64`
-/// and at `Interval` inside the band, where their sum would read
-/// `1.2·zero` from the frame alone.
-#[test]
-fn a_sphere_frame_off_in_both_directions_reads_its_defects_at_their_norm() {
-    let d = 0.6 * zero();
-    // `|axis|² − 1 = 2e + e² = D`.
-    let e = (1.0 + d).sqrt() - 1.0;
-    let sphere = Surface::Sphere {
-        center: Point3::origin(),
-        radius: 1.0,
-        axis: Vec3::unit_z() * (1.0 + e),
-        u_ref: Vec3::unit_x(),
-    };
-    let h = 0.3f64;
-    let carrier = circle(
-        Point3::new(0.0, 0.0, h),
-        Vec3::unit_z(),
-        (1.0 - h * h).sqrt(),
-        Vec3::unit_x(),
-    );
-    let image = chart_pcurve(&carrier, &sphere, band()).unwrap();
-    let envelope = PcurveCache::certify(image, 0.0, TAU, &carrier, &sphere, band())
-        .unwrap_or_else(|e| panic!("certifies at f64: {e:?}"))
-        .certificate()
-        .envelope;
-    assert!(
-        envelope > zero() / 2.0 && envelope < zero(),
-        "the f64 envelope {envelope:e} reads the frame's defects once, in the band"
-    );
-    let f = Interval::from_f64;
-    let (carrier_i, sphere_i) = (carrier.map_scalar(f), sphere.map_scalar(f));
-    let image_i = chart_pcurve(&carrier_i, &sphere_i, band()).unwrap();
-    PcurveCache::certify(image_i, f(0.0), f(TAU), &carrier_i, &sphere_i, band())
-        .unwrap_or_else(|e| panic!("certifies at Interval: {e:?}"));
 }
 
 /// `fidelity`: a cylinder rim's stored image moved `0.6·zero` along

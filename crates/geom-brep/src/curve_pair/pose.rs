@@ -404,11 +404,13 @@
 //! carrier is within `e` of the other's plane, so it lies on the arc
 //! about a crossing or a touch where the height is within `e`: `ℓ`, read
 //! off the harmonic (or `e/σ` on a line). The *window* is the pairs of
-//! the two spans within `region = 2(ℓ + e)` of where the polish starts,
-//! on either carrier: the region about the crossing, intersected with the
-//! spans. Every pair of the spans within `e` of each other near the
-//! crossing is in it. Nothing reads whether the polish converged: the
-//! pair is a place, and what it says of the window is a bound.
+//! the two spans within `e` of each other whose first point lies within
+//! `ℓ` of the crossing along the first carrier: so both points lie in the
+//! ball of `ℓ + e` about the crossing, in metres. Every pair of the spans
+//! within `e` of each other near the crossing is in it, and the gap's
+//! lower bound reads it as arcs from the polished pair ((P1) below).
+//! Nothing reads whether the polish converged: the pair is a place, and
+//! what it says of the window is a bound.
 //!
 //! **Held to the spans.** The polish is held to the two spans
 //! ([`super::polish::pair_held`]; an endless span holds nothing), as the
@@ -457,24 +459,41 @@
 //! carriers could still take up. Two premises, stated where they are
 //! read:
 //!
-//! - **(P1) the span.** `span = region + travel`, `travel` the polish's
-//!   parameter run at the carrier's greatest speed (the larger of the
-//!   two). What is proved differs by carrier:
-//!   - on the first carrier, an **arc** bound: every pair of the window
-//!     has its first point within `ℓ` of the crossing along the carrier,
-//!     so within `span` of `p` along it;
-//!   - on the second, only a **chord** bound: the pair's second point
-//!     lies within `ℓ + e` of the crossing in metres. Nothing proved
-//!     here turns that into an arc along the second carrier from `q`,
-//!     which a conic can exceed, and the start's foot need not be the
-//!     crossing's nearest point.
+//! - **(P1) the span.** `span = max(span₁, arc₂)`, an arc bound on each
+//!   carrier from the polished pair:
+//!   - on the first, `span₁ = region + travel`, `travel` the polish's
+//!     parameter run at the carrier's greatest speed: every pair of the
+//!     window within `e` has its first point within `ℓ` of the crossing
+//!     along the carrier, and `p` is within its travel of the start;
+//!   - on the second, the pair's second point lies within `ℓ + e` of the
+//!     crossing in metres, a chord, so within `R = ℓ + e + |q − c|` of
+//!     `q`, `c` the crossing. On a line that is the arc. On a conic the
+//!     arc is read from `q` (`Side::arc_from`): the angles
+//!     `J = [t − ρ, t + ρ]` about `q`'s, `ρ = (π/2)·R/|C′(t)|`, hold every
+//!     such point where the span's parameters outside `J` and its copies
+//!     a turn either side (a span near a turn meets the carrier on both
+//!     sides of a gap within the ball) are clear of the ball of `ℓ + e`
+//!     about the crossing, by the span's own walk
+//!     ([`Span::clear_by`]; each piece's place against `J` proved,
+//!     `curve_pair_pose_window_piece`). The pieces end at `J`'s own
+//!     bounds `t ∓ ρ` (and their copies), the same values, so at `f64` they
+//!     abut `J` exactly. At an interval scalar each walked piece's ball
+//!     reaches its ends' enclosures (its reach is the enclosed width at
+//!     the greatest speed), as `J`'s arc does, so no sliver between them
+//!     goes unwalked. Then `arc₂ = ρ·max |C′|` over
+//!     `J`, the arc from `q` within `J`. Otherwise, or where `ρ` reaches
+//!     half a turn (`curve_pair_pose_window_half`), `arc₂` is half the turn at the conic's greatest
+//!     speed, a point's arc from `q` taken the shorter way round. The
+//!     choice of `ρ` is a heuristic; the walk is the proof, so a foot
+//!     landed on a thin ellipse's other branch, or a carrier coming round
+//!     within the ball from far along it, reads the half turn.
 //!
 //!   The walk's window is its pieces, a parameter run on each carrier,
 //!   and is an arc bound on both.
 //! - **(P2) the curvature.** `K = κ₁ + κ₂` bounds the carriers'
-//!   curvatures over every arc within `span` of the start
-//!   (`Side::curvature_near`). For the pose, the second carrier's arcs it
-//!   covers are those of (P1)'s arc reading, unproved there (below).
+//!   curvatures over the arcs (P1) covers: the first's within `span₁` of
+//!   the start, the second's over `J`, or the whole carrier where `arc₂`
+//!   is its half turn (`Side::curvature_near`).
 //!
 //! By arc length from the pair, a point of each carrier is `A = p + uα +
 //! r_A` and `B = q + vβ + r_B`, with `|r_A| ≤ κ₁α²/2` and `|r_B| ≤ κ₂β²/2`
@@ -493,9 +512,7 @@
 //! positive between its roots `m∓ = (s ∓ √D)/K`, so `m < m₋` or
 //! `m > m₊`. **The basin** (`curve_pair_pose_basin`) is the premise that
 //! puts the window below `m₊`: `s − K·span > 0`, since then
-//! `span < s/K ≤ m₊`, and by (P1) `m ≤ span`. **For the pose, that step
-//! is unproved on the second carrier**, where (P1) has a chord bound and
-//! `m` is an arc: `work/onehome/the-pose-basin-reads-the-second-carriers-reach-as-an-arc-where-only-a-chord-bound-is-proved.md`. Every pair of the window
+//! `span < s/K ≤ m₊`, and by (P1) `m ≤ span`. Every pair of the window
 //! within `e` lies within `m₋ = 2(σ_w + e)/(s + √D)` of `(p, q)` along
 //! both carriers (written so a pair of lines, `K = 0`, reads
 //! `(σ_w + e)/s`). `s` is the sine's lower bound over the window,
@@ -604,15 +621,30 @@
 //! root comes from a square root whose rounding is about `√ulp` of the
 //! radius, and its gap from its twin escalates where the found meeting
 //! decides it exactly. The arms whose equation is the meeting's are the
-//! in-plane ones: a circle's or an
-//! ellipse's signed distance from a line in its plane, and a circle's
-//! distance from a circle in its plane. Their first harmonics,
-//! `c₀ + A·cos(θ − θ_hi)`, have their two roots symmetric about `θ_hi`,
-//! so the other root is `2θ_hi − θ_J`, linear in the found one's angle
-//! `θ_J`: the line's second meeting with a conic in its plane (Vieta),
-//! and the reflection of a meeting of two circles in one plane across
-//! their line of centres. Two found meetings leave a first harmonic
-//! none. Two lines' crossing is solved linearly, with no square root to
+//! in-plane ones: a circle's or an ellipse's signed distance from a line
+//! in its plane, and a circle's distance from a circle in its plane.
+//! Their first harmonics, `c₀ + A·cos(θ − θ_hi)`, have their two roots
+//! symmetric about `θ_hi`, so the other root is `2θ_hi − θ_J`, linear in
+//! the found one's angle `θ_J`: the line's second meeting with a conic in
+//! its plane (Vieta), and the reflection of a meeting of two circles in
+//! one plane across their line of centres. Two found meetings leave a
+//! first harmonic none.
+//!
+//! **A found meeting need not be a root.** A meeting the ends find is a
+//! span's end within the zero band of the other span, which need not lie
+//! at a root of the residual. On a thin ellipse near its vertex, an end
+//! on one branch is in the zero band; its reflection lands on the other
+//! branch beside it, while the second root lies farther along. So a line
+//! and a conic in its plane offer the reflection of one found meeting
+//! only where it is not shown to be no root ([`reflected`]): where it
+//! rings onto the found meeting's point in metres while its angle from
+//! `θ_J` is decided past that meeting's ring in angle, the reflection is
+//! the other branch's, and the arm reads both roots, `θ_hi ± φ₀`. A root
+//! within the band of the found meeting's point then rings onto it
+//! (`curve_pair_meet_same`). Two that land apart, neither ringing, are
+//! read as two candidates, and `stretches` reads the point between them.
+//!
+//! Two lines' crossing is solved linearly, with no square root to
 //! condition, so it lands inside a found joint's ring and is not read
 //! again: that form divides nothing out.
 //!
@@ -806,6 +838,9 @@ mod row {
     pub(super) const LEVEL_FLAT: &str = "curve_pair_pose_level_flat";
     pub(super) const SLANT_TIGHT: &str = "curve_pair_pose_slant_tight";
     pub(super) const HELD_ONE_PIECE: &str = "curve_pair_pose_held_one_piece";
+    pub(super) const WINDOW_PIECE: &str = "curve_pair_pose_window_piece";
+    pub(super) const WINDOW_HALF: &str = "curve_pair_pose_window_half";
+    pub(super) const REFLECTION_FAR: &str = "curve_pair_pose_reflection_far";
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
@@ -1081,25 +1116,117 @@ impl<T: Decide> Side<'_, T> {
         (t1 - t0).abs() * speed
     }
 
-    /// A bound on the curvature within `reach` metres of `t`: zero on a
-    /// line; on a conic `ab/|C′|³` at its least speed over the angles
-    /// `reach` at the least speed covers, `|C′|² = b² + (a² − b²)·sin²θ`.
-    fn curvature_near(self, t: T, reach: T) -> T {
+    /// **The second carrier's window, as an arc from `q`** (module docs,
+    /// (P1)): every pair of the window within the band's escalation has
+    /// its second point within `ball` metres of `crossing`, so within
+    /// `radius` of `q = C(t)`. On a line that chord is the arc. On a conic
+    /// the parameters `J = [t − ρ, t + ρ]`, `ρ` a quarter turn's worth of
+    /// `radius` at the speed at `t`, hold every such point where the span
+    /// outside `J` and its copies a turn either side is clear of the ball
+    /// by the span's own walk
+    /// ([`Span::clear_by`]), each piece's place against `J` proved
+    /// (`curve_pair_pose_window_piece`). The arc from `q` is then at most
+    /// `J`'s run at the greatest speed on it. Where that is not read, or
+    /// `J` is half a turn or more, the arc is at most half the carrier's
+    /// turn at its greatest speed, taken the shorter way round.
+    ///
+    /// Returns the arc and the angle about `t` it covers, `ρ` or the half
+    /// turn, for [`Self::curvature_near`].
+    fn arc_from(
+        self,
+        span: &Span<'_, T>,
+        t: T,
+        radius: T,
+        (crossing, ball): (Point3<T>, T),
+        band: Band,
+    ) -> (T, T) {
+        let Self::Conic(k) = self else {
+            return (radius, T::zero());
+        };
+        let whole = (T::pi() * k.speed_hi(), T::pi());
+        let half = T::pi() / T::from_f64(2.0);
+        let rho = half * radius / k.jet_at(t).1.norm();
+        if geom_core::k_stats::param_order(row::WINDOW_HALF, T::pi(), rho) != Ok(Sign::Positive) {
+            return whole;
+        }
+        let (from, to) = (t - rho, t + rho);
+        // The span's parameters outside `J` and its copies a turn either
+        // side: the carrier outside `J` is one turn, `(t + ρ, t − ρ + τ)`,
+        // and a span of at most a turn about `t` meets it, and the copy a
+        // turn back, in one piece each. A piece is read where its ends'
+        // order is proved, and one proved empty is none.
+        let tau = T::tau();
+        let mut outside = Vec::with_capacity(2);
+        if span.ended() {
+            let (t0, t1) = span.params();
+            let (lo, hi) = (t0.min(t1), t0.max(t1));
+            for (x, y) in [
+                (lo.max(to - tau), hi.min(from)),
+                (lo.max(to), hi.min(from + tau)),
+            ] {
+                match geom_core::k_stats::param_order(row::WINDOW_PIECE, y, x) {
+                    Ok(Sign::Positive) => outside.push((x, y)),
+                    Ok(Sign::Negative | Sign::Zero) => {}
+                    Err(_) => return whole,
+                }
+            }
+        } else {
+            outside.push((to, from + tau));
+        }
+        let clear = outside
+            .into_iter()
+            .all(|piece| Span::new(span.carrier(), piece).clear_by(crossing, ball, band));
+        if !clear {
+            return whole;
+        }
+        (rho * speeds_within(k, t, rho).1, rho)
+    }
+
+    /// The angle at the least speed that `reach` metres of the carrier
+    /// cover, the most a run of that length turns through: on a line,
+    /// none.
+    fn angle_of(self, reach: T) -> T {
+        match self {
+            Self::Line(_) => T::zero(),
+            Self::Conic(k) => reach / k.speed_lo(),
+        }
+    }
+
+    /// A bound on the curvature over the angles within `rho` of `t`: zero
+    /// on a line; on a conic `ab/|C′|³` at its least speed there
+    /// ([`speeds_within`]).
+    fn curvature_near(self, t: T, rho: T) -> T {
         let Self::Conic(k) = self else {
             return T::zero();
         };
         let (a, b) = k.semi_axes();
-        let run = reach / k.speed_lo();
-        let half = T::pi() / T::from_f64(2.0);
-        // How near the arc comes to where `|C′|` is least: `θ ≡ 0 (mod π)`
-        // where `a ≥ b`, `θ ≡ π/2` otherwise.
-        let slow = (a - b).select_le_zero(t - half, t);
-        let off = (slow.reduce_periodic_centred(T::pi()).abs() - run).max(T::zero());
-        let near = off.min(half).sin().powi(2);
-        let (long, short) = (k.speed_hi(), k.speed_lo());
-        let least = (short.powi(2) + (long.powi(2) - short.powi(2)) * near).sqrt();
-        a * b / least.powi(3)
+        a * b / speeds_within(k, t, rho).0.powi(3)
     }
+}
+
+/// **A conic's least and greatest speed over the angles within `rho` of
+/// `t`**: `|C′|² = b² + (a² − b²)·sin²θ`, least where the angles come
+/// nearest `θ ≡ 0 (mod π)` and greatest nearest `θ ≡ π/2` (for `a ≥ b`;
+/// the other way round otherwise), each its extreme overall where the
+/// angles reach it.
+fn speeds_within<T: Decide>(k: &dyn Conic<T>, t: T, rho: T) -> (T, T) {
+    let (a, b) = k.semi_axes();
+    let half = T::pi() / T::from_f64(2.0);
+    let (slow, fast) = (
+        (a - b).select_le_zero(t - half, t),
+        (a - b).select_le_zero(t, t - half),
+    );
+    let off = |x: T| {
+        (x.reduce_periodic_centred(T::pi()).abs() - rho)
+            .max(T::zero())
+            .min(half)
+    };
+    let (long, short) = (k.speed_hi(), k.speed_lo());
+    let speed = |s2: T| (short.powi(2) + (long.powi(2) - short.powi(2)) * s2).sqrt();
+    (
+        speed(off(slow).sin().powi(2)),
+        speed(off(fast).cos().powi(2)),
+    )
 }
 
 /// A crossing or touch of the other's plane, polished to the carriers'
@@ -1167,12 +1294,23 @@ impl<T: Decide> Polish<'_, T> {
             (hold(self.span_a), hold(self.span_b)),
         );
         let ((p, da), (q, db)) = (self.a.ders(s), self.b.ders(t));
-        // Every pair of the window lies within `region` of the start, and
-        // the polished pair within its travel of it: within `span` of the
-        // polished pair, along the first carrier; on the second only in
-        // chord, the arc reading unproved there (module docs, (P1)).
-        let span = region + self.a.run(s0, s).max(self.b.run(t0, t));
-        let curvature = self.a.curvature_near(s0, span) + self.b.curvature_near(t0, span);
+        // Every pair of the window within the escalation has its first
+        // point within `region` of the start along the first carrier, and
+        // the polished pair is within its travel of it; its second point
+        // is within the ball about the crossing, so within the ball and
+        // `q`'s own distance from the crossing of `q`, read as an arc
+        // from `q` (module docs, (P1)).
+        let along_a = region + self.a.run(s0, s);
+        let (arc_b, near_b) = self.b.arc_from(
+            self.span_b,
+            t,
+            ball + (q - crossing).norm(),
+            (crossing, ball),
+            band,
+        );
+        let span = along_a.max(arc_b);
+        let curvature =
+            self.a.curvature_near(s0, self.a.angle_of(along_a)) + self.b.curvature_near(t, near_b);
         // A side held at an end of its span reads its window's arcs
         // into the span alone, so the gap is read across the other
         // side's tangent with the held arc a half-line (module docs, "A
@@ -1441,11 +1579,11 @@ fn line_conic<T: Decide>(
     let u = d.normalize();
     let unit = geom::Line { origin: o, dir: u };
     let e = T::from_f64(band.escalate());
-    let n = k.frame().axis;
+    let n = k.frame().axis();
     let den = u.dot(n);
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
-    let c = (k.frame().origin - o).dot(u);
+    let c = (k.frame().origin() - o).dot(u);
     let lever = reach(a).max(k.speed_hi());
     // Unsourced lever: the line's span metered through its sup speed
     // (`reach`), folded with the conic's size; the span's part fits no
@@ -1462,7 +1600,7 @@ fn line_conic<T: Decide>(
         (c - k.speed_hi(), c + k.speed_hi()),
         geom_core::rounding_charge(ends(ends_a)),
     );
-    let height = (o + u * at.mid() - k.frame().origin).dot(n);
+    let height = (o + u * at.mid() - k.frame().origin()).dot(n);
     match route(
         den,
         den.abs(),
@@ -1480,8 +1618,8 @@ fn line_conic<T: Decide>(
             // `h` the seed's own height above the plane: the seed, `o +
             // d̂·t` with `t = (c − o)·n̂ / d̂·n̂` in `f64`, is read where it
             // landed, a distance, rather than charged for its rounding.
-            let point = o + u * ((k.frame().origin - o).dot(n) / den);
-            let height = (point - k.frame().origin).dot(n).abs();
+            let point = o + u * ((k.frame().origin() - o).dot(n) / den);
+            let height = (point - k.frame().origin()).dot(n).abs();
             let polish = Polish {
                 span_a: a,
                 span_b: b,
@@ -1499,7 +1637,7 @@ fn line_conic<T: Decide>(
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
     let m = n.cross(u).normalize();
-    let c0 = (k.frame().origin - o).dot(m);
+    let c0 = (k.frame().origin() - o).dot(m);
     let (cp, sp) = k.along(m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
     if !definite_as(row::SWING, Margin::of(swing), band)? {
@@ -1520,7 +1658,7 @@ fn line_conic<T: Decide>(
     let (hc, hs) = k.along(v);
     let level = Slant {
         r: (c0, cp, sp),
-        h: ((k.frame().origin - o).dot(v), hc, hs),
+        h: ((k.frame().origin() - o).dot(v), hc, hs),
         at: range.at_hi,
         swing,
         e,
@@ -1558,8 +1696,24 @@ fn line_conic<T: Decide>(
             }),
         }))
     };
-    let found: Vec<T> = known.iter().map(|c| c.tb).collect();
-    Ok(match owed(&k, &range, &found, band)? {
+    // One found meeting is deflated, its reflection offered, unless the
+    // reflection is shown no root (module docs, "The spans' ends, and
+    // deflation"): then both roots are read (`Slant::roots`, which
+    // decides no gap between them), and ringing drops the one within the
+    // band of the found meeting's point.
+    let harmonic = match known {
+        [j] if !reflected(&k, &range, j, e, band) => {
+            let (lo, hi) = level.roots();
+            Harmonic::Cross(vec![lo, hi])
+        }
+        _ => owed(
+            &k,
+            &range,
+            &known.iter().map(|c| c.tb).collect::<Vec<_>>(),
+            band,
+        )?,
+    };
+    Ok(match harmonic {
         Harmonic::Apart => Pose::Apart,
         // A touch whose extreme is within the zero is one run, read at the
         // extreme; otherwise the zero set may part about the two roots,
@@ -1724,7 +1878,7 @@ enum Coplanar {
 /// ([`crate::curve_face::plane_crossing`]).
 pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     let (cp, sp) = k.along(n);
-    (geom::plane_offset(on, n, k.frame().origin), cp, sp)
+    (geom::plane_offset(on, n, k.frame().origin()), cp, sp)
 }
 
 /// Two conics, `a` the one parametrized in one plane (module docs).
@@ -1738,8 +1892,8 @@ fn conic_conic<T: Decide>(
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
     let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(c.cover().as_ref().ok());
     let arm = ball(a.carrier()).lever().max(ball(b.carrier()).lever());
-    let ha = height(&ka, kb.frame().origin, kb.frame().axis);
-    let hb = height(&kb, ka.frame().origin, ka.frame().axis);
+    let ha = height(&ka, kb.frame().origin(), kb.frame().axis());
+    let hb = height(&kb, ka.frame().origin(), ka.frame().axis());
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
     let sides = [(swing_a, ha), (swing_b, hb)];
@@ -1793,7 +1947,7 @@ fn conic_conic<T: Decide>(
         }
         return transverse((a, &ka, &kb, b), ha, swing_a, arm, known, band);
     };
-    let oriented = |k: &dyn Conic<T>| k.frame().axis * (k.semi_axes().0 * k.semi_axes().1);
+    let oriented = |k: &dyn Conic<T>| k.frame().axis() * (k.semi_axes().0 * k.semi_axes().1);
     if one_curve(&ka, &kb, band)? {
         let (foot_a, foot_b) = (|q| foot(a, q), |q| foot(b, q));
         return Ok(Pose::Coincident {
@@ -1864,7 +2018,8 @@ pub(super) fn one_curve<T: Decide>(
 /// is NaN: the reading escalates.
 pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
     let reach = |k: &dyn Conic<T>| k.speed_hi();
-    let gap = (e.frame().origin - f.frame().origin).norm() + frame_gap(e, f).max(frame_gap(f, e));
+    let gap =
+        (e.frame().origin() - f.frame().origin()).norm() + frame_gap(e, f).max(frame_gap(f, e));
     gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
 }
 
@@ -2009,8 +2164,8 @@ fn coplanar_circles<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ra, rb) = (ka.speed_hi(), kb.speed_hi());
-    let w = ka.frame().origin - kb.frame().origin;
-    let w = w - ka.frame().axis * w.dot(ka.frame().axis);
+    let w = ka.frame().origin() - kb.frame().origin();
+    let w = w - ka.frame().axis() * w.dot(ka.frame().axis());
     let d = w.norm();
     if !definite_as(row::CENTRES, Margin::norm3(w), band)? {
         // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
@@ -2030,7 +2185,7 @@ fn coplanar_circles<T: Decide>(
     let (near, far) = ((ra - d).abs(), ra + d);
     let (lo, hi) = (near - rb, far - rb);
     let swing = T::from_f64(4.0) * ra * d;
-    let toward = Azimuth::of(w.dot(ka.frame().v_ref()), w.dot(ka.frame().u_ref))
+    let toward = Azimuth::of(w.dot(ka.frame().v_ref()), w.dot(ka.frame().u_ref()))
         .principal_as(row::BRANCH, Band::least());
     let range = Range {
         lo,
@@ -2115,7 +2270,7 @@ fn coplanar_ellipses<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (big_a, big_b) = kb.semi_axes();
-    let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
+    let (ub, vb) = (kb.frame().u_ref(), kb.frame().v_ref());
     let level = level_on(ka, kb);
     let small = big_a.abs().min(big_b.abs());
     let large = big_a.abs().max(big_b.abs());
@@ -2141,7 +2296,7 @@ fn coplanar_ellipses<T: Decide>(
         degree: 2,
     };
     let residual = |theta: T| {
-        let d = ka.point_at(theta) - kb.frame().origin;
+        let d = ka.point_at(theta) - kb.frame().origin();
         geom::ellipse_level_clearance((d.dot(ub), d.dot(vb)), (big_a, big_b))
     };
     subdivided(Terms::Local(local), &residual, &frame, place, band)
@@ -2172,7 +2327,7 @@ impl<T: Decide> Level<'_, T> {
     /// `P″ = −(P − c)` and `P‴ = −P′`, `c` its centre.
     pub(super) fn jet_at(&self, theta: T) -> [T; 4] {
         let (p, dp) = self.a.jet_at(theta);
-        let ddp = self.a.frame().origin - p;
+        let ddp = self.a.frame().origin() - p;
         let (ub, vb) = self.axes;
         let q = p - self.centre;
         let side = |axis: Vec3<T>, square: T| {
@@ -2229,12 +2384,12 @@ pub(super) fn up<const N: u32, T: Decide>(x: T) -> T {
 /// [`Level`] of `kb` along `ka`.
 pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -> Level<'k, T> {
     let (big_a, big_b) = kb.semi_axes();
-    let (ub, vb) = (kb.frame().u_ref, kb.frame().v_ref());
+    let (ub, vb) = (kb.frame().u_ref(), kb.frame().v_ref());
     let (ua, va) = (
-        ka.frame().u_ref * ka.semi_axes().0,
+        ka.frame().u_ref() * ka.semi_axes().0,
         ka.frame().v_ref() * ka.semi_axes().1,
     );
-    let w = ka.frame().origin - kb.frame().origin;
+    let w = ka.frame().origin() - kb.frame().origin();
     let squares = (big_a.powi(2), big_b.powi(2));
     let (two, eight) = (T::from_f64(2.0), T::from_f64(8.0));
     let side = |axis: Vec3<T>, square: T| {
@@ -2243,7 +2398,7 @@ pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -
     };
     Level {
         a: ka,
-        centre: kb.frame().origin,
+        centre: kb.frame().origin(),
         axes: (ub, vb),
         squares,
         fourth: up::<24, _>(side(ub, squares.0) + side(vb, squares.1)),
@@ -2376,6 +2531,40 @@ enum Harmonic<T> {
     /// Crossings: two, or those left once the found meetings' roots are
     /// divided out (module docs, "deflation").
     Cross(Vec<T>),
+}
+
+/// **Whether a found meeting's reflection is its harmonic's other root**
+/// (module docs, "The spans' ends, and deflation"). The reflection
+/// `2θ_hi − θ_J` is that root where `θ_J` is one. It is not where it
+/// rings onto the found meeting's point in metres
+/// (`curve_pair_meet_same`) while its angle from `θ_J`, the least way
+/// round, is past the found meeting's ring in angle
+/// (`curve_pair_pose_reflection_far`): the point lies within the zero of
+/// the found one, but on the conic's other branch. An angle not decided
+/// within the ring is read past it, so both roots are read.
+///
+/// The ring in angle is `e/|C′|max`, `e` the band's escalation: an
+/// angle within it of `θ_J` runs at most `e` of arc, so its point is
+/// within `e` of the found one, a chord no longer than that arc.
+fn reflected<T: Decide>(
+    k: &dyn Conic<T>,
+    r: &Range<T>,
+    j: &Candidate<T>,
+    e: T,
+    band: Band,
+) -> bool {
+    let mirror = r.at_hi + r.at_hi - j.tb;
+    if !super::ringed_by([j.point], k.point_at(mirror), band) {
+        return true;
+    }
+    let tau = T::pi() + T::pi();
+    let turn = mirror - j.tb;
+    let least = (turn - tau * (turn / tau + T::from_f64(0.5)).floor()).abs();
+    let ring = e / k.speed_hi();
+    matches!(
+        geom_core::k_stats::param_order(row::REFLECTION_FAR, least, ring),
+        Ok(Sign::Negative | Sign::Zero)
+    )
 }
 
 /// **A first harmonic's roots along `k` still owed**, `found` the angles

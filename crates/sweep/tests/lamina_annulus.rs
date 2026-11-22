@@ -575,7 +575,8 @@ fn a_ruled_band_on_a_plane_support_carrying_the_bore_carves_at_the_closed_form()
         let bottom_rings: usize = body
             .faces()
             .filter(|(fk, _)| match body.face_surface(*fk) {
-                Some(Surface::Plane { origin, normal, .. }) => {
+                Some(Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
                     origin.y.abs() < 1e-12 && normal.y.abs() > 0.5
                 }
                 _ => false,
@@ -697,7 +698,7 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
+                Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()

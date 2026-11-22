@@ -1216,6 +1216,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "proptest",
+ "quantity",
  "rayon",
  "source-scope",
  "strum",
@@ -2747,6 +2748,7 @@ dependencies = [
 name = "pncad-py"
 version = "0.0.0"
 dependencies = [
+ "geom-brep",
  "pncad",
  "pyo3",
  "quantity",
@@ -3747,6 +3749,7 @@ dependencies = [
 name = "stl"
 version = "0.0.0"
 dependencies = [
+ "geom-brep",
  "geom-core",
  "mesh",
  "profile",

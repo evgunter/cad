@@ -1174,9 +1174,7 @@ pub fn fin_crown_body(pose: &Pose, tol: Tol) -> Body<f64> {
                 // the construction holds, not one picked off the axes.
                 let u_ref = (a - c0).normalize();
                 geom::Surface::Plane {
-                    origin: c0,
-                    normal,
-                    u_ref,
+                    frame: geom::Frame::new(c0, normal, u_ref),
                 }
             }
             _ => plane(corners, tol),

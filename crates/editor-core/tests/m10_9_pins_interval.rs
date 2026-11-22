@@ -966,8 +966,11 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // frozen. Then the decided least-turn mint (fork 270) took the pad's
     // identity chart with no pole verdict: 1710 -> 1709 numeric. The
     // pad's one session-box ask is its placement's, not its measure's
-    // (PR 7088), so the count does not move.
-    assert_eq!(got[0], (1483, 1709, 2773), "rule F shut: the pad's receipt");
+    // (PR 7088), so the count does not move. Then the carriers held their
+    // frames as rigid motions, minted from the sketch frame and read as
+    // stored: 2773 -> 1967 frozen, the decisions holding
+    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`).
+    assert_eq!(got[0], (1483, 1709, 1967), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

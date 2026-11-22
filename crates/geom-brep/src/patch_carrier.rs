@@ -45,9 +45,9 @@
 //!
 //! The cone's locus is the DOUBLE cone ([`geom::Surface::Cone`]'s
 //! complete locus), so both of its readings bound the distance and the
-//! lesser is taken ([`ConeLocus::Double`]): the opening nappe's lever away
-//! from the apex, the apex root near it, where `|f|` is small and the
-//! lever is not. A patch on the other nappe reads the apex root alone.
+//! lesser is taken (`projected::Locus::Carrier`): the lever
+//! `ρ cos α + |z| sin α` away from the apex, the apex root near it, where
+//! `|f|` is small and the lever is not.
 //!
 //! # Refusal
 //!
@@ -64,21 +64,25 @@ use geom_core::spline::compose::tensor::SurfaceCertData;
 use geom_core::{Bounds, Interval};
 
 use crate::curve_face::composite::framed_form;
-use crate::pcurve_cache::projected::{ConeLocus, part_reach};
+use crate::pcurve_cache::projected::{Locus, Meters, part_reach};
 
 /// A certified upper bound in metres on the distance of every point of
 /// `patch` from `surface`'s locus (module docs); `NaN` where none is
 /// certified.
 #[must_use]
 pub fn patch_distance_sup(patch: &NurbsSurface<f64>, surface: &Surface<f64>) -> f64 {
-    distance_sup_on(patch, surface, ConeLocus::Double)
+    distance_sup_on(patch, surface, Locus::Carrier)
 }
 
 /// [`patch_distance_sup`] with a cone's metres read against `locus`.
-fn distance_sup_on(patch: &NurbsSurface<f64>, surface: &Surface<f64>, locus: ConeLocus) -> f64 {
+fn distance_sup_on(patch: &NurbsSurface<f64>, surface: &Surface<f64>, locus: Locus) -> f64 {
     let point = |x: f64| Interval::from_bounds(x, x);
     let Ok((coords, form, meters)) = framed_form(surface, patch.control(), &point) else {
         return f64::NAN;
+    };
+    let meters = match meters {
+        Meters::Cone { sin, cos, .. } => Meters::Cone { sin, cos, locus },
+        other => other,
     };
     let Ok(data) = SurfaceCertData::new(
         patch.knots_u_f64_interim(),
@@ -118,7 +122,6 @@ fn distance_sup_on(patch: &NurbsSurface<f64>, surface: &Surface<f64>, locus: Con
                 f_sup,
                 (lower(rho), upper(far)),
                 (lower(z.0), upper(z.1)),
-                locus,
                 lower,
                 upper,
             );
@@ -212,20 +215,22 @@ mod tests {
     /// The true distance of `p` from `surface`'s complete locus.
     fn true_distance(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
         match *surface {
-            Surface::Plane { origin, normal, .. } => (p - origin).dot(normal).abs(),
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => (rho_h(p, origin, axis).0 - radius).abs(),
-            Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+            Surface::Plane { frame, .. } => {
+                let (origin, normal) = (frame.origin(), frame.axis());
+                (p - origin).dot(normal).abs()
+            }
+            Surface::Cylinder { frame, radius, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
+                (rho_h(p, origin, axis).0 - radius).abs()
+            }
+            Surface::Sphere { frame, radius, .. } => {
+                let center = frame.origin();
+                ((p - center).norm() - radius).abs()
+            }
             Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
+                frame, half_angle, ..
             } => {
+                let (apex, axis) = (frame.origin(), frame.axis());
                 let (rho, h) = rho_h(p, apex, axis);
                 let (s, c) = half_angle.sin_cos();
                 // The two generator rays of the meridian half-plane.
@@ -240,12 +245,12 @@ mod tests {
                 ray((s, c)).min(ray((s, -c)))
             }
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
             } => {
+                let (center, axis) = (frame.origin(), frame.axis());
                 let (rho, h) = rho_h(p, center, axis);
                 ((rho - major_radius).hypot(h) - minor_radius).abs()
             }
@@ -271,40 +276,36 @@ mod tests {
     fn torus(major: f64, minor: f64) -> Surface<f64> {
         let (axis, u_ref) = y_axis();
         Surface::Torus {
-            center: Point3::origin(),
-            axis,
+            frame: geom::Frame::new(Point3::origin(), axis, u_ref),
             major_radius: major,
             minor_radius: minor,
-            u_ref,
         }
     }
 
     fn sphere(radius: f64, center: Point3<f64>) -> Surface<f64> {
         let (axis, u_ref) = y_axis();
         Surface::Sphere {
-            center,
+            frame: geom::Frame::new(center, axis, u_ref),
             radius,
-            axis,
-            u_ref,
         }
     }
 
     fn cone(half_angle: f64, apex: Point3<f64>) -> Surface<f64> {
         let (axis, u_ref) = y_axis();
         Surface::Cone {
-            apex,
-            axis,
+            frame: geom::Frame::new(apex, axis, u_ref),
             half_angle,
-            u_ref,
         }
     }
 
     fn cylinder_z(radius: f64) -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -384,9 +385,11 @@ mod tests {
                 "plane on",
                 &across_axis,
                 Surface::Plane {
-                    origin: Point3::new(0.0, 0.05, 0.0),
-                    normal: Vec3::new(0.0, 1.0, 0.0),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.05, 0.0),
+                        Vec3::new(0.0, 1.0, 0.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
                 },
                 true,
             ),
@@ -460,8 +463,12 @@ mod tests {
     fn the_double_cones_reading_beats_the_nappes_near_the_apex() {
         let patch = flat((0.1, 0.2), (0.0, 0.1), -0.999);
         let surface = cone(80.0_f64.to_radians(), Point3::new(0.0, -1.0, 0.0));
-        let double = distance_sup_on(&patch, &surface, ConeLocus::Double);
-        let nappe = distance_sup_on(&patch, &surface, ConeLocus::Nappe);
+        let double = distance_sup_on(&patch, &surface, Locus::Carrier);
+        let nappe = distance_sup_on(
+            &patch,
+            &surface,
+            Locus::Nappe(crate::offset::Nappe::Opening),
+        );
         let truth = dense_sup(&patch, &surface);
         assert!(
             truth <= double && double < nappe,

@@ -1434,7 +1434,7 @@ pub(super) fn germ_locus<T: Decide>(
 /// where an open edge's far end is read from the records. Two closed
 /// edges both on the partner's boundary are one segment
 /// ([`one_segment`]).
-pub(super) fn germ_loci<T: Decide>(
+pub(super) fn germ_loci<T: crate::props::AtRestPolicy>(
     a: GermSide<'_, T>,
     b: GermSide<'_, T>,
     contacts: &super::ReductionContacts,
@@ -1543,7 +1543,7 @@ fn germ_curve<T: Decide>(
 /// Two closed edges (each one vertex, both its ends) pair their far
 /// ends, the site, always: [`germ_loci`] asks [`closed_reach`] first,
 /// and comes here where both run along the partner's boundary.
-fn one_segment<T: Decide>(
+fn one_segment<T: crate::props::AtRestPolicy>(
     a: GermSide<'_, T>,
     ea: Along,
     b: GermSide<'_, T>,
@@ -1584,7 +1584,7 @@ fn one_segment<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] where a germ edge's half
 /// has no mate or no face, or a face's carrier does not read.
-fn same_construction<T: Decide>(
+fn same_construction<T: crate::props::AtRestPolicy>(
     a: GermSide<'_, T>,
     ea: Along,
     b: GermSide<'_, T>,
@@ -4402,10 +4402,12 @@ mod tests {
         let (p, d) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
         let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
         let ball = geom::Surface::Sphere {
-            center: Point3::new(0.0, 0.0, -1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, -1.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let floor = crate::test_support_fixtures::plane(
             &[p, Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)],
@@ -4725,10 +4727,12 @@ mod tests {
     /// A y-axis cylinder at height `zc`, radius `r`.
     fn y_cyl(zc: f64, r: f64) -> geom::Surface<f64> {
         geom::Surface::Cylinder {
-            origin: geom_core::Point3::new(2.0, 0.0, zc),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(2.0, 0.0, zc),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+            ),
             radius: r,
-            u_ref: Vec3::new(0.0, 0.0, 1.0),
         }
     }
 
@@ -4949,10 +4953,12 @@ mod tests {
             other => panic!("definitely-apart carriers at a lump site: {other:?}"),
         }
         let sphere = geom::Surface::Sphere {
-            center: geom_core::Point3::new(2.0, 0.5, 2.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(2.0, 0.5, 2.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         match tangent_lump(
             &sphere,
@@ -5052,10 +5058,8 @@ mod tests {
             face,
             crate::construction::FaceSurface::New {
                 surface: geom::Surface::Cone {
-                    apex,
-                    axis,
+                    frame: geom::Frame::new(apex, axis, edge.normalize()),
                     half_angle: 0.5,
-                    u_ref: edge.normalize(),
                 },
                 sense: true,
             },
@@ -5088,10 +5092,12 @@ mod tests {
         let b = band();
         let alpha = 0.5_f64;
         let cone = geom::Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: alpha,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (rho, reach) = (0.1, 0.08);
         let p = Point3::new(rho, 0.0, rho / alpha.tan());
@@ -5135,10 +5141,12 @@ mod tests {
             "read at ρ the same side certifies"
         );
         let sphere = geom::Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 2.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         assert_eq!(
             PierceLever::of(&sphere, p).within(1e9),

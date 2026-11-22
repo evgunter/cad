@@ -21,14 +21,26 @@ The setup is the same as that row's: hand-built legal walls through
 `crates/geom-brep/tests/far_walls_of_many_arcs.rs`.
 
 - **`props_chart_junction_closed`:**
-  - cylinder r 410, 40 / 200 arcs a rim: `[0, 1.08e-12]` / `[0, 1.04e-12]`;
-  - the whole-rim cylinder band r 990: `[0, 1.28e-12]`;
-  - torus major 300, 6 / 40 / 200 arcs a parallel: `[0, 1.20e-12]` / `1.14e-12` / `1.02e-12`;
-  - torus major 600, 1 / 6 / 40 / 200 arcs: `[0, 1.75e-12]` to `[0, 1.07e-12]`.
+  - torus major 300, 40 / 200 arcs a parallel: `[0, 1.04e-12]` / `1.04e-12`;
+  - torus major 600, 1 / 6 / 40 / 200 arcs: `[0, 2.04e-12]` to `[0, 1.10e-12]`.
 - **`props_meridian_on_surface`** (the ruling's incidence): cylinder
-  r 990, every arc count, `[0, 1.48e-12]`.
+  r 990, every arc count, `[0, 1.71e-12]`.
 - **`props_meridian_fit`:** torus major 990, every arc count,
-  `[0, 1.02e-12]`.
+  `[0, 1.48e-12]`.
+
+These are the margins with the fixture's frame squared once at `f64`
+and lifted to `Interval` as the enclosure of its rotation (PR 7131).
+With the stated columns lifted as points, four more walls escalated on
+the junction closure: the cylinder r 410 at 40 and 200 arcs
+(`[0, 1.08e-12]` / `1.04e-12`), the whole-rim cylinder band r 990
+(`[0, 1.28e-12]`) and the torus major 300 at 6 arcs (`[0, 1.20e-12]`).
+Their junctions now close. The band measures, and the other three
+reach the whole-turn read
+(`a-carried-arcs-miss-is-charged-its-ends-enclosure-width-at-the-interval-scalar`).
+The margins above were then: torus major 300 at 40 and 200 arcs
+`1.14e-12` / `1.02e-12`, torus major 600 `[0, 1.75e-12]` to
+`1.07e-12`, the ruling's incidence `1.48e-12`, the meridian fit
+`1.02e-12`.
 
 At ε = 1e-9 and 1e-6 every one of these walls measures. Each margin is
 about 1e-15 of the distance of the points it reads from the origin.

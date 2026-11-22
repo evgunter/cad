@@ -46,3 +46,5 @@ defect is the turn the parameters are named in, not any one pose.
 window before the view is asked (a period's shift, as main's seating
 does elsewhere), or name the parameters in the window's turn where the
 foot is read, and pin it on the three poses above.
+
+**Seen again (2026-11-21, GERM's `germ/crossing-consumers` lane, U3b).** Red at ε 1e-9 on that lane's base, `germ/crossing-pose-cross` at `4303b022e8` (692 s), the same first cell as on the lane's head: `β 0.5, spin 0.5: Euler(RebasedCarrier { edge: EdgeKey(15v1), error: PeriodicView(Span { asked: (-0.456, 0.544), window: (-2.0, -0.0) }) })`.

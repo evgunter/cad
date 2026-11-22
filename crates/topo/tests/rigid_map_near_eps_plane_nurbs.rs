@@ -87,9 +87,11 @@ fn wall() -> NurbsSurface<f64> {
 
 fn plane() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.5),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 
@@ -304,17 +306,22 @@ fn the_certificate_re_derives_within_rounding_under_a_rotation() {
     let (mut worst_limb1, mut worst_limb2): (f64, f64) = (0.0, 0.0);
     for (name, map) in rotations() {
         let Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } = plane()
         else {
             unreachable!()
         };
+        let (origin, normal, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         let mapped_plane = Surface::Plane {
-            origin: map.transform_point(origin),
-            normal: map.linear * normal,
-            u_ref: map.linear * u_ref,
+            frame: geom::Frame::new(
+                map.transform_point(origin),
+                map.linear * normal,
+                map.linear * u_ref,
+            ),
         };
         let image = geom_brep::plane_nurbs_limbs::<f64>(
             &geom::Curve3::Nurbs(std::sync::Arc::new(

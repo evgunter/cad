@@ -1731,12 +1731,13 @@ pub enum NodeErrorKind {
     /// tier 2 alone at the box scalars); the operation that takes it
     /// runs tier 3 on it ([`super::Held::finished`]).
     ///
-    /// Where the operation read the operand into another operand's frame
-    /// before taking it (a union's or an intersect's fold computes in one
-    /// member's frame and reads every other into it), `into` names the
-    /// operand whose frame that is: the image that does not finish is
-    /// `input`'s, carried through `into`'s placement. The subject is
-    /// still `input`; the frame is the context its findings were read in.
+    /// Where the operation placed the operand in another operand's frame
+    /// (a union's or an intersect's fold, or a subtract, computes in one
+    /// operand's frame and places the others in it), `into` names the
+    /// operand whose frame that is, and the findings are those of
+    /// `input`'s image there: the placed door's move refusing it at the
+    /// session box (`topo::Placed::taken`). The subject is still `input`;
+    /// the frame is the context its findings were read in.
     UnfinishedLeaf {
         /// The operand's node: the node whose value this operation took.
         input: RecipeNodeId,
@@ -3115,7 +3116,7 @@ pub(crate) mod leaf {
         /// The read, over the leaf's replay at `T`, with the clearance
         /// engine's door at `T`: every leaf lane is a certifying
         /// scalar, so the door is held rather than asked for.
-        fn at<T: geom_core::Decide + topo::AtRestPolicy>(
+        fn at<T: geom_core::Certifies + topo::AtRestPolicy>(
             self,
             ev: &Evaluation<T>,
             clearance: topo::ClearanceLane<T>,
@@ -3794,6 +3795,36 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
     program: &ProfileProgram,
     tol: Tol,
 ) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
+    traced_faces_in(doc, ev, program, None, tol)
+}
+
+/// **The faces the profile node `profile` traces, read through the frame
+/// its own carriage decided** ([`ProfileValue::drawn_frame`]): what a
+/// reader after the profile reads, never selecting the frame again.
+/// `None` where the profile has no value.
+pub(crate) fn traced_faces_of<T: EvalScalar + crate::mate::SolveScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<T>,
+    profile: RecipeNodeId,
+    tol: Tol,
+) -> Option<Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind>> {
+    let crate::Node::Profile(program) = doc.node(profile)? else {
+        return None;
+    };
+    let ValuePayload::Profile(value) = &ev.value(profile)?.payload else {
+        return None;
+    };
+    Some(traced_faces_in(doc, ev, program, value.frame.as_ref(), tol))
+}
+
+/// [`traced_faces`], through `decided` where it is in hand.
+fn traced_faces_in<T: EvalScalar + crate::mate::SolveScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<T>,
+    program: &ProfileProgram,
+    decided: Option<&wire::trace::DrawnFrame<T>>,
+    tol: Tol,
+) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
     // `doc` may be `ev`'s document with a probe lowered into it, whose
     // member reads mint their indices as counts `ev` never bound, and
     // whose values (a face's chart's spin and slides) are definitions it
@@ -3830,7 +3861,10 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
             std::borrow::Cow::Owned(env)
         }
     };
-    Ok(wire::trace::drawn(doc, &ev.nodes, program, &env, tol)?.map_or_else(Vec::new, |d| d.faces))
+    Ok(
+        wire::trace::drawn_in(doc, &ev.nodes, program, decided, &env, tol)?
+            .map_or_else(Vec::new, |d| d.faces),
+    )
 }
 
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box
@@ -5393,7 +5427,7 @@ where
                 resolved,
                 pre: Box::new(pre),
                 form,
-                frame: drawn.map(|d| d.frame),
+                frame: drawn.map(|d| d.on),
             }
         }
         // AN ASSERTION'S EXPRESSIONS (E10): a value claim's value and

@@ -321,7 +321,7 @@ fn prove_row(
         return left(Unreplayed::OtherDecisions);
     };
     if let (Some(heading), Ok(band)) = (heading, band)
-        && let Some(arm) = pair_arm(ev, row, band, tol)
+        && let Some(arm) = pair_arm(ev, row, band)
         && swept_along(doc, ev, heading, arm, band, tol)
     {
         return Ok(Ok(Rung::MarginIdentity));
@@ -350,7 +350,7 @@ const SWEPT_ALONG: &str = "replay_swept_along_the_traced_axis";
 /// **Whether a traced sweep runs along the face its piece leaves**, the
 /// heading the trace statement leaves to the replay
 /// ([`super::Traced::HeadingUnread`]): the face, read as the profile
-/// reads it ([`crate::eval::traced_faces`]), on a cylinder whose axis,
+/// reads it through its decided frame (`crate::eval::traced_faces_of`), on a cylinder whose axis,
 /// carried into the sketch's coordinates, has no component across the
 /// sketch's `z`, the heading every extrude of the profile sweeps along.
 /// Each component is decided Zero and discharged by the tier, so the
@@ -369,10 +369,7 @@ fn swept_along(
     band: Band,
     tol: Tol,
 ) -> bool {
-    let Some(crate::Node::Profile(program)) = doc.node(heading.profile) else {
-        return false;
-    };
-    let Ok(faces) = crate::eval::traced_faces(doc, ev, program, tol) else {
+    let Some(Ok(faces)) = crate::eval::traced_faces_of(doc, ev, heading.profile, tol) else {
         return false;
     };
     let Some(across) = faces.get(heading.face).and_then(axis_in_sketch) else {
@@ -408,25 +405,23 @@ fn pair_arm(
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
     band: Band,
-    tol: Tol,
 ) -> Option<geom_core::Lever<Lane>> {
     let [a, b] = row.cells.as_slice() else {
         return None;
     };
     let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
     let computing = crate::eval::Framed::computing_among([a, b])?;
-    let (a_in, b_in) = (
-        computing.read_in(a, tol).ok()?,
-        computing.read_in(b, tol).ok()?,
-    );
-    topo::boolean::carrier_pair_arm(&a_in, fa, &b_in, fb, band).ok()
+    let (a_at, b_at) = (computing.seat(a).ok()?, computing.seat(b).ok()?);
+    topo::boolean::carrier_pair_arm((a_at, fa), (b_at, fb), band).ok()
 }
 
 /// A traced face's axis, where it is on a cylinder, carried into the
 /// sketch's coordinates; `None` on any other carrier.
 fn axis_in_sketch(face: &crate::TracedFace<Lane>) -> Option<geom_core::Vec3<Lane>> {
     match &face.surface {
-        Ok(geom::Surface::Cylinder { axis, .. }) => Some(face.body_to_sketch.transform_vec(*axis)),
+        Ok(geom::Surface::Cylinder { frame, .. }) => {
+            Some(face.body_to_sketch.transform_vec(frame.axis()))
+        }
         _ => None,
     }
 }
@@ -828,8 +823,12 @@ mod tests {
                     let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(radius), u, v, tol);
                     let mut b = topo::Body::<Lane>::new();
                     let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(radius, theta), u, v, tol);
-                    let arm = topo::boolean::carrier_pair_arm(&a, fa, &b, fb, band)
-                        .map(|arm| <Lane as geom_core::Bounds>::hi(arm.length()));
+                    let arm = topo::boolean::carrier_pair_arm(
+                        (topo::Seat::own(&a), fa),
+                        (topo::Seat::own(&b), fb),
+                        band,
+                    )
+                    .map(|arm| <Lane as geom_core::Bounds>::hi(arm.length()));
                     let read = one_cylinder(
                         (topo::Seat::own(&a), fa),
                         (topo::Seat::own(&b), fb),

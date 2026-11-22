@@ -73,7 +73,7 @@ crate-visible               4  splitting/neighborhood.rs
 crate-visible               1  splitting/order.rs
 crate-visible              13  splitting/pieced_arc.rs
 crate-visible               2  splitting/reassembly.rs
-crate-visible              10  splitting/spiric_arc.rs
+crate-visible               8  splitting/spiric_arc.rs
 crate-visible               3  splitting/spline_arc.rs
 
 names-boolean               1  attach.rs
@@ -173,7 +173,6 @@ ambiguous Sheet                          # injective.rs, row_walk_proofs.rs
 ambiguous Side                           # bound_side.rs, clearance.rs, injective.rs
 ambiguous SplineArc                      # ring_path.rs
 ambiguous Touch                          # census/point.rs
-ambiguous certify                        # policy_lane.rs
 ambiguous classify                       # offset_axial.rs
 ambiguous face_rows                      # null.rs
 ambiguous fans                           # link/oracle_rows.rs
