@@ -458,8 +458,10 @@ pub enum LoftError {
     /// A hinge's edge reads crease at some stations and smooth at
     /// others ([`geom_brep::MixedStations`]).
     SmoothJoinRefuted {
-        /// The hinge's edge.
-        edge: EdgeKey,
+        /// The loop, in canonical order (the outer first).
+        loop_index: usize,
+        /// The hinged segment.
+        segment_index: usize,
         /// The stations that disagree.
         mixed: geom_brep::MixedStations,
     },
@@ -738,9 +740,14 @@ impl LoftError {
                 );
                 crate::swept::sliver_text(f, &rim, *escalation)
             }
-            Self::SmoothJoinRefuted { edge, mixed } => write!(
+            Self::SmoothJoinRefuted {
+                loop_index,
+                segment_index,
+                mixed,
+            } => write!(
                 f,
-                "along the hinge {edge:?}, {mixed}. {}",
+                "along the hinge where loop {loop_index} segment {segment_index} joins the two \
+                 caps, {mixed}. {}",
                 geom_core::MOVE_RECOURSE
             ),
         }
@@ -1278,7 +1285,11 @@ fn hinge_at_rest<T: Decide + topo::AtRestPolicy>(
             });
         }
         Err(geom_brep::WedgeRefusal::Mixed(mixed)) => {
-            return Err(LoftError::SmoothJoinRefuted { edge, mixed });
+            return Err(LoftError::SmoothJoinRefuted {
+                loop_index,
+                segment_index,
+                mixed,
+            });
         }
     }
     Ok(())

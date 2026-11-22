@@ -481,9 +481,12 @@ fn arc_pair_meets<T: Decide>(
 /// Zero where the held loop fixes the sections' common plane (three
 /// corners off one line) and the holes move in it, and a direction only
 /// where the held loop is a chord's two ends (a lens) and the sections
-/// turn about it. Where no corner moves at all (a lens turned about its
-/// chord) it decides nothing: such a slab has a pinned corner, which
-/// [`stacking_door`] decides once every slab has passed.
+/// turn about it. Where no corner moves at all (a loop turned about the
+/// chord its two corners span) each segment that moves steps on its own:
+/// the mean displacement of its interior control rows, decided as the
+/// corners' is, so a half disc turned about its chord steps and a lens
+/// turned about its chord, whose two arcs move to opposite sides, is a
+/// slab stacking against itself.
 fn step<T: Decide>(
     strips: &Strips<T>,
     places: &[SketchPlane<T>],
@@ -509,10 +512,37 @@ fn step<T: Decide>(
     // moving corners are the holes'.
     let holes_under_a_held_outer = || moving(strips);
     let Some((d, count)) = outer().or_else(holes_under_a_held_outer) else {
+        for (l, lp) in strips.iter().enumerate() {
+            for (j, strip) in lp.iter().enumerate() {
+                if pinned.flat(l, j, slab) {
+                    continue;
+                }
+                let (a, b) = (&strip[slab], &strip[slab + 1]);
+                let inner = 1..a.len().saturating_sub(1);
+                let d = inner
+                    .clone()
+                    .fold(Vec3::new(T::zero(), T::zero(), T::zero()), |d, i| {
+                        d + (b[i] - a[i])
+                    });
+                facing_both(places, slab, d, inner.len(), band)?;
+            }
+        }
         return Ok(());
     };
+    facing_both(places, slab, d, count, band)
+}
+
+/// The step `d` summed over `count` rows, decided along section `slab`'s
+/// normal and then section `slab + 1`'s ([`step`]).
+fn facing_both<T: Decide>(
+    places: &[SketchPlane<T>],
+    slab: usize,
+    d: Vec3<T>,
+    count: usize,
+    band: Band,
+) -> Result<(), LoftError> {
     #[allow(clippy::cast_precision_loss)]
-    let count = T::from_f64(count as f64);
+    let count = T::from_f64(count.max(1) as f64);
     let facing = |place: &SketchPlane<T>| {
         decide(
             "loft_stacking",

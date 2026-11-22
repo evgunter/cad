@@ -112,7 +112,9 @@
 use geom::{NurbsSurface, Surface};
 use geom_core::{Band, LengthOutOfFormat, NoDirection, Point3, RigidMotion, Vec3};
 
-use crate::interpret::{FileBand, Read, STEP_RECOGNIZED_CONDITIONING, STEP_RECOGNIZED_RESIDUAL};
+use crate::interpret::{
+    FileBand, Read, STEP_COLLAPSED_SIDE, STEP_RECOGNIZED_CONDITIONING, STEP_RECOGNIZED_RESIDUAL,
+};
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
 pub(crate) use crate::PromotedKind;
@@ -630,6 +632,63 @@ fn estimate_cone(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f6
         frame: geom::Frame::new(apex, axis, u_ref),
         half_angle: slope.atan(),
     })
+}
+
+/// **A net side the file states one point at its band, made exactly
+/// that point** (DESIGN `[import]` healing, `[extensibility]`): a side of
+/// the knot rectangle whose every control point reads Zero from the
+/// row's first (in file order) at the file's band takes the first, so
+/// the kernel reads its collapse exactly
+/// ([`geom_brep::chart_singularity::collapsed_sides`]). Each healed side
+/// with how far it moved a control point, `None` where no side moved; a
+/// side already one point, or one whose spread reads apart, is kept.
+///
+/// # Errors
+///
+/// [`crate::interpret::Refusal::Ambiguous`] for a side whose spread is
+/// in the file's band: whether it is one point is the file's to say.
+pub(crate) fn heal_collapsed_sides(
+    patch: &NurbsSurface<f64>,
+    file: FileBand,
+) -> Result<Option<(NurbsSurface<f64>, Vec<(geom_brep::ChartSide, f64)>)>, crate::interpret::Refusal>
+{
+    use geom_brep::chart_singularity::{side_row, spline_side_spans};
+    let mut control = patch.control().to_vec();
+    let mut healed = Vec::new();
+    for side in geom_brep::ssi::boundary::SIDES {
+        if !spline_side_spans(patch, side) {
+            continue;
+        }
+        let row = side_row(patch, side);
+        let Some(&first) = row.first().and_then(|&i| control.get(i)) else {
+            continue;
+        };
+        let spread = row
+            .iter()
+            .filter_map(|&i| control.get(i))
+            .fold(0.0_f64, |m, p| m.max((*p - first).norm()));
+        match file.read(STEP_COLLAPSED_SIDE, spread) {
+            Read::Zero => {
+                for &i in &row {
+                    control[i] = first;
+                }
+                healed.push((side, spread));
+            }
+            Read::InBand => return Err(file.ambiguous(STEP_COLLAPSED_SIDE, spread)),
+            Read::Apart => {}
+        }
+    }
+    if healed.is_empty() {
+        return Ok(None);
+    }
+    let net = NurbsSurface::new(
+        patch.knot_values_u().clone(),
+        patch.knot_values_v().clone(),
+        control,
+        patch.weights().to_vec(),
+    )
+    .unwrap_or_else(|e| unreachable!("a net of the counts it was read from is refused: {e}"));
+    Ok(Some((net, healed)))
 }
 
 /// The sphere candidate (module docs): the midpoint's centre of mean

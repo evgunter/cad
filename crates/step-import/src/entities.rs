@@ -1350,6 +1350,28 @@ impl<'a> Resolver<'a> {
         // and the face's `same_sense` composes with the chart
         // orientation so the promoted chart means what the NURBS chart
         // meant.
+        // **A net side read one point at the file's band is made that
+        // point** (`[import]` healing), before recognition reads the
+        // patch's collapsed side as its pole.
+        if let Surface::Nurbs(ref patch) = surface
+            && !patch.is_placeholder()
+            && let Some((healed, sides)) =
+                recognize::heal_collapsed_sides(patch.as_ref(), self.budget)
+                    .map_err(|refusal| self.budget.refused(id, refusal))?
+        {
+            let census = bounds_census(&bound_specs, edges);
+            for (_, moved_by) in sides {
+                self.normalizations
+                    .borrow_mut()
+                    .push(StructureNormalization {
+                        face: id,
+                        kind: NormalizationKind::CollapsedSideMadeOne { moved_by },
+                        file_census: census,
+                        kernel_census: census,
+                    });
+            }
+            surface = Surface::Nurbs(std::sync::Arc::new(healed));
+        }
         let mut ill_conditioned = None;
         if let Surface::Nurbs(ref patch) = surface
             && !patch.is_placeholder()
