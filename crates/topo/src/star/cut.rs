@@ -88,7 +88,7 @@ pub(crate) fn span<T: Real>(a: BoundSupport<T>, b: BoundSupport<T>) -> Lever<T> 
 /// faces' line (a germ the faces' normals cross into), `1` for an edge,
 /// a bound, a tangent locus or any direction read off one carrier.
 /// Every reading of it against another direction levers by the lean
-/// ([`super::leaned_lever`]); read against a sector's bounds
+/// ([`super::leaned`]); read against a sector's bounds
 /// (`boolean::sectors::rays_within`) the same lean scales the direction
 /// itself, its [`Leaned::line`].
 #[derive(Clone, Copy, Debug)]
@@ -226,8 +226,7 @@ mod tests {
     fn the_germ_line_is_the_ray_inside_the_cut_sector() {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let n_s = Vec3::new(0.0, 0.0, 1.0_f64);
-        // Unsourced lever: a unit reach for hand-stated unit bounds.
-        let span = Lever::unsourced(1.0);
+        let span = geom_core::test_support::fixture_lever(1.0);
         let mut checked = 0;
         for tilt in [0.2_f64, 0.9, 1.4] {
             let datum = Vec3::new(0.0, tilt.cos(), tilt.sin());
