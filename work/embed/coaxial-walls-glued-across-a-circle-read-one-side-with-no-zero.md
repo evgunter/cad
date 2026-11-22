@@ -99,9 +99,53 @@ presentation's clips and `zero_of`'s answer, `CVC` rows).
 - (a) `zero_of` and `planes_through` read a coordinate line whose edges
   are all edges of both faces, on one conic, as one zero side. The
   conic's plane lists every arc of that conic in the face's boundary,
-  not only the near ones.
+  not only the near ones. **Landed otherwise** (the dated section
+  below): the side is read as running past the shared cell, and the
+  plane's list is unchanged.
 - (b) `edge_ranges` (or `covered`) places a periodic edge's range on the
   cell's own sheet, as `sheets` places lines.
 
 Whether (a) and (b) together certify the bushing is unchecked. The 10
 corpus tests that timed out under the trace are still not traced.
+
+## The first defect landed; the body still refuses on the second (EMBED, lane embed/clip-vertex, 2026-11-22)
+
+**What reads now.** A clip that holds a shared edge beside one not
+shared in reach is no longer `Zero::None`: `zero_of` hands it to
+`partial_zero`, which reads the side as running past the shared cell
+(`Zero::Past`, on the near arc), with or without a shared vertex in
+reach. `sign_on` reads a `Past` side zero under a plane only where the
+plane holds the listed edge's whole line or circle and that is the
+side's own chart line, which a conic's own plane does, so
+`planes_through` lists the near arc as before. Listing every arc of the
+conic was weighed and not needed: the unshared arc is on the side's
+line, which the plane holds whole, and what keeps a crossing there from
+certifying is `past_read`, not the list.
+
+**Measured** (`embed/clip-vertex-measure`, main `b99f71c3d`, the gate
+logging and passing):
+
+- `coincidence_door::a_bushing_stacked_on_its_own_axis_glues_its_walls`:
+  10 asks, 4 refused `Uncertified { a: 1v19, b: 3v1, Edge(20v5), Departure }`,
+  before and after. Before, the refusing pair's last cells read
+  `Side(YLo)` against `Zero::None`; after, the mirror cell, `1v19` at
+  `u ∈ (0.2945, 0.3007)`, exits at `sides_are_the_faces`: the second
+  defect, as the diagnostic flip predicted. The three corpus rows
+  measured with it keep their bushing ask refused.
+- **With `embed/collinear-cover` (`f10a4f1d1`) merged**, the same test:
+  10 asks, none refused, both over this lane's reading and **without
+  it** (collinear-cover alone over the harness). So the cover (b) is
+  what blocks the bushing, and (a) does not: with the cover read, a
+  cell that holds both arcs presents, and a `Zero::None` pair beside
+  the joint is split once and its halves read. The missing zero was a
+  symptom at the depth floor, where the cells that could not present
+  had spent the budget. What (a) changes alone is the count of splits.
+
+**Pinned** by `injective::presentation_rows::two_walls_glued_across_a_circle_of_two_arcs_certify_beside_its_joint`
+(the pair of cells above, at the door `certify_pair`) and, for the
+unsound direction, `a_face_through_the_unshared_arc_of_a_side_is_not_certified`.
+No body row: two full-turn rods stacked and turned `0.3`
+(`sweep::revolve`, united) hold on main already, in 268 splits against
+264 with the reading, because their cells across the joint cover their
+sides. The corpus bushing is the only measured body that reaches the
+case.

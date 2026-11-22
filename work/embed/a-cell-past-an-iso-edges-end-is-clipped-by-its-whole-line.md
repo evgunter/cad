@@ -145,3 +145,15 @@ Second pass, `embed/trace-cylinder-measure` (`CVF`, `CVC` rows).
   construction"). That the plane's curve meets its other edge tangent at
   `V`, the same G1 ground read in another function, is likely but
   unchecked. A fix to the cylinder side alone will not close these ten.
+
+## The zero this row's shapes ask for exists; the clip does not change (EMBED, lane embed/clip-vertex, 2026-11-22)
+
+`zero_of` now reads a shared vertex on one clip's side as that side
+through the vertex (`Zero::Through`), signed under a plane holding the
+side's whole line or circle, and a loose vertex no longer refuses a
+cell. Neither reaches this row's cells: they exit at
+`sides_are_the_faces`, before `zero_of` is asked. The rectangle
+unclipped by a line past its edge's end is still unbuilt. When it is,
+the reflex shape's zero is a vertex on a side that is the CELL's bound,
+not a clip, which `zero_of` does not name: it finds the side through
+the clip holding the vertex.

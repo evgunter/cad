@@ -76,3 +76,50 @@ can stop only at a verified crossing (PR 7309's second decision).
 
 Not dispatchable until that measurement is in and the engine units in
 flight on `injective.rs` have landed: it touches every presentation.
+
+## Measured (gate lane, 2026-11-21 to 22): the splits by reason
+
+`origin/embed/gate-measure` at `abf225214e` (every split's reason
+recorded as class, site and shared cell, and inherited by its
+children; no verdict changed; population and rows in `measure/gate/`).
+The finding above does not survive it as written.
+
+**The 13 dearest refusing asks (929,000 splits).**
+- **905,000 (97%) are NON-touching cell pairs**, split because their
+  separation's enclosure straddles the band's edge
+  (`lo < K·ε ≤ hi`); 900,176 repeat their parent's reason exactly.
+- Touching pairs where a local certificate answered `Split`: 24,000.
+  One part presented and the other `Local` at an edge no presentation
+  reads, about 19,000; a `Structural` part, about 4,000; both
+  presented with the departure sign straddling zero, 354; `Local` in
+  `zero_of` 281, in `present_chart` 220. No margin wholly in band.
+- Per refusing face pair (166): a refusal that is provably safe to
+  make early (a `Structural` part, or a margin or separation wholly in
+  band) exists in 9 pairs, first at depth 11, and saves 6.9% of the
+  time. Refusing a pair whose every split below some depth repeats its
+  parent's reason would save 87.8% (72 pairs, from depth 1), and is not
+  sound as stated: a straddling separation can still narrow.
+
+**A sample of 40 asks whose first refusal comes at the depth floor
+(34,000 splits).** Distance undecided, straddling: 53%. Touching:
+`present_plane`'s catch-all (a cell holding three or more of the plane
+face's edges) 9,746; `present_plane` at a corner (a lean or span sign
+undecided) 4,739; both presented with the departure margin WHOLLY IN
+BAND 1,282; no separator found 299. Units are in flight on each of the
+three (`embed/strip`, `embed/straight-corner`, `embed/remeter`).
+
+**The 38 asks that crossed after a refusal:** 5 crossings were found at
+depth 2 to 5 at a fresh subtree root, 33 at the depth floor. A walk
+that after its first refusal split only non-touching pairs would still
+find 32 of the 38, and on the dear asks that is nearly the whole walk.
+
+**What is not yet known, and decides what this unit is:** whether the
+straddling distance pairs are the neighbourhood of a touching pair
+whose certificate failed (near a shared edge the distance goes to zero,
+so cells beside the shared cell straddle at every depth; then they are
+the local failure one level removed, and the unit is what a failed
+touching pair owes its neighbourhood), or faces that truly come within
+the band of each other off their shared cells (near-tangent
+placements; then the unit is about a separation that never leaves the
+band's edge, which is a reading of the band and not of a split's
+ground). Asked of the gate lane on 2026-11-21.
