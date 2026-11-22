@@ -263,8 +263,7 @@ impl<T: Real> Iv<T> {
         let below = self.neg().over(o.neg());
         // `o.lo > 0`: above; `o.hi < 0`: below; else neither.
         let pick = |a: T, b: T, w: T| {
-            o.lo
-                .select_le_zero((T::zero() - o.hi).select_le_zero(w, b), a)
+            o.lo.select_le_zero((T::zero() - o.hi).select_le_zero(w, b), a)
         };
         Self {
             lo: pick(above.lo, below.lo, T::zero() - wide),
@@ -923,10 +922,9 @@ impl<T: Real> RuledCone<T> {
                 num.hi.select_le_zero(T::zero() - g.hi, T::zero() - wide),
                 g.lo,
             ),
-            hi: num.lo.select_le_zero(
-                num.hi.select_le_zero(T::zero() - g.lo, wide),
-                g.hi,
-            ),
+            hi: num
+                .lo
+                .select_le_zero(num.hi.select_le_zero(T::zero() - g.lo, wide), g.hi),
         };
         (delta, slope)
     }
@@ -959,9 +957,7 @@ impl<T: Real> Ruled<T> for RuledCone<T> {
         match self.partner.radius {
             Some(r) => {
                 let (delta, _) = self.axis_distance(cell);
-                delta
-                    .from(r)
-                    .widen(rounding_charge(r + self.reach()))
+                delta.from(r).widen(rounding_charge(r + self.reach()))
             }
             None => {
                 let q = self.quadratic(cell);
@@ -1215,7 +1211,9 @@ enum Disc {
     Fall,
     /// A double root decided a tangency ([`Touch`]): `Δ` positive about
     /// it where `crossing`, negative otherwise.
-    Touch { crossing: bool },
+    Touch {
+        crossing: bool,
+    },
 }
 
 impl Disc {
@@ -1354,8 +1352,9 @@ pub(crate) fn sweep_divided<T: Decide>(
 /// sheet with neither is one loop where it lies inside, none where
 /// outside.
 fn cut_divided<T: Real>(events: &[Event<T>]) -> Result<Divided<T>, SweepRefusal> {
-    let inconsistent =
-        SweepRefusal::Inconsistent("the divided sweep reads one stretch of its sheet on both sides");
+    let inconsistent = SweepRefusal::Inconsistent(
+        "the divided sweep reads one stretch of its sheet on both sides",
+    );
     let nodes = events
         .iter()
         .filter_map(|e| match *e {
@@ -1395,19 +1394,18 @@ fn cut_divided<T: Real>(events: &[Event<T>]) -> Result<Divided<T>, SweepRefusal>
             Event::Side(..) | Event::Cut { .. } => None,
         }
     };
-    let closed = |(from, beside, points): Open<T>, to: End<T>| -> Result<Stretched<T>, SweepRefusal> {
-        let witness = points
-            .get(points.len() / 2)
-            .copied()
-            .or(beside)
-            .ok_or(SweepRefusal::Inconsistent(
-                "the divided sweep read an arc of its sheet with no point inside the ball",
-            ))?;
-        Ok(Stretched {
-            ends: Some([from, to]),
-            witness,
-        })
-    };
+    let closed =
+        |(from, beside, points): Open<T>, to: End<T>| -> Result<Stretched<T>, SweepRefusal> {
+            let witness = points.get(points.len() / 2).copied().or(beside).ok_or(
+                SweepRefusal::Inconsistent(
+                    "the divided sweep read an arc of its sheet with no point inside the ball",
+                ),
+            )?;
+            Ok(Stretched {
+                ends: Some([from, to]),
+                witness,
+            })
+        };
     let mut open = opened(events[start]);
     for k in 1..=n {
         open = match (open, events[(start + k) % n]) {
@@ -1708,17 +1706,26 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
         if self.ruled.ceiling(&Cell::at(cell.mid())).is_none() {
             return Ok(None);
         }
-        let disc = |phi: f64| self.reads(Row::Discriminant, self.ruled.discriminant(&Cell::at(phi)));
-        let slope = |phi: f64| self.reads(Row::Slope, self.ruled.discriminant_slope(&Cell::at(phi)));
-        let (left, right, crossing) = match (disc(cell.lo), disc(cell.hi), slope(cell.lo), slope(cell.hi)) {
-            (Some(Reads::Below), Some(Reads::Below), Some(Reads::Above), Some(Reads::Below)) => {
-                (Reads::Above, Reads::Below, false)
-            }
-            (Some(Reads::Above), Some(Reads::Above), Some(Reads::Below), Some(Reads::Above)) => {
-                (Reads::Below, Reads::Above, true)
-            }
-            _ => return Ok(None),
-        };
+        let disc =
+            |phi: f64| self.reads(Row::Discriminant, self.ruled.discriminant(&Cell::at(phi)));
+        let slope =
+            |phi: f64| self.reads(Row::Slope, self.ruled.discriminant_slope(&Cell::at(phi)));
+        let (left, right, crossing) =
+            match (disc(cell.lo), disc(cell.hi), slope(cell.lo), slope(cell.hi)) {
+                (
+                    Some(Reads::Below),
+                    Some(Reads::Below),
+                    Some(Reads::Above),
+                    Some(Reads::Below),
+                ) => (Reads::Above, Reads::Below, false),
+                (
+                    Some(Reads::Above),
+                    Some(Reads::Above),
+                    Some(Reads::Below),
+                    Some(Reads::Above),
+                ) => (Reads::Below, Reads::Above, true),
+                _ => return Ok(None),
+            };
         // The core: from the last angle whose slope reads `left` to the
         // first that reads `right`.
         let (mut l, mut r) = (cell.lo, cell.hi);
@@ -1738,9 +1745,17 @@ impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
             let (mut a, mut b) = (flat, flat);
             for _ in 0..SETTLE {
                 let mid = geom::mid_param(l, a);
-                if slope(mid) == Some(left) { l = mid } else { a = mid }
+                if slope(mid) == Some(left) {
+                    l = mid
+                } else {
+                    a = mid
+                }
                 let mid = geom::mid_param(b, r);
-                if slope(mid) == Some(right) { r = mid } else { b = mid }
+                if slope(mid) == Some(right) {
+                    r = mid
+                } else {
+                    b = mid
+                }
             }
         }
         let width = r - l;
@@ -2105,7 +2120,11 @@ fn arcs<T: Real>(cells: Vec<(Cell<T>, Disc)>) -> Result<Vec<Arc<T>>, SweepRefusa
     let mut open: Option<(Cell<T>, Vec<Cell<T>>)> = None;
     for k in 1..=n {
         let (cell, kind) = cells[(after + k) % n];
-        open = match (open, kind.positive().map_or(kind, |p| if p { Disc::Positive } else { Disc::Negative })) {
+        open = match (
+            open,
+            kind.positive()
+                .map_or(kind, |p| if p { Disc::Positive } else { Disc::Negative }),
+        ) {
             (None, Disc::Negative) => None,
             (None, Disc::Rise) => Some((cell, Vec::new())),
             (Some((rise, mut smooth)), Disc::Positive) => {
@@ -2153,10 +2172,7 @@ fn cut_loop<T: Real>(
             }
         )
     }) else {
-        if events
-            .iter()
-            .any(|(e, _)| !matches!(e, Event::Side(..)))
-        {
+        if events.iter().any(|(e, _)| !matches!(e, Event::Side(..))) {
             return Err(inconsistent);
         }
         let sides: Vec<bool> = events
