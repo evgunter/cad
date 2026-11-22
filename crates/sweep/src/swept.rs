@@ -27,7 +27,8 @@
 //! The **swept-traversal builder** is not in that list: it is here.
 //! [`swept_segments`] is the one place a validated loop is relabelled
 //! into traversal order, forward or reversed, and [`SweptSeg`] the
-//! record it fills. Each verb still decides *whether* to reverse for
+//! record it fills, its kind carrying the segment's recorded directions
+//! through the relabelling ([`Traversed`]); no door reads them yet. Each verb still decides *whether* to reverse for
 //! its own reason — extrude for `w·n < 0`, revolve for θ > 0, loft
 //! never — but the relabelling is one rule with one implementation.
 //! Extrude needs one field more than the record carries, and takes it
@@ -171,7 +172,7 @@ impl<T: Real> Placing<T> {
     /// **The station's frame turned onto a sketch direction**: the
     /// placing's own frame turned about its normal onto the direction
     /// of the sketch vector `d` ([`RigidMotion::spun_toward`], which
-    /// normalizes `d` once, as [`sketch_direction`] does), then carried
+    /// normalizes `d` once, as [`sketch_chord`] does), then carried
     /// by the turn. Its `u` is [`Self::direction`] of that sketch
     /// direction, its `w` the station's normal, and nothing is decided
     /// or re-squared.
@@ -320,9 +321,10 @@ pub(crate) fn sliver_text(
 }
 
 /// A carrier class in SWEPT traversal order: the validated
-/// [`SegmentKind`] as a traversal carries it, its sweep and turn the
-/// traversal's — negated and flipped where the traversal runs the
-/// canonical segment backwards.
+/// [`SegmentKind`] as a traversal carries it, its sweep, turn and
+/// recorded directions the traversal's — the sweep negated, the turn
+/// flipped, a director negated and an arc's radials swapped where the
+/// traversal runs the canonical segment backwards.
 ///
 /// A type of its own, not the canonical kind: a validated segment's
 /// kind is oriented by the profile's canonical winding, and a body that
@@ -414,7 +416,10 @@ impl<T: Real> Traversed<T> {
     /// rounding; the collapsed segment keeps the stored endpoint, and
     /// certification meters the carrier against it. A pair of
     /// different kinds is no run: the cosurface verdict never joins
-    /// one.
+    /// one. A line run's carried director is its first member's, not the
+    /// run's chord `a_first → b_last` the doors read: the cosurface
+    /// verdict admits a near-collinear pair within the band, so the two
+    /// can differ by about margin/ℓ.
     pub(crate) fn continued(self, next: Self) -> Self {
         Self(match (self.0, next.0) {
             (line @ SegmentKind::Line { .. }, SegmentKind::Line { .. }) => line,
@@ -449,7 +454,8 @@ impl<T: Real> Traversed<T> {
 
 /// The sketch-level chord data this module's lowering reads from a
 /// swept segment: endpoints in swept traversal order, and the carrier
-/// class (with an arc's carrier and sweep) in that order.
+/// class (with an arc's carrier and sweep, and the directions the kind
+/// records) in that order.
 ///
 /// It is a trait and not just [`SweptSeg`] because a verb may carry
 /// more than a swept traversal does — extrude's record adds a
@@ -607,7 +613,7 @@ pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegmen
 }
 
 /// **A unit sketch direction**, minted only from a segment as the
-/// profile stores it ([`sketch_direction`], [`sketch_chord`]): the sweep's
+/// profile stores it ([`sketch_chord`]): the sweep's
 /// one place that divides a sketch difference by its own length. The
 /// station's frame carries it to a [`Unit3`] ([`Placing::direction`]).
 #[derive(Clone, Copy, Debug)]
@@ -669,34 +675,24 @@ impl<T: Real> Unit3<T> {
     }
 }
 
-/// **The sketch direction a placed copy of the segment carries**, in
-/// swept order: a line's director `(b − a)/‖b − a‖`, an arc's radial
-/// at its swept start `(a − centre)/‖a − centre‖`. Decided once here,
-/// in the sketch, from the segment as the profile stores it; every
-/// placed copy is the station's frame turning it
-/// ([`Placing::direction`]), so no door divides a difference of placed
-/// points by its own length.
+/// **The sketch vector a placed copy of the segment is turned onto**, in
+/// swept order: a line's chord `b − a`, an arc's start radial `a −
+/// centre`, for a frame turned onto that direction
+/// ([`Placing::frame_toward`]), which normalizes it. Its right normal
+/// `(y, 0 − x)` is spelled as [`Unit2::right`] spells it, so a frame
+/// turned onto it holds that normal placed bit for bit
+/// ([`sketch_right_vector`]). Every placed copy is the station's frame
+/// turning it, so no door divides a difference of placed points by its
+/// own length.
 ///
-/// **The traversal holds the profile's recorded directions and this does
-/// not read them.** A line wall on a minted axis beside a partner on a
-/// chord's quotient `s/|s|` loses identities the two quotients cancel
+/// **It reads the segment's points, not the directions its kind holds.**
+/// A line wall on a minted axis beside a partner on a chord's quotient
+/// `s/|s|` loses identities the two quotients cancel
 /// (`work/boxfinish/a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners.md`),
 /// and a carrier about a recorded radial misses a verb's vertex by
 /// `|r| − r`
 /// (`work/boxfinish/a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided.md`).
-pub(crate) fn sketch_direction<T: Real, S: SweptChord<T>>(seg: &S) -> Unit2<T> {
-    match seg.kind().get() {
-        SegmentKind::Line { .. } => sketch_chord(seg).0,
-        SegmentKind::Arc { arc, .. } => Unit2((seg.a() - arc.centre).normalize()),
-    }
-}
-
-/// **The sketch vector [`sketch_direction`] normalizes**: a line's chord
-/// `b − a`, an arc's start radial `a − centre`, for a frame turned onto
-/// that direction ([`Placing::frame_toward`]), which normalizes it by the
-/// same arithmetic. Its right normal `(y, 0 − x)` is spelled as
-/// [`Unit2::right`] spells it, so a frame turned onto it holds that
-/// normal placed bit for bit ([`sketch_right_vector`]).
+/// The same holds of [`sketch_right_vector`] and [`sketch_chord`].
 pub(crate) fn sketch_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
     match seg.kind().get() {
         SegmentKind::Line { .. } => seg.b() - seg.a(),
@@ -705,7 +701,7 @@ pub(crate) fn sketch_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
 }
 
 /// The right normal of [`sketch_vector`], `(y, 0 − x)`: normalized, it is
-/// [`Unit2::right`] of the normalized sketch direction, component for
+/// [`Unit2::right`] of the normalized sketch vector, component for
 /// component (negation and division commute exactly, and `0 − x` over
 /// `n` is `0 − x/n`, signed zeros included).
 pub(crate) fn sketch_right_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
@@ -715,7 +711,8 @@ pub(crate) fn sketch_right_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T>
 
 /// A segment's chord `b − a` as its unit direction and its own length,
 /// read once (`Vec2::direction_and_length`): a line's director and the
-/// span its carrier runs.
+/// span its carrier runs, from its points, as [`sketch_vector`] reads
+/// them.
 pub(crate) fn sketch_chord<T: Real, S: SweptChord<T>>(seg: &S) -> (Unit2<T>, T) {
     let (d, length) = (seg.b() - seg.a()).direction_and_length();
     (Unit2(d), length)
@@ -789,7 +786,7 @@ pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Poin
 ///
 /// **The proof.** The carrier is the circle about `place(centre)` with
 /// radius `radius`, reference direction `u_ref` the sketch direction
-/// `(start − centre)/‖start − centre‖` ([`sketch_direction`]) carried by
+/// `(start − centre)/‖start − centre‖` ([`sketch_vector`]) carried by
 /// the spec's `radial` placing, and axis the turn-signed plane normal,
 /// evaluated at the span `|Δθ|`. A rigid placement maps the sketch
 /// plane's rotation about `centre` by the signed sweep onto the 3-space
@@ -851,7 +848,7 @@ fn register_placed_carrier_end<T: Real>(
 /// lamina, the translated one for an extrude's swept copy, the turned
 /// [`Placing`] for a revolve's. `q_from` is the placed start vertex,
 /// where the carrier starts; its direction is the placement turning
-/// [`sketch_direction`], and a line's span is the sketch chord's
+/// [`sketch_vector`], and a line's span is the sketch chord's
 /// length, which a rigid placement keeps. `tol` is the run's ε, carried
 /// through to the rigidity the arc arm states ([`register_rigidity`],
 /// [`register_placed_carrier_end`]) and used for nothing else here.
@@ -1570,7 +1567,7 @@ mod tests {
 
     /// A line from `a` to `b` with the director validation mints from
     /// its points where no axis is proven: the chord over its length.
-    fn line_from<T: Real>(a: Point2<T>, b: Point2<T>) -> SegmentKind<T> {
+    pub(super) fn line_from<T: Real>(a: Point2<T>, b: Point2<T>) -> SegmentKind<T> {
         SegmentKind::Line {
             director: (b - a) / (b - a).norm(),
         }
@@ -1578,7 +1575,12 @@ mod tests {
 
     /// An arc from `a` to `b` with the radials validation mints from its
     /// points where no axis is proven: each vertex's offset over its rim.
-    fn arc_from<T: Real>(arc: Arc2<T>, turn: Sign, a: Point2<T>, b: Point2<T>) -> SegmentKind<T> {
+    pub(super) fn arc_from<T: Real>(
+        arc: Arc2<T>,
+        turn: Sign,
+        a: Point2<T>,
+        b: Point2<T>,
+    ) -> SegmentKind<T> {
         SegmentKind::Arc {
             arc,
             turn,
@@ -2305,6 +2307,7 @@ pub(crate) mod undecided_fixtures {
 /// `Traversed::continued` reds here even while no door reads them.
 #[cfg(test)]
 mod review_doors_read_carried_directions {
+    use super::tests::{arc_from, line_from};
     use super::*;
     use geom_core::Tol;
     use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -2316,9 +2319,11 @@ mod review_doors_read_carried_directions {
         let close = |u: Vec2<f64>, v: Vec2<f64>| (u - v).norm() < 1e-12;
         match seg.kind.get() {
             SegmentKind::Line { director } => {
-                let chord = seg.b - seg.a;
+                let SegmentKind::Line { director: chord } = line_from(seg.a, seg.b) else {
+                    unreachable!("a line's own kind")
+                };
                 assert!(
-                    close(director, chord / chord.norm()),
+                    close(director, chord),
                     "{what}: the director {director:?} is not {:?}→{:?}'s unit",
                     seg.a,
                     seg.b
@@ -2326,17 +2331,23 @@ mod review_doors_read_carried_directions {
             }
             SegmentKind::Arc {
                 arc,
+                turn,
                 radials: [rs, re],
-                ..
             } => {
-                let at = |p: Point2<f64>| (p - arc.centre) / arc.radius;
+                let SegmentKind::Arc {
+                    radials: [at_a, at_b],
+                    ..
+                } = arc_from(arc, turn, seg.a, seg.b)
+                else {
+                    unreachable!("an arc's own kind")
+                };
                 assert!(
-                    close(rs, at(seg.a)),
+                    close(rs, at_a),
                     "{what}: the start radial {rs:?} is not at the start {:?}",
                     seg.a
                 );
                 assert!(
-                    close(re, at(seg.b)),
+                    close(re, at_b),
                     "{what}: the end radial {re:?} is not at the end {:?}",
                     seg.b
                 );

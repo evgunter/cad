@@ -106,7 +106,7 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 use crate::swept;
 use crate::swept::{
     CapEnd, CosurfaceNames, Placing, SweptChord, Unit2, Unit3, cap_plane, decide, face_surface_key,
-    placed_segment_spec, sketch_chord, sketch_direction,
+    placed_segment_spec, sketch_chord,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -1408,7 +1408,6 @@ fn side_surface<T: Real>(
         let key = face_surface_key(body, f);
         return FaceSurface::Shared { key, sense };
     }
-    let d = sketch_direction(&segs[j]);
     let surface = match segs[j].chord.kind.get() {
         // A line wall's origin is the middle of the wall, from the
         // construction alone: the placed start, half the segment's own
@@ -1425,9 +1424,9 @@ fn side_surface<T: Real>(
         // normal is a cross product normalized, which no frame's axis
         // is, and the wall is squared from its two directions.
         SegmentKind::Line { .. } => {
+            let (d, length) = sketch_chord(&segs[j]);
             let along = place.direction(d);
             let half = T::from_f64(0.5);
-            let length = sketch_chord(&segs[j]).1;
             let origin = qs[j] + along.get() * (length * half) + sweep.w * half;
             let frame = match course {
                 // Along the normal the frame is turned onto the segment's

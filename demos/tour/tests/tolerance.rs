@@ -160,16 +160,17 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
     /// verb's vertex `c + r·x` read against the stored radius `|r|`, which
     /// is as wide as the radius box relative to the radius
     /// (`work/boxfinish/a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided.md`
-    /// holds it). The mutant that turns it red: the arc arm of
-    /// `sweep::swept::sketch_direction` reading the recorded radial
-    /// instead, which moves the refusal onto the hole's own extrude
-    /// (`carrier_endpoint_start`).
+    /// holds it, and is the row whose change re-cuts this one). The
+    /// mutant that turns it red: the arc arm of `sweep::swept::sketch_vector`
+    /// (the wall frame's and the rim carrier's sketch vector) reading the
+    /// recorded radial instead, which moves the refusal onto the hole's
+    /// own extrude (`carrier_endpoint_start`).
     #[test]
     fn the_cut_plates_first_subtract_refuses_a_bores_u_ref_over_the_study() {
         use demo_tour::plate::cut_plate;
-        use pncad::analysis::ParamBox;
+        use pncad::analysis::{DriveConfig, ParamBox};
         use pncad::document::{Evaluation, Node, NodeErrorKind, NodeResult};
-        use pncad::geom_core::{Interval, Sym, SymBudget, SymRules};
+        use pncad::geom_core::{Interval, Sym, SymBudget};
         let tol = Tol::witness();
         let p = cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
         let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
@@ -177,15 +178,16 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
             param_box: Some(std::sync::Arc::new(ParamBox::of(&analyzed))),
             ..EvalOptions::default()
         };
-        // The drive's default budget.
+        // The drive's own default dials.
+        let dials = DriveConfig::default().symbolic;
         let budget = SymBudget {
-            max_terms: 4096,
-            max_degree: 128,
+            max_terms: dials.max_terms,
+            max_degree: dials.max_degree,
         };
         // What the first refusing node is and refuses, read inside the
         // session that built it.
         let (subtract, all_uref, what) =
-            pncad::geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
+            pncad::geom_core::sym::with_session_rules(budget, dials.rules, || {
                 let ev: Evaluation<Sym<Interval>> =
                     evaluate(&p.doc, None, &CancelToken::new(), &opts, tol);
                 let (node, e) = ev
@@ -226,14 +228,22 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
                     }
                     _ => None,
                 };
+                let first_subtract = ev
+                    .order
+                    .iter()
+                    .copied()
+                    .find(|id| matches!(p.doc.node(*id), Some(Node::Subtract { .. })));
                 (
-                    matches!(p.doc.node(node), Some(Node::Subtract { .. })),
+                    first_subtract == Some(node),
                     all_uref,
                     format!("node {node:?}: {:?}", e.kind),
                 )
             })
             .0;
-        assert!(subtract, "the first refusal is a Subtract's: {what}");
+        assert!(
+            subtract,
+            "the first refusal is the first Subtract's: {what}"
+        );
         assert_eq!(
             all_uref,
             Some((true, true, 0)),

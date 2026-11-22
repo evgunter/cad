@@ -909,19 +909,11 @@ impl core::fmt::Display for LoopRole {
 /// with a director cannot be written. Each direction is the one the
 /// segment's construction made, carried verbatim, or for a segment that
 /// recorded none (or an arc read as a line) decided once, at validation,
-/// from its vertices. A consumer that needs a direction reads it here.
-///
-/// A table's direction is checked by one reading at the band, the miss
-/// `‖o + ℓ·d − p‖` (`o` the start or centre, `p` the vertex, `ℓ` the
-/// chord or radius), and that is what "unit" means here: the miss
-/// bounds both the direction's turn and its stretch, since
-/// `(|d| − 1)·ℓ ≤ ‖o + ℓ·d − p‖` by the triangle inequality, which is
-/// check 1's measure for a unit datum at arm ℓ
-/// (`geom::convention::frame_margins`). So a radial accepted here is
-/// one check 1 accepts as a `u_ref` at that radius. What it does not
-/// promise: check 1 length-reads no plane or line, so a director stored
-/// as a plane's normal is a unit only at its chord's lever. An accepted
-/// direction is stored as written, never normalised or re-minted.
+/// from its vertices. A table's are checked against its vertices by one
+/// reading at the band, which is what "unit" means for them
+/// ([`crate::SegmentDirections`]); an accepted direction is stored as written,
+/// never normalised or re-minted. The sweep's traversal carries them and
+/// no sweep door reads them yet.
 #[derive(Debug, Clone, Copy)]
 pub enum SegmentKind<T: Real> {
     /// A straight segment on its chord.
