@@ -356,6 +356,9 @@ const MAX_GRID_RETRIES: usize = 6;
 /// `cfg(test)` an override a row sets to reach an exhaustion refusal
 /// through the real call path (`tests::LAST_ATTEMPT`).
 fn last_attempt() -> usize {
+    if let Ok(n) = std::env::var("ISO_PASSES") {
+        return n.parse().unwrap();
+    }
     #[cfg(test)]
     if let Some(k) = tests::LAST_ATTEMPT.with(std::cell::Cell::get) {
         return k;
@@ -432,7 +435,10 @@ pub(crate) const BOUNDARY_CLEARANCE: f64 = 1.0 / 16.0;
 /// (`chords::edge_target`), each reading the face's lane from the run's
 /// route (`tessellate::Routes`).
 pub(crate) fn face_target(surface: &Surface<f64>, lane: Lane, delta: f64) -> f64 {
-    if lane == Lane::Trimmed && surface.spline_chart().is_none() {
+    if lane == Lane::Trimmed
+        && surface.spline_chart().is_none()
+        && !crate::iso_probe::cure().contains("delta")
+    {
         delta * UNPROVED_HEADROOM
     } else {
         delta
@@ -560,6 +566,7 @@ pub(crate) fn tessellate_trimmed(
     clearance: f64,
     walked: bool,
 ) -> Result<Patch, TessellateError> {
+    let probe_t0 = std::time::Instant::now();
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
@@ -654,7 +661,14 @@ pub(crate) fn tessellate_trimmed(
             let (hu, hv) =
                 a.lattice_steps(arm_steps(a, face_target(surface, Lane::Trimmed, tol.delta)));
             let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
-            let rows = a.lattice_rows((v0, v1), (hu, hv))?;
+            let rows = if crate::iso_probe::cure().contains("rowsoff") && a.development().is_some()
+                || crate::iso_probe::cure().contains("rowsoff")
+                    && matches!(a.kind(), Analytic::Cylinder { .. })
+            {
+                Vec::new()
+            } else {
+                a.lattice_rows((v0, v1), (hu, hv))?
+            };
             // The other half of #678's shape on the cylinder, checked
             // where the count is: the fan needs ONE interior column
             // between two boundary entries that share a mesh vertex,
@@ -673,8 +687,17 @@ pub(crate) fn tessellate_trimmed(
                  #678's non-manifold fan needs (curved::pole_columns)",
                 rows.len()
             );
+            let probe_lattice = if crate::iso_probe::cure().contains("align") {
+                probe_aligned_lattice(
+                    &polygon,
+                    (hu, hv),
+                    crate::iso_probe::cure().contains("rowsoff") && crate::chart_table::ruled(surface),
+                )
+            } else {
+                lattice_candidates((u0, u1), (v0, v1), nu, &rows)
+            };
             (
-                lattice_candidates((u0, u1), (v0, v1), nu, &rows),
+                probe_lattice,
                 None,
                 // The cone's CDT runs in its development and reads no
                 // metric; every other arm's rows are uniform, one fewer
@@ -763,7 +786,37 @@ pub(crate) fn tessellate_trimmed(
     // shared-side and refinement points, each strictly inside a kept
     // triangle.
     let mut candidates = trimmed.lay(&lattice);
+    if crate::iso_probe::cure().contains("hold") {
+        let mut rows: Vec<f64> = lattice.iter().map(|n| n.v).collect();
+        rows.sort_by(f64::total_cmp);
+        rows.dedup();
+        let step = lattice.first().map_or((u1 - u0) / 64.0, |n| n.step.0);
+        let lines = probe_held_lines(&polygon, &rows);
+        for line in &lines {
+            let HeldPt::Poly(ic) = line[0] else { unreachable!() };
+            let uc = polygon.points[ic].0;
+            let (va, vb) = match (line[0], line[line.len() - 1]) {
+                (HeldPt::Poly(a), HeldPt::Poly(b)) => (polygon.points[a].1, polygon.points[b].1),
+                _ => unreachable!(),
+            };
+            let (lo, hi) = (va.min(vb), va.max(vb));
+            candidates.retain(|&(u, v)| !((u - uc).abs() < 0.25 * step && v > lo && v < hi));
+        }
+        for line in &lines {
+            for p in line {
+                if let HeldPt::Uv(u, v) = *p {
+                    candidates.push((u, v));
+                }
+            }
+        }
+        PROBE_HELD.with(|h| *h.borrow_mut() = lines);
+    } else {
+        PROBE_HELD.with(|h| h.borrow_mut().clear());
+    }
+    let probe_laid = std::cell::Cell::new(candidates.len());
+    let probe_attempts = std::cell::Cell::new(0usize);
     for attempt in 0..=last_attempt() {
+        probe_attempts.set(attempt + 1);
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
         // that describe the mesh the face exits on, and every path out
@@ -846,12 +899,53 @@ pub(crate) fn tessellate_trimmed(
             dev_samples: measure.dev_samples,
         });
     }
-    outcome.unwrap_or_else(|| {
+    let outcome = outcome.unwrap_or_else(|| {
         unreachable!(
             "the last attempt accepts or refuses: `TrimmedFace::attempt` asks for a \
              rebuild only below MAX_GRID_RETRIES"
         )
-    })
+    });
+    if crate::iso_probe::armed() {
+        let rings_iso = face.rings.len();
+        let (tris, interior, res) = match &outcome {
+            Ok(p) => (p.triangles.len(), p.interior.len(), "ok".to_owned()),
+            Err(e) => (0, 0, format!("{e:?}").chars().take(60).collect()),
+        };
+        let (r_box, r_dec, n_rect) = match row {
+            ChartRow::Analytic(ref a) => {
+                let st = a.steps(tol.delta);
+                let (lu, lv) = a.lattice_steps(st);
+                let count = |du: f64, dv: f64| -> usize {
+                    let c = |span: f64, h: f64| ((span / h).ceil().max(1.0)) as usize;
+                    match a.kind() {
+                        Analytic::Cylinder { .. } | Analytic::Cone { .. } => 2 * c(du, st.0),
+                        Analytic::Sphere { .. } => 2 * c(du, st.0) * c(dv, st.1),
+                        _ => 2 * c(du, lu) * c(dv, lv),
+                    }
+                };
+                let sum = |rs: &[(f64, f64, f64, f64)]| -> usize {
+                    rs.iter().map(|r| count(r.1 - r.0, r.3 - r.2)).sum()
+                };
+                let a1 = crate::iso_probe::slabs(&polygon.points, &polygon.edges, &polygon.ends);
+                let a2 = crate::iso_probe::slabs_v(&polygon.points, &polygon.edges, &polygon.ends);
+                let (best, n) = if sum(&a1) <= sum(&a2) { (sum(&a1), a1.len()) } else { (sum(&a2), a2.len()) };
+                (count(u1 - u0, v1 - v0), best, n)
+            }
+            ChartRow::Spline { .. } => (0, 0, 0),
+        };
+        crate::iso_probe::log(&format!(
+            "FACE\t{fk:?}\tr_box={r_box}\tr_dec={r_dec}\tn_rect={n_rect}\t{:?}\tdelta={}\ttarget={}\trings={rings_iso}\tlaid={}\tpoly={}\ttris={tris}\tinterior={interior}\tattempts={}\tworst_cert={}\tres={res}\tsecs={}",
+            surface.kind(),
+            tol.delta,
+            face_target(surface, Lane::Trimmed, tol.delta),
+            probe_laid.get(),
+            polygon.points.len(),
+            probe_attempts.get(),
+            measure.verdict.worst(),
+            probe_t0.elapsed().as_secs_f64(),
+        ));
+    }
+    outcome
 }
 
 /// Handle-index → (mesh id or grid candidate index, uv).
@@ -1070,6 +1164,28 @@ impl TrimmedFace<'_> {
         let fk = self.fk;
         let mut at = self.insert_points(candidates, dropped)?;
         let crossings = self.constrain_boundary(&mut at)?;
+        PROBE_HELD.with(|h| {
+            let plane = self.plane();
+            for line in h.borrow().iter() {
+                let hs: Vec<Option<FixedVertexHandle>> = line
+                    .iter()
+                    .map(|p| match *p {
+                        HeldPt::Poly(i) => Some(at.handles[i]),
+                        HeldPt::Uv(u, v) => at
+                            .cdt
+                            .locate_vertex(cdt_point(plane, u, v, false))
+                            .map(|vh| vh.fix()),
+                    })
+                    .collect();
+                for w in hs.windows(2) {
+                    if let (Some(a), Some(b)) = (w[0], w[1])
+                        && a != b
+                    {
+                        let _ = at.cdt.try_add_constraint(a, b);
+                    }
+                }
+            }
+        });
         crate::region::require_a_region(fk, &crossings)?;
         let Some(orientation) = self.orientation else {
             return Err(TessellateError::TrimLoopOrientation { face: fk });
@@ -1141,6 +1257,9 @@ impl TrimmedFace<'_> {
         // Appending keeps every existing candidate index (the `dropped`
         // set stays valid).
         if !refine.is_empty() && !measure.verdict.worst().is_nan() && attempt < last_attempt() {
+            let mut refine = refine;
+            refine.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+            refine.dedup_by(|a, b| a.0.to_bits() == b.0.to_bits() && a.1.to_bits() == b.1.to_bits());
             candidates.extend(refine);
             return Ok(Next::Rebuild);
         }
@@ -1459,7 +1578,10 @@ impl TrimmedFace<'_> {
         // their UV centroid queued as a new candidate for the next
         // round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
-        let refine_lane = matches!(self.row, ChartRow::Spline { .. });
+        let refine_lane = matches!(self.row, ChartRow::Spline { .. })
+            || crate::iso_probe::cure().contains("refine");
+        let split_edge = crate::iso_probe::cure().contains("refine_edge")
+            && matches!(plane, CdtPlane::Lattice { .. });
         let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
         // Each boundary handle's places in the trim polygon (a pinch
         // handle holds several), for the shared-side test below.
@@ -1704,7 +1826,11 @@ impl TrimmedFace<'_> {
                     }
                 }
                 if refine_lane && verdict == cert::Verdict::Exceeded {
-                    refine.push(inside_point());
+                    refine.push(if split_edge {
+                        probe_widest_edge(cdt, meta, f, plane).unwrap_or_else(inside_point)
+                    } else {
+                        inside_point()
+                    });
                 }
                 triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
             }
@@ -6695,4 +6821,159 @@ pub(super) mod tests {
             assert_eq!(cause(&both), Some(SphereTrimCause::BothNappes));
         }
     }
+}
+
+/// STAGE-1 PROBE: the midpoint, in the chart, of a triangle's longest
+/// side that is no constraint, where the CDT runs.
+fn probe_widest_edge(
+    cdt: &ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
+    meta: &[(f64, f64, Slot)],
+    f: spade::handles::FaceHandle<'_, spade::handles::InnerTag, SpadePoint<f64>, (), spade::CdtEdge<()>, ()>,
+    _plane: CdtPlane,
+) -> Option<(f64, f64)> {
+    let mut best: Option<(f64, (f64, f64))> = None;
+    for e in f.adjacent_edges() {
+        if cdt.is_constraint_edge(e.as_undirected().fix()) {
+            continue;
+        }
+        let (a, b) = (e.from(), e.to());
+        let (pa, pb) = (a.position(), b.position());
+        let l = (pa.x - pb.x).powi(2) + (pa.y - pb.y).powi(2);
+        let (ma, mb) = (meta[a.fix().index()], meta[b.fix().index()]);
+        let mid = (0.5 * (ma.0 + mb.0), 0.5 * (ma.1 + mb.1));
+        if best.is_none_or(|(w, _)| l > w) {
+            best = Some((l, mid));
+        }
+    }
+    best.map(|(_, m)| m)
+}
+
+/// STAGE-1 PROBE: one point of a held line.
+#[derive(Clone, Copy, Debug)]
+enum HeldPt {
+    Poly(usize),
+    Uv(f64, f64),
+}
+
+/// STAGE-1 PROBE: the constant-`u` line through each corner whose
+/// polygon has interior on both sides of it, from the corner to the
+/// first side it meets, ending at the nearer end of that side, with a
+/// point at each of `rows` between.
+fn probe_held_lines(polygon: &TrimPolygon, rows: &[f64]) -> Vec<Vec<HeldPt>> {
+    let pts = &polygon.points;
+    let (mut u0, mut u1, mut v0, mut v1) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
+    for &(u, v, _) in pts {
+        u0 = u0.min(u);
+        u1 = u1.max(u);
+        v0 = v0.min(v);
+        v1 = v1.max(v);
+    }
+    let (eu, ev) = (1e-6 * (u1 - u0), 1e-6 * (v1 - v0));
+    let inside = |u: f64, v: f64| crate::iso_probe::inside(pts, &polygon.ends, (u, v));
+    let mut start = 0;
+    let mut corner_ix = Vec::new();
+    for &end in &polygon.ends {
+        for i in start..end {
+            let prev = if i == start { end - 1 } else { i - 1 };
+            if polygon.edges[i] != polygon.edges[prev] {
+                corner_ix.push(i);
+            }
+        }
+        start = end;
+    }
+    let mut lines = Vec::new();
+    for &ic in &corner_ix {
+        let (uc, vc, _) = pts[ic];
+        for dir in [1.0f64, -1.0] {
+            if !(inside(uc - eu, vc + dir * ev) && inside(uc + eu, vc + dir * ev)) {
+                continue;
+            }
+            // Nearest crossing of the ray `u = uc` going `dir` in `v`.
+            let mut best: Option<(f64, usize, usize)> = None;
+            for i in 0..pts.len() {
+                let j = polygon.next(i);
+                if i == ic || j == ic {
+                    continue;
+                }
+                let (pu, pv, _) = pts[i];
+                let (qu, qv, _) = pts[j];
+                if (pu - uc) * (qu - uc) > 0.0 || pu == qu {
+                    continue;
+                }
+                let t = (uc - pu) / (qu - pu);
+                let v = pv + t * (qv - pv);
+                let d = (v - vc) * dir;
+                if d > ev && best.is_none_or(|(b, _, _)| d < b) {
+                    best = Some((d, i, j));
+                }
+            }
+            let Some((d, i, j)) = best else { continue };
+            let end = if (pts[i].0 - uc).abs() <= (pts[j].0 - uc).abs() { i } else { j };
+            let vend = vc + dir * d;
+            let mut line = vec![HeldPt::Poly(ic)];
+            let mut between: Vec<f64> = rows
+                .iter()
+                .copied()
+                .filter(|&r| (r - vc) * dir > ev && (vend - r) * dir > ev)
+                .collect();
+            between.sort_by(|a, b| ((a - vc) * dir).total_cmp(&((b - vc) * dir)));
+            line.extend(between.into_iter().map(|r| HeldPt::Uv(uc, r)));
+            line.push(HeldPt::Poly(end));
+            lines.push(line);
+        }
+    }
+    lines
+}
+
+/// STAGE-1 PROBE: an aligned lattice: column lines at every corner `u`
+/// and row lines at every corner `v`, uniform between at no more than
+/// `(hu, hv)`; no rows where `rows_off`.
+fn probe_aligned_lattice(polygon: &TrimPolygon, (hu, hv): (f64, f64), rows_off: bool) -> Vec<Node> {
+    let cs = crate::iso_probe::corners(&polygon.points, &polygon.edges, &polygon.ends);
+    let (mut u0, mut u1, mut v0, mut v1) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
+    for &(u, v, _) in &polygon.points {
+        u0 = u0.min(u);
+        u1 = u1.max(u);
+        v0 = v0.min(v);
+        v1 = v1.max(v);
+    }
+    let lines = |lo: f64, hi: f64, h: f64, at: Vec<f64>| -> Vec<(f64, f64)> {
+        let mut bp: Vec<f64> = at.into_iter().chain([lo, hi]).collect();
+        bp.sort_by(f64::total_cmp);
+        bp.dedup_by(|a, b| (*a - *b).abs() <= 1e-9 * (hi - lo));
+        let mut out = Vec::new();
+        for w in bp.windows(2) {
+            let n = ((w[1] - w[0]) / h).ceil().max(1.0) as usize;
+            let s = (w[1] - w[0]) / n as f64;
+            for k in 0..n {
+                out.push((w[0] + s * k as f64, s));
+            }
+        }
+        out.push((hi, 0.0));
+        out.into_iter().filter(|&(x, _)| x > lo && x < hi).collect()
+    };
+    let cols = lines(u0, u1, hu, cs.iter().map(|c| c.0).collect());
+    let rows = if rows_off || !hv.is_finite() {
+        Vec::new()
+    } else {
+        lines(v0, v1, hv, cs.iter().map(|c| c.1).collect())
+    };
+    let mut cand = Vec::new();
+    for &(v, sv) in &rows {
+        for &(u, su) in &cols {
+            cand.push(Node {
+                u,
+                v,
+                step: (su.max(1e-300), sv.max(1e-300)),
+                on_crease: false,
+            });
+        }
+    }
+    sort_nodes(&mut cand);
+    cand
+}
+
+thread_local! {
+    /// STAGE-1 PROBE: the face's held lines (`probe_held_lines`).
+    static PROBE_HELD: std::cell::RefCell<Vec<Vec<HeldPt>>> = const { std::cell::RefCell::new(Vec::new()) };
 }

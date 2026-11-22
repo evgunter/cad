@@ -316,6 +316,65 @@ pub(crate) fn route_of(
     surface: &Surface<f64>,
     band: Band,
 ) -> Result<(Route, Option<Detached>), TessellateError> {
+    let got = route_of_inner(body, fk, surface, band);
+    if crate::iso_probe::armed()
+        && !matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_))
+    {
+        probe_route(body, fk, surface, &got);
+    }
+    got
+}
+
+/// STAGE-1 PROBE: one line per curved analytic face routed.
+fn probe_route(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &Surface<f64>,
+    got: &Result<(Route, Option<Detached>), TessellateError>,
+) {
+    let Some(face) = body.get_face(fk) else { return };
+    let iso_loop = |lk| {
+        crate::walk::loop_half_edges(body, lk, fk).is_ok_and(|hes| {
+            hes.into_iter().all(|(hek, _, _)| {
+                body.pcurve(hek).is_some_and(|c| {
+                    use geom_brep::pcurve_cache::{Channel, Pcurve};
+                    let still = |ch: &Channel<f64>| match *ch {
+                        Channel::Angle { winding, .. } => winding == 0,
+                        Channel::Free { a, b, l, .. } => a == 0.0 && b == 0.0 && l == 0.0,
+                    };
+                    match c.pcurve() {
+                        Pcurve::Harmonic { u, v } => still(u) || still(v),
+                        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => true,
+                        _ => false,
+                    }
+                })
+            })
+        })
+    };
+    let outer_iso = iso_loop(face.outer);
+    let rings_iso = face.rings.iter().all(|&lk| iso_loop(lk));
+    let pinch = crate::walk::pinches(body, face.outer).unwrap_or(false);
+    let route = match got {
+        Ok((Route::Planar, _)) => "planar".to_owned(),
+        Ok((Route::Curved(_), _)) => "rectangle".to_owned(),
+        Ok((Route::Trimmed(Trim::Walked), _)) => "walked".to_owned(),
+        Ok((Route::Trimmed(Trim::Structural), _)) => "structural".to_owned(),
+        Ok((Route::Trimmed(Trim::Read(_)), _)) => "read".to_owned(),
+        Err(e) => format!("refused:{e:?}").chars().take(80).collect(),
+    };
+    crate::iso_probe::log(&format!(
+        "ROUTE\t{fk:?}\t{:?}\t{route}\trings={}\touter_iso={outer_iso}\trings_iso={rings_iso}\tpinch={pinch}",
+        surface.kind(),
+        face.rings.len(),
+    ));
+}
+
+fn route_of_inner(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &Surface<f64>,
+    band: Band,
+) -> Result<(Route, Option<Detached>), TessellateError> {
     Ok(match *surface {
         Surface::Nurbs(_) | Surface::Approx(_) => (Route::Trimmed(Trim::Structural), None),
         Surface::Plane { .. } => (Route::Planar, None),

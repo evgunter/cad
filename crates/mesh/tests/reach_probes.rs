@@ -347,7 +347,7 @@ fn outward(surface: &geom::Surface<f64>, sense: bool, p: Point3<f64>) -> Option<
 /// apex), to a sphere's centre less its radius, to a torus's or a
 /// spindle's tube centre circle less its minor radius. `None` on a plane
 /// or a spline surface.
-fn distance(surface: &geom::Surface<f64>, p: Point3<f64>) -> Option<f64> {
+pub(super) fn distance(surface: &geom::Surface<f64>, p: Point3<f64>) -> Option<f64> {
     use geom::Surface as S;
     let split = |w: Vec3<f64>, axis: Vec3<f64>| {
         let h = w.dot(axis);
