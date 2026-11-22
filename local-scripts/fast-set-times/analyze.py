@@ -3,6 +3,8 @@
 nightly opt-2 default-eps time, and counts at each threshold.
 
 usage: analyze.py <repo checkout> <times.tsv> <out.tsv> <nightly junit.xml>...
+
+Kept for the drift check PR 7397 proposes, which reuses this reader.
 """
 
 import statistics

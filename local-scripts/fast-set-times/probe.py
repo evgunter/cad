@@ -4,6 +4,8 @@
 usage: probe.py <probe run id> <attempt> <cand.tsv> <out.tsv>
 The probe job runs each shard's candidates in three nextest passes: -j1,
 -j1 again, then at default parallelism on the same runner.
+
+Kept for the drift check PR 7397 proposes, which reuses this reader.
 """
 
 import json

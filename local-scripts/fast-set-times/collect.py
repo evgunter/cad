@@ -9,6 +9,8 @@ Reads the PASS lines of the default-eps step of `test (kernel)` and
 gate's own build (libraries at opt 1, integration binaries at opt 0) and
 parallelism. Resumable: jobs already in <out.tsv>.jobs are skipped. The
 junit report is not uploaded by the gate, so the job log is the record.
+
+Kept for the drift check PR 7397 proposes, which reuses this reader.
 """
 
 import json
