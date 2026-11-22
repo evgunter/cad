@@ -23,3 +23,8 @@
 
   Its MINORs are filed as `checked-is-blind-to-a-wrong-arc-witness-by-a-node` (P3), and the oracle's overclaiming comment is corrected. U2 (`the-section-certificate-reads-the-cone-pairs-on-the-value`) un-parks. The cone × sphere / cone × cone door's unit can now be cut. No experiment row (Ev).
 - 2026-11-22 — Ev: a merge may go over running CI when the risk is low, for example a straightforward conflict resolution or a state-sync on a green head.
+- 2026-11-22 — **Dispatched:**
+  - `the-cone-sphere-and-cone-cone-pair-doors` (P0, dual), branch `sectcone/cone-sphere-cone-doors`, cut from `cone-sphere-and-cone-cone-in-general-pose-have-no-rung-three-door` now that 7357 has landed the cone × cone pose;
+  - U2, `the-section-certificate-reads-the-cone-pairs-on-the-value` (P1, single FULL), branch `sectcone/section-cert-cone-pairs`.
+
+  Three lanes now share `pair_section`: these two and the cone × torus door. Each is told to merge main often and announce its seams.
