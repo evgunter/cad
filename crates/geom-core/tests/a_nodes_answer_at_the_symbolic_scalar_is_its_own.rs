@@ -74,6 +74,27 @@ fn a_registration_is_not_read_by_a_node_it_does_not_feed() {
     assert_eq!(after, alone, "after a node that registered the identity");
 }
 
+/// **An identity a node registered is read by the nodes it feeds**: the
+/// same two nodes, with `A`'s record handed to `B` as an upstream
+/// node's, and `B` proves the difference through the door.
+///
+/// Mutant: a node's scope opened over an empty registry, whatever its
+/// upstream records hold, leaves `B` numeric.
+#[test]
+fn a_registration_is_read_by_the_nodes_it_feeds() {
+    let p = |name: &str, v: f64| Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id(name)), v);
+    let sin_u = move || p("u", 0.5).sin_cos().0;
+    let w = move || p("w", 0.5_f64.sin());
+    let (fed, _) = with_session_retry(budget(), SymRules::shipped(), SymRetry::none(), || {
+        let a = as_node(1, &[], || {
+            let _ = sin_u().register_equal(w(), Tol::witness());
+        });
+        assert_eq!(a.registrations(), 1, "the record carries the identity");
+        columns(&as_node(2, &[a], || decide(sin_u() - w())))
+    });
+    assert_eq!(fed, [1, 0, 0], "the fed node proves it through the door");
+}
+
 /// **The retry ladder's growth guard is a node's own.** Each node
 /// decides a margin only a 512-bit retry closes, under a guard of one
 /// form: `A`'s retry fills its memos past the guard.

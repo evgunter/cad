@@ -113,8 +113,9 @@
 //! **What the tier cannot prove, a constructor can state.** E12 keeps
 //! a recourse in reserve for exactly the rim residual above —
 //! discharge by PROVENANCE — and [`Sym::register_equal`] is it: a
-//! session-level record that two DAG nodes denote one function of the
-//! parameters, made by the site that GUARANTEES it
+//! record that two DAG nodes denote one function of the parameters,
+//! read by the node that made it and the nodes it feeds
+//! ([`MintScope::node`]), made by the site that GUARANTEES it
 //! (`sweep::swept::register_rigidity`, whose doc comment carries
 //! the proof), verified in the lane scalar at the moment it is made,
 //! refused typed when it lies, and consulted by a THIRD normal-form
@@ -1480,58 +1481,35 @@ pub struct SymCounts {
     /// [`with_session_memo_retry`], the two that install a ladder.
     pub retried: u64,
     /// **The nodes this receipt's subject could not resolve to a form**
-    /// — frozen into indeterminates by a budget or an overflow, or, on
-    /// a leaf, absent from its own table. A SET and not a count of
-    /// work: a claim about the subject, like the decision columns
-    /// beside it, and the same under every schedule but for one reading
-    /// named below. [`memo`]'s header is where the one argument for
-    /// that lives; here is what the number means on each receipt that
-    /// carries it.
+    /// — frozen into indeterminates by a budget or an overflow. A SET
+    /// and not a count of work: a claim about the subject, like the
+    /// decision columns beside it, and the same under every schedule.
+    /// [`memo`]'s header is where the argument for that lives; here is
+    /// what the number means on each receipt that carries it.
     ///
-    /// - **On a LEAF of a drive: that leaf's NEED** — the frozen nodes
-    ///   its own reasoning rested on, which is what a reader of a
-    ///   refused leaf wants to know first: the drive's frozen set
-    ///   inside the closure of what this leaf asked, the ids its own
-    ///   table does not hold, and the freezes it could not publish.
-    ///   Not the freezes it happened to compute: with the drive's memo
-    ///   on, a leaf inherits forms another leaf froze, and counting the
-    ///   work would report which leaf got to a node first.
+    /// - **On a LEAF of a drive: that leaf's NEED**, the drive's frozen
+    ///   nodes inside the closure of what this leaf's plain walk was
+    ///   asked. Not the freezes it happened to compute: a leaf takes
+    ///   forms another leaf froze, and counting the work would report
+    ///   which leaf got to a node first.
     /// - **On a DRIVE: the distinct nodes frozen over it**
-    ///   ([`DriveMemo::frozen`]) — every freeze any leaf published,
-    ///   and the set a leaf's NEED is read against. It neither sums
-    ///   the leaves' columns nor bounds them: the leaves' sets overlap,
-    ///   so [`SymCounts::absorb`] does not add this one up, and a
-    ///   leaf's own side carries ids this set never holds — a node its
-    ///   table does not hold, or a freeze it could not publish — so a
-    ///   leaf's column can EXCEED the drive's (a leaf reading 1 under a
-    ///   drive that froze nothing at all is a row: `geom-core`'s
-    ///   `sym_drive_memo::a_foreign_id_no_one_freezes_is_still_a_need`).
+    ///   ([`DriveMemo::frozen`]), the set a leaf's NEED is read
+    ///   against. It does not sum the leaves' columns: their sets
+    ///   overlap, so [`SymCounts::absorb`] does not add this one up.
     ///   The driver writes the drive's own when the drive is done.
     /// - **Outside a drive** ([`with_session`], [`with_session_rules`]):
     ///   the session's own distinct freezes. The leaf is the whole
     ///   drive there, so this is the same quantity.
-    /// - **Mid-replay, through [`session_counts`]: the WORK so far** —
-    ///   the freezes this leaf has computed, not a NEED. That door
-    ///   exists to price a leaf while it runs, where what has been paid
-    ///   is the question; a NEED is a property of the finished leaf and
+    /// - **Mid-replay, through [`session_counts`]: the WORK so far**,
+    ///   the freezes this replay has computed. That door prices a leaf
+    ///   while it runs; a NEED is a property of the finished leaf and
     ///   is written over this count at the leaf's end.
     ///
-    /// **One reading is still the schedule's**, and it is inside the
-    /// branch [`memo`]'s header has named since the memo landed: a
-    /// freeze the TAINT caused, under a hit, is counted where the walk
-    /// made it (`work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`,
-    /// pinned by `geom-core`'s
-    /// `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`).
-    /// No leaf of a drive reaches it — a drive mints every node inside
-    /// its own session — measured over five drives with the profile's
-    /// `FreezeCause::Unrecorded` count; no gating row holds that
-    /// count.
-    ///
-    /// **The dial does not move it.** With the drive's memo off a leaf
-    /// freezes every node of its closure that freezes at all, so its
-    /// NEED is what it computed — measured, not only argued, by
-    /// `editor-core`'s `the_plain_memo_moves_no_decision`, which
-    /// compares the leaf receipts across the dial with no mask.
+    /// **The dial does not move it.** With the drive's table serving
+    /// nothing a leaf freezes every node of its closure that freezes at
+    /// all, so its NEED is what it computed (`editor-core`'s
+    /// `the_plain_memo_moves_no_decision` compares the leaf receipts
+    /// across the dial with no mask).
     pub frozen: u64,
 }
 
@@ -2228,9 +2206,11 @@ pub struct SymRetry {
     /// shape 2).
     pub without: [Option<SymRules>; MASKS],
     /// **The GROWTH GUARD** — the most forms ONE attempt's two memos may
-    /// hold before the ladder stops offering that attempt for the rest
-    /// of the leaf, and the decisions that would have asked it stay
-    /// numeric. [`RETRY_FORMS`] by default; a dial so that the guard is
+    /// hold, for one node, before the ladder stops offering that
+    /// attempt to the rest of that node's decisions, which stay
+    /// numeric. The memos are the node's and start empty with it
+    /// ([`MintScope::node`]), so what the guard withholds from a node
+    /// is a function of that node's own decisions. [`RETRY_FORMS`] by default; a dial so that the guard is
     /// a row and not a comment (`the_growth_guard_withholds_an_attempt_at_its_cap`).
     ///
     /// **The check is BEFORE an attempt is walked**, so it bounds the
@@ -2383,14 +2363,26 @@ struct AtomInfo {
     args: [Option<Arc<Form>>; 3],
 }
 
-/// One leaf replay's DAG: the hash-consing table, the memoized forms and
-/// the counts. Dropped with the leaf.
+/// **One replay's symbolic state**, and whose each piece is.
 ///
-/// Everything here is this leaf's own, with ONE exception: `memo`, a
-/// handle on the drive's shared plain forms when a driver installed one
-/// ([`with_session_memo`]). The hash-consing table, the early and door
-/// memos, the registry, the parameter brackets and the counts never
-/// leave the leaf.
+/// - **The drive's** ([`DriveMemo`], `memo`): the expression table,
+///   the plain forms and the atom records. `nodes`, `forms` and
+///   `atoms` are this leaf's caches of it: every node and plain form
+///   in them is in the drive's table and every atom record is its
+///   id's, so a hit or a miss changes a cost and no answer. With no
+///   drive installed they are the table.
+/// - **The leaf's input**: `params`, the box's brackets, and the dials
+///   (`budget`, `rules`, `retry`) and `witness`, the same for every
+///   leaf of a drive.
+/// - **Caches valid for the leaf**: `forms_early`, `trig_closed`,
+///   `reductions`, `budget_frozen`. Each is a function of its key, the
+///   dials and the brackets.
+/// - **A node's** ([`NodeState`], `node`): the registry, the counts,
+///   the retry memos their guard counts, the door memo and the plain
+///   roots. A node's scope opens with none of another node's.
+///
+/// So a node's decisions read nothing whose lifetime is the replay but
+/// the box.
 struct Session {
     budget: SymBudget,
     rules: SymRules,
@@ -2459,10 +2451,10 @@ struct Session {
     /// How many asks an entry answered — read by this module's rows.
     #[cfg(test)]
     reduction_hits: u64,
-    /// **The drive's shared plain memo** ([`DriveMemo`]), when a drive
-    /// installed one ([`with_session_memo`]). The plain walk consults
-    /// it on a miss in `forms` and the leaf publishes to it once, at its
-    /// end; every other memo here is this leaf's alone.
+    /// **The drive's table** ([`DriveMemo`]), when a drive installed
+    /// one ([`with_session_memo`]): a node or a plain form new to this
+    /// leaf's caches is written to it as it is made, and a miss in the
+    /// caches asks it.
     memo: Option<Arc<DriveMemo>>,
     /// **The Zeros a deferring session left for later**
     /// ([`with_deferred_session`](self::deferred::with_deferred_session)): `None` in every other session, which
@@ -2724,8 +2716,8 @@ impl RetryMemo {
 
 /// **The GROWTH GUARD's default** ([`SymRetry::max_forms`]): past this
 /// many forms in one attempt's two memos the attempt is not offered
-/// again for the rest of the leaf, and the decisions that would have
-/// asked it stay numeric.
+/// again to the node that built them, and the decisions that would
+/// have asked it stay numeric.
 ///
 /// A retry pays a second walk of the DAG per refused decision, and the
 /// forms it builds are a second population beside the first attempt's —
@@ -2853,9 +2845,8 @@ impl Session {
     /// freed with the leaf. The alternative is to re-walk the DAG once
     /// per frozen id, which is the same allocation in time.
     ///
-    /// A node absent from the table has no children HERE, which is
-    /// exactly what the plain walk does with an unrecorded one: it
-    /// freezes it and stops.
+    /// An id no table names has no children here, as in the plain
+    /// walk, which freezes it and stops.
     fn closure(&self, roots: impl Iterator<Item = SymId>) -> IdSet {
         let mut seen: IdSet = IdSet::default();
         let mut stack: Vec<SymId> = roots.collect();
@@ -2892,16 +2883,13 @@ thread_local! {
 /// Runs `f` with a fresh symbolic session installed on this thread,
 /// answering its result beside the session's counts.
 ///
-/// The table is per-call and dropped at the end of it, which is what
-/// "one hash-consing table per leaf replay" means: a leaf's nodes never
-/// reach another leaf, and the counts are that leaf's own. Nesting is
-/// refused rather than silently flattened — an inner session would count
-/// a different leaf's decisions into the outer one's receipt.
-///
-/// This door installs NO drive memo, so the session it makes holds
-/// nothing across leaves at all; [`with_session_memo`] is the spelling
-/// a driver uses to share the plain forms across the leaves of one
-/// drive.
+/// This door installs no drive's table, so the session's own tables
+/// are the whole of what it knows and are dropped with it: a node
+/// minted in it means nothing in another session. Nesting is refused
+/// rather than silently flattened, since an inner session would count
+/// a different replay's decisions into the outer one's receipt.
+/// [`with_session_memo`] is the spelling a driver uses for the leaves
+/// of one drive.
 pub fn with_session<R>(budget: SymBudget, f: impl FnOnce() -> R) -> (R, SymCounts) {
     with_session_rules(budget, SymRules::shipped(), f)
 }
@@ -2936,17 +2924,14 @@ pub fn with_session_retry<R>(
     with_session_in(budget, rules, retry, None, f)
 }
 
-/// [`with_session_rules`] with a DRIVE-scoped plain memo installed
-/// ([`DriveMemo`]): the leaf's plain walk consults `memo` on a miss in
-/// its own table and publishes what it computed to `memo` at its end.
-///
-/// Everything else about the session is unchanged — the hash-consing
-/// table, the early and door memos, the registry and the parameter
-/// brackets are this leaf's and are dropped with it. The decision
-/// counts the call answers are this leaf's own; its
-/// [`SymCounts::frozen`] is this leaf's NEED, counted at the leaf's end
-/// against the drive's frozen set, and the drive's own column is
-/// [`DriveMemo::frozen`].
+/// [`with_session_rules`] on a DRIVE's table ([`DriveMemo`]): the
+/// leaf records its nodes, plain forms and atom records in `memo` as
+/// it makes them and reads what the drive's other leaves made. The
+/// early memo, the parameter brackets and every node's state stay the
+/// leaf's. The decision counts the call answers are this leaf's own;
+/// its [`SymCounts::frozen`] is this leaf's NEED, counted at the
+/// leaf's end against the drive's frozen set, and the drive's own
+/// column is [`DriveMemo::frozen`].
 ///
 /// **The memo is valid for one `(budget, rules)` pair** and refuses a
 /// leaf that does not match it: a plain form is a function of the node
@@ -2956,10 +2941,9 @@ pub fn with_session_retry<R>(
 /// The mismatch is a `debug_assert!`, which is loud in every profile
 /// this workspace builds — `[profile.release]` keeps debug assertions
 /// on. A build that turned them OFF would run the leaf with NO memo
-/// instead: sound (it is the pre-memo tier) but quiet, and its freezes
-/// would never be published, so the drive's `frozen` column would
-/// under-count in exactly that build. No configuration in this repo
-/// reaches it.
+/// instead: sound but quiet, and its freezes would never be published,
+/// so the drive's `frozen` column would under-count in exactly that
+/// build. No configuration in this repo reaches it.
 pub fn with_session_memo<R>(
     budget: SymBudget,
     rules: SymRules,
@@ -2984,11 +2968,11 @@ pub fn with_session_memo<R>(
 /// drive's plain memo — the door a DRIVE uses, and the only one that
 /// takes both.
 ///
-/// **The memo is unaffected by the ladder and the check above does not
-/// widen.** A drive memo holds PLAIN forms and the plain rung is never
+/// **The table is unaffected by the ladder and the check above does
+/// not widen.** It holds PLAIN forms and the plain rung is never
 /// retried ([`SymRetry`]), so a form it serves is the form this leaf
-/// would build at any ladder; what a retry builds lives in the
-/// session's own retry tables and is dropped with the leaf.
+/// would build at any ladder; what a retry builds is its node's and
+/// is dropped with the node's scope.
 pub fn with_session_memo_retry<R>(
     budget: SymBudget,
     rules: SymRules,
@@ -4537,8 +4521,8 @@ fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
     for (attempt, rules, bits) in sess.retry.attempts(sess.rules) {
         // **The GROWTH GUARD** (`SymRetry::max_forms`), checked BEFORE
         // the attempt is walked: an attempt whose memos are at the cap
-        // is not offered again for the rest of the leaf, and the
-        // decision stays numeric.
+        // is not offered again to this node, and the decision stays
+        // numeric.
         let k = usize::from(attempt) - 1;
         if sess
             .node
@@ -4899,13 +4883,14 @@ impl<T: Real> Sym<T> {
     /// registration that CHANGES the registry — a repeat answers
     /// [`SymRegistration::Already`] and clears nothing.
     ///
-    /// # D9
+    /// # Whose the record is
     ///
-    /// The registry is keyed by content hashes and lives in the
-    /// per-leaf session, like the node table; a leaf's registrations
-    /// are made by the same fixed single-threaded walk of its recipe
-    /// that mints its nodes, so the record is identical across repeats
-    /// and across the rayon schedule.
+    /// The registry is the open node's ([`MintScope::node`]): a
+    /// registration is read by the decisions of the node that made it
+    /// and of the nodes it feeds, to which it travels in the node's
+    /// record ([`NodeRecord`]), and by no other node's. So what a node
+    /// proves through the door is a function of its inputs, whatever
+    /// ran before it in the replay and on whichever worker (D9).
     #[must_use = "a registration can be REFUSED, and a refusal a caller \
                   drops is a lie nobody sees"]
     pub fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
