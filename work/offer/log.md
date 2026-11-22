@@ -106,3 +106,23 @@ CHROME is told on its log when the unit dispatches.
 
 The design-fork rows are 297, 298 and 299. Their second commit (Ev's decision, and the label→model mapping from `analysis/design-fork/offer-*`) lands on each PR once Ev answers. The designers' full reports and round replies are in `~/.local/share/cad-work/offer-briefs/reports/`, which is this container only. The rows hold what moved in each round.
 - 2026-11-22 — **Ev answered #7341:** "this all sounds good". The offer design is decided, with every lean taken. Fork-log row 299 is completed with the mapping: A Opus 5.5, B Fable 5.2, and further designer C Fable 5.2. `design` is cleared on both rows. (OFFER orchestrator)
+
+## 2026-11-22 — the offer build, cut
+
+(OFFER orchestrator) Ev decided the offer design on #7341, which is now merged. The build is cut into three units:
+1. `a-check-offers-no-way-to-add-the-assertion-it-asks-for` is re-priced M → H and carries the kernel half: a finding carries the assertion that quiets it, with the interference face pair and the law test.
+2. `the-viewer-has-one-assertion-tool` (new, M) is the general assertion door.
+3. `a-refusal-offers-no-action-in-the-viewer` (H) is the offers function. It is parked on 1 and 2 and stacks on them.
+
+Filed, as the design requires:
+- `the-viewer-has-no-member-budget-door` (P2);
+- `the-checks-expected-component-count-has-no-home` (P2);
+- `the-tolerance-recourse-is-prose-and-has-no-viewer-door` (P2).
+
+`program.md`'s keep_out clause "never a diff from here" was agent-written in CHROME's cut, with no ruling from Ev (`git log -S`). It now says that OFFER carries the decided kernel half and announces itself on ATREST's and COINCIDE's logs.
+
+**Dispatch, letters and tiers** (logged before any draw):
+- `a-check-offers-no-way-to-add-the-assertion-it-asks-for`: letter H, tier DUAL. It is the architectural pattern every later finding follows, and the minting rule is a soundness claim (an offered assertion quiets its row).
+- `the-viewer-has-one-assertion-tool`: letter M, tier SINGLE, FULL review. It writes claims into the document, and a wrong claim shape fails silently: it would not quiet.
+
+The local disk has 8 GB free and two lane targets are live, so these lanes run as their own cloud sessions.
