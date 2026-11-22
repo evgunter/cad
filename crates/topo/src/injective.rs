@@ -1704,7 +1704,7 @@ fn joints(
     edges: &[usize],
     held: Axis,
 ) -> Vec<(usize, usize, Interval)> {
-    if matches!(surface, Surface::Nurbs(_)) {
+    if matches!(surface, Surface::Nurbs(_)) || std::env::var_os("CV_NOJOIN").is_some() {
         return Vec::new();
     }
     let periodic = periodic(surface, held.other());
