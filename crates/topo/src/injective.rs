@@ -122,7 +122,9 @@ pub(crate) const SELF_INTERSECTION_GRAPH: &str = "self_intersection_graph";
 pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// The funnel site of a plane face's convexity in a cell: how far one
 /// line edge, at its far end or over the cell's reach, stands on another's
-/// face side, metres.
+/// face side, metres. Each reading is a distance from a line along its
+/// unit normal: a corner's far end from the other edge, a cap's line from
+/// the base it caps, the base's points from the cap.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
 /// The funnel site of a vertex at a collapse of its face's chart, a
 /// cone's apex or a sphere's pole: its distance from that point, metres.
@@ -8269,6 +8271,20 @@ mod presentation_rows {
                 "a hole's two sides, {shared:?} shared, are no strip"
             );
         }
+        // Two sides whose face lies above both: the lower one stands off
+        // the upper's face side, so they bound no region between them,
+        // and the rectangle they would cap has no height.
+        let (plane, stacked) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (3, (0.0, -w), (l, -w), [3, 4]),
+        ]);
+        assert!(
+            matches!(
+                present_in(&plane, &stacked, cell, &holding(&[0, 1], &[]), &[0]),
+                Err(Unpresented::Local)
+            ),
+            "a side below the shared one, its face above it, caps nothing"
+        );
         // A slit from the origin along `x`: its two sides meet at its tip.
         let (plane, slit) = segments(&[
             (1, (l, 0.0), (0.0, 0.0), [2, 1]),

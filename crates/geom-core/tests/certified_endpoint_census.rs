@@ -735,21 +735,23 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        184,
-        86,
-        "the 86 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+        183,
+        85,
+        "the 85 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `present_chart` (26), \
-         `present_plane` (18), `present_plane_corner` (7), `present_vertex_corner` (12), \
+         `present_plane` (17), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
-         `is_certified()` and finiteness ask; `present_plane`'s 3 beyond its `y` are a side's \
-         chart range handed to `segment_params` (2) and a corner's far coordinate (1), read \
-         behind the same SPAN and CORNER funnels as its rectangle. `present_chart` asks each clip line where it is placed, so 16 of its \
+         `is_certified()` and finiteness ask; `present_plane`'s 17 are its cell's placement off a \
+         line's face side (3, wholly off, `y` and a corner's `x`); a side's chart range handed \
+         to `segment_params` (3); its rectangle's bounds, the cell's reach and a cap's height \
+         (9), each an enclosure's outer end, so the rectangle holds more of the plane and \
+         never less; and a cap's run along its frame (2), whose two ends decide its direction \
+         behind the cap's own `is_certified()` ask. `present_chart` asks each clip line where it is placed, so 16 of its \
          reads, the touch, reach, merge, rectangle-side and apex reads, see only certified \
          lines; its other 10 read a sphere pole's clip line at `±π/2`, a constant never handed \
          to the ask, so they count as asking only because the census reads a whole function, \
-         and they are sound because the line is exact. `present_plane` asks its one-edge `y`, \
-         and its other reads are behind the SPAN and CORNER funnels. `present_plane_corner` \
+         and they are sound because the line is exact. `present_plane_corner` \
          and `present_vertex_corner` each read the cell's 4 ends behind their `cell` ask; \
          each also reads its arc's parameter span (2), and an upper bound on the chart's speed \
          (1, and 2 in `present_vertex_corner`, one per axis), neither of which the ask covers: \

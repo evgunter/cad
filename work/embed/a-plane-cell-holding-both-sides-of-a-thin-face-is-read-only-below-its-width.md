@@ -131,7 +131,11 @@ whose tip is clear of the cell), and a strip's end (an edge with a
 neighbour at each end). Convexity is decided by the leans alone. Each
 corner in the cell is convex, and each cap and the edge it caps stand
 on each other's face side over the reach, at
-`SELF_INTERSECTION_CORNER`. No edge or vertex but these is near the
+`SELF_INTERSECTION_CORNER`. Each reading decides that convexity before
+it may answer `Vacuous`: a frame's "the cell is off my face side" is
+true only where nothing else in the cell bounds the face (the review of
+PR 7334 found it read first, and a coplanar fold past a slot's far side
+certified). No edge or vertex but these is near the
 cell, so the disk inside the ball meets the boundary only in these
 chords. Loop membership is not read: a rim and a hole's side that face
 each other bound a strip, and two sides of a slot or a hole do not
@@ -184,4 +188,15 @@ and none of the 39 that now hold needed the margin changed.
 
 **Not checked here**: the ten thin curved shoulder and strut rows
 (`wedge_end_doors` and the rest). They are not in the 61.
+
+**Which arm closes the 39.** All 39 still pass with the strip arm off
+(two lines with no common end `Local`, the wedge read off), the end
+arm kept. Every one of them is closed by the end arm. A thin
+rectangle's first split leaves two halves that each hold a whole end.
+And of two plane faces only one need be presented, because the other's
+carrier separates them, so a thin face whose partner reads at its own
+end is never asked across its middle. A body that needs the strip arm
+alone needs two thin faces along one edge, neither with a single-edge
+end in reach. No census test is one, and I did not build one (a
+chamfered hexagon's long side faces still have single-edge ends).
 
