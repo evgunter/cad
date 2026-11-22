@@ -1678,3 +1678,45 @@ fn every_subtract_with_a_moved_operand_names_alike_placed_and_moved() {
         rows.len()
     );
 }
+
+/// Review probe (PR 7421): each moat case's two sides at tier 3′ against
+/// no records, the split's own touches shared by key.
+#[test]
+fn review_probe_moat_sides_pass_tier_3_prime() {
+    let cases: Vec<(&str, Vec<(f64, f64)>, Vec<(f64, f64)>)> = vec![
+        (
+            "walls_at_corners",
+            square(1.5, 2.5),
+            vec![(2.0, 0.0), (4.0, 2.0), (2.0, 4.0), (0.0, 2.0)],
+        ),
+        (
+            "diamond_block_wall",
+            vec![(1.5, 1.0), (2.5, 1.0), (2.5, 2.0), (1.5, 2.0)],
+            vec![(2.0, 0.0), (3.5, 1.5), (2.0, 3.0), (0.5, 1.5)],
+        ),
+    ];
+    let mut bad = Vec::new();
+    for (name, pin, moat) in cases {
+        let (ev, _, sp) = moat_split(pin, moat);
+        assert!(ev.value(sp).is_some(), "{name}: {:?}", ev.node_error(sp));
+        for side in [SplitHalf::Above, SplitHalf::Below] {
+            let body = ev
+                .value(sp)
+                .unwrap()
+                .payload
+                .output_body(side.output_body())
+                .unwrap()
+                .body();
+            let got = topo::validate_pseudomanifold(
+                body,
+                &topo::ContactRecords::default(),
+                Tol::witness(),
+            );
+            eprintln!("PROBE {name} {side:?}: {got:?}");
+            if got.is_err() {
+                bad.push(format!("{name} {side:?}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "sides refusing tier 3′: {bad:?}");
+}
