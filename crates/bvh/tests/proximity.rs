@@ -33,6 +33,10 @@ use bvh::{Aabb, Bvh};
 use geom_core::Point3;
 use proptest::prelude::*;
 
+/// The query site every call in this file marks under.
+const SITE: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("bvh_test", "the test's query");
+
 /// Boxes over a WIDE magnitude range: the generator used to stop at
 /// ±20, which is exactly the band where a squared gap cannot overflow —
 /// so the one arithmetic hazard `separation_lo` has was outside every
@@ -113,7 +117,7 @@ proptest! {
             .filter(|(_, b)| b.separation_lo(&query) <= pad)
             .map(|(i, _)| i)
             .collect();
-        prop_assert_eq!(tree.within(&query, pad), brute);
+        prop_assert_eq!(tree.within(SITE, &query, pad), brute);
     }
 
     /// The lower-bound claim over the WIDE generator: sampling the
@@ -145,7 +149,7 @@ proptest! {
         pad in 0.0..3.0f64,
     ) {
         let (a, b) = (Bvh::build(&left), Bvh::build(&right));
-        let pairs = a.pairs_within(&b, pad);
+        let pairs = a.pairs_within(SITE, &b, pad);
         for (i, x) in left.iter().enumerate() {
             for (j, y) in right.iter().enumerate() {
                 if x.separation_lo(y) <= pad {
@@ -182,12 +186,12 @@ fn the_degenerate_boxes_answer_zero() {
     // pad — the crate's fail-safe direction.
     let far = boxed([99.0, 99.0, 99.0], [100.0, 100.0, 100.0]);
     let tree = Bvh::build(&[Aabb::poison(), unit]);
-    assert_eq!(tree.within(&touching, 0.0), vec![0, 1]);
-    assert_eq!(tree.within(&far, 0.0), vec![0]);
+    assert_eq!(tree.within(SITE, &touching, 0.0), vec![0, 1]);
+    assert_eq!(tree.within(SITE, &far, 0.0), vec![0]);
     // A pad that is not a distance answers everything rather than
     // pruning the tree bare.
-    assert_eq!(tree.within(&far, -1.0), vec![0, 1]);
-    assert_eq!(tree.within(&far, f64::NAN), vec![0, 1]);
+    assert_eq!(tree.within(SITE, &far, -1.0), vec![0, 1]);
+    assert_eq!(tree.within(SITE, &far, f64::NAN), vec![0, 1]);
 }
 
 /// **The bound survives the magnitude range**, which is the case the
@@ -263,7 +267,7 @@ fn an_empty_cloud_is_a_poison_item_not_a_missing_one() {
     let tree = Bvh::build_bounded(clouds, 0.0);
     assert_eq!(tree.len(), 3);
     let far = boxed([100.0, 100.0, 100.0], [101.0, 101.0, 101.0]);
-    assert_eq!(tree.within(&far, 0.0), vec![1], "poison never prunes");
+    assert_eq!(tree.within(SITE, &far, 0.0), vec![1], "poison never prunes");
 }
 
 /// Determinism (D9): the same items build the same tree and answer the
@@ -279,10 +283,10 @@ fn the_proximity_queries_are_deterministic() {
         })
         .collect();
     let tree = Bvh::build(&boxes);
-    let first = tree.pairs_within(&tree, 0.25);
+    let first = tree.pairs_within(SITE, &tree, 0.25);
     for _ in 0..4 {
         let again = Bvh::build(&boxes);
-        assert_eq!(again.pairs_within(&again, 0.25), first);
+        assert_eq!(again.pairs_within(SITE, &again, 0.25), first);
     }
     // The answer carries input indices, not tree shape: over a reversed
     // build every pair comes back with its indices reversed and nothing
@@ -292,5 +296,5 @@ fn the_proximity_queries_are_deterministic() {
     let n = boxes.len() - 1;
     let mut mapped: Vec<(usize, usize)> = first.iter().map(|&(i, j)| (n - i, n - j)).collect();
     mapped.sort_unstable();
-    assert_eq!(rev_tree.pairs_within(&rev_tree, 0.25), mapped);
+    assert_eq!(rev_tree.pairs_within(SITE, &rev_tree, 0.25), mapped);
 }

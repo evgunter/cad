@@ -1603,6 +1603,7 @@ pub use finish::{
     KernelOnly, LeafBody, MoveError, NotFinished, Replay, finish, finish_assembled, session_box_at,
     take,
 };
+pub use geom_brep::curve_face::CrossWhy;
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use mirror::{Reflection, mirror_body};
@@ -1636,7 +1637,7 @@ pub use splitting::{
 pub use transform::{Isometry, TransformError, transform_rigid};
 pub use unresolved::Unresolved;
 pub use validate::{
-    AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
+    AtRestBody, Bar, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, INSIDE_OUT_REFUSAL, OrientationUnread, RingContact, RingPairContact,
     SCAFFOLDING_RECOURSE, SingularityLies, StaleDeclaration, Undecidable, ValidationError,
     WedgeCheck, contact_marks, contact_marks_structural, validate, validate_closed,

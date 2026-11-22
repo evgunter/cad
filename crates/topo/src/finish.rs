@@ -843,7 +843,10 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     /// ([`Self::MOVE_LOGS_ITS_ASK`]).
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         let image = moved_body(self, iso, tol).map_err(MoveError::Map)?;
+        // The image's gate reads its records again; the bar is its
+        // source's, which an isometry does not change.
         T::leaf(Built::of(image).recording(self.records().clone()), tol)
+            .map(|image| image.at_bar(self.bar()))
             .map_err(MoveError::NotFinished)
     }
 }

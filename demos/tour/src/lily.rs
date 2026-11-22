@@ -1453,7 +1453,7 @@ pub const ARCH_R: f64 = 0.052;
 /// shoulder). Two reasons, and the first is a live refusal: the
 /// authoring algebra will not take a leg that departs along its
 /// predecessor's tangent when the departure is spelled in COORDINATES
-/// — `PathError::JunctionTangent`, one recourse named, the structural
+/// — `PathError::JunctionTurnWithinTolerance`, one recourse named, the structural
 /// `.tangent()` verb (pinned by
 /// `review_probes::the_globes_tangent_cone_neck_is_refused_by_the_junction_gate`).
 /// The second is the shape: 70° sits INSIDE the tangent cone, so the

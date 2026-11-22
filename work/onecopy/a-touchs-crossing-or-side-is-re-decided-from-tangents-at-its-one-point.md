@@ -23,3 +23,14 @@ That angle is 0 at the extremum. It grows to about √(2zκ) at the arc's ends, 
 **Done when:** a row injects an off-extremum reported point (an arc end) for each reader above and its verdict is unchanged, and no reader outside `meet` decides crossing-or-touch from tangents at a meeting's point.
 
 **Ev's reservation (PR 6570, 2026-11-16):** "i think this works, then. it still seems like it's not 'sound by construction' / has arbitrariness, but there may not be a solution that handles that better". The arbitrariness is which point of the in-band arc `meet` reports. Under C, no verdict may depend on that choice. When this row lands, check whether any reader still can, and say so in its PR. The aim is that the reported point is arbitrary only where nothing reads it.
+
+## PLANAR waits on this row (2026-11-22)
+
+Ev's plane ruling (PR 7290) adds to C5 *"a meeting says whether it
+crosses or touches"*, which is this row's fix C. PLANAR's
+`the-seg-differential-agrees-with-the-plane-instance` is parked on this
+row, and through it profile validation's move onto the reader: profile
+names a tangential contact apart from a crossing (`NonSimple { Crossing |
+Touch }` against `TangentialContact`) and needs the kind from the
+meeting. The kind on `curve_pair::Meeting` and this row's readers stay
+one change here; PLANAR builds nothing of it.

@@ -9015,6 +9015,12 @@ pub(crate) fn joinable_at_rest_errors<T: geom_core::Decide>(
         .collect()
 }
 
+/// [`ring_pairs`]' query.
+const RING_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "validate_ring_pairs",
+    "the rings whose boxes meet a ring's",
+);
+
 /// The pairs `(i, j)`, `j < i`, of `rings` whose padded certified
 /// boxes meet, ascending in `i` and then `j`: the order a loop over
 /// every pair reads them in, less the pairs the boxes clear (D9).
@@ -9059,7 +9065,7 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
     let tree = bvh::Bvh::build(&boxes);
     let mut pairs = Vec::new();
     for (k, ring_box) in boxes.iter().enumerate() {
-        for m in tree.overlapping(ring_box) {
+        for m in tree.overlapping(RING_PAIRS, ring_box) {
             if m < k {
                 pairs.push((index[k], index[m]));
             }
@@ -10745,6 +10751,27 @@ pub fn validate_pseudomanifold_certificate_structural<
     pseudomanifold_certificate_via(body, contacts, tol, None, None)
 }
 
+/// **The bar a finished body's gate paid on its contact records**
+/// ([`AtRestBody::bar`]; `[topology.tiers]`: a result "names the bar it
+/// paid (tier 3, or 3′) rather than letting one verdict mean both").
+///
+/// No gate yet searches a body for a meeting its records do not state
+/// (`work/heldrecords/the-gate-raises-no-unbacked-meeting-until-the-census-reads-what-doors-build.md`),
+/// so tier 3′ here is tier 3′ over what the body holds and, at a `⊔`,
+/// between its arrivals.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Bar {
+    /// **Tier 3.** The body holds no record the census confirmed
+    /// against a search: either it holds none and nothing was read past
+    /// tier 3, or at least one record it holds is held on its citation
+    /// alone, the census having no lane that reads its pair.
+    Tier3,
+    /// **Tier 3′ over its records.** The census read every record the
+    /// body holds and confirmed each; at a `⊔` of two arrivals or more,
+    /// it also decided every meeting between two arrivals.
+    Tier3Prime,
+}
+
 /// **A finished body at a scalar with certification rights**, and tier
 /// 3's verdict on it kept beside it — so a tier-3′ pass over the same
 /// body pays the census alone — with the certificate its check 7
@@ -10825,6 +10852,7 @@ pub fn validate_pseudomanifold_certificate_structural<
 pub struct AtRestBody<T: crate::props::AtRestPolicy> {
     body: Body<T>,
     records: crate::boolean::ContactRecords,
+    bar: Bar,
     sign: std::sync::Arc<crate::props::KeptSign<T>>,
     held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
@@ -10851,20 +10879,27 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
             geom_core::k_stats::checking(|| validate_geometric_certificate(&body, tol))?
                 .into_parts(),
         );
-        // The records, each confirmed where it lies; any reading of one
-        // that is not its confirmation refuses.
-        let unconfirmed = crate::census::confirm_only(
+        // The records, each read where it lies: one the census read and
+        // did not confirm refuses; one no lane reads is held on its
+        // citation, and the bar says so.
+        let read = crate::census::confirm_only(
             &body,
             &records,
             linear_band(tol)?,
             Some(CertifiedLanes::<T>::held().region),
         );
-        if !unconfirmed.is_empty() {
-            return Err(unconfirmed);
+        if !read.refused.is_empty() {
+            return Err(read.refused);
         }
+        let bar = if records.is_empty() || !read.no_lane.is_empty() {
+            Bar::Tier3
+        } else {
+            Bar::Tier3Prime
+        };
         Ok(Self {
             body,
             records,
+            bar,
             sign,
             held: None,
         })
@@ -10900,10 +10935,22 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
         // What the arrivals carried in, confirmed where the graft put it
         // as a deciding door's gate confirms its own: a record that does
         // not confirm here is the graft's defect, and refuses.
-        let unconfirmed = crate::census::confirm_only(&body, &carried, band, Some(region));
-        if !unconfirmed.is_empty() {
-            return Err(unconfirmed);
+        let read = crate::census::confirm_only(&body, &carried, band, Some(region));
+        if !read.refused.is_empty() {
+            return Err(read.refused);
         }
+        // Tier 3′ where the census confirmed all it carried in and had
+        // two arrivals to decide between, or records to confirm.
+        let joined = arrivals
+            .values()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            >= 2;
+        let bar = if read.no_lane.is_empty() && (joined || !carried.is_empty()) {
+            Bar::Tier3Prime
+        } else {
+            Bar::Tier3
+        };
         let recorded = crate::census::record_at_rest(
             &body,
             &carried,
@@ -10917,6 +10964,7 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
             body: Self {
                 body,
                 records,
+                bar,
                 sign,
                 held: None,
             },
@@ -10932,6 +10980,19 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
     #[must_use]
     pub fn records(&self) -> &crate::boolean::ContactRecords {
         &self.records
+    }
+
+    /// **The bar its gate paid on its records** ([`Bar`]). A move keeps
+    /// it: an isometry changes no reading.
+    #[must_use]
+    pub const fn bar(&self) -> Bar {
+        self.bar
+    }
+
+    /// This body at `bar`: a leaf's image, finished again where it
+    /// stands, keeps the bar its source paid.
+    pub(crate) fn at_bar(self, bar: Bar) -> Self {
+        Self { bar, ..self }
     }
 
     /// **Maps its records' citations**
@@ -10986,6 +11047,7 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         Ok(Self {
             body,
             records: self.records.clone(),
+            bar: self.bar,
             sign: std::sync::Arc::new(self.sign.moved(&iso.to_affine())),
             held: self.held.clone(),
         })
@@ -11081,12 +11143,14 @@ impl<T: crate::props::AtRestPolicy> fmt::Debug for AtRestBody<T> {
         let Self {
             body,
             records,
+            bar,
             sign,
             held,
         } = self;
         f.debug_struct("AtRestBody")
             .field("body", body)
             .field("records", records)
+            .field("bar", bar)
             .field("sign", &sign.of(body))
             .field("held", &held.is_some())
             .finish()
