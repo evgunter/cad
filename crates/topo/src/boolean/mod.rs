@@ -497,7 +497,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_conic_span"
         | "point_in_arc_loop_conic_straddle"
         | "point_in_arc_loop_conic_advance"
-        | "point_in_arc_loop_conic_in_plane"
         | "point_in_arc_loop_spiric_end"
         | "point_in_arc_loop_spiric_clear"
         | "point_in_arc_loop_spiric_on"
@@ -3843,10 +3842,10 @@ pub enum BooleanError {
     /// - **Cone**: not gated up front, as the torus. The germ-pair JOIN
     ///   dispatch — `join::bool_connect`'s match on the two germ faces'
     ///   surfaces — wires only the pairs `meeting_recourse` names: a
-    ///   plane against a plane, cylinder, sphere or cone, and a sphere
-    ///   pair (on its radical plane); a pair the section table carries
-    ///   (two cylinders, a cylinder and a sphere) rides its carried
-    ///   components. Its catch-all raises
+    ///   plane against a plane, cylinder, sphere or cone; a pair the
+    ///   section table carries (two cylinders, a cylinder or a plane
+    ///   and a sphere, two spheres, a plane and a cylinder) rides its
+    ///   carried components. Its catch-all raises
     ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
     ///   and a torus germ the table does not carry lands there too; a
     ///   cone against a curved face refuses one door earlier, at its
@@ -3854,11 +3853,9 @@ pub enum BooleanError {
     ///
     ///   **A wider dispatch sits beside it and must not be confused
     ///   with it.** `join::pair_section_frame` — the pair-general
-    ///   SECTION-FRAME dispatch — additionally names
-    ///   `(Sphere, Sphere)` and `(Cylinder, Cylinder)` (as a proven
-    ///   STRAIGHT locus, or its own pinch door); `(Cylinder, Sphere)` is
-    ///   matched on its section (`boolean::section_table`), not on a
-    ///   frame. But neither a frame nor a section is a join arm: they
+    ///   SECTION-FRAME dispatch — names the plane×torus and plane×cone
+    ///   frames; every pair the section value builds is matched on its
+    ///   section (`boolean::section_table`), not on a frame. But neither a frame nor a section is a join arm: they
     ///   place the germs for the matcher, which is a strictly smaller
     ///   thing than a seam lane, and do not move this refusal.
     ///
@@ -3990,8 +3987,8 @@ pub enum BooleanError {
     /// crossing a face: their spheres touch within the tolerance, the
     /// smaller inside the larger (a decided zero), at a touch the section
     /// certificate does not certify off either face. Whatever the faces
-    /// share lies off every edge, so the join's sphere-pair arm (the
-    /// radical plane, `join::bool_connect`) had no chord to run. Spheres
+    /// share lies off every edge, so the join's carried lane
+    /// (`join::bool_connect`) had no chord to run. Spheres
     /// that cross, in a circle the certificate certifies inside both
     /// faces (its R-loop), are not refused: each sphere is re-cut so an
     /// edge of it reaches the circle (a closed ball re-charted with its

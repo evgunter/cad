@@ -5204,7 +5204,9 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     let resolved = &resolved;
     let chart_stated = StatedChart::of(resolved);
     if let Some(surface) = chart_stated.analytic() {
-        stated_analytic_bound(spec, surface, band, crate::pcurve_cache::limb2_offset_sup)?;
+        stated_analytic_bound(spec, surface, band, |c, w, s, b| {
+            crate::pcurve_cache::limb2_offset_sup(c, w, s, crate::pcurve_cache::Limb2Locus::Face, b)
+        })?;
     }
     if let StatedChart::Bounded { surface, door } = chart_stated {
         let outer = crate::carrier_net::outer_ends((t0, t1));
