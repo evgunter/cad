@@ -137,3 +137,5 @@ The account's Fable limit was exhausted from about 23:35 UTC on 2026-11-15 until
 - 2026-11-22 04:17 UTC: unit `the-axis-mint-asks-for-proof-only-where-the-value-reads-zero` (branch `boxfinish/expression-question`; letter H, tier dual, logged in `work/boxfinish/log.md` first). Implementer draw: byte 131 → Fable. First draw after the Fable limit's reset (rule 12: draws resume).
 
 - 2026-11-22 04:27 UTC: unit `work/sym/the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision` (built by BOXFINISH; branch `boxfinish/decide-path-check`; letter H, tier dual, logged in `work/boxfinish/log.md` first). Implementer draw: byte 126 → Opus.
+
+- 2026-11-22 05:38 UTC: volume-premises unit, PR 7344, frozen head `cb626eafd6` (dual tier M, sequential): FIRST reviewer draw: byte 23 → Fable. The second review, if the first raises a MAJOR, is by the other model on the fix pass's head.
