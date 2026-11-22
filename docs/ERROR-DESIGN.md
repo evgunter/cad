@@ -600,7 +600,10 @@ mass has no valid build" — is not sayable about any macroscopic box.
   definite numeric sign is the answer, and the tier is asked nothing
   about it: no walk runs after it, in any build. Where the tier answers
   `Zero` at an exact witness (`Sym<Interval>`), the certified enclosure
-  must contain 0, asserted in every build: a zero whose number was
+  must contain 0. That is a plain assertion and not a `debug_assert!`,
+  so it runs whatever a profile sets for debug assertions (DESIGN
+  [failure]: a load-bearing check panics in release; the `Zero` is the
+  answer being returned): a zero whose number was
   computed by the operations its expression records cannot sit beside
   an enclosure that excludes 0, so a firing is a defect in the algebra,
   in an enclosure or in a registered identity. The assertion leaves out
