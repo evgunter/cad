@@ -142,7 +142,7 @@ the switch's box arm off, the check after a definite sign removed):**
   127 replays of 1,023. On a two-variable drive, 3 of 15 splits and 23
   replays of 31; on a one-variable drive, nothing.
 - **Most node time is on a result the drive already has.** Tour, time
-  inside node ops (134 s of 215 s of leaf time): 71.1 of 81.4 s of
+  inside node ops: 71.1 of 81.4 s of
   build outside finishes (87%) and 48.0 of 52.6 s of finishes (91%) are
   on a content key already seen. The plate has one key in 1,023
   replays; each hole 127.
@@ -163,8 +163,25 @@ the switch's box arm off, the check after a definite sign removed):**
   result holds a value with no expression. The fix is owed by the
   argument, not by an observed wrong answer.
 
-**Not established:** the 81 s of the tour's leaf time outside node ops
-(the session, the classification, each node's work before its key); the
-certifying tour, since this one refuses at the holes in every replay;
-the store's memory on wide documents; whether a leaf waiting on
-another's entry can stall the thread pool.
+**One key, one refusal (M9, `probe/M9-REPORT.md` at `5dc671ed99`).**
+On the tour each hole's extrude fails under 127 keys in 1,023 runs, and
+every repeat of a key carries a byte-identical refusal (the error value
+with its enclosures and bands, the escalation list) and the same
+symbolic count delta over the node. The same holds of every node that
+builds: one record and one count delta per key. Nothing per-replay
+shows in what the drive receives from a node under one key. No retry
+ran in these drives, so a refusal that depends on a retry cap reached
+earlier in the replay is still untested.
+
+**The time outside node ops is the session's teardown** (M9, one run):
+of 177.6 s of leaf time, node ops are 153.7 s (86.5%) and 23.0 s is the
+symbolic session's teardown per replay (publishing the leaf's forms to
+the drive's memo, the leaf's `frozen` column, dropping its tables);
+everything else is under 1 s. M8's "134 of 215 s" subtracted two
+different runs and is withdrawn. The teardown is paid per replay, so
+the split rule divides it with the replay count.
+
+**Not established:** the certifying tour, since this one refuses at
+the holes in every replay; a drive in which a retry runs; the store's
+memory on wide documents; whether a leaf waiting on another's entry
+can stall the thread pool.
