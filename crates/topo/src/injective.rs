@@ -2294,6 +2294,39 @@ fn convex(b: &Boundary, c: &Clip, d: &Clip) -> bool {
         .all(|v| ok(c, d, v) && ok(d, c, v))
 }
 
+/// MEASUREMENT ONLY: the clips zero_of was handed, and the edges at each
+/// near vertex.
+fn cvz(tag: &str, b: &Boundary, clips: &[Clip], near_edges: &[usize], near_vertices: &[VertexKey]) {
+    if std::env::var_os("CV_TRACE").is_none() {
+        return;
+    }
+    let edge = |i: usize| -> String {
+        let Some(e) = b.edges.get(i) else { return format!("{i}:?") };
+        let uses: Vec<String> = e
+            .uses
+            .iter()
+            .map(|u| match (u.iso, u.image) {
+                (Some(iso), Some([p, q])) => format!(
+                    "iso({:?}@{:.6},full={},{:.6}..{:.6})",
+                    iso.held, iso.at.lo(), iso.full, iso.moving(p).lo(), iso.moving(q).lo()
+                ),
+                (None, Some([p, q])) => format!("curve(({:.6},{:.6})..({:.6},{:.6}))", p.x.lo(), p.y.lo(), q.x.lo(), q.y.lo()),
+                _ => "noimage".to_string(),
+            })
+            .collect();
+        format!("{i}:{:?}[{:?}-{:?}]{}{}", e.key, e.ends[0], e.ends[1], if e.arc.is_none() { "NULL" } else { "" }, uses.join("+"))
+    };
+    let cs: Vec<String> = clips
+        .iter()
+        .map(|c| format!("{:?}@{:.6}{{{}}}{}", c.side, c.at.lo(), c.edges.iter().map(|&i| edge(i)).collect::<Vec<_>>().join(", "), c.collapsed.map_or(String::new(), |v| format!("collapsed {v:?}"))))
+        .collect();
+    let at: Vec<String> = near_vertices
+        .iter()
+        .map(|v| format!("{v:?}: {}", b.edges.iter().enumerate().filter(|(_, e)| e.ends.contains(v)).map(|(i, _)| edge(i)).collect::<Vec<_>>().join(", ")))
+        .collect();
+    eprintln!("CVZ {tag} ne={near_edges:?} nv={near_vertices:?} clips=[{}] at=[{}]", cs.join(" | "), at.join(" | "));
+}
+
 /// The sides of a presentation the separator vanishes on: the clips
 /// whose every edge is shared, a collapsed side at a shared vertex, or
 /// the corner of two clips at a shared vertex.
@@ -2340,6 +2373,9 @@ fn zero_of(
         Some(v) => Along::at(v),
         None => Along::of(surface, b, &c.edges),
     };
+    if !(zeros.len() <= 2 && loose.is_empty()) || (zeros.is_empty() && clips.iter().any(|c| c.edges.iter().any(|e| near_edges.contains(e)))) {
+        cvz(if zeros.is_empty() && loose.is_empty() { "none" } else { "err?" }, b, clips, near_edges, near_vertices);
+    }
     match (zeros.as_slice(), loose.as_slice()) {
         ([], []) => Ok(Zero::None),
         ([c], []) => Ok(Zero::Side(c.side, along(c))),
