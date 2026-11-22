@@ -2,11 +2,13 @@
 id: step-import-discards-the-entity-ids-that-are-its-identity-channel
 kind: issue
 title: step-import decides which surface record a face wears by comparing f64 bits; the file's surface references should decide it, with distinct entities joined only by one_record's reported act and the exporter writing one entity per surface key
-status: open
+status: review
 opened: 2026-09-12
 refs: [2404]
 priority: P1
 cost: H
+branch: export/import-records
+pr: 7361
 ---
 
 

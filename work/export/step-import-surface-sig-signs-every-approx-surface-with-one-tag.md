@@ -2,12 +2,14 @@
 id: step-import-surface-sig-signs-every-approx-surface-with-one-tag
 kind: issue
 title: step-import's surface_sig signs every approximating surface with a bare tag, so a second Approx face in one solid would be glued onto the first's surface
-status: open
+status: review
 opened: 2026-11-17
 priority: P3
 cost: E
 refs: [approx-face-has-no-step-printer]
 rides_with: step-import-discards-the-entity-ids-that-are-its-identity-channel
+branch: export/import-records
+pr: 7361
 ---
 
 
