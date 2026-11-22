@@ -75,13 +75,12 @@
 //! (`work/sectarms/a-chart-limb-1-foot-refuses-a-pose-far-from-the-origin.md`),
 //! each a loud, typed refusal, never a silent miscertification.
 //!
-//! **Why cylinder×sphere first**: both operands' polynomial composites
-//! convert to meters **exactly** (`÷2R`), so limb 2 certified with no
-//! invented scale factor. The torus's composite is quartic, and its
-//! conversion to metres is a per-span lever (C2 limb 2,
-//! `enclose::torus_meters_sup`), which came later; the torus pairs
-//! retired on it, each with its own pose's tangency decision. The
-//! fixture property the spec asks for — a branch naive marching MISSES
+//! **Why cylinder×sphere first**: both operands' composites convert
+//! to metres by a lever with no root in it, so limb 2 certified with no
+//! invented scale factor. The torus's and the cone's conversions are
+//! per-part levers (C2 limb 2, `pcurve_cache::limb2_carrier_read`), and
+//! the pairs on them retire each with its own pose's tangency decision.
+//! The fixture property the spec asks for — a branch naive marching MISSES
 //! — is delivered by an offset cylinder cutting a sphere in two loops of
 //! very different size, of which the small one touches no domain
 //! boundary.

@@ -2647,6 +2647,11 @@ pub(crate) struct OffsetRead<T> {
     /// in metres ([`Offset::Miss`]'s `floor`); `0` where they stopped
     /// on the bound.
     pub(crate) floor: f64,
+    /// Where the reading did not clear the band, on the carrier's
+    /// parameter: the break a miss stopped on, as a point, and every part
+    /// whose bound does not clear. A selection of where a search refines,
+    /// never a decision.
+    pub(crate) uncleared: Vec<crate::ssi::certify::RefusedSpan>,
 }
 
 /// How far above the net's rounding limb 2's bound may lie and still be
@@ -2728,21 +2733,31 @@ pub(crate) fn offset_rounds<T: Decide>(
         round_floored(h.sup, before, h.data.1.rounding, band)
     };
     Ok(match subdivide_until(round, band, floored)? {
-        Subdivided::Bound(hull) => OffsetRead {
-            offset: Offset::Bound(bound(&hull.data.0)?),
-            size: hull.data.1,
-            upper: f64::NAN,
-            floor: 0.0,
-        },
-        Subdivided::Value { hull, floor, .. } => OffsetRead {
-            offset: Offset::Miss {
-                floor: T::from_computed(floor),
-                bound: bound(&hull.data.0),
-            },
-            size: hull.data.1,
-            upper: f64::NAN,
-            floor,
-        },
+        Subdivided::Bound(hull) => {
+            let mut uncleared = Vec::new();
+            hull.uncleared(band, &mut uncleared);
+            OffsetRead {
+                offset: Offset::Bound(bound(&hull.data.0)?),
+                size: hull.data.1,
+                upper: f64::NAN,
+                floor: 0.0,
+                uncleared,
+            }
+        }
+        Subdivided::Value { hull, at, floor } => {
+            let mut uncleared = vec![crate::ssi::certify::RefusedSpan { lo: at, hi: at }];
+            hull.uncleared(band, &mut uncleared);
+            OffsetRead {
+                offset: Offset::Miss {
+                    floor: T::from_computed(floor),
+                    bound: bound(&hull.data.0),
+                },
+                size: hull.data.1,
+                upper: f64::NAN,
+                floor,
+                uncleared,
+            }
+        }
     })
 }
 
@@ -2774,6 +2789,7 @@ pub(crate) fn offset_cleared<T: Decide>(
         size,
         upper: f64::NAN,
         floor: 0.0,
+        uncleared: Vec::new(),
     }))
 }
 

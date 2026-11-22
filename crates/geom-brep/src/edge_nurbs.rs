@@ -2250,6 +2250,7 @@ pub(crate) fn limb2<T: Decide>(
         size,
         upper,
         floor,
+        ..
     } = read.map_err(refused)?;
     let decided = match (T::WITNESS, offset) {
         (geom_core::Witness::Exact, Offset::Bound(_) | Offset::Miss { bound: Ok(_), .. }) => {
