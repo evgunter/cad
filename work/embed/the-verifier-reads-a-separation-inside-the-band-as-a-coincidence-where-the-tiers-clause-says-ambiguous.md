@@ -4,7 +4,7 @@ kind: issue
 title: The embedding verifier answers Crosses for two boundary points a separation inside the band apart, where [topology.tiers] says a reading inside the band refuses as ambiguous
 status: open
 opened: 2026-11-22
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -64,3 +64,39 @@ Nothing here is PR 7334's defect: the verifier is untouched by it. The
 census holds the same shape among its crossings (a seam between faces a
 small dip apart), so the population is larger than this one test; it is
 not counted here.
+
+## 2026-11-22, from PR 7334's review: main's row asserts this body valid
+
+The reviewer reproduced the three bodies through
+`topo::clearance::embedded`: `∩` reads `Crosses` (faces `8v7` and
+`9v3`, 4.78e-10 apart about 1 cm from a 1 mm seam, dihedral 5e-8 rad);
+`−` refuses `Uncertified / Departure` at an edge (`1v1`, `7v3`); `∪` is
+`Embedded`.
+
+**The contact9 row asserts the opposite of the door about `∩`**: its
+`answers` requires `∩` to pass tier 3 with exactly those corners, and
+its doc says the seam "rests as their `Intersection`". So a body main's
+suite asserts valid at tier 3 is rejected by the embedding question.
+The reviewer: "a conflict between tier 3 and the door, uncovered by
+this PR and not caused by it. It needs a ruling before the gate lands;
+I would not merge the gate with it open."
+
+**What `[topology.tiers]` already says of it.** The finished-body
+clause does not admit this body: where faces meet, "the local reading
+(how the faces leave their shared edge or vertex …) passes by more
+than the band", and that reading is the edge's wedge levered at the
+faces' reach. Two faces leaving a 1 mm seam at 5e-8 rad are within ε of
+each other out to about 2 cm. So the body is not a finished body under
+the clause as it stands; what tier 3 passes today is short of the
+clause (its check 4 reads the wedge at stations; `embed/remeter`'s
+filed RESTFRONT row is that difference), and the test's assertion is
+about tier 3 as it is, not about the clause.
+
+So two things, neither a new decision:
+- **For the gate's landing** (`embed/gate`): this test's `∩` is a body
+  the gate rejects. It is pinned as what the gate reads, with this row
+  named, not left as a failing test.
+- **The open question stays the text**: `Crosses` against "ambiguous",
+  as above.
+
+Band raised to P1 because the gate's landing meets it.
