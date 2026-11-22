@@ -410,7 +410,7 @@ pub(crate) fn outer_bounds<T: Real>(f: FaceView<'_, T>) -> bool {
 /// its carrier's region where that is bounded; where it is not (a plane,
 /// a cylinder, a cone), in the region its boundary bounds on that carrier
 /// ([`Surface::face_region`]: the boundary's convex hull, with a cone's
-/// apex). `bounded` is whether its outer loop is a cycle
+/// apex). `outer_cycle` is whether its outer loop is a cycle
 /// ([`outer_bounds`]); a lone-vertex loop bounds no hull. It reads no
 /// decision.
 ///
@@ -420,11 +420,11 @@ pub(crate) fn outer_bounds<T: Real>(f: FaceView<'_, T>) -> bool {
 /// region, with the boundary's.
 pub(crate) fn face_cover_unproven<T: Decide>(
     surface: &Surface<T>,
-    bounded: bool,
+    outer_cycle: bool,
     boundary: impl FnOnce() -> BoundaryCovered<T>,
 ) -> FaceCovered<T> {
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
-    if !bounded {
+    if !outer_cycle {
         return carrier;
     }
     carrier.or_else(|mut why| match boundary() {
