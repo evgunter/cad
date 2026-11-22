@@ -2680,7 +2680,7 @@ pub enum EditError {
     /// order its lattice of verbs refuses
     /// ([`crate::ProfilePayload::lattice`]), or, for a `SetProgram`
     /// whose names spell a kept step's piece, a program whose pieces
-    /// cannot be named ([`crate::ProfilePayload::drawable_pieces`]). No
+    /// cannot be named ([`crate::ProfilePayload::partition`]). No
     /// value is read (`[recipe.doors]`): a program whose values refuse
     /// is admitted and refused typed at evaluation.
     ProfileProgramRefused {
@@ -5413,6 +5413,37 @@ pub enum Maintenance {
 }
 
 impl Maintenance {
+    /// **The name this row reports stranded, with what holds it**, or
+    /// `None` for a row about anything else: the one answer to which
+    /// rows are a name the document keeps whose referent an edit took
+    /// (DM7), one variant of [`NameCarrier`] per arm that is.
+    ///
+    /// Two rows of one action can answer the same carrier and name — a
+    /// re-point that takes the minting node out of reach and a delete
+    /// of that node each report it — so a caller counting the names an
+    /// action stranded counts the distinct answers.
+    pub fn stranded_name(&self) -> Option<NameCarrier<'_>> {
+        match self {
+            Self::Strand { node, name, .. } => Some(NameCarrier::Payload {
+                node: node.id(),
+                name: name.name(),
+            }),
+            Self::StrandedSelection { var, name, .. } => Some(NameCarrier::Select {
+                var: var.id(),
+                name: name.name(),
+            }),
+            Self::StrandedAppearance { body, name, .. } => Some(NameCarrier::Store {
+                body: body.id(),
+                name: name.name(),
+            }),
+            Self::StrandedRead { .. }
+            | Self::StrandedSpace { .. }
+            | Self::ProductOutsideWorld { .. }
+            | Self::ValueDropped { .. }
+            | Self::AnonymousVarRemoved { .. } => None,
+        }
+    }
+
     /// **A retirement nothing a reader of the document is shown went
     /// with**: an anonymous variable that carried no tolerance. Its
     /// removal is what rewriting or deleting the slot it was written at
@@ -5526,8 +5557,10 @@ impl core::fmt::Display for ValuesDropped<'_> {
 /// **What an edit took from a name it stranded** ([`Maintenance::Strand`],
 /// [`Maintenance::StrandedAppearance`]), said in the row: the node that
 /// minted it (a delete), a profile step it names (a reshaping that
-/// dropped the step), or a piece a kept step stopped drawing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// dropped the step), or a piece, a run or a corner of kept steps a
+/// reshaping stopped drawing. Ordered as a reshaping ranks what it
+/// took from one name: a piece over its run, a run over its corner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Took {
     /// The node that minted the name was deleted.
     Node,
@@ -5535,6 +5568,12 @@ pub enum Took {
     Step,
     /// A step the name names was kept and no longer draws its piece.
     Piece,
+    /// The pieces the name names were kept and drawn, and the run of
+    /// them it names was joined into a longer one or broken.
+    Run,
+    /// The pieces the name names were kept and drawn, and the corner it
+    /// names became a station inside a run.
+    Corner,
     /// A read was re-pointed, and the node that minted the name is no
     /// longer upstream of the node that carries it.
     Reach,
@@ -5562,6 +5601,13 @@ impl Took {
                     Took::Piece => {
                         f.write_str("kept a step it names but no longer draws that piece")
                     }
+                    Took::Run => {
+                        f.write_str("kept the pieces it names but joined or broke their run")
+                    }
+                    Took::Corner => f.write_str(
+                        "kept the pieces it names but continued one into the other at the \
+                         corner it names",
+                    ),
                     Took::Reach => write!(
                         f,
                         "re-pointed a read past {}, which minted the name",
@@ -5842,25 +5888,64 @@ fn settle_step_ids(
     Ok((minted, dropped))
 }
 
-/// **The pieces of kept steps a `SetProgram` stops drawing**, among
-/// those a name in `doc` spells ([`StableName::step_pieces`]): a piece
-/// `old`'s structure can draw and `new`'s cannot, as
-/// [`crate::ProfilePayload::drawable_pieces`] answers from each program
-/// alone (REFERENCES.md DM7). A kept step's piece goes undrawable when
-/// another piece takes its segment by construction (N1, "Undrawn pieces
-/// vanish rather than alias") — a fillet inserted before its leg — or a
-/// `circle_split` count drops it. A piece a value leaves undrawn (a run
-/// that fits `Zero`) is no removal: no value is read, so the same
-/// values written by any door report the same.
-fn undrawn_kept_pieces<P: crate::ProfilePayload>(
+/// **What a `SetProgram` changed of the partition its node's program
+/// draws** (REFERENCES.md DM7): the steps it kept, and the partition
+/// the old and the new program's structure each draw at generic
+/// values ([`crate::ProfilePayload::partition`]), read off each program
+/// alone. No value is read, so the same values written by any door
+/// report the same.
+struct Reshaped {
+    kept: std::collections::BTreeSet<StepId>,
+    before: crate::ProfilePartition,
+    after: crate::ProfilePartition,
+}
+
+impl Reshaped {
+    /// **What the reshaping took from `name`**, judged whole: each
+    /// referent it spells on kept steps ([`StableName::referents`])
+    /// that the old partition holds and the new one does not. A piece
+    /// the new structure stops drawing, which another piece took by
+    /// construction (N1, "Undrawn pieces vanish rather than alias") or
+    /// a `circle_split` count dropped, is [`Took::Piece`]; a run it
+    /// joined or broke with every piece still drawn, [`Took::Run`]; a
+    /// corner it made a station inside a run, [`Took::Corner`]. `None`
+    /// where it took nothing: what the name denotes is still drawn,
+    /// or never was in the old partition.
+    fn took(&self, name: &StableName) -> Option<Took> {
+        name.referents()
+            .into_iter()
+            .filter(|r| {
+                r.pieces()
+                    .iter()
+                    .all(|p| p.step().is_some_and(|s| self.kept.contains(&s)))
+            })
+            .filter(|r| self.before.denotes(r) && !self.after.denotes(r))
+            .map(|r| {
+                if r.pieces().iter().any(|p| !self.after.pieces().contains(p)) {
+                    Took::Piece
+                } else if matches!(r, crate::names::Referent::Wall(_)) {
+                    Took::Run
+                } else {
+                    Took::Corner
+                }
+            })
+            .min()
+    }
+}
+
+/// **The partitions a `SetProgram` from `old` to `new` compares**
+/// ([`Reshaped`]), `None` where no name in `doc` spells a piece of a
+/// step it keeps ([`StableName::step_pieces`]), so nothing kept can be
+/// taken.
+fn reshaped<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     node: RecipeNodeId,
     old: &P,
     new: &P,
     dropped: &std::collections::BTreeSet<StepId>,
-) -> Result<std::collections::BTreeSet<ProfileEdgeRef>, EditError> {
+) -> Result<Option<Reshaped>, EditError> {
     let Some(ids) = old.step_ids() else {
-        return Ok(std::collections::BTreeSet::new());
+        return Ok(None);
     };
     let kept: std::collections::BTreeSet<StepId> = ids
         .iter()
@@ -5868,30 +5953,28 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
         .filter(|s| !dropped.contains(s))
         .copied()
         .collect();
-    let named: std::collections::BTreeSet<ProfileEdgeRef> = doc
+    let named = doc
         .name_carriers()
         .flat_map(|c| c.name().step_pieces())
-        .filter(|p| p.step().is_some_and(|s| kept.contains(&s)))
-        .collect();
-    if named.is_empty() {
-        return Ok(named);
+        .any(|p| p.step().is_some_and(|s| kept.contains(&s)));
+    if !named {
+        return Ok(None);
     }
     let refused = |refusal| EditError::ProfileProgramRefused {
         node: doc.spoken(node),
         refusal: Box::new(refusal),
     };
-    let before = old.drawable_pieces().map_err(refused)?;
-    let after = new.drawable_pieces().map_err(refused)?;
-    Ok(named
-        .into_iter()
-        .filter(|p| before.contains(p) && !after.contains(p))
-        .collect())
+    Ok(Some(Reshaped {
+        kept,
+        before: old.partition().map_err(refused)?,
+        after: new.partition().map_err(refused)?,
+    }))
 }
 
 /// **The names a `SetProgram` stranded**: every carried name that
 /// spells a piece of a step the reshaping dropped
-/// (`StableName::spelled_outside`), or a kept step's piece it stopped
-/// drawing (`undrawn`, [`undrawn_kept_pieces`]) —
+/// (`StableName::spelled_outside`), or denotes a piece, a run or a
+/// corner of kept steps it took ([`Reshaped::took`]) —
 /// [`Maintenance::Strand`] on its carrying node,
 /// [`Maintenance::StrandedAppearance`] on a store key, in that order.
 /// Nothing is rewritten: the name keeps its spelling and resolves
@@ -5903,9 +5986,9 @@ fn stranded_steps<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
     dropped: &std::collections::BTreeSet<StepId>,
-    undrawn: &std::collections::BTreeSet<ProfileEdgeRef>,
+    reshaped: Option<&Reshaped>,
 ) -> Vec<Maintenance> {
-    if dropped.is_empty() && undrawn.is_empty() {
+    if dropped.is_empty() && reshaped.is_none() {
         return Vec::new();
     }
     let mut strands = Vec::new();
@@ -5915,14 +5998,15 @@ fn stranded_steps<P: crate::ProfilePayload>(
         if matches!(carrier, NameCarrier::Select { var, .. } if goes.contains(&var)) {
             continue;
         }
-        let pieces = carrier.name().step_pieces();
-        let took = if pieces
+        let took = if carrier
+            .name()
+            .step_pieces()
             .iter()
             .any(|p| p.step().is_some_and(|s| dropped.contains(&s)))
         {
             Took::Step
-        } else if pieces.iter().any(|p| undrawn.contains(p)) {
-            Took::Piece
+        } else if let Some(took) = reshaped.and_then(|r| r.took(carrier.name())) {
+            took
         } else {
             continue;
         };
@@ -6063,9 +6147,12 @@ pub struct Applied<P> {
 ///   repairs exactly this), strands nothing.
 /// - A [`Maintenance::StrandedAppearance`] survives when the store
 ///   still holds its key.
-/// - A strand of a piece a kept step stopped drawing ([`Took::Piece`])
-///   survives only while the end document's structure still cannot draw
-///   it: a later reshaping that draws it again takes the strand back.
+/// - A strand of what a reshaping took from kept steps
+///   ([`Took::Piece`], [`Took::Run`], [`Took::Corner`]) survives only
+///   where the start document's structure draws what the name denotes
+///   and the end document's does not: a later reshaping that draws it
+///   again takes the strand back, and a name that denoted something
+///   only between two edits of the action strands nothing.
 /// - A [`Maintenance::StrandedRead`] survives when its reader is live at
 ///   the end and its operand still reads the removed output: a later
 ///   edit that deleted the reader or re-pointed the operand took it
@@ -6091,16 +6178,22 @@ impl MaintenanceNet {
         self.rows.extend(edit.maintenance.iter().cloned());
     }
 
-    /// The rows that survive, against `end` — the document the last
-    /// pushed edit produced.
-    pub fn finish<P: crate::ProfilePayload>(self, end: &Doc<P>) -> Vec<Maintenance> {
+    /// The rows that survive, against `start` — the document the first
+    /// pushed edit was applied to — and `end`, the one the last
+    /// produced.
+    pub fn finish<P: crate::ProfilePayload>(
+        self,
+        start: &Doc<P>,
+        end: &Doc<P>,
+    ) -> Vec<Maintenance> {
         self.rows
             .into_iter()
             .filter(|row| match row {
                 Maintenance::Strand { took, name, .. }
                 | Maintenance::StrandedSelection { took, name, .. }
                 | Maintenance::StrandedAppearance { took, name, .. }
-                    if *took == Took::Piece && drawable_again(end, name.name()) =>
+                    if matches!(took, Took::Piece | Took::Run | Took::Corner)
+                        && (drawn(end, name.name()) || !drawn(start, name.name())) =>
                 {
                     false
                 }
@@ -6131,27 +6224,29 @@ impl MaintenanceNet {
     }
 }
 
-/// **Whether every kept-step piece `name` spells is one `end`'s
-/// structure can draw again**: each piece's step is held by a profile
-/// of `end` whose program can draw it
-/// ([`crate::ProfilePayload::drawable_pieces`]). What a
-/// [`Took::Piece`] strand was about came back when this holds; no value
-/// is read, so a value that leaves the piece undrawn does not keep the
-/// strand.
-fn drawable_again<P: crate::ProfilePayload>(end: &Doc<P>, name: &StableName) -> bool {
-    let pieces = name.step_pieces();
-    !pieces.is_empty()
-        && pieces.iter().all(|piece| {
-            end.nodes.values().any(|node| {
+/// **Whether `doc`'s structure draws everything `name` denotes of a
+/// profile** ([`StableName::referents`]): each referent's steps are
+/// held by a profile of `doc` whose partition holds it
+/// ([`crate::ProfilePayload::partition`]). No value is read, so a value
+/// that leaves a piece undrawn neither keeps a strand nor takes one
+/// back.
+fn drawn<P: crate::ProfilePayload>(doc: &Doc<P>, name: &StableName) -> bool {
+    let referents = name.referents();
+    !referents.is_empty()
+        && referents.iter().all(|referent| {
+            doc.nodes.values().any(|node| {
                 let Node::Profile(program) = node else {
                     return false;
                 };
-                program
-                    .step_ids()
-                    .is_some_and(|ids| ids.iter().flatten().any(|id| Some(*id) == piece.step()))
+                let holds = |piece: &ProfileEdgeRef| {
+                    program
+                        .step_ids()
+                        .is_some_and(|ids| ids.iter().flatten().any(|id| Some(*id) == piece.step()))
+                };
+                referent.pieces().iter().all(holds)
                     && program
-                        .drawable_pieces()
-                        .is_ok_and(|drawable| drawable.contains(piece))
+                        .partition()
+                        .is_ok_and(|partition| partition.denotes(referent))
             })
         })
 }
@@ -6369,7 +6464,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         }
         // A variable the action minted and removed again was never the
         // document's: its removal is no maintenance of the action's.
-        let mut maintenance = self.maintenance.finish(&doc);
+        let mut maintenance = self.maintenance.finish(self.start, &doc);
         maintenance.retain(|row| match row {
             Maintenance::AnonymousVarRemoved { var, .. } => self.start.var(var.id()).is_some(),
             _ => true,
@@ -8893,11 +8988,11 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     node: doc.spoken(*node),
                     refusal: Box::new(refusal),
                 })?;
-            let undrawn = undrawn_kept_pieces(doc, *node, payload, rewritten, &dropped)?;
+            let reshaped = reshaped(doc, *node, payload, rewritten, &dropped)?;
             new.nodes.insert(*node, probe);
             new.mint = mint;
             let fresh = lowering.finish(new)?;
-            *reported = stranded_steps(doc, new, &dropped, &undrawn);
+            *reported = stranded_steps(doc, new, &dropped, reshaped.as_ref());
             // Structural whatever moved: the edit's class is a
             // rewrite of program structure — verbs, order, count —
             // and the record classifies the edit, as
