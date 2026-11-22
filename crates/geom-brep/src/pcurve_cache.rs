@@ -17023,7 +17023,13 @@ mod limb2_memo_rows {
         let parts = |n: &NurbsCurve3<Interval>| {
             format!(
                 "{:?}",
-                twin_span_hulls(n, &wall, None, Parts::Each(4), &[0.5])
+                twin_span_hulls(
+                    n,
+                    &wall,
+                    super::projected::Locus::Carrier,
+                    Parts::Each(4),
+                    &[0.5]
+                )
             )
         };
         let first = parts(&base(&Interval::from_f64));

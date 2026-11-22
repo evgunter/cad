@@ -2086,7 +2086,7 @@ fn each_conversion_reads_its_stated_floors() {
     let (inc, floor) = net_incidence(
         &hull(1.0, (0.5, 2.0)),
         (0.0, 1.0),
-        Some(crate::Nappe::Opening),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Opening),
         &cone,
         d,
         b,
@@ -2101,7 +2101,7 @@ fn each_conversion_reads_its_stated_floors() {
     let mirror = net_incidence(
         &hull(0.1, (0.5, 2.0)),
         (0.0, 1.0),
-        Some(crate::Nappe::Mirror),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Mirror),
         &cone,
         d,
         b,
@@ -2146,9 +2146,16 @@ fn each_conversion_reads_its_stated_floors() {
             },
         ),
     ] {
-        let (inc, floor) =
-            net_incidence(&hull(rho, (0.0, 0.0)), (0.0, 1.0), None, &surf, d, b, false)
-                .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
+        let (inc, floor) = net_incidence(
+            &hull(rho, (0.0, 0.0)),
+            (0.0, 1.0),
+            crate::pcurve_cache::projected::Locus::Carrier,
+            &surf,
+            d,
+            b,
+            false,
+        )
+        .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
         assert!(close(inc, want), "{surf:?}: {inc:e} against {want:e}");
         assert!(close(floor, rho - d), "{surf:?}: floor {floor}");
     }
@@ -2157,7 +2164,7 @@ fn each_conversion_reads_its_stated_floors() {
     let got = net_incidence(
         &uncertified,
         (0.0, 1.0),
-        Some(crate::Nappe::Opening),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Opening),
         &cone,
         d,
         b,

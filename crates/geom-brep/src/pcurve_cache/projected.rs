@@ -3798,7 +3798,7 @@ mod tests {
             let (incidence, floor) = net_incidence(
                 &hull,
                 (S::zero(), S::one()),
-                None,
+                Locus::Carrier,
                 &plane,
                 S::from_f64(0.25),
                 band,

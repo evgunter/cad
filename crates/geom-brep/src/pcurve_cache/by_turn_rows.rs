@@ -362,7 +362,8 @@ fn a_short_span_on_a_cone_or_a_torus_decides_at_the_first_reading() {
 fn a_chord_of_short_spans_reads_one_part_a_span() {
     let (c, s) = (chord(40), cylinder());
     let (net, twin, _) = twin_net(&c, &s);
-    let parts = twin_span_hulls(&net, &twin, None, Parts::ByTurn, &[]).unwrap();
+    let parts =
+        twin_span_hulls(&net, &twin, projected::Locus::Carrier, Parts::ByTurn, &[]).unwrap();
     assert_eq!(parts.len(), 40, "one part a span");
     let one = widest(&c, &s, Parts::ByTurn);
     let band = Band::new(4.0 * one, 40.0 * one).unwrap();
