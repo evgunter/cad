@@ -10737,9 +10737,11 @@ mod presentation_rows {
     /// origin kept bit for bit, and the origin an ulp off, are not one
     /// circle; with `u.z` two ulps off, the two lifted `w` are disjoint
     /// enclosures, two planes for certain, which comparing the origin and
-    /// `w` alone reads as one. Not one circle where only the lifts are
-    /// held. Red if any one of the comparisons is dropped, or the stored
-    /// carriers are not read.
+    /// `w` alone reads as one; another radius is another circle. Not one
+    /// circle where only the lifts are held. Two exactly rigid frames with
+    /// one axis and two `u`, whose lifts are points, are one circle by
+    /// their lifts. Red if any one of the comparisons is dropped, or
+    /// either reading is not read.
     #[test]
     fn two_stored_circles_are_one_only_with_every_axis_one_up_to_its_sign() {
         let o = Point3::new(0.299_999_999_999_999_9, -1.1, 2.9);
@@ -10813,6 +10815,28 @@ mod presentation_rows {
         ] {
             assert!(!one_conic(&a, &other), "{what} is another circle");
         }
+        let wider = Rim {
+            stated: Some(Curve3::Circle(geom::Circle::new(frame(o, u, -v, -w), 2.0))),
+            arc: Some((
+                Curve3::Circle(geom::Circle::new(frame(o, u, -v, -w), 2.0))
+                    .map_scalar(Interval::from_f64),
+                (iv0(0.0), iv0(1.0)),
+            )),
+            ..b.clone()
+        };
+        assert!(!one_conic(&a, &wider), "another radius is another circle");
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        assert!(
+            one_conic(
+                &rim(frame(o, x, y, z), true),
+                &rim(frame(o, y, Vec3::new(-1.0, 0.0, 0.0), z), true)
+            ),
+            "exactly rigid frames with one axis and two u are one circle, by their lifts"
+        );
     }
 
     /// **A plane through a line edge answers nothing at a shared vertex
