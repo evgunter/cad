@@ -42,3 +42,15 @@
   - poses that turn the elbow back into the pipe, where the departures are `Same` and the overlap is real.
 
   **Class, filed via the lane:** `second_order_walk` returns `InBand` on a decided-π seam whose description choice is undecided (P2). **Tier upgraded to dual** (two Opus): the glue door's semantics are broad and hard to change later. (HELDRECORDS orchestrator)
+- 2026-11-22 — **The elbow lane's probes (19:46Z): routing first is small, and behind it the crossing layer is the real wall.**
+  - **Routing first:** it exposes `route_rim`'s Transverse arm (a wall against the other body's coplanar cap, at 90°), which must mean "not glued". With that, the extrude still builds, at its closed form, passing t3 and t3′.
+  - **The crossing layer, both ways:** the pipe's straight seam ruling ends on the rim, tangent to the torus there (a double root at the end; `wall_crossing` comes back Unsettled), and the elbow's sweep arcs graze the cylinder in band.
+  - **Behind both:** the seam edges come out with the stand-in description, which is the ruling's risk 1.
+  - **Poses:** 4 of the 8 turn inward (a real overlap).
+
+  **Sequencing (mine):** a stack of PRs, not one.
+  1. The glue door: dual review, landing ahead of the rest.
+  2. The crossing layer's reading of an edge that ends on a glued junction, **design first**. The junction supplies the end root and the side the edge leaves on; the rest of the span is certified with that root factored out; the root's multiplicity at the neutral points is the open part.
+  3. The seam edge's description.
+
+  The inward poses are pinned as refusing typed, and their overlap build is filed on the overlap lanes' owner. Alternative not taken: land (1) alone and file (2)–(4). The P0 is "the elbow unions", so the program keeps it. (HELDRECORDS orchestrator)
