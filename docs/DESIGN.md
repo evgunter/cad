@@ -1231,6 +1231,13 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    quieted by an assertion that the gap is zero at the site: the equivalence with a natively built twin whose parts
    touch by value.
 
+**Records follow the file.** A surface entity the file states is one
+surface record, worn by every face of one shell that cites it; two
+entities are two records unless healing's reported one-record act joins
+them (step 3); each face is certified against its record; and the writer
+emits one surface entity per surface record. No comparison of printed
+values decides which record a face wears.
+
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
 *input tolerance* ε_in — defaulted from the STEP file's declared
 `uncertainty_measure_with_unit`, overridable per call. **ε_in governs
@@ -1547,10 +1554,15 @@ is the face's outward normal, and its x and origin are the space's
 under the orientation the gesture writes nearest the face, carried
 onto the face by the least turn, then turned by the written spin and
 moved by the two written slides ([placement.values]). The frame alone
-decides nothing: what stands in it (the profile's own loops, each
-sweep of the profile, and the faces the profile traces) is carried by
-the placement's own fold over its own reach, as a placement's copy is, and within the band about
-the orientation's pole it refuses, naming the orientation to write. Nothing about the face's cells chooses it:
+decides nothing: each use of its turn is decided by the placement's own
+fold over the points the turn is used at, as a placement's copy is (the
+profile's own loops, and each sweep of the profile over its body), and
+within the band about the orientation's pole it refuses, naming the
+orientation to write. A trace uses the turn only at the crossing a piece
+takes, which is a point of the loops: it reads the traced face, which
+the turn never moves (as a placement never moves its mate's target),
+through the turn once that turn's pole is decided, and decides nothing
+past that crossing. Nothing about the face's cells chooses it:
 a sketch that should sit at a corner says so in its slides. The sketch
 may trace faces of that space ("Constructing a coincidence"): a profile
 on a face is one act whether or not it traces, and a sweep of it is
@@ -2449,9 +2461,14 @@ these. All are shipped in `editor-core` except where noted:
   node id to label beside the node, never inside it, so it is in
   neither the id's mint nor any content key. One edit sets or clears
   it; it is not unique and never identity (references hold ids, and
-  nothing resolves a label). Kernel sentences speak a node as its
-  kind, label and tag, `Extrude "base plate" (3fa9c1d2a0b1)`, or kind
-  and tag when it has none. A spoken label is never one its value can
+  nothing resolves a label). A node is spoken as its label and tag,
+  `"base plate" (3fa9c1d2a0b1)`, or as its kind and tag when it has no
+  label, `Extrude 3fa9c1d2a0b1`: the label and the tag already say
+  which node, so the kind is not repeated. A sentence carries each node
+  it names as a mention (its id, kind and label, and the document its
+  id is spelled in) rather than as text, so the viewer draws it as a
+  link to the node when the document on screen is the mention's. A
+  spoken label is never one its value can
   outlive: a value the evaluation memo reuses holds a label only when
   its memo key fixes that label. A document's own labels are outside
   its evaluation key (a rename re-evaluates nothing), so what it

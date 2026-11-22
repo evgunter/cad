@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-22
 priority: P4
 cost: E
+refs: [the-certified-range-refines-away-from-the-current-value]
 ---
 
 Found by OFFER's designers (2026-11-22, while weighing `work/offer/certify-affordance-on-the-bounds-panel`).
