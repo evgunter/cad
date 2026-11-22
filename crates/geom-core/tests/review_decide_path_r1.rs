@@ -314,3 +314,39 @@ fn p11_a_doors_zero_whose_enclosure_excludes_zero_panics() {
         decide((lo - hi) * <Sym<Interval> as Real>::from_f64(1.0e-10))
     });
 }
+
+/// The planted breach of `a_proven_zero_whose_enclosure_excludes_zero_panics`
+/// at ANOTHER exact witness, `Sym<Dual<Interval>>`: the value channel
+/// has no `enclosure_probe` there, so is the zero checked?
+#[test]
+fn p12_the_breach_at_sym_dual_interval() {
+    type D = geom_core::Dual<Interval>;
+    let x = |v: f64| -> Sym<D> {
+        Sym::param(
+            ParamSymbol::new(test_utils::symbol_id("x")),
+            D::constant(Interval::from_bounds(v, v)),
+        )
+    };
+    let got = std::panic::catch_unwind(|| {
+        with_session_rules(budget(), SymRules::shipped(), || {
+            geom_core::k_stats::decide_reported(
+                "review_decide_path",
+                Margin::of(x(1.0) - x(1.0 + 5.0e-10)),
+                band(),
+            )
+            .map(|d| (d.sign, d.margin.proven()))
+            .map_err(|_| ())
+        })
+        .0
+    })
+    .map_err(|_| "panicked");
+    println!(
+        "p12: exact witness {} -> {got:?}",
+        matches!(<Sym<D> as Real>::WITNESS, geom_core::Witness::Exact)
+    );
+    assert_eq!(
+        got,
+        Ok(Ok((Sign::Zero, true))),
+        "a proven zero over an enclosure excluding 0, unchecked at this exact scalar"
+    );
+}
