@@ -566,3 +566,8 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
     - ONEHOME told to re-weigh the level-root row.
   - The sphere offer row rides SCALAR's PR 7267.
   - STYLE single review, Opus; no model-compare row (Fable outage).
+- 2026-11-22 — PR 7383 merged. Three rows landed on GREEN's slate from other programs, and all are dispatched (Opus, CI-first):
+  - **U8 `green/seamless-pipe`**: the P0 topo 1e-12 red. Letter M, FULL single.
+  - **U9 `green/held-reds`**: the P0 list of reds held by closed rows or none, including the unheld editor-core kite-moats row. Letter M, STYLE single.
+  - **U10 `green/fast-set-margin`**: every fast-set test at a hosted p90 of 0.5 s or more moves to the slow set, applying discipline §2's rule as written; only the list changes. Letter S, STYLE single.
+- The bar's *policy* is a design question (`design: true`): what it measures, what a breach does on a PR it does not touch, and who owns a test that drifts. Two Opus designers are weighing it (Ev: Fable out, no experiment row). Their reports decide whether this needs an `[ev]` PR.
