@@ -526,7 +526,7 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
         winding: side.winding(),
         arc: geom_core::Arc2 {
             centre,
-            radius: r.abs(),
+            radius: r,
             sweep: four * (signed / four).tan().atan(),
         },
         end_dir,

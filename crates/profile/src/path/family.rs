@@ -738,7 +738,7 @@ fn radius_complete<T: geom_core::Decide>(
             winding,
             through: None,
         },
-        Some(spec.r.abs()),
+        Some(spec.r),
         tol,
     )
 }
@@ -1326,7 +1326,7 @@ impl<T: ArcCarrierScalar> LegEndIncoming<T> for Center<T, Point2<T>> {
 impl<T: ArcCarrierScalar> LegEndIncoming<T> for Radius<T> {
     fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
         let (centre, winding) = verbs::radius_carrier(dp, *self, linear_band(tol)?)?;
-        Ok(FusedIncoming::FromTip(centre, winding, self.r.abs()))
+        Ok(FusedIncoming::FromTip(centre, winding, self.r))
     }
     fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         ArcData::Radius {

@@ -1556,6 +1556,31 @@ fn arc_verb_loop<T: Decide>(verb: &str, q: T) -> ProfileLoop<T> {
             .unwrap()
             .loop_
             .into_loop(),
+        "sweep" | "sweep cw" => {
+            let side = if verb == "sweep" {
+                profile::ArcSide::Left
+            } else {
+                profile::ArcSide::Right
+            };
+            Open.at(p(0.0, 0.0))
+                .angle(l(0.0), t)
+                .unwrap()
+                .arc_to(
+                    profile::Sweep {
+                        r: q,
+                        side,
+                        angle: l(core::f64::consts::FRAC_PI_2),
+                    },
+                    t,
+                )
+                .unwrap()
+                .line_to(p(-1.0, if verb == "sweep" { 3.0 } else { -3.0 }), t)
+                .unwrap()
+                .line_to(Start, t)
+                .unwrap()
+                .loop_
+                .into_loop()
+        }
         "fillet" => {
             let (east, north) = (0.0_f64, core::f64::consts::FRAC_PI_2);
             let (west, south) = (core::f64::consts::PI, -north);
@@ -1592,7 +1617,7 @@ fn arc_verb_loop<T: Decide>(verb: &str, q: T) -> ProfileLoop<T> {
 }
 
 /// Each arc verb with the box its defining quantity ranges over.
-const ARC_VERBS: [(&str, f64, f64); 10] = [
+const ARC_VERBS: [(&str, f64, f64); 12] = [
     ("circle", 0.05, 0.005),
     ("split circle", 0.4, 0.04),
     ("bulge", 0.4, 0.05),
@@ -1602,13 +1627,16 @@ const ARC_VERBS: [(&str, f64, f64); 10] = [
     ("tangent", 1.0, 0.1),
     ("tangent cw", -1.0, 0.1),
     ("onto", 2.0, 0.05),
+    ("sweep", 1.0, 0.05),
+    ("sweep cw", 1.0, 0.05),
     ("fillet", 0.25, 0.02),
 ];
 
 /// **Each arc verb's stored arc is exact over a box on the quantity
 /// that fixes its radius.** For the circle, the split circle, a bulge
 /// leg of either sign, a via arc on either side of its chord, a tangent
-/// arc to either side, the onto arc and a line×line fillet, at
+/// arc to either side, the onto arc, a swept-angle arc to either side
+/// and a line×line fillet, at
 /// `Sym<Interval>` over a box about a tenth of the quantity wide, with
 /// the registered-identity door shut (open for the fillet, whose own
 /// door reads the tangency it registers):
@@ -1694,7 +1722,10 @@ fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
                         );
                     }
                 } else {
-                    assert_eq!(verb, "fillet", "{verb} segment {k} records its radials");
+                    assert!(
+                        matches!(verb, "fillet" | "sweep" | "sweep cw"),
+                        "{verb} segment {k} records its radials"
+                    );
                 }
                 for (q, member) in members.iter().enumerate() {
                     let Segment::Arc(m) = member.segments()[k] else {
