@@ -343,17 +343,17 @@ fn slab_reads(half: f64) -> (usize, Vec<String>) {
 
 /// **The door's slab reads its side by its caps' rays over a box half
 /// its depth wide.** The extrude door's leaf at the symbolic box scalar,
-/// its plane normals and edge lines the door's own, depth `1 ± 0.25`:
-/// both caps' rays read `Out`, the four walls' are set aside, and the
-/// reader's rays answer `Out` (no volume). Every member is a solid whose
-/// side at infinity is `Out` (three are read at `f64`).
+/// its plane normals and edge lines the door's own, depth `1 ± 0.25`
+/// and `1 ± 0.3`: both caps' rays read `Out`, the four walls' are set
+/// aside, and the reader's rays answer `Out` (no volume). Every member
+/// is a solid whose side at infinity is `Out` (three are read at `f64`).
 ///
 /// **Red, each under one reading put back as it was** in `topo`:
 /// - the loops' turn read on all three components
 ///   (`normal.dot(u.cross(w)).atan2(u.dot(w))` in
-///   `solid_contain::loop_turn`): no ray reads;
-/// - the aim's step reading `solid_contain::edge_clearance`: one cap's
-///   ray reads, not both.
+///   `solid_contain::loop_turn`): no ray reads at either width;
+/// - the aim's step reading `solid_contain::edge_clearance`: at `± 0.3`
+///   the top cap's ray is set aside on the turn of its own loop.
 ///
 /// The walls' rays are not asked for: a wall's aim hangs a fixed step
 /// under its moving top edge
@@ -377,12 +377,18 @@ fn a_door_slab_reads_its_side_by_its_caps_rays_over_a_wide_box() {
             "the member of depth {depth}"
         );
     }
-    let (out, rays) = slab_reads(0.25);
-    assert_eq!(
-        out, 2,
-        "depth 1 ± 0.25: both caps' rays read, the walls' do not"
-    );
-    assert_eq!(rays, ["Ok(Side(Out))"], "depth 1 ± 0.25: the reader's rays");
+    for half in [0.25, 0.3] {
+        let (out, rays) = slab_reads(half);
+        assert_eq!(
+            out, 2,
+            "depth 1 ± {half}: both caps' rays read, the walls' do not"
+        );
+        assert_eq!(
+            rays,
+            ["Ok(Side(Out))"],
+            "depth 1 ± {half}: the reader's rays"
+        );
+    }
 }
 
 /// **A ray whose own crossing is as wide as the box reads no pair.** At

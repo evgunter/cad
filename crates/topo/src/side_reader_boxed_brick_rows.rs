@@ -587,12 +587,9 @@ fn a_moving_caps_aim_is_stepped_by_its_members_step() {
 /// ([`lined_brick`]): both caps' aims read `Out` at `1 ± 0.25`, the
 /// walls' are set aside, and no aim reads `In`.
 ///
-/// **Red, each under one reading put back as it was:**
-/// - the loops' turn read on all three components
-///   (`normal.dot(u.cross(w)).atan2(u.dot(w))` in
-///   `solid_contain::loop_turn`): neither cap's ray reads;
-/// - the step reading `solid_contain::edge_clearance`: one cap's ray
-///   reads, not both.
+/// **Red where the loops' turn is read on all three components**
+/// (`normal.dot(u.cross(w)).atan2(u.dot(w))` in
+/// `solid_contain::loop_turn`): neither cap's ray reads.
 ///
 /// A wall's ray is not asked for: its aim hangs a fixed step under its
 /// moving top edge
