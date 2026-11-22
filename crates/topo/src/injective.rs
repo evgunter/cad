@@ -2689,9 +2689,6 @@ fn present_plane<'a>(
             let Some(&(m, (n1, v1), (n2, v2))) = ends.first() else {
                 return Err(Unpresented::Local);
             };
-            if v1 == v2 {
-                return Err(Unpresented::Local);
-            }
             match (near_edges.contains(&n1), near_edges.contains(&n2)) {
                 (_, false) => corner(n1, m, v1, Some((n2, v2))),
                 (false, true) => corner(n2, m, v2, Some((n1, v1))),
@@ -8242,7 +8239,8 @@ mod presentation_rows {
                 "an end whose sides cross in the cell, {shared:?} shared, is no strip's end"
             );
         }
-        // Three edges at one vertex.
+        // Three edges at one vertex: the cap's line meets the corner's,
+        // so it caps nothing.
         let (plane, three) = segments(&[
             (1, (0.0, 0.0), (l, 0.0), [1, 2]),
             (2, (0.0, 0.0), (0.0, w), [1, 3]),
