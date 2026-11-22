@@ -3567,8 +3567,8 @@ pub fn cone_ruled_ssi(
     checked([("first operand", a), ("second operand", b)], domain)?;
     let h = domain.half_extent;
     let ball = crate::ExtentBall::of_box(
-        domain.center - Vec3::new(h, h, h),
-        domain.center + Vec3::new(h, h, h),
+        domain.center - geom_core::Vec3::new(h, h, h),
+        domain.center + geom_core::Vec3::new(h, h, h),
     );
     let read = ConeRuledPose::decide(a, b, ball, band)
         .or_else(|| ConeRuledPose::decide_sphere(a, b, band))
