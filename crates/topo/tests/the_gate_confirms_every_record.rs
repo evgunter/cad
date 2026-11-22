@@ -169,3 +169,52 @@ fn a_move_and_a_mirror_keep_the_records() {
         );
     }
 }
+
+/// **A box scalar's taker finishes its leaf with the leaf's records.**
+/// At `Interval` a leaf is tier 2 alone and holds its records unread;
+/// the taker's gate is the one that reads them. A cube's leaf handed a
+/// record of two opposite faces, which do not meet, is taken: the gate
+/// refuses the record. Red on a taker that finishes the leaf's body
+/// without its records: the take succeeds.
+#[test]
+fn a_box_scalars_taker_reads_the_records_its_leaf_holds() {
+    use geom_core::Interval;
+    use topo::AtRestPolicy;
+    let body = common::brick::<Interval>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let corners = |f: FaceKey| -> std::collections::BTreeSet<_> {
+        body.half_edges()
+            .filter(|(he, _)| body.face_of_half_edge(*he) == Some(f))
+            .map(|(_, h)| h.start)
+            .collect()
+    };
+    let faces: Vec<FaceKey> = body.faces().map(|(f, _)| f).collect();
+    let a = faces[0];
+    let b = *faces
+        .iter()
+        .find(|&&f| corners(f).is_disjoint(&corners(a)))
+        .expect("a cube's face has an opposite");
+    let record: ContactRecords = [Cited::new(
+        Contact::new(&body, Cell::Face(a), Cell::Face(b)).unwrap(),
+        Cites::decided(0),
+    )]
+    .into_iter()
+    .collect();
+    let leaf = <Interval as AtRestPolicy>::leaf(Built::of(body).recording(record), tol())
+        .expect("a leaf at a box scalar is tier 2 alone");
+    assert_eq!(
+        LeafBody::records(&leaf).len(),
+        1,
+        "the leaf holds it unread"
+    );
+    let taken = topo::take::<Interval>(&std::sync::Arc::new(leaf), tol());
+    let findings = taken
+        .map(|finished| finished.records().len())
+        .expect_err("the taker's gate reads the leaf's record");
+    assert!(
+        matches!(
+            findings.as_slice(),
+            [ValidationError::ContactContradicted { .. }]
+        ),
+        "{findings:?}"
+    );
+}

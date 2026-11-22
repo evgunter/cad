@@ -1318,3 +1318,61 @@ fn contacthold_m2_a_restated_tangency_carries_the_first_of_two_verdicts_margins(
         "m2 (open): the restated row carries the first verdict's margin alone"
     );
 }
+
+/// **A cut reads the records its tool's solids hold.** The tool is a
+/// corner kiss far off, the bridged rod (one solid holding its tangent
+/// record) and a block flush against the rod's plate, as one body of
+/// four solids. The cut unites the rod and the block into its material,
+/// each carved out of the tool holding the tool's records within it,
+/// and the rod's tangent record reaches the result: the cut refuses on
+/// it today, as a bore tangent from inside does
+/// (`work/heldrecords/a-cut-by-a-rod-tangent-from-inside-records-its-material-crescent-as-a-tangent-contact.md`),
+/// and holds it once that is fixed. Red where a carved member, or the
+/// material, is finished without its records: the cut ships a body
+/// holding none.
+#[test]
+fn a_cut_reads_the_records_its_tools_solids_hold() {
+    let rod = bridged_rod(0.0, true, true).body;
+    let block = finished(
+        "block",
+        brick::<f64>((2.0, 3.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let k = |c: f64| {
+        finished(
+            "k",
+            brick::<f64>((c, c + 1.0), (c, c + 1.0), (c, c + 1.0), tol()),
+            tol(),
+        )
+    };
+    let kiss = match topo::union(&k(10.0), &k(11.0), tol()).unwrap() {
+        BooleanResult::Body(kiss) => kiss.body,
+        BooleanResult::Empty => panic!("the kiss is empty"),
+    };
+    let mut joined = topo::Assembled::<f64>::new();
+    for arrival in [&kiss, &rod, &block] {
+        joined.graft_finished(arrival, None, tol()).unwrap();
+    }
+    let tool = topo::finish_assembled(joined, tol()).unwrap().body;
+    assert_eq!(tool.solids().count(), 4, "the tool's four solids");
+    let big = finished(
+        "big",
+        brick::<f64>((-30.0, 30.0), (-30.0, 30.0), (-3.0, 3.0), tol()),
+        tol(),
+    );
+    match topo::subtract(&big, &tool, tol()) {
+        Ok(BooleanResult::Body(r)) => assert!(
+            r.contacts().face_face().count() >= 1,
+            "big ∖ tool holds the rod's tangent record: {:?}",
+            r.contacts()
+        ),
+        Err(topo::BooleanError::ResultInvalid { findings }) => assert!(
+            matches!(
+                findings.as_slice(),
+                [topo::ValidationError::ContactContradicted { .. }]
+            ),
+            "big ∖ tool refuses on the rod's tangent record alone: {findings:?}"
+        ),
+        other => panic!("big ∖ tool: {:?}", other.map(|_| ())),
+    }
+}

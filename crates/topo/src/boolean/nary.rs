@@ -1353,12 +1353,18 @@ fn tool_parts<T: Decide + AtRestPolicy>(
                 row: None,
             })
             .collect();
+        // Each member's records are the ones its own body holds, read
+        // off it.
+        let inputs = members
+            .iter()
+            .map(|member: &T::Finished| MemberInputs {
+                records: crate::FinishedBody::records(member).carried(),
+                rank: 0,
+            })
+            .collect();
         parts.push(GroupParts {
             members,
-            inputs: own
-                .into_iter()
-                .map(|records| MemberInputs { records, rank: 0 })
-                .collect(),
+            inputs,
             verdicts,
         });
     }
