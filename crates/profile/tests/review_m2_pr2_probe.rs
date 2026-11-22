@@ -75,6 +75,7 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
                                     sweep: wf,
                                 },
                             turn: tf,
+                            ..
                         },
                         SegmentKind::Arc {
                             arc:
@@ -84,6 +85,7 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
                                     sweep: wq,
                                 },
                             turn: tq,
+                            ..
                         },
                     ) => {
                         assert_eq!(cf.x.to_bits(), cq.x.0.to_bits());
