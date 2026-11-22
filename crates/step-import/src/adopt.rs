@@ -557,23 +557,18 @@ fn mapped_self_description(
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
         })),
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
+        Curve3::Circle(geom::Circle { frame, .. }) => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            Some(MappedCurve::whole(MappedSource::RevolvedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: Affine3::translation(p_start - Point3::origin()),
+                axis: geom::Line {
                     origin: center,
-                    axis,
-                    ..
+                    dir: axis,
                 },
-            ..
-        }) => Some(MappedCurve::whole(MappedSource::RevolvedPoint {
-            point: Point2::new(0.0, 0.0),
-            place: Affine3::translation(p_start - Point3::origin()),
-            axis: geom::Line {
-                origin: *center,
-                dir: *axis,
-            },
-            angle: t1 - t0,
-        })),
+                angle: t1 - t0,
+            }))
+        }
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
             None
         }
@@ -790,15 +785,19 @@ mod tests {
         let mut keys = slotmap::SlotMap::<geom_brep::SurfaceKey, ()>::with_key();
         let (kp, kc) = (keys.insert(()), keys.insert(()));
         let plane = |normal| Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal,
-            u_ref: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                normal,
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+            ),
         };
         let cylinder = Surface::Cylinder {
-            origin: Point3::new(0.0, 1.0, 0.0),
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 1.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
         let floor = plane(geom_core::Vec3::new(0.0, 1.0, 0.0));
         let carrier = Curve3::line(

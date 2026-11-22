@@ -422,40 +422,40 @@ fn recharted(s: &Surface<f64>) -> Surface<f64> {
     let y = geom_core::Vec3::unit_y();
     match s.clone() {
         Surface::Sphere {
-            center,
+            frame: carrier_frame,
             radius,
-            axis,
             ..
-        } => Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref: y,
-        },
+        } => {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            Surface::Sphere {
+                frame: geom::Frame::new(center, axis, y),
+                radius,
+            }
+        }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
             ..
-        } => Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref: y,
-        },
+        } => {
+            let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            Surface::Cone {
+                frame: geom::Frame::new(apex, axis, y),
+                half_angle,
+            }
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             ..
-        } => Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref: y,
-        },
+        } => {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            Surface::Torus {
+                frame: geom::Frame::new(center, axis, y),
+                major_radius,
+                minor_radius,
+            }
+        }
         other => other,
     }
 }
@@ -471,29 +471,23 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
         (
             "sphere",
             Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
         ),
         (
             "cone",
             Surface::Cone {
-                apex: Point3::new(0.0, 0.0, 1.0),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
                 half_angle: 0.5,
-                u_ref: Vec3::unit_x(),
             },
         ),
         (
             "torus",
             Surface::Torus {
-                center: Point3::new(0.0, 0.0, 1.0),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 2.0,
                 minor_radius: 0.5,
-                u_ref: Vec3::unit_x(),
             },
         ),
     ];

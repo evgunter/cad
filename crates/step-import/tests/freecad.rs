@@ -767,7 +767,10 @@ fn base_placement_cone_apex_matches_the_closed_form() {
     let apexes: Vec<_> = body
         .surfaces()
         .filter_map(|(_, s)| match *s {
-            geom::Surface::Cone { apex, .. } => Some(apex),
+            geom::Surface::Cone { frame, .. } => {
+                let apex = frame.origin();
+                Some(apex)
+            }
             _ => None,
         })
         .collect();
@@ -1487,7 +1490,6 @@ fn eps_in_is_the_scaled_declaration_and_the_override_wins() {
             &text,
             &ImportOptions {
                 eps_in: Some(2.5e-8),
-                ..ImportOptions::default()
             },
             Tol::witness(),
         )

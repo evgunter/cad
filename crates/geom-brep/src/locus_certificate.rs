@@ -273,18 +273,14 @@ mod tests {
 
     fn plane(z: f64) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::new(0.0, 0.0, z),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
         }
     }
 
     fn cylinder(radius: f64) -> Surface<f64> {
         Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius,
-            u_ref: Vec3::unit_x(),
         }
     }
 

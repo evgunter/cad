@@ -439,6 +439,70 @@ pub trait Real:
     /// own reading.
     fn is_bounded(self) -> bool;
 
+    /// **An enclosure of the rotation the stated frame `m` names**, where
+    /// this scalar's value is a plain enclosure and nothing else: the
+    /// columns of the polar factor `R` of `m` (the rotation nearest it),
+    /// each entry enclosed. `m` is a frame stated at a point scalar
+    /// (columns `u`, `v`, `w`, read here), which claims the exact
+    /// rotation it is the rounding of; this is the lift of that claim
+    /// into an enclosure ([`crate::RigidMotion::map_scalar`] across
+    /// kinds). A scalar with no such enclosure answers `None` (the
+    /// default): a point scalar has none to give, and a scalar that also
+    /// carries derivatives or symbolic forms holds the rotation in those
+    /// channels too, which an enclosure of its value does not reach.
+    /// Decides nothing; a frame whose rotation it cannot enclose is
+    /// answered poisoned.
+    #[must_use]
+    fn enclose_rotation(m: [[Self; 3]; 3]) -> Option<[[Self; 3]; 3]> {
+        let _ = m;
+        None
+    }
+
+    /// **An enclosure of the unit direction a stated `v` names**,
+    /// [`Real::enclose_rotation`]'s one-column case: the direction
+    /// `v/|v|`, each component enclosed, where this scalar's value is a
+    /// plain enclosure; `None` (the default) where it is not.
+    #[must_use]
+    fn enclose_unit(v: [Self; 3]) -> Option<[Self; 3]> {
+        let _ = v;
+        None
+    }
+
+    /// **The `f64` this value states**, where it is a plain enclosure
+    /// that is a certified point (its two ends one `f64`); `None` (the
+    /// default) elsewhere: a point scalar's value is a rounding, not a
+    /// statement, and a scalar that also carries derivatives or forms
+    /// carries more than its value. A frame stated by such points is a
+    /// choice, minted at `f64` and read into the lane by its enclosure
+    /// ([`crate::RigidMotion::squared`]).
+    #[must_use]
+    fn stated_point(self) -> Option<f64> {
+        None
+    }
+
+    /// **The meet of two readings of one real**, where `first` and the
+    /// value `second` builds enclose the same real by independent
+    /// spellings: at a scalar whose value is a plain enclosure, their
+    /// intersection (the tighter enclosure, sound because whatever lies
+    /// outside either is not the real); elsewhere `first` alone (the
+    /// default), and `second` is never built, so a point or symbolic
+    /// scalar reads exactly the one spelling and records no other. A
+    /// caller reaches for it where each spelling widens in its own regime
+    /// and neither bounds the other (`turn_arms`, geom-brep). Decides
+    /// nothing.
+    ///
+    /// **Only for two readings of one real**, each a sound enclosure of
+    /// it by its own argument: never a general narrowing of an enclosure
+    /// by a window or a guess, which is `Certification::clamped_to`'s
+    /// and `Certification::meet`'s business. Two such readings cannot be
+    /// disjoint, so a disjoint meet is a kernel defect: it fails a debug
+    /// assertion and answers poison.
+    #[must_use]
+    fn meet_readings(first: Self, second: impl FnOnce() -> Self) -> Self {
+        let _ = second;
+        first
+    }
+
     /// **Is this scalar an exact zero in every channel it carries?** At
     /// the point and interval scalars, [`is_exact_zero`] (the value
     /// channel is the scalar). A scalar that carries more than its value

@@ -435,8 +435,11 @@ fn refined_net(
 /// any representative would certify the carrier against a surface the
 /// body does not have. A thin bracket is exactly the case where the
 /// representative is the surface, so that case is admitted and every
-/// other one refuses typed (`UnsupportedCertificate`, below) — never a
-/// midpoint, never a guess. Retiring the gate means giving the
+/// other one refuses typed (`UnsupportedCertificate`, below), with one
+/// exception: a frame's direction re-minted at an enclosure scalar is
+/// one rotation enclosed a few ulps wide, read at its midpoint with the
+/// turn its width allows charged into the bound ([`frame_direction`],
+/// [`FrameCharge`]). Retiring the gate means giving the
 /// composite enclosure-valued coefficients, which is a `geom_core`
 /// change with its own unit.
 pub(crate) fn exact<T: Bounds>(v: T) -> Option<f64> {
@@ -449,6 +452,100 @@ pub(crate) fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
     Some([exact(p[0])?, exact(p[1])?, exact(p[2])?])
 }
 
+/// The widest a frame direction's component may enclose and still be
+/// read as one direction: a frame re-minted at an enclosure scalar from
+/// an `f64` one (`geom::Frame::map_scalar`) is an enclosure of one
+/// rotation about an ulp wide at each entry, and nothing a computation
+/// widened is this narrow. It is `16·EPSILON`, 32 units in the last
+/// place of an entry below one.
+const FRAME_ROUNDING: f64 = 16.0 * f64::EPSILON;
+
+/// **A frame direction as `f64` structure**: each component's midpoint,
+/// and the turn the enclosure allows, an upper bound on the angle
+/// between any unit direction it encloses and the midpoint; `None` when
+/// a component is wider than [`FRAME_ROUNDING`] or not a number. An
+/// exact direction allows no turn.
+///
+/// A unit `a` within `δ` of the midpoint `m` (`|a − m| ≤ δ`, `δ` the
+/// box's diagonal) stands at an angle `θ` from `m`'s direction with
+/// `sin θ ≤ δ/|m|`, and `|m| ≥ 1 − δ`; the bound charges `θ` as
+/// `1.01·δ/(1 − δ)`, which covers `asin` at these widths.
+///
+/// One home for every door that reads a frame's direction at `f64`: the
+/// ring composite ([`composite_form`]) and the chart tube's partner
+/// ([`chart_partner_form`]) both take it here, through the components'
+/// brackets ([`brackets`]; the chart tube's certified ones).
+fn frame_direction(d: [(f64, f64); 3]) -> Option<([f64; 3], f64)> {
+    let mut mid = [0.0; 3];
+    let mut diag = 0.0_f64;
+    for (k, (lo, hi)) in d.into_iter().enumerate() {
+        let width = hi - lo;
+        if lo.is_nan() || hi.is_nan() || width.is_nan() || width > FRAME_ROUNDING {
+            return None;
+        }
+        mid[k] = lo + width / 2.0;
+        diag += width.powi(2);
+    }
+    let delta = diag.sqrt();
+    let turn = if delta == 0.0 {
+        0.0
+    } else {
+        1.01 * delta / (1.0 - delta)
+    };
+    Some((mid, turn))
+}
+
+/// A direction's three components as their `(lo, hi)` brackets, the
+/// reading [`frame_direction`] takes.
+fn brackets<T: Bounds>(v: Vec3<T>) -> [(f64, f64); 3] {
+    v.to_array().map(|c| (c.lo(), c.hi()))
+}
+
+/// **What reading a frame's direction at its midpoint costs** — the ring
+/// composite's reading ([`composite_form`]). Its implicit form is `f64`
+/// structure the carrier is composed with (`ImplicitSurface`'s
+/// coefficients), which holds no enclosure, so the turn the midpoint
+/// stands for is charged here as a bound. The chart tube's partner form
+/// holds its frame as an enclosure and reads through it instead
+/// ([`chart_partner_form`]); this charge goes when the composite takes
+/// enclosure-valued coefficients
+/// (`work/onehome/composite-form-takes-enclosure-valued-coefficients.md`): the
+/// surface the composite holds is the body's family turned by at most
+/// `turn` about `anchor`, the frame's origin. A turn by `θ` about a
+/// point moves each point of the family's every surface by at most `θ`
+/// times its distance from that point, so the composite's residual over
+/// a carrier inside a box is off by at most `θ` times the box's reach
+/// from the anchor ([`FrameCharge::over`]).
+#[derive(Clone, Copy, Debug)]
+struct FrameCharge {
+    anchor: [f64; 3],
+    turn: f64,
+}
+
+impl FrameCharge {
+    /// The charge over the box `(least, greatest)` per channel, in
+    /// metres, rounded up; NaN for a box that is not a number.
+    fn over(self, b: [(f64, f64); 3]) -> f64 {
+        if self.turn == 0.0 {
+            return 0.0;
+        }
+        // Read on the interval scalar, so the bound is rounded up by its
+        // own arithmetic rather than padded.
+        let lift = |x: f64| Interval::from_bounds(x, x);
+        let reach = (0..3)
+            .map(|k| {
+                let (lo, hi) = b[k];
+                let (lo, hi) = (
+                    lift(lo) - lift(self.anchor[k]),
+                    lift(hi) - lift(self.anchor[k]),
+                );
+                Real::abs(lo).max(Real::abs(hi)).powi(2)
+            })
+            .fold(Interval::zero(), |acc, x| acc + x);
+        (lift(self.turn) * Real::sqrt(reach)).hi()
+    }
+}
+
 /// The `compose` implicit form of an analytic surface, and how its
 /// composite crosses to meters.
 ///
@@ -457,15 +554,19 @@ pub(crate) fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
 /// conversion), NURBS (no implicit form), and — since M6-2 — an operand
 /// whose structural parameters are not exact at the caller's scalar
 /// (see [`exact`]).
-fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeters), &'static str> {
+fn composite_form<T: Bounds>(
+    s: &Surface<T>,
+) -> Result<(ImplicitSurface, ToMeters, FrameCharge), &'static str> {
     const WIDENED: &str = "the analytic operand's structural parameters are not exact at this \
                            scalar — the ring composite's implicit form is f64 structure, and a \
                            widened operand is a family of surfaces, not the body's surface \
-                           — refused rather than represented by a midpoint";
+                           — refused rather than represented by a midpoint, which only a \
+                           frame's rounding-wide direction is, with its turn charged";
     match *s {
-        Surface::Plane { origin, normal, .. } => {
-            let (Some(point), Some(normal)) =
-                (exact3(origin.to_array()), exact3(normal.to_array()))
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            let (Some(point), Some((normal, turn))) =
+                (exact3(origin.to_array()), frame_direction(brackets(normal)))
             else {
                 return Err(WIDENED);
             };
@@ -473,9 +574,14 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                 ImplicitSurface::Plane { point, normal },
                 // n·(P − p₀) is already meters for a unit normal.
                 ToMeters::Divisor(1.0),
+                FrameCharge {
+                    anchor: point,
+                    turn,
+                },
             ))
         }
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let (Some(center), Some(radius)) = (exact3(center.to_array()), exact(radius)) else {
                 return Err(WIDENED);
             };
@@ -484,17 +590,18 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                 // |P−c|² − R² = 2R · the linearized meters residual,
                 // exactly.
                 ToMeters::Divisor(2.0 * radius),
+                // A sphere's locus reads no direction.
+                FrameCharge {
+                    anchor: center,
+                    turn: 0.0,
+                },
             ))
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
-            let (Some(point), Some(axis), Some(radius)) = (
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            let (Some(point), Some((axis, turn)), Some(radius)) = (
                 exact3(origin.to_array()),
-                exact3(axis.to_array()),
+                frame_direction(brackets(axis)),
                 exact(radius),
             ) else {
                 return Err(WIDENED);
@@ -508,18 +615,22 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                 // |w|² − R² = 2R · the linearized meters residual,
                 // exactly.
                 ToMeters::Divisor(2.0 * radius),
+                FrameCharge {
+                    anchor: point,
+                    turn,
+                },
             ))
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
-            let (Some(center), Some(axis), Some(major), Some(minor)) = (
+            let (center, axis) = (frame.origin(), frame.axis());
+            let (Some(center), Some((axis, turn)), Some(major), Some(minor)) = (
                 exact3(center.to_array()),
-                exact3(axis.to_array()),
+                frame_direction(brackets(axis)),
                 exact(major_radius),
                 exact(minor_radius),
             ) else {
@@ -536,6 +647,10 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                     center,
                     major,
                     minor,
+                },
+                FrameCharge {
+                    anchor: center,
+                    turn,
                 },
             ))
         }
@@ -641,7 +756,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         _ => range_grid_points(t0, t1, SSI_CERT_SPANS, &[]),
     };
     let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
-        let (form, to_meters) =
+        let (form, to_meters, frame_charge) =
             composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
         let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
         breaks.sort_by(f64::total_cmp);
@@ -660,6 +775,19 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             }
         })?;
         let (sup, spans, floors) = meters_readings(&composite, &data, to_meters)?;
+        // The composite holds the body's surface turned by at most the
+        // frame's rounding: charged over the carrier's control box, which
+        // holds the carrier.
+        let charge = net.control_box().map_or(f64::NAN, |b| frame_charge.over(b));
+        let (sup, spans, floors) = if charge == 0.0 {
+            (sup, spans, floors)
+        } else {
+            (
+                sup + charge,
+                spans.into_iter().map(|s| s + charge).collect(),
+                floors.into_iter().map(|f| (f - charge).max(0.0)).collect(),
+            )
+        };
         Ok(Hull {
             sup,
             breaks: composite.num.breaks().to_vec(),
@@ -2013,38 +2141,127 @@ pub(crate) fn exact_certified<T: CertifiedEnclosure>(x: T) -> Option<f64> {
 
 /// **The form limb 3 reads a chart's partner by**: the partner, a plane
 /// among them, at `f64` ([`super::residual::ImplicitForm`]), so only
-/// where every scalar of it is an exact `f64` whose enclosure certifies.
-/// A scalar that left its domain is refused with a widened one, however
-/// exact its endpoints: the form would be of an equation nobody
-/// evaluated (S41).
+/// where every scalar of it but its frame's directions is an exact `f64`
+/// whose enclosure certifies. A scalar that left its domain is refused
+/// with a widened one, however exact its endpoints: the form would be of
+/// an equation nobody evaluated (S41).
+///
+/// The frame's axis and `u_ref` are read at their midpoints where their
+/// certified enclosure is rounding-wide ([`frame_direction`], the reading
+/// the ring composite takes): a frame lifted to an enclosure scalar from
+/// an `f64` one encloses one rotation a few ulps wide. The form's `f64`
+/// surface then stands on those midpoints, its structure, and the form
+/// reads every value and gradient through the partner's own frame
+/// enclosure ([`super::residual::ImplicitForm::with_frame`]): each
+/// encloses the turned partner's, so the midpoint costs nothing a read
+/// does not carry. A frame wider than rounding still refuses.
+///
+/// **What the midpoint surface is read for**: the partner's kind (which
+/// form), its radii (exact, as before), and the form's `f64` residual and
+/// rate ([`super::residual::ImplicitForm::residual`]), which only the
+/// boundary pass's settling reads, a seed it then holds to a tolerance.
+/// Limb 3's tube reads the form only through [`ChartPhi`] (`φ`, `∇f`,
+/// its partials and sup) and the node box ([`super::node::node_box`]:
+/// `φ`, its frame gradient, Hessian and vectors), every one of them
+/// through the frame enclosure, so nothing the certificate rests on reads
+/// the midpoint.
+///
+/// **Why not [`FrameCharge`]**, which the ring composite takes: the
+/// composite's implicit form is `f64` structure the carrier is composed
+/// with (`ImplicitSurface`'s coefficients), which holds no enclosure, so
+/// its midpoint's cost is charged as a bound; this form already holds its
+/// frame as one, so the enclosure carries the cost itself
+/// (`work/onehome/composite-form-takes-enclosure-valued-coefficients.md`
+/// would give the composite the same).
 ///
 /// # Errors
 ///
 /// [`SsiError::UnsupportedCertificate`]: [`CHART_TUBE_PARTNER_INEXACT`]
 /// for a widened or domain-violated scalar, [`CHART_TUBE_NEEDS_FORM`] for
 /// a partner with no form.
-///
-/// `exact` reads one scalar ([`exact_certified`] at the certificate's
-/// scalar).
 pub(crate) fn chart_partner_form<T: Real>(
     partner: &Surface<T>,
-    exact: impl Fn(T) -> Option<f64>,
+    bracket: impl Fn(T) -> Option<(f64, f64)>,
 ) -> Result<super::residual::ImplicitForm, SsiError> {
-    let inexact = core::cell::Cell::new(false);
-    let at_f64 = partner.map_scalar(|x| {
-        exact(x).unwrap_or_else(|| {
-            inexact.set(true);
-            f64::NAN
-        })
-    });
-    if inexact.get() {
-        return Err(SsiError::UnsupportedCertificate {
-            what: CHART_TUBE_PARTNER_INEXACT,
-        });
-    }
-    super::residual::ImplicitForm::of(&at_f64).map_err(|_| SsiError::UnsupportedCertificate {
+    let inexact = || SsiError::UnsupportedCertificate {
+        what: CHART_TUBE_PARTNER_INEXACT,
+    };
+    let no_form = || SsiError::UnsupportedCertificate {
         what: CHART_TUBE_NEEDS_FORM,
-    })
+    };
+    let Some(frame) = partner.frame() else {
+        return Err(no_form());
+    };
+    let point = |x: T| bracket(x).and_then(|(lo, hi)| (lo == hi && !lo.is_nan()).then_some(lo));
+    let certified = |v: Vec3<T>| -> Option<[(f64, f64); 3]> {
+        let [x, y, z] = v.to_array().map(&bracket);
+        Some([x?, y?, z?])
+    };
+    let exact = |x: T| point(x).ok_or_else(inexact);
+    let (Some(axis), Some(u_ref)) = (certified(frame.axis()), certified(frame.u_ref())) else {
+        return Err(inexact());
+    };
+    let (Some((axis_mid, axis_turn)), Some((u_mid, u_turn))) =
+        (frame_direction(axis), frame_direction(u_ref))
+    else {
+        return Err(inexact());
+    };
+    let o = frame.origin();
+    let origin = geom_core::Point3::new(exact(o.x)?, exact(o.y)?, exact(o.z)?);
+    let exact_frame = axis_turn == 0.0 && u_turn == 0.0;
+    let mid = if exact_frame {
+        // Exact throughout: the partner's frame at `f64`, its bits kept.
+        // Its point value is read within its own kind (an `Exact`
+        // scalar's brackets as `Interval`, then `point_value`), never
+        // by a map across kinds, which reads no frame.
+        if T::WITNESS == geom_core::Witness::Exact {
+            frame
+                .map_scalar(|x| {
+                    bracket(x).map_or(Interval::from_bounds(f64::NAN, f64::NAN), |(lo, hi)| {
+                        Interval::from_bounds(lo, hi)
+                    })
+                })
+                .point_value()
+                .ok_or_else(inexact)?
+        } else {
+            frame.map_scalar(|x| point(x).unwrap_or(f64::NAN))
+        }
+    } else {
+        geom::Frame::new(
+            origin,
+            Vec3::new(axis_mid[0], axis_mid[1], axis_mid[2]),
+            Vec3::new(u_mid[0], u_mid[1], u_mid[2]),
+        )
+    };
+    let at_f64 = match *partner {
+        Surface::Plane { .. } => Surface::Plane { frame: mid },
+        Surface::Cylinder { radius, .. } => Surface::Cylinder {
+            frame: mid,
+            radius: exact(radius)?,
+        },
+        Surface::Sphere { radius, .. } => Surface::Sphere {
+            frame: mid,
+            radius: exact(radius)?,
+        },
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => Surface::Torus {
+            frame: mid,
+            major_radius: exact(major_radius)?,
+            minor_radius: exact(minor_radius)?,
+        },
+        _ => return Err(no_form()),
+    };
+    let form = super::residual::ImplicitForm::of(&at_f64).map_err(|_| no_form())?;
+    if exact_frame {
+        return Ok(form);
+    }
+    let enclose = |b: [(f64, f64); 3]| b.map(|(lo, hi)| Interval::from_bounds(lo, hi));
+    let ([ax, ay, az], [ux, uy, uz]) = (enclose(axis), enclose(u_ref));
+    let (e2, e0) = (Vec3::new(ax, ay, az), Vec3::new(ux, uy, uz));
+    Ok(form.with_frame([e0, e2.cross(e0), e2]))
 }
 
 /// The uniqueness tube of a certified carrier, as boxes — what the
@@ -2644,7 +2861,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
             };
-            let form = chart_partner_form(partner, exact_certified)?;
+            let form = chart_partner_form(partner, CertifiedEnclosure::certified_bracket)?;
             let phi = ChartPhi(&form);
             let nodes = node_ends(p, n, &form, band);
             limb_three((widest, extent), band, |radius| {
@@ -3059,11 +3276,9 @@ mod tests {
             };
             crate::ssi::certify::chart_partner_form(
                 &geom::Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
+                    frame: geom::Frame::new(origin, normal, u_ref),
                 },
-                crate::ssi::certify::exact_certified,
+                geom_core::CertifiedEnclosure::certified_bracket,
             )
             .expect("an exact plane has a form")
         }
@@ -3166,13 +3381,15 @@ mod tests {
             );
             for n in [n, point] {
                 let plane = geom::Surface::Plane {
-                    origin: on_line(),
-                    normal: Vec3::new(iv(0.0), n, iv(0.0)),
-                    u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    frame: geom::Frame::new(
+                        on_line(),
+                        Vec3::new(iv(0.0), n, iv(0.0)),
+                        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    ),
                 };
                 let got = crate::ssi::certify::chart_partner_form(
                     &plane,
-                    crate::ssi::certify::exact_certified,
+                    geom_core::CertifiedEnclosure::certified_bracket,
                 );
                 assert!(
                     matches!(
@@ -3203,9 +3420,11 @@ mod tests {
             use crate::ssi::{ChartedNurbs, SsiOperand};
             let point = Interval::from_bounds(-1.0, 0.0).sqrt() + iv(2.0);
             let plane = geom::Surface::Plane {
-                origin: on_line(),
-                normal: Vec3::new(iv(0.0), point, iv(0.0)),
-                u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                frame: geom::Frame::new(
+                    on_line(),
+                    Vec3::new(iv(0.0), point, iv(0.0)),
+                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                ),
             };
             let patch = unit_patch();
             let wall = ChartedNurbs::mint(&patch).expect("the unit patch mints");
@@ -3809,9 +4028,7 @@ mod tests {
         let u = (u - n * u.dot(n)) / (u - n * u.dot(n)).norm();
         let origin = Point3::new(0.0, 0.0, 0.4);
         let plane = Surface::Plane {
-            origin,
-            normal: n,
-            u_ref: u,
+            frame: geom::Frame::new(origin, n, u),
         };
         let domain = SsiDomain {
             center: Point3::new(0.5, 0.0, 0.4),
@@ -4097,9 +4314,11 @@ mod tests {
         )
         .unwrap();
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         (wall, carrier, pcurve, plane)
     }
@@ -4182,9 +4401,11 @@ mod tests {
         let (c, s) = (0.5, 0.75_f64.sqrt());
         for (radius, grow) in [(2.0, 0.0), (2.0, 0.5 * band.zero()), (1.0e4, 0.0)] {
             let partner = Surface::Cylinder {
-                origin: Point3::new(1.0 - radius * c, -radius * s, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(1.0 - radius * c, -radius * s, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: radius + grow,
             };
             let lane = Lane::Chart {
@@ -4252,15 +4473,19 @@ mod tests {
         use geom_core::spline::KnotVector;
         use geom_core::{Band, Point3, Vec3};
         let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, -1.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, -1.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let carrier = NurbsCurve3::new(
             KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
@@ -4394,7 +4619,7 @@ mod tests {
         let data = CurveCertData::new(ck, cw, cc)
             .unwrap()
             .with_breaks(net.cuts());
-        let (form, to) = super::composite_form(torus).unwrap();
+        let (form, to, _) = super::composite_form(torus).unwrap();
         let composite = compose::implicit_composite(&data, &form).unwrap();
         let (sup, spans, floors) = super::meters_readings(&composite, &data, to).unwrap();
         let at = composite.num.breaks().to_vec();
@@ -4552,9 +4777,7 @@ mod node_end_rows {
 
     fn level() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         }
     }
 

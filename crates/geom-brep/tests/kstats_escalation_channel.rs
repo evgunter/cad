@@ -135,9 +135,7 @@ fn the_order2_sector_arm_gate_records_its_escalation() {
 
 fn plane(normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::origin(),
-        normal,
-        u_ref,
+        frame: geom::Frame::new(Point3::origin(), normal, u_ref),
     }
 }
 

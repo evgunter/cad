@@ -36,19 +36,23 @@ fn spline(controls: &[Point3<f64>]) -> Curve3<f64> {
 
 fn cylinder() -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -88,10 +92,12 @@ fn chord(spans: usize) -> Curve3<f64> {
 /// The cone of half-angle 30° about `z`, its apex at the origin.
 fn cone() -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: core::f64::consts::FRAC_PI_6,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -110,11 +116,13 @@ fn on_cone(h: f64) -> Curve3<f64> {
 /// The ring torus `R = 2`, `r = 0.5` about `z`.
 fn torus() -> Surface<f64> {
     Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -223,9 +231,11 @@ fn limb2(
 fn a_span_reads_the_parts_its_own_turn_needs() {
     let most = projected::INCIDENCE_CUTS;
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.5),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     for (what, got, want) in [
         ("a long span", by_turn(&quarter(), &cylinder()), vec![most]),
