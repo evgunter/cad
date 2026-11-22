@@ -3613,6 +3613,7 @@ fn two_bricks_a_band_apart_refuse_as_a_sliver_and_end_the_ask() {
     );
     let r = report.receipt;
     assert!(r.refused == 1 && r.abandoned > 0, "{r:?}");
+}
 
 // ------------------------------------------ two wedges at a vertex alone
 
@@ -3694,8 +3695,14 @@ fn a_deep_keels_joint_is_embedded_in_every_pose() {
     ];
     for (what, m) in poses {
         for (scalar, verdict) in [
-            ("f64", door(&deep_keel::<f64>(&m), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict),
-            ("Interval", door(&deep_keel::<Interval>(&m), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict),
+            (
+                "f64",
+                door(&deep_keel::<f64>(&m), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+            ),
+            (
+                "Interval",
+                door(&deep_keel::<Interval>(&m), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+            ),
         ] {
             assert!(
                 matches!(verdict, topo::clearance::Embedding::Embedded),
@@ -3727,8 +3734,14 @@ fn a_roof_folded_across_a_blocks_corner_crosses_it() {
         body
     }
     for (scalar, verdict) in [
-        ("f64", door(&folded::<f64>(), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict),
-        ("Interval", door(&folded::<Interval>(), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict),
+        (
+            "f64",
+            door(&folded::<f64>(), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+        ),
+        (
+            "Interval",
+            door(&folded::<Interval>(), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+        ),
     ] {
         assert!(
             matches!(verdict, topo::clearance::Embedding::Crosses(_)),
