@@ -348,7 +348,7 @@ jet system solved by SVD, Frenet choice of free coefficients, Newton
 refinement; all f64, libm-only, fixed iteration order). Each side
 enters the section through the one exact description it has: its
 implicit residual where it has one in metres (plane, cylinder, sphere,
-torus), else its chart (NURBS). The pair is one system on
+cone, torus), else its chart (NURBS). The pair is one system on
 `ℝ³ × ∏ Dᵢ`, the point eliminated wherever a chart side exists, so the
 trace shape is decided by the sides: two residuals, an implicit pair in
 ℝ³ (2×3 SVD; `cylinder_sphere_ssi`); a residual and a chart, one
@@ -1158,7 +1158,8 @@ the tangency, decided on the pose, the arcs where it is positive the
 components, a cone's apex on the other surface a closed-form margin
 (its residual there), whose Zero is a node or a touch, and for two cylinders
 the margins above its extremes. Each torus pair's pose
-(`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
+(`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`,
+`ConeTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
 lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`
 (which holds the whole section; the smaller ball for two tori), and decides the
@@ -1172,7 +1173,10 @@ ladder reads the same decision for two torus faces it reads undeclared. A
 sphere, a cylinder and a torus are the points at distance `ρ` from a
 spine (a point, a line, a core circle), and two of them are tangent
 exactly where a critical value of the spine-to-spine distance equals
-`ρ₁ + ρ₂` or `|ρ₁ − ρ₂|`. A coaxial partner's spine distance is
+`ρ₁ + ρ₂` or `|ρ₁ − ρ₂|`. A cone is its own spine at `ρ = 0`, and a
+point's distance from the double cone is critical at its feet on the
+two whole lines of the cone in its meridian plane, signed
+`ρ cos α ∓ h sin α`, so its levels are both `r`. A coaxial partner's spine distance is
 constant, and its gap is the closed-form tube row read across the
 coaxial slack. A sphere's spine is a point, whose critical distances
 from the core circle are its two meridian ones, so its gap is closed
@@ -1223,7 +1227,16 @@ components are the general rung's, and carrying them refuses typed,
 since no march carries them: the certificate has no cone arm at the
 march's search (C2), and the pair has no march door. A crossing
 tangency is a node, its arcs one node-joined set.
-Every other pair refuses: the cone against a sphere or a torus.
+A cone off a torus's axis (`ConeTorusPose`) reads its apex
+against the torus before its gap, the apex's residual there a
+closed-form margin whose Zero is a node or a touch by the cone's form
+on the torus's tangent plane, and a ruling in that plane refuses;
+neither is marched, since the ℝ³ march ends no branch at a node, and
+the pair's value refuses them as not built. Past a clear apex the gap
+is the sweep, its transverse components the march's
+(`ssi::cone_torus_ssi`); a parallel axis is that general pose too. A
+coaxial cone is `cone_torus_section`'s closed form, which the value
+reads elsewhere. Every other pair with a cone refuses.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
