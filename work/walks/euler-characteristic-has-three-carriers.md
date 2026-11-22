@@ -6,7 +6,8 @@ status: open
 opened: 2026-09-12
 refs: [no-public-census-or-genus-query, 2131]
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 ## Finding
@@ -51,3 +52,7 @@ the review module's twin folds at all, given its header asks not to be
 simplified to match the implementation. Shape (C) of the ruling on
 `no-public-census-or-genus-query` — per-component genus as public API —
 is the door this residue would be the first consumer of.
+
+## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
+
+Still live as written. Additional hand chi: `ComponentEulerViolation`'s Display (validate.rs), review_m1_pr1.rs, and sweep/topo test files (`work/green/census-tuple-rows-assert-chi-not-genus.md`). Three postures on a negative genus: a value (`EulerCounts::genus`), a report (validator), a panic (review_m1_pr4). The component relations under the counts differ: `ShellComponent` glues through shared vertices, `ComponentCounts` through mated edges, so the two "per-component" genera are different quantities on vertex-touching components — coupled with `shell-glue-relation-has-three-implementations`. `ComponentCounts` feeds a public error with usize fields (pncad-py tags it). Weighed with that row as fork F5.
