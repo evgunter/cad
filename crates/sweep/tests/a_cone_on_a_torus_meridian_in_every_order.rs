@@ -19,11 +19,11 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{AtRestBody, Body};
+use topo::AtRestBody;
 
 use crate::revolve_common::axis_y;
 
-fn revolved(points: &[(f64, f64, f64)], axis: RevolveAxis<f64>, tol: Tol) -> Body<f64> {
+fn revolved(points: &[(f64, f64, f64)], axis: RevolveAxis<f64>, tol: Tol) -> AtRestBody<f64> {
     let lp = bulge_loop(
         points
             .iter()
@@ -40,11 +40,7 @@ fn revolved(points: &[(f64, f64, f64)], axis: RevolveAxis<f64>, tol: Tol) -> Bod
 
 /// The torus `R = 2`, `r = 1` about `y`.
 fn torus(tol: Tol) -> AtRestBody<f64> {
-    finished(
-        "the torus",
-        revolved(&[(2.0, -1.0, 1.0), (2.0, 1.0, 1.0)], axis_y(), tol),
-        tol,
-    )
+    revolved(&[(2.0, -1.0, 1.0), (2.0, 1.0, 1.0)], axis_y(), tol)
 }
 
 /// The triangle revolved about the line `x = 2` along the sketch's `y`,
@@ -65,7 +61,7 @@ fn triangle(tol: Tol) -> AtRestBody<f64> {
     finished("the meridian triangle", turned, tol)
 }
 
-fn volume(body: &Body<f64>, tol: Tol) -> (f64, f64) {
+fn volume(body: &AtRestBody<f64>, tol: Tol) -> (f64, f64) {
     let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("the body does not measure: {e:?}"))
         .enclosure;
@@ -86,8 +82,8 @@ fn result_volume(
 fn the_meridian_triangle_and_its_torus_build_in_every_order() {
     let tol = Tol::witness();
     let (t, k) = (torus(tol), triangle(tol));
-    let (vt, pt) = volume(&t.body, tol);
-    let (vk, pk) = volume(&k.body, tol);
+    let (vt, pt) = volume(&t, tol);
+    let (vk, pk) = volume(&k, tol);
     assert!(
         (vt - 4.0 * PI * PI).abs() <= pt + 1e-9 && (vk - PI / 2.0).abs() <= pk + 1e-9,
         "the operands measure as Pappus has them: {vt} ± {pt}, {vk} ± {pk}"
