@@ -898,7 +898,8 @@ mod kernel {
     test_utils::f6_variants! {
         /// `PathError`'s arms, for the `ProfileReplay/Path/` rows.
         pub(super) const PATH_ERROR: PathError = [
-            JunctionTangent, JunctionCusp, CuspDoublesBackOverLeg, SeamTangent, SeamArrivalOffDirection,
+            JunctionTurnWithinTolerance, JunctionCusp, CuspDoublesBackOverLeg,
+            SeamTurnWithinTolerance, SeamArrivalOffDirection,
             SeamArrivalLeverTooShort, ContinuationTargetOffRay, NoCornerForFillet,
             NoCornerOfPair, FilletOffsetLeverTooShort, FilletArcFlattenedInStorage,
             FilletCarrierBelowSceneResolution, ArcLegOnOpenFillet,
@@ -4264,17 +4265,21 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
     }
     use geom_core::Point2;
     use payloads::*;
-    use profile::path::{PathError as P, PathNoCornerReason, TurnLever};
+    use profile::path::{LeveredTurn, PathError as P, PathNoCornerReason, TurnLever};
     use profile::{
         CornerReason, CornerRefusal, FilletLegCarrier, LegFit, NoCornerReason, OverrunLegs,
     };
     use profile::{CornerWindow, FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
         (
-            "JunctionTangent",
-            P::JunctionTangent {
-                margin: l(1e-12),
-                arm: l(0.5),
+            "JunctionTurnWithinTolerance",
+            P::JunctionTurnWithinTolerance {
+                turn: LeveredTurn {
+                    sin_turn: r(0.9),
+                    align: r(0.44),
+                    lever: l(3e-10),
+                    lever_of: TurnLever::ShorterLeg,
+                },
             },
         ),
         (
@@ -4290,7 +4295,17 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 at: Point2::new(2.0, 0.0),
             },
         ),
-        ("SeamTangent", P::SeamTangent { margin: l(1e-12) }),
+        (
+            "SeamTurnWithinTolerance",
+            P::SeamTurnWithinTolerance {
+                turn: LeveredTurn {
+                    sin_turn: r(-0.9),
+                    align: r(0.44),
+                    lever: l(3e-10),
+                    lever_of: TurnLever::ShorterLeg,
+                },
+            },
+        ),
         (
             "SeamArrivalOffDirection",
             P::SeamArrivalOffDirection {
@@ -4477,10 +4492,12 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "NoCornerForFillet(turn, leg)",
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn: r(0.01),
-                    align: r(-0.99995),
-                    lever: l(5e-8),
-                    lever_of: TurnLever::ShorterLeg,
+                    turn: LeveredTurn {
+                        sin_turn: r(0.01),
+                        align: r(-0.99995),
+                        lever: l(5e-8),
+                        lever_of: TurnLever::ShorterLeg,
+                    },
                     corner: Some(Point2::new(0.25, -0.5)),
                 },
                 radius: gl(0.05),
@@ -4490,10 +4507,12 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "NoCornerForFillet(turn, anchors)",
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn: r(0.9),
-                    align: r(0.44),
-                    lever: l(6e-10),
-                    lever_of: TurnLever::AnchorSeparation,
+                    turn: LeveredTurn {
+                        sin_turn: r(0.9),
+                        align: r(0.44),
+                        lever: l(6e-10),
+                        lever_of: TurnLever::AnchorSeparation,
+                    },
                     corner: None,
                 },
                 radius: gl(0.05),
