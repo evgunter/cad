@@ -6734,6 +6734,12 @@ const UNREAD_FIRST_FACE: BooleanError = BooleanError::ClassificationInvariant {
     what: "a wall's second face is read before its first",
 };
 
+/// [`boolean_reduce_declared_strategy`]'s equal cylinder wall pairs.
+const WALL_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "bool_wall_pairs",
+    "the cylinder wall pairs whose boxes meet, read for their nodes",
+);
+
 /// [`boolean_reduce`] with an explicit [`SweepStrategy`] —
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
@@ -7080,7 +7086,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
 
     // The nodes of the equal cylinder pairs' sections, each a ring in
     // both walls (`node::mint_nodes`).
-    let walls = glue::overlapping_pairs(a_operand, b_operand, node::is_wall, band)?;
+    let walls = glue::overlapping_pairs(WALL_PAIRS, a_operand, b_operand, node::is_wall, band)?;
     for ring in node::mint_nodes(
         &declared.sections,
         (&mut a, &mut b),
