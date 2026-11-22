@@ -780,6 +780,8 @@ mod m10_bulge_interval;
 mod m10_derived_frame_interval;
 #[path = "m10_derived_frame_tilted_interval.rs"]
 mod m10_derived_frame_tilted_interval;
+#[path = "review_decide_path_r2_drive_probes.rs"]
+mod review_decide_path_r2_drive_probes;
 #[path = "m10_sym_drive_memo_interval.rs"]
 mod m10_sym_drive_memo_interval;
 #[path = "m10_sym_profile_interval.rs"]

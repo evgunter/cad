@@ -1,0 +1,20 @@
+diff --git a/crates/geom-core/src/sym.rs b/crates/geom-core/src/sym.rs
+index ca3948839..1a40ba4f2 100644
+--- a/crates/geom-core/src/sym.rs
++++ b/crates/geom-core/src/sym.rs
+@@ -5644,6 +5644,7 @@ impl<T: Decide> Sym<T> {
+             })
+         );
+         if definitely_nonzero {
++            if !{ static S1: std::sync::OnceLock<bool> = std::sync::OnceLock::new(); *S1.get_or_init(|| std::env::var_os("R2_S1").is_some()) } { // R2 review: S1 gate
+             // **A zero only the registry reaches, here, is a
+             // CONTRADICTED AXIOM** (`door_zero`), and it
+             // is checked in release rather than asserted in debug: a
+@@ -5707,6 +5708,7 @@ impl<T: Decide> Sym<T> {
+             }
+             #[cfg(feature = "sym-profile-testing")]
+             profile::set_origin(origin);
++            } // R2 review: S1 gate
+             count_decision(false);
+             report::record(&numeric, false, None, self.value.enclosure_probe());
+             return numeric;

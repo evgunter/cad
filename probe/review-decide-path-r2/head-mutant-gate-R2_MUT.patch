@@ -1,0 +1,44 @@
+diff --git a/crates/geom-core/src/sym.rs b/crates/geom-core/src/sym.rs
+index b32354bab..5c3693611 100644
+--- a/crates/geom-core/src/sym.rs
++++ b/crates/geom-core/src/sym.rs
+@@ -3437,7 +3437,14 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
+             })
+         }
+         SymOp::Add => a.add(b, budget),
+-        SymOp::Sub => a.add(&b.neg()?, budget),
++        SymOp::Sub => {
++            let d = a.add(&b.neg()?, budget)?;
++            if r2_mut("sub") && !d.is_zero() && d.num.as_constant().is_some() && d.den.as_constant().is_some() {
++                Some(Form::zero())
++            } else {
++                Some(d)
++            }
++        }
+         SymOp::Mul => a.mul(b, budget),
+         SymOp::Neg => a.neg(),
+         SymOp::Inv => a.recip(),
+@@ -4540,6 +4547,12 @@ fn discharge_in(id: SymId, path: Path) -> Option<(Rung, u8)> {
+ /// **The ladder**: the plain rung once, then the rungs of the first
+ /// attempt, then — only into their silence, and on the decision path
+ /// only — each retry's rungs in [`SymRetry::attempts`]'s order.
++/// Review mutant gate (R2 review of PR 7394): `R2_MUT=<tag>`.
++fn r2_mut(tag: &str) -> bool {
++    static M: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
++    M.get_or_init(|| std::env::var("R2_MUT").ok()).as_deref() == Some(tag)
++}
++
+ fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
+     // **THE PLAIN RUNG, and the first attempt's alone.** No attempt
+     // above the first builds a plain form ([`SymRetry`]).
+@@ -4564,6 +4577,10 @@ fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
+         {
+             continue;
+         }
++        if r2_mut("retry") {
++            sess.counts.retried += 1;
++            return Some((Rung::Early, attempt));
++        }
+         if let Some(rung) = rungs(sess, id, &plain, attempt, (rules, bits), path) {
+             sess.counts.retried += 1;
+             return Some((rung, attempt));
