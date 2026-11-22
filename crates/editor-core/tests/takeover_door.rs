@@ -265,9 +265,9 @@ fn an_instances_copy_taken_over_with_a_lateral_face_held() {
     )
     .expect("a colour on the new name is admitted")
     .doc;
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("it saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("it saves");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
-    assert!(loaded.doc.bit_eq(&doc), "the whole document round-trips");
+    assert!(loaded.bit_eq(&doc), "the whole document round-trips");
 }
 
 /// **The door evaluates only for a reader**: a copy nothing reads is

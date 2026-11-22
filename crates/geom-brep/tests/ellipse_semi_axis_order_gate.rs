@@ -1,0 +1,75 @@
+//! The certify gate on an ellipse's stored semi-axes: it meters either
+//! ORDER (the smaller semi-axis is the speed floor).
+
+#![allow(clippy::unwrap_used, clippy::panic)]
+
+use geom::{Curve3, Surface};
+use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey, SurfacePair};
+use geom_core::{Band, Point3, Tol, Vec3};
+use slotmap::SlotMap;
+
+/// **Either order is metered.** The plane `z = 0` cuts a unit cylinder
+/// leaning 0.5 rad in xz in the ellipse `a = 1/cos 0.5`, `b = 1` about
+/// the origin. Stored as `(a, b)`, swapped as `(b, a)` with `u_ref` along
+/// the minor axis, or as `(a, b)` with the frame turned over (`−axis`,
+/// `−u_ref`: the same locus traversed the other way), its quarter arc
+/// certifies.
+#[test]
+fn the_gate_meters_either_order() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let alpha: f64 = 0.5;
+    let (a, b) = (1.0 / alpha.cos(), 1.0);
+    let mut surfaces: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+    let plane = surfaces.insert(Surface::Plane {
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+    });
+    let cyl = surfaces.insert(Surface::Cylinder {
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(alpha.sin(), 0.0, alpha.cos()),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        radius: 1.0,
+    });
+    let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+    let certify = |major: f64, minor: f64, u_ref: Vec3<f64>, up: f64| {
+        let e = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), Vec3::new(0.0, 0.0, up), u_ref),
+            major,
+            minor,
+        ));
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(plane, cyl),
+                selector: geom_brep::CurveSelector::Witness(e.eval(core::f64::consts::FRAC_PI_4)),
+            },
+            carrier: e.clone(),
+            param_start: 0.0,
+            param_end: core::f64::consts::FRAC_PI_2,
+        };
+        EdgeCurve::certify(
+            spec,
+            e.eval(0.0),
+            e.eval(core::f64::consts::FRAC_PI_2),
+            |k| surfaces.get(k).cloned(),
+            geom_core::test_support::fixture_lever(1.0),
+            band,
+            geom_brep::NurbsLane::certified(),
+        )
+    };
+    assert!(
+        certify(a, b, x, 1.0).is_ok(),
+        "the ordinary frame certifies"
+    );
+    // Swapped: `u_ref` along the minor axis, `v_ref = axis × u_ref = −x̂`
+    // along the major, so the semi-axis stored first is `b`.
+    assert!(certify(b, a, y, 1.0).is_ok(), "the swapped frame certifies");
+    assert!(
+        certify(a, b, -x, -1.0).is_ok(),
+        "the frame turned over certifies"
+    );
+}

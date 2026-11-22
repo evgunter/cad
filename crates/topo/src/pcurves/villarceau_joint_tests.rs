@@ -22,11 +22,9 @@ fn a_whole_turn_decides_one_period_on_each_channel() {
     let u_ref = (Vec3::unit_x() - axis * axis.x).normalize();
     let center = Point3::new(0.3, -0.2, 0.5);
     let surface = Surface::Torus {
-        center,
-        axis,
+        frame: geom::Frame::new(center, axis, u_ref),
         major_radius: big,
         minor_radius: r,
-        u_ref,
     };
     let chart = DescribedChart::of(&surface).unwrap();
     let tilt = (r / big).asin();

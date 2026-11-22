@@ -16,8 +16,8 @@
 //! face.
 //!
 //! These rows go through ordinary doors with a `PartStore`: each
-//! refusal at insert, a refused insert leaves no entry, replay round-trips what the recording door
-//! admitted and refuses what the door refuses, a doctored snapshot is
+//! refusal at insert, a refused insert leaves no entry, a document
+//! holding what the door admitted round-trips, a doctored snapshot is
 //! refused at load in the door's words, and the door admits again every
 //! constraint of a corpus whatever its evaluation says.
 
@@ -345,66 +345,30 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     );
 }
 
-/// **Replay re-applies what the recording door admitted, and refuses
-/// what the door refuses**: a log whose entry added a face-to-face rest
-/// round-trips through `save` and `load` with no store, while a
-/// hand-edited entry mating a plane to a point refuses at `load` as
-/// `EditReplay { index, MateRefused { KindsDiffer } }`, naming the
-/// entry.
+/// **A document holding a mate the door admitted round-trips with no
+/// store**: a face-to-face rest saves and loads, and the loaded bundle
+/// is the admitted one.
 #[test]
-fn a3_replay_round_trips_an_admitted_mate_and_refuses_a_door_refusal_at_load() {
+fn a3_an_admitted_mate_round_trips_through_save_and_load() {
     let (doc, ids, _, body) = instances("msolve10-a3-log", 2);
-    let snapshot = doc.clone();
     let edit = seat(&doc, ids[1], mate(body, ids[0], ids[1]));
     let applied = doc.apply(&edit, Tol::witness()).expect("admitted");
-    let log = vec![edit.clone()];
-    let text = save(&snapshot, &log, Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("a log the door admitted loads with no store");
-    assert_eq!(loaded.doc.ids(), applied.doc.ids());
+    let text = save(&applied.doc, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("an admitted mate loads with no store");
+    assert_eq!(loaded.ids(), applied.doc.ids());
     assert_eq!(
-        fixture::bundle(&loaded.doc, ids[1]),
+        fixture::bundle(&loaded, ids[1]),
         fixture::bundle(&applied.doc, ids[1])
-    );
-    assert_eq!(loaded.edits, log);
-
-    // The hand-edited entry, spliced in as a bare entry at index 1.
-    let refused = add(ids[1], kinds_differ(body, ids[0], ids[1]));
-    let refused_wire = serde_json::to_value(&refused).expect("an entry serializes");
-    let doctored = wire::doctored(&text, |wire| {
-        wire["edits"]
-            .as_array_mut()
-            .expect("the log is a list")
-            .push(refused_wire);
-    });
-    let err = load(&doctored, Tol::witness()).expect_err("the door refuses this mate");
-    let PersistError::EditReplay { index, error } = &err else {
-        panic!("expected EditReplay, got {err:?}");
-    };
-    assert_eq!(*index, 1, "the entry is named");
-    assert!(
-        matches!(
-            &**error,
-            EditError::MateRefused { fault, .. }
-                if matches!(**fault, MateFault::KindsDiffer { on: VarKind::Plane, to: VarKind::Point, .. })
-        ),
-        "{error:?}"
-    );
-    assert!(
-        err.to_string().contains("edit 1 refused on replay"),
-        "{err}"
     );
 }
 
-/// **A second rest refuses at the door, and on replay**: two rests on
-/// one copy — its bottom cap and its top cap each resting on the same
-/// face — fix the normal twice, which the door reads off the two
-/// mates' kinds, measuring nothing (FORK-S3O). A log carrying the
-/// second refuses to save, its replay refusing in the same words,
-/// naming the entry.
+/// **A second rest refuses at the door**: two rests on one copy — its
+/// bottom cap and its top cap each resting on the same face — fix the
+/// normal twice, which the door reads off the two mates' kinds,
+/// measuring nothing (FORK-S3O).
 #[test]
-fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
+fn a3_a_second_rest_refuses_at_the_door() {
     let (doc, ids, _, body) = instances("msolve10-a3-overconstrained", 2);
-    let snapshot = doc.clone();
     let bottom = seat(&doc, ids[1], mate(body, ids[0], ids[1]));
     // The second rest added to the pinned bundle beside the first.
     let top = DocEdit::AddConstraint {
@@ -434,13 +398,6 @@ fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
         ),
         "{fault:?}"
     );
-    let err = save(&snapshot, &[bottom, top], Tol::witness())
-        .expect_err("a log carrying the second rest does not replay");
-    let PersistError::EditReplay { index, error } = &err else {
-        panic!("expected EditReplay, got {err:?}");
-    };
-    assert_eq!(*index, 1, "the entry is named");
-    assert_eq!(**error, refused, "replay refuses in the door's words");
 }
 
 /// **A snapshot is data, and the load door decides it as the edit door
@@ -453,7 +410,7 @@ fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
 fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
     let (doc, ids, _, body) = instances("msolve10-a3-snapshot", 2);
     let (doc, mate_id) = fixture::constrain(doc, mate(body, ids[0], ids[1]));
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     // The one mate: its `on` and `to` reads exchanged, so every
     // variable keeps its one reader.
     fn swap(v: &mut serde_json::Value, swapped: &mut usize) {

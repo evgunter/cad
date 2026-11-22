@@ -784,15 +784,11 @@ fn vertex_bounds<T: editor_core::test_support::AnyEvaluate>(
 ///
 /// An axis mate off the origin turns about its line: the box's edge on
 /// the edge of a copy slid to `(1, 2)`, spun `turn/4`. There the copy's
-/// measured spin is undone before the written one is made, and at
-/// `Interval` an exact zero measured spin is the exact zero, not the
-/// backend `atan2`'s dust, whose cosine is an ulp wide and would widen
-/// the copy's translation by the line's lever.
+/// measured spin is undone before the written one is made.
 ///
 /// *Breaks if* a rotation by a written fraction of a turn reads the
 /// sine and cosine of its value: a coordinate then carries `6.1e-17`
-/// at `f64` and an enclosure of that width at `Interval`; or if an
-/// exactly zero measured spin is undone through a widened zero.
+/// at `f64` and an enclosure of that width at `Interval`.
 #[test]
 fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes() {
     use editor_core::TargetAxis::{X, Y, Z};
@@ -803,7 +799,7 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
     let corners = |f: fn([f64; 3]) -> [f64; 3]| {
         let mut want: Vec<[(f64, f64); 3]> = vertices(&doc, b)
             .into_iter()
-            .map(|p| f(p).map(|c| (c + 0.0, c + 0.0)))
+            .map(|p| f(p).map(geom_core::fold_signed_zero).map(|c| (c, c)))
             .collect();
         want.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
         want

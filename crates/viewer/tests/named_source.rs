@@ -995,8 +995,8 @@ fn square_drawn_on(session: &mut DocSession, body: RecipeNodeId, on: RecipeNodeI
         |x: f64, y: f64| pncad::document::ProgramTarget::Point([common::len(x), common::len(y)]);
     landed(
         session,
-        SessionOp::AddDrawnProfile {
-            plane: viewer::session::FaceSelection {
+        SessionOp::DrawOnFace {
+            face: viewer::session::FaceSelection {
                 node: on,
                 ..top_of(body)
             },

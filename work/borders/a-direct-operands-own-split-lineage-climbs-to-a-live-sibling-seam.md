@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-26
 priority: P2
 cost: M
-refs: [an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order, borders-records-a-join-twice-and-reads-lineage-three-ways]
+refs: [borders-records-a-join-twice-and-reads-lineage-three-ways]
 ---
 
 

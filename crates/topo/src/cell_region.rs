@@ -23,7 +23,7 @@
 //!    or wholly out of it. A seam is no boundary: the face lies on both
 //!    sides of it. The centre station, placed by the face's
 //!    point-in-face door ([`crate::contfp`] on a plane,
-//!    [`crate::boolean::curved_face_placement`] on a curved carrier),
+//!    [`crate::contain::curved_face_placement`] on a curved carrier),
 //!    says which; a station the curved door reads off its own carrier
 //!    is the kernel's defect, and panics.
 //!
@@ -46,7 +46,7 @@ use geom_core::interval::Interval;
 use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Sign};
 
 use crate::Body;
-use crate::boolean::{CurvedPlacement, FaceContainment, contfp, curved_face_placement};
+use crate::contain::{CurvedPlacement, FaceContainment, contfp, curved_face_placement};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
 use crate::splitting::containment::{ArcFloor, arc_distance_floor};
@@ -165,7 +165,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 
 /// **Where the face's point door places the point `(u, v)` of `face`'s
 /// stored chart**: [`crate::contfp`] on a plane,
-/// [`crate::boolean::curved_face_placement`] on a curved carrier. `None`
+/// [`crate::contain::curved_face_placement`] on a curved carrier. `None`
 /// for a face that does not resolve, a door that refuses, and a curved
 /// door's unread remainder.
 ///
@@ -175,8 +175,9 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 /// off an analytic face's carrier (a sphere, cylinder, cone, torus or
 /// ruled carrier): the station is a point of the face's own chart, so
 /// that is the kernel's defect. A spline face's off-carrier reading is
-/// `None` instead: its station has no premise check, and the spline
-/// region's search is the only reading of it.
+/// `None` instead (the cell kept): its station has no premise check (not
+/// [`geom_brep::is_analytic`]), and the spline region's search is the only
+/// reading of it, which the door could not settle.
 pub fn station_region<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
@@ -198,7 +199,10 @@ fn place<T: Decide>(
     crate::held::Held::constructed(station, "a station of the face's own stored chart")
         .check(surface, band);
     match *surface {
-        Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
+        Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            contfp(body, face, normal, station, band).ok()
+        }
         _ => match curved_face_placement(body, face, station, band).ok()? {
             CurvedPlacement::Trim(at) => at,
             // A spline chart's station is read by the spline region's own
@@ -213,7 +217,7 @@ fn place<T: Decide>(
             // is the kernel's defect, as at every held door, never a
             // reading of `Out`.
             CurvedPlacement::OffCarrier => {
-                if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                if !geom_brep::is_analytic(surface) {
                     return None;
                 }
                 unreachable!(
@@ -293,8 +297,12 @@ fn clear_of_singular(
     clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
     match *surface {
-        Surface::Cone { apex, .. } => clear_as(CELL_REGION_SINGULAR, (station - apex).norm()),
-        Surface::Torus { center, axis, .. } | Surface::Spindle { center, axis, .. } => {
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
+            clear_as(CELL_REGION_SINGULAR, (station - apex).norm())
+        }
+        Surface::Torus { frame, .. } | Surface::Spindle { frame, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let axis_line = geom::Line {
                 origin: center,
                 dir: axis,

@@ -174,6 +174,7 @@ fn compare<T: Real>(
                         u_off: T::zero(),
                         v_off: T::zero(),
                         v_sign: T::one(),
+                        pole: None,
                     };
                     let new = image.raw(p, 0);
                     let old = old_raw(&chart, m, n, p);

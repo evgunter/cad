@@ -94,6 +94,9 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
     let projected = match err {
         T::InvalidChordalTolerance { value } => float(*value).map(|v| fields[1] = ("value", v)),
         T::ResolutionOverflow { count } => float(*count).map(|v| fields[1] = ("value", v)),
+        // The triangles on the side; the faces are keys.
+        #[allow(clippy::cast_precision_loss)]
+        T::OverusedSide { uses, .. } => float(*uses as f64).map(|v| fields[1] = ("value", v)),
         T::StepNotPositive { step, .. } => float(*step).map(|v| fields[1] = ("value", v)),
         T::CertificateExceeded {
             bound, requested, ..
@@ -113,6 +116,12 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
                 float(*allowance).map(|a| fields[1] = ("value", a))
             })
         }),
+        // The triangle's height rides as the value and the allowance it
+        // does not exceed as the bound; its corners are in the message.
+        T::UnresolvedWinding { unresolved, .. } => float(unresolved.height).and_then(|h| {
+            fields[1] = ("value", h);
+            float(unresolved.allowance).map(|a| fields[2] = ("bound", a))
+        }),
         T::UnsupportedNurbsFace { note, .. } | T::UnsupportedCurve { note, .. } => {
             fields[4] = ("note", PyString::new(py, note).unbind().into_any());
             Ok(())
@@ -124,10 +133,10 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         T::UnsupportedCurvedDomain { max_distance, .. } => {
             float(*max_distance).map(|v| fields[1] = ("value", v))
         }
-        // The shape door's refusal is props' own, and its prose names
-        // the structural expectation that failed (`props_rim_level`,
-        // an incidence name); that sentence is the payload a caller can
-        // act on, so it rides as the note. The band arm's payload is
+        // The route's refusal is props' own, and its prose names the
+        // decision or the premise that failed (an escalated predicate, an
+        // incidence name); that sentence is the payload a caller can act
+        // on, so it rides as the note. The band arm's payload is
         // the run's configuration failure, likewise a sentence.
         T::UnsupportedCurvedShape { source, .. } => {
             fields[4] = (
@@ -167,6 +176,13 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             );
             Ok(())
         }
+        // The door's cause, as a sortable word; the face and the ring
+        // it may name are keys.
+        T::DomainUnread { cause, .. } => {
+            let word = cause.name();
+            fields[4] = ("note", PyString::new(py, word).unbind().into_any());
+            Ok(())
+        }
         // The cause is the sortable word; face and edge are keys.
         T::SphereTrimShape { cause, .. } => {
             fields[4] = ("note", PyString::new(py, cause.name()).unbind().into_any());
@@ -176,14 +192,16 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         // there is nothing to project that a caller may hold.
         T::UnsupportedSurface { .. }
         | T::NullScaffoldEdge { .. }
-        | T::RingOnCurvedFace { .. }
         | T::EmptyLoop { .. }
         | T::Triangulation { .. }
         | T::SelfTouchingTrimLoop { .. }
         | T::PinchWedge { .. }
+        | T::BoundaryBoundsNoRegion { .. }
         | T::TrimLoopOrientation { .. }
         | T::FoldedTriangle { .. }
-        | T::BoundaryEar { .. } => Ok(()),
+        | T::UnclearedSharedSide { .. }
+        | T::WrapStripTurn { .. }
+        | T::LiftedColumnOff { .. } => Ok(()),
     };
     if let Err(failed) = projected {
         return failed;

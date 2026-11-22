@@ -289,24 +289,24 @@ pub fn axis_wedge() -> Body<f64> {
 /// Exact distance from a point to the complete analytic locus.
 pub fn dist_to_surface(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
     match *surface {
-        Surface::Plane { origin, normal, .. } => (p - origin).dot(normal).abs(),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            (p - origin).dot(normal).abs()
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let w = p - origin;
             let rho = (w - axis * w.dot(axis)).norm();
             (rho - radius).abs()
         }
-        Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            ((p - center).norm() - radius).abs()
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let w = p - apex;
             let h = w.dot(axis);
             let rho = (w - axis * h).norm();
@@ -321,12 +321,12 @@ pub fn dist_to_surface(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
             best.min(w.norm())
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let w = p - center;
             let h = w.dot(axis);
             let rho = (w - axis * h).norm();
@@ -390,8 +390,10 @@ pub fn dump(mesh: &Mesh) -> String {
 pub fn check_mesh_acceptance(body: &Body<f64>, delta: f64, exact: Option<(f64, f64)>) -> Mesh {
     let mesh = tessellate(body, delta, Tol::witness()).unwrap();
 
-    // (i) watertight, manifold, consistently wound.
+    // (i) watertight, manifold, consistently wound, and every winding
+    // resolved above the rounding of its own positions.
     assert_eq!(check_mesh(&mesh), Ok(()));
+    assert_eq!(mesh::validate::check_winding(&mesh), Ok(()));
 
     // (ii) orientation: positive signed volume, within the implied band.
     let v = signed_volume(&mesh);

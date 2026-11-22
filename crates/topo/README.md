@@ -47,7 +47,7 @@ that what you need belongs at the root or below.
 |---|---|
 | Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/live.rs` |
 | Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/strut.rs` (a strut deleted from its face, for the merge and the Boolean's closing), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
-| Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/edge_wedge.rs` (an edge's wedge read whole, which check 4 and the constructors share), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
+| Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/edge_wedge.rs` (an edge's wedge read whole, which check 4 and the constructors share), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter `Candidates`, the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `ContactPair`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_pair.rs` (the face-pair door); the carrier ladder it reads is `geom_brep::carrier_eq` (kind-generalized) and `geom_brep::plane_eq` (its planar arm) |
@@ -55,7 +55,7 @@ that what you need belongs at the root or below.
 | The region a face or an edge can occupy | `src/cover.rs` (`face_cover`, `face_cover_toward`, `edge_cover`, `face_nearest`, `meet_within`): a face's carrier cover met with the trim constraints its one arm per kind proves, an edge's carrier cover over its span hulled with its ends, the ball where two covers meet within the band |
 | A loop's position in its face's chart | `src/pcurves/lift.rs` (`Lift`): the chain of the loop's chart images, each moved by the joint elements summed along it (`src/joint.rs`), and the face's boundary in the chart, through a pole or an apex along the face's turn there. `Lift::read` takes the rows a finished body stores, with no band, and a missing row is loud; `Lift::decided` runs the mint's own walk at the caller's band over a loop or an open run, mid-operation, and stores nothing. The caller names which, and neither falls back to the other. Every window, hull and winding is a method on it, and so is every joint's chart point: where a row meets a column it is the meet of the two lines those images hold fixed, exact wherever both lines are, and elsewhere it is the image's value there. A row or column image stores the line it holds and one map along it, and no ends. A chart closed in a direction states its period by its domain's two ends, so an image on one end moved a whole period lies exactly on the other. `decide_joint` is the one decision of a joint's branch |
 | A face's rings in its outer loop's sheet | `src/pcurves_rings.rs` (`Body::face_lift`, `FaceLift`, `PlacedRing`, `RingPlacementError`, `place_ring`): each ring's lift moved by the one whole number of periods per closed channel that puts its first point in the region the outer loop's lift bounds, decided against the outer loop alone in the chart's cover. An analytic chart reads the point by the ray parity over the lifted rows' chart boxes, each clearance metered by the chart's inf-side arms; a spline chart reads it by its trim (`src/spline_trim.rs`), which places its own rings by the same rule. An outer loop or a ring that does not close in the chart, a ring no shift places, one two shifts place, and a spline trim that is not read (`SplineTrimGap`: a placeholder chart, no Bézier cells, a period stated but not decided, a lift that winds, a row moved by a period on a channel the chart states but does not decide closed or onto the twin sheet, an image with no piece reading, a box with no value, naming the ring where it is a ring's chain) each answer typed; the work bounds of both readers live beside the rule, and the ray parity both run is `src/chain_parity.rs` (`ray_parity_as` over each family's `ChainPiece`) |
-| A point against a spline face's trim | `src/spline_trim.rs` (`Trim`, `bezier_cells`, `Patch`, `ring_decks`): a face's loops in its spline chart as rational Bézier pieces, each ring moved into its outer loop's cover by the ring rule, and a query placed by the ray parity of its centre (`src/chain_parity.rs`), every piece decided clear of it in metres through the chart's inf-side arms over a window; the chart's Bézier cells, which meter the window's arms and the boolean's carrier walk (`src/boolean/spline_region.rs`), each box widened by its `f64` rounding |
+| A point against a spline face's trim | `src/spline_trim.rs` (`Trim`, `bezier_cells`, `Patch`, `ring_decks`): a face's loops in its spline chart as rational Bézier pieces, each ring moved into its outer loop's cover by the ring rule, and a query placed by the ray parity of its centre (`src/chain_parity.rs`), every piece decided clear of it in metres through the chart's inf-side arms over a window; the chart's Bézier cells, which meter the window's arms and the boolean's carrier walk (`src/spline_region.rs`), each box widened by its `f64` rounding |
 | A face's azimuth window on its chart | `src/chart_window.rs` (`face_azimuth_window`): the first-channel hull of the outer loop's lift, decided at the reader's band since its readers run mid-operation too, refusing in its own `ChartWindowError` |
 | Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves/tier3.rs` (`loop_windings`) |
 | The clearance engine's body-level half | `src/clearance.rs` (`Side`, `Sweep`, `Candidate`, `Enclosure`, `EngineRefusal`, `min_separation`): carrier windows and the cell subdivision between two sets of faces, one fused sweep reading a pair against a lower bound, an upper bound or both (a band) with a caller's pair verifier, and the certified minimum-separation bracket the sweep suites read beside it |
@@ -64,7 +64,8 @@ that what you need belongs at the root or below.
 | What the Boolean's join meets | `src/meeting.rs` (`PLANE_WALLS`, `plane_joins`, `meeting_recourse`, `CONIC_EDGES_RECOURSE`, `CONIC_OUTLINE_RECOURSE`): the face pairs the germ-pair join takes and the edge kinds every lane walks, stated once with the recourses that name them; the join's lane dispatch reads the same table |
 | A key that did not resolve | `src/unresolved.rs` (`Unresolved`): the one statement of a dangling key, carried by `CarveError`, `FinishDesync` and `JoinError::Corrupt` |
 | How far a face reaches | `src/face_reach.rs` (`face_extent`, `face_reach_from`, `face_reach_round_from`, `face_axial_range`, `cone_axial_window`, `cone_face_reach`): the lever arms read off a face's boundary, from a point, along an axis and against a cone's axis |
-| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, a glued slit's two edges merged across the sliver between them, and a face closed across the strut a slit's two edges leave where the result drops both walls), `ops.rs`, `nary.rs` (the n-ary union and intersect, and a cut's tool read as its material), `material.rs` (that cut read back to the tool's cells), `carrier_pair.rs`, `combine.rs`, `voids.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
+| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, a glued slit's two edges merged across the sliver between them, and a face closed across the strut a slit's two edges leave where the result drops both walls), `ops.rs`, `nary.rs` (the n-ary union and intersect, and a cut's tool read as its material), `material.rs` (that cut read back to the tool's cells), `carrier_pair.rs`, `combine.rs`, `voids.rs` |
+| Point and solid containment | `src/contain.rs` (`contfp`, `curved_face_containment`, `face_placement`, `ContainError`), `src/region.rs` and its arms `src/sphere_region.rs`, `src/torus_region.rs`, `src/ruled_region.rs`, `src/spline_region.rs`, `src/solid_contain.rs` (`point_in_solid`, `SolidContainment`), `src/rim_wedge.rs`, `src/surface_group.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/boxes.rs` (the certified-conservative boxes of faces and edges, `sweep_pad`), `src/separating.rs` (the narrow phase's separating axes, `apart`), `src/transform.rs` (rigid placement) |
 | Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_general.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_surfaces_together`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
@@ -737,13 +738,22 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    `src/one_region.rs`),
    **prefer-intrinsic
    enforcement** ([edges]) and the
-   **orientation invariant** (a solid's faces leave infinity outside
-   it, read by the reader of a shell's role, [coincidence.booleans]: a ray
-   aimed at one of its faces, the certified signed volume where no ray
-   reads; definitely inside-out by any reading ⇒ invalid (a certified
-   negative volume refuses even where a ray reads its side), and a solid
-   whose side no reading decides refuses — an orientation probe, not a
-   thinness gate, at every door). Laminae live here, not at
+   **orientation invariant** (a solid's shells leave infinity outside
+   it: a certified negative volume is inside out ⇒ invalid whatever a
+   ray reads; then every shell's role is read, one shell at a time, by
+   the reader of a shell's role, [coincidence.booleans] — a ray aimed
+   from outside the shell at one of its faces, the certified signed
+   volume where no ray reads — a solid's only shell included; no
+   `Outer` among them ⇒ inside out, more than one ⇒ two outer shells,
+   else the voids' nesting is check 10's; a shell whose role no reading
+   decides refuses — an orientation probe, not a thinness gate, at every
+   door). A solid's or a body's side at infinity is never read off its
+   faces as one selection: it follows from its shells' roles, and a
+   selection of several shells carries the side it was built with (a
+   finished body's is `Out`, its complement's `In`). A shell's role is
+   read behind the embedding check below: on an embedded shell every
+   aimed ray reads one side, and a shell that crosses itself has no side
+   to read. Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
    two-hemisphere ball's incidence structure, so a zero-volume lamina
    is a geometric defect, not a topological one. Global
@@ -1877,10 +1887,18 @@ already and reads no extent.
   dihedral reading across the edge (`Body::dihedral_across`) decides two
   planes' join smooth and hands back the verdict (`SmoothAcross`), which
   only that reading constructs, and the act consumes it and records the
-  row (`Body::one_record_across`). No door re-points faces between
-  records from an edge and a face alone.
-  The split's flush section, the chord join and import adoption keep two
-  records of one carrier and are filed.
+  row (`Body::one_record_across`). No door on a body re-points faces
+  between records from an edge and a face alone.
+  The split's flush section and the chord join keep two records of one
+  carrier and are filed. Import makes two plane records whose faces read
+  as one locus facing one way one record before anything is built
+  (`step_import`'s `one_record`): with no body yet there is no token for
+  it to consume, so it re-points the file's faces on its own reading of
+  them, the file's band's Zero, and restates `[topo.one-record.act]`'s
+  rule (each sense restated so its material side is unchanged) rather
+  than calling `Body::one_record`. Two records of one cylinder, cone,
+  sphere or torus become one by the same act, read where their faces
+  are (`step_import`'s `one_record` states how).
 - **`[topo.one-record.rest]` At rest no edge's locus reads values.**
   Where an edge rests is read off its sides by key (`rest_locus`): one
   record is its chart, two records are their pair. Two distinct records at rest

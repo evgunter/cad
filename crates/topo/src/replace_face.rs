@@ -798,7 +798,7 @@ pub enum ReplaceFaceError<T: Real> {
     /// neighbour's torus is whatever the body carries.
     ///
     /// Standing: as the convention states it
-    /// ([`geom_brep::TorusRefusal::refusal`]): ranked by its margin in
+    /// ([`geom_brep::TorusRefusal::standing`]): ranked by its margin in
     /// band, an abort where decided outside the convention.
     DegenerateTorus {
         /// The edge whose section read the torus.
@@ -1251,34 +1251,44 @@ fn transport_curve<T: Decide>(
     band: Band,
 ) -> Result<Transported<T>, Indeterminate> {
     Ok(match old {
-        Surface::Plane { normal, .. } => {
-            let delta = *normal * d;
+        Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            let delta = normal * d;
             Some((translate_curve(curve, delta), Some(delta)))
         }
-        Surface::Cylinder { origin, axis, .. } => match curve {
-            Curve3::Line(_) | Curve3::Nurbs(_) => {
-                let radial = (mid - *origin).reject_from(*axis).normalize();
-                let delta = radial * d;
-                Some((translate_curve(curve, delta), Some(delta)))
-            }
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis: ca,
-                        u_ref,
+        Surface::Cylinder {
+            frame: carrier_frame,
+            ..
+        } => {
+            let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            match curve {
+                Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+                    let radial = (mid - origin).reject_from(axis).normalize();
+                    let delta = radial * d;
+                    Some((translate_curve(curve, delta), Some(delta)))
+                }
+                Curve3::Circle(
+                    conic_k @ geom::Circle {
+                        frame: carrier_frame_40,
+                        ..
                     },
-                radius,
-            }) => Some((Curve3::circle(*center, *ca, *radius + d, *u_ref), None)),
-            // Neither an ellipse nor a spiric lies on a cylinder.
-            Curve3::Ellipse(..) | Curve3::Spiric { .. } => None,
-        },
+                ) => {
+                    let radius = conic_k.radius();
+                    Some((
+                        Curve3::Circle(geom::Circle::new(*carrier_frame_40, radius + d)),
+                        None,
+                    ))
+                }
+                // Neither an ellipse nor a spiric lies on a cylinder.
+                Curve3::Ellipse(..) | Curve3::Spiric { .. } => None,
+            }
+        }
         Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
             ..
         } => {
+            let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
             // ONE derivation, read from `geom_brep`: the apex slide,
             // the parameter shift and the pointwise displacement are
             // three faces of the mint's own action, and this door reads
@@ -1286,8 +1296,8 @@ fn transport_curve<T: Decide>(
             // costs is a second copy, not a second call).
             let action = geom_brep::ConeOffset::new(
                 geom::Line {
-                    origin: *apex,
-                    dir: *axis,
+                    origin: apex,
+                    dir: axis,
                 },
                 *half_angle,
                 d,
@@ -1297,31 +1307,21 @@ fn transport_curve<T: Decide>(
                 // A chart line is a generator, and the action's
                 // displacement is constant along one (the azimuth does
                 // not vary), so the transport is rigid.
-                Curve3::Line(_) | Curve3::Nurbs(_) => {
+                Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
                     let delta = action.displacement(nappe, mid);
                     Some((translate_curve(curve, delta), Some(delta)))
                 }
                 // A parallel: `v` shifts by the action's own shift, and
                 // the circle re-mints against the action's own APEX —
                 // the slide the mint applies and this arm used to omit.
-                Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis: ca,
-                            u_ref,
-                        },
-                    ..
-                }) => {
-                    let v = (*center - *apex).dot(*axis) / cos_a;
+                Curve3::Circle(geom::Circle { frame, .. }) => {
+                    let v = (frame.origin() - apex).dot(axis) / cos_a;
                     let v_new = v + action.shift();
                     Some((
-                        Curve3::circle(
-                            action.apex() + *axis * (v_new * cos_a),
-                            *ca,
+                        Curve3::Circle(geom::Circle::new(
+                            frame.with_origin(action.apex() + axis * (v_new * cos_a)),
                             (v_new * sin_a).abs(),
-                            *u_ref,
-                        ),
+                        )),
                         None,
                     ))
                 }
@@ -1332,64 +1332,67 @@ fn transport_curve<T: Decide>(
         // The sphere's offset IS the homothety of ratio `(R + d)/R`
         // about the centre, so every curve on it transports by that one
         // map — no per-kind case analysis, only per-kind arithmetic.
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let k = (*radius + d) / *radius;
-            homothety(curve, *center, k).map(|c| (c, None))
+            homothety(curve, center, k).map(|c| (c, None))
         }
         Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             ..
-        } => match curve {
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: c,
-                        axis: ca,
-                        u_ref,
+        } => {
+            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            match curve {
+                Curve3::Circle(
+                    conic_k @ geom::Circle {
+                        frame: carrier_frame_39,
+                        ..
                     },
-                radius,
-            }) => {
-                // Meridian or parallel is a question about the STORED
-                // circle's frame against the torus'; the margin is the
-                // sine/cosine split at the half-turn, and a carrier
-                // whose axis sits between the two is not a curve either
-                // arm describes.
-                let along = ca.dot(*axis);
-                let parallel = matches!(
-                    decide(
-                        "offset_torus_carrier_axis",
-                        Margin::of(along.abs() - T::from_f64(0.5)),
-                        band,
-                    )?,
-                    Sign::Positive
-                );
-                if parallel {
-                    // A parallel: recover `v` from the stored circle
-                    // (`radius = R + r·cos v`, axial offset `r·sin v`)
-                    // and re-mint it at `r + d`.
-                    let cos_v = (*radius - *major_radius) / *minor_radius;
-                    let sin_v = (*c - *center).dot(*axis) / *minor_radius;
-                    let r_new = *minor_radius + d;
-                    Some((
-                        Curve3::circle(
-                            *center + *axis * (r_new * sin_v),
-                            *ca,
-                            *major_radius + r_new * cos_v,
-                            *u_ref,
-                        ),
-                        None,
-                    ))
-                } else {
-                    // A meridian (tube) circle: the tube centre is
-                    // fixed and the radius moves with the minor.
-                    Some((Curve3::circle(*c, *ca, *minor_radius + d, *u_ref), None))
+                ) => {
+                    let (c, ca) = (carrier_frame_39.origin(), carrier_frame_39.axis());
+                    let radius = conic_k.radius();
+                    // Meridian or parallel is a question about the STORED
+                    // circle's frame against the torus'; the margin is the
+                    // sine/cosine split at the half-turn, and a carrier
+                    // whose axis sits between the two is not a curve either
+                    // arm describes.
+                    let along = ca.dot(axis);
+                    let parallel = matches!(
+                        decide(
+                            "offset_torus_carrier_axis",
+                            Margin::of(along.abs() - T::from_f64(0.5)),
+                            band,
+                        )?,
+                        Sign::Positive
+                    );
+                    if parallel {
+                        // A parallel: recover `v` from the stored circle
+                        // (`radius = R + r·cos v`, axial offset `r·sin v`)
+                        // and re-mint it at `r + d`.
+                        let cos_v = (radius - *major_radius) / *minor_radius;
+                        let sin_v = (c - center).dot(axis) / *minor_radius;
+                        let r_new = *minor_radius + d;
+                        Some((
+                            Curve3::Circle(geom::Circle::new(
+                                carrier_frame_39.with_origin(center + axis * (r_new * sin_v)),
+                                *major_radius + r_new * cos_v,
+                            )),
+                            None,
+                        ))
+                    } else {
+                        // A meridian (tube) circle: the tube centre is
+                        // fixed and the radius moves with the minor.
+                        Some((
+                            Curve3::Circle(geom::Circle::new(*carrier_frame_39, *minor_radius + d)),
+                            None,
+                        ))
+                    }
                 }
+                _ => None,
             }
-            _ => None,
-        },
+        }
         // The fitted lane: the chart normal at the domain midpoint is
         // the one direction this door has, and the cost of using it is
         // `d·|n − n₀|` — classified downstream by the certified gate,
@@ -1427,25 +1430,15 @@ fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
 pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Curve3<T> {
     match curve {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(*origin + delta, *dir),
-        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
-            frame: c.frame.translated(delta),
-            ..*c
-        }),
-        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
-            frame: e.frame.translated(delta),
-            ..*e
-        }),
+        Curve3::Circle(c) => Curve3::Circle(c.with_frame(c.frame.translated(delta))),
+        Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(e.frame.translated(delta))),
         Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
             offset,
         } => Curve3::Spiric {
-            center: *center + delta,
-            axis: *axis,
-            u_ref: *u_ref,
+            frame: carrier_frame.with_origin(carrier_frame.origin() + delta),
             major_radius: *major_radius,
             minor_radius: *minor_radius,
             offset: *offset,
@@ -1453,6 +1446,7 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
         // A translation is affine: the net's image, knots and weights
         // as they are held.
         Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(|p| p + delta))),
+        Curve3::Periodic(n) => Curve3::Periodic(Arc::new(n.map_points(|p| p + delta))),
     }
 }
 
@@ -1461,18 +1455,22 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
 fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>> {
     let map = |p: Point3<T>| c + (p - c) * k;
     Some(match curve {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => Curve3::circle(map(*center), *axis, *radius * k, *u_ref),
+        Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame: carrier_frame_38,
+                ..
+            },
+        ) => {
+            let radius = conic_k.radius();
+            Curve3::Circle(geom::Circle::new(
+                carrier_frame_38.with_origin(map(carrier_frame_38.origin())),
+                radius * k,
+            ))
+        }
         // A homothety is affine: the net's image, knots and weights as
         // they are held.
         Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(map))),
+        Curve3::Periodic(n) => Curve3::Periodic(Arc::new(n.map_points(map))),
         // A line, an ellipse or a spiric does not lie on a sphere, so
         // a carrier of any of those kinds is not a curve this map was
         // derived for.
@@ -1871,12 +1869,12 @@ impl OffsetOutcome {
     /// # Errors
     ///
     /// As [`crate::ContactRecords::carried_through`].
-    pub fn carry_contacts<T: Decide>(
+    pub fn carry_contacts<T: crate::props::AtRestPolicy>(
         &self,
         records: &crate::boolean::ContactRecords,
         result: &Body<T>,
         band: Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
         records.carried_through(0, &self.lineage(), result, band, region)
     }
@@ -2105,12 +2103,10 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         // ---- Decide: the apex window (cones only). ----
         let shift = apex_shift(&old_surface, d);
         if let Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } = old_surface
         {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let (v_min, v_max) = group_cone_v_window(
                 body,
                 faces,
@@ -2222,14 +2218,12 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     // the face now has: its near end must still clear the moved apex.
     for chart in &charts {
         let Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } = chart.new_surface
         else {
             continue;
         };
+        let (apex, axis) = (frame.origin(), frame.axis());
         let face = chart.faces[0];
         let own = group_boundary(body, chart.faces);
         let mut window: Option<(T, T)> = None;
@@ -2381,7 +2375,7 @@ fn mint_offset<T: Decide>(
     d: T,
     band: Band,
     tol: Tol,
-    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
+    offset_fit: Option<impl geom_brep::OffsetFitLaneOf<T>>,
 ) -> Result<Surface<T>, ReplaceFaceError<T>> {
     if let Surface::Nurbs(base) = old {
         if base.is_placeholder() {
@@ -2446,19 +2440,19 @@ pub(crate) fn region_reach<T: Real>(
 fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
     match old {
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => geom_brep::ConeOffset::new(
-            geom::Line {
-                origin: *apex,
-                dir: *axis,
-            },
-            *half_angle,
-            d,
-        )
-        .shift(),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            geom_brep::ConeOffset::new(
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                *half_angle,
+                d,
+            )
+            .shift()
+        }
         _ => T::zero(),
     }
 }
@@ -2532,46 +2526,54 @@ fn cone_v_range<T: Decide>(
         // amplitude is the semi-axes' own components along the cone
         // axis. Taken over the FULL period, which is conservative on a
         // sub-arc and exact on a closed rim.
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis: ca,
-                    u_ref,
-                },
-            radius,
-        }) => {
-            let v_ref = ca.cross(*u_ref);
-            let amp = ((u_ref.dot(axis) * *radius).powi(2) + (v_ref.dot(axis) * *radius).powi(2))
+        Curve3::Circle(
+            circle @ geom::Circle {
+                frame: carrier_frame_37,
+                ..
+            },
+        ) => {
+            let (center, ca, u_ref) = (
+                carrier_frame_37.origin(),
+                carrier_frame_37.axis(),
+                carrier_frame_37.u_ref(),
+            );
+            let radius = circle.radius();
+            let v_ref = ca.cross(u_ref);
+            let amp = ((u_ref.dot(axis) * radius).powi(2) + (v_ref.dot(axis) * radius).powi(2))
                 .sqrt()
                 / cos_a;
-            let c = v_of(*center);
+            let c = v_of(center);
             (c - amp, c + amp)
         }
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis: ca,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => {
-            let v_ref = ca.cross(*u_ref);
-            let amp = ((u_ref.dot(axis) * *semi_u).powi(2) + (v_ref.dot(axis) * *semi_v).powi(2))
+        Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame: carrier_frame_36,
+                ..
+            },
+        ) => {
+            let (center, ca, u_ref) = (
+                carrier_frame_36.origin(),
+                carrier_frame_36.axis(),
+                carrier_frame_36.u_ref(),
+            );
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            let v_ref = ca.cross(u_ref);
+            let amp = ((u_ref.dot(axis) * semi_u).powi(2) + (v_ref.dot(axis) * semi_v).powi(2))
                 .sqrt()
                 / cos_a;
-            let c = v_of(*center);
+            let c = v_of(center);
             (c - amp, c + amp)
         }
         // The convex-hull property: the image lies in the hull of the
         // control polygon, and an affine functional's range over a hull
         // is its range over the vertices.
-        Curve3::Nurbs(n) => {
+        Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+            let Some(net) = carrier.whole_net() else {
+                unreachable!("a spline has a net");
+            };
             let mut lo: Option<T> = None;
             let mut hi: Option<T> = None;
-            for p in n.control() {
+            for p in net.control() {
                 let v = v_of(*p);
                 lo = Some(lo.map_or(v, |x: T| x.min(v)));
                 hi = Some(hi.map_or(v, |x: T| x.max(v)));
@@ -2643,7 +2645,7 @@ fn plan_edge<'s, T: Decide>(
     band: Band,
     tol: Tol,
     (section_lane, walls): (
-        Option<crate::offset_derive::SectionLane<T>>,
+        Option<impl crate::SectionLaneOf<T>>,
         Option<&crate::offset_derive::WallCharts<'s>>,
     ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
@@ -2756,8 +2758,11 @@ fn plan_edge<'s, T: Decide>(
             // An edge laid against the row runs on the row reflected
             // through 0 (`geom_brep::reversed_column`), `t ↦ −t`, so its
             // span runs forward on its carrier.
+            // The span's sign along the row: a parameter difference with no
+            // certifiable inf rate to meter it (a fit's stretch floor can
+            // vanish), so it rides the finding lane, ledger row F44.
             let against = matches!(
-                decide("iso_row_runs_against", Margin::of(s1 - s0), band)
+                geom_core::k_stats::decide_flagged("iso_row_runs_against", s1 - s0, band, "F44")
                     .map_err(|source| ReplaceFaceError::Escalated { source })?,
                 Sign::Negative
             );
@@ -2841,12 +2846,7 @@ fn plan_edge<'s, T: Decide>(
         let held = body.get_surface(other_key).unwrap_or_else(|| {
             dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
         });
-        let extent = geom_brep::edge_extent_inf(
-            &old_carrier,
-            t0,
-            t1,
-            (old_carrier.eval(t0), old_carrier.eval(t1)),
-        );
+        let extent = geom_brep::edge_extent_inf(&old_carrier, t0, t1);
         if !crate::offset_derive::holds_the_move(old_surface, held, None, d, band) {
             return derive_edge(
                 (edge, start, end, sides),
@@ -2957,6 +2957,7 @@ fn plan_edge<'s, T: Decide>(
                 other @ (geom_brep::SectionError::WrongLane { .. }
                 | geom_brep::SectionError::NoRegion { .. }
                 | geom_brep::SectionError::DegenerateOperand { .. }
+                | geom_brep::SectionError::ConeAtTheBand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
@@ -3208,7 +3209,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
     band: Band,
     tol: Tol,
     (section_lane, slots): (
-        Option<crate::offset_derive::SectionLane<T>>,
+        Option<impl crate::SectionLaneOf<T>>,
         (WallSlot<'w, 's>, WallSlot<'w, 's>),
     ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
@@ -3276,7 +3277,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
             apex_pair: None,
         });
     }
-    let extent = geom_brep::edge_extent_inf(old, t0, t1, (old.eval(t0), old.eval(t1)));
+    let extent = geom_brep::edge_extent_inf(old, t0, t1);
     derive_edge(
         (edge, start, end, sides),
         (curve, &description, (t0, t1)),
@@ -3393,12 +3394,11 @@ fn derive_edge<'w, 's, T: Decide>(
     (extent, reach): (geom_core::Lever<T>, geom_core::Lever<T>),
     band: Band,
     (section_lane, (new_slot, neighbour_slot)): (
-        Option<crate::offset_derive::SectionLane<T>>,
+        Option<impl crate::SectionLaneOf<T>>,
         (WallSlot<'w, 's>, WallSlot<'w, 's>),
     ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
     use crate::offset_derive::SectionVerdict;
-    use crate::offset_derive::Wall;
     untilted(edge, description)?;
     let (kind, other_kind) = (new_surface.kind(), neighbour.kind());
     if !geom_brep::intersect::route(kind, other_kind).implemented {
@@ -3434,6 +3434,7 @@ fn derive_edge<'w, 's, T: Decide>(
         other @ (geom_brep::SectionError::WrongLane { .. }
         | geom_brep::SectionError::NoRegion { .. }
         | geom_brep::SectionError::DegenerateOperand { .. }
+        | geom_brep::SectionError::ConeAtTheBand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces
         | geom_brep::SectionError::RoutesToGeneralRung { .. }
@@ -3456,72 +3457,21 @@ fn derive_edge<'w, 's, T: Decide>(
         });
     }
     let esc = |source| ReplaceFaceError::Escalated { source };
-    // A fitted surface is its fit as a section operand: its spline
-    // chart, as for evaluation and pcurves.
-    // Each wall with its own slot: the neighbour's where the plane is
-    // the new surface, the new surface's where the plane is the
-    // neighbour (the first arm wins where both are planes, as before).
-    let plane_wall = match (new_surface, neighbour) {
-        (plane @ Surface::Plane { .. }, wall) => wall.spline_chart().map(|net| {
-            (
-                plane,
-                Wall {
-                    net,
-                    chart: neighbour_slot,
-                },
-            )
-        }),
-        (wall, plane @ Surface::Plane { .. }) => wall.spline_chart().map(|net| {
-            (
-                plane,
-                Wall {
-                    net,
-                    chart: new_slot,
-                },
-            )
-        }),
-        _ => None,
-    };
-    let spline_pair = new_surface
-        .spline_chart()
-        .zip(neighbour.spline_chart())
-        .map(|(a, b)| {
-            (
-                Wall {
-                    net: a,
-                    chart: new_slot,
-                },
-                Wall {
-                    net: b,
-                    chart: neighbour_slot,
-                },
-            )
-        });
-    let lane = || {
-        section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
-            edge,
-            scalar: T::NAME,
-        })
-    };
-    let section = match (plane_wall, spline_pair) {
-        (Some((plane, wall)), _) => lane()?
-            .section(plane, wall, old, (t0, t1), extent, band)
-            .map_err(esc)?
-            .map(|c| Curve3::Nurbs(Arc::new(c))),
-        (None, Some((a, b))) => lane()?
-            .pair(a, b, old, (t0, t1), extent, band)
-            .map_err(esc)?
-            .map(|c| Curve3::Nurbs(Arc::new(c))),
-        (None, None) => crate::offset_derive::section_closed(
-            new_surface,
-            neighbour,
-            (old, (t0, t1)),
-            &region,
-            extent,
-            band,
-        )
-        .map_err(esc)?,
-    };
+    let section = crate::offset_derive::section_of(
+        || {
+            section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+                edge,
+                scalar: T::NAME,
+            })
+        },
+        (new_surface, new_slot),
+        (neighbour, neighbour_slot),
+        (old, (t0, t1)),
+        &region,
+        extent,
+        band,
+        esc,
+    )?;
     let (carrier, refused) = match section {
         Ok(carrier) => (carrier, None),
         // The moved pair meets in an arc no door certifies: a fact about
@@ -3872,7 +3822,7 @@ fn plan_reanchors<T: Decide>(
     corners: &Corners<T>,
     band: Band,
     tol: Tol,
-    spline_foot: Option<geom_brep::SplineFoot<T>>,
+    spline_foot: Option<impl geom_brep::SplineFootOf<T>>,
 ) -> Result<Vec<Reanchored<T>>, ReplaceFaceError<T>> {
     let moved = corners.moved_points();
     let on_boundary: std::collections::BTreeSet<EdgeKey> = boundary.iter().copied().collect();
@@ -4011,12 +3961,21 @@ fn plan_reanchors<T: Decide>(
                                     scalar: T::NAME,
                                 })?;
                             let (t, at) =
-                                carrier_foot(foot, spline, point, t_old).map_err(|error| {
-                                    ReplaceFaceError::ReanchorInconclusive { edge, error }
-                                })?;
+                                carrier_foot(foot.carrier_foot(spline, point, t_old), spline)
+                                    .map_err(|error| ReplaceFaceError::ReanchorInconclusive {
+                                        edge,
+                                        error,
+                                    })?;
                             let (lo, hi) = spline.domain();
                             let clamped = at == lo || at == hi;
                             (t, clamped.then_some(at))
+                        }
+                        // An edge is read on its clamped view, a spline.
+                        Curve3::Periodic(_) => {
+                            return Err(ReplaceFaceError::NurbsLaneUnsupported {
+                                edge,
+                                scalar: T::NAME,
+                            });
                         }
                         Curve3::Line(_)
                         | Curve3::Circle(..)
@@ -4244,7 +4203,7 @@ struct Incident<T: Real> {
 /// section's own domain ([`derive_edge`]), the whole curve its root is
 /// isolated over.
 fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<T> {
-    geom_brep::edge_extent_inf(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)))
+    geom_brep::edge_extent_inf(carrier, t0, t1)
 }
 
 /// **Whether the distance `gap`, in metres, is within ε**
@@ -4261,6 +4220,24 @@ fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, Repla
         .map(|d| !past_eps(&d))
         .map_err(|kept| {
             let (Kept::InBand(source) | Kept::Blocked(source)) = kept;
+            ReplaceFaceError::Escalated { source }
+        })
+}
+
+/// [`gap_within_eps`] of a gap read as an `f64` bound: `ε − gap`, the
+/// gap the margin's subtracted bound ([`Margin::less`]). A gap that is no
+/// number reads no sign, as [`decided`] keeps a margin that is not finite.
+fn bound_within_eps<T: Decide>(
+    gap: f64,
+    tol: Tol,
+    band: Band,
+) -> Result<bool, ReplaceFaceError<T>> {
+    let gap = if gap.is_finite() { gap } else { f64::NAN };
+    let margin = Margin::of(eps_of::<T>(tol)).less(gap);
+    geom_core::k_stats::decide_reported(GAP_WITHIN_EPS, margin, band)
+        .map(|d| !past_eps(&d))
+        .map_err(|cause| {
+            let (Kept::InBand(source) | Kept::Blocked(source)) = Kept::of(cause);
             ReplaceFaceError::Escalated { source }
         })
 }
@@ -4331,7 +4308,12 @@ const GAP_WITHIN_EPS: &str = "offset_vertex_agreement";
 
 /// [`gap_within_eps`]'s margin, `ε − gap`: negative where `gap` is past ε.
 fn gap_within_eps_margin<T: Decide>(gap: T, tol: Tol) -> Margin<T> {
-    Margin::of(T::from_f64(tol.eps()) - gap)
+    Margin::of(eps_of::<T>(tol) - gap)
+}
+
+/// The run's ε at `T`, the file's one read of it on the chain.
+fn eps_of<T: Decide>(tol: Tol) -> T {
+    T::from_f64(tol.eps())
 }
 
 /// The parameter of `point`'s foot on the spline `carrier`, nearest
@@ -4340,12 +4322,10 @@ fn gap_within_eps_margin<T: Decide>(gap: T, tol: Tol) -> Margin<T> {
 /// at an end, where it is the carrier's held end knot (the value
 /// `corner_of_root`'s short root enters too).
 fn carrier_foot<T: Decide>(
-    foot: geom_brep::SplineFoot<T>,
+    foot: Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
     carrier: &NurbsCurve3<T>,
-    point: Point3<T>,
-    seed: T,
 ) -> Result<(T, f64), geom::ProjectionInconclusive> {
-    let foot = foot.carrier_foot(carrier, point, seed)?;
+    let foot = foot?;
     let ((lo, hi), (held_lo, held_hi)) = (carrier.domain(), carrier.knot_values().domain());
     let at = if foot.t == lo {
         held_lo
@@ -4375,16 +4355,13 @@ fn carrier_foot<T: Decide>(
 /// verdict refuses the corner.
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn spline_corner_root<T: Decide>(
-    lane: crate::offset_derive::SectionLane<T>,
-    surface: &Surface<T>,
+    root: Result<crate::offset_derive::SplineRoot, crate::offset_derive::CornerVerdict<T>>,
     spline: &NurbsCurve3<T>,
-    (seed, extent): (T, geom_core::Lever<T>),
     (vertex, edge, derived): (VertexKey, EdgeKey, bool),
     d: T,
     band: Band,
     tol: Tol,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
-    let root = lane.root(surface, spline, seed, extent, band);
     corner_of_root(
         root,
         (vertex, edge, derived),
@@ -4422,13 +4399,14 @@ fn corner_of_root<T: Decide>(
             end,
             near_gap,
             near: true,
-        }) if gap_within_eps(T::from_computed(near_gap), tol, band)? => Ok(Ok(held_end(end))),
+        }) if bound_within_eps::<T>(near_gap, tol, band)? => Ok(Ok(held_end(end))),
         Ok(SplineRoot::Short {
             near_gap,
             near: true,
             ..
         }) => Err(ReplaceFaceError::ReanchorPastCarrierEnd {
             edge,
+            // The field is the walking re-anchor's measured gap too, in `T`.
             gap: T::from_computed(near_gap),
         }),
         Ok(SplineRoot::Short { near: false, .. }) => {
@@ -4469,7 +4447,7 @@ fn solve_corners<T: Decide>(
     charts: &[MovedChart<'_, T>],
     band: Band,
     tol: Tol,
-    section_lane: Option<crate::offset_derive::SectionLane<T>>,
+    section_lane: Option<impl crate::SectionLaneOf<T>>,
 ) -> Result<Corners<T>, ReplaceFaceError<T>> {
     use crate::offset_derive::CornerVerdict;
     let esc = |source| ReplaceFaceError::Escalated { source };
@@ -4606,7 +4584,7 @@ fn solve_corners<T: Decide>(
                         unreachable!("a root is sought only where a surface or the edge moves")
                     };
                     let surface = surface_of(k);
-                    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                    if !geom_brep::is_analytic(surface) {
                         continue;
                     }
                     for &(is_start, seed) in &inc.ends {
@@ -4624,10 +4602,8 @@ fn solve_corners<T: Decide>(
                                         scalar: T::NAME,
                                     })?;
                                 match spline_corner_root(
-                                    lane,
-                                    surface,
+                                    lane.root(surface, spline, seed, inc.extent, band),
                                     spline,
-                                    (seed, inc.extent),
                                     (vertex, edge, inc.derived),
                                     d,
                                     band,
@@ -4861,7 +4837,7 @@ fn read_ends<T: Decide>(
     seeds: Option<(T, T)>,
     band: Band,
     tol: Tol,
-    spline_foot: Option<geom_brep::SplineFoot<T>>,
+    spline_foot: Option<impl geom_brep::SplineFootOf<T>>,
 ) -> Result<(), ReplaceFaceError<T>> {
     let edge = plan.edge;
     let at = |v: VertexKey| {
@@ -4881,7 +4857,7 @@ fn read_ends<T: Decide>(
             })?;
             let (lo, hi) = seeds.unwrap_or_else(|| spline.knot_values().domain());
             let foot = |p, seed| {
-                carrier_foot(lane, spline, p, seed)
+                carrier_foot(lane.carrier_foot(spline, p, seed), spline)
                     .map(|(t, _)| t)
                     .map_err(|error| ReplaceFaceError::ReanchorInconclusive { edge, error })
             };
@@ -5215,10 +5191,12 @@ mod pose_reach_rows {
         let eps = band().zero();
         let alpha: f64 = 0.5;
         let cone = Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle: alpha,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let edge = Curve3::line(Point3::new(2.0, -2.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
         let tight = 8.0_f64.sqrt();
@@ -5231,9 +5209,11 @@ mod pose_reach_rows {
             // tilted `β` off the axis.
             let beta = (k * eps / tight).acos() - alpha;
             let plane = Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 1.0),
-                normal: Vec3::new(beta.sin(), 0.0, beta.cos()),
-                u_ref: Vec3::new(0.0, 1.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 1.0),
+                    Vec3::new(beta.sin(), 0.0, beta.cos()),
+                    Vec3::new(0.0, 1.0, 0.0),
+                ),
             };
             let got = pose_route(&plane, &cone, &span(&edge, (0.0, 4.0)), band());
             assert!(
@@ -5266,17 +5246,17 @@ mod pose_reach_rows {
     #[test]
     fn a_general_cylinder_torus_pose_is_served() {
         let torus = Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 1.0,
             minor_radius: 0.25,
-            u_ref: Vec3::unit_x(),
         };
         let rod = |axis: Vec3<f64>| Surface::Cylinder {
-            origin: Point3::new(1.0, 0.05, 0.02),
-            axis,
+            frame: geom::Frame::new(
+                Point3::new(1.0, 0.05, 0.02),
+                axis,
+                axis.cross(Vec3::new(0.3, 0.5, 0.7)).normalize(),
+            ),
             radius: 0.1,
-            u_ref: axis.cross(Vec3::new(0.3, 0.5, 0.7)).normalize(),
         };
         let edge = Curve3::line(Point3::new(1.0, 0.0, 0.2), Vec3::unit_z());
         let general = rod(Vec3::new(0.3, 0.4, 1.0).normalize());
@@ -5324,16 +5304,12 @@ mod pose_reach_rows {
     fn a_cone_cylinder_pose_is_read_at_the_apex() {
         let theta: f64 = 0.5 * band().zero() / 1.5;
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         let cylinder = |origin, axis| Surface::Cylinder {
-            origin,
-            axis,
+            frame: geom::Frame::new(origin, axis, Vec3::unit_y()),
             radius: 0.5,
-            u_ref: Vec3::unit_y(),
         };
         let stored = Point3::new(0.0, 0.0, 1000.0);
         let cyl = cylinder(stored, Vec3::new(theta.sin(), 0.0, theta.cos()));
@@ -5380,19 +5356,15 @@ mod pose_reach_rows {
         let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), Vec3::unit_z());
         let lever = (Point3::new(1.0, 0.0, 1.1_f64) - Point3::origin()).norm();
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         for (k, serves) in [(0.8, true), (1.3, false)] {
             let theta: f64 = k * band().zero() / lever;
             let axis = Vec3::new(theta.sin(), 0.0, theta.cos());
             let cyl = Surface::Cylinder {
-                origin: Point3::origin() + axis * 1000.0,
-                axis,
+                frame: geom::Frame::new(Point3::origin() + axis * 1000.0, axis, Vec3::unit_y()),
                 radius: 0.5,
-                u_ref: Vec3::unit_y(),
             };
             for (label, a, b) in [("cone, cyl", &cone, &cyl), ("cyl, cone", &cyl, &cone)] {
                 let got = pose_route(a, b, &span(&edge, (0.0, 0.1)), band());
@@ -5432,10 +5404,8 @@ mod pose_reach_rows {
     fn a_nurbs_rulings_pose_is_one_verdict_across_its_parametrisations() {
         let eps = band().zero();
         let c1 = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let ruling = |zs: &[f64], knots: Vec<f64>| {
             let control: Vec<Point3<f64>> = zs.iter().map(|&z| Point3::new(1.0, 0.0, z)).collect();
@@ -5475,10 +5445,12 @@ mod pose_reach_rows {
             for k in [1.2, 8.0, 9.0, 9.9] {
                 let theta: f64 = k * eps / 2.0_f64.sqrt();
                 let c2 = Surface::Cylinder {
-                    origin: Point3::new(2.0, 0.0, 0.0),
-                    axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
+                    frame: geom::Frame::new(
+                        Point3::new(2.0, 0.0, 0.0),
+                        Vec3::new(theta.sin(), 0.0, theta.cos()),
+                        Vec3::unit_y(),
+                    ),
                     radius: 1.0,
-                    u_ref: Vec3::unit_y(),
                 };
                 for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
                     let got = pose_route(a, b, &span(edge, (0.0, 1.0)), band());
@@ -5506,19 +5478,19 @@ mod pose_reach_rows {
     fn a_ruling_edges_pose_is_read_at_its_endpoints_not_its_ball() {
         let eps = band().zero();
         let c1 = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let edge = Curve3::line(Point3::new(1.0, 0.0, -1.0), Vec3::unit_z());
         for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
             let theta: f64 = k * eps / 2.0_f64.sqrt();
             let c2 = Surface::Cylinder {
-                origin: Point3::new(2.0, 0.0, 0.0),
-                axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
+                frame: geom::Frame::new(
+                    Point3::new(2.0, 0.0, 0.0),
+                    Vec3::new(theta.sin(), 0.0, theta.cos()),
+                    Vec3::unit_y(),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::unit_y(),
             };
             for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
                 let got = pose_route(a, b, &span(&edge, (0.0, 2.0)), band());
@@ -5555,9 +5527,11 @@ mod torn_body_rows {
     /// A surface key the arena no longer holds.
     fn dead_surface(body: &mut Body<f64>) -> crate::geometry::SurfaceKey {
         let dead = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         });
         body.surfaces.remove(dead);
         dead
@@ -5702,7 +5676,7 @@ mod read_ends_rows {
             None,
             band,
             tol,
-            None,
+            None::<geom_core::NoLane>,
         );
         let Err(ReplaceFaceError::VertexDisagreement { gap, .. }) = got else {
             panic!("expected the corner's disagreement, got {got:?}");
@@ -5720,7 +5694,7 @@ mod read_ends_rows {
             None,
             band,
             tol,
-            None,
+            None::<geom_core::NoLane>,
         )
         .expect("a corner on the carrier reads");
         assert_eq!((p.spec.param_start, p.spec.param_end), (0.5, 0.5));
@@ -5757,15 +5731,15 @@ mod pair_over_its_span_rows {
         let eps = band.zero();
         let alpha = (1.0_f64 / 64.0).asin();
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: alpha,
-            u_ref: Vec3::unit_x(),
         };
         let plane = Surface::Plane {
-            origin: Point3::new(-0.4 * eps, 0.0, 0.0),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(
+                Point3::new(-0.4 * eps, 0.0, 0.0),
+                Vec3::unit_x(),
+                Vec3::unit_y(),
+            ),
         };
         let start = 0.4 * eps * 64.0;
         let old = {
@@ -5837,10 +5811,8 @@ mod pair_over_its_span_rows {
         let eps = band.zero();
         let alpha = core::f64::consts::PI / 12.0;
         let cone = Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             half_angle: alpha,
-            u_ref: Vec3::unit_x(),
         };
         let lean = (-1.0_f64 / 512.0).acos() - alpha;
         let n = Vec3::new(lean.sin(), 0.0, lean.cos());
@@ -5848,9 +5820,7 @@ mod pair_over_its_span_rows {
         // `δ·(axis·n) < 0`, so where `δ < 0`.
         for (delta, kept) in [(-0.04 * eps, true), (0.04 * eps, false)] {
             let plane = Surface::Plane {
-                origin: Point3::origin() - n * delta,
-                normal: n,
-                u_ref: Vec3::unit_y(),
+                frame: geom::Frame::new(Point3::origin() - n * delta, n, Vec3::unit_y()),
             };
             let old = geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 0.75), 0.25);
             let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
@@ -5910,7 +5880,7 @@ mod spline_corner {
 
     use super::{ReplaceFaceError, spline_corner_root};
     use crate::entity::{EdgeKey, VertexKey};
-    use crate::offset_derive::{CornerVerdict, SectionLane};
+    use crate::offset_derive::{CornerVerdict, SectionLane, SectionLaneOf};
 
     fn segment() -> NurbsCurve3<f64> {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -5925,9 +5895,7 @@ mod spline_corner {
     /// The plane `x = at`, across the segment's run.
     fn across(at: f64) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::new(at, 0.0, 0.0),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(at, 0.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
         }
     }
 
@@ -5938,14 +5906,14 @@ mod spline_corner {
         derived: bool,
     ) -> Result<Result<f64, CornerVerdict<f64>>, ReplaceFaceError<f64>> {
         let tol = Tol::witness();
+        let (spline, band) = (segment(), Band::linear(tol).unwrap());
+        let extent = geom_core::test_support::fixture_lever(1.0);
         spline_corner_root(
-            SectionLane::f64(),
-            surface,
-            &segment(),
-            (1.0, geom_core::test_support::fixture_lever(1.0)),
+            SectionLaneOf::root(SectionLane::f64(), surface, &spline, 1.0, extent, band),
+            &spline,
             (VertexKey::default(), EdgeKey::default(), derived),
             0.1,
-            Band::linear(tol).unwrap(),
+            band,
             tol,
         )
     }
@@ -6007,10 +5975,8 @@ mod spline_corner {
     #[test]
     fn a_surface_the_lane_does_not_root_passes_a_derived_section_over() {
         let cylinder = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 0.5,
-            u_ref: Vec3::unit_x(),
         };
         assert!(
             matches!(
@@ -6261,11 +6227,10 @@ mod from_computed_rows {
             )
             .unwrap();
             let point = Point3::new(x, S::from_f64(0.125), S::zero());
+            let foot = geom_brep::SplineFoot::certified();
             let (t, _) = carrier_foot(
-                geom_brep::SplineFoot::certified(),
+                foot.carrier_foot(&segment, point, S::from_f64(0.5)),
                 &segment,
-                point,
-                S::from_f64(0.5),
             )
             .unwrap();
             vec![t]
@@ -6300,11 +6265,10 @@ mod from_computed_rows {
             )
             .unwrap();
             let point = Point3::new(S::from_f64(5.0), S::from_f64(0.125), S::zero());
+            let foot = geom_brep::SplineFoot::certified();
             let (t, _) = carrier_foot(
-                geom_brep::SplineFoot::certified(),
+                foot.carrier_foot(&segment, point, S::from_f64(0.5)),
                 &segment,
-                point,
-                S::from_f64(0.5),
             )
             .unwrap();
             vec![t]

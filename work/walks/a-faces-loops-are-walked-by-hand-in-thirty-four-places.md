@@ -20,10 +20,10 @@ then per loop a `LoopBoundary::Cycle { first }` let-else and a
 `crates/topo/src`: **33 sites in 21 files** —
 
 `pcurves.rs` (4), `splitting/finish.rs` (3), `seqgen.rs` (3),
-`review_m1_pr4.rs` (3), `boolean/contain.rs` (3), `boolean/join.rs` (2),
+`review_m1_pr4.rs` (3), `contain.rs` (3), `boolean/join.rs` (2),
 and one each in `validate.rs`, `replace_face.rs`, `offset_together.rs`,
 `movefac.rs`, `iso.rs`, `euler.rs`, `coherence.rs`, `chart_region.rs`,
-`census.rs`, `boolean/rest.rs`, `boolean/rim_wedge.rs`,
+`census.rs`, `boolean/rest.rs`, `rim_wedge.rs`,
 `boolean/ops.rs`, `boolean/mod.rs`, `boolean/finish.rs`,
 `boolean/boxes.rs`.
 
@@ -113,3 +113,5 @@ Both are siblings of the outer chain this row counts. A sweep that
 gives the outer walk one home should look next at
 `face.outer ==`/`rings.iter().any`/`rings.contains` for the first
 question. Not swept by PR 3669, whose fence is `movefac`'s two proofs.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` walk is gone.

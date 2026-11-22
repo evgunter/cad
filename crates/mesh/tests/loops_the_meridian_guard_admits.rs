@@ -40,10 +40,12 @@ use topo::construction::MevSite;
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -117,9 +119,11 @@ fn cap_with_a_spur(tip: f64) -> Body<f64> {
         Vec3::new(1.0, 0.0, 0.0),
     );
     let disc = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, z),
-        normal: Vec3::new(0.0, 0.0, -1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, z),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let mut body = one_circle_cut(&rim, unit_sphere(), Some(disc));
     let foot = rim.eval(0.0);

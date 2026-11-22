@@ -20,6 +20,16 @@ use topo::Body;
 /// The sphere radius `big_r`, bore radius `r` bead in `plane`, swept
 /// through `turn` about the sketch's `y` axis.
 pub fn bead(plane: SketchPlane<f64>, big_r: f64, r: f64, turn: Revolution<f64>) -> Body<f64> {
+    try_bead(plane, big_r, r, turn).unwrap()
+}
+
+/// [`bead`], answering the revolve's refusal.
+pub fn try_bead(
+    plane: SketchPlane<f64>,
+    big_r: f64,
+    r: f64,
+    turn: Revolution<f64>,
+) -> Result<Body<f64>, sweep::RevolveError> {
     let h = (big_r * big_r - r * r).sqrt();
     // The arc from (r, −h) to (r, h) through ρ = R turns CCW about the
     // origin by 2φ, φ = atan(h/r): bulge tan(φ/2).
@@ -35,8 +45,5 @@ pub fn bead(plane: SketchPlane<f64>, big_r: f64, r: f64, turn: Revolution<f64>) 
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, turn, Tol::witness())
-        .unwrap()
-        .body
-        .into_body()
+    revolve(&vp, axis, turn, Tol::witness()).map(|built| built.body.into_body())
 }

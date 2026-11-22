@@ -8,9 +8,9 @@
 use geom_brep::ladder::{Aborts, Refusal};
 use geom_core::{Band, Indeterminate, MarginDiag};
 
-use super::solid_contain::PointInSolidError;
 use super::{BooleanError, Coincide, DeclarationRead, EdgeInBand, LineUnread, Operand, SectorRead};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, ShellKey, VertexKey};
+use crate::solid_contain::PointInSolidError;
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
@@ -163,7 +163,8 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         face_of: Operand::B,
         why,
     };
-    let more: [(&str, BooleanError, Result<Refusal, Aborts>); 12] = [
+    let section = |source| -> BooleanError { crate::JoinError::Section { face, source }.into() };
+    let more: [(&str, BooleanError, Result<Refusal, Aborts>); 15] = [
         (
             "a result no model represents, non-manifold",
             BooleanError::NonManifoldResult {
@@ -243,6 +244,23 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
             crate::JoinError::UnpairedLooseEnds { count: 2 }.into(),
             Err(Aborts),
         ),
+        (
+            "a section table's carrier in band, by its margin",
+            section(geom_brep::SectionError::Carrier(
+                geom::EllipseInvalid::Escalated(diag()),
+            )),
+            Ok(Refusal::Margin(diag())),
+        ),
+        (
+            "a section table's operand guard, mixed",
+            section(geom_brep::SectionError::DegenerateOperand { what: "a guard" }),
+            Err(Aborts),
+        ),
+        (
+            "a section table asked of the wrong pair",
+            section(geom_brep::SectionError::WrongLane { expected: "a pair" }),
+            Err(Aborts),
+        ),
     ];
     for (label, error, want) in more {
         assert_eq!(error.refusal(), want, "{label}");
@@ -290,7 +308,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
     );
     for abort in crate::face_normal::NORMAL_INVALID_INPUTS {
         let torus = abort.torus().unwrap();
-        let geom_brep::TorusVerdict::Refused(verdict) = torus.verdict else {
+        let geom_brep::TorusStanding::InvalidInput(verdict) = torus.standing() else {
             panic!("{torus:?} is decided")
         };
         let text = in_face(super::slit::EdgeInFaceGap::DegenerateTorus(torus))
@@ -523,12 +541,12 @@ fn an_aborted_normal_is_answered_by_its_row() {
 
 /// A ring torus refused outside its convention, decided.
 fn horn() -> geom_brep::TorusRefusal {
-    geom_brep::TorusRefusal {
-        convention: geom_brep::TorusConvention::Ring,
-        verdict: geom_brep::TorusVerdict::Refused(geom_brep::recourse::Refused::Negative {
+    geom_brep::TorusRefusal::decided(
+        geom_brep::TorusConvention::Ring,
+        geom_brep::recourse::Refused::Negative {
             margin: MarginDiag::INVALID,
-        }),
-    }
+        },
+    )
 }
 
 /// **A line's wedge unread on a torus outside the ring convention renders
@@ -568,4 +586,47 @@ fn a_line_wedge_on_an_invalid_torus_ends_on_its_half() {
             "{convention:?}: {text}"
         );
     }
+}
+
+/// **A face door refusal ends on its containment finding's own lever**: a
+/// point at a cap's arc end clear of its corners, at a band finer than
+/// the gap, is the containment door's finding
+/// (`contain::tests::a_point_at_an_arc_end_clear_of_its_corners_is_a_finding`),
+/// and the Boolean's `PointInFaceRefused` carrying it reads the arc end's
+/// recourse at a build, as the finding itself does.
+#[test]
+fn a_point_in_face_refusal_ends_on_the_containment_findings_lever() {
+    let tol = geom_core::Tol::witness();
+    let off = Band::linear(tol).unwrap().zero() / 2.0;
+    let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+    let (body, cap, end) = crate::test_support_fixtures::half_disc_cap(off, tol);
+    let got = crate::contain::contfp(&body, cap, geom_core::Vec3::unit_z(), end, fine);
+    let Err(refusal @ crate::contain::ContainError::ArcEndClearOfCorners(_)) = got else {
+        panic!("the finding: {got:?}");
+    };
+    let text = BooleanError::PointInFaceRefused {
+        operand: Operand::A,
+        face: cap,
+        refusal,
+    }
+    .render(geom_brep::recourse::Reading::Build);
+    assert!(
+        text.ends_with(&format!(
+            "Recourse: {}",
+            crate::contain::placement_lever(Some(crate::contain::ContainDecision::ArcEnd))
+        )),
+        "{text}"
+    );
+}
+
+/// **A boundary walk that lost its face is the classification invariant**
+/// the walk names (`crate::face_boundary::FaceBoundaryError`), in its own
+/// words, whichever boolean lane walked it.
+#[test]
+fn a_lost_boundary_face_is_the_classification_invariant() {
+    let lost = crate::face_boundary::FaceBoundaryError::FaceLost;
+    assert!(matches!(
+        BooleanError::from(lost),
+        BooleanError::ClassificationInvariant { what } if what == lost.what()
+    ));
 }

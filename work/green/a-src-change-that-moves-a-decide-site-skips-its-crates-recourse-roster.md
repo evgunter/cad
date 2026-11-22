@@ -84,3 +84,11 @@ Each moved by a merge that never touched the census, each greened on `green/cens
 - While that PR was in review, PR 6907 (`280d7c0d87`, `clear/curved-corner-2`) added `present_plane_vertex` to `injective.rs`: 7 more endpoint reads and a third sanctioned `1.0` for the fold guard.
 
 The gate self-tests are not this class: `reporting-margin-door.sh --selftest` went red when PR 6820 made `topo/src/validate.rs` a mint site that the clean fixture then overwrote.
+
+## 2026-11-17: geom-brep again (ONEHOME)
+
+geom-brep's `recourse_roster::every_decided_name_is_read_and_every_site_is_listed` reds on main `f50b58e2f3`: `certify.rs`'s two indirect `spec` sites moved from `mint_checks` and `run_checks` into `CheckSpec::of` and `CheckSpec::turn`, and the roster still listed the old functions. Found merging main into ONEHOME's `onehome/span-foot`; fixed by renaming the two entries (branch `onehome/recourse-roster-certify-spec`).
+
+## 2026-11-21: topo, from PR 7143 (ONEROUND)
+
+topo's `recourse_roster::every_decided_name_has_its_door_and_every_site_is_read` reds on main `5341f713`: "an indirect site not listed: surface_group.rs: read_identity#1(coaxial_margins(self.axis, circle)…)" and the same entry with `rim` "the census no longer finds". PR 7143 (`oneround/lever-doors`, merge `02804869`) renamed `CoaxialWith::holds`' argument from `rim` to `circle` in `crates/topo/src/surface_group.rs` and the roster kept the old spelling. Green on the merge's first parent `0ad2e0b5`. Fixed by re-spelling the one entry (branch `oneround/cone-probe-red`); the other six crates' rosters pass on that branch.

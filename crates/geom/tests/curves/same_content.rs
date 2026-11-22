@@ -44,14 +44,25 @@ type FrameTwin = (String, [f64; 3], [f64; 3], [f64; 3]);
 /// A kind: its name, its carrier, and each named twin of it.
 type Kind = (&'static str, Curve3<f64>, Vec<(String, Curve3<f64>)>);
 
+/// A direction one ulp off squares back to itself where the nudge is
+/// along it (`(1 + ulp, 0, 0)` is `x̂` again), so that twin is the same
+/// carrier and is not one of these.
 fn frame_twins() -> Vec<FrameTwin> {
+    let base = frame(O, Z, X);
     let mut out = Vec::new();
     for i in 0..3 {
         out.push((format!("centre[{i}]"), nudged(O, i), Z, X));
         out.push((format!("axis[{i}]"), O, nudged(Z, i), X));
         out.push((format!("u_ref[{i}]"), O, Z, nudged(X, i)));
     }
+    out.retain(|(_, c, a, u)| !same_bits(&frame(*c, *a, *u), &base));
     out
+}
+
+fn same_bits(f: &geom::Frame<f64>, g: &geom::Frame<f64>) -> bool {
+    let b = |v: Vec3<f64>| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
+    let o = |p: Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
+    o(f.origin()) == o(g.origin()) && b(f.axis()) == b(g.axis()) && b(f.u_ref()) == b(g.u_ref())
 }
 
 fn frame(c: [f64; 3], a: [f64; 3], u: [f64; 3]) -> geom::Frame<f64> {
@@ -66,25 +77,16 @@ fn line(o: [f64; 3], d: [f64; 3]) -> Curve3<f64> {
 }
 
 fn circle(f: geom::Frame<f64>, r: f64) -> Curve3<f64> {
-    Curve3::Circle(geom::Circle {
-        frame: f,
-        radius: r,
-    })
+    Curve3::Circle(geom::Circle::new(f, r))
 }
 
 fn ellipse(f: geom::Frame<f64>, su: f64, sv: f64) -> Curve3<f64> {
-    Curve3::Ellipse(geom::Ellipse {
-        frame: f,
-        semi_u: su,
-        semi_v: sv,
-    })
+    Curve3::Ellipse(geom::Ellipse::new(f, su, sv))
 }
 
 fn spiric(c: [f64; 3], a: [f64; 3], u: [f64; 3], big: f64, small: f64, off: f64) -> Curve3<f64> {
     Curve3::Spiric {
-        center: pt(c),
-        axis: v3(a),
-        u_ref: v3(u),
+        frame: geom::Frame::new(pt(c), v3(a), v3(u)),
         major_radius: big,
         minor_radius: small,
         offset: off,
@@ -191,7 +193,7 @@ fn a_twin_one_ulp_off_in_any_stated_value_is_another_carrier() {
     }
     assert_eq!(
         kinds.iter().map(|(_, _, t)| t.len()).collect::<Vec<_>>(),
-        [6, 10, 11, 12, 19],
+        [6, 7, 8, 9, 19],
         "one twin per stated value (a net's knots by run)"
     );
     for (a, ca, _) in &kinds {

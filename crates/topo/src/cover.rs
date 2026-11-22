@@ -159,9 +159,10 @@ pub fn face_nearest<T: Decide>(
 ) -> T {
     let near = cover.distance_range(site).0;
     let f = body.proven_face(face);
-    let Surface::Plane { origin, normal, .. } = *f.surface() else {
+    let Surface::Plane { frame, .. } = *f.surface() else {
         return near;
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     let least = match *site {
         geom::cover::Site::Point(q) => geom::Line {
             origin,
@@ -177,9 +178,9 @@ pub fn face_nearest<T: Decide>(
         .all(geom_core::is_finite_length);
     let out = finite
         && constraint(|| {
-            match crate::boolean::face_placement(body, face, least, band, NEAREST_FOOT) {
-                Ok(crate::boolean::CurvedPlacement::Trim(Some(
-                    crate::boolean::FaceContainment::Out,
+            match crate::contain::face_placement(body, face, least, band, NEAREST_FOOT) {
+                Ok(crate::contain::CurvedPlacement::Trim(Some(
+                    crate::contain::FaceContainment::Out,
                 ))) => Ok(()),
                 _ => Err(()),
             }
@@ -279,7 +280,7 @@ pub fn face_cover<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> FaceC
 /// [`face_cover`] read along `aim`, which a sphere face's arm reads one
 /// more constraint off: at each end of the aim where the face places
 /// the sphere's pole `c ± r·â` definitely `Out`
-/// ([`crate::boolean::curved_face_placement`]), the face reaches no
+/// ([`crate::contain::curved_face_placement`]), the face reaches no
 /// further along it than its boundary. `â·x` on a sphere has its only
 /// critical points at those poles, so with one not a point of the face
 /// its extreme that way is on the boundary. Only a definite `Out`
@@ -321,30 +322,20 @@ fn face_cover_in<T: Decide>(
             carrier
         }
         Surface::Plane { .. } => and_trim(carrier, boundary_cover(body, f).map(Cover::convex)),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => {
-            if !crate::validate::is_direction(axis) {
+        Surface::Cylinder { frame, radius } => {
+            if !crate::validate::is_direction(&frame.axis()) {
                 return carrier;
             }
-            let frame = geom::Frame::new(*origin, *axis, *u_ref);
             let hull = boundary_cover(body, f).map(Cover::convex);
             let wall = hull
                 .as_ref()
                 .ok()
-                .and_then(|h| Cover::wall(&frame, *radius, h));
+                .and_then(|h| Cover::wall(frame, *radius, h));
             and_proven(and_trim(carrier, hull), wall)
         }
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => {
-            let Some(at_apex) = Cover::points(vec![*apex]) else {
+        Surface::Cone { frame, half_angle } => {
+            let apex = frame.origin();
+            let Some(at_apex) = Cover::points(vec![apex]) else {
                 return carrier;
             };
             let boundary = boundary_cover(body, f);
@@ -357,20 +348,19 @@ fn face_cover_in<T: Decide>(
             let frustum = hull
                 .as_ref()
                 .ok()
-                .and_then(|h| Cover::cone(&geom::Frame::new(*apex, *axis, *u_ref), *half_angle, h));
+                .and_then(|h| Cover::cone(frame, *half_angle, h));
             and_proven(and_trim(carrier, hull), frustum)
         }
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let zone = sphere_window(body, f, surface, band);
-            let cut = aim.and_then(|aim| pole_side(body, f, (*center, *radius), aim, band));
+            let cut = aim.and_then(|aim| pole_side(body, f, (center, *radius), aim, band));
             and_proven(and_proven(carrier, zone), cut)
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => {
             let ring = constraint(|| {
                 geom::is_ring_torus(*major_radius, *minor_radius, band)
@@ -381,14 +371,7 @@ fn face_cover_in<T: Decide>(
                 .and_then(|()| {
                     torus_chart_window(&face_window_steps(body, face), *major_radius, *minor_radius)
                 })
-                .and_then(|(u, v)| {
-                    Cover::patch(
-                        &geom::Frame::new(*center, *axis, *u_ref),
-                        (*major_radius, *minor_radius),
-                        Some(u),
-                        v,
-                    )
-                });
+                .and_then(|(u, v)| Cover::patch(frame, (*major_radius, *minor_radius), Some(u), v));
             and_proven(carrier, rect)
         }
         // A spindle's tube, with no chart window: the window's closed
@@ -475,9 +458,14 @@ pub(crate) fn cone_face_reach<T: Decide>(
     (cone, within): (&Surface<T>, Option<&Cover<T>>),
     band: Band,
 ) -> Result<geom_brep::Reach<T>, FaceUncovered> {
-    let &Surface::Cone { apex, axis, .. } = cone else {
+    let &Surface::Cone {
+        frame: carrier_frame,
+        ..
+    } = cone
+    else {
         unreachable!("the plane×cone arm's reach is asked of a cone")
     };
+    let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let cover = face_cover(body, face, band)?;
     let region = within.map_or_else(|| cover.clone(), |w| cover.clone().meet(w.clone()));
     let (lo, hi) = range_from(&region, apex, axis);
@@ -508,9 +496,10 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
     cone: &Surface<T>,
     band: Band,
 ) -> bool {
-    let Surface::Cone { apex, .. } = cone else {
+    let Surface::Cone { frame, .. } = cone else {
         return true;
     };
+    let apex = frame.origin();
     let Some(view) = body.face(face) else {
         return true;
     };
@@ -523,7 +512,7 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
                 let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
                 let vertex = body.resolve_vertex_point(start, crate::live::Proven);
                 constraint(|| {
-                    geom_brep::chart_singularity::vertex_at_singular_point(vertex, *apex, band)
+                    geom_brep::chart_singularity::vertex_at_singular_point(vertex, apex, band)
                 }) != Some(false)
             })
     })
@@ -592,9 +581,9 @@ fn pole_side<T: Decide>(
     let (below, above) = boundary.range_along(d);
     let out = |s: T| {
         constraint(|| {
-            match crate::boolean::curved_face_placement(body, f.key(), center + d * (r * s), band) {
-                Ok(crate::boolean::CurvedPlacement::Trim(Some(
-                    crate::boolean::FaceContainment::Out,
+            match crate::contain::curved_face_placement(body, f.key(), center + d * (r * s), band) {
+                Ok(crate::contain::CurvedPlacement::Trim(Some(
+                    crate::contain::FaceContainment::Out,
                 ))) => Ok(()),
                 _ => Err(()),
             }
@@ -659,18 +648,13 @@ fn sphere_window<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Option<Cover<T>> {
-    use crate::boolean::solid_contain::PointInSolidError;
     use crate::props::LoopEdgesError;
+    use crate::solid_contain::PointInSolidError;
     use geom_core::{Margin, Sign};
-    let Surface::Sphere {
-        center,
-        radius,
-        axis,
-        u_ref,
-    } = surface
-    else {
+    let Surface::Sphere { frame, radius } = surface else {
         unreachable!("a sphere's window is read of a sphere")
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     if !radius.structure_positive() {
         return None;
     }
@@ -698,19 +682,17 @@ fn sphere_window<T: Decide>(
         {
             return Err(());
         }
-        let trim = match crate::boolean::solid_contain::sphere_chart_trim(
+        let trim = match crate::solid_contain::sphere_chart_trim(
             body,
             f.key(),
-            *center,
-            *radius,
-            *axis,
+            (surface, center, *radius, axis),
             band,
         ) {
             Ok(Some(trim)) => trim,
             Ok(None) | Err(PointInSolidError::Escalated { .. }) => return Err(()),
             Err(refusal) => torn_outer_loop(body, f, refusal),
         };
-        let unit = UnitVec3::new(*axis, SPHERE_AXIS, band).map_err(|_| ())?;
+        let unit = UnitVec3::new(axis, SPHERE_AXIS, band).map_err(|_| ())?;
         Ok((trim, unit))
     })?;
     let pole = |sign: T| (sign * *radius, T::zero());
@@ -720,7 +702,7 @@ fn sphere_window<T: Decide>(
         latitude(trim.north.unwrap_or_else(|| pole(T::one()))),
     );
     let seam = constraint(|| {
-        let seam = UnitVec3::new(*u_ref, SPHERE_SEAM_UNIT, band).map_err(|_| ())?;
+        let seam = UnitVec3::new(u_ref, SPHERE_SEAM_UNIT, band).map_err(|_| ())?;
         let square = crate::validate::decide(
             SPHERE_SEAM,
             Margin::levered(
@@ -733,7 +715,7 @@ fn sphere_window<T: Decide>(
     });
     let patch = |u_ref: Vec3<T>, u: Option<ParamWindow<T>>| {
         Cover::patch(
-            &geom::Frame::new(*center, unit.get(), u_ref),
+            &geom::Frame::new(center, unit.get(), u_ref),
             (T::zero(), *radius),
             u,
             lat,
@@ -1113,8 +1095,9 @@ pub(crate) fn edge_cover_over<T: SpanLocate>(
 /// reads a carrier over an edge's span; [`edge_cover_over`] hulls it
 /// with the ends. Read alone by a reader that holds a lifted carrier and
 /// span with no edge record behind them (`cell_region`'s boundary arcs,
-/// through `splitting::containment::arc_distance_floor`), which reads
-/// its ends as vertices of its own.
+/// through `splitting::containment::arc_distance_floor`, and the
+/// clearance sweep's face boundary, `clearance::boundary_of`), which
+/// reads its ends as vertices of its own.
 ///
 /// # Errors
 ///

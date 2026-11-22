@@ -70,7 +70,7 @@ use source_scope::{Arg, Bound, Callee, Event, Source};
 /// level by hand with the audit's own prose inventory; the sibling
 /// assertion, [`every_shipped_site_cites_a_ledger_row_that_exists`],
 /// reads its rows out of the audit and does compute.
-const LEDGER_FLAGGED_SITES: usize = 4;
+const LEDGER_FLAGGED_SITES: usize = 6;
 
 /// One shipped call site: where it is, and the row it cites.
 #[derive(Debug)]
@@ -119,7 +119,7 @@ struct Door {
 
 /// The home's `pub` fns that take a row-like parameter and cite no
 /// ledger row: each must be one ([`home_doors`] refuses a stale entry).
-const NON_ROW_DOORS: [&str; 2] = ["in_family", "identity_pass_set"];
+const NON_ROW_DOORS: [&str; 1] = ["identity_pass_set"];
 
 /// Whether a parameter reads as a ledger row: a name holding `row`, or,
 /// under any name but the predicate's `name`, a type that names `str` or

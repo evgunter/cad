@@ -29,7 +29,7 @@ Measured on this wave: four lanes, plus the orchestrator's own branch.
 | `vgeom/render-grid` | 1 | 1 |
 | `vgeom/seam-refusals` | 2 | 2 |
 | `vgeom/field-product` | 3 | 3 |
-| `vgeom/orchestrator` | 3 | 2 (one in `work/tint/log.md`, from another program's wave) |
+| `vgeom/orchestrator` | 3 | 2 (one in `docs/doc-ledger/blind-guard-tint-and-vacuity-merge-into-ciw.md`, from another program's wave) |
 
 Eight resolutions of one file, none of them a real disagreement: every
 single one was a union, both entries kept, markers deleted. The cost

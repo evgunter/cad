@@ -18,7 +18,7 @@
 //! - **A ringed wall holds it**: the joined rod and square pocketed
 //!   beside the point, so the wall carries the pocket's ring, which the
 //!   wall's region reads with its outer loop
-//!   (`topo::boolean::ruled_region`). The plate against it builds,
+//!   (`topo::ruled_region`). The plate against it builds,
 //!   either operand first, and so does pocketing after the join.
 //! - **A wall the ruling pierces twice**: the joined rod and square
 //!   against a slab whose two faces the ruling pierces inside the wall.

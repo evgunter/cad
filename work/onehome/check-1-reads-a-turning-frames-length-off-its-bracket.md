@@ -97,7 +97,7 @@ y by θ ± δ, united with a second copy standing clear.
   definite-sounding finding over a 1° box.
 - **Not refused by check 1,** though as wide: the caps' normals and the
   seam lines' directors (no plane or line finding exists:
-  `work/restdatum/unlevered-frame-conventions-are-uncertified-at-rest.md`).
+  `work/restfront/unlevered-frame-conventions-are-uncertified-at-rest.md`).
 - **Through the doors on a turned plane** (`sweep::extrude` on
   `SketchPlane::from_frame(RigidMotion::rotation(y, θ ± δ))`), the build
   refuses before check 1 at every width where check 1 would:
@@ -113,3 +113,51 @@ make the document certify. Fork 268's two designers (BOXFINISH, PR
 (`a-later-finish-could-carry-facts-whose-data-is-bit-identical-to-a-finished-inputs`),
 which would also keep check 1 from being asked again of a moved body.
 Those are two answers to one question and should be weighed together.
+
+## Re-measured (2026-11-21), on main and on PR 7131's head
+
+By ONEHOME. The probe is `crates/sweep/tests/check1_turned_probe.rs` on the unmerged branch `onehome/check1-turned-probe` (`e487c39388`, on main `6abbae4ae5`), and a cherry-pick of it onto
+`onehome/carrier-frames` at `6762df403e` (branch
+`onehome/check1-turned-probe-on-7131`, `caf24897c2`). A disc of radius
+r = 5 mm and depth r, built at `Interval`, is read two ways:
+- **moved**: extruded on `SketchPlane::xy()`, then moved by
+  `topo::transform_rigid` with `RigidMotion::rotation(y, 30° ± δ)`;
+- **door**: extruded on `SketchPlane::from_frame` of that turn.
+
+Check 1 is read as `analytic_datum_verdicts` reads it: every face's and
+edge's `representability_margins`, deciding where every margin's lower
+end is above zero. **Main and 7131 read the same to every digit.**
+
+| δ | moved: first open margin | moved: decides | door |
+|---|---|---|---|
+| 1° | Cylinder Axis Length `[−7.50e-5, 7.61e-5]` | no | refuses `carrier_endpoint_start` `[0, 3.4e-4]` |
+| 0.1° | `[−7.55e-6, 7.56e-6]` | no | `[0, 3.4e-5]` |
+| 1e-2° | `[−7.55e-7, 7.57e-7]` | no | `[0, 3.4e-6]` |
+| 1e-3° | `[−7.46e-8, 7.66e-8]` | no | `[0, 3.4e-7]` |
+| 1e-4° | `[−6.56e-9, 8.56e-9]` | no | `[0, 3.4e-8]` |
+| 1e-5° | URef Tilt `[−7.5e-10, 2.7e-9]` | no | `[0, 3.4e-9]` |
+| 1e-6° | none | yes | `pcurve_line_chart_incident` `[0, 1.3e-9]` |
+| ≤ 1e-7° | none | yes | builds, and check 1 decides |
+
+- **First order.** The axis length margin is `±r·sin 2θ·δ` (7.56e-5 at
+  1°), and the tilt, `2rδ`, binds once the length decides. Check 1
+  decides between 1e-5° and 1e-6°, a half-width of about
+  `ε/(r·sin 2θ)`, so it narrows as the feature grows.
+- **The stored frame.** Moved by the boxed turn, the cylinder's axis is
+  `([0.48481, 0.51504], 0, [0.85717, 0.87462])` and its `u_ref` is as wide.
+  - On main the frame is two loose `Vec3` brackets, not re-squared.
+  - On 7131 it is `geom::Frame { motion: RigidMotion }`, the boxed
+    motion itself, not re-squared. 7131's
+    `Surface::representability_margins` still hands `frame.axis()` and
+    `frame.u_ref()` to `convention::frame_margins`, which margins
+    `|axis| − 1`, `|u_ref| − 1` and `axis·u_ref` off the column brackets.
+    The witness is held, and check 1 does not read it.
+
+The design is fork 274's decision 1 (PR 7006), built by
+`carriers-hold-their-frame-as-unitvec3-and-rigidmotion-and-check-1s-frame-half-goes`,
+which closes this row. Two rows stand behind check 1 on this case, with
+their own numbers:
+- `a-sweep-on-a-boxed-turned-sketch-plane-refuses-its-ends-at-first-order-in-the-box`
+  (the door, first order, before check 1);
+- `a-body-moved-by-a-boxed-turn-refuses-its-edges-and-pcurves-at-first-order-in-the-box`
+  (the moved body's finish past check 1).

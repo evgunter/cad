@@ -56,6 +56,8 @@ mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
 
+#[path = "a_ball_and_rod_boolean_reads_what_its_doors_keep.rs"]
+mod a_ball_and_rod_boolean_reads_what_its_doors_keep;
 #[path = "a_blend_leaves_a_smooth_edge_as_it_is.rs"]
 mod a_blend_leaves_a_smooth_edge_as_it_is;
 #[path = "a_blend_reads_the_wedge_through_the_one_fold.rs"]
@@ -68,6 +70,8 @@ mod a_circle_of_one_radius_elsewhere_is_no_rim;
 mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
 #[path = "a_conical_ended_football_revolves.rs"]
 mod a_conical_ended_football_revolves;
+#[path = "a_corner_cut_on_a_far_wall_reads_its_sections_width.rs"]
+mod a_corner_cut_on_a_far_wall_reads_its_sections_width;
 #[path = "a_curve_off_its_face_at_a_build_is_the_kernels.rs"]
 mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -126,12 +130,14 @@ mod a_plane_holding_a_conic_tangent_at_a_vertex;
 mod a_plane_moved_to_a_cone_apex;
 #[path = "a_plane_through_a_cones_apex.rs"]
 mod a_plane_through_a_cones_apex;
+#[path = "a_plane_through_a_pole_cuts_a_cap.rs"]
+mod a_plane_through_a_pole_cuts_a_cap;
 #[path = "a_point_past_a_spline_solids_reach.rs"]
 mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
-#[path = "a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside.rs"]
-mod a_ray_in_a_shallow_spiric_edges_straddle_is_set_aside;
+#[path = "a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk.rs"]
+mod a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk;
 #[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
 mod a_ray_meets_a_curved_edge_once_for_both_faces;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
@@ -222,12 +228,18 @@ mod an_inside_out_thin_tube_operand;
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
 mod band_apart_partners_on_a_steep_ellipse;
+#[path = "band_chamfer_frustum.rs"]
+mod band_chamfer_frustum;
 #[path = "band_closed_mixed_chain.rs"]
 mod band_closed_mixed_chain;
 #[path = "band_closed_mixed_chain_shapes.rs"]
 mod band_closed_mixed_chain_shapes;
 #[path = "band_mixed_corner.rs"]
 mod band_mixed_corner;
+#[path = "band_mixed_corner_odd_plus_one.rs"]
+mod band_mixed_corner_odd_plus_one;
+#[path = "band_mixed_corner_reach.rs"]
+mod band_mixed_corner_reach;
 #[path = "band_mixed_rim_shared_supports.rs"]
 mod band_mixed_rim_shared_supports;
 #[path = "band_subdivided_side_walls.rs"]
@@ -1105,6 +1117,8 @@ mod r1_probes_m9_3;
 #[path = "curved_mergedoor.rs"]
 mod curved_mergedoor;
 
+#[path = "a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta.rs"]
+mod a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta;
 #[path = "curved_coincident_fates.rs"]
 mod curved_coincident_fates;
 #[path = "curved_copies_filling_one_volume.rs"]
@@ -1396,6 +1410,8 @@ mod a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses;
 mod a_mirrored_body_is_its_image;
 #[path = "a_moved_body_keeps_its_verdict.rs"]
 mod a_moved_body_keeps_its_verdict;
+#[path = "a_near_right_angle_drum_pair.rs"]
+mod a_near_right_angle_drum_pair;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]

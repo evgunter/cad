@@ -331,13 +331,13 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
         volume(&second).to_bits(),
         "two evaluations of one document agree bit for bit"
     );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     assert_eq!(
         text,
-        save(&doc, &[], Tol::witness()).expect("saves"),
+        save(&doc, Tol::witness()).expect("saves"),
         "byte-stable"
     );
-    let back = load(&text, Tol::witness()).expect("loads").doc;
+    let back = load(&text, Tol::witness()).expect("loads");
     assert!(back.bit_eq(&doc), "the mates round-trip bit for bit");
 }
 
@@ -526,13 +526,13 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
             .is_identity_bits(),
         "an instance pinned to the world at the identity sits at the identity"
     );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let back = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let back = load(&text, Tol::witness()).expect("loads");
     assert!(back.bit_eq(&doc), "the round trip is bit-exact");
     let body = |t: &str| t.split_once('\n').expect("a header").1.to_string();
     assert_eq!(
         body(&text),
-        body(&save(&back, &[], Tol::witness()).expect("saves")),
+        body(&save(&back, Tol::witness()).expect("saves")),
         "every byte below the header survives the round trip"
     );
 }
@@ -954,7 +954,7 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
             fixture::head_at(placed, top),
         ),
     );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     // Doctored by what it is, not by position: the one selection whose
     // name is headed at `block` — the mate's `to` face — so a fixture
     // or field-order change breaks the probe instead of silently

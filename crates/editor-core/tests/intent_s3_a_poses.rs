@@ -928,10 +928,10 @@ fn the_load_door_refuses_a_malformed_pose_definition() {
     };
     let face_plane = face_plane.read;
     let id = |var: VarId| serde_json::to_string(&var).unwrap();
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("saves");
     let back = editor_core::persist::load(&text, Tol::witness()).expect("loads as saved");
     assert_eq!(
-        editor_core::persist::save(&back.snapshot, &back.edits, Tol::witness()).unwrap(),
+        editor_core::persist::save(&back, Tol::witness()).unwrap(),
         text,
         "round-trips bit-identical"
     );

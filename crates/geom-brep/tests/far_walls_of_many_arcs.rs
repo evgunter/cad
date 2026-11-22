@@ -48,38 +48,43 @@ fn frame<T: Decide>() -> (Point3<T>, Vec3<T>, Vec3<T>, Vec3<T>) {
     )
 }
 
+/// The stated frame `(o, n, x)`, minted at `f64` and lifted to `T`
+/// (`Frame::map_scalar`): at `Interval` the enclosure of the rotation it
+/// names, about an ulp of each axis, where squaring the lifted vectors
+/// there would carry the squaring's own width at every carrier.
+fn placed<T: Decide>() -> geom::Frame<T> {
+    let (o, n, x, _) = frame::<f64>();
+    geom::Frame::new(o, n, x).map_scalar(T::from_f64)
+}
+
 fn at<T: Decide>(c: f64, s: f64, h: f64) -> Point3<T> {
-    let (o, n, x, y) = frame::<T>();
-    o + x * T::from_f64(c) + y * T::from_f64(s) + n * T::from_f64(h)
+    let local = Point3::new(T::from_f64(c), T::from_f64(s), T::from_f64(h));
+    placed::<T>().motion().transform_point(local)
 }
 
 fn cylinder<T: Decide>(radius: f64) -> Surface<T> {
-    let (o, n, x, _) = frame::<T>();
     Surface::Cylinder {
-        origin: o,
-        axis: n,
+        frame: placed::<T>(),
         radius: T::from_f64(radius),
-        u_ref: x,
     }
 }
 
 fn torus<T: Decide>(major: f64, minor: f64) -> Surface<T> {
-    let (o, n, x, _) = frame::<T>();
     Surface::Torus {
-        center: o,
-        axis: n,
+        frame: placed::<T>(),
         major_radius: T::from_f64(major),
         minor_radius: T::from_f64(minor),
-        u_ref: x,
     }
 }
 
 /// A circle about the frame's axis at height `h`, radius `r`, walked in
 /// azimuth from `u0` to `u1`.
 fn rim<T: Decide>(r: f64, h: f64, u0: f64, u1: f64) -> LoopEdge<T> {
-    let (_, n, x, _) = frame::<T>();
     edge(
-        Curve3::circle(at(0.0, 0.0, h), n, T::from_f64(r), x),
+        Curve3::Circle(geom::Circle::new(
+            placed::<T>().with_origin(at(0.0, 0.0, h)),
+            T::from_f64(r),
+        )),
         u0,
         u1,
         0,
@@ -88,9 +93,8 @@ fn rim<T: Decide>(r: f64, h: f64, u0: f64, u1: f64) -> LoopEdge<T> {
 }
 
 fn ruling<T: Decide>(r: f64, u: f64, z0: f64, z1: f64) -> LoopEdge<T> {
-    let (_, n, _, _) = frame::<T>();
     edge(
-        Curve3::line(at(r * u.cos(), r * u.sin(), 0.0), n),
+        Curve3::line(at(r * u.cos(), r * u.sin(), 0.0), placed::<T>().axis()),
         z0,
         z1,
         0,
@@ -100,17 +104,17 @@ fn ruling<T: Decide>(r: f64, u: f64, z0: f64, z1: f64) -> LoopEdge<T> {
 
 /// The torus's meridian at azimuth `u`, walked in tube angle `v0 → v1`.
 fn meridian<T: Decide>(major: f64, minor: f64, u: f64, v0: f64, v1: f64) -> LoopEdge<T> {
-    let (_, _, x, y) = frame::<T>();
+    // The meridian's frame, stated at `f64` (axis `x s − y c`, `u_ref`
+    // the outward radial) and lifted to `T`.
+    let (_, _, x, y) = frame::<f64>();
     let (s, c) = u.sin_cos();
-    let out = x * T::from_f64(c) + y * T::from_f64(s);
-    let normal = x * T::from_f64(s) - y * T::from_f64(c);
+    let (out, normal) = (x * c + y * s, x * s - y * c);
+    let lifted = geom::Frame::new(Point3::origin(), normal, out).map_scalar(T::from_f64);
     edge(
-        Curve3::circle(
-            at(major * c, major * s, 0.0),
-            normal,
+        Curve3::Circle(geom::Circle::new(
+            lifted.with_origin(at(major * c, major * s, 0.0)),
             T::from_f64(minor),
-            out,
-        ),
+        )),
         v0,
         v1,
         0,
@@ -271,12 +275,12 @@ const PINS: &[(&str, &str, Pin)] = &[
     (
         "cylinder patch r 410, 40 arcs",
         "interval",
-        Pin::Escalates("props_chart_junction_closed", BESIDE),
+        Pin::Escalates("props_chart_loop_whole", CARRIED),
     ),
     (
         "cylinder patch r 410, 200 arcs",
         "interval",
-        Pin::Escalates("props_chart_junction_closed", BESIDE),
+        Pin::Escalates("props_chart_loop_whole", CARRIED),
     ),
     (
         "cylinder patch r 990, 1 arcs",
@@ -297,11 +301,6 @@ const PINS: &[(&str, &str, Pin)] = &[
         "cylinder patch r 990, 200 arcs",
         "interval",
         Pin::Escalates("props_meridian_on_surface", BESIDE),
-    ),
-    (
-        "cylinder band r 990",
-        "interval",
-        Pin::Escalates("props_chart_junction_closed", BESIDE),
     ),
     (
         "torus patch major 100, 6 arcs",
@@ -326,7 +325,7 @@ const PINS: &[(&str, &str, Pin)] = &[
     (
         "torus patch major 300, 6 arcs",
         "interval",
-        Pin::Escalates("props_chart_junction_closed", BESIDE),
+        Pin::Escalates("props_chart_loop_whole", CARRIED),
     ),
     (
         "torus patch major 300, 40 arcs",
@@ -496,7 +495,10 @@ fn a_hand_built_far_wall_whose_rim_disagrees_refuses_before_its_turns() {
         };
         let flipped = |t0: f64, t1: f64| {
             edge(
-                Curve3::circle(at(0.0, 0.0, 0.0), -n, T::from_f64(r), x),
+                Curve3::Circle(geom::Circle::new(
+                    placed::<T>().reversed().with_origin(at(0.0, 0.0, 0.0)),
+                    T::from_f64(r),
+                )),
                 t0,
                 t1,
                 0,
@@ -508,20 +510,25 @@ fn a_hand_built_far_wall_whose_rim_disagrees_refuses_before_its_turns() {
             r * span * height,
             &format!("a rim on the opposite normal, walked the right way, at {scalar}"),
         );
-        let early = |what: &str, got: Result<f64, PropsError>, names: &[&str]| {
-            let named = match &got {
-                Err(PropsError::OffSurface { what } | PropsError::NotIsoRectangle { what }) => {
-                    names.contains(what)
-                }
+        // Each refusal by its class AND its name: a tilt is off the
+        // cylinder where the band reads its tilt, outside the inventory
+        // where it reads the rim's axis parallel and its incidence then
+        // misses no rim, and undecided between; which one a tilt lands
+        // on is the ε's, the class each name answers is not.
+        let early = |what: &str, got: Result<f64, PropsError>, wants: &[(&str, &str)]| {
+            let class_name = match &got {
+                Err(PropsError::OffSurface { what }) => Some(("OffSurface", *what)),
+                Err(PropsError::NotIsoRectangle { what }) => Some(("NotIsoRectangle", *what)),
+                Err(PropsError::SpanUncertified { what }) => Some(("SpanUncertified", *what)),
                 Err(PropsError::Escalated { cause, .. }) => {
-                    cause.predicate.is_some_and(|p| names.contains(&p))
+                    cause.predicate.map(|p| ("Escalated", p))
                 }
-                Err(PropsError::ChartLoopOpen) => names.contains(&"ChartLoopOpen"),
-                _ => false,
+                Err(PropsError::ChartLoopOpen) => Some(("ChartLoopOpen", "")),
+                _ => None,
             };
             assert!(
-                named,
-                "a rim {what} at {scalar}, refused as one of {names:?}: {got:?}"
+                class_name.is_some_and(|got| wants.contains(&got)),
+                "a rim {what} at {scalar}, refused as one of {wants:?}: {got:?}"
             );
         };
         for tilt in [1e-3_f64, 1e-5, 3e-7] {
@@ -541,23 +548,27 @@ fn a_hand_built_far_wall_whose_rim_disagrees_refuses_before_its_turns() {
             early(
                 &format!("tilted {tilt}"),
                 with_bottom(tilted),
-                &["props_cylinder_circle_tilt", "props_rim_axis_parallel"],
+                &[
+                    ("OffSurface", "props_cylinder_circle_tilt"),
+                    ("Escalated", "props_cylinder_circle_tilt"),
+                    ("NotIsoRectangle", "props_rim_axis_parallel"),
+                ],
             );
         }
         early(
             "a whole turn past its ends",
             with_bottom(rim::<T>(r, 0.0, 0.0, span + TAU)),
-            &["props_rim_span_winding"],
+            &[("SpanUncertified", "props_rim_span_winding")],
         );
         early(
             "on the opposite normal, walked the wrong way",
             with_bottom(flipped(0.0, span)),
-            &["ChartLoopOpen"],
+            &[("ChartLoopOpen", "")],
         );
         early(
             "short of its ruling",
             with_bottom(rim::<T>(r, 0.0, 0.0, span - 1e-3)),
-            &["ChartLoopOpen"],
+            &[("ChartLoopOpen", "")],
         );
     }
     rows::<f64>("f64");
