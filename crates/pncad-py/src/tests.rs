@@ -5394,6 +5394,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "body",
             "cleared",
             "cut",
+            "cuts",
             "face",
             "frame",
             "from",

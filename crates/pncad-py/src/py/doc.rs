@@ -4506,7 +4506,8 @@ impl DocEdit {
     }
 
     /// **Replace a node's whole LIST input** — a `Node.union`'s or a
-    /// `Node.intersect`'s members, a `Node.loft`'s sections — with the
+    /// `Node.intersect`'s members, a `Node.subtract`'s tools, a
+    /// `Node.loft`'s sections — with the
     /// list stated in full. `members` takes `Node.union`'s shape: a
     /// sequence of operands, or one operand reading a family whole.
     ///
