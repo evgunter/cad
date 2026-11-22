@@ -6002,6 +6002,24 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         let axes = |p: &Presented<'_>| { let Zero::Point(s, t, _) = p.zero else { return None }; let (su, sv) = if s.axis() == Axis::U { (s, t) } else { (t, s) }; let (xx, yy) = (p.bound(su), p.bound(sv)); let (fx, fy, _) = p.jet_on((xx, xx), (yy, yy)); Some([unit(vmid(fx) * su.into())?, unit(vmid(fy) * sv.into())?]) };
         eprintln!("CVW {}/{} {:?}/{:?} v={:?} wedge={:?} oks={:?} ax={:?} bx={:?} sx={:?}x{:?} sy={:?}x{:?}", kind(x.surface), kind(y.surface), x.face, y.face, near.vertices, w, oks, axes(qx), axes(qy), qx.x, qx.y, qy.x, qy.y);
     }
+    if std::env::var_os("CV_ZW").is_some()
+        && near.edges.is_empty()
+        && matches!(qx.zero, Zero::Point(..))
+        && matches!(qy.zero, Zero::Point(..))
+    {
+        let all = planes_through(x, near, qx, qy);
+        let certified = all.iter().cloned().any(opposite);
+        eprintln!("CVZ pair {:?}/{:?} v={:?} certified={certified} planes={}", x.face, y.face, near.vertices, all.len());
+        for (name, pc, q) in [("x", x, qx), ("y", y, qy)] {
+            eprintln!("CVZ  {name} face={:?} cell u={:?} v={:?} rect x={:?} y={:?} zero={:?} map={:?}", pc.face, pc.u, pc.v, q.x, q.y, q.zero, q.map);
+            let (fx, fy, _) = q.jet();
+            for (k, (psi, on)) in all.iter().enumerate() {
+                let g = psi.gradient(q.whole());
+                let (du, dv) = (g.dot(fx), g.dot(fy));
+                eprintln!("CVZ   plane{k} grad.Phi_x=[{:e},{:e}] span_x={:e} grad.Phi_y=[{:e},{:e}] span_y={:e} sign_on={:?}", du.lo(), du.hi(), q.span(Axis::U), dv.lo(), dv.hi(), q.span(Axis::V), sign_on(psi, Some(on), q, None, band));
+            }
+        }
+    }
     if std::env::var_os("CV_HEADONLY").is_some() && near.edges.is_empty() && !near.vertices.is_empty() {
         let zk = |z: &Zero| match z { Zero::None=>"None", Zero::Side(..)=>"Side", Zero::Past(..)=>"Past", Zero::Corner(..)=>"Corner", Zero::Curve(_, c) => if c.past.is_some() {"CurvePast"} else {"Curve"}, Zero::Point(..)=>"Point" };
         let w = wedges_apart(qx, qy);
