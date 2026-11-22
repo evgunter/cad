@@ -584,41 +584,44 @@ impl<T: Real> IsoChart<T> {
         )
     }
 
-    /// The point `p`'s distance from the surface: from the cylinder,
-    /// `|ρ − R|`; from the cone (both nappes), `|ρ·cos α − |h|·sin α|`;
-    /// from the sphere, `|‖p − c‖ − R|`; from the torus,
+    /// The point `p`'s distance from the surface: from the cylinder
+    /// and the sphere, `|‖w‖ − R|` for its offset `w` from the axis or
+    /// the centre, read through [`geom_core::radius_gap`] (the zero form
+    /// for a point built at the radius); from the cone (both nappes),
+    /// `|ρ·cos α − |h|·sin α|`; from the torus,
     /// `|√((ρ − R)² + h²) − r|`, `ρ` and `h` the point's radius and height
     /// about the axis (about the apex on the cone).
     fn distance(self, p: Point3<T>) -> T {
         let about = |o: Point3<T>, axis: Vec3<T>| {
             let w = p - o;
             let h = w.dot(axis);
-            ((w - axis * h).norm(), h)
+            (w - axis * h, h)
         };
+        let wall = |w: Vec3<T>, radius: T| geom_core::radius_gap(w.dot(w), w.norm(), radius).abs();
         match self {
             Self::Cylinder {
                 origin,
                 axis,
                 radius,
-            } => (about(origin, axis).0 - radius).abs(),
+            } => wall(about(origin, axis).0, radius),
             Self::Cone {
                 apex,
                 axis,
                 sin_a,
                 cos_a,
             } => {
-                let (rho, h) = about(apex, axis);
-                (rho * cos_a - h.abs() * sin_a).abs()
+                let (w, h) = about(apex, axis);
+                (w.norm() * cos_a - h.abs() * sin_a).abs()
             }
-            Self::Sphere { center, radius } => ((p - center).norm() - radius).abs(),
+            Self::Sphere { center, radius } => wall(p - center, radius),
             Self::Torus {
                 center,
                 axis,
                 major,
                 minor,
             } => {
-                let (rho, h) = about(center, axis);
-                (((rho - major).powi(2) + h.powi(2)).sqrt() - minor).abs()
+                let (w, h) = about(center, axis);
+                (((w.norm() - major).powi(2) + h.powi(2)).sqrt() - minor).abs()
             }
         }
     }
@@ -7220,9 +7223,10 @@ mod pole_climb_rows {
     }
 }
 
-/// **A cylinder's ruling edge, built on the wall at a parameter radius,
-/// is on it with no sign asked of the radius**
-/// ([`segment_off_cylinder`]).
+/// **An edge built on a cylinder's or a sphere's wall at a parameter
+/// radius is on it with no sign asked of the radius**: the ruling
+/// premise ([`segment_off_cylinder`]) and the iso parse's carrier
+/// samples (`IsoChart::distance`).
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod ruling_on_wall_rows {
@@ -7279,6 +7283,121 @@ mod ruling_on_wall_rows {
                 }
             }
         });
+    }
+
+    /// **A carrier's sample built on a cylinder or a sphere is on it
+    /// over a box on the radius** (`IsoChart::distance`, the reading
+    /// behind `props_carrier_on_surface`): `c + r·x` against the radius
+    /// `r`, and against `|r|`.
+    ///
+    /// Red with `IsoChart::distance`'s `wall` spelled
+    /// `(w.norm() − radius).abs()` (run by hand).
+    #[test]
+    fn a_sample_built_on_an_iso_chart_is_on_it_over_a_box_on_the_radius() {
+        type S = Sym<Interval>;
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 64,
+        };
+        geom_core::sym::with_session(budget, || {
+            let r = S::param_over(
+                ParamSymbol::new(test_utils::symbol_id("iso_chart_radius")),
+                Interval::from_bounds(0.2, 0.4),
+                0.2,
+                0.4,
+            );
+            let lit = S::from_f64;
+            let (zero, one) = (S::zero(), S::one());
+            let c = Point3::new(lit(0.5), lit(-0.25), lit(2.0));
+            let axis = Vec3::new(zero, zero, one);
+            let x = Vec3::new(zero, one, zero);
+            for (spelling, radius) in [("r", r), ("|r|", r.abs())] {
+                let charts = [
+                    (
+                        "cylinder",
+                        IsoChart::Cylinder {
+                            origin: c,
+                            axis,
+                            radius,
+                        },
+                        c + x * r + axis * lit(0.7),
+                    ),
+                    ("sphere", IsoChart::Sphere { center: c, radius }, c + x * r),
+                ];
+                for (name, chart, p) in charts {
+                    let d = geom_core::k_stats::decide_reported(
+                        "iso_chart_row",
+                        Margin::of(chart.distance(p)),
+                        band,
+                    )
+                    .unwrap_or_else(|e| panic!("{name}, radius {spelling}: {e:?}"));
+                    assert_eq!(
+                        (d.sign, d.margin.proven()),
+                        (Sign::Zero, true),
+                        "{name}, radius {spelling}"
+                    );
+                }
+            }
+        });
+    }
+
+    /// At `f64` an iso chart's distance is the direct `|‖w‖ − R|` to
+    /// four ulps of the offset's and the radius's sum, from the axis to
+    /// far past the wall.
+    ///
+    /// Red with `IsoChart::distance`'s `wall` handing the gap the
+    /// radius's square for the radius (run by hand).
+    #[test]
+    fn an_iso_charts_distance_is_the_direct_reading_to_its_rounding() {
+        let c = Point3::new(0.4, 0.1, -0.3);
+        let axis = Vec3::new(0.0, 0.0, 1.0);
+        let mut read = 0_u32;
+        for radius in [0.7, 1.0e-3, 1.0e3] {
+            for reach in [
+                0.0,
+                1.0e-6,
+                0.5,
+                1.0 - 1.0e-9,
+                1.0,
+                1.0 + 1.0e-9,
+                2.0,
+                1.0e6,
+            ] {
+                for angle in [0.3_f64, 2.2, -1.4] {
+                    let x = Vec3::new(angle.cos(), angle.sin(), 0.0);
+                    let w = x * (radius * reach);
+                    let cases = [
+                        (
+                            "cylinder",
+                            IsoChart::Cylinder {
+                                origin: c,
+                                axis,
+                                radius,
+                            },
+                            c + w + axis * 0.37,
+                            w.norm(),
+                        ),
+                        (
+                            "sphere",
+                            IsoChart::Sphere { center: c, radius },
+                            c + w,
+                            ((c + w) - c).norm(),
+                        ),
+                    ];
+                    for (name, chart, p, norm) in cases {
+                        let (got, want) = (chart.distance(p), (norm - radius).abs());
+                        let slack = 4.0 * f64::EPSILON * (radius * (1.0 + reach) + 1.0);
+                        assert!(
+                            (got - want).abs() <= slack,
+                            "{name} R = {radius}, reach {reach}, at {angle}: {got} against {want}"
+                        );
+                        read += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(read, 3 * 8 * 3 * 2, "every row of the table read");
     }
 
     /// At `f64` the reading is the direct spelling's, the ends'
