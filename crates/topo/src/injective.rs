@@ -5414,7 +5414,14 @@ impl Psi {
 }
 
 /// **`v` less its part along `axis`**: `v − axis·(axis·v)/|axis|²`. A
-/// vector square to the axis has the same dot with it as with `v`.
+/// vector square to the axis has the same dot with it as with `v`. Read
+/// over enclosures, it encloses `v`'s part square to every member of
+/// `axis` for every member of `v`, so a radial unit square to that member
+/// has the same dot with it as with `v`, member by member: the rate it
+/// gives encloses the true rate for whichever member is the carrier's
+/// axis, not only the midpoint's. An axis enclosure holding zero makes
+/// `|axis|²` hold zero, and the quotient is unbounded or not a number:
+/// no sign is read off it.
 fn square_to(axis: Vec3<Interval>, v: Vec3<Interval>) -> Vec3<Interval> {
     v - axis * (axis.dot(v) / axis.norm_squared())
 }
@@ -6540,6 +6547,108 @@ mod presentation_rows {
                 "cone, {along} m up: rate {rate:?}"
             );
         }
+    }
+    /// **A cone's rate holds its nappe and its half-angle apart**: at a
+    /// point off the axis, along the radial unit it is `cos`, along the
+    /// axis it is `−nappe·sin`, on either nappe (red where the nappe's
+    /// sign is dropped or `cos` and `sin` trade places).
+    #[test]
+    fn a_cones_rate_reads_its_radial_and_axial_parts_on_each_nappe() {
+        let (sin, cos) = (0.6, 0.8);
+        let apex = Point3::new(iv0(1.0), iv0(-2.0), iv0(0.5));
+        let axis = Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0));
+        for nappe in [1.0, -1.0] {
+            let cone = Psi::Carrier(Implicit::Cone {
+                apex,
+                axis,
+                cos: iv0(cos),
+                sin: iv0(sin),
+                nappe: iv0(nappe),
+            });
+            let p = Point3::new(iv0(4.0), iv0(-2.0), iv0(0.5 + 4.0 * nappe));
+            let radial = cone.rate(p, Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)));
+            let axial = cone.rate(p, axis);
+            let near = |x: Interval, want: f64| x.lo() <= want + 1e-15 && want - 1e-15 <= x.hi();
+            assert!(near(radial, cos), "nappe {nappe}: radial rate {radial:?}");
+            assert!(
+                near(axial, -nappe * sin),
+                "nappe {nappe}: axial rate {axial:?}"
+            );
+        }
+    }
+
+    /// **The graph separator's rate is `(m − γ′·t)·v`**: with `γ′` in
+    /// `slope`, along `t` it is `m·t − γ′·|t|²` over the slope's range
+    /// (red where the slope term's sign is flipped).
+    #[test]
+    fn the_graph_separators_rate_subtracts_its_slope_along_t() {
+        let graph = Psi::Graph {
+            m: Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+            t: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            slope: Interval::from_bounds(0.25, 0.5),
+            piece: (0.0, 1.0),
+        };
+        let p = origin();
+        let along_t = graph.rate(p, Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)));
+        assert!(
+            along_t.lo() <= -0.5 && -0.25 <= along_t.hi() && along_t.hi() < 0.0,
+            "along t: {along_t:?}"
+        );
+        let along_m = graph.rate(p, Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)));
+        assert!(
+            along_m.lo() <= 1.0 && 1.0 <= along_m.hi(),
+            "along m: {along_m:?}"
+        );
+    }
+
+    /// **A bracketed axis and a bracketed direction**: the cylinder's
+    /// rate over a box encloses `unit_a(q)·w` for members `a` of the
+    /// axis, `q` of the box and `w` of the direction, each read at
+    /// `f64`; an axis enclosure holding zero reads no sign.
+    #[test]
+    fn a_carriers_rate_encloses_every_members_rate_where_the_axis_is_a_bracket() {
+        let e = 1e-7;
+        let wide = |x: f64| Interval::from_bounds(x - e, x + e);
+        let d = Vec3::new(0.36, -0.48, 0.8);
+        let o = Vec3::new(1.5, -2.25, 0.75);
+        let (b, _) = on_a_ruling(o, d, 3.0, 0.2);
+        let w0 = Vec3::new(0.3, 0.9, -0.2);
+        let cyl = Psi::Carrier(Implicit::Cylinder {
+            o: Point3::origin() + o.map(iv0),
+            axis: d.map(wide),
+            r: iv0(0.2),
+        });
+        let rate = cyl.rate(b, w0.map(wide));
+        let corner = |i: &Interval, k: f64| if k < 0.0 { i.lo() } else { i.hi() };
+        for k in [-1.0, 1.0] {
+            for j in [-1.0, 1.0] {
+                let a = d + Vec3::new(k, -k, j) * (0.9 * e);
+                let w = w0 + Vec3::new(j, k, -j) * (0.9 * e);
+                let q = Point3::new(corner(&b.x, k), corner(&b.y, j), corner(&b.z, -k));
+                let line = geom::Line {
+                    origin: Point3::origin() + o,
+                    dir: a,
+                };
+                let r = line.offset(q);
+                let want = r.dot(w) / r.norm();
+                assert!(
+                    rate.lo() <= want && want <= rate.hi(),
+                    "{rate:?} misses member ({k}, {j}): {want}"
+                );
+            }
+        }
+        let zero = Psi::Carrier(Implicit::Cylinder {
+            o: Point3::origin() + o.map(iv0),
+            axis: Vec3::new(wide(0.0), wide(0.0), wide(0.0)),
+            r: iv0(0.2),
+        });
+        let none = zero.rate(b, w0.map(iv0));
+        assert!(
+            !(none.lo().is_finite()
+                && none.hi().is_finite()
+                && (none.lo() > 0.0 || none.hi() < 0.0)),
+            "an axis holding zero reads a sign: {none:?}"
+        );
     }
     use crate::test_support_fixtures::trv;
     use geom_core::Tol;

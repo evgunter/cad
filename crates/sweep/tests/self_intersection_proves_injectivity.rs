@@ -3194,7 +3194,7 @@ fn embedding_of<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clear
 }
 
 /// **A notched rod holds across its reflex corners**, as built, turned
-/// about a generic axis, and a hundred units up its axis, at both
+/// about a generic axis, and a hundred units up and across its axis, at both
 /// scalars and through the verdict door. Each wall cell at a corner is
 /// read by the wall's own carrier against the notch's presented face, and
 /// that carrier's rate along a ruling is zero at every point: red if it
@@ -3219,6 +3219,10 @@ fn a_notched_rod_holds_across_its_reflex_corners_in_every_pose() {
         (
             "a hundred units up its axis",
             Affine3::translation(Vec3::new(0.0, 0.0, 100.0)),
+        ),
+        (
+            "a hundred units across its axis",
+            Affine3::translation(Vec3::new(100.0, -100.0, 0.0)),
         ),
     ];
     for (what, pose) in poses {
