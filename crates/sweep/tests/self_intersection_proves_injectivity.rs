@@ -3407,3 +3407,40 @@ fn a_copy_pushed_through_a_tangent_joint_crosses() {
         assert_eq!(door_class::<Interval>(&twin), "Crosses", "at Interval");
     }
 }
+
+/// REVIEW PROBE (PR 7320, claim 8): every touching pair of the three
+/// bodies asked alone at `Interval` and at `f64`, printed by kind and
+/// class, so the same table can be taken on main's `injective.rs` and
+/// the two compared. Asserts nothing.
+#[test]
+fn review_probe_every_touching_pair_by_class() {
+    fn table<T: Scalar + geom_core::Certifies>(
+        scalar: &str,
+        what: &str,
+        body: Option<topo::AtRestBody<T>>,
+    ) {
+        let Some(body) = body else {
+            println!("[pairs] {scalar} {what}: no body");
+            return;
+        };
+        let mut rows = std::collections::BTreeMap::<String, usize>::new();
+        for (a, b) in touching_pairs(&body) {
+            let mut kinds = [kind(&body, a), kind(&body, b)];
+            kinds.sort_unstable();
+            let class = door_over::<T>(&body, vec![a, b]);
+            *rows
+                .entry(format!("{} x {}: {class}", kinds[0], kinds[1]))
+                .or_default() += 1;
+        }
+        for (row, n) in rows {
+            println!("[pairs] {scalar} {what}: {n} of {row}");
+        }
+        println!("[pairs] {scalar} {what}: WHOLE {}", door_class::<T>(&body));
+    }
+    table("f64", "the inset corner", inset_filleted::<f64>());
+    table("f64", "the rounded plate", rounded_plate::<f64>());
+    table("f64", "the barrel", barrel::<f64>());
+    table("Interval", "the inset corner", inset_filleted::<Interval>());
+    table("Interval", "the rounded plate", rounded_plate::<Interval>());
+    table("Interval", "the barrel", barrel::<Interval>());
+}
