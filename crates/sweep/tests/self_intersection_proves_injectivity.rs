@@ -4116,7 +4116,7 @@ fn review2_sample(what: &str, body: &Body<f64>, op: &Review2Op, slabs: &[(f64, f
             continue;
         }
         let fk = homes[0];
-        let holds = topo::test_support::posed_extents_holding(body, fk, q).expect("the face lifts");
+        let holds = topo::test_support::posed_extents_holding(body, fk, q, band()).expect("the face lifts");
         tested += 1;
         for (j, h) in holds.into_iter().enumerate() {
             grants.insert((fk, j, h.is_some()));
@@ -4225,7 +4225,7 @@ fn review2_triangle_diagnosis() {
                 geom_core::Point3::new(q[0], q[1], q[2]),
                 band(),
             );
-            let h = topo::test_support::posed_extents_holding(&body, fk, q);
+            let h = topo::test_support::posed_extents_holding(&body, fk, q, band());
             println!("[r2d] point {q:?} face {fk:?} containment {c:?} posed {h:?}");
         }
     }
