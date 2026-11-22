@@ -488,3 +488,15 @@ body has the reasons):
   The corrupt-input red was a random fuzz seed of CHARTTAIL's open row
   `a-split-reduce-on-a-torn-body-panics-at-pcurves-unreachable-own-loop`,
   which reproduces on main. The lane added its seed there. Lane archived.
+- 2026-11-22 10:45 — **7151's 7353 build is green** (`b252f91`). The
+  delta review was dispatched to the same FULL reviewer (cloud
+  session_013QoYWVRvFYKyod85TtCfsz).
+  - Filed by the lane:
+    - `germ/the-curve-face-pose-classes-the-carrier-not-the-span-a-trace-reads`
+      (P2, with the far-Grazing row pinned red against it);
+    - `doctail/the-tangency-prover-does-not-see-through-a-placement` (P1);
+    - `doctail/a-trace-fault-preempts-the-charts-backwards-near-the-bands-edge`
+      (P3).
+  - The traced-carriage row is created and closed in the PR.
+  - GitHub shows the PR "dirty", but a local merge-tree against main is
+    clean; it is re-checked before merge.
