@@ -3444,3 +3444,47 @@ fn review_probe_every_touching_pair_by_class() {
     table("Interval", "the rounded plate", rounded_plate::<Interval>());
     table("Interval", "the barrel", barrel::<Interval>());
 }
+
+/// REVIEW PROBE (PR 7320, claim 7): the PCERT row's account. Its traced
+/// test's first body (a rounded triangle, every edge filleted), one of
+/// its untraced four's (a rounded rectangle drawn at 30 degrees), and
+/// the axis-drawn rounded rectangle turned 30 degrees about `z` AFTER it
+/// is filleted, each by pair kind and class at `f64`. Asserts nothing.
+#[test]
+fn review_probe_the_straight_foot_refusal_by_outline() {
+    use crate::band_closed_mixed_chain_shapes::{every_edge, prism, rect, regular, rotated};
+    fn table(what: &str, body: &Body<f64>) {
+        let mut rows = std::collections::BTreeMap::<String, usize>::new();
+        for (a, b) in touching_pairs(body) {
+            let mut kinds = [kind(body, a), kind(body, b)];
+            kinds.sort_unstable();
+            let class = door_over::<f64>(body, vec![a, b]);
+            *rows
+                .entry(format!("{} x {}: {class}", kinds[0], kinds[1]))
+                .or_default() += 1;
+        }
+        for (row, n) in rows {
+            println!("[foot] {what}: {n} of {row}");
+        }
+        println!("[foot] {what}: WHOLE {}", door_class::<f64>(body));
+    }
+    let build = |what: &str, o, r: f64| {
+        let body = prism::<f64>(&o, 0.0, 0.5);
+        rounded(what, &body, &every_edge(&body), r).expect("f64 fillets")
+    };
+    table("triangle", &build("triangle", regular(3, 1.0, 0.3), 0.1));
+    let drawn = build(
+        "rectangle drawn at 30",
+        rotated(&rect(1.0, 0.6, [0.3; 4]), core::f64::consts::PI / 6.0),
+        0.1,
+    );
+    table("rectangle drawn at 30", &drawn);
+    let straight = build("rectangle on the axes", rect(1.0, 0.6, [0.3; 4]), 0.1);
+    table("rectangle on the axes", &straight);
+    let about_z = geom_core::Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        geom_core::Vec3::new(0.0, 0.0, 1.0),
+        core::f64::consts::PI / 6.0,
+    );
+    table("rectangle turned 30 after filleting", &moved(&straight, &about_z));
+}

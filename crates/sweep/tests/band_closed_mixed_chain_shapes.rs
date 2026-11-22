@@ -134,7 +134,7 @@ fn rounded(poly: &[P], radii: &[f64], deficit: &[f64]) -> Outline {
 }
 
 /// The obround: centres `(±a, 0)`, radius `rr`.
-fn slot(a: f64, rr: f64) -> Outline {
+pub(crate) fn slot(a: f64, rr: f64) -> Outline {
     outline_from(vec![
         ((-a, -rr), 0.0),
         ((a, -rr), 1.0),
@@ -143,7 +143,7 @@ fn slot(a: f64, rr: f64) -> Outline {
     ])
 }
 
-fn regular(n: usize, circ: f64, rr: f64) -> Outline {
+pub(crate) fn regular(n: usize, circ: f64, rr: f64) -> Outline {
     let poly: Vec<P> = (0..n)
         .map(|i| {
             let a = 2.0 * PI * (i as f64) / (n as f64) - PI / 2.0;
@@ -405,7 +405,7 @@ fn membership(
 }
 
 /// The outline turned by `a` about the origin.
-fn rotated(o: &Outline, a: f64) -> Outline {
+pub(crate) fn rotated(o: &Outline, a: f64) -> Outline {
     let (s, c) = a.sin_cos();
     outline_from(
         o.chain
