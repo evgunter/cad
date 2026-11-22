@@ -3229,6 +3229,7 @@ fn embedded_verdict<T: Scalar + geom_core::Certifies>(
     let side = Side {
         body,
         faces: body.faces().map(|(k, _)| k).collect(),
+        excluded: topo::clearance::FacePairs::none(),
     };
     let budgets = Budgets {
         max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
