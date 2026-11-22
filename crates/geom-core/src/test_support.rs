@@ -80,8 +80,10 @@ pub fn is_told_offer_of(offered: f64, exact: f64) -> bool {
 
 /// The band at tolerance `eps` and the default `K`: the band an
 /// executed-offer case's first raise runs at (`test_utils::offer::DESIGN_EPS`),
-/// whatever the running process's own tolerance is.
+/// whatever the running process's own tolerance is. Panics where `eps`
+/// forms no band.
 #[must_use]
+#[allow(clippy::panic)]
 pub fn default_k_band(eps: f64) -> Band {
     match Band::new(eps, crate::tolerance::DEFAULT_K * eps) {
         Ok(band) => band,
@@ -118,6 +120,7 @@ pub fn is_offer_of_a_margin_within(band: Band, offered: f64, margin: f64, slack:
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod offer_tests {
     use super::{Band, is_offer_of_a_margin_within};
 
