@@ -80,6 +80,16 @@ and the model comparison apply.
   `the-viewer-spells-a-node-as-its-kind-before-its-name`), and the
   certify control.
 
+## 2026-11-22 — the certify fork goes to Ev
+
+(OFFER orchestrator) `certify-affordance-on-the-bounds-panel` has reconciled. The fork took two rounds, then a further designer after the seed swapped twice, then a final round, and every designer now agrees. It goes to Ev as an `[ev]` PR on `offer/certify-design` because it reads Ev's 2026-09-13 pacing ruling ("replaces the probe's reading") in a way Ev must confirm. The row's `## Design` section holds the agreed final state.
+
+The fork turned up these findings, which the building unit owes:
+- The row's signature is stale. `certified_range` now takes `stop: &Stop`, `SlotIsNotALiteral` is now `SlotIsDefined`, and there are eleven `RangeRefusal` arms.
+- `docm9_range_vs_probe.rs` is not feature-gated; `tests/all.rs` includes it.
+- The probe and the proof disagree on Count fields and on documents that already fail (`WitnessDoesNotBuild`). The row says the two "already agree on what they will not answer", which is true only of formula-driven slots.
+- The probe's `Verdict` at `invalid` knows which node newly fails, but `Bound::Edge` drops it. That is the cheap source for "node stops building".
+- Filed: `work/doctail/range-guard-refusals-lack-the-kernel-defect-ending` and `work/offer/the-bounds-probe-runs-inline-on-the-frame`. The resolver gap is already `work/scalar/the-box-driver-carries-no-part-resolver`, at P2. Since the certify unit needs that gap closed, its band is owed P1 when this unit is dispatched; the unit will re-band it or split it.
 ## 2026-11-22 — the names fork goes to Ev
 
 (OFFER orchestrator) The fork on how a node is named to a person (`a-node-name-the-viewer-shows-is-not-a-link-to-it` with VNEWS' `the-viewer-spells-a-node-as-its-kind-before-its-name`) reconciled in one round. It goes to Ev as an `[ev]` PR on `offer/names-design`, because it changes DESIGN.md Band 1 "Node labels". The designers agree on the final state, and the PR carries their split on one taste sub-choice: how a label that two live nodes share reads on screen.
@@ -155,3 +165,24 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
 **Dispatch, letters and tiers** (logged before any draw):
 - 1 is letter H, tier DUAL. It is an architectural change to how every sentence the kernel hands out is built (56 `Say` impls, the Python stubs), and it would be hard to change later.
 - 3 is letter M, tier SINGLE, FULL review. A wrong relation shown as a link is a confident wrong answer.
+- 2026-11-22 — **Dispatched.** All four run as cloud sessions and report to the orchestrator by `send_message`.
+  - **Names lanes:**
+    - `the-viewer-spells-a-node-as-its-kind-before-its-name`, on `offer/a-node-is-spoken-as-a-mention`, session `session_013QoYWX8dyxZkisPkoWqKE2`;
+    - `a-placement-and-its-part-do-not-link-to-each-other`, on `offer/a-node-shows-what-it-reads-and-what-reads-it`, session `session_013QoYWWdDR39ioDz6evAqWY`.
+  - **Reviews:**
+    - cascade PR #7346, FULL, session `session_013QoYWYJT7Yej2UM7GWwepM`;
+    - guide PR #7336, STYLE, session `session_013QoYWVuZ9dUBajTwT442oB`.
+
+  Draws are on `analysis/model-compare/offer-2026-11-22`. Each fix pass runs as its implementer's own agent, continued. (OFFER orchestrator)
+- 2026-11-22 — **Ev answered #7340:** the sampled `range?` "can just be deleted". Ev never meant it to sample. `certified_range` is to be made efficient and to back a real `range?`. The design is in the row's `## Decided` section. Fork-log row 298 is completed (A Opus 5.5, B Fable 5.2, C Fable 5.2). Every designer had taken the probe as given from the row and the 2026-09-13 summary, and Ev rejected that framing. Worth noting for the experiment: the designers questioned the brief's premise on cost, but never on whether the probe should exist. (OFFER orchestrator)
+
+## 2026-11-22 — the certify build, cut
+
+(OFFER orchestrator) Ev decided certify on #7340, now merged. The build is cut into two units:
+1. `the-certified-range-refines-away-from-the-current-value` (new, P1, H) is the kernel search.
+2. `certify-affordance-on-the-bounds-panel` makes `range?` the certified search and deletes the sampling probe. It is parked on 1.
+
+`the-bounds-probe-runs-inline-on-the-frame` is closed as superseded.
+
+**Dispatch, letters and tiers** (logged before any draw):
+- 1 is letter H, tier DUAL. It is a certified-interval soundness claim: the proven interval must be proven. It also sets a second refinement order beside E6's.
