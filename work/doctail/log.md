@@ -568,3 +568,23 @@ body has the reasons):
     read: in-plane spin or a carried slide at a zero nominal. If it
     reproduces, a P0 is filed on its own branch.
   - **7396 is held** at 81d4566; do not merge.
+- 2026-11-22 19:10 — **`valexact` settled with no Ev ruling.** Both
+  designers agree the ratified text decides it: ERROR-DESIGN E12's
+  structural-question bullet (Ev, `[ev]` 6993) plus DESIGN `[scalars]`.
+  At `Sym`, no exactness read off the nominal chooses what is built.
+  - **Home:** DECIDE's `is-exact-zero-reads-tags-copies-and-decisions-off-a-number`.
+  - **Rejected:** (B) opaque, which kills box-face proofs and patches
+    the consumer, and (C) retreat, which keeps main exposed.
+  - **Reconciled mechanism:**
+    - the least turn goes branchless (designer 1), with no EX1
+      dependency;
+    - `turn::zero` / `aligned` take the general path at `Sym` until
+      BOXFINISH's EX1 lands (designer 2 would route both through EX1).
+  - **Ev's input needed later:** designer 2's point that E12's "and for
+    nothing else" (agent text, approved in passing) needs Ev's reading
+    once `aligned` asks the question.
+  - **Plan:** the 7396 lane builds the subset as its own PR
+    (`doctail/the-least-turn-reads-no-exactness-off-the-nominal`) after
+    its main-repro step. It creates and closes a doctail P1 (P0 if main
+    reproduces) and announces the seams on DECIDE, SCALAR, PROPS, SYM
+    and MSOLVE. 7396 then merges main and re-measures.
