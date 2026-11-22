@@ -199,7 +199,7 @@ fn an_nary_union_whose_hull_test_pairs_other_members_names_no_flip() {
             .expect("the union builds")
             .marks
             .iter()
-            .filter(|m| m.site == "nary_hulls_meet")
+            .filter(|m| m.site.name == "nary_hulls_meet")
             .map(|m| m.item)
             .collect::<Vec<_>>()
     };
@@ -215,7 +215,7 @@ fn an_nary_union_whose_hull_test_pairs_other_members_names_no_flip() {
     let hull_only = |v: &editor_core::NodeValue<f64>| -> Vec<geom_core::k_stats::Mark> {
         v.marks
             .iter()
-            .filter(|m| m.site == "nary_hulls_meet")
+            .filter(|m| m.site.name == "nary_hulls_meet")
             .copied()
             .collect()
     };
@@ -233,13 +233,13 @@ fn an_nary_union_whose_hull_test_pairs_other_members_names_no_flip() {
         )
     };
     assert_eq!(
-        turn(&v1.marks, &v2.marks).mark().map(|(site, _)| site),
+        turn(&v1.marks, &v2.marks).mark().map(|(site, _)| site.name),
         Some("nary_hulls_meet"),
         "the union's runs part at the hull test: {:?}",
         turn(&v1.marks, &v2.marks)
     );
     assert_eq!(
-        turn(&h1, &h2).mark().map(|(site, _)| site),
+        turn(&h1, &h2).mark().map(|(site, _)| site.name),
         Some("nary_hulls_meet"),
         "the hull test's marks alone part them: {:?}",
         turn(&h1, &h2)

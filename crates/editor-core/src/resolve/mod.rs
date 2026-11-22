@@ -462,9 +462,9 @@ pub enum Diagnosis {
     Parted {
         /// The node whose two runs parted.
         node: RecipeNodeId,
-        /// The query or test, by its mark's static site name (routing,
-        /// as a predicate's name is).
-        site: &'static str,
+        /// The query or test, at the one call that asked it: its name is
+        /// routing, its words are what the sentence says.
+        site: geom_core::k_stats::Site,
         /// The step it parted at, along the choices and candidates
         /// both runs walked alike ([`vdiff::Parting`]).
         step: usize,
@@ -754,15 +754,14 @@ impl Diagnosis {
     /// Reachable two ways, and the vocabulary is the same for both, so
     /// the value has one home: with no evidence to weigh — a
     /// mid-evaluation door, which has no prior run to diff — and with
-    /// evidence that came up empty, through the population-cancel
-    /// blind spot (`vdiff` module docs) or through SWEEP PRUNING (the
-    /// realized sweep records no verdicts for pruned pairs, so an
-    /// interaction-boundary vanish can land here — ratified
-    /// 2026-07-29, NAMING-DESIGN N5 as amended). For a fragment name,
-    /// [`border_delta`] and [`group_resized`] answer part of that case
-    /// before this one is reached; a pruned vanish of a name with no
-    /// fragment qualifier — an operand corner fused away — still lands
-    /// here.
+    /// evidence that came up empty: no flip, doc delta, qualifier
+    /// delta, parting at a mark or group-size change on record. SWEEP
+    /// PRUNING (ratified 2026-07-29, NAMING-DESIGN N5 as amended)
+    /// records no verdicts for pruned pairs, but the queries that prune
+    /// mark what they hand on, so a pruning that moved is answered by
+    /// the parting rung ([`Diagnosis::Parted`]) where it is on the
+    /// path; a pruning no mark records, or a mark-free node, still
+    /// lands here.
     pub(crate) fn cause_not_in_evidence(node: RecipeNodeId) -> Self {
         Self::RecipeEdit {
             edit: RecipeEditRef::NodeChanged { node },
@@ -810,14 +809,23 @@ impl crate::spoken::Say for Diagnosis {
                 by.node(*node),
                 Said(cutters, by)
             ),
-            // The site and the step are routing and ride `Debug`.
-            Self::Parted { node, .. } => write!(
-                f,
-                "at {}, the two runs part where a query handed on different \
-                 candidates, before any verdict flipped; which change made it do so \
-                 is not on record",
-                by.node(*node)
-            ),
+            // The site is said by its words; its name and the step ride
+            // `Debug`.
+            Self::Parted { node, site, .. } => {
+                write!(f, "at {}, the two runs part where ", by.node(*node))?;
+                match site.kind {
+                    geom_core::k_stats::SiteKind::Query => {
+                        write!(f, "the search for {} found other candidates", site.words)?;
+                    }
+                    geom_core::k_stats::SiteKind::Test => {
+                        write!(f, "the test whether {} answered otherwise", site.words)?;
+                    }
+                }
+                write!(
+                    f,
+                    ", before any verdict flipped; which change made it do so is not on record"
+                )
+            }
             Self::StructuralParam { node, param } => write!(
                 f,
                 "a structural parameter changed on the derivation path: slot {} of {}",

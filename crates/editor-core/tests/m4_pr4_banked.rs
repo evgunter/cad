@@ -218,9 +218,10 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     // and the diagnosis MUST use it. The realized (production, BVH)
     // run prunes the disjoint prior's pair space EMPTY — the flip
     // evidence genuinely never existed — so the honest outcomes are
-    // the flip (when any survives) or the DOCUMENTED evidence-free
-    // fallback naming the minting node (resolve/mod.rs: "not a claim
-    // that an edit happened"); anything else (a specific edit blame, a
+    // the flip (when any survives), the parting the box queries' marks
+    // prove, or the DOCUMENTED evidence-free fallback naming the
+    // minting node (resolve/mod.rs: "not a claim that an edit
+    // happened"); anything else (a specific edit blame, a
     // structural-param blame) stays dishonest and fails here.
     for strategy in [
         topo::SweepStrategy::Idealized,

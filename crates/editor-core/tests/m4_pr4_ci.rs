@@ -106,10 +106,11 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 ///
 /// **Re-pinned for the parting rung** (N5: a node whose runs part
 /// because a query handed on different candidates names where): the
-/// flip-vanish row now names the union's face-pair query at step 0,
+/// flip-vanish row now names the union's glue-pair query
+/// (`bool_glue_pairs`) at step 0,
 /// `GroupResized` → `Parted`: a change of diagnosis. Every other row
 /// keeps its shape.
-const DIAGNOSIS_DIGEST: u64 = 0xd52f_b0ee_7985_bd5a;
+const DIAGNOSIS_DIGEST: u64 = 0xd7c1_8876_4bd6_ba62;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

@@ -265,6 +265,26 @@ fn vanished(
         .collect()
 }
 
+/// **What the real runs answer**, before a row reads them `silent`:
+/// every fragment `pick` selects that vanished at `node` is named where
+/// the node's runs part, at the query `site`.
+fn parted_on_the_real_runs(
+    now: (&ProfileDoc, &Evaluation<f64>),
+    prior: (&ProfileDoc, &Evaluation<f64>),
+    node: RecipeNodeId,
+    site: &str,
+    pick: impl Fn(&StableName, &Entry) -> bool,
+) {
+    let rows = vanished(now, prior, node, pick);
+    assert!(!rows.is_empty(), "some fragment vanishes on the real runs");
+    for (n, d) in rows {
+        assert!(
+            matches!(&d, Diagnosis::Parted { node: at, site: s, .. } if *at == node && s.name == site),
+            "{n:?}: the real runs part at {site}, got {d:?}"
+        );
+    }
+}
+
 /// The tie fixture: a 4×4×4 block minus a U-shaped `cutter` profile
 /// (extruded 2, one up the block) whose two prongs cross one wall — the
 /// cutter's caps leave two congruent prong faces each, an N2 tie — cut
@@ -308,8 +328,15 @@ fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
     let (doc, _, tr, cut) = tied_prongs_cut(&fixture::U_CUTTER);
     let ev1 = run(&doc, None);
     let doc2 = moved(doc.clone(), &tr, [0.0, 0.0, 3.2]);
-    let ev2 = silent(run(&doc2, Some(&ev1)));
-    let ev1 = silent(ev1);
+    let ev2 = run(&doc2, Some(&ev1));
+    parted_on_the_real_runs(
+        (&doc2, &ev2),
+        (&doc, &ev1),
+        cut,
+        "bool_glue_pairs",
+        |_, e| matches!(e, Entry::Tied(c) if c.len() == 2),
+    );
+    let (ev1, ev2) = (silent(ev1), silent(ev2));
     // The tied parents' fragments: tied rows of the cut's own groups.
     let rows = vanished(
         (&doc2, &ev2),
@@ -369,8 +396,15 @@ fn a_tied_parents_seam_group_counts_its_own_pieces() {
     let (doc, sub, tr, cut) = tied_prongs_cut(&TINED_U_CUTTER);
     let ev1 = run(&doc, None);
     let doc2 = moved(doc.clone(), &tr, [0.0, 0.0, 3.2]);
-    let ev2 = silent(run(&doc2, Some(&ev1)));
-    let ev1 = silent(ev1);
+    let ev2 = run(&doc2, Some(&ev1));
+    parted_on_the_real_runs(
+        (&doc2, &ev2),
+        (&doc, &ev1),
+        cut,
+        "bool_glue_pairs",
+        |n, _| n.kind == EntityKind::Edge,
+    );
+    let (ev1, ev2) = (silent(ev1), silent(ev2));
     let tied = ev1.table_at(sub).expect("the first cut evaluates");
     let is_tied = |side: &StableName| match side.path.as_slice() {
         [RoleSeg::From { of, .. }] => matches!(tied.lookup(of), Some(Entry::Tied(_))),

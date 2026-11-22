@@ -86,7 +86,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom_core::k_stats::{Mark, MarkItem, Role, Verdict};
+use geom_core::k_stats::{Mark, MarkItem, Role, Site, Verdict};
 use geom_core::{Decide, Sign};
 
 use crate::eval::{Evaluation, KeyHasher, NodeStanding};
@@ -148,7 +148,7 @@ pub struct Path<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Step {
     Choice(&'static str, Sign),
-    Candidate(&'static str, MarkItem),
+    Candidate(Site, MarkItem),
 }
 
 impl Path<'_> {
@@ -196,11 +196,11 @@ pub enum FirstTurn {
 pub enum Parting {
     /// One pruning query handed on different candidates, or one marked
     /// test answered otherwise: both runs' steps there are marks of the
-    /// query `site`, with different items. The log proves the parting
+    /// one `site`, with different items. The log proves the parting
     /// and not a turn.
     Mark {
-        /// The query or test (its mark's static site name).
-        site: &'static str,
+        /// The query or test, at the one call that asked it.
+        site: Site,
         /// The step it parted at.
         step: usize,
     },
@@ -231,7 +231,7 @@ impl FirstTurn {
     /// The query and the step, where the paths part at a mark
     /// ([`Parting::Mark`]).
     #[must_use]
-    pub fn mark(self) -> Option<(&'static str, usize)> {
+    pub fn mark(self) -> Option<(Site, usize)> {
         match self {
             Self::Parted(Parting::Mark { site, step }) => Some((site, step)),
             Self::Agree

@@ -5262,7 +5262,11 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 "Vanished(Parted)",
                 vanished(Diagnosis::Parted {
                     node: at,
-                    site: "bvh_overlapping",
+                    site: geom_core::k_stats::QuerySite::new(
+                        "refusal_rows_query",
+                        "the faces whose boxes meet a face's",
+                    )
+                    .site(),
                     step: 19,
                 }),
             ),

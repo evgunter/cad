@@ -21,7 +21,7 @@ use editor_core::{
     RoleSeg, RunCtx, StableName, evaluate,
 };
 use fixture::{insert, len, minted};
-use geom_core::k_stats::{Mark, MarkItem, Role, Verdict};
+use geom_core::k_stats::{Mark, MarkItem, QuerySite, Role, Site, TestSite, Verdict};
 use geom_core::{Sign, Tol};
 
 // ---------------------------------------------------------------
@@ -202,14 +202,14 @@ fn a_vanished_rim_piece_whose_union_parts_at_its_candidates_names_the_query() {
         ),
         "the row is about a piece named by its ends: {name:?}"
     );
-    assert_eq!(
-        vanished(res),
-        &Diagnosis::Parted {
-            node: name.node,
-            site: "bvh_overlapping",
-            step: 0,
-        },
-        "expected the parting rung at the union"
+    assert!(
+        matches!(
+            vanished(res),
+            Diagnosis::Parted { node, site, step: 0 }
+                if *node == name.node && site.name == "bool_glue_pairs"
+        ),
+        "expected the parting rung at the union: {:?}",
+        vanished(res)
     );
     assert!(f.offers.contains(&base_of(name)), "{:?}", f.offers);
 }
@@ -268,7 +268,10 @@ fn a_unions_slide_sweep_names_the_query_its_runs_part_at() {
                 panic!("x {to:+}: {name:?} is diagnosed {d:?}");
             };
             assert_eq!(*node, union, "x {to:+}: the union's runs part");
-            assert_eq!(*site, "bvh_overlapping", "x {to:+}: at its face-pair query");
+            assert_eq!(
+                site.name, "bool_glue_pairs",
+                "x {to:+}: at its face-pair query"
+            );
         }
     }
 }
@@ -436,9 +439,39 @@ fn a_withdrawn_bar_names_where_its_cuts_runs_part() {
     assert!(
         matches!(
             vanished(&res),
-            Diagnosis::Parted { node, site: "bvh_overlapping", .. } if *node == s.cut
+            Diagnosis::Parted { node, site, .. } if *node == s.cut && site.name == "bool_glue_pairs"
         ),
         "no turn on the record, so the parting rung at the cut: {:?}",
+        vanished(&res)
+    );
+}
+
+/// **What the real runs answer** for `name`, before a row reads them
+/// silent: the cut's runs part at its first query.
+fn parted_at_the_cut(
+    s: &Slot,
+    (doc2, ev2): (&ProfileDoc, &Evaluation<f64>),
+    ev1: &Evaluation<f64>,
+    name: &StableName,
+    case: &str,
+) {
+    let res = crate::fixture::resolve_with_prior_at_mint(
+        RunCtx {
+            doc: doc2,
+            eval: ev2,
+        },
+        RunCtx {
+            doc: &s.doc,
+            eval: ev1,
+        },
+        name,
+    );
+    assert!(
+        matches!(
+            vanished(&res),
+            Diagnosis::Parted { node, site, .. } if *node == s.cut && site.name == "bool_glue_pairs"
+        ),
+        "{case}: {name:?} on the real runs: {:?}",
         vanished(&res)
     );
 }
@@ -454,10 +487,11 @@ fn a_collapsed_borders_group_is_diagnosed_group_resized_and_offers_the_survivor(
         let ev1 = run(&s.doc, None);
         let frags = border_pieces(&ev1, s.cut);
         let doc2 = slide(&s, 1, to);
-        // Read silent: the cut's runs part at a query's candidates,
-        // and the parting rung would answer above this one.
-        let ev2 = fixture::silent(run(&doc2, Some(&ev1)));
-        let ev1 = fixture::silent(ev1);
+        let ev2 = run(&doc2, Some(&ev1));
+        // The real runs part at the cut's first query, and the parting
+        // rung answers above this one, so the rung is read silent.
+        parted_at_the_cut(&s, (&doc2, &ev2), &ev1, &frags[0], "y = {to}");
+        let (ev1, ev2) = (fixture::silent(ev1), fixture::silent(ev2));
         assert!(border_pieces(&ev2, s.cut).is_empty(), "y = {to}");
         let res = crate::fixture::resolve_with_prior_at_mint(
             RunCtx {
@@ -526,9 +560,18 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
             "the cut names some edge pieces by their ends"
         );
         let doc2 = slide(&s, 1, to);
-        // Read silent, as the row above.
-        let ev2 = fixture::silent(run(&doc2, Some(&ev1)));
-        let ev1 = fixture::silent(ev1);
+        let ev2 = run(&doc2, Some(&ev1));
+        // The real runs part at the cut's first query; the rung is read
+        // silent, as the row above.
+        for name in pieces.iter().filter(|n| {
+            ev2.table_at(s.cut)
+                .expect("the cut evaluates")
+                .lookup(n)
+                .is_none()
+        }) {
+            parted_at_the_cut(&s, (&doc2, &ev2), &ev1, name, "y = {to}");
+        }
+        let (ev1, ev2) = (fixture::silent(ev1), fixture::silent(ev2));
         let gone: Vec<&StableName> = pieces
             .iter()
             .filter(|n| {
@@ -750,6 +793,11 @@ fn a_recorded_turn_outranks_the_group_size_rung() {
     );
 }
 
+/// The hand-built rows' mark sites.
+const QUERY: QuerySite = QuerySite::new("hand_query", "the faces whose boxes meet a face's");
+const OTHER_QUERY: QuerySite = QuerySite::new("hand_other_query", "the edges near an edge");
+const TEST: TestSite = TestSite::new("hand_test", "a cell is surely clear of the band");
+
 /// A choice of `predicate` decided `sign`.
 fn choice(predicate: &'static str, sign: Sign) -> Verdict {
     Verdict {
@@ -760,7 +808,7 @@ fn choice(predicate: &'static str, sign: Sign) -> Verdict {
 }
 
 /// A mark of `site` placed before verdict `before`, feeding `role`.
-fn mark(site: &'static str, before: usize, item: MarkItem, role: Role) -> Mark {
+fn mark(site: Site, before: usize, item: MarkItem, role: Role) -> Mark {
     Mark {
         before,
         site,
@@ -806,9 +854,9 @@ fn a_parting_at_a_mark_outranks_the_group_size_rung() {
             (
                 vec![c(Sign::Positive), c(Sign::Negative)],
                 vec![
-                    mark("bvh_overlapping", 0, cand(0), Role::Choice),
-                    mark("bvh_overlapping", 0, cand(1), Role::Choice),
-                    mark("bvh_overlapping", 0, MarkItem::End, Role::Choice),
+                    mark(QUERY.site(), 0, cand(0), Role::Choice),
+                    mark(QUERY.site(), 0, cand(1), Role::Choice),
+                    mark(QUERY.site(), 0, MarkItem::End, Role::Choice),
                 ],
             ),
         )],
@@ -817,8 +865,8 @@ fn a_parting_at_a_mark_outranks_the_group_size_rung() {
             (
                 vec![c(Sign::Positive), c(Sign::Positive)],
                 vec![
-                    mark("bvh_overlapping", 0, cand(0), Role::Choice),
-                    mark("bvh_overlapping", 0, MarkItem::End, Role::Choice),
+                    mark(QUERY.site(), 0, cand(0), Role::Choice),
+                    mark(QUERY.site(), 0, MarkItem::End, Role::Choice),
                 ],
             ),
         )],
@@ -827,7 +875,7 @@ fn a_parting_at_a_mark_outranks_the_group_size_rung() {
         d,
         Diagnosis::Parted {
             node: h.node,
-            site: "bvh_overlapping",
+            site: QUERY.site(),
             step: 1,
         },
         "a query's candidates part the runs"
@@ -841,24 +889,14 @@ fn a_parting_at_a_mark_outranks_the_group_size_rung() {
             h.node,
             (
                 vec![c(Sign::Positive), c(Sign::Negative)],
-                vec![mark(
-                    "blend_reach_sure",
-                    1,
-                    MarkItem::Outcome(true),
-                    Role::Choice,
-                )],
+                vec![mark(TEST.site(), 1, MarkItem::Outcome(true), Role::Choice)],
             ),
         )],
         vec![(
             h.node,
             (
                 vec![c(Sign::Positive), c(Sign::Positive)],
-                vec![mark(
-                    "blend_reach_sure",
-                    1,
-                    MarkItem::Outcome(false),
-                    Role::Choice,
-                )],
+                vec![mark(TEST.site(), 1, MarkItem::Outcome(false), Role::Choice)],
             ),
         )],
     );
@@ -866,7 +904,7 @@ fn a_parting_at_a_mark_outranks_the_group_size_rung() {
         d,
         Diagnosis::Parted {
             node: h.node,
-            site: "blend_reach_sure",
+            site: TEST.site(),
             step: 1,
         },
         "a marked test's answer parts the runs"
@@ -889,7 +927,7 @@ fn a_recorded_turn_outranks_a_parting() {
             h.node,
             (
                 vec![c(Sign::Positive)],
-                vec![mark("bvh_overlapping", 0, item, Role::Choice)],
+                vec![mark(QUERY.site(), 0, item, Role::Choice)],
             ),
         )
     };
@@ -922,51 +960,71 @@ fn a_parting_at_no_mark_falls_to_the_group_size_rung() {
         now: 1,
         cutters: GroupCutters::NotSeamBounded,
     };
+    use editor_core::resolve::{FirstTurn, Parting, first_turn};
     let c = |predicate| choice(predicate, Sign::Positive);
+    let same = || c("bool_point_in_solid_plane");
     let at = |verdicts: Vec<Verdict>, marks: Vec<Mark>| vec![(h.node, (verdicts, marks))];
-    let one = |site, item| vec![mark(site, 0, item, Role::Choice)];
-    let cases: [(&str, Logs, Logs); 5] = [
+    let one = |site, before, item| vec![mark(site, before, item, Role::Choice)];
+    // Each case with how its node's two runs compare: where the first
+    // difference follows one equal choice, the step is 1.
+    let cases: [(&str, Logs, Logs, FirstTurn); 5] = [
         (
             "another predicate",
-            at(vec![c("bool_point_in_solid_plane")], vec![]),
-            at(vec![c("plane_eq_parallel")], vec![]),
+            at(vec![same(), c("bool_point_in_solid_plane")], vec![]),
+            at(vec![same(), c("plane_eq_parallel")], vec![]),
+            FirstTurn::Parted(Parting::Step { step: 1 }),
         ),
         (
             "one log ending",
-            at(vec![c("bool_point_in_solid_plane")], vec![]),
-            at(vec![], vec![]),
+            at(vec![same(), same()], vec![]),
+            at(vec![same()], vec![]),
+            FirstTurn::Parted(Parting::Ended { step: 1 }),
         ),
         (
             "a choice against a mark",
-            at(vec![c("bool_point_in_solid_plane")], vec![]),
-            at(
-                vec![c("bool_point_in_solid_plane")],
-                one("bvh_overlapping", MarkItem::End),
-            ),
+            at(vec![same()], vec![]),
+            at(vec![same()], one(QUERY.site(), 0, MarkItem::End)),
+            FirstTurn::Parted(Parting::Step { step: 0 }),
         ),
         (
             "two queries' marks",
-            at(vec![], one("bvh_overlapping", MarkItem::End)),
-            at(vec![], one("bvh_within", MarkItem::End)),
+            at(vec![same()], one(QUERY.site(), 1, MarkItem::End)),
+            at(vec![same()], one(OTHER_QUERY.site(), 1, MarkItem::End)),
+            FirstTurn::Parted(Parting::Step { step: 1 }),
         ),
         (
             "a query's candidates feeding only checks",
             at(
                 vec![],
-                vec![mark(
-                    "bvh_overlapping",
-                    0,
-                    MarkItem::Candidate(0),
-                    Role::Check,
-                )],
+                vec![mark(QUERY.site(), 0, MarkItem::Candidate(0), Role::Check)],
             ),
             at(
                 vec![],
-                vec![mark("bvh_overlapping", 0, MarkItem::End, Role::Check)],
+                vec![mark(QUERY.site(), 0, MarkItem::End, Role::Check)],
             ),
+            FirstTurn::Agree,
         ),
     ];
-    for (case, prior, now) in cases {
+    for (case, prior, now, turn) in cases {
+        let path = |logs: &Logs| {
+            let (verdicts, marks) = &logs[0].1;
+            (verdicts.clone(), marks.clone())
+        };
+        let ((v1, m1), (v2, m2)) = (path(&prior), path(&now));
+        assert_eq!(
+            first_turn(
+                editor_core::resolve::Path {
+                    verdicts: &v1,
+                    marks: &m1,
+                },
+                editor_core::resolve::Path {
+                    verdicts: &v2,
+                    marks: &m2,
+                },
+            ),
+            turn,
+            "{case}: how the runs compare"
+        );
         assert_eq!(parting_diagnosis(&h, prior, now), resized, "{case}");
     }
 }

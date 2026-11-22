@@ -1987,29 +1987,54 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
     }
 }
 
+/// **A parting says where in words and claims no cause**: the site is
+/// said by what it asks, a query's search or a test's question, and
+/// its static name and the step ride `Debug`, as a predicate's name
+/// does.
+#[test]
+fn a_parting_says_where_and_claims_no_cause() {
+    use geom_core::k_stats::{QuerySite, TestSite};
+    let node = RecipeNodeId::new(0, tagged(8));
+    let rows = [
+        (
+            Diagnosis::Parted {
+                node,
+                site: QuerySite::new("bool_glue_pairs", "the faces whose boxes meet a face's")
+                    .site(),
+                step: 19,
+            },
+            "at node 000000000008, the two runs part where the search for the faces whose \
+             boxes meet a face's found other candidates, before any verdict flipped; which \
+             change made it do so is not on record",
+            "bool_glue_pairs",
+        ),
+        (
+            Diagnosis::Parted {
+                node,
+                site: TestSite::new(
+                    "blend_reach_cell_clear",
+                    "a metered cell reads surely clear",
+                )
+                .site(),
+                step: 19,
+            },
+            "at node 000000000008, the two runs part where the test whether a metered cell \
+             reads surely clear answered otherwise, before any verdict flipped; which change \
+             made it do so is not on record",
+            "blend_reach_cell_clear",
+        ),
+    ];
+    for (d, want, name) in rows {
+        assert_eq!(d.to_string(), want);
+        assert_f6(&d, &[], &["Parted", name, "19"]);
+    }
+}
+
 /// The two scopes of the with-history lanes say which one answered,
 /// in exact sentences: a path arm claims the name's derivation path,
 /// and the upstream arm claims only that its node feeds the minting
 /// node without being on the path. Exact, so a scope cannot quietly
 /// claim the other's relation.
-/// **A parting names the node and keeps the query and the step in
-/// `Debug`**: the site is routing, as a predicate's name is, and the
-/// step indexes a log no sentence shows.
-#[test]
-fn a_parting_says_where_and_claims_no_cause() {
-    let d = Diagnosis::Parted {
-        node: RecipeNodeId::new(0, tagged(8)),
-        site: "bvh_overlapping",
-        step: 19,
-    };
-    assert_eq!(
-        d.to_string(),
-        "at node 000000000008, the two runs part where a query handed on different \
-         candidates, before any verdict flipped; which change made it do so is not on record"
-    );
-    assert_f6(&d, &[], &["Parted", "bvh_overlapping", "19"]);
-}
-
 #[test]
 fn the_path_and_upstream_scopes_state_which_one_answered() {
     use editor_core::{RecipeEditRef, UpstreamCause};

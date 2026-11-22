@@ -431,13 +431,13 @@ fn a_vanished_join_diagnoses_honestly_with_tombstone() {
     // choice turns: no flip is on the record, so the diagnosis names
     // the union's face-pair query where the runs parted, and never a
     // flip read off decisions about different pairs (N5's first turn).
-    assert_eq!(
-        *diagnosis,
-        Diagnosis::Parted {
-            node: s.union,
-            site: "bvh_overlapping",
-            step: 0,
-        }
+    assert!(
+        matches!(
+            diagnosis,
+            Diagnosis::Parted { node, site, step: 0 }
+                if *node == s.union && site.name == "bool_glue_pairs"
+        ),
+        "{diagnosis:?}"
     );
     // The tombstone: last-good entry at the union, edge kind, owning
     // body = the union's body name.
@@ -708,9 +708,9 @@ fn member_of_vanished_master_name_diagnoses_cascade() {
         matches!(
             fm.error,
             ResolveError::Vanished {
-                diagnosis: Diagnosis::Parted { node, site: "bvh_overlapping", .. },
+                diagnosis: Diagnosis::Parted { node, site, .. },
                 ..
-            } if node == s.union
+            } if node == s.union && site.name == "bool_glue_pairs"
         ),
         "{:?}",
         fm.error

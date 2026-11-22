@@ -213,7 +213,7 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
         assert!(
             matches!(
                 diagnosis((&doc2, &ev2), (&doc, &ev1), name),
-                Diagnosis::Parted { node, site: "bvh_overlapping", .. } if node == cut1
+                Diagnosis::Parted { node, site, .. } if node == cut1 && site.name == "bool_glue_pairs"
             ),
             "{name:?}"
         );
