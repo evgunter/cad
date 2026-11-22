@@ -2501,6 +2501,74 @@ impl<P> Doc<P> {
             .map_or_else(Vec::new, |n| self.upstream_of(node, n))
     }
 
+    /// **The free variables each node reads**, directly, through
+    /// definitions, or through the operations it reads (D10: reading is
+    /// the only dependency), for every node of the document.
+    ///
+    /// A node's own reads are [`Self::read_sites`]'s node arm, its
+    /// expressions and its operand rows. Each is followed through its
+    /// definition ([`Self::definition_reads`]) down to free variables
+    /// and to outputs; an output reads what its operation reads, as does
+    /// every operation the node is scheduled after ([`Self::upstream`]).
+    pub fn free_reads(&self) -> BTreeMap<RecipeNodeId, BTreeSet<VarId>>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut sets: BTreeMap<RecipeNodeId, BTreeSet<VarId>> = BTreeMap::new();
+        let mut operations: BTreeMap<RecipeNodeId, BTreeSet<RecipeNodeId>> = BTreeMap::new();
+        for (&id, node) in &self.nodes {
+            let mut free = BTreeSet::new();
+            let mut read: BTreeSet<RecipeNodeId> = self.upstream_of(id, node).into_iter().collect();
+            let mut seen = BTreeSet::new();
+            let mut stack: Vec<VarId> = node
+                .exprs()
+                .into_iter()
+                .copied()
+                .chain(node.operand_rows().into_iter().map(|(_, var)| var))
+                .collect();
+            while let Some(var) = stack.pop() {
+                if !seen.insert(var) {
+                    continue;
+                }
+                match self.vars.get(&var).map(Var::def) {
+                    Some(VarDef::Free(_)) => {
+                        free.insert(var);
+                    }
+                    Some(VarDef::Output { node, .. }) => {
+                        read.insert(*node);
+                    }
+                    Some(_) => stack.extend(self.definition_reads(var)),
+                    None => {}
+                }
+            }
+            // A placement's side reading its own copy names the node
+            // itself, which adds nothing to what it reads.
+            read.remove(&id);
+            sets.insert(id, free);
+            operations.insert(id, read);
+        }
+        // To a fixed point rather than in an evaluation's order: the set
+        // is the document's, whether or not it schedules.
+        loop {
+            let mut grew = false;
+            for (id, read) in &operations {
+                let theirs: BTreeSet<VarId> = read
+                    .iter()
+                    .filter_map(|operation| sets.get(operation))
+                    .flatten()
+                    .copied()
+                    .collect();
+                let mine = sets.entry(*id).or_default();
+                let before = mine.len();
+                mine.extend(theirs);
+                grew |= mine.len() != before;
+            }
+            if !grew {
+                return sets;
+            }
+        }
+    }
+
     /// [`Self::upstream`] of a node read in this document at `id`, live
     /// or not.
     ///
