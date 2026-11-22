@@ -42,15 +42,17 @@
 //! generation pruned, so a vanish whose flip evidence lived on a
 //! now-pruned pair has no recorded flip to cite.
 //!
-//! **After the path's flip and doc-diff lanes come up empty**, four
+//! **After the path's flip and doc-diff lanes come up empty**, five
 //! honest rungs remain, in order: `Cascade` when an embedded operand
 //! name itself fails to resolve; the QUALIFIER-DELTA rung, which for a
 //! face piece is the BORDER delta ([`border_delta`]): the divider walls
 //! a vanished piece's name records against those its parent's nearest
 //! piece borders now, read off the names themselves; with a prior run,
 //! the same lanes UPSTREAM of the minting node ([`Diagnosis::Upstream`];
-//! the scope rule is at [`upstream_nodes`]); and, with a prior run, the
-//! GROUP-SIZE rung ([`group_resized`], whose docs say why a fragment
+//! the scope rule is at [`upstream_nodes`]); with a prior run, the
+//! PARTING rung, a node on the path whose two runs part where a query
+//! handed on different candidates ([`Diagnosis::Parted`]); and, with a
+//! prior run, the GROUP-SIZE rung ([`group_resized`], whose docs say why a fragment
 //! name can vanish with no flip at all) answering
 //! [`Diagnosis::GroupResized`]. If that too finds nothing, the total
 //! fallback is [`Diagnosis::cause_not_in_evidence`], which carries
@@ -71,9 +73,9 @@ pub use pick::{
     answer_of, crossing, pick_face, ray_segment_point, ray_triangle,
 };
 pub use vdiff::{
-    FirstTurn, FlipSet, NodeVerdictDelta, NodeVerdicts, Path, RunStatus, SummaryDelta, SummaryDiff,
-    SummaryDivergence, SummaryShift, VerdictFlip, VerdictRow, VerdictSummary, VerdictVector,
-    VerdictVectorKey, diff_summaries, diff_verdicts, first_turn, verdict_summary,
+    FirstTurn, FlipSet, NodeVerdictDelta, NodeVerdicts, Parting, Path, RunStatus, SummaryDelta,
+    SummaryDiff, SummaryDivergence, SummaryShift, VerdictFlip, VerdictRow, VerdictSummary,
+    VerdictVector, VerdictVectorKey, diff_summaries, diff_verdicts, first_turn, verdict_summary,
 };
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -449,6 +451,22 @@ pub enum Diagnosis {
         /// ([`GroupCutters`]).
         cutters: GroupCutters,
     },
+    /// At a node on the name's derivation path, the two runs part where
+    /// one pruning query handed on different candidates (or one marked
+    /// test answered otherwise), and no rung that names a cause found
+    /// one ([`vdiff::Parting::Mark`]). The log proves where the runs
+    /// parted, not a turn: everything the node decided after `step` is
+    /// about other candidates.
+    Parted {
+        /// The node whose two runs parted.
+        node: RecipeNodeId,
+        /// The query or test, at the one call that asked it: its name is
+        /// routing, its words are what the sentence says.
+        site: geom_core::k_stats::Site,
+        /// The step it parted at, along the choices and candidates
+        /// both runs walked alike ([`vdiff::Parting`]).
+        step: usize,
+    },
     /// A structural parameter changed on the derivation path.
     StructuralParam {
         /// The node whose structural parameter changed.
@@ -734,15 +752,14 @@ impl Diagnosis {
     /// Reachable two ways, and the vocabulary is the same for both, so
     /// the value has one home: with no evidence to weigh — a
     /// mid-evaluation door, which has no prior run to diff — and with
-    /// evidence that came up empty, through the population-cancel
-    /// blind spot (`vdiff` module docs) or through SWEEP PRUNING (the
-    /// realized sweep records no verdicts for pruned pairs, so an
-    /// interaction-boundary vanish can land here — ratified
-    /// 2026-07-29, NAMING-DESIGN N5 as amended). For a fragment name,
-    /// [`border_delta`] and [`group_resized`] answer part of that case
-    /// before this one is reached; a pruned vanish of a name with no
-    /// fragment qualifier — an operand corner fused away — still lands
-    /// here.
+    /// evidence that came up empty: no flip, doc delta, qualifier
+    /// delta, parting at a mark or group-size change on record. SWEEP
+    /// PRUNING (ratified 2026-07-29, NAMING-DESIGN N5 as amended)
+    /// records no verdicts for pruned pairs, but the queries that prune
+    /// mark what they hand on, so a pruning that moved is answered by
+    /// the parting rung ([`Diagnosis::Parted`]) where it is on the
+    /// path; a pruning no mark records, or a mark-free node, still
+    /// lands here.
     pub(crate) fn cause_not_in_evidence(node: RecipeNodeId) -> Self {
         Self::RecipeEdit {
             edit: RecipeEditRef::NodeChanged { node },
@@ -797,6 +814,23 @@ impl crate::spoken::Say for Diagnosis {
                 "; and \
                  no verdict flip was found that explains the change"
             ),
+            // The site is said by its words; its name and the step ride
+            // `Debug`.
+            Self::Parted { node, site, .. } => {
+                say!(f, "at ", by.node(*node), ", the two runs part where ")?;
+                match site.kind {
+                    geom_core::k_stats::SiteKind::Query => {
+                        write!(f, "the search for {} found other candidates", site.words)?;
+                    }
+                    geom_core::k_stats::SiteKind::Test => {
+                        write!(f, "the test whether {} answered otherwise", site.words)?;
+                    }
+                }
+                write!(
+                    f,
+                    ", before any verdict flipped; which change made it do so is not on record"
+                )
+            }
             Self::StructuralParam { node, param } => say!(
                 f,
                 format_args!(
@@ -866,6 +900,7 @@ impl Diagnosis {
             Self::PredicateFlip { .. }
             | Self::BorderDelta { .. }
             | Self::GroupResized { .. }
+            | Self::Parted { .. }
             | Self::StructuralParam { .. }
             | Self::IndexCount { .. }
             | Self::RecipeEdit { .. }
@@ -1410,6 +1445,13 @@ trait PriorCtx {
         site: crate::VarId,
         name: &StableName,
     ) -> Option<Tombstone>;
+    /// The parting rung ([`Diagnosis::Parted`]): with-prior only, since
+    /// a parting is between two runs.
+    fn parted<T: topo::AtRestPolicy + Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        path: &BTreeSet<RecipeNodeId>,
+    ) -> Option<Diagnosis>;
     /// The group-size rung ([`group_resized`]): with-prior only, since
     /// a size CHANGE needs a size to change from.
     fn group_resized<T: topo::AtRestPolicy + Decide>(
@@ -1467,6 +1509,14 @@ impl PriorCtx for NoPrior {
         _site: crate::VarId,
         _name: &StableName,
     ) -> Option<Tombstone> {
+        None
+    }
+
+    fn parted<T: topo::AtRestPolicy + Decide>(
+        &self,
+        _new: RunCtx<'_, T>,
+        _path: &BTreeSet<RecipeNodeId>,
+    ) -> Option<Diagnosis> {
         None
     }
 
@@ -1598,6 +1648,21 @@ impl<U: Decide + topo::AtRestPolicy> PriorCtx for Prior<'_, U> {
         Some(Diagnosis::Upstream {
             node: name.node,
             cause,
+        })
+    }
+
+    /// The first node on the path, in id order, whose two
+    /// runs part at a mark ([`vdiff::Parting::Mark`]). A parting of any
+    /// other kind names nothing (N5).
+    fn parted<T: topo::AtRestPolicy + Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        path: &BTreeSet<RecipeNodeId>,
+    ) -> Option<Diagnosis> {
+        path.iter().find_map(|&node| {
+            let (old, now) = (self.ctx.eval.value(node)?, new.eval.value(node)?);
+            let (site, step) = first_turn(vdiff::path(old), vdiff::path(now)).mark()?;
+            Some(Diagnosis::Parted { node, site, step })
         })
     }
 
@@ -1803,10 +1868,16 @@ fn resolve_rungs<T: topo::AtRestPolicy + Decide, P: PriorCtx>(
             // included, because a path cause decided the name and an
             // upstream one only fed it.
             .or_else(|| prior.upstream(new, name, &path))
+            // The parting rung: below every rung that names a cause,
+            // since the log proves where the runs parted and not a turn,
+            // and above the group-size rung, which states only the
+            // result.
+            .or_else(|| prior.parted(new, &path))
             // The group-size rung (`group_resized`'s docs).
             .or_else(|| prior.group_resized(new, site, name))
             // Every rung above came up empty: no verdict flip, no doc
-            // delta, no recorded qualifier delta, and no group-size
+            // delta, no recorded qualifier delta, no parting at a mark,
+            // and no group-size
             // change the rung could state (unchanged, or too large to
             // count).
             .unwrap_or_else(|| Diagnosis::cause_not_in_evidence(name.node))
@@ -1988,7 +2059,7 @@ fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
 /// says which walls the vanished piece bordered and that piece does
 /// not, and the reverse; no candidate, or two equally near, and the
 /// rung declines rather than pick. A group that stopped being divided
-/// has no `Borders` sibling left, and the group-size rung answers it.
+/// has no `Borders` sibling left, and a rung below answers it.
 fn border_delta<T: topo::AtRestPolicy + Decide>(
     eval: &Evaluation<T>,
     site: crate::VarId,

@@ -42,7 +42,7 @@ use pncad::select::SplitHalf;
 
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{
-    BooleanTool, ClearanceEvent, ClearanceTool, MirrorTool, PartTool, PatternTool, PlaneEvent,
+    AssertionEvent, AssertionTool, BooleanTool, MirrorTool, PartTool, PatternTool, PlaneEvent,
     SplitTool, TransformTool,
 };
 use crate::matetool::{MateTool, MateToolEvent};
@@ -76,9 +76,9 @@ vocabulary! {
         Part,
         /// The mirror tool: a body and the face it is reflected across.
         Mirror,
-        /// The clearance tool: a requirement's two seats, a body or a
-        /// face each.
-        Clearance,
+        /// The assertion tool: a claim's two seats, a body or a face
+        /// each, and the measure it bounds.
+        Assertion,
     }
 
     /// Every kind, for the test suites that sweep them — which are
@@ -109,7 +109,7 @@ impl ToolKind {
             Self::Blend => "blend",
             Self::Part => "projection",
             Self::Mirror => "mirror",
-            Self::Clearance => "clearance",
+            Self::Assertion => "assertion",
         }
     }
 
@@ -169,9 +169,9 @@ impl ToolKind {
         match self {
             // The mirror's and the split's plane is a face, and their
             // body is picked by a face or in the tree.
-            // The clearance tool's face seats are faces, and its body
+            // The assertion tool's face seats are faces, and its body
             // seats are picked in the tree.
-            Self::Mate | Self::Mirror | Self::Split | Self::Clearance => PickKinds::FacesOnly,
+            Self::Mate | Self::Mirror | Self::Split | Self::Assertion => PickKinds::FacesOnly,
             Self::Blend => PickKinds::EdgesOnly,
             // Their seats read bodies, picked through a face or an
             // edge; none reads a profile, so none is offered one.
@@ -197,7 +197,7 @@ impl ToolKind {
             | Self::Pattern
             | Self::Blend
             | Self::Part
-            | Self::Clearance => true,
+            | Self::Assertion => true,
         }
     }
 
@@ -216,7 +216,7 @@ impl ToolKind {
             | Self::Blend
             | Self::Part
             | Self::Mirror
-            | Self::Clearance => committed_by(op) == Some(self),
+            | Self::Assertion => committed_by(op) == Some(self),
         }
     }
 }
@@ -232,7 +232,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         SessionOp::AddBoolean { .. } => Some(ToolKind::Boolean),
         SessionOp::AddSplit { .. } => Some(ToolKind::Split),
         SessionOp::AddMirror { .. } => Some(ToolKind::Mirror),
-        SessionOp::AddClearance { .. } => Some(ToolKind::Clearance),
+        SessionOp::AddAssertion { .. } => Some(ToolKind::Assertion),
         // Two ops, one tool: the output choice picks the door, and
         // either one landing is this tool's edit committed. The blend
         // tool's kind choice does the same.
@@ -324,8 +324,8 @@ pub enum ToolNotice {
     Mirror(PlaneEvent),
     /// The split tool lost its plane, a face or a variable.
     Split(PlaneEvent),
-    /// The clearance tool lost a face seat.
-    Clearance(ClearanceEvent),
+    /// The assertion tool lost a face seat.
+    Assertion(AssertionEvent),
     /// A seated tool lost a pick.
     Seated {
         /// Which tool.
@@ -355,7 +355,7 @@ impl Say for ToolNotice {
             Self::Blend(event) => return ToolKind::Blend.says_into(f, Said(event, by)),
             Self::Mirror(event) => return ToolKind::Mirror.says_into(f, Said(event, by)),
             Self::Split(event) => return ToolKind::Split.says_into(f, Said(event, by)),
-            Self::Clearance(event) => return ToolKind::Clearance.says_into(f, Said(event, by)),
+            Self::Assertion(event) => return ToolKind::Assertion.says_into(f, Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
             Self::Missed { tool, kinds } => tool.says(&format_args!(
                 "{} under the cursor — no pick taken",
@@ -521,8 +521,8 @@ pub enum OpenTool {
     Part(PartTool),
     /// The mirror tool.
     Mirror(MirrorTool),
-    /// The clearance tool.
-    Clearance(ClearanceTool),
+    /// The assertion tool.
+    Assertion(AssertionTool),
 }
 
 impl OpenTool {
@@ -538,7 +538,7 @@ impl OpenTool {
             Self::Blend(_) => ToolKind::Blend,
             Self::Part(_) => ToolKind::Part,
             Self::Mirror(_) => ToolKind::Mirror,
-            Self::Clearance(_) => ToolKind::Clearance,
+            Self::Assertion(_) => ToolKind::Assertion,
         }
     }
 }
@@ -606,7 +606,7 @@ impl Tools {
             ToolKind::Blend => OpenTool::Blend(BlendTool::new()),
             ToolKind::Part => OpenTool::Part(PartTool::new()),
             ToolKind::Mirror => OpenTool::Mirror(MirrorTool::new()),
-            ToolKind::Clearance => OpenTool::Clearance(ClearanceTool::new()),
+            ToolKind::Assertion => OpenTool::Assertion(AssertionTool::new()),
         });
     }
 
@@ -728,11 +728,11 @@ impl Tools {
         }
     }
 
-    /// The open clearance tool, by reference (the read-door rule on
+    /// The open assertion tool, by reference (the read-door rule on
     /// [`Tools`]).
-    pub fn clearance(&self) -> Option<&ClearanceTool> {
+    pub fn assertion(&self) -> Option<&AssertionTool> {
         match &self.open {
-            Some(OpenTool::Clearance(tool)) => Some(tool),
+            Some(OpenTool::Assertion(tool)) => Some(tool),
             _ => None,
         }
     }
@@ -988,10 +988,10 @@ impl Tools {
                     Some(face) => tool.pick_plane(doc, face.clone()),
                     None => on_node_pick(selection, |node| tool.pick(doc, node)),
                 },
-                Some(OpenTool::Clearance(tool)) => match selection.face() {
+                Some(OpenTool::Assertion(tool)) => match selection.face() {
                     Some(face) => tool.seat_face(doc, face.clone()),
                     None => on_node_pick(selection, |node| {
-                        notices.extend(tool.seat_body(doc, node).map(ToolNotice::Clearance));
+                        notices.extend(tool.seat_body(doc, node).map(ToolNotice::Assertion));
                     }),
                 },
             }
@@ -1015,7 +1015,7 @@ impl Tools {
             Some(OpenTool::Pattern(tool)) => tool.respeak(doc),
             Some(OpenTool::Part(tool)) => tool.respeak(doc),
             Some(OpenTool::Mirror(tool)) => tool.respeak(doc),
-            Some(OpenTool::Clearance(tool)) => tool.respeak(doc),
+            Some(OpenTool::Assertion(tool)) => tool.respeak(doc),
         }
     }
 
@@ -1028,7 +1028,7 @@ impl Tools {
             Some(OpenTool::Blend(tool)) => tool.held(),
             Some(OpenTool::Mirror(tool)) => tool.held(),
             Some(OpenTool::Split(tool)) => tool.held(),
-            Some(OpenTool::Clearance(tool)) => tool.held(),
+            Some(OpenTool::Assertion(tool)) => tool.held(),
             None
             | Some(
                 OpenTool::Boolean(_)
@@ -1050,7 +1050,7 @@ impl Tools {
                 | OpenTool::Blend(_)
                 | OpenTool::Transform(_)
                 | OpenTool::Part(_)
-                | OpenTool::Clearance(_),
+                | OpenTool::Assertion(_),
             ) => {}
             Some(OpenTool::Boolean(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Split(tool)) => tool.choose_half(seat, half),
@@ -1071,7 +1071,7 @@ impl Tools {
                 | OpenTool::Blend(_)
                 | OpenTool::Transform(_)
                 | OpenTool::Part(_)
-                | OpenTool::Clearance(_)
+                | OpenTool::Assertion(_)
                 | OpenTool::Split(_)
                 | OpenTool::Pattern(_)
                 | OpenTool::Mirror(_),
@@ -1156,19 +1156,19 @@ impl Tools {
             }
             // The body seats answer from the document; the face seats
             // from the landed pair, as the mirror's plane does.
-            OpenTool::Clearance(tool) => {
+            OpenTool::Assertion(tool) => {
                 let seats = tool
                     .reconcile(doc)
                     .into_iter()
                     .map(|event| ToolNotice::Seated {
-                        tool: ToolKind::Clearance,
+                        tool: ToolKind::Assertion,
                         event,
                     });
                 let faces = landed
                     .map(|(landed_doc, eval)| tool.reconcile_faces(landed_doc, eval))
                     .unwrap_or_default()
                     .into_iter()
-                    .map(ToolNotice::Clearance);
+                    .map(ToolNotice::Assertion);
                 return seats.chain(faces).collect();
             }
             OpenTool::Blend(tool) => {
