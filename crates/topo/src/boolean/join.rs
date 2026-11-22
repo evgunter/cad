@@ -1939,8 +1939,8 @@ struct PartnerDistance<T: geom_core::Real> {
 
 /// **How far a partner's foot is along the germ's component**, in the
 /// direction the germ leaves ([`along_facing`]): the carrier's parameter
-/// travelled, the carrier's speed at the germ's foot, and the partner's
-/// site.
+/// travelled, the carrier's speed at the partner's foot, and the
+/// partner's site.
 #[derive(Clone, Copy)]
 struct Along<T: geom_core::Real> {
     travel: T,
@@ -2072,7 +2072,11 @@ fn along_sign<T: Decide>(
             .map_err(join_escalate)?
             == Sign::Zero;
         if !one_site {
-            let ahead = Margin::metered(c.travel - b.travel, geom_core::InfSpeed::new(c.speed));
+            // The two partners' feet bound the arc between them, so it is
+            // metered at the slower foot's speed, not the germ's: on an
+            // ellipse the speed changes along the carrier by its aspect.
+            let speed = c.speed.min(b.speed);
+            let ahead = Margin::metered(c.travel - b.travel, geom_core::InfSpeed::new(speed));
             match decide("bool_join_foot_travel", ahead, band).map_err(join_escalate)? {
                 Sign::Zero => {}
                 sign => return Ok(sign),
@@ -4485,7 +4489,7 @@ fn along_facing<T: crate::props::AtRestPolicy>(
     };
     Ok(Faced::Along(Along {
         travel,
-        speed,
+        speed: f2.tangent.norm(),
         site: p2,
     }))
 }
