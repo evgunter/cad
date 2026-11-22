@@ -221,6 +221,9 @@ crate::vocab::vocabulary! {
         Vertex,
         /// A committed profile, by its outline.
         Profile,
+        /// A datum, by its drawn square: a plane or an axis seat reads
+        /// it through a role.
+        Datum,
     }
 
     /// Every kind.
@@ -250,15 +253,15 @@ impl PickKinds {
     pub fn admits(self, kind: PickedKind) -> bool {
         use PickedKind as K;
         match (self, kind) {
-            (Self::Any, K::Face | K::Edge | K::Profile)
-            | (Self::FacesAndEdges, K::Face | K::Edge)
-            | (Self::FacesOnly, K::Face)
+            (Self::Any, K::Face | K::Edge | K::Profile | K::Datum)
+            | (Self::FacesAndEdges, K::Face | K::Edge | K::Datum)
+            | (Self::FacesOnly, K::Face | K::Datum)
             | (Self::EdgesOnly, K::Edge)
-            | (Self::WithVertices, K::Face | K::Edge | K::Vertex) => true,
+            | (Self::WithVertices, K::Face | K::Edge | K::Vertex | K::Datum) => true,
             (Self::Any, K::Vertex)
             | (Self::FacesAndEdges, K::Vertex | K::Profile)
             | (Self::FacesOnly, K::Edge | K::Vertex | K::Profile)
-            | (Self::EdgesOnly, K::Face | K::Vertex | K::Profile)
+            | (Self::EdgesOnly, K::Face | K::Vertex | K::Profile | K::Datum)
             | (Self::WithVertices, K::Profile) => false,
         }
     }
@@ -1122,10 +1125,13 @@ impl Rims {
 struct Outline {
     node: RecipeNodeId,
     loops: Vec<Vec<Point3<f64>>>,
+    /// Whether the outline is a datum's square ([`PickedKind::Datum`])
+    /// rather than a profile's.
+    datum: bool,
 }
 
 impl Outline {
-    fn of(profile: crate::sketch::CommittedProfile) -> Self {
+    fn of(doc: &Doc<ProfileProgram>, profile: crate::sketch::CommittedProfile) -> Self {
         let loops = profile
             .loops
             .iter()
@@ -1134,6 +1140,10 @@ impl Outline {
         Self {
             node: profile.node,
             loops,
+            datum: matches!(
+                doc.node(profile.node),
+                Some(pncad::document::Node::Datum { .. })
+            ),
         }
     }
 }
@@ -1146,6 +1156,8 @@ struct Lines<'a> {
     front: &'a [PickHit],
     edges: bool,
     outlines: bool,
+    /// Whether datums' squares are in the contest.
+    datums: bool,
 }
 
 /// A chord point and its pixel, or `None` where it has no pixel.
@@ -1422,7 +1434,7 @@ impl PickIndex {
         let outlines = crate::sketch::committed(doc, eval, key.delta().get(), None)
             .drawn
             .into_iter()
-            .map(Outline::of)
+            .map(|drawn| Outline::of(doc, drawn))
             .collect();
         Ok(Self {
             outlines,
@@ -2137,6 +2149,7 @@ impl PickIndex {
             front: &front,
             edges: true,
             outlines: false,
+            datums: false,
         };
         Ok(
             match self.near(eval, camera, viewport, cursor, display, edges)? {
@@ -2299,8 +2312,9 @@ impl PickIndex {
             front: &front,
             edges: kinds.admits(PickedKind::Edge),
             outlines: kinds.admits(PickedKind::Profile),
+            datums: kinds.admits(PickedKind::Datum),
         };
-        if front.is_empty() && !lines.outlines {
+        if front.is_empty() && !lines.outlines && !lines.datums {
             return Ok(None);
         }
         match self.near(eval, camera, viewport, cursor, display, lines)? {
@@ -2472,8 +2486,15 @@ impl PickIndex {
         // the eye is not something a cursor is aiming at.
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
         let outlines = self.drawn_outlines(display);
-        if lines.outlines {
-            for (rank, (_, loops)) in outlines.iter().enumerate() {
+        if lines.outlines || lines.datums {
+            for (rank, (node, loops)) in outlines.iter().enumerate() {
+                let datum = self
+                    .outlines
+                    .iter()
+                    .any(|outline| outline.node == *node && outline.datum);
+                if !(if datum { lines.datums } else { lines.outlines }) {
+                    continue;
+                }
                 let mut best: Option<Candidate> = None;
                 for (lp, points) in loops.iter().enumerate() {
                     let projected = points

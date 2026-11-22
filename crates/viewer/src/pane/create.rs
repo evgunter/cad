@@ -674,6 +674,18 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Mate.says(&match tool.door() {
                 None => "pick a body to place it, or a copy to edit its placement".to_owned(),
+                Some(door)
+                    if matches!(
+                        self.session.committed_doc().node(door.placement),
+                        Some(pncad::document::Node::Datum { .. })
+                    ) =>
+                {
+                    format!(
+                        "editing the datum {}: pick what it meets, {}, or a datum",
+                        self.session.committed_doc().spoken(door.placement),
+                        crate::matetool::said_entities(&crate::matetool::reads(tool.active_kind()))
+                    )
+                }
                 Some(door) => format!(
                     "editing the placement {}: pick on the copy, then on what it meets, each {}",
                     self.session.committed_doc().spoken(door.placement),

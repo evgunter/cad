@@ -571,16 +571,16 @@ pub struct MateSideDraft {
     first: Option<HeldPick<MatePick>>,
     /// A frame's point pick.
     point: Option<HeldPick<MatePick>>,
-    /// A datum picked whole: the side reads its frame through the role
-    /// of the row's kind ([`datum_side`]).
-    datum: Option<RecipeNodeId>,
+    /// A datum picked whole, as it was said when picked: the side reads
+    /// its frame through the role of the row's kind ([`datum_side`]).
+    datum: Option<(RecipeNodeId, SpokenNode)>,
 }
 
 impl MateSideDraft {
     /// The datum the side reads, where a datum was picked whole.
     #[must_use]
     pub fn datum(&self) -> Option<RecipeNodeId> {
-        self.datum
+        self.datum.as_ref().map(|(datum, _)| *datum)
     }
 
     /// The pick a seat holds.
@@ -897,7 +897,7 @@ impl PartialEq for Held {
 enum Change {
     Pick(MatePick),
     /// A datum picked whole: the active row's far side.
-    PickDatum(RecipeNodeId),
+    PickDatum(RecipeNodeId, SpokenNode),
     AddMate(VarKind),
     AddWritten(Mate<Formula>),
     ChooseKind(usize, VarKind),
@@ -2292,7 +2292,7 @@ impl MateTool {
         if self.draft.is_none() || !matches!(doc.node(datum), Some(Node::Datum { .. })) {
             return;
         }
-        self.make(Some(doc), Change::PickDatum(datum));
+        self.make(Some(doc), Change::PickDatum(datum, doc.spoken(datum)));
     }
 
     /// Whether `pick` is on the draft's copy. A datum has no copy: its
@@ -2401,7 +2401,7 @@ impl MateTool {
                 drafted.datum = None;
                 *drafted.seat_mut(seat) = Some(held);
             }
-            Change::PickDatum(datum) => {
+            Change::PickDatum(datum, said) => {
                 if draft.door.placement == datum {
                     return false;
                 }
@@ -2411,7 +2411,7 @@ impl MateTool {
                 }
                 let drafted = draft.rows[draft.active].side_mut(MateSide::To);
                 *drafted = MateSideDraft {
-                    datum: Some(datum),
+                    datum: Some((datum, said)),
                     ..MateSideDraft::default()
                 };
             }
@@ -2439,7 +2439,7 @@ impl MateTool {
                         let seat = MateSeat::filled_by(kind, pick.pick().entity());
                         *fresh.side_mut(side).seat_mut(seat) = Some(pick.clone());
                     }
-                    fresh.side_mut(side).datum = row.side(side).datum;
+                    fresh.side_mut(side).datum = row.side(side).datum.clone();
                 }
                 fresh.loaded = row.loaded;
                 fresh.struck = row.struck;
@@ -2852,6 +2852,21 @@ impl MateTool {
         let mut roles = Vec::new();
         for side in [MateSide::On, MateSide::To] {
             let drafted = mate.side(side);
+            if let Some((_, said)) = &drafted.datum {
+                roles.push((side.name().to_owned(), Some(said.to_string())));
+                continue;
+            }
+            if side == MateSide::On && self.draft.as_ref().is_some_and(|d| d.datum) {
+                let own = match mate.kind {
+                    VarKind::Plane => "the datum's xy plane",
+                    VarKind::Axis => "the datum's z axis",
+                    VarKind::Point => "the datum's origin",
+                    VarKind::Frame => "the datum's frame",
+                    _ => "no role of the datum's",
+                };
+                roles.push((side.name().to_owned(), Some(own.to_owned())));
+                continue;
+            }
             for &seat in MateSeat::of(mate.kind) {
                 let role = match seat.name() {
                     Some(word) => format!("{} {word}", side.name()),
@@ -2994,7 +3009,7 @@ impl MateTool {
                 };
                 return Ok((read, Vec::new()));
             }
-            if let Some(datum) = drafted.datum {
+            if let Some(datum) = drafted.datum() {
                 let read =
                     datum_side(datum, row.kind).ok_or(MateToolError::DatumKind { row: at })?;
                 let read = if side == MateSide::To && row.flip {
