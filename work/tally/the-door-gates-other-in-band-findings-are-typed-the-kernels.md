@@ -2,11 +2,12 @@
 id: the-door-gates-other-in-band-findings-are-typed-the-kernels
 kind: issue
 title: The finished-body gate types its other undecided findings the kernel's: a point margin in band at PlanarFace, Ring, PinchCorner, SliverDihedral or JoinUndecided refuses ResultInvalid
-status: open
+status: closed
 opened: 2026-10-09
 priority: P1
 cost: M
 refs: [4415, a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate]
+closed: 2026-11-22
 ---
 
 
@@ -76,3 +77,46 @@ Whether this margin is the geometry's is unshown. The rim sits about
 `sphere-rim-level-cosine-cancels-near-a-pole` (FLUXTAIL) neighbourhood.
 So it joins this inventory as another undecided finding typed the
 kernel's.
+
+## Re-measured on main at `fd7e5f47bf` (TALLY, 2026-11-22)
+
+**The typing this row asks for is gone.** PR 6371 (`onehome/finished-body`,
+implementing Ev's PR 6326 ruling, 2026-11-02: *"i don't really want to
+reify 'in-band' vs 'everything else'"*) deleted `finding_arm` and
+`AtRestRefusal`. `boolean/ops.rs` `gate` maps every finding to
+`ResultInvalid { findings: NotFinished }`, and each finding's own ending
+types it (`[topology.tiers]`; `validate.rs` `own_close`,
+`undecided_scalar_recourse`). D10's Booleans sentence still names
+`Escalated` for the gate's in-band refusal.
+
+**The row's evidence no longer reproduces.**
+- `near_tangent_census_probe`, `NT_D=1e-8 NT_ONLY=vee300 NT_A=11`: all
+  `e1` runs build `OK SOUND`.
+- `near_tangent_battery`: 7 200 runs, 0 `ResultInvalid`; the six
+  `vee300 … d1e-7 face` runs build `OK SOUND`.
+- `a_large_ball_near_external_tangency_is_pinned` passes: both unions build.
+
+**What still refuses at the gate in band.** The full census probe at its
+default tilts (28 884 runs) refuses `ResultInvalid` six times, every one
+`PinchCornerEscalated` on `pinch_corner_turn`, all at `d = ±1e-9`, `cp S`:
+`Ltop e0 a10 d1e-9` (1.2185e-9), `Ltop e0 a11 d±1e-9` (±3.2966e-9),
+`Lbot e1 a2 d±1e-9` (±1.2185e-9), `Lmirror e0 a10 d1e-9` (1.2185e-9).
+Its in-band point ending is the last resort (`KERNEL_LIMIT_RECOURSE`),
+as ONEHOME fork 259 (PR 6820) set for "the undecided pinch corner".
+
+**The siblings.** `split_near_tangent_census_probe` (20 007 lines): no
+in-band finding at the split's gate (3 `ResultNotAtRest
+{ VolumeUncomputable: NotIsoRectangle }`, a frontier). 0 `Pieces`
+refusals in the census probe.
+
+## Closed
+
+2026-11-22 (TALLY orchestrator): superseded. Ev's PR 6326 ruling, carried
+out by PR 6371, retired the door-level in-band/definite split this row asked
+to extend. A finding is typed by its own ending (`[topology.tiers]`).
+D10's Booleans sentence still described the old split, so the PR that closes
+this row re-words it to the ruled text. The one in-band refusal still
+measured at the gate is now
+`an-in-band-pinch-corner-at-the-gate-ends-in-the-kernel-limit-recourse`.
+The split's in-band shell is not reached by any measured run
+(`split_near_tangent_census_probe`: no in-band finding at the split's gate).

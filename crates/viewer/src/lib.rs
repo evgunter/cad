@@ -166,7 +166,10 @@ pub use display::{
 pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, Worker};
 pub use generation::Generation;
 pub use history::{History, HistoryId};
-pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
+pub use input::{
+    Action, Binding, Held, InputMap, Navigation, PickAction, PointerButton, ViewportEvent,
+    ViewportSize,
+};
 pub use marks::{EdgeOverlay, Highlight, edge_id_segments, edge_overlay, edge_segments, highlight};
 pub use matetool::{
     MATE_KINDS, MateChoice, MatePick, MateProposal, MateRow, MateSeat, MateTool, MateToolError,
@@ -183,7 +186,7 @@ pub use pickindex::{
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError, Unusable};
 pub use props::{MemberFault, MemberValues, Reading, SlotDriver, SlotFault, SlotRow, SlotValue};
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
-pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
+pub use seats::{EdgeRole, Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
     BoundsReading, DocSession, EdgeSelection, FaceSelection, GestureFrameFault, Hovered, Landing,
     NodeKindWanted, OpOutcome, PatternDirection, PatternRuleSpec, Refusal, Selection, SessionOp,
