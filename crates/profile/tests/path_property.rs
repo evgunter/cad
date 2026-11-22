@@ -406,7 +406,9 @@ fn parallel_carriers_refuse_no_corner() {
         .at(Point2::new(4.0, 3.0), Tol::witness())
         .unwrap();
     assert!(matches!(
-        arrival.angle(std::f64::consts::FRAC_PI_2, Tol::witness()),
+        arrival
+            .angle(std::f64::consts::FRAC_PI_2, Tol::witness())
+            .map_err(|e| e.refusal().clone()),
         Err(PathError::NoCornerForFillet { .. })
     ));
 }
@@ -1200,7 +1202,7 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
 #[test]
 fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
     let err = lens(5.0).unwrap_err();
-    let PathError::NoCornerOfPair { radius, .. } = &err else {
+    let PathError::NoCornerOfPair { radius, .. } = err.refusal() else {
         panic!("expected a NoCornerOfPair envelope, got {err:?}")
     };
     let Some((_, carrier_radius, offset_radius, largest_tangent_radius)) =
