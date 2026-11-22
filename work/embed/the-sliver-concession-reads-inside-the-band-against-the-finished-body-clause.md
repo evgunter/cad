@@ -761,3 +761,44 @@ from two call sites, not yet one reading
   across. All 58 decide, each by the cap's carrier with the annulus's
   thin rectangle read: sine 1, arm 2.50 to 2.66 m.
 
+**The census tests of this cause, through the at-rest gate.** On
+`embed/remeter-measure` (the gate harness, which now holds main, with
+`embed/remeter` merged in), every census test that refused
+`Uncertified/Departure/Edge` between plane and plane or plane and
+cylinder in topo, sweep and editor-core: 280 names, 275 of which exist
+today.
+
+| | pass with the gate asking | the rest |
+|---|---:|---|
+| before | 0 of 275 | all 275 refuse `Uncertified`, a shared edge, arm `Departure` |
+| after | 23 of 275 | 241 refuse `Uncertified`, a shared edge, arm `Departure`; 5 `Budget` (4 depth, 1 pairs); 6 read a verified crossing |
+
+- **The six bodies of the section above** ("six valid bodies refused on
+  a plane rectangle ~1e-16 wide"): the four where the plane's rate
+  times the strip's own width was the only failing reading now pass
+  (`blend4_r1_probes::p1…`, `blend_operand_gate::…`,
+  `review_blend4_r2_probes::r2…`, `review_m6_5_pr2_probes::p3…`). The
+  two where the cylinder's rate straddles zero as well still refuse at
+  the same exit (`band_open_mixed_chain_shapes::arcs_of_a_half_turn_or_more_build`,
+  `…::a_hole_over_a_wide_arcs_band_refuses_and_one_clear_of_it_builds`),
+  as that section said a wider plane reading alone would leave them.
+- Of the 23, 18 are plane against plane and 5 plane against cylinder.
+- **The 6 crossings and the 5 budget refusals are later asks.** In each
+  of those tests the ask that refused before now holds, the test goes
+  on, and a body it builds afterwards is asked: 6 read a crossing the
+  verifier confirmed (4 of them with contact records held at that
+  door), 5 run out of depth or pairs. None is the pair that refused
+  before.
+- **The thin-face families still refuse where they did**
+  (`a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`):
+  their faces are not presented, so no margin is read. The slab 20 ε
+  thick (`m10_3_r1_probes_interval::a_one_leaf_budget_still_covers_the_box_exactly`)
+  refuses faces 3 and 4 across edge 6 as before, both faces
+  `Unpresented::Local` in every ask of the pair. Its end edge's reach
+  is the two side faces' run from it, about a metre, not the slab's
+  20 ε, so once that edge is presented its right angle is levered at
+  about a metre.
+- The five other margins levered at a cell are counted over the tour,
+  the suites and these tests in
+  `five-more-injectivity-margins-are-levered-at-a-cell-of-the-sweep`.
+
