@@ -8953,7 +8953,7 @@ pub(crate) fn tier3_local_checks_marked<
                 }
             }
         }
-        pinch_corner_errors(body, face_key, face, band, &mut errors);
+        pinch_corner_errors(body, face_key, band, &mut errors);
     }
 
     // ------------------------------------------------------------------
@@ -9132,31 +9132,14 @@ fn orientation_refused(errors: &[ValidationError]) -> impl Iterator<Item = FaceK
 fn pinch_corner_errors<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
-    face: &crate::entity::Face,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) {
     if orientation_refused(errors).any(|face| face == face_key) {
         return;
     }
-    for l in face.loop_keys() {
-        // The battery runs behind the tier-1 gate, so a loop that does
-        // not resolve is that gate's finding, reported here rather than
-        // read past.
-        let corners = match crate::loop_points::loop_corners(body, l) {
-            Ok(corners) => corners,
-            Err(crate::Unresolved::Walk(_)) => {
-                errors.push(ValidationError::LoopCycleOverrun { loop_: l });
-                continue;
-            }
-            Err(unresolved) => {
-                errors.push(ValidationError::DanglingTopology {
-                    from: EntityId::Face(face_key),
-                    to: unresolved.entity(),
-                });
-                continue;
-            }
-        };
+    for (lp, _) in at_rest_area(body.proven_face(face_key)).cycles() {
+        let corners = crate::loop_points::loop_corners(lp);
         for group in corners.groups() {
             if let Err(error) =
                 pinch_corners_at(body, face_key, corners.cycle(), group.corners(), band)
@@ -14750,9 +14733,8 @@ mod tests {
                 )
             })
             .unwrap();
-            let face = body.get_face(bottom).unwrap().clone();
             let mut errors = Vec::new();
-            pinch_corner_errors(&body, bottom, &face, band, &mut errors);
+            pinch_corner_errors(&body, bottom, band, &mut errors);
             let crossed = errors.iter().any(|e| {
                 matches!(e, ValidationError::PinchCornerCrossed { face, .. } if *face == bottom)
             });

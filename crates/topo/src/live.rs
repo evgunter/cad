@@ -661,6 +661,30 @@ impl<'a, T: Real> FaceView<'a, T> {
         Some(self.body.loop_walk_of(first, lk).closed_in(lk, first))
     }
 
+    /// **Each loop of the face that is a cycle**, with its role, in
+    /// [`FaceView::loops`]' order: the reading of a question asked of
+    /// one loop's half-edges at a time (its rows, its winding), to which
+    /// a lone-vertex loop, outer or ring, answers nothing
+    /// ([`BoundaryMember::half_edge`]'s disposition). A question about
+    /// the region reads [`FaceView::area_loops`].
+    pub fn cycle_loops(self) -> impl Iterator<Item = (CycleLoop<'a, T>, LoopRole)> + 'a {
+        let body = self.body;
+        self.loops().filter_map(move |(key, record, role)| {
+            let LoopBoundary::Cycle { first } = record.boundary else {
+                return None;
+            };
+            Some((
+                CycleLoop {
+                    body,
+                    key,
+                    record,
+                    first,
+                },
+                role,
+            ))
+        })
+    }
+
     /// **The region the face bounds**, the one reading of what a loop
     /// that is not a cycle means to an area question: the outer cycle and
     /// each ring cycle ([`CycleLoop`]); a lone-vertex ring bounds no area
