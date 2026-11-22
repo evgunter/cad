@@ -256,7 +256,7 @@ pub enum Segment<T: Real> {
 /// line, so a director stored as a plane's normal is a unit only at its
 /// chord's lever. A table that
 /// carries none has them decided once, at validate, from its vertices
-/// ([`ValidatedSegment::directions`]).
+/// (the arms of [`SegmentKind`]).
 #[derive(Clone, Copy, Debug)]
 pub enum SegmentDirections<T: Real> {
     /// A line's unit director, start to end.
