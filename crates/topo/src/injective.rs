@@ -601,13 +601,10 @@ pub(crate) fn certify_self(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band
     }
     match near.edges.as_slice() {
         [_] => departure(x, y, near, band, false),
-        _ => crate::gate_measure::reason(
-            "self-not-one-edge",
-            Outcome::Split {
-                arm: CertificateArm::Departure,
-                shared: near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face)),
-            },
-        ),
+        _ => Outcome::Split {
+            arm: CertificateArm::Departure,
+            shared: near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face)),
+        },
     }
 }
 
@@ -726,10 +723,7 @@ fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
 fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
     match decide(row, Margin::of(x), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
-        _ => {
-            crate::gate_measure::margin_undecided(x.lo(), x.hi(), band.escalate());
-            None
-        }
+        _ => None,
     }
 }
 
@@ -1891,13 +1885,7 @@ fn present_chart<'a>(
     let mut inside = false;
     for &ei in &piece.local.edges {
         let Some(e) = b.edges.get(ei) else {
-            return Err({
-                crate::gate_measure::local_site("chart", line!());
-                if std::env::var_os("CV_TRACE").is_some() {
-                    eprintln!("CVL chart {}", line!());
-                }
-                Unpresented::Local
-            });
+            return Err(Unpresented::Local);
         };
         if e.arc.is_none() {
             if piece.whole {
@@ -1940,13 +1928,7 @@ fn present_chart<'a>(
             // Every read below, and the merge's folds, see only a
             // certified line.
             if !line.is_certified() {
-                return Err({
-                    crate::gate_measure::local_site("chart", line!());
-                    if std::env::var_os("CV_TRACE").is_some() {
-                        eprintln!("CVL chart {}", line!());
-                    }
-                    Unpresented::Local
-                });
+                return Err(Unpresented::Local);
             }
             let side = Side::of(iso.held, sigma > 0.0);
             // A cell past the line on its face side by no more than
@@ -1977,13 +1959,7 @@ fn present_chart<'a>(
         return if vacuous(b, piece.surface, cell, &outside) {
             Ok(Presentation::Vacuous)
         } else {
-            Err({
-                crate::gate_measure::local_site("chart", line!());
-                if std::env::var_os("CV_TRACE").is_some() {
-                    eprintln!("CVL chart {}", line!());
-                }
-                Unpresented::Local
-            })
+            Err(Unpresented::Local)
         };
     }
     // Lines on one side merge when they hold one common value; two
@@ -2000,13 +1976,7 @@ fn present_chart<'a>(
             .fold(f64::NEG_INFINITY, f64::max);
         let common_hi = on.iter().map(|c| c.at.hi()).fold(f64::INFINITY, f64::min);
         if common_lo > common_hi {
-            return Err({
-                crate::gate_measure::local_site("chart", line!());
-                if std::env::var_os("CV_TRACE").is_some() {
-                    eprintln!("CVL chart {}", line!());
-                }
-                Unpresented::Local
-            });
+            return Err(Unpresented::Local);
         }
         let hull = Interval::from_bounds(
             on.iter().map(|c| c.at.lo()).fold(first.at.lo(), f64::min),
@@ -2074,15 +2044,7 @@ fn present_chart<'a>(
             // not agree, which a smaller cell does not hold both of.
             match merged.iter_mut().find(|m| m.side == side) {
                 Some(m) if m.at.lo() <= 0.0 && 0.0 <= m.at.hi() => m.collapsed = Some(v),
-                Some(_) => {
-                    return Err({
-                        crate::gate_measure::local_site("chart", line!());
-                        if std::env::var_os("CV_TRACE").is_some() {
-                            eprintln!("CVL chart {}", line!());
-                        }
-                        Unpresented::Local
-                    });
-                }
+                Some(_) => return Err(Unpresented::Local),
                 None => merged.push(Clip {
                     side,
                     at: at(0.0),
@@ -2111,12 +2073,6 @@ fn present_chart<'a>(
                 continue;
             };
             for (pole, point) in poles {
-                if std::env::var_os("CV_POLE").is_some() {
-                    eprintln!(
-                        "CVPOLE v={v:?} p={p:?} pole={pole:?} point={point:?} at={:?} y={y:?}",
-                        vertex_at_singular_point(p, point, band)
-                    );
-                }
                 if !matches!(vertex_at_singular_point(p, point, band), Ok(true)) {
                     continue;
                 }
@@ -2126,13 +2082,7 @@ fn present_chart<'a>(
                     continue;
                 }
                 if (north && y.0 > line.hi()) || (!north && y.1 < line.lo()) {
-                    return Err({
-                        crate::gate_measure::local_site("chart", line!());
-                        if std::env::var_os("CV_TRACE").is_some() {
-                            eprintln!("CVL chart {}", line!());
-                        }
-                        Unpresented::Local
-                    });
+                    return Err(Unpresented::Local);
                 }
                 if north {
                     y.1 = line.hi();
@@ -2144,15 +2094,7 @@ fn present_chart<'a>(
                     Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
                         m.collapsed = Some(v);
                     }
-                    Some(_) => {
-                        return Err({
-                            crate::gate_measure::local_site("chart", line!());
-                            if std::env::var_os("CV_TRACE").is_some() {
-                                eprintln!("CVL chart {}", line!());
-                            }
-                            Unpresented::Local
-                        });
-                    }
+                    Some(_) => return Err(Unpresented::Local),
                     None => merged.push(Clip {
                         side,
                         at: line,
@@ -2173,24 +2115,12 @@ fn present_chart<'a>(
     // `a_filleted_drum_certifies_across_its_fillet` pins.
     let no_width = |(lo, hi): (f64, f64)| hi - lo <= few_ulps(lo).max(few_ulps(hi));
     if !piece.whole && (no_width(x) || no_width(y)) {
-        return Err({
-            crate::gate_measure::local_site("chart", line!());
-            if std::env::var_os("CV_TRACE").is_some() {
-                eprintln!("CVL chart {}", line!());
-            }
-            Unpresented::Local
-        });
+        return Err(Unpresented::Local);
     }
     // Every clip's side must be the edges' own, run on past its corners,
     // and every corner convex.
     if !piece.whole && !sides_are_the_faces(b, &merged, (x, y), |a| periodic(piece.surface, a)) {
-        return Err({
-            crate::gate_measure::local_site("chart", line!());
-            if std::env::var_os("CV_TRACE").is_some() {
-                eprintln!("CVL chart {}", line!());
-            }
-            Unpresented::Local
-        });
+        return Err(Unpresented::Local);
     }
     // A rectangle clipped to within the band of a shared line is read as
     // holding no point of the face off that line: its extent across, in
@@ -2369,22 +2299,10 @@ fn zero_of(
             }
             match corners.as_slice() {
                 [one] => Ok(one.clone()),
-                _ => Err({
-                    crate::gate_measure::local_site("zero_of", line!());
-                    if std::env::var_os("CV_TRACE").is_some() {
-                        eprintln!("CVL zero_of {}", line!());
-                    }
-                    Unpresented::Local
-                }),
+                _ => Err(Unpresented::Local),
             }
         }
-        _ => Err({
-            crate::gate_measure::local_site("zero_of", line!());
-            if std::env::var_os("CV_TRACE").is_some() {
-                eprintln!("CVL zero_of {}", line!());
-            }
-            Unpresented::Local
-        }),
+        _ => Err(Unpresented::Local),
     }
 }
 
@@ -2478,7 +2396,7 @@ fn present_plane<'a>(
         let zero = if near_vertices.is_empty() {
             Zero::None
         } else {
-            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
+            return Err(Unpresented::Local);
         };
         return Ok(Presentation::Of(Box::new(Presented {
             surface: piece.surface,
@@ -2504,7 +2422,7 @@ fn present_plane<'a>(
     // An edge's chart points in the loop's order, each with its parameter.
     type End = (Point2<Interval>, Interval);
     let segment = |ei: usize| -> Result<(End, End), Unpresented> {
-        let e = b.edges.get(ei).ok_or_else(|| { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Unpresented::Local })?;
+        let e = b.edges.get(ei).ok_or(Unpresented::Local)?;
         let Some((carrier, (t0, t1))) = e.arc.as_ref().filter(|(c, _)| !c.is_curved()) else {
             return Err(unread(ei, near_edges));
         };
@@ -2527,13 +2445,6 @@ fn present_plane<'a>(
                 (a[0] * d[1] - a[1] * d[0]) / det,
             )
         };
-    // The height over `x` of the line through two points given in a
-    // frame; `None` where their run along `x` does not decide it.
-    let height = |(x0, y0): (Interval, Interval), (x1, y1): (Interval, Interval), x: Interval| {
-        let run = x1 - x0;
-        (run.is_certified() && (run.lo() > 0.0 || run.hi() < 0.0))
-            .then(|| y0 + (y1 - y0) / run * (x - x0))
-    };
     // How far `w` stands along the unit of `n`.
     let lean = |n: [Interval; 2], w: [Interval; 2]| {
         (n[0] * w[0] + n[1] * w[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt()
@@ -2543,22 +2454,57 @@ fn present_plane<'a>(
     // **The face's part of the cell where the face is convex there**: the
     // intersection of the half-planes of the line edges the cell holds,
     // read inside a parallelogram `R` two of whose sides lie on one edge
-    // or on a corner's two edges, and whose far sides are the cell's
-    // reach or a further edge of the cell, the one across the face from
-    // them. Every point of `R` off the face is a point of the plane
-    // `R`'s reading holds too, so `R` need only hold the face's part.
-    // The face is convex in the cell where each corner in it is convex
-    // and each further edge stands on the face side of the edges it
-    // caps, and they on its: every vertex and every other edge is clear
-    // of the cell's ball, so the plane's disk inside the ball meets the
+    // or on a corner's two edges (the frame), and whose far sides are the
+    // cell's reach or a further edge of the cell across the face from
+    // them (the cap). Every point of `R` off the face is a point of the
+    // plane `R`'s reading holds too, so `R` need only hold the face's
+    // part. The face is convex in the cell where each corner in it is
+    // convex and the cap and the edge it caps stand on each other's face
+    // side over the reach: every vertex and every other edge is clear of
+    // the cell's ball, so the plane's disk inside the ball meets the
     // boundary only in these edges' whole chords, and the region between
     // them, on each one's face side, is the face's part of the disk.
     //
+    // Each reading decides that convexity before anything else, `Vacuous`
+    // included: a cell off the frame's face side holds none of the face
+    // only where nothing else in the cell bounds the face, so a cap is
+    // read, and its leans decided, before the cell is placed.
+    //
+    // **The cap**: `f`, a line across the face from the frame's base line
+    // `o + x·a` (face side `n`), over the reach `x`: the highest its line
+    // stands in the frame's `y` over the reach, where it stands on the
+    // base's face side there and the base on its own. Each lean is a
+    // distance in metres (the cap's rise over the base along `n`; the
+    // base's points along `f`'s face normal), read at
+    // `SELF_INTERSECTION_CORNER` as a corner's lean is, and each is
+    // linear in `x`, read in the base's own frame, so a face turned in its
+    // chart reads no more slack than one along its axes.
+    let capped = |f: usize,
+                  (o, a, bv): (Point2<Interval>, [Interval; 2], [Interval; 2]),
+                  n: [Interval; 2],
+                  x: Interval|
+     -> Result<f64, Unpresented> {
+        let ((pf, _), (qf, _)) = segment(f)?;
+        let ((x0, y0), (x1, y1)) = (coords(o, a, bv, pf), coords(o, a, bv, qf));
+        let run = x1 - x0;
+        if !(run.is_certified() && (run.lo() > 0.0 || run.hi() < 0.0)) {
+            return Err(Unpresented::Local);
+        }
+        let h = y0 + (y1 - y0) / run * (x - x0);
+        let nf = toward_face([qf.x - pf.x, qf.y - pf.y], orientation);
+        let base = lean(nf, [o.x - pf.x, o.y - pf.y]) + x * lean(nf, a);
+        if !(positive(h * lean(n, bv), SELF_INTERSECTION_CORNER)
+            && positive(base, SELF_INTERSECTION_CORNER))
+        {
+            return Err(Unpresented::Local);
+        }
+        Ok(h.hi())
+    };
     // One line edge `e` as `y = 0`, the face `y ≥ 0`; `far`, a line the
     // cell holds with no end in it, across the face from `e` (a strip).
     let along = |e: usize, far: Option<usize>| -> Result<Presentation<'a>, Unpresented> {
         if !piece.local.vertices.is_empty() {
-            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
+            return Err(Unpresented::Local);
         }
         let ((p, ta), (q, tb)) = segment(e)?;
         let a = [q.x - p.x, q.y - p.y];
@@ -2567,6 +2513,10 @@ fn present_plane<'a>(
         let d = [cell_u - p.x, cell_v - p.y];
         let x = (d[0] * a[0] + d[1] * a[1]) / len2;
         let y = (d[0] * bv[0] + d[1] * bv[1]) / len2;
+        let top = match far {
+            None => y.hi(),
+            Some(f) => capped(f, (p, a, bv), bv, x)?.min(y.hi()),
+        };
         // Wholly on the edge's non-face side holds none of the face: the
         // disk's half off the face side is all outside the face. The cell
         // lies in that half. A `len2` holding zero leaves `y`
@@ -2577,24 +2527,8 @@ fn present_plane<'a>(
         let len = len2.sqrt();
         let inside = (x * len).min((at(1.0) - x) * len);
         if !positive(inside, SELF_INTERSECTION_SPAN) {
-            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
+            return Err(Unpresented::Local);
         }
-        let top = match far {
-            None => y.hi(),
-            Some(f) => {
-                let ((pf, _), (qf, _)) = segment(f)?;
-                let to = |pt| coords(p, a, bv, pt);
-                let h = height(to(pf), to(qf), x).ok_or_else(|| { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Unpresented::Local })?;
-                let nf = toward_face([qf.x - pf.x, qf.y - pf.y], orientation);
-                let on_e = [p.x + x * a[0] - pf.x, p.y + x * a[1] - pf.y];
-                if !(positive(h * len, SELF_INTERSECTION_CORNER)
-                    && positive(lean(nf, on_e), SELF_INTERSECTION_CORNER))
-                {
-                    { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
-                }
-                h.hi().min(y.hi())
-            }
-        };
         let zero = if near_edges.contains(&e) {
             Zero::Side(
                 Side::YLo,
@@ -2622,17 +2556,27 @@ fn present_plane<'a>(
     // Two line edges at a convex corner `vtx` as the positive axes, `e1`
     // along `x`; `cap`, the line at `e2`'s far end and that vertex,
     // across the face from `e1` (a strip's end).
+    //
+    // The far corner, `e2`'s with the cap, is convex wherever the cap's
+    // lean holds at `x = 0`: there it reads `vtx` on the cap's face side,
+    // and the loop runs the cap into `e2` (or out of it) with the face on
+    // one hand of both, so the cap's far end then lies on `e2`'s face
+    // side.
+    //
+    // A reading added inside this closure that answers before the cap is
+    // read (a straight corner's half-plane, say) is the uncapped corner's
+    // alone, and must not answer a capped call.
     let corner = |e1: usize,
                   e2: usize,
                   vtx: VertexKey,
                   cap: Option<(usize, VertexKey)>|
      -> Result<Presentation<'a>, Unpresented> {
         let (Some(r1), Some(r2)) = (b.edges.get(e1), b.edges.get(e2)) else {
-            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
+            return Err(Unpresented::Local);
         };
         let held = |w: VertexKey| w == vtx || cap.is_some_and(|(_, v)| w == v);
         if !piece.local.vertices.iter().all(|&w| held(w)) {
-            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
+            return Err(Unpresented::Local);
         }
         let ((p1, s1), (q1, f1)) = segment(e1)?;
         let ((p2, s2), (q2, f2)) = segment(e2)?;
@@ -2669,65 +2613,48 @@ fn present_plane<'a>(
         if !(positive(lean(n1, bv), SELF_INTERSECTION_CORNER)
             && positive(lean(n2, a), SELF_INTERSECTION_CORNER))
         {
-            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
+            return Err(Unpresented::Local);
         }
         let det = a[0] * bv[1] - a[1] * bv[0];
         let d = [cell_u - o.x, cell_v - o.y];
         let x = (d[0] * bv[1] - d[1] * bv[0]) / det;
         let y = (a[0] * d[1] - a[1] * d[0]) / det;
+        let z1 = near_edges.contains(&e1);
+        let z2 = near_edges.contains(&e2);
+        let capped_at = match cap {
+            None => None,
+            Some((f, end)) => {
+                // A shared vertex at the far corner is on no zero side.
+                if near_vertices.contains(&end) && !z2 {
+                    return Err(Unpresented::Local);
+                }
+                let reach = iv((0.0, x.hi().max(0.0)));
+                Some(capped(f, (o, a, bv), n1, reach)?)
+            }
+        };
         if x.hi() <= 0.0 || y.hi() <= 0.0 {
             return Ok(Presentation::Vacuous);
         }
         let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
         let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
         if !positive((at(1.0) - x) * la, SELF_INTERSECTION_SPAN) {
-            { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
+            return Err(Unpresented::Local);
         }
-        let z1 = near_edges.contains(&e1);
-        let z2 = near_edges.contains(&e2);
-        let top = match cap {
+        let top = match capped_at {
             None => {
                 if !positive((at(1.0) - y) * lb, SELF_INTERSECTION_SPAN) {
-                    { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
+                    return Err(Unpresented::Local);
                 }
                 y.hi()
             }
-            Some((f, end)) => {
-                // A shared vertex at the far corner is on no zero side.
-                if near_vertices.contains(&end) && !z2 {
-                    { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
-                }
-                let rf = b.edges.get(f).ok_or_else(|| { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Unpresented::Local })?;
-                let ((pf, _), (qf, _)) = segment(f)?;
-                let startf = if rf.uses[0].plus {
-                    rf.ends[0]
-                } else {
-                    rf.ends[1]
-                };
-                let (atf, farf) = if startf == end { (pf, qf) } else { (qf, pf) };
-                let nf = toward_face([qf.x - pf.x, qf.y - pf.y], orientation);
-                let reach = iv((0.0, x.hi()));
-                let to = |pt| coords(o, a, bv, pt);
-                let h = height(to(atf), to(farf), reach).ok_or_else(|| { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Unpresented::Local })?;
-                let on_e1 = [o.x + reach * a[0] - atf.x, o.y + reach * a[1] - atf.y];
-                // Convex at the far corner, and `cap` and `e1` each on
-                // the other's face side over the reach.
-                if !(positive(
-                    lean(n2, [farf.x - atf.x, farf.y - atf.y]),
-                    SELF_INTERSECTION_CORNER,
-                ) && positive(
-                    lean(nf, [o.x - atf.x, o.y - atf.y]),
-                    SELF_INTERSECTION_CORNER,
-                ) && positive(h * lb, SELF_INTERSECTION_CORNER)
-                    && positive(lean(nf, on_e1), SELF_INTERSECTION_CORNER))
-                {
-                    { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
-                }
-                h.hi().min(y.hi())
-            }
+            Some(h) => h.min(y.hi()),
         };
         // Each edge over its coordinate, 0 at the vertex and 1 at its
-        // far end, out to `hi`; on its edge only where `hi` stops there.
+        // far end, out to `hi`. A side lies on its edge where `hi` is
+        // decided not past the far end: a capped end's side runs to the
+        // cap's height, which its key places through the far end but not
+        // along `e1`, so a face whose cap leans out has points read off
+        // that side past the edge.
         let on = |e: usize, (v, w): (Interval, Interval), hi: f64| {
             Along::over(piece.surface, b, e, hi <= 1.0, || {
                 segment_params(v, w, (0.0, hi))
@@ -2761,12 +2688,25 @@ fn present_plane<'a>(
         let (r, s) = (b.edges.get(e)?, b.edges.get(f)?);
         r.ends.iter().find(|v| s.ends.contains(v)).copied()
     };
+    // Each reading decides its own convexity, so where one refuses, for
+    // any reason, the next may be tried: the first presented, or the
+    // last refusal.
+    let first = |readings: &mut dyn Iterator<Item = Result<Presentation<'a>, Unpresented>>| {
+        let mut last = Err(Unpresented::Local);
+        for got in readings {
+            if got.is_ok() {
+                return got;
+            }
+            last = got;
+        }
+        last
+    };
     match *edges.as_slice() {
         [e] => along(e, None),
         [e1, e2] => {
             // Across the face from each other, anchored on the shared one.
             let strip = || match (near_edges.contains(&e1), near_edges.contains(&e2)) {
-                (true, true) => { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Err(Unpresented::Local) }
+                (true, true) => Err(Unpresented::Local),
                 (false, true) => along(e2, Some(e1)),
                 _ => along(e1, Some(e2)),
             };
@@ -2777,19 +2717,14 @@ fn present_plane<'a>(
                 Some(vtx) => corner(e1, e2, vtx, None).or_else(|why| {
                     let clear =
                         !piece.local.vertices.contains(&vtx) && !near_vertices.contains(&vtx);
-                    if why == Unpresented::Local && clear {
-                        if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPW"); }
-                        strip()
-                    } else {
-                        Err(why)
-                    }
+                    if clear { strip() } else { Err(why) }
                 }),
                 None => strip(),
             }
         }
         // An edge `m` with a neighbour at each end, the one of a sliver
-        // triangle's three whose ends the cell holds: read at one of
-        // `m`'s corners, the other neighbour, not shared, capping it.
+        // triangle's three whose ends the cell holds: read at either of
+        // `m`'s corners whose other neighbour, the cap, is not shared.
         [e1, e2, e3] => {
             let held = |v: VertexKey| piece.local.vertices.contains(&v);
             let ends = [(e1, e2, e3), (e2, e3, e1), (e3, e1, e2)]
@@ -2798,13 +2733,13 @@ fn present_plane<'a>(
             let mut ends: Vec<_> = ends.collect();
             ends.sort_by_key(|&(_, (_, v1), (_, v2))| !(held(v1) && held(v2)));
             let Some(&(m, (n1, v1), (n2, v2))) = ends.first() else {
-                { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } return Err(Unpresented::Local); }
+                return Err(Unpresented::Local);
             };
-            match (near_edges.contains(&n1), near_edges.contains(&n2)) {
-                (_, false) => corner(n1, m, v1, Some((n2, v2))),
-                (false, true) => corner(n2, m, v2, Some((n1, v1))),
-                (true, true) => { if std::env::var_os("STRIP_TRACE").is_some() { eprintln!("STRIPX {}", line!()); } Err(Unpresented::Local) }
-            }
+            let mut readings = [((n1, v1), (n2, v2)), ((n2, v2), (n1, v1))]
+                .into_iter()
+                .filter(|&(_, (cap, _))| !near_edges.contains(&cap))
+                .map(|((n, v), cap)| corner(n, m, v, Some(cap)));
+            first(&mut readings)
         }
         _ => Err(Unpresented::Local),
     }
@@ -6079,38 +6014,6 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     }
     let px = present(x, &ex, &near.vertices, band);
     let py = present(y, &ey, &near.vertices, band);
-    if std::env::var_os("CV_TRACE").is_some() {
-        let d = |p: &Result<Presentation<'_>, Unpresented>| match p {
-            Ok(Presentation::Of(q)) => format!(
-                "Of(zero={} x={:?} y={:?})",
-                match &q.zero {
-                    Zero::None => "None".to_string(),
-                    Zero::Side(s, _) => format!("Side({s:?})"),
-                    Zero::Past(s, _) => format!("Past({s:?})"),
-                    Zero::Corner(..) => "Corner".into(),
-                    Zero::Curve(s, c) => format!("Curve({s:?},past={:?})", c.past),
-                    Zero::Point(..) => "Point".into(),
-                },
-                q.x,
-                q.y
-            ),
-            Ok(Presentation::Vacuous) => "Vacuous".into(),
-            Err(e) => format!("Err({e:?})"),
-        };
-        eprintln!(
-            "CVT {:?} u={:?} v={:?} | {:?} u={:?} v={:?} nv={:?} ne={:?} | {} | {}",
-            x.face,
-            x.u,
-            x.v,
-            y.face,
-            y.u,
-            y.v,
-            near.vertices,
-            ex,
-            d(&px),
-            d(&py)
-        );
-    }
     for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
         if let Err(Unpresented::Collapsed(v)) = p {
             return Outcome::Refuse(EngineRefusal::CollapsedChart {
@@ -6143,15 +6046,8 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         });
     }
     let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (&px, &py) else {
-        let why = |p: &Result<Presentation<'_>, Unpresented>| match p {
-            Err(Unpresented::Structural) => "Structural",
-            Err(Unpresented::Local) => "Local",
-            _ => "presented",
-        };
-        crate::gate_measure::set_reason(format!("unpresented:{}|{}", why(&px), why(&py)));
         return split;
     };
-    crate::gate_measure::clear_margin();
     let opposite = |(psi, on): (Psi, On)| match (
         sign_on(&psi, Some(&on), qx, Some(qy), band),
         sign_on(&psi, Some(&on), qy, Some(qx), band),
@@ -6169,7 +6065,6 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
         return Outcome::Cusp { shared };
     }
-    crate::gate_measure::set_reason_undecided();
     split
 }
 
@@ -8291,9 +8186,9 @@ mod presentation_rows {
         assert!(
             matches!(
                 present_near(&plane, &b, cell, &end, (&[], &[2])),
-                Err(Unpresented::Local)
+                Ok(Presentation::Of(q)) if matches!(q.zero, Zero::Point(_, _, v) if v == vertex(2))
             ),
-            "a vertex shared alone at the far corner lies on no zero side"
+            "a vertex shared alone at one corner: read at that corner, the other neighbour capping"
         );
         assert!(
             matches!(
@@ -8452,13 +8347,21 @@ mod presentation_rows {
             (1, (0.0, 0.0), (l, 0.0), [1, 2]),
             (3, (l, w), (0.0, w), [4, 3]),
         ]);
-        assert!(
-            matches!(
-                present_in(&plane, &beside, cell, &holding(&[0, 1], &[]), &[0]),
-                Ok(Presentation::Of(_))
-            ),
-            "a rim and a hole facing it bound a strip"
-        );
+        let pair = holding(&[0, 1], &[]);
+        match present_in(&plane, &beside, cell, &pair, &[0]) {
+            Ok(Presentation::Of(q)) => {
+                assert!(
+                    matches!(&q.zero, Zero::Side(Side::YLo, a) if a.edges == [edge(1)] && a.on_edges),
+                    "the rim is the zero side, on its edge"
+                );
+                let across = q.whole().y;
+                assert!(
+                    -1e-12 < across.lo() && across.hi() < w + 1e-12,
+                    "the strip between the rim and the hole, not the cell: {across:?}"
+                );
+            }
+            _ => panic!("a rim and a hole facing it bound a strip"),
+        }
     }
 
     /// [`certify_pair`] of a thin face's end against a face sharing its
@@ -8556,6 +8459,266 @@ mod presentation_rows {
             !matches!(got, Outcome::Certified { .. }),
             "the fold is not certified: {got:?}"
         );
+    }
+
+    /// **A cell off the frame's face side, across a further edge whose
+    /// face lies beyond it, holds the face there**: a slot's two sides (a
+    /// cell past its far side), a reflex wedge's (its tip clear of the
+    /// cell), and an end whose far corner turns in (a cell past its short
+    /// side). None is `Vacuous`. Red where a frame's `Vacuous` is read
+    /// before its cap's leans.
+    #[test]
+    fn a_cell_past_a_far_edge_facing_away_is_not_vacuous() {
+        let (l, w) = (10.0, 1e-3);
+        let across = ((4.0, 5.0), (2e-4, 3e-3));
+        let pair = holding(&[0, 1], &[]);
+        let (plane, slot) = segments(&[
+            (1, (l, 0.0), (0.0, 0.0), [2, 1]),
+            (3, (0.0, w), (l, w), [4, 3]),
+        ]);
+        for shared in [&[][..], &[0]] {
+            assert!(
+                !matches!(
+                    present_in(&plane, &slot, across, &pair, shared),
+                    Ok(Presentation::Vacuous)
+                ),
+                "a slot, {shared:?} shared: the cell holds the face past its far side"
+            );
+        }
+        let (plane, slit) = segments(&[
+            (1, (l, 0.0), (0.0, 0.0), [2, 1]),
+            (3, (0.0, 0.0), (l, w), [1, 3]),
+        ]);
+        assert!(
+            !matches!(
+                present_in(&plane, &slit, across, &pair, &[0]),
+                Ok(Presentation::Vacuous)
+            ),
+            "a reflex wedge: the cell holds the face past its far side"
+        );
+        let (plane, notched) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (2, (l, 0.0), (l, w), [2, 3]),
+            (3, (l, w), (l + 1.0, 2.0 * w), [3, 4]),
+        ]);
+        assert!(
+            !matches!(
+                present_in(
+                    &plane,
+                    &notched,
+                    ((10.001, 10.5), (-1.0, 1.0)),
+                    &holding(&[0, 1, 2], &[2, 3]),
+                    &[0]
+                ),
+                Ok(Presentation::Vacuous)
+            ),
+            "a reflex end: the cell holds the face past its short side"
+        );
+    }
+
+    /// `b`'s local boundary in the ball about the cell `u × v` of the
+    /// plane `z = 0`, by [`Local::of`] (its vertices filled from its
+    /// edges' ends), and that ball.
+    fn real_local(b: &mut Boundary, (u, v): ((f64, f64), (f64, f64))) -> (Local, Ball) {
+        for e in &b.edges {
+            let (c, (t0, t1)) = e.arc.as_ref().expect("a line");
+            b.vertices.insert(e.ends[0], c.eval(*t0));
+            b.vertices.insert(e.ends[1], c.eval(*t1));
+        }
+        let centre = Point3::new(iv0(0.5 * (u.0 + u.1)), iv0(0.5 * (v.0 + v.1)), iv0(0.0));
+        let patch = Point3::new(
+            Interval::from_bounds(u.0, u.1),
+            Interval::from_bounds(v.0, v.1),
+            iv0(0.0),
+        );
+        let ball = Ball::holding(centre, patch);
+        (Local::of(b, ball, band()), ball)
+    }
+
+    /// [`certify_pair`] of `f` and `g`, faces of the plane `z = 0` in the
+    /// cells `cf` and `cg`, each cell's local boundary read by
+    /// [`Local::of`] from its own ball, sharing `near`.
+    fn certify_in_balls(
+        (mut f, cf): (Boundary, ((f64, f64), (f64, f64))),
+        (mut g, cg): (Boundary, ((f64, f64), (f64, f64))),
+        near: Near,
+    ) -> (Outcome, [Local; 2]) {
+        let plane = segments(&[]).0;
+        let (lf, bf) = real_local(&mut f, cf);
+        let (lg, bg) = real_local(&mut g, cg);
+        let piece = |boundary, (u, v): ((f64, f64), (f64, f64)), local, ball, n| Piece {
+            face: face(n),
+            surface: &plane,
+            whole: false,
+            boundary,
+            u,
+            v,
+            local,
+            ball,
+        };
+        let got = certify_pair(
+            &piece(&f, cf, &lf, bf, 1),
+            &piece(&g, cg, &lg, bg, 2),
+            &near,
+            band(),
+        );
+        (got, [lf, lg])
+    }
+
+    /// **A face laid over a slot's far side is not certified**: F, the
+    /// plane with a slot `0 < y < w`; G, a face of the same plane sharing
+    /// the slot's lower side, over the slot and on over F to `y = 5`, M
+    /// folded onto itself past the far side. F's cell lies across the far
+    /// side and holds points of F that G covers. Red where a frame reads
+    /// `Vacuous` before its cap: the pair then certifies.
+    #[test]
+    fn a_face_laid_over_a_slots_far_side_is_not_certified() {
+        let (l, w) = (10.0, 1e-3);
+        let (_, f) = segments(&[
+            (1, (l, 0.0), (0.0, 0.0), [2, 1]),
+            (3, (0.0, w), (l, w), [4, 3]),
+        ]);
+        let (_, g) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (5, (l, 0.0), (l, 5.0), [2, 5]),
+            (6, (l, 5.0), (0.0, 5.0), [5, 6]),
+            (7, (0.0, 5.0), (0.0, 0.0), [6, 1]),
+        ]);
+        let (got, [lf, lg]) = certify_in_balls(
+            (f, ((4.0, 5.0), (2e-4, 3e-3))),
+            (g, ((4.0, 5.0), (-1e-3, 3e-3))),
+            Near {
+                edges: vec![(0, 0)],
+                vertices: vec![],
+            },
+        );
+        assert_eq!(
+            (&lf.edges, lf.vertices.len(), &lg.edges, lg.vertices.len()),
+            (&vec![0, 1], 0, &vec![0], 0),
+            "F's cell holds both slot sides, G's the shared side, no vertex"
+        );
+        assert!(
+            !matches!(got, Outcome::Certified { .. }),
+            "the fold past the far side is not certified: {got:?}"
+        );
+    }
+
+    /// **A strip and a strip's end read off cells' own balls**: a thin
+    /// face's middle and its end, each cell's local boundary read by
+    /// [`Local::of`], present with the shared side as the zero: the
+    /// middle's cell holds both long sides, the end's the short side and
+    /// both neighbours. Red where the strip or the end is `Local`.
+    #[test]
+    fn a_strip_and_its_end_read_off_real_balls_present() {
+        let (l, w) = (10.0, 1e-3);
+        for (what, cell, shared, held, key) in [
+            ("the middle", ((4.0, 5.0), (-1e-4, 2e-3)), 0, vec![0, 2], 1),
+            ("the end", ((9.99, 10.5), (-1.0, 1.0)), 1, vec![0, 1, 2], 2),
+        ] {
+            let (plane, mut b) = segments(&[
+                (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+                (2, (l, 0.0), (l, w), [2, 3]),
+                (3, (l, w), (0.0, w), [3, 4]),
+                (4, (0.0, w), (0.0, 0.0), [4, 1]),
+            ]);
+            let (local, ball) = real_local(&mut b, cell);
+            assert_eq!(local.edges, held, "{what}: the cell's own boundary");
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &plane,
+                whole: false,
+                boundary: &b,
+                u: cell.0,
+                v: cell.1,
+                local: &local,
+                ball,
+            };
+            assert!(
+                matches!(
+                    present_plane(&piece, &[shared], &[], band()),
+                    Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(key)])
+                ),
+                "{what}: presented, edge {key} its zero side"
+            );
+        }
+    }
+
+    /// **A strip turned in its chart presents at every cell size**: the
+    /// face `[0, 10] × [0, w]` turned by up to 45° in its chart, read in
+    /// square cells about its middle from a unit half-size down. Red
+    /// where a cap's lean is read per chart coordinate over the reach,
+    /// picking up reach·|sin·cos| of slack.
+    #[test]
+    fn a_strip_turned_in_its_chart_presents_at_every_cell_size() {
+        let l = 10.0;
+        for w in [1e-3_f64, 1e-5] {
+            for turn in [0.0_f64, 0.01, 0.3, 0.785] {
+                let (c, s) = (turn.cos(), turn.sin());
+                let r = |(x, y): (f64, f64)| (c * x - s * y, s * x + c * y);
+                let (plane, b) = segments(&[
+                    (1, r((0.0, 0.0)), r((l, 0.0)), [1, 2]),
+                    (3, r((l, w)), r((0.0, w)), [3, 4]),
+                ]);
+                let (cx, cy) = r((5.0, 0.5 * w));
+                for half in [1.0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7] {
+                    let cell = ((cx - half, cx + half), (cy - half, cy + half));
+                    assert!(
+                        matches!(
+                            present_in(&plane, &b, cell, &holding(&[0, 1], &[]), &[0]),
+                            Ok(Presentation::Of(_))
+                        ),
+                        "w = {w:e}, turned {turn}, half-size {half:e}: presented"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **A strip's end turned in its chart presents its short side**, at
+    /// five turns, in a cell 0.4 wide about it. Red where the cap's lean
+    /// picks up the turn's slack over the reach.
+    #[test]
+    fn a_strip_end_turned_in_its_chart_presents_its_short_side() {
+        let (l, w) = (10.0, 1e-3);
+        for turn in [0.0_f64, 0.1, 0.7, 1.3, 2.0] {
+            let (c, s) = (turn.cos(), turn.sin());
+            let r = |(x, y): (f64, f64)| (c * x - s * y, s * x + c * y);
+            let (plane, b) = segments(&[
+                (1, r((0.0, 0.0)), r((l, 0.0)), [1, 2]),
+                (2, r((l, 0.0)), r((l, w)), [2, 3]),
+                (3, r((l, w)), r((0.0, w)), [3, 4]),
+            ]);
+            let (cx, cy) = r((l, 0.5 * w));
+            let cell = ((cx - 0.2, cx + 0.2), (cy - 0.2, cy + 0.2));
+            assert!(
+                matches!(
+                    present_in(&plane, &b, cell, &holding(&[0, 1, 2], &[2, 3]), &[1]),
+                    Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(2)])
+                ),
+                "turned {turn}: the short side is the zero side"
+            );
+        }
+    }
+
+    /// **A cap's lean is read at the band**: a strip `Kε/2` wide is no
+    /// strip, its far side's rise in the band; `2Kε` wide, it is. Red if
+    /// the leans are read as signs alone.
+    #[test]
+    fn a_strip_narrower_than_the_band_is_not_read() {
+        let k = band().escalate();
+        for (w, presented) in [(0.5 * k, false), (2.0 * k, true)] {
+            let (plane, b) = segments(&[
+                (1, (0.0, 0.0), (10.0, 0.0), [1, 2]),
+                (3, (10.0, w), (0.0, w), [3, 4]),
+            ]);
+            let pair = holding(&[0, 1], &[]);
+            let got = present_in(&plane, &b, ((4.0, 5.0), (-w, 2.0 * w)), &pair, &[0]);
+            assert_eq!(
+                matches!(got, Ok(Presentation::Of(_))),
+                presented,
+                "a strip {w:e} wide: presented = {presented}"
+            );
+        }
     }
 
     /// **`edge_piece`**: the hull of an edge's parameters whose points the

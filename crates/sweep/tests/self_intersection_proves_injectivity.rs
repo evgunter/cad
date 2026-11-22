@@ -1899,6 +1899,35 @@ fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
     assert_eq!(report.receipt.refused, 210, "{:?}", report.receipt);
 }
 
+/// **A drum whose splits fall a rounding off its half-circle runs out of
+/// depth**: the same drum at radius 0.7, whose half-annulus cells beside
+/// the disc's half-circle are read by no presentation
+/// (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
+/// Red when it holds, and that row's reading has landed.
+#[test]
+fn a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
+    use crate::common::latitude_seam::ring_on_cap;
+    use sweep::test_support::{corners, revolved_about_y};
+    let (r, h) = (0.7, 2.0);
+    let mut drum = revolved_about_y(
+        corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)]),
+        Revolution::Full,
+        Tol::witness(),
+    );
+    ring_on_cap(&mut drum, h, r, r / 2.0);
+    let report = injective(&drum, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(_))
+        ),
+        "the drum runs out of depth: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    assert!(report.receipt.refused > 0, "{:?}", report.receipt);
+}
+
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
 /// holds where two arcs of its ellipse meet.** At `Interval`
 /// the union builds at every ε, as the `f64` body: as many faces, edges
@@ -3274,40 +3303,91 @@ fn thin_pose(k: usize) -> SketchPlane<f64> {
     ))
 }
 
-const POSES: [&str; 3] = ["plain", "turned", "a hundred units out"];
-
-/// The box `[0, w] × [0, h]` on `place`, extruded `d` along its normal.
-fn block<T: Scalar>(place: &SketchPlane<f64>, (w, h, d): (f64, f64, f64)) -> Body<T> {
+/// The prism over the polygon `pts` on `place`, extruded `d` along its
+/// normal.
+fn prism<T: Scalar>(place: &SketchPlane<f64>, pts: &[(f64, f64)], d: f64) -> Body<T> {
     let profile = Profile::new(
         plane_at::<T>(place),
-        lifted(&quad([(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)])),
+        lifted(&[ProfileLoop::polygon(
+            pts.iter().map(|&(x, y)| Point2::new(x, y)),
+        )]),
     )
     .validate(tol())
-    .expect("the rectangle validates");
+    .expect("the polygon validates");
     Body::clone(
         &extrude(&profile, to_offset(d), tol())
-            .expect("the box extrudes")
+            .expect("the prism extrudes")
             .body,
     )
 }
 
-/// The plain sketch plane moved by `(x, y, 0)`.
-fn shifted(x: f64, y: f64) -> SketchPlane<f64> {
-    use geom_core::{Affine3, Vec3};
-    SketchPlane::from_frame(geom_core::test_support::rigid(
-        &Affine3::translation(Vec3::new(x, y, 0.0)),
-        tol(),
-    ))
+/// The box `[0, w] × [0, h]` on `place`, extruded `d` along its normal.
+fn block<T: Scalar>(place: &SketchPlane<f64>, (w, h, d): (f64, f64, f64)) -> Body<T> {
+    prism(place, &rectangle(w, h), d)
 }
 
-/// Each body `(what, w × h × d)` reads `Embedded` at `f64` and at
-/// `Interval` in every pose.
-fn thin_boxes_embedded(boxes: &[(&str, (f64, f64, f64))]) {
-    for &(what, dims) in boxes {
+/// The rectangle `w × h` from the origin.
+fn rectangle(w: f64, h: f64) -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]
+}
+
+/// The poses of a thin body row: plain; turned about a generic axis;
+/// turned a hundred units out; extruded the other way; mirrored in its
+/// sketch's `x`; turned by 0.3 and by 0.785 in its sketch plane, so its
+/// thin faces' sides lie off their charts' axes; and at half the session
+/// box's extent and two units inside its wall.
+const POSES: [&str; 9] = [
+    "plain",
+    "turned",
+    "a hundred units out",
+    "extruded the other way",
+    "mirrored",
+    "turned 0.3 in its plane",
+    "turned 0.785 in its plane",
+    "at half the session box",
+    "at the session box's wall",
+];
+
+/// The profile `pts` extruded `d` in pose `k` of [`POSES`]: its sketch
+/// plane, its points and its depth.
+fn posed(k: usize, pts: &[(f64, f64)], d: f64) -> (SketchPlane<f64>, Vec<(f64, f64)>, f64) {
+    use geom_core::{Affine3, Vec3};
+    let turn = |th: f64| {
+        let (c, s) = (th.cos(), th.sin());
+        pts.iter()
+            .map(|&(x, y)| (c * x - s * y, s * x + c * y))
+            .collect()
+    };
+    let at = |off: f64| {
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::translation(Vec3::new(off, off, off)),
+            tol(),
+        ))
+    };
+    let extent = geom_core::tolerance::SESSION_BOX_EXTENT;
+    match k {
+        0..=2 => (thin_pose(k), pts.to_vec(), d),
+        3 => (SketchPlane::xy(), pts.to_vec(), -d),
+        4 => (
+            SketchPlane::xy(),
+            pts.iter().rev().map(|&(x, y)| (-x, y)).collect(),
+            d,
+        ),
+        5 => (SketchPlane::xy(), turn(0.3), d),
+        6 => (SketchPlane::xy(), turn(0.785), d),
+        7 => (at(0.5 * extent), pts.to_vec(), d),
+        _ => (at(extent - 2.0), pts.to_vec(), d),
+    }
+}
+
+/// Each prism `(what, profile)`, extruded a unit, reads `Embedded` at
+/// `f64` and at `Interval` in every pose of [`POSES`].
+fn thin_prisms_embedded(prisms: &[(&str, Vec<(f64, f64)>)]) {
+    for (what, pts) in prisms {
         for (k, pose) in POSES.iter().enumerate() {
-            let place = thin_pose(k);
-            let float = embedded_verdict(&block::<f64>(&place, dims));
-            let interval = embedded_verdict(&block::<Interval>(&place, dims));
+            let (place, pts, d) = posed(k, pts, 1.0);
+            let float = embedded_verdict(&prism::<f64>(&place, &pts, d));
+            let interval = embedded_verdict(&prism::<Interval>(&place, &pts, d));
             println!(
                 "[thin] {what}, {pose}: f64 {float:?} | Interval {}",
                 embedding_class(&interval)
@@ -3326,46 +3406,89 @@ fn thin_boxes_embedded(boxes: &[(&str, (f64, f64, f64))]) {
     }
 }
 
+/// The plain sketch plane moved by `(x, y, 0)`.
+fn shifted(x: f64, y: f64) -> SketchPlane<f64> {
+    use geom_core::{Affine3, Vec3};
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::translation(Vec3::new(x, y, 0.0)),
+        tol(),
+    ))
+}
+
 /// **A thin slab is embedded**, a unit square `t` thick at `2Kε` and at
 /// `20Kε`: its four thin faces meet in pairs at edges `t` long, where
 /// the metric split cuts a cell's length a few dozen times before its
-/// width, and each pair is read at the thin faces' ends; its square
-/// faces meet the thin ones along their long sides, read across the
-/// strip between them. Plain, turned about a generic axis, and turned a
-/// hundred units out. Red on a planar arm that reads a cell holding a
-/// thin face's whole end as `Local`: the slab refuses `Departure` at an
-/// edge there.
+/// width, and each pair is read at the thin faces' ends. In every pose of
+/// [`POSES`]. Red on a planar arm that reads a cell holding a thin face's
+/// whole end as `Local`: the slab refuses `Departure` at an edge there.
 #[test]
 fn a_thin_slab_is_embedded_across_its_ends_in_every_pose() {
     let k_eps = band().escalate();
-    thin_boxes_embedded(&[
-        ("a slab 2Kε thick", (1.0, 2.0 * k_eps, 1.0)),
-        ("a slab 20Kε thick", (1.0, 20.0 * k_eps, 1.0)),
+    thin_prisms_embedded(&[
+        ("a slab 2Kε thick", rectangle(1.0, 2.0 * k_eps)),
+        ("a slab 20Kε thick", rectangle(1.0, 20.0 * k_eps)),
     ]);
 }
 
 /// **A needle is embedded**, a unit length `t` square at `20Kε` and at
-/// `1000Kε`: its four long faces meet along edges a unit long, each
-/// piece of which is read across the strip of the face beside it, and
-/// its ends as a slab's are. Plain, turned, and a hundred units out. Red
-/// on a planar arm that reads two lines with no common end as `Local`:
-/// every piece of a long edge then splits until it is `t` long, and the
-/// needle spends the pair budget.
+/// `1000Kε`. Its long faces are thin rectangles, and the first split of
+/// each leaves two halves that each hold an end, so every cell the
+/// certificate asks is read at a thin face's end: a slab's reading. In
+/// every pose of [`POSES`]. Red on a planar arm that reads a cell
+/// holding an end as `Local`: every piece of a long edge then splits
+/// until it is `t` long, and the needle spends the pair budget.
 #[test]
 fn a_needle_is_embedded_along_its_sides_in_every_pose() {
     let k_eps = band().escalate();
-    thin_boxes_embedded(&[
-        ("a needle 20Kε square", (20.0 * k_eps, 20.0 * k_eps, 1.0)),
-        ("a needle 1000Kε square", (1e3 * k_eps, 1e3 * k_eps, 1.0)),
+    thin_prisms_embedded(&[
+        (
+            "a needle 20Kε square",
+            rectangle(20.0 * k_eps, 20.0 * k_eps),
+        ),
+        (
+            "a needle 1000Kε square",
+            rectangle(1e3 * k_eps, 1e3 * k_eps),
+        ),
+    ]);
+}
+
+/// **A chamfered strip is embedded**: a unit-long hexagon `t` wide, its
+/// ends cut to points by two chamfers each, extruded a unit, at `300Kε`
+/// and at `1000Kε`. A cell at a chamfered end holds four edges and is
+/// read only once split onto one chamfer's corner, so the cells along the
+/// hexagon faces' middles hold their two long sides and no end, and are
+/// read across the strip between them. A point holds four edges within
+/// `t` of each other, so narrower than about `300Kε` the point needs
+/// more cuts than the depth floor allows; these two widths are within
+/// it. In every pose of [`POSES`]. Red
+/// on a planar arm that reads two lines with no common end as `Local`:
+/// the middle then splits until its pieces are `t` long, past the pair
+/// budget.
+#[test]
+fn a_chamfered_strip_is_embedded_across_its_middle_in_every_pose() {
+    let k_eps = band().escalate();
+    let hexagon = |t: f64| {
+        vec![
+            (0.0, 0.5 * t),
+            (t, 0.0),
+            (1.0 - t, 0.0),
+            (1.0, 0.5 * t),
+            (1.0 - t, t),
+            (t, t),
+        ]
+    };
+    thin_prisms_embedded(&[
+        ("a chamfered strip 300Kε wide", hexagon(300.0 * k_eps)),
+        ("a chamfered strip 1000Kε wide", hexagon(1e3 * k_eps)),
     ]);
 }
 
 /// **Two thin slabs through each other cross**: a slab `20Kε` thick
 /// along `y` and one along `x`, grafted as two solids, pass through each
 /// other in a column `20Kε` square, at both scalars. Their faces share
-/// nothing, so the crossing is found by distance beside cells read
-/// across the strips and ends of their thin faces. Red if the strips'
-/// reading hides it.
+/// nothing, so the crossing is found by distance and no presentation is
+/// on its path: the row pins that thin faces' cells reach the distance
+/// test, not any reading of a strip.
 #[test]
 fn two_thin_slabs_through_each_other_cross() {
     fn crossed<T: Scalar>(t: f64) -> Body<T> {
@@ -3384,5 +3507,19 @@ fn two_thin_slabs_through_each_other_cross() {
             "Crosses",
             "{scalar}: the slabs cross: {verdict:?}"
         );
+    }
+}
+
+#[test]
+fn zz_probe_hexagon() {
+    let k_eps = band().escalate();
+    for m in [300.0, 1e3, 1e4, 1e5] {
+        let t = m * k_eps;
+        let pts = vec![(0.0, 0.5 * t), (t, 0.0), (1.0 - t, 0.0), (1.0, 0.5 * t), (1.0 - t, t), (t, t)];
+        for (k, pose) in POSES.iter().enumerate() {
+            let (place, p, d) = posed(k, &pts, 1.0);
+            let f = embedded_verdict(&prism::<f64>(&place, &p, d));
+            println!("[hex] {m}Kε {pose}: {f:?}");
+        }
     }
 }
