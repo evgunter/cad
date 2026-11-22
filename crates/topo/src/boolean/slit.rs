@@ -50,10 +50,13 @@
 //! built, the Boolean refuses ([`EdgeInFaceGap`]) rather than leave the
 //! one edge: an edge one of whose faces is tangent to the face leaves a
 //! cusp per edge, whose reading on a line of coincident edges is not
-//! built, an arc leaves two coincident arcs the census does not read,
-//! and a curved face would carry a slit or a ring, and a zero-area ring
-//! there is not measured ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
-//! [`EdgeInFaceGap::CurvedFace`]). The reading
+//! built, an arc no record puts on the face would leave two coincident
+//! arcs with no decision to cite, and a curved face would carry a slit or
+//! a ring, and a zero-area ring there is not measured
+//! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Unbacked`],
+//! [`EdgeInFaceGap::CurvedFace`]). An arc's two coincident edges are
+//! recorded, an edge–edge record citing the records that put the arc or
+//! its ends on the face. The reading
 //! ([`holding`]) finds an edge whose carrier lies on the face's surface,
 //! a line on a plane, cylinder or cone and a circle or an ellipse on a
 //! plane, a quadric or a torus, where an edge-on-face record names the
@@ -131,7 +134,7 @@ use super::{BooleanDecision, BooleanError, Coincide, DeclarationRead};
 use crate::Cell;
 use crate::body::Body;
 use crate::boolean::records::{Contact, ContactKind, ContactPairError, ContactRecords};
-use crate::coincidence::Cited;
+use crate::coincidence::{Cited, Cites};
 use crate::contain::ContainError;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite, MevSite};
@@ -177,10 +180,10 @@ pub enum EdgeInFaceGap {
     /// (D1's doubled cusp), whose reading on a line of coincident edges
     /// is not built.
     Tangent,
-    /// The edge is an arc: the parting would leave two coincident arcs
-    /// that no contact record backs
-    /// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
-    Curved,
+    /// The edge is an arc, and no record of the operation names it or
+    /// either of its ends on the face: the parting's two coincident arcs
+    /// would have no decision to cite.
+    Unbacked,
     /// The face is no plane: the parting would leave a slit or a
     /// zero-area ring in a curved face. A slit meshes (the trimmed lane
     /// takes a face that passes one point at two vertices); a zero-area
@@ -298,9 +301,9 @@ impl EdgeInFaceGap {
                  edges would bound a cusp, which the reading of a line of coincident edges does \
                  not cover"
             }
-            Self::Curved => {
-                "the edge is an arc, which would leave two coincident arcs that no contact record \
-                 backs (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`)"
+            Self::Unbacked => {
+                "the edge is an arc that no record of the operation puts on the face, so the two \
+                 coincident arcs parting it would leave have no decision to cite"
             }
             Self::CurvedFace => {
                 "the face is curved, and a zero-area ring in a curved face is not measured \
@@ -423,6 +426,8 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
     // edge and the face it ran past: each is joined by a parting.
     let mut crossings: Vec<(VertexKey, EdgeKey, FaceKey)> = Vec::new();
     let mut fused = Fusions::new(LineageRows::Fusions);
+    // Each arc's two coincident edges a parting made, and what backs them.
+    let mut coincident: Vec<(EdgeKey, EdgeKey, Cites)> = Vec::new();
     // Read again after each parting: a parting that divides a face
     // gives one of its pieces a new key, which a later edge lying in
     // that piece is read against. A record naming a divided face refuses
@@ -456,9 +461,6 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         let refused = |gap| BooleanError::EdgeInFace { edge, face, gap };
         if flat {
             return Err(refused(EdgeInFaceGap::Tangent));
-        }
-        if !crate::census::edge_is_line(body, edge) {
-            return Err(refused(EdgeInFaceGap::Curved));
         }
         // A zero-area ring in a curved face is not measured, so the
         // parting refuses on any face it would part that is no plane.
@@ -513,7 +515,29 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
                 _ => return Err(refused(EdgeInFaceGap::Shared)),
             }
         }
+        // An arc's two coincident edges are recorded, citing what put the
+        // arc or its ends on the face. Two lines between shared point keys
+        // are one segment by structure.
+        let backing = (!crate::census::edge_is_line(body, edge))
+            .then(|| {
+                Cites::of(
+                    records
+                        .rows()
+                        .iter()
+                        .filter(|r| {
+                            [Cell::Edge(edge), Cell::Vertex(start), Cell::Vertex(end)]
+                                .into_iter()
+                                .any(|c| r.record.cells() == [c, Cell::Face(face)])
+                        })
+                        .flat_map(|r| r.cites.iter()),
+                )
+                .ok_or_else(|| refused(EdgeInFaceGap::Unbacked))
+            })
+            .transpose()?;
         let p = part(body, edge, face, &joined, tol)?;
+        if let Some(cites) = backing {
+            coincident.push((p.parted.kept, p.parted.minted, cites));
+        }
         fused.extend(&p.parted.fused)?;
         let (kept_start, kept_end) = p.parted.ends;
         // A record's cells are in canonical order, the lesser first.
@@ -615,6 +639,14 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
                 })?;
             kept.push(Cited::new(contact, row.cites.clone()));
         }
+    }
+    for (a, b, cites) in coincident {
+        let contact = Contact::new(body, Cell::Edge(a), Cell::Edge(b)).map_err(|_| {
+            BooleanError::JoinDesync {
+                what: "an arc's two coincident edges a parting made are one cell",
+            }
+        })?;
+        kept.push(Cited::new(contact, cites));
     }
     Ok((parted, kept))
 }
@@ -2264,13 +2296,17 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
         .ok()
         .zip(crate::readback::vertex_point(body, end).ok())
         .ok_or_else(desync)?;
-    // A line edge (an arc refuses `Curved` before parting): the draft
-    // draws the chord between the ends, its own spec.
-    let geom_brep::DraftedIntersection::Chord(spec) =
-        geom_brep::IntersectionDraft::of(curve.as_ref(), pa, pb)
-            .into_intersection(geom_brep::SurfacePair::new(floor_surface, wall_surface))
-    else {
-        return Err(refused(EdgeInFaceGap::Curved));
+    // The second edge lies on the first's locus: a line's chord between
+    // the ends, which the draft draws, or an arc's own carrier and
+    // interval, which it keeps.
+    let spec = match geom_brep::IntersectionDraft::of(curve.as_ref(), pa, pb)
+        .into_intersection(geom_brep::SurfacePair::new(floor_surface, wall_surface))
+    {
+        geom_brep::DraftedIntersection::Chord(spec) => spec,
+        geom_brep::DraftedIntersection::Kept(description) => geom_brep::EdgeCurveSpec {
+            description,
+            ..curve.as_ref().ok_or_else(desync)?.restated_spec()
+        },
     };
     let next = proven(&body.half_edges, h, EntityId::HalfEdge).next;
     let made = body.mef(

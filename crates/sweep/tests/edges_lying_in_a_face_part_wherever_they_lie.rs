@@ -27,7 +27,8 @@
 //!   would leave a slit of the curved wall, which refuses `CurvedFace`.
 //! - **An arc resting in a curved face**, a V revolved about `y` whose
 //!   tip arc lies in a bore's wall or a spherical floor: `A ∖ B`'s two
-//!   coincident arcs refuse `Curved`.
+//!   coincident arcs, a slit or ring of the curved face, refuse
+//!   `CurvedFace`.
 //!
 //! Each op of the scenes that build, both orders, builds at its
 //! closed-form volume with tiers 3 and 3′ and its material at sample
@@ -613,7 +614,7 @@ fn turned_v(pts: &[(f64, f64)], turn: f64) -> AtRestBody<f64> {
 /// places no arc lying in a curved face's interior
 /// (`an-arc-lying-in-a-curved-faces-interior-refuses-at-the-reduction` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)).
 /// This pins a refusal main gives too: the parting is never reached
-/// here, and past the reduction it refuses `Curved`. The slab is a 270°
+/// here, and past the reduction it refuses `CurvedFace`. The slab is a 270°
 /// revolve about `y` whose inner wall is the cylinder `r = .5` or the
 /// sphere `|p| = 2`, less a V whose tip arc lies on it, the V inside the
 /// slab's turn (60°) or leaving through its end face (−20°).
@@ -666,7 +667,7 @@ fn an_arc_resting_in_a_cylinder_or_sphere_face_refuses_only_its_slit() {
                     (
                         "A ∖ B",
                         Err(BooleanError::EdgeInFace {
-                            gap: topo::EdgeInFaceGap::Curved,
+                            gap: topo::EdgeInFaceGap::CurvedFace,
                             ..
                         }),
                     ) => {}

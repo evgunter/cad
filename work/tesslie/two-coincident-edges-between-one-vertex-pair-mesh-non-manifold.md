@@ -105,3 +105,25 @@ vertex pair; tier 3 passes, props hold the closed form (55.7168), and at
 δ = 5e-3 the mesh's volume is 55.7347 while `check_mesh` refuses
 `NonManifoldEdge { edge: (16, 18), count: 4 }`, ids 16 and 18 the
 keel's two ends. The throwaway harness is not committed.
+
+## 2026-11-22 — the curved ring builds again (HELDRECORDS split-on)
+
+`heldrecords/split-on` records a slit's two coincident edges and lifts
+the split's `CurvedSlitTrace` and the Boolean's `EdgeInFaceGap::Curved`
+(`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`),
+so the curved ring ships again. Measured on that branch at the default
+ε, `tessellate` then `check_mesh` over each side of
+`crates/sweep/tests/a_curved_keel_in_the_plane.rs`'s `keeled`:
+
+- **The ring (V turned 60°)**: the walls' side meshes `Ok` and
+  `check_mesh` refuses `MismatchedWinding` with the tip on the plane and
+  at `+0.6 ε`, at chordal 1e-2 (and 0.1 at `+0.6 ε`; at the tip on the
+  plane 0.1 refuses `PinchWedge`), either normal; at `−0.6 ε` it meshes
+  clean. The other side meshes clean.
+- **The one-end slit (−20°)**: the walls' side refuses `PinchWedge` at
+  1e-2 and 0.1 with the tip at 0 and `+0.6 ε`, and meshes clean at
+  `−0.6 ε`.
+- **The Boolean's twin**
+  (`crates/sweep/tests/a_curved_keel_on_the_floor_builds_its_slit_form.rs`),
+  both forms: clean at 1e-2 and 0.1, `Triangulation` at 1e-3.
+

@@ -3409,6 +3409,7 @@ mod desync_rows {
             above_loop: seed.r#loop,
             below_loop,
             kind: SectionKind::Area { slit: Vec::new() },
+            coincident: Vec::new(),
         };
         let lone = below_chord_frame(&body, &section(seed.r#loop), normal);
         assert!(

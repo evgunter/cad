@@ -66,8 +66,8 @@ mod a_blend_reads_the_wedge_through_the_one_fold;
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
-#[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
-mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
+#[path = "a_closed_rider_lying_in_a_face.rs"]
+mod a_closed_rider_lying_in_a_face;
 #[path = "a_conical_ended_football_revolves.rs"]
 mod a_conical_ended_football_revolves;
 #[path = "a_corner_cut_on_a_far_wall_reads_its_sections_width.rs"]
@@ -76,8 +76,8 @@ mod a_corner_cut_on_a_far_wall_reads_its_sections_width;
 mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
 mod a_curved_keel_in_the_plane;
-#[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
-mod a_curved_keel_on_the_floor_refuses_its_slit_form;
+#[path = "a_curved_keel_on_the_floor_builds_its_slit_form.rs"]
+mod a_curved_keel_on_the_floor_builds_its_slit_form;
 #[path = "a_cut_by_a_curved_seat_refuses_its_material.rs"]
 mod a_cut_by_a_curved_seat_refuses_its_material;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
