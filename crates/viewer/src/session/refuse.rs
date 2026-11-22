@@ -45,8 +45,7 @@ pub enum NodeKindWanted {
     /// A `Node::Profile`.
     Profile,
     /// A read of ONE body — the combining seats' kind: a node whose one
-    /// output is a body ([`combine::denotes_body`] carries the
-    /// admissible set), or a split's half read by its port
+    /// output is a body, or a split's half read by its port
     /// ([`admits_read`]).
     Body,
     /// A FAMILY — what an indexed read (`BodyRead::indexed`) indexes: a
@@ -67,22 +66,36 @@ pub enum NodeKindWanted {
 /// seats ask it to ROUTE a pick ([`crate::seats::Seats::pick`]). One
 /// answer for both is what keeps a seat from steering a pick the door
 /// would then reject.
+///
+/// **A body is the edit door's own kind check**: the read a node named
+/// alone takes ([`Doc::read_of_node`]) is one a body slot admits
+/// (`SlotKind::admits`). A node of several outputs (a split's sides, a
+/// revolve's body beside its axis) has no such read, and a `Bodies`
+/// variable is several bodies; a family by repetition — a pattern, or a
+/// placement of one — is a body, since an operation reading it at a
+/// body slot is evaluated once per member. The answer is about the
+/// recipe, not one evaluation of it: what the read evaluates to under
+/// the current parameters, an empty boolean or a node's own refusal,
+/// is that node's result. `combine_ops::the_body_seat_is_the_operand_doors_body_slot`
+/// holds the seat to the edit door, and
+/// `::the_body_seats_admissions_evaluate_as_bodies` to evaluation.
 pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWanted) -> bool {
+    use pncad::document::{SlotKind, VarKind};
     let held = doc.node(node);
+    let read_is = |kind| {
+        doc.read_of_node(node)
+            .and_then(|read| doc.var(read))
+            .is_some_and(|var| SlotKind::Is(kind).admits(var))
+    };
     match wanted {
-        NodeKindWanted::Body => combine::denotes_body(doc, node),
+        NodeKindWanted::Body => read_is(VarKind::Body),
         NodeKindWanted::Instances => {
             held.is_some()
                 && doc
                     .node_reach(node)
                     .chain()
                     .is_some_and(|chain| !chain.is_empty())
-                || doc
-                    .read_of_node(node)
-                    .and_then(|read| doc.var(read))
-                    .is_some_and(|var| {
-                        pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
-                    })
+                || read_is(VarKind::Bodies)
         }
         NodeKindWanted::Profile => held.and_then(seat_kind) == Some(wanted),
     }
