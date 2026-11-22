@@ -2,12 +2,13 @@
 id: edge-join-singular-at-reads-a-spline-pole-as-not-singular
 kind: issue
 title: edge_join::singular_at answers false for a spline chart by its last arm, so a pole on a spline face is read as regular
-status: dispatched
+status: review
 opened: 2026-11-01
 priority: P3
 cost: E
 rides_with: a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint
 branch: charttail/collapsed-column
+pr: 7325
 ---
 
 Disclosed and left unscheduled by PR 6220's sweep for last-arm

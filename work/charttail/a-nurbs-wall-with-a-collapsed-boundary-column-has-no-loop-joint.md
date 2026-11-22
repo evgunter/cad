@@ -2,11 +2,12 @@
 id: a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint
 kind: issue
 title: a NURBS wall with a collapsed boundary column (a loft's pinned corner) has no loop joint: the walk resets only on a sphere's or cone's singular point
-status: dispatched
+status: review
 opened: 2026-10-31
 priority: P1
 cost: H
 branch: charttail/collapsed-column
+pr: 7325
 ---
 
 Filed by CARVE's `carve/pinned-corners` lane (phase 1 of CARVE's

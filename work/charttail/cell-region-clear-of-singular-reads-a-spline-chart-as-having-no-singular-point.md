@@ -9,6 +9,7 @@ cost: E
 refs: [a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint, edge-join-singular-at-reads-a-spline-pole-as-not-singular]
 closed: 2026-11-22
 rides_with: a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint
+pr: 7325
 ---
 
 Filed by SPLICE's `splice/kind-reads` lane, from its sweep for doors that
