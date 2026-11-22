@@ -179,3 +179,16 @@ re-posing that empties a file lowers or drops its row in the same change.
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
+
+## The apex start's `gap_err` is pinned by no per-PR row (2026-11-22, `oneround/readings-not-levers`)
+
+`geom_brep::intersect`'s `apex_start` reads the plane's stand-off from
+the cone's apex as `|δ̂| + e_δ` over a sine (`pn_apex_tangent_reach`,
+`pn_apex_point_reach`, and `pair_bound`'s far and near starts). A mutant
+that drops `e_δ` there (`|δ̂| / sine`) passes every geom-brep test of
+the `ci` profile at the default ε (2474 run). The rows that read the
+gap's rounding (`pn_apex_pair_over_a_span`'s
+`a_plane_through_the_apex_reads_its_gaps_sign_to_its_rounding` and its
+sibling) pin `e_δ` where it decides the gap's sign, not where it is
+added to the start. The term goes with this row's re-posing of
+`plane_cone_section`'s gap charge; until then nothing holds it in place.
