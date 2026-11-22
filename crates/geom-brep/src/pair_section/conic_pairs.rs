@@ -410,7 +410,11 @@ mod rows {
         let c = Point3::new(0.1, -0.2, 0.3);
         let cases = [
             ("plane crossing", plane(c + k * 0.6, k), Some(None)),
-            ("plane touching", plane(c + k, k), Some(Some("ps_center_gap"))),
+            (
+                "plane touching",
+                plane(c + k, k),
+                Some(Some("ps_center_gap")),
+            ),
             ("plane clear", plane(c + k * 1.5, k), None),
             ("sphere crossing", sphere(c + k * 1.2, 0.5), Some(None)),
             (
@@ -431,8 +435,9 @@ mod rows {
                 let at = format!("{label}, the ball {order}");
                 let s = read(a, b, None).unwrap_or_else(|e| panic!("{at}: {e:?}"));
                 let (oa, ob) = s.pose().operands();
-                assert!(
-                    oa == a && ob == b,
+                assert_eq!(
+                    (format!("{oa:?}"), format!("{ob:?}")),
+                    (format!("{a:?}"), format!("{b:?}")),
                     "{at}: the pose's operands are in the asked order"
                 );
                 match (listed(&s), want) {

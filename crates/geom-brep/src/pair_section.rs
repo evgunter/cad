@@ -73,9 +73,12 @@
 //! # The pairs it serves
 //!
 //! Cylinder × sphere, the three torus pairs (a ring torus against a
-//! sphere, a cylinder or another ring torus, [`torus`]) and two
-//! cylinders ([`cylinders`]), which have no bounded side and are read
-//! over the operation's region; and, through the march door, a plane,
+//! sphere, a cylinder or another ring torus, [`torus`]), two cylinders
+//! ([`cylinders`]), which have no bounded side and are read over the
+//! operation's region, and the closed-form conic pairs
+//! ([`conic_pairs`]): plane × sphere and sphere × sphere, read over a
+//! sphere's ball, and plane × cylinder, read over the region; and,
+//! through the march door, a plane,
 //! cylinder, sphere or torus against a NURBS or approximating surface
 //! ([`spline_implicit`],
 //! [`SplineImplicitPose`], whose whole reading the section certificate
@@ -1377,9 +1380,9 @@ pub enum SectionRead<T: Real> {
 ///
 /// `region` is the operation's (C5): the ball about the overlap of the
 /// two operands' boxes, padded, which holds every section point the
-/// operation can use. A pair with no bounded side (two cylinders) is
-/// read over it; a pair with a sphere or a torus side is read over that
-/// side's own ball and does not read it.
+/// operation can use. A pair with no bounded side (two cylinders, a
+/// plane and a cylinder) is read over it; a pair with a sphere or a
+/// torus side is read over that side's own ball and does not read it.
 ///
 /// `lane` is the march door: a spline wall (an approximating surface read
 /// as its fit) and an implicit surface (a plane, cylinder, sphere or

@@ -934,11 +934,7 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
         "tangent at {:?}",
         t.at
     );
-    let t = touch_both_ways(
-        &ball,
-        &plane(origin + k * (1.0 - push), k),
-        "ps_center_gap",
-    );
+    let t = touch_both_ways(&ball, &plane(origin + k * (1.0 - push), k), "ps_center_gap");
     let rad = (1.0 - (1.0 - push).powi(2)).sqrt();
     centres(
         "sphere × plane",

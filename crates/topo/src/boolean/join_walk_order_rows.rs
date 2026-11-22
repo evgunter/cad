@@ -275,12 +275,13 @@ fn carried(
     b: &Surface<f64>,
     region: geom_brep::ExtentBall<f64>,
 ) -> (geom_brep::CarriedSection<f64>, Curve3<f64>) {
-    let section = match geom_brep::pair_section(a, b, Some(region), None::<geom_core::NoLane>, band())
-        .unwrap()
-    {
-        geom_brep::SectionRead::Built(s) => s.carry(None::<geom_core::NoLane>, band()).unwrap(),
-        geom_brep::SectionRead::Elsewhere(route) => panic!("{route:?}"),
-    };
+    let section =
+        match geom_brep::pair_section(a, b, Some(region), None::<geom_core::NoLane>, band())
+            .unwrap()
+        {
+            geom_brep::SectionRead::Built(s) => s.carry(None::<geom_core::NoLane>, band()).unwrap(),
+            geom_brep::SectionRead::Elsewhere(route) => panic!("{route:?}"),
+        };
     let [component] = section.components() else {
         panic!("one loop: {:?}", section.components().len())
     };
