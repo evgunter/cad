@@ -19,9 +19,11 @@ A finished body holds its records and `finish` is its one constructor.
 The gate confirms every record it is handed and nothing else: it runs
 the census's confirmation direction over those records
 (`census::confirm_only`, called from `AtRestBody::validate` in
-`crates/topo/src/validate.rs`), and any record that does not confirm
-refuses at that door. It searches for no meeting, so it raises none
-that no record backs, and with no record it reads nothing.
+`crates/topo/src/validate.rs`): a record the census read and did not
+confirm refuses at that door, and one no lane reads is held on its
+citation with the body at `Bar::Tier3`. It searches for no meeting, so
+it raises none that no record backs, and with no record it reads
+nothing.
 
 ## Measured: the gate flipped early
 
