@@ -170,4 +170,47 @@ mod tests {
             }
         }
     }
+
+    /// **A generator at an azimuth read near the axis, far along it,
+    /// opens at its half-angle**: the azimuth of a point `50 m` along a
+    /// tilted axis and `1e-5 m` off it, read as the importer reads one
+    /// (the point's offset from the axis, normalized), stands off square
+    /// to the axis by the axial distance's rounding over the radius,
+    /// millions of ulps. Squared about the axis
+    /// ([`RigidMotion::squared_about`]), the generator swings in one
+    /// frame's plane: unit to its rounding, and `α` off the axis to a few
+    /// ulps at every azimuth tried. Red under the generator swung toward
+    /// the raw azimuth, `w·cos α + d·sin α`, whose angle to the axis is
+    /// off by the azimuth's tilt.
+    #[test]
+    fn a_generator_read_near_the_axis_far_along_it_opens_at_its_half_angle() {
+        let apex = Point3::new(0.3, -1.2, 0.7);
+        let axis = crate::stated_direction(Vec3::new(2.0, -1.0, 2.0) / 3.0);
+        let across = Vec3::new(1.0, 2.0, 0.0) / 5.0_f64.sqrt();
+        let alpha = 0.35_f64;
+        let mut tilted = 0;
+        for k in 0..64 {
+            let t = f64::from(k) * 0.098;
+            let ring = across * t.cos() + axis.get().cross(across) * t.sin();
+            let p = apex + axis.get() * 50.0 + ring * 1e-5;
+            let d = crate::Line {
+                origin: apex,
+                dir: axis,
+            }
+            .offset(p)
+            .normalize();
+            tilted += usize::from(d.dot(axis.get()).abs() > 1e3 * f64::EPSILON);
+            let Curve3::Line(g) = cone_generator(RigidMotion::squared_about(apex, axis, d), alpha)
+            else {
+                unreachable!("a generator is a line")
+            };
+            assert!(
+                geom_core::UnitVec3::stated(g.dir.get()).is_some(),
+                "{k}: unit"
+            );
+            let off = (g.dir.get().dot(axis.get()) - alpha.cos()).abs();
+            assert!(off <= 4.0 * f64::EPSILON, "{k}: {off:e} off cos α");
+        }
+        assert!(tilted > 0, "some azimuth stands off square to the axis");
+    }
 }

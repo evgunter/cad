@@ -889,7 +889,7 @@ impl<T: Decide> CylinderTorusPose<T> {
         let &Surface::Cylinder { radius, .. } = cylinder else {
             return None;
         };
-        let cylinder_axis = cylinder.axis_line()?.unit();
+        let cylinder_axis = cylinder.axis_line()?;
         let ring = Ring::of(torus, band)?;
         Some((|| {
             radius_guard("ct_cylinder_radius", SectionRadius::Cylinder, radius, band)?;

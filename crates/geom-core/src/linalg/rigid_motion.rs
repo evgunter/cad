@@ -242,10 +242,9 @@
 //! at a box scalar no door re-derives a motion's rigidity from its
 //! entries, and every motion there is minted by its construction.
 //!
-//! There is deliberately **no** door that takes rigidity on trust, for
-//! the reason [`UnitVec3`]'s docs give for the direction: a caller
-//! holding a map it believes is rigid has either a construction to
-//! name — then a mint above IS that construction — or twelve numbers,
+//! There is deliberately **no** door that takes rigidity on trust: a
+//! caller holding a map it believes is rigid has either a construction
+//! to name — then a mint above IS that construction — or twelve numbers,
 //! and then [`RigidMotion::check_rigid`] is the decision.
 //!
 //! # What is NOT this type
@@ -254,9 +253,8 @@
 //! ([`RigidMotion::to_affine`]), and an [`Affine3`] read back off a body
 //! is a placement, not a witness. There is no mirror and no scale here:
 //! the kernel acts with one group. The geometry carriers' frames are this
-//! type (`geom::Frame` holds one); a line's `dir` stays a bare `Vec3`,
-//! since a line is also an affine chord whose parameter is scaled by
-//! `|dir|`. Two other types in the
+//! type (`geom::Frame` holds one), and a line's `dir` is a [`UnitVec3`]
+//! its parameter runs along in metres. Two other types in the
 //! workspace are called frames and are different things:
 //! `editor-core`'s placement `Frame` stores a general linear part, so
 //! an improper map stays representable and refusable, and `sweep`'s
@@ -688,7 +686,7 @@ impl<T: Real> RigidMotion<T> {
     /// axes are one frame's, so the swing is unit over the reals; its
     /// rounding is measured and squared at a point scalar, and a pair
     /// `(c, s)` off the unit circle is refuted, poisoned
-    /// ([`UnitVec3::through_isometry`]'s check).
+    /// ([`UnitVec3::through_isometry`]'s measurement).
     #[must_use]
     pub fn swing(self, c: T, s: T) -> UnitVec3<T> {
         UnitVec3::kept_or_squared(self.w.get() * c + self.u.get() * s).0

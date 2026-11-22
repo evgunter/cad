@@ -766,28 +766,17 @@ impl<T: Real> Line<T> {
         self.origin + self.dir.get() * t
     }
 
-    /// **The same line with its direction normalised**, for a reader that
-    /// takes the direction as unit (a meridian sheet's axis, a revolve's
-    /// seed). Readings on `self` itself need no unit direction.
-    #[must_use]
-    pub fn unit(self) -> Self {
-        Self {
-            origin: self.origin,
-            dir: UnitVec3::squared(self.dir.get()),
-        }
-    }
-
-    /// The parameter of `p`'s foot: `(p − origin)·dir / |dir|²`, the
-    /// coefficient of [`Vec3::project_onto`] in its association.
+    /// The parameter of `p`'s foot: `(p − origin)·dir`, arc length along
+    /// the unit direction.
     #[must_use]
     pub fn param(&self, p: Point3<T>) -> T {
         self.coefficient(p - self.origin)
     }
 
-    /// `w`'s coefficient along `dir`, `w·dir / |dir|²`: the one spelling
+    /// `w`'s coefficient along the unit `dir`, `w·dir`: the one spelling
     /// [`Self::param`] and [`Self::param_and_offset`] read.
     fn coefficient(&self, w: Vec3<T>) -> T {
-        w.dot(self.dir.get()) / self.dir.get().norm_squared()
+        w.dot(self.dir.get())
     }
 
     /// **`p`'s foot**: the point of the line nearest `p`.
@@ -922,33 +911,17 @@ impl<T: Real> Line<T> {
 }
 
 #[cfg(any(test, feature = "test-support"))]
-impl Line<f64> {
-    /// **The `f64` line along a stated direction, its bits adopted**:
-    /// `dir` kept bit for bit where it is unit within its own rounding
-    /// ([`UnitVec3::stated`]), so every reading pinned to the stated bits
-    /// reads them. A `dir` that is not unit to rounding fails loud: it is
-    /// a caller's chord or a typo, never a direction the line can square
-    /// in silence (a debug assertion, and in a release build the
-    /// direction poisoned, which the predicate layer refuses). A
-    /// construction holding a [`UnitVec3`] already builds the line
-    /// itself; one holding a chord squares it and rescales its span.
-    /// Test builds only: at the file boundary the import takes
-    /// [`UnitVec3::stated`]'s `None` and refuses typed, and a kernel
-    /// construction mints its direction.
-    #[must_use]
-    pub fn stated(origin: Point3<f64>, dir: Vec3<f64>) -> Self {
-        Self {
-            origin,
-            dir: stated_direction(dir),
-        }
-    }
-}
-
-#[cfg(any(test, feature = "test-support"))]
-/// **A stated `f64` direction as the witness, failing loud**:
-/// [`UnitVec3::stated`]'s bits where `dir` is unit to rounding, and
-/// otherwise a debug assertion, and in a release build the direction
-/// poisoned ([`Line::stated`]).
+/// **A stated `f64` direction as the witness, failing loud**: `dir` kept
+/// bit for bit where it is unit within its own rounding
+/// ([`UnitVec3::stated`]), so every reading pinned to the stated bits
+/// reads them. A `dir` that is not unit to rounding is a caller's chord
+/// or a typo, never a direction a line can square in silence: a debug
+/// assertion, and in a release build the direction poisoned, which the
+/// predicate layer refuses. A construction holding a [`UnitVec3`] builds
+/// its line itself, and one holding a chord takes [`Line::chord`]. Test
+/// builds only: at the file boundary the import takes
+/// [`UnitVec3::stated`]'s `None` and refuses typed, and a kernel
+/// construction mints its direction.
 #[must_use]
 pub fn stated_direction(dir: Vec3<f64>) -> UnitVec3<f64> {
     UnitVec3::stated(dir).unwrap_or_else(|| {
@@ -958,16 +931,6 @@ pub fn stated_direction(dir: Vec3<f64>) -> UnitVec3<f64> {
         );
         UnitVec3::squared(Vec3::new(f64::NAN, f64::NAN, f64::NAN))
     })
-}
-
-#[cfg(any(test, feature = "test-support"))]
-impl Curve3<f64> {
-    /// **The `f64` line carrier along a stated direction**, its bits
-    /// adopted or failing loud ([`Line::stated`]).
-    #[must_use]
-    pub fn line_stated(origin: Point3<f64>, dir: Vec3<f64>) -> Self {
-        Self::Line(Line::stated(origin, dir))
-    }
 }
 
 /// **A half-line**: [`Ray::line`] read forward from its start, the point
@@ -2213,12 +2176,15 @@ mod tests {
     }
 
     /// **A stated `f64` line keeps its direction's bits, and a chord
-    /// stated as a direction fails loud** ([`Line::stated`]): the door
+    /// stated as a direction fails loud** ([`stated_direction`]): the door
     /// for a direction unit to rounding, never one that squares a chord.
     #[test]
     fn a_stated_line_keeps_its_bits() {
         let d = Vec3::new(0.6, 0.8, 0.0);
-        let l = Line::stated(Point3::new(1.0, 2.0, 3.0), d);
+        let l = Line {
+            origin: Point3::new(1.0, 2.0, 3.0),
+            dir: stated_direction(d),
+        };
         assert_eq!(
             [l.dir.get().x.to_bits(), l.dir.get().y.to_bits()],
             [d.x.to_bits(), d.y.to_bits()]
@@ -2229,7 +2195,7 @@ mod tests {
     #[cfg(debug_assertions)]
     #[should_panic(expected = "is not unit to rounding")]
     fn a_line_stated_along_a_chord_fails_loud() {
-        let _ = Line::stated(Point3::origin(), Vec3::new(3.0, 0.0, 4.0));
+        let _ = stated_direction(Vec3::new(3.0, 0.0, 4.0));
     }
 
     /// **A line carrier reaches `Interval` through its direction's lift**
@@ -2239,7 +2205,10 @@ mod tests {
     #[test]
     fn a_line_lifts_its_direction_as_a_unit_vector() {
         use geom_core::{Bounds, Interval};
-        let line = Curve3::line_stated(Point3::new(1.0, -2.0, 0.5), Vec3::new(0.6, 0.8, 0.0));
+        let line = Curve3::line(
+            Point3::new(1.0, -2.0, 0.5),
+            stated_direction(Vec3::new(0.6, 0.8, 0.0)),
+        );
         let Curve3::Line(lifted) = line.map_scalar(Interval::from_f64) else {
             panic!("a line lifts to a line")
         };

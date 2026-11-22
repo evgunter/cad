@@ -554,13 +554,13 @@ fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
             let (origin, normal) = (frame.origin(), frame.axis());
             Some((x - origin).dot(normal.normalize()))
         }
-        Surface::Cylinder { radius, .. } => Some(sheet_of(s.axis_line()?.unit(), x).0 - *radius),
+        Surface::Cylinder { radius, .. } => Some(sheet_of(s.axis_line()?, x).0 - *radius),
         Surface::Sphere { frame, radius, .. } => {
             let center = frame.origin();
             Some((x - center).norm() - *radius)
         }
         Surface::Cone { half_angle, .. } => {
-            let (rho, z) = sheet_of(s.axis_line()?.unit(), x);
+            let (rho, z) = sheet_of(s.axis_line()?, x);
             Some(rho * half_angle.cos() - z.abs() * half_angle.sin())
         }
         Surface::Torus {
@@ -568,7 +568,7 @@ fn surface_distance<T: Real>(s: &Surface<T>, x: Point3<T>) -> Option<T> {
             minor_radius,
             ..
         } => {
-            let (rho, z) = sheet_of(s.axis_line()?.unit(), x);
+            let (rho, z) = sheet_of(s.axis_line()?, x);
             Some(((rho - *major_radius).powi(2) + z.powi(2)).sqrt() - *minor_radius)
         }
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
@@ -631,7 +631,7 @@ fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, geom::Line<T>)> 
         },
         _ => return None,
     };
-    Some((f, s.axis_line()?.unit()))
+    Some((f, s.axis_line()?))
 }
 
 /// **A surface's distance read in the sheet about the unit axis `a`

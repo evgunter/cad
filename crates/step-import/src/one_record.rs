@@ -262,7 +262,7 @@ fn round(surface: &Surface<f64>) -> bool {
 /// or two cones whose axes point opposite ways (two nappes, never one
 /// locus).
 fn round_gap(a: &Surface<f64>, b: &Surface<f64>, reach: &crate::reach::Reach) -> Option<f64> {
-    let (la, lb) = (a.axis_line()?.unit(), b.axis_line()?.unit());
+    let (la, lb) = (a.axis_line()?, b.axis_line()?);
     let Datums {
         radii,
         on_axis,

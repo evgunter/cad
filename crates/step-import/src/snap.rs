@@ -349,9 +349,7 @@ fn candidates(
 /// ([`Surface::axis_line`]); a sphere's centre has no axis of its own.
 fn axis(s: &Surface<f64>) -> Option<Line<f64>> {
     match s {
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. } => {
-            s.axis_line().map(Line::unit)
-        }
+        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. } => s.axis_line(),
         _ => None,
     }
 }

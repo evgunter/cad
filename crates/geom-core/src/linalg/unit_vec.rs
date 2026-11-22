@@ -31,10 +31,32 @@
 //!   or axis): its length is decided levered by an arm, a positive
 //!   length the caller names, with its own refusals
 //!   ([`LeveredUnitError`]).
-//! - `-u` — negation is exact at every scalar.
+//! - [`UnitVec3::squared`] — a direction squared with no decision, poison
+//!   where its length is zero; [`UnitVec3::chord`] is the chord's
+//!   spelling of it, `v / |v|` beside `|v|`.
+//! - **The construction doors**, each naming the construction that makes
+//!   its value unit over the reals: [`UnitVec3::through_isometry`] (an
+//!   isometry's image), [`RigidMotion::swing`](super::RigidMotion::swing)
+//!   (a swing in one frame's plane) and [`UnitVec3::half_turned`] (a half
+//!   turn about a unit axis). Each MEASURES what it made at a point
+//!   scalar: within the rounding [`UnitVec3::stated`] charges the bits
+//!   are kept, past it the value is squared (so a chain of rounded
+//!   images does not drift off unit, and the door reports the length it
+//!   divided by for a parameter that runs along the direction), and past
+//!   any rounding, or not finite, it is poison. At an enclosure kind the
+//!   construction's argument covers every value enclosed, and an
+//!   enclosure that holds no unit vector is poison. The check runs in a
+//!   release build as in a debug one.
+//! - [`UnitVec3::checked`] — that measurement for a vector whose
+//!   construction has no door of its own (a frame squared into bare
+//!   vectors, a fixture's literal).
+//! - [`UnitVec3::stated`] — a stated `f64` direction adopted as its bits
+//!   where it is unit to rounding, `None` past it.
+//! - `-u`, [`UnitVec3::reversed`] and [`UnitVec3::turned_toward`] —
+//!   negation and a sign chosen are exact at every scalar.
 //! - The exact basis axes ([`UnitVec3::exact_x`], [`UnitVec3::exact_y`],
 //!   [`UnitVec3::exact_z`]), exact by construction rather than by
-//!   decision.
+//!   decision, and [`UnitVec3::signed_permutation`] of a witness.
 //! - The cross product of an orthonormal pair, and a vector a rigid
 //!   motion produced, both private to [`linalg`](super) and both exact
 //!   in the reals by construction — they exist so
@@ -59,23 +81,20 @@
 //!
 //! The deciding doors in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto
-//! theirs; nothing else in this crate can produce the type, because the
-//! field is private to this module and no other door here writes it.
+//! theirs; the field is private to this module, so no door but those
+//! listed writes it.
 //!
-//! There is deliberately **no** "check that it is already unit"
-//! constructor: a caller holding a bare vector it believes is unit has
-//! either a decision to record — then the normalizing mint is exactly
-//! that decision, at the cost of one divide that changes no bit of an
-//! already-unit input the format holds exactly — or no decision, in
-//! which case the type has nothing to witness.
+//! **No door adopts a vector on trust.** A caller holding a bare vector
+//! it believes is unit has a construction to name, whose door measures
+//! it, or a decision to record, and then the normalizing mint is exactly
+//! that decision.
 //!
 //! # What is NOT this type
 //!
-//! A line's `dir` (`geom::Line`) stays a bare `Vec3`: a line is also an
-//! affine chord whose parameter is scaled by `|dir|`. The carriers'
-//! frames are [`RigidMotion`](super::RigidMotion)s, whose axes are this
-//! type. The 2-D analogue, `profile::path::Dir<T>`, is that crate's own
-//! and is left where it is.
+//! The carriers' frames are [`RigidMotion`](super::RigidMotion)s, whose
+//! axes are this type, and a line's `dir` (`geom::Line`) is this type,
+//! its parameter arc length. The 2-D analogue, `profile::path::Dir<T>`,
+//! is that crate's own and is left where it is.
 
 use core::ops::Neg;
 
@@ -623,7 +642,7 @@ enum Measured {
     /// Unit within its rounding, or an enclosure that holds a unit
     /// vector: its bits kept.
     Kept,
-    /// Past its rounding at a point scalar, within [`SQUARING_REACH`]:
+    /// Past its rounding at a point scalar, within `√ε`:
     /// squared.
     Squared,
     /// Refuted: not finite, an enclosure that holds no unit vector, or
@@ -642,7 +661,7 @@ impl<T: Real> UnitVec3<T> {
     /// - At a point kind ([`Witness::Inexact`](crate::Witness::Inexact))
     ///   the defect `|v·v − 1|` is measured against
     ///   [`UnitVec3::stated`]'s charge, `rounding_charge(v·v + 1)`. Within
-    ///   it the bits are kept; past it, within [`SQUARING_REACH`], the
+    ///   it the bits are kept; past it, within `√ε`, the
     ///   value is squared, so a chain of rounded constructions does not
     ///   drift off unit; beyond, or not finite, it is refuted.
     ///
@@ -706,7 +725,7 @@ impl<T: Real> UnitVec3<T> {
     /// Unit over the reals for every orthogonal `linear`, so at an
     /// enclosure kind the image keeps its bits; at a point scalar the
     /// rounding of the product is measured, and an image a chain of maps
-    /// has carried past its rounding is squared ([`Self::measured`]). The
+    /// has carried past its rounding is squared (the module docs' measurement). The
     /// second value is the length the image was divided by, `one` where
     /// its bits are kept: a line carried by the map scales its parameter
     /// by it. A `linear` that is no isometry's is refuted, and the image
@@ -755,9 +774,9 @@ impl<T: Real> UnitVec3<T> {
         Self(self.0.turned_toward(like))
     }
 
-    /// **A direction unit to rounding, checked**: [`Self::measured`]'s
-    /// verdict on `v`, its bits kept within its rounding, squared past it
-    /// within [`SQUARING_REACH`], and poisoned beyond or where it is not
+    /// **A direction unit to rounding, checked**: the construction doors'
+    /// measurement of `v` (module docs), its bits kept within its rounding, squared past it
+    /// within `√ε`, and poisoned beyond or where it is not
     /// finite, in a release build as in a debug one. The door for a
     /// vector whose unit length is a premise none of the typed doors
     /// names (a frame squared into bare vectors, a fixture's literal); a

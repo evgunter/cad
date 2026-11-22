@@ -616,13 +616,16 @@ fn read_section(
     // construction reads no digit the file printed but its sense.
     let canonical;
     let seed = if plane_normals(sa, sb).is_some() {
-        let tangent = spec.carrier.deriv(geom::mid_param(spec.t0, spec.t1));
-        // The printed carrier's tangent, its bits kept where it is unit
-        // to rounding (a printed line's), squared where it is not.
+        // A printed line's own direction, which its import adopted
+        // (`unit_direction`); another carrier's tangent squared, its sense
+        // all the seed reads.
+        let dir = match &spec.carrier {
+            Curve3::Line(line) => line.dir,
+            other => geom_core::UnitVec3::squared(other.deriv(geom::mid_param(spec.t0, spec.t1))),
+        };
         canonical = Curve3::Line(geom::Line {
             origin: Point3::origin(),
-            dir: geom_core::UnitVec3::stated(tangent)
-                .unwrap_or_else(|| geom_core::UnitVec3::squared(tangent)),
+            dir,
         });
         (&canonical, (0.0, 0.0))
     } else {

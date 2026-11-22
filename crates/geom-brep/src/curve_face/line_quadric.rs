@@ -845,8 +845,9 @@ pub fn line_cone_roots<T: Decide>(
 /// **The line × cone method**: a crossing line's two roots, from the
 /// quadratic about its closest approach to the apex held to the run,
 /// each metered (`line_quadric_cone_root_slack`): its slack along the
-/// line ([`Centred::roots`]' bound read at that root, at the line's
-/// speed), less the root's distance outside the run, must be definitely
+/// line ([`Centred::roots`]' bound read at that root, in metres, the
+/// line's parameter being arc length), less the root's distance outside
+/// the run, must be definitely
 /// inside the band. A root inside the run is placed within the band; one
 /// outside it is placed no nearer the run than the band, which is all a
 /// reader of the run reads of it.
@@ -864,14 +865,13 @@ fn cone_roots<T: Decide>(
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let disc = centred.disc();
     let (roots, _) = centred.roots(disc);
-    let speed = line.dir.get().norm();
     let mut placed = [(T::zero(), T::zero()); 2];
     for (t, at) in roots.into_iter().zip(&mut placed) {
         let slack = centred.slack_at(t - centred.shift, disc);
-        let outside = speed * (lo - t).max(t - hi).max(T::zero());
+        let outside = (lo - t).max(t - hi).max(T::zero());
         match decide(
             "line_quadric_cone_root_slack",
-            Margin::of(speed * slack - outside),
+            Margin::of(slack - outside),
             band,
         ) {
             Ok(Sign::Zero | Sign::Negative) => *at = (t, slack),

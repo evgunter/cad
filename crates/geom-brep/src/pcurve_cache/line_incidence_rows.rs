@@ -164,7 +164,7 @@ fn hunt(
         .iter()
         .map(|s| (*s - line.origin).dot(line.dir.get()) / uu)
         .collect();
-    if let Some(geom::Line { origin: o, dir: a }) = surface.axis_line().map(geom::Line::unit) {
+    if let Some(geom::Line { origin: o, dir: a }) = surface.axis_line() {
         let (q, u) = (line.origin - o, line.dir);
         let (qo, uo) = (
             q - a.get() * q.dot(a.get()),

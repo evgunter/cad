@@ -1042,7 +1042,7 @@ fn axial_frame<T: Real>(
             surface @ (Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
-            | Surface::Torus { .. }) => surface.axis_line().map(geom::Line::unit),
+            | Surface::Torus { .. }) => surface.axis_line(),
             Surface::Plane { .. } => None,
             other => {
                 return Err(ReplaceFaceError::TogetherAxialUnsupported {

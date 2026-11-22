@@ -11558,16 +11558,13 @@ fn on_its_line<T: Real>(
     edge: &EdgeGeo<T>,
     (line, (t0, t1)): (geom::Line<T>, (T, T)),
 ) -> EdgeGeo<T> {
-    let (dir, speed) = line.dir.get().direction_and_length();
-    // The line's direction over its own length: unit over the reals.
-    let dir = UnitVec3::checked(dir);
     EdgeGeo {
         key: edge.key,
         v0: edge.v0,
         v1: edge.v1,
         f_plus: edge.f_plus,
         f_minus: edge.f_minus,
-        ..span_along(line.at(t0), dir, (t1 - t0) * speed)
+        ..span_along(line.at(t0), line.dir, t1 - t0)
     }
 }
 

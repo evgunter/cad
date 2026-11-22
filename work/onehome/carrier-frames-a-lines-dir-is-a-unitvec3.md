@@ -48,20 +48,33 @@ The audit chose to rescale chords: no chord type. A chord from `a` to
 chord's length, so the segment is the span `(0, |b − a|)`. `Ray`'s
 advance is metres.
 
-**The doors** (`geom-core` `linalg/unit_vec.rs`, `geom` `curves.rs`):
+**The doors** (`geom-core` `linalg/unit_vec.rs` and `rigid_motion.rs`,
+`geom` `curves.rs`):
 - `UnitVec3::stated(Vec3<f64>)` adopts a stated `f64` direction's bits
   where `|v·v − 1| ≤ rounding_charge(v·v + 1)`, the frame door's column
-  test (16ε about a unit vector). It answers `None` past that.
-- `geom::stated_direction`, `Line::stated` and `Curve3::line_stated` are
-  the fail-loud form: a debug assertion, and poison in a release build.
-- `UnitVec3::constructed(v)`, at any scalar, adopts the bits of a
-  direction unit by the caller's construction: a rigid image of a unit
-  vector, `a·cos α + d·sin α` over an orthonormal pair, a chord over its
-  own length. Its debug check reads the value's defect against the same
-  charge.
+  test (16ε about a unit vector). It answers `None` past that, and the
+  import refuses typed.
+- `geom::stated_direction` is the fail-loud form, test builds only: a
+  debug assertion, and poison in a release build.
+- The construction doors name the construction that makes a direction
+  unit: `UnitVec3::through_isometry` (a rigid motion's or a reflection's
+  image), `RigidMotion::swing` (`w·cos α + u·sin α` over one frame) and
+  `UnitVec3::half_turned`. Each measures its value at a point scalar: the
+  bits are kept within the charge, squared past it (a chain of maps does
+  not drift off unit), and poisoned past `√ε` or where not finite. At an
+  enclosure kind the bits are kept unless the bracket of `v·v − 1`
+  excludes zero, which is poison. The check runs in release builds.
+- `UnitVec3::checked` is that measurement for a vector with no door of
+  its own: a frame squared into bare vectors (`SquareFrame`, the
+  section certifier's `Swing`), a fixture's literal.
+- `UnitVec3::chord(v)` is `v / |v|` beside `|v|`, poison at a zero chord,
+  and `Line::chord` reads it. `reversed` and `turned_toward` are exact.
+- A transformed line whose direction the door squared has its edge's
+  span stretched by the length divided by (`map_carrier_stretched`,
+  `EdgeCurve::carried`), so its ends stay on its vertices.
 - The lift is `UnitVec3::map_scalar`: the polar unit enclosure at
   `Interval`, carried within a witness kind, and poison into another
-  kind's lane.
+  kind's lane. Test fixtures lift through it, not entry by entry.
 
 **What moved.**
 - The `f64` corpus dump is unchanged against main.
@@ -72,4 +85,7 @@ advance is metres.
   direction is no line's.
 - Certification's metred guard for a zero `dir` is removed: a zero
   vector has no direction to mint.
+- The chord-era vestiges are gone: `Line::unit`, `coefficient`'s
+  `/|dir|²`, the census's re-normalized line direction and the line ×
+  cone meter's speed.
 - The PR body lists each change with its cause and mutant.

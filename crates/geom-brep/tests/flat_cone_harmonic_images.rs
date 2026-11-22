@@ -201,11 +201,13 @@ fn a_ruling_off_a_cone_images_at_its_distance() {
 /// read within `24·u`.
 #[test]
 fn a_ruling_on_a_narrow_cone_encloses_its_envelope_tightly() {
+    // The ceiling, in units of `u·size`.
+    const CEILING_ULPS: f64 = 26.0;
     let mut wrong = Vec::new();
     for alpha in [0.1, 0.5] {
         for span in [(1.0, 100.0), (-1.0, -100.0)] {
             let (line, t1) = ruling(alpha, span, 0.0);
-            let ceiling = 26.0 * U * size(&line, t1);
+            let ceiling = CEILING_ULPS * U * size(&line, t1);
             let line = line.map_scalar(Interval::from_f64);
             let surface = cone(alpha).map_scalar(Interval::from_f64);
             let got = chart_pcurve(&line, &surface, band()).and_then(|image| {
@@ -225,7 +227,7 @@ fn a_ruling_on_a_narrow_cone_encloses_its_envelope_tightly() {
                     if width > ceiling {
                         wrong.push(format!(
                             "α {alpha}, {span:?}: width {width:e} = {:.1}·u·size, over {ceiling:e}",
-                            width / (ceiling / 26.0)
+                            width / (ceiling / CEILING_ULPS)
                         ));
                     }
                 }

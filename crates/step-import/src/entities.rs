@@ -2650,11 +2650,9 @@ fn first_proj_axis(axis: Vec3<f64>) -> Vec3<f64> {
 /// **A line's unit direction from the file's ratio triple**: the triple
 /// itself where it is unit within its own rounding, so a unit direction
 /// the writer printed is kept bit for bit; otherwise the triple
-/// normalized. Read by the kernel's f64 door: the line's frame is built by
-/// `build_axes` about the triple, and with the triple as stated put back
-/// as its axis, [`geom_core::RigidMotion::check_rigid`] says whether the
-/// frame is still rigid within its rounding. `None` for a triple that
-/// names no direction.
+/// normalized, the axis of the frame `build_axes` decides about it. Unit
+/// within its rounding is [`geom_core::UnitVec3::stated`]'s column test,
+/// the frame door's. `None` for a triple that names no direction.
 fn unit_line_direction(ratios: Vec3<f64>) -> Option<geom_core::UnitVec3<f64>> {
     let reference = first_proj_axis(ratios);
     let built = geom_core::RigidMotion::from_axis_and_reference(
@@ -2665,17 +2663,9 @@ fn unit_line_direction(ratios: Vec3<f64>) -> Option<geom_core::UnitVec3<f64>> {
         geom_core::Band::least(),
     )
     .ok()?;
-    let (u, v) = (built.u().get(), built.v().get());
-    let stated = Affine3::from_parts(Mat3::from_cols(u, v, ratios), Vec3::zero());
-    // The stated ratios where they are a unit direction to rounding (the
-    // frame door's column test admits them, so the direction door does),
-    // the built frame's axis otherwise.
-    Some(
-        geom_core::RigidMotion::check_rigid(&stated)
-            .ok()
-            .and_then(|_| geom_core::UnitVec3::stated(ratios))
-            .unwrap_or_else(|| built.w()),
-    )
+    // The stated ratios where they are a unit direction to rounding, the
+    // built frame's axis otherwise.
+    Some(geom_core::UnitVec3::stated(ratios).unwrap_or_else(|| built.w()))
 }
 
 /// A placement as interpretation built it: the frame, the same frame as a

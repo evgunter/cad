@@ -1205,3 +1205,89 @@ mod approx_rows {
             .expect("the mapped pair certifies at the run's ε");
     }
 }
+
+/// A body under a chain of maps: its lines stay unit and on their
+/// vertices.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod chain_rows {
+    use geom_core::{Tol, Vec3};
+
+    /// **A brick moved forty times keeps its lines unit and on their
+    /// vertices** (`[topology.tiers]`): sixty poses, each a chain of forty
+    /// rigid motions about skew axes through far points, applied to a
+    /// long brick in turn. After every chain each line carrier's direction
+    /// is unit to its rounding ([`UnitVec3::stated`]), each line edge's
+    /// ends lie on its vertices, and the body validates, structurally and
+    /// at tier 3, at the run's ε. Some chain carries a direction past its
+    /// rounding, so the door squares it and the edge's span is stretched.
+    /// Red under the door keeping every image's bits (the lines drift off
+    /// unit), and under a squared line keeping its span (its ends stand
+    /// off its vertices by the span times the squaring).
+    #[test]
+    fn a_brick_moved_forty_times_keeps_its_lines_unit_and_on_their_vertices() {
+        use super::{Body, Curve3, CurveGeom, RigidMotion, transform_rigid};
+        use geom_core::UnitVec3;
+        let tol = Tol::witness();
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
+        };
+        let start =
+            crate::test_support_fixtures::brick::<f64>((0.0, 4e3), (0.0, 3.0), (0.0, 2.0), tol);
+        let spans = |body: &Body<f64>| -> Vec<(u64, u64)> {
+            body.edges()
+                .filter_map(|(_, e)| match body.curves.get(e.curve) {
+                    Some(CurveGeom::Certified(c)) => {
+                        let (a, b) = c.params();
+                        Some((a.to_bits(), b.to_bits()))
+                    }
+                    _ => None,
+                })
+                .collect()
+        };
+        let mut stretched = 0;
+        for pose in 0..60 {
+            let mut body = start.clone();
+            for _ in 0..40 {
+                let axis = UnitVec3::squared(Vec3::new(next(), next(), next()));
+                let motion = RigidMotion::rotation_then_translation(
+                    axis,
+                    3.0 * next(),
+                    Vec3::new(next(), next(), next()) * 50.0,
+                )
+                .expect("a rotation about a unit axis");
+                body = transform_rigid(&body, &motion).expect("a brick moves");
+            }
+            for (ek, edge) in body.edges() {
+                let Some(CurveGeom::Certified(c)) = body.curves.get(edge.curve) else {
+                    panic!("pose {pose}: a certified edge");
+                };
+                let Curve3::Line(line) = c.carrier() else {
+                    continue;
+                };
+                assert!(
+                    UnitVec3::stated(line.dir.get()).is_some(),
+                    "pose {pose}: {line:?} is unit to its rounding"
+                );
+                let (v0, v1) = body.edge_vertices(ek).expect("an edge has two ends");
+                let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                let (t0, t1) = c.params();
+                for (t, v) in [(t0, v0), (t1, v1)] {
+                    let off = (line.at(t) - at(v)).norm();
+                    assert!(off <= 1e-11, "pose {pose}: an end {off:e} m off its vertex");
+                }
+            }
+            crate::validate(&body).unwrap_or_else(|e| panic!("pose {pose}: {e:?}"));
+            crate::validate_geometric(&body, tol).unwrap_or_else(|e| panic!("pose {pose}: {e:?}"));
+            stretched += usize::from(spans(&body) != spans(&start));
+        }
+        assert!(
+            stretched > 0,
+            "some chain squares a line and stretches its span"
+        );
+    }
+}

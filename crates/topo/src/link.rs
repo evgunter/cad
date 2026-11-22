@@ -4088,7 +4088,7 @@ impl<T: Decide> Round<T> {
     /// normalised here, `convex` a pin's.
     pub fn cylinder(axis: geom::Line<T>, radius: T, convex: bool) -> Self {
         Self {
-            at: Axis::Line(axis.unit()),
+            at: Axis::Line(axis),
             radius,
             convex,
         }
