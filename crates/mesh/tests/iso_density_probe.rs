@@ -50,7 +50,11 @@ fn class_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
     body.faces()
         .filter(|(fk, f)| {
             let surface = body.face_surface(*fk).unwrap();
-            f.rings.is_empty()
+            !matches!(
+                surface.kind(),
+                SurfaceKind::Plane | SurfaceKind::Nurbs | SurfaceKind::Approx
+            ) && !f.rings.is_empty()
+                || f.rings.is_empty()
                 && !matches!(
                     surface.kind(),
                     SurfaceKind::Plane | SurfaceKind::Nurbs | SurfaceKind::Approx
@@ -161,6 +165,11 @@ fn iso_density_pipe_walls() {
     for op in ["A ∪ B", "A ∖ B"] {
         both(&format!("pipe: bar half in, seam, {op}"), &op_of(&pipe, &half_in, op));
     }
+    // Holed (a ring each side): the bar through, and a bar beside the seam.
+    let through = bar((-1.1, 1.1), 0.3, (-0.3, 0.3), 0.0);
+    both("pipe(ring): bar through", &op_of(&pipe, &through, "A ∖ B"));
+    let beside = bar((0.5, 1.1), 0.3, (-0.3, 0.3), 1.0);
+    both("pipe(ring): bar half in beside seam", &op_of(&pipe, &beside, "A ∖ B"));
     // A notch down from the top rim: width, depth, across or beside the seam.
     for (wn, w) in [("narrow", 0.1), ("mid", 0.3), ("wide", 0.6)] {
         for (dn, d) in [("shallow", 1.5), ("half", 0.0), ("deep", -1.5)] {
@@ -206,5 +215,28 @@ fn iso_density_sphere_faces() {
             Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), turn),
         );
         both(&format!("ball: wedge {what}"), &op_of(&ball, &wedge, "A ∖ B"));
+    }
+}
+
+#[test]
+#[ignore = "stage-1 measurement"]
+fn iso_density_scaled() {
+    // Slender, squat and large walls, the notch scaled with the pipe.
+    for (what, r, z0, h) in [("slender", 0.1, -2.0, 4.0), ("squat", 1.0, -0.2, 0.4), ("large", 10.0, -2.0, 4.0)] {
+        let pipe = finished("the pipe", rod(r, z0, h), tol());
+        let top = z0 + h;
+        let b = bar((0.0, 1.1 * r), 0.3 * r, (z0 + 0.5 * h, top + 0.5), 1.0);
+        both(&format!("pipe {what}: top notch beside seam"), &op_of(&pipe, &b, "A ∖ B"));
+        let b = bar((0.0, 1.1 * r), 0.3 * r, (z0 + 0.5 * h, top + 0.5), 0.0);
+        both(&format!("pipe {what}: top notch across seam"), &op_of(&pipe, &b, "A ∖ B"));
+    }
+    for (what, r) in [("small", 0.1), ("large", 10.0)] {
+        let ball = finished("the ball", ball_poled_z(r, Vec3::new(0.0, 0.0, 0.0), tol()), tol());
+        let wedge = posed(
+            "the wedge",
+            brick((0.0, 3.0 * r), (0.0, 3.0 * r), (-2.0 * r, 0.3 * r), tol()),
+            Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 0.3),
+        );
+        both(&format!("ball {what}: wedge through the south pole"), &op_of(&ball, &wedge, "A ∖ B"));
     }
 }
