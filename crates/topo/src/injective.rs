@@ -6378,7 +6378,12 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     if cmut && !c7329 && wm::top() {
         wm::flip(x.face, y.face);
     }
+    let fin = !c7329 && (matches!(base, Outcome::Refuse(_)) || (matches!(base, Outcome::Split { .. }) && depth >= max));
+    let fold_diff = cfold.is_some_and(|c| c != c7329);
     if wm::top() {
+        wm::count(crease, cmut && !c7329, crease && fin, fold_diff);
+    }
+    if wm::top() && ((cmut && !c7329) || (crease && fin) || fold_diff) {
         let sums: Vec<String> = sum
             .iter()
             .map(|r| {

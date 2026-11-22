@@ -39,6 +39,7 @@ thread_local! {
     pub(crate) static SUM: RefCell<Vec<SumRow>> = const { RefCell::new(Vec::new()) };
     pub(crate) static EDGES: RefCell<BTreeMap<EdgeKey, EdgeInfo>> = const { RefCell::new(BTreeMap::new()) };
     pub(crate) static CELL: Cell<(u32, u32)> = const { Cell::new((0, 0)) };
+    static COUNTS: Cell<[usize; 5]> = const { Cell::new([0; 5]) };
     static FLIPS: RefCell<BTreeSet<(FaceKey, FaceKey)>> = const { RefCell::new(BTreeSet::new()) };
 }
 
@@ -102,6 +103,7 @@ pub(crate) fn enter<T: geom_core::Decide + geom_core::Bounds>(
     ON.with(|o| o.set(true));
     MUTANT.with(|m| m.set(std::env::var_os("CAD_WM_MUTANT").is_some()));
     FLIPS.with(|f| f.borrow_mut().clear());
+    COUNTS.with(|c| c.set([0; 5]));
     let in_scope: BTreeSet<FaceKey> = faces.iter().copied().collect();
     let mut map = BTreeMap::new();
     let reach_home = crate::WedgeReach::new(body);
@@ -177,7 +179,14 @@ pub(crate) fn leave<T: geom_core::Certifies + geom_core::CertifiedBounds>(
         DEPTH_GUARD.with(|d| d.set(d.get() - 1));
         return;
     }
-    emit("WMV", &format!("{verdict:?}"));
+    let c = COUNTS.with(Cell::get);
+    emit(
+        "WMV",
+        &format!(
+            "calls={}\tcrease_calls={}\tflips={}\tcrease_final={}\tfold_diff={}\t{verdict:?}",
+            c[0], c[1], c[2], c[3], c[4]
+        ),
+    );
     let flips: Vec<(FaceKey, FaceKey)> = FLIPS.with(|f| f.borrow().iter().copied().collect());
     let was = MUTANT.with(Cell::get);
     for (a, b) in flips {
@@ -208,4 +217,16 @@ pub(crate) fn leave<T: geom_core::Certifies + geom_core::CertifiedBounds>(
 /// Whether the ask running is the outermost (rows are logged there only).
 pub(crate) fn top() -> bool {
     DEPTH_GUARD.with(Cell::get) == 1
+}
+
+pub(crate) fn count(crease: bool, flip: bool, fin: bool, fold_diff: bool) {
+    COUNTS.with(|c| {
+        let mut v = c.get();
+        v[0] += 1;
+        v[1] += usize::from(crease);
+        v[2] += usize::from(flip);
+        v[3] += usize::from(fin);
+        v[4] += usize::from(fold_diff);
+        c.set(v);
+    });
 }
