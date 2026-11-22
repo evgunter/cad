@@ -469,3 +469,328 @@ fn an_offset_is_read_back_only_where_the_editor_wrote_it() {
         "the kinds that take one"
     );
 }
+
+// --- review rows (formwords-review-face-offset) ----------------------
+
+/// **The copy mated `on` the face a ray `on` hits on the block and `to`
+/// the face a ray `to` hits elsewhere**, as `rested` mates its pair, at
+/// the row's own sense (opposed).
+fn mated_by(
+    session: &mut DocSession,
+    tools: &mut Tools,
+    on: &pncad::select::Ray,
+    to: &pncad::select::Ray,
+) {
+    let index = common::asm::index_of(session);
+    let on = common::displayed_face_at(session, &index, on);
+    let to = common::displayed_face_at(session, &index, to);
+    let tool = editor(tools);
+    assert!(tool.pick(session.doc(), on).is_none());
+    assert!(tool.pick(session.doc(), to).is_none());
+    common::into_to_space(session, tool);
+    commit(session, tools, "the mate");
+}
+
+/// The unnamed variables nothing reads (VR7 says there are none).
+fn unread_unnamed(doc: &Doc<ProfileProgram>) -> Vec<pncad::document::VarId> {
+    doc.vars()
+        .keys()
+        .copied()
+        .filter(|&var| {
+            var != pncad::document::VarId::WORLD
+                && !doc.var_names().contains_key(&var)
+                && !doc.is_read(var)
+        })
+        .collect()
+}
+
+/// **A positive offset moves the copy out of the face, whatever the
+/// face's normal and whichever sense the row reads it in**: on the
+/// base's top (`+z`), its underside (`-z`) and its `+x` wall, the copy's
+/// mated face stands `+GAP` along the target face's outward normal, and
+/// toggling the sense with the offset on leaves that plane where it is.
+/// Signs, not magnitudes.
+///
+/// *Breaks if* the offset runs along the flipped normal for any of the
+/// three, or a toggle moves the far plane.
+#[test]
+fn review_a_positive_offset_runs_out_of_the_face_in_every_direction_and_sense() {
+    let ([bx, by], h) = (BLOCK_AT, BLOCK_HEIGHT);
+    // (what, on-ray, to-ray, axis, the outward normal's sign, the face's
+    // coordinate, where the copy's origin sits along `axis` at rest)
+    let cases = [
+        (
+            "the top, +z",
+            common::up_at(bx, by),
+            common::down_at(0.0, 0.0),
+            2,
+            1.0,
+            BASE[2],
+            BASE[2],
+        ),
+        (
+            "the underside, -z",
+            common::down_at(bx, by),
+            common::up_at(0.0, 0.0),
+            2,
+            -1.0,
+            0.0,
+            -h,
+        ),
+        (
+            "the +x wall",
+            common::up_at(bx, by),
+            common::along_x(-1.0, 0.02, BASE[2] / 2.0),
+            0,
+            1.0,
+            BASE[0] / 2.0,
+            BASE[0] / 2.0,
+        ),
+    ];
+    for (what, on, to, axis, sign, _face, rest_at) in cases {
+        let (mut session, mut tools, _, copy) = scene("face-offset-review-sign");
+        mated_by(&mut session, &mut tools, &on, &to);
+        let rest = at(&session, copy)[axis];
+        near(rest, rest_at, &format!("{what}: the rest"));
+        stood_off(&mut session, &mut tools, Some(common::len(GAP)), what);
+        let off = at(&session, copy)[axis];
+        near(
+            off - rest,
+            sign * GAP,
+            &format!("{what}: +GAP runs out of the face"),
+        );
+        // Flush, the offset still on: the copy's own face (its local
+        // `z = 0`, so its origin) stays on the far plane.
+        if axis == 2 && sign > 0.0 {
+            editor(&mut tools).set_sense(0, false);
+            commit(&mut session, &mut tools, "flush");
+            near(
+                at(&session, copy)[axis],
+                BASE[2] + GAP,
+                &format!("{what}: flush keeps the far plane"),
+            );
+            assert_eq!(
+                editor(&mut tools).rows()[0].offset(),
+                Some(&common::len(GAP)),
+                "{what}: flush reads its offset back"
+            );
+            // The offset changed while flush: still out of the face.
+            stood_off(&mut session, &mut tools, Some(common::len(2.0 * GAP)), what);
+            near(
+                at(&session, copy)[axis],
+                BASE[2] + 2.0 * GAP,
+                &format!("{what}: a flush offset runs out of the face"),
+            );
+            editor(&mut tools).set_sense(0, true);
+            commit(&mut session, &mut tools, "opposed again");
+            near(
+                at(&session, copy)[axis],
+                BASE[2] + 2.0 * GAP,
+                &format!("{what}: back to opposed keeps the far plane"),
+            );
+            assert_eq!(
+                editor(&mut tools).rows()[0].offset(),
+                Some(&common::len(2.0 * GAP)),
+                "{what}: a double flip collapses, the offset still read"
+            );
+        }
+    }
+}
+
+/// **On a face of a mirrored body the offset still runs out of the
+/// face**: the base mirrored across its own top, the block rested on the
+/// image's top (the mirror of the base's underside) and stood off.
+#[test]
+fn review_a_positive_offset_runs_out_of_a_mirrored_face() {
+    let (mut session, mut tools, base, copy) = scene("face-offset-review-mirror");
+    let index = common::asm::index_of(&session);
+    let plane = common::displayed_face_at(&session, &index, &common::down_at(0.0, 0.0));
+    let out = session.perform(SessionOp::AddMirror {
+        body: base.into(),
+        plane,
+    });
+    assert!(out.refusal.is_none(), "mirror: {:?}", out.refusal);
+    session.pump();
+    let (bx, by) = (BLOCK_AT[0], BLOCK_AT[1]);
+    mated_by(
+        &mut session,
+        &mut tools,
+        &common::up_at(bx, by),
+        &common::down_at(0.0, 0.0),
+    );
+    near(at(&session, copy)[2], 2.0 * BASE[2], "on the image's top");
+    stood_off(&mut session, &mut tools, Some(common::len(GAP)), "mirror");
+    near(
+        at(&session, copy)[2],
+        2.0 * BASE[2] + GAP,
+        "+GAP off the image's top",
+    );
+}
+
+/// **A scene whose copy rests by the API's other spelling**,
+/// `Slide(Flip P, (Flip P).Normal, d)` (`asm::shelf_rest_op`'s): the
+/// session, the tools, the copy and the mate as written.
+fn foreign_rest(label: &str, d: f64) -> (DocSession, Tools, RecipeNodeId, Mate<Formula>) {
+    use pncad::document::pose::{PoseRole, RoleRead};
+    let (mut session, mut tools, _, copy) = scene(label);
+    rested(&mut session, &mut tools, VarKind::Plane);
+    let rest = the_mate(session.committed_doc(), copy);
+    let seat = rest.to.clone();
+    let to = Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(seat.clone()),
+        along: RoleRead::through(seat, PoseRole::Normal),
+        by: common::len(d),
+    }));
+    let foreign_mate = Mate {
+        on: rest.on.clone(),
+        to,
+        orient: rest.orient,
+    };
+    editor(&mut tools).strike(0, true);
+    editor(&mut tools).add_written(session.committed_doc(), &foreign_mate);
+    commit(&mut session, &mut tools, "the foreign rest");
+    assert_eq!(
+        the_mate(session.committed_doc(), copy),
+        foreign_mate,
+        "the bundle holds the API's spelling"
+    );
+    near(
+        at(&session, copy)[2],
+        BASE[2] - d,
+        "the foreign slide sinks by d",
+    );
+    let mut fresh = Tools::new();
+    fresh.open(ToolKind::Mate);
+    *fresh.mate_mut().expect("open") =
+        MateTool::edit(session.committed_doc(), copy).expect("a placement");
+    (session, fresh, copy, foreign_mate)
+}
+
+/// **A loaded rest written the other way round (`Slide(Flip P)`, the
+/// spelling `asm::shelf_rest_op` writes) takes a new offset out of the
+/// face too**: the API writes the rest slid by `d` along the flipped
+/// plane's normal (into the base); the editor reads no offset of its
+/// own there, and a `+GAP` set on the row must still move the block
+/// `+GAP` out of the face.
+///
+/// *Red at `86c1734a1`*: `offset_side` slides the foreign side along its
+/// own (flipped, inward) normal, and the block sinks `GAP` further.
+#[test]
+fn review_an_offset_on_a_foreign_slide_runs_out_of_the_face() {
+    let (mut session, mut tools, copy, _) = foreign_rest("face-offset-review-foreign", 0.002);
+    let foreign = at(&session, copy)[2];
+    assert_eq!(
+        editor(&mut tools).rows()[0].offset(),
+        None,
+        "no offset of its own"
+    );
+    stood_off(
+        &mut session,
+        &mut tools,
+        Some(common::len(GAP)),
+        "an offset over the foreign slide",
+    );
+    near(
+        at(&session, copy)[2] - foreign,
+        GAP,
+        "+GAP over a foreign slide runs out of the face",
+    );
+}
+
+/// **A foreign slide survives the editor's other gestures**: a value
+/// typed, the sense toggled and back, each leaves the API's slide as
+/// written (the toggle's double flip collapsing at the door).
+#[test]
+fn review_a_foreign_slide_survives_the_editors_other_gestures() {
+    let (mut session, mut tools, copy, foreign) =
+        foreign_rest("face-offset-review-foreign-kept", 0.002);
+    editor(&mut tools).type_value(Coord::slide(TargetAxis::X), common::len(0.001));
+    commit(&mut session, &mut tools, "an unrelated value");
+    assert_eq!(the_mate(session.committed_doc(), copy), foreign, "a value");
+    editor(&mut tools).set_sense(0, false);
+    commit(&mut session, &mut tools, "flush");
+    assert!(
+        slides(&the_mate(session.committed_doc(), copy).to),
+        "flush keeps the slide"
+    );
+    near(
+        at(&session, copy)[2],
+        BASE[2] - 0.002,
+        "flush keeps the far plane",
+    );
+    editor(&mut tools).set_sense(0, true);
+    commit(&mut session, &mut tools, "opposed");
+    assert_eq!(
+        the_mate(session.committed_doc(), copy),
+        foreign,
+        "toggled twice, the API's spelling exactly"
+    );
+}
+
+/// One change of the editor's draft.
+type Step = Box<dyn Fn(&mut MateTool)>;
+
+/// **Each offset change leaves no unread unnamed variable behind**
+/// (VR7) and is one undo step: set, changed, toggled, cleared.
+#[test]
+fn review_offset_rewrites_leave_no_unread_variable() {
+    let (mut session, mut tools, _, _) = scene("face-offset-review-vr7");
+    rested(&mut session, &mut tools, VarKind::Plane);
+    let before = unread_unnamed(session.committed_doc());
+    let steps: [(&str, Step); 5] = [
+        ("set", Box::new(|t| t.set_offset(0, Some(common::len(GAP))))),
+        (
+            "changed",
+            Box::new(|t| t.set_offset(0, Some(common::len(2.0 * GAP)))),
+        ),
+        ("flush", Box::new(|t| t.set_sense(0, false))),
+        ("opposed", Box::new(|t| t.set_sense(0, true))),
+        ("cleared", Box::new(|t| t.set_offset(0, None))),
+    ];
+    for (what, step) in steps {
+        step(editor(&mut tools));
+        commit(&mut session, &mut tools, what);
+        assert_eq!(
+            unread_unnamed(session.committed_doc()),
+            before,
+            "{what}: no unread unnamed variable"
+        );
+    }
+}
+
+/// **A negative formula offset sinks the copy, and one reading a
+/// variable later deleted leaves the copy unplaced**, the editor still
+/// reading the offset.
+#[test]
+fn review_an_offset_reading_a_deleted_variable() {
+    let (mut session, mut tools, _, copy) = scene("face-offset-review-deleted");
+    let declared = session.perform(SessionOp::DeclareVar {
+        name: pncad::document::VarName::from_static("gap"),
+        value: pncad::document::FreeVar::continuous(Dimension::Length, GAP),
+    });
+    assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+    session.pump();
+    rested(&mut session, &mut tools, VarKind::Plane);
+    let doc = session.committed_doc();
+    let by = viewer::matetool::typed_offset(doc, "-gap").expect("a length formula");
+    stood_off(&mut session, &mut tools, by, "a negative formula");
+    near(at(&session, copy)[2], BASE[2] - GAP, "-gap sinks the block");
+    let gap = common::var_of(session.committed_doc(), "gap");
+    let deleted = session.perform(SessionOp::DeleteVar { var: gap });
+    assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+    session.pump();
+    reconciled(&session, &mut tools);
+    // DeleteVar leaves its readers reading an id the document no longer
+    // holds (VR7): the offset still reads it, and the copy has no pose.
+    assert!(
+        editor(&mut tools).rows()[0].offset().is_some(),
+        "the offset still reads the deleted variable"
+    );
+    let (doc, ev) = session.landed_pair().expect("landed");
+    assert!(
+        pncad::document::SolvedPoses::of(doc, ev)
+            .relative(copy)
+            .is_none(),
+        "a standoff reading a deleted variable places nothing"
+    );
+}

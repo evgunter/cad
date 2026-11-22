@@ -611,7 +611,8 @@ fn a_frame_mated_on_a_frame_coincides() {
     assert!(moved.len() >= 2, "post_b's edge is drawn on post_a's");
 
     // An offset on the frame's far side slides it along its own `z`,
-    // the edge's line: the corner moves along the edge, by the offset.
+    // the edge's line: the corner moves along the edge, by the offset,
+    // up: the sign this edge's own direction gives its `z`.
     const OFFSET: f64 = 0.005;
     let mut tool = MateTool::edit(session.doc(), bench.post_b).expect("post_b is a placement");
     tool.set_offset(0, Some(common::len(OFFSET)));
@@ -629,7 +630,7 @@ fn a_frame_mated_on_a_frame_coincides() {
         (from.z + to.z) / 2.0,
     );
     assert!(
-        near(off.x, 0.0) && near(off.y, 0.0) && near((off.z - top).abs(), OFFSET),
+        near(off.x, 0.0) && near(off.y, 0.0) && near(off.z - top, OFFSET),
         "post_b's corner stands off post_a's along the edge: {off:?}"
     );
     std::fs::remove_dir_all(&bench.dir).expect("removable");
