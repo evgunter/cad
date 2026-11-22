@@ -1582,6 +1582,216 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
     }
 }
 
+// ------------------------------------------- a straight corner
+
+/// **The flush union of two bricks**, `[0, 1]³` and
+/// `[0.5, 1.5] × [0.25, 1.25] × [1, 2]`: one solid. The upper brick's
+/// corner `(1, 0.25, 1)` lands inside the lower one's top edge on
+/// `x = 1`, and the lower one's top edge inside the upper's bottom edge
+/// on `y = 0.25`, so each of those two walls has a vertex in the middle
+/// of a straight run of its boundary, and the two meet at that vertex
+/// alone.
+fn flush_union<T: Scalar>() -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished};
+    let lower = finished(
+        "the lower brick",
+        brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let upper = finished(
+        "the upper brick",
+        brick::<T>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), tol()),
+        tol(),
+    );
+    built(topo::union(&lower, &upper, tol()))
+}
+
+/// The verdict door's answer over every face of `body`.
+fn embedding<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::Embedding {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: BUDGET,
+    };
+    topo::clearance::embedded(&side, band(), budgets).verdict
+}
+
+/// **A flush union holds across its straight corners**, as built and a
+/// hundred units from the origin, at both scalars. Each wall's cell at
+/// the vertex is the half-plane beside its run, and the two walls depart
+/// under the plane the two runs span. Red if a straight corner is read
+/// by its leans (both are zero, so the pair refuses
+/// `Uncertified { Departure }` at the vertex at every depth).
+#[test]
+fn a_flush_union_holds_across_its_straight_corners() {
+    use geom_core::{Affine3, Vec3};
+    use topo::clearance::Embedding;
+
+    let union = flush_union::<f64>().into_body();
+    assert_eq!(embedding(&union), Embedding::Embedded, "the verdict door");
+    holds_at_both(
+        "the flush union",
+        union,
+        flush_union::<Interval>().into_body(),
+    );
+    let far = Affine3::translation(Vec3::new(100.0, -100.0, 100.0));
+    let moved_far = moved(&flush_union::<f64>(), &far).into_body();
+    assert_eq!(
+        embedding(&moved_far),
+        Embedding::Embedded,
+        "the verdict door, a hundred units off"
+    );
+    holds_at_both(
+        "the flush union a hundred units off",
+        moved_far,
+        moved(&flush_union::<Interval>(), &far).into_body(),
+    );
+}
+
+/// **The flush union turned about a generic axis refuses at its straight
+/// corners**, at the depth budget, at both scalars. Turned, a run's two
+/// edges are two stored lines whose chart points no longer show them on
+/// one line as the point 0: each lean is a rounding wide, decided `Zero`
+/// at the band and not shown. A corner straight within the band is
+/// neither a run nor a convex corner, so the two walls split at the
+/// vertex they share alone down to the depth floor
+/// (`work/embed/a-plane-faces-corner-that-is-not-strictly-convex-is-read-at-no-depth.md`).
+/// Red if a corner inside the band is read as a run, or as convex.
+#[test]
+fn a_turned_flush_union_refuses_at_its_straight_corners() {
+    use geom_core::{Affine3, Vec3};
+
+    let turn = Affine3::rotation_about_axis(
+        Point3::new(0.3, -0.2, 0.1),
+        Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+        0.7,
+    );
+    let report = injective(
+        &moved(&flush_union::<f64>(), &turn).into_body(),
+        None,
+        BUDGET,
+    );
+    let twin = injective(
+        &moved(&flush_union::<Interval>(), &turn).into_body(),
+        None,
+        BUDGET,
+    );
+    same_class("the turned flush union", &report, &twin);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(_))
+        ) && report.receipt.refused > 0,
+        "{:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+}
+
+/// **A flap through a wall's run at its vertex never holds.** On the
+/// flush union's wall `x = 1`, whose top edge the vertex `(1, 0.25, 1)`
+/// splits, hangs a triangle from that vertex to `(1.3, 0.15, 0.2)` and
+/// `(0.7, 0.35, 0.2)`. It shares the vertex alone with the wall and
+/// crosses it along the segment from the vertex down to `(1, 0.25, 0.2)`.
+/// The wall's cell at the vertex is the half-plane beside its run, and no
+/// plane holding the run has the triangle on its other side. Red if the
+/// run's side is read as zero under a plane that does not hold it, or
+/// its sign is read without the flap's.
+#[test]
+fn a_flap_through_a_run_at_its_vertex_never_holds() {
+    fn flapped<T: Scalar>() -> (Body<T>, FaceKey, FaceKey) {
+        use geom_brep::EdgeCurveSpec;
+        use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
+        use topo::test_support::plane;
+
+        let mut body = flush_union::<T>().into_body();
+        let at = |x: f64, y: f64, z: f64| {
+            Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+        };
+        let v_at = at(1.0, 0.25, 1.0);
+        let v = body
+            .vertices()
+            .find(|(_, x)| (*body.get_point(x.point).unwrap() - v_at).norm().hi() < 1e-12)
+            .unwrap()
+            .0;
+        // The half-edges that start at the vertex, each with its face and
+        // the axis its face's plane is normal to.
+        let face_of = |body: &Body<T>, he| {
+            body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+                .unwrap()
+                .face
+        };
+        let normal_to = |body: &Body<T>, f: FaceKey| {
+            let Surface::Plane { frame } = surface(body, f) else {
+                panic!("a brick's face is a plane");
+            };
+            let n = frame.axis();
+            [mid(n.x), mid(n.y), mid(n.z)]
+                .iter()
+                .position(|c| c.abs() > 0.5)
+                .unwrap()
+        };
+        let starts: Vec<_> = body
+            .edges()
+            .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+            .filter(|&he| body.get_half_edge(he).unwrap().start == v)
+            .collect();
+        let on = |axis: usize| {
+            starts
+                .iter()
+                .copied()
+                .find(|&he| normal_to(&body, face_of(&body, he)) == axis)
+                .unwrap()
+        };
+        let wall = face_of(&body, on(0));
+        // The struts hang in a horizontal face's loop, so the wall keeps
+        // its two edges at the vertex.
+        let h = on(2);
+        let (a0, a1) = (at(1.3, 0.15, 0.2), at(0.7, 0.35, 0.2));
+        let fan = MevSite::Fan { he1: h, he2: h };
+        let strut0 = body.mev_line(fan, a0, tol()).unwrap();
+        let strut1 = body.mev_line(fan, a1, tol()).unwrap();
+        let flap = body
+            .mef(
+                MefSite::Chords {
+                    he1: strut0.he_minus,
+                    he2: strut1.he_minus,
+                },
+                EdgeCurveSpec::line_between(a0, a1),
+                FaceSurface::New {
+                    surface: plane(&[a0, v_at, a1], tol()),
+                    sense: true,
+                },
+                tol(),
+            )
+            .unwrap()
+            .face;
+        topo::mint_pcurves(&mut body, tol()).unwrap();
+        (body, wall, flap)
+    }
+    let (body, wall, flap) = flapped::<f64>();
+    let report = injective(&body, Some(vec![wall, flap]), BUDGET);
+    let (twin, tw, tf) = flapped::<Interval>();
+    same_class(
+        "the wall and the flap through its run",
+        &report,
+        &injective(&twin, Some(vec![tw, tf]), BUDGET),
+    );
+    println!(
+        "[straight] the wall and the flap through its run: {:?} {:?}",
+        report.verdict, report.receipt
+    );
+    assert!(
+        matches!(report.verdict, BoundVerdict::Violated(_)),
+        "the flap crosses the wall below the vertex: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+}
+
 // ------------------------------------------- curved shared edges
 
 /// The surface kind of `f`, by name.
