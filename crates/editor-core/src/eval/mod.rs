@@ -903,6 +903,13 @@ pub struct NodeValue<T: topo::AtRestPolicy + Decide> {
     /// **Not persisted**, like the verdicts and unlike their summary:
     /// an escalation is a fact about one run at one box, read in hand.
     pub escalations: Arc<EscalationLog>,
+    /// **What the node left in the symbolic session**
+    /// ([`geom_core::sym::NodeRecord`]): the identities it registered,
+    /// which the nodes it feeds read, and what its decisions came to,
+    /// which a leaf's receipt sums. Empty at every scalar but a
+    /// symbolic one. Rides the value: a function of the node's inputs,
+    /// like the verdicts. **Not persisted.**
+    pub sym: Arc<geom_core::sym::NodeRecord>,
     /// The candidates the node's pruning queries handed on, placed among
     /// its verdicts ([`geom_core::k_stats::Mark`]): what the first-turn
     /// reading ([`crate::resolve::first_turn`]) reads to tell two runs on
@@ -959,6 +966,7 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
+            sym: Arc::default(),
         }
     }
 }
@@ -990,6 +998,7 @@ impl NodeValue<f64> {
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
+            sym: Arc::default(),
         }
     }
 
@@ -1429,6 +1438,9 @@ pub struct NodeError {
     /// channels are two `Arc`s at this seam rather than one record:
     /// the value carries both, the error only this one.
     pub escalations: Arc<EscalationLog>,
+    /// What the node left in the symbolic session on the way to its
+    /// failure ([`NodeValue::sym`]). **Not persisted.**
+    pub sym: Arc<geom_core::sym::NodeRecord>,
 }
 
 /// **An evaluation refusal, carried into a document-layer
@@ -4282,6 +4294,7 @@ impl RecordBinding {
                 node: id,
                 kind: NodeErrorKind::RecordRefused,
                 escalations: Arc::default(),
+                sym: Arc::default(),
             }),
             reused: false,
         })
@@ -4754,6 +4767,7 @@ where
                     node: id,
                     kind: NodeErrorKind::UnschedulableCycle,
                     escalations: Arc::new(Vec::new()),
+                    sym: Arc::default(),
                 }),
             );
         }
@@ -4995,6 +5009,7 @@ where
                     node: id,
                     kind: kind(),
                     escalations: Arc::new(Vec::new()),
+                    sym: Arc::default(),
                 }),
             )
         })
@@ -5135,6 +5150,7 @@ where
                 node: id,
                 kind: NodeErrorKind::IndicesUnrelated { a: *a, b: *b },
                 escalations: Arc::new(Vec::new()),
+                sym: Arc::default(),
             }),
             reused: false,
         },
@@ -5231,11 +5247,80 @@ fn node_mints(
     inside.child(&words)
 }
 
-/// Evaluates one node against the results so far: poison propagation,
-/// slot evaluation with (node, slot) context, content key, memo
-/// lookup, and the op wiring.
-#[allow(clippy::too_many_arguments)] // the node, its inputs, and the member it is
+/// **What the nodes upstream of `id` left in the symbolic session**
+/// ([`NodeValue::sym`]): every node `id` reads, directly or through
+/// another, that registered an identity, in node-id order. A node's
+/// scope is opened over these and over no other node's
+/// ([`geom_core::sym::MintScope::node`]).
+fn upstream_records<T: topo::AtRestPolicy + Decide>(
+    doc: &Doc<ProfileProgram>,
+    id: RecipeNodeId,
+    results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+) -> Vec<Arc<geom_core::sym::NodeRecord>> {
+    // No node of the results registered anything: at every scalar but
+    // a symbolic one, and in a document with no registrant.
+    if !results
+        .values()
+        .any(|r| r.value().is_some_and(|v| v.sym.registrations() > 0))
+    {
+        return Vec::new();
+    }
+    let mut seen: std::collections::BTreeSet<RecipeNodeId> = std::collections::BTreeSet::new();
+    let mut stack = vec![id];
+    while let Some(at) = stack.pop() {
+        let Some(node) = doc.node(at) else { continue };
+        for input in doc.upstream_of(at, node) {
+            if seen.insert(input) {
+                stack.push(input);
+            }
+        }
+    }
+    seen.into_iter()
+        .filter_map(|input| results.get(&input)?.value())
+        .filter(|v| v.sym.registrations() > 0)
+        .map(|v| Arc::clone(&v.sym))
+        .collect()
+}
+
+/// Evaluates one node against the results so far ([`eval_node_in`]),
+/// as the node its mint scope names: a value with no expression minted
+/// on its behalf is named by the node and its place in the node's own
+/// walk, and what it decides at a symbolic scalar reads the identities
+/// its upstream nodes registered and no other node's. What the node
+/// left in the session rides its result.
+#[allow(clippy::too_many_arguments)] // `eval_node_in`'s
 fn eval_node<T>(
+    doc: &Doc<ProfileProgram>,
+    env: &crate::expr::VarEnv<T>,
+    id: RecipeNodeId,
+    results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+    prior: Option<&NodeValue<T>>,
+    op_env: &wire::OpEnv<'_, T>,
+    at: &[(crate::VarId, i64)],
+    tol: Tol,
+) -> NodeStep<T>
+where
+    T: EvalScalar,
+{
+    let upstream = upstream_records(doc, id, results);
+    let (mut step, record) = node_mints(op_env.mints, id, at)
+        .node(upstream.iter().map(|r| &**r), || {
+            eval_node_in(doc, env, id, results, prior, op_env, at, tol)
+        });
+    // A reused value keeps the record of the run that built it.
+    match &mut step.result {
+        NodeResult::Ok(value) if !step.reused => value.sym = Arc::new(record),
+        NodeResult::Failed(error) => error.sym = Arc::new(record),
+        NodeResult::Ok(_) | NodeResult::Poisoned { .. } => {}
+    }
+    step
+}
+
+/// One node against the results so far: poison propagation, slot
+/// evaluation with (node, slot) context, content key, memo lookup, and
+/// the op wiring.
+#[allow(clippy::too_many_arguments)] // the node, its inputs, and the member it is
+fn eval_node_in<T>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
@@ -5262,10 +5347,6 @@ where
     // nodes open and close their own frames ABOVE this one, so theirs
     // land on their own nodes and this frame receives only this node's.
     let bracket = geom_core::k_stats::Bracket::open();
-    // A value with no expression minted on this node's behalf, in its
-    // slots or its op, is named by the node and its place in the
-    // node's own walk.
-    let _mints = node_mints(op_env.mints, id, at).enter();
     // A failure carries what the frame recorded on the way to it,
     // whether or not the op ran.
     let fail = |bracket: geom_core::k_stats::Bracket, kind: NodeErrorKind| NodeStep {
@@ -5273,6 +5354,7 @@ where
             node: id,
             kind,
             escalations: Arc::new(bracket.finish().escalations),
+            sym: Arc::default(),
         }),
         reused: false,
     };
@@ -5621,6 +5703,7 @@ where
                 witness: WitnessSlot {},
                 content_key,
                 naming_key,
+                sym: Arc::default(),
             }),
             reused: false,
         },
@@ -5631,6 +5714,7 @@ where
                 node: id,
                 kind,
                 escalations,
+                sym: Arc::default(),
             }),
             reused: false,
         },

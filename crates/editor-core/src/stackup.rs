@@ -2371,6 +2371,7 @@ mod tests {
                     process_eps: 2.0,
                 },
                 escalations: std::sync::Arc::new(Vec::new()),
+                sym: std::sync::Arc::default(),
             }),
         );
         let outcome = record
