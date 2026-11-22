@@ -4,7 +4,7 @@ kind: issue
 title: A source change runs none of the slow pins it moves through src; a named canary of about 90 recurrently red pins and censuses would catch about 80% of a month's reds for about a minute per code PR
 status: open
 opened: 2026-11-15
-priority: P1
+priority: P2
 cost: M
 refs: [6959, 6972]
 ---
@@ -108,3 +108,4 @@ the diff reaches) is about 60 min per PR, which Ev ruled out.
 and costs about 1 to 1.5 min of shard time on code PRs and 0 on
 docs-only runs (8 of 12 sampled). It would have caught about 80%.
 - Reform at `reform/a-stored-data-change-runs-none-of-the-slow-rows-that-read-it.md`.
+- 2026-11-22 — **P1 → P2, not built now (Ev, in chat).** Priced against what it saves: about 30 PR-hours of latency and 40 runner-hours a month (600 code PRs a month, about 3 runs each, about 1 min each), against about 80 to 115 lane-hours saved while main reds are bisected by hand, and about 12 to 45 once the nightly attribution (`dependents-slow-sets-skip-a-kernel-pr`, P1) names the breaking merge. So the attribution goes first. If anything here is built later, it is the censuses-only half, about 40 s for 51 of the month's incidents, and only if census reds still reach main a month after the attribution lands. Ev also asked whether these reds catch defects at all or mostly make test-only work; that is being measured, and a family that only ever re-baselines is a candidate for deletion rather than for wider running.
