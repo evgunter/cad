@@ -140,3 +140,29 @@ leaf, certifying nothing.
 That is a design pass and a unit, not a lane brief. Nothing about the
 finding changes; only the price does, so that the board stops offering
 it as cheap work.
+
+## Design (2026-11-22)
+
+What follows was weighed by two designers and a further designer (`work/offer/log.md`).
+
+**The kernel query changes first.** `editor_core::range` gains a resumable search that refines outward from the field's current value and keeps every finished step:
+- It splits at the current value first. On each side it replays the interval whole, and where the result is undecided it halves and replays both halves, nearest the current value first. Because the far half is replayed too, the search looks past undecided ground and can find a proven difference beyond it.
+- Its answer after n steps is a pure function of the inputs and n, so stopping keeps the answer. Ground it has not reached is priced as budget (E6).
+- It takes the session's part resolver (`work/scalar/the-box-driver-carries-no-part-resolver` is the same gap in `drive`).
+- `certified_range` becomes a wrapper that runs the search to completion. `drive` is unchanged.
+
+**The answer type** states three things and nothing shaped like a second interval:
+- a proven interval around the current value, possibly empty, derived from the two sides;
+- per side, either "reached the seed's end" or "proven different at a point", carrying the driver's evidence, with its kind derived from that evidence;
+- per side, "not decided past x", carrying the typed reason. "Can more proving help" is derived from the reason.
+
+The `within` pair and the straddling span go.
+
+**The viewer control.**
+- **Prove** sits on a sampled reading. The seed is the range the reading states, as exact offsets carried on the reading: on each side, the furthest value the probe found valid, or as far as it looked where nothing failed.
+- One kernel admission door, which runs no geometry, greys the button before the click.
+- The search runs on its own seam with a stop, and its busy state is separate from `Session::busy()`. An edit, a new probe or a value gesture cancels it and drops its result.
+- Every number is rendered through `props::shown_text`.
+- The undecided ground between a proven end and a point proven different is never called valid. Outside the sampled range the proof says nothing.
+
+**When the proof replaces the sampled reading:** when both sides reach the seed's ends, the line reads "proven c…d". Otherwise it reads "proven a…b, of the sampled c…d", then says what stopped each side.

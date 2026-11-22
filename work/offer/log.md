@@ -79,3 +79,14 @@ and the model comparison apply.
   `a-check-…`), a node named to a person (`a-node-name-…` with VNEWS'
   `the-viewer-spells-a-node-as-its-kind-before-its-name`), and the
   certify control.
+
+## 2026-11-22 — the certify fork goes to Ev
+
+(OFFER orchestrator) `certify-affordance-on-the-bounds-panel` has reconciled. The fork took two rounds, then a further designer after the seed swapped twice, then a final round, and every designer now agrees. It goes to Ev as an `[ev]` PR on `offer/certify-design` because it reads Ev's 2026-09-13 pacing ruling ("replaces the probe's reading") in a way Ev must confirm. The row's `## Design` section holds the agreed final state.
+
+The fork turned up these findings, which the building unit owes:
+- The row's signature is stale. `certified_range` now takes `stop: &Stop`, `SlotIsNotALiteral` is now `SlotIsDefined`, and there are eleven `RangeRefusal` arms.
+- `docm9_range_vs_probe.rs` is not feature-gated; `tests/all.rs` includes it.
+- The probe and the proof disagree on Count fields and on documents that already fail (`WitnessDoesNotBuild`). The row says the two "already agree on what they will not answer", which is true only of formula-driven slots.
+- The probe's `Verdict` at `invalid` knows which node newly fails, but `Bound::Edge` drops it. That is the cheap source for "node stops building".
+- Filed: `work/doctail/range-guard-refusals-lack-the-kernel-defect-ending` and `work/offer/the-bounds-probe-runs-inline-on-the-frame`. The resolver gap is already `work/scalar/the-box-driver-carries-no-part-resolver`, at P2. Since the certify unit needs that gap closed, its band is owed P1 when this unit is dispatched; the unit will re-band it or split it.
