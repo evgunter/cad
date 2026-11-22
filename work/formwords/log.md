@@ -70,3 +70,21 @@ rule: P0 and P1 only).
   row is closed, not put to Ev (its Closed section has the evidence).
   The residue is two existing rows on DOORS and CHROME; this log
   records the order they should land in.
+
+## 2026-11-22 — plane door re-weighed on Ev's question
+
+(FORMWORDS orchestrator) Ev asked on `[ev]` 7367 why planes are not
+placed the way bodies are. Neither designer had weighed that option;
+both had wrongly read `[placement.world]` as putting a space's planes
+out of reach, when placement values already chart a space's axes. Three
+more rounds followed. Both designers moved to a **datum**, a node that
+places a pose, and both kept Slide and Flip with no gap mate (an offset
+is a slid far side, per `[placement.mates]`). Their positions on
+frame-only versus per-kind crossed twice, and both named the same
+question underneath (is a datum placed like a body, or declared like a
+pose), so it goes to Ev as a stated split. The PR is updated in place,
+and its DESIGN.md diff writes the frame-only reading.
+
+A class finding with no home: the placement editor never writes a slid
+far side. Filed as P0 on DOORS:
+`the-placement-editor-cannot-author-an-offset-from-a-face`.
