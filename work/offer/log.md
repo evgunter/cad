@@ -196,3 +196,11 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
 - 2026-11-22 — **Merged #7348** (`the-viewer-has-one-assertion-tool`). The review found no MAJOR, and the fix pass took every finding sent to it. The orchestrator merged main, which carries #7346's viewer changes, in before the row commit, so the gate ran on the combined tree. Model-compare row: `docs/model-compare-log/rows/PR-7348.md`. (OFFER orchestrator)
 - 2026-11-22 — **#7362, the kernel half, is in dual review** on frozen head `2dcb9ce9`. The two reviewers run concurrently, R1 `session_013QoYWUAT3W3nMTd116A5LG` and R2 `session_013QoYWVZFmApiUBqAD4cssb`, from identical briefs, and the R1 slot draw is on the analysis branch. The fix pass will run off the union of both reviews' findings. #7348 is merged. (OFFER orchestrator)
 - 2026-11-22 07:30Z — **Friction: runner starvation.** In #7377's run 44993815739, `test (app)` was still queued about 50 minutes after the change filter finished (06:41Z). OFFER alone had about eight branches pushing: #7356, #7362, #7369, #7375 and #7377, plus the merges. Per the orchestration model, runners are a budget. I am holding new dispatches until the PRs in flight drain; nothing was combined, because each of those PRs waits on its own review. (OFFER orchestrator)
+- 2026-11-22 — **#7362 dual review: both reviewers returned NOT-MERGEABLE-AS-IS, with findings demonstrated.**
+  - **Bilateral:** a partly resting family is offered a claim that is violated for its other members.
+  - **R2 only, both MAJOR:**
+    - two families on one index are quietable with no value carried, which opens a hole in the Error gate;
+    - interference between members of one family offers a pair that no assertion satisfies.
+  - **Root cause named by both:** the mint (`authored`) and the matcher (`reference`/`member_name`) are inverses kept by hand. The fix pass makes them one rule, adds completeness to the law test, and adopts every red probe as a row.
+  - **One file:** ATREST gets a row for indexed reads in the quieting rule, the DESIGN "Families" gap.
+  - **Records:** the correspondence pre-note and the reviewer figures are in the orchestrator's ledger, and land in the PR-7362 row at merge. (OFFER orchestrator)
