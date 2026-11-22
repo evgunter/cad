@@ -50,7 +50,7 @@ vector comes from; none but the first paragraph's is measured):
   `offset_axial.rs`, `chart.rs`'s `uv_of`) and an arbitrary query
   point alike.
 - `topo/src/cover.rs`: `sphere_window`'s latitude `h.atan2(ρ)`;
-  `topo/src/ring_path.rs`: `parallel`; `topo/src/boolean/rim_wedge.rs`:
+  `topo/src/ring_path.rs`: `parallel`; `topo/src/rim_wedge.rs`:
   `locus_param`'s rim arm.
 - `sweep/src/revolve/axis.rs`: `turn_past`, an arc's start less its
   centre.

@@ -25,27 +25,37 @@ Exact, "props_meridian_on_surface", [0, 3.2e-4] } }`. Raising site:
 arm, `(f0, f1) = (q0.norm() − radius, q1.norm() − radius)`. With that
 one site spelled as the signed gap `(q·q − R²)/(‖q‖ + R)` (a local
 probe) the premise passes and the same face refuses next at
-`props_rim_fit [-6.0e-5, 6.0e-5]`. Which arm raised it was not
-traced; on a cylinder face that predicate is the same function's
-circle arm, `r_c − radius`, two stored radii and not this shape.
+`props_rim_fit [-6.0e-5, 6.0e-5]`. That is not this shape: the
+signed-radius lane traced it (reported to this lane, not re-measured
+here) to the closed form's premises being decided on the value
+channel at plain `Interval`, where `r_c − radius` is `r − r` by
+dependency. It is held by its own row.
+
+**Re-posed by the unit** (`geom_core::radius_gap`, the one home of the
+gap): `pcurve_cache.rs` `chart_distance`'s cylinder and sphere arms;
+`props/curved.rs` `cylinder_boundary`'s line arm
+(`segment_off_cylinder`, the measured site) and `IsoChart::distance`'s
+cylinder and sphere arms (`props_carrier_on_surface`, which landed on
+main on 2026-11-17 and was found by the re-sweep at the merged base,
+not by the probe). The first bullet below is done.
 
 **The sites** (a sweep by pattern, each classed by reading its
 function and usually one caller; only the first is measured):
 
 - `geom-brep/src/props/curved.rs`: `cylinder_boundary`
-  (`props_meridian_on_surface`, above); `sphere_loop`
+  (`props_meridian_on_surface`, above: done); `sphere_loop`
   (`props_sphere_circle_fit`) and `sphere_boundary` (`props_rim_fit`),
   both `√(‖w‖² + r_c²) − R` for a circle seated on the sphere.
 - `geom-brep/src/pcurve_cache.rs`: `torus_oblique_circle`,
   `w_r.norm() − r` (`pcurve_torus_villarceau_offset`).
-- `topo/src/boolean/contain.rs`: `curved_interior_placement`'s cylinder
+- `topo/src/contain.rs`: `curved_interior_placement`'s cylinder
   arm (`radial.norm() − radius`) and `sphere_face_containment`
   (`(q − center).norm() − radius`), `bool_curved_contain_carrier`: a
   query point in general, but Zero is its on-carrier branch, which a
   point built on the wall must reach.
-- `topo/src/boolean/solid_contain.rs`: `sphere_chart_trim`
+- `topo/src/solid_contain.rs`: `sphere_chart_trim`
   (`bool_sphere_iso_rim`).
-- `topo/src/boolean/rim_wedge.rs`: `on_locus`, `rho − rim.radius`
+- `topo/src/rim_wedge.rs`: `on_locus`, `rho − rim.radius`
   inside a root (`seam_cover_on_locus`).
 - `topo/src/offset_axial.rs`: `surface_residual`'s cylinder and sphere
   arms (`offset_axial_edge_on_surface`) and `Profile::residual`
@@ -54,7 +64,11 @@ function and usually one caller; only the first is measured):
   (`ring_outer_locus_gap`).
 - `topo/src/link.rs`: `Round::offset`,
   `reach_from_axis(…) − self.radius`.
-- `topo/src/boolean/torus_region.rs`: `on_edge_plane`'s circle arm,
+- `geom-brep/src/curve_face/pose.rs`: `line_wall_read`,
+  `wall.distance(mid) − radius`, a line's standoff from a wall at its
+  span's middle, whose Zero is the line on the wall (found by the
+  re-sweep; its callers not traced).
+- `topo/src/torus_region.rs`: `on_edge_plane`'s circle arm,
   which picks a root's own circle by `‖w‖ − radius`.
 - `geom/src/curves/on_carrier.rs`: `clearance`'s circle arm,
   `√(h² + (ρ − radius)²)`, read by `Foot::on_carrier`; whether a Zero
