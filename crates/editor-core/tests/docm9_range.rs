@@ -648,6 +648,37 @@ fn the_same_steps_give_the_same_answer() {
         }
         assert_eq!(running.step(&editor_core::Stop::default()), Step::Advanced);
     }
+    // Where the two sides tie — a symmetric seed's two whole sides —
+    // the low side goes first, in every search: nothing outside the
+    // inputs breaks the tie.
+    let doc = slab(1.0);
+    let one_step = || {
+        let mut search = RangeSearch::new(
+            &doc,
+            &RangeField::Param(var(&doc, "depth")),
+            RangeSeed::symmetric(0.25),
+            &budget(24, 2048),
+            None,
+            &editor_core::Stop::default(),
+            tol(),
+        )
+        .expect("the slab is admitted");
+        assert_eq!(search.step(&editor_core::Stop::default()), Step::Advanced);
+        search.answer()
+    };
+    let first = one_step();
+    assert_eq!(
+        first.proven_offsets(),
+        (-0.25, 0.0),
+        "the low side goes first"
+    );
+    for again in 0..3 {
+        assert_eq!(
+            one_step(),
+            first,
+            "fresh search {again} broke the tie another way"
+        );
+    }
 }
 
 /// How many halvings of the plate's seed [`plate_seed`] the row below

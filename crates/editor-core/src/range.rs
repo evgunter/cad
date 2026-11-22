@@ -1134,6 +1134,12 @@ impl RangeSearch {
     }
 }
 
+// A search is stepped off the thread that made it.
+const _: fn() = || {
+    fn sendable<T: Send>() {}
+    sendable::<RangeSearch>();
+};
+
 /// **The answer as a function of a side's intervals**, over lists no
 /// fixture is needed to reach: a standing change in the evidence, a
 /// proven interval beyond an undecided one, a floor at the frontier.
