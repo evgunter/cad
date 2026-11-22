@@ -508,3 +508,22 @@ body has the reasons):
   Owed, under-measure arc rows, fail loud in `meetings`, a traced-
   crossing twin row, the halving limits, and slow-set timings. The
   orchestrator reads that pass and merges.
+- 2026-11-22 15:34 — **7151 merged** (`deade68`): the face chart's band
+  is decided at each carriage (Ev's 7122 and 7353). The last pass, read
+  by the orchestrator:
+  - the ray's lever is sourced from its covered run, and `select` reads
+    `Lever::session_box()`;
+  - a `Tangent` pose falls through to the span filter, per C5 (no
+    silent drop);
+  - arc-window rows on both edges, and a traced-crossing twin row;
+  - `taken_over`'s limits are documented;
+  - the Owed rows are named;
+  - the MC-stream row went to the slow set (1.008 s against 1.0 s).
+
+  Lane archived.
+- 2026-11-22 15:35 — One P1 is still dispatchable: the 7151 follow-up
+  `the-tangency-prover-does-not-see-through-a-placement` (M). It went to
+  cloud session session_013QoYWUYphDCYapHMG41brh, on branch
+  `doctail/the-tangency-prover-sees-through-a-placement`. It checks the
+  `Through` lead first, and stops if a placement's motion entering the
+  symbolic tier needs a ruling. Review: FULL.
