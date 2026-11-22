@@ -2738,8 +2738,8 @@ rustfmt cost below.
 **rustfmt does not reach inside the invocation**, so the variants and
 variant docs of every one are formatted by hand. Demonstrated rather
 than assumed, and not fixable by making the body parse: `src/vocab.rs`
-records the experiment and
-`work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
+records the experiment, and a gate for it was weighed and declined
+(`work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`, closed).
 
 Two kinds of list stay hand-written, and each is a different answer
 rather than an exception:
@@ -3104,9 +3104,9 @@ wanted, or leave it named; do not reach for `#[allow]`.
 **A browser pass, if one is ever run, allows that one lint.** None is
 run today, and the feature axis is better off here than this one:
 doc-gate's pass 3 at least COMPILES the half it widens to, where
-wasm-only items get no doc build at all.
-`work/view/wasm-only-doc-comments-are-checked-by-nothing.md` owns that
-gap.
+wasm-only items get no doc build at all. A nightly browser pass was
+weighed and declined (`work/ciw/wasm-only-doc-comments-are-checked-by-nothing.md`,
+closed): the gap is accepted.
 
 **The population, dated and by name — with the instrument that takes
 it, which belongs HERE.** A reading whose command is not named cannot be

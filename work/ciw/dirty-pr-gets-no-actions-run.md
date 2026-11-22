@@ -5,7 +5,7 @@ title: A PR that goes mergeable_state dirty against a moved main gets NO Actions
 status: open
 opened: 2026-09-05
 refs: [1910]
-priority: P4
+priority: P1
 cost: E
 ---
 
@@ -220,3 +220,11 @@ which is the weakest because it asks every reader to remember what the
 gate could enforce. The reader's-side symptom it added: a lane polling
 for "no failures" or "all checks complete" reads a runless head as
 green; only a lane that asserts a positive job count notices.
+
+- 2026-11-22 — **Re-banded P4 → P1 by CIW triage.** This is a direct latency sink of about 20-45 min per occurrence. Occurrences in the last month:
+- 2026-11-20: ONEROUND, PR 7143. Three pushes got no CI for about 40 min (`work/oneround/log.md:92`). On 2026-11-19 PR 7140 needed main merged three times in 90 min (`:46`).
+- 2026-11-13: ONEDOOR, #6900. Read as slow CI (`work/onedoor/log.md:481`).
+- 2026-11-10: BAND. Two lanes pushed empty commits to start CI on conflicting PRs (`work/band/log.md:1269`).
+- 2026-11-03: SPLICE, PR 6441 (`work/splice/log.md:1270-1272`).
+- 2026-10-28: SECT, PR 5886 (`work/sect/log.md:112`).
+The discipline sentence already exists (`memories/agent-lane-operations.md:120`), and lanes still miss it, so the cheap half has failed. The fix that turns the absence into a signal is a tiny job that does not need a merge ref, or a poll helper that reads `mergeable_state`. `local-scripts/bt-wait-pr.sh` reads only checks. Either costs nothing on a PR's critical path.
