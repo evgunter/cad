@@ -2,10 +2,12 @@
 id: sym11s-receipts-moved-on-four-documents-after-the-wedge-fold-pin
 kind: issue
 title: sym11's symbolic and numeric columns rose on four documents at PR 6963 (the profile's direction mint reads two signs per minted direction); pinned unjudged
-status: open
+status: closed
 opened: 2026-11-15
 priority: P2
 cost: E
+closed: 2026-11-15
+pr: 6990
 ---
 
 
@@ -60,3 +62,18 @@ the change's intent.
 
 Reproduce: `cargo nextest run -p editor-core -E 'test(sym11_the_exact_channel_never_contradicts_past_the_ceiling)'`
 (the test prints every receipt).
+
+## Closed (2026-11-15, PR 6990): the move is accounted
+
+The rise GREEN pinned unjudged is the profile's direction mint: PR 6963
+made it read each chord component's sign, two readings per minted
+direction, and those readings are counted in `SymCounts` whether the
+mint keeps or discards them. On the four documents the symbolic and
+numeric columns rose by +4, +1, +8 and +16, exactly the mint's
+readings (the review's control, a mint that reads nothing, moves the
+columns back by those amounts). The frozen column's move is not this
+unit's: it bisects to PR 6953 and is ONEHOME's row.
+
+PR 6990 keeps GREEN's table as pinned and PR 6972's re-pin of the
+past-the-ceiling receipts as stored: on the merge of both the row reads
+exactly its table at three ε, with nothing re-pinned.

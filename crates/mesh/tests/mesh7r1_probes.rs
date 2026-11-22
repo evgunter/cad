@@ -23,7 +23,7 @@
 use crate::common;
 use topo::construction::Construct;
 
-use common::witness_bodies::{keyway, oblique_lens, pole_crossing_half_cap};
+use common::witness_bodies::{keyway, minted, oblique_lens, pole_crossing_half_cap};
 use common::*;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
@@ -151,10 +151,12 @@ fn pole_crossing_three_faces() -> (Body<f64>, [FaceKey; 3]) {
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -278,10 +280,12 @@ fn pole_crossing_three_faces_with_seam() -> (Body<f64>, [FaceKey; 3]) {
         seed.face,
         FaceSurface::New {
             surface: Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             sense: true,
         },
@@ -380,7 +384,7 @@ fn a_split_rim_donut_meshes_and_measures() {
         .edges()
         .find(|(_, e)| {
             let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            matches!(c.carrier(), Curve3::Circle(geom::Circle { radius, .. }) if (*radius - 0.5).abs() > 1e-9)
+            matches!(c.carrier(), Curve3::Circle(k) if (k.radius() - 0.5).abs() > 1e-9)
         })
         .map(|(k, _)| k)
         .expect("a major-circle rim");
@@ -471,15 +475,13 @@ fn report_band_arm_under_the_runs_eps() {
 /// `CertificateExceeded` — a refusal about the chord budget standing
 /// in for a refusal about the premise — is reachable here.
 ///
-/// The π itself is still REPORTED rather than asserted on, by
-/// `topo::examine_chart_coherence` (issue 868), and
-/// `topo/tests/mesh8_coherence.rs` is where this body's half-turn is
-/// pinned as a value. The refusal's own rows are
+/// The refusal's own rows are
 /// `mesh/tests/mesh11_arc_branch.rs`; this one keeps the SEAM the
 /// review found — shape door yes, branch door no, on one face.
 #[test]
 fn a_pole_crossing_arc_is_refused_by_the_branch_door_not_the_shape_door() {
     let (body, cap, rest) = pole_crossing_half_cap();
+    let body = minted(body);
     let tol = Tol::witness();
     assert_eq!(door_verdict(&body, cap), Ok(()));
     assert_eq!(door_verdict(&body, rest), Ok(()));

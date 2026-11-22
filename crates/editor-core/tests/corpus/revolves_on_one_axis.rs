@@ -82,7 +82,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "revolves_on_one_axis",
         about: "two rings whose revolves read one pair of axis variables, stacked and unioned",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(whole),
         pin: None, // revolved: π-valued

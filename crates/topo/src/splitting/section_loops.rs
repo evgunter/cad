@@ -14,7 +14,7 @@
 //! section face carries **m = +n_SP** ([`section_normal`]).
 
 use geom::Conic;
-use geom_core::{Decide, Indeterminate, Point3, Real, UnitVec3, Vec3};
+use geom_core::{Decide, Indeterminate, Point3, Real, RigidMotion, UnitVec3, Vec3};
 
 use super::PlaneSide;
 use super::containment::{LoopContainment, point_in_loop};
@@ -59,18 +59,37 @@ pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
 /// [`crate::chord_join`] mints one only as the whole conic or as a lone
 /// site's placeholder; the join refuses a loop of placeholders alone
 /// (`DegenerateSection`) before any frame is read.
-pub(super) fn chord_u_ref<T: Real>(
+pub(super) fn chord_u_ref<T: Decide>(
     body: &Body<T>,
     l: LoopKey,
     points: &[Point3<T>],
     n: UnitVec3<T>,
 ) -> Vec3<T> {
-    let in_plane = |d: Vec3<T>| {
-        let n = n.get();
-        (d - n * d.dot(n)).normalize()
-    };
+    chord_frame(body, l, points, n).u().get()
+}
+
+/// **The section plane's frame**, standing at the world origin: `w` the
+/// normal `n` as the split holds it, and `u` [`chord_u_ref`]'s
+/// direction, the chord's part square to `n` normalized
+/// ([`RigidMotion::squared_about`], `n` kept bit for bit). The split
+/// plane is a point and a decided normal, with no frame of its own to
+/// turn, so the section's frame is derived from its normal and its
+/// chord, and nothing is decided.
+pub(super) fn chord_frame<T: Decide>(
+    body: &Body<T>,
+    l: LoopKey,
+    points: &[Point3<T>],
+    n: UnitVec3<T>,
+) -> RigidMotion<T> {
+    RigidMotion::squared_about(Point3::origin(), n, chord_direction(body, l, points))
+}
+
+/// The direction [`chord_u_ref`] reads before it is taken into the
+/// plane: the loop's first chord, or a one-corner loop's conic
+/// principal direction.
+fn chord_direction<T: Real>(body: &Body<T>, l: LoopKey, points: &[Point3<T>]) -> Vec3<T> {
     if let [a, b, ..] = points {
-        return in_plane(*b - *a);
+        return *b - *a;
     }
     let first = match body.get_loop(l).map(|lp| lp.boundary) {
         Some(LoopBoundary::Cycle { first }) => first,
@@ -82,7 +101,7 @@ pub(super) fn chord_u_ref<T: Real>(
              loop of lone-site placeholders before it is charted"
         )
     };
-    in_plane(principal)
+    principal
 }
 
 /// The principal direction (`u_ref`) of the section conic the cycle at
@@ -102,14 +121,8 @@ fn whole_conic_principal<T: Real>(
         return None;
     }
     match *curve.carrier() {
-        geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { u_ref, .. },
-            ..
-        })
-        | geom::Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame { u_ref, .. },
-            ..
-        }) => Some(u_ref),
+        geom::Curve3::Circle(geom::Circle { frame, .. })
+        | geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(frame.u_ref()),
         _ => None,
     }
 }
@@ -366,7 +379,9 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
             geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
                 OutlineEdge::Conic(curve.carrier().clone())
             }
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => OutlineEdge::Undecided,
+            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
+                OutlineEdge::Undecided
+            }
         });
     }
     Ok(out)
@@ -386,12 +401,12 @@ fn line_clears_conic<T: Decide>(
     {
         return false;
     }
-    let m = c.frame().axis.cross(along.normalize());
+    let m = c.frame().axis().cross(along.normalize());
     let (p_m, q_m) = c.along(m);
     let reach = (p_m.powi(2) + q_m.powi(2)).sqrt();
     positive(
         "split_nest_line_conic",
-        m.dot(c.frame().origin - p).abs() - reach,
+        m.dot(c.frame().origin() - p).abs() - reach,
         band,
     )
 }
@@ -416,7 +431,7 @@ fn conics_clear<T: Decide>(e: &dyn Conic<T>, h: &dyn Conic<T>, band: geom_core::
         return false;
     }
     let (ha, hb) = h.semi_axis_vectors();
-    let (cx, cy) = e.unit_in_plane(h.frame().origin);
+    let (cx, cy) = e.unit_in_plane(h.frame().origin());
     let (ax, ay) = e.unit_of(ha);
     let (bx, by) = e.unit_of(hb);
     let centre = (cx.powi(2) + cy.powi(2)).sqrt();
@@ -432,6 +447,30 @@ fn conics_clear<T: Decide>(e: &dyn Conic<T>, h: &dyn Conic<T>, band: geom_core::
     let outside = (centre - reach - T::one()) * lever;
     positive("split_nest_conic_conic", inside, band)
         || positive("split_nest_conic_conic", outside, band)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_loop_row {
+    use geom_core::{Band, Tol, Vec3};
+
+    /// **A loop with a spline edge has a role, by its bulge**: the
+    /// crescent whose chord triangle is clockwise about `+z`, and which
+    /// its rational arc's bulge makes counter-clockwise, is an outline
+    /// about `+z` and a hole about `−z`.
+    #[test]
+    fn a_loop_wound_by_its_spline_edge_reads_its_role() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (body, l, _) = crate::merge_faces::winding_arm_tests::spline_crescent(tol);
+        for (normal, outline) in [(Vec3::unit_z(), true), (-Vec3::unit_z(), false)] {
+            let read = super::loop_sense(&body, l, normal, band);
+            assert!(
+                matches!(read, Ok(role) if role == outline),
+                "about {normal:?}: {read:?}"
+            );
+        }
+    }
 }
 
 /// **A torn ring curve panics before the outlines are answered**: on a

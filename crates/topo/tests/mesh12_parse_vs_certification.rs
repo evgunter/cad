@@ -4,7 +4,7 @@
 //! the parse's verdict on the hand-built loop agree — admit, escalate
 //! (`ParamSpan` / `props_meridian_span_winding` at the branch door,
 //! `props_sphere_arc_span_winding` on the flux lane) and refuse
-//! (`StatedInterval` / `NotIsoRectangle` or `SphereLoop`) land on the
+//! (`StatedInterval` / `SpanUncertified` or `SphereLoop`) land on the
 //! same rungs, save that a headroom wholly negative in band, which the
 //! parse escalates, the door refuses as its caller's interval past a
 //! full turn (`StatedInterval` carrying the in-band verdict); so
@@ -36,10 +36,12 @@ const ARC_NAME: &str = "props_sphere_arc_span_winding";
 
 fn sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: RS,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 /// The meridian great circle in the xz plane:
@@ -118,7 +120,7 @@ fn parse_disp<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Disp {
         {
             Disp::Escalate
         }
-        Err(PropsError::NotIsoRectangle { what }) if *what == NAME => Disp::Refuse,
+        Err(PropsError::SpanUncertified { what }) if *what == NAME => Disp::Refuse,
         Err(PropsError::SphereLoop { what }) if *what == ARC_NAME => Disp::Refuse,
         Err(e) => Disp::Other(format!("{e:?}")),
     }

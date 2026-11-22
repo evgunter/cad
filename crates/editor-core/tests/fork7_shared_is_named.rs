@@ -257,11 +257,11 @@ fn an_output_two_operations_read_needs_no_name() {
     assert!(doc.shared_unnamed_vars().is_empty());
 }
 
-/// **A fresh entry carrying a name crosses the edit log**: a document
-/// whose log mints one saves, and the load replays it to the same
-/// document. Breaks if the entry's name does not ride the wire.
+/// **A fresh entry carrying a name crosses the wire**: a document an
+/// edit minted one in saves, and loads to the same document. Breaks if
+/// the entry's name does not ride the wire.
 #[test]
-fn a_named_entry_rides_the_edit_log() {
+fn a_named_entry_rides_the_wire() {
     let doc = ProfileDoc::empty(DocumentId::derive("fork7-log"), Tol::witness());
     let fresh = || Formula::fresh(0, Dimension::Length);
     let edit = DocEdit::InsertNode {
@@ -272,10 +272,10 @@ fn a_named_entry_rides_the_edit_log() {
         )],
     };
     let after = step(&doc, edit.clone());
-    let text = save(&doc, &[edit], Tol::witness()).expect("saves");
+    let text = save(&after, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("loads");
-    assert!(loaded.doc.bit_eq(&after), "the replay is the document");
-    assert!(loaded.doc.var_named("s").is_some());
+    assert!(loaded.bit_eq(&after), "the load is the document");
+    assert!(loaded.var_named("s").is_some());
 }
 
 /// **The load walk** refuses a file holding an unnamed variable two
@@ -309,7 +309,7 @@ fn the_load_walk_refuses_a_shared_unnamed_variable() {
             def: scaled(3),
         },
     );
-    let text = save(&doc, &[], Tol::witness()).unwrap();
+    let text = save(&doc, Tol::witness()).unwrap();
     load(&text, Tol::witness()).expect("the undoctored save loads");
     let corrupt = crate::wire::doctored(&text, |wire| {
         let names = wire["snapshot"]["var_names"]
@@ -387,39 +387,4 @@ fn the_value_and_the_bound_of_one_assertion_are_two_readers() {
         FreeVar::continuous(Dimension::Length, 0.5),
     ));
     try_step(&doc, named).expect("a named variable both sides read lands");
-}
-
-/// **A log's replay passes the same door**: a saved log whose rename is
-/// cut out gives the second ring an unnamed variable's second read, so
-/// the load refuses `EditReplay` with `SharedVarNeedsName`, and the
-/// sentence's recourse is the file's (regenerate it), not the edit
-/// door's (name it). Breaks if replay skips the check, or forwards the
-/// edit door's recourse to a load that made no edit.
-#[test]
-fn a_replayed_share_refuses_with_the_files_recourse() {
-    let (doc, _, v) = typed_ring("fork7-replay");
-    let rename = DocEdit::RenameVar {
-        var: v.into(),
-        name: Some(n("v")),
-    };
-    let second = ring_reading(read(v));
-    let text = save(&doc, &[rename, second], Tol::witness()).expect("the log saves");
-    load(&text, Tol::witness()).expect("the undoctored log loads");
-    let corrupt = crate::wire::doctored(&text, |wire| {
-        let edits = wire["edits"].as_array_mut().expect("the log");
-        assert!(edits[0].get("RenameVar").is_some(), "aimed at the rename");
-        edits.remove(0);
-    });
-    let err = load(&corrupt, Tol::witness()).expect_err("the doctored log refuses");
-    let PersistError::EditReplay { index, error } = &err else {
-        panic!("not EditReplay: {err:?}")
-    };
-    assert_eq!(*index, 0);
-    assert!(
-        matches!(**error, EditError::SharedVarNeedsName { ref var } if var.id() == v),
-        "{error:?}"
-    );
-    let said = err.to_string();
-    assert!(said.contains("regenerate the file"), "{said}");
-    assert!(!said.contains("name it"), "{said}");
 }

@@ -12,7 +12,8 @@
 //!   no reduction of its own.
 //! - **The deciding margin's identity** ([`Rung::MarginIdentity`]): the
 //!   same decision, read in the replay, zero as a polynomial in the
-//!   symbols.
+//!   symbols; for a traced sweep the first rung left at its heading,
+//!   first that heading along the traced face's axis ([`swept_along`]).
 //!
 //! The replay is a deferring session ([`deferred`]): it takes every
 //! decision as the numeric channel takes it, so its branches are the
@@ -48,7 +49,9 @@ use geom_core::sym::deferred;
 use geom_core::{Band, BandError, Sym, SymBudget, SymRules, Tol};
 use topo::FaceKey;
 
-use super::{Canceled, Component, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
+use super::{
+    Canceled, Component, Heading, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed,
+};
 use crate::eval::{EvalOptions, EvalOutcome, Evaluation};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
@@ -103,6 +106,9 @@ type Lane = Sym<f64>;
 /// Why a row is left unproven, and what would prove it.
 type Left = (Unreplayed, Recourse);
 
+/// One value per row, in the shape of the nodes handed to [`rungs`].
+type PerRow<T> = [Vec<T>];
+
 /// A rung that proved a row, or why the replay could not and, for two
 /// cells with an axis, the first component of one axis, one radius and
 /// one sense it did not establish.
@@ -110,7 +116,8 @@ type Proved = Result<Rung, (Left, Option<Component>)>;
 
 /// **The symbolic rungs for each row the first rung left**
 /// (`left`, in the shape of `nodes`), each row's two axes read as the
-/// mates state them where `axes_one` holds: in the order given, a rung that
+/// mates state them where `axes_one` holds, and a traced sweep's heading
+/// read where `headings` names one ([`swept_along`]): in the order given, a rung that
 /// proved the row or why the replay could not, and `None` for a row
 /// the first rung proved. `nodes` holds each deciding node with its
 /// rows in decision order, which is what a row's ordinal is counted in.
@@ -125,7 +132,7 @@ type Proved = Result<Rung, (Left, Option<Component>)>;
 pub(super) fn rungs(
     doc: &crate::doc::Doc<ProfileProgram>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
-    (left, axes_one): (&[Vec<bool>], &[Vec<bool>]),
+    (left, axes_one, headings): (&PerRow<bool>, &PerRow<bool>, &PerRow<Option<Heading>>),
     resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     stop: &crate::Stop,
@@ -182,10 +189,14 @@ pub(super) fn rungs(
         let mut ev: Option<Evaluation<Lane>> = None;
         let band = Band::linear(tol);
         let mut out = Vec::with_capacity(nodes.len());
-        for ((&(node, rows), asks), axes_one) in nodes.iter().zip(asks).zip(axes_one) {
+        for (((&(node, rows), asks), axes_one), headings) in
+            nodes.iter().zip(asks).zip(axes_one).zip(headings)
+        {
             let mut ordinals = BTreeMap::new();
             let mut answers = Vec::with_capacity(rows.len());
-            for ((row, ask), &stated) in rows.iter().zip(asks).zip(axes_one) {
+            for (((row, ask), &stated), &heading) in
+                rows.iter().zip(asks).zip(axes_one).zip(headings)
+            {
                 let ordinal = ordinals.entry(row.site).or_insert(0usize);
                 let at = core::mem::replace(ordinal, *ordinal + 1);
                 answers.push(match ask {
@@ -203,7 +214,13 @@ pub(super) fn rungs(
                                 &*ev.insert(replayed)
                             }
                         };
-                        Some(prove_row(ev, (node, row, at), stated, (band, tol), cancel)?)
+                        Some(prove_row(
+                            (doc, ev),
+                            (node, row, at),
+                            (stated, heading),
+                            (band, tol),
+                            cancel,
+                        )?)
                     }
                 });
             }
@@ -249,13 +266,14 @@ fn stands_on_a_part(doc: &crate::doc::Doc<ProfileProgram>, node: RecipeNodeId) -
 
 /// The two symbolic rungs for one row, `at` its ordinal among its
 /// node's rows at its site, its two axes read as the mates state them
-/// where `stated` ([`carrier_verdict`]); an at-rest row is read off the
-/// copies by the carrier verdict alone (the census is not re-run).
-/// Canceled before it discharges a margin.
+/// where `stated` ([`carrier_verdict`]); a traced sweep's row whose
+/// heading is `heading` is first read for that heading ([`swept_along`]);
+/// an at-rest row is read off the copies by the carrier verdict alone
+/// (the census is not re-run). Canceled before it discharges a margin.
 fn prove_row(
-    ev: &Evaluation<Lane>,
+    (doc, ev): (&crate::doc::Doc<ProfileProgram>, &Evaluation<Lane>),
     (node, row, at): (RecipeNodeId, &NamedCoincidence, usize),
-    stated: bool,
+    (stated, heading): (bool, Option<Heading>),
     (band, tol): (Result<Band, BandError>, Tol),
     cancel: &crate::CancelToken,
 ) -> Result<Proved, Canceled> {
@@ -280,7 +298,7 @@ fn prove_row(
         let Ok(band) = band else {
             return left(Unreplayed::Refused);
         };
-        return Ok(match carrier_verdict(ev, row, band, tol, stated) {
+        return Ok(match carrier_verdict(ev, row, band, stated) {
             Some(Ok(())) => Ok(Rung::CarrierVerdict),
             Some(Err(CarrierFail::Undischarged(why))) => Err((numeric(why), None)),
             Some(Err(CarrierFail::Left(component, why))) => {
@@ -302,9 +320,15 @@ fn prove_row(
     else {
         return left(Unreplayed::OtherDecisions);
     };
+    if let (Some(heading), Ok(band)) = (heading, band)
+        && let Some(arm) = pair_arm(ev, row, band)
+        && swept_along(doc, ev, heading, arm, band, tol)
+    {
+        return Ok(Ok(Rung::MarginIdentity));
+    }
     let mut component = None;
     if let Ok(band) = band {
-        match carrier_verdict(ev, row, band, tol, stated) {
+        match carrier_verdict(ev, row, band, stated) {
             Some(Ok(())) => return Ok(Ok(Rung::CarrierVerdict)),
             Some(Err(CarrierFail::Frame)) => return left(Unreplayed::Frame),
             Some(Err(CarrierFail::Left(left, _))) => component = Some(left),
@@ -317,6 +341,92 @@ fn prove_row(
     Ok(deferred::discharge_or_why(replayed.margin)
         .map(|()| Rung::MarginIdentity)
         .map_err(|why| (numeric(why), component)))
+}
+
+/// The name a traced sweep's heading off its traced face's axis is
+/// decided Zero under ([`swept_along`]).
+const SWEPT_ALONG: &str = "replay_swept_along_the_traced_axis";
+
+/// **Whether a traced sweep runs along the face its piece leaves**, the
+/// heading the trace statement leaves to the replay
+/// ([`super::Traced::HeadingUnread`]): the face, read as the profile
+/// reads it ([`crate::eval::traced_faces`]), on a cylinder whose axis,
+/// carried into the sketch's coordinates, has no component across the
+/// sketch's `z`, the heading every extrude of the profile sweeps along.
+/// Each component is decided Zero and discharged by the tier, so the
+/// heading is the axis as a polynomial identity in the symbols: a
+/// profile on a cap of the face's own extrude, whose normal and whose
+/// wall's generator are both that extrude's heading. Each component is
+/// a sine levered at `arm`, the reach of the two faces the row decided
+/// ([`pair_arm`]), which a tilt of the sweep turns its wall across. A
+/// face on any other carrier, or one the replay does not read, is not
+/// shown so.
+fn swept_along(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    ev: &Evaluation<Lane>,
+    heading: Heading,
+    arm: geom_core::Lever<Lane>,
+    band: Band,
+    tol: Tol,
+) -> bool {
+    let Some(crate::Node::Profile(program)) = doc.node(heading.profile) else {
+        return false;
+    };
+    let Ok(faces) = crate::eval::traced_faces(doc, ev, program, tol) else {
+        return false;
+    };
+    let Some(across) = faces.get(heading.face).and_then(axis_in_sketch) else {
+        return false;
+    };
+    // Unsourced lever: the pair's reach (`carrier_pair_arm`), entered as the
+    // power of two at or above it. A positive constant factor leaves a
+    // margin zero as a polynomial exactly where its sine is, so the tier
+    // proves the sine's identity: the reach's own form outgrows the door's
+    // budget, an opaque unknown keeps the product from discharging, and the
+    // reach's own `f64` swells every coefficient it multiplies.
+    let arm = geom_core::Lever::unsourced(<Lane as geom_core::Real>::from_f64(
+        geom_core::Bounds::hi(arm.length()).log2().ceil().exp2(),
+    ));
+    let zero = |component: Lane| {
+        geom_core::k_stats::decide_reported(
+            SWEPT_ALONG,
+            geom_core::Margin::levered(component, arm),
+            band,
+        )
+        .is_ok_and(|d| deferred::discharge(d.margin))
+    };
+    zero(across.x) && zero(across.y)
+}
+
+/// **The arm a row's angular datum is levered at**: the reach of the
+/// ball enclosing its two faces as the replay built them, read in the
+/// frame the row's verdict is decided in, the arm the kernel's ladder
+/// levers the pair's tilt at ([`topo::boolean::carrier_pair_arm`]).
+/// `None` where a cell is no face the replay built, or the pair's
+/// extent does not read.
+fn pair_arm(
+    ev: &Evaluation<Lane>,
+    row: &NamedCoincidence,
+    band: Band,
+) -> Option<geom_core::Lever<Lane>> {
+    let [a, b] = row.cells.as_slice() else {
+        return None;
+    };
+    let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
+    let computing = crate::eval::Framed::computing_among([a, b])?;
+    let (a_at, b_at) = (computing.seat(a).ok()?, computing.seat(b).ok()?);
+    topo::boolean::carrier_pair_arm((a_at, fa), (b_at, fb), band).ok()
+}
+
+/// A traced face's axis, where it is on a cylinder, carried into the
+/// sketch's coordinates; `None` on any other carrier.
+fn axis_in_sketch(face: &crate::TracedFace<Lane>) -> Option<geom_core::Vec3<Lane>> {
+    match &face.surface {
+        Ok(geom::Surface::Cylinder { frame, .. }) => {
+            Some(face.body_to_sketch.transform_vec(frame.axis()))
+        }
+        _ => None,
+    }
 }
 
 /// A form the tier read and did not discharge: a coincidence of values
@@ -390,15 +500,15 @@ enum CarrierFail {
 enum Unestablished {
     /// Its Zero is not discharged, or its datum is not Zero.
     Undischarged(deferred::Undischarged),
-    /// The two faces' extent, the axes' tilt is levered over, does not
-    /// read ([`topo::boolean::carrier_pair_arm`]), for the pair door's
-    /// own reason.
+    /// The two faces' extent, which the axes' data are read over, does
+    /// not read ([`topo::boolean::cylinder_pair_data`]), for the pair
+    /// door's own reason.
     ExtentUnread(topo::boolean::PairUnread),
 }
 
 /// What a component [`one_cylinder`] did not establish leaves the row:
-/// a coincidence of values ([`numeric`]), or the extent the tilt is
-/// levered over unread, with its reason.
+/// a coincidence of values ([`numeric`]), or the extent the axes' data
+/// are read over unread, with its reason.
 fn unestablished(why: Unestablished) -> Left {
     match why {
         Unestablished::Undischarged(why) => numeric(why),
@@ -424,7 +534,6 @@ fn carrier_verdict(
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
     band: Band,
-    tol: Tol,
     stated: bool,
 ) -> Option<Result<(), CarrierFail>> {
     let wanted = match row.relation {
@@ -437,18 +546,19 @@ fn carrier_verdict(
     };
     let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
     // Decided in the frame `[placement.frame]` conditions on (the cell
-    // in its space's coordinates, else the first), the other read in.
+    // in its space's coordinates, else the first), each face read off its
+    // own body and the other's data through their relative motion.
     let computing = crate::eval::Framed::computing_among([a, b])?;
-    let (Ok(a_in), Ok(b_in)) = (computing.read_in(a, tol), computing.read_in(b, tol)) else {
+    let (Ok(a_in), Ok(b_in)) = (computing.seat(a), computing.seat(b)) else {
         return Some(Err(CarrierFail::Frame));
     };
-    let kernel = || match topo::boolean::carrier_pair_decided(&a_in, fa, &b_in, fb, band) {
+    let kernel = || match topo::boolean::seated_pair_decided((a_in, fa), (b_in, fb), band) {
         Ok(Ok(geom_brep::CarrierVerdict::One { relation, margin })) if relation == wanted => {
             Some(deferred::discharge_or_why(margin).map_err(CarrierFail::Undischarged))
         }
         _ => None,
     };
-    match one_cylinder((&a_in, fa), (&b_in, fb), wanted, band, stated) {
+    match one_cylinder((a_in, fa), (b_in, fb), wanted, band, stated) {
         None => kernel(),
         Some(Ok(())) => Some(Ok(())),
         Some(Err((component, why))) => match kernel() {
@@ -458,8 +568,9 @@ fn carrier_verdict(
     }
 }
 
-/// The name [`one_cylinder`]'s metre data — the axes' offset, the
-/// radii's differences — are each decided Zero under.
+/// The name [`one_cylinder`]'s metre data — the second axis's offset at
+/// the foot of the pair's extent, the radii's differences — are each
+/// decided Zero under.
 const ONE_CYLINDER: &str = "replay_one_cylinder";
 /// The name [`one_cylinder`]'s axis parallelism is decided Zero under:
 /// the axes' tilt `|da × db|`, levered at the pair's reach.
@@ -474,9 +585,17 @@ const ONE_CYLINDER_AXIS: &str = "replay_one_cylinder_axis";
 /// alone; the material sides' bits giving `wanted`. The first component
 /// not established and why; `None` where either face is not on a
 /// cylinder.
+///
+/// Where the axis is decided, its tilt and offset and the radii's
+/// difference are the kernel's own data (`topo::boolean::cylinder_pair_data`),
+/// read over the pair's extent and decided under the replay's names; an
+/// extent that does not read leaves the axis unestablished, with the pair
+/// door's reason. Where the mates state the axis, the radii's difference
+/// is read as it stands, with no extent. The rims and the sense are the
+/// replay's.
 fn one_cylinder(
-    (a, fa): (&topo::Body<Lane>, FaceKey),
-    (b, fb): (&topo::Body<Lane>, FaceKey),
+    (a, fa): (topo::Seat<'_, Lane>, FaceKey),
+    (b, fb): (topo::Seat<'_, Lane>, FaceKey),
     wanted: CarrierRelation,
     band: Band,
     stated: bool,
@@ -484,20 +603,18 @@ fn one_cylinder(
     use geom_brep::CarrierDesc::Cylinder;
     let (
         Some(Cylinder {
-            origin: oa,
-            axis: da,
             radius: ra,
             outward: sa,
+            ..
         }),
         Some(Cylinder {
-            origin: ob,
-            axis: db,
             radius: rb,
             outward: sb,
+            ..
         }),
     ) = (
-        topo::face_normal::face_carrier_desc(a, fa),
-        topo::face_normal::face_carrier_desc(b, fb),
+        topo::face_normal::face_carrier_desc(a.body(), fa),
+        topo::face_normal::face_carrier_desc(b.body(), fb),
     )
     else {
         return None;
@@ -510,29 +627,30 @@ fn one_cylinder(
             .map_err(Unestablished::Undischarged)
     };
     let established = || {
-        if !stated {
-            // The tilt, one datum (`|da × db|`, the sine of the angle
-            // between the axes), levered at the arm the kernel's pair
-            // door reads it at: the reach of the ball enclosing both
-            // faces from the foot of its centre on the second axis
-            // (`topo::boolean::carrier_pair_arm`), so the replay and the
-            // kernel judge one tilt alike.
-            let arm = topo::boolean::carrier_pair_arm(a, fa, b, fb, band)
-                .map_err(|unread| (Component::Axis, Unestablished::ExtentUnread(unread)))?;
-            zero_as(
-                ONE_CYLINDER_AXIS,
-                geom_core::Margin::levered(da.cross(db).norm(), arm),
-            )
-            .map_err(|why| (Component::Axis, why))?;
-            let off = (ob - oa).cross(db);
-            for r in [off.x, off.y, off.z] {
-                zero_as(ONE_CYLINDER, geom_core::Margin::of(r))
-                    .map_err(|why| (Component::Axis, why))?;
-            }
-        }
+        // Where the axis is decided, the pair's data as the kernel's
+        // ladder reads them (`topo::boolean::cylinder_pair_data`): the
+        // tilt `|da × db|` levered at the pair's reach, the second axis's
+        // offset at the foot of that extent, and the radii's difference,
+        // so the replay and the kernel decide one cylinder's data alike.
+        // Where the mates state the axis, nothing is read over the
+        // extent, and the radii's difference is read as it stands.
+        let radii = if stated {
+            geom_core::Margin::of(ra - rb)
+        } else {
+            let data = match topo::boolean::cylinder_pair_data((a, fa), (b, fb), band) {
+                Ok(Some(data)) => data,
+                Ok(None) => unreachable!("two faces on cylinders read a cylinder pair's data"),
+                Err(unread) => {
+                    return Err((Component::Axis, Unestablished::ExtentUnread(unread)));
+                }
+            };
+            zero_as(ONE_CYLINDER_AXIS, data.tilt).map_err(|why| (Component::Axis, why))?;
+            zero_as(ONE_CYLINDER, data.offset).map_err(|why| (Component::Axis, why))?;
+            data.radius
+        };
         let radius = |why| (Component::Radius, why);
-        for ((body, face), r) in [((a, fa), &ra), ((b, fb), &rb)] {
-            let rims = rim_radii(body, face);
+        for ((seat, face), r) in [((a, fa), &ra), ((b, fb), &rb)] {
+            let rims = rim_radii(seat.body(), face);
             if rims.len() < 2 {
                 return Err(radius(Unestablished::Undischarged(
                     deferred::Undischarged::Otherwise,
@@ -542,7 +660,7 @@ fn one_cylinder(
                 zero_as(ONE_CYLINDER, geom_core::Margin::of(rim - *r)).map_err(radius)?;
             }
         }
-        zero_as(ONE_CYLINDER, geom_core::Margin::of(ra - rb)).map_err(radius)?;
+        zero_as(ONE_CYLINDER, radii).map_err(radius)?;
         if (sa == sb) != (wanted == CarrierRelation::SameOriented) {
             return Err((
                 Component::Sense,
@@ -572,7 +690,10 @@ fn rim_radii(body: &topo::Body<Lane>, face: FaceKey) -> Vec<Lane> {
                 .and_then(topo::CurveGeom::certified)
                 .map(geom_brep::EdgeCurve::carrier)
             {
-                Some(geom::Curve3::Circle(geom::Circle { radius, .. })) => Some(*radius),
+                Some(geom::Curve3::Circle(circle)) => {
+                    let radius = circle.radius();
+                    Some(radius)
+                }
                 _ => None,
             }
         })
@@ -611,6 +732,76 @@ mod tests {
     use super::*;
     use topo::test_support::{CylFrame, cyl_wall_sheet};
 
+    /// **The axis offset is one distance, as the kernel reads it, not
+    /// three projections of it.** Two 2 cm walls of a 1 cm cylinder on
+    /// parallel axes, the second slid `1.2·zero` along the diagonal of
+    /// `x` and `y`. Each component of `(ob − oa) × db`, the reading the
+    /// replay took until it read the kernel's data, is `0.85·zero`: Zero.
+    /// The kernel's offset (`topo::boolean::cylinder_pair_data`,
+    /// `Margin::norm3`) is the distance itself, `1.2·zero`: in the band,
+    /// so the replay's offset escalates there, on the margin the kernel's
+    /// ladder reads.
+    #[test]
+    fn the_axis_offset_is_one_distance_not_three_projections() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let d = 1.2 * band.zero();
+        let slid = CylFrame {
+            origin: geom_core::Point3::new(d / 2f64.sqrt(), d / 2f64.sqrt(), 0.0),
+            ..CylFrame::canonical(0.01)
+        };
+        let (u, v) = ((0.2, 1.6), (0.0, 0.02));
+        let (read, recording) = geom_core::k_stats::detached(|| {
+            deferred::with_deferred_session(
+                BUDGET,
+                SymRules::shipped(),
+                crate::drive::DEFAULT_SYM_RETRY,
+                || {
+                    let mut a = topo::Body::<Lane>::new();
+                    let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(0.01), u, v, tol);
+                    let mut b = topo::Body::<Lane>::new();
+                    let fb = cyl_wall_sheet(&mut b, slid, u, v, tol);
+                    one_cylinder(
+                        (topo::Seat::own(&a), fa),
+                        (topo::Seat::own(&b), fb),
+                        CarrierRelation::SameOriented,
+                        band,
+                        false,
+                    )
+                },
+            )
+            .0
+        });
+        assert!(
+            band.zero() < d && d < band.escalate() && d / 2f64.sqrt() <= band.zero(),
+            "a distance in band whose projections are Zero: {d:e}"
+        );
+        let recorded = recording.recorded();
+        let offset: Vec<_> = recorded
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == ONE_CYLINDER)
+            .collect();
+        assert!(offset.is_empty(), "no projection decided Zero: {offset:?}");
+        let escalated: Vec<_> = recorded
+            .escalations
+            .iter()
+            .filter(|e| e.predicate() == ONE_CYLINDER)
+            .map(|e| e.source.margin)
+            .collect();
+        let dx = d / 2f64.sqrt();
+        assert_eq!(
+            escalated,
+            [geom_core::MarginDiag::value((dx * dx + dx * dx).sqrt())],
+            "one offset, in band, the distance itself: {:?}",
+            recorded.escalations
+        );
+        assert!(
+            matches!(read, Some(Err((Component::Axis, _)))),
+            "the axis is not established: {read:?}"
+        );
+    }
+
     /// **The axis tilt is levered at the pair's reach, not at a metre.**
     /// Two 2 cm walls of a 1 cm cylinder, the second tilted about `y`
     /// through their shared axis point by `2·escalate`: at a metre that
@@ -635,11 +826,15 @@ mod tests {
                     let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(radius), u, v, tol);
                     let mut b = topo::Body::<Lane>::new();
                     let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(radius, theta), u, v, tol);
-                    let arm = topo::boolean::carrier_pair_arm(&a, fa, &b, fb, band)
-                        .map(|arm| <Lane as geom_core::Bounds>::hi(arm.length()));
+                    let arm = topo::boolean::carrier_pair_arm(
+                        (topo::Seat::own(&a), fa),
+                        (topo::Seat::own(&b), fb),
+                        band,
+                    )
+                    .map(|arm| <Lane as geom_core::Bounds>::hi(arm.length()));
                     let read = one_cylinder(
-                        (&a, fa),
-                        (&b, fb),
+                        (topo::Seat::own(&a), fa),
+                        (topo::Seat::own(&b), fb),
                         CarrierRelation::SameOriented,
                         band,
                         false,

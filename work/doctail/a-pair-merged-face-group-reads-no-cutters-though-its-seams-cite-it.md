@@ -4,6 +4,8 @@ kind: issue
 title: A pair boolean's merged face group reads as not seam-bounded, though its seams now cite its Merged parent
 status: open
 opened: 2026-10-18
+priority: P3
+cost: E
 ---
 
 
@@ -29,3 +31,9 @@ refuses today; a merged group's divider report says "not seam-bounded"
 where it could say which cutters came and went.
 
 Signed (WIRE lane `wire-seamparent`).
+
+## Banded (2026-11-17, DOCTAIL triage)
+
+P3, E. Nothing refuses: the merged group's divider report says "not
+seam-bounded" where it could name its cutters. The repair's shape is
+written above.

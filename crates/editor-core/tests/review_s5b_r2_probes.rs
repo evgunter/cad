@@ -86,7 +86,7 @@ fn r2_a_construction_reading_a_measures_world_copy_selection_by_var() {
         Err(e) => panic!("a construction reads a copy's selection, refused: {e}"),
         Ok(o) => o.doc,
     };
-    let saved = editor_core::persist::save(&doc, &[], Tol::witness());
+    let saved = editor_core::persist::save(&doc, Tol::witness());
     let loaded = saved.as_ref().map_err(|e| format!("{e:?}")).and_then(|t| {
         editor_core::persist::load(t, Tol::witness())
             .map(|_| ())
@@ -140,7 +140,7 @@ fn r2_a_named_world_copy_selection_outlives_its_measure() {
         }
     };
     eprintln!("selection still held: {}", doc.var(sel).is_some());
-    let saved = editor_core::persist::save(&doc, &[], Tol::witness());
+    let saved = editor_core::persist::save(&doc, Tol::witness());
     let loaded = saved.as_ref().map_err(|e| format!("{e:?}")).and_then(|t| {
         editor_core::persist::load(t, Tol::witness())
             .map(|_| ())

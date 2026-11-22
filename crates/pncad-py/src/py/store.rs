@@ -363,8 +363,7 @@ impl Workspace {
     /// The name is a pure function of the identity, so two runs write
     /// the same store. An id the store already holds refuses
     /// (`variant == "duplicate_id"`) and nothing is written. The file
-    /// is a snapshot with an empty edit log, exactly as `Doc.save`
-    /// writes one.
+    /// is the document's state, exactly as `Doc.save` writes it.
     ///
     /// Raises `WorkspaceError`, typed.
     fn create(&mut self, py: Python<'_>, doc: &super::doc::Doc) -> PyResult<String> {

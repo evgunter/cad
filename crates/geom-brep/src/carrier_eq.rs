@@ -625,7 +625,9 @@ const CARRIER_SPHERE_RADIUS: &str = "carrier_sphere_radius";
 /// The cylinder axes' parallelism, the name a caller routes its
 /// escalation by.
 pub const CARRIER_CYL_AXIS_PARALLEL: &str = "carrier_cyl_axis_parallel";
-const CARRIER_CYL_AXIS_OFFSET: &str = "carrier_cyl_axis_offset";
+/// The second cylinder axis's offset from the first, the name a caller
+/// reads the ladder's escalation by.
+pub const CARRIER_CYL_AXIS_OFFSET: &str = "carrier_cyl_axis_offset";
 const CARRIER_CYL_RADIUS: &str = "carrier_cyl_radius";
 const CARRIER_CONE_APEX: &str = "carrier_cone_apex";
 const CARRIER_CONE_AXIS_PARALLEL: &str = "carrier_cone_axis_parallel";
@@ -649,17 +651,85 @@ fn cylinder_data<T: Decide>(
     (p2, a2, r2): (Point3<T>, Vec3<T>, T),
     arm: geom_core::Lever<T>,
 ) -> Vec<Datum<T>> {
+    let CylinderPairData {
+        tilt,
+        offset,
+        radius,
+    } = cylinder_datum((p1, a1, r1), (p2, a2, r2), arm);
     vec![
-        (
-            CARRIER_CYL_AXIS_PARALLEL,
-            Margin::levered(a1.cross(a2).norm(), arm),
-        ),
-        (
-            CARRIER_CYL_AXIS_OFFSET,
-            Margin::norm3(perpendicular(p2 - p1, a1)),
-        ),
-        (CARRIER_CYL_RADIUS, Margin::of(r1 - r2)),
+        (CARRIER_CYL_AXIS_PARALLEL, tilt),
+        (CARRIER_CYL_AXIS_OFFSET, offset),
+        (CARRIER_CYL_RADIUS, radius),
     ]
+}
+
+/// **Two cylinders' data, as the ladder reads them** ([`cylinder_data`]
+/// names them; topo's `cylinder_pair_data` hands them to a reader that
+/// decides them under its own names).
+#[derive(Clone, Copy, Debug)]
+pub struct CylinderPairData<T> {
+    /// The axes' tilt `|a1 × a2|`, levered at the pair's arm.
+    pub tilt: Margin<T>,
+    /// The second axis's distance from the first axis, read at the
+    /// second axis's point nearest the pair's extent (the foot of the
+    /// extent's centre on it).
+    pub offset: Margin<T>,
+    /// The radii's difference.
+    pub radius: Margin<T>,
+}
+
+/// The one computation of [`CylinderPairData`]. Its offset and radius
+/// are [`cylinder_offset`] and [`cylinder_radius`], which the pair's
+/// displacement over its extent ([`reading`]) reads too.
+fn cylinder_datum<T: Decide>(
+    (p1, a1, r1): (Point3<T>, Vec3<T>, T),
+    (p2, a2, r2): (Point3<T>, Vec3<T>, T),
+    arm: geom_core::Lever<T>,
+) -> CylinderPairData<T> {
+    CylinderPairData {
+        tilt: Margin::levered(a1.cross(a2).norm(), arm),
+        offset: cylinder_offset(p1, a1, p2),
+        radius: cylinder_radius(r1, r2),
+    }
+}
+
+/// A second cylinder axis's distance from the first (`p1`, `a1`), read
+/// at its point `p2`.
+fn cylinder_offset<T: Decide>(p1: Point3<T>, a1: Vec3<T>, p2: Point3<T>) -> Margin<T> {
+    Margin::norm3(perpendicular(p2 - p1, a1))
+}
+
+/// Two cylinders' radii's difference.
+fn cylinder_radius<T: Decide>(r1: T, r2: T) -> Margin<T> {
+    Margin::of(r1 - r2)
+}
+
+/// **Two cylinders' data over `reach`**, as [`ladder_reading`] reads
+/// them: each description at the pivot [`at_consumed_extent`] puts it
+/// at, the tilt at its arm. `None` where either is not a cylinder.
+pub fn cylinder_data_at<T: Decide>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    reach: crate::ExtentBall<T>,
+) -> Option<CylinderPairData<T>> {
+    let (c1, c2, arm) = at_consumed_extent(c1, c2, reach);
+    match (c1, c2) {
+        (
+            CarrierDesc::Cylinder {
+                origin: p1,
+                axis: a1,
+                radius: r1,
+                ..
+            },
+            CarrierDesc::Cylinder {
+                origin: p2,
+                axis: a2,
+                radius: r2,
+                ..
+            },
+        ) => Some(cylinder_datum((p1, a1, r1), (p2, a2, r2), arm)),
+        _ => None,
+    }
 }
 
 /// The cone's data: the apexes' separation, and the axis lines'
@@ -887,10 +957,13 @@ fn reading<T: Decide>(
                 origin: o2,
                 dir: a2,
             });
-            let apart = perpendicular(pivot - o1, a1).norm();
+            // The datum's offset and radius ([`cylinder_offset`],
+            // [`cylinder_radius`]); the tilt is the chord [`line_tilt`] at
+            // the reach widened by that offset, not the datum's sine.
+            let apart = cylinder_offset(o1, a1, pivot).value();
             let arm = reach.lever_from_within(pivot, apart);
             let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
-            (CYL_REACH, (r1 - r2).abs() + core)
+            (CYL_REACH, cylinder_radius(r1, r2).value().abs() + core)
         }
         (
             CarrierDesc::Cone {
@@ -1574,14 +1647,12 @@ mod tests {
             (spindle, ring, crate::PairSide::First),
         ] {
             match carrier_eq(&x, &y, &ConsumedExtent::arm(1.0), band()) {
-                Err(CarrierEqError::OffRing {
-                    torus,
-                    refusal:
-                        crate::TorusRefusal {
-                            convention: crate::TorusConvention::Ring,
-                            verdict: crate::TorusVerdict::Refused(_),
-                        },
-                }) => assert_eq!(torus, side, "the refusal names the spindle"),
+                Err(CarrierEqError::OffRing { torus, refusal })
+                    if refusal.convention == crate::TorusConvention::Ring
+                        && matches!(refusal.standing(), crate::TorusStanding::InvalidInput(_)) =>
+                {
+                    assert_eq!(torus, side, "the refusal names the spindle");
+                }
                 other => panic!("the spindle on the {side:?} side: {other:?}"),
             }
         }

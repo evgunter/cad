@@ -145,29 +145,45 @@ fn cases() -> Vec<(&'static str, Link<f64>, Oracle)> {
     ]
 }
 
-/// The least of `sd` along `a`–`c`: a dense sample, refined about its
-/// least by a ternary search.
+/// The least of `sd` along `a`–`c`: a dense sample, refined by a ternary
+/// search about **every** local least of the sample, not only the
+/// sample's own least. A signed distance is a max or min of several, so
+/// its least along a segment can sit at a kink where the samples either
+/// side read above an endpoint's value: refining about the best sample
+/// alone then finds the endpoint and misses the kink (the saddle at
+/// `CAD_FUZZ_SEED=0xd75256da3a450b2e`, whose kink reads `3.5e-5` below
+/// its far end).
 fn least(sd: Oracle, a: Point3<f64>, c: Point3<f64>) -> f64 {
     let at = |t: f64| sd(a + (c - a) * t);
     let n = 2000;
-    let (mut best, mut best_t) = (f64::INFINITY, 0.0);
-    for i in 0..=n {
-        let t = f64::from(i) / f64::from(n);
-        if at(t) < best {
-            (best, best_t) = (at(t), t);
-        }
-    }
     let step = 1.0 / f64::from(n);
-    let (mut lo, mut hi) = ((best_t - step).max(0.0), (best_t + step).min(1.0));
-    for _ in 0..100 {
-        let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
-        if at(m1) < at(m2) {
-            hi = m2;
+    let samples: Vec<f64> = (0..=n).map(|i| at(f64::from(i) * step)).collect();
+    let refine = |i: usize| {
+        let t = f64::from(u32::try_from(i).expect("a sample index fits u32")) * step;
+        let (mut lo, mut hi) = ((t - step).max(0.0), (t + step).min(1.0));
+        for _ in 0..100 {
+            let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+            if at(m1) < at(m2) {
+                hi = m2;
+            } else {
+                lo = m1;
+            }
+        }
+        at(0.5 * (lo + hi))
+    };
+    let mut best = samples.iter().copied().fold(f64::INFINITY, f64::min);
+    for i in 0..samples.len() {
+        let left = if i == 0 {
+            f64::INFINITY
         } else {
-            lo = m1;
+            samples[i - 1]
+        };
+        let right = samples.get(i + 1).copied().unwrap_or(f64::INFINITY);
+        if samples[i] <= left && samples[i] <= right {
+            best = best.min(refine(i));
         }
     }
-    best.min(at(0.5 * (lo + hi)))
+    best
 }
 
 /// **`offset` is the signed distance from the cone, and `lowest_on` its

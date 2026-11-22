@@ -2,10 +2,11 @@
 id: step-import-reads-a-negative-surface-radius-unchecked-before-edge-certification
 kind: issue
 title: step-import: a negative CYLINDRICAL/SPHERICAL/TOROIDAL radius passes entities.rs unchecked and reaches edge certification before check 1
-status: open
+status: closed
 opened: 2026-10-14
 priority: P2
 cost: E
+closed: 2026-11-18
 ---
 
 (Filed by the ENCL orchestrator from the adoption survey for `[ev]` PR 5134. Read from source, not executed.)

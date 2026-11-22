@@ -9,7 +9,6 @@ pr: 5368
 priority: P3
 cost: M
 design: true
-blocked_on: [coincident-faces-are-not-imprinted-on-each-other-before-the-lump]
 ---
 
 

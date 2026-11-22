@@ -31,7 +31,7 @@ use pncad::geom_core::Probe;
 /// is after. An axis-aligned sketch plane is not decided: it is a
 /// written turn (`RigidMotion::turned`). The tube scenes' [`axis_frame`]
 /// still decides an exact (axis, reference) pair under this name
-/// (`work/frame/exact-axis-and-reference-frames-still-decide.md`).
+/// (`work/scalar/exact-axis-and-reference-frames-still-decide.md`).
 /// [`frame_across`] decides under it too: its direction's length, and
 /// whether that direction is off the world −z by more than the band
 /// (the least turn's opposition decision).
@@ -117,7 +117,13 @@ pub fn frame_across<S: Scalar>(
     let dir = pncad::geom_core::UnitVec3::new(dir, TOUR_FRAME_AXIS, band)
         .expect("the scene's direction has a length");
     pncad::geom_core::RigidMotion::axes_xy(origin)
-        .turned_onto(dir, TOUR_FRAME_AXIS, band)
+        .turned_onto(
+            dir,
+            pncad::geom_core::Lever::session_box(),
+            TOUR_FRAME_AXIS,
+            band,
+            tol,
+        )
         .expect("the scene's direction is off the world -z")
 }
 
@@ -156,6 +162,7 @@ pub trait Scalar:
     Decide
     + pncad::geom_core::CertifiedBounds
     + ContentBits
+    + pncad::topo::CertifiedPolicy
     + pncad::topo::AtRestPolicy<
         Finished = pncad::topo::AtRestBody<Self>,
         Leaf: crate::booleans::Operand<Self>,

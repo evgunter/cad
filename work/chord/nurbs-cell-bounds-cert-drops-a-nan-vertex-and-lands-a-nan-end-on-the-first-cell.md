@@ -50,3 +50,16 @@ never sees one; or give the cell locator the spline locator's shape,
 `None` for NaN. The NaN-dropping `min3`/`max3` is the sharper half:
 `f64::min` laundering a NaN is what the module-level NaN policy in
 `geom_core::real` forbids for the scalar `min`/`max`.
+
+## Found again (2026-11-16, TESSLANE's cylinder-certificate unit)
+
+The class sweep of
+`work/tesslane/the-cylinder-certificate-reads-a-ruling-sided-triangle-as-zero.md`
+(a `max`/`min` in `mesh` that reads a NaN as a number where it decides a
+bound) lands on the same two sites, `NurbsFaceBound::cert` and
+`NurbsCellGrid::cert` through `min3`/`max3`, and on the crease test in
+`NurbsCellGrid::cert` (`lo < c && c < hi`), where a box that dropped a
+NaN corner can miss a crease the triangle crosses and answer a finite
+bound for `+∞`. The other certificates now answer NaN for a corner that
+is not finite (`cert::tests::the_certificates_poison_on_an_input_that_is_not_finite`);
+this one is the exception left.

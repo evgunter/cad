@@ -2,7 +2,7 @@
 id: boxes
 kind: program
 title: BOXES — the region a face or edge can occupy, decided in several places: the box rules, the extent doors and their charges
-status: active
+status: ready
 opened: 2026-09-20
 group: kernel/boolean/one-home
 prefix: boxes/

@@ -477,7 +477,7 @@ fn prism_part(
     );
     let copy = place(&mut doc, prism, tol);
     // What the part makes: its one copy.
-    crate::world::set_product(&doc, &[Operand::Node(copy)], tol).doc
+    crate::world::set_product(&doc, &[Operand::Node(copy)], tol)
 }
 
 /// The post: a square section, standing.
@@ -706,7 +706,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         .chain([shelf_i])
         .map(Operand::Node)
         .collect();
-    let doc = crate::world::set_product(&doc, &made, tol).doc;
+    let doc = crate::world::set_product(&doc, &made, tol);
     (doc, pattern, shelf_i)
 }
 
@@ -845,7 +845,7 @@ fn stand_doc(parts: &Parts, tol: Tol) -> Stand {
     );
     // What the stand is: its two posts and its shelf.
     let made = [post_a, shelf_i, post_b].map(Operand::Node);
-    let doc = crate::world::set_product(&doc, &made, tol).doc;
+    let doc = crate::world::set_product(&doc, &made, tol);
     Stand {
         doc,
         post_a,
@@ -897,7 +897,7 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
     );
     // The stand's product, the crate with it.
     let made = [stand.post_a, stand.shelf_i, stand.post_b, crate_i].map(Operand::Node);
-    let doc = crate::world::replace_product(&doc, &made, tol).doc;
+    let doc = crate::world::replace_product(&doc, &made, tol);
     Bench {
         doc,
         crate_i,
@@ -2250,16 +2250,12 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
     let ev = run(doc, &with_store(ws), tol);
     let (body, names) = product_of(doc, &ev, tol);
 
-    let text = save(doc, &[], tol).expect("the document saves");
+    let text = save(doc, tol).expect("the document saves");
     let loaded = load(&text, tol).expect("and loads");
-    assert_eq!(
-        loaded.doc.id(),
-        doc.id(),
-        "identity survives the round trip"
-    );
+    assert_eq!(loaded.id(), doc.id(), "identity survives the round trip");
 
-    let ev2 = run(&loaded.doc, &with_store(ws), tol);
-    let (body2, names2) = product_of(&loaded.doc, &ev2, tol);
+    let ev2 = run(&loaded, &with_store(ws), tol);
+    let (body2, names2) = product_of(&loaded, &ev2, tol);
     assert_eq!(census(&body), census(&body2), "same census after reload");
     assert_eq!(
         volume_bits(&body, tol),

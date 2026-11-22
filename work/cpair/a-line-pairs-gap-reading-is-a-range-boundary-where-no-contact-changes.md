@@ -4,6 +4,8 @@ kind: issue
 title: profile::seg reads segment_gap before any side, so every line pair whose projections start or stop overlapping is a decision flip that bounds a certified range, though the pair's contacts are none on both sides
 status: open
 opened: 2026-10-28
+priority: P2
+cost: M
 ---
 
 

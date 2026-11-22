@@ -42,25 +42,25 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
         Vec3::unit_y()
     };
     Surface::Plane {
-        origin,
-        normal,
-        u_ref: (seed - normal * seed.dot(normal)).normalize(),
+        frame: geom::Frame::new(
+            origin,
+            normal,
+            (seed - normal * seed.dot(normal)).normalize(),
+        ),
     }
 }
 
 /// A reach of `lever` about [`cone_z`]'s apex: the scalar extent these
 /// rows read a pose at before `route_pose` took a [`Reach`].
 fn at_apex(lever: f64) -> Reach<f64> {
-    Reach::of_frame(Point3::new(0.0, 0.0, 1.0), (lever, lever))
+    Reach::fixture(Point3::new(0.0, 0.0, 1.0), lever)
 }
 
 /// The `z`-axis cone, apex at `(0, 0, 1)`.
 fn cone_z(half_angle: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -72,30 +72,24 @@ fn cyl(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
         Vec3::unit_y()
     };
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, (seed - axis * seed.dot(axis)).normalize()),
         radius,
-        u_ref: (seed - axis * seed.dot(axis)).normalize(),
     }
 }
 
 /// The `y`-axis ring torus at the origin, `R = 2`, `r = 0.5`.
 fn torus_y() -> Surface<f64> {
     Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x()),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -292,7 +286,7 @@ fn a_right_angled_cone_refuses_the_axis_normal_division() {
     let cut = plane(Point3::new(0.0, 0.0, 3.0), Vec3::unit_z());
     let got = plane_cone_section(&cut, &cone, &at_apex(1.0), band());
     assert!(
-        matches!(got, Err(SectionError::DegenerateOperand { .. })),
+        matches!(got, Err(SectionError::ConeAtTheBand { .. })),
         "the cos alpha division must be decided first, got {got:?}"
     );
     // The in-band twin escalates on the guard's own name.
@@ -302,6 +296,15 @@ fn a_right_angled_cone_refuses_the_axis_normal_division() {
         panic!("the in-band aperture must escalate");
     };
     assert_eq!(diag.predicate, Some("pn_aperture_cos"));
+    // Past a right angle, `cos α` is decided negative: the cone is outside
+    // its convention, a degenerate operand, never at the band's edge. Red
+    // if the guard's two decided arms collapse into one.
+    let past = cone_z(2.0);
+    let got = plane_cone_section(&cut, &past, &at_apex(1.0), band());
+    assert!(
+        matches!(got, Err(SectionError::DegenerateOperand { what }) if what.contains("past a right angle")),
+        "a half-angle past a right angle is outside the convention, got {got:?}"
+    );
 }
 
 /// **The apex lane's `sin α` clause, decided on the band.** A cone
@@ -314,7 +317,7 @@ fn a_closed_cone_refuses_the_apex_lane_division() {
     let through = plane(Point3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 1e-17));
     let got = plane_cone_section(&through, &cone, &at_apex(1.0), band());
     assert!(
-        matches!(got, Err(SectionError::DegenerateOperand { .. })),
+        matches!(got, Err(SectionError::ConeAtTheBand { .. })),
         "the sin alpha division must be decided first, got {got:?}"
     );
     let cone = cone_z((3.0 * eps()).asin());
@@ -373,6 +376,6 @@ fn the_aperture_guard_is_levered_by_extent() {
     assert!(plane_cone_section(&through, &cone, &at_apex(1.0), band()).is_ok());
     assert!(matches!(
         plane_cone_section(&through, &cone, &at_apex(0.01), band()),
-        Err(SectionError::DegenerateOperand { .. })
+        Err(SectionError::ConeAtTheBand { .. })
     ));
 }

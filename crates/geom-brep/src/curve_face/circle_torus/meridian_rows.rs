@@ -1,5 +1,5 @@
 //! **The circle × torus door's meridian rung**
-//! ([`super::meridian_deviation`], `circle_torus_meridian`), held
+//! ([`super::meridian_deviation`], `curve_face_pose_meridian`), held
 //! to an independent oracle: each carrier is sampled densely and every
 //! sample's distance from the torus is read in the torus's own frame,
 //! `|√((ρ_axis − R)² + h²) − r|`, without the door's residual or its
@@ -45,11 +45,9 @@ struct Torus {
 impl Torus {
     fn surface(self) -> geom::Surface<f64> {
         geom::Surface::Torus {
-            center: self.c,
-            axis: self.a,
+            frame: geom::Frame::new(self.c, self.a, unit_perp(self.a)),
             major_radius: self.big,
             minor_radius: self.small,
-            u_ref: unit_perp(self.a),
         }
     }
 
@@ -119,15 +117,17 @@ fn door(
     circle: Circle,
     torus: Torus,
     band: Band,
-) -> Result<Result<CircleRoots<f64>, Unsettled>, DoorRefusal> {
+) -> Result<Result<CircleRoots<f64>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
     circle_torus_roots(&circle.carrier(), 0.3, 2.1, &torus.surface(), band)
 }
 
-fn meridian_escalation(got: &Result<Result<CircleRoots<f64>, Unsettled>, DoorRefusal>) -> bool {
+fn meridian_escalation(
+    got: &Result<Result<CircleRoots<f64>, Unsettled>, DoorRefusal<crate::TorusRefusal>>,
+) -> bool {
     matches!(
         got,
         Err(DoorRefusal::Escalated(diag))
-            if diag.predicate == Some("circle_torus_meridian")
+            if diag.predicate == Some("curve_face_pose_meridian")
     )
 }
 

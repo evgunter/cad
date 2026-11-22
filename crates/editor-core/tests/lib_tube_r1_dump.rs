@@ -6,14 +6,13 @@
 use crate::corpus;
 
 use corpus::tube_ring;
-use editor_core::{ProfileDoc, save};
+use editor_core::save;
 use geom_core::Tol;
 
 #[test]
 fn dump_tube_bearing_save() {
     let d = tube_ring::document();
-    let empty = ProfileDoc::empty_derived("r1-stale-probe", Tol::witness());
-    let text = save(&empty, &d.edits, Tol::witness()).expect("saves");
+    let text = save(&d.doc, Tol::witness()).expect("saves");
     assert!(text.contains("\"Tube\""), "the save must name the new kind");
     // Writes only when asked: the row is a helper for the stale-build
     // probe, not an assertion in its own right.

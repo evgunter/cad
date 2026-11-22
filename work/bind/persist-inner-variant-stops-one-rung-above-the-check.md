@@ -2,10 +2,11 @@
 id: persist-inner-variant-stops-one-rung-above-the-check
 kind: issue
 title: pncad-py — PersistError.inner_variant gives an EditReplay the EditError's word and drops the check's, at the one arm that nests two levels
-status: open
+status: closed
 opened: 2026-09-16
 priority: P3
 cost: E
+closed: 2026-11-17
 ---
 
 
@@ -88,3 +89,12 @@ outer pair.
   `work/lib/persist-err-projects-fourteen-arms-through-a-fifteen-slot-positional-tuple.md`.
 
 - 2026-11-03 — moved from LIB to BIND by `git mv` when LIB closed, id and body unchanged; banded P3 and priced E in the move (LIB had three P1 rows left behind 124 closed ones; its library-door rows went to PYDOOR, opened for them, and its tag, stub, census and projection rows to BIND; Ev, in chat).
+
+## Closed
+
+The arm this row is about is gone. `the-save-format-drops-its-edit-log`
+(doctail) removed the edit log from the save format, and
+`PersistError::EditReplay` and its projection in `persist_err` went with
+it. No arm of `PersistError` now nests an `EditError`, so the two-level
+nesting this row describes has nowhere to occur. The `Dimension` arm
+carries its `DimensionError`'s tag on `inner_variant` as before.

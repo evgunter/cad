@@ -63,6 +63,8 @@ mod d9_mesh_goldens;
 mod errors;
 #[path = "exact_vs_mesh.rs"]
 mod exact_vs_mesh;
+#[path = "faces_that_bound_no_region.rs"]
+mod faces_that_bound_no_region;
 #[path = "fitted_refusals.rs"]
 mod fitted_refusals;
 #[path = "genus.rs"]
@@ -119,8 +121,6 @@ mod mesh11r1_probes;
 mod mesh11r2_probes;
 #[path = "mesh7r1_probes.rs"]
 mod mesh7r1_probes;
-#[path = "mesh8_corpus_coherence.rs"]
-mod mesh8_corpus_coherence;
 #[path = "mesh8r1_probes.rs"]
 mod mesh8r1_probes;
 #[path = "mesh8r2_probes.rs"]
@@ -131,18 +131,20 @@ mod newell_probes;
 mod patch_memo;
 #[path = "perf1_torus_sizing.rs"]
 mod perf1_torus_sizing;
+#[path = "placed_balls.rs"]
+mod placed_balls;
 #[path = "prisms.rs"]
 mod prisms;
 #[path = "probe_review.rs"]
 mod probe_review;
 #[path = "profile_overrides.rs"]
 mod profile_overrides;
+#[path = "quadric_pair_sections.rs"]
+mod quadric_pair_sections;
 #[path = "r1_probe_bool_route.rs"]
 mod r1_probe_bool_route;
 #[path = "r1_probe_hash.rs"]
 mod r1_probe_hash;
-#[path = "r1_probes_issue1362.rs"]
-mod r1_probes_issue1362;
 #[path = "r1_probes_issue303.rs"]
 mod r1_probes_issue303;
 #[path = "r2_bool_door.rs"]
@@ -151,8 +153,6 @@ mod r2_bool_door;
 mod r2_bytes;
 #[path = "r2_cert9_probes.rs"]
 mod r2_cert9_probes;
-#[path = "r2_mesh1_probes.rs"]
-mod r2_mesh1_probes;
 #[path = "r2_mesh2_probes.rs"]
 mod r2_mesh2_probes;
 #[path = "r2_mesh6_probes.rs"]
@@ -177,10 +177,14 @@ mod review_m3_pr1_mesh;
 mod revolves;
 #[path = "sizing_theorem_rows.rs"]
 mod sizing_theorem_rows;
+#[path = "split_rulings.rs"]
+mod split_rulings;
 #[path = "the_one_face_ball.rs"]
 mod the_one_face_ball;
 #[path = "wedge.rs"]
 mod wedge;
+#[path = "winding_rows.rs"]
+mod winding_rows;
 
 test_utils::every_suite_file_is_aggregated!();
 
@@ -257,12 +261,6 @@ test_utils::every_suite_file_is_aggregated!();
 ///   and the issue-896 guard's own `coincident(gap)`, asking whether
 ///   a junction × pole pair the classification passes over coincides.
 ///   3 + 1 + 5 = 9 carriers; 1 + 3 + 1 + 0 = 5 reads.
-///
-///   The band that `topo::coherence` reads is NOT on this inventory
-///   and cannot be: it is that crate's own `f64`, not an `Eps`, and
-///   this row walks `crates/mesh/src` alone. The two spellings are
-///   held together by `walk::tests::the_two_spellings_of_the_band_
-///   agree` instead.
 ///
 /// **Six terminal reads across the crate** — `walk.rs`'s five plus
 /// `trimmed.rs`'s `pad`, which is the whole of the read column and
@@ -500,3 +498,6 @@ fn the_eps_inventory_is_pinned() {
 mod r2_mesh7_probes;
 #[path = "r2_sense_e2e.rs"]
 mod r2_sense_e2e;
+
+#[path = "route_rows.rs"]
+mod route_rows;

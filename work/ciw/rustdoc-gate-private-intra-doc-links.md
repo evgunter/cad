@@ -139,7 +139,7 @@ population. The revisit trigger is unchanged.
 
 Carried in from `rustdoc-d-warnings-breakages-outside-the-doc-gate`,
 closed the same day: its seven surviving sites (four in
-`crates/topo/src/boolean/contain.rs`, three in `.../rest.rs`, two in
+`crates/topo/src/contain.rs`, three in `.../rest.rs`, two in
 `crates/editor-core/src/{eval/mod.rs,node.rs}` — the corrected table is
 in that item) are members of this population, reported by nothing today
 because of the `-A` at `scripts/doc-gate.sh:555`. That item listed six of

@@ -129,7 +129,7 @@ impl<T: Decide> PcurveCache<T> {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         band: Band,
-        fitted: Option<crate::FittedLane<T>>,
+        fitted: Option<impl crate::FittedLaneOf<T>>,
     ) -> Result<Self, PcurveCertifyError> {
         let door = image.certifying_door();
         if door == CertifyingDoor::ClosedForm {
@@ -137,15 +137,9 @@ impl<T: Decide> PcurveCache<T> {
         }
         match image {
             Pcurve::Fitted(image) => match fitted {
-                Some(lane) => PcurveCache::certify_fitted(
-                    Arc::clone(image),
-                    t0,
-                    t1,
-                    carrier,
-                    surface,
-                    band,
-                    lane,
-                ),
+                Some(lane) => {
+                    lane.certify_fitted(Arc::clone(image), (t0, t1), carrier, surface, band)
+                }
                 None => super::incidence_ended_unwitnessed(
                     carrier,
                     (t0, t1),
@@ -217,7 +211,10 @@ impl<T: Decide> PcurveCache<T> {
         surface: &Surface<T>,
         band: Band,
         lane: crate::FittedLane<T>,
-    ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+    ) -> Result<PcurveCertificate<T>, PcurveCertifyError>
+    where
+        T: geom_core::Certifies,
+    {
         #[cfg(test)]
         if let Some(image) = sampled_mutant(door, surface) {
             return sampled(image, span, carrier, surface, band);

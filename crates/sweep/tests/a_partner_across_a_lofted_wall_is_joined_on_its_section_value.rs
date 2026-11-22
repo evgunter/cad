@@ -10,7 +10,8 @@
 //! Neither is the join's. Two arcs of one pair closer than the pads their
 //! points are read within carry neither, by name. A brick wholly inside
 //! a wall's face meets it in a closed loop, a ring of the wall the join
-//! walls off as an island.
+//! walls off as an island; a slab round the prism meets its walls in a
+//! closed loop on each of its own big faces, a ring of a plane.
 //!
 //! Each run is at the witness tolerance. Red against main before
 //! the section value carried the pair: each refused at the join, where a
@@ -363,6 +364,43 @@ fn a_fork_inside_and_across_the_rim_of_a_lofted_wall_refuses_its_re_homing_by_na
                 }
             ),
             "{what}: the re-homing names the wall: {refusal:?}"
+        );
+    }
+}
+
+/// **A slab round the prism closes a ring on each of its big faces**:
+/// the slab `x, y ∈ [−3, 3]`, `z ∈ [0.75, 1.25]` meets the prism's four
+/// walls in a closed loop of four carried arcs on its top and on its
+/// bottom. Each loop is a ring of a planar face, whose island is wound
+/// on the face's own plane by the arcs' own areas, the closing chord's
+/// with them. Every operation, in either order, passes the join and
+/// stops at the inside/outside test.
+///
+/// Red against: a ring lane that closes a carried chord on a curved face
+/// alone, where `prism ∪ slab` and `slab ∖ prism` refused
+/// `CurvedBooleanUnsupported` naming the slab's plane; a planar winding
+/// with no term for a spline edge.
+#[test]
+fn a_slab_round_the_prism_closes_a_ring_on_each_of_its_big_faces() {
+    let t = Tol::witness();
+    let prism = finished("the loft prism", loft_prism(t), t);
+    let slab = finished(
+        "the slab",
+        topo::test_support::brick_with_fresh_keys::<f64>((-3.0, 3.0), (-3.0, 3.0), (0.75, 1.25), t),
+        t,
+    );
+    for (what, run) in [
+        ("prism ∪ slab", topo::union(&prism, &slab, t)),
+        ("prism ∖ slab", topo::subtract(&prism, &slab, t)),
+        ("prism ∩ slab", topo::intersect(&prism, &slab, t)),
+        ("slab ∪ prism", topo::union(&slab, &prism, t)),
+        ("slab ∖ prism", topo::subtract(&slab, &prism, t)),
+    ] {
+        let refusal = run.expect_err("no ray crosses the prism's spline walls");
+        assert!(
+            stops_at_containment(&refusal),
+            "{what}: the islands close on the slab's planes and the join completes, the \
+             inside/outside test refusing the wall: {refusal:?}"
         );
     }
 }

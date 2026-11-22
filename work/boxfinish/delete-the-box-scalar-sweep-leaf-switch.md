@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [the-sweep-doors-read-the-profiles-recorded-directions, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice, check-7s-volume-reading-is-loose-over-a-box, an-iso-arc-rims-end-reads-through-its-map-at-interval]
+blocked_on: [the-sweep-doors-read-the-profiles-recorded-directions, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice, an-iso-arc-rims-end-reads-through-its-map-at-interval]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 
@@ -33,7 +33,12 @@ this final state, but … keep it disabled/selectively disabled for now".
   the switch's measured price (ONEHOME stage 2,
   `crates/editor-core/tests/corpus_finish_count.rs`): the corpus runs
   662 finishes with it, 389 with the move and no f64 leaf re-finish,
-  and 505 on main before a move carried its verdict;
+  and 505 on main before a move carried its verdict. Since ONEHOME's
+  PR 7088 (readers move no body) it runs 466, and since PR 7099 (a gather
+  grafts each copy through its seat, the aggregate finishing once) 445,
+  and since the n-ary fold and the at-rest intersection take placed
+  operands (fork 288 stage 1: each member finished in its own frame,
+  then moved by the door) 390;
 - the `⊔` graft's `T::leaf` end, which becomes `T::finish`
   (`crates/editor-core/src/eval/wire.rs`); the twist and the mirror move
   what a value holds (`Held::moved`) and end in no gate;
@@ -90,8 +95,10 @@ Measured with the box arm off on the frames' head
    `a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided`.
 2. **Rays on a slab boxed wider than ± 0.215 of its depth, and the
    loose volume behind them:** two red rows.
-   `an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`,
-   `check-7s-volume-reading-is-loose-over-a-box`.
+   `an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`.
+   (M6, the same day: the slab's volume gives out before its rays do,
+   so `check-7s-volume-reading-is-loose-over-a-box` is not in the way
+   once the rays read.)
 3. **The `Interval` quadrature on an arc-rimmed wall:** one red sweep
    row (`a_seam_in_the_band_takes_its_general_image_at_interval`).
    `an-iso-arc-rims-end-reads-through-its-map-at-interval` (inferred,
@@ -107,7 +114,7 @@ derived-frame row's `frozen == 0` (192 as built); the largest-form pin
 (17 terms against 4); the washer's `(501, 461)`; the far-placement
 table in `sym11_far_placement_rows.rs` (with the leaf finished at the
 door the session box answers first: `OutsideSessionBox` where the
-table says `built`, at `Sym<f64>` too); the `UnfinishedLeaf` fixture
-(`a_turned_discs_union_names_its_unfinished_member`); and two sweep
+table says `built`, at `Sym<f64>` too); the turned-disc union fixture
+(`a_turned_discs_union_refuses_on_the_widened_copy`); and two sweep
 files that name `topo::Replay` as the leaf
 (`an_aimed_ray_keeps_its_line_over_a_box.rs` among them).

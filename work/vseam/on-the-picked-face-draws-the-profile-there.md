@@ -78,3 +78,7 @@ this unit lands. What this unit's build becomes:
   directly where they need a takeover (`app.rs`, `holding_the_top_cap`
   and `sketch_on`); they move to whatever takeover remains once it
   retires.
+
+## 2026-11-18 — the drawn-on-face door has a GUI caller
+
+Evidence from DOCTAIL's `tracing-reads-the-faces-chart-and-traced-frame-retires`. The traced-profile form folded into a **New profile on a face** form (`ViewerBehavior::profile_on_face_ui`, `crates/viewer/src/pane/create.rs`). It commits `SessionOp::DrawOnFace { face, traced, chains }` through `Recording::draw_on_face`. With no face latched to trace, it inserts an empty profile on the latched face's chart at its nearest orientation, and the editor opens on it. That is this unit's "with a face picked, New profile inserts the empty profile on that face's frame", reached through a form's latch rather than the New profile button. What is left here: whether New profile itself takes the picked face, the click's point for slides and spin (a GUI prefill, Ev on 7073), and the retirement of `SessionOp::SketchOnFace` and the fused act.

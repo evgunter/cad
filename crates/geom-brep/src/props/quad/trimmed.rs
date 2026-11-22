@@ -215,7 +215,7 @@ pub struct TrimChord {
     /// a `General`, its whole control polygon) and the chart, so it
     /// derives the length itself ([`polygon_variation`] crossed by the
     /// chart's metric rate). A lane that took a caller's perimeter is
-    /// `work/quadtail/quad-face-extent-trusts-caller-perimeter.md` (#1368,
+    /// `work/quad/quad-face-extent-trusts-caller-perimeter.md` (#1368,
     /// open), and this one does not open a second instance of it.
     pub env: Interval,
 }
@@ -375,7 +375,7 @@ struct TrimCell {
     /// chart's own rate it gives the cell's metric length, which is
     /// what the envelope pad and the extent gate's perimeter are built
     /// from. The door computes it here rather than taking a caller's
-    /// number: `work/quadtail/quad-face-extent-trusts-caller-perimeter.md`
+    /// number: `work/quad/quad-face-extent-trusts-caller-perimeter.md`
     /// (#1368) is the class a trusted perimeter lands in.
     var: (f64, f64),
     /// The chart-space radius of the wider of the two endpoint
@@ -1757,7 +1757,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         // The perimeter the extent gate levers by is the DOOR's,
         // derived from the cells above — not a caller's field. A lane
         // that takes the caller's is
-        // `work/quadtail/quad-face-extent-trusts-caller-perimeter.md`
+        // `work/quad/quad-face-extent-trusts-caller-perimeter.md`
         // (#1368, open), and this one deliberately does not join it.
         let (stop, accepted) = run.ask(round, bounds, 2.0 * lune_f + remainder, accept, || {
             face_extent::<T>(area, perimeter, band)

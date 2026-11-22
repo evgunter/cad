@@ -33,7 +33,7 @@ spot), then read it.
 Written by the angle-reads unit:
 - `topo/src/ring_path.rs` `plane_roots`' roots (the phase direction `(ca, cb)` turned by
   `±offset`, a harmonic's roots, kept as a rotation);
-- `topo/src/boolean/torus_region.rs` `arc_span` (`(x, y)` from its caller);
+- `topo/src/torus_region.rs` `arc_span` (`(x, y)` from its caller);
 - `geom-brep/src/curve_face/circle_torus.rs`'s `θ₀` (a vector's direction);
 - `mesh/src/walk.rs`'s `mid_az` (a chart frame's `u_ref`/`v_ref`);
 - `step-import/src/adopt.rs`'s ring check;

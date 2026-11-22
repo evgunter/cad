@@ -30,9 +30,14 @@ struct Row<T: Real> {
 
 impl Row<f64> {
     fn lifted(&self) -> Row<Interval> {
-        let lift = Interval::from_f64;
+        self.widened(0.0)
+    }
+
+    /// Every input as the interval of half-width `w` about it.
+    fn widened(&self, w: f64) -> Row<Interval> {
+        let lift = |x: f64| Interval::from_bounds(x - w, x + w);
         Row {
-            walls: self.walls.clone().map(|w| w.map_scalar(lift)),
+            walls: self.walls.clone().map(|s| s.map_scalar(lift)),
             carrier: self.carrier.map_scalar(lift),
             span: (lift(self.span.0), lift(self.span.1)),
         }
@@ -54,17 +59,13 @@ fn junction(centre: Point3<f64>, big: f64, r: f64, heading: f64) -> Row<f64> {
     Row {
         walls: [
             Surface::Cylinder {
-                origin: spine,
-                axis: d,
+                frame: geom::Frame::new(spine, d, n),
                 radius: r,
-                u_ref: n,
             },
             Surface::Torus {
-                center: centre,
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(centre, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
                 major_radius: big,
                 minor_radius: r,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
         ],
         carrier: Curve3::circle(spine, -d, r, n),
@@ -88,16 +89,20 @@ fn cylinder_through_sphere(angle: f64, span: (f64, f64)) -> Row<f64> {
     Row {
         walls: [
             Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             Surface::Sphere {
-                center: Point3::new(0.0, 0.0, -angle.tan()),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, -angle.tan()),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0 / angle.cos(),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
         ],
         carrier: Curve3::circle(
@@ -122,19 +127,46 @@ fn cone_generator(before: f64, span: (f64, f64)) -> Row<f64> {
     Row {
         walls: [
             Surface::Cone {
-                apex,
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(apex, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
                 half_angle: 30f64.to_radians(),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             Surface::Plane {
-                origin: apex,
-                normal: Vec3::new(0.0, 1.0, 0.0),
-                u_ref: along,
+                frame: geom::Frame::new(apex, Vec3::new(0.0, 1.0, 0.0), along),
             },
         ],
         carrier: Curve3::line(apex - along * before, along),
         span,
+    }
+}
+
+/// **A rounded outline's line-to-arc junction, chamfered** at setback `s`
+/// on a top at height `z` of `centre`: the arc link's frustum (the cone
+/// through the plane's trim circle `R − s` and the wall's `s` down, its
+/// apex on the arc's axis), the line link's strip along the heading `d`,
+/// and the section between the two feet. The strip holds the generator
+/// and the arc's tangent `d` there, which is the cone's tangent plane
+/// along that generator, so the two touch along it.
+fn chamfer_junction(centre: Point3<f64>, big: f64, s: f64, heading: f64) -> Row<f64> {
+    let (sn, c) = heading.sin_cos();
+    let d = Vec3::new(c, sn, 0.0);
+    let n = Vec3::new(d.y, -d.x, 0.0);
+    let up = Vec3::new(0.0, 0.0, 1.0);
+    let on_plane = centre + n * (big - s);
+    let on_wall = centre + n * big - up * s;
+    let g = on_wall - on_plane;
+    let len = g.norm();
+    Row {
+        walls: [
+            Surface::Plane {
+                frame: geom::Frame::new(on_plane, (n + up).normalize(), d),
+            },
+            Surface::Cone {
+                frame: geom::Frame::new(centre + up * (big - s), -up, n),
+                half_angle: core::f64::consts::FRAC_PI_4,
+            },
+        ],
+        carrier: Curve3::line(on_plane, g / len),
+        span: (0.0, len),
     }
 }
 
@@ -159,7 +191,7 @@ fn stated<T: geom_core::Decide>(row: &Row<T>) -> Option<CurveSelector<T>> {
 }
 
 /// `row`'s edge certified under `selector`.
-fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn certify<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     row: &Row<T>,
     selector: CurveSelector<T>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
@@ -185,7 +217,7 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
 /// `row` certified under its stated shared row, with the contact class
 /// read by the certificate's own reading at the certificate's own lever
 /// (`edge_extent_inf` over the edge), over each wall's certified image.
-fn certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn certified<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     row: &Row<T>,
 ) -> Result<RowContact, CertifyError> {
     let selector = stated(row).expect("both walls state the row and certify it");
@@ -208,10 +240,9 @@ fn certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
     };
     let [ka, kb] = pair.keys();
     let (ca, cb) = (cache(ka), cache(kb));
-    let ends = (row.carrier.eval(t0), row.carrier.eval(t1));
     geom_brep::analytic_row_contact(
         [(ka, &surfaces[ka], &ca), (kb, &surfaces[kb], &cb)],
-        geom_brep::edge_extent_inf(&row.carrier, t0, t1, ends),
+        geom_brep::edge_extent_inf(&row.carrier, t0, t1),
         band(),
     )
 }
@@ -261,6 +292,81 @@ fn a_section_on_a_rotated_band_certifies_as_a_touching_shared_row() {
             "Interval: {what}"
         );
     }
+}
+
+/// **A chamfer's section is a shared row too**: the strip and the
+/// frustum touch along the generator between their feet, the plane's
+/// normal constant and the cone's constant along a generator on one
+/// nappe. The rounded plate's junction (arc radius 0.3, setback 0.05),
+/// turned and moved off the origin, and a setback just under the arc's
+/// radius. Read at `f64` and at its point intervals: what this row says
+/// of the certified scalar is that the exact geometry certifies, not
+/// that a carve's computed geometry does (the next row).
+#[test]
+fn a_chamfer_section_certifies_as_a_touching_plane_cone_row() {
+    let rows = [
+        (
+            "the plate's junction",
+            chamfer_junction(Point3::new(0.7, -0.3, 0.5), 0.3, 0.05, 0.0),
+        ),
+        (
+            "turned 30°, off the origin",
+            chamfer_junction(Point3::new(1.2, -0.7, 0.9), 0.3, 0.05, 30f64.to_radians()),
+        ),
+        (
+            "turned 144°",
+            chamfer_junction(
+                Point3::new(-2.0, 3.1, -0.4),
+                0.25,
+                0.08,
+                144f64.to_radians(),
+            ),
+        ),
+        (
+            "a setback just under the radius",
+            chamfer_junction(Point3::new(0.0, 0.0, 0.5), 0.3, 0.29, 7f64.to_radians()),
+        ),
+    ];
+    for (what, row) in &rows {
+        assert_eq!(certified(row).unwrap(), RowContact::Touching, "f64: {what}");
+        assert_eq!(
+            certified(&row.lifted()).unwrap(),
+            RowContact::Touching,
+            "Interval: {what}"
+        );
+    }
+}
+
+/// **How wide a chamfer section's inputs may be and still admit**, at
+/// `Interval`: the plate's junction with every input widened to an
+/// interval of half-width `w`, which is what a carve's computed feet and
+/// surfaces hand the admission. It certifies at `w = ε/100` and refuses
+/// at `w = 10ε`, at every ε row (measured at ε = 1e-12: to `1e-14`, not
+/// from `1e-13`; at ε = 1e-9: to `1e-11`), so a carve whose computed
+/// geometry encloses wider than a tenth of the band reaches the
+/// refusal its rows pin at the tightest ε
+/// (`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`).
+#[test]
+fn a_chamfer_section_admits_while_its_inputs_are_narrow_against_the_band() {
+    let eps = crate::shared::tol::eps();
+    let row = chamfer_junction(Point3::new(0.7, -0.3, 0.5), 0.3, 0.05, 30f64.to_radians());
+    let narrow = row.widened(eps / 100.0);
+    assert_eq!(
+        stated(&narrow)
+            .map(|_| ())
+            .ok_or(())
+            .and_then(|()| certified(&narrow).map_err(|_| ())),
+        Ok(RowContact::Touching),
+        "ε = {eps}: inputs {} wide admit and touch",
+        eps / 100.0
+    );
+    let wide = row.widened(10.0 * eps);
+    let admitted = stated(&wide).is_some() && certified(&wide).is_ok();
+    assert!(
+        !admitted,
+        "ε = {eps}: inputs {} wide admit, past the band",
+        10.0 * eps
+    );
 }
 
 /// The walls' angle along a shared circle is constant, and the reading

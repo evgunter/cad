@@ -124,7 +124,7 @@ document with a fillet must do something at that node:
    - `stackup::sensitivities` over any filleted or chamfered part stops
      answering. Whether it fails whole (`PairingViolation`, which is what
      `pair_pass` does today with the shell's refusal; filed as
-     `work/stack/stackup-pairing-reads-the-shells-dual-refusal-as-a-violation`)
+     `work/encl/stackup-pairing-reads-the-shells-dual-refusal-as-a-violation`)
      or answers `Unliftable` per entry is a second choice inside this
      one.
 2. **Run the blend on the value channel and lift it back with zero

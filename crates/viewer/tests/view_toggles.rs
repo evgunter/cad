@@ -137,7 +137,7 @@ fn assert_toggles_agree(session: &DocSession, index: &PickIndex, at: &str) {
 
 /// The document as it would be saved.
 fn saved(session: &DocSession, tol: Tol) -> String {
-    pncad::document::save(session.committed_doc(), &[], tol).expect("the document saves")
+    pncad::document::save(session.committed_doc(), tol).expect("the document saves")
 }
 
 /// Two extrudes, one placed into the world and one left in its own

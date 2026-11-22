@@ -270,7 +270,7 @@ fn k() -> f64 {
 
 /// **A run just past the band builds and then escalates a span check.**
 /// Pinned red on
-/// `work/round/a-fillet-run-just-past-the-band-builds-and-then-escalates-a-span.md`:
+/// `work/profile/a-fillet-run-just-past-the-band-builds-and-then-escalates-a-span.md`:
 /// at d = 1.05·Kε the fit decides the run Positive and builds it, and
 /// validation's `arc_span` on the leg and the fillet arc, which meet
 /// across that short run, escalates — bare and after `.tangent()`, at

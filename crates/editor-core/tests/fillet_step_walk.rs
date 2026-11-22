@@ -7,7 +7,10 @@
 //! leg end to move.
 //!
 //! The walk below is the attempts in the order a newcomer makes them,
-//! each through the insert door a person uses.
+//! each through the insert door a person uses, which refuses a step
+//! order, and then the program's own ladder at the document's values
+//! (`ProfileProgram::pieces`, the replay evaluation runs), which
+//! refuses the geometry.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,11 +26,12 @@ const W: f64 = 4.0e-3;
 const H: f64 = 2.5e-3;
 const R: f64 = 0.8e-3;
 
-/// The insert door's answer for one chain: `Ok` when it builds, the
-/// typed refusal otherwise.
+/// The insert door's answer for one chain, then its replay's at the
+/// document's values: `Ok` when it builds, the typed refusal
+/// otherwise.
 fn insert(steps: Vec<ProgramStep<editor_core::Formula>>) -> Result<(), ProgramRefusal> {
     let doc = ProfileDoc::empty_derived("fillet_step_walk", Tol::witness());
-    match apply(
+    let applied = match apply(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
@@ -39,10 +43,17 @@ fn insert(steps: Vec<ProgramStep<editor_core::Formula>>) -> Result<(), ProgramRe
         },
         Tol::witness(),
     ) {
-        Ok(_) => Ok(()),
-        Err(EditError::ProfileProgramRefused { refusal, .. }) => Err(*refusal),
+        Ok(applied) => applied,
+        Err(EditError::ProfileProgramRefused { refusal, .. }) => return Err(*refusal),
         Err(other) => panic!("the insert door refused outside the program class: {other}"),
-    }
+    };
+    let id = applied.record.minted.expect("the insert mints the profile");
+    let Some(Node::Profile(program)) = applied.doc.node(id) else {
+        panic!("{id} is the profile inserted")
+    };
+    program
+        .pieces(&applied.doc.var_env::<f64>(), Tol::witness())
+        .map(|_| ())
 }
 
 fn pt(x: f64, y: f64) -> ProgramStep<editor_core::Formula> {

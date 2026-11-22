@@ -863,10 +863,10 @@ fn a8c_the_content_key_separates_two_operands() {
 #[test]
 fn a8d_a_placed_copy_operand_round_trips_through_persistence() {
     let s = scene("msolve1-a8d", Some(LIFT));
-    let bytes = save(&s.doc, &[], Tol::witness()).expect("the document saves");
-    let back = load(&bytes, Tol::witness()).expect("it loads").doc;
+    let bytes = save(&s.doc, Tol::witness()).expect("the document saves");
+    let back = load(&bytes, Tol::witness()).expect("it loads");
     assert_eq!(
-        save(&back, &[], Tol::witness()).expect("it saves again"),
+        save(&back, Tol::witness()).expect("it saves again"),
         bytes,
         "the wire form is stable across the round trip"
     );

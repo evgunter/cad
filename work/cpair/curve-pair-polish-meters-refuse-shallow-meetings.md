@@ -78,3 +78,22 @@ Question 1 on ONECOPY's
 with the designers. A decision there is a decision on this row's
 meter too, so read it before working the routes above.
 
+
+## Evidence: an imported body reaches the meter on small circles (2026-11-17)
+
+Found by `export/smooth-join` (the must-carry rung on the import
+ladder). `crates/step-import/tests/a_smooth_join_imports_by_the_must_carry_rule.rs`'s
+`bored_ring` at a join margin of `ε/100` and `CAD_TOLERANCE_EPS=1e-6`
+has a bore of radius `7.07e-5` (about `70ε`, `7e`). The native ring
+finishes at rest. Written by `step_export::step_string` and read back
+by `import_step` with default options, every edge adopts, and then the
+import's at-rest gate refuses `TierInvalid` with three
+`CensusUnsupported { cause: Meeting(MeetUnread(Unsettled(Meter {
+row: "curve_pair_pose_basin" }))) }`, on the edges that meet on the
+bore (its two latitude circles and its seam line). A third window,
+beside the two above: the circles' curvature `κ ≈ 1.4e4` alone puts
+`4(κ₁ + κ₂)·e` past 1, so no tangent angle clears the basin. It reads
+from values only on an imported body, whose cells are not
+constructions. The row's tests use a margin of `ε/2` (bore `5e-4` at
+1e-6), which reads. A typed refusal, never a misanswer, so the row's
+P2 stands.

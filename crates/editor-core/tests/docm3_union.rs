@@ -291,7 +291,7 @@ fn set_members_accepts_a_repeated_member_and_glues_it() {
 fn a_snapshot_carrying_a_repeated_or_single_member_loads() {
     let tol = Tol::witness();
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
-    let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
+    let text = editor_core::persist::save(&doc, tol).expect("the document saves");
     // The spelled member list is rewritten in place, whatever
     // whitespace the writer used around it, so the fixture is about the
     // LIST and not about the formatting.
@@ -329,7 +329,7 @@ fn a_snapshot_carrying_a_repeated_or_single_member_loads() {
     ))
     .expect("a repeated member loads");
     assert_eq!(
-        members_of(&loaded.doc),
+        members_of(&loaded),
         vec![boxes[0], boxes[1], boxes[2], boxes[0]]
     );
     // And a list of one. Dropping two boxes from the list in the text
@@ -346,9 +346,9 @@ fn a_snapshot_carrying_a_repeated_or_single_member_loads() {
         )
         .expect("a one-member union is accepted")
         .doc;
-    let text = editor_core::persist::save(&one, &[], tol).expect("the document saves");
+    let text = editor_core::persist::save(&one, tol).expect("the document saves");
     let loaded = editor_core::persist::load(&text, tol).expect("a one-member union loads");
-    assert_eq!(members_of(&loaded.doc), vec![boxes[0]]);
+    assert_eq!(members_of(&loaded), vec![boxes[0]]);
 }
 
 // ---------------------------------------------------------------------
@@ -460,9 +460,9 @@ fn set_members_accepts_one_member_and_none() {
     );
 }
 
-/// **The wire round trip**: a document carrying a `Union` and a
-/// `SetMembers` in its edit log saves, loads and replays to the same
-/// document, bit for bit.
+/// **The wire round trip**: a document a `Union` and a `SetMembers`
+/// authored saves and loads to the same document, bit for bit, and the
+/// log that authored it replays to that document too.
 #[test]
 fn a_union_and_a_set_members_replay_bit_identically() {
     let tol = Tol::witness();
@@ -500,23 +500,20 @@ fn a_union_and_a_set_members_replay_bit_identically() {
     for edit in &edits {
         replayed = replayed.apply(edit, tol).expect("the log replays").doc;
     }
-    let text =
-        editor_core::persist::save(&empty, &edits.to_vec(), tol).expect("the document saves");
+    let text = editor_core::persist::save(&replayed, tol).expect("the document saves");
     let loaded = editor_core::persist::load(&text, tol).expect("the document loads");
     assert!(
-        loaded.doc.bit_eq(&replayed),
-        "the loaded replay is not the document the log builds"
+        loaded.bit_eq(&replayed),
+        "the loaded document is not the one saved"
     );
-    assert_eq!(loaded.edits.len(), edits.len());
     // And the surviving union is the two-member one the log states.
-    let Some(Node::Union { members, .. }) = loaded.doc.node(u) else {
+    let Some(Node::Union { members, .. }) = loaded.node(u) else {
         panic!("the union survived as something else")
     };
     let members: Vec<RecipeNodeId> = members
         .reads()
         .map(|m| {
             loaded
-                .doc
                 .operation_of(m.read)
                 .expect("a member reads a live output")
         })
@@ -1111,9 +1108,9 @@ fn a_snapshot_carrying_a_loft_the_doors_refuse_loads() {
             value: editor_core::FreeValue::Count(2),
         },
     );
-    let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
+    let text = editor_core::persist::save(&doc, tol).expect("the document saves");
     let loaded = editor_core::persist::load(&text, tol).expect("the loft loads");
-    let ev = run(&loaded.doc);
+    let ev = run(&loaded);
     assert!(
         ev.value(loft).is_none(),
         "degree 2 through two sections refuses at evaluation: {:?}",

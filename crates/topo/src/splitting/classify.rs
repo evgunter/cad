@@ -82,7 +82,9 @@ pub(super) fn carrier_gate<T: Decide>(
             CurveGeom::Certified(curve) => match curve.carrier() {
                 geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {}
                 // No crossing-root arm reads a spiric or a spline.
-                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+                geom::Curve3::Spiric { .. }
+                | geom::Curve3::Nurbs(_)
+                | geom::Curve3::Periodic(_) => {
                     if !edge_clears(body, edge_key, plane, band, &frame) {
                         return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                     }
@@ -173,7 +175,8 @@ fn reach_clears<T: Decide>(
 /// the plane ends at it ([`crate::vertex_section`]), its walk reading
 /// the far vertices' offset verdicts. One offset evaluation per vertex
 /// (the book recomputes per incident edge). In-band ⇒ typed
-/// [`SplitReduceError::SliverVertex`], never a snap.
+/// [`SplitReduceError::SliverVertex`] (the offset) or
+/// [`SplitReduceError::SliverSection`] (the section), never a snap.
 pub(super) fn classify_vertices<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -252,12 +255,14 @@ pub(super) fn classify_vertices_margined<T: Decide>(
             band,
         )
         .map_err(|refusal| match refusal {
-            VertexRefusal::Offset(diag) | VertexRefusal::Section(diag) => {
-                SplitReduceError::SliverVertex {
-                    vertex: vertex_key,
-                    diag,
-                }
-            }
+            VertexRefusal::Offset(diag) => SplitReduceError::SliverVertex {
+                vertex: vertex_key,
+                diag,
+            },
+            VertexRefusal::Section(diag) => SplitReduceError::SliverSection {
+                vertex: vertex_key,
+                diag,
+            },
             VertexRefusal::Walk(e) => e,
             VertexRefusal::Star(fault) => fault.split_refusal(vertex_key, band),
             VertexRefusal::Side { face, diag } => SplitReduceError::SliverSector {
@@ -305,7 +310,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 /// span's place of the parameter (`curve_pair::Span::place_param_read`) + full child re-certification —
 /// the honest lane the raw book formula lacks). New vertices are ON by
 /// the decision that placed them: a crossing root lies on the plane, and
-/// a graze root within ε of it by `plane_crossing_belly_graze`'s Zero.
+/// a graze root within ε of it by `curve_face_pose_belly_graze`'s Zero.
 /// Their verdicts are cached without re-measuring. Returns each piece
 /// a split minted with the edge it was split from, `(new edge,
 /// divided-from edge)` in mint order, each checked as it was minted
@@ -356,9 +361,9 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             plane.normal.get(),
             band,
         ) {
-            // Parallel either way: no root to insert, and a conic in
-            // the plane has its endpoints ON through the vertex sides.
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { .. } | ConicPlaneMeet::Miss) => {
+            // No root to insert: a conic in the plane has its endpoints
+            // ON through the vertex sides.
+            PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane | ConicPlaneMeet::Miss) => {
                 continue;
             }
             PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => roots,
@@ -469,7 +474,11 @@ mod tests {
                 else {
                     panic!("{label}: {got:?}");
                 };
-                assert_eq!(diag.predicate, Some("plane_crossing_graze_side"), "{label}");
+                assert_eq!(
+                    diag.predicate,
+                    Some("curve_face_pose_graze_side"),
+                    "{label}"
+                );
                 assert_eq!(
                     diag.margin.rejected_sign(),
                     Some(geom_core::Sign::Zero),
@@ -560,15 +569,11 @@ mod thin_ellipse_rows {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p0, true).unwrap();
         let wall = body.add_surface(Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            u_ref: Vec3::unit_x(),
         });
         let plane = body.add_surface(Surface::Plane {
-            origin: Point3::origin(),
-            normal: axis,
-            u_ref: major,
+            frame: geom::Frame::new(Point3::origin(), axis, major),
         });
         let arc = body
             .mev(

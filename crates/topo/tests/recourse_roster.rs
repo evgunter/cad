@@ -33,10 +33,12 @@
 //! entry by name**: an indirect site is keyed by its enclosing `fn`, so a
 //! new forwarder that reuses a parameter name another already spells
 //! (`name`, `predicate`) reds until it is declared, here or as a
-//! carrier. What this row still cannot see is a name spelled in a closed
-//! type's `predicate()` match or chosen by a `match` before it reaches a
-//! funnel ([`CLOSED_TYPE`]), which is
-//! `the-census-reads-no-closed-type-name-table`.
+//! carrier. A closed type's `predicate()` table is read where the type
+//! spells it, as a declared `NameCarrier::Table` (`TangentRow`) or as the
+//! `Const` carriers its arms return (`ClearanceBound`); the sites that
+//! hand on such a value stay listed ([`CLOSED_TYPE`]). What this row
+//! still cannot see is a name chosen by a `match` on something else
+//! before it reaches a funnel.
 //!
 //! **When it runs.** The walk takes seconds, so this row is in the slow
 //! set: a PR runs it only when the PR names it, and the nightly runs it
@@ -213,11 +215,13 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("each_branch_row", &PCURVES),
     ("first_within_row", &PCURVES),
     ("loop_windings_joint_room", &PCURVES),
-    ("planar_winding_spiric_refine", &PCURVES),
+    ("planar_winding_enclosure_refine", &PCURVES),
     ("undecided_mark_row", &PCURVES),
     ("arm", &UNIT_TEST),
     // `splitting::finish`'s `escalation_endings` rows.
     ("finish_straddle", &UNIT_TEST),
+    // `on_surface_as`'s unit test's `(name, side)` row.
+    ("probe_on", &UNIT_TEST),
     ("probe_oracle", &UNIT_TEST),
     // `test_support_samples`' cause named after geom-brep's arm row.
     ("dihedral_arm", &UNIT_TEST),
@@ -233,6 +237,19 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
+    NameCarrier::Const("REACH"),
+    NameCarrier::Const("NEST"),
+    NameCarrier::Const("NEAR"),
+    NameCarrier::Const("FAR"),
+    // The tangent rows' closed table (`TangentRow::predicate`).
+    NameCarrier::Table("TangentRow"),
+    // The consts `ClearanceBound::predicate` returns, per arm.
+    NameCarrier::Const("CLEARANCE_MARGIN"),
+    NameCarrier::Const("SELF_INTERSECTION_GAP"),
+    // `(name, value)` pairs, opened by the census: the pair section's
+    // sign batch and the tangent witness's `(name, side)`.
+    NameCarrier::Call("signs_as"),
+    NameCarrier::Call("on_surface_as"),
     // `bound_side::first_order_as`'s two rows, picked by a `match` on the
     // support.
     NameCarrier::Const("BOOL_CHORD_SIDE"),
@@ -269,7 +286,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("lex_cmp_as"),
     NameCarrier::Call("near_as"),
     NameCarrier::Call("net_closes_as"),
-    NameCarrier::Call("on_surface_as"),
     NameCarrier::Call("one_verdict_as"),
     NameCarrier::Call("pair_as"),
     NameCarrier::Call("parallel_same_as"),
@@ -305,13 +321,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SELF_INTERSECTION_COLUMN"),
     NameCarrier::Const("COMPONENT"),
     NameCarrier::Const("CONES_SHARE_APEX"),
-    NameCarrier::Const("CONE_APEX"),
-    NameCarrier::Const("CONE_APEX_SPREAD"),
-    NameCarrier::Const("CONE_DEFLATED_CLEAR"),
-    NameCarrier::Const("CONE_DEFLATED_DEPTH"),
-    NameCarrier::Const("CONE_DEFLATED_SIDE"),
-    NameCarrier::Const("CONE_ON_SURFACE"),
-    NameCarrier::Const("CONE_ROOT_SLACK"),
     NameCarrier::Const("SELF_INTERSECTION_CORNER"),
     NameCarrier::Const("SELF_INTERSECTION_CORNER_DEPARTS"),
     NameCarrier::Const("SELF_INTERSECTION_CORNER_VERTEX"),
@@ -346,6 +355,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SELF_INTERSECTION_ON_SHARED"),
     NameCarrier::Const("PAIR_GAP"),
     NameCarrier::Const("PARTING_ORDER"),
+    NameCarrier::Const("PARTING_ONE_POINT"),
+    NameCarrier::Const("PARTING_STRADDLE"),
     NameCarrier::Const("PAST_EVERY_REACH"),
     NameCarrier::Const("REGION_ARC_SIDE"),
     NameCarrier::Const("REGION_ON_PLANE"),
@@ -359,7 +370,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("RULINGS"),
     NameCarrier::Const("SEAM_GERM_ON_PLANE"),
     NameCarrier::Const("SEAM_GERM_SIDE"),
-    NameCarrier::Const("SECOND_HARMONIC"),
     NameCarrier::Const("SECOND_ORDER"),
     NameCarrier::Const("SECTION_PIN_WITHIN"),
     NameCarrier::Const("SECTOR_APEX_TILT"),
@@ -379,12 +389,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SPLIT_GATE_BOX_SIDE"),
     NameCarrier::Const("TORUS_WITNESS"),
     NameCarrier::Const("TORUS_WITNESS_STRADDLE"),
-    NameCarrier::Const("TRACE_CROSSING_AHEAD"),
-    NameCarrier::Const("TRACE_CROSSING_APEX"),
-    NameCarrier::Const("TRACE_CROSSING_ORDER"),
     NameCarrier::Const("TRACE_CROSSING_SENSE"),
-    NameCarrier::Const("TRACE_ON_CARRIER"),
-    NameCarrier::Const("TRACE_PLANE_DEPTH"),
     NameCarrier::Const("TRACE_PLANE_LEAD"),
     NameCarrier::Const("TRACE_PLANE_MISSES"),
     NameCarrier::Const("CELL_REGION_VERTEX"),
@@ -396,6 +401,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("GERM_SENSE"),
     NameCarrier::Const("GERM_SIDE"),
     NameCarrier::Const("WINDING_PREDICATE"),
+    NameCarrier::Const("TANGENT_SECTOR_ORDER2"),
     NameCarrier::Const("TANGENT_SECTOR_WITNESS"),
     // The row structs whose fields are names, read at each literal.
     NameCarrier::Call("Parallelism"),
@@ -462,10 +468,9 @@ const ROW_FIELD: &str = "a field of a row struct, whose names are read at the st
 const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's name \
      (`names.straddle()`, a `WedgeNames` row; `.turn()`, a `TurnRows` row), read as that door's call with no first argument";
 const IDENTITY: &str = "a `read_identity` call over data named by declared consts";
-const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names are spelled in its own \
-                           match, which the census does not read";
-const TUPLE_PAIRS: &str = "a batch of `(name, value)` pairs, which the census does not open yet \
-                           (`work/onecopy/the-census-opens-no-nested-tuple-of-names.md`)";
+const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names the census reads where the \
+                           type spells them: `TangentRow`'s table, a declared `NameCarrier::Table`, \
+                           or the consts `ClearanceBound`'s arms return, declared carriers";
 const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
                             its enclosing function's caller or a binding, named here by the call's \
                             first argument";
@@ -485,16 +490,16 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
     (
+        "boolean/section_cert.rs: cone_sphere: [(name, b)]",
+        CLOSURE_FORWARDS,
+    ),
+    (
         "boolean/carrier_ladder_rows.rs: the_ladder_reads_two_tori_as_their_pose_does: &surface(ring)",
         NOT_A_NAME,
     ),
     (
         "boolean/cone_frame_rows.rs: declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops: x",
         NOT_A_NAME,
-    ),
-    (
-        "boolean/conic_quadric/in_band_sweep.rs: a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly: LADDER_ROWS.noise()",
-        ROW_FIELD,
     ),
     (
         "boolean/contact_verify.rs: a_rim_the_pose_reads_tangent_can_still_escalate_along_the_rim: &first",
@@ -506,14 +511,10 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSED_TYPE,
     ),
     (
-        "boolean/contact_verify.rs: on_surface_pads_each_verdict_in_its_own_direction: (\"probe_on\", PairSide::Second)",
-        TUPLE_PAIRS,
-    ),
-    (
         "boolean/contact_verify.rs: tangent_pass: (on, side)",
-        TUPLE_PAIRS,
+        CARRIER_CALL,
     ),
-    ("boolean/contain.rs: face_placement: on_plane", FORWARDS),
+    ("contain.rs: face_placement: on_plane", FORWARDS),
     ("boolean/join.rs: line_of: name", CLOSURE_FORWARDS),
     ("boolean/join.rs: travel: name", FORWARDS),
     (
@@ -533,15 +534,15 @@ const INDIRECT: &[(&str, &str)] = &[
     ("boolean/recl.rs: resolve_edge_edge: band", CARRIER_CALL),
     ("boolean/reduce.rs: vf: row", NOT_A_NAME),
     ("boolean/reduce.rs: vv: row", NOT_A_NAME),
-    ("boolean/region.rs: place: at", CARRIER_CALL),
-    ("boolean/region.rs: short_of_end: end.row", ROW_FIELD),
-    ("boolean/region.rs: side_at_closest_as: cross", FORWARDS),
-    ("boolean/rim_wedge.rs: departures: a", CARRIER_CALL),
-    ("boolean/rim_wedge.rs: departures: b", CARRIER_CALL),
-    ("boolean/rim_wedge.rs: reach_as: name", FORWARDS),
-    ("boolean/rim_wedge.rs: read_identity#1([)", IDENTITY),
+    ("region.rs: place: at", CARRIER_CALL),
+    ("region.rs: short_of_end: end.row", ROW_FIELD),
+    ("region.rs: side_at_closest_as: cross", FORWARDS),
+    ("rim_wedge.rs: departures: a", CARRIER_CALL),
+    ("rim_wedge.rs: departures: b", CARRIER_CALL),
+    ("rim_wedge.rs: reach_as: name", FORWARDS),
+    ("rim_wedge.rs: read_identity#1([)", IDENTITY),
     (
-        "boolean/rim_wedge.rs: read_identity#2([t0, t1].map(|t| {)",
+        "rim_wedge.rs: read_identity#2([t0, t1].map(|t| {)",
         IDENTITY,
     ),
     ("boolean/section_cert.rs: sign_as: name", FORWARDS),
@@ -564,6 +565,10 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     ("boolean/section_cert/ruling.rs: roots: o", CARRIER_CALL),
+    (
+        "boolean/sectors.rs: a_crescent_answers_past_bounds_parallel_in_band: x",
+        CARRIER_CALL,
+    ),
     (
         "boolean/sectors.rs: a_zero_direction_refuses_rather_than_reading_parallel_or_apart: -tiny",
         CARRIER_CALL,
@@ -593,58 +598,49 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("boolean/sectors.rs: runs_into: dir", CARRIER_CALL),
     (
-        "boolean/solid_contain.rs: a_root_whose_reach_margin_lies_in_band_is_set_aside: SCHEDULE_ROWS.reaches()",
+        "solid_contain.rs: a_root_whose_reach_margin_lies_in_band_is_set_aside: SCHEDULE_ROWS.reaches()",
         ROW_FIELD,
     ),
     (
-        "boolean/solid_contain.rs: cast_ray: SCHEDULE_ROWS.order()",
+        "solid_contain.rs: cast_ray: SCHEDULE_ROWS.order()",
         CARRIER_CALL,
     ),
-    ("boolean/solid_contain.rs: cast_ray: body", CARRIER_CALL),
+    ("solid_contain.rs: cast_ray: body", CARRIER_CALL),
     (
-        "boolean/solid_contain.rs: clear_of_carrier: rows.clearance()",
+        "solid_contain.rs: clear_of_carrier: rows.clearance()",
+        ROW_FIELD,
+    ),
+    ("solid_contain.rs: edge_meets: rows.edge()", ROW_FIELD),
+    ("solid_contain.rs: edge_meets: rows.edge_span()", ROW_FIELD),
+    ("solid_contain.rs: pair_as: order", FORWARDS),
+    ("solid_contain.rs: ray_crossings: rows.denom()", ROW_FIELD),
+    (
+        "solid_contain.rs: ray_crossings: rows.represents()",
         ROW_FIELD,
     ),
     (
-        "boolean/solid_contain.rs: edge_meets: rows.edge()",
+        "solid_contain.rs: ray_passes_beside: rows.beside()",
         ROW_FIELD,
     ),
     (
-        "boolean/solid_contain.rs: edge_meets: rows.edge_span()",
-        ROW_FIELD,
-    ),
-    ("boolean/solid_contain.rs: pair_as: order", FORWARDS),
-    (
-        "boolean/solid_contain.rs: ray_crossings: rows.denom()",
+        "solid_contain.rs: reaches_root_in_band: rows.reaches()",
         ROW_FIELD,
     ),
     (
-        "boolean/solid_contain.rs: ray_crossings: rows.represents()",
-        ROW_FIELD,
-    ),
-    (
-        "boolean/solid_contain.rs: ray_passes_beside: rows.beside()",
-        ROW_FIELD,
-    ),
-    (
-        "boolean/solid_contain.rs: reaches_root_in_band: rows.reaches()",
-        ROW_FIELD,
-    ),
-    (
-        "boolean/solid_contain.rs: sphere_chart_trim: name",
+        "solid_contain.rs: sphere_chart_trim: name",
         CLOSURE_FORWARDS,
     ),
-    ("boolean/solid_contain.rs: vertex: rows.vertex()", ROW_FIELD),
+    ("solid_contain.rs: vertex: rows.vertex()", ROW_FIELD),
     (
-        "boolean/solid_contain/curved_edges.rs: nearest: rows.order()",
+        "solid_contain/curved_edges.rs: nearest: rows.order()",
         ROW_FIELD,
     ),
     (
-        "boolean/solid_contain/curved_edges.rs: fold: rows.order()",
+        "solid_contain/curved_edges.rs: fold: rows.order()",
         ROW_FIELD,
     ),
     (
-        "boolean/surface_group.rs: read_identity#1(coaxial_margins(self.axis, rim).map(|margin| (BOOL_WRAP_RIM, margin)))",
+        "surface_group.rs: read_identity#1(coaxial_margins(self.axis, circle).map(|margin| (BOOL_WRAP_RIM, margin)))",
         IDENTITY,
     ),
     ("boolean/trace.rs: sign_as: name", FORWARDS),

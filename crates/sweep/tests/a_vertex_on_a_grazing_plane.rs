@@ -219,11 +219,26 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                         );
                     }
                     Reading::Band { offset_in_band } => {
-                        let Err(SplitError::Reduce(SplitReduceError::SliverVertex {
-                            diag, ..
-                        })) = cut(d)
-                        else {
-                            panic!("{label}: the vertex refuses typed at the split");
+                        // The offset refuses as the vertex on the plane, the
+                        // section as the vertex on the section: one subject each.
+                        let diag = match (cut(d), offset_in_band) {
+                            (
+                                Err(SplitError::Reduce(SplitReduceError::SliverVertex {
+                                    diag,
+                                    ..
+                                })),
+                                true,
+                            )
+                            | (
+                                Err(SplitError::Reduce(SplitReduceError::SliverSection {
+                                    diag,
+                                    ..
+                                })),
+                                false,
+                            ) => diag,
+                            (other, _) => {
+                                panic!("{label}: the vertex refuses typed at the split: {other:?}")
+                            }
                         };
                         let (predicate, got) = reported(&diag);
                         if offset_in_band {
@@ -586,10 +601,10 @@ fn the_shallowest_entered_face_decides() {
     );
     let v = Point3::new(1.0, 1.0, 0.0);
     let plane = topo::test_support::split_plane(v + n * d, n, tol());
-    let Err(SplitError::Reduce(SplitReduceError::SliverVertex { diag, .. })) =
+    let Err(SplitError::Reduce(SplitReduceError::SliverSection { diag, .. })) =
         split(&body, &plane, tol())
     else {
-        panic!("the vertex refuses on the shallower face");
+        panic!("the vertex refuses on the shallower face's section");
     };
     let (predicate, got) = reported(&diag);
     assert_eq!(predicate, "vertex_section_side");

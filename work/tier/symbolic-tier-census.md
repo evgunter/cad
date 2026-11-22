@@ -121,9 +121,9 @@ CSV rather than a name filter.
 | `measure_not_parallel` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/tests.rs` | not in the M10-8 documents |
 | `rebind_identity` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/tests.rs` | not in the M10-8 documents |
 | `arc_apex_identity` | EXPLICIT | closed form at the site | `crates/profile/src/seg.rs` | — |
-| `bool_curved_contain_carrier` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/contain.rs` | not in the M10-8 documents |
+| `bool_curved_contain_carrier` | EXPLICIT | closed form at the site | `crates/topo/src/contain.rs` | not in the M10-8 documents |
 | `bool_dir_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/sectors.rs` | not in the M10-8 documents |
-| `bool_face_disc_carrier` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/contain.rs` | not in the M10-8 documents |
+| `bool_face_disc_carrier` | EXPLICIT | closed form at the site | `crates/topo/src/contain.rs` | not in the M10-8 documents |
 | `bool_faces_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/sectors.rs` | not in the M10-8 documents |
 | `bool_plane_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/contact_verify.rs` | not in the M10-8 documents |
 | `bool_sphere_escape_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/ops.rs` | not in the M10-8 documents |
@@ -191,7 +191,7 @@ CSV rather than a name filter.
 | `r2_sym_identity` | EXPLICIT | closed form at the site | `crates/geom-core/tests/m10_7_r2_sym_probes.rs` | not in the M10-8 documents |
 | `rational_mult_2_carrier` | EXPLICIT | closed form at the site | `crates/mesh/src/chords.rs` | not in the M10-8 documents |
 | `rational_mult_p1_carrier` | EXPLICIT | closed form at the site | `crates/mesh/src/chords.rs` | not in the M10-8 documents |
-| `rim_circle_axis_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/rim_wedge.rs` | not in the M10-8 documents |
+| `rim_circle_axis_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/rim_wedge.rs` | not in the M10-8 documents |
 | `ring_outer_locus_gap` | EXPLICIT | closed form at the site | `crates/topo/src/validate.rs` | not in the M10-8 documents |
 | `ring_outer_vertex_gap` | EXPLICIT | closed form at the site | `crates/topo/src/validate.rs` | not in the M10-8 documents |
 | `rounded_square_with_seam_fillet_matches_explicit_hand_chain` | EXPLICIT | closed form at the site | `crates/profile/tests/path_differential.rs` | not in the M10-8 documents |

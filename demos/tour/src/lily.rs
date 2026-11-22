@@ -458,7 +458,7 @@ fn lantern<S: Scalar>(
 /// A full revolve leaves each circle as TWO edges, its halves either
 /// side of the seam, and the roll takes both: one half alone ends its
 /// chain at the seam vertex, which the battery refuses
-/// (`UnsupportedCorner { SeamVertex }`), as a chain that stops partway
+/// (`UnbuiltEnd::Seam`), as a chain that stops partway
 /// round a circle should.
 fn roll_the_mouth<S: Scalar>(
     sharp: Body<S>,
@@ -1883,14 +1883,14 @@ fn cone_station_circles<S: Scalar>(
     let mut out = Vec::new();
     for (k, _) in body.faces() {
         let Some(&pncad::geom::Surface::Cone {
-            apex,
-            axis,
+            frame: carrier_frame,
             half_angle,
             ..
         }) = body.face_surface(k)
         else {
             continue;
         };
+        let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
         // Read back at `f64` once, where the narration starts.
         let a = apex.map(S::f);
         let d = axis.map(S::f);
@@ -1932,13 +1932,13 @@ struct TorusCarrier {
 fn torus_carrier<S: Scalar>(body: &Body<S>) -> TorusCarrier {
     for (fk, _) in body.faces() {
         if let Some(&pncad::geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
         }) = body.face_surface(fk)
         {
+            let (center, axis) = (frame.origin(), frame.axis());
             return TorusCarrier {
                 centre: center.map(S::f),
                 axis: axis.map(S::f),
@@ -2145,7 +2145,10 @@ pub fn seamed_lantern(lantern: Body<f64>, tol: Tol) -> Result<Body<f64>, Boolean
     let (zc, axis) = lantern
         .faces()
         .find_map(|(fk, _)| match lantern.face_surface(fk) {
-            Some(&pncad::topo::Surface::Sphere { center, axis, .. }) => Some((center, axis)),
+            Some(&pncad::topo::Surface::Sphere { frame, .. }) => {
+                let (center, axis) = (frame.origin(), frame.axis());
+                Some((center, axis))
+            }
             _ => None,
         })
         .expect("the lantern's zone sphere");
@@ -2164,14 +2167,6 @@ pub fn seamed_lantern(lantern: Body<f64>, tol: Tol) -> Result<Body<f64>, Boolean
             .clone();
     }
     Ok(body.into_body())
-}
-
-/// Where wall 7 stops: the carve itself, or drawing what it built.
-#[derive(Debug)]
-#[allow(dead_code)] // the payloads are read through `Debug` in the wall's report
-enum Wall7 {
-    Carve(BooleanError),
-    Draw(pncad::mesh::TessellateError),
 }
 
 /// The lily's frontier, run live: every shape the plant WANTED and the
@@ -2370,84 +2365,48 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          the scene, one torus band, at rest"
     );
 
-    // 7. The lantern is THREE tepals fused, and their seams are
-    //    longitudinal grooves. Carving one is a sphere-on-sphere
-    //    subtract — and the GEOMETRY agrees: the ball meets the
-    //    spherical zone and clears the conical pucker's exact frustum
-    //    by 0.4131 (measured in this module's `verbs_gate_r1_probes`;
-    //    the figure moved with the flower when the weld was
-    //    re-authored, and the probe is where it is read).
-    //
-    //    The pair-scoped gate ADMITS this cut: the pucker's box
-    //    clears the ball's, so no unsupported KIND can enter the
-    //    operation. The F7 door used to answer next; it no longer
-    //    does, because a full revolve sweeps each planar cap whole and
-    //    the lantern arrives maximal-faced. The crossing layer has
-    //    circle × sphere roots, the sphere pair's chord rides the two
-    //    spheres' radical plane, and although this ball sits off the
-    //    lantern's axis — the plane is tilted against the zone's polar
-    //    axis — the join selects the section's arcs by the side of the
-    //    run they leave on, and the carved zone measures by
-    //    Gauss–Bonnet. So the CARVE builds, and one seam draws: the
-    //    trimmed lane's sphere arm meshes a sphere face bounded by a
-    //    circle tilted against its chart (this module's
-    //    `verbs_gate_r1_probes`). The three seams are the same ball
-    //    turned a third of a turn about the lantern's axis
-    //    ([`seamed_lantern`]), and the seam a third of a turn round meets
-    //    neither of the zone's seam meridians: its section lies inside
-    //    one half-band, which keeps it as a ring, and the mesher has no
-    //    lane for a curved face with a ring
-    //    (`work/tesslane/valid-ringed-torus-faces-build-but-cannot-be-meshed.md`).
-    //    The payload is quoted rather than described, the wall-7
-    //    lesson about reading a locus off a comment instead of a dump.
-    //
-    //    The lantern's two axis-touching caps used to arrive as two
-    //    half-faces each on one plane key, and the scene repaired them
-    //    with `merge_coplanar_faces` before cutting. A full revolve
-    //    now sweeps a planar wall whole (BAND, "one wall per run"), so
-    //    the operand is cut as built.
-    //
-    //    What is left after that is the breadth half, DEPENDENCY-STATED
-    //    like probe 8's: it waits on the verbs/breadth slate,
-    //    VERBS-PLAN Wave 2 items 6 (VERBS-GATE, the per-face-kind gate
-    //    re-scope) and 9 (VERBS-SPHSPH, the sphere × sphere germ lane)
-    //    — the ruling that put it there is M9-5's, and the demand
-    //    signal is this probe.
-    // The carves build; drawing the three is what refuses. One carve
-    // runs at the walls' own scalar, so its decisions record under the
-    // probe scalar like every other wall's; the mesher is an f64 door,
-    // so what it draws is the f64 carve, as a user's would be.
-    let carve = |lantern: &AtRestBody<S>| {
-        pncad::topo::subtract(
-            lantern,
-            &finished(
-                "the wall-7 ball",
-                ball::<S>(WALL7_BALL_CENTER, WALL7_BALL_RADIUS, tol),
-                tol,
-            ),
+    // 7. RETIRED: the lantern carved with its three tepal seams draws.
+    //    Carving a seam is a sphere-on-sphere subtract, and the ball
+    //    meets the spherical zone and clears the conical pucker's exact
+    //    frustum (measured in this module's `verbs_gate_r1_probes`). The
+    //    three seams are the same ball turned a third of a turn about the
+    //    lantern's axis ([`seamed_lantern`]); the seam a third of a turn
+    //    round meets neither of the zone's seam meridians, so its section
+    //    is a ring of one half-band, and the trimmed lane meshes that
+    //    face's outer loop less the ring. The scene's lanterns do not
+    //    carry the seams yet
+    //    (`work/tesslane/the-lily-lanterns-can-take-their-three-tepal-seams.md`).
+    //    One carve runs at the walls' own scalar, so its decisions record
+    //    under the probe scalar like every other wall's; the mesher is an
+    //    f64 door, so what it draws is the f64 carve, as a user's would be.
+    pncad::topo::subtract(
+        lant,
+        &finished(
+            "the wall-7 ball",
+            ball::<S>(WALL7_BALL_CENTER, WALL7_BALL_RADIUS, tol),
             tol,
+        ),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("wall 7's carve builds, got {e:?}"));
+    let lantern = plant::<f64>(tol)
+        .into_iter()
+        .find(|p| p.name == "lily_lantern")
+        .expect("named lily piece")
+        .body;
+    let seamed = seamed_lantern(lantern, tol)
+        .unwrap_or_else(|e| panic!("the lantern's three tepal seams carve, got {e:?}"));
+    let drawn = pncad::mesh::tessellate(&seamed, 2e-3, tol).unwrap_or_else(|e| {
+        panic!(
+            "the lantern carved with its three tepal seams refuses {e:?} — wall 7 was \
+             retired when the trimmed lane read a ringed sphere face; re-derive it \
+             before trusting it"
         )
-    };
-    wall(
-        7,
-        "carve the lantern's three tepal seams and draw it (sphere x sphere by \
-         geometry; each seam's section is tilted against the zone's chart)",
-        carve(lant).map_err(Wall7::Carve).and_then(|_| {
-            let lantern = plant::<f64>(tol)
-                .into_iter()
-                .find(|p| p.name == "lily_lantern")
-                .expect("named lily piece")
-                .body;
-            let seamed = seamed_lantern(lantern, tol).map_err(Wall7::Carve)?;
-            pncad::mesh::tessellate(&seamed, 2e-3, tol).map_err(Wall7::Draw)
-        }),
-        |e| {
-            matches!(
-                e,
-                Wall7::Draw(pncad::mesh::TessellateError::RingOnCurvedFace { .. })
-            )
-        },
-        "give the lanterns their three tepal seams",
+    });
+    println!(
+        "   wall 7 RETIRED — the lantern carved with its three tepal seams draws: {} \
+         triangles",
+        pncad::mesh::validate::triangle_count(&drawn)
     );
     // 8. The leaf GROWS OUT OF the stem. The scene roots the long leaf
     //    in the middle of the lower stem: its lower cap's chord midpoint
@@ -2525,10 +2484,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             let (lower, _) = lower_stem();
             let lower_tube = |f| match stem.face_surface(f) {
                 Some(pncad::topo::Surface::Torus {
-                    center,
+                    frame,
                     major_radius,
                     ..
                 }) => {
+                    let center = frame.origin();
                     let c = Point3::new(center.x.f(), center.y.f(), center.z.f());
                     (c - lower.center).norm() < 1e-9 && (major_radius.f() - lower.ring).abs() < 1e-9
                 }

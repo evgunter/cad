@@ -44,9 +44,10 @@ pub(crate) use anchor::{derive_naming, validated_naming};
 pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
-pub(crate) use framed::Frame;
+pub(crate) use framed::{Frame, GraftIn};
 pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
+pub(crate) use topo::Seat;
 pub use wire::DirectionRefusal;
 
 use std::collections::BTreeMap;
@@ -902,6 +903,12 @@ pub struct NodeValue<T: topo::AtRestPolicy + Decide> {
     /// **Not persisted**, like the verdicts and unlike their summary:
     /// an escalation is a fact about one run at one box, read in hand.
     pub escalations: Arc<EscalationLog>,
+    /// The candidates the node's pruning queries handed on, placed among
+    /// its verdicts ([`geom_core::k_stats::Mark`]): what the first-turn
+    /// reading ([`crate::resolve::first_turn`]) reads to tell two runs on
+    /// one path from two whose pruning parted. No verdict, so no part of
+    /// the strict form or the summary. **Not persisted**.
+    pub marks: Arc<MarkLog>,
     /// RESERVED empty slot: the solved witness assignment, filled by
     /// the sketch solver `docs/DESIGN.md` `[open.sketch-solver]` adopts
     /// when constraint-driven sketches have a consumer.
@@ -947,6 +954,7 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
             family: None,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
+            marks: Arc::default(),
             motion: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
@@ -975,6 +983,7 @@ impl NodeValue<f64> {
             coincidences: Arc::new([]),
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
+            marks: Arc::default(),
             motion: None,
             members: None,
             family: None,
@@ -1071,6 +1080,9 @@ impl Evaluation<f64> {
 /// One evaluation's per-node verdict vector (the [`NodeValue::verdicts`]
 /// payload): [`geom_core::k_stats::Verdict`]s in decision order.
 pub type VerdictLog = Vec<geom_core::k_stats::Verdict>;
+
+/// One node's candidate marks ([`NodeValue::marks`]).
+pub type MarkLog = Vec<geom_core::k_stats::Mark>;
 
 /// One node's escalations (the [`NodeValue::escalations`] and
 /// [`NodeError::escalations`] payload):
@@ -1718,9 +1730,20 @@ pub enum NodeErrorKind {
     /// finished body**: a leaf ([`topo::AtRestPolicy::leaf`], the switch:
     /// tier 2 alone at the box scalars); the operation that takes it
     /// runs tier 3 on it ([`super::Held::finished`]).
+    ///
+    /// Where the operation placed the operand in another operand's frame
+    /// (a union's or an intersect's fold, or a subtract, computes in one
+    /// operand's frame and places the others in it), `into` names the
+    /// operand whose frame that is, and the findings are those of
+    /// `input`'s image there: the placed door's move refusing it at the
+    /// session box (`topo::Placed::taken`). The subject is still `input`;
+    /// the frame is the context its findings were read in.
     UnfinishedLeaf {
         /// The operand's node: the node whose value this operation took.
         input: RecipeNodeId,
+        /// The operand whose frame `input` was read into, where the read
+        /// moved it; `None` where it was taken in its own frame.
+        into: Option<RecipeNodeId>,
         /// The finish's findings.
         findings: topo::NotFinished,
     },
@@ -2095,7 +2118,21 @@ impl NodeErrorKind {
     /// `input`'s body does not finish where a node takes it. A node's
     /// own finish of what it produced names [`NodeErrorKind::NotFinished`].
     pub(crate) fn unfinished(input: RecipeNodeId) -> impl FnOnce(topo::NotFinished) -> Self {
-        move |findings| Self::UnfinishedLeaf { input, findings }
+        Self::unfinished_in(input, None)
+    }
+
+    /// **A taker's refusal of an operand it read into `into`'s frame**
+    /// ([`NodeErrorKind::UnfinishedLeaf`]): `input`'s image there does
+    /// not finish; `None` where it was read in its own frame.
+    pub(crate) fn unfinished_in(
+        input: RecipeNodeId,
+        into: Option<RecipeNodeId>,
+    ) -> impl FnOnce(topo::NotFinished) -> Self {
+        move |findings| Self::UnfinishedLeaf {
+            input,
+            into,
+            findings,
+        }
     }
 }
 
@@ -2364,12 +2401,26 @@ impl crate::spoken::Say for NodeErrorKind {
                 "the body this operation produced is not a finished body: {}",
                 findings.render(geom_brep::recourse::Reading::AtRest)
             ),
-            Self::UnfinishedLeaf { input, findings } => write!(
-                f,
-                "{} does not finish where this operation takes it: {}",
-                by.node_as(*input, "input"),
-                findings.render(geom_brep::recourse::Reading::AtRest)
-            ),
+            Self::UnfinishedLeaf {
+                input,
+                into,
+                findings,
+            } => {
+                let input = by.node_as(*input, "input");
+                match into {
+                    None => write!(f, "{input} does not finish where this operation takes it: ")?,
+                    Some(into) => write!(
+                        f,
+                        "{input}, read into {}'s frame, does not finish there: ",
+                        by.node(*into)
+                    )?,
+                }
+                write!(
+                    f,
+                    "{}",
+                    findings.render(geom_brep::recourse::Reading::AtRest)
+                )
+            }
             Self::EmptyHalf { input, half } => write!(
                 f,
                 "the split's {} half ({}) holds no material",
@@ -3065,7 +3116,7 @@ pub(crate) mod leaf {
         /// The read, over the leaf's replay at `T`, with the clearance
         /// engine's door at `T`: every leaf lane is a certifying
         /// scalar, so the door is held rather than asked for.
-        fn at<T: geom_core::Decide + topo::AtRestPolicy>(
+        fn at<T: geom_core::Certifies + topo::AtRestPolicy>(
             self,
             ev: &Evaluation<T>,
             clearance: topo::ClearanceLane<T>,
@@ -3619,37 +3670,15 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         self.lo() == 0.0 && self.hi() == 0.0
     }
 
-    /// Across the negative `x` axis the principal branch's cut widens
-    /// the enclosure to the whole circle, so there the angle is read on
-    /// the branch about `π`: the solve reads an angle only through its
-    /// sine and cosine, which every branch encloses alike. An exact zero
-    /// `y` over a positive `x` is the angle zero exactly, which the
-    /// backend's `atan2` encloses as subnormal dust whose cosine is an
-    /// ulp wide.
     fn solve_atan2(y: Self, x: Self) -> Self {
-        use geom_core::Real;
-        match Self::atan2_branch(y, x) {
-            crate::mate::Atan2Branch::Zero => Self::zero(),
-            crate::mate::Atan2Branch::AboutPi => Self::pi() + (-y).atan2(-x),
-            crate::mate::Atan2Branch::Principal => y.atan2(x),
-        }
-    }
-
-    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
-        use geom_core::Bounds;
-        if y.lo() == 0.0 && y.hi() == 0.0 && x.lo() > 0.0 {
-            crate::mate::Atan2Branch::Zero
-        } else if x.hi() < 0.0 && y.lo() <= 0.0 && 0.0 <= y.hi() {
-            crate::mate::Atan2Branch::AboutPi
-        } else {
-            crate::mate::Atan2Branch::Principal
-        }
+        crate::mate::solve::box_atan2(y, x)
     }
 }
 
-/// The seed lane's solve: a refusal quotes the value channel — the
-/// `f64` lane's own number — and the angle's value channel is the
-/// `f64` lane's `atan2` with the dual's own tangent beside it.
+/// The seed lane's solve: a refusal quotes the value channel — its
+/// lane's own number — and the angle's value channel is its lane's
+/// `solve_atan2` (the platform's over `f64`, `box_atan2` over an
+/// interval) with the dual's own tangent beside it.
 impl<T: crate::mate::SolveScalar> crate::mate::SolveScalar for geom_core::Dual<T>
 where
     geom_core::Dual<T>: geom_core::Decide,
@@ -3679,10 +3708,6 @@ where
             deriv: angle.deriv,
         }
     }
-
-    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
-        T::atan2_branch(y.value, x.value)
-    }
 }
 
 /// The symbolic tier's solve: its lane scalar's quote, and the tier's
@@ -3711,20 +3736,8 @@ where
         T::spins_by_frames()
     }
 
-    /// On the branch its lane scalar reads ([`crate::mate::SolveScalar::atan2_branch`]),
-    /// so a box tier's angle near the cut is the lane's and not the
-    /// whole circle.
     fn solve_atan2(y: Self, x: Self) -> Self {
-        use geom_core::Real;
-        match T::atan2_branch(y.value, x.value) {
-            crate::mate::Atan2Branch::Zero => Self::zero(),
-            crate::mate::Atan2Branch::AboutPi => Self::pi() + (-y).atan2(-x),
-            crate::mate::Atan2Branch::Principal => y.atan2(x),
-        }
-    }
-
-    fn atan2_branch(y: Self, x: Self) -> crate::mate::Atan2Branch {
-        T::atan2_branch(y.value, x.value)
+        crate::mate::solve::box_atan2(y, x)
     }
 }
 
@@ -3783,24 +3796,38 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
     tol: Tol,
 ) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
     // `doc` may be `ev`'s document with a probe lowered into it, whose
-    // member reads mint their indices as counts `ev` never bound: each
-    // is a count the document holds (`edit::written_count`), bound here
-    // as the run binds it.
-    let unbound: Vec<(crate::VarId, i64)> = doc
+    // member reads mint their indices as counts `ev` never bound, and
+    // whose values (a face's chart's spin and slides) are definitions it
+    // never bound. They are bound in the run's order: each count as the
+    // document holds it (`edit::written_count`), then the definitions
+    // over them (`Doc::bind_definitions`).
+    let unbound: Vec<crate::VarId> = doc
         .var_ids()
         .into_iter()
         .filter(|var| !ev.env.bindings.contains_key(var) && !ev.env.refused.contains_key(var))
+        .collect();
+    let defined = unbound.iter().any(|&var| {
+        matches!(
+            doc.var(var).map(crate::Var::def),
+            Some(crate::var::VarDef::Defined(_))
+        )
+    });
+    let counts: Vec<(crate::VarId, i64)> = unbound
+        .into_iter()
         .filter_map(|var| Some((var, crate::edit::written_count(doc, var)?)))
         .collect();
-    let env = match unbound.is_empty() {
-        true => std::borrow::Cow::Borrowed(&ev.env),
-        false => {
+    let env = match (defined, counts.is_empty()) {
+        (false, true) => std::borrow::Cow::Borrowed(&ev.env),
+        _ => {
             let mut env = ev.env.clone();
             env.bindings.extend(
-                unbound
+                counts
                     .into_iter()
                     .map(|(var, value)| (var, crate::expr::ParamValue::Count(value))),
             );
+            if defined {
+                doc.bind_definitions(&mut env);
+            }
             std::borrow::Cow::Owned(env)
         }
     };
@@ -3895,7 +3922,8 @@ pub enum RecordMispairing {
     /// the record and the document refused to canonicalize, so which
     /// version the record read is not known.
     Unpinned,
-    /// The record read another version of the document.
+    /// The record read another version of the document, or, inside a
+    /// part, a document of other content under the part's pin.
     Revision,
     /// The record decided at another tolerance.
     Tolerance,
@@ -3920,9 +3948,10 @@ impl core::fmt::Display for RecordMispairing {
                 "the build of record carries no content pin to say which version of the \
                  document it read",
             ),
-            Self::Revision => {
-                f.write_str("the build of record read another version of the document")
-            }
+            Self::Revision => f.write_str(
+                "the build of record read another version of the document, or of a part, \
+                 another document under the part's pin",
+            ),
             Self::Tolerance => f.write_str("the build of record decided at another tolerance"),
             Self::Options => f.write_str(
                 "the build of record was built over other options (a parameter box, symbols, \
@@ -4074,6 +4103,39 @@ pub(crate) fn record_pairing<B: topo::AtRestPolicy + Decide>(
     RecordBinding::of(doc, record, opts, tol).map(|_| ())
 }
 
+/// **Whether the content the record read is the run's**, by content pin:
+/// `theirs` is the record's pin (none where it was not pinned), `ours`
+/// the run's document's. The one spelling, for a whole evaluation's
+/// pairing ([`RecordBinding::of`]) and a part's ([`content_pairing`]).
+fn pin_pairing(
+    theirs: Option<&Result<crate::ident::ContentPin, crate::persist::PersistError>>,
+    ours: Result<crate::ident::ContentPin, crate::persist::PersistError>,
+) -> Result<(), RecordMispairing> {
+    match (theirs, ours) {
+        (Some(Ok(theirs)), Ok(ours)) if *theirs == ours => Ok(()),
+        (Some(Ok(_)), Ok(_)) => Err(RecordMispairing::Revision),
+        _ => Err(RecordMispairing::Unpinned),
+    }
+}
+
+/// **Whether two runs of a part read one content**: `theirs` the
+/// document the record's build read, `ours` the document this run
+/// resolved under the same key ([`pin_pairing`]). One document is one
+/// content without a canonicalization.
+pub(crate) fn content_pairing(
+    theirs: &Arc<Doc<ProfileProgram>>,
+    ours: &Arc<Doc<ProfileProgram>>,
+    tol: Tol,
+) -> Result<(), RecordMispairing> {
+    if Arc::ptr_eq(theirs, ours) {
+        return Ok(());
+    }
+    pin_pairing(
+        Some(&crate::persist::content_pin(theirs, tol)),
+        crate::persist::content_pin(ours, tol),
+    )
+}
+
 /// **What a dual evaluation reads of its build of record**: the nodes
 /// it built no value at, and its build of each part, which the run's
 /// part store binds each part's own run to.
@@ -4100,11 +4162,7 @@ impl RecordBinding {
         if record.whole_refusal {
             return Err(RecordMispairing::NotABuild);
         }
-        match (&record.pin, crate::persist::content_pin(doc, tol)) {
-            (Some(Ok(theirs)), Ok(ours)) if *theirs == ours => {}
-            (Some(Ok(_)), Ok(_)) => return Err(RecordMispairing::Revision),
-            _ => return Err(RecordMispairing::Unpinned),
-        }
+        pin_pairing(record.pin.as_ref(), crate::persist::content_pin(doc, tol))?;
         let ours = tolerance_of(tol);
         if (record.tolerance.eps.to_bits(), record.tolerance.k.to_bits())
             != (ours.eps.to_bits(), ours.k.to_bits())
@@ -4147,23 +4205,28 @@ impl RecordBinding {
     }
 
     /// `doc`'s run inside a part, bound to `tree`, the build of record's
-    /// run of the same document ([`parts::Refusals`]): one pin and one ε,
-    /// so its pairing is the row's key.
+    /// run of the same part ([`parts::Refusals`]), or why `tree` is not a
+    /// build of it. The row's key says one pin and one ε; the pairing
+    /// also reads the content, since the record's resolver and the run's
+    /// each answered the pin, and a resolver that answered it with other
+    /// content handed the two runs different documents
+    /// ([`RecordMispairing::Revision`]).
     pub(crate) fn of_part(
-        doc: &Doc<ProfileProgram>,
+        doc: &Arc<Doc<ProfileProgram>>,
         tree: &parts::Refusals,
-        eps_bits: u64,
-    ) -> Self {
+        tol: Tol,
+    ) -> Result<Self, RecordMispairing> {
+        content_pairing(&tree.doc, doc, tol)?;
         let refused = tree
             .nodes
             .iter()
             .copied()
-            .chain(Self::partless(doc, &tree.parts, eps_bits))
+            .chain(Self::partless(doc, &tree.parts, tol.eps().to_bits()))
             .collect();
-        Self {
+        Ok(Self {
             refused,
             parts: Arc::clone(&tree.parts),
-        }
+        })
     }
 
     /// The instances of `doc` whose part the record holds no build of:
@@ -4262,13 +4325,14 @@ pub(crate) enum PassTwo {
 /// anything is the top's part rows, carried from its prior.
 ///
 /// `record` binds the run to the build of record's run of the same
-/// document, where the descent is a dual's ([`RecordBinding::of_part`]).
+/// document, where the descent is a dual's, or refuses every node where
+/// that run was not a build of this one ([`RecordBinding::of_part`]).
 pub(crate) fn evaluate_nested<T>(
     doc: &Doc<ProfileProgram>,
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: parts::Reached<T>,
-    record: Option<&RecordBinding>,
+    record: Option<Result<&RecordBinding, &RecordMispairing>>,
     pin: &crate::ident::ContentPin,
     tol: Tol,
 ) -> Evaluation<T>
@@ -4281,7 +4345,7 @@ where
         cancel,
         opts,
         Some((reached, pin)),
-        record.map(Ok),
+        record,
         PassTwo::SkippedAtF64,
         tol,
     )
@@ -5006,7 +5070,16 @@ fn eval_any<T>(
 where
     T: EvalScalar,
 {
-    let prior = prior.and_then(|p| p.value(id));
+    // An instance node's keys name its part by `DocRef` alone, so its
+    // prior value is reused only where this run reads the very part row
+    // the prior carried: a row rebuilt here may be other content under
+    // the same pin ([`parts::Reached::carried_from`]).
+    let prior = prior
+        .filter(|p| {
+            parts::instantiated(doc, id)
+                .is_none_or(|part| op_env.parts.carried_from(&p.parts, &part, tol))
+        })
+        .and_then(|p| p.value(id));
     let step = match chains.get(&id) {
         Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
             result: NodeResult::Failed(NodeError {
@@ -5441,7 +5514,8 @@ where
         let fresh = bracket.finish();
         assert!(
             v.verdicts.starts_with(&fresh.verdicts)
-                && v.escalations.starts_with(&fresh.escalations),
+                && v.escalations.starts_with(&fresh.escalations)
+                && v.marks.starts_with(&fresh.marks),
             "a memo hit's pre-key decisions differ from the reused log's prefix"
         );
         return NodeStep {
@@ -5468,6 +5542,7 @@ where
                 family: None,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
+                marks: Arc::new(recorded.marks),
                 witness: WitnessSlot {},
                 content_key,
                 naming_key,
@@ -5585,7 +5660,9 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v23: a slide beside a mate whose direction is oblique in
+            /// v24: an extrude's depth is signed, so a negative depth's
+            /// stream is a pocket's tool where it was a refusal. v23: a
+            /// slide beside a mate whose direction is oblique in
             /// the source's own coordinates runs along its carried axis's
             /// part in what the mate leaves, and a value may slide along
             /// the mated direction or a read direction, or spin about a
@@ -5627,7 +5704,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 23,
+            VERSION = 24,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -5651,8 +5728,9 @@ mod tag {
         /// role it reads through ([`pose_role`]), then the read's tree
         /// — `OUTPUT` for an operation's output (whose key and port the
         /// upstream list carries), `SELECTION` and its names, or
-        /// `DEFINITION`, the arm ([`pose_arm`]), each read's role and
-        /// tree in field order, then each scalar's value and its
+        /// `DEFINITION`, the arm ([`pose_arm`]), a face's chart's
+        /// orientation as two [`signed_axis`] words (where its `x` and
+        /// `z` lie), each read's role and tree in field order, then each scalar's value and its
         /// nominal under [`slot`]'s `NOMINAL`; `SOURCE` for a source of a
         /// member ([`crate::VarDef::Source`]), its number of indices and
         /// each index's value.
@@ -5674,6 +5752,7 @@ mod tag {
             CARRIED = 10,
             SLIDE = 11,
             SPIN = 12,
+            FACE_CHART = 13,
         }
         /// The role a pose read reads through
         /// ([`crate::pose::PoseRole`]), a plain read's included.
@@ -7130,9 +7209,8 @@ fn feed_bundle(
         match &c.kind {
             crate::mate::ConstraintKind::Mate(mate) => {
                 h.write_tag(tag::constraint_kind::MATE);
-                // The orientation, by where the copy's x and z lie.
-                for axis in [mate.orient.x(), mate.orient.z()] {
-                    h.write_tag(axis_word(axis));
+                for word in orientation_words(mate.orient) {
+                    h.write_tag(word);
                 }
             }
             crate::mate::ConstraintKind::Value(value) => {
@@ -7158,6 +7236,13 @@ fn feed_bundle(
             }
         }
     }
+}
+
+/// **An orientation as a content key's two words**: where the frame's
+/// `x` and `z` lie, which fix it. A mate's and a face's chart's
+/// orientation are keyed by it.
+fn orientation_words(orient: crate::Orientation) -> [u8; 2] {
+    [axis_word(orient.x()), axis_word(orient.z())]
 }
 
 /// A signed axis as a content key's word.

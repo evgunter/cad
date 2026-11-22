@@ -30,12 +30,12 @@
 //!
 //! `blends` are the flat strips, `joined_blends` the strips carved
 //! across joints (named `BandFace` of their chain's edges, as the
-//! fillet's are), `corners` the planar patches, and `bands` is empty: a
-//! chamfer has no closed-chain band, so the rim roles (`BandTrim`,
-//! `BandFoot`, `BandCross`, `BandCut`, `BandSlit`) simply have no rows
-//! to translate. That is a fact about the surgery's output, not a
-//! branch here — the shared translation iterates whatever rows it is
-//! given.
+//! fillet's are), `corners` the planar patches, and `bands` the cone
+//! frustums over closed plane–cylinder rims, carved by the fillet's
+//! closed-rim walks, so the rim roles (`BandTrim`, `BandFoot`,
+//! `BandCross`, `BandCut`, `BandSlit`) name them as they name a torus
+//! band. Nothing here branches on which band it is — the shared
+//! translation iterates whatever rows it is given.
 //!
 //! # Ties
 //!

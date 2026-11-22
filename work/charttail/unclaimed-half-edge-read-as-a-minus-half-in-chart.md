@@ -70,7 +70,7 @@ self-pair checks, and `merge_faces.rs`' `#[cfg(test)]` tear hooks.
 | chart | `unclaimed-half-edge-read-as-a-minus-half-in-chart` | `crates/topo/src/chart_region.rs`, the trim polygon walk, ~:2447 | direction |
 | zip | `unclaimed-half-edge-read-as-a-minus-half-in-zip` | `crates/topo/src/boolean/join.rs`, `ring_run_ccw`'s run term, ~:1471 | direction |
 | zip | `unclaimed-half-edge-read-as-a-minus-half-in-zip` | `crates/topo/src/boolean/rest.rs`, the REST lane's first-run far half, ~:1807 (shared with TANG) | mate |
-| contact | `unclaimed-half-edge-read-as-a-minus-half-in-contact` | `crates/topo/src/boolean/solid_contain.rs`, the run parameter interval, ~:1960 | direction |
+| contact | `unclaimed-half-edge-read-as-a-minus-half-in-contact` | `crates/topo/src/solid_contain.rs`, the run parameter interval, ~:1960 | direction |
 | boxes | `unclaimed-half-edge-read-as-a-minus-half-in-boxes` | `crates/topo/src/boolean/boxes.rs`, the face pcurve steps, ~:1047 | direction |
 | tess | `unclaimed-half-edge-read-as-a-minus-half-in-tess` | `crates/mesh/src/trimmed.rs`, the trimmed-face loop walk, ~:987 | direction |
 | tess | `unclaimed-half-edge-read-as-a-minus-half-in-tess` | `crates/mesh/src/walk.rs`, the loop walk, ~:204 | direction |

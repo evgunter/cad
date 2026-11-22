@@ -33,7 +33,7 @@ both rows.
 
 ## Reading (not yet the owner's)
 
-Both decides are in `carrier_walk` (`crates/topo/src/boolean/spline_region.rs`,
+Both decides are in `carrier_walk` (`crates/topo/src/spline_region.rs`,
 `carrier_walk`, the two `decide(SPLINE_REGION_CARRIER, …)` calls, ~309
 and ~342): the cell's floor against `q`, then the cell centre's distance
 from `q`. An in-band reading there is kept as `pending` and the walk

@@ -277,31 +277,10 @@ fn a_document_of_plain_reads_saves_to_its_own_bytes() {
     let text = std::fs::read_to_string(path).expect("the fixture reads");
     // The file records the ε it was blessed at; the swept rows load it
     // at their own, so its one ε line is re-stamped to the process's.
-    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-    let probe = editor_core::persist::save(
-        &editor_core::ProfileDoc::empty_derived("dm3-epsilon-probe", Tol::witness()),
-        &[],
-        Tol::witness(),
-    )
-    .expect("an empty document saves");
-    let wanted = probe
-        .lines()
-        .find(|l| is_epsilon(l))
-        .expect("a save records its ε");
-    let restamped: String = text
-        .lines()
-        .map(|l| if is_epsilon(l) { wanted } else { l })
-        .map(|l| format!("{l}\n"))
-        .collect();
+    let restamped = editor_core::test_support::restamped_at(&text, Tol::witness());
     let loaded = editor_core::persist::load(&restamped, Tol::witness()).expect("the fixture loads");
-    let saved = editor_core::persist::save(&loaded.snapshot, &loaded.edits, Tol::witness())
-        .expect("the document saves");
-    let sans_epsilon = |t: &str| -> Vec<String> {
-        t.lines()
-            .filter(|l| !l.contains("\"epsilon\""))
-            .map(str::to_owned)
-            .collect()
-    };
+    let saved = editor_core::persist::save(&loaded, Tol::witness()).expect("the document saves");
+    let sans_epsilon = editor_core::test_support::sans_epsilon;
     assert_eq!(sans_epsilon(&saved), sans_epsilon(&text));
 }
 
@@ -315,21 +294,16 @@ fn an_indexed_read_round_trips_persistence() {
             tool: member(xs, 0),
         },
     );
-    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
     assert!(
         text.contains("\"at\""),
         "an indexed read is written with its indices"
     );
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("the document loads");
-    assert_eq!(
-        loaded.doc.node(cut),
-        doc.node(cut),
-        "the node loads as saved"
-    );
-    let again =
-        editor_core::persist::save(&loaded.doc, &[], Tol::witness()).expect("it saves again");
+    assert_eq!(loaded.node(cut), doc.node(cut), "the node loads as saved");
+    let again = editor_core::persist::save(&loaded, Tol::witness()).expect("it saves again");
     assert_eq!(again, text, "a load and a save are the identity");
-    let ev = eval(&loaded.doc);
+    let ev = eval(&loaded);
     assert!((least_x(&ev, cut) - 4.0).abs() < 1e-12);
 }
 

@@ -103,7 +103,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "die_fillet",
         about: "M5 shape (v) stage 1: every edge of a unit cube blended at r = 0.125",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(blank),
         // π-valued closed forms are not dyadic — see the module docs.

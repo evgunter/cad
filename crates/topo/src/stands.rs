@@ -10,7 +10,7 @@
 //! (`census::sweep_cross_solid_backstop`), which reads vertices only and
 //! refuses where all of them touch
 //! (`work/inside/the-census-material-probe-reads-only-vertices-so-a-flush-nested-solid-is-undecided.md`).
-//! The reader of the side at infinity (`boolean::solid_contain`
+//! The reader of the side at infinity (`solid_contain`
 //! `side_at_infinity`) reads its third rung alone, [`planar_interior_point`],
 //! as points to aim at rather than witnesses to probe.
 //! The result sort, the uncut-shell verdict and the census ask it under
@@ -61,13 +61,13 @@ use geom_core::{Band, Decide, Point3, Tol, Vec3};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::PointInSolidError;
-use crate::boolean::SolidContainment;
-use crate::boolean::solid_contain::{SolidFaces, point_in_face, point_in_solid_faces};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::face_normal::face_plane;
 use crate::live::{Proven, proven};
-use crate::props::{QuadLane, ShellRole};
+use crate::props::ShellRole;
+use crate::solid_contain::PointInSolidError;
+use crate::solid_contain::SolidContainment;
+use crate::solid_contain::{SolidFaces, point_in_face, point_in_solid_faces};
 use geom_core::ladder::{Answering, Climb, Disagree, Ranked, Rung, climb_evidence};
 
 /// What one witness read against the probed surfaces, `K` the refusal a
@@ -529,26 +529,37 @@ fn line_meetings<T: Decide>(
         geom::Curve3::Line(geom::Line { origin, dir }) => {
             vec![(origin - m).cross(dir).dot(normal) / w.cross(dir).dot(normal)]
         }
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => conic(center, axis, u_ref, radius, radius),
-        geom::Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => conic(center, axis, u_ref, semi_u, semi_v),
-        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => Vec::new(),
+        geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame: carrier_frame_43,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_43.origin(),
+                carrier_frame_43.axis(),
+                carrier_frame_43.u_ref(),
+            );
+            let radius = circle.radius();
+            conic(center, axis, u_ref, radius, radius)
+        }
+        geom::Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame: carrier_frame_42,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_42.origin(),
+                carrier_frame_42.axis(),
+                carrier_frame_42.u_ref(),
+            );
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            conic(center, axis, u_ref, semi_u, semi_v)
+        }
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
+            Vec::new()
+        }
     }
 }
 
@@ -633,12 +644,12 @@ pub(crate) struct ShellRead {
 impl ShellRead {
     /// `shell` read, or the shell's typed refusal where its role cannot
     /// be ([`crate::props::shell_role`]).
-    pub(crate) fn of<T: Decide>(
+    pub(crate) fn of<T: crate::props::AtRestPolicy>(
         body: &Body<T>,
         shell: ShellKey,
         band: Band,
         tol: Tol,
-        quad: Option<QuadLane<T>>,
+        quad: Option<T::QuadLane>,
     ) -> Result<Self, crate::props::ShellClassifyError> {
         crate::props::shell_role(body, shell, band, tol, quad).map(|role| Self {
             shell,
