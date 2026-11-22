@@ -4,6 +4,8 @@ kind: issue
 title: holds_only's copies starts at the copy nearest the span's start, so a ring reaching past half a turn misses the copy below it
 status: open
 opened: 2026-11-09
+priority: P3
+cost: C
 ---
 
 

@@ -14,7 +14,7 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use topo::test_support as fixtures;
-use topo::{AtRestBody, Body, BooleanResult, LoopBoundary};
+use topo::{AtRestBody, Body, BooleanResult};
 
 type V3 = [f64; 3];
 
@@ -173,24 +173,15 @@ const REFUSES_AT_1E6: &[(&str, &str)] = &[(
     "bool_pierce_sector_side_curved",
 )];
 
-/// The faces of `body` whose loops pass two distinct vertices at one
-/// point.
+/// The faces of `body` with a loop that pinches: passes one point key at
+/// two distinct vertices (`topo::loop_points`).
 fn faces_through_two_vertices_on_one_point(body: &Body<f64>) -> usize {
-    let at: Vec<_> = body.vertex_points().collect();
     body.faces()
         .filter(|(fk, _)| {
-            let mut met = Vec::new();
-            for (l, _, _) in body.face(*fk).expect("a live face").loops() {
-                if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
-                    for he in body.loop_cycle(first).unwrap() {
-                        let v = body.get_half_edge(he).unwrap().start;
-                        met.push(at.iter().find(|x| x.0 == v).unwrap().1);
-                    }
-                }
-            }
-            met.iter()
-                .enumerate()
-                .any(|(i, p)| met[i + 1..].iter().any(|q| p.equals_exactly(*q)))
+            body.face(*fk)
+                .expect("a live face")
+                .loops()
+                .any(|(l, _, _)| topo::loop_points::loop_pinches(body, l).expect("a live loop"))
         })
         .count()
 }
@@ -320,9 +311,8 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
             "S",
             0.05,
         ),
-        // On a cylinder's wall: the trimmed lane. It meshes at δ = 1,
-        // 0.5 and 0.2, and refuses `CertificateExceeded` at 0.3, 0.1 and
-        // 0.05, as the same walls without a pinch do.
+        // On a cylinder's wall: the trimmed lane, which meshes it at every
+        // δ from 1 to 0.05.
         (
             "Lbot cyl fib4 psi=0.9 seam cp S",
             LBOT,

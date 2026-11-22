@@ -51,16 +51,21 @@ use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 use topo::MassProperties;
 
-/// The arc PRISM at scale `s`: two identical arc sections stacked and
-/// skinned at `v`-degree 1 — a SINGLE-SOLID body with a rational wall,
-/// which is the shape this claim needs. Single-solid matters: a
-/// multi-instance file runs the per-solid `gate` first, and it is the
-/// AGGREGATE gate whose certificate the reader hands back.
+/// The arc PRISM at scale `s`, bowed: three identical arc sections
+/// skinned at `v`-degree 2 through a middle place offset `+x` by `s/4` —
+/// a SINGLE-SOLID body with a rational wall that no analytic kind is,
+/// which is the shape this claim needs (the straight prism's wall is an
+/// exact cylinder, which the import promotes, and an analytic body runs
+/// no quadrature to count). Single-solid matters: a multi-instance file
+/// runs the per-solid `gate` first, and it is the AGGREGATE gate whose
+/// certificate the reader hands back.
 fn arc_prism(s: f64) -> topo::Body<f64> {
+    let mut places = stacked(&[0.0, 0.5, 1.0], s);
+    places[1] = profile::SketchPlane::xy_at(geom_core::Point3::new(0.25 * s, 0.0, 0.5 * s));
     sweep::loft_body::<f64>(
-        &[arc_section(s), arc_section(s)],
-        &stacked(&[0.0, 1.0], s),
-        1,
+        &[arc_section(s), arc_section(s), arc_section(s)],
+        &places,
+        2,
         Tol::witness(),
     )
     .expect("the arc prism lofts")

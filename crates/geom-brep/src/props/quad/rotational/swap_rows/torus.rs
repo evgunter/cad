@@ -63,11 +63,9 @@ impl Donut {
 
     fn surface(self) -> Surface<f64> {
         Surface::Torus {
-            center: self.c,
-            axis: self.axis,
+            frame: geom::Frame::new(self.c, self.axis, self.u_ref),
             major_radius: self.big,
             minor_radius: self.r,
-            u_ref: self.u_ref,
         }
     }
 

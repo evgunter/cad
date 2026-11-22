@@ -39,7 +39,7 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Tol, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Tol};
 use topo::construction::{Construct, MevSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
@@ -304,46 +304,41 @@ pub(super) fn band_chart<T: Decide>(
     Ok(match (&l.blend.surface, at) {
         (
             &Surface::Torus {
-                center,
-                axis,
+                frame: torus_frame,
                 major_radius,
                 minor_radius,
                 ..
             },
             _,
         ) => {
+            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
             let (c, (t0, t1)) = stored_piece(body, l.edge)?;
             let radial = radial_about(center, axis, c.eval(geom::mid_param(t0, t1)));
             Surface::Torus {
-                center,
-                axis,
+                frame: geom::Frame::new(center, axis, -radial),
                 major_radius,
                 minor_radius,
-                u_ref: -radial,
             }
         }
         (
             &Surface::Cone {
-                apex,
-                axis,
+                frame: cone_frame,
                 half_angle,
                 ..
             },
             _,
         ) => {
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
             let (c, (t0, t1)) = stored_piece(body, l.edge)?;
             let radial = radial_about(apex, axis, c.eval(geom::mid_param(t0, t1)));
             Surface::Cone {
-                apex,
-                axis,
+                frame: geom::Frame::new(apex, axis, -radial),
                 half_angle,
-                u_ref: -radial,
             }
         }
         (
             &Surface::Cylinder {
-                origin,
-                axis,
+                frame: cylinder_frame,
                 radius,
                 ..
             },
@@ -353,12 +348,11 @@ pub(super) fn band_chart<T: Decide>(
                 section: Section::Circle(section),
             }),
         ) => {
+            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
             let mid = (*host_foot - section.centre) + (*mate_foot - section.centre);
             Surface::Cylinder {
-                origin,
-                axis,
+                frame: geom::Frame::new(origin, axis, -(mid - axis * mid.dot(axis)).normalize()),
                 radius,
-                u_ref: -(mid - axis * mid.dot(axis)).normalize(),
             }
         }
         (s, _) => s.clone(),
@@ -612,33 +606,41 @@ pub(super) fn rim_trim_circles<T: Real>(
     first_is_a: bool,
 ) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
     let ((first_trim, _), (other_trim, _)) = blend.trims(first_is_a);
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: pc, .. },
-        radius: pr,
-    }) = *first_trim
+    let Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame: carrier_frame,
+            ..
+        },
+    ) = *first_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
-    let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { origin: sc, .. },
-        radius: sr,
-    }) = *other_trim
+    let pc = carrier_frame.origin();
+    let pr = conic_k.radius();
+    let Curve3::Circle(
+        conic_k @ geom::Circle {
+            frame: carrier_frame,
+            ..
+        },
+    ) = *other_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
+    let sc = carrier_frame.origin();
+    let sr = conic_k.radius();
     Ok(((pc, pr), (sc, sr)))
 }
 
 /// A rim edge's stored circle carrier, read once.
 pub(super) struct RimCarrier<T: Real> {
-    pub(super) axis: Vec3<T>,
-    pub(super) u_ref: Vec3<T>,
+    /// The stored circle's frame, which the band's arcs carry.
+    pub(super) frame: geom::Frame<T>,
     pub(super) t0: T,
     pub(super) t1: T,
     /// Whether the host-side half is the edge's `he_plus`.
@@ -662,7 +664,7 @@ pub(super) fn rim_carrier<T: Decide>(
     let host_half = host_side_half(body, link, host)
         .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's host-side half"))?;
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { axis, u_ref, .. },
+        frame: carrier_frame,
         ..
     }) = *c.carrier()
     else {
@@ -674,8 +676,7 @@ pub(super) fn rim_carrier<T: Decide>(
     };
     let (t0, t1) = c.params();
     Ok(RimCarrier {
-        axis,
-        u_ref,
+        frame: carrier_frame,
         t0,
         t1,
         plus_on_host: ed.he_plus == host_half,
@@ -692,7 +693,7 @@ pub(super) fn scaled<T: Real>(
     radius: T,
     forward: bool,
 ) -> (Curve3<T>, T, T) {
-    let circle = Curve3::circle(center, rc.axis, radius, rc.u_ref);
+    let circle = Curve3::Circle(geom::Circle::new(rc.frame.with_origin(center), radius));
     if forward {
         (circle, rc.t0, rc.t1)
     } else {

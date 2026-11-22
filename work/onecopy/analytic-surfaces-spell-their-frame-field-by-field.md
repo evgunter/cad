@@ -105,11 +105,11 @@ PR 6665 gave the doors and holders below a `geom::Line`. Where the line came fro
 - `sweep/src/revolve/full.rs`: `build_wire`
 - `sweep/src/revolve/surfaces.rs`: `revolved_strut_spec`
 - `sweep/src/revolve/turn.rs`: `sweep_turn`
-- `topo/src/boolean/conic_quadric/mod.rs`: `cone_roots` ×2, `quadric_ladder`, `through_the_apex`
+- `geom-brep/src/curve_face/conic_quadric.rs`: `cone_roots` ×2, `quadric_ladder`, `through_the_apex`
 - `topo/src/contain.rs`: `curved_interior_placement` ×2
 - `topo/src/boolean/join.rs`: `pt_germ_frame` ×2, `region_halves` ×5
 - `topo/src/boolean/ops.rs`: `pinched_at_cone_apex`
-- `topo/src/boolean/reduce.rs`: `conic_clearance`, `line_wall_roots_of` ×3, `requeue` ×6
+- `topo/src/boolean/reduce.rs`: `conic_clearance`, `line_quadric_roots` ×3, `requeue` ×6
 - `topo/src/boolean/section_cert.rs`: `cone_cylinder`, `cone_pair` ×3, `torus_pair`
 - `topo/src/boolean/section_cert/ruling.rs`: (closure), `assemble`
 - `topo/src/solid_contain.rs`: `face_geo_arms` ×4, `root_outward`, `sphere_chart_trim` ×2, `unread_refusal` ×9

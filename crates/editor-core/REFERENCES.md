@@ -68,7 +68,8 @@ reads it in its own way:
   profile's `on` is a frame in the space of the face's body
   (`ProfileProgram.on`, `DrawnOn`): the chart a plane placement onto the
   face with the same orientation, spin and slides gives, computed by that
-  placement's own chart (`[placement]`): its `z` is the face's outward
+  placement's own chart and decided by its fold over each body that stands
+  in it, never over the frame alone (`[placement]`): its `z` is the face's outward
   normal, and its `x` and origin are the space's under the written
   orientation, carried by the least turn, then the written spin and slides
   (each the constant `0` unless named). It may trace faces of that body

@@ -23,6 +23,6 @@ Verify before fixing.
 
 The consequence named above is gone: after #7075 neither the edit door
 nor the strand report resolves a program (they ask
-`ProfileProgram::lattice` and `drawable_pieces`, values erased). The
+`ProfileProgram::lattice` and `partition`, values erased). The
 cause stands for the callers that still resolve outside an evaluation,
 `ProfileProgram::pieces` among them.

@@ -2688,8 +2688,8 @@ fn a_fillet_moved_off_a_corner_reports_exactly_what_it_takes() {
 /// with the bottom leg dropped, whose run out takes the kept right
 /// leg's segment; value-only rewrites through and out of a `Zero` fit; a two-loop profile's loops swapped; a split
 /// hole's count up and down; a run's midpoint moved; and the identity.
-/// Inserting a fillet after a kept leg is its own pinned row
-/// ([`a_fillet_inserted_after_a_kept_leg_joins_its_wall_unreported`]);
+/// Inserting a fillet after a kept leg is its own row
+/// ([`a_fillet_inserted_after_a_kept_leg_reports_the_legs_wall`]);
 /// moving one to another corner is its own row
 /// ([`a_fillet_moved_off_a_corner_reports_exactly_what_it_takes`]).
 /// The rows that leave a kept piece undrawn must report it, so a door

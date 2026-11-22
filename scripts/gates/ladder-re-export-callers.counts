@@ -13,4 +13,5 @@ crates/sweep 2
 # topo 130 -> 129: topo's recourse roster's header stopped spelling the path (ONECOPY).
 # topo 129 -> 120: carrier_eq.rs moves to geom-brep and reads geom_core::ladder (ONEDOOR).
 # topo 120 -> 118: t4-ports batch 1: slit.rs's test rows and chord_join.rs's holds_outer ladder (now lone_ring_outer_side) import geom_core::ladder.
-crates/topo 118
+# topo 118 -> 117: the line x quadric door moves to geom-brep with its doc link (GERM).
+crates/topo 117

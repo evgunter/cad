@@ -652,10 +652,8 @@ fn brick_with_cone_face_at(x: (f64, f64)) -> (topo::Body<f64>, topo::FaceKey) {
         face,
         topo::construction::FaceSurface::New {
             surface: geom::Surface::Cone {
-                apex,
-                axis: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(apex, Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
                 half_angle: 0.25,
-                u_ref: Vec3::new(0.0, 0.0, 1.0),
             },
             sense: true,
         },

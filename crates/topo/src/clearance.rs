@@ -1499,6 +1499,9 @@ impl Sweep {
             let root_a: Vec<Cell> = wa.iter().map(Cell::of).collect();
             let root_b: Vec<Cell> = wb.iter().map(Cell::of).collect();
             let cloud = |c: &Cell| [c.enc];
+            // A zero pad still steps every box out an ulp
+            // (`Aabb::padded`); here that can only keep a candidate pair,
+            // never drop one, and nothing is split at these bounds.
             let tree_a = Bvh::build_bounded(root_a.iter().map(cloud), 0.0);
             let tree_b = Bvh::build_bounded(root_b.iter().map(cloud), 0.0);
             // The unordered de-duplication is the same-body case's own: two
@@ -3462,18 +3465,18 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     };
     let superset = |u, v| (u, v, Region::Trimmed);
     let (u, v, region) = match &charted {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => superset(along(*origin, *u_ref), along(*origin, normal.cross(*u_ref))),
-        Surface::Cylinder { origin, axis, .. } => superset(full_turn(), along(*origin, *axis)),
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            superset(along(origin, u_ref), along(origin, normal.cross(u_ref)))
+        }
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            superset(full_turn(), along(origin, axis))
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             // `slant` encloses `v` over the boundary. The face's `v`
             // peaks on its boundary or at the apex, so `slant` widened
             // to `0` holds it, and `slant` alone does wherever it holds
@@ -3484,7 +3487,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             // homologous, on the punctured nappe, to the whole boundary,
             // which would wind once. So a boundary winding nowhere
             // leaves the apex off the face, or `0` inside `slant`.
-            let slant = (extent - *apex).dot(*axis) / half_angle.cos();
+            let slant = (extent - apex).dot(axis) / half_angle.cos();
             let v = if winds_nowhere(body, f) {
                 (slant.lo(), slant.hi())
             } else {
@@ -3784,14 +3787,15 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
 
 /// The face's boundary enclosure, and the boundary itself lifted.
 ///
-/// The enclosure is the hull of every boundary edge's carrier evaluated
-/// over its OWN parameter interval — interval arithmetic does the
-/// bounding, so a circular edge's bulge is enclosed rather than chorded
-/// away — together with the boundary's vertex points, each lifted
-/// through [`Interval::from_certified`]. `None` for a face that does not
-/// resolve, one of whose edges carries no certified curve, or one any of
-/// whose lifted values does not certify: an unclaimable extent, never a
-/// silently smaller one. The walk past the face is
+/// The enclosure is the hull of every boundary edge's region — its
+/// lifted carrier's cover over its own span ([`crate::cover::arc_cover`],
+/// so a curved edge's bulge is enclosed rather than chorded away, and a
+/// spline edge's by its pieces' control nets) — together with the
+/// boundary's vertex points, each lifted through
+/// [`Interval::from_certified`]. `None` for a face that does not
+/// resolve, one of whose edges carries no certified curve or no cover,
+/// or one any of whose lifted values does not certify: an unclaimable
+/// extent, never a silently smaller one. The walk past the face is
 /// [`crate::live::FaceView::boundary_by_loop`]'s, every hop a link.
 ///
 /// The lifted boundary carries each edge's carrier and span, its two
@@ -3872,10 +3876,17 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
             let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
-            // The whole parameter span as ONE interval: the carrier's
-            // interval evaluation over it encloses the entire arc, which is
-            // what makes a curved boundary bound its own face's window.
-            pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
+            // The edge's region over its span, as the low and high
+            // corners of its world box: bracket ends, read by
+            // `Aabb::from_points` as the vertices are. No pad is owed:
+            // each corner is the cover's own enclosure at this scalar, and
+            // `Cover::aabb`'s pad would step every side out by an ulp even
+            // at zero, which moves every window off the points its splits
+            // land on.
+            let (lo, hi) = crate::cover::arc_cover(&carrier, span)
+                .ok()?
+                .box_in(&geom::cover::BoxAxes::World);
+            pts.extend([lo, hi]);
             let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));
             let uses = hes
                 .iter()
@@ -3898,6 +3909,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 .collect();
             out.edges.push(Rim {
                 key: ek,
+                stated: (T::WITNESS == geom_core::Witness::Inexact)
+                    .then(|| curve.carrier().map_scalar(|x| Bounds::lo(x))),
                 arc: Some((carrier, span)),
                 ends,
                 uses,
@@ -4553,19 +4566,17 @@ fn split_self<T: Real>(pair: CellPair, w: &Window<'_, T>) -> Option<[CellPair; 3
 /// (this module's header). The doors it holds take that crossing
 /// themselves, and a verifier reads a candidate's carriers already
 /// crossed ([`Candidate::enclosure`]), so no caller spells a lift. A
-/// scalar without that right cannot write the value:
+/// scalar that does not certify has no such type ([`crate::QuadLane`]'s
+/// paragraph):
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_core::Dual64;
 /// use topo::ClearanceLane;
 /// let _ = ClearanceLane::<Dual64>::certified();
 /// ```
-///
-/// Why the code is `E0599`, and what the fence does not check:
-/// [`crate::QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct ClearanceLane<T: Decide> {
+pub struct ClearanceLane<T: geom_core::Certifies> {
     /// [`Side::windows`] (`wiring_rows` pins the pointer).
     windows: for<'b> fn(
         &Side<'b, T>,
@@ -4585,7 +4596,7 @@ pub struct ClearanceLane<T: Decide> {
     face_stations: fn(Candidate<'_, '_, T>) -> (Stations, Stations),
 }
 
-impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
+impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
     /// The certified engine: the whole inventory of this door, and the
     /// only constructor there is.
     #[must_use]
@@ -4620,13 +4631,80 @@ impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
     }
 }
 
-impl<T: Decide> ClearanceLane<T> {
-    /// [`Side::windows`], at this lane.
+/// **A [`ClearanceLane`] as a pass that runs at every scalar holds it**:
+/// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
+/// values) at one that does not (`geom-core` README, DL5.3). Sealed ([`crate::RegionLaneOf`]'s
+/// seal); every method is written out below, so the seal is what
+/// refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::RigidMotion;
+/// use topo::clearance::{BoundReport, Candidate, EngineRefusal, Side, Stations, Sweep, Which, Windows};
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl topo::ClearanceLaneOf<f64> for Mine {
+///     fn windows<'b>(self, _s: &Side<'b, f64>, _w: Which) -> Result<Windows<'b, f64>, EngineRefusal> {
+///         unimplemented!()
+///     }
+///     fn windows_at<'b>(
+///         self,
+///         _s: &Side<'b, f64>,
+///         _w: Which,
+///         _at: Option<&RigidMotion<f64>>,
+///     ) -> Result<Windows<'b, f64>, EngineRefusal> {
+///         unimplemented!()
+///     }
+///     fn sweep<W>(
+///         self,
+///         _sweep: &Sweep,
+///         _wa: &Windows<'_, f64>,
+///         _wb: &Windows<'_, f64>,
+///         _same_body: bool,
+///         _verify: impl FnMut(Candidate<'_, '_, f64>) -> Result<W, String>,
+///     ) -> BoundReport<W> {
+///         unimplemented!()
+///     }
+///     fn on_face_stations(self, _c: Candidate<'_, '_, f64>) -> (Stations, Stations) {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait ClearanceLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// A side's windows in its own frame.
     ///
     /// # Errors
+    /// The lane's own.
+    fn windows<'b>(self, side: &Side<'b, T>, which: Which)
+    -> Result<Windows<'b, T>, EngineRefusal>;
+
+    /// A side's windows moved by `at`.
     ///
-    /// [`Side::windows`]'s own.
-    pub fn windows<'b>(
+    /// # Errors
+    /// The lane's own.
+    fn windows_at<'b>(
+        self,
+        side: &Side<'b, T>,
+        which: Which,
+        at: Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal>;
+
+    /// The bound sweep of two sides' windows, `verify` asked of each
+    /// candidate; the first `Ok` per question is kept.
+    fn sweep<W>(
+        self,
+        sweep: &Sweep,
+        wa: &Windows<'_, T>,
+        wb: &Windows<'_, T>,
+        same_body: bool,
+        verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    ) -> BoundReport<W>;
+
+    /// A candidate's stations on its two faces.
+    fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations);
+}
+
+impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
+    fn windows<'b>(
         self,
         side: &Side<'b, T>,
         which: Which,
@@ -4634,12 +4712,7 @@ impl<T: Decide> ClearanceLane<T> {
         (self.windows)(side, which, None)
     }
 
-    /// [`Side::windows_at`], at this lane.
-    ///
-    /// # Errors
-    ///
-    /// [`Side::windows_at`]'s own.
-    pub fn windows_at<'b>(
+    fn windows_at<'b>(
         self,
         side: &Side<'b, T>,
         which: Which,
@@ -4648,9 +4721,7 @@ impl<T: Decide> ClearanceLane<T> {
         (self.windows)(side, which, at)
     }
 
-    /// [`Sweep::run`], at this lane: the verdict, receipt and widths are
-    /// the sweep's, and the witness is the first one `verify` answered.
-    pub fn sweep<W>(
+    fn sweep<W>(
         self,
         sweep: &Sweep,
         wa: &Windows<'_, T>,
@@ -4693,9 +4764,42 @@ impl<T: Decide> ClearanceLane<T> {
         }
     }
 
-    /// [`Candidate::on_face_stations`], at this lane.
-    pub fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+    fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
         (self.face_stations)(candidate)
+    }
+}
+
+impl<T: Decide> ClearanceLaneOf<T> for geom_core::NoLane {
+    fn windows<'b>(
+        self,
+        _side: &Side<'b, T>,
+        _which: Which,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
+        match self {}
+    }
+
+    fn windows_at<'b>(
+        self,
+        _side: &Side<'b, T>,
+        _which: Which,
+        _at: Option<&RigidMotion<T>>,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
+        match self {}
+    }
+
+    fn sweep<W>(
+        self,
+        _sweep: &Sweep,
+        _wa: &Windows<'_, T>,
+        _wb: &Windows<'_, T>,
+        _same_body: bool,
+        _verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    ) -> BoundReport<W> {
+        match self {}
+    }
+
+    fn on_face_stations(self, _candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+        match self {}
     }
 }
 
@@ -4765,7 +4869,7 @@ pub struct EmbeddingReport {
 /// candidate's carriers ([`Candidate::enclosure`]), is least at its
 /// upper end, decided at the strict site, where a separation in the band
 /// is a coincidence.
-pub fn embedded<T: Decide + CertifiedBounds>(
+pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
     side: &Side<'_, T>,
     band: Band,
     budgets: Budgets,
@@ -4828,7 +4932,7 @@ mod wiring_rows {
 
     /// `Ok(())` when every field holds its door; otherwise the name of
     /// the first field that does not.
-    fn holds_the_certified_clearance_lane<T: super::Decide + geom_core::CertifiedBounds>()
+    fn holds_the_certified_clearance_lane<T: geom_core::Certifies + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = ClearanceLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
@@ -4927,7 +5031,7 @@ mod wiring_rows {
     #[allow(clippy::expect_used)]
     fn the_verdict_door_on_a_cube<T>() -> (bool, bool)
     where
-        T: super::Decide + geom_core::CertifiedBounds + crate::AtRestPolicy,
+        T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
     {
         let tol = geom_core::Tol::witness();
         let cube: crate::Body<T> =
@@ -5331,6 +5435,212 @@ mod cone_window {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod rational_window {
+    use std::sync::Arc;
+
+    use geom::{Curve3, NurbsCurve3, Surface};
+    use geom_core::spline::{KnotVector, SplineError};
+    use geom_core::{Point3, Vec3};
+
+    use super::{Which, window_of};
+    use crate::Body;
+    use crate::entity::FaceKey;
+
+    /// The cap's plane `x = D` and the cone's half-angle: the f64
+    /// conical wedge's cavity cap.
+    const D: f64 = 0.0078125;
+    const ALPHA: f64 = 0.245;
+
+    /// **A plane cap cut from a cone off its axis**: the cone of
+    /// half-angle [`ALPHA`] about `z` met by the plane `x = D` along the
+    /// hyperbola `(D, D·sinh s, (D/tan α)·cosh s)`, `s ∈ [−s0, s0]`,
+    /// stored as the rational quadratic whose middle weight is
+    /// `cosh s0`, then elevated `raise` times and refined at `insert`.
+    /// Two chords through a point above the arc close the cap. Returns
+    /// the cap, the stored arc and its control net.
+    fn hyperbola_cap(
+        s0: f64,
+        raise: usize,
+        insert: &[f64],
+    ) -> (Body<f64>, FaceKey, NurbsCurve3<f64>) {
+        let top = D / ALPHA.tan();
+        let at = |s: f64| Point3::new(D, D * s.sinh(), top * s.cosh());
+        let arc = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![at(-s0), Point3::new(D, 0.0, top / s0.cosh()), at(s0)],
+            vec![1.0, s0.cosh(), 1.0],
+        )
+        .unwrap()
+        .elevate_degree(raise)
+        .unwrap()
+        .refine_knots(insert)
+        .unwrap();
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(Point3::new(D, 0.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
+        };
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle: ALPHA,
+        };
+        let carrier = Curve3::Nurbs(Arc::new(arc.clone()));
+        let (body, face) = crate::boxes::tests::conic_sector(
+            plane,
+            cone,
+            carrier.clone(),
+            (0.0, 1.0),
+            carrier.eval(0.5),
+            (at(-s0), at(s0), Point3::new(D, 0.0, top * s0.cosh() + D)),
+        );
+        (body, face, arc)
+    }
+
+    /// **A face bounded by a rational edge has a finite window that
+    /// holds the edge and stays inside its net**: the cap's chart is
+    /// `(y, z)`, so its window's `u` holds every sampled `y` of the
+    /// arc and its `v` every sampled `z`, and neither reaches past the
+    /// hull of the arc's control points and the cap's apex. Rows: the
+    /// wedge's own weights `[1, 1.0722, 1]`; a wider arc (middle
+    /// weight `cosh 1.5 ≈ 2.35`) elevated to degree 4 and refined to
+    /// three spans, whose weights spread unevenly. Red if the edge is
+    /// enclosed by a reading that is unbounded over its whole span (the
+    /// window is refused), wider than the net, or narrower than the
+    /// arc.
+    #[test]
+    fn a_cap_bounded_by_a_rational_arc_has_a_window_inside_the_arcs_net() {
+        for (what, s0, raise, insert) in [
+            ("the wedge's quadratic", 1.0722f64.acosh(), 0, &[][..]),
+            ("a wide quartic over three spans", 1.5, 2, &[0.3, 0.7][..]),
+        ] {
+            let (body, face, arc) = hyperbola_cap(s0, raise, insert);
+            let w = window_of(&body, face, Which::First, None)
+                .unwrap_or_else(|e| panic!("{what}: the cap has a window, got {e:?}"));
+            let top = D / ALPHA.tan() * s0.cosh() + D;
+            let net = arc.control().iter().map(|p| (p.y, p.z));
+            let (lo, hi) = net.fold(((0.0f64, top), (0.0f64, top)), |(lo, hi), (y, z)| {
+                ((lo.0.min(y), lo.1.min(z)), (hi.0.max(y), hi.1.max(z)))
+            });
+            let slack = 1e-15;
+            assert!(
+                lo.0 - slack <= w.u.0 && w.u.1 <= hi.0 + slack,
+                "{what}: u = {:?} within the net's y [{}, {}]",
+                w.u,
+                lo.0,
+                hi.0
+            );
+            assert!(
+                lo.1 - slack <= w.v.0 && w.v.1 <= hi.1 + slack,
+                "{what}: v = {:?} within the net's z [{}, {}]",
+                w.v,
+                lo.1,
+                hi.1
+            );
+            for k in 0..=64 {
+                let p = arc.eval(f64::from(k) / 64.0);
+                assert!(
+                    w.u.0 <= p.y && p.y <= w.u.1 && w.v.0 <= p.z && p.z <= w.v.1,
+                    "{what}: the arc's point {p:?} at t = {k}/64 is in the window {:?} × {:?}",
+                    w.u,
+                    w.v
+                );
+            }
+        }
+    }
+
+    /// **A spline edge on part of its carrier bounds its face by that part
+    /// alone**: the cap's edge runs over `t ∈ [0, ½]` of the hyperbola
+    /// arc, from its end at `y < 0` to its vertex at `y = 0`, and the
+    /// chords close it on `y ≤ 0`. The window's `u` (the chart's `y`)
+    /// stops at the vertex, where the arc's whole net reaches
+    /// `D·sinh s0`. Red if an edge is read over its whole carrier rather
+    /// than its span.
+    #[test]
+    fn a_spline_edge_on_part_of_its_carrier_bounds_its_face_by_that_part() {
+        let s0 = 1.0722f64.acosh();
+        let (_, _, arc) = hyperbola_cap(s0, 0, &[]);
+        let top = D / ALPHA.tan();
+        let carrier = Curve3::Nurbs(Arc::new(arc.clone()));
+        let at = |s: f64| Point3::new(D, D * s.sinh(), top * s.cosh());
+        let (body, face) = crate::boxes::tests::conic_sector(
+            Surface::Plane {
+                frame: geom::Frame::new(Point3::new(D, 0.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
+            },
+            Surface::Cone {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                half_angle: ALPHA,
+            },
+            carrier.clone(),
+            (0.0, 0.5),
+            carrier.eval(0.25),
+            (
+                at(-s0),
+                carrier.eval(0.5),
+                Point3::new(D, 0.0, top * s0.cosh() + D),
+            ),
+        );
+        let w = window_of(&body, face, Which::First, None).unwrap();
+        let reach = D * s0.sinh();
+        assert!(
+            w.u.1 < 0.5 * reach,
+            "the window stops near the vertex at y = 0, short of the whole net's {reach}: {:?}",
+            w.u
+        );
+        for k in 0..=32 {
+            let p = arc.eval(0.5 * f64::from(k) / 32.0);
+            assert!(
+                w.u.0 <= p.y && p.y <= w.u.1 && w.v.0 <= p.z && p.z <= w.v.1,
+                "the edge's point {p:?} is in the window {:?} × {:?}",
+                w.u,
+                w.v
+            );
+        }
+    }
+
+    /// **A face bounded by closed forms has the window its bounds give,
+    /// bit for bit**: the half disc of radius ½ on `z = 0`, its rim the
+    /// half circle over `[0, π]` and its diameter two radii, reads
+    /// `u = (−½, ½)` and `v` up to `½`, the circle's own bounds, not a
+    /// step past them. Red if the edges' boxes are padded, even by zero.
+    #[test]
+    fn a_half_disc_reads_its_circles_own_bounds_as_its_window() {
+        let (body, face) = crate::boxes::tests::arc_sector(0.5, core::f64::consts::PI);
+        let w = window_of(&body, face, Which::First, None).unwrap();
+        assert_eq!(
+            [w.u.0, w.u.1, w.v.1].map(f64::to_bits),
+            [-0.5f64, 0.5, 0.5].map(f64::to_bits),
+            "the half disc's window: {:?} × {:?}",
+            w.u,
+            w.v
+        );
+        assert!(
+            w.v.0 <= 0.0 && w.v.0 > -1e-15,
+            "the diameter's side of the window is at y = 0: {:?}",
+            w.v
+        );
+    }
+
+    /// **A rational edge has no zero or negative weight to enclose**:
+    /// construction refuses one typed, so the net hull a cap's window
+    /// reads is a hull of points the arc is a convex combination of.
+    #[test]
+    fn a_non_positive_weight_is_refused_at_construction() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = vec![
+            Point3::new(D, -1.0, 1.0),
+            Point3::new(D, 0.0, 0.5),
+            Point3::new(D, 1.0, 1.0),
+        ];
+        for w in [0.0, -1.0, f64::NAN] {
+            let got = NurbsCurve3::new(knots.clone(), control.clone(), vec![1.0, w, 1.0]);
+            assert!(
+                matches!(got, Err(SplineError::NonPositiveWeight { index: 1, .. })),
+                "the weight {w} is refused typed at index 1, got {got:?}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod refines_rows {
     use std::sync::Arc;
@@ -5512,10 +5822,12 @@ mod trv_rows {
         };
         for axis in 0..3 {
             let carrier = refusal(&|b| {
-                let Some(Surface::Plane { origin, .. }) = b.surfaces.values_mut().next() else {
+                let Some(Surface::Plane { frame, .. }) = b.surfaces.values_mut().next() else {
                     panic!("a brick's faces are planes");
                 };
-                refuse(origin, axis);
+                let mut origin = frame.origin();
+                refuse(&mut origin, axis);
+                *frame = frame.with_origin(origin);
             });
             assert_eq!(
                 carrier, "a face whose carrier does not certify",
@@ -5675,10 +5987,12 @@ mod trv_rows {
         for refuse in [false, true] {
             let mut x = wa.clone();
             if refuse {
-                let Surface::Plane { origin, .. } = &mut x.surface else {
+                let Surface::Plane { frame, .. } = &mut x.surface else {
                     panic!("a brick's face is a plane");
                 };
+                let mut origin = frame.origin();
                 origin.x = refused(origin.x);
+                *frame = frame.with_origin(origin);
             }
             let (ca, cb) = (Cell::of(&wa), Cell::of(&wb));
             let mut q = start(&x, &wb);
@@ -5803,41 +6117,33 @@ mod support_rows {
             (
                 "cone",
                 Surface::Cone {
-                    apex: o,
-                    axis,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     half_angle: 30f64.to_radians(),
-                    u_ref,
                 },
                 (1.0, 1.1),
             ),
             (
                 "torus",
                 Surface::Torus {
-                    center: o,
-                    axis,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     major_radius: 1.6,
                     minor_radius: 0.8,
-                    u_ref,
                 },
                 (2.5, 2.6),
             ),
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: o,
-                    axis,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     radius: 0.7,
-                    u_ref,
                 },
                 (0.2, 0.3),
             ),
             (
                 "sphere",
                 Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, axis, u_ref),
                     radius: 0.9,
-                    axis,
-                    u_ref,
                 },
                 (0.4, 0.5),
             ),

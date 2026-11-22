@@ -2,11 +2,11 @@
 id: brk-has-no-certified-door
 kind: issue
 title: Brk is a bracket carrier with no certified door, so extremal_angle_interval holds CertifiedEnclosure's NaN-end postcondition by hand
-status: open
+status: closed
 opened: 2026-09-26
 priority: P3
 cost: M
-design: true
+closed: 2026-11-19
 ---
 
 
@@ -75,3 +75,12 @@ the sweep saw it.
 ## Re-homed from FLUX to SCALAR (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. SCALAR collects the scalar doors and the readers over them: the certified-door family, the margin and recourse readers, the unit-direction doors, and the box driver's readings. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Closed (2026-11-19, SCALAR orchestrator)
+
+The carrier is gone, so there is no door to give it. PRED's `D292`
+(2026-10-25, seam note on SCALAR's log) replaced
+`crates/geom/src/curves/boxes.rs`'s `Brk` and `extremal_angle_interval`
+with `conic_arc_extent_along`, run at `Interval`; neither name occurs
+in `crates/*/src` on main `00a5903654`. The postcondition this row
+found held by hand is now `Interval`'s own.
