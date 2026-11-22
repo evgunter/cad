@@ -720,7 +720,20 @@ fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> 
 
 /// The sign of a sine levered at `arm`, decided at the departure's site,
 /// or `None`.
+pub(crate) fn mutant(k: &str) -> bool {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("REMETER_MUTANT").unwrap_or_default()) == k
+}
+
 fn levered_sign(sine: Interval, arm: Lever<Interval>, band: Band) -> Option<Sign> {
+    let sine = if mutant("mid") { let m = 0.5 * (sine.lo() + sine.hi()); Interval::from_bounds(m, m) } else { sine };
+    let arm = if mutant("double") { Lever::unsourced(arm.length() * at(2.0)) } else { arm };
+    if mutant("zeroband") || mutant("exact") {
+        let m = sine * arm.length();
+        let t = if mutant("exact") { 0.0 } else { band.zero() };
+        if m.lo() > t { return Some(Sign::Positive); }
+        if m.hi() < -t { return Some(Sign::Negative); }
+    }
     match decide(
         SELF_INTERSECTION_DEPARTURE,
         Margin::levered(sine, arm),
@@ -5629,9 +5642,14 @@ fn sign_on(
             Axis::U => fx,
             Axis::V => fy,
         };
-        grad.dot(f) / (grad.norm() * f.norm())
+        if mutant("unnorm") || mutant("span") { grad.dot(f) } else { grad.dot(f) / (grad.norm() * f.norm()) }
     };
-    let departs = |s: Side| levered_sign(sine(s.axis()) * at(s.into()), arm?, band);
+    let arm = if mutant("metre") { arm.or(Some(Lever::unsourced(at(1.0)))) } else { arm };
+    let span = |axis: Axis| match axis { Axis::U => p.x.1 - p.x.0, Axis::V => p.y.1 - p.y.0 };
+    let departs = |s: Side| {
+        let arm = if mutant("span") { Some(Lever::unsourced(at(span(s.axis())))) } else { arm };
+        levered_sign(sine(s.axis()) * at(s.into()), arm?, band)
+    };
     match &p.zero {
         Zero::None => interval_sign_as(
             centred(psi, p, p.x, p.y)?,
@@ -5655,10 +5673,12 @@ fn sign_on(
             if !(zero_on(*s, a, true) && zero_on(*t, b, true)) {
                 return None;
             }
-            if a.collapsed().is_some() == b.collapsed().is_some() {
+            if !mutant("guard") && a.collapsed().is_some() == b.collapsed().is_some() {
                 return None;
             }
-            let sine = n.dot(fxy) / (n.norm() * fxy.norm());
+            let sine = if mutant("naivepole") { n.dot(fxy) / (n.norm() * fx.norm() * fy.norm()) }
+                else if mutant("unnorm") || mutant("span") { n.dot(fxy) } else { n.dot(fxy) / (n.norm() * fxy.norm()) };
+            let arm = if mutant("span") { Some(Lever::unsourced(at(span(Axis::U) * span(Axis::V)))) } else { arm };
             levered_sign(sine * at(Side::into(*s) * Side::into(*t)), arm?, band)
         }
         Zero::Curve(s, c) => {
@@ -5872,7 +5892,15 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// not resolve: a reading with no arm decides nothing.
 fn arm_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval>> {
     // One face against itself reads its boundary once.
-    let other = (x.face != y.face).then_some(y.boundary);
+    let other = (x.face != y.face && !mutant("dropother")).then_some(y.boundary);
+    let vother = (x.face != y.face && !mutant("oneface") && !mutant("dropother")).then_some(y.boundary);
+    let vfaces = || {
+        x.boundary
+            .vertices
+            .values()
+            .chain(vother.into_iter().flat_map(|b| b.vertices.values()))
+            .copied()
+    };
     let faces = || {
         x.boundary
             .vertices
@@ -5885,7 +5913,7 @@ fn arm_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval>> 
             .iter()
             .map(|v| {
                 let at = *x.boundary.vertices.get(v)?;
-                Some(crate::wedge_reach::reach_from_vertex(at, faces()))
+                Some(crate::wedge_reach::reach_from_vertex(at, vfaces()))
             })
             .collect()
     } else {
@@ -5897,7 +5925,10 @@ fn arm_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval>> 
             })
             .collect()
     };
-    arms?.into_iter().reduce(Lever::min)
+    let arms = arms?;
+    if mutant("first") { return arms.into_iter().next(); }
+    if mutant("greatest") { return arms.into_iter().reduce(Lever::max); }
+    arms.into_iter().reduce(Lever::min)
 }
 
 /// **Whether a face's part of a cell pair is refused as unreadable**:
@@ -13075,5 +13106,110 @@ mod margin_rows {
             "one face against itself",
         );
         assert_eq!(read((2, &y), &[0, 2], &[]), None, "a null edge");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_probes {
+    use super::*;
+    use geom_core::test_support::fixture_lever;
+    fn iv0(x: f64) -> Interval { Interval::from_bounds(x, x) }
+    fn band() -> Band { Band::linear(geom_core::Tol::witness()).unwrap() }
+    fn key<K: From<slotmap::KeyData>>(n: u64) -> K { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() }
+    fn v3(v: [f64; 3]) -> Vec3<Interval> { Vec3::new(iv0(v[0]), iv0(v[1]), iv0(v[2])) }
+    fn p3(v: [f64; 3]) -> Point3<Interval> { Point3::new(iv0(v[0]), iv0(v[1]), iv0(v[2])) }
+    fn along(e: u64) -> Along { Along { edges: vec![key(e)], vertex: None, whole: true, params: None, on_edges: true } }
+    fn on(edges: &[u64], vertices: &[u64]) -> On { On { edges: edges.iter().map(|&e| key(e)).collect(), vertices: vertices.iter().map(|&v| key(v)).collect(), whole: true } }
+    fn norm(v: [f64; 3]) -> [f64; 3] { let n = (v[0]*v[0]+v[1]*v[1]+v[2]*v[2]).sqrt(); [v[0]/n, v[1]/n, v[2]/n] }
+    fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] { [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]] }
+    /// (axis, ref) frames: plain, and turned.
+    fn frames() -> Vec<(&'static str, [f64; 3], [f64; 3])> {
+        let a = norm([1.0, 2.0, 3.0]);
+        let r = norm(cross(a, [0.0, 0.0, 1.0]));
+        vec![("plain", [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]), ("turned", a, r)]
+    }
+    fn origins() -> Vec<[f64; 3]> { vec![[0.0; 3], [600.0, -700.0, 300.0]] }
+    fn sine(p: &Presented<'_>, n: Vec3<Interval>) -> Interval { let (_, _, fxy) = p.jet(); n.dot(fxy) / (n.norm() * fxy.norm()) }
+
+    #[test]
+    fn review_pole_and_apex_at_several_poses() {
+        let mut fails = Vec::new();
+        for (what, ax, rf) in frames() {
+            let nrm = cross(ax, rf);
+            for o in origins() {
+                for radius in [1e-3, 1.0, 50.0] {
+                    let s = Surface::Sphere { frame: geom::Frame::new(p3(o), v3(ax), v3(rf)), radius: iv0(radius) };
+                    let pole = core::f64::consts::FRAC_PI_2;
+                    let meridian = Psi::Linear { n: v3(nrm), q: p3(o) };
+                    for (h, wid) in [(0.1, 0.1), (1e-6, 1e-6), (0.5, 1e-9)] {
+                        for (east, xs, side, want) in [(true, (0.0, wid), Side::XLo, Sign::Positive), (false, (-wid, 0.0), Side::XHi, Sign::Negative)] {
+                            let zero = Zero::Corner((side, along(1)), (Side::YHi, Along::at(key(7))));
+                            let p = Presented { surface: &s, map: Map::Chart, x: xs, y: (pole - h, pole), zero, corner: false, cache: Cache::default() };
+                            let got = sign_on(&meridian, Some(&on(&[1, 2], &[7])), &p, None, Some(fixture_lever(iv0(1.0))), band());
+                            let line = format!("sphere {what} o={o:?} r={radius} h={h} w={wid} east={east}: {got:?} sine={:?}", sine(&p, v3(nrm)));
+                            println!("{line}");
+                            if got != Some(want) { fails.push(line); }
+                        }
+                    }
+                }
+                for alpha in [0.05_f64, 0.5, 1.2, 1.5] {
+                    let s = Surface::Cone { frame: geom::Frame::new(p3(o), v3(ax), v3(rf)), half_angle: iv0(alpha) };
+                    let meridian = Psi::Linear { n: v3(nrm), q: p3(o) };
+                    for (h, wid) in [(1.0, 0.1), (1e-6, 1e-3), (10.0, 1e-9)] {
+                        for (xs, side, want) in [((0.0, wid), Side::XLo, Sign::Positive), ((-wid, 0.0), Side::XHi, Sign::Negative)] {
+                            let zero = Zero::Corner((side, along(1)), (Side::YLo, Along::at(key(7))));
+                            let p = Presented { surface: &s, map: Map::Chart, x: xs, y: (0.0, h), zero, corner: false, cache: Cache::default() };
+                            let got = sign_on(&meridian, Some(&on(&[1, 2], &[7])), &p, None, Some(fixture_lever(iv0(1.0))), band());
+                            let line = format!("cone {what} o={o:?} a={alpha} h={h} w={wid}: {got:?} sine={:?}", sine(&p, v3(nrm)));
+                            println!("{line}");
+                            if got != Some(want) { fails.push(line); }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(fails.is_empty(), "{} undecided or wrong:\n{}", fails.len(), fails.join("\n"));
+    }
+
+    /// A strip 4 long along its shared edge and 0.05 across, folded onto
+    /// its neighbour of the same shape at the angle `phi`: the arm.
+    #[test]
+    fn review_strip_arm_reads_the_run_along_the_edge() {
+        let line = |a: [f64; 3], b: [f64; 3]| {
+            let d = Vec3::new(iv0(b[0] - a[0]), iv0(b[1] - a[1]), iv0(b[2] - a[2]));
+            Some((Curve3::line(p3(a), d), (iv0(0.0), iv0(1.0))))
+        };
+        let phi: f64 = 0.9 * band().zero() / 0.05;
+        let o = [0.0, 0.0, 0.0];
+        let e = [4.0, 0.0, 0.0];
+        let a1 = [4.0, 0.05, 0.0];
+        let a0 = [0.0, 0.05, 0.0];
+        let b1 = [4.0, 0.05 * phi.cos(), 0.05 * phi.sin()];
+        let b0 = [0.0, 0.05 * phi.cos(), 0.05 * phi.sin()];
+        let mk = |far: [[f64; 3]; 2], ks: [u64; 2]| Boundary {
+            sense: true,
+            edges: vec![Rim { key: key(1), arc: line(o, e), stated: None, ends: [key(1), key(2)], uses: Vec::new() }],
+            vertices: [(1, o), (2, e), (ks[0], far[0]), (ks[1], far[1])].into_iter().map(|(k, p)| (key(k), p3(p))).collect(),
+            extent: None,
+        };
+        let (bx, by) = (mk([a1, a0], [3, 4]), mk([b1, b0], [5, 6]));
+        let s = Surface::Plane { frame: geom::Frame::new(p3(o), v3([0.0, 0.0, 1.0]), v3([1.0, 0.0, 0.0])) };
+        let local = Local::default();
+        fn piece<'a>(f: u64, s: &'a Surface<Interval>, b: &'a Boundary, local: &'a Local) -> Piece<'a> {
+            Piece { face: key(f), surface: s, whole: false, boundary: b, u: (0.0, 1.0), v: (0.0, 1.0), local, ball: Ball::holding(p3([0.0; 3]), p3([0.0; 3])) }
+        }
+        let near = Near { edges: vec![(0, 0)], vertices: vec![] };
+        let arm = arm_of(&piece(1, &s, &bx, &local), &piece(2, &s, &by, &local), &near).expect("an arm");
+        let wedge = 0.05 * phi.sin();
+        println!("arm {:?}; the faces part by {wedge:e} across their width; band zero {:e} escalate {:e}; sine x arm {:e}",
+            arm.length(), band().zero(), band().escalate(), phi.sin() * arm.length().lo());
+        // the floor's strip against the other face's plane through the edge
+        let psi = Psi::Linear { n: v3([0.0, -phi.sin(), phi.cos()]), q: p3(o) };
+        let p = Presented { surface: &s, map: Map::Chart, x: (0.0, 4.0), y: (0.0, 0.05), zero: Zero::Side(Side::YLo, along(1)), corner: false, cache: Cache::default() };
+        let got = sign_on(&psi, Some(&on(&[1], &[])), &p, None, Some(arm), band());
+        println!("the strip's whole width signed at that arm: {got:?}");
+        assert!(wedge < band().zero(), "the strip never leaves the band");
+        assert_eq!(got, None, "a strip that never leaves the band is not signed apart");
     }
 }
