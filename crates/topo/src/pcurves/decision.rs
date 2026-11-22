@@ -1541,10 +1541,12 @@ pub(super) fn decide_joint<T: Decide>(
     let spline = surface.spline_chart().is_some();
     let singular = singular_at(chart, vertex, band);
     let ordinary = AzimuthRule::of(u_period.is_some(), singular, spline);
+    // The element is made here, from the deck the rule decides: the one
+    // place a deck becomes an element (`lift_agreement_rows`' census).
     let by = |rule| {
-        decide_joint_by(
+        Ok(JointElement(decide_joint_by(
             chart, image, entry_t, prev, vertex, periods, band, sides, rule,
-        )
+        )?))
     };
     let Singular::Sides(on) = singular else {
         return by(ordinary);
@@ -1575,7 +1577,8 @@ pub(super) fn decide_joint<T: Decide>(
     by(AzimuthRule::OnCollapsedSides { free })
 }
 
-/// [`decide_joint`] under the rule its reading of the vertex chose.
+/// [`decide_joint`] under the rule its reading of the vertex chose: the
+/// deck, which [`decide_joint`] makes the element.
 #[allow(clippy::too_many_arguments)]
 fn decide_joint_by<T: Decide>(
     chart: DescribedChart<'_, T>,
@@ -1587,7 +1590,7 @@ fn decide_joint_by<T: Decide>(
     band: Band,
     sides: JointSides<'_, T>,
     rule: AzimuthRule,
-) -> Result<JointElement, PinMiss> {
+) -> Result<Deck, PinMiss> {
     let surface = chart.surface();
     let u_period = periods.u();
     let spline = surface.spline_chart().is_some();
@@ -1692,11 +1695,11 @@ fn decide_joint_by<T: Decide>(
         };
         spline_gap_closes(chart, lifted.eval(entry_t), prev, free, band)?;
     }
-    Ok(JointElement(Deck {
+    Ok(Deck {
         u: ku,
         v: kv,
         twin: is_twin,
-    }))
+    })
 }
 
 /// [`decide_joint`] for a row that states a joint by its two images
