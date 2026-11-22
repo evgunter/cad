@@ -54,3 +54,4 @@
   3. The seam edge's description.
 
   The inward poses are pinned as refusing typed, and their overlap build is filed on the overlap lanes' owner. Alternative not taken: land (1) alone and file (2)–(4). The P0 is "the elbow unions", so the program keeps it. (HELDRECORDS orchestrator)
+- 2026-11-22 — **Friction: the runner queue (20:37Z).** PR 7404, a state-sync change with lint as its only real job, took 50 minutes from push to `gate ok`. Of that, 17 minutes were in the queue before `change filter` started, 11 minutes were lint, and 18 minutes were the queue again before `gate ok`, a job of a few seconds. 31 runs were queued repo-wide. Time in the queue counts against neither CI bar, and it is a finding of its own. The orchestration rule's answer is to batch: from here, this program's state-sync rides the unit PRs and gets no PR of its own. (HELDRECORDS orchestrator)
