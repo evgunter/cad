@@ -326,11 +326,11 @@
 //!   (lines). Equal radii with meeting axes (`δ₀` and `r₁ − r₂` both
 //!   `Zero`) give the two bisector-plane ellipses, which cross at two
 //!   nodes: one component, essential on both walls, witnessed at a node.
-//! - **Cylinder × plane**: an ellipse encircling the wall, or rulings.
-//!   Either way the section cannot lie in a wall that describes. The
-//!   count is not certified (two rulings, or one ellipse), so W4 is
-//!   never read here and the pair clears by W2 or refuses.
-//! - **Sphere × {plane, sphere}**: one circle. **Sphere × cylinder**
+//! - **Cylinder × plane** (the section value's, over the region): one
+//!   ellipse or rim circle encircling the wall, certified single, or two
+//!   rulings the region cuts, each unbounded. Either way the section
+//!   cannot lie in a wall that describes.
+//! - **Sphere × {plane, sphere}** (the section value's): one circle. **Sphere × cylinder**
 //!   (axis offset `e`): one loop when `|e − ρc| < ρs < e + ρc`,
 //!   two loops encircling the cylinder when `e + ρc < ρs`, each loop
 //!   witnessed by the ruling sweep.
@@ -755,10 +755,11 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
     use geom::Surface as S;
     let marched = move |s: &geom_brep::PairSection<T>| of_carried(s.carry(lane, band).as_ref());
     match (f, g) {
-        (S::Sphere { .. } | S::Cylinder { .. } | S::Torus { .. }, S::Torus { .. })
-        | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
-        | (S::Sphere { .. } | S::Cylinder { .. }, S::Cylinder { .. })
-        | (S::Cylinder { .. }, S::Sphere { .. }) => {
+        // Served, its coaxial pose read here on the value's pose.
+        (S::Torus { .. }, S::Cone { .. }) | (S::Cone { .. }, S::Torus { .. }) => {
+            cone_torus(f, g, band, marched)
+        }
+        _ if geom_brep::pair_section::serves(f.kind(), g.kind()) => {
             match geom_brep::pair_section(f, g, region, None::<geom_core::NoLane>, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
                     of_pair_section(&Ok(section), band, marched)
@@ -769,61 +770,12 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
         }
         (S::Torus { .. }, S::Plane { .. }) => torus_pair(f, g, band),
         (S::Plane { .. }, S::Torus { .. }) => swapped(torus_pair(g, f, band)),
-        (S::Torus { .. }, S::Cone { .. }) | (S::Cone { .. }, S::Torus { .. }) => {
-            cone_torus(f, g, band, marched)
-        }
         (
             S::Cone { .. },
             S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. },
         ) => cone_pair(f, g, reach, band),
         (S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. }, S::Cone { .. }) => {
             swapped(cone_pair(g, f, reach, band))
-        }
-        (S::Cylinder { .. }, S::Plane { .. }) => cylinder_plane(),
-        (S::Plane { .. }, S::Cylinder { .. }) => swapped(cylinder_plane()),
-        (
-            &S::Sphere {
-                frame: sphere_frame,
-                radius,
-                ..
-            },
-            &S::Plane {
-                frame: plane_frame, ..
-            },
-        ) => {
-            let center = sphere_frame.origin();
-            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
-            sphere_plane(center, radius, origin, normal.normalize(), band)
-        }
-        (
-            &S::Plane {
-                frame: plane_frame, ..
-            },
-            &S::Sphere {
-                frame: sphere_frame,
-                radius,
-                ..
-            },
-        ) => {
-            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
-            let center = sphere_frame.origin();
-            sphere_plane(center, radius, origin, normal.normalize(), band)
-        }
-        (
-            &S::Sphere {
-                frame: sphere_frame_2,
-                radius: r1,
-                ..
-            },
-            &S::Sphere {
-                frame: sphere_frame,
-                radius: r2,
-                ..
-            },
-        ) => {
-            let c1 = sphere_frame_2.origin();
-            let c2 = sphere_frame.origin();
-            sphere_sphere(c1, r1, c2, r2, band)
         }
         (
             S::Nurbs(_) | S::Approx(_),
@@ -1739,73 +1691,6 @@ fn cone_parallel_cylinder<T: Decide>(
     Section::Components {
         parts: vec![part(h), part(-h)],
         single: false,
-    }
-}
-
-/// **Cylinder × plane**: an ellipse encircling the wall, or rulings.
-/// Neither lies inside a wall that describes, and the count is not
-/// certified, so W4 is never read.
-fn cylinder_plane<T: Real>() -> Section<T> {
-    Section::Components {
-        parts: vec![Component::closed_form(false, [true, false], None)],
-        single: false,
-    }
-}
-
-/// **Sphere × plane**: one circle.
-fn sphere_plane<T: Decide>(
-    cs: Point3<T>,
-    rho: T,
-    p0: Point3<T>,
-    n: Vec3<T>,
-    band: Band,
-) -> Section<T> {
-    let d = (cs - p0).dot(n);
-    const REACH: &str = "section_sphere_plane_reach";
-    match signs_as([(REACH, rho - d.abs())], band) {
-        Ok([true]) => {
-            let rad = ((rho - d.abs()) * (rho + d.abs())).sqrt();
-            // A witness picked off the axes. No output keeps it, but W3
-            // and the no-event decision read it, so which point decides
-            // can follow the computing frame
-            // (`work/orbit/a-section-certificates-witness-point-is-picked-off-the-axes.md`).
-            let (b1, _) = n.orthonormal_basis();
-            lone(cs - n * d + b1 * rad)
-        }
-        Ok([false]) => none(),
-        // The foot of the centre: the circle's centre.
-        Err(tan) => touch(tan, &[REACH], || cs - n * d),
-    }
-}
-
-/// **Sphere × sphere**: one circle.
-fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Band) -> Section<T> {
-    let (k, dd) = (c2 - c1).direction_and_length();
-    const REACH: &str = "section_sphere_pair_reach";
-    const NEST: &str = "section_sphere_pair_nest";
-    match signs_as([(REACH, r1 + r2 - dd), (NEST, dd - (r1 - r2).abs())], band) {
-        Ok([true, true]) => {
-            let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
-            let rad = ((r1 - x) * (r1 + x)).sqrt();
-            // Picked off the axes, as `sphere_plane`'s witness is.
-            let (b1, _) = k.orthonormal_basis();
-            lone(c1 + k * x + b1 * rad)
-        }
-        Ok(_) => none(),
-        // Touching outside or inside, the circle's centre on the line of
-        // centres. Inside, the touch is the extreme of the distance from
-        // one centre over the other sphere only while the centres stand
-        // apart: the next critical value is `2·dd` away.
-        Err(tan)
-            if tan.name == NEST
-                && sign_as("section_sphere_pair_apart", Margin::of(dd), band)
-                    != Some(Sign::Positive) =>
-        {
-            tan.into()
-        }
-        Err(tan) => touch(tan, &[REACH, NEST], || {
-            c1 + k * ((dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd))
-        }),
     }
 }
 

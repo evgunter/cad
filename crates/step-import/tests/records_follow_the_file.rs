@@ -524,14 +524,16 @@ fn a_pinch_is_refused_at_tier_3_on_one_record_or_two() {
         ),
     }
     // Two records facing opposite ways stay two, and the edge between two
-    // records of one sphere refuses at the build, typed, before tier 3.
+    // records of one sphere refuses at the build, typed, before tier 3:
+    // the section value decides the two records one sphere.
     match imported("two records", &pinched_on_two) {
         Err(StepImportError::NotYetSupported {
             entity: step_import::BuiltEntity::Edge,
             id,
             lane,
             ..
-        }) if id == BAND_EDGE && lane.starts_with("a section construction for this pair") => {}
+        }) if id == BAND_EDGE
+            && lane.starts_with("one record of a surface stated twice that one_record") => {}
         other => panic!(
             "two records: want the edge's typed refusal, got {:?}",
             other.map(|_| ())
