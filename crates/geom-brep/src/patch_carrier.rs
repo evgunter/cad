@@ -45,7 +45,7 @@
 //!
 //! The cone's locus is the DOUBLE cone ([`geom::Surface::Cone`]'s
 //! complete locus), so both of its readings bound the distance and the
-//! lesser is taken (`projected::Meters::Cone` with no nappe): the lever
+//! lesser is taken (`projected::Locus::Carrier`): the lever
 //! `ρ cos α + |z| sin α` away from the apex, the apex root near it, where
 //! `|f|` is small and the lever is not.
 //!
@@ -65,25 +65,24 @@ use geom_core::{Bounds, Interval};
 
 use crate::curve_face::composite::framed_form;
 use crate::offset::Nappe;
-use crate::pcurve_cache::projected::{Meters, part_reach};
+use crate::pcurve_cache::projected::{Locus, Meters, part_reach};
 
 /// A certified upper bound in metres on the distance of every point of
 /// `patch` from `surface`'s locus (module docs); `NaN` where none is
 /// certified.
 #[must_use]
 pub fn patch_distance_sup(patch: &NurbsSurface<f64>, surface: &Surface<f64>) -> f64 {
-    distance_sup_on(patch, surface, None)
+    distance_sup_on(patch, surface, Locus::Carrier)
 }
 
-/// [`patch_distance_sup`] with a cone's metres read against `nappe`
-/// (`None`: the double cone).
-fn distance_sup_on(patch: &NurbsSurface<f64>, surface: &Surface<f64>, nappe: Option<Nappe>) -> f64 {
+/// [`patch_distance_sup`] with a cone's metres read against `locus`.
+fn distance_sup_on(patch: &NurbsSurface<f64>, surface: &Surface<f64>, locus: Locus) -> f64 {
     let point = |x: f64| Interval::from_bounds(x, x);
     let Ok((coords, form, meters)) = framed_form(surface, patch.control(), &point) else {
         return f64::NAN;
     };
     let meters = match meters {
-        Meters::Cone { sin, cos, .. } => Meters::Cone { sin, cos, nappe },
+        Meters::Cone { sin, cos, .. } => Meters::Cone { sin, cos, locus },
         other => other,
     };
     let Ok(data) = SurfaceCertData::new(
@@ -465,8 +464,8 @@ mod tests {
     fn the_double_cones_reading_beats_the_nappes_near_the_apex() {
         let patch = flat((0.1, 0.2), (0.0, 0.1), -0.999);
         let surface = cone(80.0_f64.to_radians(), Point3::new(0.0, -1.0, 0.0));
-        let double = distance_sup_on(&patch, &surface, None);
-        let nappe = distance_sup_on(&patch, &surface, Some(Nappe::Opening));
+        let double = distance_sup_on(&patch, &surface, Locus::Carrier);
+        let nappe = distance_sup_on(&patch, &surface, Locus::Nappe(Nappe::Opening));
         let truth = dense_sup(&patch, &surface);
         assert!(
             truth <= double && double < nappe,

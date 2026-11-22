@@ -198,8 +198,12 @@ fn by_turn(carrier: &Curve3<f64>, surface: &Surface<f64>) -> Vec<usize> {
 /// `parts`.
 fn widest(carrier: &Curve3<f64>, surface: &Surface<f64>, parts: Parts) -> f64 {
     let (net, twin, _) = twin_net(carrier, surface);
-    let nappe = matches!(surface, Surface::Cone { .. }).then_some(crate::offset::Nappe::Opening);
-    twin_span_hulls(&net, &twin, nappe, parts, &[])
+    let locus = if matches!(surface, Surface::Cone { .. }) {
+        projected::Locus::Nappe(crate::offset::Nappe::Opening)
+    } else {
+        projected::Locus::Carrier
+    };
+    twin_span_hulls(&net, &twin, locus, parts, &[])
         .unwrap()
         .iter()
         .map(|s| s.meters)
@@ -404,7 +408,7 @@ fn the_rounds_start_at_eight_parts_a_span() {
     let (_, composed) = limb2(&c, &s, band);
     assert!(composed > 1, "the rounds read after the first reading");
     let key = limb2_memo::Key::of(&c, (0.0, 1.0), &s, band)
-        .on(None)
+        .on(projected::Locus::Carrier)
         .with(Parts::Each(projected::INCIDENCE_CUTS));
     let computed = core::cell::Cell::new(false);
     let round = limb2_memo::read(&key, &[], || {

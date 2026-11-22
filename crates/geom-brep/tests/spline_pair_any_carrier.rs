@@ -660,7 +660,7 @@ fn scallops(n: usize, h: f64) -> Curve3<f64> {
 /// measured off the plane, so the limb is [`SsiLimb::HullValue`], the
 /// analytic one, and its words name a measured miss and no image.
 #[test]
-fn a_plane_side_scallop_refuses_on_the_carriers_own_bound() {
+fn a_plane_side_scallop_refuses_on_the_carriers_measured_miss() {
     let plane = Surface::Plane {
         frame: geom::Frame::new(
             Point3::new(0.0, 0.0, 0.0),
@@ -733,9 +733,11 @@ fn a_carrier_the_door_cannot_enclose_is_refused_by_kind_and_span() {
     };
     assert_eq!(kind, geom::CurveKind::Spiric, "named by kind");
     let pi = core::f64::consts::PI;
+    // The reader's first net cuts a closed form at most a 32nd of a turn
+    // of its angle apart: the 0.3 window is two spans of 0.15.
     assert!(
-        span.0 <= pi && pi <= span.1 && 3.0 <= span.0 && span.1 <= 3.3 && span.1 - span.0 < 0.3,
-        "named by the span holding π, one span of the window's grid: {span:?}"
+        span.0 <= pi && pi <= span.1 && span.0 == 3.0 && (span.1 - 3.15).abs() < 1e-12,
+        "named by the span holding π, the first of the window's two: {span:?}"
     );
 }
 

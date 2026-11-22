@@ -3532,16 +3532,11 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         ProjectedChart::Plane => ProjectedChart::Plane,
         ProjectedChart::Cylinder => ProjectedChart::Cylinder,
         ProjectedChart::Sphere => ProjectedChart::Sphere,
-        // The chart's sine and cosine are the lane's of the twin's
-        // angle; at the certification scalar they are its enclosures.
-        ProjectedChart::Cone { nappe, .. } => {
-            let Some(projected::Meters::Cone { sin, cos, .. }) =
-                projected::Meters::of(twin, None, cross)
-            else {
-                return Err(refuse("a cone chart's twin is not a cone"));
-            };
-            ProjectedChart::Cone { sin, cos, nappe }
-        }
+        ProjectedChart::Cone { sin, cos, nappe } => ProjectedChart::Cone {
+            sin: cross(sin),
+            cos: cross(cos),
+            nappe,
+        },
         ProjectedChart::Torus { major } => ProjectedChart::Torus {
             major: cross(major),
         },
@@ -3579,7 +3574,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             }
         })
         .collect();
-    let spans = twin_span_hulls(&lift(twin_net), twin, image.chart.nappe(), parts, cuts)?;
+    let spans = twin_span_hulls(&lift(twin_net), twin, image.chart.locus(), parts, cuts)?;
     Ok(ProjectedHull { pieces, spans })
 }
 
@@ -3715,11 +3710,14 @@ impl Parts {
 fn twin_span_hulls<T: geom_core::CertifiedBounds>(
     twin_net: &NurbsCurve3<geom_core::Interval>,
     twin: &Surface<T>,
-    nappe: Option<crate::offset::Nappe>,
+    locus: projected::Locus,
     parts: Parts,
     cuts: &[f64],
 ) -> Result<Vec<projected::SpanHull>, PcurveCertifyError> {
     let cross = geom_core::Interval::from_certified;
+    let Some(meters) = projected::Meters::of(twin, locus, cross) else {
+        return Err(PcurveCertifyError::UnsupportedChart { chart: twin.kind() });
+    };
     let form = match *twin {
         Surface::Plane { .. } => CanonicalSurface::Plane,
         Surface::Cylinder { radius, .. } => CanonicalSurface::Cylinder {
@@ -3728,11 +3726,15 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
         Surface::Sphere { radius, .. } => CanonicalSurface::Sphere {
             radius: cross(radius),
         },
-        Surface::Cone { half_angle, .. } => {
-            let (s, c) = projected::cone_sin_cos(half_angle);
+        // The form's coefficients are the conversion's own sine and
+        // cosine, crossed once.
+        Surface::Cone { .. } => {
+            let projected::Meters::Cone { sin, cos, .. } = meters else {
+                unreachable!("a cone's conversion is the cone's")
+            };
             CanonicalSurface::Cone {
-                cos2: c.powi(2),
-                sin2: s.powi(2),
+                cos2: cos.powi(2),
+                sin2: sin.powi(2),
             }
         }
         // A sheet's form is its whole torus's: the conversion reads the
@@ -3753,9 +3755,6 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
         Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(PcurveCertifyError::UnsupportedChart { chart: twin.kind() });
         }
-    };
-    let Some(meters) = projected::Meters::of(twin, nappe, cross) else {
-        unreachable!("the form above is analytic")
     };
     // The parts read the controls through their brackets, as the
     // composite does (`certified_coords`), and the knots and weights on
@@ -4016,12 +4015,12 @@ mod span_memo {
             Meters::Plane => scalars(&mut k, 0, &[]),
             Meters::Cylinder { radius } => scalars(&mut k, 1, &[radius]),
             Meters::Sphere { radius } => scalars(&mut k, 2, &[radius]),
-            Meters::Cone { sin, cos, nappe } => scalars(
+            Meters::Cone { sin, cos, locus } => scalars(
                 &mut k,
-                match nappe {
-                    Some(crate::offset::Nappe::Opening) => 3,
-                    Some(crate::offset::Nappe::Mirror) => 5,
-                    None => 7,
+                match locus {
+                    projected::Locus::Nappe(crate::offset::Nappe::Opening) => 3,
+                    projected::Locus::Nappe(crate::offset::Nappe::Mirror) => 5,
+                    projected::Locus::Carrier => 7,
                 },
                 &[sin, cos],
             ),
@@ -4122,13 +4121,13 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
             chart: surface.kind(),
         });
     };
-    let nappe = match locus {
-        Limb2Locus::Face => projected::nappe_at(
+    let locus = match locus {
+        Limb2Locus::Face => projected::face_locus(
             surface,
             || (carrier.mid_point(window.0, window.1) - origin).dot(e[2]),
             band,
         )?,
-        Limb2Locus::Carrier => None,
+        Limb2Locus::Carrier => projected::Locus::Carrier,
     };
     let twin = orthonormal_chart(surface);
     let Some((o, te)) = projected::chart_frame(&twin) else {
@@ -4187,12 +4186,12 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
             };
             let hull = projected::ProjectedHull {
                 pieces: Vec::new(),
-                spans: twin_span_hulls(&curve, &twin, nappe, parts, net.cuts())?,
+                spans: twin_span_hulls(&curve, &twin, locus, parts, net.cuts())?,
             };
             Ok((hull, size))
         };
     let round_hull = |cuts: &[f64]| round_over(&grid, cuts, per_span);
-    let key = limb2_memo::Key::of(carrier, window, surface, band).on(nappe);
+    let key = limb2_memo::Key::of(carrier, window, surface, band).on(locus);
     let rounds_key = key.with(per_span);
     // A curved closed form is read first on its dyadic spans, each
     // enclosed alone (`limb2_quick`); a reading that clears is the
@@ -4205,12 +4204,12 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     // (`projected::run_projected_checks`); this one's are
     // `work/pcert/limb-2s-set-aside-first-reading-leaves-its-decisions-on-the-trail.md`.
     let cleared = |(hull, size)| {
-        projected::offset_cleared(hull, size, window, nappe, &twin, band)
+        projected::offset_cleared(hull, size, window, locus, &twin, band)
             .ok()
             .flatten()
     };
     let quick = if limb2_quick::enabled() {
-        limb2_quick::read(carrier, domain, surface, &frame, &twin, nappe, band).and_then(cleared)
+        limb2_quick::read(carrier, domain, surface, &frame, &twin, locus, band).and_then(cleared)
     } else {
         None
     };
@@ -4233,7 +4232,7 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
             // round is a pure function of the key's inputs, its parts and
             // its cuts.
             let hull = |cuts: &[f64]| limb2_memo::read(&rounds_key, cuts, || round_hull(cuts));
-            projected::offset_rounds(hull, window, nappe, &twin, band)?
+            projected::offset_rounds(hull, window, locus, &twin, band)?
         }
     };
     read.upper = read.offset.upper();
@@ -4309,10 +4308,9 @@ mod limb2_memo {
             Self(format!("{}|{:x}", self.0, parts.key()))
         }
 
-        /// The key of the same inputs read against `nappe` (`None` off
-        /// the cone, and on the double cone).
-        pub(super) fn on(self, nappe: Option<crate::offset::Nappe>) -> Self {
-            Self(format!("{}|{nappe:?}", self.0))
+        /// The key of the same inputs read against `locus`.
+        pub(super) fn on(self, locus: projected::Locus) -> Self {
+            Self(format!("{}|{locus:?}", self.0))
         }
     }
 
@@ -4631,13 +4629,13 @@ mod limb2_quick {
         surface: &Surface<T>,
         frame: &crate::carrier_net::Frame,
         twin: &Surface<T>,
-        nappe: Option<Nappe>,
+        locus: crate::pcurve_cache::projected::Locus,
         band: Band,
     ) -> Option<(ProjectedHull, NetSize)> {
         if !crate::carrier_net::has_span_nets(carrier) {
             return None;
         }
-        let named = nappe.map_or_else(String::new, |nappe| format!("{nappe:?}"));
+        let named = format!("{locus:?}");
         let base: std::rc::Rc<str> = format!(
             "{}|{named}|{ORDER}",
             super::limb2_memo::rendered(carrier, surface)
@@ -4646,7 +4644,7 @@ mod limb2_quick {
         let compute = |range: (f64, f64)| -> Option<Part> {
             let net = crate::carrier_net::framed_span_net(carrier, range, frame, ORDER).ok()?;
             let curve = net.curve()?;
-            let hull = match twin_span_hulls(&curve, twin, nappe, super::Parts::Each(1), &[])
+            let hull = match twin_span_hulls(&curve, twin, locus, super::Parts::Each(1), &[])
                 .ok()?
                 .as_slice()
             {
@@ -17339,6 +17337,40 @@ mod limb2_memo_rows {
                 r.size.rounding.to_bits()
             ),
             "{at_iv}"
+        );
+    }
+
+    /// **A face's reading and a carrier's do not share a round**: on a
+    /// cone the two loci read different conversions, so the second read
+    /// of one spline against the cone, at the other locus, misses the
+    /// memo, and a repeat of the first hits it.
+    ///
+    /// Red against: a round key that omits the locus.
+    #[test]
+    fn a_faces_and_a_carriers_reading_of_a_cone_are_two_rounds() {
+        use super::Limb2Locus;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle: 0.5_f64,
+        };
+        let on = |z: f64| Point3::new(z * 0.5_f64.tan() + 1e-3, 0.0, z);
+        let knots = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let ruling = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(knots, vec![on(0.5), on(1.5)], vec![1.0; 2]).unwrap(),
+        ));
+        limb2_memo::clear();
+        let read = |locus| limb2_offset_sup(&ruling, (0.0, 1.0), &cone, locus, band);
+        let _ = read(Limb2Locus::Face);
+        let (_, face) = limb2_memo::counts();
+        let _ = read(Limb2Locus::Face);
+        let (_, again) = limb2_memo::counts();
+        assert_eq!(again, face, "a repeated face reading hits");
+        let _ = read(Limb2Locus::Carrier);
+        let (_, carrier) = limb2_memo::counts();
+        assert!(
+            carrier > again,
+            "the carrier's reading misses: {face} {carrier}"
         );
     }
 }

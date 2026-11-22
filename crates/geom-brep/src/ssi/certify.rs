@@ -482,13 +482,19 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<(T, T), SsiError> {
     use crate::pcurve_cache::projected::Offset;
     let ((t0, t1), (h0, h1)) = crate::carrier_net::carrier_span(carrier, params);
-    let read = crate::pcurve_cache::limb2_offset_sup(
-        carrier,
-        params,
-        surface,
-        crate::pcurve_cache::Limb2Locus::Carrier,
-        band,
-    );
+    // The reader runs once, when limb 1 refuses (to locate its uncleared
+    // parts) or for limb 2: limb 1's samples are the cheaper check and go
+    // first.
+    let reader = || {
+        crate::pcurve_cache::limb2_offset_sup(
+            carrier,
+            params,
+            surface,
+            crate::pcurve_cache::Limb2Locus::Carrier,
+            band,
+        )
+    };
+    let mut read = None;
     // ---- limb 1: the fixed schedule ----
     // The schedule on the carrier's held span (its ends held, its
     // interior stations chosen points); the value channel names a
@@ -504,7 +510,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         let decided = decide_reported("ssi_on_locus", Margin::of(r), band);
         if locatable(&decided) {
             at.spans.push(RefusedSpan { lo: t, hi: t });
-            if let Ok(read) = &read {
+            if let Ok(read) = read.get_or_insert_with(reader) {
                 at.spans.extend(read.uncleared.iter().copied());
             }
         }
@@ -519,7 +525,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // A measured miss at a break is decided first, at the value's
     // predicate, then the bound over the carrier at the bound's; a
     // refusal locates the reading's uncleared parts.
-    let read = read.map_err(offset_refusal)?;
+    let read = read.unwrap_or_else(reader).map_err(offset_refusal)?;
     let arm = &ANALYTIC_HULL;
     let sup = match read.offset {
         Offset::Bound(sup) => sup,
@@ -548,6 +554,13 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
 /// The search's refusal for a reader's: an escalation names limb 2's
 /// bound, a carrier with no net keeps its refusal, and every other one is
 /// a bound the composite could not certify.
+///
+/// None is located for refinement ([`Refused`]): the reader's own
+/// refusals carry no residual a denser carrier drives down. An
+/// escalation is a cone's lever undecided by the band at a part beside
+/// the apex, which no refit moves; a carrier with no net over a span is
+/// a closed form's (a fitted carrier is its own net); and the rest are
+/// the composite refusing the kernel's own data.
 fn offset_refusal(e: crate::PcurveCertifyError) -> SsiError {
     use crate::PcurveCertifyError as E;
     match e {
@@ -4363,6 +4376,9 @@ mod tests {
         use geom::{NurbsCurve3, Surface};
         use geom_core::spline::KnotVector;
         use geom_core::{Band, Point3, Vec3};
+        // A reading the reader refuses bounds nothing, so it is passed
+        // over; most draws read, or the search searched nothing.
+        let mut read_any = 0usize;
         for _ in 0..cases {
             let small = rng.log_uniform(1e-3, 1.0);
             let big = small * rng.range(0.5, 30.0);
@@ -4428,6 +4444,7 @@ mod tests {
             let Ok(read) = read else {
                 continue;
             };
+            read_any += 1;
             match read.offset {
                 Offset::Bound(bound) => {
                     for k in 0..=128 {
@@ -4450,6 +4467,10 @@ mod tests {
                 }
             }
         }
+        assert!(
+            2 * read_any >= cases,
+            "only {read_any} of {cases} draws read: {replay}"
+        );
     }
 }
 
@@ -4683,6 +4704,36 @@ mod one_reader_rows {
         assert!(
             face.is_err(),
             "a face's nappe is not named at the apex: {face:?}"
+        );
+    }
+
+    /// **The double cone's lever is `|z|`'s**: a segment `δ = 10⁻⁷` m off
+    /// the mirror nappe, far from the apex, read against the carrier. The
+    /// lever `ρ cos α + |z| sin α` is large there and the bound is the
+    /// offset itself; the opening nappe's `ρ cos α + z sin α` vanishes on
+    /// the mirror generator, and its fallback `√|f|` reads about 3·10⁻⁴.
+    ///
+    /// Red against: the double cone read with a nappe's `σz`.
+    #[test]
+    fn the_double_cones_lever_reads_the_mirror_nappe() {
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let half_angle: f64 = 0.5;
+        let cone = Surface::Cone {
+            frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle,
+        };
+        let delta = 1e-7;
+        let off = |z: f64| Point3::new(z * half_angle.tan() - delta, 0.0, z);
+        let segment = segment(off(-1.5), off(-0.5));
+        let read =
+            limb2_offset_sup(&segment, (0.0, 1.0), &cone, Limb2Locus::Carrier, band).unwrap();
+        let Offset::Bound(bound) = read.offset else {
+            panic!("the double cone bounds the segment: {read:?}");
+        };
+        let distance = delta * half_angle.cos();
+        assert!(
+            (0.5 * distance..=4.0 * distance).contains(&bound),
+            "the bound {bound:e} is the offset {distance:e}"
         );
     }
 

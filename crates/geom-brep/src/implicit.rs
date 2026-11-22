@@ -165,6 +165,17 @@ pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
     rho * cos_a - s * sin_a
 }
 
+/// **A cone's half-angle's sine and cosine at the scalar it is crossed
+/// into**: the stored angle crossed by `cross` first, and the pair taken
+/// at the crossed scalar. At an enclosure scalar they then enclose the
+/// stored angle's, where crossing the lane's own `sin_cos` would read
+/// its rounded values (libm's, at `f64`) as exact points. The one
+/// spelling for every reader that carries a cone into certification
+/// arithmetic.
+pub fn cone_sin_cos<U, S: Real>(half_angle: U, cross: impl FnOnce(U) -> S) -> (S, S) {
+    cross(half_angle).sin_cos()
+}
+
 /// The linearized implicit residual of `p` against `s`, in meters (the
 /// module-doc table). Zero on the surface; agrees with the signed
 /// distance to first order near it. Total: poison in, poison out; a

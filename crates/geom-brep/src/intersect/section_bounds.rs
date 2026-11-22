@@ -358,7 +358,8 @@ impl Quadric {
                 frame, half_angle, ..
             } => {
                 let (apex, axis) = (frame.origin(), frame.axis());
-                let (sin_a, cos_a) = crate::pcurve_cache::projected::cone_sin_cos(half_angle);
+                let (sin_a, cos_a) =
+                    crate::implicit::cone_sin_cos(half_angle, Interval::from_certified);
                 Self::Cone {
                     apex: point(apex),
                     axis: unit(axis),

@@ -628,7 +628,7 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
                             Meters::Cone {
                                 sin: iv(sin),
                                 cos: iv(cos),
-                                nappe: Some(Nappe::Opening),
+                                locus: crate::pcurve_cache::projected::Locus::Nappe(Nappe::Opening),
                             },
                             Box::new(move |p: Vec3<Interval>| {
                                 iv(cos).powi(2) * (p.x.powi(2) + p.y.powi(2))
@@ -2558,7 +2558,7 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
         super::super::projected::net_incidence(
             hull,
             edge,
-            image.chart.nappe(),
+            image.chart.locus(),
             &twin,
             0.0,
             b,
