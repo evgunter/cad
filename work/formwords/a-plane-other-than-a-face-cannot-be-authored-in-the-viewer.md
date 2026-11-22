@@ -57,6 +57,11 @@ zx, x / y / z).
 - **Slide, Spin and Flip stay** as pose moves: a mate's sides are
   spelled with them. `PoseDef::FaceChart`, a frame placed flush on a
   face by a fixed one-mate bundle, folds into the datum.
+- **Always a frame** (Ev, `[ev]` 7367): a plane or axis is a role read
+  off the datum's frame. If a reader later needs a kind's symmetry, it
+  can be added then, perhaps as a forgetting layer over a frame.
+- **Anywhere a placement may go**, the world included, and a mate may
+  read a datum at all-zero values. No code bans either.
 - **A face picked plainly** stays the inline read it is today; a
   one-off face needs no datum.
 

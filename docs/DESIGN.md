@@ -1343,8 +1343,7 @@ suits the slot.
   pose. It is defined only by minting: the world, `new_space()`, and
   each construction, whose body is born in a space of its own
   (`a.space`). A placement reads a space as its target, and the
-  values of placements into a space, a datum's included
-  ([placement.datums]), are the only readers of its axes.
+  values of placements into a space are the only readers of its axes.
 - *Selections* of a shape: one cell of a body (`Face`, `Edge`,
   `Vertex`), or the set of them a reader takes (`Faces`, `Edges`; a
   set kind exists only for a slot that reads one).
@@ -1373,8 +1372,8 @@ A name is also the mark that a value is wanted for itself.
 body's geometry (a face's plane, a carrier's axis or centre, a
 vertex's point, a face's flag along one of its edges); moved from another pose by a slide along, or a spin
 about, a direction or axis the definition reads; by a construction
-over other poses; as a pose of a copy; placed into a space by a datum
-([placement.datums]); or as an output of an operation. So no pose is free and none is defined from nothing. A
+over other poses; as a pose of a copy; as the frame a placement
+places ([placement.datums]); or as an output of an operation. So no pose is free and none is defined from nothing. A
 construction reads poses as it reads any variable, only those of the
 space it is built in, and is in that space; relating two spaces is a
 placement's alone ([placement.spaces]).
@@ -1647,11 +1646,10 @@ never mated twice.
 
 **Mates.** `[placement.mates]` Each mate equates two poses of one
 kind, modulo that kind's symmetry: a pose read off the source's
-geometry with a pose read off a body, or a datum's pose
-([placement.datums]), in the target space that does not read this
-placement. A mate reads only bodies' geometry and datums, never a
-space and never a frame standing for a part's coordinates, and no
-space has roles a mate can read. A mate states a physical relation; a
+geometry with a pose that something placed or built in the target space
+defines and that does not read this placement. A mate reads only
+such poses, never a space and never a frame standing for a part's
+coordinates, and no space has roles a mate can read. A mate states a physical relation; a
 placement whose source touches nothing has none, and its values state
 the whole motion. A mate holds no number of its own, and its sense is
 a construction (`Flip`) on one side (a flag's `Flip` keeps its side:
@@ -1726,13 +1724,12 @@ two tilts `0`, and the slides and spin the author chooses). A
 placement is the only reader of a source's own coordinates, and reads
 them only through the freedoms its mates leave.
 
-**Datums.** `[placement.datums]` A datum is a placement of a pose:
-an operation that reads a target space and a bundle, as a placement
-does, and whose one output is a frame in that space. Its mates' near
-sides are the datum's own roles (its xy plane, its z axis, its
-origin); their far sides, and its slides and spins, read the target
-space as a placement's do, and its values chart the rest on the
-space's axes. A plane or an axis is read off a datum through a role,
+**Datums.** `[placement.datums]` A placement's source is a body or
+nothing. With nothing, it is a **datum**: what it places is a bare
+frame, its one output, and the rules of spaces, bundles and values
+hold of it as written.
+Its mates' near sides are that frame's own roles (its xy plane, its z
+axis, its origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
 as a finer pose is read off any frame ([variables.poses]). An offset
 from a face is the mate's far side slid along its normal, as for a
 body ([placement.mates]); a datum has no number of its own beyond its
