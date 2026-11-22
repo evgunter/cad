@@ -3193,31 +3193,31 @@ fn apex_frames() -> [(&'static str, SketchPlane<f64>); 3] {
     ]
 }
 
-/// **A cone wedge past a half turn is embedded at its apex**: the
-/// triangle `(0,0) (1,0) (0,1)` revolved by `θ` about `y`. Each wedge
-/// plane holds the axis, so its carrier holds a second ruling of the
-/// cone through the apex, half a turn from the one it shares, and past a
-/// half turn that ruling is on the cone face: no plane through the
-/// shared ruling parts the cone's cells about it from the wedge plane's
-/// at the apex. A plane through the apex does, each face read against
-/// the apex alone. Read at both scalars in each of [`apex_frames`]:
-/// - plain and moved, `Embedded`; red while the departure arm reads no
-///   plane but those through the shared ruling;
-/// - turned, the start plane and the cone refuse `Departure` across the
-///   shared ruling at both scalars: the last cell pair holds the cone's
-///   cell over its whole `u` beside the apex, short of it, never halved
-///   in `u` before the depth budget, which no plane through the apex
-///   parts from the plane's cell
-///   (`work/embed/two-half-cones-sharing-both-rulings-refuse-departure-at-their-apex-in-a-turned-frame.md`'s
-///   case A).
+/// **A cone wedge past a half turn is embedded at its apex**: a
+/// triangle with a leg on the axis, revolved by `θ` about `y`. Each
+/// wedge plane holds the axis, so its carrier holds a second ruling of
+/// the cone through the apex, half a turn from the one it shares, and
+/// past a half turn that ruling is on the cone face: no plane through
+/// the shared ruling parts the cone's cells about it from the wedge
+/// plane's at the apex. A plane through the apex does, each face read
+/// against the apex alone. `Embedded` at both scalars: the unit
+/// triangle in each of [`apex_frames`] and a thousand units off the
+/// origin, and a triangle a hundred times the size, a needle and a flat
+/// one in the plain frame; and revolved by `−θ`, the unit triangle in
+/// the plain frame. Red while the departure arm reads no plane but those
+/// through the shared ruling. Revolved by `−θ` in the other poses the
+/// wedge refuses, at one scalar or both
+/// (`work/embed/a-mirrored-cone-wedge-refuses-departure-at-its-apex-off-the-plain-frame.md`).
 #[test]
 fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
+    use geom_core::{Affine3, Mat3, Vec3};
     use topo::clearance::Embedding;
-    fn wedge<T: Scalar>(place: &SketchPlane<f64>, theta: f64) -> Body<T> {
+    fn wedge<T: Scalar>(place: &SketchPlane<f64>, legs: (f64, f64), theta: f64) -> Body<T> {
+        let (r, h) = legs;
         let profile = Profile::new(
             plane_at::<T>(place),
             lifted(&[ProfileLoop::polygon(
-                [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
+                [(0.0, 0.0), (r, 0.0), (0.0, h)].map(|(x, y)| Point2::new(x, y)),
             )]),
         )
         .validate(tol())
@@ -3232,33 +3232,38 @@ fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
         .body
         .into_body()
     }
+    let far = SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(Mat3::identity(), Vec3::new(640.0, -570.0, 520.0)),
+        tol(),
+    ));
+    let mut poses: Vec<(&str, SketchPlane<f64>, (f64, f64))> = apex_frames()
+        .into_iter()
+        .map(|(name, place)| (name, place, (1.0, 1.0)))
+        .collect();
+    poses.extend([
+        ("moved a thousand", far, (1.0, 1.0)),
+        ("a hundred times", SketchPlane::xy(), (100.0, 100.0)),
+        ("a needle", SketchPlane::xy(), (0.05, 1.0)),
+        ("flat", SketchPlane::xy(), (1.0, 0.05)),
+    ]);
+    let plain = poses[..1].to_vec();
     for theta in [1.5 * core::f64::consts::PI + 0.01, 5.5] {
-        for (name, place) in apex_frames() {
-            let what = format!("the {theta} wedge, {name}");
-            let float = embedding(&wedge::<f64>(&place, theta));
-            let twin = embedding(&wedge::<Interval>(&place, theta));
-            println!(
-                "[apex wedge] {what}: f64 {:?} {:?} | Interval {:?} {:?}",
-                float.verdict, float.receipt, twin.verdict, twin.receipt
-            );
-            for (scalar, report) in [("f64", &float), ("Interval", &twin)] {
-                let verdict = &report.verdict;
-                if name == "turned" {
-                    assert!(
-                        matches!(
-                            verdict,
-                            Embedding::Refused(EngineRefusal::Uncertified {
-                                shared: SharedCell::Edge(_),
-                                arm: CertificateArm::Departure,
-                                ..
-                            })
-                        ),
-                        "{what} at {scalar} refuses Departure at the shared ruling: {verdict:?}"
-                    );
-                } else {
+        for (turn, poses) in [(theta, &poses), (-theta, &plain)] {
+            for (name, place, legs) in poses {
+                let what = format!("the {turn} wedge, {name}");
+                let (fb, ib) = (
+                    wedge::<f64>(place, *legs, turn),
+                    wedge::<Interval>(place, *legs, turn),
+                );
+                let (float, twin) = (embedding(&fb), embedding(&ib));
+                println!(
+                    "[apex wedge] {what}: f64 {:?} {:?} | Interval {:?} {:?}",
+                    float.verdict, float.receipt, twin.verdict, twin.receipt
+                );
+                for (scalar, report) in [("f64", &float), ("Interval", &twin)] {
                     assert_eq!(
-                        verdict,
-                        &Embedding::Embedded,
+                        report.verdict,
+                        Embedding::Embedded,
                         "{what} at {scalar} is embedded"
                     );
                 }
