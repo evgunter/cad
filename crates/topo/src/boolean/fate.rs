@@ -543,8 +543,8 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
 fn sign<T: Decide>(x: T, arm: T, band: Band) -> Result<Sign, BooleanError> {
     crate::validate::decide(
         "bool_fate_corner",
-        // Unsourced lever: a unit arm (every caller's `1`) on a unit
-        // vector's length or a count of half-turns, no length of any extent.
+        // Unsourced lever: a unit arm (every caller's `1`) on a count of
+        // half-turns (`tip_wraps`), no length of any extent.
         // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
         Margin::levered(x, geom_core::Lever::unsourced(arm)),
         band,
@@ -2587,9 +2587,9 @@ mod bisector_rows {
     use crate::entity::{FaceKey, HalfEdgeKey};
 
     /// A planar sector between `x̂` and a bound `δ` short of its
-    /// opposite, its bounds reaching `0.01` and `0.02`.
+    /// opposite, its bounds reaching `0.01` and `0.1`.
     fn sector(delta: f64) -> BoolSector<f64> {
-        let (near, far) = (fixture_lever(0.01), fixture_lever(0.02));
+        let (near, far) = (fixture_lever(0.01), fixture_lever(0.1));
         BoolSector {
             he: HalfEdgeKey::default(),
             start: Vec3::new(1.0, 0.0, 0.0),
@@ -2608,20 +2608,31 @@ mod bisector_rows {
     }
 
     /// **The bisector's length is read at its bounds' nearer reach.**
-    /// Bounds `1e-7` short of opposite are a sector a half-turn wide to
-    /// within `1e-9` at the nearer reach `0.01`, the band's zero: no
-    /// inside, an invariant refusal. A unit arm would read `1e-7`, past
-    /// the escalation, and the farther reach `2e-9`, in band. Bounds `1e-5`
-    /// short read `1e-7` there, an inside.
+    /// Bounds `5e-8` short of opposite read `5e-10` at the nearer reach
+    /// `0.01`, half the band's zero: a sector a half-turn wide, no inside,
+    /// an invariant refusal. A unit arm would read `5e-8`, past the
+    /// escalation, and the farther reach `5e-9`, in band. Bounds `3e-7`
+    /// short read `3e-9`, in band: the corner's coincidence refusal. Bounds
+    /// `1e-5` short read `1e-7`, an inside.
     #[test]
     fn a_sector_a_half_turn_wide_at_its_nearer_reach_has_no_bisector() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         assert!(
             matches!(
-                bisector(&sector(1e-7), band),
+                bisector(&sector(5e-8), band),
                 Err(BooleanError::ClassificationInvariant { .. })
             ),
-            "1e-7 short of a half-turn: no inside at the nearer reach"
+            "5e-8 short of a half-turn: no inside at the nearer reach"
+        );
+        assert!(
+            matches!(
+                bisector(&sector(3e-7), band),
+                Err(BooleanError::Escalated {
+                    decision: crate::boolean::BooleanDecision::Coincidence(..),
+                    ..
+                })
+            ),
+            "3e-7 short of a half-turn: in band at the nearer reach"
         );
         let dir = bisector(&sector(1e-5), band).expect("1e-5 short: an inside");
         assert!(

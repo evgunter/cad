@@ -1594,6 +1594,98 @@ fn a_focal_section_below_one_by_any_room_passes_its_beta_check() {
     assert!(seen > 0, "some cone section is drawn ({})", fuzz::replay());
 }
 
+/// **A genuine needle section of a cone certifies with its own `β`.** The
+/// focal image's `1 − |β|` is about the section's projected axis ratio, so
+/// a section thin enough for that room to come near the band would need
+/// its plane within about `10⁻¹⁷` of a generator's tilt, under an ulp of
+/// any angle a run states: the thinnest sections a plane in the box cuts
+/// keep `1 − |β|` thousands of bands clear, and a stated `β` closer to one
+/// is never a section's own (the row above). This one, a plane `10⁻⁶` off
+/// the apex and tilted `10⁻⁶` short of the generator, a needle out along
+/// it, reads `1 − |β|` near `2.3·10⁻³`, passes the structure check at
+/// both scalars, and certifies at `f64`.
+#[test]
+fn a_needle_cone_section_certifies_with_its_own_beta() {
+    let (axis, u_ref) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+    let apex = Point3::new(0.0, 0.0, 0.0);
+    let half_angle = 0.5;
+    let cone = Surface::Cone {
+        frame: geom::Frame::new(apex, axis, u_ref),
+        half_angle,
+    };
+    let tilt = (1.0 - 1e-6) * (core::f64::consts::FRAC_PI_2 - half_angle);
+    let normal = (axis * tilt.cos() + axis.cross(u_ref) * tilt.sin()).normalize();
+    let plane = Surface::Plane {
+        frame: geom::Frame::new(apex + axis * 1e-6, normal, u_ref.cross(normal).normalize()),
+    };
+    let reach = crate::Reach::fixture(apex, 4.0);
+    let Ok(crate::intersect::PlaneConeSection::TiltedEllipse(needle)) =
+        crate::intersect::plane_cone_section(&plane, &cone, &reach, band())
+    else {
+        panic!("the needle plane cuts the cone in an ellipse")
+    };
+    let span = (0.2, 2.0);
+    let image = chart_pcurve_over(&needle, span.0, span.1, &cone, band());
+    let Ok(Pcurve::FocalSection(f)) = image else {
+        panic!("the needle images as a focal section: {image:?}")
+    };
+    let room = 1.0 - f.beta.abs();
+    assert!(
+        (1e-3..1e-2).contains(&room),
+        "the needle's own β keeps its room thousands of bands clear: {room:e}"
+    );
+    let iv = Interval::from_f64;
+    let at_interval = Pcurve::FocalSection(FocalImage {
+        u0: iv(f.u0),
+        t0: iv(f.t0),
+        v0: iv(f.v0),
+        va: iv(f.va),
+        vb: iv(f.vb),
+        vl: iv(f.vl),
+        beta: iv(f.beta),
+        sense: iv(f.sense),
+    });
+    let image = Pcurve::FocalSection(f);
+    assert!(
+        super::focal_section_identity(&image, span, &cone, None, band()).is_ok()
+            && super::focal_section_identity(
+                &at_interval,
+                (Interval::from_f64(span.0), Interval::from_f64(span.1)),
+                &cone.map_scalar(Interval::from_f64),
+                None,
+                band(),
+            )
+            .is_ok(),
+        "the needle's structure passes at both scalars"
+    );
+    let got = (DOORS[0].certify)(&cone, &image, &needle, span);
+    assert!(got.is_ok(), "the needle certifies at f64: {got:?}");
+}
+
+/// **A spiric oval on its own torus is served over any span.** The mint's
+/// incidence test reads the oval's whole turn on the torus before the
+/// chart's axis is read, so the axis is the carrier's and the cosine is
+/// `±1`: an orientation, read by its sign, whatever the span. Levered at
+/// the span's own extent, an arc under the band read that cosine in band
+/// and refused the oval as off a "perpendicular" torus. Six ovals, each
+/// over spans from a millimetre down to a tenth of the band's zero.
+#[test]
+fn a_spiric_on_its_own_torus_is_served_over_any_span() {
+    let mut g = fuzz::start("spiric_own_torus_any_span");
+    for _ in 0..6 {
+        let (oval, charts) = spiric(&mut g);
+        let t0 = g.range(-3.0, 3.0);
+        for span in [1e-3, 1e-5, 1e-7, 3e-8, 1e-8, 3e-9, 1e-9, 1e-10] {
+            let got = chart_pcurve_over(&oval, t0, t0 + span, &charts[0], band());
+            assert!(
+                matches!(got, Ok(Pcurve::Spiric { .. })),
+                "a span of {span:e} on the oval's own torus is imaged ({}): {got:?}",
+                fuzz::replay()
+            );
+        }
+    }
+}
+
 /// A harmonic image on the unit cylinder: the azimuth `phase + w·t`, the
 /// height `z`.
 fn rim_image(phase: f64, winding: i32, z: f64) -> Pcurve<f64> {
