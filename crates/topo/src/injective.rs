@@ -2176,6 +2176,21 @@ fn present_chart<'a>(
     }
     // Every clip's side must be the edges' own, run on past its corners,
     // and every corner convex.
+    //
+    // **A cell at a reflex corner is refused here at every depth, and no
+    // presentation of it is wanted.** The face's part of it is the cell
+    // less a quadrant, or the whole cell with the corner on a side. Every
+    // separator but the face's own carrier holds the shared edge's
+    // carrier and departs from it at first order (`planes_through`,
+    // `graph_of`, the partner's carrier), so it vanishes on that edge's
+    // chart line past the corner, which is the face's interior, and the
+    // face's part lies on both sides of that line. At a vertex alone, a
+    // separator through it cuts the face along a curve one of whose rays
+    // enters the face's 270°. The corner is read by the face's own
+    // carrier in the carrier arm, which reads only the partner's
+    // presentation. A face with no carrier implicit (`implicit_of`) has
+    // no reading there
+    // (`work/embed/a-reflex-corner-of-a-face-with-no-implicit-carrier-has-no-reading.md`).
     if !piece.whole && !sides_are_the_faces(b, &merged, (x, y), |a| periodic(piece.surface, a)) {
         return Err({
             crate::gate_measure::local_site("chart", line!());
@@ -5670,13 +5685,7 @@ impl Psi {
                 };
                 unit(line.offset(p)).dot(square_to(axis, v)) * cos - axis.dot(v) * (nappe * sin)
             }
-            Self::Graph { m, t, slope, .. } => {
-                if std::env::var_os("ISO_OLD").is_some() {
-                    (m - t * slope).dot(v)
-                } else {
-                    m.dot(v) - t.dot(v) * slope
-                }
-            }
+            Self::Graph { m, t, slope, .. } => (m - t * slope).dot(v),
         }
     }
 
@@ -6800,6 +6809,65 @@ mod presentation_rows {
         }
         let d = unit(Vec3::new(0.0, 3e-160, -4e-160)).expect("in the format");
         assert_eq!(d.to_array(), [0.0, 0.6, -0.8], "a small heading");
+    }
+
+    /// A box around a ruling's segment 1.2e-5 long, `r` off a tilted axis
+    /// through `o` and `along` metres up it, and the segment's direction.
+    fn on_a_ruling(
+        o: Vec3<f64>,
+        d: Vec3<f64>,
+        along: f64,
+        r: f64,
+    ) -> (Point3<Interval>, Vec3<Interval>) {
+        let off = Vec3::new(0.8, 0.6, 0.0);
+        let c = Point3::origin() + o + d * along + off * r;
+        let h = 6e-6;
+        let span = |x: f64, k: f64| Interval::from_bounds(x - h * k.abs(), x + h * k.abs());
+        (
+            Point3::new(span(c.x, d.x), span(c.y, d.y), span(c.z, d.z)),
+            d.map(iv0) * iv0(2.0 * h),
+        )
+    }
+
+    /// **A cylinder carrier's rate along its ruling reads zero over a
+    /// thin box at any placement**: its gradient is square to the axis at
+    /// every point, so its rate along the axis is 0, which a box's
+    /// enclosure of the radial unit (it holds directions with an axial
+    /// part, the more the box is tilted) must not read (red where the
+    /// rate dots the gradient box with the ruling itself). The cone's
+    /// radial term is the same reading; its rate along its axis is
+    /// `−nappe·sin` exactly.
+    #[test]
+    fn a_carriers_rate_along_its_ruling_reads_tight_at_any_placement() {
+        let d = Vec3::new(0.36, -0.48, 0.8);
+        let o = Vec3::new(1.5, -2.25, 0.75);
+        for along in [0.0, 100.0] {
+            let (b, v) = on_a_ruling(o, d, along, 0.006);
+            let cyl = Psi::Carrier(Implicit::Cylinder {
+                o: Point3::origin() + o.map(iv0),
+                axis: d.map(iv0),
+                r: iv0(0.006),
+            });
+            let rate = cyl.rate(b, v);
+            assert!(
+                rate.hi() - rate.lo() < 1e-15 && rate.lo() <= 0.0 && 0.0 <= rate.hi(),
+                "cylinder, {along} m up: rate {rate:?}"
+            );
+            let (sin, cos) = (0.6, 0.8);
+            let cone = Psi::Carrier(Implicit::Cone {
+                apex: Point3::origin() + o.map(iv0),
+                axis: d.map(iv0),
+                cos: iv0(cos),
+                sin: iv0(sin),
+                nappe: iv0(1.0),
+            });
+            let axial = d.map(iv0) * iv0(1.0);
+            let rate = cone.rate(b, axial);
+            assert!(
+                rate.hi() - rate.lo() < 1e-12 && rate.lo() <= -sin && -sin <= rate.hi(),
+                "cone, {along} m up: rate {rate:?}"
+            );
+        }
     }
     use crate::test_support_fixtures::trv;
     use geom_core::Tol;

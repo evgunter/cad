@@ -78,14 +78,25 @@ embedding with a tangent corner on the wall.
 
 ## What a fix needs
 
-A cell holding an iso edge's end is presented as a corner, not as a
-rectangle clipped by whole lines: at a reflex corner, the union of the
-two half-planes the corner's quadrant leaves (two rectangles, or the
-cell less the excluded quadrant), with the zero on the shared edge's
-half-line; where the other edge is curved, the corner presentation
-(`present_corner`) reading the iso edge as the line. In which function:
-`present_chart` before `sides_are_the_faces`, or a new arm in
-`curved_walls`'s dispatch.
+Not a presentation of the corner (measured and argued by `embed/iso-end`,
+2026-11-22, below). The cylinder's cell is refused at
+`sides_are_the_faces` rightly, and no presentation of it would be read:
+every separator but the face's own carrier holds the shared edge's
+carrier and departs at first order (`planes_through`, `graph_of`, the
+partner's carrier), so it vanishes on that edge's chart line past the
+corner, which is the face's interior, and the face's part of the cell
+lies on both sides of it; at a vertex alone, a separator through it cuts
+the face along a curve one of whose rays enters the 270°. The corner is
+read by the face's own carrier in the departure arm's carrier separator,
+which reads only the partner's presentation. That read is what failed:
+`Psi`'s gradient over the cell's image was a box enclosure of the
+cylinder's radial unit, dotted with the chart direction, and along a
+ruling the direction is the axis, against which the box's slop is all
+the dot reads. A face with no carrier implicit has no reading at such a
+corner (`a-reflex-corner-of-a-face-with-no-implicit-carrier-has-no-reading`).
+
+The lone clip's tests are not this read (below): tangent contacts and
+partners unread.
 
 ## Evidence
 
@@ -117,10 +128,14 @@ Second pass, `embed/trace-cylinder-measure` (`CVF`, `CVC` rows).
   it holds the **whole rectangle**. Its zero is the point `V` on its top
   side, because the shared ruling leaves `V` upward, out of the cell. A
   cell straddling `V` on both axes holds the cell less the excluded
-  quadrant, an L of two rectangles. So a presentation can read this
-  shape: the rectangle unclipped by a line past its edge's end, with a
-  point zero on a side. That is the zero `a-shared-vertex-the-chart-holds-on-one-clip-only-reads-no-zero`
-  asks for; the L is two such rectangles, each read alone.
+  quadrant, an L of two rectangles. A presentation could hold this
+  shape (the rectangle unclipped by a line past its edge's end, with a
+  point zero on a side), but no separator would sign it: a separator
+  holding the shared ruling vanishes on the ruling's line below `V`,
+  which crosses the cell (What a fix needs). The point zero
+  `a-shared-vertex-the-chart-holds-on-one-clip-only-reads-no-zero` asks
+  for is independent of this row: its reading neither supplies nor
+  needs it.
 - **Lone clip (17).** The cell lies along an iso edge's line just past
   its end `V`. The edge leaving `V` the other way is no clip in the
   cell.

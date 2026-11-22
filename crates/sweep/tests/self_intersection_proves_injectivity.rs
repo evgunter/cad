@@ -1899,6 +1899,35 @@ fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
     assert_eq!(report.receipt.refused, 210, "{:?}", report.receipt);
 }
 
+/// **A drum whose splits fall a rounding off its half-circle runs out of
+/// depth**: the same drum at radius 0.7, whose half-annulus cells beside
+/// the disc's half-circle are read by no presentation
+/// (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
+/// Red when it holds, and that row's reading has landed.
+#[test]
+fn a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
+    use crate::common::latitude_seam::ring_on_cap;
+    use sweep::test_support::{corners, revolved_about_y};
+    let (r, h) = (0.7, 2.0);
+    let mut drum = revolved_about_y(
+        corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)]),
+        Revolution::Full,
+        Tol::witness(),
+    );
+    ring_on_cap(&mut drum, h, r, r / 2.0);
+    let report = injective(&drum, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(_))
+        ),
+        "the drum runs out of depth: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    assert!(report.receipt.refused > 0, "{:?}", report.receipt);
+}
+
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
 /// holds where two arcs of its ellipse meet.** At `Interval`
 /// the union builds at every ε, as the `f64` body: as many faces, edges
@@ -3216,5 +3245,108 @@ fn a_two_ball_union_holds_with_its_poles_read() {
     assert!(
         (mid(radius) - 0.8).abs() < 1e-9 && frame.origin().y.lo() < frame.origin().y.hi(),
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
+    );
+}
+
+// ------------------------------------------------- a reflex corner
+
+/// **A rod notched across its rim**: the unit rod over `z ∈ [0, 1]`
+/// less the brick `[−0.3, 0.3] × [0.4, 2] × [0.5, 2]`. The rod's wall
+/// keeps two reflex corners at the notch's floor, where a ruling (shared
+/// with a notch wall `x = ±0.3`) meets an arc (shared with the floor
+/// `z = 0.5`), and the wall has 270° about each.
+fn notched_rod<T: Scalar>() -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished};
+    let notch = finished(
+        "the notch",
+        brick::<T>((-0.3, 0.3), (0.4, 2.0), (0.5, 2.0), tol()),
+        tol(),
+    );
+    built(topo::subtract(&rod((0.0, 1.0)), &notch, tol()))
+}
+
+/// The verdict door's answer over every face of `body`.
+fn embedding_of<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::Embedding {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: BUDGET,
+    };
+    topo::clearance::embedded(&side, band(), budgets).verdict
+}
+
+/// **A notched rod holds across its reflex corners**, as built, turned
+/// about a generic axis, and a hundred units up its axis, at both
+/// scalars and through the verdict door. Each wall cell at a corner is
+/// read by the wall's own carrier against the notch's presented face, and
+/// that carrier's rate along a ruling is zero at every point: red if it
+/// is read from the box's enclosure of the radial unit, whose axial part
+/// grows with the cell's width over the radius and with its tilt (the
+/// pair refuses `Uncertified { Departure }` at a ruling at every depth).
+#[test]
+fn a_notched_rod_holds_across_its_reflex_corners_in_every_pose() {
+    use geom_core::{Affine3, Vec3};
+    use topo::clearance::Embedding;
+
+    let poses = [
+        ("as built", Affine3::identity()),
+        (
+            "turned",
+            Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+                0.7,
+            ),
+        ),
+        (
+            "a hundred units up its axis",
+            Affine3::translation(Vec3::new(0.0, 0.0, 100.0)),
+        ),
+    ];
+    for (what, pose) in poses {
+        let body = moved(&notched_rod::<f64>(), &pose).into_body();
+        assert_eq!(
+            embedding_of(&body),
+            Embedding::Embedded,
+            "{what}: the verdict door"
+        );
+        let twin = moved(&notched_rod::<Interval>(), &pose).into_body();
+        assert_eq!(
+            embedding_of(&twin),
+            Embedding::Embedded,
+            "{what}: the verdict door at Interval"
+        );
+        holds_at_both(&format!("the notched rod {what}"), body, twin);
+    }
+}
+
+/// **A ball through the notched rod's wall beside a reflex corner reads
+/// `Violated`**: a ball of radius 0.05 grafted into the notched rod,
+/// its centre on the wall's carrier just below the corner at
+/// `x = 0.3`, so it crosses the wall where the ruling's line runs on
+/// past the corner through the wall's interior. Red if the wall's part
+/// of a cell there is read as lying on one side of a separator through
+/// the ruling.
+#[test]
+fn a_ball_through_the_wall_beside_a_reflex_corner_reads_violated() {
+    let mut body = notched_rod::<f64>().into_body();
+    let rho = 0.05;
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    let (x, z) = (0.3_f64, 0.45);
+    let ball = topo::transform_rigid(
+        &revolved_about_y_at::<f64>(vec![p(-rho, 1.0), p(rho, 0.0)], Revolution::Full, tol()),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(x, (1.0 - x * x).sqrt(), z))
+            .expect("a translation"),
+    )
+    .expect("the ball moves");
+    topo::graft_disjoint_all_keyed(&mut body, &ball).expect("the ball grafts");
+    let report = injective(&body, None, BUDGET);
+    assert!(
+        matches!(report.verdict, BoundVerdict::Violated(_)),
+        "{:?}",
+        report.verdict
     );
 }
