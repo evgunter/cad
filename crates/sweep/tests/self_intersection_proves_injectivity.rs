@@ -3329,3 +3329,95 @@ fn two_thin_slabs_through_each_other_cross() {
         );
     }
 }
+
+// ------------------------------------------------ review probes (strip)
+
+/// The quad `pts` on `place`, extruded `d` along its normal.
+fn review_quad_block<T: Scalar>(
+    place: &SketchPlane<f64>,
+    pts: [(f64, f64); 4],
+    d: f64,
+) -> Body<T> {
+    let profile = Profile::new(plane_at::<T>(place), lifted(&quad(pts)))
+        .validate(tol())
+        .expect("the quad validates");
+    Body::clone(
+        &extrude(&profile, to_offset(d), tol())
+            .expect("the quad extrudes")
+            .body,
+    )
+}
+
+fn review_report(what: &str, pts: [(f64, f64); 4], d: f64, place: &SketchPlane<f64>) -> (String, String) {
+    let float = embedded_verdict(&review_quad_block::<f64>(place, pts, d));
+    let interval = embedded_verdict(&review_quad_block::<Interval>(place, pts, d));
+    println!("[review] {what}: f64 {float:?} | Interval {interval:?}");
+    (embedding_class(&float), embedding_class(&interval))
+}
+
+/// REVIEW PROBE B1 (measurement): a thin slab whose rectangle is turned
+/// IN its sketch plane, so its thin cap faces' sides are not along
+/// their chart's axes.
+#[test]
+fn review_probe_a_thin_slab_turned_in_its_sketch_plane() {
+    let k_eps = band().escalate();
+    for t in [20.0 * k_eps, 1e3 * k_eps, 1e5 * k_eps] {
+        for turn in [0.0_f64, 0.3, 0.785, 1.2] {
+            let (c, s) = (turn.cos(), turn.sin());
+            let r = |(x, y): (f64, f64)| (c * x - s * y, s * x + c * y);
+            let pts = [r((0.0, 0.0)), r((1.0, 0.0)), r((1.0, t)), r((0.0, t))];
+            let got = review_report(&format!("slab {t:e} thick, turned {turn} in plane"), pts, 1.0, &SketchPlane::xy());
+            println!("[review-class] t={t:e} turn={turn}: {got:?}");
+        }
+    }
+}
+
+/// REVIEW PROBE B2: the slab and the needle mirrored (extruded to the
+/// other side of the sketch plane, and with the profile's x negated).
+#[test]
+fn review_probe_thin_boxes_mirrored() {
+    let k_eps = band().escalate();
+    for (what, (w, h)) in [("slab 2Kε", (1.0, 2.0 * k_eps)), ("slab 20Kε", (1.0, 20.0 * k_eps)), ("needle 20Kε", (20.0 * k_eps, 20.0 * k_eps)), ("needle 1000Kε", (1e3 * k_eps, 1e3 * k_eps))] {
+        for k in 0..3 {
+            let place = thin_pose(k);
+            let a = review_report(&format!("{what} extruded -1, pose {k}"), [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)], -1.0, &place);
+            let b = review_report(&format!("{what} x-mirrored, pose {k}"), [(0.0, 0.0), (0.0, h), (-w, h), (-w, 0.0)], 1.0, &place);
+            println!("[review-class] {what} pose {k}: minus-extrude {a:?} x-mirror {b:?}");
+        }
+    }
+}
+
+/// REVIEW PROBE B3: the slab and the needle at the session box's wall.
+#[test]
+fn review_probe_thin_boxes_at_the_session_boxs_wall() {
+    use geom_core::{Affine3, Vec3};
+    let k_eps = band().escalate();
+    let extent = geom_core::tolerance::SESSION_BOX_EXTENT;
+    for off in [0.5 * extent, extent - 2.0] {
+        let place = SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::translation(Vec3::new(off, off, off)),
+            tol(),
+        ));
+        for (what, (w, h)) in [("slab 2Kε", (1.0, 2.0 * k_eps)), ("slab 20Kε", (1.0, 20.0 * k_eps)), ("needle 20Kε", (20.0 * k_eps, 20.0 * k_eps)), ("needle 1000Kε", (1e3 * k_eps, 1e3 * k_eps))] {
+            let got = review_report(&format!("{what} at {off}"), [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)], 1.0, &place);
+            println!("[review-class] {what} at {off}: {got:?}");
+        }
+    }
+}
+
+/// REVIEW PROBE B4 (measurement): the plane frames of a slab turned in
+/// its sketch plane -- are its thin caps' sides off their chart's axes?
+#[test]
+fn review_probe_frames_of_a_slab_turned_in_plane() {
+    let t = 1e-5;
+    let turn = 0.3_f64;
+    let (c, s) = (turn.cos(), turn.sin());
+    let r = |(x, y): (f64, f64)| (c * x - s * y, s * x + c * y);
+    let pts = [r((0.0, 0.0)), r((1.0, 0.0)), r((1.0, t)), r((0.0, t))];
+    let body = review_quad_block::<f64>(&SketchPlane::xy(), pts, 1.0);
+    for (k, _) in body.faces() {
+        if let Surface::Plane { frame, .. } = surface(&body, k) {
+            println!("[frames] face {k:?}: axis {:?} u_ref {:?}", frame.axis(), frame.u_ref());
+        }
+    }
+}

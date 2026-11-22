@@ -8405,6 +8405,199 @@ mod presentation_rows {
         );
     }
 
+    // ------------------------------------------------ review probes (strip)
+
+    /// REVIEW PROBE P1. A hole's two long sides (the face below `y = 0`
+    /// and above `y = w`), in a cell wholly on the anchor's non-face
+    /// side that straddles the far side: the cell holds the face above
+    /// `y = w`. It must not read `Vacuous`.
+    #[test]
+    fn review_probe_a_cell_past_a_slots_far_side_holds_the_face() {
+        let (l, w) = (10.0, 1e-3);
+        let (plane, hole) = segments(&[
+            (1, (l, 0.0), (0.0, 0.0), [2, 1]),
+            (3, (0.0, w), (l, w), [4, 3]),
+        ]);
+        let cell = ((4.0, 5.0), (2e-4, 3e-3));
+        for shared in [&[][..], &[0]] {
+            let local = holding(&[0, 1], &[]);
+            let got = present_in(&plane, &hole, cell, &local, shared);
+            assert!(
+                !matches!(got, Ok(Presentation::Vacuous)),
+                "P1 {shared:?} shared: the cell holds the face above y = w, read Vacuous"
+            );
+        }
+    }
+
+    /// REVIEW PROBE P2. A reflex wedge (the slit fixture: the face is
+    /// everything but the thin wedge between its sides), its tip clear
+    /// of the cell; the cell lies off the anchor's face side and
+    /// straddles the other side, so it holds the face above that side.
+    #[test]
+    fn review_probe_a_cell_across_a_reflex_wedges_far_side_holds_the_face() {
+        let (l, w) = (10.0, 1e-3);
+        let (plane, slit) = segments(&[
+            (1, (l, 0.0), (0.0, 0.0), [2, 1]),
+            (3, (0.0, 0.0), (l, w), [1, 3]),
+        ]);
+        let cell = ((4.0, 5.0), (2e-4, 3e-3));
+        let local = holding(&[0, 1], &[]);
+        let got = present_in(&plane, &slit, cell, &local, &[0]);
+        assert!(
+            !matches!(got, Ok(Presentation::Vacuous)),
+            "P2: the cell holds the face above the wedge's upper side, read Vacuous"
+        );
+    }
+
+    /// REVIEW PROBE P3. An end whose far corner turns in (the author's
+    /// `notched` fixture), the bottom side shared, in a cell wholly past
+    /// the short side's line (`x > l`): it holds the face above the top
+    /// side there.
+    #[test]
+    fn review_probe_a_cell_past_a_reflex_ends_short_side_holds_the_face() {
+        let (l, w) = (10.0, 1e-3);
+        let (plane, notched) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (2, (l, 0.0), (l, w), [2, 3]),
+            (3, (l, w), (l + 1.0, 2.0 * w), [3, 4]),
+        ]);
+        let end = holding(&[0, 1, 2], &[2, 3]);
+        let cell = ((10.001, 10.5), (-1.0, 1.0));
+        let got = present_in(&plane, &notched, cell, &end, &[0]);
+        assert!(
+            !matches!(got, Ok(Presentation::Vacuous)),
+            "P3: the cell holds the face above the top side past x = l, read Vacuous"
+        );
+    }
+
+    /// The local boundary of `b` (its vertices filled from its edges'
+    /// ends) in the ball about the cell `u × v` of the plane `z = 0`,
+    /// by [`Local::of`], and that ball.
+    fn real_local(b: &mut Boundary, (u, v): ((f64, f64), (f64, f64))) -> (Local, Ball) {
+        for e in &b.edges {
+            let (c, (t0, t1)) = e.arc.as_ref().unwrap();
+            let ends = if e.uses[0].plus { e.ends } else { [e.ends[1], e.ends[0]] };
+            let _ = ends;
+            b.vertices.insert(e.ends[0], c.eval(*t0));
+            b.vertices.insert(e.ends[1], c.eval(*t1));
+        }
+        let centre = Point3::new(
+            iv0(0.5 * (u.0 + u.1)),
+            iv0(0.5 * (v.0 + v.1)),
+            iv0(0.0),
+        );
+        let patch = Point3::new(
+            Interval::from_bounds(u.0, u.1),
+            Interval::from_bounds(v.0, v.1),
+            iv0(0.0),
+        );
+        let ball = Ball::holding(centre, patch);
+        (Local::of(b, ball, band()), ball)
+    }
+
+    /// REVIEW PROBE P5. `certify_pair`, each cell's local boundary read
+    /// by `Local::of` from its own ball. F: the plane `z = 0` with a
+    /// slot `0 < y < w` (its two long sides). G: a face of the same
+    /// plane, sharing the slot's lower side, that covers the slot and
+    /// runs on over F to `y = 5` -- M folded onto itself past the slot's
+    /// far side. F's cell lies in `y > 0` across the far side, so it
+    /// holds points of F that G covers. The pair must not certify.
+    #[test]
+    fn review_probe_a_face_laid_over_a_slots_far_side_is_not_certified() {
+        let (l, w) = (10.0, 1e-3);
+        let (sf, mut f) = segments(&[
+            (1, (l, 0.0), (0.0, 0.0), [2, 1]),
+            (3, (0.0, w), (l, w), [4, 3]),
+        ]);
+        let (sg, mut g) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (5, (l, 0.0), (l, 5.0), [2, 5]),
+            (6, (l, 5.0), (0.0, 5.0), [5, 6]),
+            (7, (0.0, 5.0), (0.0, 0.0), [6, 1]),
+        ]);
+        let cf = ((4.0, 5.0), (2e-4, 3e-3));
+        let cg = ((4.0, 5.0), (-1e-3, 3e-3));
+        let (lf, bf) = real_local(&mut f, cf);
+        let (lg, bg) = real_local(&mut g, cg);
+        assert_eq!((&lf.edges, lf.vertices.len()), (&vec![0, 1], 0), "F's cell: both slot sides, no vertex");
+        assert_eq!((&lg.edges, lg.vertices.len()), (&vec![0], 0), "G's cell: the shared side alone");
+        let got = certify_pair(
+            &Piece { face: face(1), surface: &sf, whole: false, boundary: &f, u: cf.0, v: cf.1, local: &lf, ball: bf },
+            &Piece { face: face(2), surface: &sg, whole: false, boundary: &g, u: cg.0, v: cg.1, local: &lg, ball: bg },
+            &Near { edges: vec![(0, 0)], vertices: vec![] },
+            band(),
+        );
+        assert!(
+            !matches!(got, Outcome::Certified { .. }),
+            "P5: G lies over F past the slot's far side in these cells, certified: {got:?}"
+        );
+    }
+
+    /// REVIEW PROBE P6 (a measurement, printed). A strip turned in its
+    /// chart: the largest cell (half-size, of a ladder) across the
+    /// thin face `[0, 10] x [0, w]` that presents, by turn and width.
+    #[test]
+    fn review_probe_the_strip_by_turn_and_cell_size() {
+        let l = 10.0;
+        for w in [1e-3_f64, 1e-5] {
+            for turn in [0.0_f64, 0.01, 0.3, 0.785] {
+                let (c, s) = (turn.cos(), turn.sin());
+                let r = |(x, y): (f64, f64)| (c * x - s * y, s * x + c * y);
+                let (plane, b) = segments(&[
+                    (1, r((0.0, 0.0)), r((l, 0.0)), [1, 2]),
+                    (3, r((l, w)), r((0.0, w)), [3, 4]),
+                ]);
+                let (cx, cy) = r((5.0, 0.5 * w));
+                let local = holding(&[0, 1], &[]);
+                let mut line = String::new();
+                for half in [1.0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7] {
+                    let cell = ((cx - half, cx + half), (cy - half, cy + half));
+                    let got = present_in(&plane, &b, cell, &local, &[0]);
+                    line += &format!(
+                        " {half:e}:{}",
+                        match got {
+                            Ok(Presentation::Of(_)) => "strip",
+                            Ok(Presentation::Vacuous) => "VACUOUS",
+                            Err(_) => "Local",
+                        }
+                    );
+                }
+                println!("[P6] w={w:e} turn={turn}:{line}");
+            }
+        }
+    }
+
+    /// REVIEW PROBE P4 (a measurement, printed). The thin face's end
+    /// turned in its plane: whether the shared short side reads
+    /// `on_edges` at each turn.
+    #[test]
+    fn review_probe_on_edges_at_a_square_end_by_turn() {
+        let (l, w) = (10.0, 1e-3);
+        for turn in [0.0_f64, 0.1, 0.7, 1.3, 2.0] {
+            let (c, s) = (turn.cos(), turn.sin());
+            let r = |(x, y): (f64, f64)| (c * x - s * y, s * x + c * y);
+            let (plane, b) = segments(&[
+                (1, r((0.0, 0.0)), r((l, 0.0)), [1, 2]),
+                (2, r((l, 0.0)), r((l, w)), [2, 3]),
+                (3, r((l, w)), r((0.0, w)), [3, 4]),
+            ]);
+            let (cx, cy) = r((l, 0.5 * w));
+            let cell = ((cx - 0.2, cx + 0.2), (cy - 0.2, cy + 0.2));
+            let end = holding(&[0, 1, 2], &[2, 3]);
+            let got = present_in(&plane, &b, cell, &end, &[1]);
+            let what = match &got {
+                Ok(Presentation::Of(q)) => match &q.zero {
+                    Zero::Side(s, a) => format!("Side({s:?}) on_edges={} y={:?}", a.on_edges, q.y),
+                    z => format!("{z:?}"),
+                },
+                Ok(Presentation::Vacuous) => "Vacuous".to_owned(),
+                Err(e) => format!("{e:?}"),
+            };
+            println!("[P4] turn {turn}: {what}");
+        }
+    }
+
+
     /// **`edge_piece`**: the hull of an edge's parameters whose points the
     /// boxes may hold, narrowed to them from both ends.
     #[test]
