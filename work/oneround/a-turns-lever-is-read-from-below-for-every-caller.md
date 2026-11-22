@@ -64,5 +64,9 @@ About 41 call sites, counted as the reading pass counted them:
 
 Only the definite-sign sites, the certifications, are served by the bound from below that every site reads today. `stands_on` and `sheets_part` look definite but return a Zero as a quiet `false` that their callers act on: a short lever turns a true Negative into "not opposed" or "not parted". They are Zero sites and need the bound from above with the others. The every-sign and mixed sites need both.
 
+One composite consumer outside these two doors waits on this row too: `geom_brep::plane_torus_section`, called by `offset_axial`'s rim reader. It makes several decisions off one lever (the fork `pt_axis_in_plane` and the ovals' lean). It takes the axial frame's region from above about the torus's centre, and its both-bounds read is this row's design.
+
+The shape these doors need exists once already: `offset_axial::ScopeRegion`, private to that module, holds a scope's points (read from below) and its faces' covers' hull (read from above), and gives `LeverBounds` from a pivot (`reach_from`). Look there before writing a second.
+
 The classification was made by a reading pass, spot-checked at `stands_on` and `split_edge_onto`. Check each against the code when converting it.
 
