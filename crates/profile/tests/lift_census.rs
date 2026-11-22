@@ -400,7 +400,7 @@ fn a_same_carrier_run_lifts_wherever_it_sits() {
 
 /// **A cocircular run lifts with its joint constructed.** The driver
 /// refuses the raw run's zero-turn junction as a sharp spelling
-/// (`JunctionTangent`), and the lift spells the tangent joint the
+/// (`JunctionTurnWithinTolerance`), and the lift spells the tangent joint the
 /// lattice's own way — `.tangent()` then `tangent_arc_to(p)`, the
 /// tangent-chord derivation the raw carrier satisfies — which mints the
 /// raw run's vertex BITS: the vertex table replays bit for bit, the
