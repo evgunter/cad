@@ -191,3 +191,47 @@ read off the fixtures, not printed):
 `mesh::all reach_probes::a_ring_stored_a_period_away_meshes_where_the_door_moves_it`
 and
 `mesh::all reach_probes::a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row`.
+
+## One line by key, and the measurements on the merged tree (EMBED collinear-cover lane's fix pass, 2026-11-22)
+
+**Which edges are one line is read by key too.** The review of PR 7322
+showed the joint was reached only where two rows' held values met:
+`vacuous` gathered a line's edges by their lines holding a common
+value, and `present_chart`'s merge refused two clips on one side whose
+values did not. Two rows of one parallel hold its value a rounding
+apart in a frame that is not the chart's (the three-arc disc mirrored
+across a generic plane: `0` and `4.0e-16`), so the joint was never
+read and the body refused at depth 40. Now edges holding one axis, the
+face on the same side of each, joined at a vertex by key with one
+continuation, are one line whatever their rows hold, and the line's
+value is the hull of theirs; edges no vertex joins stay two lines
+unless their values meet, as before. The joint is listed among
+`injective`'s ε concessions with its bound (`4ε` in metres, from each
+row's `pcurve_envelope` and the edge certificate's end pins).
+
+**Measured on the branch merged with main `a3d5ce89c`**
+(`embed/collinear-cover-measure`, one switch between main's reading and
+the branch's):
+- **The census's 13 cylinder/torus rows, gate asking, f64:** 0 pass
+  with main's reading, 10 with the branch's. Left:
+  `tier_gate::every_corpus_import_passes_the_shared_gate` (its rim
+  refusal `1v1`/`6v1` across `2v1` is gone; it now stops at
+  `1v1`/`2v1` across `3v1`, another body);
+  `germ_plane_torus_chord::tangs_tube_on_a_latitude_builds_its_true_body`
+  (unchanged, no rim);
+  `rim_of_structural_review_probes::every_circle_edge_of_the_public_door_corpus_answers_against_the_oracle`,
+  which passed with the joint on the lane's first base and on this main
+  refuses `1v1`/`2v1` across `1v1` with either reading: a refusal main
+  has gained since, on a body the joint does not read. Not traced.
+- **The corpus bushing**
+  (`coincidence_door::a_bushing_stacked_on_its_own_axis_glues_its_walls`):
+  refuses `1v19`/`3v1` across `20v5` with main's reading and **passes**
+  with the branch's, both solids' asks `Embedded`.
+- **The tour walk, 85 stops:** main holds 78, the branch 79. The one
+  line that differs is `lily/lily_lantern`: `Refused Uncertified
+  { 3v1, 12v1, Edge(19v1), Departure }` (76 refused cells) on main,
+  `Embedded` on the branch (`cand 33 disc 5620 refused 0 splits 5587`).
+  `diepips`, `diecomposed` and `diechamfer` refuse `8v3`/`39v3` on both.
+- **The mirrored disc** holds at `f64`; at `Interval` it runs out of
+  depth off the cover
+  (`the-mirrored-rim-band-at-interval-runs-out-of-depth-in-the-distance-arm`).
