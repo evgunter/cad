@@ -233,7 +233,7 @@ fn sign_exchange_within_one_node_names_its_first_turn() {
 fn mark(before: usize, item: Option<u32>) -> geom_core::k_stats::Mark {
     geom_core::k_stats::Mark {
         before,
-        site: "bvh_overlapping",
+        site: geom_core::k_stats::QuerySite::new("props_query", "the test's candidates").site(),
         item: item.map_or(
             geom_core::k_stats::MarkItem::End,
             geom_core::k_stats::MarkItem::Candidate,
