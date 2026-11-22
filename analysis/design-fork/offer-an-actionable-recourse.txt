@@ -4,3 +4,4 @@ arm byte: 167 (>= 86: two designers)
 label byte: 226
 mapping: A = Opus designer, B = Fable designer
 protocol: 3a6220f722
+further designer (rule 5), dispatched 2026-11-22 after round 1/2 positions swapped without meeting: byte 217 (even = Opus, odd = Fable) -> Fable designer, weighing the live split only
