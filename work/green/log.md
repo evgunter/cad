@@ -483,3 +483,8 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
     - ONEHOME told to re-weigh the level-root row.
   - The sphere offer row rides SCALAR's PR 7267.
   - STYLE single review, Opus; no model-compare row (Fable outage).
+- 2026-11-22 — PR 7365 (U5, the nightly build job) closes, fix pass taken on a green gate (run 45042902274).
+  - The opt-1 override now fails loudly on a missing package. `build-default-env-agrees.sh` covers nightly.yml's shared keys. The sampler names each rustc by package.
+  - The saving is re-attributed: about 13 min from opt 1 and about 10 from the scalpel move.
+  - The P1 shutdown row closes on the change, watched by `the-nightly-build-job-holds-over-five-scheduled-main-nights` (P2). The margin row (P2) carries the trend.
+  - FULL single review, Opus; no model-compare row (Fable outage).
