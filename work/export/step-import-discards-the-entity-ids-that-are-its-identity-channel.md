@@ -113,10 +113,21 @@ write one of the four origins with real content rather than a bare tag.
 Nothing here claims EXCH's ground or reorders EXCH's slate — it is a
 cross-reference so the sequence survives WIRE's closure.
 
-## The design fork, in flight (2026-11-17, EXPORT)
+## The design fork (EXPORT, 2026-11-17 to 2026-11-22)
 
-Weighed per `docs/DESIGN-FORK-PROTOCOL.md`. The draw gave three designers (A and C Opus, B Fable). A and C delivered first reports. B died on dispatch because the account's Fable limit was exhausted (it resets 2026-11-21 15:00 UTC), and the protocol forbids reconciliation until all first reports are in. The problem statement, both reports (transcribed) and the bytes are on `analysis/design-fork/an-imported-body-names-its-source`, which Ev does not read before deciding.
+Weighed by three designers (`docs/DESIGN-FORK-PROTOCOL.md`, row 297 of `docs/DESIGN-FORK-LOG.md`).
 
-- **Both reject this row's framing.** The stamp channel it extends was retired (INTENT stage 4 unit E, PR 4322), and `[import]` makes imported bodies indistinguishable from native ones by intent.
-- **They split on the remedy.** One says close as superseded, keeping the importer's bitwise surface dedup. The other says share surfaces by the file's entity references on import, write one surface entity per surface key on export, and add a sentence to `[import]`.
-- **Resuming it** (a successor, or this sitting once Ev answers): dispatch a fresh Fable designer on the saved problem statement after the reset, or proceed without one if Ev rules the outage covers forks. Then reconcile and open the `[ev]` PR. Since the reports were written, PR 7081 deleted the M7-2 coincidence rung that report C's feasibility note leans on; tell the reconciling designers.
+**The premise is stale.** The stamp channel this row would extend was retired: `GeomSource`, `SourceExpr`, `GeomOrigin`, `AxisSource` and `stamp_minted` went in INTENT stage 4 unit E, under PR 4322, and `docs/AXIS-DECLARATION-DESIGN.md` is deleted. `[import]` makes an imported body indistinguishable from a native one by intent. No identity token is built.
+
+**What the row is still evidence of.** The importer decides which surface record a face wears by comparing f64 bits (`adopt::surface_sig`, read at about six sites: `attach_surfaces`, `build::choose`, `snap`'s grouping, and the vertex-rooting reads in `build.rs`), beside a per-face slice of the file's own entity. That is a production bit-identity coincidence decision outside `scripts/gates/bit-identity-consumer.sh`. It joins silently what `one_record` would join reported, and it can disagree with `one_record`, which never joins opposite-facing faces.
+
+**The agreed answer** (all three designers, after one round):
+- surface records follow the file's references, with records a normalization mints (a knot split's sub-patches) as records of their own;
+- two distinct entities join only through `one_record`'s reported act;
+- `surface_sig` and its readers go;
+- `step-export` writes one surface entity per surface key;
+- `[import]` gains the paragraph "Records follow the file".
+
+**Measured, read-only.** Across the tree's 114 STEP files, no spline surface is stated twice. Every duplicated entity group is a plane or round surface facing one way (96 groups in 15 files), the case `one_record` joins.
+
+On Ev's ruling this row is re-scoped to that unit, and `work/origin/axis-source-lowered-bytes-carry-no-minter-namespace.md` closes as moot.

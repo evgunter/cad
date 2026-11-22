@@ -1231,6 +1231,13 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    quieted by an assertion that the gap is zero at the site: the equivalence with a natively built twin whose parts
    touch by value.
 
+**Records follow the file.** A surface entity the file states is one
+surface record, worn by every face that cites it; two entities are two
+records unless healing joins them (step 3), reported. No comparison of
+printed values decides which record a face wears, and the writer emits
+one surface entity per surface record, so a round trip keeps the
+partition because the file states it.
+
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
 *input tolerance* ε_in — defaulted from the STEP file's declared
 `uncertainty_measure_with_unit`, overridable per call. **ε_in governs
