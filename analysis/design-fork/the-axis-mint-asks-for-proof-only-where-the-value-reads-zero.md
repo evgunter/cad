@@ -1539,3 +1539,14 @@ Each designer pointed at the three replies by label (`boxfinish/fork-identity-re
 - **New on main, raised by C and confirmed by A and B:** `Real::is_exact_zero_in_every_channel` (behind `UnitVec3::is_exactly`: the least turn, `mate/value.rs`, `sweep/skin.rs`), a second structural door read off numbers; `skin.rs`'s use may change what is built.
 
 **Agreement after this round:** one shape (the expression type; the question a method of the expression returning a proof; a type error at the numeric scalars; the principle stated generally). Not yet common: whether A's helper belongs in the ratified text; whether the question's answer is conditional on the build's decisions or the same at every valuation; whether the text names `Probe`. The closing round puts those three and one merged text (mine, built from the three) to each for accept or amend.
+
+### Closing-round replies (03:18 UTC) and the answers on Ev's new signature clause (03:20 UTC)
+
+Verbatim on `boxfinish/fork-identity-reports` at `af27bac0`, `probe/fork-identity/ev2-close/` (`<label>.md`, `<label>-d.md`).
+
+- **Common to all three:** the helper is an implementation choice and stays out of the ratified text; the answer never comes from the value channel, and the zero it proves holds at every parameter value at which the build takes the decisions it took (E12's condition; A withdrew "the same at every valuation"); the text says "every numeric scalar" and does not name `Probe`; the E12 sentence accepted as merged.
+- **The addendum** (sent 03:19 with `priority: next`): Ev's clause of 2026-11-20 on main, DESIGN `[unrepresentable]` "A signature is a claim too" and the two new paragraphs of `docs/prompts/designer.md`; asked for the one-sentence-per-type test on the shape each recommends.
+  - **B and C: the accessor passes.** At a numeric scalar the expression type has no values, so `Option` of it has one inhabitant and no impl chooses; C cites DL5.3's `NoLane` as the same shape. Bounding the mint is wrong, since it has a meaning at every scalar; a `Symbolic` bound is right for code whose whole meaning is symbolic.
+  - **A moved to a bound:** the accessor passes only on the weaker reading; everything symbolic is bounded to a trait only `Sym` implements, and the mint is a generic general spelling, a bounded closed spelling and a per-scalar item whose sentence is about the direction. Put as a choice for Ev, leaning bounded.
+
+**A split on one point** (how a numeric scalar is kept from the question: a typed absence, or a bound), 2 to 1. A round on that point alone went out at 03:28 UTC, each shown the other side's strongest point.
