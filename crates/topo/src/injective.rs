@@ -2023,11 +2023,13 @@ fn present_chart<'a>(
             if (lo && y.0 > 0.0) || (!lo && y.1 < 0.0) {
                 continue;
             }
+            if review_mut() != "G6" {
             y = if lo {
                 (y.0.max(0.0), y.1)
             } else {
                 (y.0, y.1.min(0.0))
             };
+            }
             let side = Side::of(Axis::V, lo);
             // A line on the face's low side that does not hold `0`, in a
             // rectangle that still reaches `0`, lies within the slack of
@@ -3616,6 +3618,20 @@ struct Through {
 /// more, none is chosen: reading at the first would be as sound (the
 /// argument at that separator's site names no one vertex), but nothing
 /// measured needs it and no row reads it.
+fn review_mut() -> &'static str {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("CAD_REVIEW_MUT").unwrap_or_default())
+}
+fn zero_kind(z: &Zero) -> String {
+    match z {
+        Zero::None => "None".into(),
+        Zero::Side(s, a) => format!("Side({s:?},vx={:?},edges={})", a.vertex, a.edges.len()),
+        Zero::Past(s, _) => format!("Past({s:?})"),
+        Zero::Corner((s, _), (t, _)) => format!("Corner({s:?},{t:?})"),
+        Zero::Point(s, t, v) => format!("Point({s:?},{t:?},{v:?})"),
+        Zero::Curve(s, _) => format!("Curve({s:?})"),
+    }
+}
 fn one_shared_vertex(vertices: &[VertexKey]) -> Option<VertexKey> {
     match vertices {
         &[v] => Some(v),
@@ -5943,8 +5959,10 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     // With no shared edge near, the presentations against `v` are the
     // pair's own, which the planes above have read: the edge test saves
     // that work and is no premise.
-    if !near.edges.is_empty()
-        && let Some(v) = one_shared_vertex(&near.vertices)
+    let m = review_mut();
+    if (!near.edges.is_empty() || m == "G1")
+        && m != "M1"
+        && let Some(v) = (if m == "G2" { near.vertices.first().copied() } else { one_shared_vertex(&near.vertices) })
     {
         let alone = Near {
             edges: Vec::new(),
@@ -5954,11 +5972,33 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
             present(x, &[], &alone.vertices, band),
             present(y, &[], &alone.vertices, band),
         );
-        if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (&rx, &ry)
+        if std::env::var_os("CAD_REVIEW_TRACE").is_some() {
+            let zk = |r: &Result<Presentation<'_>, Unpresented>| match r {
+                Ok(Presentation::Of(q)) => format!("{:?} x={:?} y={:?}", zero_kind(&q.zero), q.x, q.y),
+                Ok(Presentation::Vacuous) => "Vacuous".into(),
+                Err(e) => format!("Err({e:?})"),
+            };
+            let seps: Vec<(Option<Sign>, Option<Sign>)> = match (&rx, &ry) {
+                (Ok(Presentation::Of(a)), Ok(Presentation::Of(b))) => planes_through(x, &alone, a, b)
+                    .into_iter()
+                    .map(|(psi, on)| (sign_on(&psi, Some(&on), a, Some(b), band), sign_on(&psi, Some(&on), b, Some(a), band)))
+                    .collect(),
+                _ => Vec::new(),
+            };
+            eprintln!("CVR end {:?}/{:?} x u={:?} v={:?} [{}] | y u={:?} v={:?} [{}] seps={:?}", x.face, y.face, x.u, x.v, zk(&rx), y.u, y.v, zk(&ry), seps);
+        }
+        let (qa, qb) = if m == "G3" { (&px, &py) } else { (&rx, &ry) };
+        if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (qa, qb)
             && planes_through(x, &alone, rx, ry)
                 .into_iter()
-                .any(|sep| apart(rx, ry, sep))
+                .any(|sep| if m == "M2" {
+                    let (psi, on) = sep;
+                    sign_on(&psi, Some(&on), rx, Some(ry), band).is_some() || sign_on(&psi, Some(&on), ry, Some(rx), band).is_some()
+                } else { apart(rx, ry, sep) })
         {
+            if std::env::var_os("CAD_REVIEW_FIRE").is_some() {
+                eprintln!("CVR fire {:?}/{:?} zeros {}/{}", x.face, y.face, zero_kind(&rx.zero), zero_kind(&ry.zero));
+            }
             return Outcome::Certified {
                 corner: rx.corner || ry.corner,
             };
@@ -12927,5 +12967,109 @@ mod presentation_rows {
             Some(Sign::Positive),
             "the plane through the apex signs the face's nappe"
         );
+    }
+
+    /// REVIEW PROBE (embed/apex-separator-review): `wedge_at_the_apex` in
+    /// a true mirror (y → −y), a re-charted cone (axis −z: u' = π − u,
+    /// v' = −v), a re-charted plane (normal −y), the plane's far edge swept
+    /// across the cone's second ruling, the cone cell about u = π of
+    /// several widths and offsets. Geometry is the same in every chart, so
+    /// a sector holding the second ruling (far.1 < −1) must never certify.
+    fn review_wedge(far: (f64, f64), mirror: bool, recone: bool, replane: bool, du: (f64, f64), dv: f64) -> Outcome {
+        let s2 = core::f64::consts::FRAC_1_SQRT_2;
+        let pi = core::f64::consts::PI;
+        let m = if mirror { -1.0 } else { 1.0 };
+        let p3 = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(m * y), iv0(z));
+        let line = |a: Point3<Interval>, b: Point3<Interval>| Some((Curve3::line(a, b - a), (iv0(0.0), iv0(1.0))));
+        let apex = origin();
+        let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
+        let q = p3(far.1, 0.0, far.0);
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(apex, Vec3::new(iv0(0.0), iv0(0.0), iv0(if recone { -1.0 } else { 1.0 })), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        };
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(apex, Vec3::new(iv0(0.0), iv0(if replane { -1.0 } else { 1.0 }), iv0(0.0)), Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0))),
+        };
+        // Chart of a cone point at original (u, v): mirror u -> -u (shift by 2π
+        // to stay in [π/2, 2π]); recone (u, v) -> (π − u, −v).
+        let ch = |u: f64, v: f64| -> (f64, f64) {
+            let u = if mirror { if u <= 0.0 { -u } else { 2.0 * pi - u } } else { u };
+            if recone { (pi - u, -v) } else { (u, v) }
+        };
+        let (u_sh, u_far) = (ch(0.0, 0.0).0, ch(1.5 * pi, 0.0).0);
+        let vr = if recone { -1.0 } else { 1.0 };
+        let mut c = Boundary {
+            sense: !mirror,
+            edges: vec![
+                rim(1, [1, 2], Axis::U, u_sh, (u_sh, 0.0), (u_sh, vr)),
+                rim(2, [1, 3], Axis::U, u_far, (u_far, 0.0), (u_far, vr)),
+                rim(3, [2, 3], Axis::V, vr, (u_sh, vr), (u_far, vr)),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(3), p1)]),
+            extent: Some([(u_sh.min(u_far), u_sh.max(u_far)), (vr.min(0.0), vr.max(0.0))]),
+        };
+        c.edges[0].arc = line(apex, p0);
+        c.edges[0].uses[0].plus = false;
+        c.edges[1].arc = line(apex, p1);
+        c.edges[2].arc = Some((
+            Curve3::circle(p3(0.0, 0.0, s2), Vec3::new(iv0(0.0), iv0(0.0), iv0(m)), iv0(s2), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
+            (iv0(0.0), iv0(1.5 * pi)),
+        ));
+        c.edges[2].uses[0].plus = false;
+        let unread = |n: u64, ends: [u64; 2], arc, plus| Rim {
+            key: edge(n), arc, stated: None, ends: ends.map(vertex),
+            uses: vec![Use { plus, image: None, iso: None, wall: None, harmonic: None }],
+        };
+        let w = Boundary {
+            sense: !(mirror ^ replane),
+            edges: vec![
+                unread(1, [1, 2], line(apex, p0), false),
+                unread(4, [1, 4], line(apex, q), true),
+                unread(5, [4, 2], line(q, p0), true),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(4), q)]),
+            extent: None,
+        };
+        let lw = Local { edges: vec![0, 1], vertices: vec![vertex(1)] };
+        let lc = Local { edges: vec![0, 1], vertices: vec![vertex(1)] };
+        let near = Near { edges: vec![(0, 0)], vertices: vec![vertex(1)] };
+        let piece = |face: FaceKey, surface, boundary, u, v, local| Piece {
+            face, surface, whole: false, boundary, u, v, local, ball: Ball::holding(origin(), origin()),
+        };
+        // The plane's chart is (z, ±x): x flips with replane.
+        let a = piece(face(1), &plane, &w, (0.0, 1e-3), (-1e-3, 1e-3), &lw);
+        let uc = ch(pi, 0.0).0;
+        let cv = if recone { (-dv, 0.0) } else { (0.0, dv) };
+        let b = piece(face(2), &cone, &c, (uc + du.0, uc + du.1), cv, &lc);
+        certify_pair(&a, &b, &near, band())
+    }
+
+    #[test]
+    fn review_probe_mirrored_wedges_never_certify_a_meeting() {
+        let mut bad = Vec::new();
+        let mut table = Vec::new();
+        for mirror in [false, true] {
+            for recone in [false, true] {
+                for replane in [false, true] {
+                    for t in [0.9, 0.0, -0.5, -0.99, -1.01, -1.5, -2.0, -5.0] {
+                        for du in [(-3e-3, 3e-3), (-1e-4, 2e-3), (-2e-3, 1e-5), (-0.3, 0.3), (-1e-6, 1e-6)] {
+                            for dv in [1e-3, 1e-6, 0.1] {
+                                let got = review_wedge((1.0, t), mirror, recone, replane, du, dv);
+                                let cert = matches!(got, Outcome::Certified { .. });
+                                if t < -1.0 && cert {
+                                    bad.push(format!("mirror {mirror} recone {recone} replane {replane} far.1 {t} du {du:?} dv {dv}: {got:?}"));
+                                }
+                                if du == (-3e-3, 3e-3) && dv == 1e-3 {
+                                    table.push(format!("mirror {mirror} recone {recone} replane {replane} far.1 {t}: {}", if cert { "Certified".into() } else { format!("{got:?}") }));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for l in &table { println!("[review mirror] {l}"); }
+        assert!(bad.is_empty(), "false certificates: {bad:#?}");
     }
 }
