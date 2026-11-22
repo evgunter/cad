@@ -23,50 +23,85 @@ use crate::trace::TracedFace;
 use crate::{OperandSlot, VarKind};
 
 /// **The frame a profile is drawn on, as its seat reads it**
-/// ([`super::pose::on_frame`]).
+/// ([`super::pose::on_frame`]): a face's chart yet to carry anything, or
+/// a frame already decided.
 #[derive(Debug, Clone)]
 pub(crate) enum OnFrame<T: geom_core::Real> {
-    /// A frame pose, bound where it is read.
-    Posed(RigidMotion<T>),
-    /// A face's chart, decided at each carriage over what it carries,
-    /// and where its seat moves it, that move in its coordinates.
-    Chart {
-        /// The chart.
-        chart: crate::mate::value::FaceChart<T>,
-        /// The move.
-        moved: Option<RigidMotion<T>>,
-    },
+    /// A face's chart, undecided.
+    Chart(crate::mate::value::FaceChart<T>),
+    /// A decided frame.
+    Drawn(DrawnFrame<T>),
 }
 
 impl<T: crate::mate::SolveScalar> OnFrame<T> {
     /// **The frame, carrying what reaches `reach` from its origin**: a
-    /// face's chart carried over it ([`crate::mate::value::FaceChart::carry`]),
-    /// and over how far its move stands that origin from the chart's own,
-    /// then moved; a frame pose as it was bound.
+    /// face's chart minted at this, its first, carriage; a decided frame
+    /// decided over it too.
     ///
     /// # Errors
     ///
-    /// The chart's refusal of that carriage.
+    /// The chart's refusal of the carriage.
+    pub(crate) fn carrying(
+        self,
+        reach: Result<f64, crate::mate::LeverRefusal>,
+        tol: Tol,
+    ) -> Result<DrawnFrame<T>, NodeErrorKind> {
+        match self {
+            Self::Chart(chart) => Ok(DrawnFrame::Charted(chart.mint(
+                reach,
+                super::band(tol)?,
+                tol,
+            )?)),
+            Self::Drawn(drawn) => {
+                drawn.carry(reach, tol)?;
+                Ok(drawn)
+            }
+        }
+    }
+}
+
+/// **A decided frame a profile is drawn on**: a frame pose, bound where
+/// it is read, or a face's chart, minted at its first carriage. Every
+/// value computed in it holds its one map.
+#[derive(Debug, Clone)]
+pub(crate) enum DrawnFrame<T: geom_core::Real> {
+    /// A frame pose.
+    Posed(Arc<RigidMotion<T>>),
+    /// A face's chart.
+    Charted(crate::mate::value::MintedChart<T>),
+}
+
+impl<T: geom_core::Real> DrawnFrame<T> {
+    /// The frame's map.
+    pub(crate) fn map(&self) -> &Arc<RigidMotion<T>> {
+        match self {
+            Self::Posed(map) => map,
+            Self::Charted(chart) => chart.motion(),
+        }
+    }
+
+    /// The frame.
+    pub(crate) fn frame(&self) -> Frame<T> {
+        Frame::Map(Arc::clone(self.map()))
+    }
+}
+
+impl<T: crate::mate::SolveScalar> DrawnFrame<T> {
+    /// **The frame, carrying what reaches `reach` from its origin**: a
+    /// face's chart's verdict over that reach, and its one map.
+    ///
+    /// # Errors
+    ///
+    /// The chart's refusal of the carriage.
     pub(crate) fn carry(
         &self,
         reach: Result<f64, crate::mate::LeverRefusal>,
         tol: Tol,
-    ) -> Result<RigidMotion<T>, NodeErrorKind> {
-        match self {
-            Self::Posed(frame) => Ok(*frame),
-            Self::Chart { chart, moved } => {
-                let off = moved.as_ref().map_or(0.0, |m| {
-                    crate::mate::SolveScalar::upper(
-                        (m.origin() - geom_core::Point3::origin()).norm(),
-                    )
-                });
-                let carried = chart.carry(reach.map(|r| r + off), super::band(tol)?, tol)?;
-                match moved {
-                    Some(m) => carried.compose(*m).map_err(NodeErrorKind::Motion),
-                    None => Ok(carried),
-                }
-            }
+    ) -> Result<Frame<T>, NodeErrorKind> {
+        if let Self::Charted(chart) = self {
+            chart.carries(reach, super::band(tol)?, tol)?;
         }
+        Ok(self.frame())
     }
 }
 
@@ -122,9 +157,8 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
                     pose: VarKind::Face,
                     fault: PoseReadFault::Readback { error },
                 })?;
-            let cover = topo::face_cover(framed.body(), face, band);
-            let reach = reach(&framed, (face, surface.kind()), &cover, node);
-            Ok((framed, surface, sense, cover, reach))
+            let reach = reach(&framed, face, node, band);
+            Ok((framed, face, surface, sense, reach))
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     if read.is_empty() {
@@ -136,16 +170,17 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     let farthest = read
         .iter()
         .try_fold(0.0_f64, |held, (.., r)| r.clone().map(|r| held.max(r)));
-    let sketch = Frame::Map(Arc::new(frame.carry(farthest, tol)?));
+    let drawn = frame.carrying(farthest, tol)?;
+    let sketch = drawn.frame();
     let identity = RigidMotion::identity;
     let faces = read
         .into_iter()
-        .map(|(framed, surface, sense, cover, _)| {
+        .map(|(framed, face, surface, sense, _)| {
             let body = framed.frame();
             Ok(TracedFace {
                 surface: closed(surface),
                 sense,
-                cover,
+                cover: topo::face_cover(framed.body(), face, band),
                 sketch_to_body: body
                     .relative(&sketch)
                     .map_err(NodeErrorKind::Motion)?
@@ -157,35 +192,35 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             })
         })
         .collect::<Result<_, NodeErrorKind>>()?;
-    Ok(Some(Drawn { on: frame, faces }))
+    Ok(Some(Drawn {
+        on: OnFrame::Drawn(drawn),
+        faces,
+    }))
 }
 
-/// **How far a traced face reaches from its space's origin**, as its
-/// cover reads it: the farthest the cover stands from where its body's
-/// frame puts that origin.
+/// **How far a traced face reaches from its space's origin**: its cover
+/// from where its body's frame puts that origin, as a placed copy's
+/// faces are read ([`crate::mate::reach`]).
 fn reach<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     framed: &crate::eval::Framed<T>,
-    (face, kind): (topo::entity::FaceKey, geom::SurfaceKind),
-    cover: &topo::FaceCovered<T>,
+    face: topo::entity::FaceKey,
     node: crate::RecipeNodeId,
+    band: geom_core::Band,
 ) -> Result<f64, crate::mate::LeverRefusal> {
-    let refused = |refusal| crate::mate::LeverRefusal::Shape {
-        shape: node,
-        refusal,
-    };
-    let origin = framed
+    use crate::mate::ReachRefusal;
+    framed
         .space_origin()
-        .map_err(|_| refused(crate::mate::ReachRefusal::NoFiniteBound))?;
-    let cover = cover
-        .as_ref()
-        .map_err(|_| refused(crate::mate::ReachRefusal::FaceUnbounded { face, kind }))?;
-    let (_, far) = cover.distance_range(&geom::cover::Site::Point(origin));
-    let far = crate::mate::SolveScalar::upper(far);
-    if far.is_finite() {
-        Ok(far)
-    } else {
-        Err(refused(crate::mate::ReachRefusal::NoFiniteBound))
-    }
+        .map_err(|_| ReachRefusal::NoFiniteBound)
+        .and_then(|origin| {
+            crate::mate::reach::lever_reach(
+                crate::mate::reach::faces_reach_from(framed.body(), [face], origin, band)
+                    .and_then(|r| r.ok_or(ReachRefusal::NoExtent)),
+            )
+        })
+        .map_err(|refusal| crate::mate::LeverRefusal::Shape {
+            shape: node,
+            refusal,
+        })
 }
 
 /// A carrier with a closed form, or the kind of one without.

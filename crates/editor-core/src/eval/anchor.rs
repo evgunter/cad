@@ -392,84 +392,24 @@ pub struct ProfileValue<T: geom_core::Real> {
     pub(crate) frame: Option<DrawnFrame<T>>,
 }
 
-/// **The frame a profile is drawn on, carrying the profile**: the
-/// frame as its seat reads it, carried over the profile's own loops'
-/// reach, so every reader of the profile reads a decided frame. A body
-/// that comes to stand in it later (a sweep of the profile) is carried
-/// again over its own reach ([`Self::carry`]); the frame's value reads
-/// no arm, so each carriage stands it in this one frame, and only the
-/// verdict is its own.
-#[derive(Debug, Clone)]
-pub(crate) struct DrawnFrame<T: geom_core::Real> {
-    on: super::wire::trace::OnFrame<T>,
-    frame: super::Frame<T>,
-}
+/// The frame a profile is drawn on ([`super::wire::trace::DrawnFrame`]).
+pub(crate) use super::wire::trace::DrawnFrame;
 
-impl<T: crate::mate::SolveScalar> DrawnFrame<T> {
-    /// **`on` carrying a profile whose loops reach `reach`** from its
-    /// origin.
-    ///
-    /// # Errors
-    ///
-    /// The frame's refusal of the carriage.
-    pub(crate) fn carrying(
-        on: super::wire::trace::OnFrame<T>,
-        reach: Result<f64, crate::mate::LeverRefusal>,
-        tol: geom_core::Tol,
-    ) -> Result<Self, super::NodeErrorKind> {
-        let frame = super::Frame::Map(std::sync::Arc::new(on.carry(reach, tol)?));
-        Ok(Self { on, frame })
-    }
-
-    /// The frame, as the profile's carriage decided it.
-    pub(crate) fn frame(&self) -> &super::Frame<T> {
-        &self.frame
-    }
-
-    /// **The frame, carrying a body that reaches `reach`** from its
-    /// origin: the same frame, decided over that reach.
-    ///
-    /// # Errors
-    ///
-    /// The frame's refusal of the carriage.
-    pub(crate) fn carry(
-        &self,
-        reach: Result<f64, crate::mate::LeverRefusal>,
-        tol: geom_core::Tol,
-    ) -> Result<super::Frame<T>, super::NodeErrorKind> {
-        self.on.carry(reach, tol)?;
-        Ok(self.frame.clone())
-    }
-}
-
-/// **How far a profile's loops reach from its origin**: each line
-/// segment to its farther end, each arc to its carrier's far side.
+/// **How far a profile's loops reach from its origin**, as a lever reads
+/// it ([`crate::mate::reach::loops_reach_from`]).
 pub(crate) fn loops_reach<T: crate::mate::SolveScalar>(
     validated: &profile::ValidatedProfile<T>,
     profile: crate::RecipeNodeId,
 ) -> Result<f64, crate::mate::LeverRefusal> {
-    let from_origin = |p: geom_core::Point2<T>| {
-        crate::mate::SolveScalar::upper((p - geom_core::Point2::origin()).norm())
-    };
-    let reach = validated
-        .loops()
-        .iter()
-        .flat_map(profile::ValidatedLoop::segments)
-        .map(|s| match s.kind {
-            profile::SegmentKind::Line => from_origin(s.start).max(from_origin(s.end)),
-            profile::SegmentKind::Arc { arc, .. } => {
-                from_origin(arc.centre) + crate::mate::SolveScalar::upper(arc.radius)
-            }
-        })
-        .fold(0.0_f64, f64::max);
-    if reach.is_finite() {
-        Ok(reach)
-    } else {
-        Err(crate::mate::LeverRefusal::Shape {
-            shape: profile,
-            refusal: crate::mate::ReachRefusal::NoFiniteBound,
-        })
-    }
+    use crate::mate::ReachRefusal;
+    crate::mate::reach::lever_reach(
+        crate::mate::reach::loops_reach_from(validated, geom_core::Point3::origin())
+            .and_then(|r| r.ok_or(ReachRefusal::NoExtent)),
+    )
+    .map_err(|refusal| crate::mate::LeverRefusal::Shape {
+        shape: profile,
+        refusal,
+    })
 }
 
 impl<T: geom_core::Real> ProfileValue<T> {
@@ -478,7 +418,7 @@ impl<T: geom_core::Real> ProfileValue<T> {
     /// drawn on no frame.
     #[must_use]
     pub fn drawn_frame(&self) -> Option<&geom_core::RigidMotion<T>> {
-        self.frame.as_ref().and_then(|d| d.frame.map())
+        self.frame.as_ref().map(|d| &**d.map())
     }
 }
 
@@ -556,19 +496,14 @@ fn swept_reach<T: crate::mate::SolveScalar>(
     tol: geom_core::Tol,
 ) -> Result<Result<f64, crate::mate::LeverRefusal>, super::NodeErrorKind> {
     let band = super::wire::band(tol)?;
-    Ok(crate::mate::part_reach_from(body, about, band)
-        .map(crate::mate::SolveScalar::upper)
-        .and_then(|hi| {
-            if hi.is_finite() {
-                Ok(hi)
-            } else {
-                Err(crate::mate::ReachRefusal::NoFiniteBound)
-            }
-        })
-        .map_err(|refusal| crate::mate::LeverRefusal::Shape {
-            shape: sweep,
-            refusal,
-        }))
+    Ok(
+        crate::mate::reach::lever_reach(crate::mate::part_reach_from(body, about, band)).map_err(
+            |refusal| crate::mate::LeverRefusal::Shape {
+                shape: sweep,
+                refusal,
+            },
+        ),
+    )
 }
 
 /// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed

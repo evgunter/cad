@@ -723,14 +723,8 @@ fn body_reach<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
 ) -> Result<f64, crate::mate::LeverRefusal> {
     body.space_origin()
         .map_err(|_| crate::mate::ReachRefusal::NoFiniteBound)
-        .and_then(|about| crate::mate::part_reach_from(body.body(), about, band))
-        .map(crate::mate::SolveScalar::upper)
-        .and_then(|hi| {
-            if hi.is_finite() {
-                Ok(hi)
-            } else {
-                Err(crate::mate::ReachRefusal::NoFiniteBound)
-            }
+        .and_then(|about| {
+            crate::mate::reach::lever_reach(crate::mate::part_reach_from(body.body(), about, band))
         })
         .map_err(|refusal| crate::mate::LeverRefusal::Shape { shape: at, refusal })
 }
@@ -1602,7 +1596,7 @@ fn wire_profile<T: crate::mate::SolveScalar + geom_core::Bounds + super::Profile
     let frame = frame
         .map(|on| {
             let reach = super::anchor::loops_reach(&validated, id);
-            super::anchor::DrawnFrame::carrying(on, reach, tol)
+            on.carrying(reach, tol)
         })
         .transpose()?;
     Ok(Arc::new(ProfileValue {

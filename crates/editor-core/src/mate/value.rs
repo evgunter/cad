@@ -336,7 +336,7 @@ impl<T: SolveScalar> Chart<T> {
 
     /// **The chart of a mate equating `on` with `to`**, as [`Self::of`]
     /// reads it, its refusal naming no mate: what a placement and a
-    /// face's chart ([`FaceChart::carry`]) both read.
+    /// face's chart ([`FaceChart`]) both read.
     ///
     /// # Errors
     ///
@@ -1472,13 +1472,23 @@ pub fn face_chart_slides(orient: Orientation) -> [TargetAxis; 2] {
 /// the face's outward normal.
 ///
 /// It decides nothing alone: what stands in it is carried over its own
-/// reach ([`Self::carry`]), as a placement's copy is.
+/// reach, as a placement's copy is. The first carriage mints its motion
+/// ([`Self::mint`]); every later one decides its verdict alone
+/// ([`MintedChart::carries`]).
 #[derive(Debug, Clone)]
 pub(crate) struct FaceChart<T: geom_core::Real> {
     to: PoseValue<T>,
     orient: Orientation,
     spin: (T, Option<crate::expr::Ratio>),
     slides: [T; 2],
+}
+
+/// **A face's chart, minted at its first carriage**: its inputs and the
+/// one motion they place a copy at. No later carriage mints another.
+#[derive(Debug, Clone)]
+pub(crate) struct MintedChart<T: geom_core::Real> {
+    chart: FaceChart<T>,
+    motion: std::sync::Arc<RigidMotion<T>>,
 }
 
 impl<T: SolveScalar> FaceChart<T> {
@@ -1497,39 +1507,16 @@ impl<T: SolveScalar> FaceChart<T> {
         }
     }
 
-    /// **The chart, carrying what reaches `reach` from its own origin**:
-    /// the placement's own code, called and never spelled again, with
-    /// the carried body where the copy sits: the arm
-    /// ([`super::solve::arm_of`], over `reach`, the slides and the face's
-    /// distance from the origin), the chart ([`Chart::read`]), the mate's
-    /// coset ([`super::solve::fold_cosets`]) and the values settled on it
-    /// ([`settle`]). The arm enters the verdicts alone, so every carriage
-    /// of one chart is the same motion, bit for bit.
-    ///
-    /// # Errors
-    ///
-    /// [`crate::pose::PoseConstruction::FaceChartBackwards`] within the
-    /// band about the least turn's pole, naming the orientation to write;
-    /// [`crate::pose::PoseConstruction::FaceChartUnleverable`] for a
-    /// carried body with no reach, or an arm past the format's reach; a
-    /// direction the band cannot mint; a motion's overflow.
-    pub(crate) fn carry(
-        &self,
-        reach: Result<f64, super::LeverRefusal>,
-        band: Band,
-        tol: geom_core::Tol,
-    ) -> Result<RigidMotion<T>, NodeErrorKind> {
-        use crate::pose::PoseConstruction;
-        let refuse = |construction| NodeErrorKind::PoseDegenerate { construction };
-        let unleverable = |refusal| {
-            refuse(PoseConstruction::FaceChartUnleverable {
-                refusal: Box::new(refusal),
-            })
-        };
-        let on = PoseValue::Plane {
+    /// The copy's mated plane, its own `xy`.
+    fn on() -> PoseValue<T> {
+        PoseValue::Plane {
             normal: UnitVec3::exact_z(),
             offset: T::zero(),
-        };
+        }
+    }
+
+    /// The chart's values, as a placement's fold reads its own.
+    fn values(&self) -> [ReadValue<T, FaceValue>; 3] {
         let [a, b] = face_chart_slides(self.orient);
         let value = |value, coord, by, turns| ReadValue {
             value,
@@ -1538,29 +1525,107 @@ impl<T: SolveScalar> FaceChart<T> {
             turns,
             line: None,
         };
-        let values = [
+        [
             value(FaceValue::Spin, Coord::SPIN, self.spin.0, self.spin.1),
             value(FaceValue::Slide(a), Coord::slide(a), self.slides[0], None),
             value(FaceValue::Slide(b), Coord::slide(b), self.slides[1], None),
-        ];
-        let mates = [(&on, &self.to)];
-        let arm = super::solve::arm_of(reach.map_err(unleverable)?, mates, &values)
-            .map_err(unleverable)?;
-        let chart = match Chart::read(&on, &self.to, false, self.orient, arm, band, tol) {
-            Ok(Some(chart)) => chart,
+        ]
+    }
+
+    /// **The chart, decided over what reaches `reach`** from its origin:
+    /// the placement's arm ([`super::solve::arm_of`], over `reach`, the
+    /// slides and the face's distance from the origin) and its chart
+    /// ([`Chart::read`]), whose least turn's pole verdict and conditioning
+    /// are every decision the chart's arm enters.
+    fn decided(
+        &self,
+        reach: Result<f64, super::LeverRefusal>,
+        band: Band,
+        tol: geom_core::Tol,
+    ) -> Result<Chart<T>, NodeErrorKind> {
+        use crate::pose::PoseConstruction;
+        let refuse = |construction| NodeErrorKind::PoseDegenerate { construction };
+        let unleverable = |refusal| {
+            refuse(PoseConstruction::FaceChartUnleverable {
+                refusal: Box::new(refusal),
+            })
+        };
+        let on = Self::on();
+        let arm = super::solve::arm_of(
+            reach.map_err(unleverable)?,
+            [(&on, &self.to)],
+            &self.values(),
+        )
+        .map_err(unleverable)?;
+        match Chart::read(&on, &self.to, false, self.orient, arm, band, tol) {
+            Ok(Some(chart)) => Ok(chart),
             Ok(None) => unreachable!("a plane mate fixes a direction"),
             Err(ChartFault::Backwards { write }) => {
-                return Err(refuse(PoseConstruction::FaceChartBackwards {
+                Err(refuse(PoseConstruction::FaceChartBackwards {
                     orient: self.orient,
                     write,
-                }));
+                }))
             }
-            Err(ChartFault::Kind(kind)) => return Err(*kind),
-        };
-        let Some(coset) = super::solve::fold_cosets(mates).map_err(NodeErrorKind::Motion)? else {
+            Err(ChartFault::Kind(kind)) => Err(*kind),
+        }
+    }
+
+    /// **The chart's motion, minted at its first carriage**, of what
+    /// reaches `reach`: decided as [`Charted::carries`] decides, then the
+    /// mate's coset ([`super::solve::fold_cosets`]) and the values settled
+    /// on it ([`settle`]), the calls a placement's fold makes.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::pose::PoseConstruction::FaceChartBackwards`] within the
+    /// band about the least turn's pole, naming the orientation to write;
+    /// [`crate::pose::PoseConstruction::FaceChartUnleverable`] for a
+    /// carried body with no reach, or an arm past the format's reach; a
+    /// direction the band cannot mint; a motion's overflow.
+    pub(crate) fn mint(
+        self,
+        reach: Result<f64, super::LeverRefusal>,
+        band: Band,
+        tol: geom_core::Tol,
+    ) -> Result<MintedChart<T>, NodeErrorKind> {
+        let chart = self.decided(reach, band, tol)?;
+        let on = Self::on();
+        let Some(coset) =
+            super::solve::fold_cosets([(&on, &self.to)]).map_err(NodeErrorKind::Motion)?
+        else {
             unreachable!("one mate meets the unconstrained coset")
         };
-        settle(coset, &values, Some(chart))
+        let motion = settle(coset, &self.values(), Some(chart))?;
+        Ok(MintedChart {
+            chart: self,
+            motion: std::sync::Arc::new(motion),
+        })
+    }
+}
+
+impl<T: geom_core::Real> MintedChart<T> {
+    /// The motion its first carriage minted.
+    pub(crate) fn motion(&self) -> &std::sync::Arc<RigidMotion<T>> {
+        &self.motion
+    }
+}
+
+impl<T: SolveScalar> MintedChart<T> {
+    /// **Whether the chart carries what reaches `reach`** from its origin:
+    /// its verdict over that reach alone. The settle reads no arm on a
+    /// face's chart (its slides run along carried target axes, exactly),
+    /// so the chart's own decisions are all a carriage owes.
+    ///
+    /// # Errors
+    ///
+    /// As [`FaceChart::mint`], less a motion's.
+    pub(crate) fn carries(
+        &self,
+        reach: Result<f64, super::LeverRefusal>,
+        band: Band,
+        tol: geom_core::Tol,
+    ) -> Result<(), NodeErrorKind> {
+        self.chart.decided(reach, band, tol).map(drop)
     }
 }
 

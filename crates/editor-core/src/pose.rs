@@ -335,8 +335,7 @@ pub enum PoseDef<R = crate::VarId, S = crate::VarId> {
     /// about the normal and moved by `slides`, along the two target axes
     /// the orientation leaves ([`crate::mate::face_chart_slides`]).
     ///
-    /// It stands in a profile's frame seat alone, there or under slides,
-    /// spins and flips that read nothing else
+    /// It stands in a profile's frame seat alone, read bare there
     /// ([`PoseConstruction::FaceChartUnseated`] anywhere else), and decides
     /// nothing there: what stands in it (the profile's loops, each sweep
     /// of it, the faces it traces) is carried over its own reach, and
@@ -1212,9 +1211,8 @@ pub enum PoseConstruction {
         /// Why.
         refusal: Box<crate::mate::LeverRefusal>,
     },
-    /// [`PoseDef::FaceChart`] read anywhere but a profile's frame seat,
-    /// where nothing it carries is levered, or moved there by a read of
-    /// anything but the chart.
+    /// [`PoseDef::FaceChart`] read anywhere but bare in a profile's frame
+    /// seat, where nothing it carries is levered.
     FaceChartUnseated,
 }
 
