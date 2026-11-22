@@ -14,6 +14,7 @@
 use super::wall_ring_rows::wall_side;
 use super::*;
 use crate::euler::{MefSite, MevSite};
+use crate::splitting::containment::LoopContainment;
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
 use geom_core::Tol;
 
@@ -69,7 +70,8 @@ pub(super) fn ring_at(
         tip = Some(body.mev_line(site, q, tol()).unwrap().he_minus);
     }
     if !then.is_empty() {
-        let points: Vec<_> = ring_vertices(body, ring)
+        let points: Vec<_> = body
+            .loop_vertices(ring)
             .unwrap()
             .into_iter()
             .map(|v| body.resolve_vertex_point(v, Proven))

@@ -1732,6 +1732,40 @@ pub(crate) fn point_in_loop_projected<T: Decide>(
     )
 }
 
+/// [`point_in_loop`] that names the edge a point on the boundary lies
+/// on: `(OnBoundary, Some(edge))` there, `(In | Out, None)` off it. The
+/// boundary is read by [`CarrierLoop::place_off`], each edge on its own
+/// carrier, and the region after it by [`carrier_loop_side`], which
+/// trusts that pass, so the edge named is the one the verdict rests on.
+///
+/// # Errors
+///
+/// As [`point_in_loop`].
+pub(crate) fn point_in_loop_at_edge<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+    normal: Vec3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<(LoopContainment, Option<EdgeKey>), PointInLoopError> {
+    certify_plane(body, r#loop, normal, q, band)?;
+    let lp = carrier_loop(body, r#loop, WALK_ROWS.conic(), band)?;
+    match lp
+        .place_off(q, WALK_ROWS, band)
+        .map_err(PointInLoopError::on(r#loop, LoopDecision::Boundary))?
+    {
+        Err(on) => Ok((LoopContainment::OnBoundary, Some(on.lp.keys[on.edge]))),
+        Ok(off) => Ok((
+            if carrier_loop_side(r#loop, &off, normal, q, band)? {
+                LoopContainment::In
+            } else {
+                LoopContainment::Out
+            },
+            None,
+        )),
+    }
+}
+
 /// The names [`certify_plane`]'s data are decided under.
 const POINT_IN_LOOP_NORMAL: &str = "point_in_loop_normal";
 const POINT_IN_LOOP_PLANE: &str = "point_in_loop_plane";

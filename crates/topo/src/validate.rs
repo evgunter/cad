@@ -8902,6 +8902,19 @@ pub(crate) fn tier3_local_checks_marked<
                                 ring_vertex,
                             });
                         }
+                        RingNestingVerdict::OnOuter {
+                            ring_vertex,
+                            outer_edge,
+                        } => {
+                            errors.push(ValidationError::RingMeetsOuter {
+                                face: face_key,
+                                ring,
+                                contact: RingContact::VertexOnEdge {
+                                    ring_vertex,
+                                    outer_edge,
+                                },
+                            });
+                        }
                         RingNestingVerdict::Undecided(source) => {
                             errors.push(ValidationError::RingNestingUndecided {
                                 face: face_key,
@@ -9537,12 +9550,19 @@ pub(crate) fn ring_outer_contact_about_as<T: Decide>(
     normal: Option<geom_core::Vec3<T>>,
     band: Band,
 ) -> RingOuterVerdict {
-    let (Some(ring_cycle), Some(outer_cycle)) =
-        (loop_cycle_of(body, ring), loop_cycle_of(body, outer))
+    // A lone-vertex ring is the point it stands at: arms 1 and 2 read
+    // it as they read a cycle's vertices, and it has no edge for the
+    // rest. A lone-vertex outer loop bounds no region to meet.
+    let (Some(ring_vertices), Some(outer_cycle)) =
+        (body.loop_vertices(ring), loop_cycle_of(body, outer))
     else {
-        // An empty loop bounds nothing and can meet nothing.
         return RingOuterVerdict::Disjoint;
     };
+    let ring_cycle = loop_cycle_of(body, ring).unwrap_or_default();
+    let outer_vertices: Vec<VertexKey> = outer_cycle
+        .iter()
+        .filter_map(|&he| body.half_edges.get(he).map(|h| h.start))
+        .collect();
 
     // A separation, decided against ZERO. `Zero` is the contact:
     // metering `eps − gap` instead would put a coincident pair's margin
@@ -9565,17 +9585,11 @@ pub(crate) fn ring_outer_contact_about_as<T: Decide>(
     // key (an umbrella pinch walks a single orbit and passes every
     // pass 1-13), so exempting them here would leave exactly that
     // configuration unnetted.
-    for &rhe in &ring_cycle {
-        let Some(rv) = body.half_edges.get(rhe).map(|h| h.start) else {
-            continue;
-        };
+    for &rv in &ring_vertices {
         let Some(rp) = vertex_point(body, rv) else {
             continue;
         };
-        for &ohe in &outer_cycle {
-            let Some(ov) = body.half_edges.get(ohe).map(|h| h.start) else {
-                continue;
-            };
+        for &ov in &outer_vertices {
             let Some(op) = vertex_point(body, ov) else {
                 continue;
             };
@@ -9603,14 +9617,11 @@ pub(crate) fn ring_outer_contact_about_as<T: Decide>(
     // distance test [`window`] spells. The trim is asked on an arc as
     // on a line: a vertex on an arc's circle but past its ends is
     // nowhere on that edge.
-    for (vertex_cycle, edge_cycle, ring_vertex) in [
-        (&ring_cycle, &outer_cycle, true),
-        (&outer_cycle, &ring_cycle, false),
+    for (vertices, edge_cycle, ring_vertex) in [
+        (&ring_vertices, &outer_cycle, true),
+        (&outer_vertices, &ring_cycle, false),
     ] {
-        for &vhe in vertex_cycle {
-            let Some(v) = body.half_edges.get(vhe).map(|h| h.start) else {
-                continue;
-            };
+        for &v in vertices {
             let Some(vp) = vertex_point(body, v) else {
                 continue;
             };
@@ -10357,20 +10368,12 @@ fn plane_chart_normal<T: Real>(
 }
 
 /// Where check 9's nesting half placed a ring relative to the outer
-/// loop of its own face. Private: the arm is its only caller, and one
-/// question already carries two trileans down this call chain (this
-/// one and [`crate::splitting::LoopContainment`]) without a third
-/// leaving the module.
-///
-/// The three variants partition on ONE fact the walk records —
-/// whether any query REFUSED — and the docs say so rather than
-/// leaving a reader to find it in the walk.
+/// loop of its own face. Private: the arm is its only caller.
 enum RingNestingVerdict {
-    /// Nothing to report. Either every vertex of the ring placed was
-    /// placed definitely inside the outer loop's region — it is a hole
-    /// of that region, as a ring claims to be — or no vertex was placed
-    /// either way AND no query refused, which is the ring whose
-    /// every readable vertex came back `OnBoundary`.
+    /// Nothing to report: every vertex of the ring placed was placed
+    /// definitely inside the outer loop's region (a hole of that
+    /// region, as a ring claims to be), or the walk had no answer at
+    /// any vertex and no query refused.
     Inside,
     /// A named ring vertex is definitely OUTSIDE that region, so the
     /// ring is not a hole in it: it lies outside, or crosses the outer
@@ -10379,8 +10382,17 @@ enum RingNestingVerdict {
         /// The witness.
         ring_vertex: VertexKey,
     },
+    /// Every vertex of the ring read lies ON the outer loop: the two
+    /// loops meet, at `outer_edge`, the edge the walk's boundary pass
+    /// placed the first vertex on.
+    OnOuter {
+        /// The first ring vertex read.
+        ring_vertex: VertexKey,
+        /// The outer edge it lies on.
+        outer_edge: EdgeKey,
+    },
     /// No vertex was placed either way and at least one query
-    /// REFUSED — the first refusal, kept. **Never read as
+    /// REFUSED: the first refusal by rank, kept. **Never read as
     /// "inside"**: the same escalate-never-guess posture the contact
     /// half takes, one question over.
     Undecided(ContainError),
@@ -10389,56 +10401,47 @@ enum RingNestingVerdict {
 /// Does `ring` lie inside the region `outer` bounds, both loops of one
 /// planar face whose chart normal [`plane_chart_normal`] read as `normal`?
 ///
-/// The ring's VERTICES are the queries, in cycle order, and the walk
-/// takes the first definite verdict it reaches — `Out` reports, `In`
-/// accepts. That is what keeps an escalation at one vertex from
-/// refusing a ring another vertex has already placed inside, and it
-/// is why the witness reported is the FIRST vertex in cycle order
-/// that read outside rather than a distinguished one. An `OnBoundary`
-/// is the disjointness half's question, not this one, so it settles
-/// nothing here and the walk moves to the next vertex.
+/// **Every vertex of the ring is read**
+/// ([`crate::loop_side::inside_at_every_vertex`], the validator's
+/// reading): a ring disjoint from the outer boundary is a connected
+/// curve in one component of the plane minus that boundary, so its
+/// vertices place alike, whatever curve joins them, arcs and whole
+/// circles included; but that premise is what check 9 checks, so no
+/// vertex is taken for the rest. A ring whose vertices place on both
+/// sides crosses the outer loop and is [`RingNestingVerdict::Outside`]
+/// at a vertex placed outside, whichever the walk reads first. A ring
+/// every vertex of which reads on the outer loop meets it
+/// ([`RingNestingVerdict::OnOuter`]). A vertex on the boundary beside
+/// vertices placed inside says nothing more: its contact is the contact
+/// arms' question, and they have cleared it where they can see it. A
+/// crossing that places no vertex outside (an edge bowing out between
+/// inside vertices) is the contact arms' alone.
+///
+/// The contact arms that run first check the premise on a planar face
+/// whose two loops carry only `Line` and `Circle` edges: any point the
+/// two loops share is a `RingMeetsOuter`, at a vertex of either loop
+/// (arms 1 and 2, arm 2 in both directions, a lone-vertex ring's one
+/// vertex included), along a shared arc (arm 3), or at a point that is
+/// a vertex of neither (arm 4 for two whole circles, arm 5 for every
+/// other edge pair). Where a loop carries an `Ellipse`, `Spiric` or
+/// NURBS edge the premise is checked only in part: a vertex of one loop
+/// on a vertex of the other is still arm 1's, but arms 2, 3 and 5 have
+/// no locus or meeting point for that edge (check 9's banner lists the
+/// residue), and a ring vertex on such an edge reaches the walk, whose
+/// boundary pass reads it on that edge's own carrier and window.
 ///
 /// **One instrument, every class**:
-/// [`crate::splitting::containment::point_in_loop`], which reads each outer
-/// edge on its own carrier — a line as its segment, a circle or
-/// ellipse arc on its conic inside its window — so the region it
-/// decides IS the loop's region, whatever mix of lines and arcs the
-/// loop carries and however many vertices it has. On a loop of lines
-/// it walks the vertex polygon.
-///
-/// It is the walk `boolean::contfp` places a point on a face with, so
-/// check 9 and the census read one loop through one instrument. The
-/// one-circle class is held by
-/// `a_query_near_a_short_arcs_end_is_placed_not_escalated` and the
-/// disc-class rows here and in `topo_ring_nesting`.
-///
-/// **What the walk cannot read**, and what that costs. An outer edge on
-/// a spiric or spline carrier is read piece by piece, and where its
-/// pieces run out before the query is placed against it the walk
-/// refuses ([`crate::splitting::PointInLoopError::Uncrossable`]). That
-/// refusal is read like an escalation: it settles nothing at its
-/// vertex, and a ring no vertex of which was placed is
-/// [`RingNestingVerdict::Undecided`].
-///
-/// **Every vertex of the ring is read** ([`crate::loop_side`]). A ring
-/// disjoint from the outer boundary is a connected curve in one
-/// component of the plane minus that boundary, so its vertices place
-/// alike, whatever curve joins them, arcs and whole circles included.
-/// That premise is checked by the contact arms that run first, on a
-/// planar face whose two loops carry only `Line` and `Circle` edges: any
-/// point the two loops share is a `RingMeetsOuter`, at a vertex of
-/// either loop (arms 1 and 2, arm 2 in both directions), along a shared
-/// arc (arm 3), or at a point that is a vertex of neither (arm 4 for two
-/// whole circles, arm 5 for every other edge pair). Where a loop
-/// carries an `Ellipse`, `Spiric` or NURBS edge the premise is checked
-/// only in part: a vertex of one loop on a vertex of the other is still
-/// arm 1's, but arms 2, 3 and 5 have no locus or meeting point for that
-/// edge (check 9's banner lists the residue). So no vertex is taken for
-/// the rest: a ring whose vertices place on both sides crosses the
-/// outer loop and is [`RingNestingVerdict::Outside`] at a vertex placed
-/// outside, whichever the walk reads first. A crossing that places no
-/// vertex outside (an edge bowing out between inside vertices) is the
-/// contact arms' alone.
+/// [`crate::splitting::containment::point_in_loop_at_edge`], the walk
+/// that reads each outer edge on its own carrier (a line as its
+/// segment, a circle or ellipse arc on its conic inside its window), so
+/// the region it decides IS the loop's region, whatever mix of lines and
+/// arcs the loop carries. It names the edge a boundary point lies on,
+/// which the meeting is reported at. An outer edge on a spiric or
+/// spline carrier is read piece by piece, and where its pieces run out
+/// before the query is placed against it the walk refuses
+/// ([`crate::splitting::PointInLoopError::Uncrossable`]): that refusal
+/// settles nothing at its vertex, and a ring no vertex of which was
+/// placed is [`RingNestingVerdict::Undecided`].
 ///
 /// **Why a `Disc`-class ring gets no second instrument** — the one
 /// home of this argument; check 9's banner and `docs/KERNEL-VERBS.md`
@@ -10451,19 +10454,6 @@ enum RingNestingVerdict {
 /// contact half, as the loops MEETING — [`RingContact::Circles`] from
 /// arm 4 when both loops are whole circles, [`RingContact::EdgesMeet`]
 /// from arm 5 otherwise.
-///
-/// **The off-boundary precondition** the walk gives a definite
-/// `In`/`Out` under — the query is not within the band of the outer
-/// boundary — is supplied by check 9's contact arms, not by check 5,
-/// wherever the outer edge is a `Line` or a `Circle`: on a cycle ring,
-/// arm 2 decides every ring vertex's gap to every such outer carrier's
-/// LOCUS, so a vertex in band of one is already a `RingMeetsOuter` or
-/// `RingContactEscalated` and this function never runs on that pair.
-/// A ring vertex in band of an outer `Ellipse` edge, and the one query
-/// of a lone-vertex ring (no cycle for the contact arms to walk), can
-/// reach the walk in band; there the `OnBoundary` or the escalation is
-/// the walk's own boundary pre-pass answering, on that edge's own
-/// carrier and window, read below like any other.
 ///
 /// An EMPTY ring is a lone vertex — `kemr`'s mint — and that vertex is
 /// the one query. Such a ring bounds no region, but it stands
@@ -10480,36 +10470,36 @@ fn ring_nesting<T: Decide>(
     normal: geom_core::Vec3<T>,
     band: Band,
 ) -> RingNestingVerdict {
-    let queries: Vec<VertexKey> = match body.get_loop(ring).map(|l| l.boundary) {
-        Some(LoopBoundary::Empty { vertex }) => vec![vertex],
-        Some(LoopBoundary::Cycle { .. }) | None => loop_cycle_of(body, ring)
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|&rhe| body.half_edges.get(rhe).map(|h| h.start))
-            .collect(),
-    };
+    let queries = body.loop_vertices(ring).unwrap_or_default();
     // A ring vertex lies in the face's plane (check 5), the walk's
-    // in-plane precondition; the off-boundary one is the contact arms'
-    // where they can see the edge (the doc above). On the boundary is the
-    // contact half's question, not this one.
+    // in-plane precondition.
+    let mut on_edge = None;
     match crate::loop_side::inside_at_every_vertex(&queries, |rv| {
-        let Some(rp) = vertex_point(body, rv) else {
-            return Ok(None);
-        };
-        match crate::splitting::containment::point_in_loop(body, outer, normal, rp, band) {
-            Ok(crate::splitting::LoopContainment::In) => Ok(Some(true)),
-            Ok(crate::splitting::LoopContainment::Out) => Ok(Some(false)),
-            Ok(crate::splitting::LoopContainment::OnBoundary) => Ok(None),
-            Err(source) => Err(geom_brep::ladder::Kept::InBand(ContainError::from(source))),
-        }
+        let rp = vertex_point(body, rv)?;
+        let reading =
+            crate::splitting::containment::point_in_loop_at_edge(body, outer, normal, rp, band);
+        Some(crate::loop_side::of_loop(reading.map(|(side, edge)| {
+            if let Some(edge) = edge {
+                on_edge.get_or_insert(edge);
+            }
+            side
+        })))
     }) {
-        crate::loop_side::EveryVertex::Inside | crate::loop_side::EveryVertex::Unplaced => {
+        crate::loop_side::EveryVertex::Inside | crate::loop_side::EveryVertex::NoAnswer => {
             RingNestingVerdict::Inside
         }
         crate::loop_side::EveryVertex::Outside { at } => {
             RingNestingVerdict::Outside { ring_vertex: at }
         }
-        crate::loop_side::EveryVertex::Undecided(source) => RingNestingVerdict::Undecided(source),
+        crate::loop_side::EveryVertex::OnBoundary { at } => RingNestingVerdict::OnOuter {
+            ring_vertex: at,
+            outer_edge: on_edge.unwrap_or_else(|| {
+                unreachable!("a vertex read on the boundary was read on an edge of it")
+            }),
+        },
+        crate::loop_side::EveryVertex::Undecided(source) => {
+            RingNestingVerdict::Undecided(ContainError::from(source))
+        }
     }
 }
 
@@ -15748,6 +15738,10 @@ mod tests {
             let render = |v: RingNestingVerdict| match v {
                 RingNestingVerdict::Inside => "Inside".to_string(),
                 RingNestingVerdict::Outside { ring_vertex } => format!("Outside({ring_vertex:?})"),
+                RingNestingVerdict::OnOuter {
+                    ring_vertex,
+                    outer_edge,
+                } => format!("OnOuter({ring_vertex:?}, {outer_edge:?})"),
                 RingNestingVerdict::Undecided(e) => format!("Undecided({e})"),
             };
             assert_eq!(

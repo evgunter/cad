@@ -145,9 +145,10 @@ use crate::euler::{EulerOpError, FaceSurface, MefSite, NewCurve};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
+use crate::loop_side;
 use crate::null::CurveGeom;
 use crate::ring_path::{Carrier, LoopArc, LoopSplit, Path, Quadric, SplineArc, path_parity};
-use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
+use crate::splitting::containment::{PointInLoopError, point_in_loop};
 use crate::unresolved::Unresolved;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -4107,7 +4108,9 @@ fn edge_midpoints<T: Decide>(
 /// The points of a loop's vertices, in cycle order (an empty loop's
 /// lone vertex).
 fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, JoinError> {
-    Ok(ring_vertices(body, l)?
+    Ok(body
+        .loop_vertices(l)
+        .ok_or_else(|| corrupt_loop(l))?
         .into_iter()
         .map(|v| body.resolve_vertex_point(v, Proven))
         .collect())
@@ -5878,17 +5881,15 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Join
     Ok(true)
 }
 
-/// Which side of `run` a bystander ring lies on, read at its first
-/// vertex off `run`'s boundary: a ring disjoint from the run cannot
-/// cross it, but it may touch it at a vertex — a pinch, where two
-/// sections meet at one point — so its anchor alone can land `OnBoundary`
-/// on a ring that is plainly on one side. [`RingSide::OnRun`] only when
-/// every vertex does: each such verdict is decided, so the ring is on
-/// the run. A vertex whose reading refuses says nothing either, kept by
-/// its standing ([`PointInLoopError::refusal`]), and the next is asked;
-/// a kept refusal refuses only where no vertex decides ([`climb`]). The
-/// vertices agree because the ring does not cross the run, and a touch
-/// switches no side ([`paths_rung`]'s premise).
+/// Which side of `run` a bystander ring lies on
+/// ([`loop_side::side_of_a_loop_the_division_does_not_cross`]: the run
+/// is the division, and the ring is one it does not cross). It may touch
+/// the run at a vertex, a pinch where two sections meet at one point, so
+/// its anchor alone can land `OnBoundary` on a ring that is plainly on
+/// one side. [`RingSide::OnRun`] only when every vertex does: each such
+/// verdict is decided, so the ring is on the run. A kept refusal refuses
+/// only where no vertex decides; the premise's residual is
+/// [`paths_rung`]'s.
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
@@ -5897,7 +5898,7 @@ fn ring_side<T: Decide>(
     band: Band,
 ) -> Result<RingSide, JoinError> {
     let read = |v: VertexKey| {
-        vertex_side(point_in_loop(
+        loop_side::of_loop(point_in_loop(
             body,
             run,
             normal,
@@ -5905,26 +5906,12 @@ fn ring_side<T: Decide>(
             band,
         ))
     };
-    match climb(Answering::Any, ring_vertices(body, ring)?, read) {
-        Climb::Answered { answer, .. } => answer.map_err(JoinError::from),
+    let vertices = body.loop_vertices(ring).ok_or_else(|| corrupt_loop(ring))?;
+    match loop_side::side_of_a_loop_the_division_does_not_cross(vertices, read) {
+        Climb::Answered { answer, .. } => Ok(if answer? { RingSide::In } else { RingSide::Out }),
         Climb::Passed => Ok(RingSide::OnRun),
         Climb::Undecided(e) => Err(JoinError::RingHoming(e)),
     }
-}
-
-/// One ring vertex's containment as [`ring_side`]'s rung
-/// ([`Rung::answers`]): a decided side answers, a vertex on the run
-/// passes, and a refusal stands by its own standing
-/// ([`PointInLoopError::refusal`]).
-fn vertex_side(
-    reading: Result<LoopContainment, PointInLoopError>,
-) -> Rung<Result<RingSide, PointInLoopError>, PointInLoopError> {
-    let side = |at| match at {
-        LoopContainment::In => Some(RingSide::In),
-        LoopContainment::Out => Some(RingSide::Out),
-        LoopContainment::OnBoundary => None,
-    };
-    Rung::answers(reading.map(side), PointInLoopError::refusal)
 }
 
 /// Where ring re-homing puts a bystander ring.
@@ -5939,23 +5926,6 @@ enum RingSide {
     /// No vertex was decided: on a curved face, a vertex on the run
     /// says nothing ([`path_ring_side`]).
     Undecided,
-}
-
-/// The vertices of `ring`, in cycle order (an empty ring's lone one).
-fn ring_vertices<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<Vec<VertexKey>, JoinError> {
-    match body
-        .get_loop(ring)
-        .ok_or_else(|| corrupt_loop(ring))?
-        .boundary
-    {
-        LoopBoundary::Cycle { first } => body
-            .loop_cycle(first)
-            .ok_or_else(|| corrupt_he(first))?
-            .into_iter()
-            .map(|he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start))
-            .collect(),
-        LoopBoundary::Empty { vertex } => Ok(vec![vertex]),
-    }
 }
 
 /// A representative point of a loop (its anchor vertex).
@@ -7298,7 +7268,8 @@ mod pending_ring_tests {
 
     /// The vertices of `face`'s outer loop.
     fn face_corners(body: &Body<f64>, face: FaceKey) -> Vec<VertexKey> {
-        ring_vertices(body, body.get_face(face).unwrap().outer).unwrap()
+        body.loop_vertices(body.get_face(face).unwrap().outer)
+            .unwrap()
     }
 
     /// Joins `h1` to `h2` as a planar boolean match does: places a
