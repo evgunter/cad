@@ -7,6 +7,7 @@ opened: 2026-11-17
 priority: P3
 cost: E
 refs: [approx-face-has-no-step-printer]
+rides_with: step-import-discards-the-entity-ids-that-are-its-identity-channel
 ---
 
 
