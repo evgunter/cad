@@ -450,12 +450,8 @@ fn a_prism_with_walls_on_the_frame_seam_reads_by_its_rays_at_interval() {
     let (third, two_thirds) = (iv(1.0) / iv(3.0), iv(2.0) / iv(3.0));
     let u = Vec3::new(two_thirds, two_thirds, third);
     let v = Vec3::new(third, iv(0.0) - two_thirds, two_thirds);
-    let plane = sweep::test_support::sketch_from_axes(
-        Point3::new(iv(0.25), iv(-0.5), iv(1.0)),
-        u,
-        v,
-        tol,
-    );
+    let plane =
+        sweep::test_support::sketch_from_axes(Point3::new(iv(0.25), iv(-0.5), iv(1.0)), u, v, tol);
     let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
         .iter()
         .map(|&(x, y)| (Point2::new(iv(x), iv(y)), iv(0.0)))

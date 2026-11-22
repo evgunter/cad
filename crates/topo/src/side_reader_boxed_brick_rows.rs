@@ -465,15 +465,16 @@ fn over_lined<R>(half: f64, read: impl FnOnce(&Body<Boxed>, Band) -> R) -> R {
     .0
 }
 
-/// The brick's top cap (`up`) or bottom cap: the face whose stated
-/// normal runs along `z` that way.
-fn cap<T: Decide + geom_core::Bounds>(body: &Body<T>, up: bool) -> (FaceKey, Vec3<T>) {
+/// The brick's top cap: the face whose stated normal runs up `z`, its
+/// `z` read as a number by `low` (the value at `f64`, an enclosure's
+/// lower end over a box).
+fn top_cap<T: Decide>(body: &Body<T>, low: impl Fn(T) -> f64) -> (FaceKey, Vec3<T>) {
     body.faces()
         .find_map(|(face, _)| {
             let normal = crate::face_normal::face_plane(body, face)?.normal;
-            (normal.z.lo() > 0.5 && up || normal.z.hi() < -0.5 && !up).then_some((face, normal))
+            (low(normal.z) > 0.5).then_some((face, normal))
         })
-        .expect("a brick has two caps")
+        .expect("a brick has a top cap")
 }
 
 /// The upright `f64` brick whose top cap stands at `top`.
@@ -483,8 +484,8 @@ fn member(top: f64) -> Body<f64> {
 
 /// Whether the enclosure of `x` holds `value` and is no wider than
 /// `width`, as the reason it does not.
-fn held<T: geom_core::Bounds>(x: T, value: f64, width: f64) -> Result<(), String> {
-    let (lo, hi) = (x.lo(), x.hi());
+fn held(x: Boxed, value: f64, width: f64) -> Result<(), String> {
+    let (lo, hi) = (geom_core::Bounds::lo(x), geom_core::Bounds::hi(x));
     if lo <= value && value <= hi && hi - lo <= width {
         Ok(())
     } else {
@@ -517,7 +518,7 @@ fn a_moving_caps_turn_is_as_narrow_as_a_members() {
     for (what, x, turns) in [("inside", 0.37, 1.0), ("beside", 1.5, 0.0)] {
         for top in [0.55, 1.0, 1.45] {
             let body = member(top);
-            let (face, normal) = cap(&body, true);
+            let (face, normal) = top_cap(&body, |z| z);
             let turn = planar_turn(&body, face, normal, Point3::new(x, 0.41, top))
                 .expect("a brick's cap is four lines");
             assert!(
@@ -527,7 +528,7 @@ fn a_moving_caps_turn_is_as_narrow_as_a_members() {
         }
         for half in HALVES {
             let turn = over_lined(half, |body, _| {
-                let (face, normal) = cap(body, true);
+                let (face, normal) = top_cap(body, geom_core::Bounds::lo);
                 let height = crate::face_normal::face_plane(body, face)
                     .expect("a cap is planar")
                     .origin
@@ -557,7 +558,7 @@ fn a_moving_caps_turn_is_as_narrow_as_a_members() {
 fn a_moving_caps_aim_is_stepped_by_its_members_step() {
     let at = |top: f64| {
         let body = member(top);
-        let (face, normal) = cap(&body, true);
+        let (face, normal) = top_cap(&body, |z| z);
         loop_aim(&body, face, normal).expect("a brick's cap aims")
     };
     let (low, high) = (at(0.55), at(1.45));
@@ -567,7 +568,7 @@ fn a_moving_caps_aim_is_stepped_by_its_members_step() {
     );
     for half in HALVES {
         let aim = over_lined(half, |body, _| {
-            let (face, normal) = cap(body, true);
+            let (face, normal) = top_cap(body, geom_core::Bounds::lo);
             loop_aim(body, face, normal).expect("a brick's cap aims")
         });
         for (axis, got, want, width) in [
