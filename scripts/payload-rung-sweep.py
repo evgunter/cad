@@ -417,8 +417,13 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
 # cannot be part of an identifier, so the `b` of `numb"…"` is not read as a
 # byte-string prefix.
 _STRING_OPEN = re.compile(r'(b?r?)(#*)"')
-# A char literal, which is what separates `'a'` from the lifetime `'a`.
-_CHAR_LITERAL = re.compile(r"'(\\.|[^\\'\n])'")
+# The next place a comment or a literal can start: a comment opener, a string
+# opener not preceded by an identifier character, or a char literal (which is
+# what separates `'a'` from the lifetime `'a`).
+_NEXT_LEXEME = re.compile(r"""//|/\*|(?<!\w)b?r?#*"|'(?:\\.|[^\\'\n])'""")
+_COMMENT_TOKEN = re.compile(r"/\*|\*/")
+_STRING_END = re.compile(r'\\.|"', re.S)
+_NOT_NEWLINE = re.compile(r"[^\n]")
 
 
 def code_only(src: str) -> str:
@@ -434,57 +439,45 @@ def code_only(src: str) -> str:
     handled: line comments, NESTED block comments, strings with escapes, raw
     strings with any hash count, byte strings, and char literals. A `'` that
     does not open a char literal is a lifetime and is left alone.
+
+    It jumps from one lexeme that can hide code to the next rather than
+    walking every character: the sweep spent most of its time in the walk.
     """
-    out = list(src)
-    i, n = 0, len(src)
-
-    def blank(start: int, end: int) -> None:
-        for k in range(start, min(end, n)):
-            if out[k] != "\n":
-                out[k] = " "
-
-    def ident_char(k: int) -> bool:
-        return 0 <= k < n and (src[k].isalnum() or src[k] == "_")
-
+    out, i, n = [], 0, len(src)
     while i < n:
+        lex = _NEXT_LEXEME.search(src, i)
+        if not lex:
+            out.append(src[i:])
+            break
+        out.append(src[i:lex.start()])
+        i = lex.start()
         if src.startswith("//", i):
             j = src.find("\n", i)
             j = n if j < 0 else j
-            blank(i, j)
-            i = j
         elif src.startswith("/*", i):
             depth, j = 1, i + 2
-            while j < n and depth:
-                if src.startswith("/*", j):
-                    depth, j = depth + 1, j + 2
-                elif src.startswith("*/", j):
-                    depth, j = depth - 1, j + 2
-                else:
-                    j += 1
-            blank(i, j)
-            i = j
-        elif (m := _STRING_OPEN.match(src, i)) and not ident_char(i - 1):
+            while depth:
+                t = _COMMENT_TOKEN.search(src, j)
+                if not t:
+                    j = n
+                    break
+                depth += 1 if t.group() == "/*" else -1
+                j = t.end()
+        elif src[i] == "'":
+            j = lex.end()
+        else:
+            m = _STRING_OPEN.match(src, i)
             if "r" in m.group(1):
                 close = '"' + m.group(2)
                 j = src.find(close, m.end())
                 j = n if j < 0 else j + len(close)
             else:
-                j = m.end()
-                while j < n:
-                    if src[j] == "\\":
-                        j += 2
-                    elif src[j] == '"':
-                        j += 1
-                        break
-                    else:
-                        j += 1
-            blank(i, j)
-            i = j
-        elif m := _CHAR_LITERAL.match(src, i):
-            blank(i, m.end())
-            i = m.end()
-        else:
-            i += 1
+                t = _STRING_END.search(src, m.end())
+                while t and t.group() != '"':
+                    t = _STRING_END.search(src, t.end())
+                j = t.end() if t else n
+        out.append(_NOT_NEWLINE.sub(" ", src[i:j]))
+        i = j
     return "".join(out)
 
 
