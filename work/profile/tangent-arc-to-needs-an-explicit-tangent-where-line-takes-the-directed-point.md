@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-02
 priority: P1
 cost: M
-design: true
 ---
 
 Reported by Ev (in chat, 2026-11-02): "`tangent_arc_to` appears to
