@@ -94,7 +94,7 @@
 //! arcs of its walk ([`run_holders`], [`arc_holders`]), mints after
 //! them, at the copy the innermost fan among them took its germs to.
 
-use geom_core::ladder::{Answering, Rung, climb};
+use geom_core::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::sectors::{BoolSector, Leaned, PairRecord, leaned_lever};
@@ -122,7 +122,7 @@ pub(super) struct InsertOut<T: geom_core::Real> {
 /// mint (module docs).
 #[cfg(test)]
 #[allow(clippy::too_many_arguments)]
-fn insert_null_pairs<T: Decide>(
+fn insert_null_pairs<T: crate::props::AtRestPolicy>(
     a_body: &mut Body<T>,
     b_body: &mut Body<T>,
     contact: VvContact,
@@ -303,7 +303,9 @@ pub(super) struct Cut<T: geom_core::Real> {
 
 impl<T: geom_core::Real> Cut<T> {
     /// A cut along `line` in entry `entry` that runs along no edge of
-    /// the other solid.
+    /// the other solid: the rows' spelling of one (every minter's cut is
+    /// read off its germ's cells).
+    #[cfg(test)]
     pub(super) fn apart(entry: usize, line: Leaned<T>) -> Self {
         Self {
             entry,
@@ -438,7 +440,7 @@ pub(super) struct NullPlan<T: geom_core::Real> {
 /// direction and each run's direction (module docs), touching neither
 /// body.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn plan_null_pairs<T: Decide>(
+pub(super) fn plan_null_pairs<T: crate::props::AtRestPolicy>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     contact: VvContact,
@@ -1589,28 +1591,82 @@ fn held_cut<T: Decide>(
     // only names the second partner of the `SharedVertexCrossings`
     // refusal it raises where no choice is clear. A cut read in
     // band is kept by its standing ([`BooleanError::refusal`]), refusing
-    // only where no other cut is held. Each cut's reads are premises of
-    // one another, so they stay inside its rung.
+    // only where no other cut is held. Within a cut, a strut that nests
+    // is not held, and nor is a cut the walk places off the run: two
+    // readings, either answering "not held" ([`unheld_walk`]), the walk
+    // read past a nesting in band; past the walk, `tied_held` reads only
+    // an end the walk tied.
     let holds = |cut: OtherCut<T>| -> Result<bool, BooleanError> {
         let at = cut.at;
-        Ok(
-            if strut && (secs[at.entry].he != secs[lo.entry].he || nested(secs, own, cut, band)?) {
-                false
+        let nests = || {
+            if !strut {
+                Ok(false)
+            } else if secs[at.entry].he != secs[lo.entry].he {
+                // A strut's run lies in its own physical sector, so a cut
+                // in another lies off it, which the walk would say too:
+                // this answers without reading the walk. Every suite
+                // reading that reaches it is such a cut, the walk placing
+                // it off the run (measured, PR 6786), so no row tells the
+                // two apart; the nesting's own rows pin the rest.
+                Ok(true)
             } else {
-                match on_arc(before, [lo, hi], at)? {
-                    [Some(false), _] | [_, Some(false)] => false,
-                    [None, _] => tied_held(secs, (lo, true), hi, cut, band)?,
-                    [_, None] => tied_held(secs, (hi, false), lo, cut, band)?,
-                    [Some(true), Some(true)] => true,
-                }
-            },
-        )
+                nested(secs, own, cut, band)
+            }
+        };
+        let Some(walk) = unheld_walk(nests, || on_arc(before, [lo, hi], at))? else {
+            return Ok(false);
+        };
+        Ok(match walk {
+            [None, _] => tied_held(secs, (lo, true), hi, cut, band)?,
+            [_, None] => tied_held(secs, (hi, false), lo, cut, band)?,
+            _ => true,
+        })
     };
     climb(Answering::Any, cuts.iter().copied(), |cut| {
         Rung::holds(holds(cut), cut.owner, BooleanError::refusal)
     })
     .into_reading()
     .and_then(Option::transpose)
+}
+
+/// **A cut's walk, where the cut may be held** ([`held_cut`]): `None`
+/// where it is not, as a ladder over two readings ([`climb`],
+/// [`Answering::Any`]), either answering "not held": the cut a strut
+/// that nests (`nests`), and the walk placing an end of it off the run
+/// (`walk`, an end `Some(false)`). The walk is read only where the
+/// nesting does not answer, and past a nesting in band, which is kept by
+/// its standing ([`BooleanError::refusal`]) and refuses only where the
+/// walk does not place the cut off; a reading whose standing aborts ends
+/// the reading at once. Otherwise the walk's reading, which places no end
+/// off the run.
+fn unheld_walk(
+    nests: impl FnOnce() -> Result<bool, BooleanError>,
+    walk: impl FnOnce() -> Result<[Option<bool>; 2], BooleanError>,
+) -> Result<Option<[Option<bool>; 2]>, BooleanError> {
+    enum Reading {
+        Nests,
+        Walk,
+    }
+    let (mut nests, mut walk) = (Some(nests), Some(walk));
+    let mut walked = None;
+    let climbed = climb(Answering::Any, [Reading::Nests, Reading::Walk], |reading| {
+        let off = match reading {
+            Reading::Nests => nests.take().map_or(Ok(false), |nests| nests()),
+            Reading::Walk => match walk.take() {
+                Some(walk) => walk().map(|at| {
+                    walked = Some(at);
+                    at.contains(&Some(false))
+                }),
+                None => Ok(false),
+            },
+        };
+        Rung::holds(off, (), BooleanError::refusal)
+    });
+    match climbed {
+        Climb::Answered { answer, .. } => answer.map(|()| None),
+        Climb::Undecided(e) => Err(e),
+        Climb::Passed => Ok(walked),
+    }
 }
 
 /// Whether `cut`'s run is a strut that the strut segment `own` holds
@@ -2339,8 +2395,9 @@ enum StrutFacing {
 /// classification mints: refused. A germ inside a face casts none
 /// ([`StrutFacing::Unnamed`] when neither votes), and at a closed
 /// edge's lone vertex the edge key cannot say which end a germ along it
-/// runs from ([`StrutFacing::ClosedEdge`]); each caller of
-/// [`strut_faces_first`] states what it does then.
+/// runs from ([`StrutFacing::ClosedEdge`]): [`strut_faces_first`] answers
+/// `None` there and the vertex–vertex planner walks the germs, while the
+/// pierce asks [`strut_at_closed_edge`] and refuses.
 ///
 /// At a wrap edge's tip (`tip`, [`strut_faces_first`] reads it) the
 /// corner's two edges are the one edge too, walked out and back, and the
@@ -2382,8 +2439,10 @@ fn strut_facing(
     Ok(facing)
 }
 
-/// **Whether a strut's `he_plus` faces its `first` germ**, the one
-/// facing rule both strut minters read. `he_plus` lies beside the
+/// **Whether a strut's `he_plus` faces its `first` germ**, the facing
+/// rule the vertex–vertex planner reads (the pierce takes the star's
+/// tip, [`crate::star::Site::tip`], and asks only
+/// [`strut_at_closed_edge`]). `he_plus` lies beside the
 /// splice corner's `arrival` edge and `he_minus` beside its
 /// `departure` edge, so `he_plus` faces the germ the corner meets
 /// first walking from its arrival edge toward its departure. A germ
@@ -2394,14 +2453,7 @@ fn strut_facing(
 ///
 /// `body` and `vertex`, the corner's, are read only to tell a wrap
 /// edge's tip from a closed edge's lone vertex, where arrival and
-/// departure are one edge ([`strut_facing`]'s `tip`). The tip is
-/// `validate::wrap_tips`' (a valence-1 end of a wrap edge), read at this
-/// corner: its one edge is a wrap edge whose two ends differ, and
-/// `vertex` is one of them. At rest that is the same set: a corner
-/// bounded both ways by one edge of two ends is that edge's halves
-/// following each other round `vertex`, so its orbit holds no other
-/// edge. Mid-run it is the reading that stands, where `wrap_tips`'
-/// valence would count the struts already minted at the vertex.
+/// departure are one edge ([`strut_facing`]'s `tip`, [`crate::validate::wrap_tip_at`]).
 ///
 /// `None` at a closed edge's lone vertex with a germ along it
 /// ([`StrutFacing::ClosedEdge`]): the edge key names no half there, and
@@ -2414,16 +2466,7 @@ pub(super) fn strut_faces_first<T: Decide>(
     second: (Cut<T>, Cells),
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let tip = arrival == departure && {
-        let e = proven(&body.edges, arrival, EntityId::Edge);
-        let ends = [Some(e.he_plus), body.mate(e.he_plus)]
-            .map(|h| h.and_then(|h| body.get_half_edge(h)).map(|d| d.start));
-        let wraps = body
-            .get_curve_geom(e.curve)
-            .and_then(crate::null::CurveGeom::certified)
-            .is_some_and(|c| c.description().is_wrap());
-        wraps && ends[0] != ends[1] && ends.contains(&Some(vertex))
-    };
+    let tip = arrival == departure && crate::validate::wrap_tip_at(body, vertex, arrival);
     match strut_facing(
         (arrival, departure),
         tip,
@@ -2435,6 +2478,33 @@ pub(super) fn strut_faces_first<T: Decide>(
         StrutFacing::ClosedEdge => Ok(None),
         StrutFacing::Unnamed => walk_faces_first(sectors, first.0, second.0, band).map(Some),
     }
+}
+
+/// **Whether a strut's corner is a closed edge's lone vertex with a
+/// germ along it** ([`StrutFacing::ClosedEdge`], read by
+/// [`strut_facing`]'s own rule): the corner's arrival and departure are
+/// one edge that is no wrap edge's tip, and a germ of `operand` runs
+/// along it, so the edge key names no half. The pierce asks this alone
+/// of the corner it mints a strut at, and refuses there.
+///
+/// # Errors
+///
+/// [`strut_facing`]'s: germs along the corner's two edges voting
+/// opposite facings, a strut the classification does not mint.
+pub(super) fn strut_at_closed_edge<T: Decide>(
+    (body, vertex): (&Body<T>, VertexKey),
+    operand: Operand,
+    (arrival, departure): (EdgeKey, EdgeKey),
+    first: Cells,
+    second: Cells,
+) -> Result<bool, BooleanError> {
+    let facing = strut_facing(
+        (arrival, departure),
+        arrival == departure && crate::validate::wrap_tip_at(body, vertex, arrival),
+        own_locus_edge(operand, first),
+        own_locus_edge(operand, second),
+    )?;
+    Ok(facing == StrutFacing::ClosedEdge)
 }
 
 /// Whether the corner meets germ `first` before `second`, walking its
@@ -2547,7 +2617,7 @@ pub(super) fn strut_order<T: Decide>(
 /// against a face the locus lies in, name no ray of it. Membership in
 /// both sectors is the one datum that names its ray. The fan's meeting
 /// rays are rulings, each a ray of its own, singled out the same way.
-fn record_germ_dir<T: Decide>(
+fn record_germ_dir<T: crate::props::AtRestPolicy>(
     (a_body, a_vertex): (&Body<T>, VertexKey),
     (b_body, b_vertex): (&Body<T>, VertexKey),
     (sa, codes_a): (&BoolSector<T>, (SideCode, SideCode)),
@@ -2886,6 +2956,68 @@ fn mint_run<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **A cut the walk places off the run is not held, past a nesting
+    /// read in band, never past a fault** ([`unheld_walk`]): either
+    /// reading answers "not held" alone. A nesting in band refuses only
+    /// where the walk places neither end off; a nesting that holds
+    /// answers without the walk, which is not read; a fault in the
+    /// nesting ends the reading, the walk unread. Red against a hand-rolled
+    /// reading that answers past any refusal of the nesting.
+    #[test]
+    fn a_walk_off_the_run_answers_past_a_nesting_in_band_never_past_a_fault() {
+        let diag = crate::validate::decide(
+            "bool_sector_crescent",
+            geom_core::Margin::of({
+                let band = Band::linear(Tol::witness()).unwrap();
+                0.5 * (band.zero() + band.escalate())
+            }),
+            Band::linear(Tol::witness()).unwrap(),
+        )
+        .expect_err("mid-band");
+        let in_band = || {
+            Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::Moot,
+                diag,
+            ))
+        };
+        let fault = || {
+            Err(BooleanError::ClassificationInvariant {
+                what: "a planted fault",
+            })
+        };
+        let off = || Ok([Some(true), Some(false)]);
+        let on = || Ok([Some(true), Some(true)]);
+        let unread =
+            || -> Result<[Option<bool>; 2], BooleanError> { unreachable!("the walk is read") };
+        assert!(
+            matches!(unheld_walk(in_band, off), Ok(None)),
+            "past a nesting in band"
+        );
+        assert!(
+            matches!(unheld_walk(in_band, on), Err(e) if e.refusal().is_ok()),
+            "the walk holds it"
+        );
+        assert!(
+            matches!(
+                unheld_walk(fault, unread),
+                Err(BooleanError::ClassificationInvariant { .. })
+            ),
+            "never past a fault, the walk unread"
+        );
+        assert!(
+            matches!(unheld_walk(|| Ok(true), unread), Ok(None)),
+            "a nested strut, the walk unread"
+        );
+        assert!(
+            matches!(
+                unheld_walk(|| Ok(false), on),
+                Ok(Some([Some(true), Some(true)]))
+            ),
+            "no nesting: the walk's"
+        );
+    }
     use geom_core::Tol;
 
     /// **`strut_facing`'s vote table.** `he_plus` lies beside the

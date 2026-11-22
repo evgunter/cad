@@ -66,6 +66,7 @@ use geom_core::k_stats::{decide, decide_nonzero};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SizedPass, Vec3};
 
+use crate::curve_pair::{GapMeter, Span, SpanEnd};
 use crate::ladder::{Answering, Climb, Refusal, Rung, climb};
 use crate::props::{LoopEdge, PoleLeft, sphere_pole_left};
 use crate::recourse::{ReadAt, RefusedArm, RefusedSide, SizedDecision};
@@ -587,24 +588,23 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
     let Some(t) = foot(&e.carrier, x, t0) else {
         return sampled_near(e, x, band);
     };
-    let Some(speed) = geom::carrier_speed::speed_at(&e.carrier, t) else {
-        unreachable!(
-            "`foot` places a closed-form foot only on a line or a circle (`Curve3::nearest`), \
-             whose speed `speed_at` reads in closed form"
-        )
-    };
-    if !(strictly_inside(t - t0, speed) && strictly_inside(t1 - t, speed)) {
+    let span = Span::new(&e.carrier, (t0, t1));
+    let inside = |end| strictly_inside(span.end_gap(t, end, GapMeter::Clear));
+    if !(inside(SpanEnd::Start) && inside(SpanEnd::Stop)) {
         return Near::Off;
     }
     decide_near(t, (e.carrier.eval(t) - x).norm(), band)
 }
 
-/// A parameter step `m` at `speed` is strictly positive, an exact order
-/// (`chart_singularity_in_span`): an edge's interval ends at its
-/// vertices, read before it.
-fn strictly_inside<T: Decide>(m: T, speed: T) -> bool {
+/// **A gap from an edge's end is strictly positive**, an exact order
+/// (`chart_singularity_in_span`): the edge's interval ends at its
+/// vertices, read before it ([`locate`]). The gap is the span's
+/// ([`Span::end_gap`]), metered at the least speed over it, under which a
+/// decided `Positive` is sound. [`foot`] names the parameter at or past
+/// the edge's first end, the door's premise for reading no period.
+fn strictly_inside<T: Decide>(gap: Margin<T>) -> bool {
     matches!(
-        geom_core::k_stats::prove("chart_singularity_in_span", Margin::of(m * speed)),
+        geom_core::k_stats::prove("chart_singularity_in_span", gap),
         Ok(Sign::Positive)
     )
 }
@@ -670,6 +670,12 @@ fn sampled_near<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T>
     // The last span first, and a span's later half before its earlier:
     // the order the walk has always read in, which `best` rests on.
     let roots = (0..SAMPLED_SPANS).rev().map(|i| (at(i), at(i + 1), 0u32));
+    // Not the decided argmin (`scripts/gates/argmin-folds.tsv`,
+    // refusal-only): no definite answer rests on `best`. `On` is a sample
+    // decided zero (`Step::Stop`), `Off` every span cleared; `best` only
+    // says which refusal the walk reports where neither holds (in band,
+    // or unsettled), so a nearer sample the walk did not keep could move
+    // the refusal's kind, never the answer.
     let mut best: Option<(T, T)> = None;
     let mut budget = SAMPLED_BUDGET;
     let mut unclear = false;
@@ -779,8 +785,16 @@ impl<'a, T: Decide> Sides<'a, T> {
         x: Point3<T>,
     ) -> Result<bool, Unread<T>> {
         let side = |why| Unread::Side { r#loop: l, why };
-        if let Surface::Sphere { center, radius, .. } = *self.surface {
-            match sphere_pole_left(center, radius, x, self.loops[l], self.band) {
+        if let Surface::Sphere { frame, radius, .. } = *self.surface {
+            let center = frame.origin();
+            match sphere_pole_left(
+                center,
+                radius,
+                crate::uniform_curvature_arm(self.surface),
+                x,
+                self.loops[l],
+                self.band,
+            ) {
                 PoleLeft::Read(left) => return Ok(left),
                 PoleLeft::Straddle => return Err(side(SideUnread::Straddle)),
                 PoleLeft::Banded(cause) => return Err(side(SideUnread::Banded(cause))),
@@ -934,7 +948,7 @@ pub fn walk_loop<T: Decide>(
 ) -> Option<LoopWalk<T>> {
     let shapes: Vec<EdgeShape<T>> = edges
         .iter()
-        .map(|e| EdgeShape::of(&e.carrier, chart.frame().axis))
+        .map(|e| EdgeShape::of(&e.carrier, chart.frame().axis()))
         .collect::<Option<_>>()?;
     let read = |e: usize, t: T, depth: u32, last: bool| -> Option<WalkSample<T>> {
         let p = edges[e].carrier.eval(t);
@@ -1013,7 +1027,7 @@ pub fn walk_loop<T: Decide>(
     // Bisect the steps carrying the most error until the area clears
     // its bound.
     loop {
-        if area_clears(&reading) {
+        if area_clears(&reading.walk()) {
             break;
         }
         let total = reading.error;
@@ -1035,11 +1049,11 @@ pub fn walk_loop<T: Decide>(
 
 /// Whether a winding-free walk's area clears its error bound, its
 /// reading wholly on one side of zero (`chart_singularity_loop_side`).
-fn area_clears<T: Decide>(reading: &WalkSum<T>) -> bool {
+fn area_clears<T: Decide>(walk: &LoopWalk<T>) -> bool {
     matches!(
         decide(
             "chart_singularity_loop_side",
-            Margin::sign_of(reading.area.abs() - reading.error),
+            Margin::sign_of(walk.area.abs() - walk.error),
             Band::enclosure_sign()
         ),
         Ok(Sign::Positive)
@@ -1179,14 +1193,15 @@ impl<T: Decide> EdgeShape<T> {
                 line: true,
                 height: None,
             },
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame { axis: n, .. },
-                radius,
-            }) => Self {
-                speed,
-                line: false,
-                height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
-            },
+            Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
+                let n = frame.axis();
+                let radius = circle.radius();
+                Self {
+                    speed,
+                    line: false,
+                    height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
+                }
+            }
             _ => Self {
                 speed,
                 line: false,
@@ -1284,7 +1299,10 @@ fn step_bound<T: Decide>(
 }
 
 /// A walk's sums: its winding, its area, its bound, and each step's
-/// share of the bound.
+/// share of the bound. No [`geom_core::Rounded`]: the bound is each
+/// step's certified distance from the loop's own area, which the
+/// bisection reweighs by step, not only the rounding of the sum's
+/// expression.
 struct WalkSum<T> {
     winding: i8,
     area: T,
@@ -1397,14 +1415,7 @@ pub fn loop_holds_on_left<T: Decide>(
 ) -> Result<bool, SideUnread> {
     match walk.winding {
         0 => {
-            let reading = WalkSum {
-                winding: 0,
-                area: walk.area,
-                error: walk.error,
-                errors: Vec::new(),
-                nappe_v: walk.nappe_v,
-            };
-            if !area_clears(&reading) {
+            if !area_clears(walk) {
                 return Err(SideUnread::Straddle);
             }
             Ok(matches!(

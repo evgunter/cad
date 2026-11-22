@@ -37,7 +37,7 @@ fn tube(slit: bool, tol: Tol) -> Body<f64> {
             .faces()
             .find(|(fk, f)| {
                 let s = body.face_surface(*fk).unwrap();
-                matches!(s, geom::Surface::Plane { origin, .. } if origin.y.abs() < 1e-12)
+                matches!(s, geom::Surface::Plane { frame, .. } if frame.origin().y.abs() < 1e-12)
                     && !f.rings.is_empty()
             })
             .expect("the y = 0 cap is an annulus");

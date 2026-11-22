@@ -232,7 +232,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
     // reversed-DATA re-import; (4) the imported body's own measurement,
     // through `topo::test_support::mass_properties_with_face_terms`
     // (`mass_properties`' walk with each face's term handed back), which
-    // the per-face bit-identity claim below needs: the gate hands back
+    // the per-face enclosure claim below needs: the gate hands back
     // the sum, not the terms. Four, bought for that claim; (1) runs
     // through the same door, so it costs nothing extra. A
     // `mass_properties` on the reordered body was removed on
@@ -316,26 +316,23 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // second quadrature.
             let got = enclosure;
             let (want, want_terms) = native_props.expect("the native side certified");
-            // **BIT identity where it holds, ulp identity where it
-            // cannot** (R1 MINOR-2, re-stated for
-            // `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md`).
-            // Overlap is what soundness needs, but it is not what actually
-            // happens, and asserting the weaker fact would let a real
-            // divergence hide inside a pad. What the reader reproduces is
-            // every FACE: the same chart and trim, so each face's
-            // quadrature runs on the same bits and returns the same flux.
-            // What it does not reproduce is the face ARENA order: its
-            // Euler-operator assembly allocates faces in its own order,
-            // and the body fold sums the face terms in plain `f64` in
-            // arena order (`topo::props`' `fold_runs`, D9 addendum idiom
-            // 2's sequential fold), and an `f64` sum rounds differently in
-            // another order. Whether the fold should be order-independent
-            // is FLUX's design row
-            // `the-whole-body-property-fold-depends-on-face-order`, closed by PR 5402.
-            // So:
+            // **Enclosure, not bits** (importgate/build, the
+            // orchestrator's ruling on A3). This row used to pin every
+            // face's flux bit for bit against the native body. That held
+            // only because the reader cached the printed arc circle as
+            // the rim carrier: the same chart and trim gave the same
+            // quadrature bits. D7 [import] retires the cache. The rim is
+            // now built from the wall's own rational boundary row, which
+            // is the same locus with a different trim, so each face's
+            // quadrature rounds differently (measured at ε = 1e-9:
+            // totals 37.480529811927575 native vs 37.48053000229155
+            // imported, apart by 1.9e-7, inside a pad of about 1e-6).
+            // Bit identity was output stability, not validity. What the
+            // row must still prove is that the import's volume is right:
             //
             // * the import's gate enclosure IS the imported body's own
-            //   measurement, bit for bit (same body, same order);
+            //   measurement, bit for bit (same body, same order), and it
+            //   is certified (the stop above is `Met`);
             let (imported, imported_terms) = topo::test_support::mass_properties_with_face_terms(
                 &body,
                 Tol::witness(),
@@ -355,51 +352,52 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 imported.enclosure.volume,
                 imported.enclosure.volume_pad,
             );
-            // * every face's flux term and half-width, native against
-            //   imported, bit for bit: the same multiset of terms, each
-            //   face matched by its bits rather than its key (the keys
-            //   are the two arenas' own);
-            let bits = |terms: &[topo::test_support::FaceTerm]| {
-                let mut bits: Vec<(u64, u64)> = terms
-                    .iter()
-                    .map(|&(_, flux, pad)| (flux.to_bits(), pad.to_bits()))
-                    .collect();
-                bits.sort_unstable();
-                bits
-            };
-            assert_eq!(
-                bits(want_terms),
-                bits(&imported_terms),
-                "the round trip must reproduce every face's flux bit for bit: \
-                 native {want_terms:?}, imported {imported_terms:?}"
-            );
-            // * native against imported bodies, the same terms summed in
-            //   two orders (D9: a body's storage is part of the input, so
-            //   the bits may differ): the volumes, and the pads, agree to
-            //   within the gap two orders of these terms may round apart,
-            //   computed from the terms (`topo::test_support::fold_order_bound`:
-            //   `2γₙ₋₁·Σ|tᵢ|/3` and the third's own rounding). An ulp count
-            //   of the volume is the wrong shape for signed terms: a body
-            //   far from the origin has terms far larger than its volume.
-            //   Measured: 0 ulps before NURBS #4553 moved the rational
-            //   wall's flux bits, 1 at ε = 1e-6 and 2 at 1e-9 after it,
-            //   and 1 and 0 since the skin computes in `T` (PR 4726).
-            let (volume_bound, pad_bound) = topo::test_support::fold_order_bound(want_terms);
+            // * every native face term the closed form computes EXACTLY
+            //   (zero pad: the cap's flux, and the empty term) lies INSIDE
+            //   the import's certified enclosure of some face. A face's
+            //   term is not compared face by face: it holds its
+            //   quadrature region's carry, which sits on the region's
+            //   first face in arena order (`topo::props`' `References`).
+            //   Measured at ε = 1e-9, the native body puts a carry of
+            //   9.33 on a planar side face, and the import puts it on the
+            //   wall. Only the exact terms and the total are properties
+            //   of the body;
+            let exact: Vec<f64> = want_terms
+                .iter()
+                .filter(|&&(_, _, pad)| pad == 0.0)
+                .map(|&(_, flux, _)| flux)
+                .collect();
             assert!(
-                got.volume > 0.0
-                    && want.volume > 0.0
-                    && (got.volume - want.volume).abs() <= volume_bound,
-                "the round trip must reproduce the volume to within its fold orders' \
-                 rounding ({volume_bound:e}): imported {} ± {}, native {} ± {}",
+                exact.iter().any(|&flux| flux > 1.0),
+                "the native cap's flux is exact: {want_terms:?}"
+            );
+            for &flux in &exact {
+                assert!(
+                    imported_terms
+                        .iter()
+                        .any(|&(_, enclosed, pad)| (flux - enclosed).abs() <= pad),
+                    "the native cap's exact flux {flux} lies inside one of the import's \
+                     certified face enclosures: {imported_terms:?}"
+                );
+            }
+            // * and the native total lies inside the import's certified
+            //   enclosure, so the totals agree within the import's own pad.
+            assert!(
+                got.volume > 0.0 && want.volume > 0.0 && got.volume_pad > 0.0,
+                "both volumes are positive and the import's pad is a width: \
+                 imported {} ± {}, native {} ± {}",
                 got.volume,
                 got.volume_pad,
                 want.volume,
                 want.volume_pad,
             );
             assert!(
-                (got.volume_pad - want.volume_pad).abs() <= pad_bound,
-                "and the certified pad to within its own ({pad_bound:e}): imported {}, native {}",
+                (got.volume - want.volume).abs() <= got.volume_pad,
+                "the native volume lies inside the import's certified enclosure: \
+                 imported {} ± {}, native {} ± {}",
+                got.volume,
                 got.volume_pad,
+                want.volume,
                 want.volume_pad,
             );
             println!(

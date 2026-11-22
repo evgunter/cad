@@ -48,7 +48,7 @@ still routed to `BooleanDecision::Coincidence`, so their refusals offer
 - two whole renders beside `Escalated`: `BooleanError::Join`
   (`crate::chord_join::UnderBoolean`, which adds the declaration back
   at the Boolean) and `PointInSolidError`'s escalated, ray-exhausted
-  and loop arms (`crates/topo/src/boolean/solid_contain.rs`, its
+  and loop arms (`crates/topo/src/solid_contain.rs`, its
   `Display`), which end in `COINCIDENCE_RECOURSE`. Whether a point lies
   inside a solid is not a face pair's question, and the ray lane's
   `line_wall_roots` rung is dropped at `cast_ray`.

@@ -186,20 +186,17 @@ fn a_length_expression_in_the_v_degree_slot_refuses() {
 #[test]
 fn a_loft_document_round_trips_bit_identically() {
     let (doc, ..) = loft_doc();
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     match load(&text, Tol::witness()) {
         Ok(loaded) => {
-            assert!(loaded.snapshot.bit_eq(&doc), "loft snapshot drifted");
+            assert!(loaded.bit_eq(&doc), "loft snapshot drifted");
             // Save∘load is a fixpoint on the BYTES too.
-            assert_eq!(
-                save(&loaded.doc, &loaded.edits, Tol::witness()).expect("re-saves"),
-                text
-            );
+            assert_eq!(save(&loaded, Tol::witness()).expect("re-saves"), text);
         }
         Err(editor_core::PersistError::ToleranceConflict { .. }) => {
             // Only reachable if a prior document pinned another ε in
-            // this process; the bytes still parsed, validated and
-            // replayed (the ε door is last).
+            // this process; the bytes still parsed and validated (the
+            // ε door is last).
         }
         Err(other) => panic!("loft document failed to load: {other:?}"),
     }
@@ -221,14 +218,11 @@ fn a_sweep_document_round_trips_bit_identically() {
             v_degree: count(2),
         },
     );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     match load(&text, Tol::witness()) {
         Ok(loaded) => {
-            assert!(loaded.snapshot.bit_eq(&doc), "sweep snapshot drifted");
-            assert_eq!(
-                save(&loaded.doc, &loaded.edits, Tol::witness()).expect("re-saves"),
-                text
-            );
+            assert!(loaded.bit_eq(&doc), "sweep snapshot drifted");
+            assert_eq!(save(&loaded, Tol::witness()).expect("re-saves"), text);
         }
         Err(editor_core::PersistError::ToleranceConflict { .. }) => {}
         Err(other) => panic!("sweep document failed to load: {other:?}"),

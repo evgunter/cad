@@ -42,7 +42,7 @@
 #                 (surgery's `ArcReads::arc_past`)
 #   user          an angle the user states or reads (the expression
 #                 language's atan2, a mate's angles, a measure, a sketch)
-#   awaits-6443   `topo::boolean::rim_wedge`, rewritten by ONEDOOR's
+#   awaits-6443   `topo::rim_wedge`, rewritten by ONEDOOR's
 #                 PR 6443 (stage 3 of the placement decision)
 #
 # THE KEY is (file, enclosing function, class): a row per function, so a

@@ -11,9 +11,10 @@
 //! - **The Boolean refuses typed.** `block ∖ trench`, and
 //!   `block ∩ (box ∖ trench)`, read the keel as an edge lying in the
 //!   bore's face whose material parts it, and refuse
-//!   `EdgeInFaceGap::CurvedFace` rather than ship the one edge: a slit
-//!   in a curved face is neither meshed nor measured yet
-//!   (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`).
+//!   `EdgeInFaceGap::CurvedFace` rather than ship the one edge: the
+//!   parting could leave a zero-area ring in a curved face, which is not
+//!   measured yet
+//!   (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
 //!   So does the trench whose closing wall is an arc, a cylinder crossing
 //!   the bore along the keel: only a wall tangent to the bore is left to
 //!   the tangent readings.

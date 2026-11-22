@@ -51,14 +51,17 @@ let refused = Open
     .expect("the leg is fine")
     .toward(1.0, 0.0, tol);
 
-assert!(matches!(refused, Err(PathError::JunctionTangent { margin, .. }) if margin == 0.0));
+let Err(refusal @ PathError::JunctionTangent { .. }) = refused else {
+    panic!("a tangent departure is refused");
+};
+assert!(refusal.to_string().contains("turn margin 0 m on a 1 m arm"));
 ```
 
-The payload carries the **margin** — how far from tangent the
-junction actually was. Zero here, because the two directions are
-exactly equal; a near-miss would report the small number instead, and
-that number is what tells you whether you have a modelling error or a
-sliver.
+The refusal tells the **margin** — how far from tangent the junction
+actually was. Zero here, because the two directions are exactly equal;
+a near-miss would tell the small number instead, and that number is
+what tells you whether you have a modelling error or a sliver. The
+payload holds it as a quantity to be told, not a number to branch on.
 
 The second class is structural: a fillet needs a corner, meaning two
 rays that actually meet. Turn north, then arrive north, and there is
@@ -82,16 +85,19 @@ let refused = Open
     .expect("north again")
     .to(p2(1.0, 2.0), tol);         // ...so the two carriers never meet
 
-assert!(matches!(
-    refused,
-    Err(PathError::NoCornerForFillet {
-        reason: PathNoCornerReason::TurnWithinTolerance { sin_turn, .. },
+let Err(
+    refusal @ PathError::NoCornerForFillet {
+        reason: PathNoCornerReason::TurnWithinTolerance { .. },
         ..
-    }) if sin_turn == 0.0
-));
+    },
+) = refused
+else {
+    panic!("two rays that never meet have no corner");
+};
+assert!(refusal.to_string().contains("sin φ = 0 (cos φ = 1)"));
 ```
 
-The reason carries the turn's sine and the length it was levered by,
+The reason tells the turn's sine and the length it was levered by,
 because the refusal is a product: a turn of zero at tolerance is either
 no angle at all, as here, or a real angle stated over a lever too short
 to resolve it. The kernel does not guess which; the numbers say.
@@ -499,16 +505,14 @@ sweep's result is finished where it is read), so a body the
 at-rest gate refuses never reaches the writer — the operation that made
 it refused instead. On the Rust side `step_export::step_string` takes a
 `topo::AtRestBody`, which only the scalar's finish constructs.
-Past the gate, STEP export has three refusals you should *expect*
-rather than fix — `UnsupportedSurface`, `UnsupportedCurve`,
-`VoidShellUnsupported` — meaning the AP214 writer has no
-representation for a surface or a cavity the modeller can legitimately
-build. A fourth, `ShellUnclassified`, is not a frontier: it is the
-shell-role door failing to measure a cavity's volume at the reporting
-target, and it carries that door's refusal whole. The tour tolerates
-exactly the three, per scene, and panics on anything else. That is the
-right posture to copy: enumerate the refusals you accept, and let
-every other one be loud.
+Past the gate, STEP export has two refusals you should *expect*
+rather than fix — `UnsupportedSurface`, `UnsupportedCurve` — meaning
+the AP214 writer has no representation for a surface or a curve the
+modeller can legitimately build. A third, `ShellUnclassified`, is not
+a frontier: it is the shell-role door failing to measure a cavity's
+volume at the reporting target, and it carries that door's refusal
+whole. The right posture to copy: enumerate the refusals you accept,
+and let every other one be loud.
 
 ## 8. The mesh door: budgets and files
 

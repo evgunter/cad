@@ -3,8 +3,8 @@
 //! `walk.rs` needs every boundary edge to be an iso curve of the chart
 //! traversed on ONE branch. `props::require_iso_rectangle` certifies
 //! the CARRIER; `props::require_one_chart_branch` certifies the
-//! traversed ARC, and `curved::require_iso_rectangle_face` cites both
-//! in that order. These rows are the two π-rad witnesses the walk's
+//! traversed ARC, and `curved::iso_rectangle_shape` asks both in that
+//! order. These rows are the two π-rad witnesses the walk's
 //! ledger names, from the outside, through the public `tessellate`.
 //!
 //! Each witness is a body that used to reach the walk: with debug
@@ -20,7 +20,7 @@
 
 use crate::common;
 
-use common::witness_bodies::{apex_crossing_bowtie, pole_crossing_half_cap};
+use common::witness_bodies::{apex_crossing_bowtie, minted, pole_crossing_half_cap};
 use geom_brep::props::PropsError;
 use geom_core::Tol;
 use mesh::TessellateError;
@@ -52,10 +52,14 @@ fn refuses_the_branch_premise(name: &str, body: &Body<f64>, faces: [FaceKey; 2])
 /// the unit sphere whose ONE meridian edge is a great-circle arc over
 /// the north pole. Before this unit the door admitted both faces and
 /// the walk ran; now the door names the premise and no mesh is minted.
+/// The body carries its minted images, as a finished body does: the
+/// doors decide each face is no rectangle, and its lift has no reading
+/// in one sheet of the chart (the arc passes the pole), so no lane takes
+/// it and the door's verdict, with its recourse, is the refusal.
 #[test]
 fn the_pole_crossing_half_cap_refuses_at_the_door() {
     let (body, cap, rest) = pole_crossing_half_cap();
-    refuses_the_branch_premise("half-cap", &body, [cap, rest]);
+    refuses_the_branch_premise("half-cap", &minted(body), [cap, rest]);
 }
 
 /// **Witness 2's sibling on the other kind** — the cone bow tie, whose
@@ -80,6 +84,7 @@ fn the_pole_crossing_half_cap_refuses_at_the_door() {
 #[test]
 fn the_apex_crossing_bowtie_refuses_at_the_shape_door() {
     let (body, f0, f1) = apex_crossing_bowtie();
+    let body = minted(body);
     let tol = Tol::witness();
     for delta in [0.5, 0.3, 0.2, 0.1, 0.05, 0.02] {
         match mesh::tessellate(&body, delta, tol) {
@@ -174,29 +179,37 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     let pi = core::f64::consts::PI;
 
     let sphere = Surface::Sphere {
-        center: Point3::<f64>::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::<f64>::new(0.0, 0.0, 0.0),
+            Vec3::<f64>::new(0.0, 0.0, 1.0),
+            Vec3::<f64>::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let cone = Surface::Cone {
-        apex: Point3::<f64>::new(0.0, 0.0, 0.0),
-        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::<f64>::new(0.0, 0.0, 0.0),
+            Vec3::<f64>::new(0.0, 0.0, 1.0),
+            Vec3::<f64>::new(1.0, 0.0, 0.0),
+        ),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let cylinder = Surface::Cylinder {
-        origin: Point3::<f64>::new(0.0, 0.0, 0.0),
-        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::<f64>::new(0.0, 0.0, 0.0),
+            Vec3::<f64>::new(0.0, 0.0, 1.0),
+            Vec3::<f64>::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let torus = Surface::Torus {
-        center: Point3::<f64>::new(0.0, 0.0, 0.0),
-        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::<f64>::new(0.0, 0.0, 0.0),
+            Vec3::<f64>::new(0.0, 0.0, 1.0),
+            Vec3::<f64>::new(1.0, 0.0, 0.0),
+        ),
         major_radius: 1.0,
         minor_radius: 0.25,
-        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
 
     // A great-circle arc from latitude 0.5 OVER the north pole.

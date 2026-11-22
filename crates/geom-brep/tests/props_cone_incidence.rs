@@ -96,10 +96,8 @@ impl Cone {
 
     fn surface<T: Real>(&self) -> Surface<T> {
         Surface::Cone {
-            apex: pt(self.apex),
-            axis: vt(self.a),
+            frame: geom::Frame::new(pt(self.apex), vt(self.a), vt(self.e1)),
             half_angle: T::from_f64(self.alpha),
-            u_ref: vt(self.e1),
         }
     }
 
@@ -170,29 +168,38 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
     let v = |q: geom_core::Vec3<f64>| vt::<T>([q.x, q.y, q.z]);
     match *e {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(p(origin), v(dir)),
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => Curve3::circle(p(center), v(axis), T::from_f64(radius), v(u_ref)),
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(p(center), v(axis), v(u_ref)),
-            T::from_f64(semi_u),
-            T::from_f64(semi_v),
-        )),
+        Curve3::Circle(
+            conic_k @ geom::Circle {
+                frame: carrier_frame_10,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_10.origin(),
+                carrier_frame_10.axis(),
+                carrier_frame_10.u_ref(),
+            );
+            let radius = conic_k.radius();
+            Curve3::circle(p(center), v(axis), T::from_f64(radius), v(u_ref))
+        }
+        Curve3::Ellipse(
+            ellipse @ geom::Ellipse {
+                frame: carrier_frame_9,
+                ..
+            },
+        ) => {
+            let (center, axis, u_ref) = (
+                carrier_frame_9.origin(),
+                carrier_frame_9.axis(),
+                carrier_frame_9.u_ref(),
+            );
+            let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(p(center), v(axis), v(u_ref)),
+                T::from_f64(semi_u),
+                T::from_f64(semi_v),
+            ))
+        }
         _ => unreachable!(),
     }
 }
@@ -378,26 +385,11 @@ fn section_at(c: &Cone, tilt: f64, l: f64) -> Curve3<f64> {
 /// The section's major semi-axis stretched until its farthest point is
 /// `d` off the cone, as one closed edge.
 fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
-    let Curve3::Ellipse(geom::Ellipse {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        semi_u,
-        semi_v,
-    }) = section(c)
-    else {
+    let Curve3::Ellipse(conic_k @ geom::Ellipse { frame, .. }) = section(c) else {
         unreachable!()
     };
-    let stretched = |k: f64| {
-        Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(center, axis, u_ref),
-            semi_u * (1.0 + k),
-            semi_v,
-        ))
-    };
+    let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
+    let stretched = |k: f64| Curve3::Ellipse(geom::Ellipse::new(frame, semi_u * (1.0 + k), semi_v));
     // The distance is linear in a small stretch: read its slope at one.
     let k0 = 1e-6;
     let k = k0 * d / max_elevation(c, &stretched(k0), 0.0, TAU);
@@ -570,9 +562,10 @@ fn an_ellipse_span_is_metered_at_its_smaller_semi_axis() {
         let tilt = ((1.0 - 1.0 / (squash * squash)).sqrt() * c.alpha.cos()).asin();
         let (s, co) = c.alpha.sin_cos();
         let e = section_at(&c, tilt, (1e3 * b.escalate() / s.min(co)).max(0.05));
-        let Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) = e else {
+        let Curve3::Ellipse(conic_k) = e else {
             unreachable!()
         };
+        let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
         assert!(
             (semi_u / semi_v - squash).abs() < 0.01 * squash,
             "{c:?}: the section is {semi_u} by {semi_v}"
@@ -768,10 +761,8 @@ mod between_samples {
     fn verdict_at<T: Decide>(alpha: f64, e: &El, t0: f64, t1: f64) -> Result<(), PropsError> {
         let edges: Vec<LoopEdge<T>> = vec![topo::edge(e.curve::<T>(), t0, t1, 0, 0)];
         let s: Surface<T> = Surface::Cone {
-            apex: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
             half_angle: T::from_f64(alpha),
-            u_ref: v3(1.0, 0.0, 0.0),
         };
         curved_face_loops(&s, &[&edges], true, band()).map(|_| ())
     }

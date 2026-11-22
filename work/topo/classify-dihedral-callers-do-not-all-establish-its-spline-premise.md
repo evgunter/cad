@@ -30,7 +30,7 @@ Establishes it:
 - `topo::validate`'s tier-3 dihedral check — `nurbs_adjacent` from
   `Surface::spline_chart().is_some()` on both sides, with an O5 note
   recording why the gate inherits.
-- `topo::boolean::rim_wedge` — the same `spline_chart()` gate.
+- `topo::rim_wedge` — the same `spline_chart()` gate.
 
 Does not:
 

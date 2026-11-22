@@ -16,28 +16,34 @@ fn band() -> Band {
 
 fn sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn torus() -> Surface<f64> {
     Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn floor() -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     }
 }
 
@@ -165,10 +171,12 @@ fn a_plane_misses_a_carrier_beyond_its_extent() {
     // the refusal says so, rather than calling it a carrier with no
     // closed form.
     let unbounded = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: f64::INFINITY,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     assert_eq!(
         plane_misses(
@@ -189,16 +197,17 @@ fn a_plane_misses_a_carrier_beyond_its_extent() {
 /// outward normal, so no sense to read: a line through the apex (its one
 /// double root there) and a circle through it in a meridian plane (the
 /// apex's double root among its crossings) refuse
-/// [`TraceFault::Apex`]. The root doors answer that double root
-/// (`reduce::line_cone_roots`, `conic_quadric`'s "Through the apex");
-/// the trace's own apex row (`trace_crossing_apex`) refuses it.
+/// [`TraceFault::Apex`]: the curve × face pose reads each `Through` the
+/// apex, its datum and no meeting, and the trace refuses it.
 #[test]
 fn a_piece_through_a_cones_apex_refuses_at_the_apex() {
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let line = ray_crossings(
         &cone,
@@ -232,11 +241,12 @@ fn a_piece_through_a_cones_apex_refuses_at_the_apex() {
 }
 
 /// A circle along the torus's top parallel, 5e-9 m below it, is in the
-/// circle × torus door's escalation gap at a band of `[1e-9, 1e-8]`: the trace refuses with the door's own
-/// escalation (`TraceFault::Escalated`, named by the door's K name),
+/// curve × face pose's escalation gap at a band of `[1e-9, 1e-8]` (a
+/// coaxial circle's constant residual): the trace refuses with the
+/// pose's own escalation (`TraceFault::Escalated`, named by its K name),
 /// which states its own recourse, and with no decision of the Boolean's.
 #[test]
-fn a_circle_in_the_torus_doors_band_refuses_with_the_doors_escalation() {
+fn a_circle_in_the_torus_poses_band_refuses_with_the_poses_escalation() {
     let got = circle_crossings(
         &torus(),
         true,
@@ -254,7 +264,7 @@ fn a_circle_in_the_torus_doors_band_refuses_with_the_doors_escalation() {
     assert!(
         diag.predicate
             .is_some_and(|p| geom_brep::curve_face::decided_by_curve_face(p)
-                && p.starts_with("circle_torus_")),
-        "named by the circle × torus door: {diag:?}"
+                && p.starts_with("curve_face_pose_torus_")),
+        "named by the pose's torus rung: {diag:?}"
     );
 }

@@ -2,8 +2,7 @@
 id: a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses
 kind: issue
 title: A skew or unequal-radius cylinder boolean takes 5–12 s per operation in release, now that it builds through the volume lane
-status: parked
-blocked_on: [the-chord-joins-island-winding-crosses-every-span-of-a-chord]
+status: open
 opened: 2026-11-02
 priority: P1
 cost: M
@@ -108,3 +107,7 @@ take 4.7–7.3 s, from 6.1–8.7 s on main (unequal 6.5–7.3 s, skew
 4.7–5.4 s), and check 4's projected envelope 0.36–0.46 s per op, from
 1.75–2.15 s (10,024–10,640 parts read, from 80,192–85,120). Volumes are
 identical. The row stays parked on ONEHOME's island winding.
+
+## Unparked (2026-11-21)
+
+Its blocker (chord-join winding) closed by 7298: the operation is 2.0–2.8 s on main 6abbae4ae5; whether the minutes-long march remains is spiricarm's to re-measure.

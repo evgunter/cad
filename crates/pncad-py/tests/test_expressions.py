@@ -490,7 +490,7 @@ def run():
     box = doc.insert(Node.extrude(square, at_the_bound))
     said["volume"] = evaluate(doc).value(box).body().mass_properties(PINNED).enclosure.volume
     said["loaded_volume"] = (
-        evaluate(load(doc.save()).doc).value(box).body().mass_properties(PINNED).enclosure.volume
+        evaluate(load(doc.save())).value(box).body().mass_properties(PINNED).enclosure.volume
     )
     negative = doc.parse_formula(" + ".join(["-1 m"] + ["0 m"] * (bound - 1)))
     said["negative_reads_back"] = doc.parse_formula(negative.text) == negative

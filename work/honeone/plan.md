@@ -117,3 +117,91 @@ home is held to the charter's agreement test.
 ## Exit criteria
 
 None set: the program closes when its slate is empty.
+
+## From ONEREAD (merged 2026-11-20)
+
+Orchestrator: a ONEREAD cloud session opened 2026-11-01. Live state is `docs/doc-ledger/oneread-and-twice-merge-into-honeone.md`'s tail and the
+item files beside this plan.
+
+Branch prefix **`oneread/`**; away-channel tag `(ONEREAD orchestrator)`.
+
+Opened 2026-11-01 by CLEAVE's split on its semantic seams (Ev, in chat): every
+row moved from `work/cleave/` by `git mv`, id and body unchanged, each
+with a dated `## Slate triage` note.
+
+### Charter
+
+**One question with two answers.** The boolean's cone reader is a second parity reader of a point's material, kept in step with the census's link by a fuzz test; the census reads a wall tangent to a curved face as undecided where the parting reads its bend; the direction into a face is spelled in five and in four places; test files copy small vector helpers.
+
+ONEHOME holds the 2026-10-26 duplication rows; this track holds the ones CLEAVE's later work filed. `the-booleans-cone-reader-is-a-second-link` edits `sectors.rs` beside TANGRIM's fillet junction row.
+
+### The slate
+
+Handed back 2026-11-03 with no P0/P1 row open. The material-reader arc is done: one `Cone` (PR 6228); the boolean reads through it (6247); recl's edge-edge line cone (6282); the parity arc (6337); the edge-sector site through `bound_read` (6363); `bound_side` on the caller's `Reading` and rule 3 (6378); every cone site through `bound_read`, with item 3's A′ clause (6407). The remaining rows are P2 and below, dispatchable as they stand.
+
+| pri | status | item | cost |
+|---|---|---|---|
+| P2 | open | `recl-reads-one-wedge-pair-at-a-time-on-a-contact-line` | M |
+| P2 | open | `the-census-reads-a-wall-tangent-to-a-curved-face-as-undecided-where-the-parting-reads-its-bend` | M |
+| P3 | open | `a-cones-parity-reference-is-off-its-sectors-plane-by-the-tie` | E |
+| P3 | open | `a-descent-along-one-bound-answers-for-a-whole-sheet` | M |
+| P3 | open | `a-face-inward-direction-is-spelled-in-five-places` | E |
+| P3 | open | `a-touched-faces-side-is-read-about-a-vertex-up-to-zero-off-the-face` | E |
+| P3 | open | `conic-bend-side-reads-no-slack` | E |
+| P3 | open | `edge-classes-mixes-decided-and-measured-rows` | M |
+| P3 | open | `into-a-face-is-spelled-n-cross-t-four-times` | E |
+| P3 | open | `the-split-rule-b-reads-an-in-plane-edges-material-by-convexity` | M |
+| P3 | open | `three-readers-of-which-kept-piece-holds-a-direction-part-on-no-unique-holder-in-two-voices` | M |
+| P4 | open | `test-files-copy-small-vector-helpers` | E |
+
+### Exit criteria
+
+None set: the program closes when its slate is empty.
+
+## From TWICE (merged 2026-11-20)
+
+One question read twice or spelled twice, and reach measures read past their span.
+
+Opened 2026-10-17 by TANG's priority-seam cut (`work/README.md`, Track
+size), when TANG measured 142.5 budget points against 30. Every row
+moved from `work/tang/` by `git mv` with its id and body unchanged.
+Nothing dispatched.
+
+### The slate
+
+**27 budget points** of dispatchable work against a ceiling of 30, in 12 rows (2026-10-26).
+
+| pri | item | cost | status | title |
+|---|---|---|---|---|
+| P3 | `a-carrier-pair-tangency-is-read-by-three-methods` | — | open | A plane-sphere or sphere-sphere touch point and a plane-cylinder or cylinder-cylinder tangent line are each read by three methods |
+| P3 | `decided-coincidence-carries-a-synthetic-invalid-margin` | M | open | A coincidence decided Zero on every datum is reported with a synthetic MarginDiag::Invalid margin, as if a measurement had failed |
+| P3 | `great-arc-parity-is-read-twice-with-two-degeneracy-rules` | M | open | Crossing parity along a path is read twice, by ring_path's path_parity and sectors' cone_side, under two different degeneracy rules |
+| P3 | `split-cyl-ellipse-quarter-bound-overshoots-the-tilt-at-the-band-edge` | M | open | A split row on an ellipse-bounded cylinder face serves against an in-band truth: the quarter-parallelogram bound overshoots the tilt at the band edge |
+| P2 | `the-wedge-reach-counts-a-faces-run-along-its-edge` | M | open | The wedge reach is measured from the edge's middle, so a face's run along the edge counts as lever |
+| P3 | `the-wedge-reach-reads-each-faces-vertices-once-per-edge` | M | open | The wedge reach reads every vertex of both faces once per edge: O(deg²) per face over a pass, and each door builds a fresh reader |
+| P3 | `three-readers-of-one-point-along-a-carrier` | M | open | Three readers decide whether points are one point, each its own way, and splitting/order.rs keeps the sub-ε chain residual the carrier cluster now escalates |
+| P4 | `decide-across-and-carrier-eq-floor-are-two-spellings` | M | open | the section rows' decide_across and carrier_eq's reach floor are two spellings of one bracket |
+| P4 | `extent-ball-and-reach-are-two-statements-of-one-extent` | M | open | ExtentBall and Reach are two types for the consumed extent |
+| P4 | `measure-curve-reach-restates-the-span-lever` | E | open | editor-core's measure curve_reach restates the edge span lever, and has drifted from it |
+| P4 | `point-to-axis-rejection-is-spelled-by-hand-at-each-site` | E | open | the point-to-axis rejection is spelled by hand at each classifier site, beside Vec3::reject_from |
+| P4 | `spiric-and-spline-axial-levers-read-past-the-span` | M | open | a spiric edge's axial lever is its torus's support and a spline's its whole control net, past the span the edge holds |
+
+### Order
+
+1. The P3 correctness rows: `three-readers-of-one-point-…`,
+   `great-arc-parity-…`, `a-carrier-pair-tangency-…`,
+   `decided-coincidence-…`, then the `wedge_reach` pair.
+2. The P4 spelling rows batch into one lane.
+
+### Review posture
+
+TANG's, inherited: protocol v7 (`docs/MODEL-AB-LOG.md`, Ev 2026-09-19),
+the dual on triaged-in units only, opus/opus outside it. Which units
+are candidates is OPEN for this program's first dispatch. A lane
+measures its row's repro on current main before it builds: the ground
+has moved since most of these rows were filed. Blocks draw from
+13600 on.
+
+### Exit
+
+Every row is closed or re-homed.

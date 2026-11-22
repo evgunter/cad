@@ -10,7 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::{TorusConvention, TorusRefusal, TorusVerdict};
+use geom_brep::{TorusConvention, TorusStanding};
 use geom_core::{Band, Point2, Tol, Vec2};
 use topo::construction::Construct;
 use topo::{Body, FaceKey, ReplaceFaceError};
@@ -57,9 +57,7 @@ fn a_ring_half_in_band_reads_as_at_rest() {
     let outer = 2.0 * r + 1.02 * e;
     let gap = 0.98 * e;
     let geom::Surface::Torus {
-        center,
-        axis,
-        u_ref,
+        frame: carrier_frame,
         ..
     } = *body.face_surface(wall).unwrap()
     else {
@@ -68,9 +66,7 @@ fn a_ring_half_in_band_reads_as_at_rest() {
     let sense = body.get_face(wall).unwrap().sense;
     let charts = vec![topo::construction::Rechart::new(
         geom::Surface::Torus {
-            center,
-            axis,
-            u_ref,
+            frame: carrier_frame,
             major_radius: (outer + gap) / 2.0,
             minor_radius: (outer - gap) / 2.0,
         },
@@ -89,14 +85,11 @@ fn a_ring_half_in_band_reads_as_at_rest() {
         .render(geom_brep::recourse::Reading::AtRest);
     let err = topo::replace_face_offset(&mut body, cap, 0.1, tol)
         .expect_err("the door's section refuses the wall's ring half");
-    let ReplaceFaceError::DegenerateTorus {
-        refusal:
-            TorusRefusal {
-                convention: TorusConvention::Ring,
-                verdict: TorusVerdict::Undecided(ref diag),
-            },
-        ..
-    } = err
+    let ReplaceFaceError::DegenerateTorus { ref refusal, .. } = err else {
+        panic!("the ring half undecided, typed: {err:?}");
+    };
+    let (TorusConvention::Ring, TorusStanding::Ranked(diag)) =
+        (refusal.convention, refusal.standing())
     else {
         panic!("the ring half undecided, typed: {err:?}");
     };

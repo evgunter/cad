@@ -21,7 +21,7 @@ true reduced value whenever the inputs enclose theirs") only holds with
 an enclosing period.
 
 **Sites:**
-- `crates/topo/src/boolean/rim_wedge.rs`:
+- `crates/topo/src/rim_wedge.rs`:
   - `departures` (`let tau = …`, about :315);
   - `at` (about :474);
   - `locus_param` (about :532);

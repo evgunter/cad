@@ -2,10 +2,13 @@
 id: trimmed-and-planar-lanes-answer-ok-on-an-empty-patch
 kind: issue
 title: mesh: nothing structural stands between a zero-area boundary polygon and Ok(empty patch) in the trimmed and planar lanes
-status: open
+status: closed
 opened: 2026-09-18
 priority: P1
-cost: D
+cost: M
+branch: tesslie/empty-patch
+closed: 2026-11-20
+pr: 7196
 ---
 
 
@@ -80,3 +83,7 @@ with a note about the message, and the row narrows to `planar`.
 ## Moved to TESSLIE (the mesh answers Ok, or panics, where it should refuse or mesh right) (2026-10-28)
 
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
+
+## Closed (TESSLIE, PR 7196, 2026-11-20)
+
+Executed, not just read. **Planar: reached.** A lamina of two coincident arcs emitted 0 triangles per face, and the cross-face census panicked (release included). The planar and trimmed lanes now both call one structural refusal, `mesh::region::require_a_region` → `TessellateError::BoundaryBoundsNoRegion`: no realised boundary side is crossed an odd number of times, which is exactly the case where the even-odd classification keeps nothing. It is integer parity over the sides the triangulator realised, and the input is which chart points it merged bitwise. **Trimmed: unreached** by the row's candidate, which refuses `DomainUnread{OuterOpen}` at topo's face lift. Its exact-zero shoelace gate is retired as a region decision: a zero sum now means "no orientation" (`TrimLoopOrientation`). A chord floor (`chords::short_loop_floors`) gives every loop at least three points, so a δ-coarse polygon is never read as a loop with no region (the reviewer's lens witness meshes at δ 0.1). Residue: `zero-area-laminae-whose-traversals-differ-by-rounding-refuse-under-words-for-other-causes`.

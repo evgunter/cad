@@ -23,6 +23,13 @@ pub fn bulge_loop<T: Real>(chain: Vec<(Point2<T>, T)>) -> ProfileLoop<T> {
     ProfileLoop::from_chain(crate::lower_chain(&chain))
 }
 
+/// How far past its boundary a fillet lever's value still fits exactly
+/// at `band`: the reach the fillet doors offer their levers within.
+#[must_use]
+pub fn exact_fit_reach(band: geom_core::Band) -> f64 {
+    crate::sugar::exact_fit_reach(band)
+}
+
 /// **Every tip state some verb has a row at, plus `Closed`** (which
 /// none has): read off the transition table rather than listed, so a
 /// state the table gains is walked without an edit.

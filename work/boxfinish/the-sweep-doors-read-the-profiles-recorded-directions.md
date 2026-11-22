@@ -91,14 +91,10 @@ things to this unit, because each needs a door that reads a direction.
     literal rectangle's hop directors, exact `(0, ±1)` from PR 6963 to
     that fix, are ulp-wide again (`[0, 0]` over the length is exact;
     `y/√(y²)` carries rounding).
-  - `Sym<Interval>`: a hop between two points that share a variable
-    (the slab's `(W, 0) → (W, 1)`) keeps its exact axis in an eager
-    session, over a box or a point; in a deferring session only at a
-    point box (over a box it takes the quotient, with `W − W`'s width).
-    One between two different variables that agree at the nominal takes
-    the quotient with its width.
-  - `Sym<f64>`: an identity mints its axis only where its value reads
-    exactly zero; one whose value rounds takes the quotient
+  - `Sym`: where an identity mints its axis, session by session, is
+    audit row F43 (`docs/predicate-dimension-audit.md`); a hop between
+    two different variables that agree at the nominal takes the quotient
+    with its width, and so does an identity the tier was not asked about
     (`work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md`).
   Verb-recorded directions are untouched. Nothing reads a direction
   yet; a door that reads a hop's director at plain `Interval` meets this

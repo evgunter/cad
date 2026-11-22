@@ -901,11 +901,11 @@ impl Frontier<'_> {
 ///
 /// Written here because this is the module that decides on it. Two
 /// neighbours answer a related question and neither is this one:
-/// `resolve::vdiff`'s `NodeVerdictDelta::is_empty` folds the standing
-/// difference in with the sign flips and the divergences, so it cannot
-/// tell the two arms apart; and `drive::classify_replay` compares
-/// whole verdict vectors, in which a standing is one row among many.
-/// A consumer wanting this question asks it here.
+/// `resolve::vdiff`'s `FlipSet` holds a node whose standing differs
+/// beside one that turned, so its membership cannot tell the two arms
+/// apart; and `drive::classify_replay` compares whole verdict vectors,
+/// in which a standing is one row among many. A consumer wanting this
+/// question asks it here.
 fn standing_changed(evidence: &FlipEvidence) -> bool {
     evidence
         .verdicts
@@ -1052,8 +1052,7 @@ mod tests {
             NodeVerdictDelta {
                 old_status: old,
                 new_status: new,
-                flips: Vec::new(),
-                diverged: Vec::new(),
+                flip: None,
             },
         );
         FlipEvidence {

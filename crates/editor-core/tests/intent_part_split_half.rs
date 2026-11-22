@@ -28,7 +28,7 @@ fn a_file_holding_a_split_half_part_refuses_unreadable() {
             distance: len(1.0),
         },
     );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let text = save(&doc, Tol::witness()).expect("saves");
     let at = text.find('{').expect("the JSON body follows the id header");
     let (header, body) = text.split_at(at);
     let mut body: serde_json::Value = serde_json::from_str(body).expect("the body parses");

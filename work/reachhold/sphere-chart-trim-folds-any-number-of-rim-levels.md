@@ -11,7 +11,7 @@ cost: E
 
 Found by both of CONTACT-3's dual reviewers. It is the sphere
 sibling of the stepped-outline case that unit closed for the cylinder:
-there, `wall_outline` (`crates/topo/src/boolean/solid_contain.rs`) reads
+there, `wall_outline` (`crates/topo/src/solid_contain.rs`) reads
 a rims-and-meridians wall as its rectangle only when the rims sit on
 exactly two levels, and reads any other outline by parity along the
 ruling.

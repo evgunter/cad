@@ -13,11 +13,13 @@ Found by the class sweep of
 (a spline chart's normal `S_u × S_v` read at a point with no
 regularity or crease reading).
 
-`step-import`'s `recognize::chart_normal_mid` and
+`step-import`'s `recognize::patch_jet_mid` and
 `recognize::chart_flipped` (`crates/step-import/src/recognize.rs`)
 read the NURBS chart's `S_u × S_v` at the domain midpoint. This is the
 orientation reference a promoted plane or cylinder is aligned to, so
-the face's `same_sense` keeps its meaning. Neither asks whether the
+the face's `same_sense` keeps its meaning; a promoted plane also takes
+its kept roll (`u_ref`) from the same jet's `S_u`, so a fix that moves
+the sample moves both together. Neither asks whether the
 chart is regular there:
 
 - **An irregular midpoint.** Where `S_u × S_v` vanishes (coincident
@@ -34,3 +36,5 @@ chart is regular there:
 The readings to reuse are `geom_brep::regular_jet` and
 `geom_brep::chart_normal_at`. Or read the sense at a sample the chart
 is known regular at, and refuse the promotion where none is found.
+
+- 2026-11-20 — **Widened (EXCH, whole-patch promotion):** the hazard is every promoted kind's, not the plane's and cylinder's alone. Cone, sphere and torus carriers are composed into `same_sense` through the same `chart_flipped` midpoint read, and the curved estimators sample the chart's jet at fixed fractions (`curvature_at`, `seam_reference`), which an irregular or C⁰ sample misreads the same way; there the certificate refutes a wrong carrier, but a wrong SENSE has no certificate behind it. (EXCH lane A)

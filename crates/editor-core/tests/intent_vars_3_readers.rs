@@ -221,8 +221,8 @@ fn a_delete_leaves_its_readers_unresolved() {
         "the reader stays on the deleted variable"
     );
 
-    let text = save(&doc, &[], Tol::witness()).expect("an unresolved document saves");
-    let loaded = load(&text, Tol::witness()).expect("and loads").doc;
+    let text = save(&doc, Tol::witness()).expect("an unresolved document saves");
+    let loaded = load(&text, Tol::witness()).expect("and loads");
     assert!(loaded.bit_eq(&doc), "the round trip is exact");
 
     // A reader of an id the document never minted is a file fault.
@@ -602,8 +602,8 @@ fn readers_round_trip_and_a_stored_name_refuses() {
         },
     )
     .doc;
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = load(&text, Tol::witness()).expect("loads").doc;
+    let text = save(&doc, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("loads");
     assert!(loaded.bit_eq(&doc));
     assert_eq!(loaded.var_names().len(), 1);
     assert_eq!(loaded.vars().len(), doc.vars().len());
@@ -735,11 +735,10 @@ fn split_and_inline_carry_readers_by_id() {
         Formula::var(part_h, Dimension::Length),
         "the carried reader reads the part's id"
     );
-    let text = save(&out.part, &[], Tol::witness()).expect("the part saves");
+    let text = save(&out.part, Tol::witness()).expect("the part saves");
     assert!(
         load(&text, Tol::witness())
             .expect("and loads")
-            .doc
             .bit_eq(&out.part)
     );
 
@@ -774,11 +773,10 @@ fn split_and_inline_carry_readers_by_id() {
             .bit_eq(anonymous.var(id(&doc, "h")).expect("the source holds it")),
         "its definition crosses bit for bit"
     );
-    let text = save(&out.part, &[], Tol::witness()).expect("the part saves");
+    let text = save(&out.part, Tol::witness()).expect("the part saves");
     assert!(
         load(&text, Tol::witness())
             .expect("and loads")
-            .doc
             .bit_eq(&out.part)
     );
 
@@ -1307,11 +1305,10 @@ fn inline_repoints_readers_at_the_hosts_ids() {
         BTreeSet::from([host_d, host_e]),
         "every carried reader reads a host id"
     );
-    let text = save(&out.doc, &[], Tol::witness()).expect("the host saves");
+    let text = save(&out.doc, Tol::witness()).expect("the host saves");
     assert!(
         load(&text, Tol::witness())
             .expect("and loads")
-            .doc
             .bit_eq(&out.doc)
     );
     assert!(failures(&eval_after(&out.doc, None)).is_empty());

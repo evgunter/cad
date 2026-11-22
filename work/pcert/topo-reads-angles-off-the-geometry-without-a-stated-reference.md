@@ -36,7 +36,7 @@ Placed or stored (a):
   re-homing (`:5348`), which since PCERT B1 reads through
   `geom_brep::Azimuth::principal` (topo's `stable_azimuth` is gone) and
   still lifts the read by hand with `periodic_branch`;
-- `topo/src/boolean/rim_wedge.rs:531` `locus_param`;
+- `topo/src/rim_wedge.rs:531` `locus_param`;
 - `topo/src/offset_axial.rs:2443` `param_on`, `:2687` `reauthor`,
   `:2857` `azimuth_turn`.
 
@@ -44,8 +44,8 @@ Compared against a span or window (b):
 - `topo/src/ring_path.rs:464`, `:1191`, `:1351`, `:1364`, `:1568`;
 - `geom-brep/src/curve_face/plane_crossing.rs` `span_roots`;
 - `geom-brep/src/curve_face/circle_roots.rs:305`;
-- `topo/src/boolean/rim_wedge.rs:874`;
-- ~~`topo/src/boolean/sphere_region.rs:389`~~ fixed by RESTCURVE's
+- `topo/src/rim_wedge.rs:874`;
+- ~~`topo/src/sphere_region.rs:389`~~ fixed by RESTCURVE's
   pole-door PR (#6252): the door reads roots as directions, and a root
   against its arc at the nearer end, relative to that end's parameter;
 - `topo/src/boolean/boxes.rs:1841`;
@@ -61,3 +61,5 @@ Which of these reads a period-ambiguous angle that a reader then tells
 apart by copy (each such site goes onto `Azimuth::near` with a stated
 anchor, or through the marks), and which read a quantity that is never
 ambiguous (a span in `(0, π]`, a short-way turn) and need nothing.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` site this row cites is gone.

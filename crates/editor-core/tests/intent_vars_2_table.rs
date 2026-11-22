@@ -155,7 +155,7 @@ fn equal_definitions_are_two_variables_and_the_name_is_not_minted() {
 fn a_file_holding_one_name_twice_refuses() {
     let doc = twins();
     let (w, v) = (id(&doc, "w"), id(&doc, "v"));
-    let text = save(&doc, &[], Tol::witness()).unwrap();
+    let text = save(&doc, Tol::witness()).unwrap();
     let from = format!("\"{}\": \"v\"", v.0);
     assert_eq!(text.matches(&from).count(), 1, "v's name row: {text}");
     let bad = text.replace(&from, &format!("\"{}\": \"w\"", v.0));
@@ -317,12 +317,12 @@ fn a_kind_is_fixed() {
 #[test]
 fn the_table_round_trips_with_its_var_mint_arm() {
     let doc = twins();
-    let text = save(&doc, &[], Tol::witness()).unwrap();
+    let text = save(&doc, Tol::witness()).unwrap();
     for name in ["w", "v"] {
         let tag = format!("\"var\": \"{}\"", id(&doc, name).0);
         assert_eq!(text.matches(&tag).count(), 1, "{name}'s mint entry");
     }
-    let back = load(&text, Tol::witness()).unwrap().doc;
+    let back = load(&text, Tol::witness()).unwrap();
     assert!(back.bit_eq(&doc), "round trip");
     assert_eq!(back.var_named("w"), doc.var_named("w"));
     assert_eq!(back.var_named("v"), doc.var_named("v"));
@@ -332,7 +332,7 @@ fn the_table_round_trips_with_its_var_mint_arm() {
 /// is unreadable, and the refusal names the field.
 #[test]
 fn an_old_format_params_file_is_unreadable_naming_params() {
-    let text = save(&twins(), &[], Tol::witness()).unwrap();
+    let text = save(&twins(), Tol::witness()).unwrap();
     assert_eq!(text.matches("\"vars\": {").count(), 1);
     let old = text.replace("\"vars\": {", "\"params\": {");
     match load(&old, Tol::witness()) {
@@ -413,7 +413,7 @@ fn analysis_is_keyed_by_var_id() {
 fn load_doctored(edit: impl FnOnce(&mut serde_json::Value, VarId, VarId)) -> PersistError {
     let doc = twins();
     let (w, v) = (id(&doc, "w"), id(&doc, "v"));
-    let text = save(&doc, &[], Tol::witness()).unwrap();
+    let text = save(&doc, Tol::witness()).unwrap();
     load(&text, Tol::witness()).expect("the undoctored save loads");
     let corrupt = crate::wire::doctored(&text, |wire| edit(&mut wire["snapshot"], w, v));
     load(&corrupt, Tol::witness()).expect_err("the doctored save must refuse")
@@ -544,7 +544,7 @@ fn every_lane_reads_the_declaration_order_not_the_digest_order() {
         vec![w, v]
     );
     // And the order survives a save.
-    let text = save(&doc, &[], Tol::witness()).unwrap();
-    let back = load(&text, Tol::witness()).unwrap().doc;
+    let text = save(&doc, Tol::witness()).unwrap();
+    let back = load(&text, Tol::witness()).unwrap();
     assert_eq!(back.var_ids(), doc.var_ids());
 }

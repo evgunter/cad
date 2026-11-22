@@ -7,10 +7,12 @@
 //! The statement reads three things, and each has scenes tangent only
 //! by value that break it alone and stay unproven: the piece's heading
 //! (typed along the tangent, or a leg not on it), the extrude's heading
-//! (a frame read off a rim, or spun about an axis off its `z`), and the
-//! face's construction (a cylinder revolved, or a twin of the one
-//! traced). Each frame move the heading is walked through has a scene
-//! that proves.
+//! (spun by a variable about an axis off its `z`), and the face's
+//! construction (a cylinder revolved, or a twin of the one traced). Each
+//! frame move the heading is walked through has a scene that proves: by
+//! the first rung where the frame's `z` is the axis read off the wall,
+//! and by the symbolic tier where it is read off a rim, which is the
+//! wall's axis for every value.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -182,6 +184,13 @@ fn unproven(proof: &Proof) -> bool {
     matches!(proof, Proof::Unproven { .. })
 }
 
+/// **Proven by the symbolic tier**: the trace statement with the
+/// extrude's heading read off the replay, the traced wall's axis along
+/// the sketch's `z` for every value.
+pub(crate) fn by_its_heading(proof: &Proof) -> bool {
+    *proof == Proof::Structural(Rung::MarginIdentity)
+}
+
 fn asks_for_the_axis(proof: &Proof) -> bool {
     matches!(
         proof,
@@ -328,49 +337,55 @@ fn a_tangent_arc_leaving_the_trace_proves() {
     assert!(proven(&proof), "{proof:?}");
 }
 
-/// **The pose row**: the frame's `z` read off the bottom rim. The rim's
-/// axis is the wall's for every radius, but no statement the door reads
-/// says so; the finding asks for the axis read off the face (C's scene,
+/// **The pose row**: the frame's `z` read off the bottom rim. No
+/// statement the door reads makes the rim's axis the wall's, so the
+/// first rung leaves the heading; the replay reads the wall's axis along
+/// the sketch's `z` for every radius, which proves it (C's scene,
 /// `intent_s6_c_trace`, is the same case).
 #[test]
-fn a_frame_read_off_a_rim_asks_for_the_walls_axis() {
+fn a_frame_read_off_a_rim_proves_by_its_heading() {
     let proof = on_the_cylinder(
         |doc, cylinder| frame_off(doc, cylinder, bottom_rim(doc, cylinder)),
         boss_steps(),
     );
-    assert!(asks_for_the_axis(&proof), "{proof:?}");
+    assert!(by_its_heading(&proof), "{proof:?}");
 }
 
-/// **A spin about an axis off the frame's `z`** turns its heading, at
-/// any angle but today's `0`: spun about its own `x`, or about the rim's
-/// axis (the wall's only by what the door does not read), the boss is
-/// tangent by value alone.
+/// **A spin by a variable `t` keeps the heading only about the frame's
+/// `z`**: spun about its own `x`, the boss is tangent at `t = 0` alone,
+/// by value, and the finding names where to draw; spun about the rim's
+/// axis, which is the wall's for every value, the heading holds as an
+/// identity in `t`.
 #[test]
-fn a_frame_spun_about_another_axis_is_unproven() {
-    for (what, about) in [
-        (
-            "its own x",
-            Box::new(|doc: &ProfileDoc, cylinder| {
-                RoleRead::through(off_the_wall(doc, cylinder), PoseRole::X)
-            }) as Box<dyn Fn(&ProfileDoc, RecipeNodeId) -> RoleRead<Operand>>,
-        ),
-        (
-            "the rim's axis",
-            Box::new(|doc: &ProfileDoc, cylinder| axis_off(cylinder, bottom_rim(doc, cylinder))),
-        ),
-    ] {
-        let proof = on_the_cylinder(
-            |doc, cylinder| {
-                pose(PoseDef::Spin {
-                    pose: plain(off_the_wall(doc, cylinder)),
-                    about: about(doc, cylinder),
-                    by: ang(0.0),
-                })
+fn a_frame_spun_by_a_variable_keeps_its_heading_only_about_its_z() {
+    let spun = |about: &dyn Fn(&ProfileDoc, RecipeNodeId) -> RoleRead<Operand>| {
+        let (doc, cylinder) = standing(RADIUS, None);
+        let t = VarName::new("t").expect("a name");
+        let (doc, _) = fixture::step(
+            doc,
+            DocEdit::DeclareVar {
+                name: t.clone(),
+                def: VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.0)),
             },
-            boss_steps(),
         );
-        assert!(asks_for_the_axis(&proof), "spun about {what}: {proof:?}");
-    }
+        let frame = pose(PoseDef::Spin {
+            pose: plain(off_the_wall(&doc, cylinder)),
+            about: about(&doc, cylinder),
+            by: Formula::named(t, Dimension::Angle),
+        });
+        let scene = boss_on(doc, cylinder, frame, boss_steps());
+        tangency(
+            scene.doc,
+            vec![
+                Operand::output(scene.cylinder, 0),
+                Operand::output(scene.boss, 0),
+            ],
+        )
+    };
+    let own_x = spun(&|doc, cylinder| RoleRead::through(off_the_wall(doc, cylinder), PoseRole::X));
+    assert!(asks_for_the_axis(&own_x), "spun about its own x: {own_x:?}");
+    let rim = spun(&|doc, cylinder| axis_off(cylinder, bottom_rim(doc, cylinder)));
+    assert!(by_its_heading(&rim), "spun about the rim's axis: {rim:?}");
 }
 
 /// **The traced face is the one glued**: a boss traced on a cylinder

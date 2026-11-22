@@ -275,7 +275,7 @@ fn shoulder(h: f64) -> topo::AtRestBody<f64> {
 /// `y = 1`, tangent to the shoulder's wall along its vertex ruling,
 /// normal `−y`. Normal `+y` refuses earlier, at the reduction
 /// (`ConsecutiveOnSectors`), for a reason of its own:
-/// `work/honesplit/split-shoulder-refuses-one-orientation-at-the-reduction.md`.
+/// `work/cleavetail/split-shoulder-refuses-one-orientation-at-the-reduction.md`.
 fn shoulder_cut() -> topo::SplitPlane<f64> {
     topo::test_support::split_plane(Point3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, 0.0), tol())
 }
@@ -560,8 +560,8 @@ fn cap_at(piece: &Body<f64>, height: f64) -> topo::FaceKey {
         .filter(|(fk, _)| {
             matches!(
                 piece.face_surface(*fk),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && (origin.z - height).abs() < tol().eps()
+                Some(geom::Surface::Plane { frame, .. })
+                    if frame.axis().z.abs() > 0.5 && (frame.origin().z - height).abs() < tol().eps()
             )
         })
         .map(|(k, _)| k)
@@ -843,9 +843,10 @@ fn two_discs_kissing_externally_touch_at_every_op() {
 
 /// **The chamfer refuses the cusp strut typed, and the fillet builds
 /// it** — on the lune's cusp (wedge 0) and on a lune-shaped hole's slit
-/// (wedge 2π) alike. The supports meet tangentially: the chamfer's one
-/// arm is plane–plane, so the kiss meets its refusal for a pair that
-/// arm does not cover (`ChamferArmUnsupported`), and the fillet's ball
+/// (wedge 2π) alike. The supports meet tangentially: the chamfer's arms
+/// are plane–plane and a cylinder meeting a plane in a circle, so the
+/// kiss meets its refusal for a pair its arms do not cover
+/// (`ChamferArmUnsupported`), and the fillet's ball
 /// rests in the
 /// crescent away from the edge, which builds tier-3 valid
 /// (`a_knife_edge_fillet_builds_where_its_ball_is_defined` checks its

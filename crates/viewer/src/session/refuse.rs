@@ -1298,13 +1298,10 @@ impl VersionOffer {
     }
 }
 
-/// **Why a gesture's frame could not be made**: a traced profile's
-/// frame, or a pattern's picked direction or axis.
+/// **Why a gesture's frame could not be made**: a pattern's picked
+/// direction or axis.
 #[derive(Debug, Clone)]
 pub enum GestureFrameFault {
-    /// No frame reads off a traced face and a plane face
-    /// ([`pncad::trace::traced_frame`]).
-    Traced(std::sync::Arc<pncad::trace::TracedFrameFault>),
     /// The geometry picked for a pattern reads no direction where it
     /// stands, or, for a ring, no axis.
     NoHeading {
@@ -1316,7 +1313,6 @@ pub enum GestureFrameFault {
 impl core::fmt::Display for GestureFrameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Traced(fault) => write!(f, "{fault}"),
             Self::NoHeading { field } => write!(
                 f,
                 "the {field} picked reads none where it stands: pick a straight edge, a flat \

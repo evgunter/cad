@@ -80,8 +80,45 @@ def render(path, out, title, views, window=None, size=900):
     fig.savefig(out)
     plt.close(fig)
 
+def render_pair(d, name, title, shots):
+    """One soup before and after, side by side, per (elev, azim, window) shot: the PR 7038 scenes."""
+    before, after = load(f"{d}/{name}-before.soup"), load(f"{d}/{name}-after.soup")
+    fig, axes = plt.subplots(len(shots), 2, figsize=(12, 6.4 * len(shots)), dpi=110, squeeze=False)
+    for row, (elev, azim, window) in zip(axes, shots, strict=True):
+        lo, hi = np.array(window[0]), np.array(window[1])
+        for ax, (v, fs), when in zip(row, (before, after), ("before", "after"), strict=True):
+            ax.imshow(raster(v, fs, elev, azim, 900, (lo, hi)))
+            ax.set_axis_off()
+            ax.set_title(f"{title}, {when}\nelev {elev}°, azim {azim}°", fontsize=9)
+    fig.tight_layout(rect=(0, 0, 1, 0.98))
+    fig.savefig(f"{d}/{name}.png")
+    plt.close(fig)
+
+def odd_plus_one(d):
+    """The odd-plus-one chamfer scenes `odd_plus_one_soups.rs` dumps."""
+    flush = ((-0.7, -0.7, -0.1), (0.7, 0.7, 0.9))
+    render_pair(d, "odd-plus-one-flush",
+                "flush L, reflex vertical (odd) + floor edge along +x, s = 0.1",
+                [(-25, 45, flush), (-45, 10, flush)])
+    inset = ((-0.6, -0.6, -0.3), (0.4, 0.4, 0.7))
+    render_pair(d, "odd-plus-one-inset",
+                "inset boss, its vertical (odd) + base edge along -y, s = 0.1",
+                [(30, 45, inset), (30, 15, inset)])
+    render_pair(d, "odd-plus-one-flush-120",
+                "flush corner at 120°, vertical (odd) + floor edge along +x, s = 0.1",
+                [(-25, 60, flush), (-45, 20, flush)])
+    whole = ((0.0, 0.0, 0.0), (6.0, 4.0, 1.75))
+    near = ((-0.15, 0.25, 0.25), (0.75, 0.85, 0.8))
+    far = ((-0.15, 3.15, 0.25), (0.75, 3.75, 0.8))
+    render_pair(d, "odd-plus-one-bracket",
+                "bore-less bracket, odd edge + one other at each mixed corner, s = 0.05",
+                [(30, -60, whole), (35, -50, near), (25, -140, near), (35, 50, far)])
+
 if __name__ == "__main__":
     d = sys.argv[1]
+    if sys.argv[2:] == ["odd-plus-one"]:
+        odd_plus_one(d)
+        sys.exit(0)
     for name, title in [("bracket-fillet", "bracket filleted all round, r = 0.05"),
                         ("bracket-chamfer", "bore-less bracket chamfered all round, s = 0.05")]:
         render(f"{d}/{name}.soup", f"{d}/{name}-iso.png", title, [(30, -60), (30, 120)])

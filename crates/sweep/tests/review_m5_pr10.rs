@@ -424,6 +424,69 @@ fn a_hairpin_kink_folds_back_at_every_station_count() {
     }
 }
 
+/// **The station step owes no conditioning: inside the old conditioning
+/// band it builds.** The step selects a station's roll as a reference
+/// vector, and each lane mints the station's frame from the tangent read
+/// there, aimed verbatim, so no claim consumes where the step's turn lands
+/// (`crates/sweep/README.md` `[sweep.frame]`). It decides the least turn's
+/// pole alone (`RigidMotion::least_turn_selected`). On the two-station
+/// hairpin tilted by `δ` (its mirrored start tangent `(−δ, 0, 1)/|·|`
+/// against its arrival `(−δ, 0, −2)/|·|`), chords of a fifth and a half of
+/// the edge `2·box/reach` a conditioned turn over the session box would
+/// refuse within (about 4e-4 at the default ε, about 0.39 at 1e-12) build,
+/// as on main. *Breaks if* the step decides the conditioning
+/// (`RigidMotion::least_turn`), which refuses them as the fold-back.
+#[test]
+fn the_station_step_owes_no_conditioning_and_builds_inside_its_old_band() {
+    let tol = Tol::witness();
+    let edge = geom_core::test_support::least_turn_band_edge(
+        tol,
+        geom_core::tolerance::SESSION_BOX_EXTENT,
+    );
+    let fold = |delta: f64| {
+        NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::origin(),
+                Point3::new(delta, 0.0, 1.0),
+                Point3::new(0.0, 0.0, -1.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap()
+    };
+    let chord_of = |delta: f64| {
+        let m = Vec3::new(-delta, 0.0, 1.0) / (delta * delta + 1.0).sqrt();
+        let t = Vec3::new(-delta, 0.0, -2.0) / (delta * delta + 4.0).sqrt();
+        (m + t).norm()
+    };
+    // The tilt whose step's chord is `chord`, by bisection: the chord
+    // rises with the tilt over (0, 1].
+    let tilt = |chord: f64| {
+        let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            if chord_of(mid) < chord {
+                lo = mid
+            } else {
+                hi = mid
+            }
+        }
+        0.5 * (lo + hi)
+    };
+    let places = |chord: f64| {
+        let path = fold(tilt(chord));
+        sweep::sweep_places(start_plane(&path), &path, 2, tol).map(|_| ())
+    };
+    for frac in [0.2, 0.5] {
+        assert_eq!(
+            places(frac * edge),
+            Ok(()),
+            "a chord at {frac} of the conditioning edge {edge:e} builds"
+        );
+    }
+}
+
 /// A VANISHING tangent is the case the arm genuinely catches: a path
 /// curve whose derivative is zero at a station has no frame at all.
 #[test]
@@ -602,9 +665,10 @@ fn a_sub_tolerance_arc_lofts_as_a_line() {
 ///   two stations nearly coincide;
 /// - the fold-back: a quadratic that rises along `+z` and comes back
 ///   down past its start, its middle pole tilted off the line by `δ` so
-///   the arrival tangent misses the departure tangent's mirror by
-///   `θ ≈ 1.5·δ`, a margin `1 − cos θ` of `ε·√K`. At `δ = 0` the same
-///   path folds back exactly, and refuses as decided.
+///   the arrival tangent misses the departure tangent's mirror by a
+///   chord `≈ 1.5·δ`, levered over the session box (the station step's
+///   lever) to `ε·√K`. At `δ = 0` the same path folds back exactly, and
+///   refuses as decided.
 #[test]
 fn each_path_decision_has_an_in_band_twin() {
     use sweep::PathDecision;
@@ -658,12 +722,17 @@ fn each_path_decision_has_an_in_band_twin() {
         Err(SkinError::PathFoldsBack { station: 1 }),
         "the untilted hairpin folds back exactly"
     );
-    let delta = (2.0 * in_band).sqrt() / 1.5;
+    // The step's pole verdict reads the chord `|m + t| ≈ 1.5·δ` levered
+    // over the session box (the station step's lever).
+    let delta = in_band / geom_core::tolerance::SESSION_BOX_EXTENT / 1.5;
     assert_eq!(
         which(&fold(delta)),
         Some((PathDecision::FoldBack, 1)),
         "the fold-back"
     );
+    // The step decides its pole alone (`least_turn_selected`): a tilt a
+    // thousand times the in-band one, past the pole verdict's band and far
+    // inside the conditioning edge `2·box/reach` it owes none of, carries.
     assert!(
         sweep::sweep_places(plane, &fold(1e3 * delta), 2, tol).is_ok(),
         "a tilt well past the band carries"

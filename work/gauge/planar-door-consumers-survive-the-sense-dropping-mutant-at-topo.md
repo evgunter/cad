@@ -20,9 +20,9 @@ reversed-face rows in the tree. Sites where the mutant survives (no
 row goes red):
 
 - `crates/topo/src/boolean/reduce.rs` `face_plane` (the keyed door).
-- `crates/topo/src/boolean/solid_contain.rs` `face_plane` (the
+- `crates/topo/src/solid_contain.rs` `face_plane` (the
   point-in-solid plane door).
-- `crates/topo/src/boolean/solid_contain.rs` `face_geo`, the
+- `crates/topo/src/solid_contain.rs` `face_geo`, the
   `FaceGeo::Plane` arm.
 - `crates/topo/src/census.rs` `star_face` (the keyed door).
 - `crates/topo/src/shell.rs` `planar_faces`.

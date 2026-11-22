@@ -585,8 +585,7 @@ pub fn monte_carlo(
     // Every sample is collected before a stop is chosen, so the one
     // reported is the first in sample order whatever the schedule.
     let samples: Vec<Result<Sample, crate::Stopped>> = if config.parallel {
-        use rayon::prelude::*;
-        (0..config.samples).into_par_iter().map(one).collect()
+        geom_core::k_stats::par_map(0..config.samples, one)
     } else {
         (0..config.samples).map(one).collect()
     };

@@ -57,15 +57,12 @@ fn tilt_raised_cap(
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match c.carrier() {
-                geom::Curve3::Circle(geom::Circle {
-                    frame:
-                        geom::Frame {
-                            origin: center,
-                            axis,
-                            ..
-                        },
-                    radius,
-                }) if center.z > 0.5 => Some((k, *axis, *radius)),
+                geom::Curve3::Circle(circle @ geom::Circle { frame, .. })
+                    if frame.origin().z > 0.5 =>
+                {
+                    let (_, axis) = (frame.origin(), frame.axis());
+                    Some((k, axis, circle.radius()))
+                }
                 _ => None,
             }
         })
@@ -83,18 +80,23 @@ fn tilt_raised_cap(
         })
         .expect("the cap side of the rim");
     let geom::Surface::Plane {
-        origin,
-        normal,
-        u_ref,
+        frame: carrier_frame,
     } = *body.face_surface(cap).expect("the cap's plane")
     else {
         panic!("the cap side is a plane")
     };
+    let (origin, normal, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     let theta = (departure / lever).asin();
     let tilted = geom::Surface::Plane {
-        origin,
-        normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
-        u_ref,
+        frame: geom::Frame::new(
+            origin,
+            normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
+            u_ref,
+        ),
     };
     // Lifts RechartStrandsDescriptions: the tilted cap plane is the unit's tilt.
     body.set_face_surface_unvouched_for_tests(
@@ -130,9 +132,10 @@ fn verdict(body: &Body<f64>, rim: EdgeKey) -> Result<(), BlendError> {
 fn r1_tilted_cap_departure_is_the_meridian_reading() {
     for departure in [1e-3, in_band(), 2.0 * tol().eps(), 0.5 * tol().eps()] {
         let (body, _, cap, axis, lever) = tilted_cap(departure);
-        let geom::Surface::Plane { normal, .. } = *body.face_surface(cap).unwrap() else {
+        let geom::Surface::Plane { frame, .. } = *body.face_surface(cap).unwrap() else {
             panic!("a plane")
         };
+        let normal = frame.axis();
         let read = normal.cross(axis).norm() * lever;
         assert!(
             (read - departure).abs() <= 1e-9 * departure.max(1e-300),
@@ -206,10 +209,7 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
     let (body, rim, _, _, _) = tilted_cap(0.0);
     let zero = verdict(&body, rim).unwrap_err();
     eprintln!("one arc at departure 0: {zero:?}");
-    assert!(
-        matches!(zero, BlendError::UnsupportedCorner { .. }),
-        "{zero:?}"
-    );
+    assert!(matches!(zero, BlendError::UnbuiltEnd(_)), "{zero:?}");
     let (body, rim, _, _, _) = tilted_cap(in_band());
     match verdict(&body, rim) {
         Err(BlendError::Escalated {
@@ -234,10 +234,7 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
     // same corner refusal as the zero leg.
     let (body, rim, _, _, _) = tilted_cap(0.5 * tol().eps());
     let sub = verdict(&body, rim).unwrap_err();
-    assert!(
-        matches!(sub, BlendError::UnsupportedCorner { .. }),
-        "{sub:?}"
-    );
+    assert!(matches!(sub, BlendError::UnbuiltEnd(_)), "{sub:?}");
 }
 
 /// **A THREE-arc rim carves where a two-arc rim does.** The whole
@@ -265,7 +262,7 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.carrier()),
-                    Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. })) if center.z > 0.5
+                    Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if frame.origin().z > 0.5
                 )
             })
             .expect("a raised arc")
@@ -339,9 +336,11 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
     let e = body.edges().next().unwrap().0;
     let o = Point3::new(0.0, 0.0, 0.0);
     let plane = |normal: Vec3<f64>| geom::Surface::Plane {
-        origin: o,
-        normal,
-        u_ref: Vec3::new(0.0, 0.0, 1.0).cross(normal).normalize(),
+        frame: geom::Frame::new(
+            o,
+            normal,
+            Vec3::new(0.0, 0.0, 1.0).cross(normal).normalize(),
+        ),
     };
     let x = plane(Vec3::new(1.0, 0.0, 0.0));
     let tilted = plane(Vec3::new(1.0, in_band(), 0.0).normalize());
@@ -489,10 +488,9 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
             .filter_map(|(k, e)| {
                 let c = body.get_curve_geom(e.curve)?.certified()?;
                 match c.carrier() {
-                    geom::Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { origin: center, .. },
-                        ..
-                    }) if center.z > 0.5 => Some(k),
+                    geom::Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z > 0.5 => {
+                        Some(k)
+                    }
                     _ => None,
                 }
             })

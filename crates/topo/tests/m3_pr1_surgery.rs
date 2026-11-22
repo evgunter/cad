@@ -396,9 +396,11 @@ fn merge_coplanar_glues_on_the_margin() {
     // plane, opposed: stays unmerged.
     let mut mirrored = build(|_| FaceSurface::New {
         surface: geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            normal: Point3::new(0.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 1.0),
-            u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0),
+                Point3::new(0.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 1.0),
+                Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
+            ),
         },
         sense: true,
     });
@@ -422,8 +424,8 @@ fn merge_coplanar_glues_on_the_margin() {
     let pair: Vec<_> = declared
         .faces()
         .filter_map(|(fk, f)| match declared.face_surface(fk) {
-            Some(geom::Surface::Plane { origin, normal, .. })
-                if origin.z == 1.0 && normal.z == 1.0 =>
+            Some(geom::Surface::Plane { frame, .. })
+                if frame.origin().z == 1.0 && frame.axis().z == 1.0 =>
             {
                 Some(f.surface)
             }
@@ -440,9 +442,11 @@ fn merge_coplanar_glues_on_the_margin() {
     // plane, so it merges.
     let mut numeric = build(|_| FaceSurface::New {
         surface: geom::Surface::Plane {
-            origin: Point3::new(0.25, 0.75, 1.0),
-            normal: Point3::new(0.0, 0.0, 1.0) - Point3::new(0.0, 0.0, 0.0),
-            u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.25, 0.75, 1.0),
+                Point3::new(0.0, 0.0, 1.0) - Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
+            ),
         },
         sense: true,
     });
@@ -456,9 +460,11 @@ fn merge_coplanar_glues_on_the_margin() {
 /// The plane z = 1 charted with its normal along `normal_z` (±1).
 fn top_plane(normal_z: f64) -> geom::Surface<f64> {
     geom::Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        normal: Point3::new(0.0, 0.0, normal_z) - Point3::new(0.0, 0.0, 0.0),
-        u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(0.0, 0.0, normal_z) - Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
+        ),
     }
 }
 

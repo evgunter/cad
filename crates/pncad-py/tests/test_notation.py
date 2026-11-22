@@ -261,7 +261,7 @@ class TestAParameterRemembersItsNotation(unittest.TestCase):
 
     def test_the_notation_survives_a_save_and_load(self):
         doc = doc_with(WIDTH, FreeVar.written_length(WrittenLength.in_unit(25.0, mm)))
-        back = load(doc.save()).doc
+        back = load(doc.save())
         self.assertEqual(back.params[WIDTH].unit, "mm")
         self.assertEqual(back.params[WIDTH],
                          FreeVar.written_length(WrittenLength.in_unit(25.0, mm)))

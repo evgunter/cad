@@ -280,14 +280,13 @@ impl<T: Real> SharedRow<T> {
 /// (the only way an arc-rim image is stated or certified), its chart
 /// parameter increasing with the carrier's with a positive derivative on
 /// every sub-arc ([`Pcurve::IsoArc`]'s map).
+///
+/// It is [`Pcurve::held_line`] with an arc rim held to rows: an arc rim
+/// whose image holds `u` admits no crossing reading here.
 pub(crate) fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
-    let zero = |x: T| geom_core::is_exact_zero(x);
-    match image {
-        Pcurve::IsoLine { p0, pl, .. } if zero(pl.y) && !zero(pl.x) => Some((true, p0.y)),
-        Pcurve::IsoLine { p0, pl, .. } if zero(pl.x) && !zero(pl.y) => Some((false, p0.x)),
-        Pcurve::IsoArc { p0, pd, .. } if zero(pd.y) && !zero(pd.x) => Some((true, p0.y)),
-        _ => None,
-    }
+    let line = image.held_line().ok()?;
+    let along_u = line.axis == crate::ssi::ChartAxis::V;
+    (along_u || !matches!(image, Pcurve::IsoArc { .. })).then_some((along_u, line.value))
 }
 
 /// Whether `image` can be a row image at all: a spline chart's iso row

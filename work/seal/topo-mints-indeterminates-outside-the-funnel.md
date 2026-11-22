@@ -56,7 +56,7 @@ ground:
 - `crates/topo/src/census.rs` — `undecided.push(invalid(band,
   "material_wedge_side"))` after a definite `DihedralClass::Transverse`,
   and a second at the `cause: invalid(band, name)` site above it.
-- `crates/topo/src/boolean/contain.rs` — `Ok(Sign::Negative) =>
+- `crates/topo/src/contain.rs` — `Ok(Sign::Negative) =>
   Err(invalid(band, "bool_contact_arc"))`, plus the
   `ContainError::Escalated(invalid(band, "bool_contact_edge"))` site.
   (The `bool_contact_arc` site is gone: its last home,
@@ -126,7 +126,7 @@ indeterminate: margin is invalid (NaN or a poisoned enclosure) …"*
 about a margin that DECIDED exactly Zero. The same sentence appears on
 the undeclared flush case at x = 0.5 and 0.99. The refusal is correct;
 its diagnostic states a poison that did not occur.
-`work/stack/certified-lane-non-real-contract-audit.md` records the same
+`work/encl/certified-lane-non-real-contract-audit.md` records the same
 payload from the M10-DI review as a member of its class; this is its
 minting site.
 
@@ -481,15 +481,15 @@ sites are the PRED, CLEAVE and D10 rows in this table.
 | C7 | `containment.rs:1993` | `point_in_arc_loop_boundary_disagreement` | c, disagreement |
 | C8 | `splitting/order.rs:126` `in_plane_frame` | `split_join_frame_arm`: every member decided non-positive | a (the #3686 correction) |
 | C9 | `chord_join.rs:907` `agreed_section` | `pc_parallel_gap_disagreement`, `pc_axis_plane_parallel_disagreement` | c, two independent readings |
-| C10 | `boolean/contain.rs:626` | `bool_contact_arc_end_vertex` (I11) | c, disagreement |
+| C10 | `contain.rs:626` | `bool_contact_arc_end_vertex` (I11) | c, disagreement |
 | C11 | `boolean/sectors.rs:418` `bisector_zero_refusal` | `bool_sector_bisector_side`: an honest `±zero` enclosure, off the log (N19) | c |
 | C12 | `boolean/plane_eq.rs:102` `orientation_zero` | `bool_plane_orient` decided Zero, decided margin, off the log (I17). Caller `:254` is undeclared; caller `carrier_eq.rs:726` is held | a |
-| C13 | `boolean/solid_contain.rs:2760` | `bool_wall_junction`: the pieces' sides disagree | c |
+| C13 | `solid_contain.rs:2760` | `bool_wall_junction`: the pieces' sides disagree | c |
 | C14 | `solid_contain.rs:2766` | `bool_wall_junction`: both ends of a piece are active | c |
 | C15 | `solid_contain.rs:2774` | `bool_wall_trim` decided Zero. It may be a graze (`Ok(None)`), like the sibling Zero arms | a |
 | C16 | `solid_contain.rs:3534` `latitude_extremes` | `bool_sphere_trim_latitude`: no levels | d, structural |
 | C17 | `solid_contain.rs:5405` | `bool_ray_torus_count`, `CountDisagrees` | c, invariant |
-| C18 | `boolean/sphere_region.rs:384` | `bool_sphere_region_roots_count`, `CountDisagrees` | c, invariant |
+| C18 | `sphere_region.rs:384` | `bool_sphere_region_roots_count`, `CountDisagrees` | c, invariant |
 | C19 | `census.rs:2583` (RESTREAD ground) | `material_wedge_side`: `Transverse` after the edge screen (I8) | c, decided twice |
 | C20 | `boolean/carrier_eq.rs:168` `CoincidenceMeasure::decide` | an unreadable datum that is not finite | d, honest poison |
 | C21 | `carrier_eq.rs:836` `coincident_as_declared` | the sum decided nonzero where every datum decided zero (N6), honest margin | c, disagreement |
@@ -674,3 +674,15 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 ## Slate triage
 
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). SEAL holds the Indeterminate seal and the declared-contact rows in its way; id and body unchanged. (CLEAVE orchestrator)
+
+## CHART's sites retired (CHARTTAIL, 2026-11-20, branch `charttail/decided-gates`)
+
+The CHARTTAIL change on `charttail/decided-gates` retires the CHART
+bullet of the re-scope and step 1's two new step-4 `chart_region` sites:
+- `definite_diag` ×3 (`cyl_band_area`, `cross_order`, `area`): deleted.
+  Each caller goes through `k_stats::decide_positive`, so the
+  rejection carries the lane's own reading (no more `Value(lo)`), tagged
+  with the decided sign.
+- `cyl_axis_sense` decided Zero: goes through `k_stats::decide_nonzero`.
+
+`merge_faces`' LoopWinding, from the same list, is not touched.

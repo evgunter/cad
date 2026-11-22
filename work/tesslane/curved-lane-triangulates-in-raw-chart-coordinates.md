@@ -67,3 +67,6 @@ watertight, with no refusal:
 | torus R/r = 2, 20, 20, 100 | radians × radians at R/r | r | 1.4e-2 |
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+- 2026-11-17 — **The closing premise was false for a split vertex.** "So the lane's boundary points are rim chords on iso lines and meridian chords on the rectangle's sides, and there is no trim point inside the lattice to fan from" held for every point but a vertex splitting a straight side: on a cylinder or cone that vertex is a boundary point off the lane's grid, and the raw-chart CDT fanned from it across columns (a cylinder wall's split ruling exceeded its certificate) or, at a cone's apex, down one column into triangles of no area (`a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it`). Such a face now goes to the chart lane (`walk::splits_a_straight_side`).
+

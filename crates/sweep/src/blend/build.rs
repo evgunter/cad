@@ -97,9 +97,9 @@ pub struct Blended<T: topo::AtRestPolicy> {
     /// chamfer's planar patches, one per original vertex, in
     /// original-vertex order.
     pub corner_faces: Vec<FaceKey>,
-    /// The torus band faces — one per CLOSED chain (the fillet's rim
-    /// blends; a chamfer has no closed-chain band), in
-    /// first-link-edge order. Empty when no requested chain closes.
+    /// The closed-rim band faces — one per CLOSED chain (the fillet's
+    /// torus, the chamfer's cone frustum), in first-link-edge order.
+    /// Empty when no requested chain closes.
     pub band_faces: Vec<FaceKey>,
     /// **Per-entity birth records**: what the blend minted and which
     /// source entity each mint was made for.
@@ -134,7 +134,7 @@ impl<T: topo::AtRestPolicy> Blended<T> {
         &self,
         records: &topo::ContactRecords,
         band: geom_core::Band,
-        region: Option<topo::RegionLane<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
         match &self.naming {
             Some(naming) => naming.carry_contacts(records, &self.body, band, region),
@@ -172,9 +172,9 @@ impl<T: topo::AtRestPolicy> Blended<T> {
 /// [`BlendError::NonpositiveSize`] when `radius` is not definitely
 /// positive; any refusal the battery produces;
 /// [`BlendError::RepeatedEdge`] when the request names one edge
-/// twice; [`BlendError::UnsupportedChain`], [`BlendError::UnsupportedRunOut`],
-/// [`BlendError::UnsupportedGeometry`] or
-/// [`BlendError::UnsupportedCorner`] when the request is outside
+/// twice; [`BlendError::UnsupportedChain`], [`BlendError::UnbuiltEnd`],
+/// [`BlendError::ObliqueMixedCorner`] or
+/// [`BlendError::UnsupportedGeometry`] when the request is outside
 /// the assembly's front door ([`super::surgery`] names each case);
 /// [`BlendError::BodyNotIntact`] when the body does not hold together
 /// where the plan reads it, among them a requested chain or corner
@@ -407,7 +407,10 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
 pub(super) fn outward_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
     let f = body.get_face(face)?;
     match body.face_surface(face)? {
-        Surface::Plane { normal, .. } => Some(OutwardNormal::from_chart(*normal, f.sense)),
+        Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            Some(OutwardNormal::from_chart(normal, f.sense))
+        }
         _ => None,
     }
 }
@@ -428,7 +431,7 @@ pub type Filleted<T> = Blended<T>;
 
 /// A chamfered body. The same record the fillet's assembly returns —
 /// `blend_faces` are the strips, `corner_faces` the flat patches, and
-/// `band_faces` is empty, since a chamfer has no closed-chain band.
+/// `band_faces` the cone frustums over closed plane–cylinder rims.
 pub type Chamfered<T> = Blended<T>;
 
 /// **Chamfer a set of a body's edges** at equal setback `distance`
@@ -447,12 +450,14 @@ pub type Chamfered<T> = Blended<T>;
 /// [`BlendError::NonpositiveSize`] when `distance` is not definitely
 /// positive; [`BlendError::RepeatedEdge`] when the request names one
 /// edge twice; [`BlendError::ChamferArmUnsupported`] when a requested
-/// edge's supports are not both planes; any predicate refusal the
+/// edge's supports are neither both planes nor a cylinder meeting a
+/// plane in a circle about its axis, or the latter's arc lies in a
+/// chain with links over other supports; any predicate refusal the
 /// battery raises, or [`BlendError::Escalated`] carrying the margin;
 /// [`BlendError::UnsupportedChain`],
-/// [`BlendError::UnsupportedRunOut`],
-/// [`BlendError::UnsupportedGeometry`] or
-/// [`BlendError::UnsupportedCorner`] when the request is outside
+/// [`BlendError::UnbuiltEnd`],
+/// [`BlendError::ObliqueMixedCorner`] or
+/// [`BlendError::UnsupportedGeometry`] when the request is outside
 /// the assembly's front door; [`BlendError::BodyNotIntact`] when the
 /// body does not hold together where the plan reads it, among them a
 /// requested chain or corner bounded by faces of two shells;
