@@ -51,3 +51,7 @@ the review module's twin folds at all, given its header asks not to be
 simplified to match the implementation. Shape (C) of the ruling on
 `no-public-census-or-genus-query` — per-component genus as public API —
 is the door this residue would be the first consumer of.
+
+## The question to Ev (2026-11-22, fork F5, with `shell-glue-relation-has-three-implementations`)
+
+Two designers, two reconciliation rounds. Agreed: pass 11's per-component Euler–Poincaré check is a theorem of checks 1–7 and 10 (it fires today only as an echo of pass 10), so it goes, with `ComponentCounts`, `satisfies_euler_poincare` and the public `ComponentEulerViolation`; pass 11 counts components for tier 2 and keeps its OWN walk as the shipped re-derivation (D2), while movefac, seqgen and shell.rs share one routine (`walks/glue-home`). The `[topology.tiers]` restatement is in the `[ev]` PR's diff. Split: what the census door's `genus()` should be — name both numbers (`EulerCounts` gains `c`; `h()` = s − χ/2, `genus()` = c − χ/2), or rename the current value `h()` and add nothing.
