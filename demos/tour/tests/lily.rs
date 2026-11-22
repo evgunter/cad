@@ -364,9 +364,7 @@ mod review_probes {
     /// meridian circle — as an edge lying on that wall, the carrier
     /// ladder having decided the neck cone distinct from the torus. The
     /// union stops at the interior-loop guard on the neck cone against
-    /// the torus wall: a cone and a torus that are not coaxial have no
-    /// section certificate arm. This row is what shows it moving when
-    /// that pair gets one.
+    /// the torus wall.
     #[test]
     fn the_weld_refuses_at_the_cone_torus_pair() {
         let tol = Tol::witness();
