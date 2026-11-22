@@ -7407,8 +7407,14 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             split: Option<(EdgeKey, T, bool, T)>,
         }
         let mut hits: Vec<Hit<T>> = Vec::new();
-        for (_, members, _) in view.boundary_by_loop() {
-            for member in members {
+        // A lone vertex on the meridian would be a hit no arc reads.
+        let lone = || refuse("the sphere face carries a lone-vertex loop");
+        let area = view.area_loops().map_err(|_| lone())?;
+        if !area.lone_rings().is_empty() {
+            return Err(lone());
+        }
+        for (lp, _) in area.cycles() {
+            for member in lp.members() {
                 let BoundaryMember::Edge {
                     half: hd,
                     ek: edge,
@@ -7416,7 +7422,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     ..
                 } = member
                 else {
-                    return Err(refuse("the sphere face carries a lone-vertex loop"));
+                    unreachable!("a cycle loop's members are edges")
                 };
                 let Some(curve) = body.edge_curve_linked(edge, ed).certified() else {
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
@@ -7627,10 +7633,11 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // The two ends' half-edges in the face's one loop.
         let view = body.proven_face(face);
         let mut ends = [None, None];
-        for (lk, members, _) in view.boundary_by_loop() {
-            for member in members {
+        for (lp, _) in view.cycle_loops() {
+            let lk = lp.key();
+            for member in lp.members() {
                 let BoundaryMember::Edge { he, half, .. } = member else {
-                    continue;
+                    unreachable!("a cycle loop's members are edges")
                 };
                 let start = half.start;
                 for (slot, v) in ends.iter_mut().zip([v_lo, v_hi]) {

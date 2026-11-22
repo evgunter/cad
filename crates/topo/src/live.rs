@@ -70,6 +70,31 @@
 //! [`crate::entity::Face::loop_keys`]), read raw only by a reader that
 //! reports a miss itself, which reads [`Body::unchecked_face_boundary`]
 //! for the loops.
+//!
+//! # A loop that is not a cycle
+//!
+//! What such a loop means is a property of the loop and of the question
+//! asked, stated here once; no reader re-decides it.
+//!
+//! - **A torn loop** (a walk that does not close, a key that misses) is a
+//!   broken link, not a boundary: every shape of a [`FaceView`] panics
+//!   naming it, and a reader that reports a miss itself (the validator,
+//!   the census, lineage) reads [`Body::unchecked_face_boundary`] and
+//!   reports it.
+//! - **A lone-vertex ring** is a point on the face's boundary that bounds
+//!   no area.
+//! - **A lone-vertex outer loop** (an mvfs skeleton) is a face with no
+//!   outline: every question about the face's region refuses it, once,
+//!   as [`NoOutline`], with [`LONE_LOOP_REFUSAL`]'s standing.
+//!
+//! Each question has its facet. Which half-edges, edges, rows or corners
+//! a loop holds: none ([`BoundaryMember::half_edge`],
+//! [`FaceView::cycles`], [`FaceView::cycle_loops`]). Which points bound
+//! the face: a lone loop's vertex among them ([`BoundaryMember::vertex`],
+//! [`Body::member_point`]). What region the face bounds:
+//! [`FaceView::area_loops`]. A reader of one loop takes a [`CycleLoop`],
+//! which only this module builds, so it holds no lone arm and no torn
+//! arm.
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -1202,6 +1227,11 @@ impl<T: Real> Body<T> {
             .collect()
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+#[path = "area_loops_rows.rs"]
+mod area_loops_rows;
 
 #[cfg(test)]
 // Test-support code: panicking is a test's failure mechanism (L5).
