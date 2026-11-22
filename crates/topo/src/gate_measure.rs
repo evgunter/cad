@@ -441,6 +441,8 @@ struct WalkRec {
     /// Per face pair, the least upper end of a straddling separation.
     min_hi: std::collections::BTreeMap<(FaceKey, FaceKey), f64>,
     pair_share: std::collections::BTreeMap<(FaceKey, FaceKey), &'static str>,
+    /// Per face pair, the deepest straddling split: (depth, lo, hi).
+    deepest: std::collections::BTreeMap<(FaceKey, FaceKey), (u32, f64, f64)>,
     /// Per walk event, its (first, nearest) touching ancestors.
     lineage: Vec<(u32, u32)>,
 }
@@ -791,13 +793,23 @@ pub fn walk_finish(r: &EmbeddingReport, secs: f64) {
             .filter(|(k, _)| rec.pair_share.get(*k) == Some(&"shares-nothing"))
             .map(|(_, h)| format!("{h:.3e}"))
             .collect();
+        let deep: Vec<String> = rec
+            .deepest
+            .iter()
+            .map(|(k, (d, lo, hi))| {
+                format!(
+                    "{}:{d}:{lo:.3e}:{hi:.3e}",
+                    rec.pair_share.get(k).copied().unwrap_or("?")
+                )
+            })
+            .collect();
         let st: Vec<String> = rec
             .straddle
             .iter()
             .map(|((a, b, c), (n,))| format!("{a}|{b}|{c}={n}"))
             .collect();
         write(&format!(
-            "STRADDLE\t{}\tsecs={secs:.4}\tsplits={st:?}\tshare_nothing_min_hi={near:?}\trefusing_spend_by_first_touching_ancestor={sub:?}\n",
+            "STRADDLE\t{}\tsecs={secs:.4}\tsplits={st:?}\tshare_nothing_min_hi={near:?}\trefusing_spend_by_first_touching_ancestor={sub:?}\tdeepest={deep:?}\n",
             test_name()
         ));
     }
@@ -896,6 +908,11 @@ pub fn distance_split(
                 let m = w.min_hi.entry(k).or_insert(f64::INFINITY);
                 if hi < *m {
                     *m = hi;
+                }
+                let depth = CUR.with(|c| c.get().0);
+                let dd = w.deepest.entry(k).or_insert((0, 0.0, 0.0));
+                if depth >= dd.0 {
+                    *dd = (depth, lo, hi);
                 }
                 w.pair_share.insert(k, share);
             }
