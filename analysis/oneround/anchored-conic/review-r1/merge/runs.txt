@@ -1,0 +1,18 @@
+== mutants on a7fe5cf4c (geom conic:: and curves::tests rows)
+quarter-wrong-way :: 65 passed, 3 failed, 585 skipped ::  a_re_seam_moves_parameter_zero_and_never_the_anchor; a_re_seamed_ellipse_resolves_near_its_anchor_at_the_semi_axis; running_an_ellipse_back_is_its_own_door_and_not_a_frames_reversal;
+half-keeps-pair :: 67 passed, 1 failed, 585 skipped ::  a_re_seam_moves_parameter_zero_and_never_the_anchor;
+same-ignores-form :: 67 passed, 1 failed, 585 skipped ::  the_walk_names_an_arc_held_ellipses_anchor_and_phase;
+same-ignores-phase :: 67 passed, 1 failed, 585 skipped ::  the_walk_names_an_arc_held_ellipses_anchor_and_phase;
+data-omits-phase :: 67 passed, 1 failed, 585 skipped ::  the_walk_names_an_arc_held_ellipses_anchor_and_phase;
+map-scalar-drops-phase :: 67 passed, 1 failed, 585 skipped ::  a_re_seamed_arc_held_ellipse_reads_back_lifts_and_moves_as_itself;
+azimuth-ignores-sine :: 67 passed, 1 failed, 585 skipped ::  a_re_seamed_arc_held_ellipse_reads_back_lifts_and_moves_as_itself;
+reversal-keeps-sine :: 66 passed, 2 failed, 585 skipped ::  a_re_seam_moves_parameter_zero_and_never_the_anchor; running_an_ellipse_back_is_its_own_door_and_not_a_frames_reversal;
+centred-at-sets-origin :: red: an_arc_held_ellipse_centred_elsewhere_is_translated_whole
+== r3_ci_1e-9.log
+     Summary [ 739.105s] 17651 tests run: 17651 passed, 2755 skipped
+== r3_ci_1e-12.log
+     Summary [ 867.757s] 17651 tests run: 17650 passed (1 leaky), 1 failed, 2755 skipped
+sweep::all a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta::a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta
+== gates GATE_BASE=e68799906
+exit 0
+== dump b303a32a6 vs a7fe5cf4c: 5375 lines each; moved only in quarter-turn variants (C 30+30 of 48+48, P 721+724 of 1296+1296; C fields moved: u_ref components only)
