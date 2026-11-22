@@ -71,7 +71,7 @@ refuses nothing costs within a small multiple of the slab's per
 decision, and the seven fast rows M4 lists run inside the 1.0 s budget.
 (BOXFINISH orchestrator)
 
-## Weighed (2026-11-22, fork-log row 300): the check leaves the decision path
+## Weighed (2026-11-22, fork-log row 301): the check leaves the decision path
 
 Two designers weighed this, BOXFINISH running the fork because SYM
 had no orchestrator and its cost row waits here. They agree after two
