@@ -68,7 +68,7 @@ Outside `sweep`: `crates/mesh/tests/common/mod.rs` (~:129, ~:177) and
 `crates/step-export/tests/common/mod.rs` (~:94, ~:540) are
 `work/ciw/tests-common-body-fixtures-triplicated.md`'s and stay with
 it; `crates/mesh/tests` (`issue1362_band_placement` ~:39,
-`r1_probe_hash` ~:67, `r1_probes_issue1362` ~:317 and ~:396,
+`r1_probe_hash` ~:67, `placed_balls` (its two placed-ball builders, moved from `r1_probes_issue1362`),
 `review_m2_pr6_walk_shapes` ~:36); `crates/mesh/src/curved.rs` (~:1261,
 ~:1276, ~:1410 — in-src test fixtures, TESS's ground);
 `crates/sweep/examples/p1b_r2_m2.rs` (~:41);
