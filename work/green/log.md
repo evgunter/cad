@@ -451,6 +451,16 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
 - 02:35Z — Fable usage limit exhausted (resets 16:00Z): U2, U3 and U4 died at dispatch. Ev, in chat: run everything on Opus, no experiment rows, and where a protocol wants two reviewers run both on Opus. U2-U4 re-dispatched on Opus; no model-compare row for any of U1-U5 (rule 12; the note is on `analysis/model-compare/green-2026-11-22`). Running: U1, U4, U5 and the nightly read in this container; U2 and U3 as cloud sessions (sweep's and editor-core's 1e-12 builds do not fit 9 GB).
 - 03:00Z — nightly read in. **Run 44927630239 (17:00Z, `dbc608ff`) was dispatched on PR 7264's branch, not main**, as were the 14:50Z and 15:08Z dispatches; the last nightly of main is the scheduled 44870651337 (`f5ef8f2b`). U2 and U3 were redirected to it. Coverage sound (19874 tests per ε row). Held already: most reds (rows on GERM, SCALAR via PR 7267, SECTARMS, SPIRICARM, SSIARITH, DOCTAIL, CHARTTAIL, BAND). The rustdoc gate's red is the tour's private-radius build (U1). The render lane's red is GERM's nist_ftc_09 snap row; that row now names the lane.
 - Unheld, filed: `main-red-seven-sweep-and-topo-rows-red-at-1e-6-since-11-17` (P1; plus sweep's sphere offer row, likely PR 7159), dispatched as **U6 `green/eps-1e-6-sweep`**, letter M, STYLE single (cloud). `pr-ci-latency-median-is-32-minutes` (P2: median 27.2 min on 11-21's alarm against the 15-minute bar, no live row). Dispatched anyway under the Friction rule as **U7 `green/pr-latency-2`**, letter M, FULL single (container, run records only).
+- 2026-11-22 — PR 7359 (U4, slow-row selection) closes.
+  - Fix pass accepted. A delta re-review by the same reviewer gave APPROVE: 3000 randomized slow sets with no entry dropped, `not default()` read from nextest 0.9.140's source, and the step's shell dry-run at the all-selected case and at 7131's.
+  - Tier FULL single, Opus. No model-compare row (Fable outage).
+  - The hosted slow-set step has still never run on this PR's own gate, because a scripts-only diff seeds no crate. The first PR that edits a slow row's file runs it: check that run's step log.
 - 2026-11-22 — PR 7371 (U1) closes, on the orchestrator's read and a green gate.
   - The ringless cone pins and the tour's private-radius build were already green on main, by TESSLIE's PR 7198 and GERM's PR 7226.
   - step-import's coverage red is held by a `KNOWN_MISSING` entry citing `work/importgate/step-import-runs-no-recourse-roster-over-its-band-funnels.md` (P3). A real roster needs the band layer's funnels renamed, which is IMPORTGATE's call.
+- 2026-11-22 — PR 7364 (U7, PR CI latency) closes.
+  - The fix pass was taken whole on a green gate (run 45015627267). The env-block equality became a gate, not a single source: anchors went unchecked against the pinned actionlint.
+  - The cancel-mid-run sibling went to BIND as a row: an event would make it exercise less.
+  - FULL single review, Opus; no model-compare row (Fable outage).
+  - The latency row closes, and the queue row holds the remainder.
+- 2026-11-22 — PR 7359 (U4) merged on its one red, an inherited varying-seed torn-body fuzz row held by CHARTTAIL (`a-split-reduce-on-a-torn-body-panics-at-pcurves-unreachable-own-loop`). Annotated on the PR.
