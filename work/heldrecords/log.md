@@ -82,3 +82,8 @@
   - **A possible red main, unverified:** two slow-set rows (`topo`/`sweep` `offer_rows`) were red on the lane's branch. A closed GREEN row had the same shape (`main-red-two-offered-tolerances-fail-just-below-their-margin`). The tangent-side lever these rows exercise is fed by the glue door, so the reviewers run both rows on head, on base and on main (claim 7).
 
   **PR 3 is go:** `heldrecords/elbow-seams`, the rim edges' described carrier under the zip. (HELDRECORDS orchestrator)
+- 2026-11-22 — **Nesting is PR 7436 (`21887b2c29`, base main); its single FULL review is out (22:50Z, `session_018u3gVJovSGyAz3GfsJYXeX`, Opus; brief `briefs/review-nesting.md`, `823280ada1`, seven claims).** Both rows are one cause, measured: a hole loop is unplaced because `line_clears_conic` clears a segment only off the whole carrier. In the counterbore, the floor chord's line crosses the outer ellipse.
+  - **The fix:** a certified piece walk, `arc_clears` (segment against arc, arc against arc). A hole that cannot be placed refuses typed `UnplacedHole`, and the "sound by cancellation" allowance is retired; nothing needed it.
+  - **Pins:** the tilted arm is lifted, and a new slow-set counterbore pin runs across t, azimuth, lean and normal at tiers 1, 3 and 3′ at three ε.
+  - **CI:** the one red is inherited from main (`work/tesslie/main-red-a-cylinder-wall-through-a-prism-corner-union-is-volume-uncomputable-at-1e-12.md`) and is annotated on the PR.
+  - **Coupling:** PR 7124 also adds an arm to `SplitFinishError`, so expect a textual conflict and nothing more. (HELDRECORDS orchestrator)
