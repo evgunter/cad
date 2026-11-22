@@ -556,3 +556,15 @@ body has the reasons):
     - a budget-specific pin.
 
     Delta review to follow.
+- 2026-11-22 18:45 — **7396's fix pass stopped on a design fork
+  (`valexact`).** The deepest value-exact branch is geom-core's
+  `RigidMotion::least_turn` identity read. `Sym`'s `is_exactly` is
+  value-only, so no editor-core-only fix makes the frames spelling sound.
+  The lane's options: (A) form-aware exactness in geom-core, (B)
+  editor-core fails closed via `Sym::opaque`, (C) retreat.
+  - **Ground:** SYM / DECIDE own the tier.
+  - **Dispatched:** two Opus designers (local, read-only). The lane is
+    meanwhile building a MAIN repro of a false proof through the same
+    read: in-plane spin or a carried slide at a zero nominal. If it
+    reproduces, a P0 is filed on its own branch.
+  - **7396 is held** at 81d4566; do not merge.
