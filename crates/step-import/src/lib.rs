@@ -57,9 +57,9 @@
 //!    carrier, each interval by the carrier's own inverse; each printed
 //!    carrier is read on its built one over its trim, certified by locus
 //!    where [`on_built`] has an arm for the pair and at its ends and
-//!    middle where it has none. No curve or point the file printed is a cache. Surfaces attach (bitwise-identical records
-//!    share one kernel surface key, restoring the writer-side key
-//!    sharing), `same_sense` lands as [`topo::Face::sense`] honored, not
+//!    middle where it has none. No curve or point the file printed is a cache. Surfaces attach (one
+//!    kernel surface key per surface record: the faces citing one entity
+//!    share it), `same_sense` lands as [`topo::Face::sense`] honored, not
 //!    healed, and the one built description is **certified** by the
 //!    kernel's own gates at ε; a smooth join the must-carry rule answers
 //!    with the pair alone refuses not-yet-supported. Pcurve
@@ -973,9 +973,10 @@ pub fn import_step(
             // one component representation are N entries over the same
             // solid index, and each is a body of its OWN — fresh
             // topology, fresh arena keys, no structure shared between
-            // copies. Sharing was never on the table: a `SolidSpec`'s
-            // maps are keyed by the file's entity ids, so two copies
-            // assembled into one arena would collide id for id.
+            // copies. Nothing is shared between them because nothing is
+            // shared between any two shells: each solid and each void is
+            // built alone, in a body of its own, and grafted under fresh
+            // keys.
             //
             // Each placement is the motion its placement pair minted
             // (`build_axes`, then `B ∘ A⁻¹` composed as motions), so it is
