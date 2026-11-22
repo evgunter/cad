@@ -2,10 +2,10 @@
 id: a-slow-row-whose-assertion-moves-without-its-name-line-is-not-gated
 kind: issue
 title: A slow-set row whose assertion or doc moves without an added line spelling its name is not selected on the PR, so a PR that moves a pinned count in a slow row is never gated on it
-status: open
+status: dispatched
 opened: 2026-11-17
 priority: P1
-cost: C
+cost: M
 ---
 
 

@@ -2,7 +2,7 @@
 id: main-red-the-tours-probe-build-destructures-a-circles-private-radius
 kind: issue
 title: Main red (nightly k-probe sweep): demos/tour does not build under --features probe, bodies.rs destructures Circle { radius, .. } and the field is private
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P1
 cost: E
