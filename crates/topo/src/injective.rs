@@ -122,7 +122,9 @@ pub(crate) const SELF_INTERSECTION_GRAPH: &str = "self_intersection_graph";
 pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// The funnel site of a plane face's convexity in a cell: how far one
 /// line edge, at its far end or over the cell's reach, stands on another's
-/// face side, metres.
+/// face side, metres. Each reading is a distance from a line along its
+/// unit normal: a corner's far end from the other edge, a cap's line from
+/// the base it caps, the base's points from the cap.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
 /// The funnel site of a vertex at a collapse of its face's chart, a
 /// cone's apex or a sphere's pole: its distance from that point, metres.
