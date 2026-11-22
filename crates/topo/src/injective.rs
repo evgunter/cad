@@ -5909,6 +5909,14 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// margin. `None` where a near edge is null scaffolding or a vertex does
 /// not resolve: a reading with no arm decides nothing.
 ///
+/// **This is the reach as [`crate::wedge_reach`] computes it, not the
+/// extent `docs/DESIGN.md` `[topology.tiers]` rules**: the reach is the
+/// farther face's, measured from the edge's middle (a run along the
+/// edge counts), and it is recomputed here per cell pair. The clause
+/// levers at how far the narrower face runs from what the two share,
+/// measured across it, read from tier 3's verdict. Building that is
+/// `work/embed/the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict.md`.
+///
 /// The arm is the pair's, by what it is NEAR, not by what a presentation
 /// reads: a pair near an edge that is presented against one of that
 /// edge's vertices alone is still levered at the edge's reach, not at
