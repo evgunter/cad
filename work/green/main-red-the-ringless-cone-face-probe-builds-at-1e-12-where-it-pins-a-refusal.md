@@ -2,10 +2,12 @@
 id: main-red-the-ringless-cone-face-probe-builds-at-1e-12-where-it-pins-a-refusal
 kind: issue
 title: Main red: mesh reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound builds T1's box at s = 0.03 at eps 1e-12, where it pins CurvedPierceUnsupported
-status: open
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: E
+closed: 2026-11-22
+pr: 7371
 ---
 
 
@@ -55,3 +57,7 @@ The roots sit 0.021 either side of the apex-nearest point and 3 from the edge's 
 **A second red, same cause, in the slow set.** `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause` (nightly) pins the same refusal at ε = 1e-12 for `t1_toward_the_apex` at `s = 0.03`, `0.01` and `10⁻³`, and all three now build: "T1's box at s = 0.03, A ∪ B: builds at ε 1e-12, where it refused CurvedPierceUnsupported". With the three 1e-12 pins taken off it passes at ε = 1e-12 (4.1 s): `s = 0.03` and `0.01` are `Got::Meshed` at δ = 2·10⁻², 5·10⁻³ and 10⁻³ for A ∪ B, B ∪ A and A ∖ B, and `s = 10⁻³` is `Got::Unread(Cone, "undecided")`, each what the default row answers. Both rows still pass at the default ε and at 10⁻⁶ with those pins off (the 10⁻⁶ pins, `Escalated` at `s = 0.01` and `CurvedPierceUnsupported` at `10⁻³`, still hold).
 
 **The fix, owed by GERM** (PR 7184's program; the test file is in CIW, GREEN and TESSLANE territory): in `crates/mesh/tests/reach_probes.rs`, the `(1e-12, …)` entry out of each of the four `refused_at` lists naming it (one in the ringless row, three in the ringed one), and the two doc sentences that state the 10⁻¹² refusal ("at `10⁻¹²` the boolean refuses the pose" and "at `10⁻¹²`, the cone at `s ≤ 0.03`"). No kernel change. Not made here: it is another program's.
+
+## 2026-11-21: greened on main by PR 7198 (TESSLIE)
+
+TESSLIE's `tesslie/four-use-edge` (commit `e56e247094`, "mesh: T1's poses build at the 1e-12 row now") is the fix the section above writes. It drops the four `(1e-12, …)` pins and the two doc sentences from `crates/mesh/tests/reach_probes.rs` and landed with PR 7198, so GREEN's PR (branch `green/small-reds`) makes no change to this row. GERM, which owed the fix, is told on its log.
