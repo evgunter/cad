@@ -1174,7 +1174,9 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// that [`crate::validate_geometric`] refuses. A pinch side's
 /// touching pieces need no contact record, since their copies of the
 /// pinched vertex share its point key, and the ON verdict that pinched
-/// them is in [`SplitResult::coincidences`].
+/// them is in [`SplitResult::coincidences`]. Where the cut crosses two
+/// line edges that are one segment (their ends on one pair of point
+/// keys), its two crossings share one point key too.
 pub fn split<F: crate::FinishedBody>(
     operand: &F,
     plane: &SplitPlane<F::Scalar>,

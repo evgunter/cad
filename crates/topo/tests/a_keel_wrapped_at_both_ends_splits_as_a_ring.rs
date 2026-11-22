@@ -341,11 +341,11 @@ fn a_keel_wrapped_at_both_ends_splits_with_its_keel_a_ring() {
 
 /// **A later cut across the ring builds, and so does one through its
 /// tip.** The side round the keel, split again: by `x = 2`, across the
-/// ring's two edges, into halves of `15.7 / 2`; by `x = 1.5` and
-/// `x = 2.5` through its tips, and by `y = 2` and `z = 0` along it. At a
-/// tip the section face wraps a full turn round the ring's two
-/// coincident edges, and each side holds its closed form and passes
-/// tier 3′.
+/// ring's two edges, into halves of `15.7 / 2` whose copies of the
+/// crossing share one point key; by `x = 1.5` and `x = 2.5` through its
+/// tips, and by `y = 2` and `z = 0` along it. At a tip the section face
+/// wraps a full turn round the ring's two coincident edges, and each
+/// side holds its closed form and passes tier 3′.
 #[test]
 fn a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip() {
     let tol = t();
@@ -369,6 +369,24 @@ fn a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip() {
         let SplitPart::Body(b) = part else {
             panic!("the cut across the ring: nothing on the {side}");
         };
+        // The ring's two edges are one segment, so the cut crosses them at
+        // one point, on one key.
+        let crossing = Point3::new(2.0, 2.0, 0.0);
+        let keys: std::collections::BTreeSet<_> = b
+            .vertices()
+            .filter(|(_, v)| b.get_point(v.point).unwrap().distance(crossing) < 1e-9)
+            .map(|(_, v)| v.point)
+            .collect();
+        assert_eq!(
+            keys.len(),
+            1,
+            "the cut across the ring: the {side} half's copies of the crossing on one key"
+        );
+        assert_eq!(
+            validate_pseudomanifold(b, topo::FinishedBody::records(b), tol),
+            Ok(()),
+            "the cut across the ring: the {side} half at tier 3′ against its records"
+        );
         let v = topo::test_support::pinned_volume("the measured body", b, tol).volume;
         let half = row.walls / 2.0;
         assert!(
