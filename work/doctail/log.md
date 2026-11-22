@@ -460,3 +460,21 @@ body has the reasons):
   Main's push CI skips the Python job, so main never saw it. The fix is
   ported into 7151, and OFFER should be told on its log when this
   branch's tracker lands.
+- 2026-11-22 07:05 — **7151 blocked on C5, and the orchestrator took
+  option (a), a sequencing call.** The 7353 rule "a trace decides nothing
+  past the crossing a piece takes" meets `geom_brep::curve_face::pose`,
+  which classifies the CARRIER, so a far tangency refuses every prefix.
+  The lane's repros: a line vs the 2/0.5 torus, and an r = 2 circle vs a
+  cylinder.
+  - **Decision:** the lane builds the topo half (prefix levers, an
+    off-span Tangent read as no meeting) and files the span-local pose on
+    GERM's slate, which is active and owns "the refusals wider than they
+    need to be". The far-Grazing row is pinned red against it.
+  - **Why it's safe meanwhile:** a carrier-pose refusal past the taken
+    crossing is loud, never a wrong build, so the ruling's soundness
+    holds.
+  - **Alternative not taken:** designers or the owner first. It doesn't
+    change what DOCTAIL builds, only when the residue closes.
+
+  7149's corrupt-input red is gone on `c1296f6`, and its other jobs are
+  queued on the runners.
