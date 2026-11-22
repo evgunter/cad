@@ -536,4 +536,57 @@ mod rows {
             Err(EndRootRefusal::NoLane)
         ));
     }
+
+    // ---- R2 probes ----
+
+    /// PROBE: a circle edge longer than a quarter turn, leaving a cylinder
+    /// tangent along its ruling (internally, radius 1.4), crosses the
+    /// wall again at φ = acos(−0.6/1.4) ≈ 2.014 inside its span 2.5. The
+    /// door's run is clipped to a quarter turn, yet `whole` reports the
+    /// window as the whole span.
+    #[test]
+    fn probe_a_long_arc_is_not_whole_past_a_quarter_turn() {
+        let rho = 1.4;
+        let arc = Curve3::circle(
+            Point3::new(1.0 - rho, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            rho,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let cyl = Surface::Cylinder {
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, -5.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            radius: 1.0,
+        };
+        let cross = ((rho - 2.0) / rho).acos();
+        let w = end_window(&arc, (0.0, 2.5), SpanEnd::Start, &cyl, band()).expect("a window");
+        eprintln!("PROBE window: at={} whole={} order={} crossing at {cross}", w.at, w.whole, w.order);
+        assert!(
+            !(w.whole && cross < 2.5),
+            "the window claims the whole span, but the arc crosses the wall at {cross} (window at {})",
+            w.at
+        );
+    }
+
+    /// PROBE: the spread the gate admits, as a fraction of the span, for a
+    /// ruling whose quadratic term decides just past the escalation.
+    #[test]
+    fn probe_how_long_a_spread_the_gate_admits() {
+        let b = band();
+        eprintln!("PROBE band zero={} escalate={}", b.zero(), b.escalate());
+        for k in [100.0, 1e3, 1e4, 1e5, 1e6] {
+            let delta = 1.5 * k * b.escalate();
+            let got = end_window(
+                &ruling(core::f64::consts::FRAC_PI_2 - delta),
+                (0.0, 2.0),
+                SpanEnd::End,
+                &bend(),
+                b,
+            );
+            eprintln!("PROBE k={k} delta={delta}: {got:?}");
+        }
+    }
 }

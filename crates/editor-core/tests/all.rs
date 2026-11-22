@@ -940,3 +940,5 @@ mod union_member_orders_decide_alike;
 mod value_chart_sweeps;
 #[path = "vessel_cavity_interval.rs"]
 mod vessel_cavity_interval;
+#[path = "probe_long_pipe_elbow.rs"]
+mod probe_long_pipe_elbow;
