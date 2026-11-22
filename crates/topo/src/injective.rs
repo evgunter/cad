@@ -13507,4 +13507,113 @@ mod presentation_rows {
             "the shared edge's far end"
         );
     }
+
+    // ------------------------------------------------ review probes (PR 7320)
+
+    /// REVIEW PROBE. A face on [`floor`] outside the unit circle's upper
+    /// half (edge 0, key 10, run clockwise to `(1, 0)`, vertex 1), which
+    /// a small circle continues tangentially there: centre `(0.8, 0)`,
+    /// radius `0.2`, clockwise over `sweep` (edge 1, key 11, to vertex 3),
+    /// then a line back to `(-1, 0)` (vertex 2). The face is left of the
+    /// loop: outside both circles, below the line.
+    fn review_bulb(sweep: f64) -> Boundary {
+        let z = Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0));
+        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let one = |plus: bool| {
+            vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }]
+        };
+        let upper = Rim {
+            stated: None,
+            key: edge(10),
+            arc: Some((
+                Curve3::circle(origin(), z, iv0(1.0), x),
+                (iv0(0.0), iv0(core::f64::consts::PI)),
+            )),
+            ends: [vertex(1), vertex(2)],
+            uses: one(false),
+        };
+        let small = Rim {
+            stated: None,
+            key: edge(11),
+            arc: Some((
+                Curve3::circle(
+                    Point3::new(iv0(0.8), iv0(0.0), iv0(0.0)),
+                    -z,
+                    iv0(0.2),
+                    x,
+                ),
+                (iv0(0.0), iv0(sweep)),
+            )),
+            ends: [vertex(1), vertex(3)],
+            uses: one(true),
+        };
+        let end = (0.8 + 0.2 * sweep.cos(), -0.2 * sweep.sin());
+        let back = segment(20, [3, 2], end, (-1.0, 0.0));
+        let p = |x: f64, y: f64| Point3::new(iv0(x), iv0(y), iv0(0.0));
+        Boundary {
+            sense: true,
+            edges: vec![upper, small, back],
+            vertices: BTreeMap::from([
+                (vertex(1), p(1.0, 0.0)),
+                (vertex(2), p(-1.0, 0.0)),
+                (vertex(3), p(end.0, end.1)),
+            ]),
+            extent: None,
+        }
+    }
+
+    /// REVIEW PROBE (claims 1 and 5): **a curved next edge that comes
+    /// back over the columns inside `R`.** [`curve_onward`] decides the
+    /// small circle's advance only up to the first parameter past the
+    /// columns' far end (`v = -0.18`); the circle turns at `v = -0.2` and
+    /// comes back through the columns at `u = 0.8 - sqrt(0.04 - v^2)`,
+    /// inside `R` for `u` in `(0.66, 0.713)`. Its far vertex `(0.6, 0)`
+    /// is outside the ball of `R`, so [`alone`] sees only the two edges.
+    /// The face point `(0.67, -0.16)` (outside the small circle, below
+    /// the line `v = 0`) is in the cell, at lower `u` than the run
+    /// (`u = 0.92` there): on the side the presentation names as not the
+    /// face.
+    #[test]
+    fn review_probe_a_curved_next_edge_that_comes_back_into_r() {
+        let s = floor();
+        let b = review_bulb(core::f64::consts::PI);
+        let (u, v) = ((0.66, 1.04), (-0.18, 0.1));
+        let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+        let ball = Ball::holding(s.point_eval(m(u), m(v)), s.rect_enclosure(u, v));
+        let local = Local::of(&b, ball, band());
+        eprintln!("local of the cell: edges {:?} vertices {:?}", local.edges, local.vertices);
+        let piece = Piece {
+            face: face(1),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u,
+            v,
+            local: &local,
+            ball,
+        };
+        let got = present_plane(&piece, &[0], &[], band());
+        match &got {
+            Ok(Presentation::Of(q)) => match &q.zero {
+                Zero::Curve(side, c) => eprintln!(
+                    "PRESENTED x {:?} y {:?} side {:?} t {:?} past {:?} run {:?} along {:?}",
+                    q.x, q.y, side, c.t, c.past, c.run, c.along.edges
+                ),
+                other => eprintln!("PRESENTED x {:?} y {:?} zero {:?}", q.x, q.y, other),
+            },
+            _ => {}
+        }
+        let r = read(got);
+        eprintln!("READ {r:?}");
+        assert!(
+            !matches!(r, Read::Of(..)),
+            "a cell whose face has points on both sides of the run is presented by one side: {r:?}"
+        );
+    }
 }
