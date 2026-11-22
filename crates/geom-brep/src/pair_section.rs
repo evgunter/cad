@@ -3263,10 +3263,13 @@ impl<T: Decide> CarriedComponent<T> {
     /// of every tube piece `p` lies in, each widened by the band's
     /// escalation, and the least gap kept ([`Self::runs`],
     /// [`Curve3::foot_within`], [`geom::Foot::least`]): the pieces are the
-    /// certificate's place for a point of the component, so the foot's
-    /// parameter is the site's place along it, and the sites' order
-    /// follows from the pieces', not from which stationary point a search
-    /// lands on. A point in no piece is not on the component: every point
+    /// certificate's place for a point of the component, so the sites'
+    /// order follows from the pieces', not from which stationary point a
+    /// search lands on. `On` certifies only a witness within the padded
+    /// band, so the foot is certified too: its along-residual is decided
+    /// zero ([`Self::foot_along`]), and the parameter returned is the
+    /// site's orthogonal foot within the band's zero, its place along the
+    /// component, or the reading escalates. A point in no piece is not on the component: every point
     /// of it lies in its tube's pieces. A component with no runs (a closed
     /// form) reads its foot on the whole carrier. Where the pad is read box by box
     /// ([`Self::boxes`]) it is the widest of the boxes `p` lies in,
@@ -3320,10 +3323,58 @@ impl<T: Decide> CarriedComponent<T> {
             None => self.carrier.foot(p, self.span.0),
         };
         match foot.on_carrier(padded) {
-            Ok(OnCarrier::On { t, .. }) => self.within_span(t, band),
+            Ok(OnCarrier::On { t, .. }) => {
+                self.foot_along(p, t, band)?;
+                self.within_span(t, band)
+            }
             Ok(OnCarrier::Off) => Ok(None),
             Err(refusal) => Err(refusal.into()),
         }
+    }
+
+    /// **That `t` is the site `p`'s orthogonal foot, within the band's
+    /// zero along the carrier** (`section_site_foot_along`). `On` decides
+    /// only that the carrier passes within the padded band of `p` at `t`,
+    /// so a witness may stand along from the foot by up to the pad. The
+    /// along-residual `a = t̂·(p − C(t))` is read instead: along the
+    /// carrier `d/ds [t̂·(p − C)] = κ n̂·(p − C) − 1`, so within an arc `L`
+    /// of `t`, where `p` stands within `r = |p − C(t)| + L` of the carrier
+    /// and its curvature is at most `κ`
+    /// ([`geom::carrier_speed::curvature_hi_over`]), the residual falls at
+    /// least `1 − κ·r` per metre, and its zero, the orthogonal foot, lies
+    /// within `|a| / (1 − κ·r)` of `t`. That bound is decided zero, with
+    /// `L` the band's escalation, which a zero verdict lies inside.
+    ///
+    /// # Errors
+    ///
+    /// [`SiteRefusal::Escalated`] where it is not decided zero: in the
+    /// band, or past it, a witness standing off its foot.
+    fn foot_along(&self, p: Point3<T>, t: T, band: Band) -> Result<(), SiteRefusal> {
+        use geom::carrier_speed::{curvature_hi_over, speed_range};
+        let (at, d1) = self.carrier.ders1(t);
+        let off = p - at;
+        let along = d1.dot(off) / d1.norm();
+        let arc = T::from_f64(band.escalate());
+        let w = speed_range(&self.carrier).0.to_param(arc);
+        let kappa = curvature_hi_over(&self.carrier, (t - w, t + w));
+        let fall = (T::one() - kappa * (off.norm() + arc)).max(T::zero());
+        // A projection onto the unit tangent, in metres, over the
+        // residual's least fall per metre, a pure number at most one.
+        let decided = geom_core::k_stats::decide_reported(
+            SITE_FOOT_ALONG,
+            Margin::of(along.abs() / fall),
+            band,
+        )
+        .map_err(SiteRefusal::Escalated)?;
+        if decided.sign == Sign::Zero {
+            return Ok(());
+        }
+        Err(SiteRefusal::Escalated(geom_core::k_stats::gate_rejection(
+            SITE_FOOT_ALONG,
+            decided,
+            band,
+            geom_core::SizedPass::Zero,
+        )))
     }
 
     /// **Whether the foot parameter `t` lies within the span**, where
@@ -3340,21 +3391,22 @@ impl<T: Decide> CarriedComponent<T> {
     /// within the band of two arcs crossing there, and escalates, as an
     /// undecided one does. Any other component's foot is its own.
     ///
-    /// **`t` is the reading's witness** ([`geom::OnCarrier::On`]): a
-    /// parameter where the carrier passes within the zero of the site,
-    /// not its foot. Any point of the carrier within the zero of the site
-    /// lies within twice the zero of the witness's, so a site is excluded
-    /// only where its witness stands past the span's end by the band's
-    /// escalation and that twice the zero more
+    /// **`t` is the site's foot, certified within the zero**
+    /// ([`Self::foot_along`]): the orthogonal foot stands within the zero
+    /// of it along the carrier, and any point of the carrier within the
+    /// zero of the site within twice the zero. So a site is excluded only
+    /// where `t` stands past the span's end by the band's escalation and
+    /// that twice the zero more
     /// (`section_site_in_span_past`, the overshoot metered at the inf over
     /// the gap, so "farther than that" is sound), whatever the band's ratio
-    /// of the two. The desync, a witness past the end by less than that
+    /// of the two. The desync, a foot past the end by less than that
     /// reach, is read at the sup (`section_site_in_span_past_near`), so
     /// "nearer than that" is sound; where the two meters disagree the
-    /// site escalates on both bounds. That holds because a conic component
-    /// is a closed form, which carries no pad: a pad widens the witness's reach by twice itself,
-    /// and only a fitted component has one, on a spline carrier, which
-    /// returns above. A conic component with a pad is a desync.
+    /// site escalates on both bounds. That reach is the zero's because a
+    /// conic component is a closed form, which carries no pad: a pad would
+    /// widen the carrier's points within the reading of the site by twice
+    /// itself, and only a fitted component has one, on a spline carrier,
+    /// which returns above. A conic component with a pad is a desync.
     fn within_span(&self, t: T, band: Band) -> Result<Option<T>, SiteRefusal> {
         // An open conic component, read in its carrier's own period.
         let (Some(_), Some(turn), false) =
@@ -3364,7 +3416,7 @@ impl<T: Decide> CarriedComponent<T> {
         };
         if self.pad > 0.0 {
             return Err(SiteRefusal::Desync(
-                "a conic component carries a pad: its witness can stand past the band from its foot",
+                "a conic component carries a pad, which a closed form never does",
             ));
         }
         let t = turn.at_or_above(t, self.span.0);
@@ -3401,7 +3453,7 @@ impl<T: Decide> CarriedComponent<T> {
             .map_err(SiteRefusal::Escalated)?;
         match near.0 {
             NonzeroSign::Positive => Err(SiteRefusal::Desync(
-                "a witness read past the span reads inside it nearer by twice the zero",
+                "a foot read past the span reads inside it nearer by twice the zero",
             )),
             // Past by more than the reach at the sup, nearer at the inf:
             // the carrier's speed over the gap leaves the site undecided.
@@ -3648,19 +3700,23 @@ pub enum ArcPlace<T: Real> {
 /// The node-distance predicate a site's reading tests first.
 const SITE_AT_NODE: &str = "section_site_at_node";
 
+/// The site's along-residual at its foot, decided zero
+/// ([`CarriedComponent::reads`]).
+const SITE_FOOT_ALONG: &str = "section_site_foot_along";
+
 /// The predicate a foot on an open conic arc is read within its span by.
 const SITE_IN_SPAN: &str = "section_site_in_span";
 
-/// The site's witness past the span's end by more than the zero's
+/// The site's foot past the span's end by more than the zero's
 /// reach from it, its gap metered at the inf over the gap
 /// ([`CarriedComponent::within_span`]'s docs).
 const SITE_PAST_SPAN: &str = "section_site_in_span_past";
 
-/// The site's witness past the span's end by less than the zero's reach,
+/// The site's foot past the span's end by less than the zero's reach,
 /// a desync, its gap metered at the sup over the gap.
 const SITE_PAST_SPAN_NEAR: &str = "section_site_in_span_past_near";
 
-/// The witness past by more than the reach at the sup and by less at the
+/// The foot past by more than the reach at the sup and by less at the
 /// inf: the two bounds of one undecided overshoot.
 const SITE_PAST_SPAN_STRADDLE: &str = "section_site_in_span_past_straddle";
 
@@ -4204,6 +4260,84 @@ mod wiring {
             "the point lies in no piece"
         );
         assert_eq!(component.reads(p, band()), Ok(None));
+    }
+
+    /// **A site's foot is its orthogonal foot, not a witness**: a spline
+    /// along `+x`, `t` its `x`, carried with a pad of `10⁻³` over two tube
+    /// pieces, the carrier's run `(0, ½)` under a piece of the component
+    /// reaching `x = ½ + 4·10⁻⁴` and `(½, 1)` under the rest. Two sites
+    /// `5·10⁻⁴` off the carrier at `x = ½ + 10⁻⁴` and `½ + 3·10⁻⁴` lie in
+    /// the first piece alone, whose run holds the foot at its end `½`:
+    /// the carrier passes within the pad of each there, so `On` reads
+    /// both at `½`. Each is read at its own foot within the band's zero or
+    /// escalates, so two sites `2·10⁻⁴` apart along the component never
+    /// read one place, nor an order the band does not support. A site
+    /// inside the run reads its foot. Red against the witness kept as the
+    /// foot: both read `½`.
+    #[test]
+    fn a_sites_foot_is_its_orthogonal_foot_not_a_witness() {
+        use geom_core::{Point3, spline::KnotVector};
+        let net = geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![Point3::origin(), Point3::new(1.0, 0.0, 0.0)],
+            vec![1.0; 2],
+        )
+        .unwrap();
+        let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(net));
+        let piece = |(x0, x1): (f64, f64), run: (f64, f64)| super::TubeRun {
+            lo: [x0, -1e-3, -1e-3],
+            hi: [x1, 1e-3, 1e-3],
+            run,
+        };
+        let joint = 0.5 + 4e-4;
+        let (first, second) = (
+            piece((-1e-3, joint), (0.0, 0.5)),
+            piece((joint, 1.0 + 1e-3), (0.5, 1.0)),
+        );
+        let component = super::CarriedComponent {
+            witness: carrier.eval(0.25),
+            boxes: Vec::new(),
+            runs: vec![first, second],
+            carrier,
+            span: (0.0, 1.0),
+            shape: super::ComponentShape::Open {
+                ends: super::ComponentEnds::default(),
+            },
+            certificate: None,
+            winds: [false, false],
+            pad: 1e-3,
+            reach: 0.0,
+        };
+        let zero = band().zero();
+        let got = component.reads(Point3::new(0.25, 5e-4, 0.0), band());
+        assert!(
+            matches!(got, Ok(Some(t)) if (t - 0.25).abs() <= zero),
+            "a site inside the run reads its foot: {got:?}"
+        );
+        let mut read = Vec::new();
+        for x in [0.5 + 1e-4, 0.5 + 3e-4] {
+            let p = Point3::new(x, 5e-4, 0.0);
+            assert!(
+                first.holds(p, band().escalate()).unwrap()
+                    && !second.holds(p, band().escalate()).unwrap(),
+                "x {x}: the site lies in the first piece alone"
+            );
+            match component.reads(p, band()) {
+                Ok(Some(t)) => {
+                    assert!(
+                        (t - x).abs() <= zero,
+                        "x {x}: read at {t}, not its foot within the zero"
+                    );
+                    read.push(t);
+                }
+                Err(super::SiteRefusal::Escalated(_)) => {}
+                other => panic!("x {x}: neither its foot nor an escalation: {other:?}"),
+            }
+        }
+        assert!(
+            read.len() < 2 || read[0] < read[1],
+            "the two sites read in their order along the component: {read:?}"
+        );
     }
 
     fn band() -> geom_core::Band {

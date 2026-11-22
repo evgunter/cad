@@ -156,6 +156,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTOR_STRAIGHT"),
     NameCarrier::Const("SENSE"),
     NameCarrier::Const("SITE_AT_NODE"),
+    NameCarrier::Const("SITE_FOOT_ALONG"),
     NameCarrier::Const("SITE_IN_SPAN"),
     NameCarrier::Const("SITE_PAST_SPAN"),
     NameCarrier::Const("SITE_PAST_SPAN_NEAR"),
