@@ -102,6 +102,7 @@ impl Session {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::super::deferred::with_deferred_session;
     use super::super::{

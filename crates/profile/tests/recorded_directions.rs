@@ -1146,6 +1146,18 @@ fn quad<T: Decide>(x1: T, x2: T, y: T) -> Result<ConstructedLoop<T>, profile::Pa
         .loop_)
 }
 
+/// The gate a verb's escalation names, or what the verb answered
+/// instead, rendered.
+fn escalated_gate<T: Real>(
+    built: Result<ConstructedLoop<T>, profile::PathError<T>>,
+) -> Result<Gate, String> {
+    match built {
+        Err(profile::PathError::Escalated { gate, .. }) => Ok(gate),
+        Err(other) => Err(format!("{other:?}")),
+        Ok(_) => Err("built".to_owned()),
+    }
+}
+
 /// [`quad`]'s second side's stored director, the quad one unit tall.
 fn quad_director<T: Decide>(x1: T, x2: T) -> Vec2<T> {
     let lp = quad(x1, x2, T::from_f64(1.0)).expect("the quad builds");
@@ -1382,26 +1394,20 @@ fn the_axis_is_signed_by_one_reading_and_an_undecided_sign_refuses() {
         );
         let refused = run(kind, || {
             let w = param("W", 1.0, small());
-            quad(w, w, param("H", 0.0, 0.5)).map(|_| ())
+            escalated_gate(quad(w, w, param("H", 0.0, 0.5)))
         });
-        match refused {
-            Err(profile::PathError::Escalated { gate, .. }) => {
-                assert_eq!(gate, Gate::SegmentDirectionAxis, "{kind:?}");
-            }
-            other => panic!("{kind:?}: the undecided sign must refuse: {other:?}"),
-        }
+        assert_eq!(
+            refused,
+            Ok(Gate::SegmentDirectionAxis),
+            "{kind:?}: the undecided sign refuses"
+        );
     }
     let w = Interval::from_bounds(1.0 - small(), 1.0 + small());
-    match quad(w, w, Interval::from_bounds(-0.5, 0.5)).map(|_| ()) {
-        Err(profile::PathError::Escalated { gate, .. }) => {
-            assert_eq!(
-                gate,
-                Gate::PathJunctionTurn,
-                "a plain interval reads no sign"
-            );
-        }
-        other => panic!("a plain interval: the junction refuses: {other:?}"),
-    }
+    assert_eq!(
+        escalated_gate(quad(w, w, Interval::from_bounds(-0.5, 0.5))),
+        Ok(Gate::PathJunctionTurn),
+        "a plain interval reads no sign"
+    );
 }
 
 /// **A symbolic scalar over a dual mints the axis, with no tangent**:
