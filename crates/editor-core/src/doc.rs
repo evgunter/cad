@@ -935,7 +935,7 @@ impl Carrier {
 /// (`Maintenance::Strand`, `Maintenance::StrandedSelection`,
 /// `Maintenance::StrandedAppearance`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NameCarrier<'a> {
+pub enum NameCarrier<'a> {
     /// A name in a live node's payload; that node carries it.
     Payload {
         /// The node whose payload holds the name.
@@ -970,7 +970,7 @@ impl<'a> NameCarrier<'a> {
     /// answers for both `Strand` and `StrandedAppearance`, and a
     /// caller that needs the carrying node reads the class instead of
     /// the accessor.
-    pub(crate) fn name(self) -> &'a StableName {
+    pub fn name(self) -> &'a StableName {
         match self {
             Self::Payload { name, .. } | Self::Select { name, .. } | Self::Store { name, .. } => {
                 name
