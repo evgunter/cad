@@ -596,3 +596,9 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - The saving is re-attributed: about 13 min from opt 1 and about 10 from the scalpel move.
   - The P1 shutdown row closes on the change, watched by `the-nightly-build-job-holds-over-five-scheduled-main-nights` (P2). The margin row (P2) carries the trend.
   - FULL single review, Opus; no model-compare row (Fable outage).
+- 2026-11-22 19:29Z — Ev on 7397: "if the bar is 0.25 then the drift check should probably flag there too? and would it be necessary to still have it at 2.5s rather than back at 1s with the increased hysteresis?" Yes to both; the text and body are updated.
+  - One line, 0.25 s run alone, for new, edited and drifting tests; the drift check times tests alone too.
+  - The ceiling for any test is back at 1 s, safe because re-timing alone removes contention and the drift check keeps the fast set under 0.25 s.
+  - Cost: about 100 tests leave the fast set on the first drift run. Awaiting Ev's approval.
+- U8 reported: PR 7402, gate green. The P0 seamless-pipe 1e-12 red is a `Stalled` refusal under PR 7131's bracket cost; 7131's own mutant F1X alone builds both poses. Re-blessed as a tight pin on the class Ev accepted on 7131, though the margin (2.19e-12) is wider than anything 7131 listed. FULL review (Opus) dispatched, with that as a claim: is it inside Ev's acceptance?
+- U10: PR 7399 moves 4 tests. Its gate is red on two causes outside the diff: the bar on `a_knife_edge_fillet…cusp` (1.11 s; left, the class 7397 decides) and `a_cylinder_wall_through_a_prism_corner…` at 1e-12. The latter was not on the 11-21 failure list; filed P1 on TESSLIE. Tier changed to the orchestrator's read: the unit shrank from a sweep to a measured four-line interim list.
