@@ -1,6 +1,6 @@
 //! Test vocabulary over this crate's types, for the suites downstream.
 
-use crate::{Affine3, Band, Decide, ErrorTextReading, MarginDiag, RigidMotion, Tol};
+use crate::{Affine3, Band, Decide, ErrorTextReading, MarginDiag, RigidMotion, Tol, Told};
 
 /// The upper end of a reporting margin: the point margin, or the
 /// enclosure's upper end; `NaN` for a poisoned reading, which no bound
@@ -14,6 +14,36 @@ pub fn upper(margin: MarginDiag) -> f64 {
     }
 }
 
+/// **Whether the witness band is the one the carrier-frame cost rows
+/// pin**, ε ≤ 1e-12 (PR 7131, Ev approved 2026-11-20): there each cost
+/// row pins the refusal it gives, and at ε 1e-9 and 1e-6, where the
+/// suites run it too, it builds. The one home of the rows' causes, each
+/// named by the row that pins it:
+///
+/// - **polar**: a stored frame read as its polar enclosure (decision 1).
+///   A frame stored at `f64` a rounding off rigid reads at `Interval`
+///   about an ulp wide per entry, and a read levered by a far extent
+///   carries that past the 1e-12 band. Mutant **A** (the read answers
+///   the stored entries as points) removes it.
+/// - **bracket**: a frame built at `Interval` from bracket inputs, a
+///   rigid-motion claim (fork 274). Squaring the brackets carries the
+///   squaring's width, which main's raw, unsquared frame did not.
+///   Mutant **F1X** (that squaring, at an `Exact` kind off the
+///   stated-point path, stores the stated vectors raw) removes it.
+/// - **f64 squaring**: a frame squared at `f64` from stated directions,
+///   the same claim, where main stored them raw: a rounding move of the
+///   frame, read across a band's edge. Mutant **F1F** (squaring at an
+///   `Inexact` kind stores the stated vectors raw) removes it.
+/// - **both, jointly**: polar and bracket, each alone under the band, so
+///   A alone and F1X alone each remove it.
+///
+/// The mutants are a patch in PR 7131's body; each row names its cause
+/// and the mutants that turn its pin red.
+#[must_use]
+pub fn at_the_frame_cost_band(tol: Tol) -> bool {
+    tol.eps() <= 1e-12
+}
+
 /// The lower end of a reporting margin: the point margin, or the
 /// enclosure's lower end; `NaN` for a poisoned reading. A measured
 /// miss's floor reads here: at an enclosure scalar limb 2 refuses on
@@ -25,6 +55,39 @@ pub fn lower(margin: MarginDiag) -> f64 {
         ErrorTextReading::Value(m) | ErrorTextReading::Enclosure { lo: m, .. } => m,
         ErrorTextReading::Invalid => f64::NAN,
     }
+}
+
+/// The number a told quantity was built from, where it is one value;
+/// `NaN` for an enclosure with two ends and for an unreadable reading.
+/// The rows that pin a refusal's payload against the scalar its door
+/// computed read it here.
+#[must_use]
+pub fn told(told: &Told) -> f64 {
+    match told.pinned_ends() {
+        (lo, hi) if lo == hi => lo,
+        _ => f64::NAN,
+    }
+}
+
+/// Whether `offered`, a tolerance read off a refusal's sentence, is the
+/// deciding tolerance `exact` (`|m|/K`) told as an offered bound: at
+/// most it, and within the four-figure grid of it. A suite bounds an
+/// offer by this rather than by the offer rule's own answer.
+#[must_use]
+pub fn is_told_offer_of(offered: f64, exact: f64) -> bool {
+    offered <= exact && exact - offered <= 1e-3 * exact
+}
+
+/// The tolerance a refusal's sentence offers to tighten below, where it
+/// ends in one: the number after "tighten the tolerance below ", in
+/// metres.
+#[must_use]
+pub fn offered_tolerance(text: &str) -> Option<f64> {
+    text.rsplit_once("tighten the tolerance below ")?
+        .1
+        .strip_suffix(" m")?
+        .parse()
+        .ok()
 }
 
 /// **A matrix a suite holds, admitted as the rigid motion it is** at
@@ -88,14 +151,7 @@ pub fn refused_point(x: f64) -> crate::Interval {
     p
 }
 
-/// **A fixture's length as a lever arm**: a test's arm with no geometry
-/// behind it (a hand-stated row, a probe at a stated scale). The one
-/// door for it, counted by `scripts/gates/lever-sources.sh`; production
-/// code builds its levers from their sources (`crate::Lever`).
-#[must_use]
-pub fn fixture_lever<T: crate::Real>(length: T) -> crate::Lever<T> {
-    crate::Lever(length)
-}
+pub use crate::predicate::fixture_lever;
 
 /// **The least turn's conditioning edge at `arm`**: the chord from the
 /// pole, `2·arm/R`, below which [`RigidMotion::least_turn`] refuses

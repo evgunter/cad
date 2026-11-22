@@ -2,11 +2,12 @@
 id: main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664
 kind: issue
 title: Main red: verbs_germarms2_interval's meeting-axes pose refuses on bool_ruled_region_span at Interval since PR 5664
-status: open
+status: closed
 opened: 2026-10-28
 priority: P1
 cost: M
 refs: [main-red-two-sweep-rows-at-sym-and-the-certified-scalar-since-limb-2, 5664]
+closed: 2026-11-20
 ---
 
 Handed over by OFFSET (the main-red bisect lane, 2026-10-28), from
@@ -71,3 +72,7 @@ GERM's row still stops it.
 the row's first stop is now operand B's volume (`VolumeUncomputable`,
 `props_chart_loop_whole`, since PR 6505), and its pin cites BOXFINISH's
 bead row and GERM's endpoint row, not this one.
+
+## Closed (2026-11-20, CHARTTAIL triage)
+
+Fixed. `bool_ruled_region_span` no longer exists in `crates/`: the ruled region's conic edges read through `region::circle_edge_hit`, and `Conic::param_in` reads through `Period::near` (ONECOPY PR 6482). `verbs_germarms2_interval::the_meeting_axes_pose_builds_at_the_certified_scalar` carries no pin at any ε since BOXFINISH PR 6946, which is the red-capable Interval row this row owed.

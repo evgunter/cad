@@ -33,10 +33,8 @@ fn band() -> Band {
 
 fn wall(axis: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::origin(),
-        axis,
+        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
         radius: 1.0,
-        u_ref,
     }
 }
 
@@ -47,7 +45,7 @@ fn pair() -> (Surface<f64>, Surface<f64>, Curve3<f64>, Curve3<f64>) {
         wall(Vec3::unit_z(), Vec3::unit_x()),
         wall(Vec3::unit_y(), Vec3::unit_z()),
     );
-    let reach = geom_brep::Reach::of_frame(Point3::origin(), (1.0, 1.0));
+    let reach = geom_brep::Reach::fixture(Point3::origin(), 1.0);
     let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) =
         geom_brep::cylinder_cylinder_section(&sa, &sb, &reach.ball(), band())
     else {
@@ -303,9 +301,7 @@ fn top_piece(flip: bool, rim_axis: Vec3<f64>) -> Body<f64> {
         )
         .unwrap();
     let cap = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 2.0),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_z(), Vec3::unit_x()),
     };
     let kc = body.add_surface(cap);
     let rim = Curve3::circle(Point3::new(0.0, 0.0, 2.0), rim_axis, 1.0, Vec3::unit_y());

@@ -9,7 +9,7 @@ use crate::common;
 use crate::fixture::m7_8::{carried, edge_findings, m7_8_cube, m7_8_edges};
 
 use geom_core::{Affine3, Point3, Real, Tol, Vec3};
-use topo::{AtRestPolicy, BooleanResult, transform_rigid, validate_closed};
+use topo::{BooleanResult, transform_rigid, validate_closed};
 
 /// A rotation about a skew axis through a non-dyadic angle, then its
 /// inverse: every coordinate of the wall's net and every carrier moves
@@ -67,7 +67,7 @@ fn a_mirror_of_the_m7_8_cube_refuses_not_rigid() {
 /// holds the lane, and re-derives at rest after the map.
 fn moves_at<T>()
 where
-    T: geom_core::Decide + geom_core::CertifiedBounds + AtRestPolicy,
+    T: geom_core::Decide + geom_core::CertifiedBounds + topo::CertifiedPolicy,
 {
     let body = m7_8_cube::<T>();
     assert_eq!(edge_findings(&body), 0, "the cube certifies at rest");
@@ -120,7 +120,7 @@ fn a_dual_brick_moves_bit_for_bit_with_its_f64_twin() {
 /// and the voided body then moves through the transform.
 fn void_door_keeps_the_class<T>()
 where
-    T: geom_core::Decide + geom_core::CertifiedBounds + AtRestPolicy,
+    T: geom_core::Decide + geom_core::CertifiedBounds + topo::CertifiedPolicy,
 {
     let cavity = m7_8_cube::<T>();
     let mut dst = common::brick::<T>((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), Tol::witness());

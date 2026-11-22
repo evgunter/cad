@@ -201,9 +201,15 @@ fn the_sphere_trim_panics_on_a_torn_curve() {
         crate::solid_contain::sphere_chart_trim(
             b,
             face,
-            Point3::origin(),
-            1.0,
-            Vec3::unit_z(),
+            (
+                &geom::Surface::Sphere {
+                    frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                    radius: 1.0,
+                },
+                Point3::origin(),
+                1.0,
+                Vec3::unit_z(),
+            ),
             band(),
         )
         .map(|t| t.is_some())

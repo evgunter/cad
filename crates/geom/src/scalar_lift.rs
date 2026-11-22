@@ -20,8 +20,10 @@
 //! a `from_validated_parts` door that takes the count argument below
 //! rather than re-validating. The leaf maps are `geom_core`'s `Point2/3::map`,
 //! `Vec2/3::map`, `Mat3::map` and `Affine3::map`. One name, `map_scalar`
-//! on every geometry type and `map` on every leaf; a reader looking for
-//! "where does this crate lift X" finds it on X.
+//! on every geometry type whose fields are all structural and `map` on
+//! every leaf; a reader looking for "where does this crate lift X" finds
+//! it on X. A frame is not such a type: it has two named reads out of
+//! its lane and no lift into one (below).
 //!
 //! # The fallible direction, and where it exists
 //!
@@ -47,19 +49,28 @@
 //!
 //! # What a lift is, and is not
 //!
-//! A lift is a **structural map**: every scalar field goes through `f`
-//! (a NURBS payload's control points, weights and held knots among
-//! them), every `f64` structure field (degrees, knot structure, the
-//! weights' value channel, windows, tolerances) is carried verbatim,
-//! and no arithmetic is performed. `f` keeps every value's point, so
-//! the structure carried over is still the lifted values' value
-//! channel. It
-//! is therefore exact whenever `f` is — `Real::from_f64` at every
-//! scalar, `Dual::constant` for the dual lanes — and then the lifted
-//! geometry **evaluates to the source**: bit for bit in a `Dual`'s
-//! value channel, as a bracket of the source's `f64` evaluation at the
-//! interval scalar. The rows named `described_nurbs_lifts_as_its_payload`
-//! in the enum modules' tests pin exactly that.
+//! A lift is a **structural map** but for one field: every scalar field
+//! goes through `f` (a NURBS payload's control points, weights and held
+//! knots among them), every `f64` structure field (degrees, knot
+//! structure, the weights' value channel, windows, tolerances) is
+//! carried verbatim, and no arithmetic is performed. `f` keeps every
+//! value's point, so the structure carried over is still the lifted
+//! values' value channel. It is therefore exact whenever `f` is —
+//! `Real::from_f64` at every scalar, `Dual::constant` for the dual lanes
+//! — and then a lifted payload with no frame **evaluates to the source**,
+//! bit for bit in a `Dual`'s value channel. The rows named
+//! `described_nurbs_lifts_as_its_payload` in the enum modules' tests pin
+//! exactly that.
+//!
+//! **The field is a carrier's frame** ([`crate::Frame::map_scalar`]). A
+//! frame is a claim, and it has only the two reads out of its lane that
+//! `geom_core`'s `RigidMotion` "Crossing scalars" names: carried as it
+//! is between two scalars of one [`Witness`](geom_core::Witness) kind,
+//! and from `f64` to `Interval` the enclosure, about an ulp per entry,
+//! of the polar factor of its stored entries. Nothing lifts a frame into
+//! `Dual` or `Sym`; a carrier there is minted there. So an `f64` carrier
+//! read at `Interval` is the carrier on that rotation, not a bracket of
+//! the rounded entries.
 //!
 //! # Why a structural map's counts survive it (the one home of this argument)
 //!
@@ -144,6 +155,8 @@
 //! is untouched here; the lift neither narrows nor widens it.
 
 use geom_core::Real;
+#[cfg(doc)]
+use geom_core::UnitVec3;
 
 use crate::curves::Curve3;
 use crate::surfaces::Surface;
@@ -156,35 +169,32 @@ use crate::surfaces::{ApproxSurface, NurbsSurface, SurfaceDescription};
 use geom_core::KnotVector;
 
 impl<T: Real> Curve3<T> {
-    /// The same curve read at another scalar (module docs): analytic
-    /// fields through `f`, the NURBS payload through
-    /// [`NurbsCurve3::map_scalar`]. Exact whenever `f` is; poison
-    /// travels; the placeholder lifts to the placeholder and a
-    /// described curve to a described curve.
+    /// **The same curve at another scalar** (module docs): a frame or a
+    /// direction re-minted there ([`crate::Frame::map_scalar`],
+    /// [`UnitVec3::map_scalar`]), every other analytic field through `f`, the
+    /// NURBS payload through [`NurbsCurve3::map_scalar`]. Poison travels;
+    /// the placeholder lifts to the placeholder and a described curve to
+    /// a described curve. A conic's sizes are rebuilt through its
+    /// constructor ([`crate::Ellipse::new`]), so a lift that makes one
+    /// non-finite or definitely negative panics there.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Curve3<U> {
         match self {
             Curve3::Line(crate::Line { origin, dir }) => Curve3::line(origin.map(&f), dir.map(&f)),
-            Curve3::Circle(c) => Curve3::Circle(crate::Circle {
-                frame: c.frame.map_scalar(&f),
-                radius: f(c.radius),
-            }),
-            Curve3::Ellipse(e) => Curve3::Ellipse(crate::Ellipse {
-                frame: e.frame.map_scalar(&f),
-                semi_u: f(e.semi_u),
-                semi_v: f(e.semi_v),
-            }),
+            Curve3::Circle(c) => {
+                Curve3::Circle(crate::Circle::new(c.frame.map_scalar(&f), f(c.radius())))
+            }
+            Curve3::Ellipse(e) => {
+                let (a, b) = (e.semi_u(), e.semi_v());
+                Curve3::Ellipse(crate::Ellipse::new(e.frame.map_scalar(&f), f(a), f(b)))
+            }
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => Curve3::Spiric {
-                center: center.map(&f),
-                axis: axis.map(&f),
-                u_ref: u_ref.map(&f),
+                frame: frame.map_scalar(&f),
                 major_radius: f(*major_radius),
                 minor_radius: f(*minor_radius),
                 offset: f(*offset),
@@ -196,85 +206,74 @@ impl<T: Real> Curve3<T> {
 }
 
 impl<T: Real> Surface<T> {
-    /// The same surface read at another scalar (module docs): analytic
-    /// fields through `f`, the NURBS payload through
+    /// **The same surface at another scalar** (module docs): a frame
+    /// re-minted there ([`crate::Frame::map_scalar`]), every other analytic
+    /// field through `f`, the NURBS payload through
     /// [`NurbsSurface::map_scalar`], the approximating payload through
-    /// [`ApproxSurface::map_scalar`]. Exact whenever `f` is; poison
-    /// travels; the placeholder lifts to the placeholder and a
-    /// described surface to a described surface.
+    /// [`ApproxSurface::map_scalar`]. Poison travels; the placeholder
+    /// lifts to the placeholder and a described surface to a described
+    /// surface.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Surface<U> {
+        self.map_with(&f, |frame| frame.map_scalar(&f))
+    }
+
+    /// **A test's reading of this surface at another scalar**, its frame
+    /// read by `frame` as the caller states rather than by
+    /// [`crate::Frame::map_scalar`]: a row that samples an enclosure's
+    /// surface at its midpoints, which is no frame read, states the
+    /// frame it samples on (squared from the midpoints at `f64`).
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn map_scalar_on<U: Real>(
+        &self,
+        f: impl Fn(T) -> U,
+        frame: impl Fn(&crate::Frame<T>) -> crate::Frame<U>,
+    ) -> Surface<U> {
+        self.map_with(&f, frame)
+    }
+
+    fn map_with<U: Real>(
+        &self,
+        f: &impl Fn(T) -> U,
+        frame_of: impl Fn(&crate::Frame<T>) -> crate::Frame<U>,
+    ) -> Surface<U> {
         match self {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => Surface::Plane {
-                origin: origin.map(&f),
-                normal: normal.map(&f),
-                u_ref: u_ref.map(&f),
+            Surface::Plane { frame } => Surface::Plane {
+                frame: frame_of(frame),
             },
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => Surface::Cylinder {
-                origin: origin.map(&f),
-                axis: axis.map(&f),
+            Surface::Cylinder { frame, radius } => Surface::Cylinder {
+                frame: frame_of(frame),
                 radius: f(*radius),
-                u_ref: u_ref.map(&f),
             },
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Surface::Cone {
-                apex: apex.map(&f),
-                axis: axis.map(&f),
+            Surface::Cone { frame, half_angle } => Surface::Cone {
+                frame: frame_of(frame),
                 half_angle: f(*half_angle),
-                u_ref: u_ref.map(&f),
             },
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                center: center.map(&f),
+            Surface::Sphere { frame, radius } => Surface::Sphere {
+                frame: frame_of(frame),
                 radius: f(*radius),
-                axis: axis.map(&f),
-                u_ref: u_ref.map(&f),
             },
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             } => Surface::Torus {
-                center: center.map(&f),
-                axis: axis.map(&f),
+                frame: frame_of(frame),
                 major_radius: f(*major_radius),
                 minor_radius: f(*minor_radius),
-                u_ref: u_ref.map(&f),
             },
             Surface::Spindle {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
             } => Surface::Spindle {
-                center: center.map(&f),
-                axis: axis.map(&f),
+                frame: frame_of(frame),
                 major_radius: f(*major_radius),
                 minor_radius: f(*minor_radius),
-                u_ref: u_ref.map(&f),
             },
-            Surface::Nurbs(n) => Surface::Nurbs(std::sync::Arc::new(n.map_scalar(&f))),
-            Surface::Approx(a) => Surface::Approx(std::sync::Arc::new(a.map_scalar(&f))),
+            Surface::Nurbs(n) => Surface::Nurbs(std::sync::Arc::new(n.map_scalar(f))),
+            Surface::Approx(a) => Surface::Approx(std::sync::Arc::new(a.map_scalar(f))),
         }
     }
 }

@@ -211,6 +211,23 @@ constructed only through doors that state its dimension
 (SPLINE-DESIGN S1); surface and curve kinds are closed enums
 ([surfaces]).
 
+A signature is a claim too. A generic bound says which types the code
+has a meaning for, not which it compiles at: where code generic over a
+scalar has no meaning at one of them (a certification at a `Dual`, a
+search at a `Sym`), its bound excludes that scalar, at compile time
+and never by a check at run time. The test of any generic signature is
+one sentence per type it admits, saying what the result means there: a
+type with no such sentence is excluded.
+
+A conversion between `f64` and a scalar `T`, in either direction, is
+always suspect. It is justified by showing that it is necessary, that
+the value cannot stay in the type it was computed in, and not by
+showing that it is valid where it is used; that it has callers is no
+evidence of either. One that is necessary says what makes its result
+true at every type it can produce
+(`crates/geom-core/README.md`, DL5.2 and DL5.3, is this clause at the
+scalars).
+
 ### Failure is loud, and its kind is plain `[loud-failure]`
 
 Nothing absorbs a failure: no silent discard, no hidden healing, no
@@ -269,11 +286,11 @@ of them is a defect.
 | The region a carrier, an edge or a face can occupy | one cover per entity: `geom`'s reading of a bounded carrier, whole or over a span, `topo`'s of an edge with its vertices and of a trimmed face; every box, support, reach and ball is a method on it, never a second reading | [one-way.readings] |
 | f64 rounding, a verdict's lever arm, and the extent it is consumed over | `crates/geom-core/README.md`, "Float rounding" | [simple.conditioned] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
-| A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
+| A refusal's recourse | one per decision, written in the decision's levers; a failure carries as data what its recourse determines (the value or the cells, and the edit where its layer can name one), and its words are rendered from that | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
 | A vertex's neighbourhood cut by a surface: its sector walk, the cuts and their germs, the germs' order, the null-edge plan and the mint at a vertex | `topo::star`; a verb supplies its sides and which circle carries its chords | [one-way] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one place a body's verdict is derived; a certificate is a fact about its support and is read wherever that support is bit-identical and derived wherever it is not, so a finish carries the embedding fact of each face pair it finds unchanged in a finished operand, and asks the rest, and an edge's or pcurve row's certificate is carried by every door that keeps its support; a finished body moved by an isometry stays finished and asks only the session box again; doors take and return finished bodies, and none re-gates. One exception, Ev on PR 6371: at the box scalars (`Interval`, `Sym`) the doors that end in the scalar's leaf (`AtRestPolicy::leaf`) return tier 2 alone, and the consumer that takes a finished body finishes it (`topo::take`), until `work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`. Those doors are the sweep doors (extrude, revolve, loft, sweep, the tube) and the `⊔` graft | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -410,7 +427,10 @@ curve pairs.
   `FittedLane`) — so a WIDENED analytic operand refuses typed
   rather than picking a representative surface out of the family.
 - **What a lane scalar takes from `f64` is a choice, never a claim,
-  and the same across the box.** A choice is a discrete selection
+  and the same across the box.** This holds of every scalar that is
+  not `f64`, a `Dual` and a `Sym` as much as an `Interval`: at a
+  `Dual` the box is the neighbourhood its tangent speaks for, and at a
+  `Sym` the unknowns' whole range. A choice is a discrete selection
   (a structure, a branch, an order), checked at the lane scalar to
   stay the same over the box, or a continuous value that depends on
   none of the document's variables. A claim (a frame, which asserts
@@ -420,7 +440,11 @@ curve pairs.
   its entries), so no gate reads it back from entries that, at a box
   scalar, no longer carry it. A continuous
   value that varies over the box is no choice: chosen at the nominal
-  values, it is wrong everywhere else, so the lane builds it.
+  values, it is wrong everywhere else, so the lane builds it. The one
+  such value a lane takes from `f64` is a solved parameter with no
+  closed form, admitted by a check at the lane scalar that leaves
+  every member of the box within the band, and refused where no one
+  number does (`crates/geom-core/README.md`, DL5.2).
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.
@@ -678,11 +702,12 @@ there is the bracket, with the resolution it reached.
 ε is a length: the maximum
 deviation from specified geometry at a single point. Four clauses
 make that structural: (i) **Margins are lengths, by signature.** The
-classify/Band seam takes a `#[repr(transparent)]` `Margin<T>`
-newtype — no dimension algebra, no generic dimension parameter —
-whose only constructors are blessed doors that make the dimension
-argument explicit at the call site (a coordinate difference that IS
-a length; a dimensionless quantity levered by an arm; a norm; a
+classify/Band seam takes a `Margin<T>`, or a `Margin<T, Allowance>`
+where an `f64` bound enters it (DL5.2) — no dimension algebra, no
+generic dimension parameter — whose only constructors are blessed
+doors that make the dimension argument explicit at the call site (a
+coordinate difference that IS a length; a dimensionless quantity
+levered by an arm; a norm; a
 measure over the lever at which it is a point's displacement, never a
 mean such as 2A/P or V/A, [intrinsic.epsilon]); the sagitta and reciprocal
 forms are the levered door applied at named arms; there is no raw
@@ -886,7 +911,12 @@ tiers".
   do not meet (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
   itself, the local reading (how the faces leave their shared edge or
-  vertex, or a face's own turning) passes by more than the band. A
+  vertex, or a face's own turning) passes by more than the band. That
+  reading is the edge's wedge as tier 3 reads it, one reading for
+  both: an angle metered at the reach of the faces it governs
+  ([tolerance.epsilon]), never at a cell of the question's own
+  subdivision. A cell holds none of a face only where it lies off
+  the face. A
   reading inside the band refuses as ambiguous, never as Holds or
   Violated. An exact
   value `x` enters the question as `[x, x]`; a stored bracket enters as
@@ -1139,7 +1169,12 @@ adding a variant and letting the compiler enumerate every dispatch
 site. A kind is a locus with one chart shape: its chart, implicit
 residual and normal agree at every point, and which of its chart's
 coordinates are periodic and which points are singular is fixed by the
-kind, with no tolerance. The `Nurbs` variant is the universal fallback: any exotic surface
+kind, with no tolerance. For `Nurbs` and `Approx` (read through its fitted
+net) the kind fixes the rule, not the points: a boundary iso of the net whose control
+points are all one stored point is a chart singularity at that point, decided on the
+stored values. A constructor that decides such a side collapsed at its band builds it
+exactly one point; a side that is tiny but not one point is a regular chart with a
+short edge. The `Nurbs` variant is the universal fallback: any exotic surface
 is at minimum representable. Same design for curves (line / circle /
 ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
@@ -1174,6 +1209,9 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    locus) is made exact by one construction from a closed catalogue,
    solving each connected class of such relations jointly; where the
    construction is symmetric, the record earlier in the file stays.
+   A net side whose control points read one point at the file's band is
+   made exactly that point, the first control point in file order
+   (**Extensibility**, above: a spline chart's singular set is read off its net).
    Each move is reported. A relation no catalogue construction makes
    exact, an edge whose description the kernel cannot construct, and
    data no description satisfies within ε_in fail loudly, naming the
@@ -2169,8 +2207,7 @@ swallowed.
   firing one reads as evidence (`geom_brep::props::quad`'s area gauge
   is the precedent; an uncalibrated ceiling was once off by nine
   orders). Where the measured condition is reachable by input, the
-  preferred disposition is a reported value, not a tripwire
-  (`topo::coherence`).
+  preferred disposition is a reported value, not a tripwire.
 - *Boundary rule.* `pncad-py` re-types at the FFI edge — anything the
   Python layer can trigger is validated into a typed error before the
   kernel call, so an `unreachable!` never crosses into a
@@ -2620,6 +2657,7 @@ is the board and `work/README.md` its contract.
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |
 | `crates/viewer/GUI-DESIGN.md` | Ratified; GUI v1 shipped | GUI architecture G1–G5, GQ1–GQ7: the three-layer split, egui as toolkit, what v1 ships. `crates/viewer/README.md` beside it is the implementation record, which the program maintains itself |
 | `docs/ERROR-DESIGN.md` | Ratified (#110); M10 closed 2026-09-13 | Error propagation E1–E12: duals, stackups, the subdivision driver, trichotomy. M10 built it and closed 2026-09-13; the analysis lane is PROPS' and E12's symbolic tier continues as SYM |
+| `crates/geom-core/README.md`, "Reading a bracket where nothing certifies" section only | Ratified (Ev, PR 7155) | The delegation rule, DUAL-DESIGN DL5: a bracket read whose `f64` leaves or is only compared needs no lane door (DL5.1); a bound, a place and `f64`-built data never become a free `T`, and a constant enters through a door that takes no runtime `f64`, and a solved value is a candidate admitted by its check (DL5.2); certifying code is closed to a dual by type on its interior as well as at its doors, through a bound that grants nothing else (DL5.3) |
 | `docs/DUAL-DESIGN.md` | Ratified (#1146) | The Dual contract DL1–DL6: a Dual is tangent transport and never certifies; ContentBits feeds both channels; the delegation rule; poison-vs-widen in certified lanes |
 | `docs/PATHS-DESIGN.md` | Ratified (#124) | The PartialPath authoring algebra |
 | `docs/LIBRARY-DESIGN.md` | Ratified (#229); program open | Usable-as-a-library L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, the authoring-ergonomics unit ladder |

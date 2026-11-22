@@ -768,11 +768,12 @@ fn a_faces_chart_reads_a_trace_before_anything_is_drawn_there() {
     let [traced] = faces.as_slice() else {
         panic!("one traced face: {}", faces.len())
     };
-    let Ok(geom::Surface::Cylinder { axis, radius, .. }) = &traced.surface else {
+    let Ok(geom::Surface::Cylinder { frame, radius, .. }) = &traced.surface else {
         panic!("the wall is a cylinder: {:?}", traced.surface)
     };
+    let axis = frame.axis();
     near(*radius, RADIUS, "the wall's radius");
-    let z = traced.body_to_sketch.transform_vec(*axis);
+    let z = traced.body_to_sketch.transform_vec(axis);
     assert!(
         z.x.abs() < 1e-12 && z.y.abs() < 1e-12,
         "the wall's axis is the sketch's z: {z:?}"

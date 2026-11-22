@@ -7,7 +7,7 @@ opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
-blocked_on: [cone-nappe-is-decided-in-five-places, chart-region-mints-indeterminates-after-a-definite-sign, chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value, boolean-unreadable-norm-ends-as-a-kernel-defect]
+blocked_on: [cone-nappe-is-decided-in-five-places, boolean-unreadable-norm-ends-as-a-kernel-defect]
 ---
 
 Unit 6 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
@@ -59,3 +59,7 @@ C24 is `crates/sweep/src/blend/battery.rs:129`, `measured`: a reporting projecti
 ## RESTWORD's split arm was already retired (2026-11-11)
 
 `material-arm-split-ends-as-a-hand-minted-invalid` is closed, and its blocker is dropped from `blocked_on`. ONEDOOR's PR 6443 retired the split into `WedgeVerdict::Mixed` (`MixedDihedral`) on 2026-11-03, and in-band ends now escalate through `decide_nonzero`, so that site mints nothing.
+
+## Triggers fired (2026-11-20, CHARTTAIL)
+
+`chart-region-mints-indeterminates-after-a-definite-sign` and `chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value` closed with PR 7168: `chart_region.rs` mints no escalation after a definite sign. Pruned from `blocked_on`.

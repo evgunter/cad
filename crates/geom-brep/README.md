@@ -26,7 +26,7 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube); `crates/geom-brep/src/row_contact.rs` (a shared row's contact class on analytic charts) |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` and `pcurves/` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`, `pose`, `cross`), `curve_face/{pose,cross}.rs`, and its doors `curve_face/{plane_crossing,line_quadric,conic_quadric,circle_torus,ellipse_torus,circle_roots,spiric_plane,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | The carrier ladder (CONTACT-DESIGN C4's `Rest` table) | `crates/geom-brep/src/carrier_eq.rs` (`carrier_eq`, `CarrierDesc`, the kind-generalized ladder and the face-pair door's reading), `plane_eq.rs` (`oriented_plane_eq`, its planar arm); the face-pair door that reads it over two faces is `crates/topo/src/boolean/carrier_pair.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
@@ -232,8 +232,8 @@ certifying scalar's door mints and certifies; a tangent-transport
 scalar's door (DUAL-DESIGN DL1, DL3) only mints, and no code path at that
 scalar can call a certifying function. A dual body carries no
 certificate: what a dual measures is read against the input-identical
-`f64` evaluation, which holds it (DUAL-DESIGN DL3). At `f64` the door certifies in full and rest
-re-derives the same certificate. An edge with an operand outside the
+`f64` evaluation, which holds it (DUAL-DESIGN DL3). At `f64` the door certifies in full, and a
+certificate is read wherever its support is bit-identical. An edge with an operand outside the
 tube's enclosure roster (`ssi::enclose::has_implicit_enclosure`) refuses
 the tube by naming that operand (`AnalyticRung3Refusal::NoTubeEnclosure`)
 once limb 2 holds and the pair's section states no bounds for the pose. Each box, cut to the wall's knot rectangle (and to the
@@ -978,11 +978,18 @@ topology: two edges joined at a vertex meet there because their ends meet.
 Two curves on one surface record are not a curve pair to this table.
 Their 3D gap is identically zero in the model, so a contact decision on
 it reads only the construction's rounding against the band. They meet
-where one crosses the other's plane, through the plane door
-(`curve_face::plane_crossing`), at a root on the curve's own section of
-that plane, read through the surface's chart: the co-surface arm
-(`curve_pair::on_surface`), whose plane door shares `meet`'s transverse
-harmonic (`pose::height`). A curve on a surface is built from chart
+where one crosses the other's plane, through the curve × face arm for
+that curve against that plane (`curve_face::cross`), at a root on the
+curve's own section of that plane, read through the surface's chart:
+the co-surface arm (`curve_pair::on_surface`), whose plane door
+(`curve_face::plane_crossing`) shares `meet`'s transverse harmonic
+(`pose::height`). Which curve crosses which plane is fixed per pair of
+curve families, at write time, by one table in the arm, its *direction
+table*, on the transversality rule: the plane is that of a curve whose
+plane is transversal to the surface all along that curve, and a meeting
+is kept only where it lies on both curves' own sections. A pair whose
+curves' planes both touch the surface somewhere along their curves has
+its row fixed all the same, and escalates in band there. A curve on a surface is built from chart
 coordinates on a surface record: its key, and its surface as stored or
 on another chart of it. An edge carries its face's record, and the arm
 refuses a pair on two records whichever way it reads the pair. That the
@@ -990,7 +997,8 @@ key and the surface are one record's stays the caller's: the region
 doors and the sphere cut-in read both off one face, and the planar loop
 walk names its own premise for the ray's plane. Every consumer holding
 two curves on one surface reads that arm (the region doors' landings,
-the sphere cut-in, the planar loop walk's ray against a conic arc), and
+the sphere cut-in, the planar loop walk's ray against a conic or spiric
+arc), and
 none hands the pair to `meet`.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
@@ -1208,6 +1216,73 @@ with no signed residual is given none: a point is decided on it by a
 certified foot within the band, and off it by a lower bound on its
 distance past the band. A meeting inside the chart is placed in or out
 of the face by the face's trim.
+The interior is read through the span's carrier, and the carrier
+reading reads no face. Its *pose* (`curve_face::pose`), one exhaustive
+match over the two kinds, says how the span's carrier stands to the
+surface: it lies in it (`Lies`), is apart from it (`Apart`), touches it
+(`Tangent`, a point of the in-band arc together with the arc, as a
+curve pair's touch is reported), passes through a point where the
+surface has no tangent plane (`Through`: a cone's apex, a spindle
+sheet's apexes or its horn's cusp), or meets it at finitely many
+isolated points, which the arm's method places and reports each as a
+crossing or a touch (`Isolated`; `Tangent` is the special case the pose
+alone decides, one meeting that is a touch); in band it escalates. The analytic curves are smooth, and a
+chart pole is the parameterisation's singularity, not the surface's, so
+these classes are exhaustive for every kind pair with a closed pose. `Lies` holds over the whole span: a line or conic that lies
+in an analytic surface over an arc lies in it everywhere. `Lies` is a
+reading of values only: whether an edge is recorded on a face stays
+with the coincidence door and the face's declared cover, in `topo`. An
+enclosure cull that clears the span decides `Apart`, and it is the
+pose's method for `Apart`, a stage of the pose's reading run before the
+roots; in band it hands on to the pose's other classes and never
+refuses alone. No door decides a pose of its own. A spline arm has no
+closed pose, and its enclosures are its one method; a run of a spline
+span within the band of the surface over part of the span is an
+undecided window, and no run meeting is read. The span's meetings with
+the surface are `curve_face::cross(span, surface, band)`: the pose
+first, then the one method `curve_face::route` names for the arm,
+answering in the curve-pair vocabulary, each meeting a crossing, a
+touch or an end hit with its place on the span. The conic × quadric
+arm's first-harmonic core is its closed form for a second harmonic read
+Zero, and the half-angle ladder is its general lane: a lane choice
+(DESIGN `[verdicts.consumers]`), Zero taking the closed form and in band
+and definite the general lane. Where an arm cannot decide, its refusal
+is part of the answer: the meetings it found, and the span's *undecided
+windows*, each an interval of the span outside which the arm has
+decided everything, given by the arm's own method (a closed form's
+unsettled candidate spread, a subdivision's undecided cells,
+`composite`'s in-band pieces, `spline_face`'s undecided floor boxes),
+each with why it did not decide inside (the shape of the boundary pass
+read past its refusals, `curve_face::located`). An arm with nothing
+local leaves the whole span as one window, and no arm refuses whole by
+kind. A door takes typed operands. The plane door has one entry point;
+dropping a root at an end of the span is the consumer's choice on the
+answer's end hit, not the door's. Every door is here (DESIGN's
+Layering row): `plane_crossing`, `line_quadric`, `conic_quadric`,
+`circle_torus`, `ellipse_torus`, `spiric_plane`, `composite` and
+`spline_face`. The spiric × plane door reads a spiric span by its
+*section reduction*: the span is one oval of its torus cut by the
+spiric's own plane, so it meets a plane not parallel to that one only
+on the line where the two planes meet, which the line × torus door reads
+against the spiric's own torus over the stretch of the line on the
+oval's side of the axis's projection on the spiric's plane, each root's minor angle the span's parameter.
+A span
+on one of two cylinders of equal radii whose axes meet is read against
+the other through their bisector planes (`factored_crossing`), reached
+only where the surface-pair pose decides that pose; where it declines
+(at a node, or for a conic in a bisector plane) it refuses typed and
+never hands the span back to the quadric door. Every consumer of where
+a curve meets a surface reads `pose` or `cross` (the boolean's sweep,
+the plane split, the slit, the sketch trace, the point-in-solid ray,
+the co-surface arm, the ring path's plane roots through the co-surface
+arm, the census's touch confirm), and one that serves fewer answers
+matches on the answer and refuses the rest typed.
+The face's interior is `cross`'s answer read through the trim, every
+time: each meeting is placed by the trim. A window whose region on the
+surface the face's own placement certifies wholly outside the face,
+with no boundary of the face reaching it, holds no point of the face;
+any other window refuses the face reading, naming the window and its
+why.
 Implemented: the table (`curve_face::route`), the boundary pass
 (`curve_face::boundary`), which the boolean's sweep reads ahead of the
 carrier for a spline face and through which its on-carrier crossing
@@ -1223,10 +1298,7 @@ otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
 crossings within the band of each other refuse. The composite is formed
 in a chart frame built in certification arithmetic, so the frame's
-rounding enters its enclosures. Where it refuses a count, the boolean
-localizes the span's meetings with the carrier and reads them against
-the face's trim: certified off the face, the span meets it nowhere
-inside. The span ×
+rounding enters its enclosures. The span ×
 spline face arm is built for an analytic or a NURBS span
 (`curve_face::spline_face`, the boolean's spline-face door reading it
 past the boundary pass): it settles boxes of the state `(t, u, v)` on
@@ -1254,11 +1326,40 @@ tangent touch and an end on a crease included, and the walk does not
 read past that end. A spiric
 span against a spline face is unbuilt. Of the analytic arms, the
 plane-crossing door (`curve_face::plane_crossing`: a line's endpoints,
-a conic's roots against the plane) and the conic × torus doors
+a conic's roots against the plane), the line × quadric door
+(`curve_face::line_quadric`), the conic × quadric door
+(`curve_face::conic_quadric`), the conic × torus doors
 (`curve_face::circle_torus`, `curve_face::ellipse_torus`, over the
-shared half-angle root cores `curve_face::circle_roots`) are built
-here; the line × quadric and conic × quadric arms are the boolean's
-root doors in `topo`. A meeting inside a spline
+shared half-angle root cores `curve_face::circle_roots`) and the spiric
+× plane door (`curve_face::spiric_plane`, over the line × quadric door)
+are built here, each keeping its method; their classes are the pose's
+(`curve_face::pose`, the rows `curve_face_pose_*`, decided in that one
+module), and `curve_face::cross` reads the pose then the door's method,
+placing each root against the span's ends and ordering the meetings
+apart by their chord (`curve_face_cross_*`). Every arm answers
+`Isolated` only once a rung has excluded `Lies`, and an arm with none
+reads one span point past the band (`curve_face_pose_not_lies`). A
+`Tangent`'s arc is `(π/2)·√(2z/κ)` in the carrier's parameter about the
+double root, `κ` the residual's second derivative there and `z` the
+band's zero plus the extreme's own reading, which a residual falling
+from its extreme no faster than a first harmonic of that curvature
+never understates on the span. `Kappa` is read only where it decides,
+levered by the carrier's own scale at the touch: a double root past the
+span whose reach at the band's escalation stands clear of it leaves the
+span `Apart`, and one whose reach falls inside it is a window over that
+reach (`curve_face_pose_graze_reach`). On a cone, whose form `F` bounds
+the residual only through its floor, no class is decided on `F` in its
+zero band alone (`curve_face_pose_cone_on_surface`,
+`curve_face_pose_cone_graze`). `cross` answers a spline arm, and an unbuilt arm,
+with one window over the whole span; a closed form's unsettled count
+is one window over the whole span too, and a root in band of an end or
+two roots in band of each other a window about them. The doors' older
+entries (`plane_crossing_lane`, `line_quadric_roots`,
+`conic_quadric_roots`, `circle_torus_roots`, `ellipse_torus_roots`, and
+the ray lane's `line_wall_roots`, `line_sphere_roots`,
+`line_cone_roots`) read the pose and then the method, and decide
+nothing of their own, for the readers that do not yet read `cross`. A
+meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
 on its own sheet (`topo::spline_region::spline_chart_placement`);
 a point in space has its placement built
@@ -1484,7 +1585,9 @@ implemented.
 
 **C9 — Enclosures run on the in-repo interval backend.** Every enclosure
 certification needs is transcendental-free (implicit residuals are
-polynomial, de Boor is ring arithmetic, hull bounds are convexity facts),
+polynomial in the stored data — a cone stores its opening as its slope
+`k = tan α`, so its form is `ρ² − k²h²` and its metres lever's one
+irrational is `√(1 + k²)` — de Boor is ring arithmetic, hull bounds are convexity facts),
 so certification arithmetic is IEEE-754's correctly rounded operations —
 `±`, `×`, `÷`, integer powers and `√` — and no transcendental, over
 `geom_core::Interval` — the evaluation scalar itself, a newtype over
@@ -1881,13 +1984,17 @@ outside the fit's window (the section's own verdict); and a scalar with
 no fit or section lane (`ApproxLaneUnsupported`,
 `NurbsLaneUnsupported`).
 
-**O5 — The validator re-derives per face, as it does per edge.** Tier 3
-never trusts a stored certificate: `validate.rs` re-runs the O3
-derivation on every `Approx` face on every call through
+**O5 — The validator reads a certificate by its support, per face as
+per edge.** A certificate is a fact about its support, the exact data
+it reads: one the kernel derived in this process is read wherever
+that support is bit-identical, and derived wherever it is not; a
+stored certificate whose support differs is never read, and none is
+read from outside the process (a document persists the recipe, an
+import derives its own). Where the support has moved, `validate.rs`
+re-runs the O3 derivation on an `Approx` face through
 `geom_brep::OffsetFitLane::recertify`, the door the pass takes as a
 parameter (`ApproxCertification` on failure; `ApproxLaneUnsupported`
-where the scalar's seam hands the pass no door). The
-stored `OffsetCertificate` is provenance, kept for reporting. `Approx`
+where the scalar's seam hands the pass no door). `Approx`
 faces inherit the NURBS-adjacent exemption from dihedral marks (C7).
 
 **O6 — Sequencing and the demo gates.** The units are landed in the

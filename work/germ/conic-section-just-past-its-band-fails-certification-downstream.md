@@ -174,16 +174,18 @@ this row's "what closes it" in two:
 
 ## Decided (Ev, PR 4812, 2026-10-12)
 
-- **End state: the conic carrier is stored in the form it was born in,
-  and the other form is derived.** A kernel-minted section is stored
-  anchored on the arc its edge uses (parameter zero there, the centre
-  derived, never stored), so its resolution is `u` times the arc
-  distance from the anchor, not `u·A`. An imported ellipse keeps the
-  file's centre form exactly as read, with the anchored form as an
-  internal cache, so export writes the original and round-trips
-  bit-exactly; export of a minted ellipse writes the derived centre.
-  Evaluators read the anchored form either way. No public API changes:
-  nothing public reads the ellipse's fields.
+- **End state: every conic carrier is stored anchored on the arc it
+  serves, and the centre is derived.** A circle or an ellipse stores a
+  point of the curve on the arc its edge uses (its anchor), with the
+  parameter zero there, the frame's directions, the sizes and, for an
+  ellipse, where on the ellipse the anchor sits. Its resolution is then
+  `u` times the arc distance from the anchor, not `u·A`. The centre is
+  one derived reading, never stored; export writes it. A construction
+  handed a centre computes the anchor once, and from then on the anchor
+  is the curve. Nothing records how a conic was made and nothing is
+  cached: no source supplies a carrier (`[edges]`, `[import]`), so
+  there is no given form to keep. No public API changes: nothing
+  public reads a conic's fields.
 - **No refusal at the arm.** The existing degeneracy trilean stays the
   only door there.
 - **PCERT's three chart fixes land now** (`refs`).

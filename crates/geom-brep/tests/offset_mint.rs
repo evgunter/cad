@@ -61,46 +61,36 @@ fn tilted_surfaces() -> Vec<(&'static str, Surface<f64>)> {
         (
             "plane",
             Surface::Plane {
-                origin: t_center(),
-                normal: t_axis(),
-                u_ref: t_uref(),
+                frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
             },
         ),
         (
             "cylinder",
             Surface::Cylinder {
-                origin: t_center(),
-                axis: t_axis(),
+                frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
                 radius: 2.5,
-                u_ref: t_uref(),
             },
         ),
         (
             "cone",
             Surface::Cone {
-                apex: t_center(),
-                axis: t_axis(),
+                frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
                 half_angle: FRAC_PI_6,
-                u_ref: t_uref(),
             },
         ),
         (
             "sphere",
             Surface::Sphere {
-                center: t_center(),
+                frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
                 radius: 2.5,
-                axis: t_axis(),
-                u_ref: t_uref(),
             },
         ),
         (
             "torus",
             Surface::Torus {
-                center: t_center(),
-                axis: t_axis(),
+                frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
                 major_radius: 4.0,
                 minor_radius: 1.0,
-                u_ref: t_uref(),
             },
         ),
     ]
@@ -156,27 +146,33 @@ fn cone_dist(apex: Point3<f64>, axis: Vec3<f64>, alpha: f64, q: Point3<f64>) -> 
 /// the closed-form spelling for its kind.
 fn signed_dist(s: &Surface<f64>, q: Point3<f64>) -> f64 {
     match *s {
-        Surface::Plane { origin, normal, .. } => plane_dist(origin, normal, q),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => cylinder_dist(origin, axis, radius, q),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            plane_dist(origin, normal, q)
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            cylinder_dist(origin, axis, radius, q)
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => cone_dist(apex, axis, half_angle, q),
-        Surface::Sphere { center, radius, .. } => sphere_dist(center, radius, q),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            cone_dist(apex, axis, half_angle, q)
+        }
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
+            sphere_dist(center, radius, q)
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => torus_dist(center, axis, major_radius, minor_radius, q),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            torus_dist(center, axis, major_radius, minor_radius, q)
+        }
         // No closed-form distance for a spline or its offset.
         Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => f64::NAN,
     }
@@ -210,55 +206,39 @@ fn bits(s: &Surface<f64>) -> Vec<u64> {
     }
     let mut out = Vec::new();
     match *s {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => {
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             p(&mut out, origin);
             v(&mut out, normal);
             v(&mut out, u_ref);
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => {
+        Surface::Cylinder { frame, radius } => {
+            let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             p(&mut out, origin);
             v(&mut out, axis);
             out.push(radius.to_bits());
             v(&mut out, u_ref);
         }
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => {
+        Surface::Cone { frame, half_angle } => {
+            let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             p(&mut out, apex);
             v(&mut out, axis);
             out.push(half_angle.to_bits());
             v(&mut out, u_ref);
         }
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => {
+        Surface::Sphere { frame, radius } => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             p(&mut out, center);
             out.push(radius.to_bits());
             v(&mut out, axis);
             v(&mut out, u_ref);
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             p(&mut out, center);
             v(&mut out, axis);
             out.push(major_radius.to_bits());
@@ -283,9 +263,7 @@ fn bits(s: &Surface<f64>) -> Vec<u64> {
 #[test]
 fn round_trips_bit_exact_for_radius_kinds_and_plane() {
     let plane = Surface::Plane {
-        origin: Point3::new(0.5, -2.0, 1.25),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::new(0.5, -2.0, 1.25), Vec3::unit_z(), Vec3::unit_x()),
     };
     let mut rows = vec![("plane", plane)];
     rows.extend(tilted_surfaces().into_iter().filter(|(n, _)| {
@@ -314,10 +292,8 @@ fn round_trips_bit_exact_for_radius_kinds_and_plane() {
 #[test]
 fn cone_round_trip_bit_exact_at_zero_apex_height() {
     let base = Surface::Cone {
-        apex: Point3::new(0.5, -2.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.5, -2.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: FRAC_PI_6,
-        u_ref: Vec3::unit_x(),
     };
     for d in [0.25, -0.25] {
         let there = offset_surface(&base, d, band()).unwrap();
@@ -333,18 +309,18 @@ fn cone_round_trip_bit_exact_at_zero_apex_height() {
 #[test]
 fn cone_round_trip_generic_apex_rounds_once_per_leg() {
     let base = Surface::Cone {
-        apex: Point3::new(0.5, -2.0, 1.25),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.5, -2.0, 1.25), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: FRAC_PI_6,
-        u_ref: Vec3::unit_x(),
     };
     let slide = 0.25 / FRAC_PI_6.sin();
     for d in [0.25, -0.25] {
         let there = offset_surface(&base, d, band()).unwrap();
         let back = offset_surface(&there, -d, band()).unwrap();
-        let (Surface::Cone { apex: b, .. }, Surface::Cone { apex: t, .. }) = (&back, &there) else {
+        let (Surface::Cone { frame: fb, .. }, Surface::Cone { frame: ft, .. }) = (&back, &there)
+        else {
             panic!("cone offsets must stay cones");
         };
+        let (b, t) = (fb.origin(), ft.origin());
         // x, y ride along bit-exactly (axis is ẑ: their slide
         // component is exactly zero), as do the carried fields.
         assert_eq!(b.x.to_bits(), 0.5f64.to_bits());
@@ -426,20 +402,21 @@ fn defining_equation_rows_all_kinds_both_signs() {
 #[test]
 fn cone_slide_closed_form_both_signs() {
     let base = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 2.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: FRAC_PI_6,
-        u_ref: Vec3::unit_x(),
     };
     let s = FRAC_PI_6.sin();
     for d in [0.5, -0.5] {
         let minted = offset_surface(&base, d, band()).unwrap();
         let Surface::Cone {
-            apex, half_angle, ..
+            frame: carrier_frame,
+            half_angle,
+            ..
         } = minted
         else {
             panic!("cone offset must be a cone");
         };
+        let apex = carrier_frame.origin();
         assert_eq!(half_angle.to_bits(), FRAC_PI_6.to_bits());
         assert_eq!(apex.x.to_bits(), 0.0f64.to_bits());
         assert_eq!(apex.y.to_bits(), 0.0f64.to_bits());
@@ -469,20 +446,16 @@ fn cone_slide_closed_form_both_signs() {
 /// an axis-aligned frame is the defect these rows exist to catch.
 fn cyl(radius: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: t_center(),
-        axis: t_axis(),
+        frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
         radius,
-        u_ref: t_uref(),
     }
 }
 
 fn torus(major: f64, minor: f64) -> Surface<f64> {
     Surface::Torus {
-        center: t_center(),
-        axis: t_axis(),
+        frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
         major_radius: major,
         minor_radius: minor,
-        u_ref: t_uref(),
     }
 }
 
@@ -492,10 +465,8 @@ fn torus(major: f64, minor: f64) -> Surface<f64> {
 #[test]
 fn radius_floor_refuses_at_and_below_zero() {
     let sphere = Surface::Sphere {
-        center: t_center(),
+        frame: geom::Frame::new(t_center(), t_axis(), t_uref()),
         radius: 2.0,
-        axis: t_axis(),
-        u_ref: t_uref(),
     };
     let rows: Vec<(&str, Surface<f64>, f64)> = vec![
         ("cylinder at zero", cyl(1.0), -1.0),
@@ -635,10 +606,8 @@ mod interval {
     fn interval_mint_encloses_the_f64_mint() {
         let d = 0.3;
         let cyl = Surface::Cylinder {
-            origin: ip(t_center()),
-            axis: iv(t_axis()),
+            frame: geom::Frame::new(ip(t_center()), iv(t_axis()), iv(t_uref())),
             radius: Interval::from_f64(2.5),
-            u_ref: iv(t_uref()),
         };
         let minted = offset_surface(&cyl, Interval::from_f64(d), band()).unwrap();
         let Surface::Cylinder { radius, .. } = minted else {
@@ -654,15 +623,22 @@ mod interval {
         assert!(radius.hi() - radius.lo() < 1e-12, "thin inputs stay thin");
 
         let cone = Surface::Cone {
-            apex: ip(Point3::new(0.0, 0.0, 2.0)),
-            axis: iv(Vec3::unit_z()),
+            frame: geom::Frame::new(
+                ip(Point3::new(0.0, 0.0, 2.0)),
+                iv(Vec3::unit_z()),
+                iv(Vec3::unit_x()),
+            ),
             half_angle: Interval::from_f64(FRAC_PI_6),
-            u_ref: iv(Vec3::unit_x()),
         };
         let minted = offset_surface(&cone, Interval::from_f64(d), band()).unwrap();
-        let Surface::Cone { apex, .. } = minted else {
+        let Surface::Cone {
+            frame: carrier_frame,
+            ..
+        } = minted
+        else {
             panic!("cone offset must stay a cone");
         };
+        let apex = carrier_frame.origin();
         let expected = 2.0 - d / FRAC_PI_6.sin();
         assert!(
             apex.z.lo() <= expected && expected <= apex.z.hi(),
@@ -680,10 +656,8 @@ mod interval {
     #[test]
     fn interval_refusals_escalate_honestly() {
         let mk = |radius: Interval| Surface::Cylinder {
-            origin: ip(t_center()),
-            axis: iv(t_axis()),
+            frame: geom::Frame::new(ip(t_center()), iv(t_axis()), iv(t_uref())),
             radius,
-            u_ref: iv(t_uref()),
         };
         let d = Interval::from_f64(-1.0);
         match offset_surface(&mk(Interval::from_bounds(0.9, 1.1)), d, band()) {
@@ -711,19 +685,15 @@ mod interval {
             (
                 "cylinder",
                 Surface::Cylinder {
-                    origin: ip(t_center()),
-                    axis: iv(t_axis()),
+                    frame: geom::Frame::new(ip(t_center()), iv(t_axis()), iv(t_uref())),
                     radius: Interval::from_f64(2.5),
-                    u_ref: iv(t_uref()),
                 },
             ),
             (
                 "cone",
                 Surface::Cone {
-                    apex: ip(t_center()),
-                    axis: iv(t_axis()),
+                    frame: geom::Frame::new(ip(t_center()), iv(t_axis()), iv(t_uref())),
                     half_angle: Interval::from_f64(FRAC_PI_6),
-                    u_ref: iv(t_uref()),
                 },
             ),
         ];
@@ -749,22 +719,16 @@ mod interval {
     /// cylinder and cone arms (the two the residual row samples).
     fn interval_signed_dist(s: &Surface<Interval>, q: Point3<Interval>) -> Interval {
         match *s {
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            } => {
+            Surface::Cylinder { frame, radius, .. } => {
+                let (origin, axis) = (frame.origin(), frame.axis());
                 let rel = q - origin;
                 let h = rel.dot(axis);
                 (rel - axis * h).norm() - radius
             }
             Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                ..
+                frame, half_angle, ..
             } => {
+                let (apex, axis) = (frame.origin(), frame.axis());
                 let rel = q - apex;
                 let h = rel.dot(axis);
                 let rho = (rel - axis * h).norm();
@@ -790,34 +754,24 @@ fn offset_distance_reads_back_the_minted_distance() {
     );
     let kinds = [
         Surface::Plane {
-            origin: o,
-            normal: Vec3::new(0.6, 0.0, 0.8),
-            u_ref: Vec3::new(0.8, 0.0, -0.6),
+            frame: geom::Frame::new(o, Vec3::new(0.6, 0.0, 0.8), Vec3::new(0.8, 0.0, -0.6)),
         },
         Surface::Cylinder {
-            origin: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             radius: 1.5,
-            u_ref: x,
         },
         Surface::Sphere {
-            center: o,
+            frame: geom::Frame::new(o, z, x),
             radius: 1.5,
-            axis: z,
-            u_ref: x,
         },
         Surface::Torus {
-            center: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             major_radius: 3.0,
             minor_radius: 1.0,
-            u_ref: x,
         },
         Surface::Cone {
-            apex: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             half_angle: FRAC_PI_6,
-            u_ref: x,
         },
     ];
     for surface in &kinds {

@@ -17,8 +17,9 @@
 use geom_core::{Band, Margin, Point3, Sign, Tol, Vec3};
 
 use super::{CurvedPlacement, curved_face_placement};
-use crate::solid_contain::{line_torus_roots, torus_elevation};
+use crate::solid_contain::torus_elevation;
 use crate::validate::decide;
+use geom_brep::curve_face::line_quadric::line_torus_roots;
 use geom_brep::quartic::QuarticRoots;
 
 fn band() -> Band {
@@ -128,11 +129,9 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
         );
         let face = prism.sides[0].face;
         let surface = geom::Surface::Torus {
-            center,
-            axis,
+            frame: geom::Frame::new(center, axis, Vec3::new(1.0, 0.0, 0.0)),
             major_radius: big_r,
             minor_radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         body.set_face_surface(
             face,

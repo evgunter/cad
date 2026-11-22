@@ -49,7 +49,7 @@ Read on main `ebe4a2b2b2` while starting this unit (`contacthold/rim-locus-ff-ro
 Poses, all refusing before any record could be minted:
 
 - A torus (major 2, minor 0.5, axis y) resting on a plate whose top is `y = -0.5`: ∪ in both orders, ∖ and ∩ refuse `CurvedBooleanUnsupported { kind: Torus }`.
-- A ball of radius 1 in a bore of radius 1: ball ∪ tube escalates `ArcCylinderRoots` (`bool_conic_quadric_disc`); tube ∪ ball refuses `CurvedPierceUnsupported`.
+- A ball of radius 1 in a bore of radius 1: ball ∪ tube escalates `ArcCylinderRoots` (`conic_quadric_disc`); tube ∪ ball refuses `CurvedPierceUnsupported`.
 - A torus in a bore of radius 2.5: both orders refuse `CurvedPierceUnsupported` (the seam meridian crosses the contact circle).
 
 Parked behind TANG's `dev1-cylinder-sphere-circle-locus-arm`, which holds the general form (a tangent locus over a `Curve3`). Once that arm derives the circle, the face–face row is the overlap read over the circle (`locus_through_both_faces` already walks a certificate schedule) at the pair door and the fold step, and the census's `tangent_pair_at_rest` gains the same arm so op and census keep one reading.

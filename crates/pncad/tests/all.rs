@@ -606,8 +606,8 @@ fn profile_payloads_are_matchable(
             radius,
             angular_margin,
         } => {
-            named::<f64>(radius);
-            named::<f64>(angular_margin);
+            named::<pncad::geom_core::Told>(radius);
+            named::<pncad::geom_core::Told>(angular_margin);
             "arc"
         }
     };
@@ -772,8 +772,11 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             ),
             FilletLeg::Outgoing,
             FilletLegCarrier::Arc {
-                radius: 2.0,
-                angular_margin: -0.5,
+                radius: pncad::geom_core::Told::computed(&2.0, pncad::geom_core::Dimension::Length),
+                angular_margin: pncad::geom_core::Told::computed(
+                    &-0.5,
+                    pncad::geom_core::Dimension::Angle,
+                ),
             },
             NoCornerReason::OffsetCarriersDisjoint,
         ),
@@ -1373,10 +1376,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
         None
     );
 
-    let options = ImportOptions {
-        eps_in: Some(1e-7),
-        examine_chart_coherence: true,
-    };
+    let options = ImportOptions { eps_in: Some(1e-7) };
     assert!(matches!(
         import_step("not a step file", &options, Tol::witness()),
         Err(StepImportError::Syntax { .. })
@@ -1386,7 +1386,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
 /// Which analytic kind's estimator declined, read off the arm that
 /// reports it — `None` on every other refusal.
 ///
-/// The kinds are matched EXHAUSTIVELY, so a third one recognised
+/// The kinds are matched EXHAUSTIVELY, so a new one recognised
 /// kernel-side stops this compiling rather than arriving under an
 /// existing word. Their recourses differ, which is why the
 /// discriminant is worth a curated name: a plane that will not
@@ -1397,6 +1397,9 @@ fn recognition_ambiguity_is_matchable(err: &StepImportError) -> Option<&'static 
         StepImportError::RecognitionAmbiguous { kind, .. } => Some(match kind {
             PromotedKind::Plane => "plane",
             PromotedKind::Cylinder => "cylinder",
+            PromotedKind::Cone => "cone",
+            PromotedKind::Sphere => "sphere",
+            PromotedKind::Torus => "torus",
         }),
         _ => None,
     }
@@ -1434,7 +1437,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         eps_in,
         normalizations,
         instances,
-        coherence,
         contacts,
         coincidences,
     } = imported
@@ -1452,13 +1454,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
     named::<Vec<PlacedInstance>>(instances.clone());
-    // The chart-coherence channel, spelled from the prelude down to
-    // the vocabulary a consumer matches on. The import above asked
-    // for no examination, so the field is `None` — which is the
-    // CONFIGURATION half of this channel's distinction and not an
-    // empty report; `topo`'s own door draws the same line about the
-    // two lists inside a report it did produce.
-    named::<Option<CoherenceReport>>(coherence.clone());
     // The touches between instances the gate recorded, and the rows
     // they cite: none, since one box touches nothing.
     named::<ContactRecords>(contacts.clone());
@@ -1467,19 +1462,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         contacts.is_empty() && coincidences.is_empty(),
         "one box records no contact"
     );
-    assert!(
-        coherence.is_none(),
-        "the default import asked for no chart-coherence examination"
-    );
-    // The report's own two lists, spelled from here too, because a
-    // consumer that holds the answer reads them. No `assert_ne!`
-    // against `Some(empty)`: the assertion above is the whole runtime
-    // claim, and the fold it would guard against — an unasked import
-    // rendering as an empty report — is unrepresentable in
-    // `Option<CoherenceReport>` and would fail `is_none` first.
-    let empty = CoherenceReport::default();
-    named::<&Vec<CoherenceFinding>>(&empty.findings);
-    named::<&Vec<Unexamined>>(&empty.unexamined);
 
     // "Not a second computation", as an equality rather than a claim.
     let again = mass_properties(&body, Tol::witness(), pinned_resolution(Tol::witness()))
@@ -1562,6 +1544,9 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             match to {
                 PromotedKind::Plane => "surface_promotion_plane",
                 PromotedKind::Cylinder => "surface_promotion_cylinder",
+                PromotedKind::Cone => "surface_promotion_cone",
+                PromotedKind::Sphere => "surface_promotion_sphere",
+                PromotedKind::Torus => "surface_promotion_torus",
             }
         }
         NormalizationKind::OneRecord {

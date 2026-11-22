@@ -26,7 +26,7 @@ fn derived(cone: &Surface<f64>, other: &Surface<f64>, seed: &Curve3<f64>) -> Cur
     let region = geom_brep::Reach::of_span(seed, span).expect("the seed has a region");
     let band = Band::linear(Tol::witness()).expect("the run's band forms");
     match topo::section_near(
-        None,
+        None::<geom_core::NoLane>,
         (cone, other),
         (seed, span),
         &region,
@@ -43,22 +43,18 @@ fn a_cone_and_a_coaxial_sphere_derive_their_circle() {
     let axis = Vec3::new(0.0, 0.0, 1.0);
     let u_ref = Vec3::new(1.0, 0.0, 0.0);
     let cone = Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis,
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), axis, u_ref),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref,
     };
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 1.0),
-        axis,
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), axis, u_ref),
         radius: 1.0,
-        u_ref,
     };
     let seed = Curve3::circle(Point3::new(0.0, 0.0, 1.0), axis, 1.0, u_ref);
     let c = derived(&cone, &sphere, &seed);
     on_both(&c, &cone, &sphere);
     assert!(
-        matches!(&c, Curve3::Circle(k) if (k.radius - 1.0).abs() < 1e-12),
+        matches!(&c, Curve3::Circle(k) if (k.radius() - 1.0).abs() < 1e-12),
         "the circle at the sphere's equator, away from the apex: {c:?}"
     );
 }
@@ -68,24 +64,20 @@ fn a_cone_and_a_coaxial_torus_derive_their_circle() {
     let axis = Vec3::new(0.0, 1.0, 0.0);
     let u_ref = Vec3::new(1.0, 0.0, 0.0);
     let cone = Surface::Cone {
-        apex: Point3::new(0.0, -0.65625, 0.0),
-        axis,
+        frame: geom::Frame::new(Point3::new(0.0, -0.65625, 0.0), axis, u_ref),
         half_angle: (1.0_f64 / 6.0).atan(),
-        u_ref,
     };
     let torus = Surface::Torus {
-        center: Point3::new(0.0, 0.109375, 0.0),
-        axis,
+        frame: geom::Frame::new(Point3::new(0.0, 0.109375, 0.0), axis, u_ref),
         major_radius: 0.140625,
         minor_radius: 0.078125,
-        u_ref,
     };
     let seed = Curve3::circle(Point3::new(0.0, 0.1875, 0.0), axis, 0.140625, u_ref);
     let c = derived(&cone, &torus, &seed);
     on_both(&c, &cone, &torus);
     assert!(
-        matches!(&c, Curve3::Circle(k) if (k.radius - 0.140625).abs() < 1e-12
-            && (k.frame.origin.y - 0.1875).abs() < 1e-12),
+        matches!(&c, Curve3::Circle(k) if (k.radius() - 0.140625).abs() < 1e-12
+            && (k.frame.origin().y - 0.1875).abs() < 1e-12),
         "the torus's top parallel, which the cone passes through: {c:?}"
     );
 }

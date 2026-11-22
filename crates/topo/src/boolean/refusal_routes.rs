@@ -42,8 +42,8 @@ use crate::splitting::Escalation;
 use crate::contact::GlueClass;
 
 use crate::face_normal::NormalDecision;
-pub use crate::solid_contain::WallRung;
 use geom_brep::PlaneRung;
+pub use geom_brep::curve_face::line_quadric::WallRung;
 use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use geom_brep::sector_shape::SectorRung;
@@ -180,13 +180,13 @@ pub enum BooleanDecision {
     /// the same reading in band, told without the carrier.
     BoundaryMeeting,
     /// Where a straight edge crosses a sphere: the line × sphere
-    /// quadratic's discriminant (`solid_contain::line_sphere_roots`,
-    /// `bool_ray_sphere_disc`).
+    /// quadratic's discriminant (`curve_face::line_quadric::line_sphere_roots`,
+    /// `curve_face_pose_disc`).
     SphereRoots,
     /// Where an arc crosses a sphere: the conic × quadric door's rows
     /// (`conic_quadric`) — on a circle, or an ellipse whose second
     /// harmonic is in the zero band, its first-harmonic arm's extremes
-    /// (`bool_conic_quadric_first_extreme`), read for a constant
+    /// (`curve_face_pose_extreme`), read for a constant
     /// residual and for either end of the range; otherwise the
     /// half-angle quartic's rows.
     ArcSphereRoots,
@@ -197,7 +197,7 @@ pub enum BooleanDecision {
     /// the half-angle quartic's rows.
     ArcCylinderRoots,
     /// Where a straight edge crosses a cone: the line × cone quadratic's
-    /// rungs (`reduce::line_cone_roots`) — its leading coefficient, its
+    /// rungs (`curve_face::line_quadric`) — its leading coefficient, its
     /// discriminant read as the depth its vertex reaches, and each
     /// root's slack.
     ConeRoots,
@@ -364,7 +364,7 @@ impl Settling {
     }
 }
 
-impl<T: geom_core::Real> super::GluedPairs<T> {
+impl<T: crate::props::AtRestPolicy> super::GluedPairs<T> {
     /// **What a door read of the declaration ahead of `question`**,
     /// looked up for the face pairs it asks about, in order: the first
     /// declared pair's class is [`DeclarationRead::Spent`] (the question
@@ -2936,11 +2936,13 @@ pub(in crate::boolean) mod tests {
         for (half, big_r, r, margin, in_band) in rows {
             let label = format!("{half:?} at R = {big_r}, r = {r}");
             let (body, face) = face_on(crate::Surface::Torus {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 major_radius: big_r,
                 minor_radius: r,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             });
             let refusal = face_outward_normal_at(&body, face, Point3::new(big_r + r, 0.0, 0.0), b)
                 .expect_err("a torus outside the ring convention has no normal");
@@ -3001,9 +3003,11 @@ pub(in crate::boolean) mod tests {
     #[test]
     fn the_maximal_faces_gate_refuses_an_infinite_neighbour_offset_as_poison() {
         let body = top_split_redescribed(|p0, along, _| crate::Surface::Plane {
-            origin: Point3::new(p0.x, p0.y, f64::INFINITY),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: along,
+            frame: geom::Frame::new(
+                Point3::new(p0.x, p0.y, f64::INFINITY),
+                Vec3::new(0.0, 0.0, 1.0),
+                along,
+            ),
         });
         let err = super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
             .expect_err("an infinite offset is no plane apart from its neighbour");
@@ -3024,9 +3028,11 @@ pub(in crate::boolean) mod tests {
             let theta = (b.zero() + b.escalate()) / 2.0 / diagonal;
             let up = Vec3::new(0.0, 0.0, 1.0);
             crate::Surface::Plane {
-                origin: p0,
-                normal: up * theta.cos() + along.cross(up) * theta.sin(),
-                u_ref: along,
+                frame: geom::Frame::new(
+                    p0,
+                    up * theta.cos() + along.cross(up) * theta.sin(),
+                    along,
+                ),
             }
         });
         let err = super::super::reduce::gate_maximal_faces(&body, Operand::A, b)
@@ -3066,9 +3072,11 @@ pub(in crate::boolean) mod tests {
                 let theta = share * b.zero() / diagonal;
                 let up = Vec3::new(0.0, 0.0, 1.0);
                 crate::Surface::Plane {
-                    origin: p0,
-                    normal: up * theta.cos() + along.cross(up) * theta.sin(),
-                    u_ref: along,
+                    frame: geom::Frame::new(
+                        p0,
+                        up * theta.cos() + along.cross(up) * theta.sin(),
+                        along,
+                    ),
                 }
             });
             for shift in [
@@ -3119,9 +3127,11 @@ pub(in crate::boolean) mod tests {
             disc.face,
             crate::euler::FaceSurface::New {
                 surface: crate::Surface::Plane {
-                    origin: center,
-                    normal: up * (1.0 - sin * sin).sqrt() + along.cross(up) * sin,
-                    u_ref: along,
+                    frame: geom::Frame::new(
+                        center,
+                        up * (1.0 - sin * sin).sqrt() + along.cross(up) * sin,
+                        along,
+                    ),
                 },
                 sense: true,
             },
@@ -3222,9 +3232,7 @@ pub(in crate::boolean) mod tests {
         let mid = (b.zero() + b.escalate()) / 2.0;
         for offset in [0.0, 0.5 * b.zero()] {
             let body = top_split_redescribed(|p0, along, _| crate::Surface::Plane {
-                origin: p0 + up * offset,
-                normal: up,
-                u_ref: along,
+                frame: geom::Frame::new(p0 + up * offset, up, along),
             });
             let err = super::super::reduce::gate_maximal_faces(&body, Operand::A, b)
                 .expect_err("neighbours decided on one plane are not maximal");
@@ -3234,9 +3242,7 @@ pub(in crate::boolean) mod tests {
             );
         }
         let body = top_split_redescribed(|p0, along, _| crate::Surface::Plane {
-            origin: p0 + up * mid,
-            normal: up,
-            u_ref: along,
+            frame: geom::Frame::new(p0 + up * mid, up, along),
         });
         let err = super::super::reduce::gate_maximal_faces(&body, Operand::A, b)
             .expect_err("neighbours an offset in band apart refuse");
