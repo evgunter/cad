@@ -877,9 +877,16 @@ pub(super) fn walk_runs<T: AtRestPolicy>(
 pub(super) enum Singular {
     /// Definitely off the set, or the chart has none.
     Off,
-    /// On this singular point of the chart: an analytic chart's pole or
-    /// apex, or a spline net's collapsed side.
+    /// On this singular point of an analytic chart: a pole or an apex.
     On(geom_brep::chart_singularity::Singularity),
+    /// On these collapsed sides of a spline net, in
+    /// [`geom_brep::ssi::boundary::SIDES`] order: two sides meet at a
+    /// corner, and both may be the vertex's one point. Which one a joint
+    /// walks is read off its chart ends ([`side_walked`]).
+    Sides([bool; 4]),
+    /// A spline net whose vertex's incidence on a collapsed side is
+    /// undecided at this width.
+    SideUndecided(Indeterminate),
     /// A spline chart whose whole `u` knot domain moves a point under
     /// the band: every `u` lift names the same point.
     Collapsed,
@@ -912,23 +919,28 @@ pub(super) fn singular_at<T: Decide>(
     vertex: geom_core::Point3<T>,
     band: Band,
 ) -> Singular {
-    use geom_brep::chart_singularity::{singular_points, vertex_at_singular_point};
+    use geom_brep::chart_singularity::{Singularity, singular_points, vertex_at_singular_point};
     let mut undecided = None;
+    let mut sides = [false; 4];
     for (which, point) in singular_points(chart.surface()) {
-        match vertex_at_singular_point(vertex, point, band) {
-            Ok(true) => return Singular::On(which),
-            Ok(false) => {}
-            Err(cause) => {
+        match (which, vertex_at_singular_point(vertex, point, band)) {
+            (Singularity::Side(side), Ok(true)) => sides[side_index(side)] = true,
+            (_, Ok(true)) => return Singular::On(which),
+            (_, Ok(false)) => {}
+            (_, Err(cause)) => {
                 undecided.get_or_insert(cause);
             }
         }
     }
-    if let Some(cause) = undecided {
-        return Singular::Undecided(cause);
-    }
     let Some(payload) = chart.surface().spline_chart() else {
-        return Singular::Off;
+        return undecided.map_or(Singular::Off, Singular::Undecided);
     };
+    if sides.contains(&true) {
+        return Singular::Sides(sides);
+    }
+    if let Some(cause) = undecided {
+        return Singular::SideUndecided(cause);
+    }
     match decide(
         "pcurve_loop_pole_joint",
         net_reach(chart, payload, NetChannel::U),
@@ -938,6 +950,96 @@ pub(super) fn singular_at<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => Singular::Off,
         Err(cause) => Singular::Undecided(cause),
     }
+}
+
+/// A side's place in [`geom_brep::ssi::boundary::SIDES`].
+fn side_index(side: geom_brep::ChartSide) -> usize {
+    geom_brep::ssi::boundary::SIDES
+        .iter()
+        .position(|&s| s == side)
+        .unwrap_or_else(|| unreachable!("SIDES lists every side"))
+}
+
+/// Which collapsed sides a joint walks, read off its two chart ends.
+#[derive(Clone, Copy, Debug)]
+enum SideWalk {
+    /// Both ends on this one side: the boundary runs along it.
+    Along(geom_brep::ChartSide),
+    /// The arriving end on one side and the leaving end on the other of
+    /// two sides meeting at a corner, both the vertex's one point: the
+    /// boundary runs along the first to the corner and on along the
+    /// second.
+    Corner(geom_brep::ChartSide, geom_brep::ChartSide),
+    /// Neither: an end off every side the vertex is on, so the joint is
+    /// an ordinary one and its chart gap decides.
+    Off,
+}
+
+/// **Which of the vertex's collapsed sides (`on`) the joint from `prev`
+/// to `entry` walks**: an end lies on a side where its coordinate in the
+/// side's held channel decides zero from the side's value, metred by the
+/// chart's sup stretch in that channel as the joint's own gap is
+/// ([`spline_gap_closes`]). Only the ends tell the sides apart: the
+/// vertex is on each of them.
+///
+/// # Errors
+///
+/// [`PinMiss::Escalated`] where an end's place on a side is undecided.
+fn side_walked<T: Decide>(
+    chart: DescribedChart<'_, T>,
+    on: [bool; 4],
+    prev: geom_core::Point2<T>,
+    entry: geom_core::Point2<T>,
+    band: Band,
+) -> Result<SideWalk, PinMiss> {
+    let Some(net) = chart.surface().spline_chart() else {
+        return Ok(SideWalk::Off);
+    };
+    let held = |side: geom_brep::ChartSide, p: geom_core::Point2<T>| {
+        let (domain, at, arm) = match side.fixed {
+            ChartAxis::U => (net.knot_values_u().domain(), p.x, chart_u_arm(chart)),
+            ChartAxis::V => (net.knot_values_v().domain(), p.y, v_meter(chart)),
+        };
+        let value = match side.end {
+            geom_brep::ChartEnd::Low => domain.0,
+            geom_brep::ChartEnd::High => domain.1,
+        };
+        match decide(
+            "pcurve_loop_side_end",
+            Margin::metered_sup(at - value, arm),
+            band,
+        ) {
+            Ok(sign) => Ok(sign == Sign::Zero),
+            Err(cause) => Err(PinMiss::Escalated(cause)),
+        }
+    };
+    let sides: Vec<geom_brep::ChartSide> = geom_brep::ssi::boundary::SIDES
+        .into_iter()
+        .zip(on)
+        .filter_map(|(side, on)| on.then_some(side))
+        .collect();
+    let mut arriving = Vec::new();
+    let mut leaving = Vec::new();
+    for &side in &sides {
+        if held(side, prev)? {
+            arriving.push(side);
+        }
+        if held(side, entry)? {
+            leaving.push(side);
+        }
+    }
+    if let Some(&side) = arriving.iter().find(|s| leaving.contains(s)) {
+        return Ok(SideWalk::Along(side));
+    }
+    Ok(
+        match arriving
+            .iter()
+            .find_map(|&a| leaving.iter().find(|b| b.fixed != a.fixed).map(|&b| (a, b)))
+        {
+            Some((a, b)) => SideWalk::Corner(a, b),
+            None => SideWalk::Off,
+        },
+    )
 }
 
 /// **Which ends of `half_edge`'s edge lie on `surface`'s singular set**,
@@ -1048,14 +1150,15 @@ enum AzimuthRule {
     /// chart: the element is the turn on the face's side
     /// ([`singular_turn`]).
     OnSingularSet(geom_brep::chart_singularity::Singularity),
-    /// The vertex is decided ON this collapsed side of a spline net: the
-    /// whole side is the one point, so the channel along it is free and
-    /// the element is an ordinary one, the other channel's gap deciding
-    /// ([`spline_gap_closes`]).
-    OnCollapsedSide(geom_brep::ChartSide),
-    /// A spline chart whose net-level `u` gate, or the vertex's incidence
-    /// on a collapsed side, is UNDECIDED: the joint refuses
-    /// ([`PinMiss::NetStretchUndecided`]), as its `v` gate's does.
+    /// The joint walks a spline net's collapsed sides ([`side_walked`]):
+    /// each side is the one point, so the channel along it is free and
+    /// the element is an ordinary one, any channel not freed deciding its
+    /// gap ([`spline_gap_closes`]). `free` is `[u, v]`.
+    OnCollapsedSides { free: [bool; 2] },
+    /// A spline chart whose net-level `u` gate (on a net closed in `u`),
+    /// or the vertex's incidence on a collapsed side, is UNDECIDED: the
+    /// joint refuses ([`PinMiss::NetStretchUndecided`]), as its `v`
+    /// gate's does.
     SplineUndecided(Indeterminate),
     /// The integer by the marks, and where they miss, an orbit point
     /// whose gap is decided within ε at the vertex's lever
@@ -1081,14 +1184,17 @@ enum AzimuthRule {
 }
 
 impl AzimuthRule {
+    /// The rule for a joint `singular` reads, where it walks no
+    /// collapsed side ([`decide_joint`] reads those first).
     fn of(periodic: bool, singular: Singular, spline: bool) -> Self {
-        use geom_brep::chart_singularity::Singularity;
         match (periodic, singular) {
-            (_, Singular::On(Singularity::Side(side))) => Self::OnCollapsedSide(side),
-            (_, Singular::Undecided(cause)) if spline => Self::SplineUndecided(cause),
+            (_, Singular::SideUndecided(cause)) => Self::SplineUndecided(cause),
+            (true, Singular::Undecided(cause)) if spline => Self::SplineUndecided(cause),
             (false, _) | (true, Singular::Collapsed) => Self::Aperiodic,
             (true, Singular::On(which)) => Self::OnSingularSet(which),
-            (true, Singular::Off) => Self::Marks,
+            // A joint at a collapsed side's point that walks no side is an
+            // ordinary one, its marks reading its integer.
+            (true, Singular::Off | Singular::Sides(_)) => Self::Marks,
             (true, Singular::Undecided(cause)) => Self::MarksNearPole(cause),
         }
     }
@@ -1430,12 +1536,61 @@ pub(super) fn decide_joint<T: Decide>(
     let surface = chart.surface();
     let u_period = periods.u();
     let spline = surface.spline_chart().is_some();
+    let singular = singular_at(chart, vertex, band);
+    let ordinary = AzimuthRule::of(u_period.is_some(), singular, spline);
+    let by = |rule| {
+        decide_joint_by(
+            chart, image, entry_t, prev, vertex, periods, band, sides, rule,
+        )
+    };
+    let Singular::Sides(on) = singular else {
+        return by(ordinary);
+    };
+    // The sides the joint walks free their channels. A channel the net
+    // closes would need the side's turn, which no reading states yet, so
+    // there the ordinary decision stands where it decides.
+    let walked = match side_walked(chart, on, prev, image.eval(entry_t), band)? {
+        SideWalk::Along(a) => [Some(a), None],
+        SideWalk::Corner(a, b) => [Some(a), Some(b)],
+        SideWalk::Off => [None, None],
+    };
+    let mut free = [false; 2];
+    for side in walked.into_iter().flatten() {
+        match side.fixed {
+            ChartAxis::U => free[1] = true,
+            ChartAxis::V => free[0] = true,
+        }
+    }
+    if free == [false; 2] {
+        return by(ordinary);
+    }
+    if (free[0] && u_period.is_some()) || (free[1] && periods.v.is_some()) {
+        return by(ordinary).map_err(|_| PinMiss::Singular(SingularMiss::ClosedSide));
+    }
+    by(AzimuthRule::OnCollapsedSides { free })
+}
+
+/// [`decide_joint`] under the rule its reading of the vertex chose.
+#[allow(clippy::too_many_arguments)]
+fn decide_joint_by<T: Decide>(
+    chart: DescribedChart<'_, T>,
+    image: &Pcurve<T>,
+    entry_t: T,
+    prev: geom_core::Point2<T>,
+    vertex: geom_core::Point3<T>,
+    periods: ChartPeriods<T>,
+    band: Band,
+    sides: JointSides<'_, T>,
+    rule: AzimuthRule,
+) -> Result<JointElement, PinMiss> {
+    let surface = chart.surface();
+    let u_period = periods.u();
+    let spline = surface.spline_chart().is_some();
     let arm = joint_arm(chart, vertex);
     let twin = sphere_twin(surface, image);
     let orbit = Orbit::of(surface, image);
     let gap = prev.x - image.eval(entry_t).x;
     let marks = |p: Period<T>| lever_periods("pcurve_loop_branch", arm, gap, p, orbit, band);
-    let rule = AzimuthRule::of(u_period.is_some(), singular_at(chart, vertex, band), spline);
     let m = match (rule, u_period) {
         (AzimuthRule::Marks, Some(p)) => marks(p).map_err(PinMiss::from)?,
         (AzimuthRule::MarksNearPole(cause), Some(p)) => {
@@ -1449,20 +1604,9 @@ pub(super) fn decide_joint<T: Decide>(
         (AzimuthRule::SplineUndecided(cause), _) => {
             return Err(PinMiss::NetStretchUndecided(cause));
         }
-        // The channel along the side is free; one the net closes would
-        // need the side's turn, which no reading states yet.
-        (AzimuthRule::OnCollapsedSide(side), _) => {
-            let along_closed = match side.fixed {
-                ChartAxis::U => periods.v.is_some(),
-                ChartAxis::V => u_period.is_some(),
-            };
-            if along_closed {
-                return Err(PinMiss::Singular(SingularMiss::ClosedSide));
-            }
-            match (side.fixed, u_period) {
-                (ChartAxis::U, Some(p)) => marks(p).map_err(PinMiss::from)?,
-                _ => 0,
-            }
+        // A held `u` on a net closed in `u` keeps its marks.
+        (AzimuthRule::OnCollapsedSides { free: [false, _] }, Some(p)) => {
+            marks(p).map_err(PinMiss::from)?
         }
         _ => 0,
     };
@@ -1538,11 +1682,8 @@ pub(super) fn decide_joint<T: Decide>(
             lifted = shift_v_branch(&lifted, kv, p);
         }
         let free = match rule {
-            AzimuthRule::OnCollapsedSide(side) => Some(match side.fixed {
-                ChartAxis::U => ChartAxis::V,
-                ChartAxis::V => ChartAxis::U,
-            }),
-            _ => None,
+            AzimuthRule::OnCollapsedSides { free } => free,
+            _ => [false; 2],
         };
         spline_gap_closes(chart, lifted.eval(entry_t), prev, free, band)?;
     }
@@ -1840,9 +1981,9 @@ pub(crate) fn branches_astride_as<T: Decide>(
 
 /// **A spline chart's joint gap**: the entry `entry` and the
 /// predecessor's exit `prev` agree within ε through the chart's sup
-/// stretch on each channel ([`chart_u_arm`], [`v_meter`]) but `free`, the
-/// channel along a collapsed side the joint's vertex is on, where every
-/// value names the one point. A net can fold, so on a spline chart a 3-D
+/// stretch on each channel ([`chart_u_arm`], [`v_meter`]) but those
+/// `free` (`[u, v]`), the channels along the collapsed sides the joint
+/// walks ([`side_walked`]), where every value names the one point. A net can fold, so on a spline chart a 3-D
 /// coincidence does not name the sheet, and the joint states its
 /// chart-space gap ([`decide_joint`]).
 ///
@@ -1854,18 +1995,15 @@ fn spline_gap_closes<T: Decide>(
     chart: DescribedChart<'_, T>,
     entry: geom_core::Point2<T>,
     prev: geom_core::Point2<T>,
-    free: Option<ChartAxis>,
+    free: [bool; 2],
     band: Band,
 ) -> Result<(), PinMiss> {
     let arm = chart_u_arm(chart);
-    for (channel, margin) in [
-        (ChartAxis::U, Margin::metered_sup(entry.x - prev.x, arm)),
-        (
-            ChartAxis::V,
-            Margin::metered_sup(entry.y - prev.y, v_meter(chart)),
-        ),
-    ] {
-        if free == Some(channel) {
+    for (free, margin) in free.into_iter().zip([
+        Margin::metered_sup(entry.x - prev.x, arm),
+        Margin::metered_sup(entry.y - prev.y, v_meter(chart)),
+    ]) {
+        if free {
             continue;
         }
         match decide("pcurve_loop_continuity", margin, band) {

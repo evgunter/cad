@@ -110,35 +110,145 @@ fn spline_cone() -> Surface<f64> {
     ))
 }
 
-/// **A collapsed side along a channel the net closes refuses typed**: at
-/// a NURBS cone's apex the turn about the point and the face's side of
-/// it have no spline reading yet, so the joint refuses
-/// [`super::SingularMiss::ClosedSide`] rather than writing an element.
+/// The joint into `entry`'s image (an iso line leaving `entry`) from
+/// `prev`, at `vertex` on `surface`.
+fn joint_at(
+    surface: &Surface<f64>,
+    prev: (f64, f64),
+    entry: (f64, f64),
+    vertex: Point3<f64>,
+) -> Result<JointElement, PinMiss> {
+    let image = Pcurve::IsoLine {
+        p0: Point2::new(entry.0, entry.1),
+        pl: Vec2::new(0.0, 1.0),
+        ends: None,
+    };
+    decide_plain_joint(
+        DescribedChart::of(surface).unwrap(),
+        &image,
+        0.0,
+        Point2::new(prev.0, prev.1),
+        vertex,
+        ChartPeriods::of(surface, band()),
+        band(),
+    )
+}
+
+/// **The free channel is the side's only where both ends are on it.** At
+/// the triangle's pole, a joint whose two ends lie a whole `v` span apart
+/// on the regular side `u = 1`, or in the chart's interior at `u = ½`,
+/// walks no collapsed side: its chart gap refuses.
 #[test]
-fn a_collapsed_side_along_a_closed_channel_refuses_typed() {
+fn a_joint_at_the_pole_whose_ends_are_off_its_side_is_a_gap() {
+    let pole = Point3::new(1.0, 1.0, 0.0);
+    let one = triangle(pole, pole);
+    for u in [1.0, 0.5] {
+        let got = joint_at(&one, (u, 1.0), (u, 0.0), pole);
+        assert!(
+            matches!(got, Err(PinMiss::Discontinuity)),
+            "u = {u}: the ends are off the side, read {:?}",
+            got.ok()
+        );
+    }
+}
+
+/// **An incidence the band cannot call refuses**, on an open net as on a
+/// closed one: a vertex half a band off the pole may be on the side or
+/// off it.
+#[test]
+fn a_vertex_in_band_of_a_collapsed_side_refuses() {
+    let pole = Point3::new(1.0, 1.0, 0.0);
+    let one = triangle(pole, pole);
+    let near = Point3::new(1.0 + 5e-9, 1.0, 0.0);
+    let got = joint_at(&one, (0.0, 1.0), (0.0, 0.0), near);
+    assert!(
+        matches!(got, Err(PinMiss::NetStretchUndecided(_))),
+        "in band: undecided, read {:?}",
+        got.ok()
+    );
+}
+
+/// **Two adjacent collapsed sides at one point**: a net whose sides
+/// `u = 0` and `v = 0` are both the point P. A joint along either side,
+/// or one from the first across their corner onto the second, walks
+/// them and is the identity; which side is read off its ends, not the
+/// first side the vertex is on.
+#[test]
+fn a_joint_along_or_across_two_adjacent_collapsed_sides_is_the_identity() {
+    let p = Point3::new(0.0, 0.0, 0.0);
+    let kv = || Knots::from(KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap());
+    let mut control = Vec::new();
+    for iu in 0..3_u32 {
+        for iv in 0..3_u32 {
+            control.push(if iu == 0 || iv == 0 {
+                p
+            } else {
+                Point3::new(f64::from(iu), f64::from(iv), f64::from(iu * iv) * 0.1)
+            });
+        }
+    }
+    let fan = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(kv(), kv(), control, vec![1.0; 9]).unwrap(),
+    ));
+    for (what, prev, entry) in [
+        ("along u = 0", (0.0, 0.2), (0.0, 0.8)),
+        ("along v = 0", (0.2, 0.0), (0.8, 0.0)),
+        (
+            "from u = 0 across the corner onto v = 0",
+            (0.0, 0.7),
+            (0.4, 0.0),
+        ),
+        (
+            "from v = 0 across the corner onto u = 0",
+            (1.0, 0.0),
+            (0.0, 1.0),
+        ),
+    ] {
+        let got = joint_at(&fan, prev, entry, p);
+        assert!(
+            matches!(got, Ok(JointElement::IDENTITY)),
+            "{what}: the identity, read {:?}",
+            got.ok()
+        );
+    }
+}
+
+/// **A collapsed side along a channel the net closes**: at a NURBS cone's
+/// apex a joint whose chart gap the marks decide across the seam keeps
+/// that decision (a period over), and one whose gap no mark decides
+/// (half a period) refuses as unbuilt,
+/// [`super::SingularMiss::ClosedSide`]: the turn about the point and the
+/// face's side of it have no spline reading yet
+/// (`work/charttail/a-closed-collapsed-side-has-no-turn-or-side-reading.md`).
+#[test]
+fn a_collapsed_side_along_a_closed_channel_keeps_what_its_gap_decides() {
+    use crate::joint::Deck;
     let cone = spline_cone();
     let apex = Point3::new(0.0, 0.0, 0.0);
     assert!(
         ChartPeriods::of(&cone, band()).u().is_some(),
         "the cone's u closes"
     );
-    let image = Pcurve::IsoLine {
-        p0: Point2::new(0.25, 0.0),
-        pl: Vec2::new(0.0, 1.0),
-        ends: None,
-    };
-    let out = decide_plain_joint(
-        DescribedChart::of(&cone).unwrap(),
-        &image,
-        0.0,
-        Point2::new(0.75, 0.0),
-        apex,
-        ChartPeriods::of(&cone, band()),
-        band(),
-    );
+    let seam = joint_at(&cone, (1.0, 0.0), (0.0, 0.0), apex);
     assert!(
-        matches!(out, Err(PinMiss::Singular(super::SingularMiss::ClosedSide))),
-        "the apex refuses as unbuilt, read {:?}",
-        out.ok()
+        matches!(
+            seam,
+            Ok(JointElement(Deck {
+                u: 1,
+                v: 0,
+                twin: false
+            }))
+        ),
+        "across the seam: a period over, read {:?}",
+        seam.ok()
+    );
+    let half = joint_at(&cone, (0.75, 0.0), (0.25, 0.0), apex);
+    assert!(
+        matches!(
+            half,
+            Err(PinMiss::Singular(super::SingularMiss::ClosedSide))
+        ),
+        "half a turn: unbuilt, read {:?}",
+        half.ok()
     );
 }
