@@ -178,30 +178,6 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "composite_form",
-        why: HandedOff("Track Q's; a private helper S88's census names"),
-    },
-    Site {
-        path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "exact",
-        why: HandedOff("Track Q's; a private helper S88's census names"),
-    },
-    Site {
-        path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "exact3",
-        why: HandedOff("Track Q's; a private helper S88's census names"),
-    },
-    Site {
-        path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "brackets",
-        why: Payload(
-            "a frame direction's components read as brackets for `frame_direction`: its \
-             midpoint and its turn bound, f64 payloads the composite's hull charges and the \
-             chart tube's partner form reads its structure from",
-        ),
-    },
-    Site {
         path: "crates/geom-core/src/dual.rs",
         subject: "impl<T> Bounds for Dual<T>",
         why: Impl(

@@ -2,10 +2,11 @@
 id: a-split-of-a-family-has-no-halves-a-read-reaches
 kind: issue
 title: An indexed read of a split-of-a-family's half refuses WrongOperand: the read takes the split's whole Family value, not the half's members
-status: open
+status: dispatched
 opened: 2026-11-09
-priority: P2
+priority: P0
 cost: M
+branch: formwords/split-of-family
 ---
 
 
@@ -37,3 +38,27 @@ Python's `split[...]`/`IndexedRead` spelling of the same read evaluates.
 The ground is the evaluator's operand door (`eval::wire`, owned by
 heldrecords, tally and wirerest); it is on REFS's slate as the program
 whose charter (indexed reads, DM3/DM4) it fits best.
+
+## The evaluator panics on it: raised to P0 (2026-11-22)
+
+Found by the review of FORMWORDS PR 7379, and reproduced. Box,
+pattern ×2, a transform of the pattern (a placement reading it), then
+`SessionOp::AddSplit { target: pattern }`. The body gate admits the
+pattern and the commit lands. Because a placement reads the target, the
+split door also writes `Assemble { [split.0, split.1] }` (the
+"above ⊔ below" in `crates/viewer/src/session/op.rs`). Evaluating that
+node reaches `split_port` from `reads_projected` and hits
+`unreachable!("a split evaluates to its two sides")`
+(`crates/editor-core/src/eval/wire.rs`), because a split of a family
+evaluates to `ValuePayload::Family`. It is a panic, not the
+`WrongOperand` this row first described, and an ordinary split gesture
+reaches it with no pick of a half. Rows:
+`review_denotes_body::a_split_of_a_transformed_pattern_evaluates` and
+`every_body_seat_over_every_family_form_evaluates_without_panicking`,
+on branch `formwords/denotes-body-review`.
+
+Claimed by FORMWORDS on 2026-11-22 by `git mv`, because REFS has no
+orchestrator and a panic on a normal gesture is P0. Under D10
+`[repetition]` the fix is the evaluator projecting a split's ports per
+member over a Family. The `unreachable!` becomes a typed refusal for
+any shape that is still genuinely unreachable.
