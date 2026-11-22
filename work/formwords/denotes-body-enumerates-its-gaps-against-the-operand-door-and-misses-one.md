@@ -2,10 +2,12 @@
 id: denotes-body-enumerates-its-gaps-against-the-operand-door-and-misses-one
 kind: issue
 title: combine::denotes_body names two directions it differs from the operand door and there is a third
-status: open
+status: review
 opened: 2026-09-21
 priority: P1
 cost: D
+pr: 7379
+branch: formwords/denotes-body
 ---
 
 
