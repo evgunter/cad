@@ -1,0 +1,36 @@
+diff --git a/crates/topo/src/boolean/mod.rs b/crates/topo/src/boolean/mod.rs
+index 373163e2ce..81feedf71d 100644
+--- a/crates/topo/src/boolean/mod.rs
++++ b/crates/topo/src/boolean/mod.rs
+@@ -8472,6 +8472,17 @@ fn route_rim<T: Decide>(
+     let routing =
+         crate::rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, reach, band)
+             .map_err(in_band)?;
++    let r2mut = std::env::var("R2MUT").unwrap_or_default();
++    match (r2mut.as_str(), routing) {
++        ("transverse_glues", crate::rim_wedge::RimRouting::Transverse) => return Ok(()),
++        ("cusp_glues", crate::rim_wedge::RimRouting::Cusp(_)) => return Ok(()),
++        ("seam_never", crate::rim_wedge::RimRouting::Seam) => return Err(Unrouted),
++        ("seam_any_departure", crate::rim_wedge::RimRouting::Seam) => return Ok(()),
++        ("transverse_refuses", crate::rim_wedge::RimRouting::Transverse) => {
++            return Err(Refused(BooleanError::TangencyUnsupported));
++        }
++        _ => {}
++    }
+     match routing {
+         crate::rim_wedge::RimRouting::Seam => {
+             match crate::rim_wedge::departures(
+diff --git a/crates/topo/src/boolean/recl.rs b/crates/topo/src/boolean/recl.rs
+index 511b965f81..c98c259f65 100644
+--- a/crates/topo/src/boolean/recl.rs
++++ b/crates/topo/src/boolean/recl.rs
+@@ -175,6 +175,9 @@ pub(super) fn recl_sectors<T: crate::props::AtRestPolicy>(
+         if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
+             let s_a = a_body.proven_face(sa.face).surface().clone();
+             let s_b = b_body.proven_face(sb.face).surface().clone();
++            if std::env::var("R2TRACE").is_ok() {
++                eprintln!("R2TRACE recl_sectors tangent v-v lump: {:?} x {:?}", s_a.kind(), s_b.kind());
++            }
+             let p = a_body.half_edge_start_point(sa.he).ok_or(
+                 BooleanError::ClassificationInvariant {
+                     what: "v-v site lost its point",
