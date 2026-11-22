@@ -124,7 +124,11 @@ fn a_planar_ring_vertex_escalating_hands_re_homing_to_the_next() {
             let (he1, he2) = (outer(corners[0]), outer(corners[2]));
             let made = body.mef_chord(MefSite::Chords { he1, he2 }, tol()).unwrap();
             let run = body.get_face(made.face).unwrap().outer;
-            let normal = Vec3::new(0.0, 0.0, 1.0);
+            let normal = geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            );
             // The first vertex escalates against the run, alone.
             if !matches!(
                 point_in_loop(&body, run, normal, p0, band()),

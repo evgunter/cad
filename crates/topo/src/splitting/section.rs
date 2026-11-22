@@ -394,19 +394,20 @@ where
             holes.push((polygon, section.below_loop));
         }
     }
-    let nesting = section_loops::nest(&red.body, outlines, holes, normal, band).map_err(
-        |fault| match fault {
-            // `section_walk` resolved, on this body, every record the
-            // nesting reads of these loops.
-            NestFault::Torn(unresolved) => unreachable!(
-                "the section nesting read a torn scratch body ({unresolved}), over loops whose \
+    let nesting =
+        section_loops::nest(&red.body, outlines, holes, plane.frame(), band).map_err(|fault| {
+            match fault {
+                // `section_walk` resolved, on this body, every record the
+                // nesting reads of these loops.
+                NestFault::Torn(unresolved) => unreachable!(
+                    "the section nesting read a torn scratch body ({unresolved}), over loops whose \
                  every record the section walk resolved on the same body"
-            ),
-            NestFault::Contradiction(hole) => SectionError::NestingContradiction {
-                corner: hole.points()[0],
-            },
-        },
-    )?;
+                ),
+                NestFault::Contradiction(hole) => SectionError::NestingContradiction {
+                    corner: hole.points()[0],
+                },
+            }
+        })?;
     if let Some(hole) = nesting.unplaced.first() {
         return Err(SectionError::UnplacedHole {
             corner: hole.points()[0],

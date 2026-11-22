@@ -39,6 +39,16 @@ pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
     }
 }
 
+/// The split plane `plane` (its frame, axis the plane's normal) as
+/// `side`'s section faces' plane, its axis their outward normal
+/// ([`section_normal`]).
+pub(super) fn section_frame<T: Real>(plane: geom::Frame<T>, side: PlaneSide) -> geom::Frame<T> {
+    match side {
+        PlaneSide::Above => plane.reversed(),
+        _ => plane,
+    }
+}
+
 /// The in-plane `u` axis a section loop `l` on a plane of normal `n` is
 /// charted with: its first chord's component in the plane, normalized,
 /// or for a loop of one corner the in-plane component of its section
@@ -217,16 +227,19 @@ pub(super) fn nest<T: Decide, O, H>(
     body: &Body<T>,
     outlines: Vec<(O, LoopKey)>,
     holes: Vec<(H, LoopKey)>,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     band: geom_core::Band,
 ) -> Result<Nesting<O, H>, NestFault<H>> {
+    // Disjointness is proved first, so the two loops are nested or apart
+    // and one point of `inner` reads which: not a containment reading
+    // ([`crate::loop_side`]'s module docs).
     let encloses = |outer: LoopKey, inner: LoopKey| -> Result<bool, Torn> {
-        if !outlines_disjoint(body, outer, inner, normal, band)? {
+        if !outlines_disjoint(body, outer, inner, plane.axis(), band)? {
             return Ok(false);
         }
         let q = ring_representative(body, inner).map_err(Torn)?;
         Ok(matches!(
-            point_in_loop(body, outer, normal, q, band),
+            point_in_loop(body, outer, plane, q, band),
             Ok(LoopContainment::In)
         ))
     };

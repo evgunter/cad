@@ -2043,10 +2043,9 @@ pub enum ValidationError {
         /// outer edge read on its own carrier — the witness, so the report
         /// names a position and not just a verdict. It is the FIRST
         /// vertex in the ring's cycle order that read outside, not a
-        /// distinguished one: the arm stops at the first definite
-        /// verdict, so a surgery that re-anchors
-        /// or reverses the same cycle — `Body::revert` among them —
-        /// can move the witness without moving the finding.
+        /// distinguished one, so a surgery that re-anchors or reverses
+        /// the same cycle — `Body::revert` among them — can move the
+        /// witness without moving the finding.
         ring_vertex: VertexKey,
     },
     /// **Tier 3, check 9 — nesting undecided.** Whether a ring lies
@@ -8854,16 +8853,17 @@ pub(crate) fn tier3_local_checks_marked<
     // from an instrument whose region may not be the loop's, and never
     // nested, which would pass what the check could not read.
     //
-    // One shape inside the gate the arm still does not catch,
-    // enumerated rather than gestured at: **a ring that CROSSES its
-    // outer loop along an `Ellipse`, `Spiric` or NURBS edge**, part
-    // inside and part out — the premise above, failing where the
-    // contact arms cannot see it. A vertex definitely inside settles
-    // the ring, so such a crossing whose first decided vertex is the
-    // inside one passes — the trade that keeps one escalating vertex
-    // from refusing a ring another vertex has already placed inside.
-    // Every crossing between `Line` and `Circle` edges is the contact
-    // half's `RingMeetsOuter` before this arm runs.
+    // Every vertex of the ring is read, so a ring that crosses its
+    // outer loop with a vertex on each side is `RingOutsideOuter` at the
+    // outside one, and one on the outer loop at every vertex is
+    // `RingMeetsOuter` at the edge the walk placed it on. One shape
+    // inside the gate the arm still does not catch, enumerated rather
+    // than gestured at: **a ring that CROSSES its outer loop along an
+    // `Ellipse`, `Spiric` or NURBS edge with no vertex outside**, an
+    // edge bowing out between inside vertices — the premise above,
+    // failing where the contact arms cannot see it. Every crossing
+    // between `Line` and `Circle` edges is the contact half's
+    // `RingMeetsOuter` before this arm runs.
     //
     // Order, and why it is that order: the nesting arm runs only on a
     // pair the contact arms cleared. A ring that MEETS its outer loop
@@ -8886,14 +8886,15 @@ pub(crate) fn tier3_local_checks_marked<
     // `Vertex` shape already, so the corner arm reads each loop alone.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        let normal = plane_chart_normal(body, face.surface);
+        let plane = plane_gate(body, face.surface);
+        let normal = plane.map(|p| p.axis());
         for &ring in &face.rings {
             match ring_outer_contact_about_as(body, face.outer, ring, normal, band) {
                 RingOuterVerdict::Disjoint => {
-                    let Some(normal) = normal else {
+                    let Some(plane) = plane else {
                         continue; // the nesting residue, enumerated above
                     };
-                    match ring_nesting(body, face.outer, ring, normal, band) {
+                    match ring_nesting(body, face.outer, ring, plane, band) {
                         RingNestingVerdict::Inside => {}
                         RingNestingVerdict::Outside { ring_vertex } => {
                             errors.push(ValidationError::RingOutsideOuter {
@@ -9535,7 +9536,8 @@ pub(crate) fn ring_outer_contact<T: Decide>(
     let normal = body
         .get_loop(outer)
         .and_then(|l| body.get_face(l.face))
-        .and_then(|f| plane_chart_normal(body, f.surface));
+        .and_then(|f| plane_gate(body, f.surface))
+        .map(|plane| plane.axis());
     ring_outer_contact_about_as(body, outer, ring, normal, band)
 }
 
@@ -10340,29 +10342,19 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
     }
 }
 
-/// The normal of a planar chart: the plane check 9's edge-meeting
-/// arms ([`ring_outer_contact`]) and its nesting arm walk a face's
-/// loops in, or `None` where both are silent — the whole of their
-/// gate, read off one face.
-///
-/// One condition: the surface is a `Plane`, because there is
-/// otherwise no plane for the arms to run in. The outer loop's CLASS
-/// is not gated on: [`crate::splitting::containment::point_in_loop`] reads
-/// every edge on its own carrier and refuses itself where it cannot
-/// ([`crate::splitting::PointInLoopError::Uncrossable`]), so the gate
-/// has nothing of its own to add about which loops are walkable.
-///
-/// The normal is handed over without `Face::sense` folded in: the
-/// walk's verdict is invariant under its sign.
-fn plane_chart_normal<T: Real>(
+/// **Check 9's plane gate**: the frame of a face's `Plane` chart, the
+/// plane its edge-meeting arms ([`ring_outer_contact`]) and its nesting
+/// arm walk the face's loops in, or `None` where both are silent: there
+/// is otherwise no plane for the arms to run in. The outer loop's CLASS
+/// is not gated on: [`crate::splitting::containment::point_in_loop`]
+/// reads every edge on its own carrier and refuses itself where it
+/// cannot ([`crate::splitting::PointInLoopError::Uncrossable`]).
+fn plane_gate<T: Real>(
     body: &Body<T>,
     surface: crate::geometry::SurfaceKey,
-) -> Option<geom_core::Vec3<T>> {
+) -> Option<geom::Frame<T>> {
     match body.surfaces.get(surface) {
-        Some(&Surface::Plane { frame, .. }) => {
-            let normal = frame.axis();
-            Some(normal)
-        }
+        Some(&Surface::Plane { frame, .. }) => Some(frame),
         _ => None,
     }
 }
@@ -10399,7 +10391,7 @@ enum RingNestingVerdict {
 }
 
 /// Does `ring` lie inside the region `outer` bounds, both loops of one
-/// planar face whose chart normal [`plane_chart_normal`] read as `normal`?
+/// planar face whose chart [`plane_gate`] read as `plane`?
 ///
 /// **Every vertex of the ring is read**
 /// ([`crate::loop_side::inside_at_every_vertex`], the validator's
@@ -10461,13 +10453,13 @@ enum RingNestingVerdict {
 /// loop is the same defect as any other ring outside it.
 ///
 /// Run only on a `(outer, ring)` pair [`ring_outer_contact`] has
-/// cleared, and only behind [`plane_chart_normal`]; the banner at check 9
+/// cleared, and only behind [`plane_gate`]; the banner at check 9
 /// states both and enumerates what they leave out.
 fn ring_nesting<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
     ring: LoopKey,
-    normal: geom_core::Vec3<T>,
+    plane: geom::Frame<T>,
     band: Band,
 ) -> RingNestingVerdict {
     let queries = body.loop_vertices(ring).unwrap_or_default();
@@ -10477,7 +10469,7 @@ fn ring_nesting<T: Decide>(
     match crate::loop_side::inside_at_every_vertex(&queries, |rv| {
         let rp = vertex_point(body, rv)?;
         let reading =
-            crate::splitting::containment::point_in_loop_at_edge(body, outer, normal, rp, band);
+            crate::splitting::containment::point_in_loop_at_edge(body, outer, plane, rp, band);
         Some(crate::loop_side::of_loop(reading.map(|(side, edge)| {
             if let Some(edge) = edge {
                 on_edge.get_or_insert(edge);
@@ -14428,9 +14420,7 @@ mod tests {
             let gated: Vec<(FaceKey, LoopKey, LoopKey)> = body
                 .faces
                 .iter()
-                .filter(|(_, f)| {
-                    !f.rings.is_empty() && plane_chart_normal(&body, f.surface).is_some()
-                })
+                .filter(|(_, f)| !f.rings.is_empty() && plane_gate(&body, f.surface).is_some())
                 .map(|(k, f)| (k, f.outer, f.rings[0]))
                 .collect();
             ringed += gated.len();
@@ -15596,7 +15586,7 @@ mod tests {
             let (body, face) = lamina_with_ring(&outer, &ring, tol);
             let f = body.get_face(face).unwrap();
             assert!(
-                plane_chart_normal(&body, f.surface).is_some(),
+                plane_gate(&body, f.surface).is_some(),
                 "{name}: the gate must be OPEN or the row asserts nothing"
             );
             assert!(
@@ -15614,12 +15604,12 @@ mod tests {
     }
 
     /// **A mean radius is not a containment statement**, which is why
-    /// check 9's nesting arm does not use the shape `shell::encloses`
+    /// check 9's nesting arm does not use the shape `shell::is_inner_of_concentric_pair`
     /// uses — a TOPO row about a SHELL helper's SHAPE, kept beside the
     /// nesting rows because it is the argument for the instrument they
     /// pin.
     ///
-    /// `encloses` compares mean radii about the pair's common
+    /// `is_inner_of_concentric_pair` compares mean radii about the pair's common
     /// centroid, which its own doc scopes to loops "concentric by
     /// construction". The thin cross is neither: measured off the
     /// body's own stored vertex positions, its nested ring's mean
@@ -15642,7 +15632,7 @@ mod tests {
         };
         let (outer_pts, ring_pts) = (points(f.outer), points(f.rings[0]));
         // The centroid of the two runs together, and each run's mean
-        // distance from it — `shell::encloses`' arithmetic, restated
+        // distance from it — `shell::is_inner_of_concentric_pair`' arithmetic, restated
         // here because that helper is private to its own module.
         let origin = Point3::new(0.0, 0.0, 0.0);
         let mut sum = geom_core::Vec3::new(0.0, 0.0, 0.0);
@@ -15734,7 +15724,6 @@ mod tests {
             let Some(&Surface::Plane { frame, .. }) = body.surfaces.get(f.surface) else {
                 panic!("a plane")
             };
-            let normal = frame.axis();
             let render = |v: RingNestingVerdict| match v {
                 RingNestingVerdict::Inside => "Inside".to_string(),
                 RingNestingVerdict::Outside { ring_vertex } => format!("Outside({ring_vertex:?})"),
@@ -15745,9 +15734,15 @@ mod tests {
                 RingNestingVerdict::Undecided(e) => format!("Undecided({e})"),
             };
             assert_eq!(
-                render(ring_nesting(body, f.outer, f.rings[0], normal, band)),
-                render(ring_nesting(body, f.outer, f.rings[0], -normal, band)),
-                "{name}: the verdict moved with the chart normal's sign"
+                render(ring_nesting(body, f.outer, f.rings[0], frame, band)),
+                render(ring_nesting(
+                    body,
+                    f.outer,
+                    f.rings[0],
+                    frame.reversed(),
+                    band
+                )),
+                "{name}: the verdict moved with the chart's axis"
             );
         }
     }
@@ -15827,9 +15822,9 @@ mod tests {
         (body, face)
     }
 
-    /// **`point_in_loop`'s verdict is blind to the normal's sign on an
-    /// arc-bearing loop**, the property `chord_join::face_plane_normal`
-    /// relies on when it hands `rehome_rings` the chart normal with the
+    /// **`point_in_loop`'s verdict is blind to which of the plane's two
+    /// frames it is handed on an arc-bearing loop**, the property ring
+    /// re-homing relies on when it hands the walk a face's chart with the
     /// face's sense left out. The polygon rows' half of it is pinned in
     /// `tests/review_m3_pr3_pil.rs`; this is the arc rows' half, on the
     /// bowed square: the lune, past the arc, the polygon's interior,
@@ -15841,7 +15836,11 @@ mod tests {
         let band = Band::linear(tol).expect("the run's band");
         let (body, face) = bowed_square_with_ring(10.5, 11.5, tol);
         let outer = body.get_face(face).unwrap().outer;
-        let up = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let up = geom::Frame::new(
+            Point3::origin(),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+        );
         let apex = 5.0 + 5.0 * core::f64::consts::SQRT_2;
         for (name, q, want) in [
             ("in the lune", (11.0, 5.0), C::In),
@@ -15856,7 +15855,7 @@ mod tests {
                     .unwrap_or_else(|e| panic!("{name}: the walk refused: {e:?}"))
             };
             assert_eq!(read(up), want, "{name}: under +z");
-            assert_eq!(read(-up), want, "{name}: under -z");
+            assert_eq!(read(up.reversed()), want, "{name}: under -z");
         }
     }
 
@@ -15879,7 +15878,7 @@ mod tests {
             let (body, face) = bowed_square_with_ring(x0, x1, tol);
             let outer_loop = body.get_face(face).unwrap().outer;
             let f = body.get_face(face).unwrap();
-            let normal = plane_chart_normal(&body, f.surface).expect("a planar face");
+            let normal = plane_gate(&body, f.surface).expect("a planar face").axis();
             let ring_loop = f.rings[0];
             let first = loop_cycle_of(&body, ring_loop).unwrap()[0];
             let rp = vertex_point(&body, body.get_half_edge(first).unwrap().start).unwrap();
@@ -15953,8 +15952,7 @@ mod tests {
             let Some(&Surface::Plane { frame, .. }) = b.surfaces.get(f.surface) else {
                 panic!("a plane")
             };
-            let normal = frame.axis();
-            let verdict = ring_nesting(&b, f.outer, lone, normal, band);
+            let verdict = ring_nesting(&b, f.outer, lone, frame, band);
             if outside {
                 assert!(
                     matches!(
@@ -16152,8 +16150,8 @@ mod tests {
 
     /// A circle of radius 10 about the origin split at −0.01, 0.01 and
     /// π, carried as three arcs of it (one circle to `loop_circle`, asserted), on
-    /// a lamina: the body, its outer loop, the chart normal, the radius.
-    fn split_circle(band: Band) -> (Body<f64>, LoopKey, geom_core::Vec3<f64>, f64) {
+    /// a lamina: the body, its outer loop, the chart, the radius.
+    fn split_circle(band: Band) -> (Body<f64>, LoopKey, geom::Frame<f64>, f64) {
         let tol = Tol::witness();
         let r = 10.0;
         let outer: Vec<Point3<f64>> = [-0.01_f64, 0.01, core::f64::consts::PI]
@@ -16176,7 +16174,7 @@ mod tests {
             ),
             "three arcs of one circle are the disc class"
         );
-        let normal = plane_chart_normal(&body, body.get_face(face).unwrap().surface).unwrap();
+        let normal = plane_gate(&body, body.get_face(face).unwrap().surface).unwrap();
         (body, outer_loop, normal, r)
     }
 
@@ -16266,7 +16264,7 @@ mod tests {
             ),
             "one circle on every outer edge is the disc class"
         );
-        let normal = plane_chart_normal(&body, f.surface).expect("the gate opens");
+        let normal = plane_gate(&body, f.surface).expect("the gate opens");
         // Strictly between ε and K·ε for any K > 1.
         let in_band = tol.eps() * tol.k().sqrt();
         for (name, at) in [
@@ -16383,7 +16381,7 @@ mod tests {
             .expect("the chord closes the cap");
         let face = cap.face;
         let f = body.get_face(face).expect("the cap");
-        let normal = plane_chart_normal(&body, f.surface).expect("the gate opens");
+        let normal = plane_gate(&body, f.surface).expect("the gate opens");
         let (mid, chord_mid) = (spiric.eval(0.0), p0 + (p1 - p0) * 0.5);
         let inward = (chord_mid - mid).normalize();
         for (name, at) in [

@@ -5196,14 +5196,15 @@ fn lone_ring<T: Real>(
 /// by its planar winding, any other face's by the island paths on the
 /// carrier [`Carrier::of`] reads; `None` for a face neither reads.
 enum LoopSide<T: Real> {
-    Planar,
+    /// A plane, its carrier's frame.
+    Planar(geom::Frame<T>),
     Paths(Carrier<T>),
 }
 
 impl<T: Decide> LoopSide<T> {
     fn of(surface: &geom::Surface<T>) -> Option<Self> {
         match surface {
-            geom::Surface::Plane { .. } => Some(Self::Planar),
+            geom::Surface::Plane { frame } => Some(Self::Planar(*frame)),
             _ => Carrier::of(surface).map(Self::Paths),
         }
     }
@@ -5259,7 +5260,7 @@ pub(crate) fn loop_holds_outer<T: Decide + crate::props::AtRestPolicy>(
     let escalated = |diag| JoinError::Escalated { face: oldf, diag };
     let surface = body.face(oldf).ok_or_else(|| corrupt_face(oldf))?.surface();
     match LoopSide::of(surface).ok_or_else(|| ring_island_unread(oldf, surface))? {
-        LoopSide::Planar => {
+        LoopSide::Planar(plane) => {
             let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
             let winding =
                 |l: LoopKey, normal: Vec3<T>| match body.planar_loop_winding(l, normal, band) {
@@ -5269,7 +5270,7 @@ pub(crate) fn loop_holds_outer<T: Decide + crate::props::AtRestPolicy>(
                         "a one-site loop's walled-off conic does not wind definitely on its plane",
                     )),
                 };
-            let normal = face_plane_normal(body, oldf)?;
+            let normal = plane.axis();
             return Ok(winding(face_data.outer, normal)? != winding(outer, normal)?);
         }
         LoopSide::Paths(_) => {}
@@ -5725,11 +5726,11 @@ impl ChordJoiner {
         // How a ring's side is read: off the plane, or by a path on a
         // cylinder, a sphere, a cone, a torus or a spline wall.
         enum Homing<T: geom_core::Real> {
-            Plane(Vec3<T>),
+            Plane(geom::Frame<T>),
             Path(Carrier<T>),
         }
         let homing = match &surface {
-            geom::Surface::Plane { .. } => Homing::Plane(face_plane_normal(body, oldf)?),
+            geom::Surface::Plane { frame } => Homing::Plane(*frame),
             other => {
                 Homing::Path(Carrier::of(other).ok_or_else(|| ring_island_unread(newf, other))?)
             }
@@ -5739,7 +5740,7 @@ impl ChordJoiner {
                 continue;
             }
             let side = match &homing {
-                Homing::Plane(normal) => ring_side(body, ring, run, *normal, self.band)?,
+                Homing::Plane(plane) => ring_side(body, ring, run, *plane, self.band)?,
                 Homing::Path(carrier) => {
                     path_ring_side(body, (&surface, carrier), (oldf, newf), ring, self.band)?
                 }
@@ -5813,46 +5814,6 @@ impl ChordJoiner {
     }
 }
 
-/// The face's **chart** plane normal (F5-gated: always a `Plane`),
-/// deliberately without the face's sense folded in.
-///
-/// Its one consumer is [`point_in_loop`], which reads the normal only
-/// to recover the loop's PLANE, and whose verdict is exactly invariant
-/// under `n̂ ↦ −n̂` over lines and conics alike. **That derivation lives
-/// at [`point_in_loop`]**, under the function whose property it is
-/// rather than under the five-line producer that relies on it; the
-/// consequence here is that ring re-homing cannot move a ring on the
-/// sense bit. `tests/review_m3_pr3_pil.rs` pins it for the straight
-/// rows and `validate.rs`'s
-/// `point_in_loop_is_blind_to_the_normals_sign_on_an_arc_bearing_loop`
-/// for the conic rows.
-///
-/// [`crate::face_normal::face_plane`] promises an OUTWARD normal, some
-/// of its consumers reading a material side off the sign. This promises
-/// a chart normal and is named for it, so it is not a site of
-/// [`crate::face_normal`]'s hand-multiply inventory.
-fn face_plane_normal<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<geom_core::Vec3<T>, JoinError> {
-    // Corruption and an unwired arm are different refusals.
-    match body
-        .face(face)
-        .map(|f| f.surface())
-        .ok_or_else(|| corrupt_face(face))?
-    {
-        geom::Surface::Plane { frame, .. } => {
-            let normal = frame.axis();
-            Ok(normal)
-        }
-        _ => Err(JoinError::SectionInvariant {
-            face,
-            what: "ring re-homing read a plane off a face whose carrier is not a plane (re-homing \
-                   sends every other kind to its own reading)",
-        }),
-    }
-}
-
 /// Whether every edge of `ring` is a null edge: a pierce ring no join
 /// has reached yet, whose vertices are all copies of its pierce point.
 /// Only the boolean's vertex-on-face insertion mints one; the split's
@@ -5894,14 +5855,14 @@ fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
     run: LoopKey,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     band: Band,
 ) -> Result<RingSide, JoinError> {
     let read = |v: VertexKey| {
         loop_side::of_loop(point_in_loop(
             body,
             run,
-            normal,
+            plane,
             body.resolve_vertex_point(v, Proven),
             band,
         ))

@@ -124,12 +124,18 @@ impl<T: Real> SplitPlane<T> {
     /// the carrier gate reads reaches in).
     pub(in crate::splitting) fn surface(&self) -> geom::Surface<T> {
         geom::Surface::Plane {
-            frame: geom::Frame::new(
-                self.origin,
-                self.normal.get(),
-                geom::cover::BoxAxes::aimed(self.normal).rows()[1],
-            ),
+            frame: self.frame(),
         }
+    }
+
+    /// The plane's frame: its axis the normal, charted as
+    /// [`Self::surface`] is.
+    pub(in crate::splitting) fn frame(&self) -> geom::Frame<T> {
+        geom::Frame::new(
+            self.origin,
+            self.normal.get(),
+            geom::cover::BoxAxes::aimed(self.normal).rows()[1],
+        )
     }
 }
 
@@ -1374,7 +1380,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             section_cones::fuse_section_cones(body, side, &mut result.naming, tol)?;
             // On this run's own output: a refusal discards it.
-            finish::end_maximal(body, side, &mut result.naming, plane.normal.get(), tol)?;
+            finish::end_maximal(body, side, &mut result.naming, plane.frame(), tol)?;
             // The side's tier-2 gate again, on the body as joined.
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
