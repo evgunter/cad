@@ -393,13 +393,25 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
         body.face_views()
             .any(|f| f.surface().spline_chart().is_some())
     };
-    let read = |s: &geom::Surface<T>, partner_spline: bool| {
-        geom_brep::pair_section::serves(s.kind())
+    let kinds = |body: &Body<T>| {
+        let mut kinds: Vec<geom::SurfaceKind> = Vec::new();
+        for f in body.face_views() {
+            let kind = f.surface().kind();
+            if !kinds.contains(&kind) {
+                kinds.push(kind);
+            }
+        }
+        kinds
+    };
+    let read = |s: &geom::Surface<T>, partner: &[geom::SurfaceKind], partner_spline: bool| {
+        partner
+            .iter()
+            .any(|&k| geom_brep::pair_section::serves(s.kind(), k))
             || s.spline_chart().is_some()
             || (partner_spline && matches!(s, geom::Surface::Plane { .. }))
     };
     let pair_read = |sa: &geom::Surface<T>, sb: &geom::Surface<T>| {
-        (geom_brep::pair_section::serves(sa.kind()) && geom_brep::pair_section::serves(sb.kind()))
+        geom_brep::pair_section::serves(sa.kind(), sb.kind())
             || geom_brep::SplineImplicitPose::of(sa, sb).is_some()
     };
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {
@@ -449,10 +461,10 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
                   boxed: &[(FaceKey, bvh::Aabb)],
                   partner: &Body<T>|
      -> Vec<(FaceKey, bvh::Aabb)> {
-        let partner_spline = spline(partner);
+        let (partner_kinds, partner_spline) = (kinds(partner), spline(partner));
         boxed
             .iter()
-            .filter(|&&(k, _)| read(&surface(body, k).1, partner_spline))
+            .filter(|&&(k, _)| read(&surface(body, k).1, &partner_kinds, partner_spline))
             .copied()
             .collect()
     };
