@@ -42,3 +42,10 @@ From the scheduled nightlies' junit artifacts (every leg, read whole). Run 44927
 So all three are red at 1e-6 too, and the move lands between `cdee7461` and `1360b9eb`. At 1e-6 the e2e row also reads `(10, 1264, 1254, 532)`, the default row's pin, against the 1e-6 pin `(10, 1282, 1272, 572)`: the receipt reads the same at every ε again.
 
 The revalue floors were last set by PR 7114 (`doctail/verdict-log-tells-no-validation-reading-from-a-building-decision`, merged `e7d1a14b` 11-18 12:56Z, inside that range): 2539 → 1993 and 1619 → 1462, when the floor came to count the choices' margins only. Its body lists the revalue rows run locally at the default ε only. To be confirmed at its first parent and its merge.
+
+### Bisected on hosted runners (2026-11-22)
+
+Each probe is a throwaway branch `green/editor-1e-12-bisect-<sha8>`: the merge plus a workflow that builds editor-core (`--all-features`, opt-level 1, the gate's profile) and runs these rows with `--ignore-default-filter` at the default ε, 1e-6 and 1e-12.
+
+- **The two revalue rows: PR 7114** (`doctail/verdict-log-tells-no-validation-reading-from-a-building-decision`, merge `e7d1a14b`). Green at every ε on its first parent `4ef175f0`; on the merge, green at the default ε and red at 1e-6 and 1e-12: `boss_union` moves 1414 (1e-6) and 1402 (1e-12) margins under the floor 1462, `plate_param` 1955 and 1802 under 1993. On main `1aa4a931` the same: `boss_union` 1415 / 1403, `plate_param` 1956 / 1803 (compared 2360 and 3246).
+- **The e2e slider: after PR 7114** (green at every ε on `e7d1a14b`), red at 1e-6 and 1e-12 on `dbab861f` (PR 7139), reading the default row's `(10, 1264, 1254, 532)` at both. Narrowing among the eight source-touching merges between them.
