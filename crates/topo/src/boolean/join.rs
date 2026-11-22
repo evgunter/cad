@@ -4009,6 +4009,9 @@ fn rides_carried<T: crate::props::AtRestPolicy>(
             | P::CylinderTorus(_)
             | P::TorusTorus(_)
             | P::ConeTorus(_)
+            | P::ConeCylinder(_)
+            | P::ConeCone(_)
+            | P::ConeSphere(_)
             | P::SplineImplicit(_)
             | P::SplinePair(_)
             | P::PlaneSphere(_)
@@ -4017,11 +4020,6 @@ fn rides_carried<T: crate::props::AtRestPolicy>(
             P::CylinderCylinder(_) => {
                 return Err(BooleanError::JoinDesync {
                     what: "a cylinder pair's pose read past its cylinder reading",
-                });
-            }
-            P::ConeCylinder(_) | P::ConeCone(_) => {
-                return Err(BooleanError::JoinDesync {
-                    what: "the section table holds a cone pair, which its glue door never reads",
                 });
             }
         },

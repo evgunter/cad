@@ -496,8 +496,9 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
         };
         if recorded {
             for (decided, margin) in section.coincidences() {
-                let (relation, site) = coincidence_site(decided);
-                rows.push(row((fa, fb), relation, site, margin));
+                if let Some((relation, site)) = coincidence_site(decided) {
+                    rows.push(row((fa, fb), relation, site, margin));
+                }
             }
         }
     }
@@ -561,22 +562,25 @@ fn face_read(kind: geom::SurfaceKind, partner: &[geom::SurfaceKind]) -> bool {
 }
 
 /// **The record a coincidence the section value decided is kept as**:
-/// the relation it decides and its own site.
-fn coincidence_site(decided: geom_brep::Coincident) -> (crate::Relation, crate::DecisionSite) {
+/// the relation it decides and its own site. A cone's apex on its
+/// partner keeps none: it is a point of the section, a node or a touch,
+/// not a relation of the two carriers, and no carried component ends
+/// there (`NoCarrier::ConeNode`, `NoCarrier::ApexTouch`), so the join
+/// refuses the pair where the faces meet.
+fn coincidence_site(
+    decided: geom_brep::Coincident,
+) -> Option<(crate::Relation, crate::DecisionSite)> {
     use crate::{DecisionSite as Site, Relation};
     use geom_brep::Coincident as C;
-    match decided {
+    Some(match decided {
         C::CylinderSphere => (Relation::OnCarrier, Site::CoaxialSphere),
         C::SphereTorus => (Relation::OnCarrier, Site::SphereOnTorusAxis),
         C::CylinderTorus => (Relation::Coaxial, Site::CoaxialCylinderTorus),
         C::TorusTorus => (Relation::Coaxial, Site::CoaxialTori),
         C::CylinderRadii => (Relation::SameRadius, Site::CrossingCylinders),
         C::CylinderAxesMeet => (Relation::AxesMeet, Site::CrossingCylinders),
-        C::ConeApex => unreachable!(
-            "a cone's apex on its partner is decided on a cone pair's section, which the \
-             glue door never reads: `pair_section::serves` admits no cone"
-        ),
-    }
+        C::ConeApex => return None,
+    })
 }
 
 /// **The face-pair rows whose faces meet**: each row deciding faces

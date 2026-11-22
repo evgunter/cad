@@ -1,7 +1,9 @@
-//! **A cone against an oblique cylinder or another cone on the section
-//! value** (C5): the pose decided once on closed-form margins over the
-//! operation's region, and the section's components the ruling sweep
-//! along the cone's rulings counts and cuts by that region.
+//! **A cone against an oblique cylinder, another cone or a sphere on
+//! the section value** (C5): the pose decided once on closed-form margins
+//! over the operation's region (a sphere's pair over the sphere's own
+//! ball, which holds its whole section), and the section's components
+//! the ruling sweep along the cone's rulings counts and cuts by that
+//! region.
 //!
 //! The pose reads, in order: each operand's convention (a cone's
 //! half-angle strictly inside a right angle, a cylinder's radius
@@ -10,8 +12,23 @@
 //! where it was read before) and whether their axes are parallel with one
 //! aperture (the plane conic, likewise); for a cylinder, whether a
 //! generator runs along its axis (refused, [`SectionError::Pinched`]:
-//! the clearance has no divisor there); then the **apex margin**, the
-//! partner's residual at the ruled cone's apex in metres.
+//! the clearance has no divisor there); for a sphere, its radius positive
+//! and whether its centre lies on the cone's axis (the coaxial circles,
+//! [`crate::cone_sphere_section`]'s, read where they were read before);
+//! then the **apex margin**, the partner's residual at the ruled cone's
+//! apex in metres.
+//!
+//! A sphere's tangencies are decided in closed form past a clear apex:
+//! the sphere's centre `c` stands `(ρ, h)` from the apex across and along
+//! the axis, and its distance from the double cone is critical only at
+//! its feet on the two whole lines of the cone in its meridian plane,
+//! `g± = ρ cos α ∓ h sin α` from it (each line lies on the double cone,
+//! so each foot is on the surface). So `|g±| − R` (`kc_sphere_tangency`)
+//! decides each tangency, and `Zero` is the touch point, the foot. These
+//! with the apex margin are every critical value of the sweep's clearance
+//! `R − δ(φ)` (`δ` the ruling's distance from `c`, critical on the two
+//! meridian rulings and where the foot of `c` is the apex), so the sweep
+//! past them decides no double root of its own.
 //!
 //! - Off the partner, the ruling sweep reads both sheets ([`ruling::sweep`]),
 //!   a double root of its discriminant decided a tangency on the rulings'
@@ -29,15 +46,17 @@
 //! refuse.
 //!
 //! Every component is the general rung's ([`ClassCarrier::General`]),
-//! save the points a tangency or a touch lists. A crossing tangency is a
-//! node (C5), its arcs ending at it, one node-joined set. No march
-//! carries the pair yet (limb 2 has no composite for the cone at the
-//! march's search, and the pair has no march door), so carrying refuses
-//! typed ([`super::NoCarrier::ConeUnmarched`]).
+//! marched from its witness by [`PairSection::carry`]
+//! (`ssi::march_cone_ruled`), save the points a tangency or a touch
+//! lists and the arcs that end at a node. A crossing tangency is a node
+//! (C5), its arcs ending at it, one node-joined set; the apex on the
+//! partner is another. The ℝ³ march ends no branch at a node, so an arc
+//! ending at one is classified and not carried
+//! ([`super::NoCarrier::ConeNode`]).
 
 use geom::Surface;
 use geom_core::k_stats::decide_reported;
-use geom_core::{Band, Decide, Decided, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use super::cylinders::RegionPlacement;
 use super::ruling::{self, End, Form, RuledCone, Swept};
@@ -78,6 +97,15 @@ pub enum ConeDecision {
     /// `kc_apex_form`: the determinant of the cone's form on the
     /// partner's tangent plane at the apex, levered.
     ApexForm,
+    /// `kc_sphere_radius`: the sphere's radius definitely positive.
+    SphereRadius,
+    /// `kc_sphere_on_axis`: the sphere's centre's distance from the
+    /// cone's axis, the coaxial pose at `Zero`.
+    SphereOnAxis,
+    /// `kc_sphere_tangency`: `|g±| − R`, the sphere's centre's distance
+    /// from each of the cone's two lines in its meridian plane, less the
+    /// radius.
+    SphereTangency,
 }
 
 impl ConeDecision {
@@ -95,6 +123,9 @@ impl ConeDecision {
             Self::ApexOnPartner => "kc_apex_on_partner",
             Self::PartnerApexOnCone => "kc_partner_apex_on_cone",
             Self::ApexForm => "kc_apex_form",
+            Self::SphereRadius => "kc_sphere_radius",
+            Self::SphereOnAxis => "kc_sphere_on_axis",
+            Self::SphereTangency => "kc_sphere_tangency",
         }
     }
 }
@@ -133,6 +164,9 @@ pub struct ConeRuledPose<T: Real> {
     region: ExtentBall<T>,
     apex: Decided,
     stance: ConeStance<T>,
+    /// A sphere partner's closed-form tangency: its `Zero` margin and the
+    /// touch point.
+    tangent: Option<(MarginDiag, Point3<T>)>,
 }
 
 /// **What a cone pair's pose answers**: the pose, or a pose whose
@@ -141,9 +175,9 @@ pub struct ConeRuledPose<T: Real> {
 pub enum ConeRead<T: Real> {
     /// The pose.
     Pose(ConeRuledPose<T>),
-    /// Two cones through one apex (their shared rulings), or on parallel
-    /// axes with one aperture (a plane conic): read where they were read
-    /// before.
+    /// Two cones through one apex (their shared rulings), on parallel
+    /// axes with one aperture (a plane conic), or a sphere on the cone's
+    /// axis (two circles): read where they were read before.
     Elsewhere,
 }
 
@@ -228,9 +262,10 @@ fn ruled<T: Real>(cone: Carrier<T>, partner: Form<T>, region: ExtentBall<T>) -> 
 fn normal_at<T: Real>(ruled: &RuledCone<T>) -> Vec3<T> {
     let Form { at, d, .. } = ruled.partner;
     let w = ruled.apex - at;
-    match ruled.partner_cos() {
-        None => (w - d * w.dot(d)).normalize(),
-        Some(cos) => (w * cos.powi(2) - d * d.dot(w)).normalize(),
+    match (ruled.partner.sphere_radius(), ruled.partner_cos()) {
+        (Some(_), _) => w.normalize(),
+        (None, None) => (w - d * w.dot(d)).normalize(),
+        (None, Some(cos)) => (w * cos.powi(2) - d * d.dot(w)).normalize(),
     }
 }
 
@@ -260,6 +295,28 @@ impl<T: Decide> ConeRuledPose<T> {
         Some(Self::decide_read(a, b, region, band))
     }
 
+    /// **Decides the pose of a cone and a sphere**, `a` and `b` in either
+    /// order (module docs), over the ball the sweep reads a sphere's
+    /// section against ([`sweep_ball`]). `None` for any other pair.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decide`]; a sphere's radius not definitely positive is
+    /// [`SectionError::DegenerateOperand`], or
+    /// [`SectionError::RadiusEscalated`] in band.
+    pub fn decide_sphere(
+        a: &Surface<T>,
+        b: &Surface<T>,
+        band: Band,
+    ) -> Option<Result<ConeRead<T>, SectionError>> {
+        let sphere = match (a, b) {
+            (Surface::Cone { .. }, Surface::Sphere { .. }) => b,
+            (Surface::Sphere { .. }, Surface::Cone { .. }) => a,
+            _ => return None,
+        };
+        Some(Self::decide_read(a, b, sweep_ball(sphere, band), band))
+    }
+
     fn decide_read(
         a: &Surface<T>,
         b: &Surface<T>,
@@ -267,7 +324,25 @@ impl<T: Decide> ConeRuledPose<T> {
         band: Band,
     ) -> Result<ConeRead<T>, SectionError> {
         let (one, two) = (carrier(a, region, band)?, carrier(b, region, band)?);
+        let mut tangent = None;
+        let mut sphere = |cone, s: &Surface<T>| -> Result<_, SectionError> {
+            match Self::against_sphere(cone, s, region, band)? {
+                Some((ruled, apex, touch)) => {
+                    tangent = touch;
+                    Ok(Some((ruled, apex)))
+                }
+                None => Ok(None),
+            }
+        };
         let (ruled_first, (ruled, apex)) = match (one, two) {
+            (Some(cone), None) if matches!(b, Surface::Sphere { .. }) => match sphere(cone, b)? {
+                Some(read) => (true, read),
+                None => return Ok(ConeRead::Elsewhere),
+            },
+            (None, Some(cone)) if matches!(a, Surface::Sphere { .. }) => match sphere(cone, a)? {
+                Some(read) => (false, read),
+                None => return Ok(ConeRead::Elsewhere),
+            },
             (Some(cone), None) => (true, Self::against_wall(cone, b, region, band)?),
             (None, Some(cone)) => (false, Self::against_wall(cone, a, region, band)?),
             (Some(one), Some(two)) => match Self::against_cone(one, two, region, band)? {
@@ -288,7 +363,74 @@ impl<T: Decide> ConeRuledPose<T> {
             region,
             apex,
             stance,
+            tangent,
         }))
+    }
+
+    /// **The cone's rulings against the sphere `ball`**, the apex margin
+    /// and, past a clear apex, the closed-form tangency (module docs):
+    /// `None` where the centre lies on the cone's axis.
+    fn against_sphere(
+        cone: Carrier<T>,
+        ball: &Surface<T>,
+        region: ExtentBall<T>,
+        band: Band,
+    ) -> Result<Option<SphereRead<T>>, SectionError> {
+        let &Surface::Sphere { frame, radius } = ball else {
+            unreachable!("`decide_sphere` pairs a cone with a sphere")
+        };
+        match decide_reported(ConeDecision::SphereRadius.name(), Margin::of(radius), band) {
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            }) => {}
+            Ok(_) => {
+                return Err(SectionError::DegenerateOperand {
+                    what: "a sphere's radius is not definitely positive",
+                });
+            }
+            Err(diag) => {
+                return Err(SectionError::RadiusEscalated {
+                    radius: SectionRadius::Sphere,
+                    diag,
+                });
+            }
+        }
+        let c = frame.origin();
+        let w = c - cone.apex;
+        let h = w.dot(cone.axis);
+        let across = w - cone.axis * h;
+        let rho = across.norm();
+        if read(ConeDecision::SphereOnAxis, Margin::of(rho), band)?.sign == Sign::Zero {
+            return Ok(None);
+        }
+        let ruled = ruled(cone, Form::sphere(c, cone.axis, radius), region);
+        let apex = read(
+            ConeDecision::ApexOnPartner,
+            Margin::of(ruled.partner_residual(ruled.apex)),
+            band,
+        )?;
+        if apex.sign == Sign::Zero {
+            return Ok(Some((ruled, apex, None)));
+        }
+        let (s, co) = cone.sc;
+        let out = across * (T::one() / rho);
+        let mut touch = None;
+        for side in [T::one(), T::zero() - T::one()] {
+            // The line `apex + t·v`, `v = cos α·â ± sin α·ê`, at distance
+            // `|ρ cos α ∓ h sin α|` from the centre.
+            let g = rho * co - side * h * s;
+            let decided = read(
+                ConeDecision::SphereTangency,
+                Margin::of(g.abs() - radius),
+                band,
+            )?;
+            if decided.sign == Sign::Zero && touch.is_none() {
+                let v = cone.axis * co + out * (side * s);
+                touch = Some((decided.margin, cone.apex + v * w.dot(v)));
+            }
+        }
+        Ok(Some((ruled, apex, touch)))
     }
 
     /// **The cone's rulings against the cylinder `wall`**, and the apex
@@ -515,6 +657,23 @@ impl<T: Decide> ConeRuledPose<T> {
         self.apex
     }
 
+    /// **The tangency the pose decided**, if any: a sphere partner's
+    /// closed-form `kc_sphere_tangency` decided `Zero`. A cylinder or cone
+    /// partner's tangency is the sweep's, on the section.
+    pub fn tangency(&self) -> Option<ZeroVerdict> {
+        self.tangent.map(|(margin, _)| ZeroVerdict {
+            decision: SectionDecision::Tangency(ConeDecision::SphereTangency.name()),
+            margin,
+        })
+    }
+
+    /// The sphere partner, where the partner is one.
+    pub fn sphere(&self) -> Option<&Surface<T>> {
+        [&self.first, &self.second]
+            .into_iter()
+            .find(|s| matches!(s, Surface::Sphere { .. }))
+    }
+
     /// The side the ruled cone is, in the order the pose was asked of.
     pub fn ruled_side(&self) -> PairSide {
         if self.ruled_first {
@@ -545,6 +704,9 @@ impl<T: Real> RuledCone<T> {
     /// the partner's double cone ([`crate::cone_elevation`]).
     fn partner_residual(&self, p: Point3<T>) -> T {
         let Form { at, d, .. } = self.partner;
+        if let Some(r) = self.partner.sphere_radius() {
+            return (p - at).norm() - r;
+        }
         match (self.partner.radius(), self.partner_cos()) {
             (Some(r), _) => geom::Line { origin: at, dir: d }.distance(p) - r,
             (None, Some(cos)) => {
@@ -552,9 +714,30 @@ impl<T: Real> RuledCone<T> {
                 let (h, rho) = ((p - at).dot(d), ((p - at) - d * (p - at).dot(d)).norm());
                 crate::implicit::cone_offset(rho, h.abs(), sin, cos)
             }
-            (None, None) => unreachable!("a cone's partner is a cylinder or a cone"),
+            (None, None) => unreachable!("a cone's partner is a cylinder, a cone or a sphere"),
         }
     }
+}
+
+/// A cone's rulings against a sphere, the apex margin, and the tangency's
+/// `Zero` margin and touch point.
+type SphereRead<T> = (RuledCone<T>, Decided, Option<(MarginDiag, Point3<T>)>);
+
+/// **The ball the ruling sweep reads a sphere's section against**: the
+/// sphere's cover's ball widened by `max(R, 64·escalate)`, as for a
+/// cylinder against a sphere ([`super::CylinderSpherePose`]'s
+/// `sweep_ball`): every meeting lies on the sphere, the boundary of its
+/// own ball, where no leaf decides a side, and stands well inside this
+/// one, so no component is cut.
+fn sweep_ball<T: Decide>(sphere: &Surface<T>, band: Band) -> ExtentBall<T> {
+    let &Surface::Sphere { radius, .. } = sphere else {
+        unreachable!("a sphere's sweep ball")
+    };
+    let pad = radius.max(T::from_f64(64.0 * band.escalate()));
+    sphere.cover().map_or_else(
+        |_| ExtentBall::of_covered(None),
+        |cover| ExtentBall::of_cover_within(&cover, pad),
+    )
 }
 
 /// **The section of a cone pair's pose** (module docs).
@@ -564,7 +747,7 @@ impl<T: Real> RuledCone<T> {
 /// [`SectionError::Escalated`] where the sweep escalates, and
 /// [`SectionError::Unaccounted`] where its readings disagree or the
 /// passes through the apex are not the stance's.
-pub(super) fn cone_ruled<T: Decide>(
+pub(crate) fn cone_ruled<T: Decide>(
     pose: ConeRuledPose<T>,
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
@@ -584,6 +767,13 @@ pub(super) fn cone_ruled<T: Decide>(
         )
     };
     let (arcs, found) = match pose.stance {
+        ConeStance::Sheets if pose.tangent.is_some() => {
+            if let (Some(zero), Some((_, at))) = (pose.tangency(), pose.tangent) {
+                decided.push(zero);
+                listed.push(point(at, NoCarrier::Tangent));
+            }
+            (Vec::new(), Found::Crossings)
+        }
         ConeStance::Sheets => {
             let swept = ruling::sweep(&pose.ruled, region, band)?;
             for t in &swept.touches {
@@ -641,6 +831,14 @@ pub(super) fn cone_ruled<T: Decide>(
             End::Node(pass) => nodes.end(&pose, pass, start, arc.witness, band).map(Some),
             End::Cut(_) => Ok(None),
         };
+        let noded = matches!(from, End::Node(_)) || matches!(to, End::Node(_));
+        if pose.sphere().is_some() && arc.cut_ends().is_some() {
+            return Err(SectionError::Unaccounted {
+                cause: "the ruling sweep cut a cone × sphere component, which the sphere's own \
+                        ball holds whole"
+                    .to_owned(),
+            });
+        }
         listed.push(SectionComponent {
             cut_ends: arc.cut_ends(),
             ..SectionComponent::closed_form(
@@ -656,7 +854,11 @@ pub(super) fn cone_ruled<T: Decide>(
                 },
                 [false, false],
                 Some(arc.witness),
-                ClassCarrier::General,
+                if noded {
+                    ClassCarrier::Unminted(NoCarrier::ConeNode)
+                } else {
+                    ClassCarrier::General
+                },
             )
         });
     }
@@ -668,12 +870,13 @@ pub(super) fn cone_ruled<T: Decide>(
         &pose.first
     };
     let partner_arm = match partner {
-        Surface::Cylinder { .. } => crate::uniform_curvature_arm(partner),
+        Surface::Cylinder { .. } | Surface::Sphere { .. } => crate::uniform_curvature_arm(partner),
         _ => region.lever_from(pose.ruled.partner.at),
     };
     let lever = pose.ruled.lever.min(partner_arm);
     let pose = match (&pose.first, &pose.second) {
         (Surface::Cone { .. }, Surface::Cone { .. }) => PairPose::ConeCone(pose),
+        (Surface::Sphere { .. }, _) | (_, Surface::Sphere { .. }) => PairPose::ConeSphere(pose),
         _ => PairPose::ConeCylinder(pose),
     };
     Ok(PairSection {
