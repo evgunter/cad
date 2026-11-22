@@ -143,9 +143,10 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
         "the loop-winding door reads each arc rim's checks once, in the walk's lane choice"
     );
     assert_eq!(
-        distinct, 7,
-        "the 11 Zeros are 7 distinct theorems (a node is content-addressed, so a check read \
-         again moves the count above, not this)"
+        distinct, 6,
+        "the 11 Zeros are 6 distinct theorems (a node is content-addressed, so a check read \
+         again moves the count above, not this; a held value is read as its image stores it, \
+         so two images holding one line ask one margin whatever their spans)"
     );
 }
 

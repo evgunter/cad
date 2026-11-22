@@ -473,6 +473,9 @@ mod kept_joint_tests;
 mod lift_rows;
 
 #[cfg(test)]
+mod joint_point_rows;
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod turn_miss;
 
