@@ -481,18 +481,17 @@ session box, and its conditioning by the carriage that consumes it. A formula th
   merge base
   (`work/ciw/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
 - **A verdict's lever arm** (`Lever<T>`, the arm of
-  `Margin::levered`). It is built only from its sources: a read of the
+  `Margin::levered`). It is the length at which a tilt (a sine, a
+  cosine, an angle between directions) displaces the geometry it
+  governs, and a reading is levered only where that displacement is
+  what is held against the tolerance. It is built only from its
+  sources: a read of the
   consumed extent, a curvature arm `1/κ_rel`, or the session box where
   no geometry is in hand. Rates are not levers: they go through
   `levered_inv` and the metric doors. A length that is the reading
   itself (a residual, an offset, a stand-off) is the margin, and a
   tolerance is the band's: neither is an arm. A dimensionless factor
-  belongs to the reading, not the arm. A margin asked at the tolerance
-  a refusal offers is read against the band at that tolerance, never
-  levered by it. A length scaled by a pure number is still that
-  length. A reading known only within a stand-off takes that stand-off
-  as its swing or as the band's pad. A count has no length, and is
-  decided as a whole number of periods. The point-level reads (two
+  belongs to the reading, not the arm. The point-level reads (two
   points' distance, a point set's reach from a pivot) live beside
   `Lever` in `geom-core`; covers and `Reach` stay in `geom_brep`. A
   lever is never shorter than the region its verdict governs and no

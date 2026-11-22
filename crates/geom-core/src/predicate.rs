@@ -1072,8 +1072,7 @@ impl<T: crate::real::Real> Margin<T> {
     /// whose metres-ness needs a lever, a root, or a quotient that
     /// changes dimension (a measure over a lever, a span over a rate) —
     /// those have their own doors, and the operation belongs inside the
-    /// door. A length over a pure number decided definite (a stand-off
-    /// over a sine) is still that length.
+    /// door.
     pub fn of(margin: T) -> Self {
         Self::plain(margin)
     }
