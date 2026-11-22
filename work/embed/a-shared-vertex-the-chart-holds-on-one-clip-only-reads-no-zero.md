@@ -17,14 +17,16 @@ on `embed/gate-measure`). **22 tests** of valid bodies refuse at their
 door on it: 9 of the plane/cylinder edge bucket, 2 cylinder/plane edge,
 8 cylinder/plane vertex, 3 cylinder/cylinder vertex.
 
-`zero_of` (`crates/topo/src/injective.rs`, `:2219`) gives a chart
-presentation its zero: the clips whose every edge is shared, and a
-shared vertex no zero side holds (a "loose" one) read as the ONE corner
-of two clips on different axes that both end at it. A loose vertex that
-is the corner of no such pair has no zero: `Unpresented::Local`. Every
-cell holding the vertex reads the same, so the pair ends at
-`Budget(Depth)`, reported `Uncertified { arm: Departure }` on the shared
-edge or vertex. The partner is presented (`Of(Point)` or `Of(Side)`) in
+`zero_of` (`crates/topo/src/injective.rs`) gives a chart presentation
+its zero: the clips whose every edge is shared, and a shared vertex no
+zero side holds (a "loose" one) read as the ONE corner of two clips on
+different axes that both end at it. **As traced (main `c2a0c41f40`)** a
+loose vertex that was the corner of no such pair had no zero
+(`Unpresented::Local`), every cell holding the vertex read the same, and
+the pair ended at `Budget(Depth)`, reported
+`Uncertified { arm: Departure }` on the shared edge or vertex. **Since
+`embed/clip-vertex`** a loose vertex adds a zero and never forbids one
+(the dated section at the end). The partner is presented (`Of(Point)` or `Of(Side)`) in
 19 of the 22.
 
 Measured with the clips printed at the refusal (`CVZ` rows on
@@ -70,11 +72,15 @@ rad is far outside the band.
 
 ## What a fix needs
 
-For a vertex mid-side of one clip: a zero at a point of a side
-(`Zero::Point` on one side, not a corner), read by the plane through
-the vertex (`planes_through`'s vertex-alone plane) as a corner point is.
+For a vertex mid-side of one clip: landed as the clip's whole side
+through the vertex (`Zero::Through`), not as a point on it. A point in
+the middle of a side has the rectangle on both sides of it along the
+side, so no first-order sign is read about it unless the separator
+vanishes along the side's whole line; the plane is one that holds that
+line, not `planes_through`'s vertex-alone plane.
 For a lone clip's end beside a seam: the seam's line placed as a clip
-on the cell's sheet, so the vertex is a corner. `zero_of`, cost M.
+on the cell's sheet, so the vertex is a corner. **Not built**; see
+"What is left" below.
 
 ## Evidence
 
@@ -83,3 +89,87 @@ on the cell's sheet, so the vertex is a corner. `zero_of`, cost M.
   (0.21 s, mid-side).
 - Checked: the printed clips and the vertex's edges, in all 21 sweep
   tests; the fix is not.
+
+## What landed and what moved (EMBED, lane embed/clip-vertex, 2026-11-22)
+
+**What `zero_of` reads now.** A presentation's zero is the points of
+its rectangle that lie on the shared cell, and a loose vertex adds a
+zero and never forbids one:
+
+- a lone loose vertex on one clip, on no corner, with no shared edge in
+  reach: that clip's side, through the vertex (`Zero::Through`, the
+  variant `embed/straight-corner` built for a plane face). `sign_on`
+  reads it only under a plane that holds the side's whole line or
+  circle (`planes_through`: through a ruling, or a circle's own plane),
+  against a partner whose zero is none, a corner point, or its own run;
+- a loose vertex beside a wholly shared side leaves that side the zero;
+  of several loose vertices the one at a corner of two clips is the
+  point; anything else names no zero (`Zero::None`), read by the
+  separator's value over the whole rectangle.
+
+**Measured.** Main `b99f71c3d` with the harness `ebb2e6f8e`
+(`embed/clip-vertex-measure`), the gate logging and passing
+(`CAD_GATE_PASS=1`), on 55 census tests: every `2-refused` Departure
+row with a cylinder, torus/torus or cylinder/torus pair in the modules
+this row, the corner-of-no-pair row and the bushing row name (48
+`sweep::all`, 3 `step-import::all`), and 4 `editor-core::all` rows that
+ask the bushing. 5,006 asks.
+
+| | before | after |
+|---|---|---|
+| asks `Embedded` | 4,098 | 4,162 |
+| asks `Uncertified { Departure }` | 743 | 679 |
+| asks `Crosses` / budget / second-order | 64 / 100 / 1 | 64 / 100 / 1 |
+| tests whose every ask is embedded | 0 | 5 |
+| `zero_of` `Local` exits, the 51 traced tests | 41,802 | 11,702 |
+
+The five: `face_face_touch::a_bridged_rod_standing_off_the_plate_discovers_nothing`
+(mid-side, on a ruling), `full_turn_wall::a_near_full_revolves_gap_is_out_at_both_doors`,
+`review_m2_pr5::survives_angle_full_range_boundary_rows`,
+`verbs_rim_r1_probes::a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever`
+(the lone clip's end across a near-full turn's gap) and
+`a_closed_conic_in_the_partners_face::review3_a_meeting_off_the_carrier_says_so`
+("neither arm"). Four more lose refusals and keep some:
+`short_arcs_at_a_crescents_tip` 56 to 34 Departure asks of 128,
+`a_boss_inside_a_hole_sharing_a_vertex_beside_the_tip` 70 to 42 of 144,
+`axis_lap::an_axis_lap_builds_every_op_as_its_planar_twin_does` 12 to 8
+of 34, `s58_iso_rectangle::merge_coplanar_faces…` 3 to 1 of 3. The other
+46 keep their counts. The remaining 11,702 `zero_of` exits are all its
+last arm (three zero sides, or two on one axis).
+
+**The near-full-turn group's cell is outside the face's part** (the
+row's unchecked question): the shared ruling and its vertex are the
+face's START, a turn away in its chart and `1e-3` rad away in space, in
+reach of the cell's ball at every depth and on no point of the
+rectangle. The clips there name a side (or nothing), and the vertex,
+which named nothing, used to refuse the cell.
+
+## What is left of this row
+
+Measured on the same run, each with its trace (`CVT`, `CVS` rows):
+
+- **A circle through the vertex, against a corner with an edge in the
+  circle's plane** (`a_ruling_lying_on_a_wall::a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face`,
+  `edges_lying_in_a_face_part_wherever_they_lie::a_keel_along_a_cylinder_floors_ruling_refuses_only_its_slit`,
+  `a_prism_edge_on_the_tubes_wall…`): the wall is presented
+  `Through(YLo)` and signed by its circle's plane, and the plane
+  partner's corner point is not (`planes = (Some, None)`): one of its
+  two edges leaves the vertex inside that plane, so its derivative
+  along that edge is zero. The partner needs that edge's side as its
+  zero under a plane it shares no edge with, which `present_plane`
+  does not offer.
+- **Two circles through the vertex** (`a_cylinder_through_a_hole_tangent_to_its_wall` 2,
+  `a_boss_over_two_holes_tangent_outside…`): both walls are presented
+  `Through(YLo)`; a circle's own plane lists that circle alone, so the
+  partner's run is not zero under it (`planes = (Some, None)`). The two
+  rims are tangent at the vertex: a second-order contact no plane
+  parts.
+- **A lone clip's end beside a seam** (`wedge_through_a_full_turn_collar` 2):
+  the refusing cells exit at `sides_are_the_faces` now, not at
+  `zero_of`; the seam's line is still no clip.
+- **The fillet group** (`band_open_mixed_chain_shapes`,
+  `band_turn_overrun_fillet`, `band_closed_mixed_chain_shapes`): counts
+  unchanged; where `zero_of` was the exit the cell is now presented with
+  no zero and the separator's value does not sign it
+  (`a_turned_l_plates_run_builds_at_interval`: `planes = (Some, None)`).
+  Not traced further.
