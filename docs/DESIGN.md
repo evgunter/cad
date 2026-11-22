@@ -1508,8 +1508,9 @@ no pattern operation. A variable defined by reading `k` is, to a
 reader that reaches the same `k`, its member at the same value, and to
 every other reader the whole family: `xs[i, j]` reads one member, and
 `union`, `intersect` and `assemble` take a `Bodies`: a family, or its
-members spelled as reads; a subtract's tool is one `Body`, so cutting by a family is
-`subtract(a, union(holes))`.
+members spelled as reads; so does a subtract's tool, so
+`subtract(a, holes)` cuts `a` by every member, and `subtract(a, holes[k])`
+cuts it member by member.
 Lockstep is one index read twice. An index enters a placement as a value, a slide or a
 spin that is a `Length` or `Angle` expression over it, or through a
 mate whose target is a member of another family
