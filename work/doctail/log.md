@@ -588,3 +588,12 @@ body has the reasons):
     its main-repro step. It creates and closes a doctail P1 (P0 if main
     reproduces) and announces the seams on DECIDE, SCALAR, PROPS, SYM
     and MSOLVE. 7396 then merges main and re-measures.
+- 2026-11-22 19:15 — **Main repro: NOT reproduced** (about 45 minutes,
+  two shapes).
+  - A zero-nominal chart's S is the constant world motion on main too,
+    so the slides run on world axes.
+  - The candidate false identities stayed `Unproven Numeric Budget`
+    (808–3577 nodes).
+  - So main is fail-closed only behind the budget: latent, not safe.
+  - The unit stays P1, with main's latent exposure recorded in its row,
+    and Shape 1 is added as a row.
