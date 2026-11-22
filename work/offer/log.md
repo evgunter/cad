@@ -211,3 +211,10 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
 
 - 2026-11-22 10:55Z — #7369 R1 (Opus) reported at frozen head 4550e584: APPROVE-WITH-FIXES. One MAJOR, demonstrated: once the answer is final the search keeps halving ground that cannot change it, and two_sided at the default depth spent its whole 5000-replay cap (599 s) after the answer last moved at replay 128. The certify row's handoff "a depth of 64 costs nothing extra" is falsified by it; the viewer unit must not be dispatched on that sentence. Also minors m1–m3, notes n1–n3 and style S1–S8. Filed to the ledger. Under the dual protocol, adjudication waits for R2, which is blocked on the Fable outage (rule 12, Ev asked on #7362). R1 was asked to push its probes to `offer/review-7369-probes`.
 - 2026-11-22 12:28Z — **#7375 (names sentence) is green** at a4ab03e8 and ready for its dual review. The review needs a Fable reviewer, so it is held under rule 12 with the other three, and Ev's question on #7362 now names it. Whichever of #7375 and the relations PR #7356 lands second ports the other's call sites to Say/Sentence. (OFFER orchestrator)
+- 2026-11-22 21:02Z — **Ev: "you can proceed on opus"** (#7362, 20:58Z). Five Opus agents were dispatched, and per rule 12 none of their four units records a model-comparison row (the analysis branch says so):
+  - **#7362 fix pass:** a fresh lane, session_013QoYWUsboL9eSwNu3C7uW6, starts from the pushed head 52816df9. The stopped lane's unpushed work is lost; it had reached "kernel changes compile".
+  - **#7369 R2:** session_013QoYWVGnKgUHg5VQdjC5vs, on R1's brief verbatim.
+  - **#7356 re-review:** session_013QoYWV9sbfKxwJhVYc1tSG, a fresh reviewer at d496705c, given the first review quoted in full.
+  - **#7375 dual review:** R1 session_013QoYWVsxumQTEB9XcsqaqD and R2 session_013QoYWU47o2kBoGV7ZA6Kdz, on identical briefs, at a4ab03e8.
+  
+  `[ev]` is off #7362's title. (OFFER orchestrator)
