@@ -297,15 +297,19 @@ fn checked(
                     }
                 }
             }
+            // A cut end is placed until its side of the boundary stops
+            // deciding, its reading's enclosure within the band's
+            // escalation edge of it: a few of those off it.
+            let placed = 10.0 * band().escalate();
             for x in c.cut_ends.into_iter().flatten() {
                 let off = (x - region.center()).norm() - region.radius();
                 assert!(
-                    off.abs() <= 1e-6,
+                    off.abs() <= placed,
                     "cut end {x:?} stands {off:e} off the region's boundary"
                 );
                 for s in [a, b] {
                     let r = geom_brep::implicit_residual(s, x);
-                    assert!(r.abs() <= 1e-6, "cut end {x:?} is {r:e} off {s:?}");
+                    assert!(r.abs() <= placed, "cut end {x:?} is {r:e} off {s:?}");
                 }
             }
             let near = trace.cluster_at(w, link);
