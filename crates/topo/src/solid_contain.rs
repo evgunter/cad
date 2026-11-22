@@ -2670,12 +2670,17 @@ impl<T: Copy> RayHit<T> {
     /// definitely positive (decided on `order`, signed: within each
     /// other's rounding it is negative) are a pair, or a tie that grazes,
     /// on any two of their faces that do not meet
-    /// ([`crate::side_reader::meet`]).
+    /// ([`crate::side_reader::meet`]). A pair is a gap in band
+    /// ([`crate::validate::in_band`]): a gap whose enclosure reaches past
+    /// the band (two crossings a box holds apart for some members and
+    /// together for none it can name) is no reading of how far apart the
+    /// faces lie, and grazes.
     ///
     /// # Errors
     ///
     /// [`RayFault::InBand`] with the pair's first face, its gap and the
-    /// other face; [`RayFault::Graze`] at a tie.
+    /// other face; [`RayFault::Graze`] at a tie, and at a gap no reading
+    /// placed.
     pub(crate) fn pair_as<U: Decide>(
         &self,
         body: &Body<U>,
@@ -2705,8 +2710,8 @@ impl<T: Copy> RayHit<T> {
                     continue;
                 }
                 return Err(match along {
-                    Err(diag) => RayFault::InBand((a, diag, b)),
-                    Ok(_) => RayFault::Graze,
+                    Err(diag) if crate::validate::in_band(&diag) => RayFault::InBand((a, diag, b)),
+                    Err(_) | Ok(_) => RayFault::Graze,
                 });
             }
         }

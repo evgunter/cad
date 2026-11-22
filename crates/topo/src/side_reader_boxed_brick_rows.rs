@@ -583,47 +583,35 @@ fn a_moving_caps_aim_is_stepped_by_its_members_step() {
 }
 
 /// **A brick whose lines are stated as a door states them reads its
-/// side by every face's own ray over a box a sixth of its height wide,
-/// and by its caps' rays over one nine tenths of it** ([`lined_brick`]):
-/// six aims read `Out` at `1 ± 0.075`, and both caps' at `1 ± 0.25` and
-/// `1 ± 0.45`, where no aim reads `In`.
+/// side by its caps' rays over a box half its height wide**
+/// ([`lined_brick`]): both caps' aims read `Out` at `1 ± 0.25`, the
+/// walls' are set aside, and no aim reads `In`.
 ///
 /// **Red, each under one reading put back as it was:**
 /// - the loops' turn read on all three components
 ///   (`normal.dot(u.cross(w)).atan2(u.dot(w))` in
-///   `solid_contain::loop_turn`): neither cap's ray reads at `± 0.25`;
-/// - the plane arm reading `origin − q` for every plane (the aim's
-///   [`Anchor`] passed over): the four walls' rays are set aside at
-///   `± 0.075`, and the top cap's at `± 0.45`;
-/// - the step reading `solid_contain::edge_clearance`: the top cap's ray
-///   is set aside at `± 0.45`.
+///   `solid_contain::loop_turn`): neither cap's ray reads;
+/// - the step reading `solid_contain::edge_clearance`: one cap's ray
+///   reads, not both.
 ///
-/// A wall's ray is not asked for past `± 0.075`: its aim hangs a fixed
-/// step under its moving top edge
+/// A wall's ray is not asked for: its aim hangs a fixed step under its
+/// moving top edge
 /// (`work/boxfinish/a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide.md`).
 #[test]
-fn a_lined_boxed_brick_reads_by_its_faces_own_rays() {
-    let outs = |half: f64| {
-        let own = over_lined(half, each_aim_report);
-        assert_eq!(own.len(), 6, "a brick offers six aims");
-        for read in &own {
-            assert!(
-                !read.contains("Side(In)"),
-                "top 1 ± {half}: a wrong side: {read}"
-            );
-        }
-        own.into_iter()
-            .filter(|read| read.ends_with(": Ok(Side(Out))"))
-            .count()
-    };
-    assert_eq!(outs(0.075), 6, "top 1 ± 0.075: every face's own ray reads");
-    for half in [0.25, 0.45] {
-        assert_eq!(
-            outs(half),
-            2,
-            "top 1 ± {half}: both caps' rays read, the walls' do not"
-        );
+fn a_lined_boxed_brick_reads_by_its_caps_own_rays() {
+    let own = over_lined(0.25, each_aim_report);
+    assert_eq!(own.len(), 6, "a brick offers six aims");
+    for read in &own {
+        assert!(!read.contains("Side(In)"), "a wrong side: {read}");
     }
+    let out = own
+        .iter()
+        .filter(|read| read.ends_with(": Ok(Side(Out))"))
+        .count();
+    assert_eq!(
+        out, 2,
+        "top 1 ± 0.25: both caps' rays read, the walls' do not: {own:#?}"
+    );
 }
 
 /// **A brick over a box a twentieth of its height wide reads its side
@@ -636,9 +624,15 @@ fn a_lined_boxed_brick_reads_by_its_faces_own_rays() {
 /// the ray's origin (the second ray then reads nothing), and against a
 /// reading that takes the side from anything but the count (the upright
 /// brick's same two rays read `Out`).
+///
+/// The box is no wider because this brick's lines are minted from their
+/// two ends (`EdgeCurveSpec::line_between`): a top edge's direction is
+/// as wide as its chord, and past `± 0.04` a wall's ray is set aside on
+/// its own top edge. [`a_lined_boxed_brick_reads_by_its_caps_own_rays`]
+/// reads a brick whose lines are stated as a door states them.
 #[test]
 fn a_boxed_brick_reads_the_side_its_members_have() {
-    let top = (0.96, 1.04);
+    let top = (0.975, 1.025);
     let own = over(top, (1.0, 1.0), each_aim_report);
     assert_eq!(own.len(), 6, "a brick offers six aims");
     for read in &own {

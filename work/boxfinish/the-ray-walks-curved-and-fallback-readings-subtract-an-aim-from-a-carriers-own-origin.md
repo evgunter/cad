@@ -11,9 +11,9 @@ cost: M
 
 Found by the ray-readings unit's sweep
 (`an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice`,
-branch `boxfinish/ray-readings`). That unit re-posed the three
-readings it measured on planar bodies (the loops' turn, the aim's step,
-the advance to the planes the aim's anchor lies on). These have the
+branch `boxfinish/ray-readings`). That unit re-posed the two
+readings that are arithmetic identities on planar bodies (the loops'
+turn, the aim's step). These have the
 same shape, "a difference of two points that may share a boxed term,
 then a three-component dot, cross or norm", and are **read from the
 code, not measured**: no sweep door finishes a curved body over a box
@@ -24,7 +24,7 @@ An aimed ray's line origin `q` is its aim, a point stepped from the
 aimed face. Each reading below subtracts it from another stored point
 of the same face or carrier.
 
-**In the walk** (`crates/topo/src/boolean/solid_contain.rs`):
+**In the walk** (`crates/topo/src/solid_contain.rs`):
 
 - the carrier roots: `line_wall_roots` (`q − origin`, `wall.offset(q)`),
   `line_cone_quadratic` (`q − apex`), `line_sphere_roots` and
@@ -44,11 +44,6 @@ of the same face or carrier.
 - `ray_passes_beside`: `(v − q)·m` and `lo − base`, a face's vertices
   and cover against the aim. Reached only where a ray runs parallel to
   a plane in band;
-- `ray_crossings`' parallel arm: `plane_offset(origin, normal, q)`
-  does not read the aim's anchor as the crossing arm does. An aimed
-  ray meets its own face at 10° from the normal, so this is reached
-  for the face across the anchor edge only, where that face is
-  parallel to the ray in band;
 - `EdgeMeets::vertex`: a vertex's distance from the ray's line. Its
   width is harmless where the distance is read definitely positive,
   which is what was measured on the slab.
@@ -60,6 +55,6 @@ of the same face or carrier.
 
 **What closes it.** A curved body finished over a box by a door, and
 per reading: its enclosure against members' `f64` values, as the
-unit's rows hold the planar three
-(`side_reader::boxed_brick_rows::a_moving_caps_turn_is_as_narrow_as_a_members`
-and its two neighbours).
+unit's rows hold the planar two
+(`side_reader::boxed_brick_rows::a_moving_caps_turn_is_as_narrow_as_a_members`,
+`a_moving_caps_aim_is_stepped_by_its_members_step`).
