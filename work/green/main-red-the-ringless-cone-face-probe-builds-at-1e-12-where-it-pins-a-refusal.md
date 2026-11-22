@@ -2,7 +2,7 @@
 id: main-red-the-ringless-cone-face-probe-builds-at-1e-12-where-it-pins-a-refusal
 kind: issue
 title: Main red: mesh reach_probes::a_ringless_cone_face_near_its_apex_meshes_sound builds T1's box at s = 0.03 at eps 1e-12, where it pins CurvedPierceUnsupported
-status: open
+status: dispatched
 opened: 2026-11-20
 priority: P1
 cost: E

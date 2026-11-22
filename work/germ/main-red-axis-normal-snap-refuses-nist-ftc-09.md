@@ -21,3 +21,7 @@ The likely cause is commit `c25c174105` ("step-import: an axis-normal relation i
 Per `memories/agent-lane-operations.md` the lane that caused a red owes the fix, so the row is on GERM's slate. The snap catalogue is IMPORTGATE's ground (`work/importgate/log.md`, PR 7135), so the fix should agree with IMPORTGATE's census, which found no axis-normal relation Zero at the file band in the corpus.
 
 Signed: (EXCH orchestrator)
+
+## 2026-11-22 (GREEN): the render lane is red on it too
+
+The nightly's `render lanes / scene inputs + uv sheet + wild montage` job panics on the same import ("nist/nist_ftc_09_asme1_rd.stp: refusal drifted off its pinned class \"(step_edge_on_description), in the band\"", entity #5130, `step_snap_relation`) on 11-21 (runs 44870651337 and 44927630239), and skips the three render lanes after it. No render re-baselines while this stands.
