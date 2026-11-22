@@ -8893,6 +8893,21 @@ mod presentation_rows {
             None,
             "no partner"
         );
+        // A reflex joint's line leaves the arc at an angle: the graph's
+        // slopes hold the line's, far from the arc's.
+        let reflex = quarter(segment(20, [3, 1], (1.5, -1.0), (1.0, 0.0)), Vec::new());
+        let y = piece_on(&s, &reflex, &local, 1);
+        let Ok(Presentation::Of(q)) = present_plane(&y, &[0], &[], band()) else {
+            panic!("the reflex floor is presented about (1, 0)");
+        };
+        let (psi, _) = graph_of(&y, &y, &near, &q, &on_the_arc, band()).expect("a graph");
+        let Psi::Graph { slope: kinked, .. } = psi else {
+            panic!("the graph");
+        };
+        assert!(
+            kinked.hi() - kinked.lo() > 0.2 && slope.hi() - slope.lo() < 0.05,
+            "the reflex run's slopes hold its line's: {kinked:?} against {slope:?}"
+        );
     }
 
     /// [`present_plane`] of a [`quarter`] in the cell `u × v`, its
