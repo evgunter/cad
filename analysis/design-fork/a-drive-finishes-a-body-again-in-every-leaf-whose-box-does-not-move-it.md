@@ -71,3 +71,7 @@ Rounds 3 and 4 verbatim on `boxfinish/fork-refinish-reports` at `87e95760` (`pro
 - **B: both sets of facts are right; would accept either; its own pick is the distinct count** (the number only the drive can state; the share then speaks of the document; the only definition that makes the row's columns agree in kind).
 
 **Agreed after four rounds** on the whole final state. Recommendation to Ev: the agreed state (E6's split rule changed and one leaf-protocol bullet added; no DESIGN text). Each designer asked at 05:51 for its final `For Ev` section whole. Mapping for the row's second commit: A = Opus 5.5 (configured `claude-opus-5-5`), B = Fable 5.2 (configured `claude-fable-5-2`); confirm each session's `last_served_model` with `get_session` before writing it.
+
+### Final sections and the `[ev]` PR (05:50–06:05 UTC)
+
+Both final `For Ev` sections arrived at 05:50 (verbatim by label on `boxfinish/fork-refinish-reports` at `a3f32948`, `probe/fork-refinish/final/`). `[ev]` PR 7368 opened 05:55 from `boxfinish/ev-refinish` with the recommendation half of fork-log row 302; its body carries both sections under the labels only. M8 (`probe/M8-REPORT.md` at `d89e28745d`) came back at 05:54 and was forwarded to both designers at 05:58 with "reply only if it changes your recommendation or a confidence"; the PR body carries a three-sentence summary of it written by the orchestrator, outside both sections.
