@@ -1,0 +1,8 @@
+A: first report tokens 143223 (subagent_tokens), 32 tool uses, 370 s
+B: first report tokens 258504 (subagent_tokens), 61 tool uses, 603 s
+A: after round 1, subagent_tokens 158440, 1 tool use, 99 s
+B: after round 1, subagent_tokens 280071, 2 tool uses, 176 s
+A: after round 2, subagent_tokens 169014, 1 tool use, 47 s
+B: after round 2, subagent_tokens 296006, 2 tool uses, 109 s
+A: after round 3, subagent_tokens 177146, 1 tool use, 34 s
+B: after round 3, subagent_tokens 309066, 4 tool uses, 232 s
