@@ -26,6 +26,7 @@ cargo run --release -- ../out                  # build, narrate, export STL + ST
 cargo run --release -- gallery ../out/gallery  # the same scenes as .pncad documents
 cargo run --release -- certified               # the certified cells: plate tolerance, chain
 cargo run --release --example embed_walk       # is every finished body embedded? one WALK line each
+cargo run --release --example edge_cover_soundness  # does every stored edge lie inside its cover's box?
 ```
 
 The first command builds every scene through the public API, narrates each
@@ -39,6 +40,9 @@ The fourth walks the same stops and asks `topo::clearance::embedded` of
 every finished body, printing one `WALK` line per body and the total that
 hold; `tour/examples/embed_walk.rs` says what it asks, at which budgets,
 and how to capture a report two runs can diff.
+The fifth samples every stored edge of every body against its cover's
+box over its span, the box a face's clearance window is read off, and
+panics on an escape; `tour/examples/edge_cover_soundness.rs` says how.
 
 **None of them renders anything, and none needs the render guard's override
 sentence.** The pictures in this repository are produced and committed by

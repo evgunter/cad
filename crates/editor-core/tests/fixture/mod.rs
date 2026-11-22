@@ -706,8 +706,7 @@ pub fn at_rest<T>(
 where
     T: topo::CertifiedPolicy
         + editor_core::checks::at_rest::LocalizeLane
-        + geom_core::CertifiedBounds
-        + editor_core::ChartCoherenceLane,
+        + geom_core::CertifiedBounds,
 {
     let cfg = editor_core::ChecksConfig {
         connectedness: editor_core::Severity::Off,
