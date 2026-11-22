@@ -1816,11 +1816,10 @@ pub fn seamless_drum<T: geom_core::Decide + crate::props::AtRestPolicy>(
         param_start: c(0.0),
         param_end: c(core::f64::consts::TAU),
     };
-    let shared = |key, sense| FaceSurface::Shared { key, sense };
+    let on = |key, sense| FaceSurface::Shared { key, sense };
     // Each surface is added just before the op that gives it a face.
     let bottom = cap(&mut body, 0.0);
-    body.set_face_surface(seed.face, shared(bottom, false))
-        .unwrap();
+    body.set_face_surface(seed.face, on(bottom, false)).unwrap();
     let wall = body.add_surface(Surface::Cylinder {
         frame: geom::Frame::new(at(0.0, 0.0), z, x),
         radius: c(radius),
@@ -1831,7 +1830,7 @@ pub fn seamless_drum<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 r#loop: seed.r#loop,
             },
             circle(wall, bottom, 0.0),
-            shared(wall, true),
+            on(wall, true),
             tol,
         )
         .unwrap();
@@ -1850,7 +1849,7 @@ pub fn seamless_drum<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body.mef(
         MefSite::Lone { r#loop: kill.ring },
         circle(wall, top, height),
-        shared(top, true),
+        on(top, true),
         tol,
     )
     .unwrap();

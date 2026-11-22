@@ -3671,6 +3671,14 @@ pub fn every_door(
     Ok(out)
 }
 
+/// A certifying scalar's own lane, for the test doors below.
+#[cfg(any(test, feature = "test-support"))]
+fn certified_lane<T: CertifiedPolicy>() -> Result<QuadLane<T>, MassPropsError> {
+    T::quad_lane().ok_or(MassPropsError::Corrupt {
+        what: "a certifying scalar holds no quadrature lane",
+    })
+}
+
 /// One curved closed-form face read both ways ([`closed_form_reads`]),
 /// each a `(flux, area)` pair of `(lo, hi)` enclosures about the face's
 /// reference. Test vocabulary.
@@ -3697,14 +3705,14 @@ pub struct ClosedFormRead {
 /// The walk's refusal of a face.
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
-pub fn closed_form_reads<T: CertifiedPolicy + geom_core::CertifiedBounds>(
+pub fn closed_form_reads<T: CertifiedPolicy>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<Vec<ClosedFormRead>, MassPropsError> {
     use geom_core::Bounds;
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
-    let lane = QuadLane::certified();
+    let lane = certified_lane::<T>()?;
     let walked =
         SignCertificate::at_round_zero(body, &faces, band, tol, Some(lane), FaceWalk::Mapped)?;
     let ends =
@@ -3750,13 +3758,13 @@ pub fn closed_form_reads<T: CertifiedPolicy + geom_core::CertifiedBounds>(
 /// The walk's refusal of a face, at round 0 or in the re-derivation.
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
-pub fn volume_role_reading<T: CertifiedPolicy + geom_core::CertifiedBounds>(
+pub fn volume_role_reading<T: CertifiedPolicy>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<(Option<ShellRole>, (f64, f64)), MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
-    let lane = QuadLane::certified();
+    let lane = certified_lane::<T>()?;
     let (role, certificate) = role_walk(
         body,
         &faces,
