@@ -3223,25 +3223,8 @@ fn floor_block<T: Scalar>() -> topo::AtRestBody<T> {
 /// Where the floors meet at `(2, 1, 1)` each narrow flank shares that
 /// vertex alone with each wide one, every face there a convex quadrant.
 fn deep_keel<T: Scalar>(m: &geom_core::Affine3<f64>) -> Body<T> {
-    use geom_core::RigidMotion;
-    use sweep::test_support::{block, finished, prism_on};
-    let groove = |x0: f64, w: f64, len: f64| {
-        let at = |u: f64, v: f64| (Point2::new(T::from_f64(u), T::from_f64(v)), T::zero());
-        let plane = SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(x0, 0.0, 0.0)));
-        finished(
-            "a groove",
-            prism_on(
-                plane_at::<T>(&plane),
-                vec![at(1.0 - w, 2.5), at(1.0, 1.0), at(1.0 + w, 2.5)],
-                T::from_f64(len),
-                tol(),
-            ),
-            tol(),
-        )
-    };
-    let block = finished("the block", block::<T>(4.0, 4.0, 2.0, tol()), tol());
-    let narrow = built(topo::subtract(&block, &groove(-1.0, 0.3, 3.0), tol()));
-    let keel = built(topo::subtract(&narrow, &groove(2.0, 0.5, 1.0), tol()));
+    use crate::common::keel_tree::{deep, grooved};
+    let keel = sweep::test_support::finished("the keel", grooved(deep::<T>(tol()), tol()), tol());
     moved(&keel, m).into_body()
 }
 
@@ -3295,8 +3278,9 @@ fn a_deep_keels_joint_is_embedded_in_every_pose() {
 /// asked: the kernel builds no body whose faces cross while sharing a
 /// vertex, and that reading's crossing wedges are `injective`'s
 /// `two_plane_wedges_at_a_vertex_alone_certify_only_where_a_plane_parts_them`.
-/// Red if two coincident vertices of two solids were read as one shared
-/// cell, or the crossing were certified apart.
+/// So no change to the vertex-alone separator can redden this row: it
+/// goes red if two coincident vertices of two solids were read as one
+/// shared cell, or the crossing were certified apart by distance.
 #[test]
 fn a_roof_folded_across_a_blocks_corner_crosses_it() {
     fn folded<T: Scalar>() -> Body<T> {
