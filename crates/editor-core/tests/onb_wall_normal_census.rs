@@ -63,7 +63,8 @@ fn no_corpus_face_sits_on_the_frame_seam() {
                 continue;
             };
             for (_, surface) in b.body().surfaces() {
-                if let Surface::Plane { normal, .. } = surface {
+                if let Surface::Plane { frame, .. } = surface {
+                    let normal = frame.axis();
                     c.add((normal.x, normal.y, normal.z));
                 }
             }
@@ -128,7 +129,8 @@ fn axis_tie_census_over_the_band4_corpus() {
             };
             bodies += 1;
             for (_, surface) in b.body().surfaces() {
-                if let Surface::Plane { normal, .. } = surface {
+                if let Surface::Plane { frame, .. } = surface {
+                    let normal = frame.axis();
                     c.add((normal.x, normal.y, normal.z));
                 }
             }

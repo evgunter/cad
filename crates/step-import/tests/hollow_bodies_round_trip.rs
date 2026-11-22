@@ -78,7 +78,7 @@ fn round_trips(name: &str, body: Body<f64>, voids: usize, closed_form: f64) {
         (1, voids),
         "{name}: one solid with voids, one oriented shell per cavity"
     );
-    let back = match import_step(&text, &common::own_import_options(false), tol) {
+    let back = match import_step(&text, &common::own_import_options(), tol) {
         Ok(StepImport::Solid { body, .. }) => body,
         Ok(other) => panic!("{name}: imported as something other than a solid: {other:?}"),
         Err(e) => panic!("{name}: import: {e_at}", e_at = e.render()),
@@ -296,7 +296,7 @@ fn spliced(outer: &str, cavity: &str, orientation: &str) -> String {
 
 /// The import's tier refusals.
 fn refusals(text: &str, tol: Tol) -> Vec<topo::ValidationError> {
-    match import_step(text, &common::own_import_options(false), tol) {
+    match import_step(text, &common::own_import_options(), tol) {
         Err(step_import::StepImportError::TierInvalid { errors, .. }) => errors,
         Err(e) => panic!("refused, but not at the gate: {e_at}", e_at = e.render()),
         Ok(_) => panic!("the import shipped a body"),
@@ -314,7 +314,7 @@ fn a_hand_spliced_void_imports_as_its_cavity() {
         &brick_text(1.0, 2.0, tol),
         ".F.",
     );
-    let back = match import_step(&text, &common::own_import_options(false), tol) {
+    let back = match import_step(&text, &common::own_import_options(), tol) {
         Ok(StepImport::Solid { body, .. }) => body,
         other => panic!("the spliced box imports: {other:?}"),
     };
@@ -435,7 +435,7 @@ fn open_cascade_hollow_solids_import_with_their_cavities() {
             env!("CARGO_MANIFEST_DIR")
         );
         let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
-        let back = match import_step(&text, &common::own_import_options(false), tol) {
+        let back = match import_step(&text, &common::own_import_options(), tol) {
             Ok(StepImport::Solid { body, .. }) => body,
             Ok(other) => panic!("{file}: imported as something other than a solid: {other:?}"),
             Err(e) => panic!("{file}: import: {e_at}", e_at = e.render()),

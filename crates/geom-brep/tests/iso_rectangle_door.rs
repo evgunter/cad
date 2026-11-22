@@ -198,9 +198,7 @@ fn an_oblique_sphere_section_is_refused_by_the_door_and_measured_by_the_flux_lan
 #[test]
 fn a_plane_is_refused_typed_not_answered() {
     let plane: Surface<f64> = Surface::Plane {
-        origin: p3(0.0, 0.0, 0.0),
-        normal: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
     };
     assert_eq!(
         require_iso_rectangle(&plane, &[], band()),

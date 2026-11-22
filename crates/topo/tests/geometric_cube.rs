@@ -313,9 +313,11 @@ fn near_tangent_intersection_attachment_escalates() {
             EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)),
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(0.0, 0.0, 0.0),
-                    normal: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::unit_z(),
+                        Vec3::unit_x(),
+                    ),
                 },
                 sense: true,
             },
@@ -328,9 +330,11 @@ fn near_tangent_intersection_attachment_escalates() {
             seed.face,
             FaceSurface::New {
                 surface: Surface::Plane {
-                    origin: Point3::new(0.0, 0.0, 0.0),
-                    normal: Vec3::new(0.0, theta.sin(), theta.cos()),
-                    u_ref: Vec3::unit_x(),
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, theta.sin(), theta.cos()),
+                        Vec3::unit_x(),
+                    ),
                 },
                 sense: true,
             },

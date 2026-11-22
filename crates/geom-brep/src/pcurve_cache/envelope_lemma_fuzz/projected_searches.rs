@@ -58,31 +58,23 @@ fn surface(chart: Chart, s: &mut fuzz::Rng) -> Surface<f64> {
     let o = Point3::new(s.range(-2.0, 2.0), s.range(-2.0, 2.0), s.range(-2.0, 2.0));
     match chart {
         Chart::Cylinder => Surface::Cylinder {
-            origin: o,
-            axis,
+            frame: geom::Frame::new(o, axis, u_ref),
             radius: s.range(0.3, 2.0),
-            u_ref,
         },
         Chart::Cone => Surface::Cone {
-            apex: o,
-            axis,
+            frame: geom::Frame::new(o, axis, u_ref),
             half_angle: s.range(0.1, 1.4),
-            u_ref,
         },
         Chart::Sphere => Surface::Sphere {
-            center: o,
+            frame: geom::Frame::new(o, axis, u_ref),
             radius: s.range(0.3, 2.0),
-            axis,
-            u_ref,
         },
         Chart::Torus => {
             let major = s.range(0.8, 2.0);
             Surface::Torus {
-                center: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 major_radius: major,
                 minor_radius: major * s.range(0.15, 0.9),
-                u_ref,
             }
         }
     }
@@ -187,51 +179,63 @@ fn the_envelope_dominates_a_certified_lower_bound_at_interval() {
                 let mut t = |v: Vec3<f64>| (v + unit(&mut s) * tilt) * (1.0 + tilt);
                 match surf {
                     Surface::Cylinder {
-                        origin,
-                        axis,
+                        frame: carrier_frame,
                         radius,
-                        u_ref,
-                    } => Surface::Cylinder {
-                        origin,
-                        axis: t(axis),
-                        radius,
-                        u_ref: t(u_ref),
-                    },
+                    } => {
+                        let (origin, axis, u_ref) = (
+                            carrier_frame.origin(),
+                            carrier_frame.axis(),
+                            carrier_frame.u_ref(),
+                        );
+                        Surface::Cylinder {
+                            frame: geom::Frame::new(origin, t(axis), t(u_ref)),
+                            radius,
+                        }
+                    }
                     Surface::Cone {
-                        apex,
-                        axis,
+                        frame: carrier_frame,
                         half_angle,
-                        u_ref,
-                    } => Surface::Cone {
-                        apex,
-                        axis: t(axis),
-                        half_angle,
-                        u_ref: t(u_ref),
-                    },
+                    } => {
+                        let (apex, axis, u_ref) = (
+                            carrier_frame.origin(),
+                            carrier_frame.axis(),
+                            carrier_frame.u_ref(),
+                        );
+                        Surface::Cone {
+                            frame: geom::Frame::new(apex, t(axis), t(u_ref)),
+                            half_angle,
+                        }
+                    }
                     Surface::Sphere {
-                        center,
+                        frame: carrier_frame,
                         radius,
-                        axis,
-                        u_ref,
-                    } => Surface::Sphere {
-                        center,
-                        radius,
-                        axis: t(axis),
-                        u_ref: t(u_ref),
-                    },
+                    } => {
+                        let (center, axis, u_ref) = (
+                            carrier_frame.origin(),
+                            carrier_frame.axis(),
+                            carrier_frame.u_ref(),
+                        );
+                        Surface::Sphere {
+                            frame: geom::Frame::new(center, t(axis), t(u_ref)),
+                            radius,
+                        }
+                    }
                     Surface::Torus {
-                        center,
-                        axis,
+                        frame: carrier_frame,
                         major_radius,
                         minor_radius,
-                        u_ref,
-                    } => Surface::Torus {
-                        center,
-                        axis: t(axis),
-                        major_radius,
-                        minor_radius,
-                        u_ref: t(u_ref),
-                    },
+                    } => {
+                        let (center, axis, u_ref) = (
+                            carrier_frame.origin(),
+                            carrier_frame.axis(),
+                            carrier_frame.u_ref(),
+                        );
+                        Surface::Torus {
+                            frame: geom::Frame::new(center, t(axis), t(u_ref)),
+                            major_radius,
+                            minor_radius,
+                        }
+                    }
                     other => other,
                 }
                 .map_scalar(Interval::from_f64)
@@ -326,10 +330,8 @@ fn the_envelope_dominates_pushed_nets_and_corners() {
                 let a = s.range(0.0, TAU);
                 (
                     Surface::Cone {
-                        apex: Point3::origin(),
-                        axis: Vec3::unit_z(),
+                        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                         half_angle: ha,
-                        u_ref: Vec3::unit_x(),
                     },
                     arc(
                         Point3::new(0.0, 0.0, sign * delta * ha.cos()),
@@ -348,10 +350,8 @@ fn the_envelope_dominates_pushed_nets_and_corners() {
                 let e1 = Vec3::new(tilt.cos(), 0.0, -tilt.sin());
                 (
                     Surface::Sphere {
-                        center: Point3::origin(),
+                        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                         radius: 1.0,
-                        axis: Vec3::unit_z(),
-                        u_ref: Vec3::unit_x(),
                     },
                     arc(
                         Point3::origin() + n * (1.0 - r * r).sqrt(),
@@ -368,11 +368,9 @@ fn the_envelope_dominates_pushed_nets_and_corners() {
                 let v = PI + s.range(-0.5, 0.5);
                 (
                     Surface::Torus {
-                        center: Point3::origin(),
-                        axis: Vec3::unit_z(),
+                        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                         major_radius: big,
                         minor_radius: small,
-                        u_ref: Vec3::unit_x(),
                     },
                     arc(
                         Point3::new(0.0, 0.0, small * v.sin()),

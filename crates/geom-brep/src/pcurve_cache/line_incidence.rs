@@ -97,29 +97,36 @@ pub(super) fn critical_fractions<T: SpanLocate>(
     let centre_foot = |c: Point3<f64>| mid_line.param(c);
     let ts = match *surface {
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
-        Surface::Sphere { center, .. } => vec![centre_foot(mid_point(center))],
-        Surface::Cylinder { origin, axis, .. } => Axial::of(o, u, mid_point(origin), mid3(axis))
-            .star
-            .into_iter()
-            .collect(),
+        Surface::Sphere { frame, .. } => {
+            let center = frame.origin();
+            vec![centre_foot(mid_point(center))]
+        }
+        Surface::Cylinder { frame, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
+            Axial::of(o, u, mid_point(origin), mid3(axis))
+                .star
+                .into_iter()
+                .collect()
+        }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => Axial::of(o, u, mid_point(apex), mid3(axis)).cone(middle(half_angle), span),
+            frame, half_angle, ..
+        } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            Axial::of(o, u, mid_point(apex), mid3(axis)).cone(middle(half_angle), span)
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
         }
         | Surface::Spindle {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
-        } => Axial::of(o, u, mid_point(center), mid3(axis)).torus(middle(major_radius), span),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            Axial::of(o, u, mid_point(center), mid3(axis)).torus(middle(major_radius), span)
+        }
     };
     let mut fractions: Vec<f64> = ts
         .into_iter()

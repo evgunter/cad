@@ -370,7 +370,7 @@ fn assert_the_declared_edge_is_the_section(
 }
 
 fn is_top(body: &Body<f64>, key: SurfaceKey) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Plane { normal, .. }) if normal.z.abs() == 1.0)
+    matches!(body.get_surface(key), Some(Surface::Plane { frame, .. }) if frame.axis().z.abs() == 1.0)
 }
 
 /// **Where both of the edge's charts move, the kept image is asked the
@@ -437,17 +437,13 @@ fn cube_with_a_spline_seam_on_the_top(bow: f64) -> (Body<f64>, EdgeKey, SurfaceK
         .map(|(k, f)| (k, f.surface))
         .find(|&(_, s)| {
             is_top(&body, s)
-                && matches!(body.get_surface(s), Some(Surface::Plane { origin, .. }) if origin.z == 1.0)
+                && matches!(body.get_surface(s), Some(Surface::Plane { frame, .. }) if frame.origin().z == 1.0)
         })
         .expect("the cube's top");
-    let Some(&Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    }) = body.get_surface(top)
-    else {
+    let Some(&Surface::Plane { frame }) = body.get_surface(top) else {
         panic!("the top is a plane")
     };
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let v_ref = normal.cross(u_ref);
     let leaving = |at: Point3<f64>| -> HalfEdgeKey {
         let outer = body.get_face(face).unwrap().outer;
@@ -569,14 +565,10 @@ fn the_planar_door_asks_the_rule_of_an_image_whose_planes_both_hold() {
     let EdgeDescriptionSpec::Chart { image, .. } = &mut spec.description else {
         panic!("the top edge is an image in the side's chart")
     };
-    let Some(&Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    }) = body.get_surface(side)
-    else {
+    let Some(&Surface::Plane { frame }) = body.get_surface(side) else {
         panic!("the side is a plane")
     };
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let v_ref = normal.cross(u_ref);
     let uv = |t: f64| {
         let p = spec.carrier.eval(t) - origin;
