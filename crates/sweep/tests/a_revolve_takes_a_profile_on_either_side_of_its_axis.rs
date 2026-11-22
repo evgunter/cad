@@ -130,7 +130,9 @@ fn a_ring_beside_its_axis_revolves_for_either_heading() {
 /// - An apple's long arc between its two apexes, closed along the axis.
 #[test]
 fn a_profile_and_its_mirror_across_the_axis_revolve_alike() {
-    let rows: [(&str, fn(f64) -> ProfileLoop<f64>); 4] = [
+    /// A profile drawn on the side `s = ±1` of the axis.
+    type Sided = fn(f64) -> ProfileLoop<f64>;
+    let rows: [(&str, Sided); 4] = [
         ("a washer", |s| {
             ProfileLoop::polygon([
                 Point2::new(s, 0.0),
