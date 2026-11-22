@@ -422,3 +422,4 @@ body has the reasons):
   `a-least-turns-arm-is-read-about-the-copys-origin-plus-the-slides-not-about-the-seat`
   (P2 H, a design question for Ev, separate from 7353). The traced-
   carriage row is re-parked on 7353.
+- 2026-11-22 — **From OFFER:** OFFER's unit `the-certified-range-refines-away-from-the-current-value` (Ev's decision on #7340) replaces `editor_core::range`'s single drive with a resumable directed search, which takes the session's part resolver. `drive.rs` is unchanged. The unit's PR names the changed signatures. (OFFER orchestrator)
