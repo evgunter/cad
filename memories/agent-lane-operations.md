@@ -211,20 +211,18 @@ code commit (an empty commit classifies docs-only); and verify coverage
 at the STEP level (`gh api .../jobs`, step conclusions). **The run record is
 the instrument; the workflow source is not.**
 
-**Merging is destructive to checks — three rules, each guarding a silent
-or permanent failure rather than a red build.** Before merging, filter
-the check runs (`gh api .../check-runs`): reject any `conclusion` that
-is not `success` — except a red INHERITED from main (reproduced on
-main's own tree, not the PR's): that red does not block the merge
-(Ev, in-chat, 2026-08-31), but it must be annotated on the PR with
-its issue, and the LANE THAT CAUSED IT owes the fix — record the debt
-on the issue and summon that lane; never absorb it in passing.
+**Merging — two rules, each guarding a silent or permanent failure
+rather than a red build.** Merge when `gate ok` is green, or when the
+red is INHERITED from main (reproduced on main's own tree, not the
+PR's): that red does not block the merge (Ev, in-chat, 2026-08-31),
+but it must be annotated on the PR with its issue, and the LANE THAT
+CAUSED IT owes the fix — record the debt on the issue and summon that
+lane; never absorb it in passing.
 **A check still running is no reason to wait** (Ev,
 in chat, 2026-11-22): where the risk is low, such as a head that was
 green and has since gained only a merge of main with a straightforward
 conflict or none, merge over the running CI, and cancel a redundant
-run freely. Confirm a *skip* is
-habitual by checking earlier green runs of the same branch. Resolving a
+run freely. Resolving a
 conflict where **both sides deleted** something: take the union of the
 deletions, **derived from `main`** — "keep both sides" resurrects what
 another lane struck, and it looks clean. After any resolution, grep the
