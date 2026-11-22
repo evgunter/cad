@@ -15,6 +15,7 @@ use geom_core::sym::with_session_rules;
 use geom_core::{
     Arc2, Bounds, Decide, Interval, ParamSymbol, Point2, Real, Sym, SymBudget, SymRules, Tol, Vec2,
 };
+use profile::test_support::arc_verb_loop;
 use profile::{
     ArcSweep, ConstructedLoop, ConstructedProfile, Gate, Open, Profile, ProfileError, ProfileLoop,
     RawLoop, RecordedDirection, Segment, SegmentDirections, SketchPlane, Start, ValidatedProfile,
@@ -1473,165 +1474,6 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
     }
 }
 
-/// One arc verb's loop as its door stores it, `q` the quantity that
-/// fixes the arc's radius: a radius, a bulge, a through-point's or a
-/// target's coordinate, a leg's length.
-fn arc_verb_loop<T: profile::ArcCarrierScalar>(verb: &str, q: T) -> ProfileLoop<T> {
-    let t = tol();
-    let l = T::from_f64;
-    let p = |x: f64, y: f64| Point2::new(l(x), l(y));
-    match verb {
-        "circle" => profile::circle(p(0.3, 0.2), q, t)
-            .unwrap()
-            .loop_
-            .into_loop(),
-        "split circle" => profile::circle_split(p(1.0, 0.5), q, 3, l(0.25), t)
-            .unwrap()
-            .loop_
-            .into_loop(),
-        "bulge" | "bulge cw" => Open
-            .at(p(0.0, 0.0))
-            .line_to(p(4.0, 0.0), t)
-            .unwrap()
-            .arc_to(
-                profile::Bulge {
-                    p: p(4.0, 4.0),
-                    b: q,
-                },
-                t,
-            )
-            .unwrap()
-            .line_to(p(0.0, 4.0), t)
-            .unwrap()
-            .line_to(Start, t)
-            .unwrap()
-            .loop_
-            .into_loop(),
-        "via" | "via cw" => Open
-            .at(p(0.0, 0.0))
-            .line_to(p(4.0, 0.0), t)
-            .unwrap()
-            .arc_to(
-                profile::Via {
-                    q: Point2::new(q, l(2.0)),
-                    p: p(4.0, 4.0),
-                },
-                t,
-            )
-            .unwrap()
-            .line_to(p(0.0, 4.0), t)
-            .unwrap()
-            .line_to(Start, t)
-            .unwrap()
-            .loop_
-            .into_loop(),
-        "tangent" | "tangent cw" => {
-            let far = if verb == "tangent" { 2.0 } else { -2.0 };
-            Open.at(p(0.0, 0.0))
-                .line_to(p(2.0, 0.0), t)
-                .unwrap()
-                .tangent()
-                .tangent_arc_to(Point2::new(l(3.0), q), t)
-                .unwrap()
-                .line_to(p(0.0, far), t)
-                .unwrap()
-                .line_to(Start, t)
-                .unwrap()
-                .loop_
-                .into_loop()
-        }
-        "onto" => Open
-            .at(p(0.0, 0.0))
-            .toward(l(0.0), l(1.0), t)
-            .unwrap()
-            .line(q, t)
-            .unwrap()
-            .toward(l(1.0), l(0.0), t)
-            .unwrap()
-            .tangent_arc_to(p(0.25, 1.0), t)
-            .unwrap()
-            .arc_onto(Start, t)
-            .unwrap()
-            .toward(l(-1.0), l(0.0), t)
-            .unwrap()
-            .loop_
-            .into_loop(),
-        "sweep" | "sweep cw" => {
-            let side = if verb == "sweep" {
-                profile::ArcSide::Left
-            } else {
-                profile::ArcSide::Right
-            };
-            Open.at(p(0.0, 0.0))
-                .angle(l(0.0), t)
-                .unwrap()
-                .arc_to(
-                    profile::Sweep {
-                        r: q,
-                        side,
-                        angle: l(core::f64::consts::FRAC_PI_2),
-                    },
-                    t,
-                )
-                .unwrap()
-                .line_to(p(-1.0, if verb == "sweep" { 3.0 } else { -3.0 }), t)
-                .unwrap()
-                .line_to(Start, t)
-                .unwrap()
-                .loop_
-                .into_loop()
-        }
-        "fillet" => {
-            let (east, north) = (0.0_f64, core::f64::consts::FRAC_PI_2);
-            let (west, south) = (core::f64::consts::PI, -north);
-            Open.at(p(0.0, -1.0))
-                .angle(l(east), t)
-                .unwrap()
-                .fillet(q, t)
-                .unwrap()
-                .at(p(1.0, 0.0), t)
-                .unwrap()
-                .angle(l(north), t)
-                .unwrap()
-                .fillet(q, t)
-                .unwrap()
-                .at(p(0.0, 1.0), t)
-                .unwrap()
-                .angle(l(west), t)
-                .unwrap()
-                .fillet(q, t)
-                .unwrap()
-                .at(p(-1.0, 0.0), t)
-                .unwrap()
-                .angle(l(south), t)
-                .unwrap()
-                .fillet(q, t)
-                .unwrap()
-                .to(Start, t)
-                .unwrap()
-                .loop_
-                .into_loop()
-        }
-        other => panic!("no such verb: {other}"),
-    }
-}
-
-/// Each arc verb with the box its defining quantity ranges over.
-const ARC_VERBS: [(&str, f64, f64); 12] = [
-    ("circle", 0.05, 0.005),
-    ("split circle", 0.4, 0.04),
-    ("bulge", 0.4, 0.05),
-    ("bulge cw", -0.3, 0.05),
-    ("via", 5.0, 0.1),
-    ("via cw", 3.5, 0.1),
-    ("tangent", 1.0, 0.1),
-    ("tangent cw", -1.0, 0.1),
-    ("onto", 2.0, 0.05),
-    ("sweep", 1.0, 0.05),
-    ("sweep cw", 1.0, 0.05),
-    ("fillet", 0.25, 0.02),
-];
-
 /// **Each arc verb's stored arc is exact over a box on the quantity
 /// that fixes its radius.** For the circle, the split circle, a bulge
 /// leg of either sign, a via arc on either side of its chord, a tangent
@@ -1664,7 +1506,7 @@ fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
         max_degree: 128,
     };
     let inside = |x: f64, e: Lane| e.lo() <= x && x <= e.hi();
-    for (verb, c, h) in ARC_VERBS {
+    for (verb, c, h) in profile::test_support::ARC_VERBS {
         // The fillet's own door reads its joints through the tangency it
         // registers at its incoming foot, so it runs with the door open.
         let rules = if verb == "fillet" {
@@ -1673,10 +1515,10 @@ fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
             SymRules::shipped_without_the_door()
         };
         with_session_rules(budget, rules, || {
-            let lp = arc_verb_loop::<Lane>(verb, param("q", c, h));
+            let lp = arc_verb_loop::<Lane>(verb, param("q", c, h), tol());
             let members: Vec<ProfileLoop<f64>> = [c - h, c, c + h]
                 .into_iter()
-                .map(|q| arc_verb_loop::<f64>(verb, q))
+                .map(|q| arc_verb_loop::<f64>(verb, q, tol()))
                 .collect();
             let n = lp.vertices().len();
             let zero = |m: Lane| m.sign_within(band).map(|d| d.sign).ok() == Some(Sign::Zero);

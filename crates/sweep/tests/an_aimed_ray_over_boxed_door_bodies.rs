@@ -256,12 +256,23 @@ fn over<R>(
     hi: f64,
     read: impl FnOnce(&Body<Boxed>, Band) -> R,
 ) -> Result<R, String> {
-    let tol = Tol::witness();
-    let band = Band::linear(tol).unwrap();
     let budget = SymBudget {
         max_terms: 64,
         max_degree: 8,
     };
+    over_within(budget, shape, lo, hi, read)
+}
+
+/// [`over`] in a session of `budget`.
+fn over_within<R>(
+    budget: SymBudget,
+    shape: &Shape,
+    lo: f64,
+    hi: f64,
+    read: impl FnOnce(&Body<Boxed>, Band) -> R,
+) -> Result<R, String> {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
     geom_core::sym::with_session(budget, || {
         let p = Sym::param_over(
             ParamSymbol::new(test_utils::symbol_id("boxed_door_parameter")),
@@ -669,8 +680,9 @@ fn a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side() {
 /// disc whose radius is a box up to a tenth wide either way, drawn by
 /// `profile::circle` and extruded: the door builds it at every width
 /// here (cylinder walls under two-arc caps, all moving with the
-/// radius), and of the rays the two rows above aim at it some read
-/// `Out` and none reads `In`.
+/// radius). Of the rays the two rows above aim at it none reads `In`;
+/// up to a box of `1e-4` some read `Out`, and from `1e-2` each is set
+/// aside as crossing the moving wall.
 ///
 /// **What this can go red on:** the door refusing the disc (a circle
 /// verb that stores `radius.abs()`, or an arc frame turned onto the
@@ -684,14 +696,21 @@ fn the_circle_verbs_disc_of_boxed_radius_is_admitted_and_read() {
         .expect("the disc");
     for half in [1e-6, 1e-4, 1e-2, 0.05, 0.1] {
         let (lo, hi) = (shape.middle - half, shape.middle + half);
-        let readings = over(&shape, lo, hi, |body, band| {
+        // The budget the sweeps' frame rows run in: the disc's
+        // mapped-source forms outgrow the 64 terms the prisms need.
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let readings = over_within(budget, &shape, lo, hi, |body, band| {
             topo::test_support::each_aim(body, band)
         })
         .unwrap_or_else(|refusal| panic!("±{half:e}: the door refuses the disc: {refusal}"));
         let kinds: Vec<&str> = readings.iter().map(|r| kind(r)).collect();
         assert!(!kinds.contains(&"IN"), "±{half:e}: a wrong side: {readings:?}");
+        println!("±{half:e}: {}", tally(&readings));
         assert!(
-            kinds.contains(&"out"),
+            half > 1e-3 || kinds.contains(&"out"),
             "±{half:e}: no aim reads a side: {}",
             tally(&readings)
         );

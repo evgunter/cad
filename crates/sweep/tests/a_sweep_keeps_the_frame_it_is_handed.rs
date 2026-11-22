@@ -983,13 +983,13 @@ fn washer_counts(full: bool) -> (bool, u64, u64) {
 /// point's distance from a cylinder and a ruling's phase read the
 /// stored radius sign-free (`geom_core::radius_gap`, eighteen decisions
 /// out of the second count) and an arc's frame turned onto its recorded
-/// radial (four more). The partial reads 493 /
-/// 611 where it read 501 / 613, eight fewer decisions symbolic and two
-/// fewer numeric, the planes it no longer fits.
+/// radial (four more). The partial reads 505 / 603: 493 / 611 after it
+/// stopped fitting its planes (501 / 613 before), then twelve more
+/// symbolic and eight fewer numeric by the same two changes.
 #[test]
 fn a_revolves_latitude_identity_is_symbolic_without_a_registration() {
     assert_eq!(washer_counts(true), (true, 523, 443), "the full washer");
-    assert_eq!(washer_counts(false), (true, 493, 611), "the partial washer");
+    assert_eq!(washer_counts(false), (true, 505, 603), "the partial washer");
 }
 
 /// A plane turned 0.4 about `x` and lifted 2: no axis of it is a world
@@ -1087,4 +1087,146 @@ fn a_disc_on_a_turned_plane_refuses_at_check_3_over_the_box() {
             "at Sym<Interval> it refuses at check 3's end pin: {sym}"
         );
     });
+}
+
+/// How far one arc verb's slab gets over a box of `half` either way on
+/// the quantity that fixes its arc's radius: `"finished"`, or the stage
+/// that refused (`validation`, `door`, `finish`) and its refusal's text.
+/// A slab the door built is handed to `built` before it is finished.
+fn verb_slab_stage(verb: &str, c: f64, half: f64, built: impl FnOnce(&Extruded<S>)) -> String {
+    let q = boxed(0x9b0, c - half, c + half);
+    let lp = profile::test_support::arc_verb_loop::<S>(verb, q, tol());
+    let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+        Ok(profile) => profile,
+        Err(e) => return format!("validation: {e:?}"),
+    };
+    let side = ExtrudeSide::Along;
+    let depth = lit(1.0);
+    match extrude(&profile, Extrusion::Distance { depth, side }, tol()) {
+        Err(e) => format!("door: {e:?}"),
+        Ok(slab) => {
+            built(&slab);
+            match topo::take::<S>(&std::sync::Arc::new(slab.body), tol()) {
+                Err(e) => format!("finish: {e:?}"),
+                Ok(_) => "finished".to_owned(),
+            }
+        }
+    }
+}
+
+/// A box three orders past the band or wider: `1e-6`, and `1e3·ε` where
+/// that is wider.
+fn wide_box() -> f64 {
+    1e-6_f64.max(1e3 * tol().eps())
+}
+
+/// Each arc verb, what its slab does over a box validation decides
+/// ([`vertex_box`]) and what it does over a wide one ([`wide_box`]): a
+/// stage and a word its refusal carries.
+const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
+    ("circle", ["finished", ""], ["finish", "VolumeUncomputable"]),
+    ("split circle", ["finished", ""], ["door", "MappedSource"]),
+    ("bulge", ["finished", ""], ["validation", "gate: ArcSpan"]),
+    ("bulge cw", ["door", "MappedSource"], ["validation", "gate: ArcSpan"]),
+    ("via", ["finished", ""], ["validation", "gate: ArcSpan"]),
+    ("via cw", ["finished", ""], ["validation", "gate: ArcSpan"]),
+    ("tangent", ["finished", ""], ["validation", "gate: LineSpan"]),
+    ("tangent cw", ["finished", ""], ["validation", "gate: LineSpan"]),
+    ("onto", ["finished", ""], ["validation", "gate: SegmentDirection"]),
+    ("sweep", ["finished", ""], ["validation", "gate: LineSpan"]),
+    ("sweep cw", ["finished", ""], ["validation", "gate: LineSpan"]),
+    ("fillet", ["validation", "gate: CanonicalOrderX"], ["validation", "gate: LineSpan"]),
+];
+
+/// **Each arc verb's slab over a box on the quantity that fixes its
+/// arc's radius.** Over a box validation decides, the door builds the
+/// slab and its consumer finishes it: every cylinder wall's `u_ref` and
+/// every rim circle's is a unit through the tier (its squared length
+/// less one decides zero), and every member's `f64` build lies in the
+/// stored enclosures. Two fixtures stop short there: the clockwise
+/// bulge's mapped-source residual reads a hair over the band at the
+/// door, and the fillet's four-fold loop ties its canonical order over
+/// any box.
+///
+/// Over a wide box the circle alone passes the door, and its
+/// finish stops at the volume reading's rim premise
+/// (`work/boxfinish/the-volume-readings-interval-re-derivation-re-asks-a-closed-forms-premises-on-the-value-channel.md`).
+/// The split circle's door refuses its mapped-source residual (its
+/// recorded radials are rounded sines and cosines, a unit to rounding
+/// and not through the tier), and every verb drawn beside a line stops
+/// in validation's span readers
+/// (`work/boxfinish/a-bulge-arc-beside-a-line-stops-in-validations-span-readers-over-a-box.md`),
+/// the onto arc in its first leg's direction.
+///
+/// Red under the circle verb storing `radius.abs()`
+/// (`profile::path::circle_loop`): the circle's door refuses over the
+/// wide box.
+#[test]
+fn each_arc_verbs_slab_over_a_box_reaches_its_pinned_stage() {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let unit = |what: &str, u: Vec3<S>| {
+        let miss = u.norm_squared() - lit(1.0);
+        assert_eq!(
+            miss.sign_within(band).map(|d| d.sign).ok(),
+            Some(geom_core::Sign::Zero),
+            "{what} is a unit through the tier"
+        );
+    };
+    let mut moved = Vec::new();
+    for ((verb, c, _), (name, narrow, wide)) in
+        profile::test_support::ARC_VERBS.into_iter().zip(VERB_SLABS)
+    {
+        assert_eq!(verb, name, "the two tables list the verbs in one order");
+        for (half, [stage, word]) in [(vertex_box(), narrow), (wide_box(), wide)] {
+            let mut got = String::new();
+            in_session(|| {
+                got = verb_slab_stage(verb, c, half, |slab| {
+                    if stage != "finished" {
+                        return;
+                    }
+                    let body: &Body<S> = &slab.body;
+                    let mut curved = 0;
+                    for wall in &slab.walls[0] {
+                        if let Surface::Cylinder { frame, .. } =
+                            body.face_surface(wall.face).expect("a live face")
+                        {
+                            unit(&format!("{verb} wall {:?} u_ref", wall.face), frame.u_ref());
+                            curved += 1;
+                        }
+                    }
+                    assert!(curved > 0, "{verb} sweeps a cylinder wall");
+                    let mut rims = 0;
+                    for (edge, _) in body.edges() {
+                        let circle = topo::readback::edge_carrier_ref(body, edge)
+                            .ok()
+                            .and_then(|carrier| carrier.as_circle());
+                        if let Some(circle) = circle {
+                            unit(&format!("{verb} rim {edge:?} u_ref"), circle.frame.u_ref());
+                            rims += 1;
+                        }
+                    }
+                    assert!(rims > 0, "{verb} has rim circles");
+                    let members = members(c - half, c + half).map(|q| {
+                        slab_of(profile::test_support::arc_verb_loop::<f64>(verb, q, tol()))
+                    });
+                    assert_holds_its_members(verb, slab, members, None);
+                });
+            });
+            let short: String = got.chars().take(200).collect();
+            println!("{verb} ±{half:e}: {short}");
+            if !(got.starts_with(stage) && got.contains(word)) {
+                moved.push(format!("{verb} ±{half:e}: pinned {stage} {word:?}, got {short}"));
+            }
+        }
+    }
+    assert!(
+        moved.is_empty(),
+        "an arc verb's slab reaches a different stage over its box:\n{}",
+        moved.join("\n")
+    );
+}
+
+/// A unit slab of `lp` on the sketch plane `xy`.
+fn slab_of<T: Decide + topo::AtRestPolicy>(lp: ProfileLoop<T>) -> Extruded<T> {
+    slab(SketchPlane::xy(), lp, T::one())
 }
