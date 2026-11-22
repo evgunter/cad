@@ -10576,6 +10576,25 @@ mod properties_pane_tests {
                 Err(SketchTraceFault::Unevaluated)
             ));
         }
+
+        /// **The trace's crossing field steps by one by key and by drag.**
+        #[test]
+        fn the_trace_crossing_steps_by_one_by_key_and_by_drag() {
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = drive(session, bottom, wall);
+            let nth = |pane: &Driven| pane.app.drafts.trace_gesture.crossing.nth;
+            assert_eq!(nth(&pane), 1, "the premise");
+            let at = super::count_drive::beside(&mut pane, "to crossing");
+            super::count_drive::bump(&mut pane, at);
+            assert_eq!(nth(&pane), 2, "one key is the next crossing");
+            pane.app.drafts.trace_gesture.crossing.nth = 1;
+            pane.quiet();
+            // Ten points: a tick of one runs into the cap of four, a
+            // tenth-of-one tick moves it by one at most.
+            super::count_drive::drag(&mut pane, at, 10);
+            assert_eq!(nth(&pane), 4, "a ten-point drag reaches the last crossing");
+        }
     }
 
     /// **Edits held over a profile whose arguments a variable drives**:
@@ -13005,6 +13024,201 @@ mod properties_pane_tests {
                 &Selection::Node(image),
                 "the mirror is selected"
             );
+        }
+
+        /// **The pattern's count field steps by one under a pointer
+        /// drag, and an arrow key leaves it alone** (`index_count_ui`,
+        /// through `FieldWriting::of(Count, ..)`). The keyboard half is
+        /// `value_field_ops`'s fixed-text rule — a defined variable's
+        /// field shows its formula, and ArrowUp/ArrowDown there are put
+        /// back rather than stepped — so it is pinned here as what the
+        /// field does, not as a tick.
+        #[test]
+        fn the_index_count_field_steps_by_one_under_a_drag() {
+            let mut driven = Driven::with(vec![SessionOp::AddPattern {
+                input: extrude().into(),
+                count: 3,
+                rule: crate::session::PatternRuleSpec::Linear {
+                    direction: crate::session::PatternDirection::Axis(
+                        pncad::document::TargetAxis::X,
+                    ),
+                    spacing: crate::test_support::len(0.2),
+                },
+            }]);
+            driven.settle();
+            let (index, row) = pattern(&driven);
+            driven.select(Selection::Variable(index));
+            let count = |driven: &Driven| {
+                crate::props::index_count_row(driven.app.session.committed_doc(), index)
+                    .expect("an index")
+                    .formula
+            };
+            let label = driven
+                .quiet()
+                .into_iter()
+                .find(|(run, _)| run.starts_with("count of "))
+                .map(|(run, _)| run)
+                .expect("a count row");
+            let at = super::count_drive::beside(&mut driven, &label);
+            super::count_drive::bump(&mut driven, at);
+            assert_eq!(
+                count(&driven),
+                "3",
+                "an arrow key does not step a formula's field"
+            );
+            assert_eq!(members(&driven, row), 3);
+            let at = super::count_drive::beside(&mut driven, &label);
+            super::count_drive::drag(&mut driven, at, 20);
+            let dragged: i64 = count(&driven).parse().expect("a whole count");
+            assert!(
+                (14..=34).contains(&dragged),
+                "twenty points is about twenty: {dragged}"
+            );
+        }
+    }
+
+    /// **Driving one count field the way a person does**: the field
+    /// is the first non-empty run painted right of its label on the
+    /// label's row; a bump is a click into it and one ArrowUp; a drag
+    /// is a press on it and twenty points to the right.
+    mod count_drive {
+        use super::Driven;
+        use eframe::egui;
+
+        /// Where the field beside the run reading `label` was painted.
+        pub(super) fn beside(driven: &mut Driven, label: &str) -> egui::Pos2 {
+            let painted = driven.quiet();
+            let label_rect = painted
+                .iter()
+                .find(|(run, _)| run == label)
+                .map(|(_, rect)| *rect)
+                .unwrap_or_else(|| panic!("a run reads {label:?}: {painted:?}"));
+            painted
+                .iter()
+                .filter(|(run, rect)| {
+                    !run.is_empty()
+                        && (rect.center().y - label_rect.center().y).abs() < 2.0
+                        && rect.min.x > label_rect.max.x
+                })
+                .map(|(_, rect)| rect.center())
+                .min_by(|a, b| a.x.total_cmp(&b.x))
+                .unwrap_or_else(|| panic!("a field is beside {label:?}: {painted:?}"))
+        }
+
+        /// Click into the field at `at`, press ArrowUp once, leave it.
+        pub(super) fn bump(driven: &mut Driven, at: egui::Pos2) {
+            driven.click_at(at);
+            let key = |key| egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            };
+            driven.frame(vec![key(egui::Key::ArrowUp)]);
+            driven.frame(vec![key(egui::Key::Enter)]);
+            driven.settle();
+        }
+
+        /// Press on the field at `at` and drag it `points` right, in
+        /// steps of five.
+        pub(super) fn drag(driven: &mut Driven, at: egui::Pos2, points: u8) {
+            let press = |pos, pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            driven.frame(vec![egui::Event::PointerMoved(at)]);
+            driven.frame(vec![press(at, true)]);
+            for step in 1..=points / 5 {
+                driven.frame(vec![egui::Event::PointerMoved(
+                    at + egui::vec2(5.0 * f32::from(step), 0.0),
+                )]);
+            }
+            driven.frame(vec![press(at + egui::vec2(f32::from(points), 0.0), false)]);
+            driven.settle();
+        }
+    }
+
+    /// **The add-variable form's count field steps by one and lands on
+    /// integers**, from a draft that a length entry left fractional.
+    #[test]
+    fn the_add_variable_count_field_steps_by_one_and_lands_on_integers() {
+        use crate::pane::properties::NEW_VARIABLE;
+        use pncad::document::Dimension;
+        let mut driven = Driven::with(Vec::new());
+        driven.click(NEW_VARIABLE);
+        driven.app.drafts.new_variable_dimension = Some(Dimension::Count);
+        driven.app.drafts.new_variable_value = 3.0;
+        let at = count_drive::beside(&mut driven, "scalar");
+        count_drive::bump(&mut driven, at);
+        assert_eq!(driven.app.drafts.new_variable_value, 4.0, "one key is one");
+        count_drive::drag(&mut driven, at, 20);
+        let dragged = driven.app.drafts.new_variable_value;
+        assert_eq!(
+            dragged.fract(),
+            0.0,
+            "a drag lands on an integer: {dragged}"
+        );
+        assert!(
+            (14.0..=34.0).contains(&dragged),
+            "twenty points is about twenty: {dragged}"
+        );
+        // A length entry's leftover, then the dimension switched.
+        driven.app.drafts.new_variable_value = 0.25;
+        driven.quiet();
+        let at = count_drive::beside(&mut driven, "scalar");
+        count_drive::bump(&mut driven, at);
+        let bumped = driven.app.drafts.new_variable_value;
+        assert_eq!(bumped.fract(), 0.0, "a key lands on an integer: {bumped}");
+    }
+
+    /// **Switching the add-variable form's dimension keeps the draft's
+    /// canonical value**, and the commit declares it in the new
+    /// dimension in the working notation's unit for it.
+    #[test]
+    fn the_add_variable_draft_keeps_its_canonical_value_across_a_dimension_switch() {
+        use crate::pane::properties::{NEW_VARIABLE, NEW_VARIABLE_COMMIT};
+        use pncad::document::{Dimension, FreeVar};
+        let mut driven = Driven::with(Vec::new());
+        driven.click(NEW_VARIABLE);
+        let notation = driven.app.session.notation();
+        driven.app.session.set_notation(pncad::quantity::Notation {
+            length: pncad::quantity::MM,
+            ..notation
+        });
+        driven.app.drafts.new_variable_name = "g".to_owned();
+        driven.app.drafts.new_variable_dimension = Some(Dimension::Length);
+        driven.app.drafts.new_variable_value = 0.005;
+        let painted = driven.quiet();
+        assert!(
+            painted.iter().any(|(run, _)| run == "5.0"),
+            "5 mm: {painted:?}"
+        );
+        driven.app.drafts.new_variable_dimension = Some(Dimension::Scalar);
+        driven.quiet();
+        assert_eq!(driven.app.drafts.new_variable_value, 0.005);
+        driven.click(NEW_VARIABLE_COMMIT);
+        driven.quiet();
+        let doc = driven.app.session.committed_doc();
+        let var = doc.var_named("g").expect("declared");
+        let (_, held) = doc
+            .free_vars()
+            .find(|(free, _)| *free == var)
+            .expect("a free variable");
+        match held {
+            FreeVar::Continuous {
+                dim,
+                value,
+                display_unit,
+                ..
+            } => {
+                assert_eq!(*dim, Dimension::Scalar);
+                assert_eq!(*value, 0.005);
+                assert_eq!(display_unit.def().symbol(), "");
+            }
+            other => panic!("a scalar: {other:?}"),
         }
     }
 }

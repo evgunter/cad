@@ -4976,3 +4976,243 @@ mod repoint_button_tests {
         assert_eq!(ops, [SessionOp::Reevaluate], "a live click pushes the op");
     }
 }
+
+/// **Every whole-number field steps by one, by keyboard and by
+/// pointer**, at each site that draws one through [`count_field`]: the
+/// part form's instance, a member row's position, and a circle split's
+/// `n`. Each site is drawn as the form draws it, the field is found by
+/// Tab and bumped by ArrowUp, then dragged by the pointer; a tick
+/// below a half leaves the keyboard bump at zero and a tenth-of-one
+/// tick moves a twenty-point drag by two.
+#[cfg(test)]
+mod count_site_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
+    use eframe::egui;
+    use pncad::profile::{Step, Verb};
+
+    /// Every text a frame painted.
+    fn texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+        fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, out)),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        for clipped in shapes {
+            walk(&clipped.shape, &mut out);
+        }
+        out
+    }
+
+    struct Site<S> {
+        ctx: egui::Context,
+        state: S,
+        painted: Vec<String>,
+    }
+
+    impl<S> Site<S> {
+        fn frame(&mut self, events: Vec<egui::Event>, draw: &impl Fn(&mut egui::Ui, &mut S)) {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let state = &mut self.state;
+            let mut output = self.ctx.run_ui(input, |ui| draw(ui, state));
+            output.textures_delta.clear();
+            self.painted = texts(&output.shapes);
+        }
+    }
+
+    fn key(key: egui::Key) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// What one ArrowUp and one twenty-point drag move the site's count
+    /// by, read by `read`.
+    fn bumped<S>(
+        state: S,
+        draw: impl Fn(&mut egui::Ui, &mut S),
+        read: impl Fn(&S, &[String]) -> i64,
+    ) -> (i64, i64) {
+        let mut site = Site {
+            ctx: egui::Context::default(),
+            state,
+            painted: Vec::new(),
+        };
+        site.frame(Vec::new(), &draw);
+        site.frame(Vec::new(), &draw);
+        let mut field = None;
+        let mut keyboard = 0;
+        for _ in 0..12 {
+            site.frame(vec![key(egui::Key::Tab)], &draw);
+            let before = read(&site.state, &site.painted);
+            site.frame(vec![key(egui::Key::ArrowUp)], &draw);
+            site.frame(Vec::new(), &draw);
+            let after = read(&site.state, &site.painted);
+            if after != before {
+                keyboard = after - before;
+                field = site.ctx.memory(|m| m.focused());
+                break;
+            }
+        }
+        let field = match field {
+            Some(id) => id,
+            // The keyboard never moved it: walk the focus again and
+            // keep the first widget a pointer drag moves the count by.
+            None => return (0, drag_some(&mut site, &draw, &read)),
+        };
+        site.frame(vec![key(egui::Key::Escape)], &draw);
+        site.frame(Vec::new(), &draw);
+        let rect = site
+            .ctx
+            .read_response(field)
+            .expect("the count field was laid out")
+            .rect;
+        (keyboard, drag(&mut site, &draw, &read, rect.center()))
+    }
+
+    fn drag<S>(
+        site: &mut Site<S>,
+        draw: &impl Fn(&mut egui::Ui, &mut S),
+        read: &impl Fn(&S, &[String]) -> i64,
+        at: egui::Pos2,
+    ) -> i64 {
+        site.frame(Vec::new(), draw);
+        let before = read(&site.state, &site.painted);
+        site.frame(vec![egui::Event::PointerMoved(at)], draw);
+        site.frame(
+            vec![egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            draw,
+        );
+        for step in 1..=4 {
+            site.frame(
+                vec![egui::Event::PointerMoved(
+                    at + egui::vec2(5.0 * step as f32, 0.0),
+                )],
+                draw,
+            );
+        }
+        let end = at + egui::vec2(20.0, 0.0);
+        site.frame(
+            vec![egui::Event::PointerButton {
+                pos: end,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            draw,
+        );
+        site.frame(Vec::new(), draw);
+        read(&site.state, &site.painted) - before
+    }
+
+    /// The fallback when the keyboard reached nothing: Tab to each
+    /// focus in turn and drag it, keeping the first that moves.
+    fn drag_some<S>(
+        site: &mut Site<S>,
+        draw: &impl Fn(&mut egui::Ui, &mut S),
+        read: &impl Fn(&S, &[String]) -> i64,
+    ) -> i64 {
+        for _ in 0..12 {
+            site.frame(vec![key(egui::Key::Tab)], draw);
+            let Some(id) = site.ctx.memory(|m| m.focused()) else {
+                continue;
+            };
+            let Some(rect) = site.ctx.read_response(id).map(|r| r.rect) else {
+                continue;
+            };
+            site.frame(vec![key(egui::Key::Escape)], draw);
+            let moved = drag(site, draw, read, rect.center());
+            if moved != 0 {
+                return moved;
+            }
+        }
+        0
+    }
+
+    fn assert_steps_by_one(site: &str, (keyboard, dragged): (i64, i64)) {
+        assert_eq!(keyboard, 1, "{site}: one arrow key is one more");
+        assert!(
+            (10..=30).contains(&dragged),
+            "{site}: a twenty-point drag moves the count about twenty, not two: {dragged}"
+        );
+    }
+
+    #[test]
+    fn the_part_forms_instance_steps_by_one() {
+        let moved = bumped(
+            1_i64,
+            |ui, instance| {
+                crate::pane::create::part_selector_rows(
+                    ui,
+                    &crate::theme::Theme::DEFAULT,
+                    instance,
+                );
+            },
+            |instance, _| *instance,
+        );
+        assert_steps_by_one("part instance", moved);
+    }
+
+    #[test]
+    fn a_member_rows_position_steps_by_one() {
+        let members: Vec<Vec<i64>> = (0..60).map(|i| vec![i]).collect();
+        let moved = bumped(
+            (),
+            move |ui, ()| {
+                crate::pane::create::member_rows(ui, [(0, "pick".to_owned(), members.clone())]);
+            },
+            |(), painted| {
+                painted
+                    .iter()
+                    .find_map(|run| {
+                        run.strip_prefix("read [")
+                            .and_then(|rest| rest.strip_suffix(']'))
+                            .and_then(|n| n.parse().ok())
+                    })
+                    .unwrap_or_else(|| panic!("a read button is drawn: {painted:?}"))
+            },
+        );
+        assert_steps_by_one("member position", moved);
+    }
+
+    #[test]
+    fn a_circle_splits_count_steps_by_one() {
+        let moved = bumped(
+            crate::sketch::fresh_step(Verb::CircleSplit),
+            |ui, step| {
+                ui.horizontal(|ui| {
+                    super::path_step_fields(
+                        ui,
+                        "probe",
+                        (&mut super::WrittenIn(crate::props::Notation::CANONICAL), 0),
+                        None,
+                        step,
+                    );
+                });
+            },
+            |step, _| match step {
+                Step::CircleSplit { n, .. } => i64::try_from(*n).expect("a small count"),
+                other => panic!("still a circle split: {other:?}"),
+            },
+        );
+        assert_steps_by_one("circle split n", moved);
+    }
+}
