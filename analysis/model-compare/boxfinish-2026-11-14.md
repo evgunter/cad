@@ -140,3 +140,7 @@ The account's Fable limit was exhausted from about 23:35 UTC on 2026-11-15 until
 
 - 2026-11-22 05:38 UTC: volume-premises unit, PR 7344, frozen head `cb626eafd6` (dual tier M, sequential): FIRST reviewer draw: byte 23 → Fable. The second review, if the first raises a MAJOR, is by the other model on the fix pass's head.
   - Volume-premises first reviewer: session_013QoYWWVhUpEAgQ1YFNbNxy, configured claude-fable-5-2 (byte 23), dispatched 05:41 UTC 2026-11-22 on the frozen head `cb626eafd647f87f658b6c250a824750e805729e`, FULL (eleven claims to falsify + the style lane). Blinding check before dispatch: PR 7344's title, body and (no) comments name no model and carry no footer or session link; the lane's four own commits carry no trailer. The implementer's report arrived 05:33 (PR opened earlier, gate green on that head); its implementation phase spans the 11-15..11-22 Fable outage.
+
+- 2026-11-22 06:33 UTC — implementer arm, unit `a-drive-splits-a-box-along-a-variable-its-undecided-node-does-not-read` (branch `boxfinish/split-reads`; letter M, dual tier sequential): byte 209 → Fable.
+- 2026-11-22 06:33 UTC — implementer arm, unit `a-nodes-content-key-at-the-symbolic-scalar-hashes-the-number-and-not-the-expression` (branch `boxfinish/node-key`; letter M, single FULL): byte 35 → Fable.
+- Note: a first pair of bytes was drawn a minute earlier by a script that crashed before printing or writing them (it opened a directory); they were never seen, and these are the draws of record.
