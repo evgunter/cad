@@ -505,7 +505,9 @@ fn a_marched_witness_is_placed_padded() {
     }
 }
 
-/// **R-reach**: a cone against a non-coaxial torus and a spline. (A
+/// **R-reach**: a cone whose apex lies on a torus off its axis (a node,
+/// which no march ends a branch at) and a spline. (A cone against a torus
+/// clear of its apex is the section value's, marched; a
 /// cone against an oblique cylinder or a tilted or parallel-axis cone is
 /// the ruling charts', `section_cert_cone_pair_rows`; a torus on a
 /// parallel axis is `section_cert_parallel_tori_rows`'.)
@@ -516,7 +518,10 @@ fn intractable_poses_refuse_on_reach() {
         half_angle: 0.4,
     };
     for (what, partner) in [
-        ("a non-coaxial torus", torus(p(1.0, 0.0, 0.0), 2.0, 0.5)),
+        (
+            "a torus its apex lies on",
+            torus(p(-2.5, 0.0, 3.0), 2.0, 0.5),
+        ),
         ("a spline", bump()),
     ] {
         assert!(
