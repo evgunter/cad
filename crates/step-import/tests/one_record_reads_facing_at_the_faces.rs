@@ -15,10 +15,7 @@ use step_import::{
 use crate::common::freecad_fixture;
 
 fn import_at(text: &str, eps_in: Option<f64>) -> Result<StepImport, StepImportError> {
-    let options = ImportOptions {
-        eps_in,
-        ..ImportOptions::default()
-    };
+    let options = ImportOptions { eps_in };
     import_step(text, &options, Tol::witness())
 }
 

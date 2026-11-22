@@ -260,8 +260,8 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
 ///
 /// **One removal, on every curved-lane body.** The chord rule reads each
 /// curved-lane edge's iso family from the shape door's answer
-/// (`curved::Rectangle`), where it used to call
-/// `topo::chart_iso::classify_kind` and keep only the family: the row or
+/// (`curved::Rectangle`), where it used to classify the carrier by its
+/// axis (a nearest fit, retired since) and keep only the family: the row or
 /// column coordinate that call also read (`Chart::rim_v`,
 /// `chart_iso::mid_azimuth`, each recording `pcurve_chart_cut_side` and
 /// `chart_point_on_axis`, and `chart_point_on_tube_circle` on the donut
@@ -290,7 +290,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "ball",
             0x5aaf_8fe2_c8bd_5999,
             0xcbf2_9ce4_8422_2325,
-            0x5812_1400_df62_e576,
+            0x8403_8e18_2870_7107,
         ),
         (
             "cone",

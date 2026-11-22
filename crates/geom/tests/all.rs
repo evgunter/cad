@@ -74,6 +74,8 @@ mod curves_arc_window_adversarial;
 mod curves_boxes;
 #[path = "curves/compose.rs"]
 mod curves_compose;
+#[path = "curves/cover_box_against_the_whole_span_eval.rs"]
+mod curves_cover_box_against_the_whole_span_eval;
 #[path = "curves/curvo_oracle.rs"]
 mod curves_curvo_oracle;
 #[path = "curves/decoration_certified_coords.rs"]
