@@ -1529,8 +1529,8 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   circles), any other escaping face is cut along its chart's
         //   meridian through each circle ([`SphereCutIn`]), and the
         //   pipeline re-enters once; the ordinary crossing layer then
-        //   finds the section circles and the (Plane, Sphere) or
-        //   (Sphere, Sphere) germ arm joins them exactly. Both spheres
+        //   finds the section circles and the carried lane joins them
+        //   exactly on the section value's circle. Both spheres
         //   of a crossing pair are re-cut, so the circle lands as
         //   chords on both and neither keeps it as a ring.
         // - **uncertifiable** (NURBS re-gate, a trimmed group's circle

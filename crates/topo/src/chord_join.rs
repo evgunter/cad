@@ -1723,8 +1723,7 @@ fn section_case<T: Decide>(
                 "a chord's section pair has no plane — the C5 arms this lane reads are \
                  plane×cylinder, plane×cone, plane×sphere and plane×torus, and a curved×curved pair has no conic \
                  to take an arc of; refused typed rather than defaulted to a straight chord. A \
-                 sphere pair never arrives here: its section lies in the pair's radical \
-                 plane, which the boolean's join hands each side as a plane×sphere pair",
+                 sphere pair never arrives here: the operation's section table carries it",
             ));
         }
     };
