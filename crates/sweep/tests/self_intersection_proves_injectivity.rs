@@ -3446,3 +3446,35 @@ fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
         }
     }
 }
+
+/// Review probe (merge with apex-separator): every verdict, no asserts.
+#[test]
+fn review_probe_merge_routes() {
+    for (k, &(turn, at)) in TURNED.iter().enumerate() {
+        let plane = turned_about(turn, at);
+        let f = embedding(&ball_on::<f64>(&plane, 0.0));
+        let i = embedding(&ball_on::<Interval>(&plane, 0.0));
+        println!("[route ball] frame {k}: f64 {:?} {:?} | Interval {:?} {:?}", f.verdict, f.receipt, i.verdict, i.receipt);
+    }
+    fn wedge<T: Scalar>(place: &SketchPlane<f64>, theta: f64) -> Body<T> {
+        let profile = Profile::new(
+            plane_at::<T>(place),
+            lifted(&[ProfileLoop::polygon(
+                [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
+            )]),
+        )
+        .validate(tol())
+        .unwrap();
+        revolve(&profile, axis_y(), Revolution::Partial(T::from_f64(theta)), tol())
+            .unwrap()
+            .body
+            .into_body()
+    }
+    for theta in [1.5 * core::f64::consts::PI + 0.01, 5.5] {
+        for (name, place) in apex_frames() {
+            let f = embedding(&wedge::<f64>(&place, theta));
+            let i = embedding(&wedge::<Interval>(&place, theta));
+            println!("[route wedge] {theta} {name}: f64 {:?} {:?} | Interval {:?} {:?}", f.verdict, f.receipt, i.verdict, i.receipt);
+        }
+    }
+}
