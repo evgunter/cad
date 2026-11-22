@@ -1,7 +1,7 @@
 ---
 id: a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width
 kind: issue
-title: present_plane reads one line or one corner, so a cell of a thin plane face, holding both its long sides or a short side with both its neighbours, is read only once split below the face's width: a thin slab refuses at the depth floor, a long needle spends the pair budget
+title: present_plane read one line or one corner, so a cell holding a thin plane face's whole end (its short side with both neighbours) was read only once split below the face's width - it now reads the end, the end's cap decided before any Vacuous
 status: open
 opened: 2026-11-21
 priority: P0
@@ -120,26 +120,53 @@ already read several lines on one axis (`run_on`,
 
 ## Measured and landed, 2026-11-22
 
-`embed/strip`. `present_plane` reads one thing: the face's part of
-the cell where the face is convex there, the intersection of the
-half-planes of the line edges the cell holds, inside a parallelogram
-two of whose sides lie on one edge or on a convex corner's two edges.
-A further edge across the face from them caps the far side at the
-highest point of its line over the cell's reach. The cases are one
-edge, a corner, a strip (two edges with no common end, or a wedge
-whose tip is clear of the cell), and a strip's end (an edge with a
-neighbour at each end). Convexity is decided by the leans alone. Each
-corner in the cell is convex, and each cap and the edge it caps stand
-on each other's face side over the reach, at
-`SELF_INTERSECTION_CORNER`. Each reading decides that convexity before
-it may answer `Vacuous`: a frame's "the cell is off my face side" is
-true only where nothing else in the cell bounds the face (the review of
-PR 7334 found it read first, and a coplanar fold past a slot's far side
-certified). No edge or vertex but these is near the
-cell, so the disk inside the ball meets the boundary only in these
-chords. Loop membership is not read: a rim and a hole's side that face
-each other bound a strip, and two sides of a slot or a hole do not
-(the leans fail).
+`embed/strip`, PR 7334. `present_plane` reads one thing: the face's
+part of the cell where the face is convex there, the intersection of
+the half-planes of the line edges the cell holds. It is read inside a
+parallelogram two of whose sides lie on one edge or on a convex
+corner's two edges. The cases:
+- one edge;
+- a corner;
+- **a strip's end**: an edge with a neighbour at each end, read at
+  either corner whose other neighbour (the cap) is not shared. The cap
+  bounds the far side at the highest its line stands over the cell's
+  reach.
+
+Convexity is decided by the leans alone. Each corner in the cell is
+convex, and the cap and the edge it caps stand on each other's face
+side over the reach, at `SELF_INTERSECTION_CORNER`, read linearly in
+the base's own frame. **Each reading decides that convexity before it
+may answer `Vacuous`.** A frame's "the cell is off my face side" is
+true only where nothing else in the cell bounds the face. The review
+of PR 7334 found it read first: a coplanar fold past a slot's far side
+certified (`a_face_laid_over_a_slots_far_side_is_not_certified`).
+
+**The strip arm was built, measured at zero, and removed.** PR 7334
+first also read two line edges with no common end (a strip's middle),
+and a wedge whose tip was clear of the cell, as a strip capped at the
+far side. It held the review's first two probes of the `Vacuous` hole.
+Measured through the gate on the 42 census tests that hold:
+
+| mutant | what is off | the 42 | body rows (slab, needle) |
+|---|---|---|---|
+| M11 | the strip arm (two lines with no common end, the wedge fallback) | 42 pass | green |
+| M11b | the end arm (three lines) | 4 pass, 38 fail | red |
+
+The four that pass under M11b pass under M11 too: the end arm alone
+carries them. So no measured test needs the strip arm. Two facts make
+that structural:
+- a thin rectangle's first split leaves two halves that each hold a
+  whole end;
+- of two plane faces along an edge, only one needs presenting, because
+  the other's carrier separates them; a thin face whose partner reads
+  at its own end is never asked across its middle.
+
+A chamfered hexagon prism, built to need it, did not (its side
+rectangles read at their ends). **What would bring the strip arm back:**
+a body with two thin plane faces along one edge, neither with a
+single-edge end within reach of the cells along that edge, which
+refuses with the strip arm off. Rebuild it only with that body as its
+pin. `a_strip_middle_is_not_read` pins its absence.
 
 **The census tests of this cause** (61 of the census of `c2a0c41f40`,
 picked by the families above from the 116 departure/edge/plane-plane
@@ -184,21 +211,11 @@ departure margin the band does not decide):
   fail with the gate off, and the first fails on main as well.
 
 So 6 of the 22 stop at a width in the band, the re-metering's ground,
-and none of the 39 that now hold needed the margin changed.
+and none of the 39 that then held needed the margin changed. (These
+figures are the first head's; the fix pass's are below.)
 
 **Not checked here**: the ten thin curved shoulder and strut rows
 (`wedge_end_doors` and the rest). They are not in the 61.
-
-**Which arm closes the 39.** All 39 still pass with the strip arm off
-(two lines with no common end `Local`, the wedge read off), the end
-arm kept. Every one of them is closed by the end arm. A thin
-rectangle's first split leaves two halves that each hold a whole end.
-And of two plane faces only one need be presented, because the other's
-carrier separates them, so a thin face whose partner reads at its own
-end is never asked across its middle. A body that needs the strip arm
-alone needs two thin faces along one edge, neither with a single-edge
-end in reach. No census test is one, and I did not build one (a
-chamfered hexagon's long side faces still have single-edge ends).
 
 **After the review's fix pass** (the merged head, on
 `embed/strip-measure`), 42 of the 61 pass:
