@@ -29,3 +29,46 @@ Moved from FORMS to FORMWORDS on 2026-11-20, by `git mv`, when FORMS merged into
 Ev (in chat, 2026-11-22): "in the gui, there seems to be no way to mirror around some arbitrary plane rather than a face of an object". Ev filed it at P1.
 
 The mirror is narrower than the split even before the general plane door exists. The split takes `Selection::Variable` (`crates/viewer/src/tools.rs:942-946`, through `PlaneSeats::pick_defined`, `crates/viewer/src/combine.rs:406-416`, and `SplitPlane::Read` in `SplitTool::op`, `combine.rs:605-623`). The mirror routes only `selection.face()` (`tools.rs:972-975`). `MirrorTool::op` refuses with `SeatError::NoFace` (`combine.rs:716-729`), `SessionOp::AddMirror { body, plane: FaceSelection }` can carry nothing else (`crates/viewer/src/session/op.rs:810-833`), and `add_mirror` reads the plane off the picked face (`crates/viewer/src/session.rs:3801-3826`). Meanwhile `Node::Mirror.plane` is already a `RoleRead` of a `Plane` or a frame's plane (`crates/editor-core/src/node.rs`, ~1852-1865), and `HeldPlane::Defined` exists (`combine.rs:361-372`) unused by the mirror. Giving the mirror the split's `pick_defined` arm is a cheap first step that can land ahead of the general plane-definition door.
+
+## The design (2026-11-22)
+
+A plane or an axis the viewer authors is a pose variable: there is no
+separate plane object and no plane-construction gesture. The general
+door is **one editor for a pose definition**, over `PoseDef`'s family,
+filtered by the kind the seat reads (plane or axis).
+
+- **Create, then edit.** Split and mirror insert on a picked face's
+  plane, or on a Plane or Frame variable named in the selection, as
+  today. The node's plane row then edits the definition, one undoable
+  edit each: offset along its normal (a length row, number or
+  formula), turn about a picked edge or axis (an angle row), flip, a
+  frame's xy / yz / zx plane, through an edge and a point, re-pick.
+  Wrapping is an edit of what the seat reads (the seat's plane P
+  becomes `Slide { P, … }`), and unwrapping points the seat back at P.
+- **Anonymous at its reader, named to share.** An unnamed pose is shown
+  under its one reader's row (VR2). Naming it on that row lists it in
+  the Variables pane, whose row is the same editor; editing it there
+  moves every reader. A second reader of an unnamed pose opens the
+  name field, as Place does for a shared source (VR7).
+- **Seen and picked.** A named plane or axis is drawn as a display glyph
+  in its space, toggled in the View pane like a body; an unnamed one is
+  drawn while its reader or its row is selected. Clicking it gives
+  `Selection::Variable`, which every plane and axis seat takes.
+- **Axes by the same door**: the mate's axis sides and the placement
+  values' slide-along and spin-about reads. The mate sides' own
+  lowering (`matetool::plane_of`, `MateReading`) becomes the editor's
+  base picks.
+- **Variables pane "New plane" / "New axis"**: sugar over the same
+  editor, asking for a name and a base pick (the GUI proposes no name),
+  built after the seat path.
+- **The editor exposes the whole of `PoseDef`'s family**, as structured
+  widgets rather than typed text (the reads inside a pose are picks).
+  A chain reads on the row as a flat list of steps, in stored order.
+- **The world stays unreadable** ([placement.world],
+  [variables.poses]): every plane is built from the body's own
+  geometry.
+
+Kernel: `VarDecl` (`crates/editor-core/src/var.rs`) gains a pose arm,
+so `DeclareVar` and `DefineVar` can declare and redefine a pose
+variable. `no-viewer-row-re-points-a-live-nodes-read`'s plane slots are
+this editor's re-pick and are built with it.
