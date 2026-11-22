@@ -251,7 +251,7 @@ fn a_split_of_a_mirrored_pattern_evaluates() {
         };
         let out = session.perform(SessionOp::AddMirror {
             body: pattern.into(),
-            plane: cap_end(body),
+            plane: viewer::session::ToolPlane::Face(cap_end(body)),
         });
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
     });
