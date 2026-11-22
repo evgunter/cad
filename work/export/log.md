@@ -57,3 +57,11 @@ dispatched.
 
   The class it exposed (a shared-fixture-list diff skips the slow rows that iterate the list) is filed on GREEN as `a-diff-to-a-shared-fixture-list-skips-the-slow-rows-that-iterate-it`. Closed: `step-export-refuses-every-hollow-body`.
 - 2026-11-18 — **Sitting handed back; track `ready`.** P0 done (PR 7066), and four of the five P1s done (7067, 7077, 7081). The fifth, the entity-ids row, is the held design fork: two of three first reports are in, and the third waits on the Fable reset (2026-11-21) or on Ev ruling that the outage rule covers forks. It is asked in chat, and its state is on the item. Filed this sitting: `step-import-surface-sig-signs-every-approx-surface-with-one-tag` (P3; one fork answer deletes its subject); GREEN's `a-diff-to-a-shared-fixture-list-skips-the-slow-rows-that-iterate-it`; the S5/S7 rows from the reviews. Process: model-compare rule 12 (Fable outage) landed at Ev's request (PR 7070).
+- 2026-11-22 — **Fork ruled (PR 7331, row 297): an imported body's surface records follow the file.** The Fable designer ran on 2026-11-22, once the limit had reset. Three rounds:
+  - first reports: A to close as superseded; B and C to records-by-reference;
+  - round 1: A moved to B and C;
+  - rounds 2 and 3: Ev's concern "imported files can reach states that native files cannot", answered no.
+
+  Two probes: a native union leaves one record worn both ways in a solid; a native π revolve leaves non-maximal caps that no boolean takes. Ev approved. `step-import-discards-the-entity-ids-that-are-its-identity-channel` is now that unit (P1, H): records keyed per shell from the file's references, `surface_sig` deleted, export writing one entity per key, and pins per sharing pattern against native twins. `[import]` gains "Records follow the file". ORIGIN's `axis-source-lowered-bytes-carry-no-minter-namespace` closed as moot.
+
+  Filed from the probes (PR 7343): `an-imported-union-ships-coplanar-same-record-neighbours-no-boolean-takes` (P2, design); LATHE's `a-u-profile-touching-the-axis-twice-panics-the-half-revolve` (P1); LATHE's half-revolve row re-measured. Relaxation recorded: B read the item's summary of the split before its first report.
