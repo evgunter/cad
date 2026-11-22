@@ -1177,21 +1177,16 @@ adding a variant and letting the compiler enumerate every dispatch
 site. A kind is a locus with one chart shape: its chart, implicit
 residual and normal agree at every point, and which of its chart's
 coordinates are periodic and which points are singular is fixed by the
-<<<<<<< HEAD
-kind, with no tolerance. A swept locus earns a kind where it is a
-quadric or one of the torus's sheets, so that a line meets it in a
-closed form and a plane cuts it in a curve kind that exists. The `Nurbs` variant is the universal fallback: any exotic surface
-is at minimum representable, and a wall swept from a profile segment
-with no kind of its own is the exact rational `Nurbs` surface, never an `Approx`. Same design for curves (line / circle /
-=======
 kind, with no tolerance. For `Nurbs` and `Approx` (read through its fitted
 net) the kind fixes the rule, not the points: a boundary iso of the net whose control
 points are all one stored point is a chart singularity at that point, decided on the
 stored values. A constructor that decides such a side collapsed at its band builds it
 exactly one point; a side that is tiny but not one point is a regular chart with a
-short edge. The `Nurbs` variant is the universal fallback: any exotic surface
-is at minimum representable. Same design for curves (line / circle /
->>>>>>> origin/main
+short edge. A swept locus earns a kind where it is a quadric or one of
+the torus's sheets, so that a line meets it in a closed form and a
+plane cuts it in a curve kind that exists. The `Nurbs` variant is the universal fallback: any exotic surface
+is at minimum representable, and a wall swept from a profile segment
+with no kind of its own is the exact rational `Nurbs` surface, never an `Approx`. Same design for curves (line / circle /
 ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
 
