@@ -2516,7 +2516,7 @@ mod tests {
         }
 
         /// The two scalars a loop is read at, each reading its loop.
-        trait Reads: Real + geom_core::SpanLocate {
+        trait Reads: Real {
             fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError>;
         }
 
@@ -2903,8 +2903,9 @@ mod tests {
         /// **A seam column moved one period of a closed chart is its
         /// domain's other end**, on domains that do not start at 0: the
         /// column stored at `lo` and lifted one period
-        /// ([`geom_brep::Period::of_domain`], as [`crate::joint::Deck::apply`]
-        /// moves it) is held at `hi` itself, so the certificate reads the
+        /// ([`geom_brep::Period::moved`], which is how
+        /// [`crate::joint::Deck::apply`] moves an iso image's held value)
+        /// is held at `hi` itself, so the certificate reads the
         /// rectangle `[lo, hi]` at `f64` and at `Interval` alike. The sum
         /// `lo + (hi − lo)` it replaces has width at `Interval` on every
         /// one of these domains and at `f64` misses `hi` by an ulp on
@@ -2925,11 +2926,10 @@ mod tests {
             fn moved<T: Reads>((lo, hi): (f64, f64), at: f64) -> Result<TrimRectangle, PropsError> {
                 let f = T::from_f64;
                 let mut rows = polygon::<T>(&[(lo, 0.0), (hi, 0.0), (hi, 1.0), (lo, 1.0)]);
-                let mut column = piece((f(at), T::zero()), (0.0, 1.0)).moved_for_tests(ONCE);
-                column.pcurve = column
-                    .pcurve
-                    .shift_branch(1, geom_brep::Period::of_domain(f(lo), f(hi)));
-                rows[1] = column;
+                // The held value as the lift moves it: one period of the
+                // domain's, stated by its two ends.
+                let held = geom_brep::Period::of_domain(f(lo), f(hi)).moved(f(at), 1);
+                rows[1] = piece((held, T::zero()), (0.0, 1.0)).moved_for_tests(ONCE);
                 read(rows)
             }
             fn each<T: Reads>() {
