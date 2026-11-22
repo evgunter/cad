@@ -1432,6 +1432,12 @@ fn admitted<T: Decide + CertifiedBounds>(
     out
 }
 
+/// The clearance walk's query.
+const CLEARANCE_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "clearance_face_pairs",
+    "the face pairs of two scopes whose boxes come within reach",
+);
+
 impl Sweep {
     /// The whole inner subdivision: candidate pairs from the interval
     /// BVH, then ONE level-synchronous frontier over all of them.
@@ -1524,7 +1530,7 @@ impl Sweep {
             // scopes of one body can carry a pair in both orders.
             let mut seen: BTreeSet<(FaceKey, FaceKey)> = BTreeSet::new();
             let candidates: Vec<(usize, usize)> = tree_a
-                .pairs_within(&tree_b, reach)
+                .pairs_within(CLEARANCE_PAIRS, &tree_b, reach)
                 .into_iter()
                 .filter(|&(i, j)| {
                     let (Some(x), Some(y)) = (wa.get(i), wb.get(j)) else {
