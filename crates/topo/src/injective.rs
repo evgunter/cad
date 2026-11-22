@@ -12908,8 +12908,8 @@ mod margin_rows {
     ///   its own size does not bound the sine.
     ///
     /// Red if the collapsed side's reading divides by the chart's own
-    /// speeds (`0/0` at the pole), or if two regular sides are read by
-    /// the mixed rate.
+    /// speeds (`0/0` at the pole, and past one beside it), or if two
+    /// regular sides are read by the mixed rate.
     #[test]
     fn a_pole_is_read_by_the_sines_limit_and_two_regular_sides_are_not() {
         let s = Surface::Sphere {
@@ -12921,20 +12921,23 @@ mod margin_rows {
             n: v3(0.0, 1.0, 0.0),
             q: p3(0.0, 0.0, 0.0),
         };
-        let read = |top: Along| {
+        let read_at = |top: Along, arm: Option<Lever<Interval>>| {
             let zero = Zero::Corner((Side::XLo, along(1)), (Side::YHi, top));
             let p = presented(&s, (0.0, 0.1), (pole - 0.1, pole), zero);
-            sign_on(
-                &meridian,
-                Some(&on(&[1, 2], &[7])),
-                &p,
-                None,
-                arm(1.0),
-                band(),
-            )
+            sign_on(&meridian, Some(&on(&[1, 2], &[7])), &p, None, arm, band())
         };
+        let read = |top: Along| read_at(top, arm(1.0));
         assert_eq!(read(Along::at(key(7))), Some(Sign::Positive), "the pole");
         assert_eq!(read(along(2)), None, "two regular sides");
+        // The sine is at most one: at an arm inside the band it decides
+        // nothing, where the mixed rate over the chart's speeds, ten and
+        // more this near the pole, would.
+        let inside = 0.3 * band().escalate();
+        assert_eq!(
+            read_at(Along::at(key(7)), arm(inside)),
+            None,
+            "the pole at an arm inside the band"
+        );
         // The lune on the meridian's other side reads the other sign.
         let west = Zero::Corner((Side::XHi, along(1)), (Side::YHi, Along::at(key(7))));
         let p = presented(&s, (-0.1, 0.0), (pole - 0.1, pole), west);
@@ -12984,13 +12987,13 @@ mod margin_rows {
     /// **The arm is the faces' reach, the least over what the pair is
     /// near.** Two faces sharing the edges `1` (along `x`, a metre) and
     /// `2` (along `z`, ten metres) at the origin, the second face
-    /// reaching five metres along `y`:
-    /// - near edge `1` alone, its reach from its middle: the far end of
-    ///   edge `2`, `√100.25`;
-    /// - near edge `2` alone: the second face's far vertex, `√50`;
-    /// - near both: the lesser;
+    /// reaching twenty metres along `y`:
+    /// - near edge `1` alone, its reach from its middle: the second
+    ///   face's far vertex, `√400.25`;
+    /// - near edge `2` alone: that vertex again, `√425`;
+    /// - near both, in either order: the lesser;
     /// - near the origin alone: the farthest vertex of either face from
-    ///   it, ten;
+    ///   it, the second face's, twenty;
     /// - one face against itself reads its own vertices alone, `√26`;
     /// - near a null edge: no arm.
     ///
@@ -13014,7 +13017,7 @@ mod margin_rows {
                 (1, o),
                 (2, [1.0, 0.0, 0.0]),
                 (3, [0.0, 0.0, 10.0]),
-                (4, [0.0, 5.0, 0.0]),
+                (4, [0.0, 20.0, 0.0]),
             ],
         );
         let s = floor();
@@ -13052,10 +13055,19 @@ mod margin_rows {
             let got = got.unwrap_or_else(|| panic!("{what}: an arm"));
             assert!((got - want).abs() < 1e-12, "{what}: {got}, not {want}");
         };
-        close(read((2, &y), &[0], &[]), 100.25_f64.sqrt(), "edge 1");
-        close(read((2, &y), &[1], &[]), 50.0_f64.sqrt(), "edge 2");
-        close(read((2, &y), &[0, 1], &[1]), 50.0_f64.sqrt(), "both edges");
-        close(read((2, &y), &[], &[1]), 10.0, "the vertex alone");
+        close(read((2, &y), &[0], &[]), 400.25_f64.sqrt(), "edge 1");
+        close(read((2, &y), &[1], &[]), 425.0_f64.sqrt(), "edge 2");
+        close(
+            read((2, &y), &[0, 1], &[1]),
+            400.25_f64.sqrt(),
+            "both edges",
+        );
+        close(
+            read((2, &y), &[1, 0], &[1]),
+            400.25_f64.sqrt(),
+            "both edges, the other way round",
+        );
+        close(read((2, &y), &[], &[1]), 20.0, "the vertex alone");
         close(
             read((1, &y), &[1], &[]),
             26.0_f64.sqrt(),
