@@ -94,6 +94,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use geom::cover::{BoxAxes, Cover};
 use geom::{Curve3, Frame, Surface};
+use geom_core::k_stats::TestSite;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, LoopKey, SurfaceKey, VertexKey};
 
@@ -134,42 +135,114 @@ pub(in crate::blend) const EDGE_SAMPLES: u32 = 9;
 ///
 /// A reading that is never reported is not classified, so the threshold
 /// is no logged decision. Every outcome steers what is decided next, so
-/// each is marked ([`geom_core::k_stats::mark_outcome`]): two runs whose
+/// each is marked under its caller's `site`
+/// ([`geom_core::k_stats::mark_outcome`]): two runs whose
 /// readings answered differently part there, and the first-turn reading
 /// names no flip read off other cells or other witnesses. Marking every
 /// call, the classifiers included, is the safe side of the trade: an
 /// unmarked outcome that steers is an unlogged branch the first turn
 /// cannot see, and a marked one that turned out not to steer costs only
 /// a step on the path.
-pub(in crate::blend) fn sure<T: Bounds>(x: T, band: Band) -> bool {
-    geom_core::k_stats::mark_outcome(SURE, x.lo() >= band.escalate())
+pub(in crate::blend) fn sure<T: Bounds>(site: TestSite, x: T, band: Band) -> bool {
+    geom_core::k_stats::mark_outcome(site, x.lo() >= band.escalate())
 }
 
 /// **Whether a reading is certainly below `-escalate`**: [`sure`]'s other
 /// side, strict, for a depth certainly inside by the band (a face's
 /// boundary vertex inside a band's material, whose clearance is then
 /// read). Marked as [`sure`] is.
-fn sure_below<T: Bounds>(x: T, band: Band) -> bool {
-    geom_core::k_stats::mark_outcome(SURE_BELOW, x.hi() < -band.escalate())
+fn sure_below<T: Bounds>(site: TestSite, x: T, band: Band) -> bool {
+    geom_core::k_stats::mark_outcome(site, x.hi() < -band.escalate())
 }
 
 /// **Whether a cell, a sheet rectangle or an edge piece is too fine to
 /// halve usefully**, by `escalate`: its size `width` (an upper bound)
 /// at most the band's threshold. It stops a subdivision, so which
 /// readings follow, and is marked as [`sure`] is.
-fn fine(width: f64, band: Band) -> bool {
-    geom_core::k_stats::mark_outcome(FINE, width <= band.escalate())
+fn fine(site: TestSite, width: f64, band: Band) -> bool {
+    geom_core::k_stats::mark_outcome(site, width <= band.escalate())
 }
 
-/// The names [`sure`]'s, [`sure_below`]'s and [`fine`]'s outcomes are
-/// marked under.
-const SURE: &str = "blend_reach_sure";
-/// [`sure_below`]'s.
-const SURE_BELOW: &str = "blend_reach_sure_below";
-/// [`fine`]'s.
-const FINE: &str = "blend_reach_fine";
-/// The edge refinement's settled-piece test's.
-const SETTLED: &str = "blend_reach_edge_settled";
+/// Where [`sure`], [`sure_below`] and [`fine`] are asked in the reach,
+/// one site per call, so a parting names which reading parted.
+const VERTEX_INSIDE: TestSite = TestSite::new(
+    "blend_reach_vertex_inside",
+    "a face's boundary vertex lies surely inside a band's material",
+);
+const CELL_CLEAR: TestSite = TestSite::new(
+    "blend_reach_cell_clear",
+    "a metered cell reads surely clear",
+);
+const FACE_CELL_FINE: TestSite = TestSite::new(
+    "blend_reach_face_cell_fine",
+    "a cell of the face bound is too fine to halve",
+);
+const CELL_OFF_SURFACE: TestSite = TestSite::new(
+    "blend_reach_cell_off_surface",
+    "a cell of the inside bound lies surely off the surface",
+);
+const CELL_INSIDE: TestSite = TestSite::new(
+    "blend_reach_cell_inside",
+    "a cell of the inside bound lies surely inside the core",
+);
+const INSIDE_CELL_FINE: TestSite = TestSite::new(
+    "blend_reach_inside_cell_fine",
+    "a cell of the inside bound is too fine to halve",
+);
+const RECT_MISSES_R: TestSite = TestSite::new(
+    "blend_reach_rect_misses_r",
+    "a sheet rectangle is surely empty across its radius",
+);
+const RECT_MISSES_Z: TestSite = TestSite::new(
+    "blend_reach_rect_misses_z",
+    "a sheet rectangle is surely empty along its height",
+);
+const RECT_FINE: TestSite = TestSite::new(
+    "blend_reach_rect_fine",
+    "a sheet rectangle is too fine to halve",
+);
+const EDGE_INSIDE: TestSite = TestSite::new(
+    "blend_reach_edge_inside",
+    "an edge piece lies surely inside the core",
+);
+const EDGE_FINE: TestSite = TestSite::new(
+    "blend_reach_edge_fine",
+    "an edge piece is too fine to halve",
+);
+const EDGE_SETTLED_FINE: TestSite = TestSite::new(
+    "blend_reach_edge_settled_fine",
+    "an edge piece is too fine to refine further",
+);
+const BOUNDARY_OUT: TestSite = TestSite::new(
+    "blend_reach_boundary_out",
+    "a face's boundary reaches surely out of the band",
+);
+const PLANE_OFF_TANGENT: TestSite = TestSite::new(
+    "blend_reach_plane_off_tangent",
+    "a plane face surely turns off the band's tangent",
+);
+const STRIP_CORNER: TestSite = TestSite::new(
+    "blend_reach_strip_corner",
+    "a strip's corner lies surely inside along the strip",
+);
+const DEEPEST: TestSite = TestSite::new(
+    "blend_reach_deepest",
+    "a face's reading in the band is surely positive",
+);
+const METERED: TestSite = TestSite::new(
+    "blend_reach_metered",
+    "a metered face bound reads surely clear",
+);
+/// The reach's face-box query ([`topo::FaceBoxes::meeting`]).
+const STRIP_FACES: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "blend_reach_strip_faces",
+    "the faces whose boxes meet a strip's reach",
+);
+/// The edge refinement's settled-piece test.
+const SETTLED: TestSite = TestSite::new(
+    "blend_reach_edge_settled",
+    "an edge piece reads well clear of its size",
+);
 
 /// A rectangle of a meridian sheet: `[ρ_lo, ρ_hi, z_lo, z_hi]`.
 type Rect<T> = [T; 4];
@@ -956,7 +1029,7 @@ fn screened<T: Decide + Bounds>(
             };
             vacant &= depth.lo() >= 0.0;
             let depth = across.map_or(depth, |b| depth.max(b.at(p)));
-            if sure_below(depth, band) {
+            if sure_below(VERTEX_INSIDE, depth, band) {
                 face_clearance_margin(face, depth, gap(p), false, band)?;
             }
         }
@@ -2070,7 +2143,7 @@ impl<T: Bounds> Least<T> {
     /// when the cell is to be halved.
     fn read(&mut self, inner: T, off: Option<T>, small: bool, band: Band) -> bool {
         let m = off.map_or(inner, |off| inner.max(off));
-        if sure(m, band) {
+        if sure(CELL_CLEAR, m, band) {
             self.fold(m);
             return false;
         }
@@ -2110,7 +2183,7 @@ fn face_bound<T: Decide + Bounds>(
             .map(|(_, b)| b.low(&cell))
             .reduce(|m, g| m.max(g))
             .unwrap_or_else(T::zero);
-        let small = fine(cell.lever.hi(), band);
+        let small = fine(FACE_CELL_FINE, cell.lever.hi(), band);
         let off = match (off_surface(surface, &cell), extra(&cell)) {
             (Some(a), Some(b)) => Some(a.max(b)),
             (a, b) => a.or(b),
@@ -2155,19 +2228,19 @@ fn inside_bound<T: Bounds>(
     let mut spent = 0;
     while let Some((lo, hi)) = queue.pop_front() {
         let cell = Cell::<T>::new(lo, hi);
-        if off_surface(surface, &cell).is_some_and(|off| sure(off, band)) {
+        if off_surface(surface, &cell).is_some_and(|off| sure(CELL_OFF_SURFACE, off, band)) {
             continue;
         }
         let inner = core
             .iter()
             .map(|b| b.high_strict(&cell))
             .reduce(|m, g| m.max(g))?;
-        if sure(T::zero() - inner, band) {
+        if sure(CELL_INSIDE, T::zero() - inner, band) {
             most = Some(most.map_or(inner, |m| m.max(inner)));
             continue;
         }
         spent += 1;
-        if spent >= CELL_BUDGET || fine(cell.lever.hi(), band) {
+        if spent >= CELL_BUDGET || fine(INSIDE_CELL_FINE, cell.lever.hi(), band) {
             return None;
         }
         queue.extend(halves(lo, hi));
@@ -2200,7 +2273,7 @@ fn sheet_clip<T: Decide>(
 /// meter's own reading of a cell. A width in the band, a touch, or one
 /// the bracket cannot call leaves the rectangle to be metered.
 fn misses<T: Decide + Bounds>([r0, r1, z0, z1]: Rect<T>, band: Band) -> bool {
-    sure(r0 - r1, band) || sure(z0 - z1, band)
+    sure(RECT_MISSES_R, r0 - r1, band) || sure(RECT_MISSES_Z, z0 - z1, band)
 }
 
 /// **The least cell bound of one face against a circular reach, in the
@@ -2247,7 +2320,7 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
         let off = flo.max(-fhi) - slack;
         let off = extra(rect).map_or(off, |e| off.max(e));
         let diag = ((r1 - r0).powi(2) + (z1 - z0).powi(2)).sqrt();
-        let small = fine(diag.hi(), band);
+        let small = fine(RECT_FINE, diag.hi(), band);
         if least.read(inner.unwrap_or_else(T::zero), Some(off), small, band) {
             let two = T::from_f64(2.0);
             if (r1 - r0).hi() >= (z1 - z0).hi() {
@@ -2392,12 +2465,12 @@ fn curve_in_core<T: Bounds>(
     let mut spent = 0;
     while let Some((a, b)) = queue.pop_front() {
         let (inner, r) = read(a, b)?;
-        if sure(T::zero() - inner, band) {
+        if sure(EDGE_INSIDE, T::zero() - inner, band) {
             pieces.push((a, b, inner, r));
             continue;
         }
         spent += 1;
-        if spent >= EDGE_PIECES || fine(r, band) {
+        if spent >= EDGE_PIECES || fine(EDGE_FINE, r, band) {
             return None;
         }
         let mid = (a + b) * half;
@@ -2414,7 +2487,8 @@ fn curve_in_core<T: Bounds>(
         // A piece settles once it is fine or its reading is well clear
         // of its size: either stops the refinement, so which readings
         // follow, and both are marked.
-        if fine(r, band) || geom_core::k_stats::mark_outcome(SETTLED, 8.0 * r <= -Bounds::hi(inner))
+        if fine(EDGE_SETTLED_FINE, r, band)
+            || geom_core::k_stats::mark_outcome(SETTLED, 8.0 * r <= -Bounds::hi(inner))
         {
             break;
         }
@@ -2968,7 +3042,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             let hi: [f64; 3] = core::array::from_fn(|k| clip(fhi[k], rhi[k], f64::min));
             (lo, hi)
         };
-        for (face, fbox) in boxes.meeting(rlo, rhi) {
+        for (face, fbox) in boxes.meeting(STRIP_FACES, rlo, rhi) {
             if reach.skip.binary_search(&face).is_ok()
                 || reach.sides.contains(&surface_key(body, face)?)
             {
@@ -3048,7 +3122,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 let Some((depth, out)) = boundary_reading(body, face, &exact.core)? else {
                     continue;
                 };
-                if classify_bound(depth)? == Sign::Negative && sure(out, band) {
+                if classify_bound(depth)? == Sign::Negative && sure(BOUNDARY_OUT, out, band) {
                     return Err(BlendError::FaceClearance {
                         at: EntityId::Face(face),
                         chain: chains[exact.chain].first().convexity,
@@ -3100,7 +3174,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 let by_boundary = match &surface {
                     Surface::Plane { frame, .. } => {
                         let normal = frame.axis();
-                        sure(normal.normalize().dot(tau).abs(), band)
+                        sure(PLANE_OFF_TANGENT, normal.normalize().dot(tau).abs(), band)
                     }
                     _ => false,
                 };
@@ -3133,7 +3207,13 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                     let nu = strip
                         .along
                         .as_ref()
-                        .filter(|h| sure(T::zero() - corner_max(lo, hi, |x| h.at(x)), band))
+                        .filter(|h| {
+                            sure(
+                                STRIP_CORNER,
+                                T::zero() - corner_max(lo, hi, |x| h.at(x)),
+                                band,
+                            )
+                        })
                         .map(|_| strip.normal);
                     readings.push(prism_inside(
                         body,
@@ -3153,7 +3233,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 let deepest = readings
                     .into_iter()
                     .flatten()
-                    .filter(|x| sure(*x, band))
+                    .filter(|x| sure(DEEPEST, *x, band))
                     .reduce(|m, x| if x.hi() > m.hi() { x } else { m });
                 if let Some(excess) = deepest {
                     let deep = T::zero() - excess;
@@ -3293,7 +3373,7 @@ fn metered<T: Decide + Bounds>(
 ) -> T {
     let sheet = || face_bound_in_sheet(body, face, reach, surface, bounds, extra_in_sheet, band);
     let space = || face_bound(reach, surface, bounds, extra, band);
-    let certified = |m: T| sure(m, band);
+    let certified = |m: T| sure(METERED, m, band);
     let coaxial = reach
         .sheet
         .and_then(|axis| sheet_fn(surface, axis, (reach.lo, reach.hi)))

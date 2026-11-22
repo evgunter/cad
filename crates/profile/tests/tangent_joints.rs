@@ -446,10 +446,13 @@ fn doubled_back_fillet_corner_refuses_with_its_turn_within_tolerance() {
         PathError::NoCornerForFillet {
             reason:
                 profile::path::PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn,
-                    align,
-                    lever,
-                    lever_of: profile::path::TurnLever::AnchorSeparation,
+                    turn:
+                        profile::LeveredTurn {
+                            sin_turn,
+                            align,
+                            lever,
+                            lever_of: profile::path::TurnLever::AnchorSeparation,
+                        },
                     corner,
                 },
             radius,
@@ -493,10 +496,13 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
     let PathError::NoCornerForFillet {
         reason:
             profile::path::PathNoCornerReason::TurnWithinTolerance {
-                sin_turn,
-                align,
-                lever,
-                lever_of,
+                turn:
+                    profile::LeveredTurn {
+                        sin_turn,
+                        align,
+                        lever,
+                        lever_of,
+                    },
                 ..
             },
         ..

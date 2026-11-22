@@ -127,27 +127,31 @@ one run.
   onto its face side (`present_plane_corner` failing) is read by the
   conic, the same run, its part on the shared cell the line's
   (`Corner::run`).
-- **A curved other edge** on a chart with no periodic axis (an arc into
-  an arc of another radius, two different conics at a lens tip): the
-  same run, the other edge's chart curve walked piece by piece from the
-  vertex.
+- **A curved other edge is not read** (an arc into an arc of another
+  radius). The first head read it by a ladder of its own, which the
+  review showed unsound and which was removed:
+  `a-corner-of-two-curves-is-read-as-no-run`.
 - **Its zero** is the run, `past` the vertex along the edge that is not
   shared (`Curved::run`, `RunOn`). It is read only where `past_read`
   admits a past curve, and only under a graph separator whose graph
   runs on along that edge (`graph_run`, `On::run`): its slopes are the
   hull over both edges, and its own edge stops at the vertex's
   parameter. Not under a plane, and not in the carrier arm.
-- **The vertex concession's second reader.** A partner's zero side
-  clipped at a line's enclosure reaches a rounding past the vertex's
-  parameter (measured `4.4e−16` on `rounded_polygons_fillet_whole`, the
-  torus side `(−4.44e−16, 0.0041)`, the vertex at 0). The graph follows
-  its own carrier that far and the other edge's graph starts there,
-  where that stretch is decided `Zero` at
-  `self_intersection_corner_vertex`, `on_vertex`'s site and scale; past
-  that the graph answers nothing. With no such allowance 2 of the 24
-  tests pass and 17 still refuse at their arc. No exact rule exists: on
-  a convex tangent joint the carrier a rounding past the vertex is on
-  the face's side of the next edge by `κ·δ²`.
+- **The graph's own edge ends at the vertex, by key.** A partner's
+  zero side clipped at a line's enclosure reaches a rounding past the
+  vertex's parameter (measured `4.4e−16` on
+  `rounded_polygons_fillet_whole`, the torus side `(−4.44e−16, 0.0041)`,
+  the vertex at 0). That is no stretch of the edge: the side's edge
+  ends at that vertex, and the clip is the line whose own edge ends
+  there, so the side is read to the vertex (`Along::stops`, recorded by
+  `present_chart` from the clip's edges; `Along::ending`). No length is
+  compared and no concession read. A side that names no such vertex,
+  or another vertex, and passes the run's vertex by any distance gets
+  no graph. `edge_piece` also returned the edge's own reach a rounding
+  past its span (`t0 + width` is not `t1`); it now ends at the span's
+  end. The first head instead admitted the stretch where it was decided
+  `Zero` at the vertex concession's site, which the orchestrator ruled
+  out and the review showed read `1e−10` past the vertex on no key.
 - **Typing.** A reflex corner whose other edge is no graph with the
   curve over a column (it does not advance that way) stays
   `Structural`; one that is, but is not read in this cell, is `Local`.
@@ -206,18 +210,49 @@ a graph, as a run; a third edge in reach; the graph run on along the
 other edge, its slopes, and the three places a run reads nothing; a
 fold through a tangent joint; three bodies `Embedded` at `f64` as
 built, turned and a hundred units out (the face outside the arc's
-circle, inside it, and an arc into an arc), and a crossing copy.
+circle and inside it), the plate drawn turned as the finding it is,
+and a crossing copy; and the review's rows (a curved next edge that
+comes back into `R`, a hairpin line, a graph two-valued along `t`, a
+run under its conic's plane, a keyless side past the vertex).
+
+### Review fix pass (2026-11-22)
+
+Measured again with main `4d3402ecb1` merged, the gate asking, this
+row's 24 tests and the 42 plane × cylinder edge tests of the modules
+`a-plane-corner-where-a-line-runs-on-tangent-into-an-arc-reads-no-leaving`
+names (its 37 are among them; the row lists modules, not tests):
+
+| | this row's 24 | the 42 |
+|---|---|---|
+| passing, before | 0 | 0 |
+| passing, with the end read by key | 11 | 22 |
+| refusing at `f64`, plane × cylinder across a line | 4 | 7 |
+| refusing at `f64`, plane × torus across an arc | 0 | 1 |
+| refusing at `f64`, elsewhere (depth or pair budget, a vertex alone) | 2 | 5 |
+| refusing at `Interval` | 7 | 7 |
+
+Those figures have the curved next edge still read: the four-arc
+barrel is one of the 11 there and refuses plane × torus across an arc
+without it (not re-measured after the removal).
+
+- The 11 at `f64` across a line are outlines built off the axes
+  (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`),
+  one traced.
+- The one of the 42 still across an arc
+  (`band_mixed_corner::a_pair_edge_too_short_for_its_two_ends_feet_refuses_at_them`,
+  `2v1 × 17v3`, edge `32v1`) is not traced.
+- By key closes what the concession closed on this row (11), with the
+  barrel's caveat above.
 
 **What this row leaves:**
 - a corner of this kind at a vertex the pair shares alone (the run is
   read only where one of its edges is shared);
-- a run whose curved other edge lies on a cylinder's chart
-  (`curve_onward` reads a chart with no periodic axis);
+- a curved other edge (`a-corner-of-two-curves-is-read-as-no-run`);
 - a spiric wall's corner (`present_wall` keeps `leaves_graph`);
 - a coordinate line of a cylinder's or a torus's chart whose curve
   leaves it tangentially, read from the line's side
   (`present_line_corner`; the run is read from a plane's line only).
 
-None has a measured body. Two lines collinear at a vertex are
+Only the curved other edge has a measured body (the barrel). Two lines collinear at a vertex are
 `present_plane`'s, not a curve reading's.
 

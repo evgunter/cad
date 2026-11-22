@@ -791,7 +791,11 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     match PathNoCornerReason::<f64>::CarriersTangent {
         PathNoCornerReason::CarriersTangent | PathNoCornerReason::CarriersDoNotMeet => {}
         PathNoCornerReason::TurnWithinTolerance {
-            lever_of: TurnLever::ShorterLeg | TurnLever::AnchorSeparation,
+            turn:
+                LeveredTurn {
+                    lever_of: TurnLever::ShorterLeg | TurnLever::AnchorSeparation,
+                    ..
+                },
             ..
         } => {}
     }
@@ -1126,8 +1130,8 @@ fn the_polygon_door_authors_through_the_lattice() {
     // CORNER. A raw vertex table would have accepted this and left it
     // for validate.
     match polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)], tol) {
-        Err(PathError::JunctionTangent { .. }) => {}
-        other => panic!("a collinear corner must refuse as JunctionTangent: {other:?}"),
+        Err(PathError::JunctionTurnWithinTolerance { .. }) => {}
+        other => panic!("a collinear corner must refuse as JunctionTurnWithinTolerance: {other:?}"),
     }
 }
 
@@ -4994,7 +4998,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
-///   (`ProfilePayload`, `ParamValue`,
+///   (`ProfilePayload`, `ProfilePartition`, `ParamValue`,
 ///   `BifurcationKind`,
 ///   `MetaValue`, `MetaInt`, `MetaError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
@@ -5133,7 +5137,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 101] = [
+const NOT_CARRIED: [&str; 102] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5177,6 +5181,7 @@ const NOT_CARRIED: [&str; 101] = [
     "NodeVerdicts",
     "ParamValue",
     "ProfileLane",
+    "ProfilePartition",
     "ProfilePayload",
     "Qualifier",
     "RangeField",

@@ -552,11 +552,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        28,
+        23,
         4,
         "the 4 that ask are the chart tube's span-hull window (`chart_tube_windows` refuses \
          either window hull by name before padding it — a refused hull is NaI, and its NaN ends \
-         name no window). The other 24 are `T: Bounds` reads on the evaluation scalar and not \
+         name no window). The other 19 are `T: Bounds` reads on the evaluation scalar and not \
          certification endpoints at all — blind spot 1: `nurbs_limbs`' 5 are its projection \
          seeds, limb 1's at each sample and the image-miss tell's at a refusing break, a \
          parameter the foot search starts from (structure; the carried distance stays honest \
@@ -566,19 +566,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          at each end, which selects the axis the end's slice is cut across (structure), \
          `probe_tube_pair`'s 8 are its reads of the two pcurves, their tangents (a direction the \
          probe refuses unless positive finite) and their end states (where an end's slice is \
-         cut, structure), `exact`'s 2 and `analytic_limbs`' 1 are the same kind of \
-         evaluation read, `brackets`' 2 read a frame component for `frame_direction`, a NaN \
-         end or a width past rounding answering no direction (a refused bracket's NaN ends \
-         fail its width test, so it names none), and `FrameCharge::over`'s 1 is the upper end \
-         of its turn times reach read on the interval scalar from point brackets of `f64` \
-         payloads, finite or NaN, so it certifies or answers NaN, which no band admits",
+         cut, structure), and `analytic_limbs`' 1 is the same kind of evaluation read (limb 1's \
+         refused residual, steering refinement)",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        39,
-        38,
+        35,
+        34,
         "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all \
-         refuse by name, and so do the mignitude (`zero_free_lower_bound`, 4) and `a_positive`. \
+         refuse by name, and so do the mignitude (`zero_free_lower_bound`, 4), `a_positive` \
+         and the cone's gate (`Elevation::gate`, 3: `h`'s sign and `ρ²`'s floor, each read \
+         only after its enclosure is certified, a box it cannot decide refused). \
          The remainder is `chart_transverse_margin`'s upper end of the stretch times the \
          gradient's supremum, two finite positive points (each refused otherwise above it), so \
          the product certifies, and the margin over it rounds down: a lower bound",
@@ -735,7 +733,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        194,
+        184,
         79,
         "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `present_chart` (26), \
@@ -766,16 +764,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          same parameters its curve already carries, the read behind \
          `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, `narrowed`, \
          `leaving`, `leaves_line`, `copy_misses`) and `run_on`'s, behind `along`'s and \
-         the placement asks, are sound. The run through a corner's vertex reads 17 more, none \
+         the placement asks, are sound. The run through a corner's vertex reads 7 more, none \
          asking, each a refusal when not met: `line_onward` (3) the other edge's far \
          coordinate against the columns' far end, one-sided so a bracket that holds nothing \
          refuses, and its share of the columns, taken at its upper end and refused unless \
-         finite; `curve_onward` (10) the other edge's span, refused unless finite and \
-         ordered, its pieces' parameters, and its column coordinate against the far end, \
-         one-sided the same way; `graph_read` (2) the hull of the other edge's reach into \
-         `R`, refused unless bounded; `graph_run` (2) the vertex's parameter, the span's end, \
-         against a piece `edge_piece` returns finite, the stretch past it decided at the \
-         vertex site whenever it is not decided absent. The rest read the window's carrier and the face's boundary, which \
+         finite; `graph_read` (2) the hull of the other edge's reach into \
+         `R`, refused unless bounded; `graph_of` (2) the run's vertex's parameter, the span's \
+         end, which a piece `edge_piece` returns finite is then compared against, a piece \
+         past it or no number answering nothing. The rest read the window's carrier and the face's boundary, which \
          `clearance`'s `window_of` admits only where every lifted value certifies; \
          `present_wall`'s wall-image reads, `speeds`' jet bound and the two corner \
          presentations' speed bounds also read an enclosure computed from them that may clamp, \

@@ -69,3 +69,28 @@ joint's tangency, in place of a rate that must be strictly signed on
 the closed piece. `leaves_line`, cost M. The same straight-angle joint
 on a curved chart (`present_line_corner` over a cylinder's ruling and a
 tangent curve) is likely the same reading; not measured here.
+
+## Read: the line and the arc as one run (EMBED, lane embed/tangent-corner, 2026-11-22)
+
+PR 7320. Where `present_plane_corner` does not decide the conic onto
+the line's face side (`leaves_line` refusing), the corner is read by
+the conic with the line as its next edge, one run through the vertex
+(`present_corner`, "One run through the vertex"; `Corner::run`): the
+same reading as from the arc's side
+(`a-line-tangent-to-an-arc-at-their-vertex-is-read-by-no-corner-presentation`,
+which has the argument and the measurements). `leaves_line` itself is
+unchanged: no height or second-order rate is read.
+
+**Measured** (main `4d3402ecb1` with the gate; the 42 tests of the
+plane × cylinder edge bucket in this row's nine modules, which hold
+its 37; the row names modules and counts, not tests): 0 pass before,
+22 after. Of the 20 that do not: 7 refuse at `f64` plane × cylinder
+across a line, every one an outline built off the axes
+(`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`,
+untraced here); 1 at `f64` plane × torus across an arc; 5 at `f64`
+elsewhere (the depth or pair budget, a vertex alone); 7 at `Interval`.
+None of the 20 is traced to its exit.
+
+**Not read:** the same joint on a curved chart (`present_line_corner`,
+a cylinder's ruling and a curve tangent to it).
+
