@@ -1266,39 +1266,51 @@ fn slab_of<T: Decide + topo::AtRestPolicy>(lp: ProfileLoop<T>) -> Extruded<T> {
 /// **A table's written radial reaches a wall's frame as it was written**
 /// (a fixture row: the table door, `RawLoop::new_directed`, is compiled
 /// for tests only, so no shipped build holds a written radial). A
-/// two-arc unit circle whose start radial is written `0.4·ε` too long:
-/// validation accepts it (`segment_direction` reads `‖c + r·d − p‖`,
-/// which bounds the stretch times the radius), the extrude turns the
-/// wall's and the rims' frames onto it with no arithmetic
-/// (`geom_core::RigidMotion::spun_onto`), and the finish's check 1 reads
-/// the frame's length at the same lever and accepts it. So the body
-/// builds holding a `u_ref` that long: today nothing refuses it, and
-/// check 1 is the one reader that could
+/// two-arc unit circle whose start radial is written too long by a part
+/// of ε: validation accepts it (`segment_direction` reads
+/// `‖c + r·d − p‖`, which bounds the stretch times the radius) and the
+/// extrude turns the wall's and the rims' frames onto it with no
+/// arithmetic (`geom_core::RigidMotion::spun_onto`).
+///
+/// - Stretched by `0.1·ε` the body builds, holding a `u_ref` that long.
+/// - Stretched by `0.4·ε` the extrude refuses: the rim's pcurve
+///   certificate charges the frame's defect in its envelope
+///   (`pcurve_envelope`, the `Frame` term), which reads `2·ε` there.
+///
+/// So the one reader of a written radial's length in a frame is that
+/// envelope term, at its own lever, and under it the stretch is stored
 /// (`work/boxfinish/spun-onto-takes-a-bare-vector-for-a-unit.md`).
 ///
 /// Red when the stretch stops reaching the frame (a door that
 /// normalizes a written radial, or a type no written radial inhabits),
-/// and when something refuses it.
+/// and when the envelope's frame term stops reading it.
 #[test]
 fn a_tables_stretched_radial_is_stored_in_the_walls_frame_as_written() {
-    let stretch = 0.4 * tol().eps();
     let half = geom_core::Arc2 {
         centre: Point2::new(0.0, 0.0),
         radius: 1.0,
         sweep: core::f64::consts::PI,
     };
-    let lp: ProfileLoop<f64> = RawLoop::new_directed([
-        (
-            Point2::new(1.0, 0.0),
-            profile::Segment::Arc(half),
-            Some(profile::SegmentDirections::Arc {
-                start: Vec2::new(1.0 + stretch, 0.0),
-                end: Vec2::new(-1.0, 0.0),
-            }),
-        ),
-        (Point2::new(-1.0, 0.0), profile::Segment::Arc(half), None),
-    ]);
-    let built = slab(SketchPlane::xy(), lp, 1.0);
+    let stretched = |stretch: f64| {
+        let lp: ProfileLoop<f64> = RawLoop::new_directed([
+            (
+                Point2::new(1.0, 0.0),
+                profile::Segment::Arc(half),
+                Some(profile::SegmentDirections::Arc {
+                    start: Vec2::new(1.0 + stretch, 0.0),
+                    end: Vec2::new(-1.0, 0.0),
+                }),
+            ),
+            (Point2::new(-1.0, 0.0), profile::Segment::Arc(half), None),
+        ]);
+        let profile = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(tol())
+            .expect("validation accepts a radial stretched inside the band");
+        let side = ExtrudeSide::Along;
+        extrude(&profile, Extrusion::Distance { depth: 1.0, side }, tol())
+    };
+    let small = 0.1 * tol().eps();
+    let built = stretched(small).expect("a tenth of ε builds");
     let body: &Body<f64> = &built.body;
     let mut longest = 0.0_f64;
     for (face, _) in body.faces() {
@@ -1314,9 +1326,17 @@ fn a_tables_stretched_radial_is_stored_in_the_walls_frame_as_written() {
             longest = longest.max(circle.frame.u_ref().norm() - 1.0);
         }
     }
-    println!("stretch {stretch:e}, longest u_ref defect {longest:e}");
+    println!("stretch {small:e}, longest u_ref defect {longest:e}");
     assert!(
-        (longest - stretch).abs() <= 1e-3 * stretch,
-        "the written stretch {stretch:e} is the frame's: {longest:e}"
+        (longest - small).abs() <= 1e-3 * small,
+        "the written stretch {small:e} is the frame's: {longest:e}"
+    );
+    let refusal = match stretched(0.4 * tol().eps()) {
+        Ok(_) => panic!("four tenths of ε builds"),
+        Err(e) => format!("{e:?}"),
+    };
+    assert!(
+        refusal.contains("EnvelopeTerm(Frame)") && refusal.contains("pcurve_envelope"),
+        "the envelope's frame term refuses four tenths of ε: {refusal}"
     );
 }
