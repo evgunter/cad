@@ -284,7 +284,7 @@ impl ArgDoors for HeldArgs<'_, '_> {
         };
         let Some(held) = of(&self.rows) else {
             // A row the list made this frame, before the draft holds it.
-            WrittenIn::of(self.notation).field(ui, row, arg, name, value);
+            WrittenIn(self.notation).field(ui, row, arg, name, value);
             return;
         };
         let refused = self
@@ -1187,7 +1187,7 @@ mod tests {
                 ui,
                 "probe",
                 Tol::witness(),
-                &mut crate::widgets::WrittenIn::of(Notation::CANONICAL),
+                &mut crate::widgets::WrittenIn(Notation::CANONICAL),
                 &mut steps,
             );
             assert!(row.is_none(), "nothing was clicked");
@@ -1211,7 +1211,7 @@ mod tests {
                 ui,
                 "probe",
                 Tol::witness(),
-                &mut crate::widgets::WrittenIn::of(Notation::CANONICAL),
+                &mut crate::widgets::WrittenIn(Notation::CANONICAL),
                 &mut steps,
             );
         })
@@ -1225,7 +1225,7 @@ mod tests {
                 ui,
                 "probe",
                 Tol::witness(),
-                &mut crate::widgets::WrittenIn::of(Notation::CANONICAL),
+                &mut crate::widgets::WrittenIn(Notation::CANONICAL),
                 &mut steps,
             );
         })
