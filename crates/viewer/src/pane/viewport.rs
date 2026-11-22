@@ -831,10 +831,10 @@ const LIGHT_DIRECTION: [f32; 3] = [0.408_248_3, 0.408_248_3, -0.816_496_6];
 /// the buttons a mouse can report, side buttons included.
 ///
 /// **A side button gets `None` because there is nothing for it to
-/// be.** [`input::InputMap`]'s four bindings are filled by the three
-/// main buttons; no preset, preferences key or API call can name a
-/// fifth; and the bindings follow mainstream CAD (`input`'s module
-/// docs), which has no side-button gesture. A variant for one would
+/// be.** [`input::InputMap::bindings`] names buttons from the three
+/// main ones; no preset, preferences key or API call can name a
+/// fourth; and the bindings follow mainstream CAD
+/// ([`input::InputMap::DEFAULT`]), which has no side-button gesture. A variant for one would
 /// be a word of the vocabulary that no sentence could use — and on
 /// the web backend these two are the browser's back and forward.
 /// Binding them is a product decision, and it arrives as a variant on
@@ -897,13 +897,11 @@ fn egui_buttons() -> [egui::PointerButton; egui::NUM_POINTER_BUTTONS] {
 /// mentioned, because a part an adapter leaves out is
 /// indistinguishable downstream from a part nobody touched.
 ///
-/// **Two, because [`input::InputMap`] has two to bind**: `alt`, which
-/// turns [`input::InputMap::alt_orbit_button`]'s drag into an orbit
-/// (the trackpad binding), and `shift`, which turns the orbit binding
-/// into a pan. `ctrl`, `command` and `mac_cmd` are not gestures in
-/// this viewport — no binding field, preset or preferences key names
-/// one, and [`ViewportEvent::Drag`] carries a bare `shift` and a bare
-/// `alt` and nothing else, so a ctrl-drag is a plain drag at every
+/// **Two, because [`input::Held`] has two a binding can require**:
+/// `shift` and `alt`. `ctrl`, `command` and `mac_cmd` are not
+/// gestures in this viewport — no binding row, preset or preferences
+/// key names one, and [`ViewportEvent::Drag`] carries a bare `shift`
+/// and a bare `alt` and nothing else, so a ctrl-drag is a plain drag at every
 /// reader downstream. Binding one arrives the way a side button's
 /// would ([`viewer_button`]): a field on [`ViewportEvent::Drag`] that
 /// can carry it, a binding that can name it, and a pattern here that
@@ -1052,9 +1050,9 @@ pub(crate) fn configure_input(ctx: &egui::Context) {
 /// event at all, which every reader downstream cannot tell from a
 /// button nobody pressed.
 ///
-/// **Which click selects is [`input::InputMap::select_button`]'s to
-/// decide**, so a click of any bound button is produced and `pick`
-/// reads the binding. A click carries the cursor position, so one
+/// **Which click selects is [`input::InputMap::bindings`]' to
+/// decide**, so a click of any button of the vocabulary is produced
+/// and `pick` reads the table. A click carries the cursor position, so one
 /// with no position is not an event.
 ///
 /// Drags come before clicks: [`input::fold_events`] applies the camera
@@ -2759,16 +2757,15 @@ mod tests {
         }
     }
 
-    /// **`select_button` decides which click selects, and the pane
-    /// produces the click it names.**
+    /// **The table decides which click selects, and the pane produces
+    /// the click it names.**
     ///
-    /// [`InputMap::select_button`] is a binding: any button of the
-    /// vocabulary may hold it, and `InputMap::pick` reads the field
-    /// rather than a fixed button. `InputMap` is `pub` with `pub`
-    /// fields and re-exported from the crate root, so an embedder can
-    /// already write `select_button: Middle` — and before this unit
-    /// that setting selected nothing, silently, because the pane
-    /// produced a click for `Primary` only.
+    /// [`input::Binding::Click`] may name any button of the
+    /// vocabulary, and `InputMap::pick` reads the table rather than a
+    /// fixed button. `InputMap` is `pub` with `pub` fields and
+    /// re-exported from the crate root, so an embedder can bind the
+    /// middle click — which selects only if the pane produces a click
+    /// for every button, not for `Primary` alone.
     ///
     /// **The bound buttons are DERIVED, not listed.** Filtering
     /// [`egui_buttons`] through [`viewer_button`] is every button the
@@ -2786,7 +2783,9 @@ mod tests {
                 continue;
             };
             let map = InputMap {
-                select_button,
+                bindings: Box::leak(Box::new([input::Binding::Click {
+                    button: select_button,
+                }])),
                 ..InputMap::DEFAULT
             };
             assert_eq!(
