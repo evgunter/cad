@@ -296,7 +296,11 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 ///   zero). Two line edges ending on one pair of point keys are one
 ///   segment by structure, so they cross the plane at one point: the
 ///   later crossing lands on the earlier's point and shares its key, as
-///   an op's copies of one vertex do.
+///   an op's copies of one vertex do. Each half-pair then ends on one key
+///   at both bounds, which owes no record only while the census's
+///   `ee_collinear_lane` takes shared bounds as one segment; without that
+///   exemption, the operand's `EdgeEdge` record of the pair is owed on
+///   both half-pairs, carried through the split's lineage.
 /// - **Conic carriers** use the root-based lane
 ///   ([`plane_crossing_lane`]), INDEPENDENT of endpoint verdicts:
 ///   same-side endpoints with a belly crossing the plane twice get
@@ -335,7 +339,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     // precomputed root list below).
     let snapshot: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     // The crossing minted on each segment, by its two ends' point keys.
-    let mut segment_crossings: BTreeMap<[PointKey; 2], (PointKey, Point3<T>)> = BTreeMap::new();
+    let mut segment_crossings: BTreeMap<[PointKey; 2], PointKey> = BTreeMap::new();
     for (edge_key, edge) in snapshot {
         let start = |body: &Body<T>, he, slot| {
             crate::live::linked(
@@ -360,9 +364,9 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             ),
         };
         let (t0, t1) = curve.params();
-        // A line edge's two ends' point keys, where they are two.
-        let mut segment = None;
-        let roots: Vec<T> = match plane_crossing_lane(
+        // The roots, and a line edge's two ends' point keys where they are
+        // two.
+        let (roots, segment): (Vec<T>, Option<[PointKey; 2]>) = match plane_crossing_lane(
             curve.carrier(),
             t0,
             t1,
@@ -375,7 +379,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane | ConicPlaneMeet::Miss) => {
                 continue;
             }
-            PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => roots,
+            PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => (roots, None),
             PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(fault))) => {
                 return Err(SplitReduceError::CrossingEscalated {
                     edge: edge_key,
@@ -412,8 +416,10 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 };
                 let mut ends = [key(u), key(v)];
                 ends.sort();
-                segment = (ends[0] != ends[1]).then_some(ends);
-                vec![t0 + (t1 - t0) * (d1 / (d1 - d2))]
+                (
+                    vec![t0 + (t1 - t0) * (d1 / (d1 - d2))],
+                    (ends[0] != ends[1]).then_some(ends),
+                )
             }
         };
         // Insert ascending: the first split leaves the parent with
@@ -426,7 +432,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             // attached; the typed Euler error stays nested whole.
             let landing = segment.and_then(|ends| segment_crossings.get(&ends).copied());
             let created = match landing {
-                Some((_, at)) => body.split_edge_onto(target, t, at, tol),
+                Some(point) => body.split_edge_onto(target, t, body.points[point], tol),
                 None => body.split_edge(target, t, tol),
             }
             .map_err(|source| SplitReduceError::CrossingInsertion {
@@ -435,11 +441,11 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 source: Box::new(source.from_driver()),
             })?;
             match (landing, segment) {
-                (Some((point, _)), _) => body
+                (Some(point), _) => body
                     .share_point(&[created.vertex], point)
                     .unwrap_or_else(|| unreachable!("{point:?} holds the segment's crossing")),
                 (None, Some(ends)) => {
-                    segment_crossings.insert(ends, (created.point, body.points[created.point]));
+                    segment_crossings.insert(ends, created.point);
                 }
                 (None, None) => {}
             }

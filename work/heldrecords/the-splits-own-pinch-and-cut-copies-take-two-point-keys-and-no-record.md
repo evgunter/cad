@@ -49,8 +49,15 @@ bound and not the other, so the side refuses `VertexVertex` and
 ends' point keys match an edge already crossed lands its crossing on that
 crossing's point (`split_edge_onto`) and key (`share_point`). Two line
 segments between one pair of points are one segment, so this reads
-nothing and owes no record. That is the same structural sharing as an
-op's copies of one vertex (`crates/topo/README.md` tier 3′).
+nothing. That is the same structural sharing as an op's copies of one
+vertex (`crates/topo/README.md` tier 3′).
+
+"No record is owed" holds only while `census.rs` `ee_collinear_lane`
+exempts shared bounds. Each half-pair ends on one key at both bounds, and
+that exemption is what passes it. When step 3 retires the exemption, it
+owes the operand's `EdgeEdge` record of the pair, carried through the
+split's lineage onto both half-pairs. Once the producers record these
+pairs, the split's carry has to land that record on both.
 
 **Each case, tier 3′ against the side's own records.** Measured by a
 probe in `split`, at ε = 1e-9.
