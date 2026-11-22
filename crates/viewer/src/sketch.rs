@@ -1735,15 +1735,18 @@ fn preview_replayed(
 /// drew which piece.
 ///
 /// The close is `line_to Start`, re-spelled the way the lattice spells
-/// the same leg for each refusal that says it is tangent, one
-/// declaration per kind, until it replays: `continue_to` where it runs
-/// straight on from the last leg (`JunctionTangent`), and a start
-/// declared tangent where it arrives continuing the entry's first side
-/// (`SeamTangent`). A close that does both takes both. Only a decided
-/// tangency is re-spelled: an escalation is the kernel declining to
-/// say whether the close runs straight on, and another spelling that
-/// happens to replay is not an answer to that. Any other refusal is
-/// said in `line_to Start`'s words.
+/// the same leg for each refusal whose turn is zero at tolerance, one
+/// declaration per kind, until it replays: `continue_to` where it may
+/// run straight on from the last leg (`JunctionTurnWithinTolerance`),
+/// and a start declared tangent where it may arrive continuing the
+/// entry's first side (`SeamTurnWithinTolerance`). A close that does
+/// both takes both. Each re-spelling is checked by the replay, so a
+/// real angle over a short leg that the declared spelling does not fit
+/// still refuses in `line_to Start`'s words. Only a decided zero turn
+/// is re-spelled: an escalation is the kernel declining to say whether
+/// the close runs straight on, and another spelling that happens to
+/// replay is not an answer to that. Any other refusal is said in
+/// `line_to Start`'s words.
 fn replay_provisionally_closed(
     steps: &[Step<f64>],
     tol: Tol,
@@ -1775,8 +1778,8 @@ fn replay_provisionally_closed(
     let mut kind = kind_of(&first);
     loop {
         match kind {
-            Some(PathErrorKind::JunctionTangent) if !straight_on => straight_on = true,
-            Some(PathErrorKind::SeamTangent) if !seam_declared => seam_declared = true,
+            Some(PathErrorKind::JunctionTurnWithinTolerance) if !straight_on => straight_on = true,
+            Some(PathErrorKind::SeamTurnWithinTolerance) if !seam_declared => seam_declared = true,
             _ => return Err(first),
         }
         match closed_by(straight_on, seam_declared) {
@@ -2595,7 +2598,7 @@ mod tests {
                 PreviewError::Geometry {
                     loop_: 0,
                     step: 1,
-                    kind: PathErrorKind::JunctionTangent,
+                    kind: PathErrorKind::JunctionTurnWithinTolerance,
                     rendered: String::new().into(),
                 },
                 Tone::Actionable,

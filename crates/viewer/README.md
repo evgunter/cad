@@ -2117,6 +2117,20 @@ is its preview.
 Six seated tools hold no value field; what they used to type is a row
 of the node they insert, or a pick.
 
+**A creation tool's commit waiting on a pick is withheld and names
+the pick.** The seated tools', the blend tool's and the
+profile-on-a-face form's commits are drawn by one row
+(`pane::create`'s `withheld_commit_row`), which takes the op as the
+tool's door forms it and reads the fault off it: a pick not held — a
+`seats::SeatError`, its role named the way the panel line names it —
+or, on the assertion form, a band over a measure's value. While one
+stands the commit is disabled and the fault is said under it and on
+its hover (`no mirror plane picked yet: pick a face`). A panel line says an open
+pick `role: none picked` (`seats::open_pick`), and a pick that leaves
+the document is said by `seats::pick_gone`. The mate tool, the
+add-variable form and the selection's own buttons (re-point,
+`Select all edges`) gate their controls apart.
+
 - **Blend.** The form asks for the edges and fillet or chamfer. The
   insert writes the size at `blend::default_size`: a millimetre,
   written in the working unit at one significant figure (`1 mm`,
@@ -2128,7 +2142,9 @@ of the node they insert, or a pick.
   The gesture's noun is the mirror: the insert writes the image and
   `body ∪ image` for every body, placed or not, and answers the image
   as what it made, so the image is labelled `Mirror N` and selected.
-  The union takes no label.
+  The union takes no label. Its body and plane are held and taken as
+  the split's are (`combine::PlaneSeats`, below), and the button is
+  withheld, naming the missing pick, until both are held.
 - **Assertion.** One tool authors every claim between two seats
   (`SessionOp::AddAssertion`). The form asks for the two seats and the
   measure: a clearance, a `Gap` or a `Distance`. A `Gap` or a
@@ -2160,13 +2176,14 @@ of the node they insert, or a pick.
   missing pick, until both are held. The plane is a face pick, read as
   its plane on the body it was picked on (`matetool::plane_of`), and
   held as the mirror holds its own (`combine::PlaneSeats`, one value
-  for both tools); the first face pick seats the target too, a
-  later one re-picks the plane, and a tree pick re-picks the target. A
-  `Plane` variable, or a `Frame` read through its `xy`, is taken as the
-  plane when the selection names it (`Selection::Variable`); no
-  Properties row lists a pose variable, so that pick comes through the
-  selection stream (a driver, the op vocabulary), not a row.
-  `SessionOp::AddSplit` takes the plane as `SplitPlane`: that face, or a
+  and one selection feed for both tools); the first face pick seats
+  the target too, a later one re-picks the plane, and a tree pick
+  re-picks the target. A `Plane` variable, or a `Frame` read through
+  its `xy`, is taken as the plane when the selection names it
+  (`Selection::Variable`); no Properties row lists a pose variable, so
+  that pick comes through the selection stream (a driver, the op
+  vocabulary), not a row. `SessionOp::AddSplit` and
+  `SessionOp::AddMirror` take the plane as `ToolPlane`: that face, or a
   plane read written whole. The insert
   selects the split. Nothing is staged before it: the split's own
   evaluation, read on its tree row, says whether a side is empty.
@@ -2231,7 +2248,7 @@ has no spelling. The operation choice is the kernel's own
 **The operation is tool state, because it decides what a pick does.**
 Under union and intersect every pick appends a member, in pick order,
 and the panel lists them as `member 1`, `member 2`, …; the commit
-button commits whatever is held from one member on, and refuses typed
+button commits whatever is held from one member on, and is withheld
 (`SeatError::Empty` naming `Seat::Member`) while none is. Under subtract
 the tool holds two role-typed seats on the `seats` rule — the body kept
 (`from`), then the body removed (`tool`), a further pick replacing the
