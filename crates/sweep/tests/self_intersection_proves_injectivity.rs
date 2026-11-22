@@ -1710,6 +1710,245 @@ fn a_flap_through_a_run_at_its_vertex_never_holds() {
     );
 }
 
+// ------------------------------------------- reviewer probes, PR 7338
+
+/// Two bricks united, the upper's corner landing inside the lower's top
+/// edge: [`flush_union`] at any coordinates.
+fn review_union<T: Scalar>(lo: [(f64, f64); 3], up: [(f64, f64); 3]) -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished};
+    let lower = finished("lower", brick::<T>(lo[0], lo[1], lo[2], tol()), tol());
+    let upper = finished("upper", brick::<T>(up[0], up[1], up[2], tol()), tol());
+    built(topo::union(&lower, &upper, tol()))
+}
+
+fn review_classes(what: &str, float: Body<f64>, interval: Body<Interval>) -> [String; 2] {
+    let r = injective(&float, None, BUDGET);
+    let t = injective(&interval, None, BUDGET);
+    println!(
+        "[review] {what}: f64 {} {:?} | Interval {} {:?}",
+        class(&r.verdict),
+        r.receipt,
+        class(&t.verdict),
+        t.receipt
+    );
+    [class(&r.verdict), class(&t.verdict)]
+}
+
+/// **The exact run's reach.** The same flush union, on the axes, at
+/// coordinates that are not dyadic: moved by `(0.1, 0.2, 0.3)`, and built
+/// there. Prints what the door says; asserts nothing but that no verdict
+/// is `Violated`.
+#[test]
+fn review_a_flush_union_on_the_axes_at_coordinates_that_are_not_dyadic() {
+    use geom_core::{Affine3, Vec3};
+    let mut seen = Vec::new();
+    for (what, d) in [
+        ("moved (0.5, 0.25, 0.125)", Vec3::new(0.5, 0.25, 0.125)),
+        ("moved (0.1, 0.2, 0.3)", Vec3::new(0.1, 0.2, 0.3)),
+        ("moved (1/3, 10.1, -7.7)", Vec3::new(1.0 / 3.0, 10.1, -7.7)),
+        ("moved (3, 0, 0), a whole number", Vec3::new(3.0, 0.0, 0.0)),
+    ] {
+        let m = Affine3::translation(d);
+        seen.push((
+            what.to_owned(),
+            review_classes(
+                what,
+                moved(&flush_union::<f64>(), &m).into_body(),
+                moved(&flush_union::<Interval>(), &m).into_body(),
+            ),
+        ));
+    }
+    let lo = [(0.1, 1.1), (0.2, 1.2), (0.3, 1.3)];
+    let up = [(0.6, 1.6), (0.45, 1.45), (1.3, 2.3)];
+    seen.push((
+        "built at (0.1, 0.2, 0.3)".to_owned(),
+        review_classes(
+            "built at (0.1, 0.2, 0.3)",
+            review_union::<f64>(lo, up).into_body(),
+            review_union::<Interval>(lo, up).into_body(),
+        ),
+    ));
+    let lo = [(0.0, 0.7), (0.0, 0.7), (0.0, 0.7)];
+    let up = [(0.35, 1.05), (0.1, 0.8), (0.7, 1.4)];
+    seen.push((
+        "built with sides 0.7".to_owned(),
+        review_classes(
+            "built with sides 0.7",
+            review_union::<f64>(lo, up).into_body(),
+            review_union::<Interval>(lo, up).into_body(),
+        ),
+    ));
+    println!("[review] SUMMARY {seen:?}");
+    let refusing: Vec<&String> = seen
+        .iter()
+        .filter(|(_, c)| c.iter().any(|c| c != "Holds"))
+        .map(|(what, _)| what)
+        .collect();
+    assert!(
+        refusing.is_empty(),
+        "the flush union, on the axes, does not hold at: {refusing:?}"
+    );
+}
+
+/// **Claim 3's reach.** The upper brick a rounding off flush: its bottom
+/// at `1 ± 1e-12`, inside ε. If the union builds with the walls meeting
+/// at a vertex alone, each wall's run is exact in its own chart and the
+/// two stored lines do not meet.
+#[test]
+fn review_a_union_a_rounding_off_flush() {
+    for dz in [1e-12, -1e-12, 3e-16, -3e-16] {
+        let lo = [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)];
+        let up = [(0.5, 1.5), (0.25, 1.25), (1.0 + dz, 2.0)];
+        let f = std::panic::catch_unwind(|| review_union::<f64>(lo, up).into_body());
+        match f {
+            Ok(body) => {
+                let r = injective(&body, None, BUDGET);
+                println!(
+                    "[review] off flush by {dz:e}: faces {} | f64 {} {:?} | embedding {:?}",
+                    body.faces().count(),
+                    class(&r.verdict),
+                    r.receipt,
+                    embedding(&body)
+                );
+            }
+            Err(_) => println!("[review] off flush by {dz:e}: the union does not build"),
+        }
+    }
+}
+
+/// The flush union with a triangle hung from the split vertex
+/// `(1, 0.25, 1)` to `a0` and `a1`; the wall `x = 1` and the triangle.
+fn review_flapped<T: Scalar>(a0: [f64; 3], a1: [f64; 3]) -> (Body<T>, FaceKey, FaceKey) {
+    use geom_brep::EdgeCurveSpec;
+    use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
+    use topo::test_support::plane;
+
+    let mut body = flush_union::<T>().into_body();
+    let at = |[x, y, z]: [f64; 3]| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+    let v_at = at([1.0, 0.25, 1.0]);
+    let v = body
+        .vertices()
+        .find(|(_, x)| (*body.get_point(x.point).unwrap() - v_at).norm().hi() < 1e-12)
+        .unwrap()
+        .0;
+    let face_of = |body: &Body<T>, he| {
+        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    let normal_to = |body: &Body<T>, f: FaceKey| {
+        let Surface::Plane { frame } = surface(body, f) else {
+            panic!("a brick's face is a plane");
+        };
+        let n = frame.axis();
+        [mid(n.x), mid(n.y), mid(n.z)]
+            .iter()
+            .position(|c| c.abs() > 0.5)
+            .unwrap()
+    };
+    let starts: Vec<_> = body
+        .edges()
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+        .filter(|&he| body.get_half_edge(he).unwrap().start == v)
+        .collect();
+    let on = |axis: usize| {
+        starts
+            .iter()
+            .copied()
+            .find(|&he| normal_to(&body, face_of(&body, he)) == axis)
+            .unwrap()
+    };
+    let wall = face_of(&body, on(0));
+    let h = on(2);
+    let (a0, a1) = (at(a0), at(a1));
+    let fan = MevSite::Fan { he1: h, he2: h };
+    let strut0 = body.mev_line(fan, a0, tol()).unwrap();
+    let strut1 = body.mev_line(fan, a1, tol()).unwrap();
+    let flap = body
+        .mef(
+            MefSite::Chords {
+                he1: strut0.he_minus,
+                he2: strut1.he_minus,
+            },
+            EdgeCurveSpec::line_between(a0, a1),
+            FaceSurface::New {
+                surface: plane(&[a0, v_at, a1], tol()),
+                sense: true,
+            },
+            tol(),
+        )
+        .unwrap()
+        .face;
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    (body, wall, flap)
+}
+
+/// **Claim 2 on a body.** Flaps hung from the run's vertex: one with an
+/// edge along the run's line away from the vertex, one in the wall's
+/// plane across the run from the wall (it meets the wall at the vertex
+/// alone), one in the wall's plane straddling the run, one crossing the
+/// wall away from the run's line (the author's, turned).
+#[test]
+fn review_flaps_on_and_beside_the_runs_line() {
+    let rows: [(&str, [f64; 3], [f64; 3], bool); 5] = [
+        (
+            "an edge along the run past the vertex",
+            [1.0, 0.75, 1.0],
+            [1.3, 0.5, 1.5],
+            false,
+        ),
+        (
+            "an edge along the run, the flap leaning over the wall's side",
+            [1.0, 0.75, 1.0],
+            [0.7, 0.5, 1.5],
+            false,
+        ),
+        (
+            "in the wall's plane, across the run",
+            [1.0, 0.1, 1.5],
+            [1.0, 0.4, 1.5],
+            true,
+        ),
+        (
+            "in the wall's plane, straddling the run",
+            [1.0, 0.75, 0.75],
+            [1.0, 0.75, 1.25],
+            false,
+        ),
+        (
+            "crossing the wall off the run, steeply",
+            [1.2, 0.05, 0.9],
+            [0.8, 0.45, 0.5],
+            false,
+        ),
+    ];
+    let mut bad = Vec::new();
+    for (what, a0, a1, disjoint) in rows {
+        let (body, wall, flap) = review_flapped::<f64>(a0, a1);
+        let (twin, tw, tf) = review_flapped::<Interval>(a0, a1);
+        let r = injective(&body, Some(vec![wall, flap]), BUDGET);
+        let t = injective(&twin, Some(vec![tw, tf]), BUDGET);
+        println!(
+            "[review] flap, {what} (meets the wall at the vertex alone: {disjoint}): f64 {} {:?} | Interval {} {:?}",
+            class(&r.verdict),
+            r.receipt,
+            class(&t.verdict),
+            t.receipt
+        );
+        if !disjoint
+            && [class(&r.verdict), class(&t.verdict)]
+                .iter()
+                .any(|c| c == "Holds")
+        {
+            bad.push(what);
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "held though the flap meets the wall off the vertex: {bad:?}"
+    );
+}
+
 // ------------------------------------------- curved shared edges
 
 /// The surface kind of `f`, by name.

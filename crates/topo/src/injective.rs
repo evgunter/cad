@@ -8293,6 +8293,314 @@ mod presentation_rows {
         }
     }
 
+    // ---------------------------------------------------------------
+    // Reviewer probes, PR 7338 (embed/straight-corner-review). Not for
+    // merge as they stand: each prints what it measured.
+
+    /// A corner at vertex 1 of the face in the plane through the origin
+    /// with `normal`: the loop arrives along `e_in` (from its far end)
+    /// and leaves along `e_out`, the face on its left.
+    fn sector(
+        normal: [f64; 3],
+        e_in: [f64; 3],
+        e_out: [f64; 3],
+        keys: [u64; 2],
+    ) -> (Surface<Interval>, Boundary) {
+        (
+            plane_through_origin(normal, e_out),
+            corner_at_vertex_1(e_out, e_in, keys),
+        )
+    }
+
+    /// Rodrigues: `v` turned 0.7 rad about `(2, 3, 6)/7`.
+    fn turned3(v: [f64; 3]) -> [f64; 3] {
+        let k = [2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0];
+        let (s, c) = 0.7f64.sin_cos();
+        let kxv = [
+            k[1] * v[2] - k[2] * v[1],
+            k[2] * v[0] - k[0] * v[2],
+            k[0] * v[1] - k[1] * v[0],
+        ];
+        let kv = k[0] * v[0] + k[1] * v[1] + k[2] * v[2];
+        [0, 1, 2].map(|i| v[i] * c + kxv[i] * s + k[i] * kv * (1.0 - c))
+    }
+
+    /// `departure` between two parts about vertex 1, shared alone, either
+    /// face first: `Some(true)` certified, `Some(false)` split.
+    fn departs_at_vertex_1(
+        x: &(Surface<Interval>, Boundary),
+        y: &(Surface<Interval>, Boundary),
+    ) -> bool {
+        let local = two_edges_and_vertex_1();
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+        };
+        let px = about_vertex_1(&x.0, &x.1, &local, (-0.5, 0.5));
+        let py = about_vertex_1(&y.0, &y.1, &local, (-0.5, 0.5));
+        let outcome = [
+            departure(&px, &py, &near, band(), true),
+            departure(&py, &px, &near, band(), true),
+        ]
+        .map(|o| match o {
+            Outcome::Certified { .. } => true,
+            Outcome::Split { .. } => false,
+            other => panic!("certified or split: {other:?}"),
+        });
+        assert_eq!(outcome[0], outcome[1], "either face first");
+        outcome[0]
+    }
+
+    /// Every piece of `xs` against every piece of `ys`.
+    fn pieces_depart(
+        xs: &[(Surface<Interval>, Boundary)],
+        ys: &[(Surface<Interval>, Boundary)],
+    ) -> Vec<bool> {
+        xs.iter()
+            .flat_map(|x| ys.iter().map(move |y| departs_at_vertex_1(x, y)))
+            .collect()
+    }
+
+    /// **Claim 4.** A face straight (or reflex) at a vertex the pair
+    /// shares alone, presented as TWO convex sectors split by a ray into
+    /// the face, each certified against each of the partner's sectors
+    /// with its own plane through the vertex, by the convex-corner arm
+    /// and the vertex-alone plane that exist on main. No lean is decided
+    /// at the band, no line is held.
+    #[test]
+    fn review_claim4_two_sectors_each_with_its_own_plane() {
+        let (xp, xm) = ([1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]);
+        let (yp, ym) = ([0.0, 1.0, 0.0], [0.0, -1.0, 0.0]);
+        let (zp, zm) = ([0.0, 0.0, 1.0], [0.0, 0.0, -1.0]);
+        // `F`: the half `z ≤ 0` of `x = 0`, run along `y`. The ray `-z`.
+        // `second` is the run's leaving direction: `+y` exactly straight.
+        let f_whole = |t: &dyn Fn([f64; 3]) -> [f64; 3], second: [f64; 3]| {
+            (
+                plane_through_origin(t(xm), t(yp)),
+                at_vertex_1(vec![
+                    line_rim(2, [0.0; 3], t(yp), (-4.0, 0.0), [12, 1], true),
+                    line_rim(3, [0.0; 3], t(second), (0.0, 4.0), [1, 13], true),
+                ]),
+            )
+        };
+        let f_pieces = |t: &dyn Fn([f64; 3]) -> [f64; 3], second: [f64; 3]| {
+            vec![
+                sector(t(xm), t(ym), t(zm), [2, 20]),
+                sector(t(xm), t(zm), t(second), [21, 3]),
+            ]
+        };
+        // `G`: the half `z ≥ 0` of `y = 0`, run along `x`. The ray `+z`.
+        let g_whole = |t: &dyn Fn([f64; 3]) -> [f64; 3]| {
+            (
+                plane_through_origin(t(ym), t(xp)),
+                at_vertex_1(vec![
+                    line_rim(4, [0.0; 3], t(xp), (-4.0, 0.0), [14, 1], true),
+                    line_rim(5, [0.0; 3], t(xp), (0.0, 4.0), [1, 15], true),
+                ]),
+            )
+        };
+        let g_pieces = |t: &dyn Fn([f64; 3]) -> [f64; 3]| {
+            vec![
+                sector(t(ym), t(xm), t(zp), [4, 22]),
+                sector(t(ym), t(zp), t(xp), [23, 5]),
+            ]
+        };
+        let id = |v: [f64; 3]| v;
+        let rows: [(&str, &dyn Fn([f64; 3]) -> [f64; 3], [f64; 3]); 6] = [
+            ("exactly straight, on the axes", &id, yp),
+            ("exactly straight, turned 0.7 rad", &turned3, yp),
+            (
+                "kinked 0.9 eps (lean Zero at the band)",
+                &id,
+                [0.0, 1.0, 0.225e-9],
+            ),
+            ("kinked 3 eps (lean undecided)", &id, [0.0, 1.0, 0.75e-9]),
+            ("kinked 3 eps the reflex way", &id, [0.0, 1.0, -0.75e-9]),
+            ("reflex, 225 degrees", &id, [0.0, 1.0, 1.0]),
+        ];
+        for (what, t, second) in rows {
+            let whole = departs_at_vertex_1(&f_whole(t, second), &g_whole(t));
+            let pieces = pieces_depart(&f_pieces(t, second), &g_pieces(t));
+            println!("[claim4] {what}: one presentation {whole}; pieces {pieces:?}");
+            assert!(
+                pieces.iter().all(|&c| c),
+                "{what}: every sector pair departs under its own plane: {pieces:?}"
+            );
+        }
+        // The partners that cross `F`, as sectors: some pair must refuse.
+        let r = core::f64::consts::FRAC_1_SQRT_2;
+        let crossing: [(&str, Vec<(Surface<Interval>, Boundary)>); 3] = [
+            (
+                "the half x >= 0 of y = 0, run along z",
+                vec![sector(yp, zm, xp, [4, 22]), sector(yp, xp, zp, [23, 5])],
+            ),
+            (
+                "the half of y = 0 below x + z = 0",
+                vec![
+                    sector(yp, [-r, 0.0, r], [-r, 0.0, -r], [4, 22]),
+                    sector(yp, [-r, 0.0, -r], [r, 0.0, -r], [23, 5]),
+                ],
+            ),
+            (
+                "the quadrant x >= 0, z <= 0 of y = 0",
+                vec![sector(yp, zm, xp, [4, 5])],
+            ),
+        ];
+        for (what, partner) in crossing {
+            let pieces = pieces_depart(&f_pieces(&id, yp), &partner);
+            println!("[claim4] crossing, {what}: pieces {pieces:?}");
+            assert!(
+                pieces.iter().any(|&c| !c),
+                "{what}: a crossing partner is not certified sector by sector"
+            );
+        }
+    }
+
+    /// **Claim 2.** Partners of a run through a vertex shared alone that
+    /// touch the run's line away from the vertex, lie in the run's plane,
+    /// or share the whole line.
+    #[test]
+    fn review_claim2_partners_on_the_runs_line_and_in_its_plane() {
+        let f = (
+            plane_through_origin([-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            run_through_vertex_1([0.0, 1.0, 0.0], [2, 3]),
+        );
+        let yp = [0.0, 1.0, 0.0];
+        let rows: [(&str, (Surface<Interval>, Boundary), bool); 6] = [
+            (
+                "a quadrant of z = 0 with an edge ON the run's line (+y)",
+                sector([0.0, 0.0, 1.0], yp, [1.0, 0.0, 0.0], [4, 5]),
+                false,
+            ),
+            (
+                "a quadrant of z = 0 with an edge on the run's line, other way",
+                sector([0.0, 0.0, 1.0], [-1.0, 0.0, 0.0], yp, [4, 5]),
+                false,
+            ),
+            (
+                "the half x >= 0 of z = 0: its run IS the run's line",
+                (
+                    plane_through_origin([0.0, 0.0, -1.0], yp),
+                    run_through_vertex_1(yp, [4, 5]),
+                ),
+                false,
+            ),
+            (
+                "in the run's plane, across the line: the cone (0,1,1),(0,-1,1)",
+                sector([-1.0, 0.0, 0.0], [0.0, 1.0, 1.0], [0.0, -1.0, 1.0], [4, 5]),
+                true,
+            ),
+            (
+                "in the run's plane, straddling the line: the cone (0,1,-1),(0,1,1)",
+                sector([-1.0, 0.0, 0.0], [0.0, 1.0, -1.0], [0.0, 1.0, 1.0], [4, 5]),
+                false,
+            ),
+            (
+                "in the run's plane, the far half z >= 0: its run is the run's line",
+                (
+                    plane_through_origin([1.0, 0.0, 0.0], yp),
+                    run_through_vertex_1(yp, [4, 5]),
+                ),
+                false,
+            ),
+        ];
+        for (what, partner, want) in rows {
+            let got = departs_at_vertex_1(&f, &partner);
+            println!("[claim2] {what}: certified {got}, want {want}");
+            assert_eq!(got, want, "{what}");
+        }
+    }
+
+    /// **Claim 3.** Two exact runs whose stored lines miss each other by
+    /// `delta`: the two-run plane goes through the first line, lists the
+    /// second run's edges, and is `delta·|n|` off them.
+    #[test]
+    fn review_claim3_the_two_run_plane_lists_a_run_it_does_not_hold() {
+        let local = two_edges_and_vertex_1();
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+        };
+        let wall = plane_through_origin([-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+        let f = run_through_vertex_1([0.0, 1.0, 0.0], [2, 3]);
+        let above = plane_through_origin([0.0, -1.0, 0.0], [1.0, 0.0, 0.0]);
+        for delta in [0.0, 2.0f64.powi(-40), 2.0f64.powi(-20)] {
+            // `G`'s run along `x`, on the line through `(0, 0, -delta)`:
+            // inside `F`'s half `z <= 0`, so the faces cross over `delta`.
+            let o = [0.0, 0.0, -delta];
+            let x = [1.0, 0.0, 0.0];
+            let g = at_vertex_1(vec![
+                line_rim(4, o, x, (-4.0, 0.0), [14, 1], true),
+                line_rim(5, o, x, (0.0, 4.0), [1, 15], true),
+            ]);
+            let px = about_vertex_1(&wall, &f, &local, (-0.5, 0.5));
+            let py = about_vertex_1(&above, &g, &local, (-0.5, 0.5));
+            let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (
+                present_plane(&px, &[], &[vertex(1)], band()),
+                present_plane(&py, &[], &[vertex(1)], band()),
+            ) else {
+                panic!("both runs are presented, delta {delta:e}");
+            };
+            let planes = planes_through(&px, &py, &near, &qx, &qy);
+            let [(psi @ Psi::Linear { .. }, on)] = planes.as_slice() else {
+                panic!("one plane");
+            };
+            let on_second = psi
+                .value(Point3::new(iv0(1.0), iv0(0.0), iv0(-delta)))
+                .map(|v| (v.lo(), v.hi()));
+            let outcome = departure(&px, &py, &near, band(), true);
+            println!(
+                "[claim3] delta {delta:e}: lists edge 4: {}, psi on the second run {on_second:?}, {outcome:?}",
+                on.edges.contains(&edge(4))
+            );
+        }
+    }
+
+    /// **M8's pin.** A wall on a floor: the wall's run through vertex 1,
+    /// of which the floor shares the first edge only, and the floor
+    /// reflex at the vertex so the run's second edge lies in the floor's
+    /// interior (a T contact, not a shared edge). The floor is not
+    /// presented; the carrier arm reads the wall against the floor's
+    /// carrier, which is zero on the whole run. Red if a side past the
+    /// shared cell is presented as a side on shared edges.
+    #[test]
+    fn review_m8_a_past_side_is_not_read_in_the_carrier_arm() {
+        let local = two_edges_and_vertex_1();
+        let wall = plane_through_origin([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+        let run = run_through_vertex_1([0.0, 1.0, 0.0], [2, 3]);
+        let floor = plane_through_origin([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+        let reflex = at_vertex_1(vec![
+            line_rim(6, [0.0; 3], [1.0, 0.0, 0.0], (-4.0, 0.0), [16, 1], true),
+            line_rim(2, [0.0; 3], [0.0, 1.0, 0.0], (-4.0, 0.0), [12, 1], false),
+        ]);
+        let x = about_vertex_1(&wall, &run, &local, (-0.5, 0.5));
+        let y = about_vertex_1(&floor, &reflex, &local, (-0.5, 0.5));
+        assert!(
+            matches!(
+                present_plane(&x, &[0], &[vertex(1)], band()),
+                Ok(Presentation::Of(q)) if matches!(q.zero, Zero::Past(..))
+            ),
+            "the wall's run, one edge shared: a past side"
+        );
+        assert_eq!(
+            read(present_plane(&y, &[1], &[vertex(1)], band())),
+            Read::Local,
+            "the floor's reflex corner is not presented"
+        );
+        for (first, second, near) in [(&x, &y, (0, 1)), (&y, &x, (1, 0))] {
+            let near = Near {
+                edges: vec![near],
+                vertices: vec![vertex(1)],
+            };
+            let o = departure(first, second, &near, band(), true);
+            println!("[m8] {o:?}");
+            assert!(
+                matches!(o, Outcome::Split { .. }),
+                "the run's second edge lies in the floor: {o:?}"
+            );
+        }
+    }
+
     /// **`edge_piece`**: the hull of an edge's parameters whose points the
     /// boxes may hold, narrowed to them from both ends.
     #[test]
