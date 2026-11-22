@@ -1345,7 +1345,10 @@ pub(crate) enum SecondOrderWalk<B> {
 
 /// **The second-order walk** — [`tangent_second_order`]'s reading at
 /// each of `stations` (a point on the contact and the tangent there),
-/// in order, where the first station not `Positive` decides.
+/// in order, where the first station not `Positive` decides. A station
+/// whose relative curvature has the other sign from the first's has
+/// `κ_rel` pass through zero between them, which is no bound away from
+/// zero: the walk is under-determined there too.
 ///
 /// The one home of the walk's decision, which the must-carry rule
 /// ([`must_carry_over_edge`]) and the whole-edge fold

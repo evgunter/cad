@@ -37,11 +37,14 @@ What is owed: the fold reports the seam with its bend undecided, and
 the description question (the must-carry rule) refuses alone, typed,
 where it needs the bend decided.
 
-## Not measured
+## Measured (2026-11-22, `heldrecords/elbow-seams`)
 
-No fixture reaches it yet: the elbow lane nudged the bend's axis by
-2ε and 10³ε about the cap's normal
-(`an_elbow_whose_neutral_points_sit_between_the_stations_passes_the_glue_door`)
-and the rim routed π at each, so no routing station landed near a
-neutral point; where the routing's stations fall on that rim was not
-traced. The finding stands on the code above.
+The elbow of `crates/editor-core/tests/a_pipe_unions_with_its_elbow.rs`
+with its axis turned 20ε about the cap's normal puts a neutral point
+within the band of a station of the seam's must-carry walk. The union
+refuses `Escalated { decision: SeamJet, .. }` ("whether the two faces
+touching along a seam edge curve apart there or share their curvature
+is undecided: margin 1.2e-9"), though the seam's wedge is π. It is
+pinned as
+`an_elbow_whose_neutral_point_sits_in_band_of_a_station_refuses_on_its_bend`.
+At 2ε (nearer) and 10³ε (farther) the same elbow unions.

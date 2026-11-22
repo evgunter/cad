@@ -2180,9 +2180,8 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
                 SpanEnd::End => (t1, -T::one()),
             };
             let (_, d) = carrier.ders1(t_end);
-            let along = d * toward / d.norm();
-            let rim_tangent = rim_at.axis.cross(p - rim_at.center);
-            let rim_tangent = rim_tangent / rim_tangent.norm();
+            let along = (d * toward).normalize();
+            let rim_tangent = rim_at.axis.cross(p - rim_at.center).normalize();
             let departure = (along - rim_tangent * along.dot(rim_tangent)).norm();
             let bend = carrier_curvature(carrier) + T::one() / rim_at.radius;
             match junction_side(departure, bend, window.spread, window.charge, band) {

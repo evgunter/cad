@@ -382,7 +382,7 @@ pub fn end_window<T: Decide>(
                 // excess is proven positive at.
                 let (mut lo, mut hi) = (T::zero(), s_w);
                 for _ in 0..SPREAD_STEPS {
-                    let mid = (lo + hi) * T::from_f64(0.5);
+                    let mid = geom_core::mid_param(lo, hi);
                     if geom_core::k_stats::prove(END_ROOT_SPREAD, Margin::sign_of(excess(mid)))
                         == Ok(Sign::Positive)
                     {
