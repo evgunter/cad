@@ -2241,7 +2241,12 @@ fn convex(b: &Boundary, c: &Clip, d: &Clip) -> bool {
 ///   ([`Zero::Through`]). It names one edge of the clip at the vertex:
 ///   the side's chart line is that edge's own line or circle
 ///   ([`Along::of`]), and is not read otherwise;
-/// - nothing shared on any clip: none.
+/// - nothing shared on any clip, or a shared vertex on no corner and no
+///   one such side: none. [`Zero::None`] names no point of the rectangle
+///   as shared and is read by the separator's value over all of it
+///   ([`sign_on`]), so it signs only a rectangle that holds no point of
+///   the shared cell: a vertex in reach of the cell's ball and off the
+///   face's part of it, as the far end of a clip's edge a turn away is.
 ///
 /// A clip that holds a shared edge beside one that is not shared in
 /// reach has no zero here: [`partial_zero`] reads it.
@@ -2313,21 +2318,26 @@ fn zero_of(
                 }
             }
             let on: Vec<&Clip> = clips.iter().filter(|c| ends_of(c).contains(v)).collect();
-            match (corners.as_slice(), on.as_slice()) {
+            let through = match on.as_slice() {
+                [c] if corners.is_empty() && near_edges.is_empty() && c.collapsed.is_none() => c
+                    .edges
+                    .iter()
+                    .copied()
+                    .find(|&i| b.edges.get(i).is_some_and(|e| e.ends.contains(v)))
+                    .map(|e| Along::of(surface, b, &[e]))
+                    .filter(|a| a.whole)
+                    .map(|a| Zero::Through(c.side, a)),
+                _ => None,
+            };
+            match (corners.as_slice(), through) {
                 ([one], _) => Ok(one.clone()),
-                ([], [c]) if near_edges.is_empty() && c.collapsed.is_none() => {
-                    let at = c
-                        .edges
-                        .iter()
-                        .copied()
-                        .find(|&i| b.edges.get(i).is_some_and(|e| e.ends.contains(v)));
-                    let along = at.map(|e| Along::of(surface, b, &[e]));
-                    match along {
-                        Some(a) if a.whole => Ok(Zero::Through(c.side, a)),
-                        _ => Err(Unpresented::Local),
-                    }
-                }
-                _ => Err(Unpresented::Local),
+                (_, Some(zero)) => Ok(zero),
+                _ if touched => Err(Unpresented::Local),
+                // On no corner and no one side: none of the rectangle is
+                // named as shared, and a separator is signed only where
+                // its value over the whole rectangle is, which a
+                // rectangle holding the vertex does not give.
+                _ => Ok(Zero::None),
             }
         }
         _ => Err(Unpresented::Local),
@@ -7869,7 +7879,10 @@ mod presentation_rows {
     /// Not where a shared edge is in reach (the rectangle may hold more
     /// of the shared cell than the vertex), where two clips hold the
     /// vertex and make no corner, on a collapsed side, or where the edge
-    /// at the vertex does not have the side's chart line as its own.
+    /// at the vertex does not have the side's chart line as its own:
+    /// those name no zero ([`Zero::None`]), as a vertex on no clip does,
+    /// and are signed by value alone. Red there if a side is named that
+    /// the separator is not shown to vanish on.
     #[test]
     fn zero_of_reads_a_shared_vertex_on_one_clips_side_through_it() {
         let (s, b) = (cylinder(), joined_rulings());
@@ -7892,22 +7905,27 @@ mod presentation_rows {
             ),
             "a clip on the other axis that does not hold the vertex"
         );
+        let none = |clips: &[Clip], near: &[usize]| matches!(through(clips, near), Ok(Zero::None));
         assert!(
-            through(&[clip_of(Side::XLo, &[0, 1])], &[2]).is_err(),
-            "a shared edge in reach"
+            none(&[clip_of(Side::XLo, &[0, 1])], &[2]),
+            "a shared edge in reach, on no clip"
         );
         assert!(
-            through(&[clip_of(Side::XLo, &[0]), clip_of(Side::XHi, &[1])], &[]).is_err(),
+            none(&[clip_of(Side::XLo, &[0]), clip_of(Side::XHi, &[1])], &[]),
             "two clips of one axis"
         );
         let collapsed = Clip {
             collapsed: Some(vertex(9)),
             ..clip_of(Side::XLo, &[0, 1])
         };
-        assert!(through(&[collapsed], &[]).is_err(), "a collapsed side");
+        assert!(none(&[collapsed], &[]), "a collapsed side");
         assert!(
-            through(&[clip_of(Side::XLo, &[3])], &[]).is_err(),
+            none(&[clip_of(Side::XLo, &[3])], &[]),
             "an edge with no line or circle of its own"
+        );
+        assert!(
+            none(&[clip_of(Side::YHi, &[2])], &[]),
+            "a vertex on no clip"
         );
     }
 
@@ -9917,7 +9935,7 @@ mod presentation_rows {
     /// ([`present_chart`]): a cell of the octant reaching `v = π/2`, the
     /// pole a vertex the pair shares alone, is presented with the side
     /// `v = π/2` its zero, whether it holds both meridians or neither.
-    /// A cell short of the pole holds no zero and is not presented.
+    /// A cell short of the pole holds no point of it and names no zero.
     #[test]
     fn a_spheres_pole_is_a_collapsed_side_of_its_chart() {
         let (s, b) = octant();
@@ -9953,7 +9971,7 @@ mod presentation_rows {
             );
         }
         assert!(
-            at_pole((0.7, 0.8), (1.4, 1.5)).is_none(),
+            matches!(at_pole((0.7, 0.8), (1.4, 1.5)), Some((Zero::None, _))),
             "a cell short of the pole"
         );
     }
