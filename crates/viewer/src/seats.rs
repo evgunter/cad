@@ -279,7 +279,9 @@ impl core::fmt::Display for SeatError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Empty { seat } => write!(f, "no {} picked yet", seat.name()),
-            Self::NoPlane { role } => write!(f, "no {} picked yet: pick a face or a datum", role.name()),
+            Self::NoPlane { role } => {
+                write!(f, "no {} picked yet: pick a face or a datum", role.name())
+            }
             Self::HalfUnchosen { seat } => {
                 write!(
                     f,
