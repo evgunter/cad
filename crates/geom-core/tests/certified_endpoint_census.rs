@@ -720,6 +720,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
+        "crates/step-import/src/on_built.rs",
+        24,
+        0,
+        "not yet dispositioned: the 24 reads arrived with the adopt-by-description merge into \
+         main and are `work/onehome/the-endpoint-census-drifted-on-the-carrier-frames-merge`",
+    ),
+    (
         "crates/step-import/src/recognize_curve.rs",
         5,
         0,
