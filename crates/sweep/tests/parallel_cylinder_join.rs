@@ -458,6 +458,20 @@ fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
 /// the band, so the row asks the same question at every tolerance.
 #[test]
 fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door() {
+    // At 1e-6 the first tip past the band builds its union
+    // (`work/onehome/main-red-a-rod-tipped-past-the-band-builds-at-1e-6-since-the-span-foot.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "a rod tipped off parallel over a long wall",
+        &[r#"drum × rod r 0.2 at 0.5, half-length 50, tipped 2e-7 | U ab: Ok("a body")"#],
+        a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door_row,
+    );
+}
+
+/// The row [`a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door`]
+/// runs, under its pin.
+fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door_row() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     for half in [50.0, 200.0] {
         for drift in [2.0 * band.escalate(), 20.0 * band.escalate()] {
@@ -920,6 +934,19 @@ fn one_face_walls_read_their_axes_as_an_angle_row() {
 /// op of the pose, in both orders, refuses alike.
 #[test]
 fn a_tipped_rod_refuses_alike_in_both_operand_orders() {
+    // At 1e-6 the first tip past the band builds its union, as above.
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "a tipped rod refuses alike in both operand orders",
+        &["drum × rod r 0.2 at 0.5, half-length 50, tipped 2e-7 | U ab: refuses"],
+        a_tipped_rod_refuses_alike_in_both_operand_orders_row,
+    );
+}
+
+/// The row [`a_tipped_rod_refuses_alike_in_both_operand_orders`] runs,
+/// under its pin.
+fn a_tipped_rod_refuses_alike_in_both_operand_orders_row() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     for half in [50.0, 200.0] {
         for drift in [2.0 * band.escalate(), 20.0 * band.escalate()] {

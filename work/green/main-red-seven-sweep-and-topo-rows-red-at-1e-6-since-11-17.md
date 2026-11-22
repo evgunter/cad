@@ -26,3 +26,22 @@ Also unheld by name: `sweep offer_rows::every_sphere_offer_passes_just_below_it`
 
 ## Owed
 Bisect each family to its merge, decide whether each new answer is right, and re-bless, fix or pin against the causing program's row. Unit U6, `green/eps-1e-6-sweep`.
+
+## 2026-11-22 — measured (U6, PR 7383)
+
+Every row run on hosted CI at ε = 1e-6, in a child process the gate's
+default step spawns per row (a throwaway probe test per bisect branch;
+the gate's own 1e-6 step skips the slow set, where all eight rows sit).
+All eight reproduce on main `12a43a7e68` with the nightly's messages.
+
+| family | green at | red at | cause | verdict | green by |
+|---|---|---|---|---|---|
+| TubeStraddles near the node (3 rows) | `fa4e9ba921` (7052^1) | `6c2430e888` (7052) | PR 7052, the periodic fit | the sliver pose `(0.2, 0.699)` refuses its tube, `boxes: 437`, as SECTARMS' sliver row measures; a refusal, not a wrong answer | pinned at 1e-6 on `work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md` (evidence added there) |
+| tipped rod (2 rows) | `e7d1a14b11` (7112^1; also 7052, 7078, 7080) | `7ad94ddffb` (7112) | PR 7112, ONEHOME's span foot | tips past the band now build bodies at their volume (certified, inside their pads) where they took a decided door; pads to 2.6e-3, r 0.2 bodies fail tier 3′; no wrong volume | pinned at 1e-6 on the new `work/onehome/main-red-a-rod-tipped-past-the-band-builds-at-1e-6-since-the-span-foot.md` (P1) |
+| review_curved (2 rows) | `7542ba04cd` (7208^1) | main (only 7208 and the code-free 7259 between) | PR 7208, ONEHOME's slant reading | 26 runs, bodies at their volumes whose tier 3′ census escalates on `curve_pair_span_past_reach_straddle`, crossings within 1e-3 rad: the class ONEHOME's level-root row holds, wider at 1e-6 | the filters know the class at 1e-6; `work/onehome/a-level-root-past-a-span-on-a-shared-stretch-escalates-the-census.md` corrected (it said the rows are sound on main) |
+| `offer_rows::every_sphere_offer_passes_just_below_it` | 7088 and before | `7542ba04cd` and main | (SCALAR's told-quantity type, not bisected further) | false offers | PR 7267 greens it: passes at its head `e29abc3a90` at 1e-6 (probe) and at the default (its gate); not pinned |
+
+The rim-ball row (`a_ball_across_a_cylinder_wall_r_0_1_across_the_rim`,
+U2's) was not in these runs; nothing here shares its cause as far as
+these bisects reach: the sliver family is the carry of one pose, and
+the rim row is a different pose and every ε.
