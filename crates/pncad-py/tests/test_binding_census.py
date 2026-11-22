@@ -2447,6 +2447,11 @@ NOT_BOUND = {
     # Python's document keeps no edit log and a save file holds none,
     # so the replay door has no Python shape to bind.
     "apply_replayed": SHAPE,
+    # A stranded name's carrier: Python reads which store holds the name
+    # off the `Maintenance` row's own variant (`Strand` is a payload's,
+    # `StrandedSelection` a selection's, `StrandedAppearance` the
+    # appearance store's), so the carrier is never a separate value.
+    "NameCarrier": SHAPE,
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recording": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "Recorded": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
