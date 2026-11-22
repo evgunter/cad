@@ -186,3 +186,4 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
 
 **Dispatch, letters and tiers** (logged before any draw):
 - 1 is letter H, tier DUAL. It is a certified-interval soundness claim: the proven interval must be proven. It also sets a second refinement order beside E6's.
+- 2026-11-22 — (OFFER implementer) `a-check-offers-no-way-to-add-the-assertion-it-asks-for` is in review as PR #7362 on `offer/a-check-carries-the-assertion-that-quiets-it`. The coincidence finding carries `Quieting` (minted by `at_rest::quieting` from the reading `quiet_row` matches against), the interference finding its `OpposedPair`, and the recourse is worded from each. Family rows were investigated first: a row with one member cell is minted as the assertion reaching the index, and `quiet_row` now matches it by member; a row between two members carries none. Two rows filed from the sweep, on MSOLVE and ATREST.
