@@ -77,6 +77,7 @@ use editor_core::resolve::RimNameFault;
 
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{EdgeNamesRefused, PickIndex};
+use crate::seats::SeatError;
 use crate::session::{EdgeSelection, SessionOp};
 use crate::tree::{DrawnBody, PickedName};
 use crate::vocab::vocabulary;
@@ -348,7 +349,7 @@ impl core::fmt::Display for BlendEvent {
 /// start on any body; without that, un-picking down to zero left the
 /// tool latched to a body it was no longer holding anything on, and
 /// the cross-target refusal would have fired on a set of nothing.
-/// [`BlendTool::fillet_op`] reads the invariant rather than
+/// [`BlendTool::require_target`] reads the invariant rather than
 /// re-checking both halves: a tool holding nothing has no op.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BlendTool {
@@ -782,15 +783,17 @@ impl BlendTool {
     }
 
     /// **The one committed edit, as a fillet**: the session op that
-    /// inserts `Node::Fillet` through the ordinary commit door, or
-    /// `None` until an edge is held, when there is no body to blend and
-    /// so no edit to author. The op's refusals are the doors': the
-    /// target's kind and the selection's form at the session's insert,
-    /// and a stranded name or a radius the geometry cannot take at
-    /// evaluation, on the node's own badge.
-    pub fn fillet_op(&self, radius: Formula) -> Option<SessionOp> {
-        Some(SessionOp::AddFillet {
-            target: self.held_target()?,
+    /// inserts `Node::Fillet` through the ordinary commit door. The op's
+    /// refusals are the doors': the target's kind and the selection's
+    /// form at the session's insert, and a stranded name or a radius the
+    /// geometry cannot take at evaluation, on the node's own badge.
+    ///
+    /// # Errors
+    ///
+    /// [`BlendTool::require_target`]'s.
+    pub fn fillet_op(&self, radius: Formula) -> Result<SessionOp, SeatError> {
+        Ok(SessionOp::AddFillet {
+            target: self.require_target()?,
             radius,
             selection: self.selection(),
         })
@@ -800,25 +803,35 @@ impl BlendTool {
     /// twin, and the size means a setback along both supports rather
     /// than a radius.
     ///
-    /// `None` as [`BlendTool::fillet_op`].
-    pub fn chamfer_op(&self, distance: Formula) -> Option<SessionOp> {
-        Some(SessionOp::AddChamfer {
-            target: self.held_target()?,
+    /// # Errors
+    ///
+    /// [`BlendTool::require_target`]'s.
+    pub fn chamfer_op(&self, distance: Formula) -> Result<SessionOp, SeatError> {
+        Ok(SessionOp::AddChamfer {
+            target: self.require_target()?,
             distance,
             selection: self.selection(),
         })
     }
 
-    /// The node a commit blends, while an edge is held: the struct's
+    /// **The node a commit blends**, while an edge is held: the struct's
     /// invariant makes "no target" and "no edges" one state, so reading
-    /// the target alone is reading both.
-    fn held_target(&self) -> Option<RecipeNodeId> {
+    /// the target alone is reading both. What the tool's commit waits
+    /// for, read before the click as well as at it.
+    ///
+    /// # Errors
+    ///
+    /// [`SeatError::NoEdges`] with no edge held: there is no body to
+    /// blend and so no edit to author.
+    pub fn require_target(&self) -> Result<RecipeNodeId, SeatError> {
         debug_assert_eq!(
             self.target.is_some(),
             !self.edges.is_empty(),
             "a target is held exactly while an edge is"
         );
-        self.target().map(|target| target.node())
+        self.target()
+            .map(|target| target.node())
+            .ok_or(SeatError::NoEdges)
     }
 }
 

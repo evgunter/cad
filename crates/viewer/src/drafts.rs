@@ -28,7 +28,7 @@ use crate::blend::BlendKindChoice;
 use crate::combine::{ClearanceBoundChoice, PatternOutputChoice};
 use crate::forms::{PatternLayoutChoice, ShapeKind};
 use crate::props::{self, Notation, SlotRow};
-use crate::seats::SeatError;
+use crate::seats::{FaceRole, SeatError};
 use crate::session::{FaceSelection, Refusal, SessionOp, SketchTraceFault};
 use crate::sketch::{self, HeldRefusal, HeldStep, HeldStepFault};
 use crate::tree::HeldPick;
@@ -1605,16 +1605,17 @@ impl Drafts {
     /// latched face's chart. Where a face to trace is latched too, it
     /// traces that face, its one chain the traced template
     /// ([`traced_template`]) with the trace's steps between its halves;
-    /// otherwise it is an empty profile the editor fills. `Ok(None)`
-    /// while no face is latched to draw on.
+    /// otherwise it is an empty profile the editor fills.
     ///
     /// # Errors
     ///
-    /// The template's chain refused at the lift.
-    pub(crate) fn on_face_op(&self, notation: Notation) -> Result<Option<SessionOp>, CommitFault> {
-        let Some(on) = &self.on_face else {
-            return Ok(None);
-        };
+    /// [`SeatError::NoFace`] naming [`FaceRole::DrawnOn`] while no face
+    /// is latched to draw on, and the template's chain refused at the
+    /// lift.
+    pub(crate) fn on_face_op(&self, notation: Notation) -> Result<SessionOp, CommitFault> {
+        let on = self.on_face.as_ref().ok_or(SeatError::NoFace {
+            role: FaceRole::DrawnOn,
+        })?;
         let (traced, chains) = match &self.trace_face {
             Some(face) => {
                 let (steps, after) = traced_template();
@@ -1624,11 +1625,11 @@ impl Drafts {
             }
             None => (Vec::new(), Vec::new()),
         };
-        Ok(Some(SessionOp::DrawOnFace {
+        Ok(SessionOp::DrawOnFace {
             face: on.face().clone(),
             traced,
             chains,
-        }))
+        })
     }
 }
 
@@ -1726,7 +1727,7 @@ pub(crate) struct TraceShown {
 /// a string at the raising site.
 #[derive(Debug)]
 pub(crate) enum CommitFault {
-    /// A tool seat is still empty.
+    /// A pick the commit needs is not held, or not read yet.
     Seat(SeatError),
     /// A draft field is not a value a literal may hold.
     Dimension(DimensionError),
@@ -1739,6 +1740,22 @@ pub(crate) enum CommitFault {
     Refused(Box<Refusal>),
     /// A pattern row's default spacing could not be written.
     Spacing(crate::combine::RowSpacingFault),
+}
+
+impl CommitFault {
+    /// **The pick the commit waits for**, where that is the fault: what
+    /// a form's commit is withheld over, and says on its hover, before
+    /// the click.
+    pub(crate) fn waits_for(&self) -> Option<&SeatError> {
+        match self {
+            Self::Seat(error) => Some(error),
+            Self::Dimension(_)
+            | Self::Program(_)
+            | Self::Traced(_)
+            | Self::Refused(_)
+            | Self::Spacing(_) => None,
+        }
+    }
 }
 
 impl From<SeatError> for CommitFault {

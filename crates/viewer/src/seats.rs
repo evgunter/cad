@@ -7,6 +7,15 @@
 //! are its own (`crate::matetool`), and the blend tool's held-picks
 //! line is drawn in its panel (`crate::pane`), not here.
 //!
+//! **What a form's commit waits for is a [`SeatError`]**, wherever the
+//! picks it waits on are held: the seated tools', the boolean tool's
+//! member list, the blend tool's edge set
+//! ([`crate::blend::BlendTool::require_target`]) and the
+//! profile-on-a-face form's latch ([`FaceRole::DrawnOn`]). A commit is
+//! withheld while one stands, and its disabled hover is that value's
+//! words: `crate::pane::create`'s commit rows take the value, not a
+//! sentence, so a form has no string of its own to say it with.
+//!
 //! # Why one value and not one per tool
 //!
 //! The combining tools differ in exactly two
@@ -211,10 +220,12 @@ impl Seat {
     }
 }
 
-/// **What a face a tool holds beside its seats is for** — the role a
-/// held FACE plays, as [`Seat`] names a held node's.
+/// **What a face a tool or a form holds beside its seats is for** —
+/// the role a held FACE plays, as [`Seat`] names a held node's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FaceRole {
+    /// The face the profile-on-a-face form draws its profile on.
+    DrawnOn,
     /// The face whose plane a mirror reflects across.
     MirrorPlane,
     /// The plane a split cuts along: a face, or a plane the document
@@ -231,6 +242,7 @@ impl FaceRole {
     /// The role's name, for sentences.
     pub fn name(self) -> &'static str {
         match self {
+            Self::DrawnOn => "face to draw on",
             Self::MirrorPlane => "mirror plane",
             Self::SplitPlane => "split plane",
             Self::ClearedFirst => "first seat",
@@ -240,7 +252,7 @@ impl FaceRole {
 }
 
 /// A typed seated-tool refusal (closed enum, D4 ¶3).
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SeatError {
     /// A seat the commit needs is still empty.
     Empty {
@@ -254,6 +266,9 @@ pub enum SeatError {
         /// The face's role.
         role: FaceRole,
     },
+    /// The blend tool holds no edge: its set is the one pick it waits
+    /// for.
+    NoEdges,
     /// A seat holds a split picked in the tree, and which of its two
     /// halves it reads is not chosen yet.
     HalfUnchosen {
@@ -264,17 +279,19 @@ pub enum SeatError {
 
 impl core::fmt::Display for SeatError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Empty { seat } => write!(f, "no {} picked yet", seat.name()),
-            Self::NoFace { role } => write!(f, "no {} picked yet", role.name()),
+        let unpicked = match self {
+            Self::Empty { seat } => seat.name(),
+            Self::NoFace { role } => role.name(),
+            Self::NoEdges => "edges",
             Self::HalfUnchosen { seat } => {
-                write!(
+                return write!(
                     f,
                     "the {} is a split: choose its above or below half",
                     seat.name()
-                )
+                );
             }
-        }
+        };
+        write!(f, "no {unpicked} picked yet")
     }
 }
 
@@ -298,13 +315,25 @@ pub enum SeatEvent {
 impl core::fmt::Display for SeatEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { seat, node } => write!(
-                f,
-                "the {} pick ({node}) is no longer in the document; the tool dropped it",
-                seat.name(),
-            ),
+            Self::PickLost { seat, node } => pick_gone(f, seat.name(), node),
         }
     }
+}
+
+/// **The drop notice of a pick whose node or variable left the
+/// document**: its role and what it held, by the last label the
+/// document gave it. [`SeatEvent`]'s, and a held plane variable's
+/// (`crate::combine::PlaneEvent`); a held FACE that stops resolving is
+/// said by `crate::matetool::pick_lost`.
+pub(crate) fn pick_gone(
+    f: &mut core::fmt::Formatter<'_>,
+    role: &str,
+    held: impl core::fmt::Display,
+) -> core::fmt::Result {
+    write!(
+        f,
+        "the {role} pick ({held}) is no longer in the document; the tool dropped it"
+    )
 }
 
 /// Two role-typed seats filled in order.
@@ -900,9 +929,11 @@ pub fn seat_line(seats: &Seats, by: Speaker<'_>) -> String {
 /// own: nothing splits a panel line back into its items, so there is
 /// no hold for a name to carry.
 /// **What a panel says of a pick it does not hold**: an open seat in a
-/// held-picks line, a line holding nothing at all, and a form's latch
-/// row with no face latched (`crate::drafts::latch_said`). The one
-/// spelling of an empty pick.
+/// held-picks line, a line holding nothing at all (the blend tool's
+/// edge count among them), a form's latch row with no face latched
+/// (`crate::drafts::latch_said`), and a `Clear picks` with nothing to
+/// clear. The one spelling of an empty pick in a panel; what a commit
+/// waiting on that pick says is its [`SeatError`].
 pub(crate) const NONE_PICKED: &str = "none picked";
 
 pub(crate) fn picks_line<R: core::fmt::Display>(
