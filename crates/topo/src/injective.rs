@@ -11879,6 +11879,68 @@ mod presentation_rows {
         assert!(!one_plane((o, wide), (o, wide)), "one bracket twice");
     }
 
+    /// **A point-scalar body's two conics hold one plane where it stores
+    /// their frames one up to the signs of their axes** ([`coplanar`],
+    /// [`one_stated_plane`]): a ball's two seam meridians in a turned
+    /// frame, one origin and one `u`, the second's `v` and `w` turned
+    /// over. Their lifts, the enclosures of the frames' polar factors,
+    /// are a rounding wide and not one value. Not coplanar where only the
+    /// lifts are held, with the second's `u` turned about the shared axis
+    /// (the polar factor's axis leans on `u`), or with its origin an ulp
+    /// off. Red if the stated frames are not read, or read by `w` alone.
+    #[test]
+    fn two_meridians_stored_one_up_to_signs_are_coplanar_in_a_turned_frame() {
+        let o = Point3::new(0.299_999_999_999_999_9, -1.1, 2.9);
+        let w = Vec3::new(
+            -0.394_739_798_173_799_8,
+            0.071_392_499_417_875_87,
+            -0.916_015_066_887_317_3,
+        );
+        let u = Vec3::new(
+            -0.482_929_284_214_212_1,
+            0.832_030_133_774_634_8,
+            0.272_956_338_888_314_3,
+        );
+        let circle = |o, w, u| {
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame::admitted(o, w, u).expect("rigid within its rounding"),
+                1.0,
+            ))
+        };
+        let rim = |c: &Curve3<f64>, stated: bool| Rim {
+            key: edge(1),
+            arc: Some((c.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
+            stated: stated.then(|| c.clone()),
+            ends: [vertex(1), vertex(2)],
+            uses: Vec::new(),
+        };
+        let lifted = |r: &Rim| match r.arc.as_ref() {
+            Some((Curve3::Circle(c), _)) => (c.frame.origin(), c.frame.axis()),
+            _ => panic!("a circle"),
+        };
+        let (a, b) = (circle(o, w, u), circle(o, -w, u));
+        let (ra, rb) = (rim(&a, true), rim(&b, true));
+        assert!(
+            !one_plane(lifted(&ra), lifted(&rb)),
+            "the lifts are no one value"
+        );
+        assert!(coplanar(&ra, &rb), "stored one up to signs");
+        assert!(one_conic(&ra, &rb), "one circle");
+        assert!(
+            !coplanar(&rim(&a, false), &rim(&b, false)),
+            "the lifts alone"
+        );
+        let turned = u * 0.6 + w.cross(u) * 0.8;
+        let c = rim(&circle(o, w, turned), true);
+        assert!(!coplanar(&ra, &c), "another u about one w");
+        assert!(!one_conic(&ra, &c), "another u is another circle");
+        let moved = Point3::new(o.x.next_up(), o.y, o.z);
+        assert!(
+            !coplanar(&ra, &rim(&circle(moved, -w, u), true)),
+            "an origin an ulp off"
+        );
+    }
+
     /// **A plane through a line edge answers nothing at a shared vertex
     /// off the line** ([`planes_through`], [`sign_on`]): the pair shares
     /// the edge and the vertex `(2, 1, 0)` apart from it, and the plane,

@@ -59,8 +59,8 @@ use sweep::test_support::revolved_about_y_at;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve, sweep_body};
 use topo::clearance::{
     BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CellReceipt, CertificateArm,
-    ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep, Which,
-    min_separation,
+    ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Embedding, EngineRefusal, SharedCell, Side, Sweep,
+    Which, min_separation,
 };
 use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
@@ -3776,4 +3776,129 @@ fn op_probe_turned_balls_both() {
         let r = injective(&i, None, BUDGET);
         println!("OPBOTH Interval frame {k}: {:?} {:?}", r.verdict, r.receipt);
     }
+}
+// ------------------------------------------------ a ball's seam meridians
+
+/// A sketch plane turned about a generic axis by `turn` and placed at
+/// `at`.
+fn turned_about(turn: ((f64, f64, f64), f64), at: (f64, f64, f64)) -> SketchPlane<f64> {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let ((x, y, z), th) = turn;
+    let a = Vec3::new(x, y, z) * (1.0 / (x * x + y * y + z * z).sqrt());
+    let (c, s) = (f64::cos(th), f64::sin(th));
+    let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+    let m = Mat3::from_cols(
+        col(Vec3::new(1.0, 0.0, 0.0)),
+        col(Vec3::new(0.0, 1.0, 0.0)),
+        col(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(m, Vec3::new(at.0, at.1, at.2)),
+        tol(),
+    ))
+}
+
+/// The unit ball about `y = y0` on `plane`, revolved a full turn, at
+/// `T`: its sketch plane lifted as `T` reads a stored frame.
+fn ball_on<T: Scalar>(plane: &SketchPlane<f64>, y0: f64) -> Body<T> {
+    let loops = [profile::test_support::bulge_loop(vec![
+        (Point2::new(0.0, y0 - 1.0), 1.0),
+        (Point2::new(0.0, y0 + 1.0), 0.0),
+    ])];
+    let place = SketchPlane::from_frame(plane.frame().map_scalar(T::from_f64));
+    let profile = Profile::new(place, lifted::<T>(&loops))
+        .validate(tol())
+        .unwrap();
+    revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// The verdict door over every face of `body`.
+fn embedding<T: Scalar>(body: &Body<T>) -> topo::clearance::EmbeddingReport {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+        excluded: topo::clearance::FacePairs::none(),
+    };
+    topo::clearance::embedded(
+        &side,
+        band(),
+        Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    )
+}
+
+/// A turn about an axis by an angle, and a placement.
+type Turned = (((f64, f64, f64), f64), (f64, f64, f64));
+
+/// Two turned frames, the second placed a hundred units off the origin.
+const TURNED: [Turned; 2] = [
+    (((1.0, 2.0, 3.0), 0.7), (0.3, -1.1, 2.9)),
+    (((0.0, 1.0, 1.0), 1.1), (60.0, -48.0, 64.0)),
+];
+
+/// **A ball in a turned frame is embedded at `f64`, its poles read
+/// against the one plane both seam meridians lie in**: the unit ball on
+/// sketch planes turned about generic axes, the second of them a hundred
+/// units off the origin. The revolve stores the angle-π meridian's frame
+/// as the angle-0 one's with `v` and `w` turned over; each lift is the
+/// enclosure of its frame's polar factor, a rounding wide, so only the
+/// stored frames show the two as one plane. Red if `planes_through`
+/// compares the lifts alone: each meridian is then listed in a plane of
+/// its own and the pole refuses `Departure`.
+///
+/// The `Interval` twins, whose frames are minted at `Interval` with no
+/// stored `f64` frame beside them, refuse `Departure` on a meridian:
+/// two meridians in brackets are not one value
+/// (`work/embed/a-balls-seam-meridians-in-one-bracket-are-not-one-plane-so-its-pole-refuses-at-interval.md`).
+#[test]
+fn a_ball_in_a_turned_frame_is_embedded_by_its_stored_meridian_plane() {
+    for (k, &(turn, at)) in TURNED.iter().enumerate() {
+        let plane = turned_about(turn, at);
+        let float = embedding(&ball_on::<f64>(&plane, 0.0));
+        assert!(
+            matches!(float.verdict, Embedding::Embedded) && float.receipt.refused == 0,
+            "frame {k} at f64: {:?} {:?}",
+            float.verdict,
+            float.receipt
+        );
+        let twin = embedding(&ball_on::<Interval>(&plane, 0.0));
+        assert!(
+            matches!(
+                twin.verdict,
+                Embedding::Refused(EngineRefusal::Uncertified {
+                    shared: SharedCell::Edge(_),
+                    arm: CertificateArm::Departure,
+                    ..
+                })
+            ),
+            "frame {k} at Interval refuses Departure on a meridian: {:?} {:?}",
+            twin.verdict,
+            twin.receipt
+        );
+    }
+}
+
+/// **Two turned balls that overlap cross**: the unit ball on the first
+/// turned plane, and a second grafted beside it as a solid of its own,
+/// its centre 1.5 up the shared revolve axis, so each pole lies inside
+/// the other ball and their spheres cross on a circle. Red if reading
+/// the two meridians as one plane certified a pair the other ball
+/// crosses.
+#[test]
+fn two_turned_balls_overlapping_cross() {
+    let plane = turned_about(TURNED[0].0, TURNED[0].1);
+    let mut body = ball_on::<f64>(&plane, 0.0);
+    topo::graft_disjoint(&mut body, &ball_on::<f64>(&plane, 1.5)).expect("a second solid");
+    let report = embedding(&body);
+    assert!(
+        matches!(report.verdict, Embedding::Crosses(_)),
+        "the overlapping balls cross: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
 }

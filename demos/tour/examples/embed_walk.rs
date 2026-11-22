@@ -71,6 +71,15 @@ fn main() {
         &mut |stop| {
             for sb in &stop.bodies {
                 bodies += 1;
+                if let Ok(only) = std::env::var("WALK_ONLY") {
+                    if sb.name != only {
+                        continue;
+                    }
+                    for (k, f) in sb.body.faces() {
+                        eprintln!("FACE {k:?} {:?}", sb.body.face_surface(k).map(|s| format!("{s:?}").chars().take(300).collect::<String>()));
+                        let _ = f;
+                    }
+                }
                 let side = Side {
                     body: &sb.body,
                     faces: sb.body.faces().map(|(k, _)| k).collect(),
