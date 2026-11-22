@@ -86,12 +86,15 @@ change moves a number. Where no claim survives that, delete the test.
   stream's length from its formula, a gap bound. Each row keeps its
   claim and drops the golden.
 
-**Scope and seams.** Most of these tests live in other programs' crates.
-They guard disciplines those programs or crate READMEs state, so a
-deletion that retires a ratified guard is Ev's (CLAUDE.md, "Git
-workflow"). Check each guard's ratification with `git log -S` before
-treating it as one. A restructure that keeps the claim and drops the
-counts is not a retirement. Work family by family, one PR each, starting
+**Scope and seams.** Most of these tests live in other programs' crates,
+and many enforce a rule a crate README states. Ev, in chat on 2026-11-22:
+the wording of crate READMEs was mostly not reviewed, so a silly rule
+there goes, and only a rule that might have a non-obvious reason goes to
+an `[ev]` PR first. A restructure that keeps the claim and drops the
+counts needs no ruling. A deletion whose rule carries a reason in its
+README, DESIGN.md or ratifying commit (`git log -S`) goes to `[ev]`.
+Otherwise it lands with its reason. Each PR tells the owning program on
+its log. Work family by family, one PR each, starting
 with `certified_endpoint_census` (the biggest churner, whose own fix row
 already sketches the claim) and the hand-kept lists.
 
