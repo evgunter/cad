@@ -222,6 +222,8 @@ mod surfaces_span_window_pairing;
 mod surfaces_stretch_floor;
 #[path = "surfaces/stretch_sup.rs"]
 mod surfaces_stretch_sup;
+#[path = "surfaces/value_views.rs"]
+mod surfaces_value_views;
 
 test_utils::every_suite_file_is_aggregated!();
 #[path = "curves/n3r2_c24_meter.rs"]
