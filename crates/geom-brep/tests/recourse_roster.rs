@@ -113,6 +113,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("require_solid_angle_as"),
     NameCarrier::Call("gradient_alignment"),
     NameCarrier::Call("normals_alignment"),
+    NameCarrier::Call("wedge_reads_zero_at_the_offer"),
     NameCarrier::Call("shown"),
     NameCarrier::Call("unit_winding"),
     NameCarrier::Call("spline_incidence_as"),
@@ -314,6 +315,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("curve_pair/walk.rs: surely: name", FORWARDS),
     ("dihedral.rs: gradient_alignment: name", CROSS_CRATE),
     ("dihedral.rs: normals_alignment: name", FORWARDS),
+    ("dihedral.rs: wedge_reads_zero_at_the_offer: name", FORWARDS),
     (
         "carrier_pose.rs: directions_parallel: what.name()",
         CLOSED_TYPE,
