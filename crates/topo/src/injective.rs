@@ -5953,15 +5953,33 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
 /// face's sign at the band, so a plane that does not part the faces
 /// certifies nothing, and a poor `n` costs a certificate, never a wrong
 /// one.
+fn rv_mut(k: &str) -> bool {
+    std::env::var("RV_MUT").is_ok_and(|v| v == k)
+}
+
 fn wedges_apart(px: &Presented<'_>, py: &Presented<'_>) -> Option<Vec3<f64>> {
+    if rv_mut("M1") {
+        return None;
+    }
     let axes = |p: &Presented<'_>| {
         let Zero::Point(s, t, _) = p.zero else {
             return None;
         };
         let (su, sv) = if s.axis() == Axis::U { (s, t) } else { (t, s) };
         let (x, y) = (p.bound(su), p.bound(sv));
-        let (fx, fy, _) = p.jet_on((x, x), (y, y));
-        Some([unit(vmid(fx) * su.into())?, unit(vmid(fy) * sv.into())?])
+        let (fx, fy, _) = if rv_mut("M12") {
+            p.jet()
+        } else {
+            p.jet_on((x, x), (y, y))
+        };
+        let (gu, gv): (f64, f64) = if rv_mut("M4") {
+            (1.0, 1.0)
+        } else if rv_mut("M7") {
+            (su.into(), 1.0)
+        } else {
+            (su.into(), sv.into())
+        };
+        Some([unit(vmid(fx) * gu)?, unit(vmid(fy) * gv)?])
     };
     parting_normal(axes(px)?, axes(py)?)
 }
@@ -5971,7 +5989,14 @@ fn wedges_apart(px: &Presented<'_>, py: &Presented<'_>) -> Option<Vec3<f64>> {
 /// ([`wedges_apart`]).
 fn parting_normal([a1, a2]: [Vec3<f64>; 2], [b1, b2]: [Vec3<f64>; 2]) -> Option<Vec3<f64>> {
     let g = [a1, a2, -b1, -b2];
-    let n = nearest_in_hull(&g)?;
+    let n = if rv_mut("M5") {
+        a1 + a2 - b1 - b2
+    } else {
+        nearest_in_hull(&g)?
+    };
+    if rv_mut("M3") {
+        return unit(n);
+    }
     g.iter().all(|d| n.dot(*d) > 0.0).then(|| unit(n)).flatten()
 }
 
@@ -5994,8 +6019,11 @@ fn nearest_in_hull(g: &[Vec3<f64>]) -> Option<Vec3<f64>> {
         for (j, &b) in g.iter().enumerate().skip(i + 1) {
             let e = b - a;
             let t = -a.dot(e) / e.dot(e);
-            if t > 0.0 && t < 1.0 {
+            if !rv_mut("M6") && ((t > 0.0 && t < 1.0) || rv_mut("M9")) {
                 keep(a + e * t);
+            }
+            if rv_mut("M2") {
+                continue;
             }
             for &c in g.iter().skip(j + 1) {
                 let f = c - a;
@@ -6004,7 +6032,7 @@ fn nearest_in_hull(g: &[Vec3<f64>]) -> Option<Vec3<f64>> {
                 let det = ee * ff - ef.powi(2);
                 let s = (ef * af - ff * ae) / det;
                 let t = (ef * ae - ee * af) / det;
-                if s > 0.0 && t > 0.0 && s + t < 1.0 {
+                if (s > 0.0 && t > 0.0 && s + t < 1.0) || rv_mut("M10") {
                     keep(a + e * s + f * t);
                 }
             }
@@ -6110,13 +6138,17 @@ fn planes_through(
                     };
                     (Psi::Linear { n: lift(n), q }, on)
                 };
-                Some(
-                    wedges_apart(px, py)
-                        .into_iter()
-                        .chain(headings().and_then(|(hx, hy)| unit(hx - hy)))
-                        .map(at_vertex)
-                        .collect(),
-                )
+                let mut both: Vec<Vec3<f64>> = wedges_apart(px, py)
+                    .into_iter()
+                    .chain(headings().and_then(|(hx, hy)| unit(hx - hy)))
+                    .collect();
+                if rv_mut("M8") {
+                    both.reverse();
+                }
+                if rv_mut("M13") {
+                    both.truncate(1);
+                }
+                Some(both.into_iter().map(at_vertex).collect())
             }
             ([(q, d)], [r]) => {
                 let (hx, hy) = headings()?;
@@ -9792,6 +9824,362 @@ mod presentation_rows {
                 );
             }
         }
+    }
+
+    // ------------------------------------------------ reviewer probes
+    struct RvRng(u64);
+    impl RvRng {
+        /// xorshift64*, uniform in (−1, 1).
+        fn next(&mut self) -> f64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            let x = self.0.wrapping_mul(0x2545_F491_4F6C_DD1D);
+            ((x >> 11) as f64) / ((1u64 << 53) as f64) * 2.0 - 1.0
+        }
+        fn dir(&mut self) -> Vec3<f64> {
+            loop {
+                let v = Vec3::new(self.next(), self.next(), self.next());
+                let q = v.dot(v);
+                if q > 0.01 && q < 1.0 {
+                    return unit(v).unwrap();
+                }
+            }
+        }
+    }
+
+    /// The best least cosine any plane normal has to the four unit
+    /// vectors `g`, by an independent enumeration of the active sets:
+    /// one vector, two (their bisector), three (the normal equidistant
+    /// from them, both signs). Positive exactly where a plane parts.
+    fn rv_margin(g: &[Vec3<f64>; 4]) -> f64 {
+        let mut cands: Vec<Vec3<f64>> = g.to_vec();
+        for i in 0..4 {
+            for j in i + 1..4 {
+                cands.extend(unit(g[i] + g[j]));
+                for k in j + 1..4 {
+                    if let Some(n) = unit((g[j] - g[i]).cross(g[k] - g[i])) {
+                        cands.push(n);
+                        cands.push(-n);
+                    }
+                }
+            }
+        }
+        cands
+            .iter()
+            .map(|n| g.iter().map(|d| n.dot(*d)).fold(f64::INFINITY, f64::min))
+            .fold(f64::NEG_INFINITY, f64::max)
+    }
+
+    /// REVIEWER PROBE: `parting_normal` against an independent reference
+    /// over generic and near-degenerate axis families.
+    #[test]
+    fn rv_parting_normal_against_an_independent_reference() {
+        let mut r = RvRng(0x9E37_79B9_7F4A_7C15);
+        let families = [
+            "generic", "coplanar", "thin", "opposite", "shared-ray", "straight", "shared-edge",
+            "all-near-one", "b-thin-inside-a",
+        ];
+        let mut bad = 0usize;
+        for (f, name) in families.iter().enumerate() {
+            for eps in [0.0, 1e-16, 1e-13, 1e-10, 1e-7, 1e-4, 1e-2] {
+                let (mut sep, mut found, mut miss, mut subopt, mut some_nonsep) = (0, 0, 0, 0, 0);
+                let (mut worst_miss, mut worst_sub) = (0.0f64, 0.0f64);
+                for _ in 0..400 {
+                    let jit = |v: Vec3<f64>, r: &mut RvRng| unit(v + r.dir() * eps).unwrap();
+                    let (a1, a2, b1, b2) = match f {
+                        0 => (r.dir(), r.dir(), r.dir(), r.dir()),
+                        1 => {
+                            let flat = |r: &mut RvRng| {
+                                let t = r.next() * 3.2;
+                                Vec3::new(t.cos(), t.sin(), 0.0)
+                            };
+                            let (p, q, s, t) = (flat(&mut r), flat(&mut r), flat(&mut r), flat(&mut r));
+                            (jit(p, &mut r), jit(q, &mut r), jit(s, &mut r), jit(t, &mut r))
+                        }
+                        2 => {
+                            let (a, b) = (r.dir(), r.dir());
+                            (a, jit(a, &mut r), b, jit(b, &mut r))
+                        }
+                        3 => {
+                            let a = r.dir();
+                            (a, r.dir(), jit(-a, &mut r), r.dir())
+                        }
+                        4 => {
+                            let (a, b) = (r.dir(), r.dir());
+                            let (al, be) = (r.next().abs(), r.next().abs());
+                            (a, b, jit(unit(a * al + b * be).unwrap(), &mut r), r.dir())
+                        }
+                        5 => {
+                            let a = r.dir();
+                            (a, jit(-a, &mut r), r.dir(), r.dir())
+                        }
+                        6 => {
+                            let a = r.dir();
+                            (a, r.dir(), jit(a, &mut r), r.dir())
+                        }
+                        7 => {
+                            let a = r.dir();
+                            (jit(a, &mut r), jit(a, &mut r), jit(-a, &mut r), jit(-a, &mut r))
+                        }
+                        _ => {
+                            let (a, b) = (r.dir(), r.dir());
+                            let m = unit(a + b).unwrap();
+                            (a, b, jit(m, &mut r), jit(m, &mut r))
+                        }
+                    };
+                    let g = [a1, a2, -b1, -b2];
+                    let m = rv_margin(&g);
+                    let got = parting_normal([a1, a2], [b1, b2]);
+                    if m > 1e-9 {
+                        sep += 1;
+                    }
+                    match got {
+                        Some(n) => {
+                            found += 1;
+                            let least = g.iter().map(|d| n.dot(*d)).fold(f64::INFINITY, f64::min);
+                            assert!(least > 0.0, "{name} {eps}: a kept n parts: {g:?}");
+                            if m <= 0.0 {
+                                some_nonsep += 1;
+                            }
+                            if least < m - 1e-9 {
+                                subopt += 1;
+                                worst_sub = worst_sub.max(m - least);
+                            }
+                        }
+                        None => {
+                            if m > 1e-9 {
+                                miss += 1;
+                                worst_miss = worst_miss.max(m);
+                                if miss <= 2 {
+                                    println!("MISS {name} eps={eps:e} margin={m:e} g={g:?}");
+                                }
+                            }
+                        }
+                    }
+                }
+                println!(
+                    "{name:16} eps={eps:7.0e} separable={sep:3} found={found:3} miss={miss:3} (worst margin {worst_miss:.3e}) subopt={subopt:3} (worst {worst_sub:.3e}) found-though-reference<=0: {some_nonsep}"
+                );
+                // Below a least cosine of about √ε the unnormalised
+                // nearest point's own dots (≈ |p|²) are rounding: counted,
+                // not asserted.
+                bad += usize::from(worst_miss > 1e-6 || worst_sub > 1e-6);
+            }
+        }
+        assert_eq!(bad, 0, "misses or suboptimal normals, see the table");
+    }
+
+    /// Whether `d`, in the plane of the wedge `(a1, a2)`, lies in it,
+    /// with the least of its two coordinates over `|d|`.
+    fn rv_in_wedge(d: Vec3<f64>, a1: Vec3<f64>, a2: Vec3<f64>) -> f64 {
+        let n = a1.cross(a2);
+        let nn = n.dot(n);
+        let al = d.cross(a2).dot(n) / nn;
+        let be = a1.cross(d).dot(n) / nn;
+        al.min(be) / d.dot(d).sqrt()
+    }
+
+    /// REVIEWER PROBE: random plane wedges at a vertex alone. A pair whose
+    /// wedges share a ray (they cross along it) must never certify.
+    #[test]
+    fn rv_plane_wedges_sharing_a_ray_never_certify() {
+        let mut r = RvRng(0x1234_5678_9ABC_DEF1);
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+        };
+        let cells = [
+            ((-0.02, 0.02), (-0.02, 0.02)),
+            ((-0.03, 0.03), (-0.005, 0.005)),
+            ((-0.0035, 0.0035), (-0.025, 0.025)),
+            ((-0.5, 0.5), (-0.5, 0.5)),
+        ];
+        let (mut cross, mut apart, mut unpresented) = (0, 0, 0);
+        let (mut cert_apart, mut cert_cross) = (0, 0);
+        let mut n = 0u64;
+        while n < 3000 {
+            let (mut a1, mut a2, mut b1, mut b2) = (r.dir(), r.dir(), r.dir(), r.dir());
+            // A third of the pairs: `B` built through a ray of `A`, so
+            // the wedges cross along it by construction.
+            let kind = n % 3;
+            if kind == 0 {
+                let ray = unit(a1 * (0.1 + r.next().abs()) + a2 * (0.1 + r.next().abs())).unwrap();
+                let k = r.dir();
+                let (p, q) = (0.1 + r.next().abs(), 0.1 + r.next().abs());
+                // ray = p·b1 + q·b2 with b1 = ray + k·q, b2 = ray − k·p (scaled).
+                b1 = unit(ray + k * q).unwrap();
+                b2 = unit(ray - k * p).unwrap();
+            } else if kind == 1 {
+                // thin wedges, the PR's subject
+                a2 = unit(a1 + r.dir() * 0.05).unwrap();
+                b2 = unit(b1 + r.dir() * 0.05).unwrap();
+            }
+            if r.next() > 0.5 {
+                std::mem::swap(&mut a1, &mut a2);
+            }
+            let d = a1.cross(a2).cross(b1.cross(b2));
+            if d.dot(d).sqrt() < 1e-3 || a1.cross(a2).dot(a1.cross(a2)).sqrt() < 1e-3
+                || b1.cross(b2).dot(b1.cross(b2)).sqrt() < 1e-3
+            {
+                continue;
+            }
+            n += 1;
+            let plus = rv_in_wedge(d, a1, a2).min(rv_in_wedge(d, b1, b2));
+            let minus = rv_in_wedge(-d, a1, a2).min(rv_in_wedge(-d, b1, b2));
+            let depth = plus.max(minus);
+            let truth = if depth > 1e-6 {
+                Some(true)
+            } else if depth < -1e-6 {
+                Some(false)
+            } else {
+                None
+            };
+            let (floor, fb) = plane_wedge(10, a1.to_array(), a2.to_array());
+            let (wedge, wb) = plane_wedge(20, b1.to_array(), b2.to_array());
+            let ca = cells[(n % 4) as usize];
+            let cb = cells[((n / 4) % 4) as usize];
+            let a = quadrant_piece(&floor, &fb, &local, 1, ca);
+            let b = quadrant_piece(&wedge, &wb, &local, 2, cb);
+            let point = |p: &Piece<'_>| {
+                matches!(present(p, &[], &near.vertices, band()),
+                    Ok(Presentation::Of(q)) if matches!(q.zero, Zero::Point(..)))
+            };
+            if !(point(&a) && point(&b)) {
+                unpresented += 1;
+            }
+            let got = matches!(certify_pair(&a, &b, &near, band()), Outcome::Certified { .. });
+            match truth {
+                Some(true) => {
+                    cross += 1;
+                    if got {
+                        cert_cross += 1;
+                        println!("CERTIFIED A CROSSING: a=({a1:?},{a2:?}) b=({b1:?},{b2:?}) cells {ca:?} {cb:?} depth {depth:e}");
+                    }
+                }
+                Some(false) => {
+                    apart += 1;
+                    cert_apart += usize::from(got);
+                }
+                None => {}
+            }
+        }
+        println!(
+            "pairs {n}: crossing {cross} (certified {cert_cross}), apart {apart} (certified {cert_apart}), a face not a Zero::Point quadrant in {unpresented}"
+        );
+        assert_eq!(cert_cross, 0, "a pair crossing along a ray certified");
+    }
+
+    /// A plane wedge as [`plane_wedge`]'s, its vertex 1 at `q`.
+    fn rv_plane_wedge_at(n: u64, q: [f64; 3], d1: [f64; 3], d2: [f64; 3]) -> (Surface<Interval>, Boundary) {
+        let v = |d: [f64; 3]| Vec3::new(iv0(d[0]), iv0(d[1]), iv0(d[2]));
+        let o = Point3::new(iv0(q[0]), iv0(q[1]), iv0(q[2]));
+        let (f1, f2) = (
+            Vec3::new(d1[0], d1[1], d1[2]),
+            Vec3::new(d2[0], d2[1], d2[2]),
+        );
+        let normal = unit(f1.cross(f2)).expect("a wedge spans a plane");
+        let along = unit(f1).expect("a direction");
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(o, lift(normal), lift(along)),
+        };
+        let line = |d: [f64; 3], far: u64, plus: bool| Rim {
+            stated: None,
+            key: edge(far),
+            arc: Some((Curve3::line(o, v(d)), (iv0(0.0), iv0(1.0)))),
+            ends: [vertex(1), vertex(far)],
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let b = Boundary {
+            sense: true,
+            edges: vec![line(d2, n + 2, false), line(d1, n + 1, true)],
+            vertices: BTreeMap::from([
+                (vertex(1), o),
+                (vertex(n + 1), o + v(d1)),
+                (vertex(n + 2), o + v(d2)),
+            ]),
+            extent: None,
+        };
+        (plane, b)
+    }
+
+    /// REVIEWER PROBE: a plane wedge at a cylinder face's corner, parted
+    /// from it by a plane at first order (the tangent cones share no ray)
+    /// but dipping inside the cylinder at the shallow angle `θ`, so the
+    /// two faces cross along a curve from `2θ` round the cylinder on,
+    /// away from the vertex. A cell holding the crossing must not
+    /// certify.
+    #[test]
+    fn rv_a_wedge_crossing_a_cylinder_away_from_the_vertex_never_certifies() {
+        let s = cylinder();
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+        };
+        let above = vertex_quadrant(10, true, true, true, None);
+        let (c1, s1) = (1.0f64.cos(), 1.0f64.sin());
+        let (t, rad, z) = (
+            Vec3::new(-s1, c1, 0.0),
+            Vec3::new(c1, s1, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let mut wrong = 0;
+        for theta in [0.0005f64, 0.002, 0.004, 0.008, 0.02] {
+            for h in [0.001, 0.01, 0.02, 0.05, 0.2] {
+                for dip in [0.3, 0.05, 1.0] {
+                    let b1 = unit(-t * theta.cos() - rad * theta.sin()).unwrap();
+                    let b2 = unit(z - rad * dip).unwrap();
+                    let (wedge, wb) =
+                        rv_plane_wedge_at(20, [c1, s1, 0.5], b1.to_array(), b2.to_array());
+                    let a = quadrant_piece(&s, &above, &local, 1, ((1.0 - h, 1.0 + h), (0.5 - h, 0.5 + h)));
+                    let b = quadrant_piece(&wedge, &wb, &local, 2, ((-h, h), (-h, h)));
+                    let zero = |p: &Piece<'_>| match present(p, &[], &near.vertices, band()) {
+                        Ok(Presentation::Of(q)) => format!("{:?}", std::mem::discriminant(&q.zero)),
+                        Ok(_) => "vacuous".into(),
+                        Err(_) => "unpresented".into(),
+                    };
+                    let point = |p: &Piece<'_>| {
+                        matches!(present(p, &[], &near.vertices, band()),
+                            Ok(Presentation::Of(q)) if matches!(q.zero, Zero::Point(..)))
+                    };
+                    let wedge_plane = match (
+                        present(&a, &[], &near.vertices, band()),
+                        present(&b, &[], &near.vertices, band()),
+                    ) {
+                        (Ok(Presentation::Of(pa)), Ok(Presentation::Of(pb))) => {
+                            wedges_apart(&pa, &pb)
+                        }
+                        _ => None,
+                    };
+                    let got = certify_pair(&a, &b, &near, band());
+                    // The crossing curve starts 2·tanθ round the cylinder.
+                    let holds = 2.0 * theta.tan() < h * 0.9;
+                    let certified = matches!(got, Outcome::Certified { .. });
+                    println!(
+                        "theta={theta} h={h} dip={dip}: points=({},{}) wedge plane={} crossing in cell={holds} -> {got:?} [{} {}]",
+                        point(&a), point(&b), wedge_plane.is_some(), zero(&a), zero(&b)
+                    );
+                    if holds && certified {
+                        wrong += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(wrong, 0, "a cell holding the crossing certified");
     }
 
     /// **A cylinder face's corner at `(1, ½)` where the parallel `v = ½`

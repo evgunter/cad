@@ -3286,3 +3286,93 @@ fn a_roof_folded_across_a_blocks_corner_crosses_it() {
         );
     }
 }
+
+// ------------------------------------------------------ reviewer probes
+
+/// [`deep_keel`] mirrored in `z = 1` by construction (the grooves cut
+/// from below), unmoved.
+fn rv_deep_keel_mirrored<T: Scalar>(flip: bool) -> Body<T> {
+    use geom_core::RigidMotion;
+    use sweep::test_support::{block, finished, prism_on};
+    let groove = |x0: f64, w: f64, len: f64| {
+        let at = |u: f64, v: f64| (Point2::new(T::from_f64(u), T::from_f64(v)), T::zero());
+        let plane = SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(x0, 0.0, 0.0)));
+        let mut pts = vec![at(1.0 + w, -0.5), at(1.0, 1.0), at(1.0 - w, -0.5)];
+        if flip {
+            pts.reverse();
+        }
+        finished(
+            "a groove",
+            prism_on(plane_at::<T>(&plane), pts, T::from_f64(len), tol()),
+            tol(),
+        )
+    };
+    let block = finished("the block", block::<T>(4.0, 4.0, 2.0, tol()), tol());
+    let narrow = built(topo::subtract(&block, &groove(-1.0, 0.3, 3.0), tol()));
+    built(topo::subtract(&narrow, &groove(2.0, 0.5, 1.0), tol())).into_body()
+}
+
+/// REVIEWER PROBE: the deep keel ten thousand units out, turned about a
+/// far pivot, and mirrored.
+#[test]
+fn rv_a_deep_keels_joint_far_out_and_mirrored() {
+    use geom_core::{Affine3, Vec3};
+    // The session box is 1000 units: ten thousand out is refused
+    // `OutsideSessionBox` by `finished`, so the far poses sit at its wall.
+    let poses = [
+        (
+            "at the session box's wall",
+            Affine3::translation(Vec3::new(990.0, -990.0, 990.0)),
+        ),
+        (
+            "at the wall, off the grid",
+            Affine3::translation(Vec3::new(987.654_321, -912.345_678, 993.141_592)),
+        ),
+        (
+            "turned about a far pivot",
+            Affine3::rotation_about_axis(
+                Point3::new(400.0, -400.0, 400.0),
+                Vec3::new(1.0, 2.0, 3.0),
+                0.7,
+            ),
+        ),
+        (
+            "turned by a quarter and a bit",
+            Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(-2.0, 0.5, 1.0),
+                1.9,
+            ),
+        ),
+    ];
+    let mut bad = Vec::new();
+    for (what, m) in poses {
+        for (scalar, verdict) in [
+            ("f64", door(&deep_keel::<f64>(&m))),
+            ("Interval", door(&deep_keel::<Interval>(&m))),
+        ] {
+            println!("the deep keel, {what}, at {scalar}: {verdict:?}");
+            if !matches!(verdict, topo::clearance::Embedding::Embedded) {
+                bad.push(format!("{what} at {scalar}: {verdict:?}"));
+            }
+        }
+    }
+    for flip in [false, true] {
+        for scalar in ["f64", "Interval"] {
+            let verdict = std::panic::catch_unwind(|| {
+                if scalar == "f64" {
+                    door(&rv_deep_keel_mirrored::<f64>(flip))
+                } else {
+                    door(&rv_deep_keel_mirrored::<Interval>(flip))
+                }
+            });
+            println!("the mirrored keel (flip {flip}) at {scalar}: {verdict:?}");
+            if let Ok(v) = verdict
+                && !matches!(v, topo::clearance::Embedding::Embedded)
+            {
+                bad.push(format!("mirrored (flip {flip}) at {scalar}: {v:?}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{bad:#?}");
+}
