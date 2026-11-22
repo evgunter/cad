@@ -487,7 +487,12 @@ session box, and its conditioning by the carriage that consumes it. A formula th
   `levered_inv` and the metric doors. A length that is the reading
   itself (a residual, an offset, a stand-off) is the margin, and a
   tolerance is the band's: neither is an arm. A dimensionless factor
-  belongs to the reading, not the arm. The point-level reads (two
+  belongs to the reading, not the arm. A margin asked at the tolerance
+  a refusal offers is read against the band at that tolerance, never
+  levered by it. A length scaled by a pure number is still that
+  length. A reading known only within a stand-off takes that stand-off
+  as its swing or as the band's pad. A count has no length, and is
+  decided as a whole number of periods. The point-level reads (two
   points' distance, a point set's reach from a pivot) live beside
   `Lever` in `geom-core`; covers and `Reach` stay in `geom_brep`. A
   lever is never shorter than the region its verdict governs and no
