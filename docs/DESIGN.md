@@ -1236,11 +1236,12 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    touch by value.
 
 **Records follow the file.** A surface entity the file states is one
-surface record, worn by every face of one shell that cites it; two
-entities are two records unless healing's reported one-record act joins
-them (step 3); each face is certified against its record; and the writer
-emits one surface entity per surface record. No comparison of printed
-values decides which record a face wears.
+surface record, worn by every face of one shell that cites it, and a
+record a normalization mints (a knot split's sub-patch) is a record of
+its own; two entities are two records unless healing's reported
+one-record act joins them (step 3); each face is certified against its
+record; and the writer emits one surface entity per surface record. No
+comparison of printed values decides which record a face wears.
 
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
 *input tolerance* ε_in — defaulted from the STEP file's declared

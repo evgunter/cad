@@ -106,6 +106,8 @@ fn poison_vec<T: Real>() -> Vec3<T> {
 /// its siblings) repeat this order term for term to stay bit-identical
 /// to it, so it is not [`geom::Line::param_and_offset`], whose division
 /// by `|axis|²` the twins do not carry.
+/// `ssi::enclose`'s `axial_split` repeats the order over a box, in
+/// certification arithmetic, not bit-identical to it.
 pub(crate) fn axial_radial<T: Real>(
     p: Point3<T>,
     anchor: Point3<T>,

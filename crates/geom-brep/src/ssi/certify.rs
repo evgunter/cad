@@ -4209,12 +4209,15 @@ mod tests {
         );
     }
 
-    /// **A refused transversality enclosure is no sliver.** A cone has
-    /// no ℝ³ gradient enclosure, so every box of every rung of an
-    /// analytic tube against one is refused: the ladder answers nothing
+    /// **A refused transversality enclosure is no sliver, and an ℝ³
+    /// chain has no node end.** The plane `y = 0` holds the 45° cone's
+    /// ruling `x = z`, and the carrier runs along it into the apex. The
+    /// ℝ³ tube reads every box of its chain, and the box at the apex is
+    /// off the cone's gate at every rung, so the ladder answers nothing
     /// (`TubeProbeSilent`, every rung offered), where reading each
     /// refusal as a zero margin reported a straddle at the narrowest
-    /// rung.
+    /// rung. Red if a refused box is read as a zero margin, or if the
+    /// cone arm encloses a box holding its apex.
     #[test]
     #[allow(clippy::unwrap_used)]
     fn a_tube_whose_enclosures_are_refused_answers_no_rung() {
@@ -4226,13 +4229,13 @@ mod tests {
         let plane = Surface::Plane {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(0.0, 1.0, 0.0),
                 Vec3::new(1.0, 0.0, 0.0),
             ),
         };
         let cone = Surface::Cone {
             frame: geom::Frame::new(
-                Point3::new(0.0, 0.0, -1.0),
+                Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 Vec3::new(1.0, 0.0, 0.0),
             ),
@@ -4240,7 +4243,7 @@ mod tests {
         };
         let carrier = NurbsCurve3::new(
             KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
-            vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.1, 0.0)],
+            vec![Point3::new(0.1, 0.0, 0.1), Point3::new(0.0, 0.0, 0.0)],
             vec![1.0; 2],
         )
         .unwrap();
