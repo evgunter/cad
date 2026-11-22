@@ -579,3 +579,8 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   It rewords discipline §2, which Ev ratified in PR 5229, so it waits for Ev: **`[ev]` PR 7397**, armed on its comments.
 - Parameters left to the orchestrator and decided: the fastest of the three re-runs, a ceiling starting at 2.5 s and set from measured ratios, and no warning row for other readings.
 - U10 is measuring and not moving, since a list cut from contended readings over-selects.
+- 2026-11-22 — U10 measured, moved nothing:
+  - 76 gate jobs. Run alone on the gate's build, none of 330 candidates reaches 0.5 s (top 0.458).
+  - The gate median is 1.73× the solo time, and three runner classes sit at 0.8, 1.0 and 1.33.
+  - A contended-p90 cut at 0.5 s would have moved 162 cheap tests.
+  - Ruling (orchestrator's, a stopgap until Ev answers 7397): move only the 5 tests at gate p90 ≥ 0.9 s, the band that reds PRs. The data is posted on 7397.
