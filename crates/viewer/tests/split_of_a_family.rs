@@ -240,18 +240,15 @@ fn split_of_a_read_pattern(
 #[test]
 fn a_split_of_a_transformed_pattern_evaluates() {
     let tol = Tol::witness();
-    let mut moved = None;
     let (mut session, split) = split_of_a_read_pattern(|session, pattern| {
-        let (doc, placed) = crate::fixture::slid(
+        let (doc, _) = crate::fixture::slid(
             session.committed_doc().clone(),
             pattern,
             pattern,
             [0.0, 0.0, 0.005],
         );
-        moved = Some(placed);
         *session = common::inline_without_door(doc, tol);
     });
-    let moved = moved.expect("the placement");
     let got = caught(|| {
         session.pump();
         described(&session, split, tol)
