@@ -509,3 +509,11 @@ row's last section says what moved.
     - evidence on `pcert/review-pick-r2-tally-moved-at-5225-azimuth-placement` (still red: 147850 against 147856, at base and head);
     - notes on the doors, formwords and vgeom logs about rows citing `SketchOnFace`.
   - **Friction found: disk.** Each lane's target is 11–12 GB, so this container fits about three at once. The viewer lane filled the disk mid-run. The fix was to delete finished lanes' targets before a reviewer builds and to have reviewers build with `CARGO_INCREMENTAL=0`. Running reviewers in their own cloud sessions is the alternative. (VSEAM)
+- 2026-11-22 — **PR 7465 review: APPROVE-WITH-FIXES, no MAJOR.** The binding was confirmed faithful, with mutants killed for each argument except slide order and `resolver=`.
+  - **Fix pass took:** m1 (an asymmetric slides row); m2 (pin `resolver=`); m3 (document the slide axes); N1 (renumbering at the first and a middle position); N5 (the bottom-cap pocket subtracted); S4, S5 and S7 (messages and a docstring); and two stale citations on BIND rows.
+  - **Argued down:** S3 (correct today); S8 (a deliberate oracle).
+  - **Filed:**
+    - `pydoor/a-profile-on-a-frame-takes-three-outline-vocabularies` (P3);
+    - `doctail/orient-none-falls-back-to-the-identity-when-the-face-does-not-read` (P3);
+    - `doctail/an-empty-outline-on-a-face-refuses-with-a-recourse-about-mating-a-part` (P3, and worth checking against the GUI's empty on-face profile).
+  - **Friction:** 7465's first CI job sat queued for a runner for 45 minutes. (VSEAM)
