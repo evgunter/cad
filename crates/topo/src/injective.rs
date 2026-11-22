@@ -2452,15 +2452,14 @@ fn posed_boundary(
 ///   loop's area can differ from the polygon's (the loop and each chord
 ///   lie in their piece's rectangle). The margin decides only for a face
 ///   narrower than its rows' chords stray, which may wind either way.
-///   The sign itself, a face read as its complement, is pinned by unit
-///   rows only (the triangle's complement and the thin band). No body
-///   row reaches it: it needs a face holding both of the pose's poles
+///   The sign itself, a face read as its complement, is pinned by one
+///   unit row only (`a_face_thinner_than_its_rows_chords_is_granted_no_extent`,
+///   the thin band both ways round). No body row reaches it: it needs a face holding both of the pose's poles
 ///   while its loop winds round neither, and every sphere face this
 ///   kernel builds is a revolve's half, which holds a pole its loop
 ///   winds round, so the wrap refuses first. That premise is the
 ///   kernel's, not this reader's: a face larger than a hemisphere (an
-///   import, say) reopens it, and then only the thin-band row pins the
-///   sign.
+///   import, say) reopens it, with that row still the sign's only pin.
 ///
 /// The hull of the pieces' rectangles is then the extent, a superset of
 /// the face. `None` where any of these does not certify: the pose then
