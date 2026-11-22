@@ -8113,6 +8113,11 @@ mod presentation_rows {
             Vec::<&str>::new(),
             "a cell across the edges: vacuous"
         );
+        assert_eq!(
+            zeros((3.5, 4.5), (0.01, 0.1), &[], &v1),
+            ["refused"],
+            "a cell past rim 1's far end"
+        );
     }
 
     /// **The ray is decided strictly inside the sector, or the corner is
