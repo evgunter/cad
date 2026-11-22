@@ -623,3 +623,47 @@ fn the_gaps_tangent_is_the_differences() {
         );
     }
 }
+
+/// **The wall an extruded circle leaves: its seam's ruling and its rims
+/// are placed at the zero form, with the radius stored as a magnitude.**
+/// The wall's `u_ref` is the start vertex's own radial over its length
+/// (`r·x/√(r²)`) and its radius is `|r|`; the seam is the ruling through
+/// the vertex `c + r·x`, and a rim is the circle of radius `|r|` on the
+/// same frame. The ruling's direction is its offset over the radius,
+/// `r²/(√(r²)·|r|)` along `u_ref`, which is `1` in the tier; the rim's
+/// is its axis vector at its length, `r²/√(r²)` along `u_ref`,
+/// non-negative by its syntax. Either way the phase is the zero form.
+///
+/// This pins the shape the plate certifies in. With the radius a
+/// magnitude the readers' direct spellings fold too, so it is green
+/// under both env mutants; it is red with [`super::ruling_direction`]
+/// dividing by the radius's negation (run by hand), which places the
+/// seam half a turn off.
+#[test]
+fn an_extruded_circles_wall_places_its_seam_and_rims_at_zero() {
+    let (axis, _, _, c) = frame();
+    let x = Vec3::new(0.0, 1.0, 0.0);
+    with_session(budget(), || {
+        let r = boxed("radial_reader_radius", RADIUS);
+        let start = point(c) + lit3(x) * r;
+        let wall = geom::Frame::new(point(c), lit3(axis), start - point(c));
+        let cylinder = Surface::Cylinder {
+            frame: wall,
+            radius: r.abs(),
+        };
+        let seam = Curve3::Line(geom::Line {
+            origin: start,
+            dir: lit3(axis),
+        });
+        let rim = Curve3::Circle(geom::Circle::new(wall, r.abs()));
+        for (name, carrier) in [("the seam", seam), ("a rim", rim)] {
+            let image = chart_pcurve(&carrier, &cylinder, band())
+                .unwrap_or_else(|e| panic!("{name}: no image: {e:?}"));
+            assert_eq!(
+                reading(image.eval(S::zero()).x),
+                PROVEN_ZERO,
+                "{name}: placed at the zero form"
+            );
+        }
+    });
+}
