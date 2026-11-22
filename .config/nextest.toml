@@ -1,9 +1,9 @@
 # nextest profiles. `ci` is the per-PR gate: the suite minus the SLOW SET
 # below (work/ciw/latency-cut.md has the first measurement and verdicts). The
 # slow set runs every night, at every eps row, under this profile with
-# `--ignore-default-filter`. Per PR, a slow test runs only when the diff's
-# added lines spell it (scripts/slow_set.py's `is_new`: the PR that adds or
-# edits it); a renamed one is spelled too. scripts/slow_set.py is the one
+# `--ignore-default-filter`. Per PR, a slow test runs when the diff's added
+# lines spell it or the diff edits the file it lives in (scripts/slow_set.py's
+# `selected`); a renamed one is spelled too. scripts/slow_set.py is the one
 # reader of this list. A renamed test drops out of it and runs per-PR, never
 # silently nowhere; scripts/check-slow-set-names.py fails the test job on the
 # dead name.

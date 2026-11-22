@@ -18,13 +18,21 @@ one.
                            .config/nextest.toml
     slow_set.py --new-expr <new-tests.txt>
                            the same, narrowed to the entries the diff adds
-                           or edits: what ci.yml's slow-set step runs
+                           or edits (`selected`): what ci.yml's slow-set
+                           step runs; the selection's size goes to stderr
 
-A slow test runs per PR only on a PR whose added lines spell it, which is the
-PR that adds it or edits it; every other night it runs in the nightly. What
-counts as spelling it is `is_new`, the rule check-fast-set-times.py holds new
-fast-set tests to its stricter bar by, read from the same
-`check-fast-set-times.py --new-since` tokens.
+A slow test runs per PR on a PR that adds or edits it, and in the nightly
+every night. Both readings come from `check-fast-set-times.py --new-since`
+tokens. A PR that spells it on an added line is `is_new`, the rule
+check-fast-set-times.py holds new fast-set tests to its stricter bar by. A PR
+that edits the file it lives in (its body, its doc, a table or const beside
+it, a golden that file names in a string literal) is `is_edited`. A file
+"holds" a test when it defines a `fn` of the test's leaf name, or stands for a
+module on the test's path, so a leaf a macro makes is still found.
+
+What neither sees: an edit in ANOTHER file the test reads (a `tests/common`
+helper or fixture list, the `src/` it exercises), and a data file the test
+reaches by a name it builds (`format!`, a directory listing) rather than spells.
 """
 
 from __future__ import annotations
@@ -134,10 +142,27 @@ def is_new(binary_id: str, name: str, tokens: set[str]) -> bool:
     return f"{pkg}:{leaf}" in tokens or any(f"{pkg}:mod:{m}" in tokens for m in mods)
 
 
+def is_edited(binary_id: str, name: str, tokens: set[str]) -> bool:
+    """Whether this test lives in a file the diff edits, by the diff's
+    `pkg:fn:name` / `pkg:file:module` tokens: a file defining its leaf, or
+    standing for a module on its path (the binary's root for a test at the
+    top)."""
+    pkg, _, binary = binary_id.partition("::")
+    *mods, leaf = name.split("::")
+    return f"{pkg}:fn:{leaf}" in tokens or any(
+        f"{pkg}:file:{m}" in tokens for m in mods or [binary or "lib"]
+    )
+
+
+def selected(pairs: list[tuple[str, str]], tokens: set[str]) -> list[tuple[str, str]]:
+    """The entries the diff spells or edits: what ci.yml's slow-set step runs."""
+    return [(b, n) for b, n in pairs if is_new(b, n, tokens) or is_edited(b, n, tokens)]
+
+
 def new_expr(pairs: list[tuple[str, str]], tokens: set[str]) -> str:
-    """The entries `tokens` spell, as one filterset; `none()` when none is."""
-    spelled = [(b, n) for b, n in pairs if is_new(b, n, tokens)]
-    return expr(spelled) if spelled else "none()"
+    """`selected` as one filterset; `none()` when it is empty."""
+    chosen = selected(pairs, tokens)
+    return expr(chosen) if chosen else "none()"
 
 
 def selftest() -> None:
@@ -161,6 +186,19 @@ def selftest() -> None:
     assert new_expr(want, set()) == "none()"
     assert new_expr(want, {"a:y", "b:x"}) == expr([("a::all", "m::y")]), "a leaf, in its own package"
     assert new_expr(want, {"b:mod:n"}) == expr([("b", "n::z")]), "a module on the path"
+    # An edit inside a test's body, its doc or a table beside it spells no
+    # name: the file it lands in selects the test.
+    assert new_expr(want, {"a:fn:y"}) == expr([("a::all", "m::y")]), "a file defining the leaf"
+    assert new_expr(want, {"b:fn:y", "a:fn:z"}) == "none()", "a leaf in another package"
+    assert new_expr(want, {"a:file:m"}) == expr([("a::all", "m::x"), ("a::all", "m::y")]), (
+        "a file standing for a module on the path (a macro-made leaf)"
+    )
+    top = [("a::all", "every_file"), ("b", "lone")]
+    assert selected(top, {"a:file:all", "b:file:lib"}) == top, "a binary's root holds its top tests"
+    assert selected(top, {"a:file:lib", "b:file:all"}) == [], "another binary's root"
+    assert not is_new("a::all", "m::y", {"a:fn:y", "a:file:m"}), (
+        "an edited file does not make its tests new to the fast-set bar"
+    )
     print("slow_set: selftest ok")
 
 
@@ -179,7 +217,15 @@ def main(argv: list[str]) -> int:
         print(expr(pairs))
         return 0
     with open(argv[1], encoding="utf-8") as fh:
-        print(new_expr(pairs, set(fh.read().split())))
+        tokens = set(fh.read().split())
+    spelled = sum(is_new(b, n, tokens) for b, n in pairs)
+    chosen = len(selected(pairs, tokens))
+    print(
+        f"slow_set: {chosen} of {len(pairs)} slow-set tests selected "
+        f"({spelled} spelled on an added line, {chosen - spelled} more in a file the diff edits)",
+        file=sys.stderr,
+    )
+    print(new_expr(pairs, tokens))
     return 0
 
 
