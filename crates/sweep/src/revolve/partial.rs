@@ -370,8 +370,12 @@ pub(super) fn he_edge<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> EdgeK
 /// per on-axis segment the shared edge classifies the two caps against
 /// each other — `Intersection { start, end }` when definitely
 /// transverse (θ ≠ π), conventional when definitely smooth (θ = π),
-/// where the caps are one carrier and that verdict leaves them on one
-/// record ([`topo::Body::one_record_across`]), which returns its row.
+/// where the caps are one carrier. Every edge is read on the records the
+/// build wrote; only then do the smooth verdicts leave the caps on one
+/// record ([`topo::Body::one_record_across`]), so no reading names a
+/// record an earlier act retired. Every axis edge joins the same two
+/// caps, so the first act moves them and records the row, and the rest
+/// find them on one record already.
 #[allow(clippy::too_many_arguments)] // one internal call site.
 fn finish_partial<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
@@ -379,12 +383,12 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
     bases: &[Vec<topo::HalfEdgeKey>],
     walls_all: &[Vec<Option<FaceKey>>],
     tops_all: &[Vec<Option<EdgeKey>>],
-    mut start_surface: topo::SurfaceKey,
-    mut end_surface: topo::SurfaceKey,
+    start_surface: topo::SurfaceKey,
+    end_surface: topo::SurfaceKey,
     band: Band,
     tol: Tol,
 ) -> Result<Option<topo::Coincidence>, RevolveError> {
-    let mut coplanar = None;
+    let mut smooth_joins = Vec::new();
     for (li, col) in cols.iter().enumerate() {
         for (j, seg) in col.segs.iter().enumerate() {
             let segment_index = seg.canonical_segment;
@@ -413,21 +417,19 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
                         sliver,
                         tol,
                     )?;
-                    // Two caps the axis edge joins smoothly are one
-                    // carrier (a half turn): the verdict that read the
-                    // join leaves them on one record and records its row.
                     if let Some(verdict) = smooth {
-                        let start_cap = face_wearing(body, bottom, start_surface);
-                        if let Some(row) = body.one_record_across(verdict, start_cap, tol)? {
-                            let Ok(sides) = topo::readback::edge_sides(body, bottom) else {
-                                unreachable!("axis edge {bottom:?} was read a moment ago")
-                            };
-                            (start_surface, end_surface) = sides.surfaces();
-                            coplanar = Some(row);
-                        }
+                        smooth_joins.push((verdict, face_wearing(body, bottom, start_surface)));
                     }
                 }
             }
+        }
+    }
+    let mut coplanar = None;
+    for (verdict, start_cap) in smooth_joins {
+        if let Some(row) = body.one_record_across(verdict, start_cap, tol)?
+            && coplanar.replace(row).is_some()
+        {
+            unreachable!("every axis edge joins the one start cap to the one end cap");
         }
     }
     Ok(coplanar)
