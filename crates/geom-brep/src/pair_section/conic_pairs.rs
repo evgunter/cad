@@ -88,7 +88,11 @@ impl<T: Decide> PlaneSpherePose<T> {
     /// # Errors
     ///
     /// The door's: the centre gap in band.
-    pub fn decide(a: &Surface<T>, b: &Surface<T>, band: Band) -> Option<Result<Self, SectionError>> {
+    pub fn decide(
+        a: &Surface<T>,
+        b: &Surface<T>,
+        band: Band,
+    ) -> Option<Result<Self, SectionError>> {
         let (plane, sphere, plane_first) = match (a, b) {
             (Surface::Plane { .. }, Surface::Sphere { .. }) => (a, b, true),
             (Surface::Sphere { .. }, Surface::Plane { .. }) => (b, a, false),
@@ -142,7 +146,11 @@ impl<T: Decide> SphereSpherePose<T> {
     ///
     /// The door's: a row in band, and two spheres decided one
     /// ([`SectionError::CoincidentSurfaces`]).
-    pub fn decide(a: &Surface<T>, b: &Surface<T>, band: Band) -> Option<Result<Self, SectionError>> {
+    pub fn decide(
+        a: &Surface<T>,
+        b: &Surface<T>,
+        band: Band,
+    ) -> Option<Result<Self, SectionError>> {
         let (Surface::Sphere { .. }, Surface::Sphere { .. }) = (a, b) else {
             return None;
         };
