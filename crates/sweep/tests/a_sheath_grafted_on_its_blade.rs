@@ -157,6 +157,7 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
                             lever: None,
                             verdict: geom_brep::recourse::Refused::Zero(_),
                         },
+                        ..
                     }
                 )
             ),

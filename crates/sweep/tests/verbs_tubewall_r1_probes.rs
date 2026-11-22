@@ -393,6 +393,7 @@ mod certified {
                                     cause,
                                 },
                             ),
+                            ..
                         },
                     })) if crate::common::frame_cost::escalated(
                         cause,

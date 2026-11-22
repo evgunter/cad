@@ -472,6 +472,7 @@ fn transversality_refused(r: &Result<BooleanResult<f64>, topo::BooleanError>) ->
                     check: CertCheck::Transversality,
                     ..
                 },
+            ..
         })
     )
 }

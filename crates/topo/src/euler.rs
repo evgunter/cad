@@ -1427,11 +1427,11 @@ impl EulerOpError {
         match self {
             Self::DescriptionUncertified { edge, error } => {
                 let edge = edge.map_or_else(
-                    || "the edge the door mints".to_string(),
-                    |edge| format!("edge {edge:?}"),
+                    || "the minted edge's".to_string(),
+                    |edge| format!("edge {edge:?}'s"),
                 );
                 format!(
-                    "{edge}: its description does not certify: {}",
+                    "{edge} description does not certify: {}",
                     read_at(error, at)
                 )
             }

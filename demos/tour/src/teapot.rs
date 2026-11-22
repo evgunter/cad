@@ -1639,6 +1639,7 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, tol: Tol) -> bool {
                     check: CertCheck::PlaneNurbsHullValue,
                     ..
                 },
+                ..
             })
         );
     }

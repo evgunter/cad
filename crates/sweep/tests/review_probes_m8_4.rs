@@ -190,6 +190,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
                     cause,
                     ..
                 },
+            ..
         }) => {
             assert!(eps < 1e-13, "only the ε-fine cell refuses: {cause:?}");
             let geom_core::ErrorTextReading::Value(sup) =

@@ -108,6 +108,7 @@ fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
                 cause,
                 ..
             },
+        ..
     })) = &err
     else {
         panic!("{what}: {err:?}");

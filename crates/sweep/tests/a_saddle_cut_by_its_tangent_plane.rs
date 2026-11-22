@@ -80,6 +80,7 @@ fn a_saddle_cut_by_its_tangent_plane_refuses_at_its_node_arcs_under_every_op() {
                     limb: geom_brep::SsiLimb::ImageMiss,
                     ..
                 }),
+                ..
             })
         )
     };

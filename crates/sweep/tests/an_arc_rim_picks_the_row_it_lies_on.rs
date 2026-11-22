@@ -228,6 +228,7 @@ fn an_intersection_circle_on_a_spline_wall_is_refused_at_the_door() {
     let refused = body.set_edge_curve(edge, spec, tol());
     let Err(EulerOpError::DescriptionUncertified {
         error: ref error @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, margin }),
+        ..
     }) = refused
     else {
         panic!(

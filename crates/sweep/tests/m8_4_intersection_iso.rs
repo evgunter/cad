@@ -229,6 +229,7 @@ fn seam_at_eps(swap: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::Surfac
                     cause,
                     ..
                 },
+            ..
         }) => {
             assert!(eps < 1e-13, "only the ε-fine cell refuses: {cause:?}");
             let geom_core::ErrorTextReading::Value(sup) =

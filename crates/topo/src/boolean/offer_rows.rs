@@ -593,7 +593,7 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
 // edges'), so the wedge reads in the band only where the pair itself
 // nearly turns tangent at the vertex: a vertex near a crossing of the
 // locus. A few-ε arc is not the way in: its own certification refuses
-// it at mint (`Certification` `Escalated { Transversality }`), so no
+// it at mint (`DescriptionUncertified` `Escalated { Transversality }`), so no
 // certified edge beside the vertex is that short
 // (`crates/sweep/tests/join_lever_is_the_joined_edge.rs`).
 const EDGE_JOIN_SITE: Door = Door::Site(
