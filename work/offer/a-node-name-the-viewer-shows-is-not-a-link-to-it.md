@@ -1,11 +1,12 @@
 ---
 id: a-node-name-the-viewer-shows-is-not-a-link-to-it
-kind: issue
+kind: unit
 title: viewer: a node's name shown in a pane, a notice or a refusal is plain text rather than a link to the node
-status: open
+status: parked
 opened: 2026-11-22
 priority: P1
 cost: M
+blocked_on: [the-viewer-spells-a-node-as-its-kind-before-its-name]
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "any time it says something like 'Revolve 3', you should be able to click it to take you to it".
@@ -25,3 +26,11 @@ The uniform fix is for a node name to reach the screen as a value the renderer c
 **Tree.** The tree scrolls the selected row into view whenever the selection changes from outside the tree.
 
 No row is filed for names running off a pane's right edge: the pane scrolls (Ev).
+
+## The unit (2026-11-22)
+
+This unit builds the viewer half and stacks on `the-viewer-spells-a-node-as-its-kind-before-its-name`.
+- **One sentence widget.** It draws a kernel `Sentence`, wrapped the way messages wrap today, with each linkable mention underlined. A click selects the node. A mention is a link only when its document is the one on screen and that document holds the node.
+- **No text-only home for a message.** `frame::Message`, `CheckRow`, the Properties headings, the placement editor's "copy of" and the View pane's names all hold a sentence.
+- **The tree scrolls to the selection.** It scrolls the selected row into view whenever the selection changes from outside the tree.
+- **Feasibility comes first.** Before anything else, check whether egui can hit-test a mention inside one laid-out text block (`cursor_from_pos`). Neither designer checked this.

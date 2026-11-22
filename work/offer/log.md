@@ -138,4 +138,20 @@ Filed, as the design requires:
 - `the-viewer-has-one-assertion-tool`: letter M, tier SINGLE, FULL review. It writes claims into the document, and a wrong claim shape fails silently: it would not quiet.
 
 The local disk has 8 GB free and two lane targets are live, so these lanes run as their own cloud sessions.
+- 2026-11-22 — **Dispatched as cloud sessions**, because this container's disk is the limit:
+  - `a-check-offers-…` on `offer/a-check-carries-the-assertion-that-quiets-it`, session `session_013QoYWW3B3DSwxBw5VaTjDN`;
+  - `the-viewer-has-one-assertion-tool` on `offer/the-viewer-has-one-assertion-tool`, session `session_013QoYWYBtUXfoqieYNpg1n1`.
+
+  Each reports to the orchestrator's session by `send_message`. The draws are on `analysis/model-compare/offer-2026-11-22`. (OFFER orchestrator)
 - 2026-11-22 — **Ev answered #7339:** names are decided, as recorded in the row's `## Decided` section. Fork-log row 300 (renumbered from 297, which another fork took on main) is completed: A is Opus 5.5 and B is Fable 5.2. The truncation row I filed on CHROME was reverted before it reached main, at Ev's word. (OFFER orchestrator)
+
+## 2026-11-22 — the names build, cut
+
+(OFFER orchestrator) Ev decided names on #7339, which is now merged. The build is cut into three units:
+1. `the-viewer-spells-a-node-as-its-kind-before-its-name`, claimed from VNEWS. It is the kernel half (the typed sentence, mentions, the spelling) and leaves the viewer compiling on the new spelling. Once it lands, every surface already reads `"label" (tag)`.
+2. `a-node-name-the-viewer-shows-is-not-a-link-to-it`: the sentence widget and links, plus the tree scrolling to the selection. It is parked on 1 and stacks on it.
+3. `a-placement-and-its-part-do-not-link-to-each-other`: reads and read-by in Properties. `a-made-body-…` rides with it. It runs alongside 1.
+
+**Dispatch, letters and tiers** (logged before any draw):
+- 1 is letter H, tier DUAL. It is an architectural change to how every sentence the kernel hands out is built (56 `Say` impls, the Python stubs), and it would be hard to change later.
+- 3 is letter M, tier SINGLE, FULL review. A wrong relation shown as a link is a confident wrong answer.
