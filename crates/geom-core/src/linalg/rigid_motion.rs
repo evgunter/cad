@@ -1362,7 +1362,8 @@ impl<T: Real> RigidMotion<T> {
     /// (`A ≥ 1 − |A − 1|`, `‖u⊥‖² ≥ 1 − |U − 1| − θ²`, clamped at zero, so
     /// the bounds hold at any defect, a seam past `|A − 1| = 1` reading
     /// infinite), and the dozen operations after, on non-negative terms,
-    /// charged as a short chain ([`crate::rounding_charge`]).
+    /// charged as a short chain ([`crate::rounding_charge`]). An
+    /// axis-aligned frame reads exactly zero.
     #[must_use]
     pub fn rounding(self) -> (T, T) {
         if T::WITNESS == crate::real::Witness::Exact {
@@ -1470,9 +1471,18 @@ impl<T: Real> RigidMotion<T> {
 /// binary64 ([`RigidMotion::rounding`]'s one reader): each product split
 /// error-free by Dekker's two-product (Veltkamp's split by `2²⁷ + 1`, no
 /// fused multiply), each sum by Knuth's two-sum, the pair `(hi, lo)`
-/// kept. The pair's own error, at most `4u²` of the terms' magnitude sum,
-/// is charged on top, and a product under the split's floor (`10⁻²⁸⁸`,
-/// past which the split loses bits) is charged its whole size.
+/// kept. What is charged on top is what rounds:
+///
+/// - `lo`'s six additions, each off by `u` of a partial sum no larger than
+///   `L`, the sum of the error terms' magnitudes: `8u·L` covers them;
+/// - the pair's final collapse to one number, `u` of its value;
+/// - a product under the split's floor `τ = 10⁻²⁹⁰`, above the `2⁻⁹⁶⁹`
+///   past which its error term can underflow, its whole size. The charge
+///   is the tent `max(0, min(t, τ, 2τ − t))` of the product's size `t`:
+///   `t` below `τ`, and zero from `2τ`, where the split is exact.
+///
+/// So where every product and sum is exact (an axis-aligned frame) the
+/// bound is the value itself, and zero on a unit axis.
 fn exact_sum_of_products<T: Real>(terms: &[(T, T); 3], k: T) -> T {
     let split = |x: T| {
         let c = T::from_f64(134_217_729.0) * x;
@@ -1489,21 +1499,22 @@ fn exact_sum_of_products<T: Real>(terms: &[(T, T); 3], k: T) -> T {
         let yy = s - x;
         (s, (x - (s - yy)) + (y - yy))
     };
+    let tau = T::from_f64(1e-290);
+    let tent = |t: T| t.min(tau).min(tau + tau - t).max(T::zero());
     let (mut hi, mut lo) = (k, T::zero());
-    let mut size = k.abs();
-    let mut floor = T::zero();
+    let (mut low, mut floor) = (T::zero(), T::zero());
     for &(x, y) in terms {
         let (p, e) = two_product(x, y);
-        size = size + p.abs();
-        floor = floor + (x * y).abs().min(T::from_f64(1e-288));
+        floor = floor + tent(p.abs());
         let (s, f) = two_sum(hi, p);
         hi = s;
+        low = low + f.abs() + e.abs();
         lo = lo + f + e;
     }
     let (s, f) = two_sum(hi, lo);
     let value = s + f;
     let u = T::from_f64(crate::UNIT_ROUNDOFF);
-    let charge = T::from_f64(4.0) * u.powi(2) * size + floor;
+    let charge = T::from_f64(8.0) * u * low + u * value.abs() + floor;
     value.abs() + charge
 }
 
@@ -4547,6 +4558,28 @@ mod least_turn_spelling_probe {
                     }
                 }
             }
+        }
+    }
+
+    /// **An axis-aligned frame's rounding is exactly zero at `f64`**: its
+    /// products and sums are exact, so [`RigidMotion::rounding`] charges
+    /// nothing on top. A blanket charge on the double-double's terms would
+    /// read `10⁻³²` here, and it did move the thread-count golden's
+    /// `tilted_cut_upper` pads.
+    #[test]
+    fn an_axis_aligned_frames_rounding_is_zero() {
+        let id = RigidMotion::<f64>::identity();
+        let frames = [
+            id,
+            id.quarter_turned(),
+            id.quarter_turned().quarter_turned(),
+            id.half_turned(),
+            id.reversed(),
+            id.quarter_turned().reversed(),
+            id.quarter_turned().inverse().unwrap(),
+        ];
+        for (i, f) in frames.into_iter().enumerate() {
+            assert_eq!(f.rounding(), (0.0, 0.0), "frame {i}: {f:?}");
         }
     }
 }
