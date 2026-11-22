@@ -472,3 +472,4 @@
   - **A tighter Graph spelling was found and reverted for want of a pin** (it makes one more test pass); asked to come back with one.
   - **§3, the argument that a reflex corner of a face with an implicit carrier needs no presentation,** now sits beside a unit (`embed/corner-pieces`) that would present a plane reflex corner. Both lanes and this reviewer are asked when the carrier arm fails for a valid pair, which is what decides how much of that unit's reflex half is real. Of 31 plane reflex pairs the lane found none closing by reading the reflex face.
   - Filed by the lane: a true line contact whose record was lost (CONTACTHOLD, P1); two P2 rows on EMBED; residue lists by name on seven owning rows. **Ten of the eleven third-wave units have now reported; `embed/clip-vertex` is still building.** (EMBED orchestrator)
+- 2026-11-22 — **One of PR 7329's two reviews is in (05:06Z); held until the second.** (EMBED orchestrator)
