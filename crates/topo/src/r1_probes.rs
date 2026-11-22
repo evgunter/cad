@@ -462,7 +462,7 @@ fn r1_the_near_perpendicular_ray_keeps_its_roots() {
     match line_torus_roots(
         geom::Line {
             origin: Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
-            dir: geom_core::UnitVec3::constructed(Vec3::new(iv(d[0]), iv(d[1]), iv(d[2]))),
+            dir: geom_core::UnitVec3::checked(Vec3::new(d[0], d[1], d[2])).map_scalar(iv),
         },
         geom::Line {
             origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
@@ -517,7 +517,7 @@ fn r1_a_ray_on_the_resolvents_q_zero_surface_still_certifies_at_interval() {
     match line_torus_roots(
         geom::Line {
             origin: Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
-            dir: geom_core::UnitVec3::constructed(Vec3::new(iv(d[0]), iv(d[1]), iv(d[2]))),
+            dir: geom_core::UnitVec3::checked(Vec3::new(d[0], d[1], d[2])).map_scalar(iv),
         },
         geom::Line {
             origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
@@ -665,7 +665,7 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
             match line_torus_roots(
                 geom::Line {
                     origin: Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
-                    dir: geom_core::UnitVec3::constructed(Vec3::new(iv(d[0]), iv(d[1]), iv(d[2]))),
+                    dir: geom_core::UnitVec3::checked(Vec3::new(d[0], d[1], d[2])).map_scalar(iv),
                 },
                 geom::Line {
                     origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),

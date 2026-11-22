@@ -3006,8 +3006,7 @@ mod tests {
         };
         let ruling = Vec3::new(s, 0.0, c);
         let tangent = plane(Vec3::new(c, 0.0, -s), ruling);
-        let carrier =
-            geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::constructed(ruling));
+        let carrier = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::checked(ruling));
         assert!(
             !crate::tangent_certificate_lane(&carrier, &cone, &tangent),
             "the witness is out of lane"

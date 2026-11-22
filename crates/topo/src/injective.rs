@@ -7722,7 +7722,7 @@ mod presentation_rows {
             stated: None,
             key: edge(far),
             arc: Some((
-                Curve3::line(origin(), geom_core::UnitVec3::constructed(d)),
+                Curve3::line(origin(), geom_core::UnitVec3::checked(d)),
                 (iv0(0.0), iv0(4.0)),
             )),
             ends: [vertex(1), vertex(far)],
@@ -7995,7 +7995,7 @@ mod presentation_rows {
                 (
                     Curve3::line(
                         p(from),
-                        geom_core::UnitVec3::constructed(Vec3::new(
+                        geom_core::UnitVec3::checked(Vec3::new(
                             iv0(dx / len),
                             iv0(dy / len),
                             iv0(0.0),
@@ -8466,7 +8466,7 @@ mod presentation_rows {
         );
         let cylinder = Psi::Carrier(Implicit::Cylinder {
             o: origin(),
-            axis: geom_core::UnitVec3::constructed(z),
+            axis: geom_core::UnitVec3::checked(z),
             r: iv0(1.0),
         });
         assert_eq!(
@@ -10606,7 +10606,7 @@ mod presentation_rows {
     fn turning(w: f64) -> (Surface<Interval>, Surface<Interval>, Boundary, Boundary) {
         let s = Interval::from_bounds(-w, w);
         let d = Vec3::new(iv0(1.0), s, iv0(0.0));
-        let line = Curve3::line(origin(), geom_core::UnitVec3::constructed(d));
+        let line = Curve3::line(origin(), geom_core::UnitVec3::checked(d));
         let face = |sense: bool| Boundary {
             sense,
             edges: vec![Rim {

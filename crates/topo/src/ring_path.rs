@@ -898,12 +898,11 @@ impl<T: Real> LoopArc<T> {
     /// The straight arc from `from` to `to`.
     pub(crate) fn segment(from: Point3<T>, to: Point3<T>) -> Self {
         let d = to - from;
-        let (dir, length) = d.direction_and_length();
+        let (_, length) = d.direction_and_length();
         Self::Line {
-            // `d` over its own length: unit over the reals.
             line: geom::Line {
                 origin: from,
-                dir: UnitVec3::constructed(dir),
+                dir: UnitVec3::squared(d),
             },
             span: (T::zero(), length),
         }

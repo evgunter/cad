@@ -165,8 +165,8 @@ impl<T: Decide> ConeApex<T> {
     /// The cone's unit axis turned toward the nappe `like` (a ruling the
     /// face leaves the apex along) lies on.
     pub(crate) fn nappe_axis(&self, like: Vec3<T>) -> UnitVec3<T> {
-        // The unit axis, its sign chosen: unit as the axis is.
-        UnitVec3::constructed(self.axis.turned_toward(like))
+        // The unit axis, held bare and so checked, its sign chosen.
+        UnitVec3::checked(self.axis).turned_toward(like)
     }
 
     /// The unit ruling along the line through the apex along `d`, on the

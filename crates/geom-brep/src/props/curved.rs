@@ -7039,7 +7039,7 @@ mod ruling_scale_rows {
         let shift = (band().zero() * sin_a / cos_a / cos_a).sqrt();
         for (shift, generator) in [(0.0, true), (shift, false)] {
             for k in [1.0, -1.0] {
-                let dir = geom_core::UnitVec3::constructed(g * k);
+                let dir = geom_core::UnitVec3::checked(g * k);
                 let carrier = Curve3::line(apex + g + Vec3::new(0.0, shift, 0.0), dir);
                 let span = if k > 0.0 { (0.0, 1.0) } else { (-1.0, 0.0) };
                 let e = LoopEdge::hand_built(carrier, span.0, span.1, true, 0, 1);

@@ -143,7 +143,7 @@ impl<T: Real> EdgeBlend<T> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BallSection<T: Real> {
     pub(crate) centre: Point3<T>,
-    pub(crate) normal: Vec3<T>,
+    pub(crate) normal: geom_core::UnitVec3<T>,
     pub(crate) radius: T,
 }
 
@@ -154,7 +154,7 @@ impl<T: Real> BallSection<T> {
                 let (origin, axis) = (frame.origin(), frame.axis());
                 Some(Self {
                     centre: origin + axis * (p - origin).dot(axis),
-                    normal: axis,
+                    normal: frame.axis_unit(),
                     radius,
                 })
             }
@@ -168,7 +168,7 @@ impl<T: Real> BallSection<T> {
                 let radial = radial_about(center, axis, p);
                 Some(Self {
                     centre: center + radial * major_radius,
-                    normal: axis.cross(radial).normalize(),
+                    normal: geom_core::UnitVec3::squared(axis.cross(radial)),
                     radius: minor_radius,
                 })
             }

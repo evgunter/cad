@@ -8455,7 +8455,7 @@ mod arc_end_rows {
         };
         let line = geom::Curve3::line(
             geom_core::Point3::origin(),
-            geom_core::UnitVec3::constructed((q - geom_core::Point3::origin()) / reach),
+            geom_core::UnitVec3::chord(q - geom_core::Point3::origin()).0,
         );
         let got = wall_crossing(
             &body,

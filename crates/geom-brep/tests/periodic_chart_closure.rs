@@ -266,7 +266,7 @@ fn a_loop_of_many_rulings_turns_by_their_own_turns() {
             loop_.push(edge(
                 Curve3::line(
                     p3(a[0], a[1], a[2]),
-                    geom_core::UnitVec3::constructed(v3(d[0] / len, d[1] / len, d[2] / len)),
+                    geom_core::UnitVec3::checked(v3(d[0] / len, d[1] / len, d[2] / len)),
                 ),
                 0.0,
                 len,
@@ -364,7 +364,7 @@ fn segment<T: geom_core::Decide>(a: [f64; 3], b: [f64; 3]) -> LoopEdge<T> {
     edge(
         Curve3::line(
             p3(a[0], a[1], a[2]),
-            geom_core::UnitVec3::constructed(v3(d[0] / len, d[1] / len, d[2] / len)),
+            geom_core::UnitVec3::checked(v3(d[0] / len, d[1] / len, d[2] / len)),
         ),
         0.0,
         len,
@@ -1061,7 +1061,7 @@ fn kgen<T: geom_core::Real>(u: f64, v0: f64, v1: f64) -> LoopEdge<T> {
     edge(
         Curve3::line(
             p3(0.0, 0.0, 0.0),
-            geom_core::UnitVec3::constructed(v3(s * u.cos(), s * u.sin(), c)),
+            geom_core::UnitVec3::checked(v3(s * u.cos(), s * u.sin(), c)),
         ),
         v0,
         v1,
@@ -1264,7 +1264,7 @@ impl SkewCone {
         edge(
             Curve3::line(
                 p3(self.apex[0], self.apex[1], self.apex[2]),
-                geom_core::UnitVec3::constructed(v3(d[0], d[1], d[2])),
+                geom_core::UnitVec3::checked(v3(d[0], d[1], d[2])),
             ),
             v0,
             v1,

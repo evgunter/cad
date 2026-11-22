@@ -2907,7 +2907,7 @@ mod region_carry_tests {
                 LoopEdge::hand_built(
                     geom::Curve3::line(
                         iv(a),
-                        geom_core::UnitVec3::constructed(
+                        geom_core::UnitVec3::checked(
                             iv(Point3::origin() + (b - a)) - Point3::origin(),
                         ),
                     ),

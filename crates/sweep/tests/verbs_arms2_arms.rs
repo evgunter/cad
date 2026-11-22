@@ -270,7 +270,7 @@ impl Row {
             (b, center)
         } else {
             let sheet = Ruling {
-                tau: geom_core::UnitVec3::constructed(
+                tau: geom_core::UnitVec3::checked(
                     self.tau.expect("a ruled row carries its ruling"),
                 ),
                 rim: self.rim,

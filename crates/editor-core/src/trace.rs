@@ -519,6 +519,16 @@ fn lift_vec<T: Decide>(v: Vec2<T>) -> Vec3<T> {
     Vec3::new(v.x, v.y, T::zero())
 }
 
+/// A pen's heading in the body's coordinates: the sketch heading, unit by
+/// the pen's convention and so checked ([`geom_core::UnitVec3::checked`]),
+/// carried by the face's rigid sketch frame
+/// ([`geom_core::UnitVec3::through_isometry`]).
+fn heading_in_body<T: Decide>(face: &TracedFace<T>, heading: Vec2<T>) -> geom_core::UnitVec3<T> {
+    geom_core::UnitVec3::checked(lift_vec(heading))
+        .through_isometry(face.sketch_to_body.linear())
+        .0
+}
+
 /// The frame plane's point and normal, in the body's coordinates.
 fn plane_in_body<T: Decide>(face: &TracedFace<T>) -> (Point3<T>, Vec3<T>) {
     (
@@ -604,12 +614,11 @@ fn ray_to<T: Decide>(
 ) -> Result<kernel::Crossing<T>, TraceStepFault> {
     let surface = traced(face, band)?;
     let origin = face.sketch_to_body.transform_point(lift(pen));
-    let dir = face.sketch_to_body.transform_vec(lift_vec(heading));
+    let dir = heading_in_body(face, heading);
     let crossings = kernel::ray_crossings(
         surface,
         face.sense,
-        // A rigid map of the unit heading: unit over the reals.
-        &geom::Ray::new(origin, geom_core::UnitVec3::constructed(dir)),
+        &geom::Ray::new(origin, dir),
         reach_of(face, origin).map_err(TraceStepFault::Uncovered)?,
         band,
     )
@@ -729,13 +738,12 @@ pub fn trace_marks(
             ),
         ] {
             let origin = face.sketch_to_body.transform_point(lift(from));
-            let dir = face.sketch_to_body.transform_vec(lift_vec(heading));
+            let dir = heading_in_body(face, heading);
             let reach = reach_of(face, origin).map_err(TraceStepFault::Uncovered)?;
             let Ok(crossings) = kernel::ray_crossings(
                 surface,
                 face.sense,
-                // A rigid map of the unit heading: unit over the reals.
-                &geom::Ray::new(origin, geom_core::UnitVec3::constructed(dir)),
+                &geom::Ray::new(origin, dir),
                 reach,
                 band,
             ) else {

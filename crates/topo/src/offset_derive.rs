@@ -1891,7 +1891,7 @@ mod regions {
         let wall = net(&|i, j| 0.5 * (i + j) as f64);
         let old = Curve3::line(
             Point3::origin(),
-            geom_core::UnitVec3::constructed(Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt()),
+            geom_core::UnitVec3::checked(Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt()),
         );
         let got = plane_wall_section(
             &ground(),

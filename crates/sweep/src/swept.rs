@@ -83,9 +83,9 @@ pub(crate) struct Placing<T: Real> {
 /// placement.
 ///
 /// It holds the axis as a decided unit direction ([`UnitVec3`]) beside its
-/// point, not as a [`geom::Line`]: the rotation reads a unit axis, and a
-/// `Line` reads any nonzero direction, so the unit is minted once where
-/// the turn is built and carried here as the value the rotation takes.
+/// point, minted once where the turn is built and carried here as the
+/// value the rotation takes; a [`geom::Line`] would hold the same pair
+/// with an arc-length parameter the turn has no use for.
 #[derive(Clone, Copy, Debug)]
 struct Turn<T: Real> {
     origin: Point3<T>,
@@ -156,7 +156,11 @@ impl<T: Real> Placing<T> {
     /// re-derived from placed points.
     pub(crate) fn direction(self, d: Unit2<T>) -> Unit3<T> {
         let Unit2(d) = d;
-        Unit3(self.carry(self.place.linear * Vec3::new(d.x, d.y, T::zero())))
+        // A rigid carry of a normalized sketch direction, a bare `Vec2`
+        // unit by its normalization: checked ([`UnitVec3::checked`]).
+        Unit3(UnitVec3::checked(
+            self.carry(self.place.linear * Vec3::new(d.x, d.y, T::zero())),
+        ))
     }
 
     /// **The station's frame**: the rigid frame this placing's
@@ -609,24 +613,23 @@ impl<T: Real> Unit2<T> {
 /// a [`Surface`] stores it, and carried on as the kernel's witness where
 /// a line does ([`Unit3::unit`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Unit3<T: Real>(Vec3<T>);
+pub(crate) struct Unit3<T: Real>(UnitVec3<T>);
 
 impl<T: Real> Unit3<T> {
     /// The direction, for a carrier that stores bare vectors.
     pub(crate) fn get(self) -> Vec3<T> {
-        self.0
+        self.0.get()
     }
 
     /// **The direction as the kernel's witness**, for a carrier that
-    /// stores one (a line's direction): unit by this type's own
-    /// construction, its bits kept.
+    /// stores one (a line's direction): the one this type holds.
     pub(crate) fn unit(self) -> UnitVec3<T> {
-        UnitVec3::constructed(self.0)
+        self.0
     }
 
     /// A frame's decided axis.
     pub(crate) fn from_frame(u: UnitVec3<T>) -> Self {
-        Self(u.get())
+        Self(u)
     }
 
     /// **The vector arm's one normalization**: a vector the extrude was
@@ -635,7 +638,7 @@ impl<T: Real> Unit3<T> {
     /// at `f64`; over a box it carries the box's width
     /// (`work/boxfinish/a-boxed-vector-extrusions-walls-carry-the-vectors-width.md`).
     pub(crate) fn normalized(v: Vec3<T>) -> Self {
-        Self(v.normalize())
+        Self(UnitVec3::squared(v))
     }
 
     /// The opposite direction.
@@ -645,7 +648,7 @@ impl<T: Real> Unit3<T> {
 
     /// `self × other`, normalized: the vector arm's wall normal.
     pub(crate) fn cross_normalized(self, other: Self) -> Self {
-        Self::normalized(self.0.cross(other.0))
+        Self::normalized(self.get().cross(other.get()))
     }
 }
 

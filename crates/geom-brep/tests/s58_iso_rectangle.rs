@@ -215,7 +215,7 @@ fn cone_plus_domain_and_the_rectangle_both_measure() {
         edge(
             Curve3::line(
                 p3(0.0, 0.0, 0.0),
-                geom_core::UnitVec3::constructed(v3(sa * u.cos(), sa * u.sin(), ca)),
+                geom_core::UnitVec3::checked(v3(sa * u.cos(), sa * u.sin(), ca)),
             ),
             v0,
             v1,
@@ -561,7 +561,7 @@ fn a_rim_free_cone_refuses_at_both_doors() {
         edge(
             Curve3::line(
                 p3(0.0, 0.0, 0.0),
-                geom_core::UnitVec3::constructed(v3(sa * u.cos(), sa * u.sin(), ca)),
+                geom_core::UnitVec3::checked(v3(sa * u.cos(), sa * u.sin(), ca)),
             ),
             v0,
             v1,

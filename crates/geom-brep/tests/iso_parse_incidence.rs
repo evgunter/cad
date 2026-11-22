@@ -367,7 +367,7 @@ fn skew_sector<T: Real>() -> (Surface<T>, Vec<LoopEdge<T>>) {
     };
     let edges = vec![
         edge(
-            Curve3::line(apex, geom_core::UnitVec3::constructed(g(T::zero()))),
+            Curve3::line(apex, geom_core::UnitVec3::checked(g(T::zero()))),
             two,
             0,
         ),
@@ -379,7 +379,7 @@ fn skew_sector<T: Real>() -> (Surface<T>, Vec<LoopEdge<T>>) {
         edge(
             Curve3::line(
                 apex + g(T::one()) * two,
-                geom_core::UnitVec3::constructed(Vec3::zero() - g(T::one())),
+                geom_core::UnitVec3::checked(Vec3::zero() - g(T::one())),
             ),
             two,
             2,

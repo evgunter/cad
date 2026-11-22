@@ -784,7 +784,7 @@ mod tests {
         );
         let line = geom::Curve3::Line(geom::Line {
             origin: o,
-            dir: geom_core::UnitVec3::constructed(x),
+            dir: geom_core::UnitVec3::checked(x),
         });
         let circle = geom::Curve3::circle(o, z, 1.0, x);
         let ellipse =

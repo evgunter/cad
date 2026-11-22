@@ -1894,7 +1894,7 @@ fn mixed_corner_reach<T: Decide + Bounds>(
             let spine = geom::Line {
                 origin: q,
                 // The section plane's unit normal ([`BallSection`]).
-                dir: UnitVec3::constructed(axis),
+                dir: axis,
             };
             bounds.push((Role::Side(m.host), half_space(pv, n_e, q)));
             bounds.push((Role::Other, half_space(q, n_e, p_e)));
@@ -1910,7 +1910,7 @@ fn mixed_corner_reach<T: Decide + Bounds>(
             }
             for (i, (_, c)) in rests.iter().enumerate() {
                 let (_, beyond) = rests[1 - i];
-                bounds.push((Role::Other, half_space(q, axis.cross(*c - q), beyond)));
+                bounds.push((Role::Other, half_space(q, axis.get().cross(*c - q), beyond)));
             }
             let meridian = canonical_axis(spine);
             bounds.push((
@@ -1941,7 +1941,7 @@ fn mixed_corner_reach<T: Decide + Bounds>(
             // The region lies in the torus's convex hull, `ρ ≤ R + r`
             // about its axis and within `r` of its centre along it: its
             // box is that of the torus's cover.
-            let frame = Frame::new(q, axis, (rests[0].1 - q).normalize());
+            let frame = Frame::new(q, axis.get(), (rests[0].1 - q).normalize());
             let (lo, hi) = Cover::torus(&frame, major, radius)
                 .map(|c| c.box_in(&BoxAxes::World))
                 .ok_or_else(|| {
@@ -3474,7 +3474,7 @@ mod tests {
     fn leaning<T: geom_core::Real>(t: f64) -> geom::Line<T> {
         geom::Line {
             origin: Point3::new(T::zero(), T::zero(), T::zero()),
-            dir: geom_core::UnitVec3::constructed(Vec3::new(
+            dir: geom_core::UnitVec3::checked(Vec3::new(
                 T::from_f64(t.sin()),
                 T::zero(),
                 T::from_f64(t.cos()),
@@ -3933,7 +3933,7 @@ mod tests {
                                         fi,
                                         geom::Line {
                                             origin: oi,
-                                            dir: geom_core::UnitVec3::constructed(ai)
+                                            dir: geom_core::UnitVec3::checked(ai)
                                         },
                                         band
                                     )),
@@ -4025,7 +4025,7 @@ mod tests {
                                 fi,
                                 geom::Line {
                                     origin: oi,
-                                    dir: geom_core::UnitVec3::constructed(ai)
+                                    dir: geom_core::UnitVec3::checked(ai)
                                 },
                                 band
                             )),
@@ -4180,7 +4180,7 @@ mod tests {
                         for (lo, hi) in boxes {
                             let axis = geom::Line {
                                 origin: o,
-                                dir: geom_core::UnitVec3::constructed(a),
+                                dir: geom_core::UnitVec3::checked(a),
                             };
                             let Some((g, slack)) = sheet_fn(&s, axis, (lo, hi)) else {
                                 continue;

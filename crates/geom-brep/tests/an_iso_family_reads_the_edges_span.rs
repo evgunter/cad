@@ -73,12 +73,8 @@ fn a_partial_edge_reads_the_family_its_whole_carrier_does() {
         (
             "a cone generator",
             geom::pole_form::cone_generator(
-                geom::Line {
-                    origin: o,
-                    dir: geom::stated_direction(z),
-                },
+                geom_core::RigidMotion::squared_about(o, geom::stated_direction(z), x),
                 PI / 6.0,
-                x,
             ),
             &cone,
             (0.0, 1.0),

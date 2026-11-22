@@ -2785,18 +2785,19 @@ pub(crate) fn turn_reading<T: Decide>(
             )
         })?;
     let p = point_at(body, vertex)?;
-    // Each edge's unit direction out of the vertex.
+    // Each edge's unit direction out of the vertex: its chord, squared.
     let out = |e: EdgeKey| {
         let far = body
             .edge_vertices(e)
             .map(|(start, end)| if start == vertex { end } else { start });
         far.and_then(|v| body.get_vertex(v))
             .and_then(|v| body.get_point(v.point))
-            .map(|q| (*q - p).normalize())
+            .map(|q| UnitVec3::squared(*q - p))
             .ok_or_else(|| unresolved(EntityId::Edge(e), "a turning edge's far end"))
     };
-    let along = out(third)?;
-    let dirs = [out(l1.edge)?, out(l2.edge)?];
+    let along_unit = out(third)?;
+    let along = along_unit.get();
+    let dirs = [out(l1.edge)?.get(), out(l2.edge)?.get()];
     let other = |l: &Link<T>| {
         if l.face_a == shared {
             l.face_b
@@ -2820,8 +2821,7 @@ pub(crate) fn turn_reading<T: Decide>(
                 t,
                 geom::Line {
                     origin: p,
-                    // An edge's normalized chord: unit over the reals.
-                    dir: UnitVec3::constructed(along),
+                    dir: along_unit,
                 },
                 t.dir.get().cross(along),
             )

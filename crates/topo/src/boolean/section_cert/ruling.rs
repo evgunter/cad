@@ -485,8 +485,8 @@ impl<T: Real> Chart<T> {
         geom::Line {
             origin: self.base + self.offset.at(theta),
             // The chart's ruling swing, an axis and its square pair
-            // weighted by `cos`, `sin`: unit over the reals at every `θ`.
-            dir: geom_core::UnitVec3::constructed(self.dir.at(theta)),
+            // weighted by `cos`, `sin`, held as bare vectors: checked.
+            dir: geom_core::UnitVec3::checked(self.dir.at(theta)),
         }
     }
 }

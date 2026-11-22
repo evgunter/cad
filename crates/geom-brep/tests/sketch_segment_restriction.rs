@@ -244,7 +244,7 @@ fn whole_range_mismatches<T: Real>(
                         place,
                         axis: geom::Line {
                             origin: q,
-                            dir: geom_core::UnitVec3::constructed(n),
+                            dir: geom_core::UnitVec3::checked(n),
                         },
                         angle,
                     },

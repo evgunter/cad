@@ -2126,7 +2126,9 @@ impl<T: Real> ApexFan<T> {
     /// [`PlaneConeSection::ApexTangentLine`]'s readers rely on it.
     fn ruling(&self, phi: T) -> UnitVec3<T> {
         let (s, c) = phi.sin_cos();
-        UnitVec3::constructed(self.a * self.cos_a + (self.u * c + self.v * s) * self.sin_a)
+        // The squared frame's axes are bare vectors (`SquareFrame`), so the
+        // swing over them is checked, not typed by its frame.
+        UnitVec3::checked(self.a * self.cos_a + (self.u * c + self.v * s) * self.sin_a)
     }
 }
 
@@ -2540,8 +2542,8 @@ pub fn plane_cone_section<T: Decide>(
     let arm = geom::cover::Cover::circle(geom::cover::Core {
         axis: geom::Line {
             origin: apex + a * t,
-            // The square frame's axis, `a/|a|`: unit over the reals.
-            dir: UnitVec3::constructed(a),
+            // The square frame's axis, `a/|a|`, a bare vector: checked.
+            dir: UnitVec3::checked(a),
         },
         radius: rim_r,
     })
@@ -3212,8 +3214,8 @@ fn coaxial_cone_sphere<T: Decide>(
     }
     let axis = geom::Line {
         origin: apex,
-        // The square frame's axis, `a/|a|`: unit over the reals.
-        dir: UnitVec3::constructed(a),
+        // The square frame's axis, `a/|a|`, a bare vector: checked.
+        dir: UnitVec3::checked(a),
     };
     match decide("kos_coaxial", Margin::of(axis.distance(center)), band)
         .map_err(SectionError::Escalated)?
@@ -3364,8 +3366,8 @@ fn coaxial_cone_torus<T: Decide>(
     }
     let cone_axis = geom::Line {
         origin: apex,
-        // The square frame's axis, `a/|a|`: unit over the reals.
-        dir: UnitVec3::constructed(a),
+        // The square frame's axis, `a/|a|`, a bare vector: checked.
+        dir: UnitVec3::checked(a),
     };
     let off_axis = [
         decide("kot_coaxial", Margin::of(cone_axis.distance(center)), band),
@@ -3664,8 +3666,8 @@ pub fn cone_cylinder_section<T: Decide>(
     let (cone_axis, cylinder_axis) = (
         geom::Line {
             origin: apex,
-            // The square frame's axis, `a/|a|`: unit over the reals.
-            dir: UnitVec3::constructed(a),
+            // The square frame's axis, `a/|a|`, a bare vector: checked.
+            dir: UnitVec3::checked(a),
         },
         geom::Line { origin: o, dir: b },
     );

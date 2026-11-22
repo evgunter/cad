@@ -682,6 +682,18 @@ impl<T: Real> RigidMotion<T> {
         UnitVec3::by_construction(self.linear() * d.get())
     }
 
+    /// **A direction swung in this frame's `w`–`u` plane**: `w·c + u·s`,
+    /// for `(c, s)` the cosine and sine of one angle off `w` toward `u`
+    /// (a cone's generator, `α` off its axis toward an azimuth). The two
+    /// axes are one frame's, so the swing is unit over the reals; its
+    /// rounding is measured and squared at a point scalar, and a pair
+    /// `(c, s)` off the unit circle is refuted, poisoned
+    /// ([`UnitVec3::through_isometry`]'s check).
+    #[must_use]
+    pub fn swing(self, c: T, s: T) -> UnitVec3<T> {
+        UnitVec3::kept_or_squared(self.w.get() * c + self.u.get() * s).0
+    }
+
     /// The identity motion: the world xy frame at the coordinate
     /// origin, its `w` computed as `x̂ × ŷ` ([`Self::axes_xy`]). One
     /// frame with [`Self::world`] at every scalar that represents `0` and

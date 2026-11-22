@@ -822,13 +822,11 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             half_angle,
             ..
         } => Ray {
+            // The azimuth is squared about the axis, so the generator
+            // swings in one frame's plane ([`geom::pole_form::cone_generator`]).
             carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::cone_generator(
-                geom::Line {
-                    origin: apex,
-                    dir: axis,
-                },
+                geom_core::RigidMotion::squared_about(apex, axis, d),
                 half_angle,
-                d,
             )),
             from: 0.0,
             sign: nappe,
@@ -1033,8 +1031,7 @@ fn strut_tip(
             origin: chart.origin(),
             dir: chart.axis_unit(),
         },
-        crate::signed_zero::plus_zero_point,
-        crate::signed_zero::plus_zero,
+        crate::signed_zero::fold_signed_zero,
     ) else {
         return Err(foreign_carrier(face_id));
     };
@@ -1753,8 +1750,7 @@ mod meetings_are_the_kernels {
                 origin,
                 dir: geom::stated_direction(z),
             },
-            crate::signed_zero::plus_zero_point,
-            crate::signed_zero::plus_zero,
+            crate::signed_zero::fold_signed_zero,
         ) else {
             unreachable!("a meridian circle has a half-turn twin")
         };

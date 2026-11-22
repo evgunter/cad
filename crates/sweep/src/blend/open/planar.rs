@@ -405,7 +405,8 @@ pub(in crate::blend) fn mixed_corner_geometry<T: Real>(
                     l.edge,
                     BallSection {
                         centre,
-                        normal,
+                        // A plane band's axis, normalized: checked.
+                        normal: geom_core::UnitVec3::checked(normal),
                         radius,
                     },
                 )

@@ -291,7 +291,7 @@ fn lift_depth(d: Around<f64>) -> Around<Interval> {
     match d {
         Around::Line(geom::Line { origin, dir: axis }) => Around::Line(geom::Line {
             origin: ip(origin),
-            dir: geom_core::UnitVec3::constructed(ivec(axis.get())),
+            dir: axis.map_scalar(iv),
         }),
         Around::Point(center) => Around::Point(ip(center)),
         Around::Circle(Core {
@@ -304,7 +304,7 @@ fn lift_depth(d: Around<f64>) -> Around<Interval> {
         }) => Around::Circle(Core {
             axis: geom::Line {
                 origin: ip(center),
-                dir: geom_core::UnitVec3::constructed(ivec(axis.get())),
+                dir: axis.map_scalar(iv),
             },
             radius: iv(radius),
         }),

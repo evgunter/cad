@@ -1262,8 +1262,8 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
         let frame = geom::Frame::new(apex, axis, u_ref).square();
         Self {
             apex,
-            // The square frame's axis, `a/|a|`: unit over the reals.
-            a: UnitVec3::constructed(frame.axis),
+            // The square frame's axis, `a/|a|`, a bare vector: checked.
+            a: UnitVec3::checked(frame.axis),
             alpha,
             sc: alpha.sin_cos(),
             u_ref: frame.u_ref,

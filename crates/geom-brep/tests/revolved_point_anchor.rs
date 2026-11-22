@@ -148,7 +148,7 @@ fn an_uncertain_axis_reaches_a_turned_sample_within_its_row_bound() {
             place: Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(3.0))),
             axis: geom::Line {
                 origin: Point3::new(w(1.0), w(2.0), w(3.0)),
-                dir: geom_core::UnitVec3::constructed(Vec3::new(iv(n.x), iv(n.y), iv(n.z))),
+                dir: geom_core::UnitVec3::checked(n).map_scalar(iv),
             },
             angle: iv(angle),
         })
@@ -540,7 +540,7 @@ fn on_an_origin_axis_a_whole_range_is_the_composite_maps_point_bit_for_bit() {
                 place: Affine3::translation(Vec3::new(iv(at[0]), iv(at[1]), iv(at[2]))),
                 axis: geom::Line {
                     origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    dir: geom_core::UnitVec3::constructed(Vec3::new(iv(n.x), iv(n.y), iv(n.z))),
+                    dir: geom_core::UnitVec3::checked(n).map_scalar(iv),
                 },
                 angle: iv(angle),
             });

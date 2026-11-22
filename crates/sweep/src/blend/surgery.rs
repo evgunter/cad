@@ -6150,7 +6150,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         ContactCarrier::Section { .. } | ContactCarrier::Generator
     );
     let plane = match &carrier {
-        ContactCarrier::Section(section) => Some(section.normal),
+        ContactCarrier::Section(section) => Some(section.normal.get()),
         _ => None,
     };
     let transverse = matches!(
@@ -6173,13 +6173,8 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         ContactCarrier::TrimLine(line) => placed(Curve3::Line(line))
             .ok_or_else(|| disagrees(EntityId::Edge(edge), "a trimline's end parameter"))?,
         ContactCarrier::Chord | ContactCarrier::SeamLine | ContactCarrier::Generator => {
-            let len = p0.distance(p1);
-            // The chord over its own length: unit over the reals.
-            (
-                Curve3::line(p0, UnitVec3::constructed((p1 - p0) / len)),
-                T::zero(),
-                len,
-            )
+            let (chord, len) = geom::Line::chord(p0, p1);
+            (Curve3::Line(chord), T::zero(), len)
         }
         // ONE construction for the three arc kinds, deliberately: a corner
         // arc, a band's slit and a section are the same short arc about a stored
@@ -6914,7 +6909,7 @@ mod tests {
             // `x + y = −8e-9`: `8e-9` below `x ≥ 0`'s part, in band, and
             // its window between the edges empty by `1.13e-8`, past it.
             let s = 0.5_f64.sqrt();
-            let diagonal = Curve3::line(p(0.0, -8e-9), geom_core::UnitVec3::constructed(v(s, -s)));
+            let diagonal = Curve3::line(p(0.0, -8e-9), geom_core::UnitVec3::checked(v(s, -s)));
             close(
                 margin(
                     &one,
@@ -6976,10 +6971,7 @@ mod tests {
                 (1e-10, band),
                 (1e-7, Band::new(1e-6, 1e-5).expect("the band at ε 1e-6")),
             ] {
-                let below = Curve3::line(
-                    p(-0.2, -0.27),
-                    geom_core::UnitVec3::constructed(v(1.0, 0.0)),
-                );
+                let below = Curve3::line(p(-0.2, -0.27), geom_core::UnitVec3::checked(v(1.0, 0.0)));
                 let w = (T::zero(), T::from_f64(0.2 - short));
                 close(
                     margin(&one, &below, w, band, "below"),
@@ -6994,7 +6986,7 @@ mod tests {
                 d - 0.4,
                 "a touch of one wedge beside a refusal in the next, at the refusal's depth",
             );
-            let to_edge = Curve3::line(p(-0.2, 0.1), geom_core::UnitVec3::constructed(v(1.0, 0.0)));
+            let to_edge = Curve3::line(p(-0.2, 0.1), geom_core::UnitVec3::checked(v(1.0, 0.0)));
             let w = (T::zero(), T::from_f64(0.2));
             close(
                 margin(&one, &to_edge, w, band, "to the edge"),

@@ -4707,7 +4707,7 @@ mod tests {
             };
             let line = geom::Curve3::line(
                 point(0.0, 0.0, a),
-                geom_core::UnitVec3::constructed(direction(1.0, 0.0, 0.0)),
+                geom_core::UnitVec3::checked(direction(1.0, 0.0, 0.0)),
             );
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
@@ -4787,7 +4787,7 @@ mod tests {
             };
             let line = geom::Curve3::line(
                 point(0.0, 0.0, a),
-                geom_core::UnitVec3::constructed(direction(1.0, 0.0, 0.0)),
+                geom_core::UnitVec3::checked(direction(1.0, 0.0, 0.0)),
             );
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });

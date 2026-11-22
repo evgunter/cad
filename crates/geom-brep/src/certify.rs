@@ -1925,7 +1925,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// it (U2's transience fence).
     pub fn line_between(p0: Point3<T>, p1: Point3<T>) -> Self {
         use geom_core::{Affine3, Point2};
-        let len = p0.distance(p1);
+        let (carrier, len) = geom::Line::chord(p0, p1);
         Self {
             description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
                 crate::mapped::MappedSource::ExtrudedPoint {
@@ -1934,8 +1934,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     vec: p1 - p0,
                 },
             )),
-            // The chord over its own length: unit over the reals.
-            carrier: Curve3::line(p0, UnitVec3::constructed((p1 - p0) / len)),
+            carrier: Curve3::Line(carrier),
             param_start: T::zero(),
             param_end: len,
         }
@@ -3463,19 +3462,28 @@ impl<T: Real> EdgeCurve<T> {
     /// and the carried certificate is each image's. Keeping that is the
     /// caller's, and `topo`'s data map (`map_isometry`) is the one caller.
     #[must_use]
+    ///
+    /// `stretch` is the factor the map scaled the carrier's parameter by:
+    /// `one` for every carrier but a line whose image direction was
+    /// squared ([`geom_core::UnitVec3::through_isometry`]), whose
+    /// parameter, arc length along the squared direction, is the old one
+    /// times the length the image was divided by. The span is scaled to
+    /// match, so the edge's ends stay where its vertices are.
     pub fn carried(
         &self,
         carrier: Curve3<T>,
+        stretch: T,
         description: EdgeDescription<T>,
         authority: EdgeAuthority<T>,
     ) -> Self
     where
         T: SpanLocate,
     {
+        let (param_start, param_end) = (self.param_start * stretch, self.param_end * stretch);
         Self {
             description,
             authority,
-            reading: match reading_of(&carrier, (self.param_start, self.param_end)) {
+            reading: match reading_of(&carrier, (param_start, param_end)) {
                 Ok(reading) => reading,
                 // A map keeps the carrier's kind, its knots and the
                 // interval, so the view this edge was certified on
@@ -3483,8 +3491,8 @@ impl<T: Real> EdgeCurve<T> {
                 Err(e) => unreachable!("a mapped edge's carrier has no view over its span: {e}"),
             },
             stored: carrier,
-            param_start: self.param_start,
-            param_end: self.param_end,
+            param_start,
+            param_end,
             turn: self.turn,
             certificate: self.certificate,
             locus: None,

@@ -137,7 +137,7 @@ fn hunt(
     let surface_i = surface.map_scalar(f);
     let line_i = Curve3::line(
         Point3::new(f(line.origin.x), f(line.origin.y), f(line.origin.z)),
-        geom_core::UnitVec3::constructed(Vec3::new(
+        geom_core::UnitVec3::checked(Vec3::new(
             f(line.dir.get().x),
             f(line.dir.get().y),
             f(line.dir.get().z),

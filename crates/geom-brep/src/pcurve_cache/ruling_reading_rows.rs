@@ -125,7 +125,7 @@ fn reading(carrier: &Curve3<f64>, span: (f64, f64), ruling: Ruling<f64>) -> (f64
     let point = |p: Point3<f64>| Point3::new(f(p.x), f(p.y), f(p.z));
     let line_i = geom::Line {
         origin: point(line.origin),
-        dir: geom_core::UnitVec3::constructed(lift3(line.dir.get())),
+        dir: line.dir.map_scalar(f),
     };
     let ruling_i = match ruling {
         Ruling::Axis(axis) => Ruling::Axis(lift3(axis)),

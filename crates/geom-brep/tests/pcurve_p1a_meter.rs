@@ -306,7 +306,7 @@ mod at_intervals {
         }]);
         let carrier = Curve3::line(
             Point3::new(iv(c * d), iv(0.0), iv(-s * d)),
-            geom_core::UnitVec3::constructed(Vec3::new(iv(s), iv(0.0), iv(c))),
+            geom_core::UnitVec3::checked(Vec3::new(s, 0.0, c)).map_scalar(iv),
         );
         let (t0, t1) = (iv(0.5), iv(2.0));
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));

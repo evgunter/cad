@@ -742,7 +742,7 @@ fn wall_on<T: geom_core::Real>(
         topo::edge(
             Curve3::line(
                 p3(a[0], a[1], a[2]),
-                geom_core::UnitVec3::constructed(v3(d[0], d[1], d[2])),
+                geom_core::UnitVec3::checked(v3(d[0], d[1], d[2])),
             ),
             t0,
             t1,

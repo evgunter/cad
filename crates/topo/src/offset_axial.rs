@@ -2362,12 +2362,9 @@ fn mint_carrier<T: Decide>(
             band,
         ) {
             Ok(Sign::Positive) => Ok(Curve3::Line(geom::Line { origin, dir })),
-            // The reversed direction, `0 − dir` as it was spelled: unit as
-            // `dir` is.
-            Ok(Sign::Negative) => Ok(Curve3::line(
-                origin,
-                UnitVec3::constructed(Vec3::zero() - dir.get()),
-            )),
+            // The reversed direction, `0 − dir` as it was spelled, its
+            // zeros positive ([`UnitVec3::reversed`]).
+            Ok(Sign::Negative) => Ok(Curve3::line(origin, dir.reversed())),
             Ok(Sign::Zero) => Err(refuse(
                 "a generator edge whose moved line stands square to its old one",
             )),
@@ -3507,11 +3504,15 @@ mod tests {
             place,
             axis: geom::Line {
                 origin: place.transform_point(Point3::new(lift(0.5), lift(1.0), lift(0.0))),
-                // `(1, 0.4, 0)` over its length, turned by the rigid `place`.
-                dir: geom_core::UnitVec3::constructed(place.transform_vec({
+                // `(1, 0.4, 0)` over its length, lifted, then turned by the
+                // rigid `place`.
+                dir: {
                     let len = 1.16_f64.sqrt();
-                    Vec3::new(lift(1.0 / len), lift(0.4 / len), lift(0.0))
-                })),
+                    geom_core::UnitVec3::checked(Vec3::new(1.0 / len, 0.4 / len, 0.0))
+                        .map_scalar(&lift)
+                        .through_isometry(place.linear)
+                        .0
+                },
             },
             angle: lift(1.9),
         })
@@ -3550,7 +3551,7 @@ mod tests {
             ),
             axis: geom::Line {
                 origin: p3(axis.origin),
-                dir: geom_core::UnitVec3::constructed(v3(axis.dir.get())),
+                dir: axis.dir.map_scalar(iv),
             },
             angle: iv(angle),
         })

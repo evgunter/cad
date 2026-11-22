@@ -18,7 +18,7 @@
 //! carriers ([`sphere_meridian`], [`cone_generator`]). It says what the
 //! cut is, not where a door makes it.
 
-use geom_core::{Point3, Real, UnitVec3, Vec3};
+use geom_core::{Point3, Real, RigidMotion, Vec3};
 
 use crate::Curve3;
 
@@ -39,25 +39,29 @@ pub fn half_turn<T: Real>(w: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
 }
 
 /// `carrier` turned a half turn about the line through `origin` along
-/// `axis`: the other meridian of the pair, given one. `point` and
-/// `vector` are applied to each placed point and direction after the
-/// turn, for a caller that normalizes what it mints (signed zeros, for
-/// one). Only a line or a circle has a pole-form twin; anything else
-/// answers `None`.
+/// `axis`: the other meridian of the pair, given one. `entry` is applied
+/// to each placed coordinate after the turn, for a caller that states
+/// one representative of what it mints (a signed zero folded), and must
+/// keep each entry's value. Only a line or a circle has a pole-form
+/// twin; anything else answers `None`.
 pub fn half_turn_curve<T: Real>(
     carrier: &Curve3<T>,
     axis: crate::Line<T>,
-    point: impl Fn(Point3<T>) -> Point3<T>,
-    vector: impl Fn(Vec3<T>) -> Vec3<T>,
+    entry: impl Fn(T) -> T,
 ) -> Option<Curve3<T>> {
     let crate::Line { origin, dir: axis } = axis;
-    let place = |p: Point3<T>| point(origin + half_turn(p - origin, axis.get()));
+    let vector = |w: Vec3<T>| Vec3::new(entry(w.x), entry(w.y), entry(w.z));
+    let place = |p: Point3<T>| {
+        let q = origin + half_turn(p - origin, axis.get());
+        Point3::new(entry(q.x), entry(q.y), entry(q.z))
+    };
     let turn = |w: Vec3<T>| vector(half_turn(w, axis.get()));
     match *carrier {
-        // A half turn is rigid: the image of a unit direction is unit.
+        // A half turn is rigid: the direction's own door
+        // ([`UnitVec3::half_turned`]), its entries folded in their kind.
         Curve3::Line(crate::Line { origin: o, dir }) => Some(Curve3::line(
             place(o),
-            UnitVec3::constructed(turn(dir.get())),
+            dir.half_turned(axis).map_scalar(&entry),
         )),
         Curve3::Circle(c) => Some(Curve3::circle(
             place(c.frame.origin()),
@@ -83,19 +87,16 @@ pub fn sphere_meridian<T: Real>(
     Curve3::circle(center, axis.cross(d), radius, axis)
 }
 
-/// The cone's generator at azimuth `d` (a unit direction perpendicular
-/// to `axis`): the line through the apex whose parameter is the
-/// surface's own slant `v`, `apex + (axis·cos α + d·sin α)·v`, so
-/// `v > 0` runs on the nappe opening along `axis` and `v < 0` on the
-/// other.
-pub fn cone_generator<T: Real>(axis: crate::Line<T>, half_angle: T, d: Vec3<T>) -> Curve3<T> {
-    let crate::Line {
-        origin: apex,
-        dir: axis,
-    } = axis;
+/// The cone's generator in `frame`'s `w`–`u` plane: the line through the
+/// apex `frame.origin()` whose parameter is the surface's own slant `v`,
+/// `apex + (w·cos α + u·sin α)·v` ([`RigidMotion::swing`]), so `v > 0`
+/// runs on the nappe opening along the axis `w` and `v < 0` on the
+/// other, at the azimuth `u`. A caller holding an axis and an azimuth
+/// squares the azimuth about the axis first
+/// ([`RigidMotion::squared_about`]).
+pub fn cone_generator<T: Real>(frame: RigidMotion<T>, half_angle: T) -> Curve3<T> {
     let (s, c) = half_angle.sin_cos();
-    // `axis ⊥ d`, both unit: the ruling is unit over the reals.
-    Curve3::line(apex, UnitVec3::constructed(axis.get() * c + d * s))
+    Curve3::line(frame.origin(), frame.swing(c, s))
 }
 
 #[cfg(test)]
@@ -138,8 +139,7 @@ mod tests {
                 origin: center,
                 dir: crate::stated_direction(axis),
             },
-            |p| p,
-            |w| w,
+            |x| x,
         )
         .unwrap();
         let other = sphere_meridian(center, radius, axis, -u_ref);
@@ -161,12 +161,8 @@ mod tests {
         let _ca = frame.axis();
         for (k, d) in azimuths(u_ref).into_iter().enumerate() {
             let g = cone_generator(
-                crate::Line {
-                    origin: apex,
-                    dir: frame.axis_unit(),
-                },
+                RigidMotion::squared_about(apex, frame.axis_unit(), d),
                 alpha,
-                d,
             );
             let u = if k == 0 { 0.0 } else { core::f64::consts::PI };
             for v in [-1.5, 0.0, 0.7] {

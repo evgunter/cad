@@ -68,9 +68,11 @@
 //!   it with no decision ([`Frame::new`]), where a degenerate statement
 //!   is poison. A line's `dir` is a [`geom_core::UnitVec3`], so its
 //!   parameter is arc length: a construction hands it a frame's axis, a
-//!   chord squared ([`Line::chord`], the segment its span `(0, length)`),
-//!   or a direction unit by the construction itself
-//!   ([`geom_core::UnitVec3::constructed`]); a stated `f64` direction
+//!   chord over its length ([`Line::chord`], the segment its span
+//!   `(0, length)`), or an isometry's image of a unit direction or a
+//!   swing in one frame's plane, each through its own door, which
+//!   measures its rounding at a point scalar ([`geom_core::UnitVec3`]'s
+//!   module docs); a stated `f64` direction
 //!   keeps its bits where it is unit to rounding and fails loud where it
 //!   is not ([`geom_core::UnitVec3::stated`]'s `None`, which the import
 //!   refuses typed).

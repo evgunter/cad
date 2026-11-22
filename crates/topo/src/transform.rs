@@ -56,7 +56,6 @@
 //!   fit net by the full affine map, `d` negated under a reflection,
 //!   the window and the certificate carried (`map_approx`).
 
-use geom_core::UnitVec3;
 use std::sync::Arc;
 
 use geom::Curve3;
@@ -401,11 +400,25 @@ fn map_approx<T: Real>(
 
 /// The carrier `map ∘ c` on `c`'s own parameter, under either hand: a
 /// carrier has no outward side, and keeping its parameter keeps every
-/// edge's range and its forward half-edge.
+/// edge's range and its forward half-edge. A caller holding a span on
+/// the carrier takes [`map_carrier_stretched`], which names the one
+/// rescale rounding can force.
 pub(crate) fn map_carrier<T: Real>(
     iso: &Isometry<T>,
     c: &Curve3<T>,
 ) -> Result<Curve3<T>, TransformError> {
+    map_carrier_stretched(iso, c).map(|(c, _)| c)
+}
+
+/// [`map_carrier`], with the factor the image's parameter is the old
+/// one's times: `one`, but for a line whose image direction a chain of
+/// maps carried past its rounding and the door squared
+/// ([`geom_core::UnitVec3::through_isometry`]), where arc length along the squared
+/// direction is the old parameter times the length divided by.
+pub(crate) fn map_carrier_stretched<T: Real>(
+    iso: &Isometry<T>,
+    c: &Curve3<T>,
+) -> Result<(Curve3<T>, T), TransformError> {
     let (map, hand) = (&iso.to_affine(), iso.hand());
     // A conic's frame: the frame's own image under a motion, and under a
     // reflection the axial axis, so the image keeps its parameter.
@@ -414,71 +427,74 @@ pub(crate) fn map_carrier<T: Real>(
         Isometry::Improper(_) => None,
     };
     let frame = |f: &geom::Frame<T>| map_frame(map, hand, motion, f, true);
-    Ok(match *c {
-        Curve3::Line(geom::Line { origin, dir }) => {
-            // A rigid map's image of a unit direction is unit.
-            Curve3::line(
-                map.transform_point(origin),
-                UnitVec3::constructed(map_vec(map, dir.get())),
-            )
-        }
-        // A rigid map preserves the sizes and the frame's orthonormality —
-        // the ellipse's axis ordering transfers unchanged, so no
-        // re-decision is needed (the constructor decided at mint; this is
-        // evaluation-lane data motion).
-        Curve3::Circle(c) => Curve3::Circle(c.with_frame(frame(&c.frame))),
-        Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(frame(&e.frame))),
-        // The same argument: a rigid map preserves both radii, the
-        // stand-off and the frame's orthonormality, so the two-oval
-        // regime and the carried side transfer unchanged — no
-        // re-decision (the mint decided; this is data motion).
-        Curve3::Spiric {
-            frame: carrier_frame,
-            major_radius,
-            minor_radius,
-            offset,
-        } => {
-            let (center, axis, u_ref) = (
-                carrier_frame.origin(),
-                carrier_frame.axis(),
-                carrier_frame.u_ref(),
-            );
-            // `(axis, u_ref, offset)` and `(−axis, −u_ref, −offset)` name
-            // one oval; under a reflection the image keeps its `v` with
-            // `axis` mapped and the plane's side negated.
-            // Under a motion the frame is moved, as a conic's is.
-            let (frame, offset) = match iso {
-                Isometry::Proper(motion) => (carrier_frame.moved(motion), offset),
-                Isometry::Improper(_) => (
-                    geom::Frame::new(
-                        map.transform_point(center),
-                        map_vec(map, axis),
-                        -map_vec(map, u_ref),
-                    ),
-                    -offset,
-                ),
-            };
+    Ok((
+        match *c {
+            Curve3::Line(geom::Line { origin, dir }) => {
+                // An isometry's image of a unit direction: measured, and
+                // squared past its rounding with the parameter stretched
+                // to match.
+                let (dir, stretch) = dir.through_isometry(map.linear);
+                return Ok((Curve3::line(map.transform_point(origin), dir), stretch));
+            }
+            // A rigid map preserves the sizes and the frame's orthonormality —
+            // the ellipse's axis ordering transfers unchanged, so no
+            // re-decision is needed (the constructor decided at mint; this is
+            // evaluation-lane data motion).
+            Curve3::Circle(c) => Curve3::Circle(c.with_frame(frame(&c.frame))),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(frame(&e.frame))),
+            // The same argument: a rigid map preserves both radii, the
+            // stand-off and the frame's orthonormality, so the two-oval
+            // regime and the carried side transfer unchanged — no
+            // re-decision (the mint decided; this is data motion).
             Curve3::Spiric {
-                frame,
+                frame: carrier_frame,
                 major_radius,
                 minor_radius,
                 offset,
+            } => {
+                let (center, axis, u_ref) = (
+                    carrier_frame.origin(),
+                    carrier_frame.axis(),
+                    carrier_frame.u_ref(),
+                );
+                // `(axis, u_ref, offset)` and `(−axis, −u_ref, −offset)` name
+                // one oval; under a reflection the image keeps its `v` with
+                // `axis` mapped and the plane's side negated.
+                // Under a motion the frame is moved, as a conic's is.
+                let (frame, offset) = match iso {
+                    Isometry::Proper(motion) => (carrier_frame.moved(motion), offset),
+                    Isometry::Improper(_) => (
+                        geom::Frame::new(
+                            map.transform_point(center),
+                            map_vec(map, axis),
+                            -map_vec(map, u_ref),
+                        ),
+                        -offset,
+                    ),
+                };
+                Curve3::Spiric {
+                    frame,
+                    major_radius,
+                    minor_radius,
+                    offset,
+                }
             }
-        }
-        // The surface arm's argument, one dimension down: a described
-        // net maps by its control points (weights and knots verbatim)
-        // and the placeholder alone is refused.
-        Curve3::Nurbs(ref n) => {
-            if n.is_placeholder() {
-                return Err(TransformError::NurbsPlaceholder);
+            // The surface arm's argument, one dimension down: a described
+            // net maps by its control points (weights and knots verbatim)
+            // and the placeholder alone is refused.
+            Curve3::Nurbs(ref n) => {
+                if n.is_placeholder() {
+                    return Err(TransformError::NurbsPlaceholder);
+                }
+                Curve3::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
             }
-            Curve3::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
-        }
-        // The same map of a periodic cubic's cyclic net.
-        Curve3::Periodic(ref n) => {
-            Curve3::Periodic(Arc::new(n.map_points(|p| map.transform_point(p))))
-        }
-    })
+            // The same map of a periodic cubic's cyclic net.
+            Curve3::Periodic(ref n) => {
+                Curve3::Periodic(Arc::new(n.map_points(|p| map.transform_point(p))))
+            }
+        },
+        T::one(),
+    ))
 }
 
 /// Applies the rigid motion to every geometric datum of `body`, returning
@@ -713,7 +729,8 @@ pub(crate) fn map_isometry<T: Decide>(
             continue;
         }
         let (param_start, param_end) = old.params();
-        let carrier = map_carrier(iso, old.stored_carrier())?;
+        let (carrier, stretch) = map_carrier_stretched(iso, old.stored_carrier())?;
+        let (param_start, param_end) = (param_start * stretch, param_end * stretch);
         let description = match old.description() {
             EdgeDescription::Intersection { pair, selector } => EdgeDescription::Intersection {
                 pair: *pair,
@@ -765,7 +782,8 @@ pub(crate) fn map_isometry<T: Decide>(
                 geom_brep::EdgeAuthority::Declared(map_mapped_curve(map, hand, &mc))
             }
         };
-        out.curves[curve_key] = CurveGeom::Certified(old.carried(carrier, description, authority));
+        out.curves[curve_key] =
+            CurveGeom::Certified(old.carried(carrier, stretch, description, authority));
         rewritten.insert(curve_key, ());
     }
     if out.curves.iter().any(|(k, _)| !rewritten.contains_key(k)) {
@@ -817,8 +835,13 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) 
                 place: *map * place,
                 axis: geom::Line {
                     origin: map.transform_point(axis.origin),
-                    // A rigid map's image of a unit direction is unit.
-                    dir: UnitVec3::constructed(hand.axial(map, axis.dir.get())),
+                    // An isometry's image of the unit axis, its sense
+                    // kept under either hand ([`Hand::axial`]); an axis
+                    // has no span to stretch.
+                    dir: match hand {
+                        Hand::Proper => axis.dir.through_isometry(map.linear).0,
+                        Hand::Improper => -axis.dir.through_isometry(map.linear).0,
+                    },
                 },
                 angle,
             },

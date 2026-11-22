@@ -1688,7 +1688,7 @@ fn a_found_meetings_root_is_divided_out_of_the_closed_form() {
     );
     let edge = Curve3::line(
         p(i(0.3, 0.3), i(-0.4, -0.4), i(0.0, 0.0)),
-        geom_core::UnitVec3::constructed(v(
+        geom_core::UnitVec3::checked(v(
             i(0.0, 0.0),
             i(0.999_999_999_999_999_7, 1.000_000_000_000_000_4),
             i(0.0, 0.0),
@@ -2242,7 +2242,7 @@ fn two_segments_on_one_line_far_apart_read_apart_at_interval() {
     );
     let b = Curve3::line(
         Point3::new(i(0.0), i(2.0 * ZERO), i(0.0)),
-        geom_core::UnitVec3::constructed(Vec3::new(i(1.0), i(ZERO), i(0.0))),
+        geom_core::UnitVec3::checked(Vec3::new(i(1.0), i(ZERO), i(0.0))),
     );
     let got = pose(
         &Span::new(&a, (i(0.0), i(1.0))),

@@ -755,14 +755,8 @@ impl<T: Real> Line<T> {
     /// no direction, and its line is poison.
     #[must_use]
     pub fn chord(a: Point3<T>, b: Point3<T>) -> (Self, T) {
-        let d = b - a;
-        (
-            Self {
-                origin: a,
-                dir: UnitVec3::squared(d),
-            },
-            d.norm(),
-        )
+        let (dir, len) = UnitVec3::chord(b - a);
+        (Self { origin: a, dir }, len)
     }
 
     /// **The line's point at `t`**: `origin + dir·t`, the carrier's own

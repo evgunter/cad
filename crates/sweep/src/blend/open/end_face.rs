@@ -518,23 +518,21 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let pa = line.at(ta);
         let chord = line.at(tb) - pa;
         // The chord is not the zero vector: the window is a certified
-        // edge's, decided forward at certification, and certification
-        // refuses a line carrier whose `dir` is the zero vector
-        // (`EdgeCurve::certify`'s Line arm), so a surgery-minted line of
-        // zero direction cannot reach this reading. That is all it
-        // decides: a chord shorter than the format's squares reach
-        // (about 1e-154 m at `f64`) still reads `len` as zero here, as
-        // any plain norm does.
-        let len = chord.norm();
-        let e = chord * (one / len);
+        // edge's, decided forward at certification (`ta < tb`), and the
+        // line's direction is unit, so over the reals the chord's length
+        // is `tb − ta > 0`. A chord shorter than the format's squares
+        // reach (about 1e-154 m at `f64`) still reads its length as zero,
+        // as any plain norm does, and the chord door then answers poison
+        // ([`UnitVec3::chord`]) rather than a direction.
+        let (e_unit, len) = UnitVec3::chord(chord);
+        let e = e_unit.get();
         let q0 = pa - self.center;
         // `‖q‖² = (s + b)² + d2`, `d2` read off the foot's own offset
         // as [`piece_distance`] reads it, which does not cancel far
         // from `center` as `q0·q0 − b²` does.
         let (b, rho) = geom::Line {
             origin: self.center,
-            // The chord over its own length: unit over the reals.
-            dir: UnitVec3::constructed(e),
+            dir: e_unit,
         }
         .height_and_distance(pa);
         let d2 = rho.powi(2);

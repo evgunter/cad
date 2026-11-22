@@ -412,7 +412,7 @@ fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
         let unit_i = (n_i * iv(sign)).normalize();
         let blend = plane_plane_blend(
             p.map(iv),
-            geom_core::UnitVec3::constructed(ivv(tau)),
+            geom_core::UnitVec3::checked(tau).map_scalar(iv),
             n_i,
             ivv(up),
             iv(0.1),

@@ -188,7 +188,7 @@ fn far_patch<T: Decide>(
         LoopEdge::hand_built(
             Curve3::line(
                 o + (x * T::from_f64(c) + y * T::from_f64(s)) * r,
-                geom_core::UnitVec3::constructed(n),
+                geom_core::UnitVec3::checked(n),
             ),
             T::zero(),
             T::one(),

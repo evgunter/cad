@@ -11560,7 +11560,7 @@ fn on_its_line<T: Real>(
 ) -> EdgeGeo<T> {
     let (dir, speed) = line.dir.get().direction_and_length();
     // The line's direction over its own length: unit over the reals.
-    let dir = UnitVec3::constructed(dir);
+    let dir = UnitVec3::checked(dir);
     EdgeGeo {
         key: edge.key,
         v0: edge.v0,

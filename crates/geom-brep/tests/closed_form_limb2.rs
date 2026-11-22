@@ -194,7 +194,7 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
     let (sin, cos) = (PI / 6.0).sin_cos();
     let apex_ruling = Curve3::line(
         Point3::origin(),
-        geom_core::UnitVec3::constructed(Vec3::new(sin, 0.0, cos)),
+        geom_core::UnitVec3::checked(Vec3::new(sin, 0.0, cos)),
     );
     let rows = [
         ("ruling", cylinder.clone(), side.clone(), ruling, (0.0, 2.0)),
