@@ -131,7 +131,6 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     // the placement it ran on, by its tag.
     ("Check/", "check at-rest"),
     ("Check/", "check connectedness"),
-    ("Check/", "check chart-coherence"),
     ("Check/", "placement 000000000004 output 0"),
     // The mate solve names the constraint it refused (`constraint #9 of
     // node 7: …`).
@@ -317,12 +316,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Skin/SectionProfile",
     "Tube/DegenerateWindow",
     "Tube/FullRangeWindow",
-    // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
-    "Check/ChartCoherence(meridian closure)",
-    "Check/ChartCoherence(rim)",
-    "Check/ChartCoherenceUnexamined(corrupt)",
-    "Check/ChartCoherenceUnexamined(non-iso)",
-    "Check/ChartCoherenceUnexamined(scaffold)",
 ];
 
 /// The rows that render a door's generic fallback subject
@@ -1032,7 +1025,8 @@ mod kernel {
 test_utils::f6_variants! {
     /// `Diagnosis`'s arms, for the `SelectResolve/Vanished(…)` rows.
     const DIAGNOSIS: Diagnosis = [
-        PredicateFlip, BorderDelta, GroupResized, StructuralParam, IndexCount, RecipeEdit, Cascade,
+        PredicateFlip, BorderDelta, GroupResized, Parted, StructuralParam, IndexCount, RecipeEdit,
+        Cascade,
         WitnessBifurcation, Upstream,
     ];
 }
@@ -2307,7 +2301,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "CrossingEscalated",
             R::CrossingEscalated {
                 edge,
-                fault: topo::ConicRootFault::CrossingInterior(diag()),
+                fault: topo::CrossWhy::Method {
+                    door: geom_brep::curve_face::Door::PlaneCrossing,
+                    fault: geom_brep::curve_pair::MeetFault::Escalated(diag()),
+                },
             },
         ),
         (
@@ -5265,6 +5262,18 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 }),
             ),
             (
+                "Vanished(Parted)",
+                vanished(Diagnosis::Parted {
+                    node: at,
+                    site: geom_core::k_stats::QuerySite::new(
+                        "refusal_rows_query",
+                        "the faces whose boxes meet a face's",
+                    )
+                    .site(),
+                    step: 19,
+                }),
+            ),
+            (
                 "Vanished(StructuralParam)",
                 vanished(Diagnosis::StructuralParam {
                     node: at,
@@ -6429,10 +6438,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     use editor_core::{CheckEvidence as E, CheckFinding, CheckId};
     use geom_core::{Indeterminate, MarginDiag};
     use payloads::*;
-    use topo::{
-        CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey, ShellClassifyError,
-        ShellKey, StructureRead, Unexaminable, Unexamined, VertexKey,
-    };
+    use topo::{FaceKey, ShellClassifyError, ShellKey};
     let shell = ShellKey::default();
     let copy = |n| editor_core::CopyRef {
         var: editor_core::VarId::new(0, tagged(n)),
@@ -6455,21 +6461,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         },
         evidence,
         quiet: None,
-    };
-    let coherence = |condition| CoherenceFinding {
-        face: FaceKey::default(),
-        r#loop: LoopKey::default(),
-        edge: EdgeKey::default(),
-        condition,
-        gap: 1.0e-10,
-        lever: 100.0,
-        metres: 1.0e-8,
-        eps: 1.0e-9,
-    };
-    let unexamined = |why| Unexamined {
-        face: FaceKey::default(),
-        r#loop: LoopKey::default(),
-        why,
     };
     vec![
         (
@@ -6577,65 +6568,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                     ))),
                 },
             ),
-        ),
-        (
-            "ChartCoherence(meridian closure)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherence {
-                    finding: coherence(CoherenceCondition::MeridianClosure {
-                        vertex: VertexKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherence(rim)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherence {
-                    finding: coherence(CoherenceCondition::RimContinuation {
-                        opens: EdgeKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnexamined(corrupt)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherenceUnexamined {
-                    unexamined: unexamined(Unexaminable::Corrupt {
-                        at: StructureRead::Cycle,
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnexamined(scaffold)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherenceUnexamined {
-                    unexamined: unexamined(Unexaminable::NullScaffoldEdge {
-                        edge: EdgeKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnexamined(non-iso)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherenceUnexamined {
-                    unexamined: unexamined(Unexaminable::NonIsoCarrier {
-                        edge: EdgeKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnavailable",
-            finding(CheckId::ChartCoherence, E::ChartCoherenceUnavailable),
         ),
     ]
     .into_iter()

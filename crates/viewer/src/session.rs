@@ -98,8 +98,8 @@ pub(crate) mod snap;
 pub use author::{BooleanSpec, PartSelectSpec, PatternDirection, PatternRuleSpec};
 pub use delete::DeleteAffordance;
 pub use op::{
-    CancelDoor, ClearedSeat, Creation, FreeMoveName, GestureName, OpOutcome, PlaceTarget,
-    PlacementBase, SessionOp, SplitPlane, ValueGestureName,
+    AssertedClaim, AssertedSeat, CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome,
+    PlaceTarget, PlacementBase, SessionOp, ToolPlane, ValueGestureName, measured,
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
@@ -480,6 +480,19 @@ pub struct DocSession {
     /// [`DocSession::generation`], which every route that changes the
     /// shown document moves ([`DocSession::request_eval`]).
     offers: crate::generation::GenerationMemo<RecipeNodeId, PlacementOffers>,
+    /// **The delete last rehearsed, with the history state and node it
+    /// was rehearsed for** ([`DocSession::priced_delete`]): the delete
+    /// button asks its wording and its refusal every frame, and one
+    /// rehearsal of the whole delete answers both.
+    ///
+    /// Keyed by the history state because the committed document is all
+    /// a rehearsal reads, and a gesture's previews move the generation
+    /// without moving it. A state's document changes under its id only
+    /// where the history is replaced or re-identified, and both drop
+    /// this ([`DocSession::clear_for_new_document`],
+    /// [`DocSession::save_as_new_document`]). Behind a mutex because
+    /// the panes ask through a shared borrow.
+    priced: std::sync::Mutex<Option<(HistoryId, RecipeNodeId, PricedDelete)>>,
     /// **The re-point buttons read this generation**
     /// ([`DocSession::repoint_button`]), each source row and "copy of" row
     /// asking under its own source and selected body: each asks the same
@@ -652,6 +665,15 @@ struct Derived {
     /// what its standing reads while no run answers the shown document
     /// ([`DocSession::name_run`]).
     verdict: Option<(Selection, Option<Box<Resolution>>)>,
+}
+
+/// **A delete rehearsed against the committed document**
+/// ([`DocSession::priced_delete`]): what its button says, and the
+/// refusal the click would get.
+#[derive(Clone)]
+struct PricedDelete {
+    affordance: DeleteAffordance,
+    refusal: Option<Arc<Refusal>>,
 }
 
 /// **Which run answers the shown document's names while its own run is
@@ -1084,6 +1106,7 @@ impl DocSession {
             resolver: None,
             notation: Notation::DEFAULT,
             offers: crate::generation::GenerationMemo::default(),
+            priced: std::sync::Mutex::new(None),
             repoints: crate::generation::GenerationMap::default(),
             bundles: crate::generation::GenerationMemo::default(),
             proposals: crate::generation::GenerationMemo::default(),
@@ -1156,6 +1179,12 @@ impl DocSession {
     /// The `cascade` field is the deletion order itself — exactly what
     /// [`SessionOp::DeleteNode`] applies — so the number on the button
     /// and the number of features that vanish are one list read twice.
+    /// The `stranded` field counts what the delete's own rehearsal
+    /// reports ([`Self::priced_delete`]), so the number of names the
+    /// button says it strands is the number the click's
+    /// [`OpOutcome::maintenance`] is about. A delete the click would
+    /// refuse ([`Self::delete_refusal`]) removes and strands nothing,
+    /// and its affordance says so.
     ///
     /// Read off the COMMITTED document, which is the one the edits
     /// apply to; the delete op is one of the table's refusals
@@ -1163,7 +1192,7 @@ impl DocSession {
     /// holds a scratch value, so the two never disagree at a live
     /// button.
     pub fn delete_affordance(&self, node: RecipeNodeId) -> DeleteAffordance {
-        DeleteAffordance::of(self.committed_doc(), node)
+        self.priced_delete(node).affordance
     }
 
     /// **The chrome's cancel doors, one per gesture** — the exits
@@ -2345,7 +2374,7 @@ impl DocSession {
             | SessionOp::AddBoolean { .. }
             | SessionOp::AddSplit { .. }
             | SessionOp::AddMirror { .. }
-            | SessionOp::AddClearance { .. }
+            | SessionOp::AddAssertion { .. }
             | SessionOp::Place { .. }
             | SessionOp::AddPattern { .. }
             | SessionOp::AddFusedPattern { .. }
@@ -2417,7 +2446,7 @@ impl DocSession {
             SessionOp::AddBoolean { spec } => self.add_boolean(spec),
             SessionOp::AddSplit { target, plane } => self.add_split(target, &plane),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
-            SessionOp::AddClearance { a, b, bounds } => self.add_clearance(a, b, bounds),
+            SessionOp::AddAssertion { a, b, claim } => self.add_assertion(a, b, claim),
             SessionOp::Place { body, target, name } => self.place(body, target, name),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
@@ -3322,6 +3351,8 @@ impl DocSession {
         match docio::save_as_new_document(path, self.history.doc(), self.tol) {
             Ok(id) => {
                 self.history.under_identity(id);
+                // Every state's document changed under its id.
+                self.forget_priced_delete();
                 // The landed run is of the old identity, so a run is
                 // owed whether or not the folder moved.
                 if !self.bind_file(path) {
@@ -3428,6 +3459,15 @@ impl DocSession {
         self.landed_withdrawals.clear();
         // History ids are arena positions of the outgoing history.
         self.inserts.clear();
+        self.forget_priced_delete();
+    }
+
+    /// Drop the kept delete rehearsal (`DocSession::priced`).
+    fn forget_priced_delete(&mut self) {
+        *self
+            .priced
+            .get_mut()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
     }
 
     /// Insert one profile node ([`SessionOp::AddProfile`]), drawn on its
@@ -3742,29 +3782,18 @@ impl DocSession {
     }
 
     /// Insert one split of an existing body ([`SessionOp::AddSplit`]):
-    /// its tool the plane it is handed, a picked face read as its plane
-    /// on the body it was picked on, as the mirror reads its plane.
-    /// Where something reads the target along a seen path, `above ⊔
-    /// below` takes it over there ([`Takeover`]), so each `⊔` and the
-    /// product show the two halves where they showed the body. Where
+    /// its tool the plane it is handed ([`Self::tool_plane`]). Where
+    /// something reads the target along a seen path, `above ⊔ below`
+    /// takes it over there ([`Takeover`]), so each `⊔` and the product
+    /// show the two halves where they showed the body. Where
     /// placements read the target, `above ⊔ below` is written as well:
     /// the new body the split makes, onto which they can be re-pointed
     /// ([`SessionOp::RepointPlacements`]), as onto a fillet.
-    fn add_split(&self, target: Operand, plane: &SplitPlane) -> Result<Creating, Refusal> {
+    fn add_split(&self, target: Operand, plane: &ToolPlane) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
         let target = as_body(doc, target);
         self.require_read(&target, NodeKindWanted::Body)?;
-        let tool = match plane {
-            SplitPlane::Face(face) => {
-                let (on, name) = picked_body(doc, self.evaluation(), face).ok_or_else(|| {
-                    Refusal::PickedMember {
-                        node: doc.spoken(face.node),
-                    }
-                })?;
-                RoleRead::plain(crate::matetool::plane_of(Operand::select(on, vec![name])))
-            }
-            SplitPlane::Read(read) => read.clone(),
-        };
+        let tool = self.tool_plane(plane)?;
         let takeover = self.takeover(&target)?;
         // Where placements read the body, the `⊔` is written too: what
         // they would be re-pointed onto ([`SessionOp::RepointPlacements`]).
@@ -3792,22 +3821,40 @@ impl DocSession {
         }))
     }
 
-    /// **Mirror a body across the plane of a picked face**
-    /// ([`SessionOp::AddMirror`]): the image, and the symmetric part,
+    /// **The plane a split or a mirror reads** ([`ToolPlane`]): a picked
+    /// face read as its plane on the body it was picked on, or the read
+    /// as written. A face on a member of a pattern no node holds refuses
+    /// [`Refusal::PickedMember`].
+    fn tool_plane(&self, plane: &ToolPlane) -> Result<RoleRead<Operand>, Refusal> {
+        match plane {
+            ToolPlane::Face(face) => {
+                let doc = self.committed_doc();
+                let (on, name) = picked_body(doc, self.evaluation(), face).ok_or_else(|| {
+                    Refusal::PickedMember {
+                        node: doc.spoken(face.node),
+                    }
+                })?;
+                Ok(RoleRead::plain(crate::matetool::plane_of(Operand::select(
+                    on,
+                    vec![name],
+                ))))
+            }
+            ToolPlane::Read(read) => Ok(read.clone()),
+        }
+    }
+
+    /// **Mirror a body across a plane** ([`SessionOp::AddMirror`],
+    /// [`Self::tool_plane`]): the image, and the symmetric part,
     /// the body and its image unioned, taking over what reads the body
     /// along a seen path ([`Takeover`]). The made node is the mirror,
     /// which the gesture's noun names: its label and the selection land
     /// there, and its rows hold what the gesture read.
-    fn add_mirror(&self, body: Operand, plane: &FaceSelection) -> Result<Creating, Refusal> {
+    fn add_mirror(&self, body: Operand, plane: &ToolPlane) -> Result<Creating, Refusal> {
         let body = as_body(self.committed_doc(), body);
         self.require_read(&body, NodeKindWanted::Body)?;
-        let doc = self.committed_doc();
-        let (on, face) =
-            picked_body(doc, self.evaluation(), plane).ok_or_else(|| Refusal::PickedMember {
-                node: doc.spoken(plane.node),
-            })?;
+        let plane = self.tool_plane(plane)?;
         let takeover = self.takeover(&body)?;
-        let node = combine::mirror_node(body.clone(), on, face);
+        let node = Node::mirror(body.clone(), plane);
         Ok(taking_over(takeover, move |run| {
             let image = run.insert(node)?;
             // The body FIRST: a union keeps its first member's carrier
@@ -3825,9 +3872,10 @@ impl DocSession {
         }))
     }
 
-    /// **Add a clearance requirement** ([`SessionOp::AddClearance`]):
-    /// the assertion between the two seats, through the document's own
-    /// insert door.
+    /// **Add an assertion** ([`SessionOp::AddAssertion`]): the claim
+    /// between the two seats, through the document's own insert door —
+    /// a clearance as its one node, a `Gap` or a `Distance` as the
+    /// measure and the assertion over its output, in one action.
     ///
     /// **Each seat is read where it is drawn**: a requirement between
     /// two parts is about the parts as they stand, and two
@@ -3835,25 +3883,26 @@ impl DocSession {
     /// read on the drawn body it was picked on, never on the body a
     /// copy places, and a body that one world placement draws is read
     /// on that copy. A body seat of the wrong kind refuses
-    /// [`Refusal::WrongNodeKind`]; two seats in different spaces refuse
-    /// at the insert door (`EditError::SpaceMismatch`). The bounds are
-    /// written as they came: what is wrong with them is the
-    /// evaluation's to say.
-    fn add_clearance(
+    /// [`Refusal::WrongNodeKind`]; a read seat is written as given. Two
+    /// seats in different spaces, and a seat the measure cannot read,
+    /// refuse at the insert door (`EditError::SpaceMismatch`,
+    /// `EditError::SlotVarKind`). The bounds are written as they came:
+    /// what is wrong with them is the evaluation's to say.
+    fn add_assertion(
         &self,
-        a: ClearedSeat,
-        b: ClearedSeat,
-        bounds: pncad::document::ClearanceBounds<Formula>,
+        a: AssertedSeat,
+        b: AssertedSeat,
+        claim: AssertedClaim,
     ) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
-        let read = |seat: ClearedSeat| -> Result<Operand, Refusal> {
+        let read = |seat: AssertedSeat| -> Result<Operand, Refusal> {
             match seat {
-                ClearedSeat::Body(read) => {
+                AssertedSeat::Body(read) => {
                     let read = as_body(doc, read);
                     self.require_read(&read, NodeKindWanted::Body)?;
                     Ok(drawn_copy(doc, &read).unwrap_or(read))
                 }
-                ClearedSeat::Face(face) => {
+                AssertedSeat::Face(face) => {
                     let body = crate::world::body_read(doc, face.node, Some(face.body))
                         .ok_or_else(|| Refusal::NotABodyRead {
                             read: Box::new(Operand::Node(face.node)),
@@ -3865,10 +3914,41 @@ impl DocSession {
                             })?;
                     Ok(Operand::select(body, names))
                 }
+                AssertedSeat::Read(read) => Ok(read),
             }
         };
-        let node = Node::clearance(read(a)?, read(b)?, bounds);
-        Ok(creating(move |run| run.insert(node)))
+        let (a, b) = (read(a)?, read(b)?);
+        Ok(match claim {
+            AssertedClaim::Clearance(bounds) => {
+                let node = Node::clearance(a, b, bounds);
+                creating(move |run| run.insert(node))
+            }
+            AssertedClaim::Value {
+                measure,
+                relation,
+                bound,
+            } => {
+                let primitive = measured(measure, a, b);
+                creating(move |run| {
+                    let measured = run.measure(std::slice::from_ref(&primitive))?;
+                    let [output] = measured.outputs[..] else {
+                        unreachable!("one primitive measured defines one output")
+                    };
+                    // The output read at its own kind's dimension, so a
+                    // bound of another is the door's `assertion_dimension`.
+                    let dim = run
+                        .doc()
+                        .var(output)
+                        .and_then(|var| var.kind().dimension())
+                        .unwrap_or_else(|| bound.dim());
+                    run.insert(Node::Assertion(pncad::document::Claim::Value {
+                        value: Formula::var(output, dim),
+                        bound,
+                        relation,
+                    }))
+                })
+            }
+        })
     }
 
     /// Insert one pattern of an existing body, fused or not
@@ -4593,30 +4673,72 @@ impl DocSession {
         }
     }
 
-    /// **What `SessionOp::DeleteNode` would answer for `node` because
-    /// the committed document does not hold it, or `None` where it
-    /// does** — asked ahead of the click by the control that pushes
-    /// the op.
+    /// **The refusal `SessionOp::DeleteNode` would answer for `node`,
+    /// or `None` where the delete lands** — asked ahead of the click by
+    /// the control that pushes the op.
     ///
-    /// It walks [`Self::delete_node`]'s own branch over the document
-    /// that op reads: a node it does not hold takes the single edit, and
-    /// that edit is staged through the door ([`Self::stage_run`]) and never
+    /// It is [`Self::delete_node`]'s own branch rehearsed over the
+    /// document that op reads ([`Self::priced_delete`]): the plan's
+    /// fault where the delete cannot splice, and otherwise the refusal
+    /// of the first door that refuses one of its edits, staged and never
     /// recorded, so the refusal is `EditError`'s and has one home. A
-    /// selection can outlive its feature here — a face resolves
-    /// against the last LANDED run, which still holds a feature the
-    /// committed document has dropped until the next run lands, and
-    /// indefinitely after a cancel.
+    /// node the document does not hold takes the single edit, which the
+    /// door refuses: a selection can outlive its feature here — a face
+    /// resolves against the last LANDED run, which still holds a
+    /// feature the committed document has dropped until the next run
+    /// lands, and indefinitely after a cancel.
     ///
     /// Not everything `perform` can answer: a held value gesture
-    /// refuses the op before this admission runs, and a held node's
-    /// splice is applied at the click rather than rehearsed every frame.
-    pub fn delete_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
-        match spliced(self.committed_doc(), node) {
-            Ok(Some(_)) => None,
+    /// refuses the op before this admission runs.
+    pub fn delete_refusal(&self, node: RecipeNodeId) -> Option<Arc<Refusal>> {
+        self.priced_delete(node).refusal
+    }
+
+    /// **The delete of `node` rehearsed against the committed
+    /// document, kept** (`DocSession::priced`): rehearsed once per
+    /// history state and node, and answered from then on.
+    fn priced_delete(&self, node: RecipeNodeId) -> PricedDelete {
+        let at = self.history.current();
+        let mut kept = self
+            .priced
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((state, of, priced)) = kept.as_ref()
+            && *state == at
+            && *of == node
+        {
+            return priced.clone();
+        }
+        let priced = self.rehearse_delete(node);
+        *kept = Some((at, node, priced.clone()));
+        priced
+    }
+
+    /// **[`Self::delete_node`]'s action, staged and dropped**: the
+    /// nodes it removes and the rows it reports where every door
+    /// accepts it, and the refusal where one does not.
+    fn rehearse_delete(&self, node: RecipeNodeId) -> PricedDelete {
+        let doc = self.committed_doc();
+        let staged = match spliced(doc, node) {
+            Ok(Some(splice)) => {
+                let cascade = splice.deleted.clone();
+                self.stage_run(|run| splice.apply(run))
+                    .map(|(staged, ())| (cascade, staged.maintenance))
+            }
             Ok(None) => self
                 .stage_run(|run| run.apply(DocEdit::DeleteNode { id: node }).map(drop))
-                .err(),
-            Err(refusal) => Some(refusal),
+                .map(|(staged, ())| (vec![node], staged.maintenance)),
+            Err(refusal) => Err(refusal),
+        };
+        match staged {
+            Ok((cascade, report)) => PricedDelete {
+                affordance: DeleteAffordance::of(doc, node, cascade, &report),
+                refusal: None,
+            },
+            Err(refusal) => PricedDelete {
+                affordance: DeleteAffordance::of(doc, node, Vec::new(), &[]),
+                refusal: Some(Arc::new(refusal)),
+            },
         }
     }
 
@@ -6316,8 +6438,8 @@ fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
 /// placement copies it ([`crate::world::world_copies_of_read`]): the
 /// body as it stands in the world. `None` for a read no world placement
 /// copies, and for one several copy, which names no one of them — the
-/// clearance tool refuses such a pick itself, in its own words
-/// (`crate::combine::ClearanceEvent::SeveralCopies`).
+/// assertion tool refuses such a pick itself, in its own words
+/// (`crate::combine::AssertionEvent::SeveralCopies`).
 fn drawn_copy(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<Operand> {
     match crate::world::world_copies_of_read(doc, read).as_slice() {
         [copy] => Some(Operand::Var(*copy)),
@@ -6426,6 +6548,7 @@ impl core::fmt::Debug for DocSession {
             resolver,
             notation,
             offers: _,
+            priced: _,
             repoints: _,
             bundles: _,
             proposals: _,
@@ -6573,10 +6696,10 @@ mod tests {
         let tol = Tol::witness();
         let (doc, blocks, _) = crate::test_support::two_blocks_apart(tol);
         let mut session = DocSession::inline(doc, tol);
-        let added = session.perform(super::SessionOp::AddClearance {
-            a: super::ClearedSeat::Body(blocks[0].into()),
-            b: super::ClearedSeat::Body(blocks[1].into()),
-            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        let added = session.perform(super::SessionOp::AddAssertion {
+            a: super::AssertedSeat::Body(blocks[0].into()),
+            b: super::AssertedSeat::Body(blocks[1].into()),
+            claim: crate::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.02))),
         });
         let violated = added.made.expect("the requirement is a node");
         session.pump();

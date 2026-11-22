@@ -23,8 +23,11 @@
 //! (`viewer::props::render_number`), a serialized form, a dump. A
 //! number a sentence quotes is a [`crate::Told`], which spells the
 //! float it chooses in this notation. `quantity::fmt`'s
-//! `render_shortest` is the same rendering, kept as a copy because
-//! neither crate depends on the other.
+//! `render_shortest` is the same rendering and a second copy: this
+//! crate depends on `quantity`, which is a leaf and cannot name this
+//! type, and this type writes to a `Formatter` where that one returns
+//! a `String`. Both are `{:?}` without its integral tail, which
+//! `the_rendering_is_debug_without_its_integral_tail` pins here.
 
 use core::fmt;
 

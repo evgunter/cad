@@ -32,6 +32,9 @@ geom-brep = { path = "../geom-brep" }
 topo = { path = "../topo" }
 
 [dev-dependencies]
+# The agreement pin of a certificate read by its support (geom-brep's
+# `read-pins-testing`), on in this crate's tests only.
+geom-brep = { path = "../geom-brep", features = ["read-pins-testing"] }
 # The shared Rust reader for this crate's source-text guards.
 test-utils = { path = "../test-utils" }
 # Building acceptance bodies end-to-end (cube, the M3 pocketed die,

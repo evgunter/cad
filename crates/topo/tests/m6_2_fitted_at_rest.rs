@@ -209,8 +209,16 @@ fn the_dual_holds_neither_lane_and_each_refusal_names_its_scalar() {
         panic!("the minted row is projected")
     };
     let (t0, t1) = built.carrier.domain();
-    let err = PcurveCache::certify_projected(*image, t0, t1, &carrier, &built.cylinder, band, None)
-        .expect_err("WITHHELD: a net's projected row with no door refuses");
+    let err = PcurveCache::certify_projected(
+        *image,
+        t0,
+        t1,
+        &carrier,
+        &built.cylinder,
+        band,
+        None::<geom_core::NoLane>,
+    )
+    .expect_err("WITHHELD: a net's projected row with no door refuses");
     assert!(
         matches!(
             err,

@@ -75,7 +75,6 @@ use geom_core::{Point3, Tol, Vec3};
 use crate::entities::SolidSpec;
 use crate::error::{BuiltEntity, StepImportError};
 use crate::interpret::{FileBand, Read};
-use crate::one_record::Record;
 use crate::reach::Reach;
 use crate::{FaceCensus, NormalizationKind, SnapRelation, StructureNormalization};
 
@@ -108,12 +107,12 @@ pub(crate) const UNCATALOGUED_LANE: &str = "a snap catalogue construction that m
 pub(crate) const ANCHOR_LANE: &str = "a joint solve anchored at the class's earliest record \
      (`work/importgate/a-snap-class-whose-solve-moves-a-surface-twice-refuses.md`)";
 
-/// One surface of the shell: the faces that wear it bit for bit, and the
-/// earliest record they state.
+/// One surface record of the shell, and the faces that wear it.
 struct Node {
     faces: Vec<usize>,
-    record: Record,
-    surface: Surface<f64>,
+    record: u64,
+    /// Where the record stands in the file ([`SolidSpec::order`]).
+    order: (usize, u64),
 }
 
 /// One relation the file band reads `Zero`, along edge `edge`.
@@ -140,10 +139,8 @@ struct Move {
 }
 
 /// **Makes each relation the file band reads `Zero` exact** (module docs).
-/// `records[i]` is the record `solid.faces[i]` states.
 pub(crate) fn snap(
     solid: &mut SolidSpec,
-    records: &[Record],
     file: FileBand,
     tol: Tol,
     sink: &mut Vec<StructureNormalization>,
@@ -152,7 +149,7 @@ pub(crate) fn snap(
         id: solid.id,
         what: "the run's tolerance makes no band to build at",
     })?;
-    let mut nodes = nodes(solid, records);
+    let nodes = nodes(solid);
     let relations = relations(solid, &nodes, file, run)?;
     for class in classes(nodes.len(), &relations) {
         if class.iter().all(|&r| relations[r].exact) {
@@ -160,14 +157,17 @@ pub(crate) fn snap(
         }
         let moves = solve(solid, &nodes, &relations, &class, file)?;
         for m in &moves {
-            nodes[m.node].surface = m.surface.clone();
+            let Some(record) = solid.surfaces.get_mut(&nodes[m.node].record) else {
+                unreachable!("a node is a record of the shell")
+            };
+            record.surface = m.surface.clone();
         }
         for &r in &class {
             let rel = &relations[r];
             let g = gap(
                 rel.kind,
-                &nodes[rel.nodes.0].surface,
-                &nodes[rel.nodes.1].surface,
+                &solid.surfaces[&nodes[rel.nodes.0].record].surface,
+                &solid.surfaces[&nodes[rel.nodes.1].record].surface,
                 &rel.reach,
             );
             if !run_zero(run, g) {
@@ -183,18 +183,15 @@ pub(crate) fn snap(
         }
         for Move {
             node: n,
-            surface,
             moved_by,
             relation,
+            ..
         } in moves
         {
-            for &fi in &nodes[n].faces {
-                solid.faces[fi].surface = surface.clone();
-            }
             sink.push(StructureNormalization {
-                face: nodes[n].record.id,
+                face: nodes[n].record,
                 kind: NormalizationKind::Snapped {
-                    surface: nodes[n].record.id,
+                    surface: nodes[n].record,
                     relation,
                     moved_by,
                 },
@@ -214,23 +211,20 @@ fn run_zero(run: geom_core::Band, gap: f64) -> bool {
     )
 }
 
-/// The shell's surfaces: faces grouped by bit-identical surface, each
-/// group under the earliest record its faces state.
-fn nodes(solid: &SolidSpec, records: &[Record]) -> Vec<Node> {
-    let mut by: BTreeMap<Vec<u64>, usize> = BTreeMap::new();
+/// The shell's surface records, in the order its faces first wear them.
+fn nodes(solid: &SolidSpec) -> Vec<Node> {
+    let mut by: BTreeMap<u64, usize> = BTreeMap::new();
     let mut nodes: Vec<Node> = Vec::new();
     for (fi, face) in solid.faces.iter().enumerate() {
-        let sig = crate::build::surface_sig(&face.surface);
-        let n = *by.entry(sig).or_insert_with(|| {
+        let n = *by.entry(face.record).or_insert_with(|| {
             nodes.push(Node {
                 faces: Vec::new(),
-                record: records[fi],
-                surface: face.surface.clone(),
+                record: face.record,
+                order: solid.order(face.record),
             });
             nodes.len() - 1
         });
         nodes[n].faces.push(fi);
-        nodes[n].record = nodes[n].record.min(records[fi]);
     }
     nodes
 }
@@ -274,16 +268,22 @@ fn relations(
         let Some(reach) = Reach::of(solid, [fa, fb]) else {
             continue;
         };
-        let (sa, sb) = (&nodes[na].surface, &nodes[nb].surface);
+        let (sa, sb) = (
+            &solid.surfaces[&nodes[na].record].surface,
+            &solid.surfaces[&nodes[nb].record].surface,
+        );
         let mut in_band = None;
         let mut read = false;
         for (kind, pair) in candidates(sa, sb, (na, nb)) {
-            let (s1, s2) = (&nodes[pair.0].surface, &nodes[pair.1].surface);
+            let (s1, s2) = (
+                &solid.surfaces[&nodes[pair.0].record].surface,
+                &solid.surfaces[&nodes[pair.1].record].surface,
+            );
             let g = gap(kind, s1, s2, &reach);
             let reading = file.read(STEP_SNAP_RELATION, g);
             if reading == Read::InBand && in_band.is_none() {
-                let later = nodes[pair.0].record.max(nodes[pair.1].record);
-                in_band = Some((later.id, g));
+                let later = nodes[pair.0].order.max(nodes[pair.1].order);
+                in_band = Some((later.1, g));
             }
             if reading == Read::Zero {
                 read = true;
@@ -360,7 +360,7 @@ fn axis(s: &Surface<f64>) -> Option<Line<f64>> {
 /// point, an apex, a centre.
 fn datum(s: &Surface<f64>) -> Option<Point3<f64>> {
     match s {
-        Surface::Sphere { center, .. } => Some(*center),
+        Surface::Sphere { frame, .. } => Some(frame.origin()),
         _ => axis(s).map(|l| l.origin),
     }
 }
@@ -376,7 +376,10 @@ fn cylinder_radius(s: &Surface<f64>) -> Option<f64> {
 /// A plane's point and unit normal.
 fn plane_of(s: &Surface<f64>) -> Option<(Point3<f64>, Vec3<f64>)> {
     match *s {
-        Surface::Plane { origin, normal, .. } => Some((origin, normal)),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Some((origin, normal))
+        }
         _ => None,
     }
 }
@@ -462,7 +465,7 @@ fn classes(nodes: usize, relations: &[Relation]) -> Vec<Vec<usize>> {
 /// stays.
 fn later(nodes: &[Node], r: &Relation) -> (usize, usize) {
     let (a, b) = r.nodes;
-    if nodes[a].record <= nodes[b].record {
+    if nodes[a].order <= nodes[b].order {
         (a, b)
     } else {
         (b, a)
@@ -528,22 +531,28 @@ fn solve(
             ));
         };
         let (surface, moved_by) = match first.kind {
-            SnapRelation::Tangent => tangent(nodes, relations, class, n, &faces, file)?,
+            SnapRelation::Tangent => tangent(solid, nodes, relations, class, n, &faces, file)?,
             SnapRelation::Coaxial => {
                 let (keep, _) = later(nodes, first);
-                coaxial(&nodes[keep].surface, &nodes[n].surface, &faces)
+                coaxial(
+                    &solid.surfaces[&nodes[keep].record].surface,
+                    &solid.surfaces[&nodes[n].record].surface,
+                    &faces,
+                )
             }
             SnapRelation::AxisNormal => {
                 let (keep, _) = later(nodes, first);
-                axis_normal(&nodes[keep].surface, &nodes[n].surface, &faces)
+                axis_normal(
+                    &solid.surfaces[&nodes[keep].record].surface,
+                    &solid.surfaces[&nodes[n].record].surface,
+                    &faces,
+                )
             }
         };
         match file.read(STEP_SNAP_MOVE, moved_by) {
             Read::Zero => {}
             Read::InBand => {
-                return Err(
-                    file.refused(nodes[n].record.id, file.ambiguous(STEP_SNAP_MOVE, moved_by))
-                );
+                return Err(file.refused(nodes[n].record, file.ambiguous(STEP_SNAP_MOVE, moved_by)));
             }
             Read::Apart => {
                 return Err(unsolved(
@@ -573,6 +582,7 @@ fn solve(
 /// its faces; between two parallel planes, its radius half their spacing
 /// and its axis on the mid-plane.
 fn tangent(
+    solid: &SolidSpec,
     nodes: &[Node],
     relations: &[Relation],
     class: &[usize],
@@ -601,23 +611,25 @@ fn tangent(
         .collect();
     let (
         Surface::Cylinder {
-            origin,
-            axis: a,
+            frame: cylinder_frame,
             radius,
-            u_ref,
         },
         Some(line),
-    ) = (&nodes[n].surface, axis(&nodes[n].surface))
+    ) = (
+        &solid.surfaces[&nodes[n].record].surface,
+        axis(&solid.surfaces[&nodes[n].record].surface),
+    )
     else {
         return Err(unsolved(file, edge, "a tangency off a cylinder".to_owned()));
     };
+    let origin = cylinder_frame.origin();
     // The axis's point where its faces are.
     let q = line.foot(faces.centre());
     // Each plane's normal and level along it, and the axis's offset at its
     // faces from where it stands its radius from the plane.
     let need: Vec<Offset> = planes
         .iter()
-        .filter_map(|r| plane_of(&nodes[r.nodes.0].surface))
+        .filter_map(|r| plane_of(&solid.surfaces[&nodes[r.nodes.0].record].surface))
         .map(|(p, normal)| {
             let s = normal.dot(q - p);
             (
@@ -634,7 +646,7 @@ fn tangent(
             (q, *radius),
             faces.lever().length(),
             file,
-            nodes[n].record.id,
+            nodes[n].record,
         )?
         .map_err(|what| unsolved(file, planes[1].edge, what.to_owned()))?,
         _ => {
@@ -649,10 +661,8 @@ fn tangent(
     let delta = delta - line.dir * delta.dot(line.dir);
     Ok((
         Surface::Cylinder {
-            origin: *origin + delta,
-            axis: *a,
+            frame: cylinder_frame.with_origin(origin + delta),
             radius: radius_to,
-            u_ref: *u_ref,
         },
         delta.norm() + (radius_to - radius).abs(),
     ))
@@ -784,11 +794,17 @@ fn axis_normal(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Sur
     } else {
         (moved, kept)
     };
-    let (Some((p, n)), Some(line), Surface::Plane { u_ref, .. }) =
-        (plane_of(plane), axis(round), plane)
+    let (
+        Some((p, n)),
+        Some(line),
+        Surface::Plane {
+            frame: plane_frame, ..
+        },
+    ) = (plane_of(plane), axis(round), plane)
     else {
         return (moved.clone(), f64::INFINITY);
     };
+    let u_ref = plane_frame.u_ref();
     let Some(pivot) = meets(line, (p, n)) else {
         return (moved.clone(), f64::INFINITY);
     };
@@ -798,12 +814,10 @@ fn axis_normal(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Sur
         } else {
             line.dir
         };
-        let u_ref = geom::Frame::new(pivot, normal, *u_ref).square().u_ref;
+        let u_ref = geom::Frame::new(pivot, normal, u_ref).square().u_ref;
         (
             Surface::Plane {
-                origin: pivot,
-                normal,
-                u_ref,
+                frame: geom::Frame::new(pivot, normal, u_ref),
             },
             (normal - n).norm() * faces.from(pivot),
         )
@@ -826,39 +840,25 @@ fn carry(
     dir: Vec3<f64>,
 ) {
     match s {
-        Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        }
-        | Surface::Torus {
-            center: origin,
-            axis,
-            u_ref,
-            ..
-        }
-        | Surface::Cone {
-            apex: origin,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let along = from.dir.dot(*origin - pivot);
+        Surface::Cylinder { frame, .. }
+        | Surface::Torus { frame, .. }
+        | Surface::Cone { frame, .. } => {
+            let along = from.dir.dot(frame.origin() - pivot);
             let at = to + dir * along;
-            *u_ref = geom::Frame::new(at, dir, *u_ref).square().u_ref;
-            *origin = at;
-            *axis = dir;
+            // The seam squared to the new axis, as the frame door squares it.
+            *frame = geom::Frame::new(at, dir, frame.u_ref());
         }
-        Surface::Sphere { center, .. } => *center = *center + (to - pivot),
+        Surface::Sphere { frame, .. } => {
+            *frame = frame.with_origin(frame.origin() + (to - pivot));
+        }
         _ => {}
     }
 }
 
 /// `s`'s centre set to `at`.
 fn set_centre(s: &mut Surface<f64>, at: Point3<f64>) {
-    if let Surface::Sphere { center, .. } = s {
-        *center = at;
+    if let Surface::Sphere { frame, .. } = s {
+        *frame = frame.with_origin(at);
     }
 }
 
@@ -1002,16 +1002,14 @@ mod tests {
             curve: None,
         };
         let surface = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: y,
+            frame: geom::Frame::new(Point3::origin(), y, x),
             radius: 1.0,
-            u_ref: x,
         };
         let solid = SolidSpec {
             id: 1,
             faces: vec![crate::entities::FaceSpec {
                 id: 2,
-                surface: surface.clone(),
+                record: 20,
                 sense: true,
                 loops: [10, 11]
                     .into_iter()
@@ -1027,6 +1025,7 @@ mod tests {
             }],
             edges: [(10, rim(0.0)), (11, rim(1.0))].into_iter().collect(),
             vertices: [(1, Point3::new(1.0, 0.0, 0.0))].into_iter().collect(),
+            surfaces: crate::entities::records_of([(20, surface.clone())]),
             band_seams: std::collections::BTreeSet::new(),
         };
         (solid, surface)
@@ -1051,19 +1050,19 @@ mod tests {
         };
         let theta = 1e-6_f64;
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::new(theta.sin(), 0.0, theta.cos()),
-            u_ref: Vec3::new(theta.cos(), 0.0, -theta.sin()),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(theta.sin(), 0.0, theta.cos()),
+                Vec3::new(theta.cos(), 0.0, -theta.sin()),
+            ),
         };
         let cylinder = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: z,
+            frame: geom::Frame::new(Point3::origin(), z, x),
             radius: 1.0,
-            u_ref: x,
         };
-        let face = |id: u64, surface: &Surface<f64>, edges: &[u64]| crate::entities::FaceSpec {
+        let face = |id: u64, record: u64, edges: &[u64]| crate::entities::FaceSpec {
             id,
-            surface: surface.clone(),
+            record,
             sense: true,
             loops: edges
                 .iter()
@@ -1080,9 +1079,9 @@ mod tests {
         let solid = SolidSpec {
             id: 1,
             faces: vec![
-                face(2, &plane, &[10]),
-                face(3, &plane, &[11]),
-                face(4, &cylinder, &[10, 12]),
+                face(2, 20, &[10]),
+                face(3, 20, &[11]),
+                face(4, 21, &[10, 12]),
             ],
             edges: [
                 (10, circle(Point3::origin())),
@@ -1092,26 +1091,18 @@ mod tests {
             .into_iter()
             .collect(),
             vertices: [(1, Point3::new(1.0, 0.0, 0.0))].into_iter().collect(),
+            surfaces: crate::entities::records_of([(21, cylinder.clone()), (20, plane.clone())]),
             band_seams: std::collections::BTreeSet::new(),
         };
-        let nodes = vec![
-            Node {
-                faces: vec![0, 1],
-                record: Record {
-                    position: 2,
-                    id: 20,
-                },
-                surface: plane,
-            },
-            Node {
-                faces: vec![2],
-                record: Record {
-                    position: 1,
-                    id: 21,
-                },
-                surface: cylinder,
-            },
-        ];
+        let nodes = nodes(&solid);
+        assert_eq!(
+            nodes
+                .iter()
+                .map(|n| (n.record, n.faces.clone()))
+                .collect::<Vec<_>>(),
+            [(20, vec![0, 1]), (21, vec![2])],
+            "the plane record and the cylinder's"
+        );
         let relations = vec![Relation {
             kind: SnapRelation::AxisNormal,
             nodes: (0, 1),
@@ -1141,10 +1132,12 @@ mod tests {
         let reach = Reach::of(&solid, [0]).expect("the wall has a region");
         let theta = 1e-5_f64;
         let kept = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::new(theta.sin(), theta.cos(), 0.0),
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(theta.sin(), theta.cos(), 0.0),
+                Vec3::new(theta.cos(), -theta.sin(), 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(theta.cos(), -theta.sin(), 0.0),
         };
         let (_, moved_by) = coaxial(&kept, &moved, &reach);
         let least = theta * (0.5 + 1.25_f64.sqrt());

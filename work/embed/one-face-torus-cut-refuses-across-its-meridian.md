@@ -39,3 +39,25 @@ meridian's own vertex, and refusals that fire at once suggest both
 sides are `Structural` there. The pinned row
 `a_one_face_torus_cut_certifies_its_caps_by_the_wall_alone` asserts the
 refusal typed and goes red when it is fixed.
+
+## Diagnosed (EMBED trace lane, 2026-11-21)
+
+Traced on main `c2a0c41f40` with the at-rest gate and prints at each
+`Structural` exit (`embed/trace-cone-torus-measure`). The refusal is at
+depth 0: `departure`'s "both stuck" exit, both faces `Structural` in
+their whole windows (`3v3` at `u ∈ (7π/4, 2π)`, `4v1` at `u ∈ (0, π/4)`,
+both `v ∈ (π, 2π)`, the meridian `Edge(3v1)` shared, vertex `2v1` in
+the cell). Each is raised at `present_chart`'s "a line on a periodic
+axis whose sheet is unknown has no place" (`placed` returns `None`).
+Why the sheet is unknown, on a face closed across its parallel seam, is
+not traced; `a-face-with-no-line-on-a-periodic-axis-reads-its-sheet-off-the-stored-lift-unchecked`
+is the neighbouring reading.
+
+At the gate this row is 4 tests (torus/torus):
+`self_intersection_proves_injectivity::a_one_face_torus_cut_certifies_its_caps_by_the_wall_alone`
+(traced), `germ_plane_torus_spiric::the_one_face_and_seamed_tori_s_spiric_poses_answer_as_the_donuts`
+(traced, the same pair and exit),
+`germ_plane_torus_spiric::every_point_of_the_spiric_box_on_the_one_face_torus_reads_its_side`
+and `shell_cavity_embedded::a_cavity_the_engine_cannot_certify_refuses_uncertified`
+(by fixture, unchecked). The body is valid, so at the gate's landing
+this is P0. Unchecked against PR 7115.

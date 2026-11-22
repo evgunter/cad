@@ -26,7 +26,7 @@ use geom_core::Tol;
 /// candidates its box queries hand on before any choice turns: the
 /// slab's wall is still classified against `a`, but on a path the
 /// other run did not take, so no flip is recorded and the row
-/// diagnoses to the group-size rung. Engine-behavior tests
+/// diagnoses to the parting rung, naming the query. Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.

@@ -30,11 +30,9 @@ const R0: f64 = 0.005;
 
 fn torus() -> Surface<f64> {
     Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         major_radius: RR,
         minor_radius: R0,
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 

@@ -90,8 +90,8 @@ fn top(body: &Body<f64>) -> FaceKey {
     let mut hits = body.faces().filter(|(fk, _)| {
         matches!(
             body.face_surface(*fk),
-            Some(Surface::Plane { origin, normal, .. })
-                if normal.z.abs() == 1.0 && origin.z == 1.0
+            Some(Surface::Plane { frame, .. })
+                if frame.axis().z.abs() == 1.0 && frame.origin().z == 1.0
         )
     });
     let (k, _) = hits.next().expect("the wedge has a face on z = 1");
@@ -102,7 +102,10 @@ fn top(body: &Body<f64>) -> FaceKey {
 /// The top chart's stored normal's z.
 fn top_normal_z(body: &Body<f64>) -> f64 {
     match body.face_surface(top(body)) {
-        Some(Surface::Plane { normal, .. }) => normal.z,
+        Some(Surface::Plane { frame, .. }) => {
+            let normal = frame.axis();
+            normal.z
+        }
         other => panic!("the top chart is a plane, got {other:?}"),
     }
 }

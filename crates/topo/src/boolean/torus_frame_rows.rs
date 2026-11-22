@@ -27,20 +27,20 @@ const SMALL_R: f64 = 0.5;
 
 fn donut() -> geom::Surface<f64> {
     geom::Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_y(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
         major_radius: BIG_R,
         minor_radius: SMALL_R,
-        u_ref: Vec3::unit_x(),
     }
 }
 
 fn plane(origin: [f64; 3], normal: Vec3<f64>) -> geom::Surface<f64> {
     let normal = normal.normalize();
     geom::Surface::Plane {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        normal,
-        u_ref: normal.cross(Vec3::unit_y()).normalize(),
+        frame: geom::Frame::new(
+            Point3::new(origin[0], origin[1], origin[2]),
+            normal,
+            normal.cross(Vec3::unit_y()).normalize(),
+        ),
     }
 }
 
@@ -56,7 +56,6 @@ fn frame_at(p: &geom::Surface<f64>, lever: f64) -> Loops {
         pair_section_frame_at(
             a,
             b,
-            Point3::new(BIG_R, 0.0, 0.0),
             FrameExtent::Reach(geom_core::test_support::fixture_lever(lever)),
             band(),
         )
@@ -434,16 +433,13 @@ fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
         ("spindle", SMALL_R, BIG_R, Ring, false, RING_LEVER),
     ] {
         let torus = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
             major_radius: big_r,
             minor_radius: r,
-            u_ref: Vec3::unit_x(),
         };
         let got = pair_section_frame_at(
             &torus,
             &p,
-            Point3::new(big_r, 0.0, 0.0),
             FrameExtent::Reach(geom_core::test_support::fixture_lever(REACH)),
             b,
         );
@@ -525,7 +521,7 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
         );
     }
     let torus = donut();
-    let got = pair_section_frame_at(&p, &torus, Point3::origin(), FrameExtent::Radii, b);
+    let got = pair_section_frame_at(&p, &torus, FrameExtent::Radii, b);
     assert!(
         matches!(got, Err(FrameError::Desync(_))),
         "plane×torus under its radii: got {}",
@@ -542,9 +538,7 @@ fn plane_face(n: Vec3<f64>, to: Point3<f64>) -> (crate::Body<f64>, FaceKey) {
         seed.face,
         crate::construction::FaceSurface::New {
             surface: geom::Surface::Plane {
-                origin: Point3::origin(),
-                normal: n,
-                u_ref: (to - Point3::origin()).normalize(),
+                frame: geom::Frame::new(Point3::origin(), n, (to - Point3::origin()).normalize()),
             },
             sense: true,
         },

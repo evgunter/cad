@@ -141,7 +141,7 @@ impl<T: Real> Core<T> {
         let square = frame.square();
         Self {
             circle: geom::Circle::new(
-                geom::Frame::new(frame.origin, square.axis, square.u_ref),
+                geom::Frame::new(frame.origin(), square.axis, square.u_ref),
                 radius,
             ),
         }
@@ -267,11 +267,11 @@ fn squared<T: Real>(w: Vec3<T>, dp: Vec3<T>, ddp: Vec3<T>, axis: Option<Vec3<T>>
 
 fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T> {
     let (p, dp) = (core.point(phi), core.velocity(phi));
-    let ddp = core.circle.frame.origin - p;
+    let ddp = core.circle.frame.origin() - p;
     let big = core.circle.radius();
     let (two, four) = (T::from_f64(2.0), T::from_f64(4.0));
     let (anchor, spread) = spine.anchor();
-    let size = (core.circle.frame.origin - Point3::origin()).norm()
+    let size = (core.circle.frame.origin() - Point3::origin()).norm()
         + big
         + (anchor - Point3::origin()).norm()
         + spread;
@@ -558,8 +558,8 @@ pub(crate) fn critical_gap<T: Decide>(
         core_lever: crate::ExtentBall::of_covered(
             geom::cover::Cover::circle(geom::cover::Core {
                 axis: geom::Line {
-                    origin: core.circle.frame.origin,
-                    dir: core.circle.frame.axis,
+                    origin: core.circle.frame.origin(),
+                    dir: core.circle.frame.axis(),
                 },
                 radius: core.circle.radius(),
             })
@@ -687,8 +687,8 @@ mod tests {
             core_lever: crate::ExtentBall::of_covered(
                 geom::cover::Cover::circle(geom::cover::Core {
                     axis: geom::Line {
-                        origin: core.circle.frame.origin,
-                        dir: core.circle.frame.axis,
+                        origin: core.circle.frame.origin(),
+                        dir: core.circle.frame.axis(),
                     },
                     radius: core.circle.radius(),
                 })

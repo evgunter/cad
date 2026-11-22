@@ -51,10 +51,12 @@ fn f<T: Real>(x: f64) -> T {
 }
 fn sphere<T: Real>() -> Surface<T> {
     Surface::Sphere {
-        center: Point3::new(f(0.0), f(0.0), f(0.0)),
+        frame: geom::Frame::new(
+            Point3::new(f(0.0), f(0.0), f(0.0)),
+            Vec3::new(f(0.0), f(0.0), f(1.0)),
+            Vec3::new(f(1.0), f(0.0), f(0.0)),
+        ),
         radius: f(RS),
-        axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
-        u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
     }
 }
 /// The meridian great circle at azimuth `u`; its parameter is the

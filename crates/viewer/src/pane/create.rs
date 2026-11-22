@@ -13,13 +13,13 @@ use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendKindChoice, FREEZE_NOTE};
-use crate::combine::{BooleanTool, ClearanceBoundChoice, PatternOutputChoice};
+use crate::combine::{AssertionMeasure, BooleanTool, BoundChoice, PatternOutputChoice};
 use crate::drafts::{CommitFault, Drafts};
 use crate::forms::{COUNT_DRAG_SPEED, PatternLayoutChoice, boolean_op_label, split_half_label};
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_KINDS, MateTool};
 use crate::parts::{PartChooser, PartEntry};
-use crate::props::Notation;
+use crate::props::{Notation, WorkingNotation as _};
 use crate::seats::{Seat, Seats, seat_line};
 use crate::session::{Creation, NodeKindWanted, PlaceTarget, Selection, SessionOp, admits};
 use crate::theme::Theme;
@@ -66,16 +66,29 @@ pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mu
     crate::widgets::message_toned(ui, PROJECTION_IS_PLACED, theme, Tone::Advisory);
 }
 
-/// **The clearance form's shape row**: which side the requirement
-/// bounds. Its bounds are inserted at contact and edited on the
-/// requirement's own rows.
-pub(crate) fn clearance_shape_row(ui: &mut egui::Ui, drafts: &mut Drafts) {
+/// **The assertion form's claim rows**: which measure it bounds, then
+/// how. Its bounds are inserted at contact and edited on the
+/// assertion's own rows.
+pub(crate) fn assertion_claim_rows(ui: &mut egui::Ui, drafts: &mut Drafts) {
     ui.horizontal(|ui| {
-        ui.label("clearance");
-        for (choice, label) in ClearanceBoundChoice::ALL {
-            ui.radio_value(&mut drafts.clearance_bound, choice, label);
+        ui.label("measure");
+        for choice in AssertionMeasure::ALL {
+            ui.radio_value(&mut drafts.assertion_measure, choice, choice.label());
         }
     });
+    ui.horizontal(|ui| {
+        ui.label(drafts.assertion_measure.label());
+        for (choice, label) in BoundChoice::ALL {
+            ui.radio_value(&mut drafts.assertion_bound, choice, label);
+        }
+    });
+}
+
+/// Why the assertion form's commit is withheld, if it is: a band
+/// bounds a clearance and no measure's value.
+pub(crate) fn assertion_blocked(drafts: &Drafts) -> Option<&'static str> {
+    (drafts.assertion_measure.verb().is_some() && drafts.assertion_bound.relation().is_none())
+        .then_some("a band bounds a clearance; bound a value from one side, or at one value")
 }
 
 /// **A seated tool's held picks, drawn**: [`seat_line`] over the
@@ -587,36 +600,46 @@ impl ViewerBehavior<'_> {
         // The requirements: a recorded claim the geometry is checked
         // against, which makes no body.
         ui.collapsing(REQUIREMENTS, |ui| {
-            self.clearance_tool_ui(ui);
+            self.assertion_tool_ui(ui);
         });
         ui.separator();
     }
 
-    /// **The clearance tool's panel** — "add a clearance requirement":
-    /// its two seats, a body or a face each, held as picks
-    /// ([`crate::combine::ClearanceTool`]); which side the requirement
-    /// bounds; its one or two lengths; and the one committed edit, which
-    /// writes the assertion through the document's own door.
-    pub(crate) fn clearance_tool_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(tool) = self.tools.clearance().cloned() else {
-            return self.tool_door(ui, ToolKind::Clearance);
+    /// **The assertion tool's panel** — "add an assertion": its two
+    /// seats, a body or a face each, held as picks
+    /// ([`crate::combine::AssertionTool`]); the measure and how it is
+    /// bounded; and the one committed edit, which writes the claim
+    /// through the document's own door.
+    pub(crate) fn assertion_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.assertion().cloned() else {
+            return self.tool_door(ui, ToolKind::Assertion);
         };
-        crate::widgets::message(
-            ui,
-            ToolKind::Clearance.says(
-                &"add a clearance requirement: pick a face in the picture, or a body in the tree, for each of its two seats",
-            ),
-        );
+        // A measure's value reads faces, edges and vertices, never a
+        // body; only a clearance takes a body picked in the tree.
+        let prompt = match self.drafts.assertion_measure.verb() {
+            None => {
+                "add an assertion: pick a face in the picture, or a body in the tree, for each of its two seats"
+            }
+            Some(_) => "add an assertion: pick a face in the picture for each of its two seats",
+        };
+        crate::widgets::message(ui, ToolKind::Assertion.says(&prompt));
         crate::widgets::message_toned(
             ui,
             tool.line(frame::landed_speaker(self.session.landed_pair())),
             &self.theme,
             Tone::Advisory,
         );
-        clearance_shape_row(ui, self.drafts);
-        self.tool_commit_row(ui, ToolKind::Clearance, None, |drafts, notation| {
+        assertion_claim_rows(ui, self.drafts);
+        let blocked = assertion_blocked(self.drafts);
+        self.tool_commit_row(ui, ToolKind::Assertion, blocked, |drafts, notation| {
             let contact = notation.length_literal(0.0)?;
-            Ok(tool.op(drafts.clearance_bound.bounds(contact))?)
+            let Some(claim) = drafts
+                .assertion_measure
+                .claim(drafts.assertion_bound, contact)
+            else {
+                unreachable!("the commit is withheld for a band over a value")
+            };
+            Ok(tool.op(claim)?)
         });
     }
 
@@ -1442,9 +1465,9 @@ impl ViewerBehavior<'_> {
         self.tool_commit_row(ui, ToolKind::Split, blocked.as_deref(), |_, _| Ok(op?));
     }
 
-    /// The mirror tool's panel: the body and the face it is reflected
+    /// The mirror tool's panel: the body and the plane it is reflected
     /// across, held as picks ([`crate::combine::MirrorTool`]), and the
-    /// one committed edit.
+    /// one committed edit, withheld while a pick is missing.
     pub(crate) fn mirror_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.mirror().cloned() else {
             return self.tool_door(ui, ToolKind::Mirror);
@@ -1468,7 +1491,9 @@ impl ViewerBehavior<'_> {
         if let Some((seat, half)) = half_rows(ui, waiting, &self.theme) {
             self.tools.choose_half(seat, half);
         }
-        self.tool_commit_row(ui, ToolKind::Mirror, None, |_, _| Ok(tool.op()?));
+        let op = tool.op();
+        let blocked = op.as_ref().err().map(ToString::to_string);
+        self.tool_commit_row(ui, ToolKind::Mirror, blocked.as_deref(), |_, _| Ok(op?));
     }
 
     /// **The Transform tool's panel**: its one pick, which opens the
@@ -1782,7 +1807,7 @@ impl ViewerBehavior<'_> {
                 BlendKindChoice::Chamfer => "Chamfer",
             },
             ToolKind::Part => "Part",
-            ToolKind::Clearance => "Assertion",
+            ToolKind::Assertion => "Assertion",
         })
     }
 
