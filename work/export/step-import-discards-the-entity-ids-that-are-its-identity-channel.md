@@ -126,8 +126,11 @@ Weighed by three designers (`docs/DESIGN-FORK-PROTOCOL.md`, row 297 of `docs/DES
 - two distinct entities join only through `one_record`'s reported act;
 - `surface_sig` and its readers go;
 - `step-export` writes one surface entity per surface key;
-- `[import]` gains the paragraph "Records follow the file".
+- `[import]` gains the paragraph "Records follow the file";
+- one import row per sharing pattern, each held to its native twin's at-rest verdict.
 
 **Measured, read-only.** Across the tree's 114 STEP files, no spline surface is stated twice. Every duplicated entity group is a plane or round surface facing one way (96 groups in 15 files), the case `one_record` joins.
+
+**Ev's concern** ("imported files can reach states that native files cannot") was weighed in two more rounds and probed. One record worn both ways in one solid is produced natively by `topo::union` (run). Every sharing pattern a file can state has a native producer, and import is narrower (it never shares across shells or solids). The unit therefore adds one import row per pattern, each held to its native twin's at-rest verdict. The one import state native bodies also reach and the boolean refuses, non-maximal planar faces, is its own row: `work/export/an-imported-union-ships-coplanar-same-record-neighbours-no-boolean-takes.md`.
 
 On Ev's ruling this row is re-scoped to that unit, and `work/origin/axis-source-lowered-bytes-carry-no-minter-namespace.md` closes as moot.
