@@ -412,11 +412,13 @@ fn the_eps_inventory_is_pinned() {
     // (file, ε CARRIER tokens, one READ count per op above).
     // `cert.rs`'s one read is the certificate verdict's
     // (`cert::verdict`): whether the rounding allowance is small beside
-    // ε, so that it may be applied; `curved.rs` carries the band one more
-    // step to hand it to that verdict, and `trimmed.rs` two (its emit
-    // pass's and its walk's, `walk_face`).
+    // ε, so that it may be applied. `cert.rs` carries the band two steps
+    // more (`cert::FaceVerdict::read`, the one reading of a face's
+    // triangles, takes it and hands it to that verdict); `curved.rs`
+    // carries it one step to hand it to `read`, and `trimmed.rs` two (its
+    // emit pass's and its walk's, `walk_face`).
     const PINNED: [(&str, usize, [usize; 4]); 7] = [
-        ("cert.rs", 2, [0, 0, 1, 0]),
+        ("cert.rs", 4, [0, 0, 1, 0]),
         ("curved.rs", 7, [0, 0, 0, 0]),
         ("memo.rs", 4, [0, 0, 0, 0]),
         ("sizing.rs", 2, [0, 0, 0, 0]),
