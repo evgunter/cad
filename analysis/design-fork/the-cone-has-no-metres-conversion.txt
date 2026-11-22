@@ -4,3 +4,4 @@ bytes: 171 76
 arm: 2 designers
 mapping: A = Opus designer, B = Fable designer
 protocol: ddd201f411
+void: Ev, in chat 2026-11-21, minutes after the draw: Fable usage is exhausted, run everything on Opus and record no experiments. This fork is weighed by two Opus designers and records no row.
