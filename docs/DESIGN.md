@@ -1554,10 +1554,15 @@ is the face's outward normal, and its x and origin are the space's
 under the orientation the gesture writes nearest the face, carried
 onto the face by the least turn, then turned by the written spin and
 moved by the two written slides ([placement.values]). The frame alone
-decides nothing: what stands in it (the profile's own loops, each
-sweep of the profile, and the faces the profile traces) is carried by
-the placement's own fold over its own reach, as a placement's copy is, and within the band about
-the orientation's pole it refuses, naming the orientation to write. Nothing about the face's cells chooses it:
+decides nothing: what stands in it (the profile's own loops and each
+sweep of the profile) is carried by the placement's own fold over its
+own reach, as a placement's copy is, and within the band about the
+orientation's pole it refuses, naming the orientation to write. A face
+the profile traces stands where it is, as a mate's target does: the
+trace reads it through the frame's turn once that turn's pole is
+decided, and decides nothing past the crossing a piece takes, so every
+point at which a trace uses the turn is a point of the loops the frame
+carries. Nothing about the face's cells chooses it:
 a sketch that should sit at a corner says so in its slides. The sketch
 may trace faces of that space ("Constructing a coincidence"): a profile
 on a face is one act whether or not it traces, and a sweep of it is
