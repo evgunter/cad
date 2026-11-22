@@ -539,6 +539,10 @@ fn coincidence_site(decided: geom_brep::Coincident) -> (crate::Relation, crate::
         C::TorusTorus => (Relation::Coaxial, Site::CoaxialTori),
         C::CylinderRadii => (Relation::SameRadius, Site::CrossingCylinders),
         C::CylinderAxesMeet => (Relation::AxesMeet, Site::CrossingCylinders),
+        C::ConeApex => unreachable!(
+            "a cone's apex on its partner is decided on a cone pair's section, which the \
+             glue door never reads: `pair_section::serves` admits no cone"
+        ),
     }
 }
 
