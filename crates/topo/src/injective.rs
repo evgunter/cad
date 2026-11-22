@@ -6003,7 +6003,11 @@ fn parting_normal([a1, a2]: [Vec3<f64>; 2], [b1, b2]: [Vec3<f64>; 2]) -> Option<
 ///   leaning furthest from both wedges ([`wedges_apart`]); against any
 ///   other presentation (a sphere's pole read as its chart's collapsed
 ///   side, a curve through the vertex), where a face has no corner
-///   axes, `n` across the faces' two headings.
+///   axes, `n` across the faces' two headings. Two quadrants the wedge
+///   plane does not part get no plane: any plane [`sign_on`] reads
+///   departing both of their rectangles parts their axes, so the wedge
+///   plane is missing only where those axes part by a least cosine
+///   below about `1e-7`, and the heading plane is no fallback there.
 ///
 /// Every value is computed at the lane scalar from the stored carrier,
 /// so each member of a family has its own `n` and `q` in these
