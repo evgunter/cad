@@ -15,8 +15,10 @@
 //! never the record's normal alone: a writer states opposite sides of a
 //! box on planes of one normal with opposite senses, and one side on
 //! either normal. Faces facing opposite ways on one locus (a stepped
-//! prism's two faces on one plane, material on opposite sides) are two
-//! surfaces to the kernel's own builders, and are never asked.
+//! prism's two faces on one plane, material on opposite sides) are never
+//! asked: two entities stay two records, as an extrude of the outline
+//! leaves them, and one entity the file cites for both stays one record
+//! worn both ways, as `topo::union` of the two boxes leaves it.
 //!
 //! **Decided at the faces, never at stored origins.** A plane record's
 //! origin is an arbitrary point of it, so the question is asked of what
@@ -91,11 +93,10 @@ fn one_way(a: Vec3<f64>, b: Vec3<f64>) -> bool {
 }
 
 /// Makes the faces of `solid` that read as one locus facing one way one
-/// record (module docs). `records[i]` is the surface record
-/// `solid.faces[i]` states.
+/// record (module docs): each joined face is made to wear the kept
+/// record.
 pub(crate) fn one_record(
     solid: &mut SolidSpec,
-    records: &[Record],
     file: FileBand,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
@@ -103,14 +104,16 @@ pub(crate) fn one_record(
     let mut by: std::collections::BTreeMap<(Record, bool), Vec<usize>> =
         std::collections::BTreeMap::new();
     for (fi, face) in solid.faces.iter().enumerate() {
-        if matches!(face.surface, Surface::Plane { .. }) {
-            by.entry((records[fi], !face.sense)).or_default().push(fi);
+        if matches!(solid.surface_of(face), Surface::Plane { .. }) {
+            by.entry((solid.record(face.record), !face.sense))
+                .or_default()
+                .push(fi);
         }
     }
     let groups: Vec<Group> = by
         .into_iter()
         .map(|((record, reversed), faces)| {
-            let n = normal(&solid.faces[faces[0]].surface);
+            let n = normal(solid.surface(faces[0]));
             Group {
                 record,
                 facing: if reversed { -n } else { n },
@@ -145,13 +148,12 @@ pub(crate) fn one_record(
             continue;
         };
         let keep = &groups[ki];
-        let surface = solid.faces[keep.faces[0]].surface.clone();
-        let n = normal(&surface);
+        let n = normal(&solid.surfaces[&keep.record.id].surface);
         // The sense that keeps each face's material side: its facing
         // read against the kept record's normal.
         let sense = one_way(n, group.facing);
         for &fi in &group.faces {
-            solid.faces[fi].surface = surface.clone();
+            solid.faces[fi].record = keep.record.id;
             solid.faces[fi].sense = sense;
         }
         sink.push(StructureNormalization {
@@ -165,7 +167,7 @@ pub(crate) fn one_record(
             kernel_census: FaceCensus::EMPTY,
         });
     }
-    one_round_record(solid, records, file, sink)
+    one_round_record(solid, file, sink)
 }
 
 /// **Two records of one round surface become one**: a cylinder, cone,
@@ -177,15 +179,16 @@ pub(crate) fn one_record(
 /// of their radii ([`round_gap`]).
 fn one_round_record(
     solid: &mut SolidSpec,
-    records: &[Record],
     file: FileBand,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
     let mut by: std::collections::BTreeMap<(Record, bool), Vec<usize>> =
         std::collections::BTreeMap::new();
     for (fi, face) in solid.faces.iter().enumerate() {
-        if round(&face.surface) {
-            by.entry((records[fi], face.sense)).or_default().push(fi);
+        if round(solid.surface_of(face)) {
+            by.entry((solid.record(face.record), face.sense))
+                .or_default()
+                .push(fi);
         }
     }
     let groups: Vec<((Record, bool), Vec<usize>)> = by.into_iter().collect();
@@ -198,8 +201,8 @@ fn one_round_record(
                 continue;
             }
             let (a, b) = (
-                &solid.faces[keep_faces[0]].surface,
-                &solid.faces[faces[0]].surface,
+                &solid.surfaces[&keep.id].surface,
+                &solid.surfaces[&record.id].surface,
             );
             let Some(gap) =
                 crate::reach::Reach::of(solid, keep_faces.iter().chain(faces.iter()).copied())
@@ -222,10 +225,9 @@ fn one_round_record(
             kept.push(gi);
             continue;
         };
-        let ((keep, _), keep_faces) = &groups[ki];
-        let surface = solid.faces[keep_faces[0]].surface.clone();
+        let ((keep, _), _) = &groups[ki];
         for &fi in faces {
-            solid.faces[fi].surface = surface.clone();
+            solid.faces[fi].record = keep.id;
         }
         sink.push(StructureNormalization {
             face: solid.faces[faces[0]].id,
@@ -357,7 +359,7 @@ fn plane_of(surface: &Surface<f64>) -> (Point3<f64>, Vec3<f64>) {
 fn locus_gap(solid: &SolidSpec, kept: &[usize], faces: &[usize]) -> Option<f64> {
     let reach = |of: &[usize], plane: usize| {
         of.iter()
-            .map(|&fi| face_reach(solid, fi, &solid.faces[plane].surface))
+            .map(|&fi| face_reach(solid, fi, solid.surface(plane)))
             .try_fold(0.0_f64, |m, r| Some(m.max(r?)))
     };
     Some(reach(faces, kept[0])?.max(reach(kept, faces[0])?))
@@ -398,7 +400,7 @@ mod tests {
 
     /// Two faces on one cylinder of radius 1 about `y` (`y` from 0 to 1
     /// and from 1 to 2), each its own record, with senses `senses`.
-    fn two_walls(senses: [bool; 2]) -> (SolidSpec, [Record; 2]) {
+    fn two_walls(senses: [bool; 2]) -> SolidSpec {
         let y = Vec3::new(0.0, 1.0, 0.0);
         let x = Vec3::new(1.0, 0.0, 0.0);
         let rim = |at: f64| crate::entities::EdgeSpec {
@@ -414,9 +416,9 @@ mod tests {
             frame: geom::Frame::new(Point3::origin(), y, x),
             radius: 1.0,
         };
-        let face = |id: u64, sense: bool, edges: [u64; 2]| crate::entities::FaceSpec {
+        let face = |id: u64, record: u64, sense: bool, edges: [u64; 2]| crate::entities::FaceSpec {
             id,
-            surface: surface.clone(),
+            record,
             sense,
             loops: edges
                 .into_iter()
@@ -430,26 +432,23 @@ mod tests {
                 .collect(),
             band: false,
         };
-        let solid = SolidSpec {
+        let record = |position| crate::entities::SurfaceRecord {
+            surface: surface.clone(),
+            position,
+        };
+        SolidSpec {
             id: 1,
-            faces: vec![face(2, senses[0], [10, 11]), face(3, senses[1], [11, 12])],
+            faces: vec![
+                face(2, 20, senses[0], [10, 11]),
+                face(3, 21, senses[1], [11, 12]),
+            ],
             edges: [(10, rim(0.0)), (11, rim(1.0)), (12, rim(2.0))]
                 .into_iter()
                 .collect(),
             vertices: [(1, Point3::new(1.0, 0.0, 0.0))].into_iter().collect(),
+            surfaces: [(20, record(1)), (21, record(2))].into_iter().collect(),
             band_seams: std::collections::BTreeSet::new(),
-        };
-        let records = [
-            Record {
-                position: 1,
-                id: 20,
-            },
-            Record {
-                position: 2,
-                id: 21,
-            },
-        ];
-        (solid, records)
+        }
     }
 
     /// **Two records of one round surface are asked only of faces facing
@@ -460,14 +459,20 @@ mod tests {
     fn round_records_join_only_facing_one_way() {
         let file = crate::interpret::FileBand::test(1e-6);
         for (senses, joined) in [([true, true], 1), ([true, false], 0)] {
-            let (mut solid, records) = two_walls(senses);
+            let mut solid = two_walls(senses);
             let mut sink = Vec::new();
-            one_record(&mut solid, &records, file, &mut sink).unwrap();
+            one_record(&mut solid, file, &mut sink).unwrap();
             let joins = sink
                 .iter()
                 .filter(|n| matches!(n.kind, NormalizationKind::OneRecord { .. }))
                 .count();
             assert_eq!(joins, joined, "senses {senses:?}");
+            let worn = (solid.faces[0].record, solid.faces[1].record);
+            assert_eq!(
+                worn.0 == worn.1,
+                joined == 1,
+                "senses {senses:?}: a join makes the faces wear one record, and only a join"
+            );
         }
     }
 }

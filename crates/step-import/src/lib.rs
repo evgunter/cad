@@ -963,9 +963,10 @@ pub fn import_step(
             // one component representation are N entries over the same
             // solid index, and each is a body of its OWN — fresh
             // topology, fresh arena keys, no structure shared between
-            // copies. Sharing was never on the table: a `SolidSpec`'s
-            // maps are keyed by the file's entity ids, so two copies
-            // assembled into one arena would collide id for id.
+            // copies. Nothing is shared between them because nothing is
+            // shared between any two shells: each solid and each void is
+            // built alone, in a body of its own, and grafted under fresh
+            // keys.
             //
             // Each placement is the motion its placement pair minted
             // (`build_axes`, then `B ∘ A⁻¹` composed as motions), so it is

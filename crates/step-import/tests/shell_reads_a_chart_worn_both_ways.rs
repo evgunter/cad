@@ -1,8 +1,9 @@
 //! **A finished body can wear one chart with both senses within one
-//! solid, and `shell` refuses it `ChartSenseMixed`.** The import adopts
-//! surfaces by bit signature per solid and keeps each face's own
-//! `same_sense`, so a file whose two faces cite one plane, one of them
-//! reversed, imports as one surface key worn both ways. The Z-step
+//! solid, and `shell` refuses it `ChartSenseMixed`.** The import gives
+//! every face of one shell citing one surface entity that entity's one
+//! record, and keeps each face's own `same_sense`, so a file whose two
+//! faces cite one plane, one of them reversed, imports as one surface
+//! key worn both ways. The Z-step
 //! prism's two faces on y = 0 face opposite ways; written on separate
 //! planes it shells, and written on one plane it is still a finished
 //! body, which the verb takes and refuses typed: a chart moves as one,

@@ -108,8 +108,7 @@ pub(crate) const UNCATALOGUED_LANE: &str = "a snap catalogue construction that m
 pub(crate) const ANCHOR_LANE: &str = "a joint solve anchored at the class's earliest record \
      (`work/importgate/a-snap-class-whose-solve-moves-a-surface-twice-refuses.md`)";
 
-/// One surface of the shell: the faces that wear it bit for bit, and the
-/// earliest record they state.
+/// One surface record of the shell, and the faces that wear it.
 struct Node {
     faces: Vec<usize>,
     record: Record,
@@ -140,10 +139,8 @@ struct Move {
 }
 
 /// **Makes each relation the file band reads `Zero` exact** (module docs).
-/// `records[i]` is the record `solid.faces[i]` states.
 pub(crate) fn snap(
     solid: &mut SolidSpec,
-    records: &[Record],
     file: FileBand,
     tol: Tol,
     sink: &mut Vec<StructureNormalization>,
@@ -152,7 +149,7 @@ pub(crate) fn snap(
         id: solid.id,
         what: "the run's tolerance makes no band to build at",
     })?;
-    let mut nodes = nodes(solid, records);
+    let mut nodes = nodes(solid);
     let relations = relations(solid, &nodes, file, run)?;
     for class in classes(nodes.len(), &relations) {
         if class.iter().all(|&r| relations[r].exact) {
@@ -188,9 +185,10 @@ pub(crate) fn snap(
             relation,
         } in moves
         {
-            for &fi in &nodes[n].faces {
-                solid.faces[fi].surface = surface.clone();
-            }
+            let Some(record) = solid.surfaces.get_mut(&nodes[n].record.id) else {
+                unreachable!("a node is a record of the shell")
+            };
+            record.surface = surface;
             sink.push(StructureNormalization {
                 face: nodes[n].record.id,
                 kind: NormalizationKind::Snapped {
@@ -214,23 +212,20 @@ fn run_zero(run: geom_core::Band, gap: f64) -> bool {
     )
 }
 
-/// The shell's surfaces: faces grouped by bit-identical surface, each
-/// group under the earliest record its faces state.
-fn nodes(solid: &SolidSpec, records: &[Record]) -> Vec<Node> {
-    let mut by: BTreeMap<Vec<u64>, usize> = BTreeMap::new();
+/// The shell's surface records, in the order its faces first wear them.
+fn nodes(solid: &SolidSpec) -> Vec<Node> {
+    let mut by: BTreeMap<u64, usize> = BTreeMap::new();
     let mut nodes: Vec<Node> = Vec::new();
     for (fi, face) in solid.faces.iter().enumerate() {
-        let sig = crate::build::surface_sig(&face.surface);
-        let n = *by.entry(sig).or_insert_with(|| {
+        let n = *by.entry(face.record).or_insert_with(|| {
             nodes.push(Node {
                 faces: Vec::new(),
-                record: records[fi],
-                surface: face.surface.clone(),
+                record: solid.record(face.record),
+                surface: solid.surface_of(face).clone(),
             });
             nodes.len() - 1
         });
         nodes[n].faces.push(fi);
-        nodes[n].record = nodes[n].record.min(records[fi]);
     }
     nodes
 }
@@ -999,7 +994,7 @@ mod tests {
             id: 1,
             faces: vec![crate::entities::FaceSpec {
                 id: 2,
-                surface: surface.clone(),
+                record: 20,
                 sense: true,
                 loops: [10, 11]
                     .into_iter()
@@ -1015,6 +1010,7 @@ mod tests {
             }],
             edges: [(10, rim(0.0)), (11, rim(1.0))].into_iter().collect(),
             vertices: [(1, Point3::new(1.0, 0.0, 0.0))].into_iter().collect(),
+            surfaces: crate::entities::records_of([(20, surface.clone())]),
             band_seams: std::collections::BTreeSet::new(),
         };
         (solid, surface)
@@ -1049,9 +1045,9 @@ mod tests {
             frame: geom::Frame::new(Point3::origin(), z, x),
             radius: 1.0,
         };
-        let face = |id: u64, surface: &Surface<f64>, edges: &[u64]| crate::entities::FaceSpec {
+        let face = |id: u64, record: u64, edges: &[u64]| crate::entities::FaceSpec {
             id,
-            surface: surface.clone(),
+            record,
             sense: true,
             loops: edges
                 .iter()
@@ -1068,9 +1064,9 @@ mod tests {
         let solid = SolidSpec {
             id: 1,
             faces: vec![
-                face(2, &plane, &[10]),
-                face(3, &plane, &[11]),
-                face(4, &cylinder, &[10, 12]),
+                face(2, 20, &[10]),
+                face(3, 20, &[11]),
+                face(4, 21, &[10, 12]),
             ],
             edges: [
                 (10, circle(Point3::origin())),
@@ -1080,6 +1076,7 @@ mod tests {
             .into_iter()
             .collect(),
             vertices: [(1, Point3::new(1.0, 0.0, 0.0))].into_iter().collect(),
+            surfaces: crate::entities::records_of([(21, cylinder.clone()), (20, plane.clone())]),
             band_seams: std::collections::BTreeSet::new(),
         };
         let nodes = vec![
