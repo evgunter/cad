@@ -1481,6 +1481,7 @@ mod tests {
                 continue;
             };
             let steps = [legs.clone(), way_in].concat();
+            let steps_len = steps.len();
             let unclosable = PreviewError::Transition {
                 loop_: 0,
                 step: steps.len(),
@@ -1499,7 +1500,18 @@ mod tests {
                 panic!("{state:?}: cut at its tip: {:?}", prefix.loops[0].end)
             };
             assert!(!cut.closes, "{state:?}");
-            assert_eq!(cut.refusal.to_string(), unclosable.to_string(), "{state:?}");
+            // The refusal is the end-of-program transition at the tip,
+            // field by field (a `PreviewError` has no equality: it can
+            // keep a sentence).
+            assert!(
+                matches!(
+                    cut.refusal,
+                    PreviewError::Transition { loop_: 0, step, state: at, verb: None }
+                        if step == steps_len && at == state
+                ),
+                "{state:?}: {:?}",
+                cut.refusal
+            );
             let (painted, voices) = drawn(&preview);
             assert_eq!(
                 find(&painted, &unclosable.to_string()).ink,

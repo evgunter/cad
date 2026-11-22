@@ -13,12 +13,27 @@
 //! enclosures of π refined until both ends give one answer. That
 //! refinement ends, because every answer here steps only at rationals
 //! and a nonzero rational times π, or over π, is irrational, so it is
-//! never at a step; it has no bound but the one the decision itself
-//! sets, so it is total.
+//! never at a step.
+//!
+//! **What a decision costs.** Nearly every one is decided with π to 56
+//! bits and every number in a `u128`; the next most are decided at 112.
+//! The bits a decision needs grow with how closely the exact real comes
+//! to a step, about 3.3 bits for each figure a decimal shares with an
+//! irrational boundary, and π past 2048 bits is computed once at twice
+//! the precision asked and kept. A decimal the text door reads is cut
+//! to [`crate::DECIDING_FIGURES`] figures and a sticky rest
+//! ([`crate::UnitDef::canonical`]), so its length costs nothing past
+//! that, save a decimal in `in`, `deg` or `pi rad` that agrees with a
+//! rounding boundary through all of those figures, which is decided at
+//! its full length. Measured (an optimized build, CPU time, a shared
+//! box): a random decimal of a million figures, under a millisecond in
+//! `mm` and in `deg`; a degree decimal that agrees with a boundary
+//! through 1,000 figures, 10 ms; through 3,000, 0.12 s; through
+//! 10,000, 1.6 s, growing as the square of its length.
 
 use core::cmp::Ordering;
 use std::borrow::Cow;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 /// An unsigned integer of any size: little-endian 32-bit limbs, the
 /// most significant one nonzero (zero has none).
@@ -47,6 +62,26 @@ impl Nat {
             n.mul_small_add(10u32.pow(chunk.len() as u32), value);
         }
         n
+    }
+
+    /// The ASCII decimal digits of this integer; empty for zero.
+    pub(crate) fn to_digits(&self) -> String {
+        let mut chunks = Vec::new();
+        let mut n = self.clone();
+        while !n.is_zero() {
+            let (q, r) = n.div_small(1_000_000_000);
+            chunks.push(r);
+            n = q;
+        }
+        let mut out = String::new();
+        for (i, chunk) in chunks.iter().rev().enumerate() {
+            if i == 0 {
+                out.push_str(&chunk.to_string());
+            } else {
+                out.push_str(&format!("{chunk:09}"));
+            }
+        }
+        out
     }
 
     fn trim(&mut self) {
@@ -264,16 +299,10 @@ impl Nat {
 
     /// The top 128 bits of `self >> shift`, for `self >> shift < 2^128`.
     fn top_u128(&self, shift: u64) -> u128 {
-        let shifted = self.shr(shift);
-        assert!(
-            shifted.0.len() <= 4,
-            "a shifted value of more than 128 bits"
-        );
-        shifted
-            .0
-            .iter()
-            .rev()
-            .fold(0u128, |acc, &limb| (acc << 32) | u128::from(limb))
+        let Some(top) = self.shr(shift).to_u128() else {
+            unreachable!("a shifted value this module asks for is below 2^128")
+        };
+        top
     }
 
     /// `(⌊self / d⌋, self mod d)` for a nonzero `d` and a quotient below
@@ -375,19 +404,37 @@ fn machin(bits: u64) -> (Nat, Nat) {
     (lo, hi)
 }
 
-/// π enclosed at `bits` bits: `[lo, hi] / 2^bits`, from an enclosure
-/// at [`PI_KEPT`] bits kept between calls, and computed afresh past it.
+/// π enclosed at `bits` bits: `[lo, hi] / 2^bits`, from an enclosure at
+/// [`PI_KEPT`] bits, or past that from the finest any call has asked
+/// for, kept between calls. A call past the finest computes one at
+/// twice what it asks and keeps that, so a run of refinements computes Machin's series a number of
+/// times logarithmic in the finest precision reached, never once per
+/// decision.
 fn pi(bits: u64) -> (Nat, Nat) {
-    static KEPT: OnceLock<(Nat, Nat)> = OnceLock::new();
-    if bits > PI_KEPT {
-        return machin(bits);
+    // The precision nearly every decision reads, without a lock.
+    static FIRST: OnceLock<(Nat, Nat)> = OnceLock::new();
+    if bits <= PI_KEPT {
+        let (lo, hi) = FIRST.get_or_init(|| machin(PI_KEPT));
+        let coarser = PI_KEPT - bits;
+        return (lo.shr(coarser), hi.shr(coarser).add(&Nat::from_u64(1)));
     }
-    let (lo, hi) = KEPT.get_or_init(|| machin(PI_KEPT));
-    let coarser = PI_KEPT - bits;
+    static KEPT: Mutex<Option<(u64, Nat, Nat)>> = Mutex::new(None);
+    let mut kept = KEPT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if kept.as_ref().is_none_or(|(at, _, _)| *at < bits) {
+        let at = bits.saturating_mul(2);
+        let (lo, hi) = machin(at);
+        *kept = Some((at, lo, hi));
+    }
+    let Some((at, lo, hi)) = kept.as_ref() else {
+        unreachable!("an enclosure was kept on the lines above")
+    };
+    let coarser = at - bits;
     (lo.shr(coarser), hi.shr(coarser).add(&Nat::from_u64(1)))
 }
 
-/// The precision π is kept at.
+/// The least precision π is kept at.
 const PI_KEPT: u64 = 2048;
 
 /// A positive real `n / d · π^pi`, `pi` one of −1, 0, 1.
@@ -606,18 +653,68 @@ fn ldexp(m: f64, p: i64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Nat, machin, round_to_f64};
+    use super::{Nat, PI_KEPT, machin, pi, round_to_f64};
+    use core::cmp::Ordering;
 
-    /// π's float is the float nearest the enclosure, and the enclosure
-    /// is tight.
+    /// π to a hundred places, truncated: `P / 10^100 < π < (P + 1) / 10^100`.
+    const PI_100: &str = "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679";
+
+    /// Whether `[lo, hi] / 2^bits` holds π, against [`PI_100`]: the lower
+    /// end not above `(P + 1)/10^100` and the upper not below `P/10^100`,
+    /// which at 300 bits or fewer is within a hair of π itself.
+    fn holds_pi(lo: &Nat, hi: &Nat, bits: u64) -> bool {
+        let p = Nat::from_digits(PI_100);
+        let scale = Nat::pow10(100);
+        let one = Nat::from_u64(1).shl(bits);
+        let lo_ok = lo
+            .mul(&scale)
+            .cmp_value(&p.add(&Nat::from_u64(1)).mul(&one))
+            != Ordering::Greater;
+        let hi_ok = hi.mul(&scale).cmp_value(&p.mul(&one)) != Ordering::Less;
+        lo_ok && hi_ok
+    }
+
+    /// Machin's enclosure holds π, against digits of π written out, at
+    /// every width up to what those digits decide, and is at most two
+    /// units of its last place wide.
     #[test]
-    fn machin_encloses_pi() {
-        for bits in [64, 128, 1000] {
+    fn the_enclosure_contains_pi() {
+        for bits in [8, 56, 64, 112, 128, 160, 256, 300] {
             let (lo, hi) = machin(bits);
-            let one = Nat::from_u64(1).shl(bits);
-            assert_eq!(round_to_f64(&lo, &one), core::f64::consts::PI, "{bits}");
-            assert_eq!(round_to_f64(&hi, &one), core::f64::consts::PI, "{bits}");
-            assert!(hi.sub(&lo).to_u64().is_some_and(|w| w < 4), "{bits}: width");
+            assert!(holds_pi(&lo, &hi, bits), "{bits}");
+            assert!(
+                hi.sub(&lo).to_u64().is_some_and(|w| w <= 2),
+                "{bits}: width"
+            );
+        }
+    }
+
+    /// The kept enclosure, at every width a decision asks of it, holds π
+    /// and holds the finer one it is cut from: below the kept precision,
+    /// at it, and past it, where the kept one is extended.
+    #[test]
+    fn the_kept_enclosure_contains_pi_at_every_width() {
+        for bits in [56, 112, 300] {
+            let (lo, hi) = pi(bits);
+            assert!(holds_pi(&lo, &hi, bits), "{bits}");
+        }
+        let fine = 3 * PI_KEPT;
+        let (flo, fhi) = machin(fine);
+        for bits in [300, PI_KEPT, PI_KEPT + 1, fine] {
+            let (lo, hi) = pi(bits);
+            let coarser = fine - bits;
+            assert!(
+                lo.shl(coarser).cmp_value(&flo) != Ordering::Greater,
+                "{bits}: lo"
+            );
+            assert!(
+                hi.shl(coarser).cmp_value(&fhi) != Ordering::Less,
+                "{bits}: hi"
+            );
+            assert!(
+                hi.sub(&lo).to_u64().is_some_and(|w| w <= 4),
+                "{bits}: width"
+            );
         }
     }
 

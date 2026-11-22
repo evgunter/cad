@@ -6,9 +6,9 @@
 use proptest::prelude::*;
 
 use crate::{
-    Angle, CENTI, CM, DEG, Decimal, FmtQuantityError, IN, Length, M, MILLI, MM, ONE, PI, RAD,
-    ROUND_TRIP_FIGURES, UNITS, UnitDef, UnitQuantity, WrittenAngle, WrittenLength, fmt_angle,
-    fmt_length, unit_by_symbol,
+    Angle, CENTI, CM, DECIDING_FIGURES, DEG, Decimal, FmtQuantityError, IN, Length, M, MILLI, MM,
+    ONE, PI, RAD, ROUND_TRIP_FIGURES, UNITS, UnitDef, UnitQuantity, WrittenAngle, WrittenLength,
+    fmt_angle, fmt_length, unit_by_symbol,
 };
 
 /// The decimal `text` spells.
@@ -367,6 +367,128 @@ fn a_number_in_a_unit_is_its_decimal_times_the_exact_factor_rounded_once() {
     assert_eq!((300.04 * MM).meters(), 0.300_04);
 }
 
+/// A decimal of more figures than can decide its rounding is read as
+/// its first [`DECIDING_FIGURES`] and a sticky rest, against exact
+/// arithmetic done elsewhere: ties at one metre and one thousand
+/// millimetres, where the 800th figure (the last kept) or the 801st
+/// (the first dropped) is the one that decides; and a thousand-figure
+/// degree decimal that agrees with a rounding boundary through all its
+/// figures, which no head of 800 figures decides.
+#[test]
+fn a_long_decimal_is_decided_by_its_deciding_figures() {
+    // 1 + 2^-53, whose even neighbour is 1; and 1 + 3·2^-53, whose even
+    // neighbour is 1 + 2^-51.
+    let low_tie = "100000000000000011102230246251565404236316680908203125";
+    let high_tie = "100000000000000033306690738754696212708950042724609375";
+    let pad = DECIDING_FIGURES - low_tie.len();
+    let below_high_tie = format!("{}4{}1", &high_tie[..high_tie.len() - 1], "9".repeat(pad));
+    for (unit, shift) in [(M.def(), 0), (MM.def(), 3)] {
+        let e = -53 + shift;
+        let pad_e = pad as i64;
+        for (text, want) in [
+            (format!("{low_tie}e{e}"), 0x3ff0_0000_0000_0000_u64),
+            (
+                format!("{low_tie}{}1e{}", "0".repeat(pad), e - pad_e - 1),
+                0x3ff0_0000_0000_0001,
+            ),
+            (
+                format!("{below_high_tie}e{}", e - pad_e - 1),
+                0x3ff0_0000_0000_0001,
+            ),
+            (
+                format!("{high_tie}{}e{}", "0".repeat(pad), e - pad_e),
+                0x3ff0_0000_0000_0002,
+            ),
+        ] {
+            let number = decimal(&text);
+            assert_eq!(
+                unit.canonical(&number).to_bits(),
+                want,
+                "{} figures in {}",
+                number.figures(),
+                unit.symbol()
+            );
+        }
+    }
+    let near_a_boundary = decimal(DEG_NEAR_A_BOUNDARY);
+    assert!(near_a_boundary.figures() > DECIDING_FIGURES);
+    assert_eq!(
+        DEG.def().canonical(&near_a_boundary).to_bits(),
+        0x3fe0_c152_382d_7365
+    );
+}
+
+/// A thousand-figure decimal of degrees that agrees with the midpoint
+/// between the two floats beside thirty degrees, times 180/π, through
+/// every figure (Python, π by Machin at 12 000 bits).
+const DEG_NEAR_A_BOUNDARY: &str = "29.999999999999999890733344065359585131539391042633019363235952349336250314890346797641898303507789549444447461311432902501099307609702394647419527326352379107478243619992777347373585630059055324797483883989948801774554940086215256077606896806210522948065133322448296934861516751847914307310899767513218075467548580465590715973368656485769846690076504351116020537288456522278174071723919074369053092790207549438395225094593160326941140419936116546186957050493881371391071535605523382088190996271112073140752184442017925229867732539939468349341948033526275819949609954494172254375160882789921935272533688812880996683801319433594995142577158051446975579725169098732767166135299206032204141339351575950270627663403642768516220705502298628501938865622566371172492649533927502869963974247147495442984464835954876282063207077771448389366999758246633234000636309610955453434336636805759963615683744548660950428217773117542239752139727972716209070525680070225638894931642411018758812552477043646000778239571857";
+
+/// A float the old door made (the decimal's float times the factor's
+/// float) is spelled as the float it is, in its unit; the door's own
+/// float is spelled short.
+#[test]
+fn a_float_the_old_multiply_made_is_spelled_exactly() {
+    assert_eq!(
+        fmt_length(4.5 * MILLI, MM).unwrap(),
+        "4.5000000000000005 mm"
+    );
+    assert_eq!(
+        fmt_angle(30.0 * DEG.factor(), DEG).unwrap(),
+        "29.999999999999997 deg"
+    );
+    assert_eq!(fmt_length((4.5 * MM).meters(), MM).unwrap(), "4.5 mm");
+    assert_eq!(fmt_angle((30.0 * DEG).radians(), DEG).unwrap(), "30 deg");
+}
+
+/// The text door and the float door read a decimal of sixteen figures
+/// apart: the float the literal already is has lost what the text kept
+/// (`work/scalar/a-float-door-loses-what-the-text-door-keeps.md`).
+#[test]
+fn a_sixteen_figure_decimal_reads_apart_at_the_two_doors() {
+    let text = IN.def().canonical(&decimal("9683.884588090202"));
+    assert_eq!(text.to_bits(), 0x406e_bf0f_b776_f8fa);
+    assert_eq!(
+        (9683.884588090202 * IN).meters().to_bits(),
+        0x406e_bf0f_b776_f8fb
+    );
+}
+
+/// The shortest decimal is the shortest: in the canonical units it is
+/// std's own digits, and in a scaled unit it is what an independent
+/// exact oracle (BBP π) found.
+#[test]
+fn the_shortest_decimal_is_the_shortest() {
+    for x in [
+        5.426_657_103_235_053e-166,
+        0.1,
+        0.300_04,
+        1.0 / 3.0,
+        1e23,
+        5e-324,
+        f64::MAX,
+    ] {
+        assert_eq!(Some(M.def().shortest(x)), Decimal::of_float(x), "{x:e}");
+    }
+    assert_eq!(MM.def().shortest(0.300_04).to_string(), "300.04");
+    assert_eq!(DEG.def().shortest((30.0 * DEG).radians()).to_string(), "30");
+    assert_eq!(IN.def().shortest(0.0762).to_string(), "3");
+    for (symbol, bits, want) in [
+        ("deg", 0x0000_0000_0000_0001_u64, "3e-322"),
+        ("deg", 0x0010_0000_0000_0000, "12748734119735194e-322"),
+        ("deg", 0x4009_21fb_5444_2d18, "180"),
+        ("in", 0x3fd3_3333_3333_3333, "11811023622047244e-15"),
+        ("mm", 0x0010_0000_0000_0000, "22250738585072014e-321"),
+        ("pi rad", 0x7fef_ffff_ffff_ffff, "57222349715140557e291"),
+    ] {
+        let unit = unit_by_symbol(symbol).unwrap();
+        assert_eq!(
+            unit.shortest(f64::from_bits(bits)),
+            decimal(want),
+            "{symbol} {bits:#x}"
+        );
+    }
+}
+
 /// Every finite float has a decimal of at most seventeen figures that,
 /// written in any unit, is that float, and in the canonical units it is
 /// the float's own shortest digits: every fifth binade from the
@@ -422,10 +544,9 @@ fn every_float_has_a_shortest_decimal_in_every_unit() {
 /// which covers this row with every other.
 ///
 /// The last row is the point of the pin. `0.5 pi rad` and `90 deg` are
-/// the SAME canonical value to within the last ulp and neither is exact,
-/// so nothing but the authored unit can distinguish them — which is
-/// why the unit is stored per literal rather than derived from the
-/// number.
+/// the SAME canonical value, the float nearest a quarter turn, so
+/// nothing but the authored unit can distinguish them — which is why
+/// the unit is stored per literal rather than derived from the number.
 #[test]
 fn the_half_turn_row_writes_angles_the_way_they_were_authored() {
     for (multiple, text) in [
@@ -447,7 +568,7 @@ fn the_half_turn_row_writes_angles_the_way_they_were_authored() {
     // other.
     let quarter_in_pi = 0.5 * PI;
     let quarter_in_deg = 90.0 * DEG;
-    assert!((quarter_in_pi.radians() - quarter_in_deg.radians()).abs() < 1e-15);
+    assert_eq!(quarter_in_pi.radians(), quarter_in_deg.radians());
     assert_eq!(
         fmt_angle(quarter_in_pi.radians(), PI).unwrap(),
         "0.5 pi rad"

@@ -1,12 +1,11 @@
 ---
 id: two-decimal-parsers
 kind: issue
-title: editor-core's Ratio::from_decimal and quantity::Decimal parse one decimal grammar twice
+title: The text door reads one number token through three parsers: Ratio::from_decimal, std's f64 parse and quantity::Decimal
 status: open
 opened: 2026-11-21
 priority: P3
 cost: M
 ---
 
-
-`editor_core::Ratio::from_decimal` (`crates/editor-core/src/expr.rs`) reads a bare decimal as the rational it spells, and `quantity::Decimal::parse` (`crates/quantity/src/decimal.rs`) reads a unit-bearing one as a decimal; the text door (`crates/editor-core/src/parse.rs`, `literal`) calls one or the other on the same token text. One grammar written twice: a `Ratio` could be built from the `Decimal` (its digits and exponent), so the two cannot disagree on what a token spells.
+`crates/editor-core/src/parse.rs`, `literal`, reads a number token through one of three readers: `quantity::Decimal::parse` for a unit-bearing number (the once-rounded door), std's `parse::<f64>` for a lone bare decimal written as a value, and `editor_core::Ratio::from_decimal` (`crates/editor-core/src/ratio.rs`, about line 81) for a bare decimal inside a formula. All three read `lex_number`'s grammar, and each token reaches exactly one of them. They agree on every value today (for a factor of one, std's parse and `UnitDef::canonical` are both correctly rounded) and differ only on absurd exponents: `Decimal` saturates its exponent at `2^60` and reads past the format as ±∞ or a signed zero, `Ratio` refuses past `i32`, std's parse reads ±∞ or zero. One grammar written three times: a `Ratio` could be built from the `Decimal` (its digits and exponent), and the lone value read through `M`'s door, so they cannot come to disagree.

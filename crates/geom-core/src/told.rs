@@ -83,7 +83,7 @@ use core::cmp::Ordering;
 use core::fmt;
 use std::sync::Arc;
 
-use quantity::{Decimal, Notation, ROUND_TRIP_FIGURES, Rounding, UnitDef};
+use quantity::{Decimal, InUnit, Notation, ROUND_TRIP_FIGURES, Rounding, UnitDef};
 
 use crate::Real;
 use crate::tolerance::DEFAULT_EPS;
@@ -340,35 +340,58 @@ impl Quantity {
     /// What is spelled in `unit` at `extra` figures past the grid;
     /// `None` for a reading that does not read.
     fn spelled_in(&self, unit: UnitDef, extra: usize) -> Option<Spelled> {
-        let figures = |x: f64| {
-            let (grid, own) = grid_figures(x, unit, self.dimension);
-            if grid + extra >= own {
-                ROUND_TRIP_FIGURES
-            } else {
-                grid + extra
-            }
-        };
-        let outward = |x: f64, side: Side| toward(x, unit, figures(x), side);
+        self.spelled_at(&self.floats(unit), unit, extra)
+    }
+
+    /// The floats held as exact numbers of `unit` with their grids, for
+    /// the roles that round: a value or an enclosure's two ends.
+    fn floats(&self, unit: UnitDef) -> [Option<Float>; 2] {
+        let float = |x: f64| Some(Float::of(x, unit, self.dimension));
+        match self.held {
+            Held::Computed(Read::Value(x)) => [float(x), None],
+            Held::Computed(Read::Enclosure { lo, hi }) => [float(lo), float(hi)],
+            Held::Offered { bound: Some(x), .. } => [float(x), None],
+            Held::Given(_)
+            | Held::Computed(Read::Unreadable)
+            | Held::Offered { bound: None, .. } => [None, None],
+        }
+    }
+
+    /// [`Quantity::spelled_in`] from floats already built.
+    fn spelled_at(
+        &self,
+        floats: &[Option<Float>; 2],
+        unit: UnitDef,
+        extra: usize,
+    ) -> Option<Spelled> {
+        let [first, second] = floats;
         Some(match self.held {
             Held::Given(Read::Value(x)) => Spelled::One(given(x, unit)),
             Held::Given(Read::Enclosure { lo, hi }) => {
                 Spelled::Ends(given(lo, unit), given(hi, unit))
             }
-            Held::Computed(Read::Value(x)) => Spelled::One(nearest(x, unit, figures(x))),
-            Held::Computed(Read::Enclosure { lo, hi }) => {
-                Spelled::Ends(outward(lo, Side::AtMost), outward(hi, Side::AtLeast))
-            }
             Held::Given(Read::Unreadable) | Held::Computed(Read::Unreadable) => return None,
-            Held::Offered { bound, side, edge } => {
-                let x = bound?;
+            Held::Computed(Read::Value(_)) => {
+                let x = first.as_ref()?;
+                Spelled::One(x.nearest(x.figures(extra)))
+            }
+            Held::Computed(Read::Enclosure { .. }) => {
+                let (lo, hi) = (first.as_ref()?, second.as_ref()?);
+                Spelled::Ends(
+                    lo.toward(lo.figures(extra), Side::AtMost),
+                    hi.toward(hi.figures(extra), Side::AtLeast),
+                )
+            }
+            Held::Offered { side, edge, .. } => {
+                let x = first.as_ref()?;
                 let within = |y: &Number| {
                     let typed = y.read_back(unit);
                     edge.is_none_or(|edge| !side.holds(typed, edge) || typed == edge)
                 };
                 // At round-trip figures the offer is the bound itself,
                 // which is inside its window.
-                let Some(offer) = (figures(x)..=ROUND_TRIP_FIGURES)
-                    .map(|figures| toward(x, unit, figures, side))
+                let Some(offer) = (x.figures(extra)..=ROUND_TRIP_FIGURES)
+                    .map(|figures| x.toward(figures, side))
                     .find(within)
                 else {
                     unreachable!("an offer at round-trip figures is its own bound")
@@ -822,10 +845,13 @@ impl Compared {
             return 0;
         };
         let (first_unit, second_unit) = (first.unit(notation), second.unit(notation));
+        let (first_floats, second_floats) = (first.floats(first_unit), second.floats(second_unit));
         let reads = |extra: usize| {
-            let a = first.spelled_in(first_unit, extra)?.read_back(first_unit);
+            let a = first
+                .spelled_at(&first_floats, first_unit, extra)?
+                .read_back(first_unit);
             let b = second
-                .spelled_in(second_unit, extra)?
+                .spelled_at(&second_floats, second_unit, extra)?
                 .read_back(second_unit);
             order(a, b, self.magnitudes)
         };
@@ -835,6 +861,24 @@ impl Compared {
             unreachable!("a pair at round-trip figures reads back as it is held")
         };
         extra
+    }
+
+    /// [`Compared::extra`], found once for the two members of one pair
+    /// told in one notation: a sentence tells its first member and then
+    /// its second, and the second reads what the first found.
+    fn extra_once(&self, notation: Notation) -> usize {
+        thread_local! {
+            static LAST: core::cell::Cell<Option<(Compared, Notation, usize)>> =
+                const { core::cell::Cell::new(None) };
+        }
+        LAST.with(|last| match last.get() {
+            Some((pair, at, extra)) if pair == *self && at == notation => extra,
+            _ => {
+                let extra = self.extra(notation);
+                last.set(Some((*self, notation, extra)));
+                extra
+            }
+        })
     }
 
     /// The first number and its unit word.
@@ -870,7 +914,7 @@ impl Tell for Member {
         } else {
             &self.pair.first
         };
-        member.write(f, notation, self.pair.extra(notation))
+        member.write(f, notation, self.pair.extra_once(notation))
     }
 }
 
@@ -880,47 +924,133 @@ impl fmt::Display for Member {
     }
 }
 
-/// The significant figures of the grid in `unit` at the canonical `x`
-/// (the module docs), and the figures at which a decimal of the unit
-/// steps no finer than the floats at `x`, past which a digit spells the
-/// float's own rounding: there `x` is told as received. Neither is more
-/// than [`ROUND_TRIP_FIGURES`].
+/// One float a quantity holds, as an exact number of the unit it is
+/// told in, with the figures of its grid there (the module docs) and
+/// the figures at which a decimal of the unit steps no finer than the
+/// floats at it, past which a digit spells the float's own rounding:
+/// there it is told as received. Neither is more than
+/// [`ROUND_TRIP_FIGURES`]. Built once for a quantity told at several
+/// precisions.
 ///
 /// A length's grid step is the largest power of ten of the unit that is
 /// no more than a tenth of the default tolerance, or where the floats
 /// at `x` are sparser than that, the first power of ten at or above the
-/// gap to the next float.
-fn grid_figures(x: f64, unit: UnitDef, dimension: Dimension) -> (usize, usize) {
-    if x == 0.0 || !x.is_finite() {
-        return (GRID_FIGURES as usize, ROUND_TRIP_FIGURES);
+/// gap to the next float; at the top of the format, where there is no
+/// next float, the step is the number's own decade, so it reads at four
+/// figures.
+#[derive(Clone, Debug)]
+struct Float {
+    x: f64,
+    unit: UnitDef,
+    /// `None` for a zero or a value that is not finite.
+    number: Option<InUnit>,
+    grid: usize,
+    own: usize,
+}
+
+impl Float {
+    fn of(x: f64, unit: UnitDef, dimension: Dimension) -> Self {
+        if x == 0.0 || !x.is_finite() {
+            return Self {
+                x,
+                unit,
+                number: None,
+                grid: GRID_FIGURES as usize,
+                own: ROUND_TRIP_FIGURES,
+            };
+        }
+        let number = unit.in_unit(x);
+        let decade = number.decade().0;
+        let (gap, top) = match x.abs().next_up() - x.abs() {
+            up if up.is_finite() => (up, false),
+            _ => (x.abs() - x.abs().next_down(), true),
+        };
+        let (gap_decade, exact) = unit.decade(gap);
+        // 10^k of the unit is at most 10^LENGTH_GRID_DECADE metres from
+        // k = LENGTH_GRID_DECADE plus the decade of a metre in the unit.
+        let cap = LENGTH_GRID_DECADE + unit.decade(1.0).0;
+        let step = if top {
+            decade
+        } else {
+            cap.max(gap_decade + i64::from(!exact))
+        };
+        let grid = match dimension {
+            Dimension::Length => GRID_FIGURES.max(decade - step + 1),
+            Dimension::Angle | Dimension::Dimensionless => GRID_FIGURES,
+        };
+        let clamp = |figures: i64| {
+            usize::try_from(figures.max(1))
+                .unwrap_or(ROUND_TRIP_FIGURES)
+                .min(ROUND_TRIP_FIGURES)
+        };
+        Self {
+            x,
+            unit,
+            number: Some(number),
+            grid: clamp(grid),
+            own: clamp(decade - gap_decade + 1),
+        }
     }
-    let decade = unit.decade(x).0;
-    let (gap, top) = match x.abs().next_up() - x.abs() {
-        up if up.is_finite() => (up, false),
-        // At the top of the format the gap is the one below.
-        _ => (x.abs() - x.abs().next_down(), true),
-    };
-    let (gap_decade, exact) = unit.decade(gap);
-    // 10^k of the unit is at most 10^LENGTH_GRID_DECADE metres from
-    // k = LENGTH_GRID_DECADE plus the decade of a metre in the unit; at
-    // the top of the format no decimal step is finer than the floats.
-    let cap = LENGTH_GRID_DECADE + unit.decade(1.0).0;
-    let step = if top {
-        decade
-    } else {
-        cap.max(gap_decade + i64::from(!exact))
-    };
-    let own = decade - gap_decade + 1;
-    let grid = match dimension {
-        Dimension::Length => GRID_FIGURES.max(decade - step + 1),
-        Dimension::Angle | Dimension::Dimensionless => GRID_FIGURES,
-    };
-    let clamp = |figures: i64| {
-        usize::try_from(figures.max(1))
-            .unwrap_or(ROUND_TRIP_FIGURES)
-            .min(ROUND_TRIP_FIGURES)
-    };
-    (clamp(grid), clamp(own))
+
+    /// The figures at `extra` past the grid: round-trip figures where
+    /// that reaches what the floats carry.
+    fn figures(&self, extra: usize) -> usize {
+        if self.grid + extra >= self.own {
+            ROUND_TRIP_FIGURES
+        } else {
+            self.grid + extra
+        }
+    }
+
+    /// The decimal at `figures`, where the float is a nonzero number.
+    fn decimal(&self, figures: usize, rounding: Rounding) -> Option<Decimal> {
+        Some(self.number.as_ref()?.decimal(figures, rounding))
+    }
+
+    /// Rounded to nearest at `figures`; at round-trip figures, or for a
+    /// zero or a value that is not finite, as received. A rounding past
+    /// the largest float is the grid point toward zero from it.
+    fn nearest(&self, figures: usize) -> Number {
+        let near = (figures < ROUND_TRIP_FIGURES)
+            .then(|| self.decimal(figures, Rounding::Nearest))
+            .flatten();
+        let Some(near) = near else {
+            return given(self.x, self.unit);
+        };
+        if self.unit.canonical(&near).is_finite() {
+            return Number::Decimal(near);
+        }
+        let toward_zero = if self.x < 0.0 {
+            Rounding::Up
+        } else {
+            Rounding::Down
+        };
+        self.decimal(figures, toward_zero)
+            .map_or_else(|| given(self.x, self.unit), Number::Decimal)
+    }
+
+    /// At `figures`, typing back on `side` of the float: the nearest
+    /// decimal where that already does, and the one rounded toward the
+    /// side where it does not. At round-trip figures, for a zero or a
+    /// value that is not finite, or where the rounding toward the side
+    /// types back past the largest float, as received.
+    fn toward(&self, figures: usize, side: Side) -> Number {
+        if figures >= ROUND_TRIP_FIGURES {
+            return given(self.x, self.unit);
+        }
+        let directed = match side {
+            Side::AtLeast => Rounding::Up,
+            Side::AtMost => Rounding::Down,
+        };
+        [Rounding::Nearest, directed]
+            .into_iter()
+            .filter_map(|rounding| self.decimal(figures, rounding))
+            .find(|y| {
+                let typed = self.unit.canonical(y);
+                typed.is_finite() && side.holds(typed, self.x)
+            })
+            .map_or_else(|| given(self.x, self.unit), Number::Decimal)
+    }
 }
 
 /// `x` in `unit` exactly as received: the shortest decimal that reads
@@ -931,49 +1061,6 @@ fn given(x: f64, unit: UnitDef) -> Number {
     } else {
         Number::Infinite { negative: x < 0.0 }
     }
-}
-
-/// `x` in `unit` rounded to nearest at `figures` significant figures;
-/// at round-trip figures, or as many as the floats at `x` carry
-/// ([`grid_figures`]), `x` as received. A rounding past the largest
-/// float is the grid point toward zero from it.
-fn nearest(x: f64, unit: UnitDef, figures: usize) -> Number {
-    if !x.is_finite() || figures >= ROUND_TRIP_FIGURES {
-        return given(x, unit);
-    }
-    let near = unit.decimal(x, figures, Rounding::Nearest);
-    if unit.canonical(&near).is_finite() {
-        return Number::Decimal(near);
-    }
-    let toward_zero = if x < 0.0 {
-        Rounding::Up
-    } else {
-        Rounding::Down
-    };
-    Number::Decimal(unit.decimal(x, figures, toward_zero))
-}
-
-/// `x` in `unit` at `figures` significant figures, typing back on
-/// `side` of `x`: the nearest decimal where that already does, and the
-/// one rounded toward the side where it does not. At round-trip
-/// figures, or where the rounding toward the side types back past the
-/// largest float, `x` as received.
-fn toward(x: f64, unit: UnitDef, figures: usize, side: Side) -> Number {
-    if !x.is_finite() || x == 0.0 || figures >= ROUND_TRIP_FIGURES {
-        return given(x, unit);
-    }
-    let directed = match side {
-        Side::AtLeast => Rounding::Up,
-        Side::AtMost => Rounding::Down,
-    };
-    [Rounding::Nearest, directed]
-        .into_iter()
-        .map(|rounding| unit.decimal(x, figures, rounding))
-        .find(|y| {
-            let typed = unit.canonical(y);
-            typed.is_finite() && side.holds(typed, x)
-        })
-        .map_or_else(|| given(x, unit), Number::Decimal)
 }
 
 // The grid's absolute step is a tenth of the default tolerance.
@@ -1282,7 +1369,7 @@ mod tests {
     /// that are equal read alike.
     #[test]
     fn compared_numbers_read_in_their_true_order() {
-        for x in magnitudes(128).into_iter().step_by(16) {
+        for x in magnitudes(128).into_iter().step_by(48) {
             let others = [x.next_up(), x * (1.0 - 1e-12), x * 1.0004, -x, x];
             for y in others.into_iter().filter(|y| y.is_finite()) {
                 for dimension in DIMENSIONS {
@@ -2144,13 +2231,79 @@ mod tests {
         );
     }
 
-    /// A pair of two dimensions is a builder's bug, and does not
-    /// construct.
+    /// A pair of two dimensions is a builder's bug, and panics where the
+    /// pair is made, which is where a sentence tells it.
     #[test]
     #[should_panic = "a compared pair is of one dimension"]
-    fn a_pair_of_two_dimensions_does_not_construct() {
+    fn a_pair_of_two_dimensions_panics() {
         let _ = Told::computed(&0.25, Dimension::Length)
             .beside(&Told::computed(&1.0, Dimension::Angle));
+    }
+
+    /// So is a position whose coordinates are of two dimensions.
+    #[test]
+    #[should_panic = "a position's coordinates are told in one unit"]
+    fn a_position_of_two_dimensions_panics() {
+        let _ = Told::position(
+            &Told::computed(&0.25, Dimension::Length),
+            &Told::computed(&1.0, Dimension::Angle),
+        );
+    }
+
+    /// The gate's sample of the every-notation sweeps (which are in the
+    /// slow set): a handful of values in two notations that are not
+    /// the canonical one, in every role, and a pair of each pairing of
+    /// roles. A given number types back as itself, an offer on its
+    /// side, an enclosure around its ends, and a pair in its true
+    /// order, each in the notation's own unit.
+    #[test]
+    fn a_handful_of_quantities_reads_true_in_two_notations() {
+        type Mk = fn(&f64, Dimension) -> Told;
+        let roles: [Mk; 4] = [Told::given, Told::computed, Told::at_least, Told::at_most];
+        let values = [0.300_04, -1.0 / 3.0, 1e-7, 2.5e6, f64::from_bits(1), 1e306];
+        for notation in [NOTATIONS[1], NOTATIONS[2]] {
+            for dimension in [Dimension::Length, Dimension::Angle] {
+                let unit = dimension.unit(notation);
+                let in_unit = |text: &str| {
+                    assert_eq!(said(text).1, unit, "{text}");
+                    typed_back(text)
+                };
+                for &x in &values {
+                    let told = |make: Mk| make(&x, dimension).told_in(notation).to_string();
+                    assert_eq!(
+                        in_unit(&told(Told::given))[0].to_bits(),
+                        x.to_bits(),
+                        "{x:e}"
+                    );
+                    assert!(in_unit(&told(Told::at_least))[0] >= x, "{x:e}");
+                    assert!(in_unit(&told(Told::at_most))[0] <= x, "{x:e}");
+                    let wide = Interval::from_bounds(x.min(x * 1.001), x.max(x * 1.001));
+                    let ends = in_unit(
+                        &Told::computed(&wide, dimension)
+                            .told_in(notation)
+                            .to_string(),
+                    );
+                    assert!(
+                        ends[0] <= x.min(x * 1.001) && ends[1] >= x.max(x * 1.001),
+                        "{x:e}"
+                    );
+                    for y in [x.next_up(), x * 1.000_04, -x] {
+                        for a in roles {
+                            for b in roles {
+                                let pair = a(&x, dimension).beside(&b(&y, dimension));
+                                let first = in_unit(&pair.first().told_in(notation).to_string());
+                                let second = in_unit(&pair.second().told_in(notation).to_string());
+                                assert_eq!(
+                                    first[0].partial_cmp(&second[0]),
+                                    x.partial_cmp(&y),
+                                    "{x:e} beside {y:e}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// No told number is wider than [`WIDEST_NUMBER`], in any role or

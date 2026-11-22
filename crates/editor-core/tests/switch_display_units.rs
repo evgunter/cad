@@ -326,11 +326,22 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
             "the parser reached a different row for {}",
             row.symbol()
         );
+        // 2.5 of the unit times its exact factor, rounded once, by exact
+        // arithmetic outside this tree (Python's `Fraction`; π by
+        // Machin).
+        let want: u64 = match row.symbol() {
+            "mm" => 0x3f64_7ae1_47ae_147b,
+            "cm" => 0x3f99_9999_9999_999a,
+            "m" | "rad" => 2.5_f64.to_bits(),
+            "in" => 0x3fb0_4189_374b_c6a8,
+            "deg" => 0x3fa6_5718_4ae7_4487,
+            "pi rad" => 0x401f_6a7a_2955_385e,
+            other => panic!("{other:?} has no pinned 2.5"),
+        };
         assert_eq!(
             parsed.literal_value().unwrap().to_bits(),
-            row.canonical(&quantity::Decimal::parse("2.5").expect("a decimal"))
-                .to_bits(),
-            "{} did not land on its door's float",
+            want,
+            "2.5 {} did not land on the float nearest its value",
             row.symbol()
         );
         // The wire, to the byte. The seal changed how a `UnitDef`'s

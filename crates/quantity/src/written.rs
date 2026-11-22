@@ -3,7 +3,7 @@
 //!
 //! [`Length`] and [`Angle`] are canonical-units data with a closed
 //! arithmetic (D6): `25.0 * MM` is `Length(0.025)`, and the `MM` is
-//! gone the instant the multiply happens. That erasure is correct for
+//! gone the instant the number is read in it. That erasure is correct for
 //! everything downstream of the boundary — the kernel only ever sees
 //! metres and radians — and wrong for exactly one thing: recording
 //! what a person TYPED, so a document can be read back the way it was

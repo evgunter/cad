@@ -15,8 +15,8 @@
 //! erased on the way out. `format` answers TEXT: the same magnitude
 //! rendered with the unit's own symbol beside it, at digits chosen so
 //! that reading the text back recovers the value's exact bits
-//! (`quantity::fmt`'s pin; the module docs there carry the
-//! derivation and the canonical-unit fallback that pays for it).
+//! (`quantity::fmt`'s pin: the shortest decimal of the unit that the
+//! unit's one door reads back as these bits).
 //!
 //! The distance between those two is the whole of what LIB-B-FORMAT
 //! closed. Choosing digits from a bare float is a decision — how many,

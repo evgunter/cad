@@ -104,35 +104,29 @@ pub enum UnitQuantity {
 /// under `cargo test -p quantity --doc`, so undoing the seal turns them
 /// red rather than merely dating a comment.
 ///
-/// #650's literal counterexample no longer builds:
-///
-/// ```compile_fail,E0451
-/// let bogus = quantity::UnitDef {
-///     symbol: "mm",
-///     quantity: quantity::UnitQuantity::Angle,
-///     factor: 1.0,
-/// };
-/// ```
-///
-/// Nor does the struct-update escape from a real row:
+/// #650's counterexample, a row assembled with a foreign quantity, no
+/// longer builds, and the struct-update escape from a real row is the
+/// one spelling of it that names only fields a caller can see (a full
+/// literal must also name the exact factor, whose type is private, so
+/// it fails whatever the fields' visibility and pins nothing):
 ///
 /// ```compile_fail,E0451
 /// let mm = quantity::unit_by_symbol("mm").unwrap();
 /// let bogus = quantity::UnitDef { quantity: quantity::UnitQuantity::Angle, ..mm };
 /// ```
 ///
-/// Both are refused on PRIVACY (`E0451`), which is the property that
-/// has to hold: they redden the moment a field is made public, and a
-/// row that merely named a field that does not exist would not.
+/// It is refused on PRIVACY (`E0451`), which is the property that has
+/// to hold: it reddens the moment the field is made public, and a row
+/// that merely named a field that does not exist would not.
 ///
 /// A `compile_fail` row proves only that the snippet does not build,
 /// not that it fails for the intended reason — a typo would pass it
 /// just as well, and stable rustdoc checks only that the block fails,
-/// never that it fails with the `,E0451` named beside it. Each block
+/// never that it fails with the `,E0451` named beside it. The block
 /// above therefore has its legal twin here, differing from it in
 /// exactly one respect: the twin never names the field, so a typo
-/// shared by both reddens the twin. The codes were read off `rustc`
-/// directly on each snippet at the pinned toolchain (1.97.0).
+/// shared by both reddens the twin. The code was read off `rustc`
+/// directly on the snippet at the pinned toolchain (1.97.0).
 ///
 /// ```
 /// // The path `quantity::UnitDef` names this exported type, the row
@@ -174,6 +168,33 @@ impl Factor {
 
     const fn times_pi(num: u16, den: u16) -> Self {
         Self { num, den, pi: true }
+    }
+
+    /// Whether the factor is a power of ten (`mm`, `cm`, `m`, `rad`, the
+    /// dimensionless row).
+    const fn is_power_of_ten(self) -> bool {
+        !self.pi && self.num == 1 && matches!(self.den, 1 | 10 | 100 | 1000 | 10000)
+    }
+
+    /// `|number| × factor` as a quotient of two floats that are each an
+    /// integer below `2^53`, where it is one and the factor is rational.
+    fn small_terms(self, number: &Decimal) -> Option<(f64, f64)> {
+        const EXACT: u64 = 1 << 53;
+        if self.pi || number.figures() > 15 {
+            return None;
+        }
+        let digits: u64 = number.digits().parse().ok()?;
+        let power = 10u64.checked_pow(u32::try_from(number.exponent().unsigned_abs()).ok()?)?;
+        let (mut n, mut d) = (
+            digits.checked_mul(u64::from(self.num))?,
+            u64::from(self.den),
+        );
+        if number.exponent() >= 0 {
+            n = n.checked_mul(power)?;
+        } else {
+            d = d.checked_mul(power)?;
+        }
+        (n < EXACT && d < EXACT).then_some((n as f64, d as f64))
     }
 
     /// `|number| × factor`, exactly.
@@ -229,6 +250,10 @@ pub enum Rounding {
     Down,
 }
 
+/// The figures of a decimal that can decide its rounding in a unit
+/// whose factor is a power of ten, with a margin ([`UnitDef::canonical`]).
+pub const DECIDING_FIGURES: usize = 800;
+
 /// The most significant figures [`UnitDef::shortest`] needs: every
 /// finite float has a decimal of at most this many that, written in
 /// any unit of the table, is that float (the door's docs argue it).
@@ -236,6 +261,7 @@ pub const ROUND_TRIP_FIGURES: usize = 17;
 
 /// `|canonical|` told in a unit: the exact quotient by the factor and
 /// the decade of its leading digit.
+#[derive(Clone, Debug)]
 struct Quotient {
     real: Real,
     decade: i64,
@@ -292,6 +318,48 @@ impl Quotient {
     }
 }
 
+/// **A canonical float as an exact number of a unit**
+/// ([`UnitDef::in_unit`]), for a caller that asks several questions of
+/// one value: its decimal at several numbers of figures, its decade.
+/// The quotient and its decade are found once.
+#[derive(Clone, Debug)]
+pub struct InUnit {
+    /// `None` for a zero, which keeps its sign.
+    quotient: Option<Quotient>,
+    negative: bool,
+}
+
+impl InUnit {
+    /// The decimal of `figures` significant digits nearest, above or
+    /// below the exact number, as `rounding` says; a zero of either
+    /// sign is itself.
+    ///
+    /// # Panics
+    ///
+    /// Where `figures` is not in `1..=19`: a caller's bug.
+    #[must_use]
+    pub fn decimal(&self, figures: usize, rounding: Rounding) -> Decimal {
+        match &self.quotient {
+            Some(quotient) => quotient.at(figures, rounding),
+            None => Decimal::from_parts(self.negative, 0, 0),
+        }
+    }
+
+    /// The decimal exponent of the exact number's leading digit, and
+    /// whether the number is that power of ten exactly.
+    ///
+    /// # Panics
+    ///
+    /// For a zero, which has no decade: a caller's bug.
+    #[must_use]
+    pub fn decade(&self) -> (i64, bool) {
+        let Some(quotient) = &self.quotient else {
+            unreachable!("a caller asked the decade of zero, which has none")
+        };
+        (quotient.decade, quotient.is_power)
+    }
+}
+
 impl UnitDef {
     /// The surface symbol (`"mm"`), as parsed and as displayed.
     pub const fn symbol(&self) -> &'static str {
@@ -320,10 +388,30 @@ impl UnitDef {
     /// This is the one door for a number in a unit: the text door, the
     /// Rust and Python `number * unit` ([`UnitDef::canonical_of_float`])
     /// and a told number's reading back all go through it.
+    ///
+    /// **Its cost is bounded by [`DECIDING_FIGURES`], not by the length
+    /// of the decimal**, save in one case. A decimal of more figures is
+    /// read as its first [`DECIDING_FIGURES`] with the rest as a sticky
+    /// unit: its value lies strictly between that head and the head one
+    /// unit of its last place up (the rest is not zero, a decimal being
+    /// held without trailing zeros), and where both of those round to
+    /// one float, so does it. In a unit whose factor is a power of ten
+    /// they always do: every float and every midpoint between floats is
+    /// a decimal of at most 769 significant figures (2^−1075 has 752,
+    /// and an odd mantissa adds at most 17), and a power of ten moves no
+    /// figure, so no rounding boundary lies strictly inside a step of
+    /// the [`DECIDING_FIGURES`]-th figure, and the head with a `5` after
+    /// it rounds as the decimal does. In `in`, `deg` and `pi rad`
+    /// a boundary is a repeating or irrational decimal, and a decimal
+    /// of more than [`DECIDING_FIGURES`] figures that agrees with one
+    /// through all of them is decided at its full length, at a cost
+    /// quadratic in that length (the module docs of `exact` give the
+    /// measured figures). No decimal a person types or a float spells
+    /// is such a decimal.
     #[must_use]
     pub fn canonical(self, number: &Decimal) -> f64 {
         let sign = if number.is_negative() { -1.0 } else { 1.0 };
-        let Some(decade) = number.decade() else {
+        let Some(decade) = number.leading_exponent() else {
             return sign * 0.0;
         };
         // Past these the value is past the format whatever the factor
@@ -334,7 +422,32 @@ impl UnitDef {
         if decade < -400 {
             return sign * 0.0;
         }
-        sign * self.exact.times(number).to_f64()
+        if number.figures() > DECIDING_FIGURES {
+            let head = number.truncated(DECIDING_FIGURES);
+            if self.exact.is_power_of_ten() {
+                // No boundary strictly inside the step: any point of it
+                // rounds as the decimal does.
+                return sign * self.magnitude_of(&head.with_sticky());
+            }
+            let (below, above) = (
+                self.magnitude_of(&head),
+                self.magnitude_of(&head.stepped_up()),
+            );
+            if below.to_bits() == above.to_bits() {
+                return sign * below;
+            }
+        }
+        sign * self.magnitude_of(number)
+    }
+
+    /// `|number| × factor` rounded once.
+    fn magnitude_of(self, number: &Decimal) -> f64 {
+        // Both terms of the quotient exact floats: one division rounds
+        // it correctly (IEEE 754), the common case of a short literal.
+        if let Some((n, d)) = self.exact.small_terms(number) {
+            return n / d;
+        }
+        self.exact.times(number).to_f64()
     }
 
     /// [`UnitDef::canonical`] of a float written in this unit, which is
@@ -355,11 +468,7 @@ impl UnitDef {
     /// `1..=19`: a caller's bug.
     #[must_use]
     pub fn decimal(self, canonical: f64, figures: usize, rounding: Rounding) -> Decimal {
-        assert!(canonical.is_finite(), "{canonical} has no decimal");
-        if canonical == 0.0 {
-            return Decimal::from_parts(canonical.is_sign_negative(), 0, 0);
-        }
-        Quotient::of(canonical, self).at(figures, rounding)
+        self.in_unit(canonical).decimal(figures, rounding)
     }
 
     /// **The shortest decimal that, written in this unit, is `canonical`
@@ -430,12 +539,22 @@ impl UnitDef {
     /// Where `canonical` is zero or not finite: a caller's bug.
     #[must_use]
     pub fn decade(self, canonical: f64) -> (i64, bool) {
-        assert!(
-            canonical.is_finite() && canonical != 0.0,
-            "{canonical} has no decade"
-        );
-        let quotient = Quotient::of(canonical, self);
-        (quotient.decade, quotient.is_power)
+        self.in_unit(canonical).decade()
+    }
+
+    /// `canonical` as an exact number of this unit, to ask several
+    /// questions of ([`InUnit`]).
+    ///
+    /// # Panics
+    ///
+    /// Where `canonical` is not finite: a caller's bug.
+    #[must_use]
+    pub fn in_unit(self, canonical: f64) -> InUnit {
+        assert!(canonical.is_finite(), "{canonical} is no number of a unit");
+        InUnit {
+            quotient: (canonical != 0.0).then(|| Quotient::of(canonical, self)),
+            negative: canonical.is_sign_negative(),
+        }
     }
 
     /// The float nearest the exact number of this unit that `canonical`
@@ -634,12 +753,13 @@ const fn row_index(symbol: &str) -> u8 {
 /// the constant that names it. Nothing here rests on a convention that
 /// this file happens to keep.
 ///
-/// **Eight public functions apply a unit's factor and print its symbol
-/// without checking either** — which is why the pairing has to be typed
-/// rather than validated. Four take a `LengthUnit`: [`crate::fmt_length`],
-/// [`crate::Length::in_unit`], and the two `Mul` impls
-/// (`f64 * LengthUnit` and `LengthUnit * f64`, the two spellings of one
-/// multiply); [`AngleUnit`] mirrors all four. The `Mul` impls ARE the
+/// **Eight public functions read a number in a unit or write one, and
+/// print its symbol, without checking either** — which is why the
+/// pairing has to be typed rather than validated. Four take a
+/// `LengthUnit`: [`crate::fmt_length`], [`crate::Length::in_unit`], and
+/// the two `Mul` impls (`f64 * LengthUnit` and `LengthUnit * f64`, the
+/// two spellings of the unit's one door); [`AngleUnit`] mirrors all
+/// four. The `Mul` impls ARE the
 /// D6 typed-units boundary, and `fmt.rs`'s `parse(fmt(x, unit))` pin
 /// makes the formatter's suffix parser input, so a symbol paired with a
 /// foreign factor would be a wrong VALUE reaching an `Expr` and a

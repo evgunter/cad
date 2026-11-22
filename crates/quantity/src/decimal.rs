@@ -1,7 +1,8 @@
 //! A decimal: what a person writes a number in a unit as.
 
-use core::cmp::Ordering;
 use core::fmt;
+
+use crate::exact::Nat;
 
 /// **A decimal number**: a sign, digits and a power of ten. A number
 /// written in a unit is one of these, not a float of the unit: what it
@@ -161,8 +162,68 @@ impl Decimal {
     }
 
     /// The decimal exponent of the leading digit; `None` for zero.
-    pub(crate) fn decade(&self) -> Option<i64> {
+    pub(crate) fn leading_exponent(&self) -> Option<i64> {
         (!self.is_zero()).then(|| self.exponent + self.digits.len() as i64 - 1)
+    }
+
+    /// The first `figures` significant digits, the rest dropped.
+    pub(crate) fn truncated(&self, figures: usize) -> Self {
+        let kept = figures.min(self.digits.len());
+        let dropped = (self.digits.len() - kept) as i64;
+        Self::new(
+            self.negative,
+            &self.digits[..kept],
+            self.exponent.saturating_add(dropped),
+        )
+    }
+
+    /// This decimal with a `5` after its last digit: a point strictly
+    /// inside the step of its last digit above it.
+    pub(crate) fn with_sticky(&self) -> Self {
+        Self::new(
+            self.negative,
+            &format!("{}5", self.digits),
+            self.exponent.saturating_sub(1),
+        )
+    }
+
+    /// This decimal's magnitude one unit of its last digit up.
+    pub(crate) fn stepped_up(&self) -> Self {
+        let mut digits = self.digits.clone().into_bytes();
+        let carried = digits.iter_mut().rev().all(|d| {
+            if *d == b'9' {
+                *d = b'0';
+                true
+            } else {
+                *d += 1;
+                false
+            }
+        });
+        if carried {
+            digits.insert(0, b'1');
+        }
+        let Ok(digits) = String::from_utf8(digits) else {
+            unreachable!("ASCII digits stay ASCII")
+        };
+        Self::new(self.negative, &digits, self.exponent)
+    }
+
+    /// The product of two decimals, exactly.
+    #[must_use]
+    pub fn times(&self, other: &Self) -> Self {
+        let product = Nat::from_digits(&self.digits).mul(&Nat::from_digits(&other.digits));
+        Self::new(
+            self.negative != other.negative,
+            &product.to_digits(),
+            self.exponent.saturating_add(other.exponent),
+        )
+    }
+
+    /// The float nearest this decimal, ties to even (the canonical
+    /// unit's door, [`crate::UnitDef::canonical`]).
+    #[must_use]
+    pub fn to_f64(&self) -> f64 {
+        crate::M.def().canonical(self)
     }
 
     pub(crate) fn digits(&self) -> &str {
@@ -171,31 +232,6 @@ impl Decimal {
 
     pub(crate) const fn exponent(&self) -> i64 {
         self.exponent
-    }
-
-    /// How the two compare as numbers: a zero of either sign is the
-    /// same number as the other zero.
-    #[must_use]
-    pub fn cmp_value(&self, other: &Self) -> Ordering {
-        let sign = |d: &Self| match (d.is_zero(), d.negative) {
-            (true, _) => 0,
-            (false, true) => -1,
-            (false, false) => 1,
-        };
-        let (a, b) = (sign(self), sign(other));
-        if a != b || a == 0 {
-            return a.cmp(&b);
-        }
-        let magnitudes = self.decade().cmp(&other.decade()).then_with(|| {
-            let width = self.digits.len().max(other.digits.len());
-            let pad = |d: &Self| format!("{:0<width$}", d.digits);
-            pad(self).cmp(&pad(other))
-        });
-        if a < 0 {
-            magnitudes.reverse()
-        } else {
-            magnitudes
-        }
     }
 }
 
@@ -206,7 +242,7 @@ impl fmt::Display for Decimal {
         if self.negative {
             f.write_str("-")?;
         }
-        let Some(decade) = self.decade() else {
+        let Some(decade) = self.leading_exponent() else {
             return f.write_str("0");
         };
         let digits = self.digits.as_str();
@@ -238,7 +274,6 @@ mod tests {
     #![allow(clippy::panic)]
 
     use super::Decimal;
-    use core::cmp::Ordering;
 
     fn d(text: &str) -> Decimal {
         Decimal::parse(text).unwrap_or_else(|| panic!("{text} is a decimal"))
@@ -284,23 +319,6 @@ mod tests {
             let decimal = Decimal::of_float(v).unwrap_or_else(|| panic!("{v:e} is finite"));
             assert_eq!(decimal.to_string(), want, "{v:e}");
             assert_eq!(want.parse::<f64>().map(f64::to_bits), Ok(v.to_bits()));
-        }
-    }
-
-    #[test]
-    fn decimals_compare_as_numbers() {
-        let order = [
-            "-1e300", "-2.5", "-2.4999", "-0", "0", "1e-300", "0.1", "0.10001", "9.99", "10",
-            "1e300",
-        ];
-        for (i, a) in order.iter().enumerate() {
-            for (j, b) in order.iter().enumerate() {
-                let want = match (i.cmp(&j), *a, *b) {
-                    (_, "-0", "0") | (_, "0", "-0") => Ordering::Equal,
-                    (ordering, _, _) => ordering,
-                };
-                assert_eq!(d(a).cmp_value(&d(b)), want, "{a} against {b}");
-            }
         }
     }
 }

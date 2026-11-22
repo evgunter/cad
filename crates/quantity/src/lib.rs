@@ -82,8 +82,8 @@ pub use decimal::Decimal;
 pub use fmt::{FmtQuantityError, fmt_angle, fmt_length};
 pub use notation::Notation;
 pub use units::{
-    AngleUnit, CENTI, CM, DEG, IN, LengthUnit, M, MILLI, MM, ONE, PI, RAD, ROUND_TRIP_FIGURES,
-    Rounding, ScalarUnit, UNITS, UnitDef, UnitQuantity, unit_by_symbol,
+    AngleUnit, CENTI, CM, DECIDING_FIGURES, DEG, IN, InUnit, LengthUnit, M, MILLI, MM, ONE, PI,
+    RAD, ROUND_TRIP_FIGURES, Rounding, ScalarUnit, UNITS, UnitDef, UnitQuantity, unit_by_symbol,
 };
 pub use written::{WrittenAngle, WrittenLength};
 
