@@ -14,7 +14,7 @@
 
 use crate::common::charts::{charts, moves_by};
 use geom::Surface;
-use geom_core::{Band, Point2, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, ValidationError};
@@ -135,24 +135,25 @@ fn offset_charts_together_moves_the_charts_in_either_winding() {
 }
 
 /// **A cap tilted into the gap between its scope's two reaches
-/// escalates at the axial gate.** A flat drum `r = 1`, `h = 0.1`, its
-/// bottom cap's plane tilted by `sin θ = 0.75·ε` about the cap's stored
-/// origin, its seam vertex `(1, 0, 0)`. From there the scope's vertices
-/// reach about `1.005` (the top rim's far axis point) and its faces'
-/// covers reach about 2 (across the drum): levered at the first the tilt
-/// reads Zero and the drum would hollow through the axial door, at the
-/// second it is in the band. Read at both, the gate escalates. Main's
-/// lever, the vertices from the frame's axis point, built it.
+/// escalates at the axial gate.** A unit drum whose wall bulges out to
+/// radius 2 at mid-height (a torus band between the two rims), its
+/// bottom cap's plane restated through the cap's centre and tilted by
+/// `sin θ = 0.6·ε`. From the centre the scope's vertices, on the rims,
+/// reach `√2`, and its faces' covers reach about 2.09 (the bulge): levered
+/// at the first the tilt reads Zero and the drum would hollow through the
+/// axial door, at the second it is in the band. Read at both, the gate
+/// escalates. The cap's own rim stands at most `θ` off the tilted plane,
+/// inside the tolerance, so the operand finishes.
 #[test]
 fn a_cap_tilted_between_its_scopes_two_reaches_escalates_at_the_gate() {
     let tol = Tol::witness();
-    let theta = 0.75 * Band::linear(tol).unwrap().zero();
+    let theta = 0.6 * Band::linear(tol).unwrap().zero();
     let drum = revolved_about_y(
         vec![
             (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(1.0, 0.0), 0.0),
-            (Point2::new(1.0, 0.1), 0.0),
-            (Point2::new(0.0, 0.1), 0.0),
+            (Point2::new(1.0, 0.0), 2.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
         ],
         Revolution::Full,
         tol,
@@ -170,7 +171,7 @@ fn a_cap_tilted_between_its_scopes_two_reaches_escalates_at_the_gate() {
         .with_surface_moved_for_tests(
             key,
             Surface::Plane {
-                frame: geom::Frame::new(cap.origin(), tilted, cap.u_ref()),
+                frame: geom::Frame::new(Point3::origin(), tilted, cap.u_ref()),
             },
         )
         .expect("the cap's key is live");
