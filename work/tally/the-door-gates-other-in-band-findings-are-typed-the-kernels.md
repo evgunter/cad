@@ -2,11 +2,12 @@
 id: the-door-gates-other-in-band-findings-are-typed-the-kernels
 kind: issue
 title: The finished-body gate types its other undecided findings the kernel's: a point margin in band at PlanarFace, Ring, PinchCorner, SliverDihedral or JoinUndecided refuses ResultInvalid
-status: open
+status: closed
 opened: 2026-10-09
 priority: P1
 cost: M
 refs: [4415, a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate]
+closed: 2026-11-22
 ---
 
 
@@ -107,3 +108,15 @@ as ONEHOME fork 259 (PR 6820) set for "the undecided pinch corner".
 in-band finding at the split's gate (3 `ResultNotAtRest
 { VolumeUncomputable: NotIsoRectangle }`, a frontier). 0 `Pieces`
 refusals in the census probe.
+
+## Closed
+
+2026-11-22 (TALLY orchestrator): superseded. Ev's PR 6326 ruling, carried
+out by PR 6371, retired the door-level in-band/definite split this row asked
+to extend. A finding is typed by its own ending (`[topology.tiers]`).
+D10's Booleans sentence still described the old split, so the PR that closes
+this row re-words it to the ruled text. The one in-band refusal still
+measured at the gate is now
+`an-in-band-pinch-corner-at-the-gate-ends-in-the-kernel-limit-recourse`.
+The split's in-band shell is not reached by any measured run
+(`split_near_tangent_census_probe`: no in-band finding at the split's gate).

@@ -60,3 +60,18 @@ run this sitting; its rows are recorded as not drawn).
   Review tier: FULL single review — typing a refusal as the operands'
   or the kernel's needs its conditioning claims falsified, not just read.
 — (TALLY orchestrator)
+- 2026-11-22 — `the-door-gates-other-in-band-findings-are-typed-the-kernels`
+  closed as superseded, after a lane re-measured it on main (`fd7e5f47bf`).
+  The door-level `Escalated`/`ResultInvalid` split it asked to extend was
+  retired by Ev's PR 6326 ruling (PR 6371), and the row's evidence (ring
+  contacts, the large-ball union) now builds. D10's Booleans sentence is
+  re-worded to the ruled `[topology.tiers]` text: a stale description, not
+  a new decision. The residue is filed as
+  `an-in-band-pinch-corner-at-the-gate-ends-in-the-kernel-limit-recourse`
+  (P3, design: 6 of 28 884 probe runs refuse on an in-band pinch corner
+  that ends in the kernel-limit recourse, although the margin scales with
+  the tilt). Not dispatched this sitting: it is P3. Tier: no review (no
+  code changed). Model comparison: the lane stopped before building, so
+  no row. — (TALLY orchestrator)
+- 2026-11-22 — Sitting closed: no P0 or P1 row is dispatchable. TALLY
+  goes back to `ready`. — (TALLY orchestrator)

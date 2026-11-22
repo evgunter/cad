@@ -1947,10 +1947,10 @@ crossings lie in band of each other, a pair, and a ray that meets a
 corner or a wedge reads nothing. The volume's sign is certified by its
 enclosure alone, never held against the band, so how thin a result is
 gets judged by its pairs alone. The door's
-finished-body gate decides this on the result alone and refuses it as
-the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
-the geometry), never silently; a definite finding there is a kernel
-defect (`ResultInvalid`).
+finished-body gate decides this on the result alone and refuses it,
+never silently, with the list of what it found (`ResultInvalid`): each
+finding carries its own family's text and recourse
+([topology.tiers]).
 
 ### Assertions `[assertions]`
 
