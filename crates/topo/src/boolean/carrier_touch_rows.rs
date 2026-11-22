@@ -95,10 +95,12 @@ fn an_ellipse_keeps_its_crossings_in_either_storage() {
             let tc = 0.3 + 0.12 * f64::from(k);
             let p = ellipse(a, b, false).eval(tc);
             let s = Surface::Sphere {
-                center: p + Vec3::new(0.0, 0.0, 0.01),
+                frame: geom::Frame::new(
+                    p + Vec3::new(0.0, 0.0, 0.01),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 0.02,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
             for b_in_major in [false, true] {
                 let c = ellipse(a, b, b_in_major);
@@ -125,11 +127,13 @@ fn an_ellipse_keeps_its_crossings_in_either_storage() {
 #[test]
 fn a_span_whose_middle_is_on_the_torus_axis_localizes_both_touches() {
     let s = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let c = Curve3::line(Point3::new(0.0, 0.0, 0.5), Vec3::new(1.0, 0.0, 0.0));
     let found = clusters(&s, &c, rates(&c), reach(&s).unwrap(), (-3.0, 3.0), band())
@@ -164,24 +168,25 @@ fn elliptic_edge(b_in_major: bool) -> (Body<f64>, EdgeKey) {
     let (t0, t1) = (param(0.3, b_in_major), param(1.2, b_in_major));
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::Frame { axis, u_ref, .. },
+        frame: carrier_frame,
         ..
     }) = carrier
     else {
         unreachable!("a section is an ellipse")
     };
+    let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p0, true).unwrap();
     let plane = body.add_surface(Surface::Plane {
-        origin: Point3::origin(),
-        normal: axis,
-        u_ref,
+        frame: geom::Frame::new(Point3::origin(), axis, u_ref),
     });
     let cyl = body.add_surface(Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     });
     let arc = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
@@ -223,13 +228,10 @@ fn an_elliptic_edge_is_not_cleared_of_a_ball_on_it_in_either_storage() {
                 !edge_clear_of_ball(&body, edge, at, 1e-3, band()).unwrap(),
                 "b_in_major = {b_in_major}: the ball about {at:?} on the arc is cleared of it"
             );
-            let Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { axis, .. },
-                ..
-            }) = reference
-            else {
+            let Curve3::Ellipse(geom::Ellipse { frame, .. }) = reference else {
                 unreachable!("a section is an ellipse")
             };
+            let axis = frame.axis();
             let above = at + axis * 0.05;
             assert!(
                 edge_clear_of_ball(&body, edge, above, 1e-3, band()).unwrap(),
@@ -434,16 +436,12 @@ fn a_ball_beside_a_spline_or_spiric_edge_is_cleared_of_it() {
     let o = Point3::origin();
     let spiric = Curve3::spiric(o, z, x, 1.2, 0.225, 0.05, band()).unwrap();
     let torus = Surface::Torus {
-        center: o,
-        axis: z,
+        frame: geom::Frame::new(o, z, x),
         major_radius: 1.2,
         minor_radius: 0.225,
-        u_ref: x,
     };
     let plane = Surface::Plane {
-        origin: Point3::new(0.05, 0.0, 0.0),
-        normal: x,
-        u_ref: y,
+        frame: geom::Frame::new(Point3::new(0.05, 0.0, 0.0), x, y),
     };
     let (body, edge) = edge_on(spiric.clone(), (-1.0, 1.0), (plane, torus));
     // Square to the tangent in the oval's plane, towards its far side.

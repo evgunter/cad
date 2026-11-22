@@ -102,13 +102,24 @@ use crate::m10_9_pins_interval::measured_studies;
 /// placement's ask, which takes each document one numeric per placement
 /// below these.
 ///
+/// Then the carriers held their frames as rigid motions
+/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): the sweeps'
+/// walls, caps and revolve frames are minted from the sketch plane's
+/// frame and a surface's evaluation reads its stored frame, so fewer of
+/// the forms the reads build reach the budget and freeze. Frozen only:
+/// the plate and the annulus `54 → 36`, the link `2738 → 2600`, the
+/// bracket `84 → 57` and the pad `2773 → 1967`; no symbolic or numeric
+/// count moves, and under `SymRules::without_canonical_root` the plate's
+/// 2,025 recorded decisions answer as on the merge base, each with its
+/// outcome, its 64 blocked residuals the same predicates.
+///
 /// **Then moved by validation reading no adjacent line pair's shared
 /// vertex** (`profile::seg`'s `line_line`). Symbolic only, and frozen on
 /// the pad: the plate `979 → 955`, its four corners each losing two
 /// `chord_side` sides, two `line_span` spans and two
 /// `contact_at_shared_vertex` coincidences, all of which the tier proved;
 /// the bracket `1367 → 1337`, five corners; the pad `1483 → 1471` with
-/// `2773 → 2769` frozen, four collinear adjacent pairs, each losing two
+/// `1967 → 1963` frozen, four collinear adjacent pairs, each losing two
 /// sides and one coincidence, and the forms those coincidences froze.
 /// The annulus and the link do not move. These are decisions no longer
 /// asked, not decisions answered differently, so no dispute or
@@ -116,11 +127,11 @@ use crate::m10_9_pins_interval::measured_studies;
 /// document, as before. Attributed by each document's per-predicate split
 /// at the nominal, base against head (PR 7264's probe).
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [955, 1047, 54]),
-    ("r1_annulus", [511, 548, 54]),
-    ("r2_link", [786, 943, 2738]),
-    ("r2_filleted_bracket", [1337, 1546, 84]),
-    ("r2_rounded_pad", [1471, 1709, 2769]),
+    ("two_hole_plate", [955, 1047, 36]),
+    ("r1_annulus", [511, 548, 36]),
+    ("r2_link", [786, 943, 2600]),
+    ("r2_filleted_bracket", [1337, 1546, 57]),
+    ("r2_rounded_pad", [1471, 1709, 1963]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

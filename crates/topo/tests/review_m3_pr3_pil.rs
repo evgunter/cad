@@ -380,10 +380,11 @@ fn the_verdict_is_blind_to_the_normals_sign() {
         Tol::witness(),
     );
     let wall = fx.body.get_face(fx.side_faces[1]).unwrap(); // (4,0) → (3,1)
-    let Some(geom::Surface::Plane { normal, .. }) = fx.body.face_surface(fx.side_faces[1]) else {
+    let Some(geom::Surface::Plane { frame, .. }) = fx.body.face_surface(fx.side_faces[1]) else {
         panic!("a prism wall carries a plane");
     };
-    let (n, minus_n) = (*normal, *normal * -1.0);
+    let normal = frame.axis();
+    let (n, minus_n) = (normal, normal * -1.0);
     assert!(
         n.x.abs() > 0.1 && n.y.abs() > 0.1,
         "the wall must be oblique for this row to mean anything, got {n:?}"

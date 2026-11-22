@@ -172,14 +172,12 @@ fn r2p5_the_rebaselined_row_asks_the_question_the_old_one_meant() {
     let body = coned_tube();
     let face = cone_faces(&body)[0];
     let Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
+        frame, half_angle, ..
     } = cone_of(&body, face)
     else {
         panic!("the tube's outer wall is a cone");
     };
+    let (apex, axis) = (frame.origin(), frame.axis());
     let cos_a = half_angle.cos();
     let stations: Vec<f64> = corners(&body, face)
         .iter()

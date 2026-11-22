@@ -975,14 +975,17 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // frozen. Then the decided least-turn mint (fork 270) took the pad's
     // identity chart with no pole verdict: 1710 -> 1709 numeric. The
     // pad's one session-box ask is its placement's, not its measure's
-    // (PR 7088), so the count does not move. Then validation stopped
-    // reading an adjacent line pair's shared vertex (`profile::seg`'s
-    // `line_line`): the pad's four collinear adjacent pairs (its
-    // extension runs) each lose their two `chord_side` sides and the
-    // `contact_at_shared_vertex` their touch was discounted by, all
+    // (PR 7088), so the count does not move. Then the carriers held their
+    // frames as rigid motions, minted from the sketch frame and read as
+    // stored: 2773 -> 1967 frozen, the decisions holding
+    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`). Then validation
+    // stopped reading an adjacent line pair's shared vertex
+    // (`profile::seg`'s `line_line`): the pad's four collinear adjacent
+    // pairs (its extension runs) each lose their two `chord_side` sides and
+    // the `contact_at_shared_vertex` their touch was discounted by, all
     // decided symbolically, and the forms those four coincidences froze:
-    // (1483, 1709, 2773) -> (1471, 1709, 2769), at every ε row.
-    assert_eq!(got[0], (1471, 1709, 2769), "rule F shut: the pad's receipt");
+    // (1483, 1709, 1967) -> (1471, 1709, 1963), at every ε row.
+    assert_eq!(got[0], (1471, 1709, 1963), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
