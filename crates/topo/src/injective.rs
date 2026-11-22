@@ -10751,6 +10751,74 @@ mod presentation_rows {
     /// lifts are held, with the second's `u` turned about the shared axis
     /// (the polar factor's axis leans on `u`), or with its origin an ulp
     /// off. Red if the stated frames are not read, or read by `w` alone.
+    /// Review probe: frames with `v` and `w` stored bit for bit and `u` an
+    /// ulp or a few off, as `Frame::admitted` mints them; their lifted
+    /// axes, and whether `coplanar` reads them one plane.
+    #[test]
+    fn review_probe_u_off_with_v_w_kept() {
+        let mut seed: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = || {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            ((seed >> 11) as f64) / ((1u64 << 53) as f64) * 2.0 - 1.0
+        };
+        let o = Point3::new(0.3, -1.1, 2.9);
+        let (mut pairs, mut disjoint, mut read_one) = (0, 0, 0);
+        for _ in 0..400 {
+            let a = Vec3::new(next(), next(), next()).normalize();
+            let th = 3.0 * next();
+            let (c, s) = (th.cos(), th.sin());
+            let rot = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+            let (u, w) = (rot(Vec3::new(1.0, 0.0, 0.0)), rot(Vec3::new(0.0, 0.0, 1.0)));
+            let Some(f) = geom::Frame::admitted(o, w, u) else { continue };
+            for comp in 0..3 {
+                for k in [-2i32, -1, 1, 2] {
+                    let nudge = |x: f64| {
+                        let mut y = x;
+                        for _ in 0..k.abs() {
+                            y = if k > 0 { y.next_up() } else { y.next_down() };
+                        }
+                        y
+                    };
+                    let mut u2 = u;
+                    match comp {
+                        0 => u2.x = nudge(u.x),
+                        1 => u2.y = nudge(u.y),
+                        _ => u2.z = nudge(u.z),
+                    }
+                    let Some(g) = geom::Frame::admitted(o, w, u2) else { continue };
+                    let (m, n) = (f.motion(), g.motion());
+                    if !(m.v().get().same_bits(n.v().get()) && m.w().get().same_bits(n.w().get())) {
+                        continue;
+                    }
+                    pairs += 1;
+                    let (lf, lg) = (
+                        f.map_scalar(Interval::from_f64).motion().w().get(),
+                        g.map_scalar(Interval::from_f64).motion().w().get(),
+                    );
+                    let apart = |x: Interval, y: Interval| x.hi() < y.lo() || y.hi() < x.lo();
+                    if apart(lf.x, lg.x) || apart(lf.y, lg.y) || apart(lf.z, lg.z) {
+                        disjoint += 1;
+                        if disjoint <= 3 {
+                            eprintln!("DISJOINT w lifts: u {u:?} u2 {u2:?}\n  {lf:?}\n  {lg:?}");
+                        }
+                    }
+                    let circle = |fr: geom::Frame<f64>| Curve3::Circle(geom::Circle::new(fr, 1.0));
+                    let rim = |cv: Curve3<f64>| Rim {
+                        key: edge(1),
+                        arc: Some((cv.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
+                        stated: Some(cv),
+                        ends: [vertex(1), vertex(2)],
+                        uses: Vec::new(),
+                    };
+                    if coplanar(&rim(circle(f)), &rim(circle(g))) {
+                        read_one += 1;
+                    }
+                }
+            }
+        }
+        eprintln!("PAIRS {pairs} with v, w kept and u off; w lifts disjoint {disjoint}; coplanar {read_one}");
+    }
+
     #[test]
     fn two_meridians_stored_one_up_to_signs_are_coplanar_in_a_turned_frame() {
         let o = Point3::new(0.299_999_999_999_999_9, -1.1, 2.9);

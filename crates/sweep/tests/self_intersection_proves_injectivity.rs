@@ -3287,3 +3287,73 @@ fn two_turned_balls_overlapping_cross() {
         report.receipt
     );
 }
+
+// ------------------------------------------------ review probes (one-plane)
+
+/// Review probe: the meridian circles' stored frames and their lifts.
+#[test]
+fn review_probe_meridian_frames() {
+    let plain = SketchPlane::xy();
+    for (k, plane) in [turned_about(TURNED[0].0, TURNED[0].1), turned_about(TURNED[1].0, TURNED[1].1), plain]
+        .iter()
+        .enumerate()
+    {
+        let body = ball_on::<f64>(plane, 0.0);
+        let mut frames = Vec::new();
+        for (_, e) in body.edges() {
+            let carrier = body
+                .get_curve_geom(e.curve)
+                .and_then(|g| g.certified())
+                .map(|c| c.carrier().clone());
+            if let Some(geom::Curve3::Circle(c)) = carrier {
+                frames.push(c.frame);
+            }
+        }
+        eprintln!("plane {k}: {} circles", frames.len());
+        for f in &frames {
+            let m = f.motion();
+            let l = f.map_scalar(Interval::from_f64);
+            let lm = l.motion();
+            let pt = |v: geom_core::Vec3<Interval>| [v.x, v.y, v.z].iter().all(|x| x.lo() == x.hi());
+            eprintln!(
+                "  o={:?} u={:?} v={:?} w={:?}\n   lifted u point {} v point {} w point {}  w={:?}",
+                f.origin(), m.u().get(), m.v().get(), m.w().get(),
+                pt(lm.u().get()), pt(lm.v().get()), pt(lm.w().get()), lm.w().get()
+            );
+        }
+        if let [a, b] = frames.as_slice() {
+            let (m, n) = (a.motion(), b.motion());
+            eprintln!(
+                "  origin same {} u same {} v neg {} w neg {}",
+                a.origin().same_bits(b.origin()),
+                m.u().get().same_bits(n.u().get()),
+                m.v().get().same_bits(-n.v().get()),
+                m.w().get().same_bits(-n.w().get())
+            );
+        }
+    }
+}
+
+/// Review probe: placement far out (1e2, 1e3, 1e4) along the second turn.
+#[test]
+fn review_probe_far_balls() {
+    for at in [(600.0, -480.0, 640.0), (0.0, 0.0, 4_000.0)] {
+        let plane = turned_about(TURNED[1].0, at);
+        let r = embedding(&ball_on::<f64>(&plane, 0.0));
+        eprintln!("far {at:?}: {:?} {:?}", r.verdict, r.receipt);
+    }
+}
+
+/// Review probe: two turned balls touching pole to pole, grafted.
+#[test]
+fn review_probe_touching_balls() {
+    let plane = turned_about(TURNED[0].0, TURNED[0].1);
+    let mut body = ball_on::<f64>(&plane, 0.0);
+    topo::graft_disjoint(&mut body, &ball_on::<f64>(&plane, 2.0)).expect("a second solid");
+    let r = embedding(&body);
+    eprintln!("touching: {:?} {:?}", r.verdict, r.receipt);
+    let mut body = ball_on::<f64>(&plane, 0.0);
+    topo::graft_disjoint(&mut body, &ball_on::<f64>(&plane, 2.0 + 1e-9)).expect("a second solid");
+    let r = embedding(&body);
+    eprintln!("apart 1e-9: {:?} {:?}", r.verdict, r.receipt);
+}
