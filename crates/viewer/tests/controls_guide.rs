@@ -40,14 +40,12 @@ enum Did {
 /// Both mappings' answers to `event`. Leaving the viewport is not
 /// asked here: it is no gesture of its own in the guide.
 fn did(map: &InputMap, event: &ViewportEvent) -> Vec<Did> {
-    let moved = map
-        .map(event, viewport(), &camera())
-        .map(|op| match op {
-            CameraOp::Orbit { .. } => Did::Orbit,
-            CameraOp::Pan { .. } => Did::Pan,
-            CameraOp::Dolly { .. } => Did::Zoom,
-            CameraOp::Frame { .. } => panic!("{event:?} framed the model"),
-        });
+    let moved = map.map(event, viewport(), &camera()).map(|op| match op {
+        CameraOp::Orbit { .. } => Did::Orbit,
+        CameraOp::Pan { .. } => Did::Pan,
+        CameraOp::Dolly { .. } => Did::Zoom,
+        CameraOp::Frame { .. } => panic!("{event:?} framed the model"),
+    });
     let picked = map.pick(event).map(|action| match action {
         PickAction::Select(_) => Did::Select,
         PickAction::Hover(_) => Did::Highlight,
@@ -98,9 +96,12 @@ fn names(binding: &Binding, event: &ViewportEvent) -> bool {
         (Binding::Scroll, ViewportEvent::Scroll { .. })
         | (Binding::Pinch, ViewportEvent::Pinch { .. })
         | (Binding::Hover, ViewportEvent::Hover { .. }) => true,
-        (Binding::Click { button }, ViewportEvent::Click { button: clicked, .. }) => {
-            button == clicked
-        }
+        (
+            Binding::Click { button },
+            ViewportEvent::Click {
+                button: clicked, ..
+            },
+        ) => button == clicked,
         _ => false,
     }
 }

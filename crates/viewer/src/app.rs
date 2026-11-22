@@ -7580,7 +7580,9 @@ mod properties_pane_tests {
         let open = driven.quiet();
         assert_eq!(shown(&open), rows, "the guide's rows: {open:?}");
         assert!(
-            !open.iter().any(|(run, _)| run == "Scroll" || run == "Hover"),
+            !open
+                .iter()
+                .any(|(run, _)| run == "Scroll" || run == "Hover"),
             "a gesture this map does not bind is not listed: {open:?}"
         );
         // The button and the window's title both read `Controls`;
