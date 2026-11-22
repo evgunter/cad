@@ -602,7 +602,11 @@ fn a_starved_cell_budget_refuses_typed() {
     let report = clearance_at_dials(&doc, &box_of(&doc, "place"), &fa, &fb, &q);
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-            refusal: EngineRefusal::Budget(CellBudget::Pairs { max_cell_pairs }),
+            refusal:
+                EngineRefusal::Budget {
+                    stop: CellBudget::Pairs { max_cell_pairs },
+                    ..
+                },
             ..
         }) => assert_eq!(*max_cell_pairs, 1),
         other => panic!("expected a priced budget refusal, got {other:?}"),
@@ -631,7 +635,11 @@ fn a_starved_cell_depth_refuses_on_its_own_axis() {
     let report = clearance_at_dials(&doc, &box_of(&doc, "place"), &fa, &fb, &q);
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-            refusal: EngineRefusal::Budget(CellBudget::Depth { max_cell_depth }),
+            refusal:
+                EngineRefusal::Budget {
+                    stop: CellBudget::Depth { max_cell_depth },
+                    ..
+                },
             ..
         }) => assert_eq!(*max_cell_depth, 0),
         other => panic!("expected a depth refusal, got {other:?}"),
@@ -1288,7 +1296,7 @@ fn the_cost_curve_is_measured_at_both_ends() {
     assert!(fr.holds());
     match frontier.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-            refusal: EngineRefusal::Budget(_),
+            refusal: EngineRefusal::Budget { .. },
             ..
         }) => {}
         other => panic!("expected the frontier to exhaust its budget, got {other:?}"),

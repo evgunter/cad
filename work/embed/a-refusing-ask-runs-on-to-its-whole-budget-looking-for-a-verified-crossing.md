@@ -26,9 +26,10 @@ that refuse:
 - `Budget(Depth)` 468 s;
 - crossings 61 s.
 
-**A refusing ask does not stop at its first refusal.** `Bound` keeps
-the first (`lower_refusal.get_or_insert`) and the walk goes on looking
-for a verified crossing until the frontier empties or the budget is
+**A refusing ask did not stop at its first refusal** (it does since
+`embed/first-finding`, "Landed" below). `Bound` kept the first
+(`lower_refusal.get_or_insert`) and the walk went on looking for a
+verified crossing until the frontier emptied or the budget was
 spent. The twelve dearest asks in the whole suite are departure
 refusals on torus bodies of 4 to 7 faces (`germ_torus_components`,
 `germ_sphere_torus_placements`, `quadric_pair_sections`): 126 to 498 s
