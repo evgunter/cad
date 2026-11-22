@@ -17,10 +17,8 @@ use crate::shared::tol::band;
 /// The cone of half-angle `alpha` about `z` with its apex at `(0, 0, 1)`.
 fn cone(alpha: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -32,9 +30,7 @@ fn plane(q: Point3<f64>, n: Vec3<f64>) -> Surface<f64> {
         Vec3::unit_y()
     };
     Surface::Plane {
-        origin: q,
-        normal: n,
-        u_ref: (u - n * u.dot(n)).normalize(),
+        frame: geom::Frame::new(q, n, (u - n * u.dot(n)).normalize()),
     }
 }
 
@@ -439,8 +435,8 @@ fn the_extent_on_a_steep_arc() {
             .flat_map(|a| pts.iter().map(move |b| a.distance(*b)))
             .fold(0.0, f64::max);
         let chord = from.distance(to);
-        let inf = geom_brep::edge_extent_inf(&arc, lo, hi, (from, to)).length();
-        let sup = geom_brep::edge_extent_sup(&arc, lo, hi, (from, to)).length();
+        let inf = geom_brep::edge_extent_inf(&arc, lo, hi).length();
+        let sup = geom_brep::edge_extent_sup(&arc, lo, hi).length();
         println!(
             "[measured] steep arc α {alpha}, y {y0}..{y1}: chord {chord}, diameter {diameter}, \
              inf {inf}, sup {sup}, chord/D {}, inf/D {}, sup/D {}",

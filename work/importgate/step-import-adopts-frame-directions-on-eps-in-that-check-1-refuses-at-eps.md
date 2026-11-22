@@ -2,12 +2,13 @@
 id: step-import-adopts-frame-directions-on-eps-in-that-check-1-refuses-at-eps
 kind: issue
 title: step-import adopts a DIRECTION and a ref_direction verbatim within the file's eps_in, dimensionless and unlevered; a cylinder so imported can refuse at check 1 at the ambient eps
-status: open
+status: closed
 opened: 2026-09-25
 priority: P3
 cost: M
 refs: [3238, step-import-restates-the-cone-half-angle-convention]
 design: true
+closed: 2026-11-18
 ---
 
 

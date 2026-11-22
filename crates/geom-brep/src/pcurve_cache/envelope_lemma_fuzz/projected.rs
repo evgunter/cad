@@ -20,6 +20,7 @@ use super::super::projected::{
 };
 use super::super::{EnvelopeTerm, Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
 use super::{band, frame, unit};
+use crate::FittedLaneOf;
 
 /// The five charts, in a random pose.
 #[derive(Clone, Copy, Debug)]
@@ -44,36 +45,26 @@ fn surface(chart: Chart, s: &mut fuzz::Rng) -> Surface<f64> {
     let o = Point3::new(s.range(-2.0, 2.0), s.range(-2.0, 2.0), s.range(-2.0, 2.0));
     match chart {
         Chart::Plane => Surface::Plane {
-            origin: o,
-            normal: axis,
-            u_ref,
+            frame: geom::Frame::new(o, axis, u_ref),
         },
         Chart::Cylinder => Surface::Cylinder {
-            origin: o,
-            axis,
+            frame: geom::Frame::new(o, axis, u_ref),
             radius: s.range(0.3, 2.0),
-            u_ref,
         },
         Chart::Cone => Surface::Cone {
-            apex: o,
-            axis,
+            frame: geom::Frame::new(o, axis, u_ref),
             half_angle: s.range(0.2, 1.3),
-            u_ref,
         },
         Chart::Sphere => Surface::Sphere {
-            center: o,
+            frame: geom::Frame::new(o, axis, u_ref),
             radius: s.range(0.3, 2.0),
-            axis,
-            u_ref,
         },
         Chart::Torus => {
             let major = s.range(0.8, 2.0);
             Surface::Torus {
-                center: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 major_radius: major,
                 minor_radius: major * s.range(0.15, 0.7),
-                u_ref,
             }
         }
     }
@@ -116,11 +107,8 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
     let span = s.range(0.3, 2.0);
     let a = s.range(0.0, TAU);
     match *surf {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => {
+        Surface::Plane { frame } => {
+            let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = normal.cross(u_ref);
             // Monotone in `u`, so the net's speed bound is positive.
             let ctl: Vec<Point3<f64>> = (0..4)
@@ -139,12 +127,8 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
                 .unwrap(),
             ))
         }
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => {
+        Surface::Cylinder { frame, radius } => {
+            let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let h = s.range(-1.0, 1.0);
             if s.below(2) == 0 {
                 arc(origin + axis * h, u_ref, axis.cross(u_ref), radius, a, span)
@@ -153,12 +137,8 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
                 segment(p + axis * h, p + axis * (h + span))
             }
         }
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => {
+        Surface::Cone { frame, half_angle } => {
+            let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let sign = if s.below(2) == 0 { 1.0 } else { -1.0 };
             let v = sign * s.range(0.4, 2.0);
             if s.below(2) == 0 {
@@ -178,7 +158,8 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
                 segment(g(v), g(v + sign * span))
             }
         }
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let n = unit(s);
             let d = radius * s.range(-0.8, 0.8);
             let e1 = n.cross(unit(s)).normalize();
@@ -192,12 +173,11 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
             )
         }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
-            u_ref,
         } => {
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             if s.below(2) == 0 {
                 let v = s.range(0.0, TAU);
                 arc(
@@ -222,9 +202,15 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
 /// A circle on `sphere` that is neither a parallel nor a meridian, with
 /// an arc of it.
 fn general_circle(sphere: &Surface<f64>, s: &mut fuzz::Rng) -> (Curve3<f64>, f64, f64) {
-    let Surface::Sphere { center, radius, .. } = *sphere else {
+    let Surface::Sphere {
+        frame: carrier_frame,
+        radius,
+        ..
+    } = *sphere
+    else {
         unreachable!()
     };
+    let center = carrier_frame.origin();
     let n = unit(s);
     let d = radius * s.range(-0.8, 0.8);
     let u_ref = n.cross(unit(s)).normalize();
@@ -253,8 +239,14 @@ fn sampled(p: &Pcurve<f64>, c: &Curve3<f64>, surf: &Surface<f64>, t0: f64, t1: f
 /// sector refusal honest rather than a counterexample.
 fn axis_clearance(c: &Curve3<f64>, surf: &Surface<f64>, t0: f64, t1: f64) -> f64 {
     let (o, axis) = match *surf {
-        Surface::Sphere { center, axis, .. } => (center, axis),
-        Surface::Cone { apex, axis, .. } => (apex, axis),
+        Surface::Sphere { frame, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            (center, axis)
+        }
+        Surface::Cone { frame, .. } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
+            (apex, axis)
+        }
         _ => return f64::INFINITY,
     };
     (0..=256)
@@ -273,9 +265,51 @@ fn lift(c: &Curve3<f64>) -> Curve3<Interval> {
 /// — splines on all five, general circles on the sphere — image to
 /// rounding and certify with a rounding-sized envelope, at `f64` and at
 /// `Interval`. A counterexample search.
+///
+/// At ε 1e-12 a draw's `Interval` certificate may escalate
+/// `pcurve_envelope` with its margin in `(1.0e-12, 2.0e-12]` (measured
+/// 1.237e-12, a torus spline at seed `0xe36d1e24280147a5`; a ceiling
+/// across seeds). Cause: both jointly: a stored frame read as its polar
+/// enclosure (decision 1, #7131) and frames built at Interval from
+/// bracket inputs, a rigid-motion claim (fork 274); either alone stays
+/// under the band, so mutant A alone and mutant F1X alone each build it
+/// in the companion row. Such a draw is counted, not certified; any
+/// other refusal is a failure.
+/// [`a_carrier_on_its_chart_pinned_where_the_frame_cost_refuses`]
+/// replays the seed that draws one.
 #[test]
 fn a_carrier_on_its_chart_images_exactly_at_f64_and_interval() {
-    let mut s = fuzz::start("projected_exactness");
+    exactness_sweep(fuzz::start("projected_exactness"));
+}
+
+/// The seed at which [`a_carrier_on_its_chart_images_exactly_at_f64_and_interval`]
+/// drew a torus spline whose `Interval` certificate escalates at ε 1e-12.
+const EXACTNESS_FRAME_COST_SEED: u64 = 0xe36d_1e24_2801_47a5;
+
+/// **The exactness sweep at the seed that draws the frame cost**: at
+/// ε 1e-12 at least one draw's `Interval` certificate escalates
+/// `pcurve_envelope` in `(1.0e-12, 2.0e-12]`. Cause: both jointly: a
+/// stored frame read as its polar enclosure (decision 1, #7131) and
+/// frames built at Interval from bracket inputs, a rigid-motion claim
+/// (fork 274); either alone stays under the band, so mutant A alone and
+/// mutant F1X alone each certify every draw and turn this pin red. At ε
+/// 1e-9 and 1e-6 every draw certifies.
+#[test]
+fn a_carrier_on_its_chart_pinned_where_the_frame_cost_refuses() {
+    let escalated = exactness_sweep(fuzz::pinned_sweep(
+        "projected_exactness",
+        EXACTNESS_FRAME_COST_SEED,
+    ));
+    assert!(
+        !super::super::frame_cost::at_the_least_band() || escalated > 0,
+        "pinned to escalate pcurve_envelope at Interval on some draw at ε 1e-12; none did"
+    );
+}
+
+/// The exactness sweep's body over the stream `s`: the count of draws
+/// whose `Interval` certificate escalated as the frame cost at ε 1e-12.
+fn exactness_sweep(mut s: fuzz::Rng) -> usize {
+    let (mut escalated, mut reached) = (0, 0);
     let b = band();
     let lane64 = crate::FittedLane::<f64>::certified();
     let lane_iv = crate::FittedLane::<Interval>::certified();
@@ -386,8 +420,19 @@ fn a_carrier_on_its_chart_images_exactly_at_f64_and_interval() {
                     "{what}: the row lifted ({du}, {dv}) certified at Interval"
                 );
             }
-            let cache = PcurveCache::certify_projected(*p, i0, i1, &ci, &si, b, Some(lane_iv))
-                .unwrap_or_else(|e| panic!("{what}: interval certification refused: {e:?}"));
+            reached += 1;
+            let cache = match PcurveCache::certify_projected(*p, i0, i1, &ci, &si, b, Some(lane_iv))
+            {
+                Ok(cache) => cache,
+                Err(e)
+                    if super::super::frame_cost::at_the_least_band()
+                        && super::super::frame_cost::envelope_escalates(&e, (1.0e-12, 2.0e-12)) =>
+                {
+                    escalated += 1;
+                    continue;
+                }
+                Err(e) => panic!("{what}: interval certification refused: {e:?}"),
+            };
             let env = cache.certificate().envelope;
             assert!(env.hi() < 1e-9, "{what}: interval envelope {:e}", env.hi());
             // Every sampled point's displacement encloses the f64 truth.
@@ -403,6 +448,15 @@ fn a_carrier_on_its_chart_images_exactly_at_f64_and_interval() {
             }
         }
     }
+    // The skip is capped: the frame cost is a few far or long-levered
+    // draws, so a sweep where most certificates escalate is a regression
+    // the count would otherwise hide.
+    assert!(
+        4 * escalated <= reached,
+        "{escalated} of {reached} Interval certificates escalated as the frame cost: \
+         more than a quarter"
+    );
+    escalated
 }
 
 /// **`S(ψ(ξ))` is the nearest point**: for points near each chart, the
@@ -574,7 +628,7 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
                             Meters::Cone {
                                 sin: iv(sin),
                                 cos: iv(cos),
-                                nappe: Nappe::Opening,
+                                locus: crate::pcurve_cache::projected::Locus::Nappe(Nappe::Opening),
                             },
                             Box::new(move |p: Vec3<Interval>| {
                                 iv(cos).powi(2) * (p.x.powi(2) + p.y.powi(2))
@@ -1068,8 +1122,6 @@ enum Moved {
     Carrier,
     /// The stored net off the carrier's (`Fidelity`).
     Net,
-    /// The chart's frame off orthonormal (`Frame`).
-    Frame,
     /// The deck map off a deck transformation (`FidelityU`).
     Deck,
 }
@@ -1079,7 +1131,6 @@ impl Moved {
         match self {
             Self::Carrier => EnvelopeTerm::Incidence,
             Self::Net => EnvelopeTerm::Fidelity,
-            Self::Frame => EnvelopeTerm::Frame,
             Self::Deck => EnvelopeTerm::FidelityU,
         }
     }
@@ -1090,7 +1141,7 @@ impl Moved {
 /// any term (a sector the move broke).
 fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<Dominance> {
     let b = band();
-    let mut surf = surface(chart, s);
+    let surf = surface(chart, s);
     let carrier = on_chart(&surf, s);
     let (t0, t1) = domain(&carrier);
     let size = 10f64.powf(s.range(-7.0, -4.0));
@@ -1104,65 +1155,7 @@ fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<Domina
         }
         _ => carrier,
     };
-    if moved == Moved::Frame {
-        let tilt = |v: Vec3<f64>, s: &mut fuzz::Rng| (v + unit(s) * size) * (1.0 + size);
-        surf = match surf {
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => Surface::Cylinder {
-                origin,
-                axis: tilt(axis, s),
-                radius,
-                u_ref: tilt(u_ref, s),
-            },
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Surface::Cone {
-                apex,
-                axis: tilt(axis, s),
-                half_angle,
-                u_ref: tilt(u_ref, s),
-            },
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                center,
-                radius,
-                axis: tilt(axis, s),
-                u_ref: tilt(u_ref, s),
-            },
-            Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            } => Surface::Torus {
-                center,
-                axis: tilt(axis, s),
-                major_radius,
-                minor_radius,
-                u_ref: tilt(u_ref, s),
-            },
-            other => other,
-        };
-    }
-    // A frame row's stored net is the twin frame's, so only the map
-    // differs from the lemma's.
-    let derive_on = if moved == Moved::Frame {
-        super::super::orthonormal_chart(&surf)
-    } else {
-        surf.clone()
-    };
+    let derive_on = surf.clone();
     let mut image = project(&carrier, None, &derive_on, b).ok()?;
     match moved {
         Moved::Net => {
@@ -1180,7 +1173,7 @@ fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<Domina
             ));
         }
         Moved::Deck => image.u_off += size,
-        Moved::Carrier | Moved::Frame => {}
+        Moved::Carrier => {}
     }
     let pcurve = Pcurve::Projected(Box::new(image.clone()));
     let boxed = pcurve.chart_box(t0, t1);
@@ -1243,7 +1236,7 @@ struct Dominance {
 }
 
 const CURVED: [Chart; 4] = [Chart::Cylinder, Chart::Cone, Chart::Sphere, Chart::Torus];
-const MOVES: [Moved; 4] = [Moved::Carrier, Moved::Net, Moved::Frame, Moved::Deck];
+const MOVES: [Moved; 3] = [Moved::Carrier, Moved::Net, Moved::Deck];
 
 /// **The envelope dominates**: every row moved in one respect bounds
 /// its densely sampled displacement, the lemma's envelope and check 4's,
@@ -1344,10 +1337,8 @@ fn every_projected_term_is_load_bearing_in_a_pinned_sweep() {
 fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
     let b = band();
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let tilt = 0.4_f64;
     let n = Vec3::new(tilt.sin(), 0.0, tilt.cos());
@@ -1412,10 +1403,8 @@ fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
 fn wrong_nappe_refusal() -> PcurveCertifyError {
     let b = band();
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: 0.5,
-        u_ref: Vec3::unit_x(),
     };
     let rim = arc(
         Point3::new(0.0, 0.0, 0.5_f64.cos()),
@@ -1464,11 +1453,9 @@ fn the_wrong_nappe_refuses_on_the_cone_lever() {
 fn an_off_chart_spline_refuses_by_incidence() {
     let b = band();
     let torus = Surface::Torus {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 1.0,
         minor_radius: 0.3,
-        u_ref: Vec3::unit_x(),
     };
     let off = arc(
         Point3::origin(),
@@ -1501,23 +1488,61 @@ fn an_off_chart_spline_refuses_by_incidence() {
 /// the sampled displacement. The same row with its stored line moved
 /// (point and direction, the `Fidelity` term) covers its own displacement
 /// wherever it certifies. A counterexample search.
+///
+/// At ε 1e-12 a draw's `Interval` certificate may escalate
+/// `pcurve_envelope` with its margin in `(1.0e-12, 2.0e-12]` (measured
+/// 1.070e-12 and 1.514e-12 on two draws, a ceiling across seeds).
+/// Cause: both jointly: a stored frame read as its polar enclosure
+/// (decision 1, #7131) and frames built at Interval from bracket
+/// inputs, a rigid-motion claim (fork 274); either alone stays under
+/// the band, so mutant A alone and mutant F1X alone each build it in
+/// the companion row. Such a draw is counted, not certified; any other
+/// refusal is a failure.
+/// [`a_line_near_a_ruling_pinned_where_the_frame_cost_refuses`] replays
+/// the seed that draws one.
 #[test]
 fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
-    let mut s = fuzz::start("projected_cylinder_line");
+    line_near_a_ruling_sweep(fuzz::start("projected_cylinder_line"));
+}
+
+/// The seed at which [`a_line_near_a_ruling_certifies_and_its_envelope_dominates`]
+/// drew a line whose `Interval` certificate escalates at ε 1e-12.
+const LINE_FRAME_COST_SEED: u64 = 0x2464_932a_c03c_aa76;
+
+/// **The line-near-a-ruling sweep at the seed that draws the frame
+/// cost**: at ε 1e-12 at least one draw's `Interval` certificate
+/// escalates `pcurve_envelope` in `(1.0e-12, 2.0e-12]`. Cause: both
+/// jointly: a stored frame read as its polar enclosure (decision 1,
+/// #7131) and frames built at Interval from bracket inputs, a rigid-
+/// motion claim (fork 274); either alone stays under the band, so
+/// mutant A alone and mutant F1X alone each certify every draw and turn
+/// this pin red. At ε 1e-9 and 1e-6 every draw certifies.
+#[test]
+fn a_line_near_a_ruling_pinned_where_the_frame_cost_refuses() {
+    let escalated = line_near_a_ruling_sweep(fuzz::pinned_sweep(
+        "projected_cylinder_line",
+        LINE_FRAME_COST_SEED,
+    ));
+    assert!(
+        !super::super::frame_cost::at_the_least_band() || escalated > 0,
+        "pinned to escalate pcurve_envelope at Interval on some draw at ε 1e-12; none did"
+    );
+}
+
+/// The line-near-a-ruling sweep's body over the stream `s`: the count of
+/// draws whose `Interval` certificate escalated as the frame cost at
+/// ε 1e-12.
+fn line_near_a_ruling_sweep(mut s: fuzz::Rng) -> usize {
+    let (mut escalated, mut reached) = (0, 0);
     let b = band();
     let f = Interval::from_f64;
     let slack = 1e-13;
     for _ in 0..fuzz::scaled(48) {
         let surf = surface(Chart::Cylinder, &mut s);
-        let Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } = surf
-        else {
+        let Surface::Cylinder { frame, radius } = surf else {
             unreachable!("a cylinder")
         };
+        let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
         let r = rad(axis, u_ref, s.range(-PI, PI));
         let tang = axis.cross(r);
         let lean = if s.below(2) == 0 {
@@ -1555,11 +1580,18 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
         let (ci, si) = (lift(&carrier), surf.map_scalar(f));
         let image_i = super::super::chart_pcurve_over(&ci, f(t0), f(t1), &si, b)
             .unwrap_or_else(|e| panic!("{what}: interval derivation refused: {e:?}"));
-        let env_i = PcurveCache::certify(image_i, f(t0), f(t1), &ci, &si, b)
-            .unwrap_or_else(|e| panic!("{what}: interval certification refused: {e:?}"))
-            .certificate()
-            .envelope
-            .hi();
+        reached += 1;
+        let env_i = match PcurveCache::certify(image_i, f(t0), f(t1), &ci, &si, b) {
+            Ok(cache) => cache.certificate().envelope.hi(),
+            Err(e)
+                if super::super::frame_cost::at_the_least_band()
+                    && super::super::frame_cost::envelope_escalates(&e, (1.0e-12, 2.0e-12)) =>
+            {
+                escalated += 1;
+                continue;
+            }
+            Err(e) => panic!("{what}: interval certification refused: {e:?}"),
+        };
         assert!(
             env_i >= worst,
             "{what}: the Interval envelope {env_i:e} covers the sampled {worst:e}"
@@ -1577,9 +1609,15 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
         *dir = *dir + dd / (t0.abs().max(t1.abs()).max(1.0));
         let moved_image = Pcurve::Projected(Box::new(moved.clone()));
         let worst = sampled(&moved_image, &carrier, &surf, t0, t1);
-        if let Ok(cache) =
-            PcurveCache::certify_projected(moved.clone(), t0, t1, &carrier, &surf, b, None)
-        {
+        if let Ok(cache) = PcurveCache::certify_projected(
+            moved.clone(),
+            t0,
+            t1,
+            &carrier,
+            &surf,
+            b,
+            None::<geom_core::NoLane>,
+        ) {
             let env = cache.certificate().envelope;
             assert!(
                 env >= worst - slack,
@@ -1604,8 +1642,15 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
             origin: f(o),
             span: f(span),
         };
-        if let Ok(cache) = PcurveCache::certify_projected(moved_i, f(t0), f(t1), &ci, &si, b, None)
-        {
+        if let Ok(cache) = PcurveCache::certify_projected(
+            moved_i,
+            f(t0),
+            f(t1),
+            &ci,
+            &si,
+            b,
+            None::<geom_core::NoLane>,
+        ) {
             let env = cache.certificate().envelope.hi();
             assert!(
                 env >= worst,
@@ -1613,6 +1658,15 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
             );
         }
     }
+    // The skip is capped: the frame cost is a few far or long-levered
+    // draws, so a sweep where most certificates escalate is a regression
+    // the count would otherwise hide.
+    assert!(
+        4 * escalated <= reached,
+        "{escalated} of {reached} Interval certificates escalated as the frame cost: \
+         more than a quarter"
+    );
+    escalated
 }
 
 /// Rational quadratic arcs of the circle `c + r·(cos θ·e₁ + sin θ·e₂)`,
@@ -1652,10 +1706,8 @@ fn arcs(
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -1731,10 +1783,8 @@ fn the_period_gate_reads_the_sweep_and_refuses_past_a_turn() {
         "a circle past a turn: {got:?}"
     );
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let winding = arcs(
         Point3::origin(),
@@ -1838,10 +1888,8 @@ fn a_spline_edges_incidence_reads_only_the_spans_its_interval_meets() {
     let h = 1e-4;
     let c = quarter_off_past_half(h);
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     for (scalar, got) in ["f64", "Interval"]
         .into_iter()
@@ -1871,18 +1919,14 @@ fn parallel(chart: Chart, delta: f64) -> (Surface<f64>, Curve3<f64>) {
     match chart {
         Chart::Plane => (
             Surface::Plane {
-                origin: Point3::origin(),
-                normal: z,
-                u_ref: x,
+                frame: geom::Frame::new(Point3::origin(), z, x),
             },
             segment(Point3::new(0.1, 0.2, delta), Point3::new(1.3, -0.4, delta)),
         ),
         Chart::Cylinder => (
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: z,
+                frame: geom::Frame::new(Point3::origin(), z, x),
                 radius: 1.3,
-                u_ref: x,
             },
             arc(Point3::new(0.0, 0.0, 0.2), x, y, 1.3 + delta, 0.4, 1.5),
         ),
@@ -1890,10 +1934,8 @@ fn parallel(chart: Chart, delta: f64) -> (Surface<f64>, Curve3<f64>) {
             let (r, phi) = (1.1 + delta, 0.5_f64);
             (
                 Surface::Sphere {
-                    center: Point3::origin(),
+                    frame: geom::Frame::new(Point3::origin(), z, x),
                     radius: 1.1,
-                    axis: z,
-                    u_ref: x,
                 },
                 arc(
                     Point3::new(0.0, 0.0, r * phi.sin()),
@@ -1910,10 +1952,8 @@ fn parallel(chart: Chart, delta: f64) -> (Surface<f64>, Curve3<f64>) {
             let z0 = 1.0;
             (
                 Surface::Cone {
-                    apex: Point3::origin(),
-                    axis: z,
+                    frame: geom::Frame::new(Point3::origin(), z, x),
                     half_angle: alpha,
-                    u_ref: x,
                 },
                 arc(
                     Point3::new(0.0, 0.0, z0),
@@ -1929,11 +1969,9 @@ fn parallel(chart: Chart, delta: f64) -> (Surface<f64>, Curve3<f64>) {
             let (big, small, v) = (1.2, 0.4_f64, 0.7_f64);
             (
                 Surface::Torus {
-                    center: Point3::origin(),
-                    axis: z,
+                    frame: geom::Frame::new(Point3::origin(), z, x),
                     major_radius: big,
                     minor_radius: small,
-                    u_ref: x,
                 },
                 arc(
                     Point3::new(0.0, 0.0, (small + delta) * v.sin()),
@@ -1999,7 +2037,7 @@ fn each_charts_conversion_is_tight_on_a_parallel_carrier() {
             &c,
             &sphere,
             b,
-            None,
+            None::<geom_core::NoLane>,
             crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
         )
         .map(|(terms, _)| terms)
@@ -2042,15 +2080,13 @@ fn each_conversion_reads_its_stated_floors() {
     let close = |got: f64, want: f64| (got - want).abs() <= 1e-12 * want.abs();
     let alpha = 0.6_f64;
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     };
     let (inc, floor) = net_incidence(
         &hull(1.0, (0.5, 2.0)),
         (0.0, 1.0),
-        Some(crate::Nappe::Opening),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Opening),
         &cone,
         d,
         b,
@@ -2065,7 +2101,7 @@ fn each_conversion_reads_its_stated_floors() {
     let mirror = net_incidence(
         &hull(0.1, (0.5, 2.0)),
         (0.0, 1.0),
-        Some(crate::Nappe::Mirror),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Mirror),
         &cone,
         d,
         b,
@@ -2085,29 +2121,23 @@ fn each_conversion_reads_its_stated_floors() {
     for (surf, want) in [
         (
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             f / (1.0 + rho.max(1.0 - f)),
         ),
         (
             Surface::Sphere {
-                center: Point3::origin(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
             },
             f / (1.0 + rho.max(1.0 - f)),
         ),
         (
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 1.2,
                 minor_radius: 0.4,
-                u_ref: Vec3::unit_x(),
             },
             {
                 let outer = (rho + 1.2_f64).powi(2) - 0.4_f64.powi(2);
@@ -2116,9 +2146,16 @@ fn each_conversion_reads_its_stated_floors() {
             },
         ),
     ] {
-        let (inc, floor) =
-            net_incidence(&hull(rho, (0.0, 0.0)), (0.0, 1.0), None, &surf, d, b, false)
-                .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
+        let (inc, floor) = net_incidence(
+            &hull(rho, (0.0, 0.0)),
+            (0.0, 1.0),
+            crate::pcurve_cache::projected::Locus::Carrier,
+            &surf,
+            d,
+            b,
+            false,
+        )
+        .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
         assert!(close(inc, want), "{surf:?}: {inc:e} against {want:e}");
         assert!(close(floor, rho - d), "{surf:?}: floor {floor}");
     }
@@ -2127,7 +2164,7 @@ fn each_conversion_reads_its_stated_floors() {
     let got = net_incidence(
         &uncertified,
         (0.0, 1.0),
-        Some(crate::Nappe::Opening),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Opening),
         &cone,
         d,
         b,
@@ -2228,11 +2265,9 @@ fn turned_piece_refusal(torus: bool) -> PcurveCertifyError {
     let (surf, c) = if torus {
         (
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 1.2,
                 minor_radius: 0.4,
-                u_ref: Vec3::unit_x(),
             },
             arc(
                 Point3::new(1.2, 0.0, 0.0),
@@ -2246,10 +2281,8 @@ fn turned_piece_refusal(torus: bool) -> PcurveCertifyError {
     } else {
         (
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             arc(
                 Point3::origin(),
@@ -2285,11 +2318,9 @@ fn grazing_piece_refusal(torus: bool) -> PcurveCertifyError {
     let (surf, c) = if torus {
         (
             Surface::Torus {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 major_radius: 1.2,
                 minor_radius: 0.4,
-                u_ref: Vec3::unit_x(),
             },
             arc(
                 Point3::new(1.2, 0.0, 0.0),
@@ -2303,10 +2334,8 @@ fn grazing_piece_refusal(torus: bool) -> PcurveCertifyError {
     } else {
         (
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             arc(
                 Point3::origin(),
@@ -2371,10 +2400,8 @@ fn a_period_jump_inside_a_piece_or_at_a_break_refuses() {
     }
     let b = band();
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     // A sweep that DEcreases, so the last piece turned a whole period up
     // lands a whole period above the joint it leaves, and the image's
@@ -2412,9 +2439,7 @@ fn a_period_jump_inside_a_piece_or_at_a_break_refuses() {
 fn the_plane_envelope_dominates_a_carrier_off_the_plane() {
     let b = band();
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let h = 1e-3;
     let c = Curve3::Nurbs(Arc::new(
@@ -2441,7 +2466,7 @@ fn the_plane_envelope_dominates_a_carrier_off_the_plane() {
         &c,
         &plane,
         b,
-        None,
+        None::<geom_core::NoLane>,
         crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )
     .map(|(terms, _)| terms)
@@ -2469,10 +2494,8 @@ fn a_cone_carrier_leaving_the_apex_is_dominated() {
     let lane = crate::FittedLane::<f64>::certified();
     let alpha = 0.6_f64;
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     };
     let generator = Vec3::new(alpha.sin(), 0.0, alpha.cos());
     let normal = Vec3::new(alpha.cos(), 0.0, -alpha.sin());
@@ -2519,10 +2542,8 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
     let b = band();
     let lane = crate::FittedLane::<f64>::certified();
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let c = quarter_off_past_half(0.0);
     let image = project(&c, None, &cylinder, b).unwrap();
@@ -2544,7 +2565,7 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
         super::super::projected::net_incidence(
             hull,
             edge,
-            image.chart.nappe(),
+            image.chart.locus(),
             &twin,
             0.0,
             b,
@@ -2679,10 +2700,8 @@ fn a_corrupt_net_escalates_the_azimuth_sector_on_a_cylinder() {
     let b = band();
     let lane = crate::FittedLane::<f64>::certified();
     let cylinder = Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        u_ref: Vec3::unit_x(),
     };
     let c = quarter_off_past_half(0.0);
     let mut image = project(&c, None, &cylinder, b).unwrap();
@@ -2743,17 +2762,13 @@ fn a_spline_net_the_projected_lane_cannot_partition_ends_not_yet() {
     let b = band();
     let mid = 0.5 * (b.zero() + b.escalate());
     let sphere = Surface::Sphere {
-        center: Point3::origin(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     let half_angle = 0.5_f64;
     let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         half_angle,
-        u_ref: Vec3::unit_x(),
     };
     // The beside-the-pole arc's plane is turned `mid` off the axis, so its
     // nearest approach to the pole is `mid`.
@@ -2857,4 +2872,85 @@ fn a_spline_net_the_projected_lane_cannot_partition_ends_not_yet() {
         }
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+/// **A pole-ended image's envelope dominates its displacement.** Random
+/// spheres, each cut by a random plane through its north pole: an arc of
+/// the circle leaving the pole, one arriving at it, or the whole circle
+/// from the pole round to it, its pole end stated. Each certifies at
+/// `f64` and at `Interval`, and each certificate's envelope is at least the
+/// densely sampled `|S(P(t)) − C(t)|`. A counterexample search.
+#[test]
+fn a_pole_ended_images_envelope_dominates_its_displacement() {
+    let mut s = fuzz::start("projected_pole_end");
+    for _ in 0..fuzz::scaled(24) {
+        let sphere = surface(Chart::Sphere, &mut s);
+        let Surface::Sphere { frame, radius } = sphere else {
+            unreachable!()
+        };
+        let (center, axis) = (frame.origin(), frame.axis());
+        let pole = center + axis * radius;
+        // A plane through the pole at least a little off the axis, so the
+        // section is no meridian, and off tangency, so it is a circle.
+        let n = loop {
+            let n = unit(&mut s);
+            let lean = n.cross(axis).norm();
+            if lean > 0.05 && n.dot(axis).abs() > 0.05 {
+                break n;
+            }
+        };
+        let d = n.dot(pole - center);
+        let centre = center + n * d;
+        let r = (radius * radius - d * d).sqrt();
+        let u_ref = (pole - centre).normalize();
+        let circle = Curve3::circle(centre, n, r, u_ref);
+        let length = s.range(0.3, TAU);
+        let (span, ends) = match s.range(0.0, 3.0) as u32 {
+            0 => ((0.0, length), (true, false)),
+            1 => ((-length, 0.0), (false, true)),
+            _ => ((0.0, TAU), (true, true)),
+        };
+        let ends = super::super::SingularEnds {
+            start: ends.0,
+            end: ends.1,
+        };
+        let b = band();
+        let image = super::super::chart_pcurve_over_ends(&circle, span.0, span.1, ends, &sphere, b)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{span:?} {ends:?}: the arc images, got {e:?} — {}",
+                    fuzz::replay()
+                )
+            });
+        let cache = PcurveCache::certify(image.clone(), span.0, span.1, &circle, &sphere, b)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{span:?} {ends:?}: f64 certifies, got {e:?} — {}",
+                    fuzz::replay()
+                )
+            });
+        let sup = sampled(&image, &circle, &sphere, span.0, span.1);
+        assert!(
+            cache.certificate().envelope >= sup * (1.0 - 1e-9) - 1e-15,
+            "{span:?} {ends:?}: f64 envelope {:e} under sampled {sup:e} — {}",
+            cache.certificate().envelope,
+            fuzz::replay()
+        );
+        let (ci, si) = (lift(&circle), sphere.map_scalar(Interval::from_f64));
+        let (i0, i1) = (Interval::from_f64(span.0), Interval::from_f64(span.1));
+        let certified = super::super::chart_pcurve_over_ends(&ci, i0, i1, ends, &si, b)
+            .and_then(|image| PcurveCache::certify(image, i0, i1, &ci, &si, b))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{span:?} {ends:?}: interval certifies, got {e:?} — {}",
+                    fuzz::replay()
+                )
+            });
+        let envelope = certified.certificate().envelope.hi();
+        assert!(
+            envelope >= sup * (1.0 - 1e-9) - 1e-15,
+            "{span:?} {ends:?}: interval envelope {envelope:e} under sampled {sup:e} — {}",
+            fuzz::replay()
+        );
+    }
 }

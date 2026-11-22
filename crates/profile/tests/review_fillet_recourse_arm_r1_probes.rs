@@ -274,18 +274,23 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
     let PathError::NoCornerForFillet {
         reason:
             PathNoCornerReason::TurnWithinTolerance {
-                sin_turn,
-                align,
-                lever,
-                lever_of,
+                turn:
+                    profile::LeveredTurn {
+                        sin_turn,
+                        align,
+                        lever,
+                        lever_of,
+                    },
                 corner,
             },
         ..
-    } = zero
+    } = &zero
     else {
         panic!("expected the turn-within-tolerance reason, got {zero:?}")
     };
+    let lever_of = *lever_of;
     assert_eq!(lever_of, TurnLever::ShorterLeg, "the arc door's lever");
+    let [sin_turn, align, lever] = [sin_turn, align, lever].map(crate::common::told);
     // The arc door derives the corner before its turn gate, and names
     // it: the ray's crossing with the circle, ahead of its start.
     let y = 2.0_f64 - 1e-4;
@@ -314,6 +319,8 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
         "the lever is the 50ε leg: {lever:e}"
     );
     let shown = zero.to_string();
+    // Each is told to four figures: the lever is far below the length
+    // at which the tolerance's grid is the finer one.
     for (label, want) in [
         ("sin φ = ", sin_turn),
         ("(cos φ = ", align),
@@ -321,7 +328,7 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
     ] {
         let got = rendered_after(&shown, label);
         assert!(
-            (got - want).abs() <= 1e-8 * want.abs(),
+            (got - want).abs() <= 5e-4 * want.abs(),
             "{label:?} renders {got:e}, the payload holds {want:e}: {shown}"
         );
     }
@@ -330,7 +337,7 @@ fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
         "the definite arm ends in its in-band sibling's recourse: {shown}"
     );
     assert!(
-        shown.contains("over the shorter leg of") && shown.contains("sin φ = "),
+        shown.contains("over the shorter leg's arm of") && shown.contains("sin φ = "),
         "the sentence names both factors: {shown}"
     );
     assert!(

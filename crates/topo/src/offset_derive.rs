@@ -177,7 +177,7 @@ pub enum SplineRoot {
 /// refuses by name rather than transporting.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct SectionLane<T: Real> {
+pub struct SectionLane<T: geom_core::Certifies> {
     section: for<'w, 's> fn(
         &'s Surface<T>,
         Wall<'w, 's, T>,
@@ -292,7 +292,7 @@ fn chart_of<'w, 's>(
     }
 }
 
-impl<T: Real> core::fmt::Debug for SectionLane<T> {
+impl<T: geom_core::Certifies> core::fmt::Debug for SectionLane<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("SectionLane")
     }
@@ -311,11 +311,50 @@ impl SectionLane<f64> {
     }
 }
 
-impl<T: Real> SectionLane<T> {
-    /// The section of `plane` with the spline `wall` nearest `old` on
-    /// `[t0, t1]`, running with it: the wall's exact row where the
-    /// section is one, the march's branch otherwise.
-    pub(crate) fn section<'w, 's>(
+/// **A [`SectionLane`] as a pass that runs at every scalar holds it**:
+/// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
+/// values) at one that does not (`geom-core` README, DL5.3).
+pub trait SectionLaneOf<T: Real>:
+    crate::lane_seal::Sealed + Copy + Send + Sync + core::fmt::Debug
+{
+    /// The plane × spline-wall section (`plane_wall_section`).
+    #[allow(private_interfaces)]
+    fn section<'w, 's>(
+        self,
+        plane: &'s Surface<T>,
+        wall: Wall<'w, 's, T>,
+        old: &Curve3<T>,
+        span: (T, T),
+        extent: geom_core::Lever<T>,
+        band: Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>;
+
+    /// The two-wall section (`pair_section`).
+    #[allow(private_interfaces)]
+    fn pair<'w, 's>(
+        self,
+        a: Wall<'w, 's, T>,
+        b: Wall<'w, 's, T>,
+        old: &Curve3<T>,
+        span: (T, T),
+        extent: geom_core::Lever<T>,
+        band: Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>;
+
+    /// A corner's root along a spline carrier (`plane_spline_root`).
+    fn root(
+        self,
+        plane: &Surface<T>,
+        carrier: &NurbsCurve3<T>,
+        seed: T,
+        extent: geom_core::Lever<T>,
+        band: Band,
+    ) -> Result<SplineRoot, CornerVerdict<T>>;
+}
+
+impl<T: geom_core::Certifies> SectionLaneOf<T> for SectionLane<T> {
+    #[allow(private_interfaces)]
+    fn section<'w, 's>(
         self,
         plane: &'s Surface<T>,
         wall: Wall<'w, 's, T>,
@@ -327,9 +366,8 @@ impl<T: Real> SectionLane<T> {
         (self.section)(plane, wall, old, span, extent, band)
     }
 
-    /// The section of two spline charts through `old`'s middle, running
-    /// with it.
-    pub(crate) fn pair<'w, 's>(
+    #[allow(private_interfaces)]
+    fn pair<'w, 's>(
         self,
         a: Wall<'w, 's, T>,
         b: Wall<'w, 's, T>,
@@ -341,8 +379,7 @@ impl<T: Real> SectionLane<T> {
         (self.pair)(a, b, old, span, extent, band)
     }
 
-    /// The root of `plane` along the spline `carrier` nearest `seed`.
-    pub(crate) fn root(
+    fn root(
         self,
         plane: &Surface<T>,
         carrier: &NurbsCurve3<T>,
@@ -351,6 +388,45 @@ impl<T: Real> SectionLane<T> {
         band: Band,
     ) -> Result<SplineRoot, CornerVerdict<T>> {
         (self.root)(plane, carrier, seed, extent, band)
+    }
+}
+
+impl<T: Real> SectionLaneOf<T> for geom_core::NoLane {
+    #[allow(private_interfaces)]
+    fn section<'w, 's>(
+        self,
+        _plane: &'s Surface<T>,
+        _wall: Wall<'w, 's, T>,
+        _old: &Curve3<T>,
+        _span: (T, T),
+        _extent: geom_core::Lever<T>,
+        _band: Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
+        match self {}
+    }
+
+    #[allow(private_interfaces)]
+    fn pair<'w, 's>(
+        self,
+        _a: Wall<'w, 's, T>,
+        _b: Wall<'w, 's, T>,
+        _old: &Curve3<T>,
+        _span: (T, T),
+        _extent: geom_core::Lever<T>,
+        _band: Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
+        match self {}
+    }
+
+    fn root(
+        self,
+        _plane: &Surface<T>,
+        _carrier: &NurbsCurve3<T>,
+        _seed: T,
+        _extent: geom_core::Lever<T>,
+        _band: Band,
+    ) -> Result<SplineRoot, CornerVerdict<T>> {
+        match self {}
     }
 }
 
@@ -398,62 +474,106 @@ pub(crate) fn holds_the_move<T: Decide>(
     let across = |a: Vec3<T>, b: Vec3<T>| a.cross(b).norm() * reach;
     let through = |q: Point3<T>, m: Vec3<T>, p: Point3<T>| (q - p).dot(m);
     match (moved, held) {
-        (Surface::Plane { normal, .. }, Surface::Plane { normal: m, .. }) => {
-            zero_as("offset_holds_plane_plane", normal.dot(*m) * reach)
-        }
-        (Surface::Plane { normal, .. }, Surface::Cylinder { axis, .. }) => {
-            zero_as("offset_holds_plane_cylinder", across(*normal, *axis))
-        }
-        (Surface::Plane { normal, .. }, Surface::Nurbs(wall)) => {
-            translates_along(wall, *normal, reach, band)
+        (
+            Surface::Plane {
+                frame: plane_frame_2,
+                ..
+            },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let normal = plane_frame_2.axis();
+            let m = plane_frame.axis();
+            zero_as("offset_holds_plane_plane", normal.dot(m) * reach)
         }
         (
-            Surface::Cylinder { origin, axis, .. },
             Surface::Plane {
-                origin: q,
-                normal: m,
+                frame: plane_frame, ..
+            },
+            Surface::Cylinder {
+                frame: cylinder_frame,
                 ..
             },
         ) => {
-            zero_as("offset_holds_cylinder_across", across(*m, *axis))
-                || (zero_as("offset_holds_cylinder_along", m.dot(*axis) * reach)
-                    && zero_as("offset_holds_cylinder_axis", through(*q, *m, *origin)))
+            let normal = plane_frame.axis();
+            let axis = cylinder_frame.axis();
+            zero_as("offset_holds_plane_cylinder", across(normal, axis))
         }
         (
-            Surface::Sphere { center, .. },
             Surface::Plane {
-                origin: q,
-                normal: m,
+                frame: plane_frame, ..
+            },
+            Surface::Nurbs(wall),
+        ) => {
+            let normal = plane_frame.axis();
+            translates_along(wall, normal, reach, band)
+        }
+        (
+            Surface::Cylinder {
+                frame: cylinder_frame,
                 ..
             },
-        ) => zero_as("offset_holds_sphere_centre", through(*q, *m, *center)),
-        (
-            Surface::Cone { apex, axis, .. },
             Surface::Plane {
-                origin: q,
-                normal: m,
-                ..
+                frame: plane_frame, ..
             },
         ) => {
-            zero_as("offset_holds_cone_along", m.dot(*axis) * reach)
-                && zero_as("offset_holds_cone_axis", through(*q, *m, *apex))
+            let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis());
+            let (q, m) = (plane_frame.origin(), plane_frame.axis());
+            zero_as("offset_holds_cylinder_across", across(m, axis))
+                || (zero_as("offset_holds_cylinder_along", m.dot(axis) * reach)
+                    && zero_as("offset_holds_cylinder_axis", through(q, m, origin)))
         }
         (
-            Surface::Torus { center, axis, .. },
-            Surface::Plane {
-                origin: q,
-                normal: m,
+            Surface::Sphere {
+                frame: sphere_frame,
                 ..
             },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
         ) => {
-            zero_as("offset_holds_torus_centre", through(*q, *m, *center))
-                && (zero_as("offset_holds_torus_along", m.dot(*axis) * reach)
-                    || zero_as("offset_holds_torus_across", across(*m, *axis)))
+            let center = sphere_frame.origin();
+            let (q, m) = (plane_frame.origin(), plane_frame.axis());
+            zero_as("offset_holds_sphere_centre", through(q, m, center))
         }
-        (Surface::Nurbs(_) | Surface::Approx(_), Surface::Plane { normal: m, .. }) => {
+        (
+            Surface::Cone {
+                frame: cone_frame, ..
+            },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
+            let (q, m) = (plane_frame.origin(), plane_frame.axis());
+            zero_as("offset_holds_cone_along", m.dot(axis) * reach)
+                && zero_as("offset_holds_cone_axis", through(q, m, apex))
+        }
+        (
+            Surface::Torus {
+                frame: torus_frame, ..
+            },
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
+            let (q, m) = (plane_frame.origin(), plane_frame.axis());
+            zero_as("offset_holds_torus_centre", through(q, m, center))
+                && (zero_as("offset_holds_torus_along", m.dot(axis) * reach)
+                    || zero_as("offset_holds_torus_across", across(m, axis)))
+        }
+        (
+            Surface::Nurbs(_) | Surface::Approx(_),
+            Surface::Plane {
+                frame: plane_frame, ..
+            },
+        ) => {
+            let m = plane_frame.axis();
             match (moved.spline_chart(), row) {
                 (Some(net), Some((axis, at))) => {
-                    normal_in_plane_along(net, axis, at, *m, reach, band)
+                    normal_in_plane_along(net, axis, at, m, reach, band)
                 }
                 _ => false,
             }
@@ -646,14 +766,14 @@ fn nearest<T: Decide>(
 /// the held analytic surface `held`, nearest the old carrier on
 /// `[t0, t1]` and running with it. Plane × plane is the line both
 /// planes hold; a plane against a cylinder, cone, sphere or torus, and
-/// a cone against a coaxial cylinder, is that C5 arm's carrier. Any
+/// a cone against a coaxial cylinder or sphere, is that C5 arm's carrier. Any
 /// other pair is not derived here.
 ///
 /// `extent` is the old edge's extent from below
 /// ([`geom_brep::edge_extent_inf`]), which the plane pair's parallelism
 /// reads: its Zero refuses and its Positive certifies the crossing. The
 /// torus's axis fork (`pt_axis_in_plane`) acts on its Zero (a meridian
-/// or spiric pose) and refuses on a definite tilt, so it reads the old
+/// or spiric pose) and refuses on any other tilt, so it reads the old
 /// edge's extent from above ([`geom_brep::edge_extent_sup`]). The cone
 /// and cylinder are handed both bounds ([`geom_brep::LeverBounds`]):
 /// their parallelism and coaxial swing act on a Zero and read the bound
@@ -669,7 +789,7 @@ pub(crate) fn section_closed<T: Decide>(
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     use geom_brep::intersect as c5;
-    let sup = geom_brep::edge_extent_sup(old, span.0, span.1, (old.eval(span.0), old.eval(span.1)));
+    let sup = geom_brep::edge_extent_sup(old, span.0, span.1);
     let closed = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(source)
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => Err(source),
@@ -678,19 +798,26 @@ pub(crate) fn section_closed<T: Decide>(
     let (plane, other) = match (new, held) {
         (Surface::Plane { .. }, _) => (new, held),
         (_, Surface::Plane { .. }) => (held, new),
-        (Surface::Cone { .. }, Surface::Cylinder { .. })
-        | (Surface::Cylinder { .. }, Surface::Cone { .. }) => {
-            let (cone, cyl) = if matches!(new, Surface::Cone { .. }) {
+        (
+            Surface::Cone { .. },
+            Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. },
+        )
+        | (
+            Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. },
+            Surface::Cone { .. },
+        ) => {
+            let (cone, other) = if matches!(new, Surface::Cone { .. }) {
                 (new, held)
             } else {
                 (held, new)
             };
-            let extent = geom_brep::LeverBounds::Between {
+            let between = geom_brep::LeverBounds::Between {
                 below: extent,
                 above: sup,
             };
-            let candidates = match c5::cone_cylinder_section(cone, cyl, extent, band) {
-                Ok(c5::ConeCylinderSection::CoaxialCircles { c1, c2 }) => vec![c1, c2],
+            let candidates = match coaxial_with_cone(cone, other, between, band) {
+                Ok(Ok(candidates)) => candidates,
+                Ok(Err(verdict)) => return Ok(Err(verdict)),
                 Err(e) => return closed(e),
             };
             let chosen = match nearest(candidates, old, span, band)? {
@@ -702,7 +829,7 @@ pub(crate) fn section_closed<T: Decide>(
         _ => {
             return Ok(Err(SectionVerdict::Unsupported {
                 what: "the offset door derives a section through a plane, or of a cone \
-                       and a coaxial cylinder, only",
+                       and a coaxial cylinder, sphere or torus, only",
             }));
         }
     };
@@ -778,6 +905,165 @@ pub(crate) fn section_closed<T: Decide>(
     running_with(chosen, old, span, band)
 }
 
+/// **The section of two surfaces nearest a seed carrier, running with
+/// it**: the plane × spline-wall section where one is a plane and the
+/// other a spline chart, the two-wall section where both are spline
+/// charts, and [`section_closed`] otherwise. The seed `old` on `span`
+/// picks the branch and the sense, and nothing else: the carrier is the
+/// section's own. `lane` is asked only for a spline pair, so a scalar
+/// that holds none refuses only there, in the caller's words.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn section_of<'w, 's, T: Decide, E, L: SectionLaneOf<T>>(
+    lane: impl FnOnce() -> Result<L, E>,
+    (a, slot_a): (&'s Surface<T>, WallSlot<'w, 's>),
+    (b, slot_b): (&'s Surface<T>, WallSlot<'w, 's>),
+    (old, span): (&Curve3<T>, (T, T)),
+    region: &geom_brep::Reach<T>,
+    extent: geom_core::Lever<T>,
+    band: Band,
+    esc: impl Fn(Indeterminate) -> E,
+) -> Result<Result<Curve3<T>, SectionVerdict>, E> {
+    // A fitted surface is its fit as a section operand: its spline
+    // chart, as for evaluation and pcurves. Each wall with its own slot
+    // (the first arm wins where both are planes).
+    let plane_wall = match (a, b) {
+        (plane @ Surface::Plane { .. }, wall) => wall
+            .spline_chart()
+            .map(|net| (plane, Wall { net, chart: slot_b })),
+        (wall, plane @ Surface::Plane { .. }) => wall
+            .spline_chart()
+            .map(|net| (plane, Wall { net, chart: slot_a })),
+        _ => None,
+    };
+    let spline_pair = a.spline_chart().zip(b.spline_chart()).map(|(na, nb)| {
+        (
+            Wall {
+                net: na,
+                chart: slot_a,
+            },
+            Wall {
+                net: nb,
+                chart: slot_b,
+            },
+        )
+    });
+    Ok(match (plane_wall, spline_pair) {
+        (Some((plane, wall)), _) => lane()?
+            .section(plane, wall, old, span, extent, band)
+            .map_err(esc)?
+            .map(|c| Curve3::Nurbs(std::sync::Arc::new(c))),
+        (None, Some((wa, wb))) => lane()?
+            .pair(wa, wb, old, span, extent, band)
+            .map_err(esc)?
+            .map(|c| Curve3::Nurbs(std::sync::Arc::new(c))),
+        (None, None) => section_closed(a, b, (old, span), region, extent, band).map_err(esc)?,
+    })
+}
+
+/// **The section of `a` and `b` nearest the seed `old` on `span`,
+/// running with it** ([`section_of`], each spline wall's chart minted
+/// afresh): the kernel's construction of an edge between two surfaces
+/// from the surfaces alone, the seed choosing only which branch and
+/// which way. `region` and `extent` are the seed's region and its
+/// extent from below ([`geom_brep::edge_extent_inf`]), which the pose
+/// readings lever. `lane` is the scalar's spline lane
+/// ([`crate::AtRestPolicy::section_lane`]); a spline pair at a scalar
+/// that holds none refuses [`SectionVerdict::Unsupported`].
+///
+/// # Errors
+///
+/// An escalated reading at `band`.
+pub fn section_near<T: Decide>(
+    lane: Option<impl crate::SectionLaneOf<T>>,
+    (a, b): (&Surface<T>, &Surface<T>),
+    seed: (&Curve3<T>, (T, T)),
+    region: &geom_brep::Reach<T>,
+    extent: geom_core::Lever<T>,
+    band: Band,
+) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
+    let unlaned = SectionVerdict::Unsupported {
+        what: "a spline wall's section has no lane at this scalar",
+    };
+    match section_of(
+        || lane.ok_or(None),
+        (a, None),
+        (b, None),
+        seed,
+        region,
+        extent,
+        band,
+        Some,
+    ) {
+        Ok(section) => Ok(section),
+        Err(Some(escalated)) => Err(escalated),
+        Err(None) => Ok(Err(unlaned)),
+    }
+}
+
+/// **The circles a cone's coaxial partner cuts it in**: each lane's own
+/// door reads which partner it is (the cylinder's answers the wrong lane
+/// for any other, and the sphere's and the torus's are asked in turn). A
+/// tangency is the verdict where the nearest circle the pair holds is a
+/// tangent one, a miss where it holds none.
+fn coaxial_with_cone<T: Decide>(
+    cone: &Surface<T>,
+    other: &Surface<T>,
+    between: geom_brep::LeverBounds<T>,
+    band: Band,
+) -> Result<Result<Vec<Curve3<T>>, SectionVerdict>, geom_brep::SectionError> {
+    use geom_brep::SectionError::WrongLane;
+    use geom_brep::intersect as c5;
+    match c5::cone_cylinder_section(cone, other, between, band) {
+        Ok(c5::ConeCylinderSection::CoaxialCircles { c1, c2 }) => return Ok(Ok(vec![c1, c2])),
+        Err(WrongLane { .. }) => {}
+        Err(e) => return Err(e),
+    }
+    match c5::cone_sphere_section(cone, other, between, band) {
+        Ok(c5::ConeSphereSection::CoaxialCircles(circles)) => return Ok(Ok(circles)),
+        Ok(c5::ConeSphereSection::TangentCircle(_)) => return Ok(Err(SectionVerdict::Tangent)),
+        Ok(c5::ConeSphereSection::Empty) => return Ok(Err(SectionVerdict::NoBranch)),
+        Err(WrongLane { .. }) => {}
+        Err(e) => return Err(e),
+    }
+    let section = c5::cone_torus_section(cone, other, between, band)?;
+    Ok(
+        match (section.crossing.is_empty(), section.tangent.is_empty()) {
+            (false, true) => Ok(section.crossing),
+            (true, true) => Err(SectionVerdict::NoBranch),
+            // A tangency beside or instead of a crossing: the build's tangent
+            // lane reads which the edge is, not this one.
+            (_, false) => Err(SectionVerdict::Tangent),
+        },
+    )
+}
+
+/// **The root of `surface` along `carrier` nearest `seed`**, at `f64`:
+/// the plane's root along a spline carrier through the spline lane
+/// ([`SectionLane::f64`]), and [`analytic_root`] along any other
+/// carrier. `lever` levers the graze.
+///
+/// # Errors
+///
+/// An escalated reading at `band`.
+pub fn root_along(
+    surface: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    seed: f64,
+    lever: geom_core::Lever<f64>,
+    band: Band,
+) -> Result<Result<f64, CornerVerdict<f64>>, Indeterminate> {
+    match (surface, carrier) {
+        (Surface::Plane { .. }, Curve3::Nurbs(spline)) => Ok(
+            match SectionLane::f64().root(surface, spline, seed, lever, band) {
+                Ok(SplineRoot::At(t)) => Ok(t),
+                Ok(SplineRoot::Short { .. }) => Err(CornerVerdict::NoRoot),
+                Err(verdict) => Err(verdict),
+            },
+        ),
+        _ => analytic_root(surface, carrier, seed, lever, band),
+    }
+}
+
 /// The line two planes hold, through the foot of the old carrier's
 /// middle on it.
 fn plane_plane<T: Decide>(
@@ -790,20 +1076,19 @@ fn plane_plane<T: Decide>(
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     let (
         Surface::Plane {
-            origin: q1,
-            normal: n1,
+            frame: plane_frame_2,
             ..
         },
         Surface::Plane {
-            origin: q2,
-            normal: n2,
-            ..
+            frame: plane_frame, ..
         },
     ) = (a, b)
     else {
         unreachable!("plane_plane is handed two planes")
     };
-    let dir = n1.cross(*n2);
+    let (q1, n1) = (plane_frame_2.origin(), plane_frame_2.axis());
+    let (q2, n2) = (plane_frame.origin(), plane_frame.axis());
+    let dir = n1.cross(n2);
     if matches!(
         decide(
             "offset_section_planes_parallel",
@@ -821,9 +1106,9 @@ fn plane_plane<T: Decide>(
     // Three planes: the two given, and the one across `dir` through the
     // old middle.
     let o = Point3::origin();
-    let (d1, d2, d3) = (n1.dot(*q1 - o), n2.dot(*q2 - o), dir.dot(mid - o));
+    let (d1, d2, d3) = (n1.dot(q1 - o), n2.dot(q2 - o), dir.dot(mid - o));
     let det = n1.dot(n2.cross(dir));
-    let x = (n2.cross(dir) * d1 + dir.cross(*n1) * d2 + n1.cross(*n2) * d3) / det;
+    let x = (n2.cross(dir) * d1 + dir.cross(n1) * d2 + n1.cross(n2) * d3) / det;
     Ok(Ok(Curve3::line(o + x, dir)))
 }
 
@@ -847,18 +1132,17 @@ pub(crate) fn analytic_root<T: Decide>(
     };
     if let (
         Surface::Plane {
-            origin: q,
-            normal: m,
-            ..
+            frame: plane_frame, ..
         },
         Curve3::Line(geom::Line { origin, dir }),
     ) = (surface, carrier)
     {
-        let sine = dir.dot(*m);
+        let (q, m) = (plane_frame.origin(), plane_frame.axis());
+        let sine = dir.dot(m);
         if graze(sine.abs())? {
             return Ok(Err(CornerVerdict::Graze { sine }));
         }
-        return Ok(Ok((*q - *origin).dot(*m) / sine));
+        return Ok(Ok((q - *origin).dot(m) / sine));
     }
     if matches!(carrier, Curve3::Nurbs(_)) {
         return Ok(Err(CornerVerdict::Unsupported {
@@ -924,12 +1208,13 @@ fn plane_wall_section<'w, 's>(
     extent: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
-    let Surface::Plane { origin, normal, .. } = *plane else {
+    let Surface::Plane { frame, .. } = *plane else {
         unreachable!("the spline lane is handed a plane")
     };
+    let origin = frame.origin();
     let mid = old.mid_point(t0, t1);
     let tangent = old.deriv(geom::mid_param(t0, t1));
-    let carrier = match level_row(wall, origin, normal, extent, band)? {
+    let carrier = match level_row(wall, frame, extent, band)? {
         Some(Ok(row)) => row,
         Some(Err(v)) => return Ok(Err(v)),
         None => {
@@ -1089,11 +1374,11 @@ fn nearest_sample(c: &NurbsCurve3<f64>, p: Point3<f64>) -> (f64, f64) {
 /// row at the plane's one root along a column, extracted exactly.
 fn level_row(
     wall: &NurbsSurface<f64>,
-    origin: Point3<f64>,
-    normal: Vec3<f64>,
+    frame: geom::Frame<f64>,
     extent: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<Option<Result<NurbsCurve3<f64>, SectionVerdict>>, Indeterminate> {
+    let (origin, normal) = (frame.origin(), frame.axis());
     // A net whose height depends on its `v` alone holds the plane along
     // a row of fixed `v`: the wall's own rows first, then its columns.
     for (net, fixed) in [
@@ -1132,8 +1417,7 @@ fn level_row(
         let speed = certified_speed(&column);
         let roots = match geom_brep::boundary_section(
             &column,
-            origin,
-            normal,
+            &frame,
             SupSpeed::new(speed),
             band.zero(),
             extent.length(),
@@ -1231,16 +1515,16 @@ fn plane_spline_root(
     extent: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<SplineRoot, CornerVerdict<f64>> {
-    let Surface::Plane { origin, normal, .. } = *plane else {
+    let Surface::Plane { frame, .. } = *plane else {
         return Err(CornerVerdict::Unsupported {
             what: "a moved surface's root along a spline edge is solved for a plane only",
         });
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     let speed = certified_speed(carrier);
     let section = geom_brep::boundary_section(
         carrier,
-        origin,
-        normal,
+        &frame,
         SupSpeed::new(speed),
         band.zero(),
         extent.length(),
@@ -1340,9 +1624,7 @@ mod holds {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("a clamped linear vector");
         let (o, x) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let band = Band::linear(Tol::witness()).expect("the witness band");
         let answer = |axis, control| {
@@ -1418,33 +1700,23 @@ mod square {
         let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
         let o = Point3::origin();
         let plane = |origin, normal: Vec3<f64>, u_ref| Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: geom::Frame::new(origin, normal, u_ref),
         };
         let line = |origin, dir| Curve3::Line(geom::Line { origin, dir });
         let circle = |center, axis, radius, u_ref| {
-            Curve3::Circle(geom::Circle {
-                frame: geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame::new(center, axis, u_ref),
                 radius,
-            })
+            ))
         };
         let cylinder = Surface::Cylinder {
-            origin: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             radius: 1.0,
-            u_ref: x,
         };
         let torus = Surface::Torus {
-            center: o,
-            axis: z,
+            frame: geom::Frame::new(o, z, x),
             major_radius: 3.0,
             minor_radius: 1.0,
-            u_ref: x,
         };
         let s = std::f64::consts::FRAC_1_SQRT_2;
         let poses: Vec<Pose> = vec![
@@ -1479,10 +1751,8 @@ mod square {
             (
                 "sphere beside a plane through its centre",
                 Surface::Sphere {
-                    center: o,
+                    frame: geom::Frame::new(o, z, x),
                     radius: 1.0,
-                    axis: z,
-                    u_ref: x,
                 },
                 plane(o, z, x),
                 circle(o, z, 1.0, x),
@@ -1491,10 +1761,8 @@ mod square {
             (
                 "cone beside a plane holding its axis",
                 Surface::Cone {
-                    apex: o,
-                    axis: z,
+                    frame: geom::Frame::new(o, z, x),
                     half_angle: std::f64::consts::FRAC_PI_4,
-                    u_ref: x,
                 },
                 plane(o, x, y),
                 line(o, Vec3::new(0.0, s, s)),
@@ -1568,9 +1836,7 @@ mod regions {
 
     fn ground() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         }
     }
 
@@ -1677,9 +1943,7 @@ mod rational_carriers {
         let weights = (0..9).map(|n| [1.0, 0.5, 1.0][n % 3]).collect();
         let wall = NurbsSurface::new(quad(), quad(), control, weights).expect("a rational wall");
         let plane = Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
         let old = Curve3::line(Point3::new(0.0, 0.05, 0.0), Vec3::unit_x());
         let row = match plane_wall_section(
@@ -1720,9 +1984,7 @@ mod rational_carriers {
         )
         .expect("a quarter arc");
         let plane = Surface::Plane {
-            origin: Point3::new(0.5, 0.0, 0.0),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::new(0.5, 0.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
         };
         match plane_spline_root(
             &plane,

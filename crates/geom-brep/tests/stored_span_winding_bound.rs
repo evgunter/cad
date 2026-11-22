@@ -79,29 +79,21 @@ const KINDS: [Kind; 4] = [Kind::Cylinder, Kind::Cone, Kind::Sphere, Kind::Torus]
 fn surface<T: Real>(kind: Kind) -> Surface<T> {
     match kind {
         Kind::Cylinder => Surface::Cylinder {
-            origin: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             radius: f(R),
-            u_ref: v(1.0, 0.0, 0.0),
         },
         Kind::Cone => Surface::Cone {
-            apex: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             half_angle: f(HALF),
-            u_ref: v(1.0, 0.0, 0.0),
         },
         Kind::Sphere => Surface::Sphere {
-            center: p(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             radius: f(R),
-            axis: v(0.0, 0.0, 1.0),
-            u_ref: v(1.0, 0.0, 0.0),
         },
         Kind::Torus => Surface::Torus {
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             major_radius: f(R),
             minor_radius: f(MINOR),
-            u_ref: v(1.0, 0.0, 0.0),
         },
     }
 }
@@ -273,7 +265,7 @@ fn a_full_period_rim_is_admitted_at_every_consumer_of_every_kind() {
         // band at each rim's own lever.
         let lever = [lo, hi]
             .map(|lv| match rim_carrier::<f64>(kind, lv) {
-                Curve3::Circle(geom::Circle { radius, .. }) => radius,
+                Curve3::Circle(circle) => circle.radius(),
                 _ => unreachable!("a rim is a circle"),
             })
             .into_iter()

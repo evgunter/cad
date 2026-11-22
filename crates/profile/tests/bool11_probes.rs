@@ -199,7 +199,7 @@ fn the_closer_mints_no_vertex_at_the_entry() {
 ///
 /// - `line_to(q)` computes a direction toward `q`, classifies it
 ///   against the incoming tangent, finds it in band and refuses
-///   `JunctionTangent`. That refusal is correct and stays: the verb
+///   `JunctionTurnWithinTolerance`. That refusal is correct and stays: the verb
 ///   never said the leg was straight, so accepting would be reading
 ///   intent off a coincidence;
 /// - `continue_to(q)` says the leg is the continuation, so there is no
@@ -218,7 +218,7 @@ fn the_declaration_is_what_separates_the_two_spellings() {
     };
     let inferred = run(t).line_to(Point2::new(2.0, 0.0), t);
     assert!(
-        matches!(inferred, Err(PathError::JunctionTangent { .. })),
+        matches!(inferred, Err(PathError::JunctionTurnWithinTolerance { .. })),
         "the undeclared spelling must still refuse: {inferred:?}"
     );
     assert!(run(t).continue_to(Point2::new(2.0, 0.0), t).is_ok());
@@ -260,6 +260,7 @@ fn the_on_ray_check_is_banded_on_both_sides() {
     let refused = attempt(100.0 * eps_input);
     match refused {
         Err(PathError::ContinuationTargetOffRay { across, along }) => {
+            let (across, along) = (crate::common::told(&across), crate::common::told(&along));
             assert!((across - 100.0 * eps_input).abs() <= f64::EPSILON * across.abs().max(1.0));
             assert!(
                 (along - 1.0).abs() < 1e-6,
@@ -356,7 +357,9 @@ fn a_target_behind_the_departure_is_a_nonpositive_leg() {
         .unwrap()
         .continue_to(Point2::new(0.5, 0.0), t);
     match behind {
-        Err(PathError::NonpositiveLeg { length }) => assert!(length < 0.0),
+        Err(PathError::NonpositiveLeg { length }) => {
+            assert!(crate::common::told(&length) < 0.0);
+        }
         other => panic!("a target behind the departure must refuse: {other:?}"),
     }
 }
@@ -463,7 +466,7 @@ fn lilys_measured_corner_miss_is_deep_inside_the_band() {
 /// seam at the second of them. The closing leg then departs the first
 /// subdivision (a continuation, so the verb applies and the on-ray
 /// check passes) and lands on a seam whose own junction is straight.
-/// `SeamTangent`, from the verb that ended the
+/// `SeamTurnWithinTolerance`, from the verb that ended the
 /// other half — which is exactly the point of naming the site.
 #[test]
 fn a_seam_at_a_subdivision_vertex_still_refuses_as_a_mid_carrier_seam() {
@@ -495,7 +498,7 @@ fn a_seam_at_a_subdivision_vertex_still_refuses_as_a_mid_carrier_seam() {
         .unwrap()
         .continue_to(Start, t);
     match attempt {
-        Err(PathError::SeamTangent { .. }) => {}
+        Err(PathError::SeamTurnWithinTolerance { .. }) => {}
         other => panic!("a mid-carrier seam must refuse as the SEAM: {other:?}"),
     }
 }
@@ -565,6 +568,7 @@ fn a_runs_misses_are_read_against_its_own_line_and_never_sum() {
     let off = (2.0 * t.k()).ceil() + 1.0;
     match first.continue_to(Point2::new(1.0 + off, off * bias), t) {
         Err(PathError::ContinuationTargetOffRay { across, .. }) => {
+            let across = crate::common::told(&across);
             assert!(
                 (across - off * bias).abs() < eps,
                 "read off the run's line: {across:e}"

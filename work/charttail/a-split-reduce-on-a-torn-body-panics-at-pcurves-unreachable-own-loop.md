@@ -41,3 +41,17 @@ Owed: a torn body reaching that walk refuses naming a row-four premise, as the f
 at `pcurves/site.rs` with "HalfEdgeKey(4v1) is a member of its own
 loop", naming no row-4 premise. Replayed with that seed, in release, on
 main at `fa4e9ba921`: the same failure (run).
+
+- 2026-11-17 — **another seed, from ONEHOME's PR 7088** (its topo diff touches no file under `pcurves/`, `splitting/` or `review_d18.rs`): the same job drew `0x8355fd3ccc62e2f2` on head `0abb37a2d6` (run 44161940743) and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:381`. It reproduces with main's `topo` and `geom-brep` (`a20dcef4d`) using the command above and that seed.
+- 2026-11-18 — **a sixth seed, from ONEHOME's PR 7112** (fork 275 step 3b; its diff touches no file under `pcurves/` or `splitting/split_reduce`, nor `review_d18.rs`): the same job drew `0x6353faf4bebb94b6` on head `be7913d733` and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:381`. It reproduces on main (`ff2319654e`) with the command above and that seed.
+
+- 2026-11-20 — **a sixth seed, from CHARTTAIL's PR 7169**: the same job drew `0x9dd2016a71d4e3cc` on head `060bce8dda` (run 44746957720, attempt 1) and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:381`. It reproduces on main (`54b8795284`) with the command above and that seed. The re-run of the failed job was green.
+
+- 2026-11-20 — **another seed** (GERM's PR 7183, CI's `corrupt input (release profile)` job): `CAD_FUZZ_SEED=0x62879226922770ee`, effort 1. Same panic, now at `crates/topo/src/pcurves/site.rs:381` (`HalfEdgeKey(4v1) is a member of its own loop`). It reproduces on `origin/main` `818092d44a` with `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false cargo test --release -p topo --lib -- review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise`.
+
+- 2026-11-20 — **another seed, from GERM's PR 7184** (its diff touches no file under `pcurves/`, `splitting/` or `review_d18.rs`): the same job drew `0x520b1ebbb3e81f34` on head `07fa2a1e7e` (run 44779686027) and panicked on `HalfEdgeKey(3v1)` at `crates/topo/src/pcurves/site.rs:381`. It reproduces on main's `line_quadric.rs` and `solid_contain.rs` (the PR's only kernel files swapped back) with the command above and that seed.
+- 2026-11-21 — another seed, from GERM's U3a CI (run 44847984295, corrupt-input job, head `c4d0b956`): `CAD_FUZZ_SEED=0xc626cabad4b11ded` panics `review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise` at `pcurves/site.rs:395:36` ("HalfEdgeKey(4v1) is a member of its own loop"). It reproduces on `origin/main`. (GERM orchestrator)
+
+- 2026-11-18 — **another seed, from EMBED's PR 7120** (its diff touches no file under `pcurves/`, `splitting/` or `review_d18.rs`): the same job drew `0x3cc52bb5da8e9a68` on head `092fb205e` (run 44306626393) and panicked on `HalfEdgeKey(3v1)` at `crates/topo/src/pcurves/site.rs:381:36`. It reproduces on main `4ef175f07` with the command above and that seed. (EMBED, lane rational-window)
+
+- 2026-11-22 — **another seed, from DOCTAIL's PR 7149** (its topo diff only adds a mark-site argument at the box-query calls; nothing under `pcurves/`, `splitting/` or `review_d18.rs`): the same job drew `0x13a0c4242c0d46e7` on head `6d6cf1916f` (run 44986982295) and panicked on `HalfEdgeKey(4v1)` at `crates/topo/src/pcurves/site.rs:395`. It reproduces on a clean `origin/main` worktree with the command above and that seed.

@@ -727,6 +727,9 @@ never answers it.
   `RecipeEdit { edit }`: evidence on the name's derivation path;
 - `Cascade { through }`: an embedded operand name vanished first;
 - `BorderDelta { node, gone, new }`: a face piece's walls changed (below);
+- `Parted { node, site, step }`: a node on the path whose two runs part where
+  the query `site` handed on different candidates, at `step` along the
+  choices and candidates both runs walked alike;
 - `GroupResized { node, was, now, cutters }`: the fragment's group changed in
   number, and `cutters` names the seams on its parent only one run spells;
 - `Upstream { node, cause }`: evidence upstream of the minting node, off the
@@ -734,8 +737,17 @@ never answers it.
 - `WitnessBifurcation` (SOLVER-DESIGN W3).
 
 Diagnosis is computable because every node evaluation records its verdict log
-(`k_stats`); `resolve/vdiff.rs` diffs two runs per predicate by sign population
-(permutation-invariant) and is shared with `SetTolerance`'s ε-audit.
+(`k_stats`), and each decision in it says, from where it is taken, whether it
+is a **choice** (another sign can change what the node builds or names) or a
+**check** (it can only make the node refuse). A flip is the first choice two
+runs of a node take differently along one recorded path: after an identical
+stretch of choices, the same predicate decided with the other sign. Checks are
+not read, so a check is never a cause, and a node whose choices part any other
+way (another predicate, or one log ending) names no flip. A node whose runs part
+because a query handed on different candidates (a recorded mark) names where:
+the query and the step (`Diagnosis::Parted`), ranked below a flip and above the
+group-size rung, since the log proves the parting but not a turn.
+`resolve/vdiff.rs` holds the comparison.
 
 **Two scopes.** The with-history lanes (recorded flips, structural parameters,
 recipe edits) read two scopes, in order (`resolve::upstream_nodes` states the
@@ -754,17 +766,20 @@ without deciding it. A node in neither set is never read.
 2. the qualifier delta: for a face piece, the BORDER delta, the divider walls a
    vanished piece bordered last run and does not now, and the reverse;
 3. the upstream scope;
-4. the GROUP-SIZE rung;
-5. the fallback `Diagnosis::cause_not_in_evidence` = `RecipeEdit {
+4. the PARTING rung (`Diagnosis::Parted`), the first node on the path, in id
+   order, whose runs part at a mark;
+5. the GROUP-SIZE rung;
+6. the fallback `Diagnosis::cause_not_in_evidence` = `RecipeEdit {
    NodeChanged(minting node) }`, a site rather than a claim that an edit
    happened. It is reached in particular when the evidence lived on a pair the
-   boolean's BVH sweep pruned; results are unaffected, only diagnosis richness
-   degrades.
+   boolean's BVH sweep pruned and no mark on the path records the pruning;
+   results are unaffected, only diagnosis richness degrades.
 
 The ladder orders cause before effect: the flips, the qualifier delta, the
-doc-diff lanes and `Upstream` name a cause, while the group-size change is an
-effect whose cause the evidence does not hold, so it runs after every
-cause-naming rung and before the fallback.
+doc-diff lanes and `Upstream` name a cause, while the parting names only where
+two runs stopped being comparable and the group-size change is an effect whose
+cause the evidence does not hold, so they run after every cause-naming rung,
+the parting first, and before the fallback.
 
 **The border delta** (`resolve::border_delta`) reads the walls off the names:
 the vanished piece's against those of the current piece of its parent nearest

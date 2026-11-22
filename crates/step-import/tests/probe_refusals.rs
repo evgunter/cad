@@ -4,10 +4,8 @@
 //! arms that derive a parameter: the conic and the LINE.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::{CertCheck, CertifyError};
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImportError, import_step};
-use topo::EulerOpError;
 
 fn box_step() -> String {
     let path = concat!(
@@ -107,19 +105,23 @@ fn a_conic_self_loop_with_a_nonfinite_angle_refuses_typed() {
     // here: putting a vertex at 1e308 inverts the cylinder wall's own
     // winding, so the face's orientation gate refuses the file before
     // any edge parameter is asked for.
-    // The zero semi-axis no longer reads a NaN angle: `Conic::azimuth`
-    // reads `(y·a, x·b)` with no division. The file is refused at
-    // adoption, typed, until the `ELLIPSE` mint goes through its deciding
-    // door (`work/importgate/step-import-mints-an-ellipse-past-its-deciding-door.md`).
+    // A zero semi-axis is a root no constructor takes: the file is
+    // refused at interpretation, naming the `ELLIPSE`, before any edge
+    // reads it.
     assert_ne!(
         zero_semi_axis, base,
         "zero semi-axis: the substitution must apply"
     );
     match import_step(&zero_semi_axis, &ImportOptions::default(), Tol::witness()) {
-        Err(StepImportError::Adoption { id, .. }) => {
-            assert_eq!(id, 21, "zero semi-axis: the rim edge is the offender");
+        Err(StepImportError::Interpretation {
+            id,
+            refusal: step_import::InterpretationRefusal::InvalidRoot { value, .. },
+            ..
+        }) => {
+            assert_eq!(id, 24, "zero semi-axis: the ellipse is the offender");
+            assert_eq!(value, 0.0, "zero semi-axis: the value is the file's");
         }
-        other => panic!("zero semi-axis must refuse at adoption, got {other:?}"),
+        other => panic!("zero semi-axis must refuse as an invalid root, got {other:?}"),
     }
     assert_ne!(
         overflowing_centre, base,
@@ -149,11 +151,11 @@ fn a_conic_self_loop_with_a_nonfinite_angle_refuses_typed() {
 /// the finiteness refusal's text. If a future edit ever makes a centre
 /// vertex non-finite, this fails and that message is wrong again.
 ///
-/// The discriminating field is one level in. `Adoption` alone says
-/// nothing — the `(NaN, NaN)` path this suite's other row covers was
-/// `Adoption` too, as a `ParamSpan` escalation. `ResidualExceeded`
-/// with `EndpointStart` is the verdict that says "the vertex is not
-/// where the carrier puts it", which is the centre's actual defect.
+/// The discriminating field is the reading. The build puts the vertex
+/// where the edges through it meet, and the file's point misses that by
+/// the circle's radius: an evidence miss read on `step_vertex_built`,
+/// past the file's band, says "the vertex is not where the carriers put
+/// it", which is the centre's actual defect.
 #[test]
 fn a_vertex_at_the_conic_centre_is_a_residual_refusal_not_a_finiteness_one() {
     let m = cylinder_step().replace(
@@ -161,27 +163,23 @@ fn a_vertex_at_the_conic_centre_is_a_residual_refusal_not_a_finiteness_one() {
         "#23 = CARTESIAN_POINT('',(0.,0.,1.));",
     );
     match import_step(&m, &ImportOptions::default(), Tol::witness()) {
-        Err(StepImportError::Adoption { id, attempts, .. }) => {
-            assert_eq!(id, 21, "the rim edge is the offender");
-            assert!(!attempts.is_empty(), "an adoption refusal names its rungs");
-            for a in &attempts {
-                assert!(
-                    matches!(
-                        a.refusal,
-                        EulerOpError::Certification {
-                            error: CertifyError::ResidualExceeded {
-                                check: CertCheck::EndpointStart,
-                                ..
-                            }
-                        }
-                    ),
-                    "{:?} rung: {:?}",
-                    a.candidate,
-                    a.refusal
-                );
-            }
+        Err(StepImportError::Interpretation {
+            id,
+            refusal: step_import::InterpretationRefusal::EvidenceMiss { reading, miss },
+            ..
+        }) => {
+            assert_eq!(id, 22, "the centre vertex is the offender");
+            assert_eq!(
+                reading, "step_vertex_built",
+                "the vertex's own reading refuses"
+            );
+            assert!(
+                (miss - 5e-4).abs() < 1e-12,
+                "the miss is the rim's radius, the centre's distance from where the rim and \
+                 the seam meet: {miss}"
+            );
         }
-        other => panic!("a centre vertex must reach the adoption gate, got {other:?}"),
+        other => panic!("a centre vertex must refuse as a vertex miss, got {other:?}"),
     }
 }
 

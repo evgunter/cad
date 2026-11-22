@@ -87,13 +87,14 @@ fn assert_every_face_outward(body: &Body<f64>) {
     );
     for (fk, _) in body.faces() {
         let f = body.get_face(fk).expect("a face");
-        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(fk) else {
+        let Some(Surface::Plane { frame, .. }) = body.face_surface(fk) else {
             panic!("face {fk:?}: every face of these fixtures is a plane");
         };
-        let outward = geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec();
+        let (origin, normal) = (frame.origin(), frame.axis());
+        let outward = geom_brep::OutwardNormal::from_chart(normal, f.sense).vec();
         // Any point of the face's plane serves as the witness; the
         // plane's own origin is one.
-        let d = outward.dot(*origin - interior);
+        let d = outward.dot(origin - interior);
         assert!(
             d > 0.0,
             "face {fk:?}: sensed normal {outward:?} does not point away from the \
@@ -279,9 +280,9 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
 /// the tour's `spacer` scene, whose K-row registration names it as one
 /// of the four the scene delivers. Nor `fillet3_chain_arm`: it gates the
 /// chain's junction readings, and an edge's wedge is read through the
-/// whole-edge fold under `fillet3_convexity_sign` with no arm gate of
-/// its own. The three that reach the funnel from such a scene are
-/// convexity-sign, face-clearance and corner-independence.
+/// whole-edge fold, its sign under the fold's own `dihedral_sign`, with
+/// no arm gate of its own. The two battery rows that reach the funnel
+/// from such a scene are face-clearance and corner-independence.
 #[cfg(feature = "probe")]
 #[test]
 fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
@@ -328,11 +329,7 @@ fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
     names.dedup();
     assert_eq!(
         names,
-        vec![
-            "fillet3_convexity_sign",
-            "fillet3_corner_independence",
-            "fillet3_face_clearance",
-        ],
+        vec!["fillet3_corner_independence", "fillet3_face_clearance",],
         "the chamfer's battery rows: ball facts absent, nothing new minted, \
          and no junction ever asks chain G1 or its arm on an all-corners request"
     );

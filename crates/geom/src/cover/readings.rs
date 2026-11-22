@@ -14,7 +14,7 @@ use geom_core::{Point3, Real};
 use geom_core::spline::SpanLocate;
 
 use super::{Cover, Covered, Entity, Lattice, ParamWindow, Uncovered, Unknown};
-use crate::{Curve3, Frame, Line, Surface};
+use crate::{Curve3, Line, Surface};
 
 impl<T: Real> Surface<T> {
     /// **The region the whole carrier occupies**: a sphere's, a torus's or
@@ -38,42 +38,59 @@ impl<T: Real> Surface<T> {
             Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => {
                 Err(refuse(Unknown::Unbounded))
             }
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Cover::sphere(&Frame::new(*center, *axis, *u_ref), *radius)
-                .ok_or_else(|| refuse(Unknown::NonFinite)),
+            Surface::Sphere { frame, radius } => {
+                Cover::sphere(frame, *radius).ok_or_else(|| refuse(Unknown::NonFinite))
+            }
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => Cover::torus(
-                &Frame::new(*center, *axis, *u_ref),
-                *major_radius,
-                *minor_radius,
-            )
-            .ok_or_else(|| refuse(Unknown::NonFinite)),
+            } => Cover::torus(frame, *major_radius, *minor_radius)
+                .ok_or_else(|| refuse(Unknown::NonFinite)),
             // The sheet lies on its whole revolved circle, which is the
             // tube about the circle of radius `|R|`: the signed centre
             // and its mirror across the axis sweep the same set.
             Surface::Spindle {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => Cover::torus(
-                &Frame::new(*center, *axis, *u_ref),
-                major_radius.abs(),
-                *minor_radius,
-            )
-            .ok_or_else(|| refuse(Unknown::NonFinite)),
+            } => Cover::torus(frame, major_radius.abs(), *minor_radius)
+                .ok_or_else(|| refuse(Unknown::NonFinite)),
             Surface::Nurbs(patch) => net(entity, patch.control()),
             Surface::Approx(approx) => net(entity, approx.fit().control()),
+        }
+    }
+
+    /// **The region a face of this carrier occupies, given its boundary's
+    /// region `boundary`**, for a reader that has the face's boundary and
+    /// no built face yet (an import before its body exists). A bound,
+    /// never narrower than the face: a plane's or a cylinder's face lies in
+    /// its boundary's convex hull (a plane's region is that hull; a
+    /// cylinder's face is swept by rulings between boundary points); a
+    /// cone's is swept by rulings through its apex, and a face that reaches
+    /// the apex (a cap stated by its rim alone) has no boundary there, so
+    /// the apex joins the hull whatever the face; any other carrier's face
+    /// can bulge past its boundary and is held with the carrier's whole
+    /// region ([`Surface::cover`]). A built face's tighter region is
+    /// `topo`'s to read (its sphere and torus face regions, from the face's
+    /// own chart walk); this is the region before there is one.
+    ///
+    /// # Errors
+    ///
+    /// As [`Surface::cover`] for a carrier whose whole region bounds its
+    /// faces, and [`Unknown::NonFinite`] for a cone apex that is not a
+    /// finite point.
+    pub fn face_region(&self, boundary: Cover<T>) -> Covered<T> {
+        match self {
+            Surface::Plane { .. } | Surface::Cylinder { .. } => Ok(boundary.convex()),
+            Surface::Cone { frame, .. } => Cover::points(vec![frame.origin()])
+                .map(|tip| boundary.hull(tip).convex())
+                .ok_or_else(|| Uncovered::new(Entity::Surface(self.kind()), Unknown::NonFinite)),
+            Surface::Sphere { .. }
+            | Surface::Torus { .. }
+            | Surface::Spindle { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => Ok(boundary.hull(self.cover()?).convex()),
         }
     }
 }
@@ -132,30 +149,24 @@ impl<T: SpanLocate> Curve3<T> {
                     .ok_or_else(non_finite)
             }
             Curve3::Circle(circle) => {
-                Cover::arc(&circle.frame, (circle.radius, circle.radius), window)
+                Cover::arc(&circle.frame, (circle.radius(), circle.radius()), window)
                     .ok_or_else(non_finite)
             }
             Curve3::Ellipse(ellipse) => {
-                Cover::arc(&ellipse.frame, (ellipse.semi_u, ellipse.semi_v), window)
-                    .ok_or_else(non_finite)
+                Cover::arc(&ellipse.frame, ellipse.semi_axes(), window).ok_or_else(non_finite)
             }
             Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
+                frame,
                 major_radius,
                 minor_radius,
                 offset,
             } => {
-                let tube = Cover::tube(
-                    &Frame::new(*center, *axis, *u_ref),
-                    *major_radius,
-                    *minor_radius,
-                );
+                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let tube = Cover::tube(frame, *major_radius, *minor_radius);
                 let rectangle = crate::curves::spiric_rectangle(
-                    *center,
-                    *axis,
-                    *u_ref,
+                    center,
+                    axis,
+                    u_ref,
                     (*major_radius, *minor_radius),
                     *offset,
                     window,

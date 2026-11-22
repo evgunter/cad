@@ -446,15 +446,20 @@ fn doubled_back_fillet_corner_refuses_with_its_turn_within_tolerance() {
         PathError::NoCornerForFillet {
             reason:
                 profile::path::PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn,
-                    align,
-                    lever,
-                    lever_of: profile::path::TurnLever::AnchorSeparation,
+                    turn:
+                        profile::LeveredTurn {
+                            sin_turn,
+                            align,
+                            lever,
+                            lever_of: profile::path::TurnLever::AnchorSeparation,
+                        },
                     corner,
                 },
             radius,
         } => {
-            assert_eq!(radius, 0.5);
+            let [sin_turn, align, lever] =
+                [sin_turn, align, lever].map(|x| crate::common::told(&x));
+            assert_eq!(radius.as_given(), Some(0.5));
             assert!(
                 corner.is_none(),
                 "the straight pair places no corner: {corner:?}"
@@ -491,18 +496,22 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
     let PathError::NoCornerForFillet {
         reason:
             profile::path::PathNoCornerReason::TurnWithinTolerance {
-                sin_turn,
-                align,
-                lever,
-                lever_of,
+                turn:
+                    profile::LeveredTurn {
+                        sin_turn,
+                        align,
+                        lever,
+                        lever_of,
+                    },
                 ..
             },
         ..
-    } = err
+    } = &err
     else {
         panic!("expected TurnWithinTolerance, got {err:?}")
     };
-    assert_eq!(lever_of, profile::path::TurnLever::AnchorSeparation);
+    assert_eq!(*lever_of, profile::path::TurnLever::AnchorSeparation);
+    let [sin_turn, align, lever] = [sin_turn, align, lever].map(crate::common::told);
     // A counter-clockwise turn: the sine is positive, the turn side.
     assert!((sin_turn - phi.sin()).abs() < 1e-12, "sin φ {sin_turn}");
     assert!((align - phi.cos()).abs() < 1e-12, "cos φ {align}");
@@ -515,6 +524,8 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
         shown.contains("if the angle is real, move both anchors away from the corner"),
         "the straight pair's recourse names the corner's distance from both anchors: {shown}"
     );
+    // Each is told to four figures: the lever is far below the length
+    // at which the tolerance's grid is the finer one.
     for (label, want) in [
         ("sin φ = ", sin_turn),
         ("(cos φ = ", align),
@@ -522,7 +533,7 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
     ] {
         let got = rendered_after(&shown, label);
         assert!(
-            (got - want).abs() <= 1e-8 * want.abs(),
+            (got - want).abs() <= 5e-4 * want.abs(),
             "{label:?} renders {got:e}, the payload holds {want:e}: {shown}"
         );
     }

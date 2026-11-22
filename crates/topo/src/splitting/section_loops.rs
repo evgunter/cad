@@ -15,7 +15,7 @@
 
 use geom::Conic;
 use geom_core::bisect::{Step, bisect};
-use geom_core::{Decide, Indeterminate, Point3, Real, SupSpeed, UnitVec3, Vec3};
+use geom_core::{Decide, Indeterminate, Point3, Real, RigidMotion, SupSpeed, UnitVec3, Vec3};
 
 use super::PlaneSide;
 use super::containment::{LoopContainment, point_in_loop};
@@ -60,18 +60,37 @@ pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
 /// [`crate::chord_join`] mints one only as the whole conic or as a lone
 /// site's placeholder; the join refuses a loop of placeholders alone
 /// (`DegenerateSection`) before any frame is read.
-pub(super) fn chord_u_ref<T: Real>(
+pub(super) fn chord_u_ref<T: Decide>(
     body: &Body<T>,
     l: LoopKey,
     points: &[Point3<T>],
     n: UnitVec3<T>,
 ) -> Vec3<T> {
-    let in_plane = |d: Vec3<T>| {
-        let n = n.get();
-        (d - n * d.dot(n)).normalize()
-    };
+    chord_frame(body, l, points, n).u().get()
+}
+
+/// **The section plane's frame**, standing at the world origin: `w` the
+/// normal `n` as the split holds it, and `u` [`chord_u_ref`]'s
+/// direction, the chord's part square to `n` normalized
+/// ([`RigidMotion::squared_about`], `n` kept bit for bit). The split
+/// plane is a point and a decided normal, with no frame of its own to
+/// turn, so the section's frame is derived from its normal and its
+/// chord, and nothing is decided.
+pub(super) fn chord_frame<T: Decide>(
+    body: &Body<T>,
+    l: LoopKey,
+    points: &[Point3<T>],
+    n: UnitVec3<T>,
+) -> RigidMotion<T> {
+    RigidMotion::squared_about(Point3::origin(), n, chord_direction(body, l, points))
+}
+
+/// The direction [`chord_u_ref`] reads before it is taken into the
+/// plane: the loop's first chord, or a one-corner loop's conic
+/// principal direction.
+fn chord_direction<T: Real>(body: &Body<T>, l: LoopKey, points: &[Point3<T>]) -> Vec3<T> {
     if let [a, b, ..] = points {
-        return in_plane(*b - *a);
+        return *b - *a;
     }
     let first = match body.get_loop(l).map(|lp| lp.boundary) {
         Some(LoopBoundary::Cycle { first }) => first,
@@ -83,7 +102,7 @@ pub(super) fn chord_u_ref<T: Real>(
              loop of lone-site placeholders before it is charted"
         )
     };
-    in_plane(principal)
+    principal
 }
 
 /// The principal direction (`u_ref`) of the section conic the cycle at
@@ -103,14 +122,8 @@ fn whole_conic_principal<T: Real>(
         return None;
     }
     match *curve.carrier() {
-        geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { u_ref, .. },
-            ..
-        })
-        | geom::Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame { u_ref, .. },
-            ..
-        }) => Some(u_ref),
+        geom::Curve3::Circle(geom::Circle { frame, .. })
+        | geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(frame.u_ref()),
         _ => None,
     }
 }
@@ -472,7 +485,7 @@ fn conics_clear<T: Decide>(e: &dyn Conic<T>, h: &dyn Conic<T>, band: geom_core::
         return false;
     }
     let (ha, hb) = h.semi_axis_vectors();
-    let (cx, cy) = e.unit_in_plane(h.frame().origin);
+    let (cx, cy) = e.unit_in_plane(h.frame().origin());
     let (ax, ay) = e.unit_of(ha);
     let (bx, by) = e.unit_of(hb);
     let centre = (cx.powi(2) + cy.powi(2)).sqrt();

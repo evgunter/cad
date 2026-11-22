@@ -321,7 +321,7 @@ impl<T: Decide> Body<T> {
         let origin =
             crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SplitChild);
         let child = |spec, start, end| {
-            self.certify_edge_spec(origin, Some(edge), spec, start, end, faces, tol)
+            self.certify_edge_spec(origin, Some(edge), None, spec, start, end, faces, tol)
         };
         let cert1 = child(spec1, p_u, p_new)?;
         let cert2 = child(spec2, p_new, p_v)?;
@@ -608,7 +608,7 @@ mod tests {
         // The children share the parent's carrier bitwise.
         assert!(matches!(
             c2.carrier(),
-            Curve3::Circle(geom::Circle { radius, .. }) if *radius == 1.0
+            Curve3::Circle(circle) if circle.radius() == 1.0
         ));
         // The restricted description is still a placed arc.
         assert!(matches!(

@@ -131,11 +131,14 @@ fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (Point3<f64>, f64, f64) 
     let s = body.face_surface(face).unwrap();
     match s {
         &Surface::Torus {
-            center,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => (center, major_radius, minor_radius),
+        } => {
+            let center = frame.origin();
+            (center, major_radius, minor_radius)
+        }
         other => panic!("the band face is a torus, got {other:?}"),
     }
 }

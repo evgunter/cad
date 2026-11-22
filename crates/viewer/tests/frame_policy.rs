@@ -3956,8 +3956,8 @@ fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
     let why = "the distance is not a number";
     let forms = [
         (
-            FormKind::TracedProfile,
-            "traced profile: the distance is not a number",
+            FormKind::ProfileOnFace,
+            "profile on a face: the distance is not a number",
         ),
         (FormKind::Extrude, "extrude: the distance is not a number"),
         (FormKind::Revolve, "revolve: the distance is not a number"),
@@ -4070,7 +4070,7 @@ fn the_delta_badge_reads_in_the_working_length_unit() {
     assert_eq!(in_m.label(), "δ 0.001 m chosen");
     assert!(
         in_m.detail()
-            .is_some_and(|detail| detail.starts_with("opened at δ = 0.001 m: 0.000001 m needs")),
+            .is_some_and(|detail| detail.starts_with("opened at δ = 0.001 m: 1e-6 m needs")),
         "{:?}",
         in_m.detail()
     );

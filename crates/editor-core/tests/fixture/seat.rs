@@ -54,15 +54,18 @@ pub fn product_face_frame(
     let face = body.get_face(f).expect("the face");
     match body.face_surface(f).expect("the surface") {
         topo::Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } => {
-            let n = geom_brep::OutwardNormal::from_chart(*normal, face.sense).vec();
+            let (origin, normal, u_ref) = (
+                carrier_frame.origin(),
+                carrier_frame.axis(),
+                carrier_frame.u_ref(),
+            );
+            let n = geom_brep::OutwardNormal::from_chart(normal, face.sense).vec();
             // A right-handed frame on the face: u, n x u, n.
             Affine3::from_parts(
-                Mat3::from_cols(*u_ref, n.cross(*u_ref), n),
-                *origin - Point3::origin(),
+                Mat3::from_cols(u_ref, n.cross(u_ref), n),
+                origin - Point3::origin(),
             )
         }
         other => panic!("expected a plane, got {other:?}"),

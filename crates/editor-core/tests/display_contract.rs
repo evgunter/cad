@@ -19,7 +19,7 @@ use editor_core::{
     CapEnd, Diagnosis, Dimension, DimensionError, DocRef, DocumentId, EditError, EntityKind,
     EvalError, FreeValue, HitTestError, InterrogateError, LeverRefusal, Maintenance, MateFault,
     MateRef, MeshPickError, MetaVersionError, NamingError, NodeErrorKind, NodePickError,
-    ParseError, PartFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
+    ParseError, PartFault, ProgramRefusal, ReachRefusal, RecipeNodeId, RecordedProgramError,
     ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal, SlotId, SnapshotError,
     StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity, VarName,
 };
@@ -1987,6 +1987,49 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
     }
 }
 
+/// **A parting says where in words and claims no cause**: the site is
+/// said by what it asks, a query's search or a test's question, and
+/// its static name and the step ride `Debug`, as a predicate's name
+/// does.
+#[test]
+fn a_parting_says_where_and_claims_no_cause() {
+    use geom_core::k_stats::{QuerySite, TestSite};
+    let node = RecipeNodeId::new(0, tagged(8));
+    let rows = [
+        (
+            Diagnosis::Parted {
+                node,
+                site: QuerySite::new("bool_glue_pairs", "the faces whose boxes meet a face's")
+                    .site(),
+                step: 19,
+            },
+            "at node 000000000008, the two runs part where the search for the faces whose \
+             boxes meet a face's found other candidates, before any verdict flipped; which \
+             change made it do so is not on record",
+            "bool_glue_pairs",
+        ),
+        (
+            Diagnosis::Parted {
+                node,
+                site: TestSite::new(
+                    "blend_reach_cell_clear",
+                    "a metered cell reads surely clear",
+                )
+                .site(),
+                step: 19,
+            },
+            "at node 000000000008, the two runs part where the test whether a metered cell \
+             reads surely clear answered otherwise, before any verdict flipped; which change \
+             made it do so is not on record",
+            "blend_reach_cell_clear",
+        ),
+    ];
+    for (d, want, name) in rows {
+        assert_eq!(d.to_string(), want);
+        assert_f6(&d, &[], &["Parted", name, "19"]);
+    }
+}
+
 /// The two scopes of the with-history lanes say which one answered,
 /// in exact sentences: a path arm claims the name's derivation path,
 /// and the upstream arm claims only that its node feeds the minting
@@ -2712,16 +2755,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
 }
 
-test_utils::f6_variants! {
-    /// `ProgramFault`'s census — see [`NODE_PICK_ERROR`]. The load
-    /// door's own refusal over a persisted profile program. A step
-    /// argument's KIND is not here: a program slot is a slot like any
-    /// other, refused by the document-wide slot read walk
-    /// ([`SnapshotError::SlotVarKind`]), so what is left is the replay
-    /// probe's lattice coordinate.
-    const PROGRAM_FAULT: ProgramFault = [Lattice];
-}
-
 /// **A slot refusal addresses its slot in the slot vocabulary's own
 /// words** ([`SlotId::label`], [`StepArg::label`]), not in the enum's
 /// — for every slot address alike, because one predicate decides them
@@ -2783,32 +2816,60 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
     }
 }
 
-/// A program fault states the transition table's coordinate, not its
-/// struct.
+/// **A step order wrong at every value states where it fails**, as
+/// the edit and load doors both carry it (`ProgramRefusal`, which
+/// `PersistError::ProfileProgram` carries unchanged): the lattice's
+/// coordinate, an order the replay refuses at every value, and a pen
+/// step that is no run. A step argument's KIND is not here: a program
+/// slot is a slot like any other, refused by the document-wide slot
+/// read walk ([`SnapshotError::SlotVarKind`]).
 ///
-/// **What it deliberately does not ban.** The `Lattice` arm renders its
-/// tip state and verb through `Debug`: the pair is the transition
+/// **What it deliberately does not ban.** The `Transition` arm renders
+/// its tip state and verb through `Debug`: the pair is the transition
 /// table's own coordinate, which `profile`'s `ReplayError` and this
 /// arm's comment both say, and `Verb`'s `Display` — the authoring
 /// spelling — is a different sentence from the coordinate. Banning
 /// those identifiers here would be this suite deciding a question
 /// settled the other way beside the code.
 #[test]
-fn a_program_fault_states_its_lattice_coordinate() {
-    let cases = [(
-        ProgramFault::Lattice {
-            loop_: 0,
-            step: 2,
-            state: profile::TipState::Entry,
-            verb: None,
-        },
-        vec![
-            "at loop 0 step 2",
-            "tip state Entry",
-            "without closing the loop",
-        ],
-    )];
-    assert_f6_every_variant(&cases, &PROGRAM_FAULT, &[]);
+fn a_program_fault_states_where_its_step_order_fails() {
+    let order = profile::OrderFault::FarEndAnchorWithoutFillet;
+    let cases = [
+        (
+            ProgramRefusal::Transition {
+                loop_: 0,
+                step: 2,
+                state: profile::TipState::Entry,
+                verb: None,
+            },
+            vec![
+                "at loop 0 step 2",
+                "tip state Entry",
+                "without closing the loop",
+            ],
+        ),
+        (
+            ProgramRefusal::Order {
+                loop_: 1,
+                step: 3,
+                kind: order.kind(),
+                rendered: order.to_string(),
+            },
+            vec!["loop 1 step 3", "no fillet is open here"],
+        ),
+        (
+            ProgramRefusal::Trace(editor_core::TraceRefusal {
+                loop_: 0,
+                step: 4,
+                face: None,
+                fault: editor_core::TraceStepFault::NotARun,
+            }),
+            vec!["step 4"],
+        ),
+    ];
+    for (refusal, words) in &cases {
+        assert_f6(refusal, words, &[]);
+    }
 }
 
 test_utils::f6_variants! {
@@ -2867,6 +2928,25 @@ fn maintenance_display_says_what_the_edit_did() {
                 "Shell 000000000005 selects the end cap of Extrude 000000000007",
                 "this edit kept a step it names but no longer draws that piece",
                 "so Shell 000000000005 refuses until the name is rebound",
+            ],
+        ),
+        (
+            Maintenance::Strand {
+                node: held(5, "Shell"),
+                name: spoken_face_name(),
+                took: editor_core::Took::Run,
+            },
+            vec!["this edit kept the pieces it names but joined or broke their run"],
+        ),
+        (
+            Maintenance::Strand {
+                node: held(5, "Shell"),
+                name: spoken_face_name(),
+                took: editor_core::Took::Corner,
+            },
+            vec![
+                "this edit kept the pieces it names but continued one into the other at the \
+                 corner it names",
             ],
         ),
         (

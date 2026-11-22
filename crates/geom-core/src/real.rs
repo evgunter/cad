@@ -310,6 +310,25 @@ pub trait Real:
     /// own name rather than composing its base's.
     const NAME: &'static str;
 
+    /// **Whether `other` is this value, so that a certificate whose
+    /// support holds it may be read rather than derived again** — the
+    /// one knob of reading by support (`geom_brep::LocusCertificate`,
+    /// a pcurve row's support): every comparison of a support reads its
+    /// values through this, so a scalar that answers `false` reads no
+    /// certificate and derives each where it is asked.
+    ///
+    /// `true` only where a derivation is a pure function of its support
+    /// down to the bits of what it returns and records nothing a read
+    /// would drop: the same bits at a value scalar, the same enclosure
+    /// and decoration at an interval. `false`, the default, is always
+    /// sound: a dual holds no certificate, and a scalar whose
+    /// derivations are its record (the symbolic tier's decision log, the
+    /// recording scalar's K samples) answers `false` by its own impl.
+    fn same_value(self, other: Self) -> bool {
+        let _ = (self, other);
+        false
+    }
+
     /// **What a certifying door's record is held as at this scalar**:
     /// the record itself where the scalar certifies, and
     /// [`Uncertified`] where it never does (a dual, DL1). An edge a
@@ -341,7 +360,19 @@ pub trait Real:
     /// unknown ([`crate::Sym::opaque`]), so no identity is proved over
     /// it. Declared, never defaulted: a scalar that defaulted it to
     /// `from_f64` would re-enter every computed value as a constant.
+    ///
+    /// Which code may call it, and the door every other computed value
+    /// takes instead, is DL5.2 (the crate README, "Reading a bracket
+    /// where nothing certifies").
     fn from_computed(x: f64) -> Self;
+
+    /// **What this scalar reads as in a sentence**: its value, its
+    /// enclosure, or nothing ([`crate::told::Reading`]). The one
+    /// projection a refusal payload takes of a scalar
+    /// ([`crate::Told`]); the reading has no accessor, so nothing
+    /// decides on it. Declared, never defaulted: a new scalar says what
+    /// a person reads of it.
+    fn told_reading(&self) -> crate::told::Reading;
 
     /// The additive identity.
     fn zero() -> Self;
@@ -407,6 +438,70 @@ pub trait Real:
     /// pass an unbounded enclosure silently. Each scalar states its
     /// own reading.
     fn is_bounded(self) -> bool;
+
+    /// **An enclosure of the rotation the stated frame `m` names**, where
+    /// this scalar's value is a plain enclosure and nothing else: the
+    /// columns of the polar factor `R` of `m` (the rotation nearest it),
+    /// each entry enclosed. `m` is a frame stated at a point scalar
+    /// (columns `u`, `v`, `w`, read here), which claims the exact
+    /// rotation it is the rounding of; this is the lift of that claim
+    /// into an enclosure ([`crate::RigidMotion::map_scalar`] across
+    /// kinds). A scalar with no such enclosure answers `None` (the
+    /// default): a point scalar has none to give, and a scalar that also
+    /// carries derivatives or symbolic forms holds the rotation in those
+    /// channels too, which an enclosure of its value does not reach.
+    /// Decides nothing; a frame whose rotation it cannot enclose is
+    /// answered poisoned.
+    #[must_use]
+    fn enclose_rotation(m: [[Self; 3]; 3]) -> Option<[[Self; 3]; 3]> {
+        let _ = m;
+        None
+    }
+
+    /// **An enclosure of the unit direction a stated `v` names**,
+    /// [`Real::enclose_rotation`]'s one-column case: the direction
+    /// `v/|v|`, each component enclosed, where this scalar's value is a
+    /// plain enclosure; `None` (the default) where it is not.
+    #[must_use]
+    fn enclose_unit(v: [Self; 3]) -> Option<[Self; 3]> {
+        let _ = v;
+        None
+    }
+
+    /// **The `f64` this value states**, where it is a plain enclosure
+    /// that is a certified point (its two ends one `f64`); `None` (the
+    /// default) elsewhere: a point scalar's value is a rounding, not a
+    /// statement, and a scalar that also carries derivatives or forms
+    /// carries more than its value. A frame stated by such points is a
+    /// choice, minted at `f64` and read into the lane by its enclosure
+    /// ([`crate::RigidMotion::squared`]).
+    #[must_use]
+    fn stated_point(self) -> Option<f64> {
+        None
+    }
+
+    /// **The meet of two readings of one real**, where `first` and the
+    /// value `second` builds enclose the same real by independent
+    /// spellings: at a scalar whose value is a plain enclosure, their
+    /// intersection (the tighter enclosure, sound because whatever lies
+    /// outside either is not the real); elsewhere `first` alone (the
+    /// default), and `second` is never built, so a point or symbolic
+    /// scalar reads exactly the one spelling and records no other. A
+    /// caller reaches for it where each spelling widens in its own regime
+    /// and neither bounds the other (`turn_arms`, geom-brep). Decides
+    /// nothing.
+    ///
+    /// **Only for two readings of one real**, each a sound enclosure of
+    /// it by its own argument: never a general narrowing of an enclosure
+    /// by a window or a guess, which is `Certification::clamped_to`'s
+    /// and `Certification::meet`'s business. Two such readings cannot be
+    /// disjoint, so a disjoint meet is a kernel defect: it fails a debug
+    /// assertion and answers poison.
+    #[must_use]
+    fn meet_readings(first: Self, second: impl FnOnce() -> Self) -> Self {
+        let _ = second;
+        first
+    }
 
     /// **Is this scalar an exact zero in every channel it carries?** At
     /// the point and interval scalars, [`is_exact_zero`] (the value
@@ -583,6 +678,19 @@ pub trait Real:
     fn cos(self) -> Self {
         self.sin_cos().1
     }
+
+    /// **`self − sin(self)`, conditioned at every `self`**: twice the area
+    /// a unit circle's arc of that signed span cuts off its chord. The
+    /// difference as written cancels to `self³/6` for a small `self` and
+    /// keeps `self`'s rounding, so a scalar reads it there off the
+    /// alternating series `x³/3! − x⁵/5! + …`, whose terms only shrink
+    /// below [`LESS_SIN_SERIES_BELOW`], and past that as the difference,
+    /// which loses nothing there.
+    ///
+    /// Declared, never defaulted: each scalar keeps its own contract
+    /// (an enclosure bounds the series' dropped tail; a recording scalar
+    /// records the one function, re-valued through this door).
+    fn less_sin(self) -> Self;
 
     /// **The sine of a twelfth of a turn**, exactly `1/2`. Defaults to
     /// the literal. A scalar that records structure keeps the sine of
@@ -1161,16 +1269,34 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// a number (see the [module docs](self)); this trait is the separate door
 /// those docs promised.
 ///
-/// # The scope rule (M0 L7, under the evaluation-code discipline)
+/// # The scope rule (M0 L7; the crate README, DL5.3)
 ///
+/// **A bound states which scalars the code means something at.** Write
+/// that bound, and never a wider one because it compiles. The standard
+/// this replaces asked for the weakest bound that works; Ev, on PR 7155:
+/// it "should be updated to have more of a focus on semantic
+/// correctness", and it was never "broaden it to anything that doesn't
+/// error". Code that certifies says so with [`Certifies`], and no work
+/// is done to support a scalar the code has no meaning for.
+///
+/// **Excluding a scalar is free.** [`Certifies`] grants no bracket read,
+/// so writing it needs no entry and no ratification, alone or beside a
+/// bound that reads no bracket. Ev: "the exclusion is free and only the
+/// bounds reading needs the extra check".
+///
+/// **What needs an entry is a bracket read in code that also decides.**
 /// A `Bounds` bound appears only in **certification and driver code** —
 /// residual certification, the subdivision driver, rendering/telemetry —
-/// never in an evaluation signature; and that code writes `T: Bounds` as
-/// the parameter's **sole** bound (it is a subtrait, so [`Real`]'s
-/// operations come with it). An *extra* bound tacked onto an evaluation
-/// type parameter is exactly the escape hatch
-/// `scripts/gates/bounds-allowlist.sh` exists to catch, and the compound
-/// form is what that gate greps for.
+/// never in an evaluation signature; and code that only reads brackets
+/// writes its bracket door as the parameter's **sole** bound (`T:
+/// Bounds`, or `T: CertifiedBounds` where the code has no meaning at a
+/// dual; each is a subtrait, so [`Real`]'s operations come with it). A
+/// bracket door BESIDE a deciding bound on one parameter (`T: Decide +
+/// Bounds`, `T: Certifies + CertifiedBounds`; [`Certifies`] has `Decide`
+/// as its supertrait) is the compound form
+/// `scripts/gates/bounds-allowlist.sh` reads for, and it is written only
+/// in a file with an entry in [`bounds_allowlist`]. The entry shows the
+/// read is necessary and that it decides nothing.
 ///
 /// **A NAMED compound bound is the same obligation as the literal
 /// spelling.** A trait that gathers a decision door and a bracket door
@@ -1194,7 +1320,8 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// redeems it: such a candidate is refused rather than weighed.
 ///
 /// **The ratified exceptions have their own home**, [`bounds_allowlist`]:
-/// one entry per seam, with the necessity argument that earned it. It
+/// one entry per seam, with the argument that earned it: the read is
+/// necessary, and it decides nothing. It
 /// lives beside this trait rather than inside this doc because it is the
 /// part that grows — see that module's own header.
 ///
@@ -1235,16 +1362,17 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// exposure; this one states it rather than leaving a reader to assume
 /// the gate is stronger than it is.
 ///
-/// **On the second — the WEAKEST bound that works, with the next
-/// tighter one shown failing.** Dropping [`Bounds`] does not compile:
-/// the callees require it. The next tighter bound,
-/// `Decide + `[`CertifiedBounds`]` + AtRestPolicy`, compiles in
-/// this crate and BREAKS its caller — `editor_core::eval::wire`'s
-/// blend lowering runs beneath `evaluate<T>`, a mixed pass
-/// instantiated at [`Dual`](crate::Dual) by the dual corpus, and no
-/// `Dual` implements [`CertifiedEnclosure`]. This is the `separation`
-/// entry's discriminator, not the M9-2 one: a generic mixed pass does
-/// call this door, so it keeps its lane rather than tightening.
+/// **On the second — there is no read here to show necessary.** The
+/// header names [`Bounds`] only so that its callees' bounds are
+/// satisfiable, so this entry rests on theirs (the delegation rule) and
+/// argues nothing of its own about a bracket. Which scalars the door
+/// admits is the scope rule's question, and its answer is that the
+/// seat is construction code: a blend, a boolean or a sweep built at a
+/// [`Dual`](crate::Dual) carries its tangents, so the door means
+/// something there and does not write [`Certifies`]. (That a dual
+/// build exists is evidence of that, not the argument:
+/// `editor_core::eval::wire`'s blend lowering runs beneath
+/// `evaluate<T>`, which the dual corpus instantiates.)
 ///
 /// The seam did not widen here; it acquired a file. The refusing-lane
 /// question is answered where it was already answered: the PR 12 entry
@@ -1254,15 +1382,16 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// SEAT-9 allows for has nothing in it** — the allowance stands and
 /// covers nothing. What it was written for was the shell door's own
 /// header: `verbs::run`'s shell arm delegates to `topo::shell_open`,
-/// which is `Decide + `[`CertifiedBounds`]` + AtRestPolicy` (already
+/// which is `CertifiedPolicy + `[`CertifiedBounds`] on its finished
+/// body's scalar (already
 /// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02
 /// certified at-rest entry), and a bound that names the callee's
 /// rights cannot be merged into the first header: the paragraph above
-/// records that tightening `Decide + Bounds + AtRestPolicy` to a
-/// certifying bound breaks `editor_core::eval::wire`'s
-/// `Dual`-instantiated blend lowering. That right is now a VALUE the
-/// caller passes — `topo::ShellDoor`, whose one constructor carries
-/// the certifying bound — so the seat's shell arm takes the door as a
+/// records that the first header's doors mean something at a dual,
+/// which a certifying bound would deny. That right is now a VALUE the
+/// caller passes — the scalar's `topo::AtRestPolicy::ShellDoor`, which
+/// is `topo::ShellDoor` where the scalar certifies and a type with no
+/// values at a dual — so the seat's shell arm takes the door as a
 /// parameter and rides the first header like every other verb, with
 /// the delegation rule covering it on the same terms: it passes its
 /// operand, its thickness and its designation through unchanged,
@@ -1316,15 +1445,16 @@ pub fn fold_signed_zero(x: f64) -> f64 {
 /// 2. **Refusal payloads need nothing new**, since (1) leaves a refusing
 ///    door holding the caller's own number. What remains are DERIVED
 ///    quantities — margins, realized radii, values that exist only at `T` —
-///    and those are deliberately NOT echoed outside the ratified seams: an
-///    `f64` in an error payload is a branchable channel, the same unmetered
-///    decision surface at one remove, so the honest spelling outside a seam
-///    is the variant name plus the run's threshold. A door that wants to
-///    echo a derived margin is asking to be a seam, ratified individually.
-///    **No general projection helper exists, by this ruling** — a
-///    `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
-///    precisely what was asked for and refused. The classify seam's own
-///    diagnostic is not such a helper: `MarginDiag`, minted inside each
+///    and those never leave a door as a number: an `f64` in an error
+///    payload is a branchable channel, the same unmetered decision surface
+///    at one remove. **No projection to a number exists, by this ruling**
+///    — a `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
+///    precisely what was asked for and refused. A derived quantity leaves
+///    as text and only as text (the crate README, "A number told
+///    to a person"): the one projection is [`Real::told_reading`], into
+///    a told quantity ([`crate::Told`]), which renders and offers
+///    nothing a comparison could read. The classify seam's own diagnostic has that
+///    shape for a decided margin: `MarginDiag`, minted inside each
 ///    scalar's `Decide` impl on every outcome of a verdict the funnel
 ///    records under its name (definite and indeterminate alike), is the
 ///    one projection of a decided margin. A refusal payload may echo it,
@@ -1405,10 +1535,23 @@ pub mod bounds_allowlist {
     //! the dangerous pattern when not necessary, so if it is necessary it's
     //! fine". The rule is not a budget on how many seams may exist, and an
     //! extension is not earned by RESEMBLING one already listed. What a
-    //! candidate owes is a demonstration of **necessity**, and the
-    //! demonstration is the ratifiable artifact: it must name the **weakest**
-    //! bound that works and show the next tighter one FAILING. An argument
-    //! that a bound *suffices* is not the argument this rule asks for.
+    //! candidate owes is a demonstration that the bracket READ is
+    //! **necessary** — what the code takes from the bracket and cannot
+    //! have without it — and that the read decides nothing. That
+    //! demonstration is the ratifiable artifact. An argument that the
+    //! bound *suffices*, or that a tighter one breaks a caller, is not
+    //! it: which scalars a function admits is the scope rule's question,
+    //! answered by what the function means and before any entry is
+    //! weighed. That a dropped bracket term stops the code compiling is
+    //! not the demonstration either: it shows the bound is needed to
+    //! name a callee, not that a read is. An entry that says what is
+    //! read and what the read is for has made the argument; an entry
+    //! that reads no bracket itself and carries the bound to call one
+    //! that does rests on its callee's entry (the delegation rule,
+    //! below) and says so; an entry that does neither is OWED its
+    //! argument, not discharged, and
+    //! `work/scalar/ledger-entries-still-argued-as-the-weakest-bound-that-works.md`
+    //! lists the ones found.
     //! `scripts/gates/bounds-allowlist.sh` holds the file list and points here
     //! for the reasons rather than restating them.
     //!
@@ -1428,12 +1571,12 @@ pub mod bounds_allowlist {
     //! item boxes through the certified box constructors (`face_box`,
     //! `edge_box`, a vertex point widened by the sweep pad) and
     //! `census::Candidates` drives the tree's queries, deciding nothing —
-    //! the exact sweeps that follow decide. The weakest bound that works
-    //! is `Decide + Bounds`: the tree's boxes are `f64` brackets read
-    //! through `Bounds::lo`/`hi` (`bvh::Aabb::from_points`), and the
-    //! census is decision code on the same scalar. Sole `Bounds` fails —
-    //! the sweeps call the funnel — and sole `Decide` fails — no box can
-    //! be read without the bracket, so there is no tree to query. The
+    //! the exact sweeps that follow decide. The read is necessary: the
+    //! tree's boxes are `f64` brackets read through `Bounds::lo`/`hi`
+    //! (`bvh::Aabb::from_points`), and without them there is no tree to
+    //! query; the census is decision code on the same scalar, so the
+    //! bracket door stands beside `Decide`. The read decides nothing: a
+    //! box only prunes, and the sweeps decide through the funnel. The
     //! bound rides the three `validate` doors that reach the census
     //! (`validate_pseudomanifold`, `validate_pseudomanifold_certificate`,
     //! and the `via` they share) as a REACHABILITY ride only: those
@@ -1455,16 +1598,13 @@ pub mod bounds_allowlist {
     //! edge's box misses the ball's, a terminal `Bounds` grant. It is the
     //! grant the box constructors' pruning makes, in the disjointness
     //! direction the #571 rule allows: a box miss can only clear an edge
-    //! of the ball, never place one in it. The weakest bound that works
-    //! is `Decide + Bounds`: sole `Decide` reads no box and drives no
-    //! bisection, and sole `Bounds` decides nothing. The next tighter,
-    //! `Decide + CertifiedBounds`, does not survive the public boolean.
-    //! Carried up through every caller (`curved_face_arm`,
-    //! `wall_crossing`, `settle_deferred`, `sweep_direction`, `ops`'
-    //! entries and `boolean_reduce`), each signature compiles. The first
-    //! failure is `Dual64: CertifiedEnclosure` where the public boolean is
-    //! instantiated at a dual (`crates/topo/tests/inside_out_operand.rs`),
-    //! and a dual has no certified enclosure to give. Three of `reduce`'s
+    //! of the ball, never place one in it. The read is necessary: sole
+    //! `Decide` reads no box and drives no bisection, and sole `Bounds`
+    //! decides nothing. The bound is not a certifying one, because the
+    //! reading is the public boolean's and the boolean builds at a dual
+    //! (`crates/topo/tests/inside_out_operand.rs`): there the box prune
+    //! and the bisection stop read the base scalar's brackets (the crate
+    //! README, DL5.1), and every verdict is a `Decide` call. Three of `reduce`'s
     //! crossing-layer functions (`curved_face_arm`, `wall_crossing`,
     //! `settle_deferred`) carry the bound as a reachability ride to it and
     //! read no bracket of their own.
@@ -1478,8 +1618,9 @@ pub mod bounds_allowlist {
     //! boxes do not clear, through `Decide`. Its one box-level answer is
     //! the pruning grant, in the disjointness direction the #571 rule
     //! allows: a box miss can only clear a pair, never make one meet. The
-    //! weakest bound that works is `Decide + Bounds`: sole `Decide` reads
-    //! no box, and sole `Bounds` cannot call the arms. It reads no bound
+    //! read is necessary (the ring boxes are brackets read through
+    //! `Bounds::lo`/`hi`) and stands beside `Decide` because the arms
+    //! that follow decide on the same scalar. It reads no bound
     //! its callers do not already carry (`tier3_local_checks_marked`, under
     //! the at-rest validator's own entry).
     //!
@@ -1514,7 +1655,7 @@ pub mod bounds_allowlist {
     //! funnel margins) and reads brackets into certification arithmetic
     //! (`Interval::from_certified`). Its split from
     //! scalars that may not certify is STATIC and stands on two things:
-    //! `topo::QuadLane::certified`, at `Decide + CertifiedBounds`, is the only
+    //! `topo::QuadLane::certified`, at `Certifies + CertifiedBounds`, is the only
     //! entry from the reporting walks, and the `quad_lane::*` signatures
     //! carry [`CertifiedEnclosure`](super::CertifiedEnclosure) as a third term, which no `Dual` has.
     //!
@@ -1527,10 +1668,11 @@ pub mod bounds_allowlist {
     //! argument, and the `Decide` half is still what the `props_quad_*`
     //! funnel needs while the bracket half is still what the crossing into
     //! certification arithmetic reads.
-    //! The weakest bound that works is unchanged and so is the evidence
-    //! that the next tighter one fails: drop the bracket term and the
-    //! windowed walk cannot form `Interval::from_certified`; drop
-    //! `Decide` and no round can be accepted. The certificate type is
+    //! The read is unchanged: the windowed walk crosses each stored
+    //! value into certification arithmetic through
+    //! `Interval::from_certified`, which is the bracket read, and
+    //! `Decide` is what accepts a round. No bracket of `T` is branched
+    //! on. The certificate type is
     //! PUBLIC and carries the bound for the same reason its walk does —
     //! it resumes that walk, so what it may read and what it may decide
     //! are the walk's, scalar for scalar.
@@ -1548,10 +1690,9 @@ pub mod bounds_allowlist {
     //! the cells, the enclosures, the funnelled `d − c` and the bracket
     //! are computed. The `Decide` half is what places a cell's or a
     //! witness station's point at `T` through the point-in-face doors.
-    //! No bracket of `T` is branched on. The weakest bound that works is
-    //! this one: drop the bracket term and no lift into interval
-    //! arithmetic can be formed; drop `Decide` and no station can be
-    //! placed.
+    //! No bracket of `T` is branched on. The read is the lift into
+    //! interval arithmetic and nothing else; `Decide` is what places a
+    //! station.
     //!
     //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
     //! precedent; retroactive Ev review per the self-merge convention) — the
@@ -1583,16 +1724,13 @@ pub mod bounds_allowlist {
     //! empty is dead code, not a guard.
     //!
     //! **The delegation rule (DUAL-DESIGN DL5) — the standing criterion for a
-    //! lane-less `Bounds` seam.** A `Bounds` read is lane-exempt when it (a)
-    //! feeds an error payload or report, or (b) selects among constructions
-    //! whose classification is value-channel-decided AND whose selected
-    //! quantity is locally constant in the parameters — sound by value-part
-    //! delegation: a dual's bracket is its value channel's, so the read's
-    //! branch is the base scalar's branch. The locally-constant condition is
-    //! load-bearing, not decoration: a frozen `f64` choice is tangent-sound
-    //! only while the chosen quantity cannot move with a seed, and
-    //! `geom::projection_policy`'s `mid` freeze (issue 874's class) is the live
-    //! counterexample shape when it is not. A read that MINTS a certificate
+    //! lane-less `Bounds` seam.** Its text is the crate README's "Reading a
+    //! bracket where nothing certifies": a `Bounds` read is lane-exempt when
+    //! its `f64` (a) leaves, as an error payload or report, or (b) is only
+    //! compared, a pick among constructions (DL5.1). An `f64` that comes
+    //! back as a `T` is neither, and answers to DL5.2 at
+    //! [`Real::from_computed`](super::Real::from_computed):
+    //! `geom::projection_policy`'s `mid` (issue 874's class) is that shape. A read that MINTS a certificate
     //! object or feeds a [`CertifiedEnclosure`](super::CertifiedEnclosure) consumer is never exempt: it
     //! needs a lane door in the `topo::QuadLane` shape, and admitting one
     //! without a lane would be a ratified REVERSAL of DL5 on its own
@@ -1637,7 +1775,7 @@ pub mod bounds_allowlist {
     //! is the free function `geom_brep::plane_nurbs_limbs`, at
     //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
     //! exactly as before, and the one DOOR that names it carries
-    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) — the lane's
+    //! `Certifies + `[`CertifiedBounds`](super::CertifiedBounds) — the lane's
     //! sealed value, `geom_brep::certify`'s `NurbsLane::certified`. That
     //! file joins this allowlist for that reason and no other; the
     //! per-file scope consequence is real and is the price of writing the
@@ -1690,9 +1828,9 @@ pub mod bounds_allowlist {
     //! IS `chart_image` at that bound, and whether it climbs, its rungs and
     //! its breaks are structure read in `f64` (the wall's held knot lines,
     //! the miss at the scalar's midpoint), which [`Real`](super::Real) offers no read for
-    //! but `Bounds::lo`/`hi`; drop `Bounds` (the next tighter bound) and
-    //! neither the first rung's call nor those reads compile, and dropping
-    //! `CertifiedEnclosure` fails that call likewise.
+    //! but `Bounds::lo`/`hi`. Those reads place rungs and breaks and decide
+    //! nothing; `CertifiedEnclosure` is `chart_image`'s, which the first
+    //! rung calls.
     //!
     //! **2026-11-12 (under the M7-8 / C2 precedent; retroactive Ev review)
     //! — `geom_brep::edge_nurbs`'s `curved_nurbs_limbs`**, the lane's
@@ -1717,11 +1855,12 @@ pub mod bounds_allowlist {
     //! The door's bound is `Decide + `[`CertifiedBounds`](super::CertifiedBounds), which no `Dual`
     //! satisfies, so the predicate is uninstantiable at one however it is
     //! reached — including from outside the crate, where no census is
-    //! running. The census's `Option<topo::RegionLane<T>>` parameter (one
-    //! constructor, at the door's bound; `None` from the `_structural` twin)
-    //! is not redundant with that: its `None` is what lets the census, a
-    //! MIXED pass, decline this one arm and keep going, which no bound on a
-    //! whole function can express.
+    //! running. The census's `Option<T::RegionLane>` parameter (the
+    //! scalar's `topo::AtRestPolicy::RegionLane`: the lane where the
+    //! scalar certifies, a type with no values at a dual; `None` from the
+    //! `_structural` twin) is not redundant with that: its `None` is what
+    //! lets the census, a MIXED pass, decline this one arm and keep going,
+    //! which no bound on a whole function can express.
     //! The tightening replaced an audit rather than a wrong answer, and
     //! **the discriminator is that nothing generic calls this door** — which
     //! is why `topo::separation`, whose caller is a mixed pass, was not
@@ -1799,10 +1938,10 @@ pub mod bounds_allowlist {
     //! `scripts/gates/bounds-allowlist.sh` pins compound BOUNDS per file,
     //! not reads, so `crates/topo/tests/r1_lane1_bracket_read_census.rs`
     //! counts the file's bracket reads over the code view against the
-    //! two disclosed here and reds on a third. The weakest bound that works is this one, checked
-    //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
-    //! alone does NOT compile, because the certified quadrature reads
-    //! [`Bounds`](super::Bounds) as well.
+    //! two disclosed here and reds on a third. The door itself carries
+    //! [`Bounds`](super::Bounds) beside [`CertifiedEnclosure`](super::CertifiedEnclosure)
+    //! for its callee: the certified quadrature it hands the body to
+    //! reads both, under the M5 PR 11 entry.
     //!
     //! **Why the obligation had to become literal at all**, since the door
     //! was already closed to a dual before this row and by construction: it
@@ -1892,7 +2031,7 @@ pub mod bounds_allowlist {
 /// holds the line — the only door between a dual and certified code.
 /// Reopening it would be a ratified reversal of DL1 on its own
 /// evidence, never an impl someone can add in passing.
-pub trait CertifiedEnclosure: Copy {
+pub trait CertifiedEnclosure: Copy + enclosure_seal::Sealed {
     /// The bracket, or `None` if this value carries a domain violation.
     ///
     /// `Some([lo, hi])` promises both things at once: the pair brackets
@@ -1917,11 +2056,31 @@ pub trait CertifiedEnclosure: Copy {
         Self: Real;
 }
 
+/// The seal of [`CertifiedEnclosure`], and through it of [`Certifies`]:
+/// the scalars that certify are this crate's to name, so each impl of
+/// the trait below has its line here, and no other crate can add one.
+mod enclosure_seal {
+    pub trait Sealed {}
+    impl Sealed for f64 {}
+    impl Sealed for crate::Interval {}
+    #[cfg(feature = "probe")]
+    impl Sealed for crate::k_stats::Probe {}
+    impl<T: super::CertifiedBounds> Sealed for crate::Sym<T> {}
+}
+
 /// **What a tangent-transport scalar holds where a certifying scalar
 /// holds a record**: nothing ([`Real::Carries`]). A dual never certifies
 /// (DUAL-DESIGN DL1), and a dual body carries no certificate (DL3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Uncertified;
+
+/// **What a scalar that does not certify holds where a certifying one
+/// holds a lane**: a type with no values (the crate README, DL5.3). A
+/// pass that runs at every scalar takes its lane as a type that is the
+/// lane at a scalar that [`Certifies`] and this at a dual, so the arm
+/// that enters certification is not reachable there by type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoLane {}
 
 /// **A scalar that transports tangents and never certifies** — the
 /// dual's side of [`Real::Carries`]' partition: its doors construct and
@@ -1994,6 +2153,61 @@ pub trait CertifiedBounds: Bounds + CertifiedEnclosure {}
 /// an implementor must opt into.
 impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}
 
+/// **A scalar that certifies**, and nothing else: the bound code writes
+/// to say it has no meaning at a tangent-transport scalar (the crate
+/// README, DL5.3).
+///
+/// It grants no bracket read and no method, so it is free to write: no
+/// list, no ratification, and `scripts/gates/bounds-allowlist.sh` does
+/// not read it. A body that also reads a bracket names the bracket door
+/// beside it, and that read is what the [`Bounds`] scope rule asks about.
+///
+/// Implemented once, for every scalar that decides and has a
+/// [`CertifiedEnclosure`], and closed because that trait is: its seal
+/// (this crate's `enclosure_seal`) names the scalars, and no crate
+/// outside can implement it, so none can make a scalar certify: `f64`, [`crate::Interval`], `k_stats::Probe`
+/// (feature `probe`) and [`crate::Sym`] over a scalar with both bracket
+/// doors. At `Sym<Sym<f64>>` it means what it means at `Sym<f64>`: the
+/// symbolic tier certifies as the scalar under it does and changes only
+/// how an identically-zero margin decides, however deep it is nested.
+/// A [`crate::Dual`] is absent for [`CertifiedEnclosure`]'s reason
+/// (`docs/DUAL-DESIGN.md` DL1), over any base:
+///
+/// ```compile_fail,E0277
+/// fn certifies<T: geom_core::Certifies>() {}
+/// certifies::<geom_core::Dual64>();
+/// ```
+///
+/// ```compile_fail,E0277
+/// fn certifies<T: geom_core::Certifies>() {}
+/// certifies::<geom_core::DualInterval>();
+/// ```
+///
+/// ```compile_fail,E0277
+/// fn certifies<T: geom_core::Certifies>() {}
+/// certifies::<geom_core::Sym<geom_core::Dual64>>();
+/// ```
+///
+/// ```
+/// fn certifies<T: geom_core::Certifies>() {}
+/// certifies::<f64>();
+/// certifies::<geom_core::Interval>();
+/// certifies::<geom_core::Sym<f64>>();
+/// certifies::<geom_core::Sym<geom_core::Interval>>();
+/// ```
+pub trait Certifies: crate::predicate::Decide + certifies_seal::Sealed {}
+
+mod certifies_seal {
+    pub trait Sealed {}
+}
+
+/// One roster, not two: a scalar certifies exactly when it decides and
+/// its computations answer a certified bracket ([`CertifiedEnclosure`],
+/// which is sealed). The bound still grants neither: code at
+/// `T: Certifies` can name no method of either trait's bracket doors.
+impl<T: CertifiedEnclosure> certifies_seal::Sealed for T {}
+impl<T: crate::predicate::Decide + certifies_seal::Sealed> Certifies for T {}
+
 /// Exponentiation by squaring over any [`Real`], the shared implementation
 /// of [`Real::powi`]: `n < 0` via the reciprocal of `base.powi(|n|)`,
 /// `n == 0` yields one **unconditionally** — the generic default takes the
@@ -2019,6 +2233,32 @@ pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
     if n < 0 { T::one() / result } else { result }
 }
 
+/// The `|x|` up to which [`Real::less_sin`] reads the series. Past it
+/// the difference is more than half of `x`, so it keeps `x`'s digits; up
+/// to it each term of the series is at most a fifth of the one before.
+pub const LESS_SIN_SERIES_BELOW: f64 = 2.0;
+
+/// The last `k` of the series' kept terms `x^(2k+3)/(2k+3)!`, so the
+/// last power kept is `x²³`.
+const LESS_SIN_LAST_TERM: u16 = 10;
+
+/// The series of `x − sin x` through `x²³`, for `|x| ≤`
+/// [`LESS_SIN_SERIES_BELOW`], nested as
+/// `x³/6 · (1 − x²/20 · (1 − x²/42 · (…)))`: each factor is one term's
+/// ratio to the one before, `x²/((2k + 2)(2k + 3))`. `tail` stands for
+/// the factor the dropped terms would contribute, which lies in
+/// `[1 − x²/600, 1]`. Read as `1` it leaves out under `2e-18` of the
+/// value at the cutoff, a hundredth of a unit in the last place, and an
+/// enclosure passes the whole range.
+pub(crate) fn less_sin_series<T: Real>(x: T, tail: T) -> T {
+    let q = x.powi(2);
+    let nested = (1..=LESS_SIN_LAST_TERM).rev().fold(tail, |inner, k| {
+        let ratio = f64::from((2 * k + 2) * (2 * k + 3));
+        T::one() - q / T::from_f64(ratio) * inner
+    });
+    x * q / T::from_f64(6.0) * nested
+}
+
 /// `f64` is the kernel's default scalar (D9 determinism notes per method).
 ///
 /// Transcendentals go through the pure-Rust [`libm`] crate: system libm
@@ -2027,6 +2267,10 @@ pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
 /// operations because IEEE 754 *requires* them to be exact/correctly
 /// rounded, so they are already bit-identical everywhere (and faster).
 impl Real for f64 {
+    fn same_value(self, other: Self) -> bool {
+        self.to_bits() == other.to_bits()
+    }
+
     /// **INEXACT**: `f64` compares one rounded number against another.
     /// Its [`Real::register_equal`] refuses with
     /// [`SymRegistration::Disputed`] for that reason, and the same
@@ -2045,6 +2289,10 @@ impl Real for f64 {
 
     fn from_computed(x: f64) -> Self {
         x
+    }
+
+    fn told_reading(&self) -> crate::told::Reading {
+        crate::told::Reading::value(*self)
     }
 
     fn zero() -> Self {
@@ -2175,6 +2423,14 @@ impl Real for f64 {
         // fused `sincos`, but revisit only with evidence that a fused
         // override is both bit-identical and worth the audit burden.
         (libm::sin(self), libm::cos(self))
+    }
+
+    fn less_sin(self) -> Self {
+        if self.abs() <= LESS_SIN_SERIES_BELOW {
+            less_sin_series(self, 1.0)
+        } else {
+            self - libm::sin(self)
+        }
     }
 
     /// Overrides the [`Real::sin`] projection so scalar sine does not pay for

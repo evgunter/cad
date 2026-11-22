@@ -624,7 +624,7 @@ fn the_offset_lever_recourse_reaches_the_caller_at_its_own_site() {
 /// At (2) the corner is not degenerate at all, which is what the
 /// sentence used to assert: the identical carriers with a leg long
 /// enough to take the setback build and validate. That is the clause the
-/// sentence now names — give the shorter leg a longer extent — and it is
+/// sentence now names — lengthen the shorter leg — and it is
 /// executed here. The reviewer rows
 /// `review_fillet_recourse_arm_r1_probes::the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle`
 /// and
@@ -836,9 +836,12 @@ fn the_scene_resolution_recourse_is_followed_by_a_smaller_radius_and_a_nearer_sc
     // the row well inside it at whatever ε the run committed.
     let shift = 1e3 * tol().eps() / f64::EPSILON;
     let err = far_bend(shift, 0.5, 0.2).expect_err("a far scene refuses at the door");
-    let (scale, radius) = match err {
-        PathError::FilletCarrierBelowSceneResolution { scale, radius, .. } => (scale, radius),
-        ref other => panic!("the far scene's loss is the reconstruction one, got {other:?}"),
+    let (scale, radius) = match &err {
+        PathError::FilletCarrierBelowSceneResolution { scale, radius, .. } => (
+            crate::common::told(scale),
+            radius.as_given().expect("the authored radius"),
+        ),
+        other => panic!("the far scene's loss is the reconstruction one, got {other:?}"),
     };
     carries(
         &err,

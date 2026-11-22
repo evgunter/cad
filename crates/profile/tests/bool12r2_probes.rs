@@ -96,7 +96,10 @@ fn d_shape_forward(declared: bool) -> Result<ClosedLoop<f64>, PathError<f64>> {
 fn r2_measurement_a_on_the_head() {
     let refused = stadium(false);
     println!("R2: undeclared stadium -> {refused:?}");
-    assert!(matches!(refused, Err(PathError::SeamTangent { .. })));
+    assert!(matches!(
+        refused,
+        Err(PathError::SeamTurnWithinTolerance { .. })
+    ));
 
     let closed = stadium(true).expect("the constructed tangent seam closes");
     println!(
@@ -125,9 +128,12 @@ fn r2_the_declared_seams_hold_on_this_epsilon_leg() {
     validate_ok(&closed.loop_);
     assert!(matches!(
         d_shape_forward(false),
-        Err(PathError::SeamTangent { .. })
+        Err(PathError::SeamTurnWithinTolerance { .. })
     ));
-    assert!(matches!(stadium(false), Err(PathError::SeamTangent { .. })));
+    assert!(matches!(
+        stadium(false),
+        Err(PathError::SeamTurnWithinTolerance { .. })
+    ));
     stadium(true).expect("the stadium closes on this leg");
 }
 
@@ -222,6 +228,7 @@ fn r2_the_lever_only_bites_at_an_arm_far_from_one() {
     let refused = tilted_close(off, 1000.0);
     match refused {
         Err(PathError::SeamArrivalOffDirection { margin, arm, .. }) => {
+            let (margin, arm) = (crate::common::told(&margin), crate::common::told(&arm));
             println!("R2: long-arm miss -> margin {margin} arm {arm}");
             assert!(
                 (margin.abs() - off).abs() <= 1e-2 * off,
@@ -282,6 +289,7 @@ fn r2_a_degenerate_closing_leg_is_refused_for_want_of_a_lever() {
     println!("R2: degenerate undeclared close -> {undeclared:?}");
     match declared {
         Err(PathError::SeamArrivalLeverTooShort { arm }) => {
+            let arm = crate::common::told(&arm);
             assert!(arm.abs() < eps, "arm {arm} is the degenerate lever");
         }
         other => panic!("the declared check must refuse for want of a lever: {other:?}"),
@@ -314,6 +322,7 @@ fn r2_the_arc_lever_is_radius_min_chord() {
         .tangent_arc_to(Start.arrives_tangent(), t);
     match refused {
         Err(PathError::SeamArrivalOffDirection { margin, arm, .. }) => {
+            let (margin, arm) = (crate::common::told(&margin), crate::common::told(&arm));
             println!("R2: both-ends-tangent seam -> margin {margin} arm {arm}");
             assert!((arm - 1.25).abs() < 1e-12, "arm {arm} is not radius 1.25");
             assert!(
@@ -528,7 +537,10 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
     // authoring layer, which is where this belongs.
     let undeclared = ring(false);
     println!("R2: arc-first-side, undeclared -> {undeclared:?}");
-    assert!(matches!(undeclared, Err(PathError::SeamTangent { .. })));
+    assert!(matches!(
+        undeclared,
+        Err(PathError::SeamTurnWithinTolerance { .. })
+    ));
 
     // AFTER THE RULING (Ev, in-chat, 2026-09-02): the lattice may not
     // consult the following carrier, so it closes declaring nothing and

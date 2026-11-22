@@ -187,15 +187,14 @@ fn surfaces(body: &Body<f64>) -> Vec<String> {
 fn plane_frames(body: &Body<f64>) -> Vec<[[f64; 3]; 3]> {
     body.surfaces()
         .filter_map(|(_, s)| match s {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => Some([
-                [origin.x, origin.y, origin.z],
-                normal.to_array(),
-                u_ref.to_array(),
-            ]),
+            Surface::Plane { frame } => {
+                let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                Some([
+                    [origin.x, origin.y, origin.z],
+                    normal.to_array(),
+                    u_ref.to_array(),
+                ])
+            }
             _ => None,
         })
         .collect()

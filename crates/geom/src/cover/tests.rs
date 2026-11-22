@@ -399,10 +399,8 @@ fn the_whole_carrier_covers_hold_the_sphere_and_the_torus() {
         let points = site_points(&sites);
         let r = scale * rng.range(0.3, 1.0);
         let sphere = Surface::Sphere {
-            center,
+            frame: crate::Frame::new(center, axis, u_ref),
             radius: sign * r,
-            axis,
-            u_ref,
         };
         check(&Case {
             name: format!("sphere #{case}"),
@@ -421,11 +419,9 @@ fn the_whole_carrier_covers_hold_the_sphere_and_the_torus() {
         });
         let (big, small) = (scale, scale * rng.range(0.05, 1.2));
         let torus = Surface::Torus {
-            center,
-            axis,
+            frame: crate::Frame::new(center, axis, u_ref),
             major_radius: sign * big,
             minor_radius: minor_sign * small,
-            u_ref,
         };
         check(&Case {
             name: format!("torus #{case}"),
@@ -493,11 +489,9 @@ fn a_bracketed_tube_encloses_every_torus_it_admits() {
             let mut jitter = |x: f64| x + rng.range(-w, w);
             let c = Point3::new(jitter(center.x), jitter(center.y), jitter(center.z));
             let torus = Surface::Torus {
-                center: c,
-                axis,
+                frame: crate::Frame::new(c, axis, u_ref),
                 major_radius: jitter(big),
                 minor_radius: jitter(small),
-                u_ref,
             };
             let samples = chart_samples(
                 &torus,
@@ -577,10 +571,18 @@ fn a_curves_cover_over_a_span_holds_it() {
             }
             ts
         };
-        let r = scale * rng.range(0.2, 1.0) * if rng.unit() < 0.2 { -1.0 } else { 1.0 };
+        let radius = scale * rng.range(0.2, 1.0);
+        // One in five seamed a half turn on, at `−u_ref`: the points a
+        // signed radius `−radius` would place, at the same parameters.
+        let turned = rng.unit() < 0.2;
+        let (r, seam) = if turned {
+            (-radius, -u_ref)
+        } else {
+            (radius, u_ref)
+        };
         let circle = Curve3::Circle(crate::Circle::new(
-            crate::Frame::new(center, axis, u_ref),
-            r,
+            crate::Frame::new(center, axis, seam),
+            radius,
         ));
         run("circle", circle, conic_extremes(r, r));
         let (a, b) = (scale, scale * rng.range(0.1, 1.0));
@@ -747,11 +749,9 @@ fn trim_rows(part: Trim, label: &str) {
         // premise is `r ≥ 0`.
         let signed = if rng.unit() < 0.5 { -small } else { small };
         let torus = Surface::Torus {
-            center,
-            axis,
+            frame: crate::Frame::new(center, axis, u_ref),
             major_radius: big,
             minor_radius: signed,
-            u_ref,
         };
         for (zone, us) in [(false, (u0, u1)), (true, (0.0, TAU))] {
             if part != Trim::Chart {
@@ -789,10 +789,8 @@ fn trim_rows(part: Trim, label: &str) {
             let lat0 = rng.range(-FRAC_PI_2, FRAC_PI_2);
             let lat1 = rng.range(-FRAC_PI_2, FRAC_PI_2);
             let sphere = Surface::Sphere {
-                center,
+                frame: crate::Frame::new(center, axis, u_ref),
                 radius: small,
-                axis,
-                u_ref,
             };
             check(&Case {
                 name: format!("sphere patch (zone {zone}) #{case}"),
@@ -872,11 +870,9 @@ fn a_meet_holds_what_lies_in_both_and_a_hull_what_lies_in_either() {
         let u_ref = across(axis, &mut rng);
         let (big, small) = (rng.range(1.0, 3.0), rng.range(0.1, 0.9));
         let torus = Surface::Torus {
-            center,
-            axis,
+            frame: crate::Frame::new(center, axis, u_ref),
             major_radius: big,
             minor_radius: small,
-            u_ref,
         };
         let dirs = directions(&mut rng, 3);
         let sites = sites(&mut rng, center, 3.0);
@@ -913,10 +909,8 @@ fn a_meet_holds_what_lies_in_both_and_a_hull_what_lies_in_either() {
         });
         let c2 = point(&mut rng, 5.0);
         let sphere = Surface::Sphere {
-            center: c2,
+            frame: crate::Frame::new(c2, axis, u_ref),
             radius: rng.range(0.1, 2.0),
-            axis,
-            u_ref,
         };
         let mut both = all.clone();
         both.extend(chart_samples(
@@ -948,9 +942,7 @@ fn a_meet_holds_what_lies_in_both_and_a_hull_what_lies_in_either() {
 #[test]
 fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
     let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
     };
     let proved: Covered<f64> = Ok(ball(Point3::new(1.0, 2.0, 3.0), 0.5));
     let refused = plane.cover();
@@ -1002,19 +994,15 @@ fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
     for (surface, kind) in [
         (
             Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
-                u_ref: Vec3::unit_x(),
             },
             SurfaceKind::Cylinder,
         ),
         (
             Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
+                frame: crate::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 half_angle: 0.3,
-                u_ref: Vec3::unit_x(),
             },
             SurfaceKind::Cone,
         ),
@@ -1041,11 +1029,13 @@ fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
 #[test]
 fn a_dual_and_a_symbolic_cover_read_the_f64_bounds() {
     let torus = Surface::Torus {
-        center: Point3::new(0.3, -1.2, 2.5),
-        axis: Vec3::new(0.48, 0.6, 0.64),
+        frame: crate::Frame::new(
+            Point3::new(0.3, -1.2, 2.5),
+            Vec3::new(0.48, 0.6, 0.64),
+            Vec3::new(0.8, -0.6, 0.0),
+        ),
         major_radius: 2.0,
         minor_radius: 0.4,
-        u_ref: Vec3::new(0.8, -0.6, 0.0),
     };
     let spiric = Curve3::spiric(
         Point3::new(1.0, 0.0, 0.0),
@@ -1247,7 +1237,10 @@ fn a_non_finite_datum_builds_no_cover() {
     );
     for (curve, kind) in [
         (
-            Curve3::Circle(crate::Circle::new(crate::Frame::new(o, z, x), nan)),
+            Curve3::Circle(crate::Circle::new(
+                crate::Frame::new(Point3::new(nan, 0.0, 0.0), z, x),
+                1.0,
+            )),
             crate::CurveKind::Circle,
         ),
         (
@@ -1288,10 +1281,8 @@ fn a_non_finite_datum_builds_no_cover() {
         "an infinite window"
     );
     let sphere = Surface::Sphere {
-        center: o,
+        frame: crate::Frame::new(o, z, x),
         radius: f64::INFINITY,
-        axis: z,
-        u_ref: x,
     };
     assert_eq!(
         sphere.cover().err(),
@@ -1359,11 +1350,9 @@ fn the_nearest_distance_just_off_the_surface_is_the_offset() {
     let mut cases: Vec<Row> = Vec::new();
     for (big, small) in [(1e3, 1e-3), (1e4, 1e-3), (3.0, 1.0)] {
         let torus = Surface::Torus {
-            center: Point3::new(5.0, -2.0, 1.0),
-            axis: z,
+            frame: crate::Frame::new(Point3::new(5.0, -2.0, 1.0), z, x),
             major_radius: big,
             minor_radius: small,
-            u_ref: x,
         };
         let (u, v) = (0.7_f64, 0.3_f64);
         let normal = (x * u.cos() + y * u.sin()) * v.cos() + z * v.sin();
@@ -1432,10 +1421,10 @@ fn an_ellipses_nearest_distance_reads_its_annulus() {
         .cover_over(ParamWindow::new(iv(0.0), iv(TAU)))
         .unwrap();
     for (what, q) in [
-        ("above the centre", frame.origin + Vec3::unit_z()),
+        ("above the centre", frame.origin() + Vec3::unit_z()),
         (
             "above and past the vertex",
-            frame.origin + Vec3::new(3.0, 0.0, 1.0),
+            frame.origin() + Vec3::new(3.0, 0.0, 1.0),
         ),
     ] {
         let (nf, _) = f.distance_range(&Site::Point(q));
@@ -1472,11 +1461,9 @@ fn the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset() {
     type Row = (&'static str, Cover<f64>, Cover<Interval>, Point3<f64>, f64);
     let (big, small) = (1e3, 1e-3);
     let torus = Surface::Torus {
-        center: c,
-        axis: z,
+        frame: crate::Frame::new(c, z, x),
         major_radius: big,
         minor_radius: small,
-        u_ref: x,
     };
     let circle = Curve3::Circle(crate::Circle::new(crate::Frame::new(c, z, x), big));
     let rows: Vec<Row> = vec![
@@ -1774,11 +1761,11 @@ fn a_carriers_surface_reads_its_level_about_its_own_site() {
     let wall = Cover::wall(&frame, -0.8, &within).unwrap();
     let sphere = Cover::sphere(&frame, -0.7).unwrap();
     let torus = Cover::torus(&frame, 2.0, 0.5).unwrap();
-    let trim = ball(frame.origin, 10.0);
+    let trim = ball(frame.origin(), 10.0);
     let on_core = Point3::new(3.0, 2.0, 3.0);
     for (name, shell, level, inside) in [
-        ("wall", wall, 0.8, frame.origin),
-        ("sphere", sphere, 0.7, frame.origin),
+        ("wall", wall, 0.8, frame.origin()),
+        ("sphere", sphere, 0.7, frame.origin()),
         ("torus", torus, 0.5, on_core),
     ] {
         let site = match shell.about()[..] {
@@ -1887,7 +1874,7 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
         let (o, d) = line(&sites[0]).unwrap_or_else(|| panic!("the {name}'s axis"));
         assert_eq!(
             (o, d),
-            (xyz(frame.origin), (0.0, 0.0, 1.0)),
+            (xyz(frame.origin()), (0.0, 0.0, 1.0)),
             "the {name}'s axis"
         );
     }
@@ -1899,11 +1886,11 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
     };
     assert_eq!(
         centre(&Cover::sphere(&frame, 0.7).unwrap()),
-        xyz(frame.origin)
+        xyz(frame.origin())
     );
     assert_eq!(
         centre(&Cover::torus(&frame, 0.0, 0.7).unwrap()),
-        xyz(frame.origin)
+        xyz(frame.origin())
     );
     for cover in [
         Cover::torus(&frame, 2.0, 0.5).unwrap(),
@@ -1922,7 +1909,7 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
     )
     .unwrap();
     assert!(patch.about().is_empty(), "a patch proposes none");
-    let core = core_about(frame.origin, frame.axis, 2.0);
+    let core = core_about(frame.origin(), frame.axis(), 2.0);
     assert!(
         patch.range_about(&core).0 < 0.5,
         "a patch is no shell of its own"
@@ -1931,7 +1918,7 @@ fn a_cover_proposes_the_sites_it_is_measured_about() {
     assert_eq!(met.about().len(), 2, "a meet proposes both sides'");
     assert!(cone.clone().hull(wall).about().is_empty(), "a hull none");
     assert!(cone.convex().about().is_empty(), "a convex hull none");
-    let point = Cover::points(vec![frame.origin]).unwrap();
+    let point = Cover::points(vec![frame.origin()]).unwrap();
     assert!(point.about().is_empty(), "a point set none");
     // An arc is its window's piece met with its whole conic's: two arc
     // pieces of one axis, and neither proposes it, so the meet proposes
@@ -1961,7 +1948,7 @@ fn a_cones_frustum_holds_its_surface_on_any_frame() {
     );
     let skew = Frame::new(apex, Vec3::new(0.2, 0.1, 1.28), Vec3::new(1.1, 0.3, 0.25));
     let alpha = -0.4f64;
-    let axis = skew.axis.normalize();
+    let axis = skew.axis().normalize();
     let height = |p: Point3<f64>| (p - apex).dot(axis);
     let within = Cover::segment(apex + axis * 0.5, apex + axis * 1.5).unwrap();
     let cone = Cover::cone(&skew, alpha, &within).unwrap();
@@ -1979,8 +1966,8 @@ fn a_cones_frustum_holds_its_surface_on_any_frame() {
     let mut held = 0;
     for i in 0..400 {
         let u = TAU * f64::from(i) / 400.0;
-        let rho = skew.u_ref * u.cos() + skew.v_ref() * u.sin();
-        let step = skew.axis * c_a + rho * s_a;
+        let rho = skew.u_ref() * u.cos() + skew.v_ref() * u.sin();
+        let step = skew.axis() * c_a + rho * s_a;
         for j in 0..=40 {
             let v = 2.5 * f64::from(j) / 40.0 - 1.25;
             let p = apex + step * v;
@@ -1996,76 +1983,6 @@ fn a_cones_frustum_holds_its_surface_on_any_frame() {
         }
     }
     assert!(held > 1000, "the window holds samples: {held}");
-}
-
-/// **A cone's frustum is tight on a skewed frame**: `u_ref = (1, 0, ½)`
-/// tilted toward the unit axis `z`, half-angle 0.4. The radial
-/// direction's part off the axis is unit at every azimuth while the
-/// whole of it reaches `√1.25`, and its tilt is ½, so the bound is
-/// `tan = sin α / (cos α − ½·sin α)`; the generator at `u = π` attains
-/// it (its height is shortest there for its offset). Red where the
-/// bound reads the radial direction's whole length (`√1.25` times this)
-/// rather than its part off the axis, or drops the tilt.
-#[test]
-fn a_cones_frustum_is_tight_on_a_skewed_frame() {
-    let apex = Point3::new(0.5, -1.0, 2.0);
-    let frame = Frame::new(apex, Vec3::unit_z(), Vec3::new(1.0, 0.0, 0.5));
-    let alpha = 0.4f64;
-    let (s_a, c_a) = alpha.sin_cos();
-    let within = Cover::segment(apex + Vec3::unit_z() * 0.5, apex + Vec3::unit_z() * 2.0).unwrap();
-    let cone = Cover::cone(&frame, alpha, &within).unwrap();
-    let super::Node::Piece(super::Piece::Frustum(f)) = &cone.0 else {
-        panic!("a cone's cover is its frustum");
-    };
-    let want = s_a / (c_a - 0.5 * s_a);
-    assert!(
-        (f.tan - want).abs() <= 1e-15 * want,
-        "tan {} against {want}",
-        f.tan
-    );
-    // The generator at `u = π`, at unit `v`: its offset over its height.
-    let rho = frame.u_ref * -1.0;
-    let step = frame.axis * c_a + rho * s_a;
-    let attained = super::off_line(step, Vec3::unit_z()).norm() / step.z;
-    assert!(
-        (attained - want).abs() <= 1e-15 * want,
-        "the generator at u = π attains it: {attained}"
-    );
-}
-
-/// **A NaN bound in one lane poisons the whole box**: the box `[0, 1]³`
-/// with `min_x` NaN stays finite in `y` and `z`, so it would prune
-/// against `[0, 1] × [100, 101] × [0, 1]`; the cover's box is the poison
-/// box, which overlaps it. Red where `aabb` hands the BVH the one-lane
-/// NaN box.
-#[test]
-fn a_nan_bound_in_one_lane_poisons_the_whole_box() {
-    let one_lane = bvh::Aabb {
-        min_x: f64::NAN,
-        min_y: 0.0,
-        min_z: 0.0,
-        max_x: 1.0,
-        max_y: 1.0,
-        max_z: 1.0,
-    };
-    let far = bvh::Aabb {
-        min_x: 0.0,
-        min_y: 100.0,
-        min_z: 0.0,
-        max_x: 1.0,
-        max_y: 101.0,
-        max_z: 1.0,
-    };
-    assert!(!one_lane.overlaps(&far), "the one-lane NaN box prunes");
-    assert!(
-        super::whole_poison(one_lane).overlaps(&far),
-        "the cover's box never prunes on poison"
-    );
-    let finite = bvh::Aabb {
-        min_x: 0.0,
-        ..one_lane
-    };
-    assert_eq!(super::whole_poison(finite), finite, "a finite box is kept");
 }
 
 /// **A hull of many small pieces reads the ball about its box**: three
@@ -2195,7 +2112,7 @@ fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
         let site = Site::Point(centre);
         let got = Cover::arc(
             &ellipse.frame,
-            (ellipse.semi_u, ellipse.semi_v),
+            ellipse.semi_axes(),
             ParamWindow::new(t0, t1),
         )
         .unwrap()
@@ -2203,8 +2120,8 @@ fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
         .1;
         let whole = Cover::piece(super::Piece::Arc(super::Arc {
             frame: ellipse.frame,
-            semi_u: ellipse.semi_u,
-            semi_v: ellipse.semi_v,
+            semi_u: ellipse.semi_u(),
+            semi_v: ellipse.semi_v(),
             window: ParamWindow::new(0.0, TAU),
         }))
         .distance_range(&site)

@@ -329,9 +329,9 @@ impl<T: Real> OpenConicSection<T> {
         ConicBranch {
             conic: self.conic,
             frame: geom::Frame::new(
-                self.frame.origin + self.frame.u_ref * xi,
-                self.frame.axis,
-                self.frame.u_ref,
+                self.frame.origin() + self.frame.u_ref() * xi,
+                self.frame.axis(),
+                self.frame.u_ref(),
             ),
             l: side * self.delta_sigma * sin_a * cos_a * T::from_f64(2.0),
             k,
@@ -380,15 +380,15 @@ impl<T: Real> ConicBranch<T> {
     /// The branch's vertex.
     #[must_use]
     pub fn vertex(&self) -> Point3<T> {
-        self.frame.origin
+        self.frame.origin()
     }
 
     /// The branch's point at slope `μ` from its vertex (module docs).
     #[must_use]
     pub fn point(&self, mu: T) -> Point3<T> {
         let d = self.k * mu.powi(2) + self.cos2;
-        self.frame.origin
-            + self.frame.u_ref * (self.l * mu.powi(2) / d)
+        self.frame.origin()
+            + self.frame.u_ref() * (self.l * mu.powi(2) / d)
             + self.frame.v_ref() * (self.l * mu / d)
     }
 
@@ -432,8 +432,8 @@ impl<T: Real> ConicBranch<T> {
     fn hyperbolic_point(&self, e: T) -> Point3<T> {
         let two = T::from_f64(2.0);
         let sh = (e - T::one() / e) / two;
-        self.frame.origin
-            + self.frame.u_ref * (T::zero() - self.l * sh.powi(2) / self.k)
+        self.frame.origin()
+            + self.frame.u_ref() * (T::zero() - self.l * sh.powi(2) / self.k)
             + self.frame.v_ref() * (self.conjugate() * (e.powi(2) - T::one() / e.powi(2)) / two)
     }
 
@@ -450,7 +450,7 @@ impl<T: Real> ConicBranch<T> {
         let eta = self.conjugate() * ((e0 * e1 - T::one() / (e0 * e1)) / two) / ch;
         Span {
             ends: (self.hyperbolic_point(e0), self.hyperbolic_point(e1)),
-            shoulder: self.frame.origin + self.frame.u_ref * x + self.frame.v_ref() * eta,
+            shoulder: self.frame.origin() + self.frame.u_ref() * x + self.frame.v_ref() * eta,
             weight: ch,
         }
     }
@@ -460,8 +460,8 @@ impl<T: Real> ConicBranch<T> {
     fn parabolic_span(&self, m0: T, m1: T) -> Span<T> {
         Span {
             ends: (self.point(m0), self.point(m1)),
-            shoulder: self.frame.origin
-                + self.frame.u_ref * (self.l * m0 * m1 / self.cos2)
+            shoulder: self.frame.origin()
+                + self.frame.u_ref() * (self.l * m0 * m1 / self.cos2)
                 + self.frame.v_ref() * (self.l * (m0 + m1) * T::from_f64(0.5) / self.cos2),
             weight: T::one(),
         }

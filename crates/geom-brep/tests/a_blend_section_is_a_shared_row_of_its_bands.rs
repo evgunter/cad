@@ -59,17 +59,13 @@ fn junction(centre: Point3<f64>, big: f64, r: f64, heading: f64) -> Row<f64> {
     Row {
         walls: [
             Surface::Cylinder {
-                origin: spine,
-                axis: d,
+                frame: geom::Frame::new(spine, d, n),
                 radius: r,
-                u_ref: n,
             },
             Surface::Torus {
-                center: centre,
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(centre, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
                 major_radius: big,
                 minor_radius: r,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
         ],
         carrier: Curve3::circle(spine, -d, r, n),
@@ -93,16 +89,20 @@ fn cylinder_through_sphere(angle: f64, span: (f64, f64)) -> Row<f64> {
     Row {
         walls: [
             Surface::Cylinder {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             Surface::Sphere {
-                center: Point3::new(0.0, 0.0, -angle.tan()),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, -angle.tan()),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 radius: 1.0 / angle.cos(),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
         ],
         carrier: Curve3::circle(
@@ -127,15 +127,11 @@ fn cone_generator(before: f64, span: (f64, f64)) -> Row<f64> {
     Row {
         walls: [
             Surface::Cone {
-                apex,
-                axis: Vec3::new(0.0, 0.0, 1.0),
+                frame: geom::Frame::new(apex, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
                 half_angle: 30f64.to_radians(),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
             Surface::Plane {
-                origin: apex,
-                normal: Vec3::new(0.0, 1.0, 0.0),
-                u_ref: along,
+                frame: geom::Frame::new(apex, Vec3::new(0.0, 1.0, 0.0), along),
             },
         ],
         carrier: Curve3::line(apex - along * before, along),
@@ -162,15 +158,11 @@ fn chamfer_junction(centre: Point3<f64>, big: f64, s: f64, heading: f64) -> Row<
     Row {
         walls: [
             Surface::Plane {
-                origin: on_plane,
-                normal: (n + up).normalize(),
-                u_ref: d,
+                frame: geom::Frame::new(on_plane, (n + up).normalize(), d),
             },
             Surface::Cone {
-                apex: centre + up * (big - s),
-                axis: -up,
+                frame: geom::Frame::new(centre + up * (big - s), -up, n),
                 half_angle: core::f64::consts::FRAC_PI_4,
-                u_ref: n,
             },
         ],
         carrier: Curve3::line(on_plane, g / len),
@@ -199,7 +191,7 @@ fn stated<T: geom_core::Decide>(row: &Row<T>) -> Option<CurveSelector<T>> {
 }
 
 /// `row`'s edge certified under `selector`.
-fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn certify<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     row: &Row<T>,
     selector: CurveSelector<T>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
@@ -225,7 +217,7 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
 /// `row` certified under its stated shared row, with the contact class
 /// read by the certificate's own reading at the certificate's own lever
 /// (`edge_extent_inf` over the edge), over each wall's certified image.
-fn certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
+fn certified<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     row: &Row<T>,
 ) -> Result<RowContact, CertifyError> {
     let selector = stated(row).expect("both walls state the row and certify it");
@@ -248,10 +240,9 @@ fn certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
     };
     let [ka, kb] = pair.keys();
     let (ca, cb) = (cache(ka), cache(kb));
-    let ends = (row.carrier.eval(t0), row.carrier.eval(t1));
     geom_brep::analytic_row_contact(
         [(ka, &surfaces[ka], &ca), (kb, &surfaces[kb], &cb)],
-        geom_brep::edge_extent_inf(&row.carrier, t0, t1, ends),
+        geom_brep::edge_extent_inf(&row.carrier, t0, t1),
         band(),
     )
 }

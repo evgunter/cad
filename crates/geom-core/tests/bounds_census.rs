@@ -158,15 +158,6 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/geom-brep/src/carrier_net.rs",
-        subject: "carrier_span",
-        why: Payload(
-            "an edge interval's outer bracket ends (`outer_ends`) become the f64 span a \
-             closed-form carrier's chart-image schedule and enclosing net are built over, \
-             lifted back through `from_computed`; nothing branches on them",
-        ),
-    },
-    Site {
         path: "crates/geom-brep/src/edge_nurbs.rs",
         subject: "impl<T: Bounds> FeetRefusal<T>",
         why: Payload(
@@ -185,21 +176,6 @@ const ROSTER: &[Site] = &[
              Which runs are lines is read off the held structure's multiplicities, never off \
              the bracket",
         ),
-    },
-    Site {
-        path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "composite_form",
-        why: HandedOff("Track Q's; a private helper S88's census names"),
-    },
-    Site {
-        path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "exact",
-        why: HandedOff("Track Q's; a private helper S88's census names"),
-    },
-    Site {
-        path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "exact3",
-        why: HandedOff("Track Q's; a private helper S88's census names"),
     },
     Site {
         path: "crates/geom-core/src/dual.rs",
@@ -391,6 +367,18 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/reach.rs",
+        subject: "sure_below",
+        why: Selection(
+            "`sure`'s other side, whether a depth is certainly below `-escalate`. Its one \
+             reader, `screened`, takes it to choose which support vertices' depths it hands \
+             to `face_clearance_margin`, and that door, not this read, decides whether the \
+             request refuses, classifying the margin at the funnel. A vertex it does not \
+             certify is not read as a feature, the branch the f64 lane takes at the same \
+             value channel",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
         subject: "inside_bound",
         why: Selection(
             "the reach's inside reading of a face, a cell walk through `sure`. Each read \
@@ -548,11 +536,6 @@ const ROSTER: &[Site] = &[
             "a ball's box, for the extent scan and the crossing layer's touch reading: a \
              centre's and a radius's brackets into an f64 `bvh::Aabb`, padded, and stop",
         ),
-    },
-    Site {
-        path: "crates/topo/src/chart_region.rs",
-        subject: "definite_diag",
-        why: Payload("echoes a classified margin's conservative end into a diagnostic"),
     },
     Site {
         path: "crates/topo/src/chart_region.rs",

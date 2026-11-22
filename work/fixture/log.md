@@ -39,3 +39,4 @@ dispatched.
   here were re-pointed from `work/tint/` / `work/tcost/` in `cavity.rs`,
   `oracles.rs`, `hand_written_impl_census.rs` and `names/role.rs`.
   **Load:** 29.5/30.
+- 2026-11-20 — (tracker sweep) **HELPER merged in.** It held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size). Its 27 live rows moved here by `git mv`, ids and bodies unchanged, each with a dated Moved note; its charter and plan are the `## From HELPER` sections of `program.md` and `plan.md` (`docs/doc-ledger/helper-merges-into-fixture.md`). (tracker sweep)

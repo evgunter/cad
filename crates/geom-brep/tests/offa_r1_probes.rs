@@ -47,10 +47,8 @@ use geom_core::{Point3, Tol, Vec3};
 
 fn zcone(alpha: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 2.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -80,9 +78,14 @@ fn cone_apex_band_pushforward_crosses_nappes() {
     let v = 0.8; // v′ = v + d·cot α ≈ −0.759 < 0: crossed the apex
     let base = zcone(alpha);
     let minted = offset_surface(&base, d, band()).unwrap();
-    let Surface::Cone { apex, axis, .. } = minted else {
+    let Surface::Cone {
+        frame: carrier_frame,
+        ..
+    } = minted
+    else {
         panic!("cone offset must stay a cone");
     };
+    let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let u = 0.9;
     let p = base.eval(u, v);
     let n = base.normal(u, v); // v > 0: the chart normal IS the extended field here
@@ -110,21 +113,17 @@ fn cone_apex_band_pushforward_crosses_nappes() {
 fn realized_floor_at_scale_sphere_torus_and_negative_exact() {
     let d = -(1.0e16_f64 - 0.5); // rounds to −1e16; realized 0.0
     let sphere = Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0e16,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     };
     assert!(matches!(
         offset_surface(&sphere, d, band()),
         Err(OffsetError::RadiusFloor { .. })
     ));
     let torus = Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 3.0e16,
         minor_radius: 1.0e16,
-        u_ref: Vec3::unit_x(),
     };
     assert!(matches!(
         offset_surface(&torus, d, band()),
@@ -148,11 +147,9 @@ fn realized_floor_at_scale_sphere_torus_and_negative_exact() {
 #[test]
 fn ring_meters_the_realized_minor_at_scale() {
     let torus = || Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 1.0e16,
         minor_radius: 2.0,
-        u_ref: Vec3::unit_x(),
     };
     let d_cross = 1.0e16 - 2.0;
     assert!(matches!(
@@ -179,17 +176,20 @@ fn cone_alpha_near_edges_defining_equation() {
         for d in [0.25, -0.25] {
             let minted = offset_surface(&base, d, band()).unwrap();
             let Surface::Cone {
-                apex: base_apex, ..
+                frame: carrier_frame,
+                ..
             } = base
             else {
                 unreachable!()
             };
+            let base_apex = carrier_frame.origin();
             let Surface::Cone {
-                apex, half_angle, ..
+                frame, half_angle, ..
             } = minted
             else {
                 panic!("cone offset must stay a cone");
             };
+            let apex = frame.origin();
             assert_eq!(half_angle.to_bits(), alpha.to_bits());
             let slide = d / alpha.sin();
             let tol = 64.0 * f64::EPSILON * slide.abs().max(1.0);
@@ -237,10 +237,8 @@ fn tiny_and_huge_radii_defining_equation() {
     // r = 1e12 sphere, d = ±1.0.
     for d in [1.0, -1.0] {
         let base = Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0e12,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         let minted = offset_surface(&base, d, band()).unwrap();
         let q = minted.eval(0.9, 0.4);
@@ -310,22 +308,24 @@ mod interval {
 
     fn icyl(radius: Interval) -> Surface<Interval> {
         Surface::Cylinder {
-            origin: Point3::new(
-                Interval::from_f64(0.0),
-                Interval::from_f64(0.0),
-                Interval::from_f64(0.0),
-            ),
-            axis: Vec3::new(
-                Interval::from_f64(0.0),
-                Interval::from_f64(0.0),
-                Interval::from_f64(1.0),
+            frame: geom::Frame::new(
+                Point3::new(
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                ),
+                Vec3::new(
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(1.0),
+                ),
+                Vec3::new(
+                    Interval::from_f64(1.0),
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                ),
             ),
             radius,
-            u_ref: Vec3::new(
-                Interval::from_f64(1.0),
-                Interval::from_f64(0.0),
-                Interval::from_f64(0.0),
-            ),
         }
     }
 
@@ -340,28 +340,35 @@ mod interval {
             core::f64::consts::FRAC_PI_6 + 1.0e-3,
         );
         let cone = Surface::Cone {
-            apex: Point3::new(
-                Interval::from_f64(0.0),
-                Interval::from_f64(0.0),
-                Interval::from_f64(2.0),
-            ),
-            axis: Vec3::new(
-                Interval::from_f64(0.0),
-                Interval::from_f64(0.0),
-                Interval::from_f64(1.0),
+            frame: geom::Frame::new(
+                Point3::new(
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(2.0),
+                ),
+                Vec3::new(
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(1.0),
+                ),
+                Vec3::new(
+                    Interval::from_f64(1.0),
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                ),
             ),
             half_angle: Interval::from_bounds(lo, hi),
-            u_ref: Vec3::new(
-                Interval::from_f64(1.0),
-                Interval::from_f64(0.0),
-                Interval::from_f64(0.0),
-            ),
         };
         let d = 0.5;
         let minted = offset_surface(&cone, Interval::from_f64(d), band()).unwrap();
-        let Surface::Cone { apex, .. } = minted else {
+        let Surface::Cone {
+            frame: carrier_frame,
+            ..
+        } = minted
+        else {
             panic!("cone offset must stay a cone");
         };
+        let apex = carrier_frame.origin();
         for a in [lo, hi] {
             let z = 2.0 - d / a.sin();
             assert!(
@@ -379,23 +386,25 @@ mod interval {
     #[test]
     fn ring_straddle_escalates_definite_refuses() {
         let torus = Surface::Torus {
-            center: Point3::new(
-                Interval::from_f64(0.0),
-                Interval::from_f64(0.0),
-                Interval::from_f64(0.0),
-            ),
-            axis: Vec3::new(
-                Interval::from_f64(0.0),
-                Interval::from_f64(0.0),
-                Interval::from_f64(1.0),
+            frame: geom::Frame::new(
+                Point3::new(
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                ),
+                Vec3::new(
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(1.0),
+                ),
+                Vec3::new(
+                    Interval::from_f64(1.0),
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                ),
             ),
             major_radius: Interval::from_f64(2.0),
             minor_radius: Interval::from_f64(1.0),
-            u_ref: Vec3::new(
-                Interval::from_f64(1.0),
-                Interval::from_f64(0.0),
-                Interval::from_f64(0.0),
-            ),
         };
         match offset_surface(&torus, Interval::from_bounds(0.99, 1.01), band()) {
             Err(OffsetError::Escalated { source }) => {

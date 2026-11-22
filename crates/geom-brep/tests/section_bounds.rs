@@ -51,9 +51,7 @@ fn plane(q: Point3<f64>, n: Vec3<f64>) -> Surface<f64> {
         Vec3::unit_y()
     };
     Surface::Plane {
-        origin: q,
-        normal: n,
-        u_ref: (u - n * u.dot(n)).normalize(),
+        frame: geom::Frame::new(q, n, (u - n * u.dot(n)).normalize()),
     }
 }
 
@@ -64,29 +62,23 @@ fn cylinder(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Surface<f64> {
         Vec3::unit_y()
     };
     Surface::Cylinder {
-        origin,
-        axis,
+        frame: geom::Frame::new(origin, axis, (u - axis * u.dot(axis)).normalize()),
         radius,
-        u_ref: (u - axis * u.dot(axis)).normalize(),
     }
 }
 
 fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center,
+        frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
 /// The cone of half-angle `alpha` about `z` with its apex at `(0, 0, 1)`.
 fn cone(alpha: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: p(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(p(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         half_angle: alpha,
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -94,27 +86,25 @@ fn cone(alpha: f64) -> Surface<f64> {
 /// there (for the cone, the normal of the nearer generator's plane).
 fn measure(s: &Surface<f64>, y: Point3<f64>) -> (f64, Vec3<f64>) {
     match *s {
-        Surface::Plane { origin, normal, .. } => ((y - origin).dot(normal).abs(), normal),
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            ((y - origin).dot(normal).abs(), normal)
+        }
+        Surface::Cylinder { frame, radius, .. } => {
+            let (origin, axis) = (frame.origin(), frame.axis());
             let v = y - origin;
             let r = v - axis * v.dot(axis);
             ((r.norm() - radius).abs(), r.normalize())
         }
-        Surface::Sphere { center, radius, .. } => {
+        Surface::Sphere { frame, radius, .. } => {
+            let center = frame.origin();
             let v = y - center;
             ((v.norm() - radius).abs(), v.normalize())
         }
         Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
+            frame, half_angle, ..
         } => {
+            let (apex, axis) = (frame.origin(), frame.axis());
             let v = y - apex;
             let z = v.dot(axis);
             let radial = v - axis * z;
@@ -143,7 +133,12 @@ fn measure(s: &Surface<f64>, y: Point3<f64>) -> (f64, Vec3<f64>) {
 /// carrier; and at 129 of them, along 32 directions of the normal plane
 /// and at 6 distances across the moat `(radius, radius + clearance]`, the
 /// point is farther than ε from one of the surfaces.
-fn encloses(what: &str, carrier: &NurbsCurve3<f64>, s1: &Surface<f64>, s2: &Surface<f64>) {
+fn encloses(
+    what: &str,
+    carrier: &NurbsCurve3<f64>,
+    s1: &Surface<f64>,
+    s2: &Surface<f64>,
+) -> (f64, f64) {
     let band = band();
     let eps = band.zero();
     let (lo, hi) = carrier.domain();
@@ -189,6 +184,47 @@ fn encloses(what: &str, carrier: &NurbsCurve3<f64>, s1: &Surface<f64>, s2: &Surf
             }
         }
     }
+    (bounds.sin_floor, truth)
+}
+
+/// [`encloses`], and the floor within `within` of the sampled minimum
+/// `s` (relatively), plus the stretch's pad: the floors are read over
+/// boxes padded by `32ε/s₀`, across which `sin θ` moves by up to about
+/// `32ε·|∇cos θ|/s²`, under `200ε/s³` on these rows. A floor that reads
+/// the net rather than the carrier, or a closed form off by a term, falls
+/// past it. Where the pad's allowance reaches the floor itself the
+/// stretch's padded boxes may reach the tangency, and the pose may state
+/// nothing instead (and owes the tube); that is printed, not asserted.
+fn tightly(
+    what: &str,
+    within: f64,
+    carrier: &NurbsCurve3<f64>,
+    s1: &Surface<f64>,
+    s2: &Surface<f64>,
+) {
+    let band = band();
+    let near = (0..=2048)
+        .map(|i| {
+            let (lo, hi) = carrier.domain();
+            let y = carrier.eval(lo + (hi - lo) * f64::from(i) / 2048.0);
+            measure(s1, y).1.cross(measure(s2, y).1).norm()
+        })
+        .fold(f64::INFINITY, f64::min);
+    let pad = 200.0 * band.zero() / near.powi(3);
+    if pad >= 1.0
+        && let Err(e @ Unstated::Pose(_)) = tube_bounds(carrier, carrier.domain(), s1, s2, band)
+    {
+        println!(
+            "[measured] {what}: the pad's allowance is {pad:e}, and the pose states nothing: {e}"
+        );
+        return;
+    }
+    let (floor, truth) = encloses(what, carrier, s1, s2);
+    assert!(
+        floor >= truth * (1.0 - within - pad),
+        "{what}: the floor {floor:e} is not within {within:e} + {pad:e} of the sampled sin θ \
+         {truth:e}"
+    );
 }
 
 /// The open conic of `plane(q, n)` and `cone(alpha)`.
@@ -454,16 +490,229 @@ fn general_poses_state_floors_under_the_section() {
     );
 }
 
+/// A unit frame `(e₁, e₂)` normal to the unit `axis`.
+fn normal_frame(axis: Vec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
+    let u = if axis.x.abs() < 0.9 {
+        Vec3::unit_x()
+    } else {
+        Vec3::unit_y()
+    };
+    let e1 = (u - axis * u.dot(axis)).normalize();
+    (e1, axis.cross(e1))
+}
+
+/// A branch of the section of the sphere `(c, rs)` and the cylinder
+/// `(o, axis, rc)` over the cylinder's angle `window` about `o` in
+/// [`normal_frame`]: at each angle the cylinder's ruling meets the sphere
+/// at `t = −q·â + √((q·â)² − ‖q‖² + rs²)` along `â` (`q` the ruling's foot
+/// from `c`). The cubic Hermite interpolant of the exact section on 1000
+/// pieces (C¹, knots tripled), within about `h⁴/384` times the section's
+/// fourth derivative of it.
+fn sphere_cylinder_branch(
+    (c, rs): (Point3<f64>, f64),
+    (o, axis, rc): (Point3<f64>, Vec3<f64>, f64),
+    window: (f64, f64),
+) -> NurbsCurve3<f64> {
+    let axis = axis.normalize();
+    let (e1, e2) = normal_frame(axis);
+    let at = |phi: f64| {
+        let radial = e1 * (rc * phi.cos()) + e2 * (rc * phi.sin());
+        let q = (o - c) + radial;
+        let qa = q.dot(axis);
+        let t = -qa + (qa * qa - q.dot(q) + rs * rs).sqrt();
+        let dq = e1 * (-rc * phi.sin()) + e2 * (rc * phi.cos());
+        let dt = -q.dot(dq) / (t + qa);
+        (o + radial + axis * t, dq + axis * dt)
+    };
+    let n = 1000;
+    let h = (window.1 - window.0) / f64::from(n);
+    let mut knots = vec![window.0; 4];
+    let mut control = vec![at(window.0).0];
+    for i in 0..n {
+        let (a, b) = (window.0 + h * f64::from(i), window.0 + h * f64::from(i + 1));
+        let ((pa, da), (pb, db)) = (at(a), at(b));
+        control.extend([pa + da * (h / 3.0), pb - db * (h / 3.0), pb]);
+        knots.extend(if i + 1 == n {
+            vec![window.1; 4]
+        } else {
+            vec![b; 3]
+        });
+    }
+    let weights = vec![1.0; control.len()];
+    NurbsCurve3::new(KnotVector::clamped(knots, 3).unwrap(), control, weights).unwrap()
+}
+
+/// **Sphere × cylinder states its floor, tightly, in either order**: a
+/// coaxial pair's circle (`cos θ = R_c/Rₛ`) at a wide crossing and at a
+/// near tangent; the ball and rod of the seam-region rows; an axis tilted
+/// off the coordinate planes with its anchor far along it, the same far
+/// from the origin with its anchor far back; a cylinder wider than the
+/// sphere; and a graze from outside, whose loop stands about 0.014 off
+/// the plane of tangency.
+#[test]
+fn sphere_by_cylinder_states_its_floor_in_either_order() {
+    let ball = sphere(p(0.0, 0.0, 0.0), 1.0);
+    for rc in [0.6_f64, 0.999] {
+        let h = (1.0 - rc * rc).sqrt();
+        let carrier = mapped_arc(
+            (0.0, 1.2),
+            |x, y| Vec3::new(rc * x, rc * y, 0.0),
+            p(0.0, 0.0, h),
+        );
+        let wall = cylinder(p(0.0, 0.0, -2.0), Vec3::unit_z(), rc);
+        let what = format!("coaxial, R_c {rc}");
+        tightly(
+            &format!("{what}, sphere first"),
+            1e-9,
+            &carrier,
+            &ball,
+            &wall,
+        );
+        tightly(
+            &format!("{what}, cylinder first"),
+            1e-9,
+            &carrier,
+            &wall,
+            &ball,
+        );
+    }
+    let tilted = Vec3::new(0.7, 1.9, 1.0).normalize();
+    let far = p(-4e2, 5e2, 3e2);
+    let skew = Vec3::new(2.3, -0.4, 1.0).normalize();
+    let (fe1, _) = normal_frame(skew);
+    // (what, sphere, cylinder anchor on the axis, the anchor stored, axis, R_c,
+    // window, how close the floor comes). The graze's `sin θ ≈ 0.014` reads
+    // `cos θ`'s spread over a piece's box magnified by `cos θ/sin θ ≈ 70`.
+    let poses = [
+        (
+            "the ball and the rod",
+            (p(0.0, 0.0, 0.0), 1.0),
+            p(0.1, 0.0, 0.0),
+            0.0,
+            Vec3::unit_z(),
+            0.3,
+            (-2.5, 2.0),
+            1e-4,
+        ),
+        (
+            "a tilted axis anchored far along it",
+            (p(0.0, 0.0, 0.0), 1.0),
+            p(0.0, 0.0, 0.0) + normal_frame(tilted).0 * 0.2,
+            50.0,
+            tilted,
+            0.5,
+            (-2.0, 2.0),
+            1e-4,
+        ),
+        (
+            "a skew axis far off, anchored far back",
+            (far, 1.0),
+            far + fe1 * 0.3,
+            -50.0,
+            skew,
+            0.4,
+            (-2.0, 2.0),
+            1e-4,
+        ),
+        (
+            "a cylinder wider than the sphere",
+            (p(0.0, 0.0, 0.0), 1.0),
+            p(1.2, 0.0, 0.0),
+            0.0,
+            Vec3::unit_z(),
+            1.5,
+            (2.6, 3.6),
+            1e-4,
+        ),
+        (
+            "an outside graze",
+            (p(0.0, 0.0, 0.0), 1.0),
+            p(1.4999, 0.0, 0.0),
+            0.0,
+            Vec3::unit_z(),
+            0.5,
+            (3.13, 3.153),
+            5e-2,
+        ),
+    ];
+    for (what, (c, rs), on_axis, shift, axis, rc, window, within) in poses {
+        let carrier = sphere_cylinder_branch((c, rs), (on_axis, axis, rc), window);
+        let wall = cylinder(on_axis + axis * shift, axis, rc);
+        let ball = sphere(c, rs);
+        tightly(
+            &format!("{what}, sphere first"),
+            within,
+            &carrier,
+            &ball,
+            &wall,
+        );
+        tightly(
+            &format!("{what}, cylinder first"),
+            within,
+            &carrier,
+            &wall,
+            &ball,
+        );
+    }
+}
+
+/// The plane `z = slope·x` × the cylinder of radius `r` about `z`, the
+/// whole ellipse as a rational quadratic of `n` equal spans, each the
+/// image of an arc of `τ/n` of the circle, the ellipse's highest point
+/// (where the crossing is steepest, `sin θ = 1/√(1 + slope²)`) mid-span.
+fn tilted_ellipse(n: u32, r: f64, slope: f64) -> NurbsCurve3<f64> {
+    let half = core::f64::consts::PI / f64::from(n);
+    let on = |phi: f64, scale: f64| {
+        let (x, y) = (scale * r * phi.cos(), scale * r * phi.sin());
+        p(x, y, slope * x)
+    };
+    let mut knots = vec![0.0; 3];
+    let mut control = vec![on(-half, 1.0)];
+    let mut weights = vec![1.0];
+    for k in 0..n {
+        let mid = 2.0 * half * f64::from(k);
+        control.extend([on(mid, 1.0 / half.cos()), on(mid + half, 1.0)]);
+        weights.extend([half.cos(), 1.0]);
+        knots.extend(if k + 1 == n {
+            vec![f64::from(n); 3]
+        } else {
+            vec![f64::from(k + 1); 2]
+        });
+    }
+    NurbsCurve3::new(KnotVector::clamped(knots, 2).unwrap(), control, weights).unwrap()
+}
+
+/// **A coarse carrier's spans are cut as finely as its stretch asks**: a
+/// plane × cylinder ellipse of 3 and of 9 rational spans, its steepest
+/// crossing mid-span, states a floor at the sampled minimum at every
+/// slope, the steep ones (8, 20) included, where a span read whole
+/// overshoots past any floor.
+#[test]
+fn a_coarse_carriers_extremum_mid_span_is_read_tightly() {
+    let r = 0.5;
+    let wall = cylinder(p(0.0, 0.0, -2.0), Vec3::unit_z(), r);
+    for n in [3, 9] {
+        for slope in [0.7, 3.0, 8.0, 20.0] {
+            let cut = plane(p(0.0, 0.0, 0.0), Vec3::new(-slope, 0.0, 1.0));
+            tightly(
+                &format!("{n} spans at slope {slope}"),
+                1e-3,
+                &tilted_ellipse(n, r, slope),
+                &cut,
+                &wall,
+            );
+        }
+    }
+}
+
 /// **The torus rows owe the tube**: a plane×torus section states no
 /// bounds.
 #[test]
 fn a_torus_section_states_nothing() {
     let torus = Surface::Torus {
-        center: p(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(p(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         major_radius: 1.25,
         minor_radius: 0.25,
-        u_ref: Vec3::unit_x(),
     };
     let carrier = mapped_arc((0.0, 1.0), |x, y| Vec3::new(x, y, 0.0), p(0.0, 0.0, 0.0));
     let got = tube_bounds(
@@ -524,8 +773,9 @@ fn a_second_component_inside_the_tube_owes_it_and_refuses() {
 /// sweep near the apex where limb 2 still holds and the section is still
 /// minted past the escalation), the arc's vertex stands `d/tan α ≈ 9e-6`
 /// above the apex, under the stretch's pad: the padded stretch straddles
-/// the apex's height, so the section states nothing, and the edge
-/// refuses naming the cone, which no tube encloses.
+/// the apex's height, so the section states nothing. The edge owes the
+/// tube, and every box of its chain straddles the apex's height, off
+/// the cone arm's gate: the ladder answers nothing (`ProbeSilent`).
 #[test]
 fn a_stretch_at_the_apex_height_owes_the_tube_and_refuses() {
     let wide = Band::new(1e-6, 1e-5).unwrap();
@@ -554,10 +804,13 @@ fn a_stretch_at_the_apex_height_owes_the_tube_and_refuses() {
     let got = geom_brep::analytic_rung3(&arc, arc.domain(), &plane(q, n), &cone(alpha), wide);
     assert_eq!(
         got,
-        Err(AnalyticRung3Refusal::NoTubeEnclosure {
-            operand: geom::SurfaceKind::Cone
-        }),
-        "the edge owes the tube and refuses naming the cone"
+        Err(AnalyticRung3Refusal::Tube(
+            geom_brep::edge_nurbs::TubeRefusal::ProbeSilent {
+                rungs: 1,
+                refused: 1
+            }
+        )),
+        "the edge owes the tube and its every box is off the cone's gate"
     );
 }
 
@@ -633,20 +886,22 @@ fn over_a_box_the_bounds_hold_for_every_member_or_are_not_stated() {
     let wall = cone(alpha).map_scalar(geom_core::Real::from_f64);
     for (width, states) in [(1e-13, true), (1e-3, false)] {
         let cut = Surface::Plane {
-            origin: Point3::new(
-                Interval::from_bounds(d - width, d + width),
-                Interval::from_bounds(0.0, 0.0),
-                Interval::from_bounds(0.0, 0.0),
-            ),
-            normal: Vec3::new(
-                Interval::from_bounds(1.0, 1.0),
-                Interval::from_bounds(0.0, 0.0),
-                Interval::from_bounds(0.0, 0.0),
-            ),
-            u_ref: Vec3::new(
-                Interval::from_bounds(0.0, 0.0),
-                Interval::from_bounds(1.0, 1.0),
-                Interval::from_bounds(0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(
+                    Interval::from_bounds(d - width, d + width),
+                    Interval::from_bounds(0.0, 0.0),
+                    Interval::from_bounds(0.0, 0.0),
+                ),
+                Vec3::new(
+                    Interval::from_bounds(1.0, 1.0),
+                    Interval::from_bounds(0.0, 0.0),
+                    Interval::from_bounds(0.0, 0.0),
+                ),
+                Vec3::new(
+                    Interval::from_bounds(0.0, 0.0),
+                    Interval::from_bounds(1.0, 1.0),
+                    Interval::from_bounds(0.0, 0.0),
+                ),
             ),
         };
         let got = tube_bounds(&lifted, params, &cut, &wall, band);

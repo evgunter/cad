@@ -247,9 +247,10 @@ class TestEvaluation(unittest.TestCase):
             evaluate(doc).value(profile_node).body()
         self.assertEqual(caught.exception.reason, "wrong_kind")
 
-    def test_an_extrude_goes_up_its_own_z_and_a_depth_is_a_size(self):
-        # An extrude lies in its own coordinates, from its profile's xy
-        # up its own +z; a depth is a size, so no sign turns it over.
+    def test_an_extrude_goes_along_its_own_z_by_a_signed_depth(self):
+        # An extrude lies in its own coordinates, between its profile's
+        # xy and the depth along its own z: a + depth above the plane, a
+        # - depth below it, and a zero depth refuses.
         doc = Doc()
         profile = doc.insert(
             Node.polygon(
@@ -266,11 +267,14 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual({p[2].meters for p in body.tessellate(1 * m).positions}, {0.0, 2.0})
 
         doc.apply(DocEdit.set_param(block, "distance", Formula.literal(-2 * m)))
+        body = evaluate(doc).value(block).body()
+        self.assertEqual({p[2].meters for p in body.tessellate(1 * m).positions}, {-2.0, 0.0})
+
+        doc.apply(DocEdit.set_param(block, "distance", Formula.literal(0 * m)))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(block)
         self.assertEqual(caught.exception.kind, "extrude")
-        self.assertEqual(caught.exception.inner_kind, "negative_depth")
-        self.assertIn("a depth is a size", str(caught.exception))
+        self.assertEqual(caught.exception.inner_kind, "degenerate_extrusion")
 
     def test_boolean_union_through_the_document(self):
         # The post is strictly interior in x and y and pokes out of the
@@ -770,10 +774,12 @@ class TestStepExport(unittest.TestCase):
         and each record row spells out its own payload.
 
         The exported box states no assembly and needs no re-minting, so
-        two of the three lists are empty and the third is not: the
-        assembly record is kept whether or not the file states one,
-        which is what makes `instances` an answer rather than a
-        leftover.
+        its promotions are empty and its ledger holds only the lines the
+        build anchors at their own point nearest the origin where the
+        file printed another point of the same line (`carrier_built`,
+        moved by nothing); the assembly record is kept whether or not the
+        file states one, which is what makes `instances` an answer rather
+        than a leftover.
         """
         doc = Doc()
         box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
@@ -781,7 +787,9 @@ class TestStepExport(unittest.TestCase):
         self.assertIsInstance(report.body, pncad.Body)
         self.assertIsInstance(report.measure(PINNED), pncad.MassMeasurement)
         self.assertGreater(report.eps_in, 0.0)
-        self.assertEqual(report.normalizations, [])
+        for row in report.normalizations:
+            self.assertEqual(row.kind, "carrier_built", row)
+            self.assertEqual(row.moved_by, 0.0, row)
         self.assertEqual(report.promotions, [])
         self.assertEqual(len(report.instances), 1, "one row per solid")
 
