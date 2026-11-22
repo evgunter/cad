@@ -2,11 +2,13 @@
 id: the-vertex-alone-plane-leans-along-a-cells-long-metric-side-so-an-anisotropic-pair-splits
 kind: issue
 title: planes_through's plane at a shared vertex alone is taken across the rectangles' midpoint headings, so on an anisotropic chart it leans along the cell's long metric side and a strictly separable pair splits to the floor
-status: open
+status: dispatched
 opened: 2026-11-17
 priority: P0
 cost: M
 refs: [departure-reads-no-curved-corner-off-its-shared-edge]
+pr: 7318
+branch: embed/vertex-bisector
 ---
 
 ## Finding

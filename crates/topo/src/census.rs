@@ -315,7 +315,7 @@ use std::collections::BTreeSet;
 use crate::live::NAMES_ONLY_LIVE;
 use bvh::{Aabb, Bvh};
 use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, Span as CarrierSpan, meet};
-use geom_core::k_stats::{Magnitude, decide_reported, straddle};
+use geom_core::k_stats::{Magnitude, QuerySite, decide_reported, straddle};
 use geom_core::ladder::{Aborts, Answering, Climb, Evidence, Refusal, Rung, climb, climb_evidence};
 use geom_core::one_line::on_one_line;
 use geom_core::{
@@ -391,8 +391,12 @@ struct Span<T: Real> {
 }
 
 impl<T: Real> Span<T> {
-    fn len(&self) -> T {
-        self.at.1 - self.at.0
+    /// The span's extent, read off its line over `at`.
+    fn extent(&self) -> geom_core::Lever<T>
+    where
+        T: geom_core::spline::SpanLocate,
+    {
+        geom_brep::edge_extent_inf(&geom::Curve3::Line(self.line()), self.at.0, self.at.1)
     }
 
     /// The line it is a span of, `s` its parameter.
@@ -700,21 +704,85 @@ impl Class {
     /// of the snapshot order, independent of tree shape
     /// ([`Bvh::overlapping`]'s contract); every item where nothing
     /// prunes.
-    fn overlapping(&self, query: &Aabb) -> Vec<usize> {
+    fn overlapping(&self, site: QuerySite, query: &Aabb) -> Vec<usize> {
         match &self.tree {
-            Some(tree) => tree.overlapping(query),
+            Some(tree) => tree.overlapping(site, query),
             None => (0..self.boxes.len()).collect(),
         }
     }
 
     /// The items after `i` whose box overlaps item `i`'s — the
     /// self-join of a class, ascending.
-    fn later(&self, i: usize) -> Vec<usize> {
-        let mut out = self.overlapping(self.query(i));
+    fn later(&self, site: QuerySite, i: usize) -> Vec<usize> {
+        let mut out = self.overlapping(site, self.query(i));
         out.retain(|&j| j > i);
         out
     }
 }
+
+// The census's box queries, one site per call ([`Class::overlapping`]).
+const COLLINEAR_EDGES: QuerySite = QuerySite::new(
+    "census_collinear_edges",
+    "the later edges whose boxes meet an edge's, read for collinear overlaps",
+);
+const VERTEX_VERTEX: QuerySite = QuerySite::new(
+    "census_vertex_vertex",
+    "the later vertices whose boxes meet a vertex's",
+);
+const VERTEX_EDGE: QuerySite = QuerySite::new(
+    "census_vertex_edge",
+    "the straight edges whose boxes meet a vertex's",
+);
+const VERTEX_CURVED_EDGE: QuerySite = QuerySite::new(
+    "census_vertex_curved_edge",
+    "the curved edges whose boxes meet a vertex's",
+);
+const VERTEX_FACE: QuerySite = QuerySite::new(
+    "census_vertex_face",
+    "the faces whose boxes meet a vertex's",
+);
+const EDGE_FACE: QuerySite =
+    QuerySite::new("census_edge_face", "the faces whose boxes meet an edge's");
+const EDGE_IN_CURVED_FACE: QuerySite = QuerySite::new(
+    "census_edge_in_curved_face",
+    "the faces whose boxes meet an edge's, read for an edge lying in a curved face",
+);
+const EDGE_EDGE: QuerySite = QuerySite::new(
+    "census_edge_edge",
+    "the later edges whose boxes meet an edge's",
+);
+const CURVED_EDGE_LINE: QuerySite = QuerySite::new(
+    "census_curved_edge_line",
+    "the straight edges whose boxes meet a curved edge's",
+);
+const CURVED_EDGE_CURVED: QuerySite = QuerySite::new(
+    "census_curved_edge_curved",
+    "the later curved edges whose boxes meet a curved edge's",
+);
+const PLANAR_FACE_PAIRS: QuerySite = QuerySite::new(
+    "census_planar_face_pairs",
+    "the later faces whose boxes meet a face's, read for planar face pairs",
+);
+const CURVED_SAME_SIDE: QuerySite = QuerySite::new(
+    "census_curved_same_side",
+    "the later faces whose boxes meet a face's, read for curved faces on one side",
+);
+const TANGENT_LINES: QuerySite = QuerySite::new(
+    "census_tangent_lines",
+    "the later faces whose boxes meet a face's, read for tangent lines on one solid",
+);
+const BACKSTOP_REACHES: QuerySite = QuerySite::new(
+    "census_backstop_reaches",
+    "the later reaches whose boxes meet a reach's, across solids",
+);
+const BACKSTOP_SOLIDS: QuerySite = QuerySite::new(
+    "census_backstop_solids",
+    "the later solids whose extents meet a solid's",
+);
+const FLUSH_PAIRS: QuerySite = QuerySite::new(
+    "census_flush_pairs",
+    "the later faces whose boxes meet a face's, read for flush pairs",
+);
 
 /// The empty box: overlaps nothing, so the face it stands for is
 /// examined against nothing — the planted degradation the
@@ -2451,7 +2519,7 @@ pub(crate) fn collinear_overlaps<T: Decide + Bounds>(
     );
     let mut found = Vec::new();
     for (i, ea) in edges.iter().enumerate() {
-        for j in class.later(i) {
+        for j in class.later(COLLINEAR_EDGES, i) {
             let eb = candidate(&edges, j);
             let mut errors = Vec::new();
             let Some(overlap) = parallel_overlap(ea, eb, band, &mut errors) else {
@@ -3050,7 +3118,7 @@ fn sweep_vertex_vertex<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(ka, pa)) in geo.verts.iter().enumerate() {
-        for j in cands.trees.verts.later(i) {
+        for j in cands.trees.verts.later(VERTEX_VERTEX, i) {
             let &(kb, pb) = candidate(&geo.verts, j);
             let found = declared.absorb(
                 pass,
@@ -3123,7 +3191,11 @@ fn sweep_vertex_edge<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(vk, q)) in geo.verts.iter().enumerate() {
-        for j in cands.trees.edges.overlapping(cands.trees.verts.query(i)) {
+        for j in cands
+            .trees
+            .edges
+            .overlapping(VERTEX_EDGE, cands.trees.verts.query(i))
+        {
             let e = candidate(&geo.edges, j);
             if vk == e.v0 || vk == e.v1 {
                 continue; // structural adjacency
@@ -3219,7 +3291,11 @@ fn sweep_vertex_curved_edge<T: Decide>(
         })
         .collect();
     for (i, &(vk, q)) in geo.verts.iter().enumerate() {
-        for j in cands.trees.curved.overlapping(cands.trees.verts.query(i)) {
+        for j in cands
+            .trees
+            .curved
+            .overlapping(VERTEX_CURVED_EDGE, cands.trees.verts.query(i))
+        {
             let Some((ek, ends, sides)) = *candidate(&edges, j) else {
                 continue;
             };
@@ -3463,7 +3539,11 @@ fn sweep_vertex_face<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(vk, q)) in geo.verts.iter().enumerate() {
-        for j in cands.trees.faces.overlapping(cands.trees.verts.query(i)) {
+        for j in cands
+            .trees
+            .faces
+            .overlapping(VERTEX_FACE, cands.trees.verts.query(i))
+        {
             let f = candidate(&geo.faces, j);
             if f.boundary.contains(&vk) {
                 continue; // structural adjacency
@@ -3745,7 +3825,11 @@ fn sweep_edge_face<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, e) in geo.edges.iter().enumerate() {
-        for j in cands.trees.faces.overlapping(cands.trees.edges.query(i)) {
+        for j in cands
+            .trees
+            .faces
+            .overlapping(EDGE_FACE, cands.trees.edges.query(i))
+        {
             let f = candidate(&geo.faces, j);
             if f.key == e.f_plus || f.key == e.f_minus {
                 continue; // structural adjacency
@@ -4587,7 +4671,7 @@ fn sweep_edge_in_curved_face<T: Decide>(
         for j in cands
             .trees
             .every_face
-            .overlapping(cands.trees.edges.query(i))
+            .overlapping(EDGE_IN_CURVED_FACE, cands.trees.edges.query(i))
         {
             let f = cands.every_face[j];
             if f == e.f_plus
@@ -4716,8 +4800,8 @@ fn edge_in_curved_face<T: Decide>(
     for sheet in [w.own, w.next] {
         match decide(
             "pm_census_ef_curved_wall_side",
-            // Unsourced lever: the wedge's arm, `sector_shape`'s shorter scaled sheet (each about
-            // the line edge's chord); the chord's own extent read rounds differently.
+            // Unsourced lever: the wedge's arm, `SectorShape::arm`, the shorter of the two sheets
+            // as scaled by the edge's length; it waits on that record (the metering-arm family).
             Margin::levered(sheet.dot(floor), geom_core::Lever::unsourced(w.arm)),
             band,
         ) {
@@ -5116,7 +5200,7 @@ fn sweep_edge_edge<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, ea) in geo.edges.iter().enumerate() {
-        for j in cands.trees.edges.later(i) {
+        for j in cands.trees.edges.later(EDGE_EDGE, i) {
             let eb = candidate(&geo.edges, j);
             let found = declared.absorb(
                 pass,
@@ -5254,14 +5338,14 @@ fn sweep_curved_edge_edge<T: Decide>(
         let others = cands
             .trees
             .edges
-            .overlapping(query)
+            .overlapping(CURVED_EDGE_LINE, query)
             .into_iter()
             .map(|j| *candidate(&lines, j))
             .chain(
                 cands
                     .trees
                     .curved
-                    .later(i)
+                    .later(CURVED_EDGE_CURVED, i)
                     .into_iter()
                     .map(|j| *candidate(&curved, j)),
             );
@@ -5398,12 +5482,7 @@ fn parallel_reading<T: Decide>(
     let (a, b) = (a.span(), b.span());
     gap_is_zero_as(
         "pm_census_ee_parallel",
-        Margin::levered(
-            a.dir.cross(b.dir).norm(),
-            // Unsourced lever: the shorter straight span's parameter interval on its unit-direction
-            // line; no extent read takes a line's interval, and its chord read rounds differently.
-            geom_core::Lever::unsourced(a.len().min(b.len())),
-        ),
+        Margin::levered(a.dir.cross(b.dir).norm(), a.extent().min(b.extent())),
         band,
         errors,
     )
@@ -6500,7 +6579,7 @@ fn planar_face_pairs<T: crate::props::AtRestPolicy>(
     };
     let mut found = FacePairs::default();
     for (i, fa) in geo.faces.iter().enumerate() {
-        for j in cands.trees.faces.later(i) {
+        for j in cands.trees.faces.later(PLANAR_FACE_PAIRS, i) {
             let fb = candidate(&geo.faces, j);
             let (Some(sa), Some(sb)) = (body.solid_of_face(fa.key), body.solid_of_face(fb.key))
             else {
@@ -6650,7 +6729,7 @@ fn curved_same_side_pairs<T: Decide>(
     let mut out = CurvedSameSide::default();
     for (i, &fa) in cands.every_face.iter().enumerate() {
         let Some(ka) = kind(fa) else { continue };
-        for j in cands.trees.every_face.later(i) {
+        for j in cands.trees.every_face.later(CURVED_SAME_SIDE, i) {
             let fb = *candidate(&cands.every_face, j);
             if kind(fb) != Some(ka) {
                 continue;
@@ -7137,7 +7216,7 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
     let faces: Vec<Option<Candidate>> = cands.every_face.iter().map(|&f| read(f)).collect();
     for (i, x) in faces.iter().enumerate() {
         let Some(x) = x else { continue };
-        for j in cands.trees.every_face.later(i) {
+        for j in cands.trees.every_face.later(TANGENT_LINES, i) {
             let Some(y) = candidate(&faces, j) else {
                 continue;
             };
@@ -10346,7 +10425,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         .collect();
     let reach = cands.class(reach_boxes);
     for (i, a) in reaches.iter().enumerate() {
-        for j in reach.later(i) {
+        for j in reach.later(BACKSTOP_REACHES, i) {
             let b = candidate(&reaches, j);
             if a.solid == b.solid || !a.verts.is_disjoint(&b.verts) {
                 continue; // same instance / structural adjacency
@@ -10828,7 +10907,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         }
     }
     for (i, &(&sa, _)) in solids.iter().enumerate() {
-        for j in extents.later(i) {
+        for j in extents.later(BACKSTOP_SOLIDS, i) {
             let &(&sb, _) = candidate(&solids, j);
             let before = errors.len();
             let coincident = coincident_pairs.get(&(sa.min(sb), sa.max(sb))).copied();
@@ -12093,7 +12172,7 @@ fn flush_pairs<T: crate::props::AtRestPolicy>(
         .collect();
     let mut out = FlushAtRest::default();
     for (i, &fa) in faces.iter().enumerate() {
-        for j in boxes.later(i) {
+        for j in boxes.later(FLUSH_PAIRS, i) {
             let fb = *candidate(faces, j);
             if kind(fa) != kind(fb) {
                 continue;

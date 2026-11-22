@@ -227,7 +227,7 @@ pub fn crossings<T: geom_core::Certifies>(
         Err(diag) => Reading::Near(Some(diag)),
     };
     let residual = |t: f64| -> Result<Sign, CompositeRefusal> {
-        let p = net.eval(T::from_computed(t));
+        let p = net.eval_at(t);
         decide(
             "spline_composite_root_on",
             Margin::of(crate::implicit_residual(surface, p)),
@@ -378,17 +378,16 @@ pub(crate) fn framed_form<T: geom_core::Certifies>(
             )
         }
         Surface::Cone { half_angle, .. } => {
-            let (sin, cos) = cross(half_angle).sin_cos();
+            let (sin, cos) = crate::implicit::cone_sin_cos(half_angle, cross);
             (
                 CanonicalSurface::Cone {
                     cos2: cos.powi(2),
                     sin2: sin.powi(2),
                 },
-                // The divisor is the double cone's and reads no nappe.
                 Meters::Cone {
                     sin,
                     cos,
-                    nappe: crate::offset::Nappe::Opening,
+                    locus: crate::pcurve_cache::projected::Locus::Carrier,
                 },
             )
         }
@@ -754,14 +753,11 @@ fn settle<T: geom_core::Certifies>(
             Err(diag) => Err(CompositeRefusal::Escalated(diag)),
         };
     let ends = [net.eval(t0), net.eval(t1)];
-    let creases: Vec<Point3<T>> = creases
-        .iter()
-        .map(|&k| net.eval(T::from_computed(k)))
-        .collect();
+    let creases: Vec<Point3<T>> = creases.iter().map(|&k| net.eval_at(k)).collect();
     let mut roots: Vec<(T, Point3<T>)> = Vec::with_capacity(meetings.len());
     for meeting in meetings {
         let (Meeting::Crossing(t) | Meeting::Touch(t, _)) = meeting;
-        let p = net.eval(T::from_computed(t));
+        let p = net.eval_at(t);
         for &crease in &creases {
             if !apart_as("spline_composite_root_at_crease", p, crease)? {
                 return Err(Unsettled::Crease.into());

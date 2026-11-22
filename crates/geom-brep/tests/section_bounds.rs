@@ -773,8 +773,9 @@ fn a_second_component_inside_the_tube_owes_it_and_refuses() {
 /// sweep near the apex where limb 2 still holds and the section is still
 /// minted past the escalation), the arc's vertex stands `d/tan α ≈ 9e-6`
 /// above the apex, under the stretch's pad: the padded stretch straddles
-/// the apex's height, so the section states nothing, and the edge
-/// refuses naming the cone, which no tube encloses.
+/// the apex's height, so the section states nothing. The edge owes the
+/// tube, and every box of its chain straddles the apex's height, off
+/// the cone arm's gate: the ladder answers nothing (`ProbeSilent`).
 #[test]
 fn a_stretch_at_the_apex_height_owes_the_tube_and_refuses() {
     let wide = Band::new(1e-6, 1e-5).unwrap();
@@ -803,10 +804,13 @@ fn a_stretch_at_the_apex_height_owes_the_tube_and_refuses() {
     let got = geom_brep::analytic_rung3(&arc, arc.domain(), &plane(q, n), &cone(alpha), wide);
     assert_eq!(
         got,
-        Err(AnalyticRung3Refusal::NoTubeEnclosure {
-            operand: geom::SurfaceKind::Cone
-        }),
-        "the edge owes the tube and refuses naming the cone"
+        Err(AnalyticRung3Refusal::Tube(
+            geom_brep::edge_nurbs::TubeRefusal::ProbeSilent {
+                rungs: 1,
+                refused: 1
+            }
+        )),
+        "the edge owes the tube and its every box is off the cone's gate"
     );
 }
 
