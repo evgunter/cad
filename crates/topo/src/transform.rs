@@ -1298,4 +1298,68 @@ mod chain_rows {
             "some chain squares a line and stretches its span"
         );
     }
+
+    /// **A brick moved a thousand times by a motion a little off rigid
+    /// keeps its frames and lines rigid and its ends on its vertices**:
+    /// the motion is a rotation whose columns are scaled by `1 + 4ε`,
+    /// which [`RigidMotion::check_rigid`] admits (each column `8ε` off
+    /// unit, within its `16ε`), applied a thousand times to a `2 m`
+    /// brick. Unmeasured, the frames' axes drift by about `8ε` a move
+    /// (`809ε` at a hundred) and fail the door; measured, each surface's
+    /// frame stays within the door's rounding, each line unit to its
+    /// rounding, each line edge's ends within `2e-13 m` of its vertices,
+    /// and the body valid at tier 3. Red under the frame door keeping
+    /// what it should square (the frames fail the door), under the line
+    /// door the same, and under a squared line keeping its span: a line
+    /// is squared every second move or so, and its ends then stand about
+    /// `3e-12 m` off their vertices.
+    #[test]
+    fn a_brick_moved_by_a_motion_off_rigid_keeps_its_frames_and_its_ends() {
+        // Each move translates the brick; a small step keeps a thousand
+        // of them inside the session box.
+        use super::{Body, Curve3, CurveGeom, RigidMotion, transform_rigid};
+        use geom_core::{Affine3, Point3, UnitVec3};
+        let tol = Tol::witness();
+        let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.3, -0.7, 0.64), 0.83);
+        let off = 1.0 + 4.0 * f64::EPSILON;
+        let scaled =
+            Affine3::from_parts(turn.linear.map(|x| x * off), Vec3::new(0.01, -0.02, 0.03));
+        let motion =
+            RigidMotion::check_rigid(&scaled).expect("the door admits a column 8ε off unit");
+        let mut body =
+            crate::test_support_fixtures::brick::<f64>((-1.0, 1.0), (-0.5, 0.5), (0.0, 0.5), tol);
+        for _ in 0..1000 {
+            body = transform_rigid(&body, &motion).expect("a brick moves");
+        }
+        for (_, s) in body.surfaces.iter() {
+            if let Some(frame) = s.frame() {
+                assert!(
+                    RigidMotion::check_rigid(&frame.motion().to_affine()).is_ok(),
+                    "a surface's frame stays within the door's rounding: {frame:?}"
+                );
+            }
+        }
+        let mut worst = 0.0_f64;
+        for (ek, edge) in body.edges() {
+            let Some(CurveGeom::Certified(c)) = body.curves.get(edge.curve) else {
+                panic!("a certified edge");
+            };
+            let Curve3::Line(line) = c.carrier() else {
+                continue;
+            };
+            assert!(
+                UnitVec3::stated(line.dir.get()).is_some(),
+                "{line:?} is unit"
+            );
+            let (v0, v1) = body.edge_vertices(ek).expect("an edge has two ends");
+            let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            let (t0, t1) = c.params();
+            for (t, v) in [(t0, v0), (t1, v1)] {
+                worst = worst.max((line.at(t) - at(v)).norm());
+            }
+        }
+        assert!(worst <= 2e-13, "an end stands {worst:e} m off its vertex");
+        crate::validate(&body).unwrap_or_else(|e| panic!("{e:?}"));
+        crate::validate_geometric(&body, tol).unwrap_or_else(|e| panic!("{e:?}"));
+    }
 }

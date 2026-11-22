@@ -634,7 +634,7 @@ impl<T: Decide> UnitVec3<T> {
 /// back each time it passes the charge, so no chain of rounding reaches
 /// this; a value past it is no image of a unit vector, and the door
 /// answers it poisoned.
-const SQUARING_REACH: f64 = 1.490_116_119_384_765_6e-8;
+pub(in crate::linalg) const SQUARING_REACH: f64 = 1.490_116_119_384_765_6e-8;
 
 /// What a door made of a vector its construction says is unit
 /// ([`UnitVec3::kept_or_squared`]).

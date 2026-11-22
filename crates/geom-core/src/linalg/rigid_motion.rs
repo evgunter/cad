@@ -672,12 +672,13 @@ impl<T: Real> RigidMotion<T> {
     }
 
     /// **The motion acting on a direction**: a rigid linear part
-    /// carries a unit vector to a unit vector, so the image is a
-    /// witness by construction — `linear · d`, [`Mat3`]'s fixed
-    /// matrix-vector order.
+    /// carries a unit vector to a unit vector, so the image `linear · d`
+    /// ([`Mat3`]'s fixed matrix-vector order) goes through the rigid
+    /// image's door ([`UnitVec3::through_isometry`]): its bits kept within
+    /// its rounding, squared past it, poison past any rounding.
     #[must_use]
     pub fn turn(self, d: UnitVec3<T>) -> UnitVec3<T> {
-        UnitVec3::by_construction(self.linear() * d.get())
+        d.through_isometry(self.linear()).0
     }
 
     /// **A direction swung in this frame's `w`–`u` plane**: `w·c + u·s`,
@@ -780,16 +781,97 @@ impl<T: Real> RigidMotion<T> {
         )
     }
 
-    /// The motion whose linear part is `m`'s columns, taken as
-    /// witnesses because the CALLER's construction made them
-    /// orthonormal and right-handed; private, so only the mints in
-    /// this module are callers.
+    /// The motion whose linear part is `m`'s columns, rigid by the
+    /// CALLER's construction (a rotation's Rodrigues form, a product or
+    /// transpose of rigid frames, a frame the `f64` door admitted), and
+    /// measured as every rigid image is ([`Self::measured_frame`]);
+    /// private, so only the mints in this module are callers.
     fn from_linear(m: Mat3<T>, origin: Point3<T>) -> Self {
+        Self::measured_frame(origin, m.c0, m.c1, m.c2)
+    }
+
+    /// The motion whose columns are `m`'s as given, unmeasured: the
+    /// suites' door alone, which admits a point box of a rounded frame
+    /// (an enclosure of no rigid frame) on purpose.
+    #[cfg(any(test, feature = "test-support"))]
+    fn as_given(m: Mat3<T>, origin: Point3<T>) -> Self {
         Self {
             origin,
             u: UnitVec3::by_construction(m.c0),
             v: UnitVec3::by_construction(m.c1),
             w: UnitVec3::by_construction(m.c2),
+        }
+    }
+
+    /// **Three columns a rigid construction made, measured**: the release
+    /// check every rigid image of a frame runs, the frame's form of
+    /// [`UnitVec3::through_isometry`]'s. The measure is
+    /// [`RigidMotion::check_rigid`]'s: its seven margins (three column
+    /// norms, three orthogonalities, the determinant), each against its
+    /// rounding charge.
+    ///
+    /// - At a point scalar ([`Witness::Inexact`](crate::Witness::Inexact))
+    ///   a frame within every charge keeps its bits; one past a charge,
+    ///   every margin within `√ε`, is squared about its `w`
+    ///   ([`Self::squared_about`] of `w` squared: Gram–Schmidt from the
+    ///   axis), so a chain of rigid images does not drift off rigid; one
+    ///   past `√ε`, or not finite, is poison.
+    /// - At an enclosure kind ([`Witness::Exact`](crate::Witness::Exact))
+    ///   the construction's argument covers every value enclosed, so the
+    ///   bits are kept, unless a margin's bracket excludes zero (an
+    ///   enclosure that holds no rigid frame), which is poison.
+    ///
+    /// A poisoned frame keeps its origin, its axes every entry poison.
+    fn measured_frame(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>, w: Vec3<T>) -> Self {
+        let kept = || Self {
+            origin,
+            u: UnitVec3::by_construction(u),
+            v: UnitVec3::by_construction(v),
+            w: UnitVec3::by_construction(w),
+        };
+        let poisoned = || {
+            let p = UnitVec3::by_construction(Vec3::new(
+                crate::poison(),
+                crate::poison(),
+                crate::poison(),
+            ));
+            Self {
+                origin,
+                u: p,
+                v: p,
+                w: p,
+            }
+        };
+        let margins = charged_margins(&Affine3::from_parts(Mat3::from_cols(u, v, w), Vec3::zero()));
+        let mut squared = false;
+        for (_, m) in margins {
+            let (Some((lo, hi)), Some((charge, _))) =
+                (m.value.told_reading().ends(), m.error.told_reading().ends())
+            else {
+                return poisoned();
+            };
+            if !(lo.is_finite() && hi.is_finite() && charge.is_finite()) {
+                return poisoned();
+            }
+            match T::WITNESS {
+                crate::Witness::Exact => {
+                    if !(lo <= 0.0 && 0.0 <= hi) {
+                        return poisoned();
+                    }
+                }
+                crate::Witness::Inexact => {
+                    let defect = lo.abs().max(hi.abs());
+                    if defect > super::unit_vec::SQUARING_REACH {
+                        return poisoned();
+                    }
+                    squared |= defect > charge;
+                }
+            }
+        }
+        if squared {
+            Self::squared_about(origin, UnitVec3::squared(w), u)
+        } else {
+            kept()
         }
     }
 
@@ -1063,7 +1145,8 @@ impl<T: Real> RigidMotion<T> {
     /// **This motion's axes spun about the unit `axis` by `angle`**, the
     /// origin kept: each axis `v` turned by Rodrigues' vector form,
     /// `v cos θ + (a × v) sin θ + a (a · v)(1 − cos θ)`. A turn of a
-    /// frame is a frame, so nothing is decided.
+    /// frame is a frame, so nothing is decided; the image is measured as
+    /// [`RigidMotion::carried_by`]'s is.
     ///
     /// # Errors
     ///
@@ -1079,14 +1162,15 @@ impl<T: Real> RigidMotion<T> {
         let spin = |v: UnitVec3<T>| {
             let v = v.get();
             let along = a * a.dot(v);
-            UnitVec3::by_construction(v * cos + a.cross(v) * sin + along * (one - cos))
+            v * cos + a.cross(v) * sin + along * (one - cos)
         };
-        Ok(Self {
-            origin: self.origin,
-            u: spin(self.u),
-            v: spin(self.v),
-            w: spin(self.w),
-        })
+        // A rigid image of a rigid frame, measured as one.
+        Ok(Self::measured_frame(
+            self.origin,
+            spin(self.u),
+            spin(self.v),
+            spin(self.w),
+        ))
     }
 }
 
@@ -1301,17 +1385,21 @@ impl<T: Real> RigidMotion<T> {
     }
 
     /// **This frame's image under `by`**: its origin through
-    /// [`RigidMotion::transform_point`] and each axis turned
-    /// ([`RigidMotion::turn`]), a rigid image of a rigid frame, so
-    /// nothing is decided.
+    /// [`RigidMotion::transform_point`] and each axis through `by`'s
+    /// linear part, a rigid image of a rigid frame, so nothing is
+    /// decided. The image is measured as a frame (`check_rigid`'s margins):
+    /// its bits kept within its rounding, squared about its `w` past it,
+    /// so a chain of moves does not drift off rigid, and poison past any
+    /// rounding.
     #[must_use]
     pub fn carried_by(self, by: Self) -> Self {
-        Self {
-            origin: by.transform_point(self.origin),
-            u: by.turn(self.u),
-            v: by.turn(self.v),
-            w: by.turn(self.w),
-        }
+        let l = by.linear();
+        Self::measured_frame(
+            by.transform_point(self.origin),
+            l * self.u.get(),
+            l * self.v.get(),
+            l * self.w.get(),
+        )
     }
 
     /// **This frame turned about its own `w` onto the direction of `d`**,
@@ -1321,24 +1409,26 @@ impl<T: Real> RigidMotion<T> {
     /// and the origin kept. `(c, s)` is unit by its construction, and
     /// its quarter turn is unit and perpendicular to it with it, so the
     /// image is a rigid frame and nothing is decided: the one
-    /// arithmetic is the normalization a sketch direction is read by,
-    /// and a frame is not re-squared. A zero `d` yields a poisoned
+    /// arithmetic is the normalization a sketch direction is read by.
+    /// The image is measured as [`RigidMotion::carried_by`]'s is, and is
+    /// re-squared only past its rounding. A zero `d` yields a poisoned
     /// frame, as [`Vec2::normalize`] yields a poisoned direction.
     ///
     /// The turned axes are [`RigidMotion::transform_vec`] of the sketch
     /// vectors, the same arithmetic a placement's linear part applies
-    /// to `(c, s, 0)`, so `u` is a placed sketch direction bit for bit.
+    /// to `(c, s, 0)`, so within its rounding `u` is a placed sketch
+    /// direction bit for bit.
     #[must_use]
     pub fn spun_toward(self, d: Vec2<T>) -> Self {
         let c = d.normalize();
         let along = Vec3::new(c.x, c.y, T::zero());
         let left = Vec3::new(T::zero() - c.y, c.x, T::zero());
-        Self {
-            origin: self.origin,
-            u: UnitVec3::by_construction(self.transform_vec(along)),
-            v: UnitVec3::by_construction(self.transform_vec(left)),
-            w: self.w,
-        }
+        Self::measured_frame(
+            self.origin,
+            self.transform_vec(along),
+            self.transform_vec(left),
+            self.w.get(),
+        )
     }
 }
 
@@ -1573,7 +1663,7 @@ impl<T: Decide> RigidMotion<T> {
             }
         }
         let origin = finite(at(map.translation), MotionPart::Translation)?;
-        Ok(Self::from_linear(map.linear, origin))
+        Ok(Self::as_given(map.linear, origin))
     }
 
     /// **A computed pair, orthonormalized** — Gram–Schmidt, with `u`
@@ -3535,9 +3625,11 @@ mod crossing_and_turn_rows {
     /// refuse below one chord (about `6e-8` at every ε row), every turn
     /// builds, the rigidity door admits it at `f64` and, entered
     /// at `Interval`, as the same twelve numbers, its seven rigidity defects stay below `1e-14`, and `a` lands
-    /// within `1e-14` of `b` (at `Interval`, the enclosure of the miss
-    /// within `1e-13`). Neither bound depends on how near opposed the
-    /// pair is or on the run's ε, so the row holds at every ε row.
+    /// within `1e-14` of `b`. At `Interval`, from the two directions lifted
+    /// as directions (their polar enclosures), the enclosure of the miss
+    /// is within `64ε/chord`: the inputs' own width, amplified by the
+    /// pole. No bound depends on the run's ε, so the row holds at every
+    /// ε row.
     #[test]
     fn near_opposed_the_turn_is_rigid_and_carries_a_onto_b_to_rounding() {
         use crate::real::Bounds;
@@ -3611,20 +3703,12 @@ mod crossing_and_turn_rows {
                     Some(bits12(&m.to_affine())),
                     "{at}: the suites' door admits the f64 turn entered at Interval, as given"
                 );
-                // The same two directions at `Interval`, as point
-                // enclosures: each the aim of an `f64` frame rigid within
-                // rounding (`aimed`), entered at `Interval` through the
-                // suites' door.
-                let at_interval = |d: UnitVec3<f64>| {
-                    let frame = RigidMotion::aimed(Point3::origin(), d)
-                        .unwrap_or_else(|e| panic!("{at}: a frame aims along the input: {e:?}"));
-                    RigidMotion::admitted_for_a_suite(
-                        &frame.to_affine().map(Interval::from_f64),
-                        band(),
-                    )
-                    .unwrap_or_else(|e| panic!("{at}: the suites' door admits the frame: {e:?}"))
-                    .w()
-                };
+                // The same two directions at `Interval`, each lifted as a
+                // direction (its polar unit enclosure, `map_scalar`): an
+                // enclosure of a unit vector, which the turn's rigid
+                // image door holds to, where a point box of the rounded
+                // direction encloses none.
+                let at_interval = |d: UnitVec3<f64>| d.map_scalar(Interval::from_f64);
                 let (ai, bi) = (at_interval(a), at_interval(b));
                 let mi = RigidMotion::least_turn(
                     ai,
@@ -3640,7 +3724,12 @@ mod crossing_and_turn_rows {
                 let reach = [off.x, off.y, off.z]
                     .into_iter()
                     .fold(0.0_f64, |r, c| r.max(c.lo().abs()).max(c.hi().abs()));
-                assert!(reach < 1e-13, "{at}, Interval: the miss reaches {reach:e}");
+                // The polar inputs carry their own width, which the turn
+                // amplifies by the pole's `1/chord`: at most 28.5ε/chord
+                // over the ladder (point boxes, enclosing no unit vector,
+                // read tighter).
+                let pinned = 64.0 * f64::EPSILON / chord;
+                assert!(reach < pinned, "{at}, Interval: the miss reaches {reach:e}");
             }
             rows += 1;
             chord /= 10_f64.sqrt();
