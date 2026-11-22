@@ -2,10 +2,11 @@
 id: the-one-second-bar-reds-prs-off-their-path-several-times-a-day
 kind: issue
 title: The fast set's one-second bar redded five PRs off their path in one evening, on four rows none of them touches
-status: open
+status: dispatched
 opened: 2026-11-22
 priority: P1
 cost: M
+design: true
 ---
 
 

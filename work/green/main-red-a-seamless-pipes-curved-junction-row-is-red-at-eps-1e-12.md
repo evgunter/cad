@@ -2,7 +2,7 @@
 id: main-red-a-seamless-pipes-curved-junction-row-is-red-at-eps-1e-12
 kind: issue
 title: main red (slow set, eps 1e-12): a_seamless_pipe_cut_by_an_oblique_plane_measures::a_curved_junction_certifies_across_the_departure_arm
-status: open
+status: dispatched
 opened: 2026-11-22
 priority: P0
 cost: E
