@@ -65,3 +65,21 @@ reds with three mismatches of the same shape (`R 4.528…, r 0.5539…`;
 `R 0.04898…, r 0.007838…`; `R 37.93…, r 8.648…`), each `R-tan at
 Degeneracy { … top: ~1e-9 }`, on embed/graph-piece's local run of topo
 (2026-11-17); that branch does not touch the section code.
+
+## 2026-11-22 — a fuzz red at ε 1e-9 (HELDRECORDS `heldrecords/nesting`, outside its diff)
+
+`topo boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`
+reported 2 mismatches on `CAD_FUZZ_SEED=0x127a80287c19c581 CAD_FUZZ_EFFORT=1`
+at the default ε, both of this row's family, now answered `Tangent`
+where this row measured `Unordered`:
+
+- `a strip crossing at a tube circle's top: R 38.83407405470389, r 26.19416791317944, (e, z0, rc) (35.238629089362384, 30.28665353941834, 5.4475373464108445), tilt 0.00000000000001241431041822104: R-tan at Degeneracy { tangent: 1.1423838390155119, top: 3.7423699694727475e-9 }: Tangent("section_torus_square_wall_fold_half")`
+- `a strip crossing at a tube circle's top: R 0.3662346789647278, r 0.32702718738380837, (e, z0, rc) (0.3902677942285159, 0.26587484305599407, 0.0657054025242998), tilt 0.00000000000007991102219745677: R-tan at Degeneracy { tangent: 0.005637056161619802, top: 5.693059634825914e-10 }: Tangent("section_torus_square_wall_fold_half")`
+
+Both poses stand 3.7e-9 and 5.7e-10 from the top point and 1.14 and
+0.0056 from the tangent degeneracy, so the search reads the arm's
+`Tangent` as a mismatch: the refusal this row describes, under another
+section kind. The branch
+changes only the split's section nesting (`splitting/section_loops.rs`,
+`splitting/finish.rs`), which the Boolean's section certifier does not
+read, so this is main's. Not reproduced on main here.
