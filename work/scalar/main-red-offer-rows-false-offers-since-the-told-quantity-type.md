@@ -50,3 +50,14 @@ Found by ONEROUND's lane on main `5341f713`, `cargo nextest run -p topo --all-fe
 Each compares the offer the text quotes (`test_utils::offer::offered_below`) with the margin's offer to one part in 10⁶, and the text now carries four figures cut downward, one part in 10⁴ off. The second message holds both spellings: the sentence says "below 3e-11 m" and the number read back from it is 2.999e-11.
 
 **`every_offered_tolerance_passes_just_below_it` names 16 false offers on main `5341f713` (and on `0ad2e0b5`)**, not the three above, all of the one shape (5.499e-10 against 5.5e-10, 5.756e-11 against 5.756955e-11, …): `lever_arm_sector_side_in_the_zero_band`, `conic_bend_short_of_the_band`, `tangent_side_in_band`, `thinner_wedge_tilted_past_the_band`, `tool_on_a_block_corner_tilted_at_its_arm`, `corner_tilted_in_band_at_its_arm`, the three `wedge_turned_on_a_block_*`, `tangent_side_curving_away`, `arc_root_just_inside_its_span`, `vertex_near_a_vertex_of_a_curved_face`, `neighbours_bent_at_the_band`, `roots_a_hair_apart`, `roots_a_hair_apart_across_the_window`, `seam_barely_bending_apart`.
+
+## Red at every ε row (GREEN U9, 2026-11-22)
+
+(GREEN, `green/held-reds`) Two lanes cited this test to GREEN's closed
+`main-red-two-offered-tolerances-fail-just-below-their-margin`; this row
+holds it. The nightly of main `1942290ead` (run 44989234943) has it red
+at the default ε, 1e-6 and 1e-12 with one message
+(`offer_rows.rs:2044`, `lever_arm_sector_side_in_the_zero_band: offers
+Some(3.535e-11), its margin gives Some(3.535533905932738e-11)`,
+`conic_bend_short_of_the_band` and `tangent_side_in_band` 5.499e-10
+against 5.5e-10, …), so PR 7267's fix is owed at every ε row.
