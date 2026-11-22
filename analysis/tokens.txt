@@ -8,3 +8,8 @@ A: after round 3, subagent_tokens 177146, 1 tool use, 34 s
 B: after round 3, subagent_tokens 309066, 4 tool uses, 232 s
 A: after round 4, subagent_tokens 200508, 1 tool use, 119 s
 B: after round 4, subagent_tokens 344634, 9 tool uses, 238 s
+A: after round 5, subagent_tokens 211358, 1 tool use, 45 s
+B: after round 5, subagent_tokens 358920, 2 tool uses, 90 s
+A: after round 6, subagent_tokens 217659, 1 tool use, 28 s
+B: after round 6, subagent_tokens 367452, 4 tool uses, 176 s
+A: after round 7, subagent_tokens 218830, 1 tool use, 73 s
