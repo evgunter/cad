@@ -124,6 +124,10 @@ pub fn off() -> bool {
     std::env::var_os("CAD_GATE_OFF").is_some()
 }
 
+pub fn emit(line: &str) {
+    write(&format!("{}\t{line}", test_name()));
+}
+
 fn write(line: &str) {
     let Ok(dir) = std::env::var("CAD_GATE_LOG") else {
         return;

@@ -33,6 +33,7 @@ where `refusal` is the engine's `EngineRefusal` verbatim (for
 | `CAD_GATE_OFF=1` | the gate asks nothing |
 | `CAD_GATE_DECOMPOSE=<n>` | every face pair of each holding ask with at least `n` leaves asked alone (`DECOMP` rows) |
 | `CAD_GATE_CARRY=1` | at the deciding doors, each holding ask's pairs classed carried / trimmed / two operands / new (`CARRY` rows) |
+| `CAD_GATE_MINDIST=<pops>` | for each share-nothing face pair whose cell pair straddles the band edge at depth ≥ `CAD_GATE_MINDEPTH` (default 26), once: a best-first branch and bound over the two windows (`MIN` rows). Its lower end is the cells' enclosures with cells the walk's own region reader decides outside dropped. Its upper end is the closest pair of grid stations (`CAD_GATE_MINSEED`, default 48) the point door places on the faces. The row also gives the point door's tally over each grid, the boundary arcs sampled (boundary to boundary, and each deep point to each boundary), the deep cell pair's closest carrier points and their placement, and the dyadic cells about the argmin, each with the box, the engine's support reading, the support along the closest-point direction and that gap sampled |
 | `CAD_GATE_CENSUS=1` | times the tier-3′ census at each Boolean `gate` (`CENSUS` rows) |
 | `CV_TRACE=1` | **the refusing cell and its exit**: each `Unpresented::Local` exit in `injective.rs` prints `CVL <site> <line>` to stderr, and the presentation trace prints the cells it read (from the cavity lane) |
 | `CV_PAIRS=1` | the sweep's per-pair log (from the cavity lane) |
@@ -52,3 +53,12 @@ as printed, the faces it names with their solids, the records the door
 held, and the test's time. Tables and method: the gate row
 (`work/embed/the-at-rest-gate-certifies-embedding.md`, "Census, second
 take").
+
+## The certified minimum (`min-dist-rows.tsv`, `min-implicit.py`)
+
+Three `MIN` rows from `CAD_GATE_MINDIST=60000` on
+`quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops`
+and `germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint`.
+`min-implicit.py` places the deep pairs' closest carrier points against
+the operands' implicit forms, from the tests' own poses. Reading: the
+row `work/embed/faces-sharing-nothing-within-a-cell-of-each-other-are-not-parted-by-the-depth-floor.md`.

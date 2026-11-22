@@ -2595,6 +2595,18 @@ where
                 ),
             );
         }
+        if x.face != y.face
+            && sh.is_empty()
+            && m_sep.lo() < self.sweep.band.escalate()
+            && std::env::var_os("CAD_GATE_MINDIST").is_some()
+            && pair.depth
+                >= std::env::var("CAD_GATE_MINDEPTH")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(26)
+        {
+            m_mindist(x, y, band, (pair.a, pair.b, pair.depth));
+        }
         let m_code = crate::gate_measure::distance_split(
             m_sep.lo(),
             m_sep.hi(),
@@ -5223,10 +5235,406 @@ pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
     }
 }
 
+thread_local! {
+    static M_MIN_DONE: std::cell::RefCell<BTreeSet<(FaceKey, FaceKey)>> =
+        std::cell::RefCell::new(BTreeSet::new());
+}
+
+/// MEASUREMENT ONLY: a certified bracket on the distance between two
+/// faces sharing nothing (best-first branch and bound over their
+/// windows, cells decided outside dropped; the lower end the cells'
+/// enclosures, the upper end a pair of centres of cells decided
+/// inside), and the first-order picture at the bracket's argmin.
+#[allow(clippy::too_many_lines)]
+fn m_mindist<T: Decide + CertifiedBounds>(
+    x: &Window<'_, T>,
+    y: &Window<'_, T>,
+    band: Band,
+    deep: (Cell, Cell, u32),
+) {
+    use std::cmp::Reverse;
+    use std::collections::BinaryHeap;
+    if !M_MIN_DONE.with(|d| d.borrow_mut().insert((x.face, y.face))) {
+        return;
+    }
+    let cap: usize = std::env::var("CAD_GATE_MINDIST")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(60_000);
+    let esc = band.escalate();
+    let t0 = std::time::Instant::now();
+    type R = ((f64, f64), (f64, f64));
+    let (lx, ly) = (lift_boundary(x.body, x.face), lift_boundary(y.body, y.face));
+    let region = |w: &Window<'_, T>, c: R| -> CellRegion {
+        let lifted = if std::ptr::eq(w, x) { &lx } else { &ly };
+        match (w.region, w.body.face(w.face).map(|f| f.surface())) {
+            (Region::Whole, _) => CellRegion::Inside,
+            (Region::Trimmed, None) => CellRegion::Undecided,
+            (Region::Trimmed, Some(stored)) => cell_region_lifted(
+                w.body,
+                w.face,
+                (stored, w.own.as_ref().unwrap_or(&w.surface), lifted),
+                c.0,
+                c.1,
+                band,
+            ),
+        }
+    };
+    let on_face = |w: &Window<'_, T>, c: R| {
+        w.region == Region::Whole
+            || matches!(
+                station_region(w.body, w.face, centre(c.0, c.1), band),
+                Some(FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))
+            )
+    };
+    let mut placed = 0usize;
+    let mid3 = |p: Point3<Interval>| [geom::mid_param(p.x.lo(), p.x.hi()), geom::mid_param(p.y.lo(), p.y.hi()), geom::mid_param(p.z.lo(), p.z.hi())];
+    let dist = |p: [f64; 3], q: [f64; 3]| {
+        ((p[0] - q[0]).powi(2) + (p[1] - q[1]).powi(2) + (p[2] - q[2]).powi(2)).sqrt()
+    };
+    let at = |w: &Window<'_, T>, c: R| {
+        let (u, v) = centre(c.0, c.1);
+        mid3(w.surface.point_eval(u, v))
+    };
+    #[derive(Clone, Copy)]
+    struct E {
+        a: R,
+        b: R,
+        da: f64,
+        db: f64,
+        ia: bool,
+        ib: bool,
+    }
+    let mk = |a: R, b: R, ia: bool, ib: bool| {
+        let (ea, eb) = (enclosure(&x.surface, a.0, a.1), enclosure(&y.surface, b.0, b.1));
+        let lo = separation(&ea, &eb).lo();
+        let lo = if lo.is_nan() { 0.0 } else { lo.max(0.0) };
+        (
+            lo,
+            E {
+                a,
+                b,
+                da: diameter(&cell_box(&ea)),
+                db: diameter(&cell_box(&eb)),
+                ia,
+                ib,
+            },
+        )
+    };
+    let quads = |c: R| {
+        let (mu, mv) = centre(c.0, c.1);
+        [
+            ((c.0.0, mu), (c.1.0, mv)),
+            ((mu, c.0.1), (c.1.0, mv)),
+            ((c.0.0, mu), (mv, c.1.1)),
+            ((mu, c.0.1), (mv, c.1.1)),
+        ]
+    };
+    let mut memo: BTreeMap<(bool, [u64; 4]), CellRegion> = BTreeMap::new();
+    let mut ask = |second: bool, c: R| -> CellRegion {
+        let key = (second, [c.0.0.to_bits(), c.0.1.to_bits(), c.1.0.to_bits(), c.1.1.to_bits()]);
+        *memo
+            .entry(key)
+            .or_insert_with(|| region(if second { y } else { x }, c))
+    };
+    // The deep cell pair the walk holds: its closest sampled carrier
+    // points, and whether the point door places each on its face.
+    let grid = |w: &Window<'_, T>, c: R, n: u32| {
+        let mut g = Vec::new();
+        for i in 0..=n {
+            for j in 0..=n {
+                let u = c.0.0 + (c.0.1 - c.0.0) * f64::from(i) / f64::from(n);
+                let v = c.1.0 + (c.1.1 - c.1.0) * f64::from(j) / f64::from(n);
+                g.push(((u, v), mid3(w.surface.point_eval(u, v))));
+            }
+        }
+        g
+    };
+    let place = |w: &Window<'_, T>, uv: (f64, f64)| {
+        if w.region == Region::Whole {
+            "Whole".to_owned()
+        } else {
+            format!("{:?}", station_region(w.body, w.face, uv, band))
+        }
+    };
+    let verts: Vec<[f64; 3]> = x
+        .body
+        .vertex_points()
+        .map(|(_, p)| mid3(p.map(Interval::from_certified)))
+        .collect();
+    let near_vertex = |p: [f64; 3]| verts.iter().map(|q| dist(p, *q)).fold(f64::INFINITY, f64::min);
+    let (dc_a, dc_b, dc_depth) = deep;
+    let mut deep_row = String::new();
+    {
+        let (ga, gb) = (grid(x, (dc_a.u, dc_a.v), 16), grid(y, (dc_b.u, dc_b.v), 16));
+        let mut m = (f64::INFINITY, (0.0, 0.0), (0.0, 0.0), [0.0; 3], [0.0; 3]);
+        for (ua, p) in &ga {
+            for (ub, q) in &gb {
+                let d = dist(*p, *q);
+                if d < m.0 {
+                    m = (d, *ua, *ub, *p, *q);
+                }
+            }
+        }
+        deep_row = format!(
+            "deep_depth={dc_depth}\tdeep_cells_a={:?}x{:?}\tdeep_cells_b={:?}x{:?}\tdeep_closest={:.4e}\tdeep_pa={:?}@{:?}:{}\tdeep_pb={:?}@{:?}:{}\tregion_a={:?}\tregion_b={:?}\tdeep_nearest_vertex={:.4e}/{:.4e}",
+            dc_a.u, dc_a.v, dc_b.u, dc_b.v, m.0, m.3, m.1, place(x, m.1), m.4, m.2, place(y, m.2),
+            region(x, (dc_a.u, dc_a.v)), region(y, (dc_b.u, dc_b.v)),
+            near_vertex(m.3), near_vertex(m.4),
+        );
+    }
+    // The upper end seeded from the two faces' stations the point door
+    // places on them, a grid over each window.
+    let seed_n: u32 = std::env::var("CAD_GATE_MINSEED")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(48);
+    let keep = |w: &Window<'_, T>| -> Vec<((f64, f64), [f64; 3])> {
+        grid(w, (w.u, w.v), seed_n)
+            .into_iter()
+            .filter(|(uv, _)| {
+                w.region == Region::Whole
+                    || matches!(
+                        station_region(w.body, w.face, *uv, band),
+                        Some(FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))
+                    )
+            })
+            .collect()
+    };
+    let (sa, sb) = (keep(x), keep(y));
+    // How the point door reads each window's grid, its refusals by kind.
+    let tally = |w: &Window<'_, T>| {
+        let mut t: BTreeMap<String, usize> = BTreeMap::new();
+        for (uv, _) in grid(w, (w.u, w.v), seed_n) {
+            let station = w
+                .body
+                .face(w.face)
+                .map(|f| f.surface().eval(T::from_computed(uv.0), T::from_computed(uv.1)));
+            let k = match station.map(|q| crate::contain::curved_face_placement(w.body, w.face, q, band)) {
+                None => "no-face".to_owned(),
+                Some(Ok(p)) => {
+                    let p = format!("{p:?}");
+                    p.split(['(', '{', ' ']).take(3).collect::<Vec<_>>().join("")
+                }
+                Some(Err(e)) => {
+                    let e = format!("{e:?}");
+                    format!("Err:{}", e.chars().take(60).collect::<String>())
+                }
+            };
+            *t.entry(k).or_default() += 1;
+        }
+        t
+    };
+    // The two boundaries sampled: their arcs' points lie on the faces.
+    let samples = |b: &[BoundaryStop]| -> Vec<[f64; 3]> {
+        let mut out = Vec::new();
+        for stop in b {
+            match stop {
+                BoundaryStop::Vertex(p) => out.push(mid3(*p)),
+                BoundaryStop::Arc(arc) => {
+                    let (c, (t0, t1)) = &**arc;
+                    let (a, z) = (t0.lo(), t1.hi());
+                    for i in 0..=2000 {
+                        let t = a + (z - a) * f64::from(i) / 2000.0;
+                        out.push(mid3(c.eval(Interval::from_f64(t))));
+                    }
+                }
+                BoundaryStop::Unreadable => {}
+            }
+        }
+        out
+    };
+    let (bxs, bys) = (samples(&lx), samples(&ly));
+    let mut bb = f64::INFINITY;
+    for p in &bxs {
+        for q in &bys {
+            bb = bb.min(dist(*p, *q));
+        }
+    }
+    let to_set = |p: [f64; 3], set: &[[f64; 3]]| set.iter().map(|q| dist(p, *q)).fold(f64::INFINITY, f64::min);
+    let unreadable = |b: &[BoundaryStop]| b.iter().filter(|s| matches!(s, BoundaryStop::Unreadable)).count();
+    let arcs = |b: &[BoundaryStop]| b.iter().filter(|s| matches!(s, BoundaryStop::Arc(_))).count();
+    let deep_pts = {
+        let (ga, gb) = (grid(x, (dc_a.u, dc_a.v), 16), grid(y, (dc_b.u, dc_b.v), 16));
+        let mut m = (f64::INFINITY, [0.0; 3], [0.0; 3]);
+        for (_, p) in &ga {
+            for (_, q) in &gb {
+                if dist(*p, *q) < m.0 {
+                    m = (dist(*p, *q), *p, *q);
+                }
+            }
+        }
+        m
+    };
+    let bound_row = format!(
+        "boundary_arcs={}/{}\tunreadable={}/{}\tboundary_samples={}/{}\tboundary_to_boundary={bb:.6e}\tdeep_pa_to_boundary_a={:.4e}\tdeep_pb_to_boundary_b={:.4e}\tdeep_pa_to_boundary_b={:.4e}\tdeep_pb_to_boundary_a={:.4e}",
+        arcs(&lx), arcs(&ly), unreadable(&lx), unreadable(&ly), bxs.len(), bys.len(),
+        to_set(deep_pts.1, &bxs), to_set(deep_pts.2, &bys), to_set(deep_pts.1, &bys), to_set(deep_pts.2, &bxs),
+    );
+    let tally_row = format!("tally_a={:?}\ttally_b={:?}", tally(x), tally(y));
+    let mut seed: (f64, Option<((f64, f64), (f64, f64))>) = (f64::INFINITY, None);
+    for (ua, p) in &sa {
+        for (ub, q) in &sb {
+            let d = dist(*p, *q);
+            if d < seed.0 {
+                seed = (d, Some((*ua, *ub)));
+            }
+        }
+    }
+    let seed_row = format!("seed={:.6e}\tseed_at={:?}\tseed_stations={}x{}", seed.0, seed.1, sa.len(), sb.len());
+    let mut heap: BinaryHeap<(Reverse<u64>, usize)> = BinaryHeap::new();
+    let mut store: Vec<E> = Vec::new();
+    let (lo0, e0) = mk((x.u, x.v), (y.u, y.v), false, false);
+    store.push(e0);
+    heap.push((Reverse(lo0.to_bits()), 0));
+    let (mut best_hi, mut best): (f64, Option<(R, R)>) = (
+        seed.0,
+        seed.1.map(|(a, b)| (((a.0, a.0), (a.1, a.1)), ((b.0, b.0), (b.1, b.1)))),
+    );
+    let mut pops = 0usize;
+    let (mut global_lo, mut why) = (0.0, "exhausted");
+    let mut outside = 0usize;
+    while let Some((Reverse(bits), k)) = heap.pop() {
+        let lo = f64::from_bits(bits);
+        global_lo = lo;
+        if lo >= best_hi * (1.0 - 1e-4) || best_hi - lo < 1e-12 {
+            why = "converged";
+            break;
+        }
+        if pops >= cap {
+            why = "capped";
+            break;
+        }
+        pops += 1;
+        let mut e = store[k];
+        // The regions, read when the pair comes up: a cell decided
+        // outside drops the pair; inside is inherited by its children.
+        if !e.ia {
+            match ask(false, e.a) {
+                CellRegion::Outside => {
+                    outside += 1;
+                    continue;
+                }
+                CellRegion::Inside => e.ia = true,
+                CellRegion::Undecided => {}
+            }
+        }
+        if !e.ib {
+            match ask(true, e.b) {
+                CellRegion::Outside => {
+                    outside += 1;
+                    continue;
+                }
+                CellRegion::Inside => e.ib = true,
+                CellRegion::Undecided => {}
+            }
+        }
+        let both = (e.ia && e.ib) || {
+            let d = dist(at(x, e.a), at(y, e.b));
+            d < best_hi && on_face(x, e.a) && on_face(y, e.b) && {
+                placed += 1;
+                true
+            }
+        };
+        if both {
+            let d = dist(at(x, e.a), at(y, e.b));
+            if d < best_hi {
+                best_hi = d;
+                best = Some((e.a, e.b));
+            }
+        }
+        let kids: Vec<(R, R)> = if e.da >= e.db {
+            quads(e.a).into_iter().map(|a| (a, e.b)).collect()
+        } else {
+            quads(e.b).into_iter().map(|b| (e.a, b)).collect()
+        };
+        for (a, b) in kids {
+            let (l, n) = mk(a, b, e.ia, e.ib);
+            if l < best_hi {
+                store.push(n);
+                heap.push((Reverse(l.to_bits()), store.len() - 1));
+            }
+        }
+    }
+    let mut line = format!(
+        "MIN\t({:?}, {:?})\t{:?}x{:?}\tlo={global_lo:.6e}\thi={best_hi:.6e}\tesc={esc:.3e}\tstop={why}\tpops={pops}\toutside={outside}\tplaced={placed}\tsecs={:.2}\t{seed_row}\t{deep_row}\t{tally_row}\t{bound_row}",
+        x.face,
+        y.face,
+        x.surface.kind(),
+        y.surface.kind(),
+        t0.elapsed().as_secs_f64()
+    );
+    if let Some((a, b)) = best {
+        let (ua, va) = centre(a.0, a.1);
+        let (ub, vb) = centre(b.0, b.1);
+        let (pa, pb) = (at(x, a), at(y, b));
+        let d = dist(pa, pb);
+        let w = [(pb[0] - pa[0]) / d, (pb[1] - pa[1]) / d, (pb[2] - pa[2]) / d];
+        let nrm = |s: &Surface<Interval>, u: f64, v: f64| {
+            let n = s.point_normal(u, v);
+            [geom::mid_param(n.x.lo(), n.x.hi()), geom::mid_param(n.y.lo(), n.y.hi()), geom::mid_param(n.z.lo(), n.z.hi())]
+        };
+        let (na, nb) = (nrm(&x.surface, ua, va), nrm(&y.surface, ub, vb));
+        let dot = |p: [f64; 3], q: [f64; 3]| p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+        line.push_str(&format!(
+            "\targmin_a=({ua:.9},{va:.9})\targmin_b=({ub:.9},{vb:.9})\tpa={pa:?}\tpb={pb:?}\tna.w={:.6}\tnb.w={:.6}\tna.nb={:.6}",
+            dot(na, w),
+            dot(nb, w),
+            dot(na, nb)
+        ));
+        // The dyadic cells holding the argmin, both windows halved on
+        // both axes k times: the box, the engine's own support reading,
+        // the support along w (certified, the engine's hull), and the
+        // gap along w sampled.
+        let dy = |root: (f64, f64), t: f64, k: i32| {
+            let s = (root.1 - root.0) / 2f64.powi(k);
+            let i = ((t - root.0) / s).floor().clamp(0.0, 2f64.powi(k) - 1.0);
+            (root.0 + i * s, root.0 + (i + 1.0) * s)
+        };
+        let wv = Vec3::new(w[0], w[1], w[2]).map(Interval::from_f64);
+        let mut rows = Vec::new();
+        for k in 0..=32 {
+            let ca = (dy(x.u, ua, k), dy(x.v, va, k));
+            let cb = (dy(y.u, ub, k), dy(y.v, vb, k));
+            let a = Cell::on(&x.surface, ca.0, ca.1);
+            let b = Cell::on(&y.surface, cb.0, cb.1);
+            let boxlo = separation(&a.enc, &b.enc).lo();
+            let eng = support_separation((x, a), (y, b)).map_or(f64::NAN, |i| i.lo());
+            let (ha, hb) = (Hull::of(&x.surface, a), Hull::of(&y.surface, b));
+            let wlo = (Interval::from_f64(hb.support(wv).lo()) - Interval::from_f64(ha.support(wv).hi())).lo();
+            let (mut amax, mut bmin) = (f64::NEG_INFINITY, f64::INFINITY);
+            for i in 0..=8 {
+                for j in 0..=8 {
+                    let f = |c: R| {
+                        (
+                            c.0.0 + (c.0.1 - c.0.0) * f64::from(i) / 8.0,
+                            c.1.0 + (c.1.1 - c.1.0) * f64::from(j) / 8.0,
+                        )
+                    };
+                    let (u, v) = f(ca);
+                    amax = amax.max(dot(mid3(x.surface.point_eval(u, v)), w));
+                    let (u, v) = f(cb);
+                    bmin = bmin.min(dot(mid3(y.surface.point_eval(u, v)), w));
+                }
+            }
+            rows.push(format!(
+                "{k}:{:.2e}/{:.2e}:box={boxlo:.3e}:eng={eng:.3e}:w={wlo:.3e}:wsamp={:.3e}",
+                diameter(&cell_box(&a.enc)),
+                diameter(&cell_box(&b.enc)),
+                bmin - amax
+            ));
+        }
+        line.push_str(&format!("\tdyadic={rows:?}"));
+    }
+    line.push('\n');
+    crate::gate_measure::emit(&line);
+}
+
 /// **The door's WIRING**: which function each field of
 /// [`ClearanceLane::certified`] holds. Why a wiring row compares
 /// pointers rather than outputs: `certified_enclosure_impl_census`'s
 /// module doc.
+
 #[cfg(test)]
 mod wiring_rows {
     use super::ClearanceLane;
