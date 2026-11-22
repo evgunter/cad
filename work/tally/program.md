@@ -2,7 +2,7 @@
 id: tally
 kind: program
 title: TALLY — the boolean's result-side refusals: volume bounds, the result gate, and ops that disagree on one pair
-status: ready
+status: active
 opened: 2026-10-08
 group: kernel/boolean/split
 prefix: tally/
