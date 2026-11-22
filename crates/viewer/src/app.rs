@@ -12550,6 +12550,52 @@ mod properties_pane_tests {
             assert_eq!(says(&hovered), 2, "and on the commit's hover: {hovered:?}");
         }
 
+        /// **A two-pick tool holding its first pick still waits on its
+        /// second, and names it**: the mirror holding a body and the
+        /// clearance holding its first seat each draw the commit withheld,
+        /// its hover the pick still open, and a click inserts nothing.
+        ///
+        /// Red if a tool's gate reads fewer picks than its op does — a gate
+        /// derived beside the op rather than read off it, which the
+        /// all-empty row above cannot tell from the op's own fault.
+        #[test]
+        fn a_two_pick_tool_with_one_pick_held_waits_on_the_other() {
+            use crate::pane::create::{COMBINE_BODIES, REQUIREMENTS};
+            use crate::tools::ToolKind;
+            for (kind, section, waiting) in [
+                (
+                    ToolKind::Mirror,
+                    COMBINE_BODIES,
+                    "no mirror plane picked yet",
+                ),
+                (
+                    ToolKind::Clearance,
+                    REQUIREMENTS,
+                    "no second seat picked yet",
+                ),
+            ] {
+                let mut driven = Driven::with(Vec::new());
+                driven.settle();
+                driven.app.tools.open(kind);
+                driven.click_through(vec![Selection::Node(placement())]);
+                driven.click(section);
+                let commit = kind.commit();
+                let gained = driven.gained_hovering(&commit);
+                assert!(
+                    gained.iter().any(|run| run == waiting),
+                    "{kind:?}: the withheld commit says {waiting:?}: {gained:?}"
+                );
+                let before = driven.app.session.committed_doc().ids().len();
+                driven.click(&commit);
+                driven.settle();
+                assert_eq!(
+                    driven.app.session.committed_doc().ids().len(),
+                    before,
+                    "{kind:?}: a withheld click inserts nothing"
+                );
+            }
+        }
+
         /// **The split's button waits for its plane, and names it**: with
         /// a target (the plate's copy) and no plane the commit is withheld, its hover the
         /// missing pick, and a click inserts nothing. Picking the plate's
