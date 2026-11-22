@@ -43,7 +43,9 @@ crates/step-export 9
 # 33 -> 30: the iso rung's bitwise twin moved to `on_built`, and a
 # printed spline's distance from a built line is read off its cover
 # (EXCH, adoption by description).
-crates/step-import 30
+# step-import 30 -> 25: surface_sig's knot and weight reads went with it
+# (records follow the file, EXPORT).
+crates/step-import 25
 crates/sweep 139
 crates/topo 36
 demos/tour 2

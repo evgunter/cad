@@ -2,7 +2,7 @@
 id: formwords
 kind: program
 title: FORMWORDS — the viewer forms' shared vocabulary and the body-seat gate they consult
-status: ready
+status: active
 opened: 2026-11-02
 group: gui/author
 prefix: formwords/
