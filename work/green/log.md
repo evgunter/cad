@@ -498,3 +498,7 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - Probe: the section edge meets the drum's cut plane only at its two rim-vertex ends and clears it elsewhere. `clears_plane` needs every control point strictly off the plane, so it can never clear a clamped carrier that ends on it. Six neighbouring poses refuse alike.
   - Pinned under `pinned_red::row` at every ε, against a new P0 on SECTARMS (`a-rim-ball-refuses-b-minus-a-at-the-slits-unread-carrier-since-the-periodic-loop`). The fix is in the slit's plane reading, outside 7052's hunk.
   - FULL review (Opus) dispatched.
+- 2026-11-22 — PR 7392's review is in (FULL, Opus): APPROVE-WITH-FIXES, no MAJOR. The bisect, the probe numbers, the pin's single-run match and the sibling dispositions hold.
+  - Corrected: the refusal is a conservative answer from a certificate too weak to clear a clamped carrier ending on the plane, not a wrong answer. The P0 band stands.
+  - The pin did not hold the edge and face keys (the containment class again).
+  - Fix pass sent: all taken, including `design: true` on SECTARMS' row (strengthen the certificate, or restore the seam split). GREEN's row closes at merge.
