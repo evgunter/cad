@@ -234,7 +234,54 @@ impl<T: Real> Iv<T> {
     fn over(self, o: Self) -> Self {
         Self::of(self.lo / o.lo, self.lo / o.hi).hull(Self::of(self.hi / o.lo, self.hi / o.hi))
     }
+
+    /// `−self`.
+    fn neg(self) -> Self {
+        self.from(T::zero())
+    }
+
+    /// The part both enclose, each an enclosure of one value; their hull
+    /// where rounding parts them.
+    fn meet(self, o: Self) -> Self {
+        let met = Self {
+            lo: self.lo.max(o.lo),
+            hi: self.hi.min(o.hi),
+        };
+        let gap = met.lo - met.hi;
+        Self {
+            lo: gap.select_le_zero(met.lo, self.lo.min(o.lo)),
+            hi: gap.select_le_zero(met.hi, self.hi.max(o.hi)),
+        }
+    }
+
+    /// `self / o` where `o` stands clear of zero on either side, and
+    /// every value ([`WIDE`]) where it does not: a selection on the
+    /// enclosure's ends, not a decision.
+    fn quotient(self, o: Self) -> Self {
+        let wide = T::from_f64(WIDE);
+        let above = self.over(o);
+        let below = self.neg().over(o.neg());
+        // `o.lo > 0`: above; `o.hi < 0`: below; else neither.
+        let pick = |a: T, b: T, w: T| {
+            o.lo
+                .select_le_zero((T::zero() - o.hi).select_le_zero(w, b), a)
+        };
+        Self {
+            lo: pick(above.lo, below.lo, T::zero() - wide),
+            hi: pick(above.hi, below.hi, wide),
+        }
+    }
+
+    /// The larger of the two ends' sizes: a ceiling on `|x|` over the
+    /// enclosure.
+    fn size(self) -> T {
+        self.abs().hi
+    }
 }
+
+/// The size [`Iv::quotient`] stands a quotient at whose divisor reaches
+/// zero: every finite value lies inside it.
+const WIDE: f64 = f64::MAX;
 
 /// **An enclosure of a point**, axis by axis.
 #[derive(Clone, Copy, Debug)]
@@ -300,6 +347,41 @@ impl<T: Real> V3<T> {
             .plus(self.y.square())
             .plus(self.z.square())
             .sqrt()
+    }
+
+    /// The constant vector `v`.
+    fn of(v: Vec3<T>) -> Self {
+        Self {
+            x: Iv::point(v.x),
+            y: Iv::point(v.y),
+            z: Iv::point(v.z),
+        }
+    }
+
+    /// `self · k`, `k` an enclosure.
+    fn times(self, k: Iv<T>) -> Self {
+        Self {
+            x: self.x.times(k),
+            y: self.y.times(k),
+            z: self.z.times(k),
+        }
+    }
+
+    /// `self · v`, `v` constant.
+    fn toward(self, v: Vec3<T>) -> Iv<T> {
+        self.x
+            .scale(v.x)
+            .plus(self.y.scale(v.y))
+            .plus(self.z.scale(v.z))
+    }
+
+    /// `self × v`, `v` constant.
+    fn cross(self, v: Vec3<T>) -> Self {
+        Self {
+            x: self.y.scale(v.z).plus(self.z.scale(T::zero() - v.y)),
+            y: self.z.scale(v.x).plus(self.x.scale(T::zero() - v.z)),
+            z: self.x.scale(v.y).plus(self.y.scale(T::zero() - v.x)),
+        }
     }
 
     /// The enclosure's centre: a selection, not a bound.
@@ -393,9 +475,31 @@ pub(crate) trait Ruled<T: Real> {
     /// The meetings of the cell's rulings on `sheet`, the discriminant's
     /// root enclosed through zero where `Δ` straddles it.
     fn meeting(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T>;
-    /// Their velocity along the angle, over a cell where `Δ` is decided
-    /// positive.
+    /// Their velocity along the angle, over a cell where [`Self::smooth`]
+    /// is decided positive.
     fn velocity(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T>;
+    /// **A floor on the distance of the cell's meetings on `sheet` from
+    /// `center`**, for a side whose rulings may run along an asymptotic
+    /// direction of the partner, where a meeting runs past every bound
+    /// and [`Self::meeting`] encloses it by every value: `None` where the
+    /// meetings are always bounded.
+    fn far(&self, _cell: &Cell<T>, _sheet: Sheet, _center: Point3<T>) -> Option<T> {
+        None
+    }
+    /// The margin whose positive reading makes both sheets smooth over
+    /// the cell, so that [`Self::velocity`] reads: `Δ` itself, unless the
+    /// side says otherwise.
+    fn smooth(&self, cell: &Cell<T>) -> Iv<T> {
+        self.discriminant(cell)
+    }
+    /// **A ceiling on the size of the rulings' clearance over the cell**
+    /// (`Δ` is a margin of its sign, and may be only a floor on its
+    /// size), where the side reads one: `None` for a side whose pose
+    /// decides its tangencies before any sweep, so that the sweep never
+    /// decides a double root of `Δ` itself.
+    fn ceiling(&self, _cell: &Cell<T>) -> Option<T> {
+        None
+    }
 }
 
 /// **The thinner of two cylinders swept against the other.** The ruled
@@ -608,6 +712,424 @@ impl<T: Real> Ruled<T> for RuledCylinderSphere<T> {
     }
 }
 
+/// **The partner of a cone's rulings as a quadric form**
+/// `q(X) = κ|w|² + β(d·w)² + γ`, `w = X − P`, `d` unit: a cylinder of
+/// radius `r` about the axis through `P` (`κ = 1`, `β = −1`, `γ = −r²`),
+/// or the double cone of half-angle `α` from the apex `P` (`κ = −cos²α`,
+/// `β = 1`, `γ = 0`). The form's matrix `κI + βddᵀ` has norm at most one
+/// in both, which the clearance ceiling reads.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Form<T: Real> {
+    pub(crate) at: Point3<T>,
+    pub(crate) d: Vec3<T>,
+    kappa: T,
+    beta: T,
+    gamma: T,
+    /// The cylinder's radius, whose clearance is read exactly.
+    radius: Option<T>,
+}
+
+impl<T: Real> Form<T> {
+    /// The wall of radius `r` about `axis`, its direction unit.
+    pub(crate) fn cylinder(axis: geom::Line<T>, r: T) -> Self {
+        Self {
+            at: axis.origin,
+            d: axis.dir,
+            kappa: T::one(),
+            beta: T::zero() - T::one(),
+            gamma: T::zero() - r.powi(2),
+            radius: Some(r),
+        }
+    }
+
+    /// The double cone from the apex `axis.origin` about its unit
+    /// direction, of half-angle cosine `cos`.
+    pub(crate) fn cone(axis: geom::Line<T>, cos: T) -> Self {
+        Self {
+            at: axis.origin,
+            d: axis.dir,
+            kappa: T::zero() - cos.powi(2),
+            beta: T::one(),
+            gamma: T::zero(),
+            radius: None,
+        }
+    }
+}
+
+/// **A cone's rulings against a cylinder or another cone.** A ruling is
+/// the whole line `apex + t·v(φ)`, `v = cos α·â + sin α(cos φ·n + sin φ·m)`
+/// (`n`, `m` unit, square to the axis and each other): `t > 0` is the
+/// nappe `v` opens into at azimuth `φ`, `t < 0` the mirror nappe at
+/// `φ + π`, so the turn of `φ` reads both nappes, each point of the
+/// double cone but the apex on one ruling. With `u = apex − P` constant,
+/// the partner's form along the ruling is `p₂t² + p₁t + p₀`:
+/// `p₂ = κ + β(d·v)²`, `p₁ = 2(κ u·v + β(d·u)(d·v))` and the apex's own
+/// `p₀ = q(apex)`, constant. Its discriminant `E = p₁² − 4p₂p₀` is a
+/// trigonometric polynomial of degree two in `φ`.
+///
+/// `Δ` is in metres and shares `E`'s sign: against a cylinder the
+/// ruling's clearance itself, `r − δ`, `δ` the ruling's distance from
+/// the axis; against a cone the floor `E/16|u|` on it, `|u|` at least
+/// the ruling's distance from the partner's apex (`topo`'s
+/// `section_cert::ruling` docs derive `E/16d`; `E` does not depend on
+/// where along the ruling `t` is measured).
+///
+/// Each sheet is a projective root of the quadratic,
+/// `t_σ = (−p₁ + σ√E)/2p₂ = 2p₀/(−p₁ − σ√E)`, both forms read and met, so
+/// a sheet stays enclosed where `p₂` vanishes (a ruling along an
+/// asymptotic direction of the partner): there one form stays finite and
+/// the other sheet leaves every bound, which [`Ruled::far`] reads as a
+/// floor on its distance.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RuledCone<T: Real> {
+    pub(crate) apex: Point3<T>,
+    /// The cone's unit axis.
+    pub(crate) axis: Vec3<T>,
+    pub(crate) n: Vec3<T>,
+    pub(crate) m: Vec3<T>,
+    /// `(sin α, cos α)`.
+    pub(crate) sc: (T, T),
+    pub(crate) partner: Form<T>,
+    /// The lever an angle along the rulings is read at: the region's
+    /// farthest reach from the apex.
+    pub(crate) lever: geom_core::Lever<T>,
+}
+
+/// A ruling's quadratic over a cell: `p₂`, `p₁` and their slopes along
+/// the angle, the constant `p₀`, `E` and its slope.
+struct Quadratic<T: Real> {
+    p2: Iv<T>,
+    p1: Iv<T>,
+    p0: T,
+    dp2: Iv<T>,
+    dp1: Iv<T>,
+    e: Iv<T>,
+    de: Iv<T>,
+}
+
+impl<T: Real> RuledCone<T> {
+    /// `v` over the cell.
+    pub(crate) fn dir(&self, cell: &Cell<T>) -> V3<T> {
+        let (s, c) = self.sc;
+        V3::of(self.axis * c)
+            .plus(V3::along(self.n, cell.cos.scale(s)))
+            .plus(V3::along(self.m, cell.sin.scale(s)))
+    }
+
+    /// `v′` over the cell.
+    fn turn(&self, cell: &Cell<T>) -> V3<T> {
+        let (s, _) = self.sc;
+        V3::along(self.n, cell.sin.scale(T::zero() - s)).plus(V3::along(self.m, cell.cos.scale(s)))
+    }
+
+    /// `u = apex − P`.
+    fn u(&self) -> Vec3<T> {
+        self.apex - self.partner.at
+    }
+
+    /// `|u|`, at least the ruling's distance from `P`.
+    fn reach(&self) -> T {
+        self.u().norm()
+    }
+
+    /// **The rounding each coefficient carries** at the scale `|u|`
+    /// ([`rounding_charge`]): `p₂` of size two, `p₁` of `4|u|`, `p₀` of
+    /// `2|u|² + |γ|`, `E` of their products.
+    fn charges(&self) -> (T, T, T, T) {
+        let big_u = self.reach();
+        let two = T::from_f64(2.0);
+        let s1 = T::from_f64(4.0) * big_u;
+        let s0 = two * big_u.powi(2) + self.partner.gamma.abs();
+        (
+            rounding_charge(two),
+            rounding_charge(s1),
+            rounding_charge(s0),
+            rounding_charge(s1.powi(2) + T::from_f64(8.0) * s0),
+        )
+    }
+
+    fn quadratic(&self, cell: &Cell<T>) -> Quadratic<T> {
+        let Form {
+            d,
+            kappa,
+            beta,
+            gamma,
+            ..
+        } = self.partner;
+        let u = self.u();
+        let two = T::from_f64(2.0);
+        let (v, w) = (self.dir(cell), self.turn(cell));
+        let (dv, uv) = (v.toward(d), v.toward(u));
+        let (ddv, duv) = (w.toward(d), w.toward(u));
+        let du = d.dot(u);
+        let (c2, c1, c0, ce) = self.charges();
+        let p2 = dv.square().scale(beta).shift(kappa).widen(c2);
+        let p1 = uv
+            .scale(two * kappa)
+            .plus(dv.scale(two * beta * du))
+            .widen(c1);
+        let p0 = kappa * u.norm_squared() + beta * du.powi(2) + gamma;
+        let dp2 = dv.times(ddv).scale(two * beta).widen(c2);
+        let dp1 = duv
+            .scale(two * kappa)
+            .plus(ddv.scale(two * beta * du))
+            .widen(c1);
+        let e = p1
+            .square()
+            .plus(p2.scale(T::from_f64(-4.0) * p0))
+            .widen(ce + c0.abs() * T::from_f64(4.0) * p2.size());
+        let de = p1
+            .times(dp1)
+            .scale(two)
+            .plus(dp2.scale(T::from_f64(-4.0) * p0))
+            .widen(ce);
+        Quadratic {
+            p2,
+            p1,
+            p0,
+            dp2,
+            dp1,
+            e,
+            de,
+        }
+    }
+
+    /// `δ = |u·(v × d)| / |v × d|`, the ruling's distance from a
+    /// cylinder's axis, held inside `[0, |u|]` (the distance between two
+    /// of their points) where `|v × d|` reaches zero over the cell, and
+    /// its slope along the angle, every value where `u·(v × d)` reaches
+    /// zero (`δ` is not smooth there, and stands far from the radius).
+    fn axis_distance(&self, cell: &Cell<T>) -> (Iv<T>, Iv<T>) {
+        let (d, u) = (self.partner.d, self.u());
+        let wide = T::from_f64(WIDE);
+        let w = self.dir(cell).cross(d);
+        let dw = self.turn(cell).cross(d);
+        let (num, dnum) = (w.toward(u), dw.toward(u));
+        let den = w.norm();
+        let reach = self.reach();
+        let q = num.abs().quotient(den);
+        let delta = Iv {
+            lo: q.lo.max(T::zero()).min(reach),
+            hi: q.hi.min(reach).max(T::zero()),
+        };
+        // `δ′ = sign(N)(N′D − N D′)/D²`, `D′ = (w·w′)/D`.
+        let dden = w.dot(dw).quotient(den);
+        let g = dnum
+            .times(den)
+            .plus(num.times(dden).neg())
+            .quotient(den.square());
+        let slope = Iv {
+            lo: num.lo.select_le_zero(
+                num.hi.select_le_zero(T::zero() - g.hi, T::zero() - wide),
+                g.lo,
+            ),
+            hi: num.lo.select_le_zero(
+                num.hi.select_le_zero(T::zero() - g.lo, wide),
+                g.hi,
+            ),
+        };
+        (delta, slope)
+    }
+
+    /// The sheet's `t` over the cell, both projective forms met.
+    fn root(&self, q: &Quadratic<T>, sheet: Sheet) -> Iv<T> {
+        let two = T::from_f64(2.0);
+        let s = q.e.sqrt().scale(sheet.sign());
+        let minus_p1 = q.p1.neg();
+        let wide = minus_p1.plus(s).quotient(q.p2.scale(two));
+        let narrow = Iv::point(two * q.p0).quotient(minus_p1.plus(s.neg()));
+        wide.meet(narrow)
+    }
+
+    /// The point `apex + t·v` over the cell, `t` the enclosure given.
+    fn point(&self, cell: &Cell<T>, t: Iv<T>) -> V3<T> {
+        let size = (self.apex - Point3::origin()).norm() + t.size();
+        V3::at(self.apex)
+            .plus(self.dir(cell).times(t))
+            .widen(rounding_charge(size))
+    }
+}
+
+impl<T: Real> Ruled<T> for RuledCone<T> {
+    fn lever(&self) -> geom_core::Lever<T> {
+        self.lever
+    }
+
+    fn discriminant(&self, cell: &Cell<T>) -> Iv<T> {
+        match self.partner.radius {
+            Some(r) => {
+                let (delta, _) = self.axis_distance(cell);
+                delta
+                    .from(r)
+                    .widen(rounding_charge(r + self.reach()))
+            }
+            None => {
+                let q = self.quadratic(cell);
+                q.e.scale(T::one() / (T::from_f64(16.0) * self.reach()))
+            }
+        }
+    }
+
+    fn discriminant_slope(&self, cell: &Cell<T>) -> Iv<T> {
+        match self.partner.radius {
+            Some(r) => {
+                let (_, slope) = self.axis_distance(cell);
+                slope.neg().widen(rounding_charge(r + self.reach()))
+            }
+            None => {
+                let q = self.quadratic(cell);
+                q.de.scale(T::one() / (T::from_f64(16.0) * self.reach()))
+            }
+        }
+    }
+
+    fn meeting(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T> {
+        let q = self.quadratic(cell);
+        self.point(cell, self.root(&q, sheet))
+    }
+
+    fn velocity(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T> {
+        // `t′ = −(p₂′t² + p₁′t) / (2p₂t + p₁)`, `2p₂t + p₁ = σ√E`.
+        let q = self.quadratic(cell);
+        let t = self.root(&q, sheet);
+        let dt = q
+            .dp2
+            .times(t.square())
+            .plus(q.dp1.times(t))
+            .quotient(q.e.sqrt().scale(sheet.sign()))
+            .neg();
+        self.dir(cell).times(dt).plus(self.turn(cell).times(t))
+    }
+
+    /// `|t| ≥ |−p₁ + σ√E| / |2p₂|` and `≥ |2p₀| / |−p₁ − σ√E|`, each a
+    /// floor whatever the divisor's sign, and `|X − c| ≥ |t| − |apex − c|`.
+    fn far(&self, cell: &Cell<T>, sheet: Sheet, center: Point3<T>) -> Option<T> {
+        let q = self.quadratic(cell);
+        let two = T::from_f64(2.0);
+        let s = q.e.sqrt().scale(sheet.sign());
+        let minus_p1 = q.p1.neg();
+        let floor = |num: Iv<T>, den: Iv<T>| {
+            let (n, d) = (num.abs().lo, den.size());
+            d.select_le_zero(T::zero(), n / d)
+        };
+        let t = floor(minus_p1.plus(s), q.p2.scale(two))
+            .max(floor(Iv::point(two * q.p0), minus_p1.plus(s.neg())));
+        Some(t - (self.apex - center).norm())
+    }
+
+    fn ceiling(&self, cell: &Cell<T>) -> Option<T> {
+        match self.partner.radius {
+            Some(_) => Some(self.discriminant(cell).size()),
+            None => Some(self.form_ceiling(cell)),
+        }
+    }
+}
+
+impl<T: Real> RuledCone<T> {
+    /// **The clearance ceiling against a cone**: at the ruling's point
+    /// `X*` where the form is extreme along it (`t* = −p₁/2p₂`, the
+    /// gradient `g` there square to the ruling), translating the ruling
+    /// by `s` along `ĝ` moves the extreme to
+    /// `q* + s|g| + s²k′`, `|k′| ≤ 1 + 1/|p₂|` (the form's matrix has norm
+    /// at most one). Where `|g|² ≥ 4(1 + 1/|p₂|)|q*|` that has a root
+    /// within `2|q*|/|g|`, where the ruling turns tangent, so its
+    /// clearance is at most that; elsewhere it is no ceiling, and reads
+    /// as every value.
+    fn form_ceiling(&self, cell: &Cell<T>) -> T {
+        let Form {
+            at,
+            d,
+            kappa,
+            beta,
+            gamma,
+            ..
+        } = self.partner;
+        let wide = T::from_f64(WIDE);
+        let two = T::from_f64(2.0);
+        let q = self.quadratic(cell);
+        let t = q.p1.quotient(q.p2.scale(two)).neg();
+        let x = self.point(cell, t);
+        let w = x.less(at);
+        let dw = w.toward(d);
+        let value = w
+            .dot(w)
+            .scale(kappa)
+            .plus(dw.square().scale(beta))
+            .shift(gamma)
+            .size();
+        let g = w
+            .times(Iv::point(two * kappa))
+            .plus(V3::along(d, dw.scale(two * beta)))
+            .norm()
+            .lo;
+        let k = T::one() + T::one() / q.p2.abs().lo;
+        let room = T::from_f64(4.0) * k * value - g.powi(2);
+        let ceiling = two * value / g;
+        let ceiling = room.select_le_zero(ceiling, wide);
+        if ceiling.is_poison() { wide } else { ceiling }
+    }
+}
+
+/// **A cone whose apex lies on its partner, its rulings read with the
+/// apex root divided out** (C5): `p₀` is decided `Zero`, so each ruling
+/// meets the partner at its apex and once more, at `t = −p₁/p₂`. The one
+/// sheet that leaves runs the whole turn, through the apex where `p₁`
+/// vanishes (a ruling in the partner's tangent plane there: the node's
+/// lines) and past every bound where `p₂` does. Read as a ruled side of
+/// one sheet: `Δ` is `p₁/2`, in metres, whose simple zeros
+/// ([`Disc::Rise`], [`Disc::Fall`]) are the sheet's passes through the
+/// apex, and the sheet is smooth where `p₂` stands off zero.
+pub(crate) struct DividedCone<'a, T: Real>(pub(crate) &'a RuledCone<T>);
+
+impl<T: Real> DividedCone<'_, T> {
+    fn t(&self, q: &Quadratic<T>) -> Iv<T> {
+        q.p1.quotient(q.p2).neg()
+    }
+}
+
+impl<T: Real> Ruled<T> for DividedCone<'_, T> {
+    fn lever(&self) -> geom_core::Lever<T> {
+        self.0.lever
+    }
+
+    fn discriminant(&self, cell: &Cell<T>) -> Iv<T> {
+        self.0.quadratic(cell).p1.scale(T::from_f64(0.5))
+    }
+
+    fn discriminant_slope(&self, cell: &Cell<T>) -> Iv<T> {
+        self.0.quadratic(cell).dp1.scale(T::from_f64(0.5))
+    }
+
+    fn smooth(&self, cell: &Cell<T>) -> Iv<T> {
+        self.0.quadratic(cell).p2.abs().scale(self.0.reach())
+    }
+
+    fn meeting(&self, cell: &Cell<T>, _: Sheet) -> V3<T> {
+        let q = self.0.quadratic(cell);
+        self.0.point(cell, self.t(&q))
+    }
+
+    fn velocity(&self, cell: &Cell<T>, _: Sheet) -> V3<T> {
+        // `t′ = −(p₁′p₂ − p₁p₂′)/p₂²`.
+        let q = self.0.quadratic(cell);
+        let t = self.t(&q);
+        let dt = q
+            .dp1
+            .times(q.p2)
+            .plus(q.p1.times(q.dp2).neg())
+            .quotient(q.p2.square())
+            .neg();
+        self.0.dir(cell).times(dt).plus(self.0.turn(cell).times(t))
+    }
+
+    fn far(&self, cell: &Cell<T>, _: Sheet, center: Point3<T>) -> Option<T> {
+        let q = self.0.quadratic(cell);
+        let d = q.p2.size();
+        let t = d.select_le_zero(T::zero(), q.p1.abs().lo / d);
+        Some(t - (self.0.apex - center).norm())
+    }
+}
+
 /// **A component the sweep lists**: open between two cut ends, or a loop
 /// the ball holds whole.
 #[derive(Clone, Copy, Debug)]
@@ -620,7 +1142,32 @@ pub(crate) struct Swept<T: Real> {
     /// A loop of one sheet over the whole turn, which winds about the
     /// ruled side.
     pub(crate) encircles: bool,
+    /// It runs through a crossing tangency the sweep decided
+    /// ([`Touch`]).
+    pub(crate) tangent: bool,
 }
+
+/// **A double root of `Δ` the sweep decided a tangency** (C5): `Δ` turns
+/// once over the cell, monotone either side of a core where its slope
+/// is in band, and the side's clearance ceiling over that core
+/// ([`Ruled::ceiling`]) is decided `Zero` on [`TANGENCY`]. Below zero
+/// either side (a maximum), the rulings touch the partner at one point
+/// of the section; above it (a minimum), two arcs of the section cross
+/// there, and the stretch of the section through it is tangent.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Touch<T: Real> {
+    /// The ruling's double meeting at the core's middle.
+    pub(crate) at: Point3<T>,
+    /// A minimum: the section's arcs cross there.
+    pub(crate) crossing: bool,
+    /// The ceiling's `Zero` margin.
+    pub(crate) margin: geom_core::MarginDiag,
+    lo: f64,
+    hi: f64,
+}
+
+/// The row a double root of `Δ` is decided a tangency on.
+pub(crate) const TANGENCY: &str = "ruling_tangency";
 
 /// **What one sweep read**: the components inside the ball, and the
 /// loops the section has before the ball cuts them.
@@ -628,6 +1175,8 @@ pub(crate) struct Swept<T: Real> {
 pub(crate) struct Sweep<T: Real> {
     pub(crate) components: Vec<Swept<T>>,
     pub(crate) loops: usize,
+    /// The double roots of `Δ` decided tangencies.
+    pub(crate) touches: Vec<Touch<T>>,
 }
 
 /// **Why a sweep refused.**
@@ -664,6 +1213,20 @@ enum Disc {
     Rise,
     /// One simple zero, `Δ` falling.
     Fall,
+    /// A double root decided a tangency ([`Touch`]): `Δ` positive about
+    /// it where `crossing`, negative otherwise.
+    Touch { crossing: bool },
+}
+
+impl Disc {
+    /// The side of zero a cell's arcs read it on.
+    fn positive(self) -> Option<bool> {
+        match self {
+            Self::Positive | Self::Touch { crossing: true } => Some(true),
+            Self::Negative | Self::Touch { crossing: false } => Some(false),
+            Self::Rise | Self::Fall => None,
+        }
+    }
 }
 
 /// One arc of `Δ > 0` between its two branch cells.
@@ -708,6 +1271,10 @@ enum Event<T: Real> {
         at: Point3<T>,
         inside: Point3<T>,
     },
+    /// A pass through the apex of a cone whose apex root is divided out
+    /// ([`DividedCone`]), at the ruling angle `phi`: a node of the
+    /// section.
+    Node { phi: f64 },
 }
 
 /// **The sweep of `ruled` against `ball`**, the ball the march ends at
@@ -721,13 +1288,165 @@ pub(crate) fn sweep<T: Decide, R: Ruled<T>>(
     ball: ExtentBall<T>,
     band: Band,
 ) -> Result<Sweep<T>, SweepRefusal> {
-    Sweeper {
-        ruled,
-        ball,
-        band,
-        spent: 0,
+    Sweeper::new(ruled, ball, band).run()
+}
+
+/// **An end of an arc of a divided cone's sheet** ([`sweep_divided`]):
+/// a cut end on the ball's boundary, or a pass through the apex at the
+/// ruling angle `phi`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum End<T: Real> {
+    Cut(Point3<T>),
+    Node(f64),
+}
+
+/// **An arc of a divided cone's sheet inside the ball**: its two ends in
+/// the turn's order, or none for a loop the ball holds whole, and a
+/// point of it decided inside.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Stretched<T: Real> {
+    pub(crate) ends: Option<[End<T>; 2]>,
+    pub(crate) witness: Point3<T>,
+}
+
+/// **What a divided sweep read**: the arcs inside the ball, and the
+/// ruling angles of the sheet's passes through the apex the ball holds.
+#[derive(Clone, Debug)]
+pub(crate) struct Divided<T: Real> {
+    pub(crate) arcs: Vec<Stretched<T>>,
+    pub(crate) nodes: Vec<f64>,
+}
+
+/// **The sweep of a cone whose apex lies on its partner** ([`DividedCone`]):
+/// the one sheet read round the turn, its passes through the apex found
+/// as the simple zeros of `p₁` and read against the ball as a branch
+/// point is (both sides of the zero at once, the cell halved toward it),
+/// and the turn cut into arcs at those passes and at the cut ends.
+///
+/// # Errors
+///
+/// [`SweepRefusal`].
+pub(crate) fn sweep_divided<T: Decide>(
+    cone: &RuledCone<T>,
+    ball: ExtentBall<T>,
+    band: Band,
+) -> Result<Divided<T>, SweepRefusal> {
+    let side = DividedCone(cone);
+    let mut sweeper = Sweeper::new(&side, ball, band);
+    let cells = sweeper.tiled()?;
+    let mut events = Vec::new();
+    for (cell, disc) in cells {
+        match disc {
+            Disc::Rise | Disc::Fall => events.extend(sweeper.passes(cell, disc == Disc::Rise)?),
+            Disc::Positive | Disc::Negative | Disc::Touch { .. } => {
+                for leaf in sweeper.leaves(&[cell], Sheet::Plus)? {
+                    events.push(sweeper.event(leaf, Sheet::Plus, false).0);
+                }
+            }
+        }
     }
-    .run()
+    cut_divided(&events)
+}
+
+/// **A divided sheet's readings cut into its arcs** ([`sweep_divided`]):
+/// each stretch inside the ball from a pass through the apex or an
+/// entering cut end to the next pass or leaving cut end is an arc; a
+/// sheet with neither is one loop where it lies inside, none where
+/// outside.
+fn cut_divided<T: Real>(events: &[Event<T>]) -> Result<Divided<T>, SweepRefusal> {
+    let inconsistent =
+        SweepRefusal::Inconsistent("the divided sweep reads one stretch of its sheet on both sides");
+    let nodes = events
+        .iter()
+        .filter_map(|e| match *e {
+            Event::Node { phi } => Some(phi),
+            Event::Side(..) | Event::Cut { .. } => None,
+        })
+        .collect();
+    let boundary = |e: &Event<T>| {
+        matches!(
+            e,
+            Event::Node { .. }
+                | Event::Cut {
+                    entering: false,
+                    ..
+                }
+        )
+    };
+    let Some(start) = events.iter().position(boundary) else {
+        let flagged = events.iter().map(|&e| (e, false)).collect();
+        let arcs = cut_loop(flagged, true, events.len() / 2)?
+            .into_iter()
+            .map(|c| Stretched {
+                ends: None,
+                witness: c.witness,
+            })
+            .collect();
+        return Ok(Divided { arcs, nodes });
+    };
+    let n = events.len();
+    let mut arcs = Vec::new();
+    // The open arc: where it starts, the point beside an entering cut
+    // end, and the points read inside along it.
+    type Open<T> = (End<T>, Option<Point3<T>>, Vec<Point3<T>>);
+    let opened = |e: Event<T>| -> Option<Open<T>> {
+        match e {
+            Event::Node { phi } => Some((End::Node(phi), None, Vec::new())),
+            Event::Side(..) | Event::Cut { .. } => None,
+        }
+    };
+    let closed = |(from, beside, points): Open<T>, to: End<T>| -> Result<Stretched<T>, SweepRefusal> {
+        let witness = points
+            .get(points.len() / 2)
+            .copied()
+            .or(beside)
+            .ok_or(SweepRefusal::Inconsistent(
+                "the divided sweep read an arc of its sheet with no point inside the ball",
+            ))?;
+        Ok(Stretched {
+            ends: Some([from, to]),
+            witness,
+        })
+    };
+    let mut open = opened(events[start]);
+    for k in 1..=n {
+        open = match (open, events[(start + k) % n]) {
+            (None, Event::Side(false, _)) => None,
+            (
+                None,
+                Event::Cut {
+                    entering: true,
+                    at,
+                    inside,
+                },
+            ) => Some((End::Cut(at), Some(inside), Vec::new())),
+            (Some((from, beside, mut points)), Event::Side(true, at)) => {
+                points.extend(at);
+                Some((from, beside, points))
+            }
+            (
+                Some(run),
+                Event::Cut {
+                    entering: false,
+                    at,
+                    ..
+                },
+            ) => {
+                arcs.push(closed(run, End::Cut(at))?);
+                None
+            }
+            (Some(run), Event::Node { phi }) => {
+                arcs.push(closed(run, End::Node(phi))?);
+                Some((End::Node(phi), None, Vec::new()))
+            }
+            _ => return Err(inconsistent),
+        };
+    }
+    // Round the turn, the walk stands where it started.
+    if open.is_some() != opened(events[start]).is_some() {
+        return Err(inconsistent);
+    }
+    Ok(Divided { arcs, nodes })
 }
 
 struct Sweeper<'a, T: Real, R> {
@@ -735,10 +1454,54 @@ struct Sweeper<'a, T: Real, R> {
     ball: ExtentBall<T>,
     band: Band,
     spent: usize,
+    touches: Vec<Touch<T>>,
 }
 
-impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
+impl<'a, T: Decide, R: Ruled<T>> Sweeper<'a, T, R> {
+    fn new(ruled: &'a R, ball: ExtentBall<T>, band: Band) -> Self {
+        Self {
+            ruled,
+            ball,
+            band,
+            spent: 0,
+            touches: Vec::new(),
+        }
+    }
+
     fn run(&mut self) -> Result<Sweep<T>, SweepRefusal> {
+        let cells = self.tiled()?;
+        if cells.iter().all(|(_, d)| d.positive() == Some(true)) {
+            let turn: Vec<Cell<T>> = cells.into_iter().map(|(c, _)| c).collect();
+            let mut components = Vec::new();
+            for sheet in [Sheet::Plus, Sheet::Minus] {
+                let events = self
+                    .leaves(&turn, sheet)?
+                    .into_iter()
+                    .map(|l| self.event(l, sheet, false))
+                    .collect();
+                components.extend(cut_loop(events, true, 0)?);
+            }
+            return Ok(Sweep {
+                components,
+                loops: 2,
+                touches: core::mem::take(&mut self.touches),
+            });
+        }
+        let arcs = arcs(cells)?;
+        let mut components = Vec::new();
+        for arc in &arcs {
+            components.extend(self.arc_components(arc)?);
+        }
+        Ok(Sweep {
+            components,
+            loops: arcs.len(),
+            touches: core::mem::take(&mut self.touches),
+        })
+    }
+
+    /// **The turn tiled into cells of `Δ`** ([`Disc`]), in the turn's
+    /// order.
+    fn tiled(&mut self) -> Result<Vec<(Cell<T>, Disc)>, SweepRefusal> {
         let mut cells = Vec::new();
         #[allow(clippy::cast_precision_loss)]
         let width = core::f64::consts::TAU / START as f64;
@@ -770,31 +1533,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
                 .unwrap_or(first + core::f64::consts::TAU);
             self.discriminant_cell(Cell::new(lo, hi), &mut cells)?;
         }
-        if cells.iter().all(|(_, d)| *d == Disc::Positive) {
-            let turn: Vec<Cell<T>> = cells.into_iter().map(|(c, _)| c).collect();
-            let mut components = Vec::new();
-            for sheet in [Sheet::Plus, Sheet::Minus] {
-                let events = self
-                    .leaves(&turn, sheet)?
-                    .into_iter()
-                    .map(|l| self.event(l, sheet, false))
-                    .collect();
-                components.extend(cut_loop(events, true, 0)?);
-            }
-            return Ok(Sweep {
-                components,
-                loops: 2,
-            });
-        }
-        let arcs = arcs(cells)?;
-        let mut components = Vec::new();
-        for arc in &arcs {
-            components.extend(self.arc_components(arc)?);
-        }
-        Ok(Sweep {
-            components,
-            loops: arcs.len(),
-        })
+        Ok(cells)
     }
 
     /// Counts a cell against the budget.
@@ -887,6 +1626,21 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             .shift(T::zero() - self.ball.radius())
     }
 
+    /// **The signed distance of the cell's meetings on `sheet` past the
+    /// ball's boundary**: [`Self::past`] of their enclosure, raised to
+    /// the side's floor on their distance where it has one
+    /// ([`Ruled::far`]).
+    fn side(&self, cell: &Cell<T>, sheet: Sheet) -> Iv<T> {
+        let h = self.past(self.ruled.meeting(cell, sheet));
+        match self.ruled.far(cell, sheet, self.ball.center()) {
+            Some(floor) => Iv {
+                lo: h.lo.max(floor - self.ball.radius()),
+                hi: h.hi,
+            },
+            None => h,
+        }
+    }
+
     /// `Δ`'s reading of `cell`, split until each piece is one of
     /// [`Disc`], the pieces in the turn's order.
     fn discriminant_cell(
@@ -902,6 +1656,14 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             Some(Disc::Negative)
         } else {
             self.branch(&cell)
+        };
+        let kind = match kind {
+            Some(kind) => Some(kind),
+            None => self.touch(&cell)?.map(|t| {
+                let crossing = t.crossing;
+                self.touches.push(t);
+                Disc::Touch { crossing }
+            }),
         };
         if let Some(kind) = kind {
             out.push((cell, kind));
@@ -932,6 +1694,108 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         }
     }
 
+    /// **A double root of `Δ` in `cell`, decided a tangency** ([`Touch`]),
+    /// for a side that reads a clearance ceiling ([`Ruled::ceiling`]):
+    /// `Δ` decided on one side at both ends and turning between them (a
+    /// maximum below zero, or a minimum above it), its slope decided at
+    /// both ends; the core where the slope is in band found by bisection
+    /// and widened by its own width either way; `Δ` monotone from each
+    /// end to the core, every piece's slope decided; and the ceiling over
+    /// the core decided on [`TANGENCY`]. `Zero` is the tangency; past it,
+    /// or a cell of another shape, is none, and the cell is split; in
+    /// band, it escalates.
+    fn touch(&mut self, cell: &Cell<T>) -> Result<Option<Touch<T>>, SweepRefusal> {
+        if self.ruled.ceiling(&Cell::at(cell.mid())).is_none() {
+            return Ok(None);
+        }
+        let disc = |phi: f64| self.reads(Row::Discriminant, self.ruled.discriminant(&Cell::at(phi)));
+        let slope = |phi: f64| self.reads(Row::Slope, self.ruled.discriminant_slope(&Cell::at(phi)));
+        let (left, right, crossing) = match (disc(cell.lo), disc(cell.hi), slope(cell.lo), slope(cell.hi)) {
+            (Some(Reads::Below), Some(Reads::Below), Some(Reads::Above), Some(Reads::Below)) => {
+                (Reads::Above, Reads::Below, false)
+            }
+            (Some(Reads::Above), Some(Reads::Above), Some(Reads::Below), Some(Reads::Above)) => {
+                (Reads::Below, Reads::Above, true)
+            }
+            _ => return Ok(None),
+        };
+        // The core: from the last angle whose slope reads `left` to the
+        // first that reads `right`.
+        let (mut l, mut r) = (cell.lo, cell.hi);
+        let mut flat = None;
+        for _ in 0..SETTLE {
+            let mid = geom::mid_param(l, r);
+            match slope(mid) {
+                Some(x) if x == left => l = mid,
+                Some(_) => r = mid,
+                None => {
+                    flat = Some(mid);
+                    break;
+                }
+            }
+        }
+        if let Some(flat) = flat {
+            let (mut a, mut b) = (flat, flat);
+            for _ in 0..SETTLE {
+                let mid = geom::mid_param(l, a);
+                if slope(mid) == Some(left) { l = mid } else { a = mid }
+                let mid = geom::mid_param(b, r);
+                if slope(mid) == Some(right) { r = mid } else { b = mid }
+            }
+        }
+        let width = r - l;
+        let (a, b) = ((l - width).max(cell.lo), (r + width).min(cell.hi));
+        if disc(geom::mid_param(a, b)).is_some() {
+            return Ok(None);
+        }
+        if !self.monotone_over(cell.lo, a, left) || !self.monotone_over(b, cell.hi, right) {
+            return Ok(None);
+        }
+        let core = Cell::new(a, b);
+        let Some(ceiling) = self.ruled.ceiling(&core) else {
+            return Ok(None);
+        };
+        match decide_reported(TANGENCY, Margin::of(ceiling), self.band) {
+            Ok(geom_core::Decided {
+                sign: Sign::Zero,
+                margin,
+            }) => Ok(Some(Touch {
+                at: self
+                    .ruled
+                    .meeting(&Cell::at(geom::mid_param(a, b)), Sheet::Plus)
+                    .mid(),
+                crossing,
+                margin,
+                lo: cell.lo,
+                hi: cell.hi,
+            })),
+            Ok(_) => Ok(None),
+            Err(diag) => Err(SweepRefusal::Escalated(diag)),
+        }
+    }
+
+    /// Whether `[lo, hi]` tiles into pieces each with `Δ`'s slope read
+    /// `want`, within the floor and the budget.
+    fn monotone_over(&mut self, lo: f64, hi: f64, want: Reads) -> bool {
+        let mut open = vec![(lo, hi)];
+        while let Some((lo, hi)) = open.pop() {
+            if hi <= lo {
+                continue;
+            }
+            let cell = Cell::new(lo, hi);
+            self.spend();
+            if self.reads(Row::Slope, self.ruled.discriminant_slope(&cell)) == Some(want) {
+                continue;
+            }
+            if self.spent_on(&cell) {
+                return false;
+            }
+            let mid = cell.mid();
+            open.extend([(lo, mid), (mid, hi)]);
+        }
+        true
+    }
+
     /// **One arc's components**: its branch cells read sheet-wise, its
     /// two sheets' leaves, and the loop they make cut by the ball.
     fn arc_components(&mut self, arc: &Arc<T>) -> Result<Vec<Swept<T>>, SweepRefusal> {
@@ -952,10 +1816,10 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             .unwrap_or(plus.len().saturating_sub(1));
         // Along the loop: the first sheet from the rise to the fall, then
         // the second back.
-        let mut events = vec![Event::Side(rise, None)];
+        let mut events = vec![(Event::Side(rise, None), false)];
         events.extend(plus.into_iter().map(|l| self.event(l, Sheet::Plus, false)));
-        events.push(Event::Side(fall, None));
-        let back: Vec<Event<T>> = self
+        events.push((Event::Side(fall, None), false));
+        let back: Vec<(Event<T>, bool)> = self
             .leaves(&smooth, Sheet::Minus)?
             .into_iter()
             .rev()
@@ -977,8 +1841,8 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     ) -> Result<bool, SweepRefusal> {
         loop {
             let both = self
-                .past(self.ruled.meeting(&cell, Sheet::Plus))
-                .hull(self.past(self.ruled.meeting(&cell, Sheet::Minus)));
+                .side(&cell, Sheet::Plus)
+                .hull(self.side(&cell, Sheet::Minus));
             self.spend();
             // An arc with no cell clear of its branch points has no stretch
             // to witness it on: split until it has one.
@@ -1032,6 +1896,56 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         }
     }
 
+    /// **A pass of a divided sheet through the apex in `cell`**, read
+    /// against the ball as [`Self::branch_side`] reads a branch point:
+    /// the cell's meetings decided inside (a node) or outside, else the
+    /// cell cut where `Δ` decides and the half clear of the zero read
+    /// leaf by leaf, in the turn's order about the pass. `rising`: `Δ`
+    /// reads below zero at the cell's start.
+    fn passes(&mut self, mut cell: Cell<T>, rising: bool) -> Result<Vec<Event<T>>, SweepRefusal> {
+        let start = if rising { Reads::Below } else { Reads::Above };
+        let (mut before, mut after) = (Vec::new(), Vec::new());
+        let at_pass = loop {
+            let h = self.side(&cell, Sheet::Plus);
+            self.spend();
+            if self.positive(Row::Branch, Margin::of(T::zero() - h.hi)) {
+                break Event::Node { phi: cell.mid() };
+            }
+            if self.positive(Row::Branch, Margin::of(h.lo)) {
+                break Event::Side(false, None);
+            }
+            if self.spent_on(&cell) {
+                return Err(self.escalate(Row::Branch, h));
+            }
+            let cut = off_a_zero(cell.mid(), cell.width()).find_map(|at| {
+                self.reads(Row::Discriminant, self.ruled.discriminant(&Cell::at(at)))
+                    .map(|reads| (at, reads))
+            });
+            let Some((at, reads)) = cut else {
+                return Err(self.escalate(Row::Branch, h));
+            };
+            let (l, r) = (Cell::new(cell.lo, at), Cell::new(at, cell.hi));
+            if reads == start {
+                // The zero lies past the cut.
+                for leaf in self.leaves(&[l], Sheet::Plus)? {
+                    before.push(self.event(leaf, Sheet::Plus, false).0);
+                }
+                cell = r;
+            } else {
+                let mut right = Vec::new();
+                for leaf in self.leaves(&[r], Sheet::Plus)? {
+                    right.push(self.event(leaf, Sheet::Plus, false).0);
+                }
+                right.extend(after);
+                after = right;
+                cell = l;
+            }
+        };
+        before.push(at_pass);
+        before.extend(after);
+        Ok(before)
+    }
+
     /// **A sheet's leaves over `cells`**, each cell split until each
     /// piece is decided inside, outside, or one cut end.
     fn leaves(&mut self, cells: &[Cell<T>], sheet: Sheet) -> Result<Vec<Leaf<T>>, SweepRefusal> {
@@ -1049,7 +1963,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         out: &mut Vec<Leaf<T>>,
     ) -> Result<(), SweepRefusal> {
         let x = self.ruled.meeting(&cell, sheet);
-        let h = self.past(x);
+        let h = self.side(&cell, sheet);
         self.spend();
         if self.positive(Row::Cut, Margin::of(T::zero() - h.hi)) {
             out.push(Leaf::Inside(cell));
@@ -1067,11 +1981,8 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             return Err(self.escalate(Row::Cut, h));
         }
         let (l, r) = self.split(&cell, |phi| {
-            self.reads(
-                Row::Cut,
-                self.past(self.ruled.meeting(&Cell::at(phi), sheet)),
-            )
-            .is_some()
+            self.reads(Row::Cut, self.side(&Cell::at(phi), sheet))
+                .is_some()
         });
         self.leaf(l, sheet, out)?;
         self.leaf(r, sheet, out)
@@ -1080,17 +1991,14 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     /// **The sheet monotone against the ball over `cell`**: the distance
     /// from the ball's centre moves one way across it, so its two ends
     /// decide it, inside, outside, or one cut end between them. Read
-    /// only where `Δ` is decided positive, so the sheet is smooth.
+    /// only where the side reads its sheets smooth ([`Ruled::smooth`]).
     fn monotone(
         &self,
         cell: &Cell<T>,
         sheet: Sheet,
         x: V3<T>,
     ) -> Result<Option<Leaf<T>>, SweepRefusal> {
-        if !self.positive(
-            Row::Discriminant,
-            Margin::of(self.ruled.discriminant(cell).lo),
-        ) {
+        if !self.positive(Row::Discriminant, Margin::of(self.ruled.smooth(cell).lo)) {
             return Ok(None);
         }
         let dx = self.ruled.velocity(cell, sheet);
@@ -1108,12 +2016,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         if !monotone {
             return Ok(None);
         }
-        let end = |phi: f64| {
-            self.reads(
-                Row::Cut,
-                self.past(self.ruled.meeting(&Cell::at(phi), sheet)),
-            )
-        };
+        let end = |phi: f64| self.reads(Row::Cut, self.side(&Cell::at(phi), sheet));
         Ok(match (end(cell.lo), end(cell.hi)) {
             (Some(Reads::Below), Some(Reads::Below)) => Some(Leaf::Inside(*cell)),
             (Some(Reads::Above), Some(Reads::Above)) => Some(Leaf::Outside(*cell)),
@@ -1145,7 +2048,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         let at = |phi: f64| self.ruled.meeting(&Cell::at(phi), sheet);
         for _ in 0..SETTLE {
             let mid = geom::mid_param(lo, hi);
-            let past = self.past(at(mid));
+            let past = self.side(&Cell::at(mid), sheet);
             match (self.reads(Row::Cut, past), entering) {
                 // Outside at `mid`: the root lies on the inside's side.
                 (Some(Reads::Above), true) | (Some(Reads::Below), false) => lo = mid,
@@ -1160,11 +2063,17 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     }
 
     /// **A leaf as one reading along its loop**, `backward` where the
-    /// loop runs it against the angle. A cut end carries the meeting at
-    /// its cell's inside end, decided inside by the leaf.
-    fn event(&self, leaf: Leaf<T>, sheet: Sheet, backward: bool) -> Event<T> {
+    /// loop runs it against the angle, flagged where it lies on a
+    /// crossing tangency's cell. A cut end carries the meeting at its
+    /// cell's inside end, decided inside by the leaf.
+    fn event(&self, leaf: Leaf<T>, sheet: Sheet, backward: bool) -> (Event<T>, bool) {
         let point = |phi: f64| self.ruled.meeting(&Cell::at(phi), sheet).mid();
-        match leaf {
+        let cell = leaf.cell();
+        let tangent = self
+            .touches
+            .iter()
+            .any(|t| t.crossing && cell.lo < t.hi && cell.hi > t.lo);
+        let event = match leaf {
             Leaf::Inside(cell) => Event::Side(true, Some(point(cell.mid()))),
             Leaf::Outside(_) => Event::Side(false, None),
             Leaf::Root { cell, entering, at } => Event::Cut {
@@ -1172,7 +2081,8 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
                 at,
                 inside: point(if entering { cell.hi } else { cell.lo }),
             },
-        }
+        };
+        (event, tangent)
     }
 }
 
@@ -1184,7 +2094,7 @@ fn arcs<T: Real>(cells: Vec<(Cell<T>, Disc)>) -> Result<Vec<Arc<T>>, SweepRefusa
         "the ruling sweep's cells of the discriminant do not alternate rise and fall",
     );
     let Some(after) = cells.iter().position(|(_, d)| *d == Disc::Fall) else {
-        return if cells.iter().all(|(_, d)| *d == Disc::Negative) {
+        return if cells.iter().all(|(_, d)| d.positive() == Some(false)) {
             Ok(Vec::new())
         } else {
             Err(inconsistent)
@@ -1195,7 +2105,7 @@ fn arcs<T: Real>(cells: Vec<(Cell<T>, Disc)>) -> Result<Vec<Arc<T>>, SweepRefusa
     let mut open: Option<(Cell<T>, Vec<Cell<T>>)> = None;
     for k in 1..=n {
         let (cell, kind) = cells[(after + k) % n];
-        open = match (open, kind) {
+        open = match (open, kind.positive().map_or(kind, |p| if p { Disc::Positive } else { Disc::Negative })) {
             (None, Disc::Negative) => None,
             (None, Disc::Rise) => Some((cell, Vec::new())),
             (Some((rise, mut smooth)), Disc::Positive) => {
@@ -1228,13 +2138,13 @@ type Stretch<T> = (Point3<T>, Point3<T>, Vec<Point3<T>>);
 /// lies inside, none where outside, witnessed at `events[middle]`.
 /// `encircles` is the loop's winding about the ruled side.
 fn cut_loop<T: Real>(
-    events: Vec<Event<T>>,
+    events: Vec<(Event<T>, bool)>,
     encircles: bool,
     middle: usize,
 ) -> Result<Vec<Swept<T>>, SweepRefusal> {
     let inconsistent =
         SweepRefusal::Inconsistent("the ruling sweep reads one stretch of a sheet on both sides");
-    let Some(start) = events.iter().position(|e| {
+    let Some(start) = events.iter().position(|(e, _)| {
         matches!(
             e,
             Event::Cut {
@@ -1243,14 +2153,17 @@ fn cut_loop<T: Real>(
             }
         )
     }) else {
-        if events.iter().any(|e| matches!(e, Event::Cut { .. })) {
+        if events
+            .iter()
+            .any(|(e, _)| !matches!(e, Event::Side(..)))
+        {
             return Err(inconsistent);
         }
         let sides: Vec<bool> = events
             .iter()
-            .filter_map(|e| match *e {
+            .filter_map(|(e, _)| match *e {
                 Event::Side(inside, _) => Some(inside),
-                Event::Cut { .. } => None,
+                Event::Cut { .. } | Event::Node { .. } => None,
             })
             .collect();
         let inside = sides.first().copied().unwrap_or(false);
@@ -1260,7 +2173,7 @@ fn cut_loop<T: Real>(
         if !inside {
             return Ok(Vec::new());
         }
-        let Some(Event::Side(true, Some(witness))) = events.get(middle).copied() else {
+        let Some((Event::Side(true, Some(witness)), _)) = events.get(middle).copied() else {
             return Err(SweepRefusal::Inconsistent(
                 "the ruling sweep read a loop inside the ball but no point at its middle",
             ));
@@ -1269,16 +2182,19 @@ fn cut_loop<T: Real>(
             cut_ends: None,
             witness,
             encircles,
+            tangent: events.iter().any(|&(_, t)| t),
         }]);
     };
     // From just past a leaving cut end: outside, until the next entering.
     let n = events.len();
     let mut out = Vec::new();
-    // The open stretch: its entering cut end, the point beside it, and
-    // the points read inside along it.
-    let mut run: Option<Stretch<T>> = None;
+    // The open stretch: its entering cut end, the point beside it, the
+    // points read inside along it, and whether it runs through a
+    // crossing tangency.
+    let mut run: Option<(Stretch<T>, bool)> = None;
     for k in 1..=n {
-        run = match (run, events[(start + k) % n]) {
+        let (event, flagged) = events[(start + k) % n];
+        run = match (run, event) {
             (None, Event::Side(false, _)) => None,
             (
                 None,
@@ -1287,13 +2203,13 @@ fn cut_loop<T: Real>(
                     at,
                     inside,
                 },
-            ) => Some((at, inside, Vec::new())),
-            (Some((from, inside, mut points)), Event::Side(true, at)) => {
+            ) => Some(((at, inside, Vec::new()), flagged)),
+            (Some(((from, inside, mut points), tangent)), Event::Side(true, at)) => {
                 points.extend(at);
-                Some((from, inside, points))
+                Some(((from, inside, points), tangent || flagged))
             }
             (
-                Some((from, inside, points)),
+                Some(((from, inside, points), tangent)),
                 Event::Cut {
                     entering: false,
                     at,
@@ -1304,6 +2220,7 @@ fn cut_loop<T: Real>(
                     cut_ends: Some([from, at]),
                     witness: points.get(points.len() / 2).copied().unwrap_or(inside),
                     encircles: false,
+                    tangent: tangent || flagged,
                 });
                 None
             }
