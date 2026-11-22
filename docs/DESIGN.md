@@ -1348,7 +1348,11 @@ suits the slot.
   the profile's own axes (an extrude's signed depth, above or below the
   profile's plane, and its slant) or a point and a heading (a revolve's axis line). A
   profile drawn on a `Frame` may read traces in its plane
-  ("Constructing a coincidence").
+  ("Constructing a coincidence"). A profile drawn on a face's chart
+  may also hold that face's boundary loops as loops of its own: the
+  outline, or the hole through a named edge. Such a loop stores names
+  and no number, and is the face's boundary as it is at each
+  evaluation, as a shell's open face is.
 - *Spaces:* `Space`, a coordinate system ([placement.spaces]). A
   space holds nothing and contains nothing: no pose, no number, no
   member list, and no origin, axis or plane that a reader takes as a
@@ -1511,8 +1515,9 @@ no pattern operation. A variable defined by reading `k` is, to a
 reader that reaches the same `k`, its member at the same value, and to
 every other reader the whole family: `xs[i, j]` reads one member, and
 `union`, `intersect` and `assemble` take a `Bodies`: a family, or its
-members spelled as reads; a subtract's tool is one `Body`, so cutting by a family is
-`subtract(a, union(holes))`.
+members spelled as reads; so does a subtract's tool, so
+`subtract(a, holes)` cuts `a` by every member, and `subtract(a, holes[k])`
+cuts it member by member.
 Lockstep is one index read twice. An index enters a placement as a value, a slide or a
 spin that is a `Length` or `Angle` expression over it, or through a
 mate whose target is a member of another family
@@ -2376,7 +2381,7 @@ Each layer depends only on the layers below it.
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
 | `geom` | Analytic + NURBS types, evaluators, closest-point and the other one-carrier readings ([one-way.readings]): a point's foot on a curve (`Curve3::foot`) and whether it lies on the carrier (`Curve3::on_carrier`), and a carrier's rate bounds (`carrier_speed`). Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
 | `geom-brep` | The B-rep geometry layer: [edges]'s `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, the curve-pair meeting reader (the point-on-span reading, composing `geom`'s one-carrier readings with the span's reading of its ends; one total curve-kind-pair table) and the machinery under it (the half-angle ladder and its subdivision, `half_angle`; the depressed quartic's sign ladder, `quartic`), the carrier-pair pose, the curve×face table (`curve_face`) and every door it routes to (D3), certified mass properties, offset surfaces |
-| `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
+| `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation, which reads how two of its segments meet, and how a ray crosses one, through `geom-brep`'s curve-pair reading |
 | `topo` | Arenas, entities, Euler operators and body surgery, the validation tiers; the readings of a body and the constructions over one, each with one home at the crate root (`crates/topo/README.md` `[topo.homes]`); the operations over them, plane splitting (`splitting/`) and the boolean (`boolean/`), each a leaf directory that exports only its door and imports neither the other; the census and contact records; shell/offset surgery; the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |
 | `verbs` | The kernel verb vocabulary seat (VERB-SEAT-DESIGN §2): one payload type per run door reifying an operation's parameters as data, the closed `VerbKind` vocabulary they project onto, run dispatch, and the parameter→field flow; a layer guard keeps serde, `Expr`, `StableName` and recipe ids out |
