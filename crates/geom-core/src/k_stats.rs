@@ -2051,6 +2051,12 @@ impl Real for Probe {
 
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
 
+    type Expression = crate::real::NoExpression;
+
+    fn expression(self) -> Option<crate::real::NoExpression> {
+        None
+    }
+
     fn from_f64(x: f64) -> Self {
         Self(x)
     }

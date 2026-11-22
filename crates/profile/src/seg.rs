@@ -24,8 +24,8 @@ use geom_core::ladder::{Answering, Climb, Refusal, Rung, climb};
 use geom_core::one_line::on_one_line_2d;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
-    Arc2, Band, Circles2, Decide, Decided, InfSpeed, Line2, Margin, MarginDiag, Point2, Real, Sign,
-    Vec2,
+    Arc2, Band, Circles2, Decide, Decided, Expression, InfSpeed, Line2, Margin, MarginDiag, Point2,
+    Real, Sign, Vec2,
 };
 
 use crate::validate::{ArcCheck, RecordedDirection};
@@ -774,86 +774,59 @@ fn check_direction<T: Decide>(
     }
 }
 
-/// **A direction minted from the vector `w`**: the axis it lies along,
-/// where one component is a Zero the symbolic tier PROVED and the
-/// other's sign is definite, signed by that sign as a literal ±1;
-/// otherwise `quotient`, `w` over its length. The axis carries no width
+/// **A direction minted from the vector `w`**: the axis it lies along
+/// where one component's expression is proved zero
+/// ([`geom_core::Expression::proves_zero`], ERROR-DESIGN E12's
+/// structural question), signed by one reading of the other component
+/// as a literal ±1; otherwise `quotient`, `w` over its length. The two
+/// are spellings of one real direction, and the axis carries no width
 /// the geometry lacks, which a quotient of two values that share a
 /// parameter does (`W − W` over a box).
 ///
-/// **What it guarantees:** an axis only where the tier proved the zero,
-/// so never a constant where the computation, over the reals, varies with
-/// the parameters (ERROR-DESIGN E12). **What it does not:** one branch at
-/// every valuation. The tier is not asked where the value channel reads a
-/// definite sign, nor, in a deferring session, on an escalation (an eager
-/// session offers it the escalation), so an identity whose `f64` value
-/// rounds off zero, or straddles it in a deferring session, takes the
-/// quotient where another valuation takes the axis. Lane by lane: audit
-/// row F43; the residual:
-/// `work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md`.
+/// Which spelling is taken is a function of the expression graph: the
+/// question reads no value. A numeric scalar carries no expression, so
+/// there the axis arms cannot be reached and the sign is never read.
 ///
-/// **The readings** (`segment_direction_axis`, at the least band and
-/// outside the log) run in [`geom_core::sym::aside`]: kept where the
-/// axis is minted, discarded where the quotient is, whose answers the
-/// mint drops. A discarded reading still counts in the session's receipt
-/// ([`geom_core::SymCounts`]), and inside a deferring session its Zero
-/// keeps an entry on the session's list that no reader is obliged to
-/// discharge. Asking for proof only by a counted sign reading is
-/// `work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`.
-fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Vec2<T> {
-    let (read, aside) = geom_core::sym::aside(|| {
-        geom_core::k_stats::unlogged("F43", || {
-            [
-                read_component(w.x, Band::least()),
-                read_component(w.y, Band::least()),
-            ]
-        })
-    });
-    let axis = match read {
-        [Component::ProvenZero, Component::Signed(s)] => Some(Vec2::new(T::zero(), s)),
-        [Component::Signed(s), Component::ProvenZero] => Some(Vec2::new(s, T::zero())),
-        _ => None,
+/// **The sign reading** (`segment_direction_axis`, at the least band
+/// and outside the log, audit row F43) is a decision. Where it reads
+/// Zero the chord has no length to speak of and the quotient stands,
+/// for the gates that refuse a degenerate chord by name.
+///
+/// # Errors
+///
+/// [`AxisUnsigned`] where the sign reading escalates: the direction is
+/// along an axis and which way is undecided over the box.
+fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Result<Vec2<T>, AxisUnsigned<T>> {
+    let proved_zero = |c: T| c.expression().filter(|e| e.proves_zero().is_some());
+    let signed = |zero: T::Expression, other: T| match check_unlogged(
+        Gate::SegmentDirectionAxis,
+        other,
+        Band::least(),
+        "F43",
+    ) {
+        Ok(Sign::Positive) => Ok(Some(T::one())),
+        Ok(Sign::Negative) => Ok(Some(-T::one())),
+        Ok(Sign::Zero) => Ok(None),
+        Err(source) => Err(AxisUnsigned { zero, source }),
     };
-    match axis {
-        Some(axis) => {
-            aside.keep();
-            axis
-        }
-        None => {
-            aside.discard();
-            quotient
-        }
-    }
+    let axis = match (proved_zero(w.x), proved_zero(w.y)) {
+        (Some(zero), None) => signed(zero, w.y)?.map(|s| Vec2::new(T::zero(), s)),
+        (None, Some(zero)) => signed(zero, w.x)?.map(|s| Vec2::new(s, T::zero())),
+        (None, None) | (Some(_), Some(_)) => None,
+    };
+    Ok(axis.unwrap_or(quotient))
 }
 
-/// One component of the vector [`axis_or`] mints from, as it reads it.
-enum Component<T> {
-    /// A Zero the symbolic tier proved: an identity of the parameters.
-    ProvenZero,
-    /// A Zero no proof stands behind: zero at this valuation, or an
-    /// identity the tier did not prove (its budget, an opaque atom).
-    UnprovenZero,
-    /// A definite sign, as the literal ±1.
-    Signed(T),
-    /// The reading escalated.
-    Escalated,
-}
-
-/// `c` read against `band` (`segment_direction_axis`), the least band
-/// [`axis_or`] passes it. A Zero is proven where
-/// [`geom_core::sym::deferred::discharge`] says so: it answers a margin
-/// the tier proved as it decided, and inside a deferring session, which
-/// proves nothing as it decides, it runs the tier for that one Zero.
-fn read_component<T: Decide>(c: T, band: Band) -> Component<T> {
-    match decide_reported(Gate::SegmentDirectionAxis, Margin::of(c), band) {
-        Err(_) => Component::Escalated,
-        Ok(d) => match d.sign {
-            Sign::Positive => Component::Signed(T::one()),
-            Sign::Negative => Component::Signed(-T::one()),
-            Sign::Zero if geom_core::sym::deferred::discharge(d.margin) => Component::ProvenZero,
-            Sign::Zero => Component::UnprovenZero,
-        },
-    }
+/// **A minted direction lies along an axis and its sign is undecided**
+/// ([`axis_or`]). It holds the expression proved zero, so at a numeric
+/// scalar, which carries none, this error has no values.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AxisUnsigned<T: Real> {
+    /// The component proved zero.
+    #[expect(dead_code, reason = "held for what its type says at a numeric scalar")]
+    pub(crate) zero: T::Expression,
+    /// The sign reading's escalation.
+    pub(crate) source: Escalation,
 }
 
 /// **`x`'s sign as the literal ±1**, where it reads definite: a choice
@@ -880,29 +853,43 @@ pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<T> {
 pub(crate) fn validated_directions<T: Decide>(
     s: &Seg<T>,
     recorded: Option<SegmentDirections<T>>,
-) -> SegmentDirections<T> {
-    match (&s.kind, recorded) {
+) -> Result<SegmentDirections<T>, AxisUnsigned<T>> {
+    Ok(match (&s.kind, recorded) {
         (SegKind::Line, Some(d @ SegmentDirections::Line(_)))
         | (SegKind::Arc(_), Some(d @ SegmentDirections::Arc { .. })) => d,
-        (SegKind::Line, _) => SegmentDirections::Line(mint_director(s.chord, s.unit)),
+        (SegKind::Line, _) => SegmentDirections::Line(mint_director(s.chord, s.unit)?),
         (SegKind::Arc(g), _) => SegmentDirections::Arc {
-            start: mint_radial(g.arc, s.a),
-            end: mint_radial(g.arc, s.b),
+            start: mint_radial(g.arc, s.a)?,
+            end: mint_radial(g.arc, s.b)?,
         },
-    }
+    })
 }
 
-/// **The chord's director, minted**: the chord `b − a` over its length,
-/// `unit` ([`ChordFrame`]'s one spelling), or the axis it lies along
-/// ([`axis_or`]). The one mint of a line's direction from its points.
-pub(crate) fn mint_director<T: Decide>(chord: Vec2<T>, unit: Vec2<T>) -> Vec2<T> {
+/// **The chord's director, minted**: the axis the chord `b − a` lies
+/// along, or `unit`, the chord over its length ([`axis_or`]). The one
+/// mint of a line's direction from its points.
+///
+/// # Errors
+///
+/// [`AxisUnsigned`], as [`axis_or`] answers it.
+pub(crate) fn mint_director<T: Decide>(
+    chord: Vec2<T>,
+    unit: Vec2<T>,
+) -> Result<Vec2<T>, AxisUnsigned<T>> {
     axis_or(chord, unit)
 }
 
-/// **The radial at `p`, minted**: `p − centre` over the rim at `p`
-/// ([`Arc2::rim`]), or the axis it lies along ([`axis_or`]). The one
-/// mint of an arc's direction from its points.
-pub(crate) fn mint_radial<T: Decide>(arc: Arc2<T>, p: Point2<T>) -> Vec2<T> {
+/// **The radial at `p`, minted**: the axis `p − centre` lies along, or
+/// that vector over the rim at `p` ([`Arc2::rim`], [`axis_or`]). The
+/// one mint of an arc's direction from its points.
+///
+/// # Errors
+///
+/// [`AxisUnsigned`], as [`axis_or`] answers it.
+pub(crate) fn mint_radial<T: Decide>(
+    arc: Arc2<T>,
+    p: Point2<T>,
+) -> Result<Vec2<T>, AxisUnsigned<T>> {
     let w = p - arc.centre;
     axis_or(w, w / arc.rim(p))
 }

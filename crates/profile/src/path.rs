@@ -5231,6 +5231,22 @@ fn chord_director<T: Real>(d: Vec2<T>) -> Dir<T> {
     Dir::from_unit(d.normalize())
 }
 
+/// **A hop's director**: the direction of the line a point-to-point
+/// verb draws along `d`, minted once ([`seg::mint_director`]) from the
+/// chord and its ray ([`chord_director`]). The verb's junction checks
+/// read it and the segment records it, so validation mints nothing for
+/// the hop.
+///
+/// # Errors
+///
+/// [`PathError::Escalated`] where the hop lies along an axis and which
+/// way is undecided over the box.
+fn hop_director<T: Decide>(d: Vec2<T>) -> Result<Dir<T>, PathError<T>> {
+    seg::mint_director(d, chord_director(d).unit)
+        .map(Dir::from_unit)
+        .map_err(|unsigned| PathError::escalated(unsigned.source))
+}
+
 /// The vector `v` rotated by `by` radians — the one spelling of a
 /// rotation in the plane.
 fn rotated<T: Real>(v: Vec2<T>, by: T) -> Vec2<T> {
@@ -6009,7 +6025,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let pos = self.tip_pos()?;
         let at = pos.at;
         let d = p - at;
-        let gamma = chord_director(d);
+        let gamma = hop_director(d)?;
         if self.core.pending.is_some() {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
@@ -6023,6 +6039,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         }
         let head = self.core.head()?;
         self.core.push_line(p)?;
+        self.core.direct_leaving(self.core.verts.len() - 2, gamma);
         let arm = (p - head).norm_squared().sqrt();
         Ok(in_state(self.core, leg_end_tip(p, gamma, arm)))
     }
@@ -6040,7 +6057,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         })?;
         let at = self.tip_pos()?.at;
         let d = start_pos - at;
-        let gamma = chord_director(d);
+        let gamma = hop_director(d)?;
         if self.core.pending.is_some() {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
@@ -6058,6 +6075,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             tol,
         )?;
         self.core.close_leaving(None, FirstSeg::Line)?;
+        self.core.direct_leaving(self.core.verts.len() - 1, gamma);
         self.core.build(tol)
     }
 

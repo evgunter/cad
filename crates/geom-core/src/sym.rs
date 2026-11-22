@@ -1052,6 +1052,10 @@ mod manifest;
 pub mod memo;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
+/// The structural question: whether an expression is zero as a function
+/// of the document's variables, asked of the expression.
+#[path = "sym/question.rs"]
+mod question;
 /// Rule E: the quotient's common factor — the shared monomial divided
 /// out, and a constant ratio folded to its constant.
 #[path = "sym/quotient.rs"]
@@ -2681,6 +2685,11 @@ struct Session {
     /// against one the ring's guards refused
     /// ([`form::Refusal::Ring`]).
     budget_frozen: IdSet,
+    /// **The structural question's own state** ([`question`]): a second
+    /// session at the question's constants, made at the first ask. It
+    /// holds this session's node table for the length of an ask and
+    /// nothing of this session's otherwise.
+    question: Option<Box<Session>>,
 }
 
 /// One memoized per-node reduction ([`Session::reductions`]).
@@ -2799,6 +2808,7 @@ impl Session {
             plain_unpublished: IdSet::default(),
             plain_tainted: IdSet::default(),
             budget_frozen: IdSet::default(),
+            question: None,
         }
     }
 
@@ -5289,6 +5299,13 @@ impl<T: Real> Real for Sym<T> {
     /// The lane scalar's: the tier changes how a margin decides, not
     /// whether the scalar certifies.
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = T::Carries<C>;
+
+    /// The node, whatever the lane scalar: the tier reads no value.
+    type Expression = SymId;
+
+    fn expression(self) -> Option<SymId> {
+        Some(self.node)
+    }
 
     fn from_f64(x: f64) -> Self {
         Self::literal(T::from_f64(x), x)

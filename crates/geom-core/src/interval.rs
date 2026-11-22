@@ -517,6 +517,12 @@ impl Real for Interval {
 
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
 
+    type Expression = crate::real::NoExpression;
+
+    fn expression(self) -> Option<crate::real::NoExpression> {
+        None
+    }
+
     /// The point enclosure `[x, x]` with decoration `Com` — an exact
     /// embedding for every *finite* `f64`. NaN and ±∞ are not real
     /// numbers and have no enclosure: they map to NaI, explicitly —

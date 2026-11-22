@@ -1399,18 +1399,20 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                     let directions = match (s.directions, kind) {
                         (SegmentDirections::Line(d), SegmentKind::Line) => {
                             let frame = seg::ChordFrame::of(start, end);
-                            SegmentDirections::Line(vec2(
-                                d,
-                                seg::mint_director(frame.chord, frame.unit),
-                            ))
+                            let Ok(mint) = seg::mint_director(frame.chord, frame.unit);
+                            SegmentDirections::Line(vec2(d, mint))
                         }
                         (
                             SegmentDirections::Arc { start: rs, end: re },
                             SegmentKind::Arc { arc, .. },
-                        ) => SegmentDirections::Arc {
-                            start: vec2(rs, seg::mint_radial(arc, start)),
-                            end: vec2(re, seg::mint_radial(arc, end)),
-                        },
+                        ) => {
+                            let Ok(at_start) = seg::mint_radial(arc, start);
+                            let Ok(at_end) = seg::mint_radial(arc, end);
+                            SegmentDirections::Arc {
+                                start: vec2(rs, at_start),
+                                end: vec2(re, at_end),
+                            }
+                        }
                         (directions, kind) => unreachable!(
                             "a validated segment records the directions of its own kind: \
                              {directions:?} on {kind:?}"
@@ -2569,7 +2571,17 @@ fn canonicalize_loop<T: Decide>(
             start: s.a,
             end: s.b,
             kind,
-            directions: seg::validated_directions(&s, made.get(k).copied().flatten()),
+            directions: seg::validated_directions(&s, made.get(k).copied().flatten()).map_err(
+                |unsigned| {
+                    ProfileError::escalated(
+                        EscalationSite::Segment(SegmentRef {
+                            loop_index,
+                            segment_index: k,
+                        }),
+                        unsigned.source,
+                    )
+                },
+            )?,
         });
     }
     if let Some(rec) = recorded
