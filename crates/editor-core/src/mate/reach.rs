@@ -183,10 +183,7 @@ pub(crate) fn faces_reach_from<T: Decide>(
 ) -> Result<Option<T>, ReachRefusal> {
     let mut reach: Option<T> = None;
     for key in faces {
-        let Some(surface) = body
-            .get_face(key)
-            .and_then(|face| body.get_surface(face.surface))
-        else {
+        let Some(surface) = body.face_surface(key) else {
             return Err(ReachRefusal::MalformedBody { face: key });
         };
         let bound = reach_of(body, key, origin, band).ok_or(ReachRefusal::FaceUnbounded {

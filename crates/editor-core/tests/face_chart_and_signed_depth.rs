@@ -654,14 +654,15 @@ fn near_the_pole_a_wide_boss_refuses_where_the_equal_placed_cube_does() {
 /// chart refuses and builds where the equal cube placed by a plane mate
 /// does, both carried over the cube's reach.
 ///
-/// - **The wide edge**: a cube of side 500 at 100 from the origin, at
-///   half its conditioning edge (refused) and at twice it (built).
+/// - **The wide edge**: a cube of side 500 at 100 from the origin,
+///   between its profile's conditioning edge and its own (the boss's
+///   carriage refuses, its profile charts) and at twice its own (built).
 /// - **The narrow edge**: a cube a twentieth of the arm at which the two
 ///   edges meet (`√(Kε·R/2)`), as far from the origin as it is wide, at
 ///   half its pole edge (refused) and four times its profile's (built).
 ///   Below the narrow edge the profile, the shorter arm, refuses first,
-///   so the boss refuses through it, as a placement of the profile's
-///   size would.
+///   and the boss never runs, as a placement of the profile's size
+///   would refuse.
 #[test]
 fn a_boss_and_the_equal_placed_cube_agree_on_both_edges_of_the_band() {
     let tol = Tol::witness();
@@ -669,19 +670,36 @@ fn a_boss_and_the_equal_placed_cube_agree_on_both_edges_of_the_band() {
     let pole = |arm| tol.k() * tol.eps() / arm;
     let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
     let arms = |side: f64, height: f64| (side * 2f64.sqrt() + height, side * 3f64.sqrt() + height);
-    let refused = |row: &str, tilt, height, side| {
+    // The carriage that refuses: the boss's own, or the profile's
+    // first with the boss never run.
+    let refused = |row: &str, by_the_boss: bool, tilt, height, side| {
         let run = carried(tilt, height, side);
-        assert!(
-            run.boss.is_err(),
-            "{row}: the boss refuses at tilt {tilt}: {:?}",
-            run.profile
-        );
+        if by_the_boss {
+            assert!(
+                run.profile.is_ok()
+                    && run.boss.as_ref().is_err_and(|e| e
+                        .as_ref()
+                        .is_some_and(|e| refuses_backwards(e, backwards))),
+                "{row}: the profile charts and its boss refuses backwards at tilt {tilt}: {:?} / {:?}",
+                run.profile.as_ref().err(),
+                run.boss
+            );
+        } else {
+            assert!(
+                run.profile
+                    .as_ref()
+                    .is_err_and(|e| refuses_backwards(e, backwards))
+                    && matches!(run.boss, Err(None)),
+                "{row}: the profile refuses backwards and its boss never runs at tilt {tilt}: {:?} / {:?}",
+                run.profile.as_ref().err(),
+                run.boss
+            );
+        }
         assert!(
             matches!(run.placed, Err(MateFault::Backwards { orient, .. }) if orient == backwards),
             "{row}: the placed cube refuses backwards at tilt {tilt}: {:?}",
             run.placed
         );
-        run
     };
     let built = |row: &str, tilt, height, side| {
         let run = carried(tilt, height, side);
@@ -699,12 +717,18 @@ fn a_boss_and_the_equal_placed_cube_agree_on_both_edges_of_the_band() {
     };
 
     let (side, height) = (500.0, 100.0);
-    let (_, cube) = arms(side, height);
+    let (loops, cube) = arms(side, height);
     assert!(
-        pole(cube) < 0.1 * edge(cube),
-        "FIXTURE: the wide cube's band is its conditioning edge"
+        pole(loops) < 0.1 * edge(loops) && 1.1 * edge(loops) < edge(cube),
+        "FIXTURE: the wide band is the conditioning edge, the cube's past its profile's"
     );
-    refused("wide edge", 0.5 * edge(cube), height, side);
+    refused(
+        "wide edge",
+        true,
+        (edge(loops) * edge(cube)).sqrt(),
+        height,
+        side,
+    );
     built("wide edge", 2.0 * edge(cube), height, side);
 
     let meet = (tol.k() * tol.eps() * tol.rounding_reach() / 2.0).sqrt();
@@ -714,16 +738,192 @@ fn a_boss_and_the_equal_placed_cube_agree_on_both_edges_of_the_band() {
         edge(loops) < 0.1 * pole(cube),
         "FIXTURE: the narrow cube's band is its pole verdict"
     );
-    let narrow = refused("narrow edge", 0.5 * pole(cube), side, side);
-    assert!(
-        narrow
-            .profile
-            .as_ref()
-            .is_err_and(|e| refuses_backwards(e, backwards)),
-        "narrow edge: the profile refuses backwards first: {:?}",
-        narrow.profile
-    );
+    refused("narrow edge", false, 0.5 * pole(cube), side, side);
     built("narrow edge", 4.0 * pole(loops), side, side);
+}
+
+/// **A pocket's tool is carried over its lifted reach**: a disc drawn on
+/// the near-pole cap and extruded by a negative depth, so the tool is
+/// built that long and lifted down as much (`ProfileValue::lifted`). Its
+/// sizes are multiples of the arm the band's two edges meet at
+/// (`√(Kε·R/2)`), so its band is the conditioning edge at every ε.
+/// Carried from the frame's origin the tool reaches its depth and its
+/// radius, about its far end; read about the other end it would reach
+/// twice the depth. At a tilt between the two arms' edges the tool
+/// builds, and at half its own edge it refuses backwards, its profile
+/// charting.
+///
+/// *Breaks if* the lifted reach is read about `(0, 0, by)` rather than
+/// `(0, 0, −by)`: the tool then refuses at the first tilt.
+#[test]
+fn a_pockets_tool_is_carried_over_its_lifted_reach() {
+    let tol = Tol::witness();
+    let edge = |arm| geom_core::test_support::least_turn_band_edge(tol, arm);
+    let pole = |arm| tol.k() * tol.eps() / arm;
+    let band = |arm: f64| edge(arm).max(pole(arm));
+    let meet = (tol.k() * tol.eps() * tol.rounding_reach() / 2.0).sqrt();
+    let (radius, height, depth) = (meet / 8.0, meet, 3.0 * meet);
+    let lifted = (radius * radius + depth * depth).sqrt() + height;
+    let flipped = (radius * radius + 4.0 * depth * depth).sqrt() + height;
+    let between = (edge(lifted) * edge(flipped)).sqrt();
+    let under = 0.5 * edge(lifted);
+    assert!(
+        pole(lifted) < 0.1 * edge(lifted) && 1.5 * band(radius + height) < under,
+        "FIXTURE: the tool's band is its conditioning edge, past its profile's"
+    );
+    let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
+    let tool = |tilt| {
+        let (doc, copy, top, backwards) = near_the_pole(tilt, height);
+        let at = on(Some(backwards), 0.0, [0.0, 0.0]);
+        let (doc, profile) = drawn_loop(&doc, copy, top, at, disc(radius));
+        let (doc, tool) = fixture::insert(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(-depth),
+            },
+        );
+        let mut ev = eval(&doc);
+        (chart_in(&mut ev, profile), ev.nodes.remove(&tool))
+    };
+    let (profile, built) = tool(between);
+    assert!(
+        profile.is_ok() && matches!(built, Some(NodeResult::Ok(_))),
+        "the tool builds at tilt {between}: {:?} / {built:?}",
+        profile.err()
+    );
+    let (profile, refused) = tool(under);
+    assert!(
+        profile.is_ok()
+            && matches!(&refused, Some(NodeResult::Failed(e)) if refuses_backwards(&e.kind, backwards)),
+        "the tool refuses backwards under its own edge at tilt {under}: {:?} / {refused:?}",
+        profile.err()
+    );
+}
+
+/// A lens of chord `chord` from the frame's origin along its `x`, closed
+/// by an arc of bulge `bulge` back, and the farthest its carrier circle
+/// stands from that origin (`|centre| + radius`), a bound past its reach.
+fn lens(chord: f64, bulge: f64) -> (LoopProgram<Formula>, f64) {
+    use editor_core::{ProgramArcData, ProgramStep, ProgramTarget};
+    let sagitta = bulge * chord / 2.0;
+    let radius = (chord * chord / 4.0 + sagitta * sagitta) / (2.0 * sagitta);
+    let centre = ((chord / 2.0).powi(2) + (radius - sagitta).powi(2)).sqrt();
+    let program = LoopProgram::Chain(vec![
+        ProgramStep::At(fixture::len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(fixture::len2([chord, 0.0]))),
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
+            target: ProgramTarget::Start,
+            b: fixture::scl(bulge),
+        }),
+    ]);
+    (program, centre + radius)
+}
+
+/// **A lens is carried over the reach of its arc, not its carrier
+/// circle's** (`[placement]`: its own reach, as a placement's copy is):
+/// a shallow arc's circle stands far past the lens, and the band has two
+/// edges, so a bound past the reach is wrong on each.
+///
+/// - **The wide edge**: a lens of bulge `10⁻³` as long as the arm the
+///   band's two edges meet at (`√(Kε·R/2)`), four times that from the
+///   origin, at twice its own conditioning edge: it charts, where its
+///   carrier circle's arm would refuse.
+/// - **The narrow edge**: a lens a fiftieth of the arm the two edges meet
+///   at, as far from the origin as it is long, at half its own pole edge:
+///   it refuses backwards, where its carrier circle's arm would chart.
+#[test]
+fn a_lens_is_carried_over_its_arcs_reach_on_both_edges() {
+    let tol = Tol::witness();
+    let edge = |arm| geom_core::test_support::least_turn_band_edge(tol, arm);
+    let pole = |arm| tol.k() * tol.eps() / arm;
+    let band = |arm: f64| edge(arm).max(pole(arm));
+    let backwards = oriented(SignedAxis::PlusX, SignedAxis::MinusZ);
+    let charted = |tilt, height, (program, _): (LoopProgram<Formula>, f64)| {
+        let (doc, copy, top, backwards) = near_the_pole(tilt, height);
+        let (doc, profile) = drawn_loop(
+            &doc,
+            copy,
+            top,
+            on(Some(backwards), 0.0, [0.0, 0.0]),
+            program,
+        );
+        chart(&doc, profile)
+    };
+
+    let meet = (tol.k() * tol.eps() * tol.rounding_reach() / 2.0).sqrt();
+    let (chord, height) = (meet, 4.0 * meet);
+    let wide = lens(chord, 1e-3);
+    let (tight, bound) = (chord + height, wide.1 + height);
+    let tilt = 2.0 * band(tight);
+    assert!(
+        tilt < 0.5 * band(bound),
+        "FIXTURE: the carrier circle's arm {bound} refuses at tilt {tilt}"
+    );
+    let at = charted(tilt, height, wide);
+    assert!(
+        at.is_ok(),
+        "wide edge: the lens charts at tilt {tilt}: {at:?}"
+    );
+
+    let chord = meet / 50.0;
+    let narrow = lens(chord, 1e-2);
+    let (tight, bound) = (2.0 * chord, narrow.1 + chord);
+    let tilt = 0.5 * pole(tight);
+    assert!(
+        edge(tight) < 0.1 * pole(tight) && 2.0 * band(bound) < tilt,
+        "FIXTURE: the lens's band is its pole verdict, and its carrier circle's arm {bound} charts at tilt {tilt}"
+    );
+    let at = charted(tilt, chord, narrow);
+    assert!(
+        at.as_ref().is_err_and(|e| refuses_backwards(e, backwards)),
+        "narrow edge: the lens refuses backwards at tilt {tilt}: {at:?}"
+    );
+}
+
+/// **A face's chart moved in a profile's frame seat refuses typed**: a
+/// profile drawn on the top cap's chart slid along its own `z` stands in
+/// a frame no placement places a copy at (a plane mate leaves one spin,
+/// about the normal), so the seat refuses
+/// [`PoseConstruction::FaceChartUnseated`].
+#[test]
+fn a_moved_face_chart_refuses_in_a_frame_seat() {
+    use editor_core::pose::{PoseRole, RoleRead};
+    let (doc, body) = block(2.0, 1.0);
+    let ev = eval(&doc);
+    let on_cap = editor_core::chart_on_face(
+        &doc,
+        Some(&ev),
+        BodyRead::plain(Operand::from(body)),
+        cap(body, CapEnd::End),
+        &OnFace::nearest(),
+    );
+    let moved = Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(on_cap.clone()),
+        along: RoleRead::through(on_cap, PoseRole::Z),
+        by: len(0.5),
+    }));
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(editor_core::ProfileProgram {
+            loops: vec![disc(0.25)],
+            ids: Vec::new(),
+            on: Some(editor_core::DrawnOn {
+                frame: moved,
+                faces: Vec::new(),
+            }),
+        }),
+    );
+    let refused = chart(&doc, profile);
+    assert!(
+        matches!(
+            refused,
+            Err(NodeErrorKind::PoseDegenerate {
+                construction: PoseConstruction::FaceChartUnseated
+            })
+        ),
+        "the moved chart refuses unseated: {refused:?}"
+    );
 }
 
 /// **A tilted face through its space's origin charts with zero slides**:
