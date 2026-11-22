@@ -1611,6 +1611,7 @@ fn embedding<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearanc
     let side = Side {
         body,
         faces: body.faces().map(|(k, _)| k).collect(),
+        excluded: Default::default(),
     };
     let budgets = Budgets {
         max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
