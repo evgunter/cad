@@ -1530,3 +1530,12 @@ Replies (all 03:09 UTC), recorded before any of them saw another:
 ### Round on the form (dispatched 2026-11-22 03:14 UTC)
 
 Each designer pointed at the three replies by label (`boxfinish/fork-identity-reports` at `04866acc`, `probe/fork-identity/ev2/{A,B,C}.md`, cut at `## For Ev`). The message was identical but for the label: the two shapes in a sentence each (my words); what a generic caller can do with the answer under each against the PR's licence, and what a site asking about several values looks like; nested and wrapped scalars; whether the shape extends to `register_equal` / `free_identity` and whether the text should state the principle generally; a final `For Ev` section with replacement text.
+
+### Replies on the form (all 03:14 to 03:15 UTC), and the closing round (dispatched 03:18 UTC)
+
+- **B moved to the expression type** (withdrew `spelled` as a trait method): the `Real::Carries` / `Uncertified` precedent, which it checked; its own "no answer leaves the scalar" does not hold, the closures being unconstrained; `spelled` cannot serve a site that needs a yes/no (`one_value`, `is_exactly`). Principle stated generally; `register_equal` and `free_identity` move later.
+- **C stayed** (expression type, recommended): `spelled(x, || true, || false)` recovers the answer, so both shapes hold the licence by review; the expression shape is one mechanism for everything only `Sym` does. Took a debug agreement check from B.
+- **A layered the two:** the expression type and proof token as the one mechanism; a helper built on it (a free function, not a trait method) that takes two spellings and returns one, as the normal door; the bare proof read only at listed sites. Notes that `spelled` as a trait method is the PR's old "answers no" under another name.
+- **New on main, raised by C and confirmed by A and B:** `Real::is_exact_zero_in_every_channel` (behind `UnitVec3::is_exactly`: the least turn, `mate/value.rs`, `sweep/skin.rs`), a second structural door read off numbers; `skin.rs`'s use may change what is built.
+
+**Agreement after this round:** one shape (the expression type; the question a method of the expression returning a proof; a type error at the numeric scalars; the principle stated generally). Not yet common: whether A's helper belongs in the ratified text; whether the question's answer is conditional on the build's decisions or the same at every valuation; whether the text names `Probe`. The closing round puts those three and one merged text (mine, built from the three) to each for accept or amend.
