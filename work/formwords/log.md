@@ -140,3 +140,5 @@ a pick route checks its own seats against that doc.
   they name leaves green. Each review's mutations were the instrument
   that caught it; future briefs ask reviewers for one mutation per new
   gate row.
+
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7379 (denotes-body) merged after a full review and a fix pass. Its one red, test (kernel), is a sweep row at 1e-12 inherited from main: reproduced on main, and owned by TESSLIE row `main-red-a-cylinder-wall-through-a-prism-corner-union-is-volume-uncomputable-at-1e-12`, where the reproduction is now noted. Annotated on the PR.
