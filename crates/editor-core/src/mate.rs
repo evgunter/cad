@@ -86,11 +86,11 @@ impl MateSide {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields, bound = "")]
 pub struct Mate<S: crate::Slot = crate::VarId> {
-    /// The copy's pose.
-    pub on: S::Read,
-    /// The pose the copy's is equated with, read off a body in the
-    /// target space.
-    pub to: S::Read,
+    /// The copy's pose, or a datum's own frame read through a role.
+    pub on: crate::pose::RoleRead<S::Read>,
+    /// The pose the copy's is equated with, defined by something placed
+    /// or built in the target space, plainly or through a role.
+    pub to: crate::pose::RoleRead<S::Read>,
     /// **The orientation** (D10 `[placement.values]`): where the copy's
     /// axes lie along the target space's, so where the copy's mated
     /// direction should point. Read only beside a mate fixing a
@@ -118,11 +118,22 @@ impl<S: crate::Slot> Mate<S> {
         mut read: impl FnMut(MateSide, &S::Read) -> Result<S2::Read, E>,
     ) -> Result<Mate<S2>, E> {
         Ok(Mate {
-            on: read(MateSide::On, &self.on)?,
-            to: read(MateSide::To, &self.to)?,
+            on: self.on.try_map(|r| read(MateSide::On, r))?,
+            to: self.to.try_map(|r| read(MateSide::To, r))?,
             orient: self.orient,
         })
     }
+}
+
+/// **The kind a mate side reads**, off the recipe: through its role, the
+/// kind the role reads; plainly, its variable's. `None` where it reads
+/// nothing live.
+pub(crate) fn side_kind<P>(
+    doc: &crate::doc::Doc<P>,
+    side: crate::pose::RoleRead<crate::VarId>,
+) -> Option<crate::VarKind> {
+    let held = doc.var(side.read)?.kind();
+    Some(side.role.map_or(held, crate::pose::PoseRole::kind))
 }
 
 /// **The two faces a mate rests**, when it equates two faces' planes:
@@ -175,8 +186,7 @@ pub(crate) fn poses_equated<P>(
     crate::pose::RoleRead<crate::VarId>,
     bool,
 ) {
-    let unwound = |var: crate::VarId| {
-        let mut read = crate::pose::RoleRead::plain(var);
+    let unwound = |mut read: crate::pose::RoleRead<crate::VarId>| {
         let mut flipped = false;
         while read.role.is_none()
             && let Some(crate::var::VarDef::Pose(crate::pose::PoseDef::Flip { pose })) =
@@ -427,14 +437,14 @@ impl<S: crate::Slot> Constraint<S> {
                         constraint: id,
                         side: MateSide::On,
                     },
-                    &mate.on,
+                    &mate.on.read,
                 ),
                 (
                     crate::OperandSlot::Side {
                         constraint: id,
                         side: MateSide::To,
                     },
-                    &mate.to,
+                    &mate.to.read,
                 ),
             ],
             ConstraintKind::Value(value) => value
@@ -979,6 +989,14 @@ pub enum MateFault {
         mate: MateRef,
     },
 
+    /// A datum's mate whose `on` is not the datum's own frame read
+    /// plainly or through its xy plane, its z axis or its origin
+    /// (D10 `[placement.datums]`).
+    NotTheDatumsOwn {
+        /// The mate.
+        mate: MateRef,
+    },
+
     /// The mate's lever could not be formed: the copy's reach is not in
     /// hand, so no verdict over its extent can be levered.
     Unleverable {
@@ -1081,6 +1099,7 @@ impl MateFault {
             | Self::Overconstrained { .. }
             | Self::Unpinned { .. }
             | Self::NotOnTheCopy { .. }
+            | Self::NotTheDatumsOwn { .. }
             | Self::Unleverable { .. }
             | Self::KindsDiffer { .. }
             | Self::NoChart { .. }
@@ -1234,6 +1253,12 @@ impl crate::spoken::Say for MateFault {
                 "{}'s `on` pose reads geometry other than the copy its placement defines, so \
                  it pins nothing of it. Recourse: read `on` off the placement's shapes, or move \
                  the constraint to the placement it pins",
+                mate_(*mate)
+            ),
+            Self::NotTheDatumsOwn { mate } => write!(
+                f,
+                "{}'s `on` pose is not its datum's own frame. Recourse: read `on` as the datum's \
+                 frame, its xy plane, its z axis or its origin",
                 mate_(*mate)
             ),
             Self::Unleverable { mate, refusal } => {

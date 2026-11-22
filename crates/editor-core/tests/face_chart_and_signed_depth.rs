@@ -443,11 +443,13 @@ fn placed_on(
         on: fixture::flip(fixture::plane(Operand::select(
             source,
             vec![cap(source, CapEnd::Start)],
-        ))),
+        )))
+        .into(),
         to: fixture::plane(Operand::select(
             BodyRead::plain(Operand::from(copy)),
             vec![face],
-        )),
+        ))
+        .into(),
         orient,
     };
     let [a, b] = face_chart_slides(orient);

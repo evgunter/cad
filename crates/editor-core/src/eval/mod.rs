@@ -1155,6 +1155,10 @@ pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
     Assertion(crate::measure::AssertionVerdict<T>),
+    /// A [`Node::Datum`]'s frame: its target's axes moved by the value's
+    /// motion ([`NodeValue::motion`]), the identity where it has none. Not
+    /// body-denoting.
+    Datum,
     /// **A family of anything but bodies** (D10 `[repetition]`):
     /// profiles, measures, splits, assertions, a family of families. Its
     /// members are the value's ([`NodeValue::members`]); it has no
@@ -1199,6 +1203,9 @@ macro_rules! family_word {
     (family) => {
         "family"
     };
+    (datum) => {
+        "datum"
+    };
 }
 
 /// **The family words** — the vocabulary a typed operand mismatch
@@ -1215,6 +1222,7 @@ pub(crate) mod family {
     pub(crate) const MEASURE: &str = family_word!(measure);
     pub(crate) const ASSERTION: &str = family_word!(assertion);
     pub(crate) const FAMILY: &str = family_word!(family);
+    pub(crate) const DATUM: &str = family_word!(datum);
 }
 // OPERAND-VOCABULARY END
 
@@ -1319,6 +1327,7 @@ impl<T: topo::AtRestPolicy + Decide> ValuePayload<T> {
             Self::Measure { .. } => family::MEASURE,
             Self::Assertion(_) => family::ASSERTION,
             Self::Family => family::FAMILY,
+            Self::Datum => family::DATUM,
         }
     }
 }
@@ -6202,6 +6211,8 @@ where
         // A fresh word: the assemble keeps its members apart, so it
         // and a union of the same members are different bodies.
         Node::Assemble { .. } => 44,
+        // A fresh word: a datum places a frame, no copy.
+        Node::Datum { .. } => 45,
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);
@@ -6416,6 +6427,10 @@ where
         // A placement's source is an input edge; its bundle feeds here.
         Node::Place {
             source: _,
+            target: _,
+            constraints,
+        } => feed_bundle(&mut h, defs, constraints),
+        Node::Datum {
             target: _,
             constraints,
         } => feed_bundle(&mut h, defs, constraints),
@@ -8215,8 +8230,8 @@ mod bundle_key {
         Constraint::of_mate(
             id(10),
             Mate {
-                on: ON,
-                to,
+                on: ON.into(),
+                to: to.into(),
                 orient: crate::Orientation::IDENTITY,
             },
         )

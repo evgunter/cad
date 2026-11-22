@@ -595,7 +595,11 @@ pub fn placed_against_in(
         }
     };
     crate::Placed {
-        mates: vec![crate::Mate { on, to, orient }],
+        mates: vec![crate::Mate {
+            on: on.into(),
+            to: to.into(),
+            orient,
+        }],
         values: vec![
             (Coord::slide(across[0]), slide(coordinate(across[0]))),
             (Coord::slide(across[1]), slide(coordinate(across[1]))),

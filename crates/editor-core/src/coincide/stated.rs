@@ -88,7 +88,7 @@ impl Stated {
                 continue;
             }
             for mate in bundle.iter().filter_map(crate::mate::Constraint::mate) {
-                let Some(kind) = doc.var(mate.on).map(crate::Var::kind) else {
+                let Some(kind) = crate::mate::side_kind(doc, mate.on) else {
                     continue;
                 };
                 let (on, to, flipped) = crate::mate::poses_equated(doc, mate);

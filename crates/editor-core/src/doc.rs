@@ -3848,7 +3848,10 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
         // than recursing.
         self.memo.insert(id, None);
         let space = match self.doc.nodes.get(&id)? {
-            Node::Place { target, .. } | Node::InstantiatePart { target, .. } => Some(*target),
+            // A datum's frame is in its target, as a copy is.
+            Node::Place { target, .. }
+            | Node::InstantiatePart { target, .. }
+            | Node::Datum { target, .. } => Some(*target),
             // A `new_space()` defines a space and builds no body.
             Node::Space => None,
             Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
@@ -3944,6 +3947,10 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
                 target,
                 constraints,
                 ..
+            }
+            | Node::Datum {
+                target,
+                constraints,
             } => self.targets_fault(*target, constraints),
             _ => {
                 let reads = self.reached_all(node.operand_rows().into_iter().map(|(_, var)| var));

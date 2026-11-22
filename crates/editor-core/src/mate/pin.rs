@@ -62,7 +62,7 @@ impl Placed {
     ) -> Self {
         let families: Vec<SubgroupFamily> = mates
             .iter()
-            .filter_map(|m| operand_kind(doc, &m.on).and_then(crate::VarKind::symmetry))
+            .filter_map(|m| side_kind(doc, &m.on).and_then(crate::VarKind::symmetry))
             .collect();
         Self::with_families(mates, &families, moves)
     }
@@ -134,7 +134,7 @@ impl Placed {
     ) -> Vec<Coord<Operand>> {
         let families = mates
             .iter()
-            .filter_map(|m| operand_kind(doc, &m.on).and_then(crate::VarKind::symmetry));
+            .filter_map(|m| side_kind(doc, &m.on).and_then(crate::VarKind::symmetry));
         unnamed(residual(families), &[] as &[Coord<Operand>], along)
     }
 
@@ -156,7 +156,7 @@ impl Placed {
         let left = residual(
             mates
                 .iter()
-                .filter_map(|m| operand_kind(doc, &m.on).and_then(crate::VarKind::symmetry)),
+                .filter_map(|m| side_kind(doc, &m.on).and_then(crate::VarKind::symmetry)),
         );
         // A chain turning about a read axis is kept whole, in its order:
         // turns do not commute.
@@ -377,6 +377,18 @@ pub fn operand_kind<P>(doc: &crate::doc::Doc<P>, operand: &Operand) -> Option<cr
             }
         }),
         _ => None,
+    }
+}
+
+/// **The kind a mate side reads**: through its role, the kind the role
+/// reads; plainly, [`operand_kind`].
+pub fn side_kind<P>(
+    doc: &crate::doc::Doc<P>,
+    side: &crate::pose::RoleRead<Operand>,
+) -> Option<crate::VarKind> {
+    match side.role {
+        Some(role) => Some(role.kind()),
+        None => operand_kind(doc, &side.read),
     }
 }
 

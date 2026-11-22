@@ -107,6 +107,7 @@ pub fn continues<P: crate::ProfilePayload>(doc: &Doc<P>, node: RecipeNodeId) -> 
         | Node::Mirror { .. }
         | Node::Subtract { .. }
         | Node::Place { .. }
+        | Node::Datum { .. }
         | Node::World
         | Node::Space
         | Node::InstantiatePart { .. }

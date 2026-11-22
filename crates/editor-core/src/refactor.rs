@@ -491,8 +491,9 @@ fn carry<E>(
             .map(<[_]>::to_vec)
             .unwrap_or_default();
         let mut bare = node.clone();
-        if let Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } =
-            &mut bare
+        if let Node::Place { constraints, .. }
+        | Node::InstantiatePart { constraints, .. }
+        | Node::Datum { constraints, .. } = &mut bare
         {
             constraints.clear();
         }
@@ -504,8 +505,9 @@ fn carry<E>(
         )
         .map_err(&refuse)?;
         let (mut authored, fresh) = vars.author(&carried, &selects);
-        if let Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } =
-            &mut authored
+        if let Node::Place { constraints, .. }
+        | Node::InstantiatePart { constraints, .. }
+        | Node::Datum { constraints, .. } = &mut authored
         {
             *constraints = crate::mate::pin::Placed::identity().bundle();
         }
@@ -2486,6 +2488,13 @@ fn remap_node(
             constraints,
         } => Node::Place {
             source: br(crate::OperandSlot::Source, source)?,
+            target: rd(crate::OperandSlot::Space, *target)?,
+            constraints: bundle(constraints)?,
+        },
+        Node::Datum {
+            target,
+            constraints,
+        } => Node::Datum {
             target: rd(crate::OperandSlot::Space, *target)?,
             constraints: bundle(constraints)?,
         },
@@ -4784,7 +4793,7 @@ pub fn inline(
     for side in bundle
         .iter()
         .filter_map(crate::mate::Constraint::mate)
-        .map(|mate| mate.on)
+        .map(|mate| mate.on.read)
     {
         if doc.var_name(side).is_some() || pose_leaves(doc, side).is_none() {
             continue;

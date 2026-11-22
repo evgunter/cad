@@ -7496,8 +7496,8 @@ impl Recording<'_, crate::ProfileProgram> {
             .map_or(crate::Operand::Var(VarId::WORLD), crate::Operand::Var);
         let placed = crate::mate::pin::Placed {
             mates: vec![crate::Mate {
-                on,
-                to: plane(body, face),
+                on: crate::pose::RoleRead::plain(on),
+                to: crate::pose::RoleRead::plain(plane(body, face)),
                 orient,
             }],
             values: crate::mate::face_chart_slides(orient)
@@ -8520,15 +8520,14 @@ fn rebundled<P: Clone + crate::ProfilePayload>(
     }
     let left: Vec<&crate::mate::Constraint> =
         bundle.iter().filter(|c| !removed.contains(&c.id)).collect();
-    let kind = |var: VarId| new.var(var).map(crate::Var::kind);
     let mut families: Vec<crate::SubgroupFamily> = left
         .iter()
         .filter_map(|c| c.mate())
-        .filter_map(|m| kind(m.on).and_then(crate::VarKind::symmetry))
+        .filter_map(|m| crate::mate::side_kind(new, m.on).and_then(crate::VarKind::symmetry))
         .collect();
     if let Some(mate) = &added
         && let Some(family) =
-            crate::mate::pin::operand_kind(new, &mate.on).and_then(crate::VarKind::symmetry)
+            crate::mate::pin::side_kind(new, &mate.on).and_then(crate::VarKind::symmetry)
     {
         families.push(family);
     }
@@ -8537,8 +8536,8 @@ fn rebundled<P: Clone + crate::ProfilePayload>(
         c.mate().map(|m| Constraint {
             id: c.id,
             kind: ConstraintKind::Mate(Mate {
-                on: crate::Operand::Var(m.on),
-                to: crate::Operand::Var(m.to),
+                on: m.on.map(|&v| crate::Operand::Var(v)),
+                to: m.to.map(|&v| crate::Operand::Var(v)),
                 orient: m.orient,
             }),
         })
@@ -8628,9 +8627,9 @@ fn removed((ids, _): (Vec<crate::node::ConstraintId>, Vec<VarId>)) -> EditRecord
 /// placement.
 fn bundle_of_mut<P>(node: &mut Node<P>) -> Option<&mut Vec<crate::mate::Constraint>> {
     match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-            Some(constraints)
-        }
+        Node::Place { constraints, .. }
+        | Node::InstantiatePart { constraints, .. }
+        | Node::Datum { constraints, .. } => Some(constraints),
         _ => None,
     }
 }
@@ -8665,21 +8664,31 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
     }
     // The constraints lowered as a bundle of their own: their reads at
     // their seats, under the ids as written, which the mint replaces.
-    // The carrier copies the placement's own copy, a body read that
-    // lowers wherever the placement stands.
+    // A placement's carrier copies the placement's own copy, a body read
+    // that lowers wherever the placement stands; a datum's is a datum.
     let copy = new
         .output(placement, 0)
         .unwrap_or_else(|| unreachable!("a placement defines its copy"));
-    let carrier: Node<P::Authored, Formula> = Node::Place {
-        source: crate::BodyRead::plain(crate::Operand::Var(copy)),
-        target: crate::Operand::Var(VarId::WORLD),
-        constraints,
+    let target = crate::Operand::Var(VarId::WORLD);
+    let carrier: Node<P::Authored, Formula> = match new.nodes.get(&placement) {
+        Some(Node::Datum { .. }) => Node::Datum {
+            target,
+            constraints,
+        },
+        _ => Node::Place {
+            source: crate::BodyRead::plain(crate::Operand::Var(copy)),
+            target,
+            constraints,
+        },
     };
     let lowering = Lowering::start(new, fresh)?;
     let lowered = lower_node(new, &lowering, &carrier, || doc.spoken(placement))?;
-    let Node::Place {
+    let (Node::Place {
         mut constraints, ..
-    } = lowered
+    }
+    | Node::Datum {
+        mut constraints, ..
+    }) = lowered
     else {
         unreachable!("a placement lowers to a placement")
     };
@@ -10045,8 +10054,8 @@ mod tests {
             }))
         };
         let mate = crate::mate::Mate {
-            on: plane(crate::node::RecipeNodeId::new(0, 3)),
-            to: plane(crate::node::RecipeNodeId::new(0, 2)),
+            on: plane(crate::node::RecipeNodeId::new(0, 3)).into(),
+            to: plane(crate::node::RecipeNodeId::new(0, 2)).into(),
             orient: crate::Orientation::IDENTITY,
         };
         let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));

@@ -49,6 +49,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Intersect { .. }
             | $crate::node::Node::Assemble { .. }
             | $crate::node::Node::Place { .. }
+            | $crate::node::Node::Datum { .. }
             | $crate::node::Node::World
             | $crate::node::Node::Space
             | $crate::node::Node::Measure { .. }
@@ -1222,6 +1223,7 @@ macro_rules! expr_table {
             | Node::Intersect { .. }
             | Node::Assemble { .. }
             | Node::Place { .. }
+            | Node::Datum { .. }
             | Node::World
             | Node::Space
             | Node::InstantiatePart { .. }
@@ -1945,6 +1947,19 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// The bundle, in the order written.
         constraints: Vec<crate::mate::Constraint<S>>,
     },
+    /// **A datum** (D10 `[placement.datums]`): a placement whose source
+    /// is nothing. What it places is a bare frame, its one output, in
+    /// its `target`, where its bundle pins it as a [`Node::Place`]'s
+    /// pins its copy. Each mate's `on` is that frame's own, read plainly
+    /// or through its xy plane, its z axis or its origin; its values
+    /// chart the rest on the target space's axes. Readers take a plane
+    /// or an axis off it through a role.
+    Datum {
+        /// The space the frame is placed into: a `Space` read.
+        target: S::Read,
+        /// The bundle, in the order written.
+        constraints: Vec<crate::mate::Constraint<S>>,
+    },
     /// **The world** (D10 `[placement.world]`): one undeletable node
     /// every document holds from its creation, at
     /// [`RecipeNodeId::WORLD`], defining the world's space
@@ -2220,6 +2235,10 @@ macro_rules! node_rows {
                 target: _,
                 constraints,
             } => $out.extend(constraints.$rows()),
+            Node::Datum {
+                target: _,
+                constraints,
+            } => $out.extend(constraints.$rows()),
             Node::World | Node::Space => {}
             Node::Split { target, tool: _ } => index_rows!(O::Target, target, $rows, $out),
             Node::Mirror { body, plane: _ } => index_rows!(O::Body, body, $rows, $out),
@@ -2349,6 +2368,10 @@ impl<P> Node<P> {
                 interface: _,
                 target,
                 constraints,
+            }
+            | Node::Datum {
+                target,
+                constraints,
             } => {
                 let mut v = vec![(O::Space, *target)];
                 v.extend(side_rows(constraints));
@@ -2447,6 +2470,10 @@ impl<P> Node<P> {
             Node::InstantiatePart {
                 doc_ref: _,
                 interface: _,
+                target,
+                constraints,
+            }
+            | Node::Datum {
                 target,
                 constraints,
             } => {
@@ -2828,6 +2855,7 @@ impl<P, S: Slot> Node<P, S> {
             }],
             // One copy of the part's product.
             Self::InstantiatePart { .. } => vec![OutputPort::of("copy", VarKind::Body)],
+            Self::Datum { .. } => vec![OutputPort::of("frame", VarKind::Frame)],
             Self::Measure { primitive } => {
                 vec![OutputPort::of("value", VarKind::from(primitive.dim()))]
             }
@@ -2976,6 +3004,13 @@ impl<P, S: Slot> Node<P, S> {
                 target: read(O::Space, target)?,
                 constraints: map_constraints(constraints, f, read)?,
             },
+            Node::Datum {
+                target,
+                constraints,
+            } => Node::Datum {
+                target: read(O::Space, target)?,
+                constraints: map_constraints(constraints, f, read)?,
+            },
             Node::World => Node::World,
             Node::Space => Node::Space,
             Node::InstantiatePart {
@@ -3030,6 +3065,7 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Chamfer { .. }
             | Node::Shell { .. }
             | Node::InstantiatePart { .. }
+            | Node::Datum { .. }
             | Node::World
             | Node::Space
             | Node::Measure { .. }
@@ -3109,12 +3145,28 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Node::Split { tool, .. } => vec![(O::Tool, tool.role)],
             Node::Mirror { plane, .. } => vec![(O::Plane, plane.role)],
-            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
+            Node::Place { constraints, .. }
+            | Node::InstantiatePart { constraints, .. }
+            | Node::Datum { constraints, .. } => {
                 constraints
                     .iter()
-                    .filter_map(|c| {
-                        let coord = &c.value()?.coord;
-                        Some((coord.seat(c.id), coord.read()?.role))
+                    .flat_map(|c| match &c.kind {
+                        crate::mate::ConstraintKind::Mate(m) => {
+                            let side = |side| O::Side {
+                                constraint: c.id,
+                                side,
+                            };
+                            vec![
+                                (side(crate::mate::MateSide::On), m.on.role),
+                                (side(crate::mate::MateSide::To), m.to.role),
+                            ]
+                        }
+                        crate::mate::ConstraintKind::Value(v) => v
+                            .coord
+                            .read()
+                            .map(|read| (v.coord.seat(c.id), read.role))
+                            .into_iter()
+                            .collect(),
                     })
                     .collect()
             }
@@ -3133,14 +3185,22 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Split { tool, .. }, O::Tool) => Some(&mut tool.role),
             (Node::Mirror { plane, .. }, O::Plane) => Some(&mut plane.role),
             (
-                Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. },
-                O::Along { constraint } | O::About { constraint },
+                Node::Place { constraints, .. }
+                | Node::InstantiatePart { constraints, .. }
+                | Node::Datum { constraints, .. },
+                O::Along { constraint } | O::About { constraint } | O::Side { constraint, .. },
             ) => constraints
                 .iter_mut()
                 .find(|c| c.id == constraint)
-                .and_then(|c| match &mut c.kind {
-                    crate::mate::ConstraintKind::Value(v) => v.coord.read_mut(),
-                    crate::mate::ConstraintKind::Mate(_) => None,
+                .and_then(|c| match (&mut c.kind, seat) {
+                    (crate::mate::ConstraintKind::Value(v), O::Along { .. } | O::About { .. }) => {
+                        v.coord.read_mut()
+                    }
+                    (crate::mate::ConstraintKind::Mate(m), O::Side { side, .. }) => Some(match side {
+                        crate::mate::MateSide::On => &mut m.on,
+                        crate::mate::MateSide::To => &mut m.to,
+                    }),
+                    _ => None,
                 })
                 .map(|read| &mut read.role),
             _ => None,
@@ -3394,7 +3454,10 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Shell { .. }, O::Open) => "shell",
             (Node::Measure { .. }, O::Measured(..)) => "measure",
             (Node::Assertion(_), O::Cleared(..)) => "clearance",
-            (Node::Place { .. } | Node::InstantiatePart { .. }, O::Side { .. }) => "constraint",
+            (
+                Node::Place { .. } | Node::InstantiatePart { .. } | Node::Datum { .. },
+                O::Side { .. },
+            ) => "constraint",
             _ => return None,
         };
         Some((owner, slot.selection_entry(reference)?))
@@ -3473,6 +3536,21 @@ impl<P> Node<P, crate::Formula> {
         }
     }
 
+    /// Builds a [`Node::Datum`] placed into `target` under `constraints`,
+    /// the whole bundle, as [`Self::place`] builds a placement. A datum
+    /// at its space's origin is [`crate::mate::pin::stand`]'s bundle; a
+    /// mate names the datum's own frame, so it is written once the datum
+    /// is.
+    pub fn datum(
+        target: impl Into<crate::Operand>,
+        constraints: Vec<crate::mate::Constraint<crate::Formula>>,
+    ) -> Self {
+        Node::Datum {
+            target: target.into(),
+            constraints,
+        }
+    }
+
     /// A [`Node::Measure`] over `primitive`, each reference authored as
     /// the read it lowers to ([`crate::Operand`]: a body, or a sited name
     /// as the selection of it in the body it is read at).
@@ -3528,6 +3606,7 @@ impl<P> Node<P, crate::Formula> {
             | Node::World
             | Node::Space
             | Node::Place { .. }
+            | Node::Datum { .. }
             | Node::InstantiatePart { .. }
             | Node::Assertion(crate::measure::Claim::Value { .. }) => Vec::new(),
         };
@@ -3645,8 +3724,12 @@ where
         // addresses, and the `PartialEq` above compares them by value:
         // they compare here, by bits.
         if let (
-            Node::Place { constraints: a, .. } | Node::InstantiatePart { constraints: a, .. },
-            Node::Place { constraints: b, .. } | Node::InstantiatePart { constraints: b, .. },
+            Node::Place { constraints: a, .. }
+            | Node::InstantiatePart { constraints: a, .. }
+            | Node::Datum { constraints: a, .. },
+            Node::Place { constraints: b, .. }
+            | Node::InstantiatePart { constraints: b, .. }
+            | Node::Datum { constraints: b, .. },
         ) = (self, other)
             && (a.len() != b.len() || !a.iter().zip(b).all(|(x, y)| x.bit_eq(y)))
         {
@@ -3694,8 +3777,8 @@ fn side_rows_mut<S: Slot>(
         };
         match &mut c.kind {
             crate::mate::ConstraintKind::Mate(crate::mate::Mate { on, to, .. }) => {
-                out.push((seat(crate::mate::MateSide::On), on));
-                out.push((seat(crate::mate::MateSide::To), to));
+                out.push((seat(crate::mate::MateSide::On), &mut on.read));
+                out.push((seat(crate::mate::MateSide::To), &mut to.read));
             }
             crate::mate::ConstraintKind::Value(value) => {
                 let at = value.coord.seat(id);

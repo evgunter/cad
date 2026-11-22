@@ -521,6 +521,15 @@ impl<R> RoleRead<R> {
     }
 
     /// This read in another form, its role kept.
+    #[must_use]
+    pub fn map<R2>(&self, f: impl FnOnce(&R) -> R2) -> RoleRead<R2> {
+        RoleRead {
+            read: f(&self.read),
+            role: self.role,
+        }
+    }
+
+    /// This read in another form, its role kept.
     ///
     /// # Errors
     ///

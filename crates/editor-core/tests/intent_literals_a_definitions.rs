@@ -1107,8 +1107,8 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
     r.constrain(
         copy,
         editor_core::Mate {
-            on: cap(),
-            to: cap(),
+            on: cap().into(),
+            to: cap().into(),
             orient: editor_core::Orientation::IDENTITY,
         },
         vec![

@@ -1055,9 +1055,7 @@ pub(crate) fn equations_of<P>(
         .filter_map(|c| {
             let e = match &c.kind {
                 super::ConstraintKind::Mate(mate) => Equations::Mate(
-                    doc.var(mate.on)
-                        .map(crate::Var::kind)
-                        .and_then(crate::VarKind::symmetry)?,
+                    super::side_kind(doc, mate.on).and_then(crate::VarKind::symmetry)?,
                 ),
                 super::ConstraintKind::Value(value) => Equations::Value(value.coord),
             };
@@ -1281,15 +1279,15 @@ pub(crate) fn arm_of<'a, T: SolveScalar, A>(
 /// placement.
 pub(crate) fn bundle_of<P, S: crate::Slot>(node: &Node<P, S>) -> Option<&[super::Constraint<S>]> {
     match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-            Some(constraints)
-        }
+        Node::Place { constraints, .. }
+        | Node::InstantiatePart { constraints, .. }
+        | Node::Datum { constraints, .. } => Some(constraints),
         _ => None,
     }
 }
 
 /// **Whether `placement`'s operand row `(seat, read)` is a mate's `on`
-/// read through an instance's own copy**: `Doc::upstream`'s one
+/// read through an instance's own copy or a datum's own frame**: `Doc::upstream`'s one
 /// exemption, the content key's, and the split between the reads an
 /// evaluation resolves before its op and those it resolves against the
 /// copy before placement. The one spelling every such reader asks.
@@ -1305,13 +1303,15 @@ pub(crate) fn own_copy_side<P>(
             side: MateSide::On,
             ..
         }
-    ) && matches!(doc.node(placement), Some(Node::InstantiatePart { .. }))
-        && doc.read_ports(read).iter().any(|&(at, _)| at == placement)
+    ) && matches!(
+        doc.node(placement),
+        Some(Node::InstantiatePart { .. } | Node::Datum { .. })
+    ) && doc.read_ports(read).iter().any(|&(at, _)| at == placement)
 }
 
 /// **Whether `on` reads the copy `placement` defines**, before
 /// placement: every operation its definition reaches is one of a
-/// `Place`'s shapes, or an instance's own output. A read that reaches
+/// `Place`'s shapes, or an instance's or a datum's own output. A read that reaches
 /// nothing live (its body deleted) is stranded, which is the
 /// evaluation's to refuse (N5), never this door's.
 pub(crate) fn on_reads_the_copy<P>(
@@ -1322,7 +1322,7 @@ pub(crate) fn on_reads_the_copy<P>(
     let reached = doc.read_ports(on);
     let copied: Vec<RecipeNodeId> = match doc.node(placement) {
         Some(Node::Place { source, .. }) => doc.operation_of(source.read).into_iter().collect(),
-        Some(Node::InstantiatePart { .. }) => vec![placement],
+        Some(Node::InstantiatePart { .. } | Node::Datum { .. }) => vec![placement],
         _ => return false,
     };
     reached.iter().all(|(at, _)| copied.contains(at))
@@ -1345,12 +1345,18 @@ pub(crate) fn admit_mate<P>(
     mate: MateRef,
     data: &super::Mate,
 ) -> Result<(), Box<MateFault>> {
-    if !on_reads_the_copy(doc, mate.placement, data.on) {
+    if let Some(Node::Datum { .. }) = doc.node(mate.placement) {
+        use crate::pose::PoseRole as R;
+        if doc.output(mate.placement, 0) != Some(data.on.read)
+            || !matches!(data.on.role, None | Some(R::Xy | R::Z | R::Origin))
+        {
+            return Err(Box::new(MateFault::NotTheDatumsOwn { mate }));
+        }
+    } else if !on_reads_the_copy(doc, mate.placement, data.on.read) {
         return Err(Box::new(MateFault::NotOnTheCopy { mate }));
     }
-    let kind = |var: crate::VarId| doc.var(var).map(crate::Var::kind);
-    let on = kind(data.on);
-    if let (Some(on), Some(to)) = (on, kind(data.to))
+    let on = super::side_kind(doc, data.on);
+    if let (Some(on), Some(to)) = (on, super::side_kind(doc, data.to))
         && on != to
     {
         return Err(Box::new(MateFault::KindsDiffer { mate, on, to }));

@@ -535,7 +535,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/ciw/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 21] = [
+pub const NODE_KINDS: [&str; 22] = [
     "Profile",
     "Extrude",
     "Revolve",
@@ -591,6 +591,8 @@ pub const NODE_KINDS: [&str; 21] = [
     "Assertion",
     // The placement: every document's product is its copies.
     "Place",
+    // A datum: `face_sketch` draws on one flush on a face.
+    "Datum",
     // The world: in every document, authored by none, so it reads zero
     // here and is exempt through `NEVER_EVALUATES`.
     "World",
@@ -700,6 +702,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Split { .. }
         | Node::Mirror { .. }
         | Node::Place { .. }
+        | Node::Datum { .. }
         | Node::World
         | Node::Space
         | Node::Loft { .. }
@@ -731,6 +734,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
+        Node::Datum { .. } => "Datum",
         Node::World => "World",
         Node::Space => "Space",
         Node::Loft { .. } => "Loft",

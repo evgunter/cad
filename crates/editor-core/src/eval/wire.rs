@@ -618,6 +618,23 @@ where
             };
             wire_measure(primitive, doc, &at, env.lane.params, tol)
         }
+        Node::Datum {
+            target: _,
+            constraints,
+        } => {
+            // Its frame before placement is its target's own axes, which
+            // its mates' `on` read through their roles, as an instance's
+            // read its copy; it reaches nowhere past them.
+            let own: Results<T> = BTreeMap::from([(
+                id,
+                NodeResult::Ok(super::NodeValue::scratch(OpOut::plain(
+                    ValuePayload::Datum,
+                    names::empty(),
+                ))),
+            )]);
+            let placed = fold_with(doc, &own, unprojected, id, constraints, Ok(0.0), env, tol)?;
+            Ok(OpOut::plain(ValuePayload::Datum, names::empty()).moved(placed))
+        }
         Node::InstantiatePart {
             doc_ref,
             interface,
@@ -829,7 +846,7 @@ where
             doc,
             on_results,
             seat(MateSide::On),
-            crate::pose::RoleRead::plain(m.on),
+            m.on,
             params,
             tol,
         )
@@ -839,7 +856,7 @@ where
             doc,
             to_results,
             seat(MateSide::To),
-            crate::pose::RoleRead::plain(m.to),
+            m.to,
             params,
             tol,
         )
