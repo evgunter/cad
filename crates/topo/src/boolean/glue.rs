@@ -368,8 +368,8 @@ fn pairs_among(
 /// **The section door**: the operation's section table
 /// ([`super::section_table::SectionTable`]), read over every cross pair
 /// of faces whose boxes overlap and whose kinds the section value builds
-/// by classification ([`geom_brep::pair_section::serves`]), or that are a
-/// spline wall and a partner with an implicit residual
+/// ([`geom_brep::pair_section::builds`]): by classification, or a
+/// spline wall and a partner with an implicit residual, held unread
 /// ([`geom_brep::SplineImplicitPose::of`]), at the operation's band and
 /// region, and the coincidences the join reads,
 /// per face pair of the two operands: each coincidence decided `Zero`
@@ -404,14 +404,9 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
         let face = body.proven_face(f);
         (face.record().surface, face.surface().clone())
     };
-    // A face that is a side of a pair read here: a kind the value builds
-    // by classification, a spline wall, or a plane where the other
-    // operand has a spline face, as a plane is read against a spline wall
-    // alone.
-    let spline = |body: &Body<T>| {
-        body.face_views()
-            .any(|f| f.surface().spline_chart().is_some())
-    };
+    // A face that is a side of a pair read here: one whose kind pairs
+    // with some kind on the other operand in a section the value builds
+    // ([`face_read`]).
     let kinds = |body: &Body<T>| {
         let mut kinds: Vec<geom::SurfaceKind> = Vec::new();
         for f in body.face_views() {
@@ -422,16 +417,8 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
         }
         kinds
     };
-    let read = |s: &geom::Surface<T>, partner: &[geom::SurfaceKind], partner_spline: bool| {
-        partner
-            .iter()
-            .any(|&k| geom_brep::pair_section::serves(s.kind(), k))
-            || s.spline_chart().is_some()
-            || (partner_spline && matches!(s, geom::Surface::Plane { .. }))
-    };
     let pair_read = |sa: &geom::Surface<T>, sb: &geom::Surface<T>| {
-        geom_brep::pair_section::serves(sa.kind(), sb.kind())
-            || geom_brep::SplineImplicitPose::of(sa, sb).is_some()
+        geom_brep::pair_section::builds(sa.kind(), sb.kind())
     };
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {
         cells: [
@@ -480,10 +467,10 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
                   boxed: &[(FaceKey, bvh::Aabb)],
                   partner: &Body<T>|
      -> Vec<(FaceKey, bvh::Aabb)> {
-        let (partner_kinds, partner_spline) = (kinds(partner), spline(partner));
+        let partner_kinds = kinds(partner);
         boxed
             .iter()
-            .filter(|&&(k, _)| read(&surface(body, k).1, &partner_kinds, partner_spline))
+            .filter(|&&(k, _)| face_read(surface(body, k).1.kind(), &partner_kinds))
             .copied()
             .collect()
     };
@@ -560,6 +547,17 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
         });
     }
     Ok((table.finish(), rows))
+}
+
+/// **Whether the section door reads a face of kind `kind`** against an
+/// operand whose faces are of `partner` kinds: where some pair it forms
+/// with one of them is a section the value builds
+/// ([`geom_brep::pair_section::builds`]), so no face that is a side of a
+/// read pair is filtered out before its pair is asked.
+fn face_read(kind: geom::SurfaceKind, partner: &[geom::SurfaceKind]) -> bool {
+    partner
+        .iter()
+        .any(|&k| geom_brep::pair_section::builds(kind, k))
 }
 
 /// **The record a coincidence the section value decided is kept as**:
@@ -641,6 +639,31 @@ fn face_closures<T: geom_core::Real>(
             (view.key(), cells)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod face_read_rows {
+    use geom::SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+
+    /// **A face is read wherever a pair it forms is built**: a torus, a
+    /// cylinder or a sphere against a body of spline walls (with planar
+    /// caps or with cone faces) is read through the march door, as a
+    /// plane is; against cones and planes alone a torus forms no pair the
+    /// value builds. Red where the filter reads only classified pairs and
+    /// excepts planes alone.
+    #[test]
+    fn a_face_is_read_wherever_a_pair_it_forms_is_built() {
+        for kind in [Torus, Cylinder, Sphere, Plane] {
+            for partner in [&[Nurbs, Plane][..], &[Approx], &[Nurbs, Cone]] {
+                assert!(
+                    super::face_read(kind, partner),
+                    "{kind:?} against {partner:?}"
+                );
+            }
+        }
+        assert!(!super::face_read(Torus, &[Cone, Plane]));
+        assert!(!super::face_read(Nurbs, &[Nurbs, Cone]));
+    }
 }
 
 #[cfg(test)]

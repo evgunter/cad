@@ -496,7 +496,7 @@ enum AuxDatum {
     Partner(FaceKey),
     /// The plane two cones through one apex cross in: this body's
     /// surface and the other body's.
-    Radical {
+    ApexPlane {
         own: crate::geometry::SurfaceKey,
         partner: crate::geometry::SurfaceKey,
     },
@@ -1750,7 +1750,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             // an aux plane into either body: a refusal ends the operation
             // and the reduction is dropped, so nothing reads them.
             Some(GermLane::Rulings(radical)) => {
-                let datum = |own, partner| AuxDatum::Radical { own, partner };
+                let datum = |own, partner| AuxDatum::ApexPlane { own, partner };
                 let curves = (
                     sa.split_curve(
                         &mut red.a,
@@ -1952,36 +1952,67 @@ struct Along<T: geom_core::Real> {
 
 /// **A carried component's speed, as a partner's reading keeps it**: the
 /// carrier itself where a window's speed floor reads the window's
-/// parameters (a line, a circle, an ellipse), and otherwise the floor
-/// over its span, which is what a window reads on any other carrier
-/// ([`geom::carrier_speed::window_speed`]).
+/// parameters (a line, a circle, an ellipse), and the floor over the
+/// component's span, decided positive ([`Self::of`]). A window's floor is
+/// never read below the span's, so every floor it hands a metered
+/// decision is positive.
 #[derive(Clone, Copy)]
-enum FootSpeed<T: geom_core::Real> {
+struct FootSpeed<T: geom_core::Real> {
+    carrier: FootCarrier<T>,
+    floor: geom_core::InfSpeed<T>,
+}
+
+/// The carriers whose window floor reads the window
+/// ([`geom::carrier_speed::window_speed`]); any other's is its span's.
+#[derive(Clone, Copy)]
+enum FootCarrier<T: geom_core::Real> {
     Line(geom::Line<T>),
     Circle(geom::Circle<T>),
     Ellipse(geom::Ellipse<T>),
-    Floor(geom_core::InfSpeed<T>),
+    Span,
 }
 
 impl<T: Decide> FootSpeed<T> {
-    fn of(carrier: &geom::Curve3<T>, (lo, hi): (T, T)) -> Self {
-        match *carrier {
-            geom::Curve3::Line(l) => Self::Line(l),
-            geom::Curve3::Circle(c) => Self::Circle(c),
-            geom::Curve3::Ellipse(e) => Self::Ellipse(e),
-            _ => Self::Floor(geom::carrier_speed::speed_between(carrier, lo, hi).0),
-        }
+    /// **The component's speed over its span `(lo, hi)`**, its floor
+    /// decided positive as the length it subtends over the span
+    /// (`bool_join_foot_speed`): a spline's control-net floor may be zero,
+    /// negative or poison, and a floor that is not positive meters no
+    /// travel.
+    ///
+    /// # Errors
+    ///
+    /// The floor's escalation, or a decided non-positive floor, as a join
+    /// coincidence the band cannot decide.
+    fn of(carrier: &geom::Curve3<T>, (lo, hi): (T, T), band: Band) -> Result<Self, BooleanError> {
+        let floor = geom::carrier_speed::speed_between(carrier, lo, hi).0;
+        geom_core::k_stats::decide_positive(
+            "bool_join_foot_speed",
+            Margin::metered(hi - lo, floor),
+            band,
+        )
+        .map_err(join_escalate)?;
+        let carrier = match *carrier {
+            geom::Curve3::Line(l) => FootCarrier::Line(l),
+            geom::Curve3::Circle(c) => FootCarrier::Circle(c),
+            geom::Curve3::Ellipse(e) => FootCarrier::Ellipse(e),
+            _ => FootCarrier::Span,
+        };
+        Ok(Self { carrier, floor })
     }
 
     /// **A floor on the carrier's speed over every parameter between `a`
-    /// and `b`** ([`geom::carrier_speed::speed_between`]).
+    /// and `b`** ([`geom::carrier_speed::speed_between`]), never below
+    /// the span's.
     fn between(self, a: T, b: T) -> geom_core::InfSpeed<T> {
-        let floor = |carrier: geom::Curve3<T>| geom::carrier_speed::speed_between(&carrier, a, b).0;
-        match self {
-            Self::Line(l) => floor(geom::Curve3::Line(l)),
-            Self::Circle(c) => floor(geom::Curve3::Circle(c)),
-            Self::Ellipse(e) => floor(geom::Curve3::Ellipse(e)),
-            Self::Floor(f) => f,
+        let window = |carrier: geom::Curve3<T>| {
+            let w = geom::carrier_speed::speed_between(&carrier, a, b).0;
+            geom_core::InfSpeed::new(w.get().max(self.floor.get()))
+        };
+        match self.carrier {
+            FootCarrier::Line(l) => window(geom::Curve3::Line(l)),
+            FootCarrier::Circle(c) => window(geom::Curve3::Circle(c)),
+            FootCarrier::Ellipse(e) => window(geom::Curve3::Ellipse(e)),
+            FootCarrier::Span => self.floor,
         }
     }
 }
@@ -2100,8 +2131,10 @@ fn join_escalate(diag: geom_core::Indeterminate) -> BooleanError {
 /// on the arc between them. A foot is orthogonal, so a site moved across
 /// the component keeps its foot and the order reads no along-section
 /// slack. Two sites within the band of each other are one site, read by
-/// the chord; two distinct sites the travel ties are partners decided
-/// equally near ([`BooleanError::JoinPartnersTied`]), never a pick.
+/// the chord; two distinct sites the travel ties are decided equally
+/// near, never parted by the chord: a nearer candidate closes the tie,
+/// and a tie at the nearest is [`BooleanError::JoinPartnersTied`]
+/// ([`nearest_of`]).
 ///
 /// **On a frame's conic** (both read a [`Turn`]) the half-turn decides
 /// where the two differ. Within one half-turn a conic orders them by the
@@ -2127,10 +2160,7 @@ fn along_sign<T: Decide>(
         if !one_site {
             let floor = c.speed.between(b.at, c.at);
             let ahead = Margin::metered(c.travel - b.travel, floor);
-            return match decide("bool_join_foot_travel", ahead, band).map_err(join_escalate)? {
-                Sign::Zero => Err(BooleanError::JoinPartnersTied),
-                sign => Ok(sign),
-            };
+            return decide("bool_join_foot_travel", ahead, band).map_err(join_escalate);
         }
     }
     if let (true, Some(c), Some(b)) = (cand.arm == best.arm, cand.turn, best.turn) {
@@ -2810,10 +2840,9 @@ fn germ_loops<T: crate::props::AtRestPolicy>(
 
 /// The germ pair's section loops: the loops of the section the germ
 /// line lies on, each with the centre and axis it turns about, or `None`
-/// when that locus is STRAIGHT — a plane×plane pair, and the degenerate
-/// plane×cylinder outcomes whose loci ARE lines
-/// (ParallelLines/TangentLine). [`germ_section_frame`] picks the germ's
-/// own loop.
+/// when that locus is STRAIGHT — a straight edge the germ runs along, a
+/// plane×plane pair, and the straight pairs [`pair_section_frame_at`]
+/// proves. [`germ_section_frame`] picks the germ's own loop.
 ///
 /// A germ along an edge of either solid lies on that edge, and its
 /// frame is the edge's own ([`along_edge_conic`]), refused
@@ -2927,9 +2956,10 @@ fn germ_section_frame<T: crate::props::AtRestPolicy>(
 /// curved face's boundary vertices (the first face's where both are
 /// curved), a point among those the section is consumed at, so the gap is
 /// read where the section is and not where a carrier's origin is stored.
-/// [`pair_section_frame_at`] levers the plane×cylinder pair at its wall's
-/// axial extent from this point ([`frame_extent`]). No lever is a ball
-/// chosen around the faces (`geom_brep::Reach`'s module docs).
+/// [`pair_section_frame_at`] levers the plane×cone and plane×torus pairs
+/// at their curved face's measures from this point ([`frame_extent`]).
+/// No lever is a ball chosen around the faces (`geom_brep::Reach`'s
+/// module docs).
 ///
 /// # Errors
 ///
@@ -4032,9 +4062,8 @@ fn section_undecided(diag: geom_core::Indeterminate) -> BooleanError {
 ///
 /// `Ok(None)` means the locus is STRAIGHT and is only ever returned by
 /// an arm that PROVED it: the plane×plane pair (a line by
-/// construction), the two degenerate plane×cylinder outcomes whose loci
-/// are lines, and a cylinder pair whose AXES are parallel (its
-/// intersection is rulings, whatever the radii). A kind pair with no
+/// construction), two cones through one apex (rulings through it), and
+/// a plane through a cone's apex (its two lines). A kind pair with no
 /// arm is [`FrameError::NoArm`] — never `None`, because the caller
 /// reads `None` as "run the straight-chord facing test" and would mint
 /// a wrong chord from it.
@@ -4044,8 +4073,9 @@ fn section_undecided(diag: geom_core::Indeterminate) -> BooleanError {
 /// where it was minted ([`germ_branch`]). The plane×torus pair
 /// ([`pt_germ_frame`]) names two loops with frames of their own; every
 /// other pair's section is one loop, or loops that share one frame
-/// ([`conic_section_frame_at`]). Two cylinders are read on their section
-/// value ([`cylinder_read`]), and reach this dispatch only as a desync.
+/// ([`conic_section_frame_at`]). Every pair the section value builds is
+/// read by its section's components, and reaches this dispatch only as
+/// a desync.
 pub(super) fn pair_section_frame_at<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
@@ -4528,7 +4558,7 @@ fn along_facing<T: crate::props::AtRestPolicy>(
     }
     let component = &section.components()[f1.component];
     let (lo, hi) = component.span;
-    let speed = FootSpeed::of(&component.carrier, component.span);
+    let speed = FootSpeed::of(&component.carrier, component.span, band)?;
     let forward = if up1 { f2.t - f1.t } else { f1.t - f2.t };
     let ahead = Margin::metered(forward, speed.between(f1.t, f2.t));
     let travel = match decide("bool_join_foot_ahead", ahead, band).map_err(join_escalate)? {
@@ -7898,5 +7928,87 @@ mod apex_plane_rows {
             cone_apex_plane((fa, &one), (fb, &nearer), g, reach, band),
             Err(BooleanError::GermFrameUnsupported { .. })
         ));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod foot_rows {
+    use super::{
+        Along, BooleanError, FootSpeed, PartnerDistance, along_sign, germ_arm, nearest_of,
+    };
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A partner `travel` along the line `x` from the germ at the origin,
+    /// its site `off` across it.
+    fn partner(travel: f64, off: f64) -> PartnerDistance<f64> {
+        let line = geom::Curve3::line(Point3::origin(), Vec3::unit_x());
+        let speed = FootSpeed::of(&line, (-10.0, 10.0), band()).unwrap();
+        let site = Point3::new(travel, off, 0.0);
+        PartnerDistance {
+            arm: germ_arm::<f64>(None, band()).unwrap(),
+            chord: (site - Point3::origin()).norm(),
+            turn: None,
+            along: Some(Along {
+                travel,
+                at: travel,
+                speed,
+                site,
+            }),
+        }
+    }
+
+    /// **Two distinct sites at one foot tie, and a nearer candidate closes
+    /// the tie**: the two read `Zero` on the foot travel, never the chord
+    /// (which would part them by their sites' offsets); with a third
+    /// nearer along, it is taken, and with none the pick refuses as tied.
+    #[test]
+    fn a_foot_tie_is_closed_by_a_nearer_candidate_and_refuses_at_the_nearest() {
+        let tied = || vec![(partner(0.5, 1e-3), 0), (partner(0.5, -2e-3), 1)];
+        let sign = |c, b| along_sign(c, b, band());
+        let mut three = tied();
+        three.push((partner(0.25, 0.0), 2));
+        let got = nearest_of(three, sign).unwrap().map(|(_, k)| k);
+        assert_eq!(got, Some(2), "the nearer candidate closes the tie");
+        assert!(
+            matches!(
+                nearest_of(tied(), sign),
+                Err(BooleanError::JoinPartnersTied)
+            ),
+            "a tie at the nearest refuses as tied"
+        );
+    }
+
+    /// **A carrier whose speed floor is not positive meters no travel**:
+    /// a spline doubling back on itself has a control-net speed floor
+    /// below zero, and the foot's speed refuses on it rather than flip
+    /// the order it would meter.
+    #[test]
+    fn a_floor_that_is_not_positive_meters_no_travel() {
+        let back = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .unwrap(),
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(1.0, 0.0, 0.0),
+                    Point3::new(0.0, 0.0, 0.0),
+                ],
+                vec![1.0, 1.0, 1.0],
+            )
+            .unwrap(),
+        ));
+        assert!(
+            geom::carrier_speed::speed_between(&back, 0.0, 1.0).0.get() <= 0.0,
+            "fixture: the net's floor is not positive"
+        );
+        assert!(
+            FootSpeed::of(&back, (0.0, 1.0), band()).is_err(),
+            "a floor that is not positive refuses"
+        );
     }
 }

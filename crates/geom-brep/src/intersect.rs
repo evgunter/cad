@@ -1102,14 +1102,18 @@ pub fn plane_cylinder_section_read<T: Decide>(
         .map(|(section, parallel, _)| (section, parallel))
 }
 
-/// [`plane_cylinder_section_read`], with the margin `pc_parallel_gap`
-/// decided `Zero` on where the section is the tangent ruling.
+/// A row that decided a section's class, and the margin it decided on.
+pub(crate) type DecidingRow = (&'static str, MarginDiag);
+
+/// [`plane_cylinder_section_read`], with the row `pc_parallel_gap` and
+/// the margin it decided `Zero` on, where the section is the tangent
+/// ruling.
 pub(crate) fn plane_cylinder_classified<T: Decide>(
     plane: &impl SectionPlane<T>,
     cylinder: &Surface<T>,
     reach: &Reach<T>,
     band: Band,
-) -> Result<(PlaneCylinderSection<T>, Decided, Option<MarginDiag>), SectionError> {
+) -> Result<(PlaneCylinderSection<T>, Decided, Option<DecidingRow>), SectionError> {
     let (pc, cyl_u) = plane_cylinder_data(plane, cylinder)?;
     let (parallel, ruled) =
         plane_cylinder_ruled_read(&pc, reach, band).map_err(SectionError::Escalated)?;
@@ -1120,7 +1124,7 @@ pub(crate) fn plane_cylinder_classified<T: Decide>(
             }
             RuledSection::TangentLine { line, gap } => (
                 PlaneCylinderSection::TangentLine(Curve3::Line(line)),
-                Some(gap),
+                Some((PC_PARALLEL_GAP[0], gap)),
             ),
             RuledSection::Empty { .. } => (PlaneCylinderSection::Empty, None),
         };
@@ -1311,13 +1315,16 @@ pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) ->
 /// here is a crossing or a clearance no tilt within the swing closes,
 /// which is how the tangent-locus lane refuses a pair the axis row
 /// leaves in band ([`crate::tangent_locus`]).
+/// `pc_parallel_gap` and its floor row ([`ruled_gap`]).
+pub(crate) const PC_PARALLEL_GAP: [&str; 2] = ["pc_parallel_gap", "pc_parallel_gap_floor"];
+
 pub(crate) fn ruled_gap<T: Decide>(
     pc: &PlaneCylinder<T>,
     frame: &RuledFrame<T>,
     band: Band,
 ) -> Result<(Sign, MarginDiag), Indeterminate> {
     decide_across_reported(
-        ["pc_parallel_gap", "pc_parallel_gap_floor"],
+        PC_PARALLEL_GAP,
         pc.r - frame.gap_signed.abs(),
         Margin::levered(frame.c, frame.lever).value(),
         band,
@@ -1448,8 +1455,9 @@ pub fn plane_sphere_section<T: Decide>(
     plane_sphere_section_read(plane, sphere, band).map(|(section, _)| section)
 }
 
-/// [`plane_sphere_section`], with `ps_center_gap`'s reading: the one
-/// row that classifies the section, whose `Zero` is the tangency.
+/// [`plane_sphere_section`], with the one row that classifies the
+/// section, `ps_center_gap`, and its reading, whose `Zero` is the
+/// tangency.
 ///
 /// # Errors
 ///
@@ -1458,7 +1466,7 @@ pub fn plane_sphere_section_read<T: Decide>(
     plane: &impl SectionPlane<T>,
     sphere: &Surface<T>,
     band: Band,
-) -> Result<(PlaneSphereSection<T>, Decided), SectionError> {
+) -> Result<(PlaneSphereSection<T>, (&'static str, Decided)), SectionError> {
     let Some((q, n)) = plane.site() else {
         return Err(SectionError::WrongLane {
             expected: "plane×sphere",
@@ -1509,8 +1517,9 @@ pub fn plane_sphere_section_read<T: Decide>(
             polar_cand.normalize()
         }
     };
-    let gap = decide_reported("ps_center_gap", Margin::of(r - s.abs()), band)
-        .map_err(SectionError::Escalated)?;
+    const ROW: &str = "ps_center_gap";
+    let gap =
+        decide_reported(ROW, Margin::of(r - s.abs()), band).map_err(SectionError::Escalated)?;
     let section = match gap.sign {
         Sign::Positive => PlaneSphereSection::Circle(Curve3::circle(
             foot,
@@ -1521,7 +1530,7 @@ pub fn plane_sphere_section_read<T: Decide>(
         Sign::Zero => PlaneSphereSection::TangentPoint(foot),
         Sign::Negative => PlaneSphereSection::Empty,
     };
-    Ok((section, gap))
+    Ok((section, (ROW, gap)))
 }
 
 // ---------------------------------------------------------------------

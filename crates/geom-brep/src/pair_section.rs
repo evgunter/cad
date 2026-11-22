@@ -1312,10 +1312,29 @@ impl PairPose<f64> {
     }
 }
 
-/// **The ball of a surface's cover**, a bounded side's own ball (a
-/// sphere's), which holds every section it is a side of.
-pub(crate) fn covered_ball<T: Decide>(surface: &Surface<T>) -> ExtentBall<T> {
-    ExtentBall::of_covered(surface.cover().as_ref().ok())
+/// **The ball of a whole carrier's cover**: a bounded side's own ball (a
+/// sphere's), which holds every section it is a side of, or a closed-form
+/// component's, the whole curve it lists, read against the region.
+pub(crate) fn covered_ball<T: Decide>(whole: impl Whole<T>) -> ExtentBall<T> {
+    ExtentBall::of_covered(whole.covered().as_ref().ok())
+}
+
+/// A carrier whose whole cover a section reads ([`covered_ball`]).
+pub(crate) trait Whole<T: Decide> {
+    /// The whole carrier's cover.
+    fn covered(self) -> geom::cover::Covered<T>;
+}
+
+impl<T: Decide> Whole<T> for &Surface<T> {
+    fn covered(self) -> geom::cover::Covered<T> {
+        self.cover()
+    }
+}
+
+impl<T: Decide> Whole<T> for &Curve3<T> {
+    fn covered(self) -> geom::cover::Covered<T> {
+        self.cover()
+    }
 }
 
 /// **A march's domain**: the cube of half-width `half_extent` about
@@ -1519,11 +1538,12 @@ pub fn spline_pair_section<T: Decide>(
 /// **Whether the value builds the section of kinds `a` and `b` by
 /// classification** — the filter a reader scanning many pairs applies
 /// before it asks [`pair_section`], read off the one dispatch
-/// [`pair_section`] reads ([`arm`]). A pair with a spline side is not
-/// among them, whether against an implicit surface or another spline:
-/// its section is a whole reading, read per pair through
-/// [`pair_section`]'s march door ([`spline_pair_section`] where rows are
-/// handed in) by the reader that asks it.
+/// [`pair_section`] reads ([`arm`]), so not a second spelling of it
+/// (`work/sect/the-c5-kind-dispatch-is-spelled-twice.md`). A pair with a
+/// spline side is not among them, whether against an implicit surface
+/// or another spline: its section is a whole reading, read per pair
+/// through [`pair_section`]'s march door ([`spline_pair_section`] where
+/// rows are handed in) by the reader that asks it ([`builds`]).
 #[must_use]
 pub fn serves(a: SurfaceKind, b: SurfaceKind) -> bool {
     match arm(a, b) {
@@ -1537,6 +1557,17 @@ pub fn serves(a: SurfaceKind, b: SurfaceKind) -> bool {
         | Arm::PlaneCylinder => true,
         Arm::SplineImplicit | Arm::SplinePair | Arm::Elsewhere => false,
     }
+}
+
+/// **Whether [`pair_section`] builds the section of kinds `a` and `b` at
+/// all**: by classification ([`serves`]), or through its march door, a
+/// spline wall against an implicit surface ([`SplineImplicitPose`]). Two
+/// spline walls are not among them: their section is read whole with
+/// the rows and corners they share handed in ([`spline_pair_section`]),
+/// by the reader that holds them. Read off the one dispatch ([`arm`]).
+#[must_use]
+pub fn builds(a: SurfaceKind, b: SurfaceKind) -> bool {
+    serves(a, b) || arm(a, b) == Arm::SplineImplicit
 }
 
 /// **Whether a pair of kinds `a` and `b` is traced in ℝ³** (C3): each

@@ -4,6 +4,8 @@ kind: issue
 title: A seamless band's trim placement reads a point inside the band Out
 status: open
 opened: 2026-11-21
+priority: P2
+cost: M
 ---
 
 
@@ -20,6 +22,8 @@ PR 7354's first push gave plane × cylinder's tilted-ellipse component a witness
 The face is `seamless_band(-1.0, 1.0)`: the unit wall about `z` over `z ∈ [−1, 1]`, closed on itself with no meridian edge. The partner is `tilted_slab()`, which cuts the wall in ellipses whose points satisfy `z ∈ [−0.1, 0.3]`. Every point of either ellipse is therefore inside the band. Yet `ops::place_witness` → `contain::placement_on_carrier` placed the witness `Out` of it.
 
 A W3 that reads `Out` for a point inside the face clears a loop that may lie inside both faces. That is the interior loop the guard exists to refuse.
+
+If the reading is real, the class is wider than plane × cylinder. W3 would clear an interior loop on every witnessed section loop on a seamless band, cylinder × sphere's ruling-sweep witnesses included: a soundness class of the interior-loop guard.
 
 ## Mitigation in PR 7354
 

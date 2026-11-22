@@ -160,7 +160,10 @@ fn shared(k: f64, g: f64) -> f64 {
 /// (`work/hone/an-ellipse-arcs-span-is-levered-by-its-global-speed-floor.md`).
 /// At `k = 10` the `24ε` arc spans `3.4ε` of parameter and reads in band,
 /// an escalation; at `k = 60` the `12ε` arc spans `0.28ε` and reads Zero,
-/// the span not forward. Either is the check's own reading, at a door
+/// the span not forward. A probe run on PR 7354 measured both at
+/// `k = 60`: the foot order took the true neighbour on `24ε` of arc, and
+/// check 2 read a span of `2.83e-10` at a rate of `1`. Either is the
+/// check's own reading, at a door
 /// that moves with the speed floor, not a guess
 /// (`work/onecopy/a-steep-ellipses-band-apart-pose-stops-at-the-merges-pcurve-span.md`).
 fn stops_where_expected(k: f64, e: &BooleanError) -> bool {

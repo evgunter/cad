@@ -19,7 +19,7 @@
 use geom::{Curve3, Surface};
 use geom_core::{Band, Decide, Decided, MarginDiag, Real};
 
-use super::cylinders::{RegionPlacement, closed_form_ball, placement, region_span};
+use super::cylinders::{RegionPlacement, placement, region_span};
 use super::{
     ClassCarrier, ComponentEnds, ComponentShape, Components, NoCarrier, PairPose, PairSection,
     SectionComponent, SectionDecision, ZeroVerdict,
@@ -39,9 +39,8 @@ fn tangency(row: &'static str, margin: MarginDiag) -> ZeroVerdict {
     }
 }
 
-/// `[first, second]` in the order the pose was asked of, `first` the
-/// plane's (or the first sphere's).
-fn ordered(plane_first: bool, [on_plane, on_wall]: [bool; 2]) -> [bool; 2] {
+/// A pair `[the plane's, the wall's]` in the order the pose was asked of.
+fn ordered<X>(plane_first: bool, [on_plane, on_wall]: [X; 2]) -> [X; 2] {
     if plane_first {
         [on_plane, on_wall]
     } else {
@@ -78,7 +77,7 @@ pub struct PlaneSpherePose<T: Real> {
     sphere: Surface<T>,
     plane_first: bool,
     section: PlaneSphereSection<T>,
-    gap: Decided,
+    row: (&'static str, Decided),
 }
 
 impl<T: Decide> PlaneSpherePose<T> {
@@ -100,23 +99,20 @@ impl<T: Decide> PlaneSpherePose<T> {
             _ => return None,
         };
         Some(
-            plane_sphere_section_read(plane, sphere, band).map(|(section, gap)| Self {
+            plane_sphere_section_read(plane, sphere, band).map(|(section, row)| Self {
                 plane: plane.clone(),
                 sphere: sphere.clone(),
                 plane_first,
                 section,
-                gap,
+                row,
             }),
         )
     }
 
     /// The two surfaces in the order the pose was asked of.
     pub fn operands(&self) -> (&Surface<T>, &Surface<T>) {
-        if self.plane_first {
-            (&self.plane, &self.sphere)
-        } else {
-            (&self.sphere, &self.plane)
-        }
+        let [a, b] = ordered(self.plane_first, [&self.plane, &self.sphere]);
+        (a, b)
     }
 
     /// The sphere's ball, which holds the section.
@@ -191,7 +187,7 @@ pub struct PlaneCylinderPose<T: Real> {
     plane_first: bool,
     region: ExtentBall<T>,
     section: PlaneCylinderSection<T>,
-    tangent: Option<MarginDiag>,
+    tangent: Option<(&'static str, MarginDiag)>,
 }
 
 impl<T: Decide> PlaneCylinderPose<T> {
@@ -229,11 +225,8 @@ impl<T: Decide> PlaneCylinderPose<T> {
 
     /// The two surfaces in the order the pose was asked of.
     pub fn operands(&self) -> (&Surface<T>, &Surface<T>) {
-        if self.plane_first {
-            (&self.plane, &self.cylinder)
-        } else {
-            (&self.cylinder, &self.plane)
-        }
+        let [a, b] = ordered(self.plane_first, [&self.plane, &self.cylinder]);
+        (a, b)
     }
 
     /// **The region the pose was read across**, which holds every
@@ -254,7 +247,7 @@ pub(super) fn plane_sphere<T: Decide>(pose: PlaneSpherePose<T>) -> PairSection<T
         PlaneSphereSection::Circle(c) => (vec![ring(c.clone(), [false, false], true)], None),
         &PlaneSphereSection::TangentPoint(at) => (
             vec![touch(at)],
-            Some(tangency("ps_center_gap", pose.gap.margin)),
+            Some(tangency(pose.row.0, pose.row.1.margin)),
         ),
         PlaneSphereSection::Empty => (Vec::new(), None),
     };
@@ -316,7 +309,7 @@ pub(super) fn plane_cylinder<T: Decide>(pose: PlaneCylinderPose<T>, band: Band) 
     let spanned = |curve, span| ClassCarrier::Span { curve, span };
     let tangent = |_, _| ClassCarrier::Unminted(NoCarrier::Tangent);
     let loop_of = |c: &Curve3<T>| {
-        (placement(closed_form_ball(c), pose.region, band) != RegionPlacement::Outside)
+        (placement(super::covered_ball(c), pose.region, band) != RegionPlacement::Outside)
             .then(|| ring(c.clone(), ordered(pose.plane_first, [false, true]), false))
     };
     let components = match &pose.section {
@@ -330,9 +323,7 @@ pub(super) fn plane_cylinder<T: Decide>(pose: PlaneCylinderPose<T>, band: Band) 
         PlaneCylinderSection::TangentLine(l) => ruling(l, &tangent).into_iter().collect(),
         PlaneCylinderSection::Empty => Vec::new(),
     };
-    let decided = pose
-        .tangent
-        .map(|margin| tangency("pc_parallel_gap", margin));
+    let decided = pose.tangent.map(|(row, margin)| tangency(row, margin));
     PairSection {
         lever: crate::uniform_curvature_arm(&pose.cylinder),
         pose: PairPose::PlaneCylinder(pose),
@@ -504,6 +495,12 @@ mod rows {
                 "{order}: a region clear of the ellipse lists nothing"
             );
         }
+        let across = ExtentBall::fixture(Point3::new(2.0, 0.0, 0.5), 1.5);
+        assert_eq!(
+            listed(&read(&tilted, &wall(), Some(across)).unwrap()).len(),
+            1,
+            "a region across the ellipse's ball lists it"
+        );
         let holding = plane(Point3::new(0.5, 0.0, 0.0), Vec3::unit_x());
         let s = read(&holding, &wall(), Some(near)).unwrap();
         let rulings = listed(&s);
@@ -569,6 +566,28 @@ mod rows {
                 listed(&s).len(),
                 "{label}: every component carries"
             );
+        }
+    }
+
+    /// **The tilt is levered across the region, not the radius**: a
+    /// plane whose normal leans off square to the unit wall's axis by
+    /// `c = 3ε/10` reads `c` times the lever, in band across a region of
+    /// radius 10 about the axis (`3ε` to `6ε`), where levered at the
+    /// radius it would read `0.3ε` and decide the axis in the plane.
+    #[test]
+    fn the_tilt_is_levered_across_the_region() {
+        let eps = Tol::witness().eps();
+        let c = 3.0 * eps / 10.0;
+        let leaning = plane(
+            Point3::new(0.5, 0.0, 0.0),
+            Vec3::new((1.0 - c * c).sqrt(), 0.0, c),
+        );
+        let region = ExtentBall::fixture(Point3::origin(), 10.0);
+        match read(&leaning, &wall(), Some(region)) {
+            Err(SectionError::Escalated(diag)) => {
+                assert_eq!(diag.predicate, Some("pc_axis_plane_parallel"));
+            }
+            other => panic!("the tilt reads in band across the region: {other:?}"),
         }
     }
 }
