@@ -38,10 +38,8 @@ impl Sph {
     }
     fn surface(&self) -> geom::Surface<f64> {
         geom::Surface::Sphere {
-            center: self.f.o,
+            frame: geom::Frame::new(self.f.o, self.f.z, self.f.x),
             radius: self.r,
-            axis: self.f.z,
-            u_ref: self.f.x,
         }
     }
     /// Stereographic image of `p` from the antipode of `+x`.
@@ -622,7 +620,10 @@ fn a_winding_no_path_decides_escalates_with_the_first_reading() {
             let path = quadric.paths((w, q), band()).unwrap().remove(0);
             let lean = decide(
                 "split_ring_path_lean",
-                Margin::levered(-path.arrival.dot(left) / left.norm(), quadric.lever(q)),
+                Margin::levered(
+                    -path.arrival.dot(left) / left.norm(),
+                    quadric.lever(&surface, q),
+                ),
                 band(),
             )?;
             assert!(lean != Sign::Zero, "every path arrives across the chord");
@@ -765,12 +766,10 @@ fn a_sphere_closed_on_a_slit_has_no_trim() {
             .unwrap();
             // The trim reads the face's stored lift.
             crate::pcurves::mint_pcurves(&mut body, tol()).unwrap();
-            let trim = crate::boolean::solid_contain::sphere_chart_trim(
+            let trim = crate::solid_contain::sphere_chart_trim(
                 &body,
                 seed.face,
-                s.f.o,
-                s.r,
-                s.f.z,
+                (&s.surface(), s.f.o, s.r, s.f.z),
                 band(),
             )
             .unwrap()

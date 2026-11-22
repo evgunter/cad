@@ -11,7 +11,7 @@
 //! there on the arms that take it: the two rolling-ball predicates
 //! (radius-vs-curvature headroom, spine regularity), the sphere-octant
 //! corner patch, and the closed-rim torus bands — a chamfer meters
-//! neither ball fact and has no closed-chain band.
+//! neither ball fact, and its closed-rim band is a cone frustum.
 //!
 //! The door refuses [`crate::blend::BlendRefusal`] carrying
 //! [`crate::blend::BlendKind::Fillet`]: the verb is attached here,

@@ -2,12 +2,16 @@
 //! spans meet (C5 in `crates/geom-brep/README.md`, D3's "One reading per
 //! question").
 //!
-//! - **One point-on-span reading** ([`span`]): every candidate point any
-//!   method proposes is settled by [`Span::contact`] on both spans, at its
-//!   foot on each ([`geom::Curve3::foot`], seeded by the candidate's own
+//! - **One point-on-span reading** ([`span`]): a candidate that names a
+//!   point is settled by [`Span::contact`] on both spans, at its foot on
+//!   each ([`geom::Curve3::foot`], seeded by the candidate's own
 //!   parameter). It composes `geom`'s one-carrier reading with the
 //!   span's reading of its ends ([`Span::read`]), and decides nothing of
-//!   its own.
+//!   its own. A candidate that names a parameter on each span (the walk's
+//!   polished pair, and the pose's closest pair, each polish held to the
+//!   two spans) is read as that pair instead: its own gap and each
+//!   parameter's place on its span, with no foot ([`Found::read_pair`],
+//!   [`Found::read_posed`]).
 //! - **One total table** ([`method`]): one exhaustive match over the two
 //!   carriers' [`CurveKind`]s, with no wildcard arm, fixing each pair's
 //!   method at write time. Line, circle and ellipse pairs are closed
@@ -53,8 +57,8 @@ pub mod pose;
 pub mod span;
 mod walk;
 
-pub use pose::{Candidate, Pose, PoseRefusal, Sense, WindowBound, pose};
-pub use span::{Hit, PastBy, Place, Reading, Span, SpanEnd, SpanRefusal};
+pub use pose::{Candidate, Pose, PoseRefusal, Sense, WindowBound, WindowSpans, pose};
+pub use span::{AtFoot, GapMeter, Hit, OffBy, PastBy, Place, Reading, Span, SpanEnd, SpanRefusal};
 
 use geom::CurveKind;
 use geom_core::{Band, Decide, Indeterminate, Point3};
@@ -95,7 +99,7 @@ pub enum Arm {
 /// it has a method.
 #[must_use]
 pub fn method(a: CurveKind, b: CurveKind) -> Method {
-    use CurveKind::{Circle, Ellipse, Line, Nurbs, Spiric};
+    use CurveKind::{Circle, Ellipse, Line, Nurbs, Periodic, Spiric};
     match (a, b) {
         (Line, Line) => Method::Closed(Arm::LineLine),
         (Line, Circle | Ellipse) => Method::Closed(Arm::LineConic),
@@ -104,8 +108,10 @@ pub fn method(a: CurveKind, b: CurveKind) -> Method {
         (Ellipse, Circle) => Method::Closed(Arm::EllipseCircle),
         (Circle, Ellipse) => Method::Closed(Arm::CircleEllipse),
         (Ellipse, Ellipse) => Method::Closed(Arm::EllipseEllipse),
-        (Line | Circle | Ellipse | Spiric | Nurbs, Spiric | Nurbs)
-        | (Spiric | Nurbs, Line | Circle | Ellipse) => Method::Walk,
+        // A periodic cubic walks as every carrier with no closed form
+        // does, its pieces read by evaluation.
+        (Line | Circle | Ellipse | Spiric | Nurbs | Periodic, Spiric | Nurbs | Periodic)
+        | (Spiric | Nurbs | Periodic, Line | Circle | Ellipse) => Method::Walk,
     }
 }
 
@@ -430,16 +436,47 @@ fn closed<T: Decide>(
             run.finish(a, b, Some(sense), band)
         }
         Pose::Tangent(c) => {
-            found.read(a, b, c, band);
+            posed(&mut found, a, b, c, band);
             found.finish(a, b, None, band)
         }
         Pose::Generic(cs) => {
             for c in cs {
-                found.read(a, b, c, band);
+                posed(&mut found, a, b, c, band);
             }
             found.finish(a, b, None, band)
         }
         Pose::Concentric | Pose::Parallel | Pose::Apart => found.finish(a, b, None, band),
+    }
+}
+
+/// **A posed candidate read**: the pose's closest pair, its window on the
+/// spans, as that pair ([`Found::read_posed`]); a slanted pair in one
+/// plane, whose stretch may reach past a span, as the walk's pair is
+/// ([`Found::read_pair`], [`WindowSpans`]); any other at its
+/// point ([`Found::read`]). A pose read with the spans swapped gives back
+/// the other carrier's point, so the pair's point is the first carrier's
+/// at its parameter.
+fn posed<T: Decide>(
+    found: &mut Found<T>,
+    a: &Span<'_, T>,
+    b: &Span<'_, T>,
+    c: pose::Candidate<T>,
+    band: Band,
+) {
+    let Some(bound) = c.bound else {
+        found.read(a, b, c, band);
+        return;
+    };
+    let c = pose::Candidate {
+        point: a.carrier().eval(c.ta),
+        ..c
+    };
+    match bound.spans {
+        WindowSpans::Held => found.read_posed(a, b, c, band),
+        WindowSpans::MayPass => {
+            let places = (PlaceRead::of(a, c.ta, band), PlaceRead::of(b, c.tb, band));
+            found.read_pair(a, b, c, places, band);
+        }
     }
 }
 
@@ -495,6 +532,108 @@ fn both<T>(
     }
 }
 
+/// **A parameter's place on its span, read once**, at the walk's stop
+/// (`walk::at_end`) and at the pose's polished pair
+/// ([`Found::read_posed`]): the place [`Span::place_param`] reads, and the
+/// record of reading it, held apart until the pair read knows whether its
+/// outcome rests on it ([`pair_both`]).
+pub(super) struct PlaceRead {
+    pub(super) place: Result<Place, Indeterminate>,
+    pub(super) record: geom_core::k_stats::Detached,
+}
+
+impl PlaceRead {
+    /// `u`'s place on `span`, read with its record held apart.
+    pub(super) fn of<T: Decide>(span: &Span<'_, T>, u: T, band: Band) -> Self {
+        let (place, record) = geom_core::k_stats::detached(|| span.place_param(u, band));
+        Self { place, record }
+    }
+}
+
+/// A decided gap at a polished pair, handed from the pair read to the
+/// window it composes with ([`window_off`]), which reads no gap again.
+type GapRead = Result<geom_core::Decided, Indeterminate>;
+
+/// **How [`Found::read_with`] reads a polished pair on both spans**, with
+/// each parameter's place read once.
+enum CandidateRead {
+    /// As the pair `(c.ta, c.tb)` ([`Found::read_pair`], [`pair_both`]),
+    /// boxed: two place records are much larger than a point.
+    Pair(Box<(PlaceRead, PlaceRead)>),
+    /// As the pose's closest pair, its polish held to the spans
+    /// ([`Found::read_posed`]): [`Self::Pair`], with a window that holds
+    /// no pair past either span, so nothing is read past one.
+    Posed(Box<(PlaceRead, PlaceRead)>),
+}
+
+impl CandidateRead {
+    /// A pair's place records superseded, where the candidate reads
+    /// nothing: their verdicts and samples stay in the log as superseded,
+    /// no escalation of theirs left that no answer rests on.
+    fn supersede(self) {
+        let (Self::Pair(places) | Self::Posed(places)) = self;
+        let (on_a, on_b) = *places;
+        geom_core::k_stats::splice_superseded(on_a.record);
+        geom_core::k_stats::splice_superseded(on_b.record);
+    }
+}
+
+/// **A pair read on both spans**: the gap between the first carrier's
+/// point at `c.ta`, `c.point` ([`Found::read_pair`]), and the second's at
+/// `c.tb`, decided against the band
+/// (`curve_pair_walk_pair_gap`), and each parameter's place on its span,
+/// read once at the stop (`places`, [`PlaceRead`]). A gap in the band is
+/// a meeting, its side on each span the parameter's place: inside, on the
+/// branch about the span's middle with the gap's margin, or at an end; a
+/// parameter past its span is off it. A gap decided positive is no meeting
+/// at the pair. The places' records are spliced where the outcome rests on
+/// them (a gap in the band) and superseded where it does not, so no
+/// escalation of theirs is left that the answer does not rest on. No foot
+/// is read: the parameters are the pair's own. The decided gap is
+/// returned with the reading, for the window to compose with.
+fn pair_both<T: Decide>(
+    a: &Span<'_, T>,
+    b: &Span<'_, T>,
+    c: Candidate<T>,
+    (on_a, on_b): (PlaceRead, PlaceRead),
+    band: Band,
+) -> (Both<T>, GapRead) {
+    let gap = geom_core::k_stats::decide_reported(
+        "curve_pair_walk_pair_gap",
+        geom_core::Margin::norm3(b.carrier().eval(c.tb) - c.point),
+        band,
+    );
+    let Ok(geom_core::Decided {
+        sign: geom_core::Sign::Zero,
+        margin,
+    }) = gap
+    else {
+        geom_core::k_stats::splice_superseded(on_a.record);
+        geom_core::k_stats::splice_superseded(on_b.record);
+        let read = match gap {
+            Ok(_) => Ok(None),
+            Err(diag) => Err(diag.into()),
+        };
+        return (read, gap);
+    };
+    geom_core::k_stats::splice(on_a.record);
+    geom_core::k_stats::splice(on_b.record);
+    let side = |span: &Span<'_, T>, t: T, place: Result<Place, Indeterminate>| {
+        Ok(match place? {
+            Place::Inside => Some(Hit::On {
+                t: span.branch(t),
+                margin,
+            }),
+            Place::End(which) => Some(Hit::End(which)),
+            Place::Past => None,
+        })
+    };
+    (
+        both(side(a, c.ta, on_a.place), side(b, c.tb, on_b.place)),
+        gap,
+    )
+}
+
 /// **The meetings a reader has found, and the refusals it holds**, read
 /// candidate by candidate under C5's stretch rule.
 struct Found<T: geom_core::Real> {
@@ -512,29 +651,96 @@ impl<T: geom_core::Real> Default for Found<T> {
 }
 
 impl<T: Decide> Found<T> {
-    /// **`c` read on both spans at its own parameters**, unless it is
-    /// ringed: the one composition of a candidate's point with what its
-    /// generator states of its window ([`pose::WindowBound`], `pose`'s
-    /// module docs, "The gap's lower bound"). A candidate with no window
-    /// is its point's reading on both spans. One with a window is no
-    /// meeting where its floor reads past the band
-    /// (`curve_pair_pose_closest`); otherwise its point read on both is a
-    /// meeting, and an Off there prunes only where the window's run lies
-    /// past a span ([`Span::past_by`], by the reach and the run arm).
-    /// Any other Off is a straddle of the floor and the gap at the pair
-    /// (`curve_pair_meet_window`), and escalates.
+    /// **`c` read on both spans at its own point**, unless it is ringed:
+    /// a candidate whose point speaks for itself (an end, a witness, an
+    /// exact root), read by [`Span::contact`] on each span. A candidate
+    /// with a window is a polished pair, read as that pair
+    /// ([`Self::read_pair`], [`Self::read_posed`]); handed here it is a
+    /// desync, held at its point.
     fn read(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {
-        let on_both = || {
-            both(
-                a.contact(c.point, c.ta, band).map_err(|r| r.refused()),
-                b.contact(c.point, c.tb, band).map_err(|r| r.refused()),
-            )
+        if c.bound.is_some() {
+            self.held.push((c.point, MeetFault::Desync));
+            return;
+        }
+        self.offer(
+            c.point,
+            || {
+                both(
+                    a.contact(c.point, c.ta, band).map_err(|r| r.refused()),
+                    b.contact(c.point, c.tb, band).map_err(|r| r.refused()),
+                )
+            },
+            band,
+        );
+    }
+
+    /// **A polished pair read as that pair** (the curve-pair rule in
+    /// `crates/geom-brep/README.md`): `c` names a parameter on each span,
+    /// `c.ta` on `a` with `c.point` its point and `c.tb` on `b`, and is
+    /// read by [`pair_both`], with no foot, under its window: no meeting
+    /// where its floor reads past the band (`curve_pair_pose_closest`);
+    /// otherwise a gap in the band is a meeting, and an Off prunes only
+    /// where the window's run lies past a span ([`Span::past_by`], by the
+    /// reach and the run arm). Any other Off is a straddle of the floor
+    /// and the gap at the pair (`curve_pair_meet_window`), and escalates.
+    fn read_pair(
+        &mut self,
+        a: &Span<'_, T>,
+        b: &Span<'_, T>,
+        c: Candidate<T>,
+        places: (PlaceRead, PlaceRead),
+        band: Band,
+    ) {
+        self.read_with(a, b, c, CandidateRead::Pair(Box::new(places)), band);
+    }
+
+    /// **The pose's closest pair read as that pair** (`pose`'s module
+    /// docs, "Held to the spans"): [`Self::read_pair`], each parameter's
+    /// place read once here, where the polish held it to its span. Its
+    /// window holds no pair past either span, so an Off is not read past
+    /// one ([`Span::past_by`]): it is no meeting where the floor clears,
+    /// and otherwise escalates.
+    ///
+    /// **No end snap**, unlike the walk's stop (`walk::at_end`). A pair
+    /// the span stops is clamped exactly to the end, so the hold, the
+    /// one-sided window and the place all read that end. A pair within
+    /// rounding of an end but not clamped to it reads two-sided, a window
+    /// bounding the larger set, and the side it is reported at is its
+    /// place's, whichever end that names. The walk snaps because its
+    /// pieces' polish lands within rounding of a joint it must read as
+    /// held.
+    fn read_posed(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {
+        let places = (PlaceRead::of(a, c.ta, band), PlaceRead::of(b, c.tb, band));
+        self.read_with(a, b, c, CandidateRead::Posed(Box::new(places)), band);
+    }
+
+    /// [`Self::read_pair`] and [`Self::read_posed`]'s one composition: the
+    /// pair read on both spans ([`pair_both`]), which also hands the gap
+    /// it decided to the window, which composes with it and does not read
+    /// it again.
+    /// A ringed candidate, and one whose floor reads past the band, reads
+    /// nothing; a pair's place records are then superseded, since no
+    /// answer rests on them (a ring and a floor read `c.point`, which the
+    /// snap they steered placed).
+    fn read_with(
+        &mut self,
+        a: &Span<'_, T>,
+        b: &Span<'_, T>,
+        c: Candidate<T>,
+        how: CandidateRead,
+        band: Band,
+    ) {
+        let posed = matches!(how, CandidateRead::Posed(_));
+        let on_both = |how: CandidateRead| -> (Both<T>, GapRead) {
+            let (CandidateRead::Pair(places) | CandidateRead::Posed(places)) = how;
+            pair_both(a, b, c, *places, band)
         };
         let Some(bound) = c.bound else {
-            self.offer(c.point, on_both, band);
+            self.offer(c.point, || on_both(how).0, band);
             return;
         };
         if ringed(&self.points, c.point, band) {
+            how.supersede();
             return;
         }
         let floor = geom_core::k_stats::decide_reported(
@@ -549,13 +755,14 @@ impl<T: Decide> Found<T> {
                 ..
             })
         ) {
+            how.supersede();
             return;
         }
         self.offer(
             c.point,
-            || match on_both() {
-                Ok(None) => window_off(a, b, c, bound, floor, band),
-                read => read.map_err(MeetFault::from),
+            || match on_both(how) {
+                (Ok(None), gap) => window_off(a, b, c, bound, (floor, gap), posed, band),
+                (read, _) => read.map_err(MeetFault::from),
             },
             band,
         );
@@ -625,47 +832,48 @@ impl<T: Decide> Found<T> {
     }
 }
 
-/// **A window's candidate read off a span** ([`Found::read`]): no
-/// meeting where the window's run lies past either span
-/// ([`Span::past_by`], by the reach and the run arm); otherwise the
-/// escalation, the straddle of the floor against the gap at the pair
-/// where both decide, and else whichever reading did not. Where every
-/// reading decided and none cleared, the gap at the pair reads zero
-/// while the point's contact read it off a span and no end read near:
-/// the two readings disagree at rounding, and that refuses typed,
+/// **A polished pair read off a span** ([`Found::read_pair`],
+/// [`Found::read_posed`]): no meeting where the window's run lies past
+/// either span ([`Span::past_by`], by the reach and the run arm; the
+/// walk's pair alone, `posed` false); otherwise the escalation, the
+/// straddle of the floor against the gap the pair read decided where both
+/// decide, and else whichever reading did not. Where every reading
+/// decided and none cleared, the gap at the pair reads zero while a
+/// parameter's place read it past its span and no end read near: the two
+/// readings disagree at rounding, and that refuses typed,
 /// `Meter { row: "curve_pair_meet_window_contact" }`.
 fn window_off<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
     c: Candidate<T>,
     bound: pose::WindowBound<T>,
-    floor: Result<geom_core::Decided, Indeterminate>,
+    (floor, gap): (Result<geom_core::Decided, Indeterminate>, GapRead),
+    posed: bool,
     band: Band,
 ) -> Result<Option<Sides<T>>, MeetFault> {
     let q = b.carrier().eval(c.tb);
-    // The run arm's premise (`pose`'s module docs, "The run"): the
-    // polished pair is itself a pair of the run, its gap in the zero band.
-    let in_run = geom_core::k_stats::decide(
-        "curve_pair_meet_run_pair",
-        geom_core::Margin::norm3(q - c.point),
-        band,
-    ) == Ok(geom_core::Sign::Zero);
-    let (run_a, run_b) = (
-        in_run.then(|| (b.carrier(), bound.bend)),
-        in_run.then(|| (a.carrier(), bound.bend)),
-    );
-    let sides = [
-        a.past_by(c.point, c.ta, (bound.reach, run_a), band),
-        b.past_by(q, c.tb, (bound.reach, run_b), band),
-    ];
+    // The pose's pair is held to the spans, and so is its window: no
+    // pair of it lies past either span, and nothing is read past one.
+    let sides = if posed {
+        [PastBy::Not, PastBy::Not]
+    } else {
+        // The run arm's premise (`walk`'s module docs, "The reach and the
+        // run, past a span"): the polished pair is itself a pair of the
+        // run, its gap in the zero band, read on the gap the pair read
+        // decided.
+        let in_run = gap.is_ok_and(|g| g.sign == geom_core::Sign::Zero);
+        let (run_a, run_b) = (
+            in_run.then(|| (b.carrier(), bound.bend)),
+            in_run.then(|| (a.carrier(), bound.bend)),
+        );
+        [
+            a.past_by(c.point, c.ta, (bound.reach, run_a), band),
+            b.past_by(q, c.tb, (bound.reach, run_b), band),
+        ]
+    };
     if sides.contains(&PastBy::Clear) {
         return Ok(None);
     }
-    let gap = geom_core::k_stats::decide_reported(
-        "curve_pair_meet_window_gap",
-        geom_core::Margin::norm3(q - c.point),
-        band,
-    );
     let near = sides.iter().find_map(|side| match side {
         PastBy::Near(diag) => Some(*diag),
         PastBy::Not | PastBy::Clear => None,

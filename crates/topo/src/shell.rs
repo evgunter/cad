@@ -383,7 +383,7 @@
 //! check 9 does its work.
 
 use geom_core::k_stats::{decide, gate_measured};
-use geom_core::ladder::{Answering, Climb, Rung, climb};
+use geom_core::ladder::{Answering, Climb, FreeOf, Rung, Undecided, argmin_decided, climb};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NOT_YET_ENDING, Real,
     Sign, Tol,
@@ -1102,7 +1102,7 @@ impl<T: crate::props::AtRestPolicy> Shelled<T> {
         &self,
         records: &crate::boolean::ContactRecords,
         band: Band,
-        region: Option<crate::RegionLane<T>>,
+        region: Option<T::RegionLane>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
         records.carried_through(0, &self.lineage(), &self.body, band, region)
     }
@@ -1580,7 +1580,7 @@ pub fn shell<F: crate::FinishedBody>(
     tol: Tol,
 ) -> Result<Shelled<F::Scalar>, ShellError<F::Scalar>>
 where
-    F::Scalar: geom_core::CertifiedBounds,
+    F::Scalar: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
 {
     shell_open(body, thickness, &[], tol)
 }
@@ -1613,14 +1613,14 @@ pub fn shell_open<F: crate::FinishedBody>(
     tol: Tol,
 ) -> Result<Shelled<F::Scalar>, ShellError<F::Scalar>>
 where
-    F::Scalar: geom_core::CertifiedBounds,
+    F::Scalar: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
 {
     shell_open_at(body, thickness, open_faces, tol)
 }
 
 /// [`shell_open`] at its scalar: the body of the door
 /// ([`crate::ShellDoor`] holds it).
-pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     body: &T::Finished,
     thickness: T,
     open_faces: &[FaceKey],
@@ -3753,11 +3753,13 @@ mod cavity_torus_endings {
     fn wall(major: f64, minor: f64, band: Band) -> EngineRefusal {
         let p = |x: f64| Interval::from_bounds(x, x);
         let torus = geom::Surface::Torus {
-            center: Point3::new(p(0.0), p(0.0), p(0.0)),
-            axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
+            frame: geom::Frame::new(
+                Point3::new(p(0.0), p(0.0), p(0.0)),
+                Vec3::new(p(0.0), p(0.0), p(1.0)),
+                Vec3::new(p(1.0), p(0.0), p(0.0)),
+            ),
             major_radius: p(major),
             minor_radius: p(minor),
-            u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
         };
         match crate::injective::by_kind(crate::FaceKey::default(), &torus, band) {
             Err(refusal @ EngineRefusal::TorusNotRing { .. }) => refusal,
@@ -4593,7 +4595,7 @@ const CAVITY_MAX_CELL_PAIRS: usize = 65_536;
 /// did not certify. It asks where [`CavityGate::at`] says it does. Faces
 /// of different solids are read too: their cavities are eroded apart,
 /// so a pair of them is never touching and is decided by distance.
-fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+fn cavity_embedded<T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds>(
     cavity: &Body<T>,
     band: Band,
 ) -> Result<(), ShellError<T>> {
@@ -4686,18 +4688,21 @@ fn planar_faces<T: Decide>(
     for view in body.face_views() {
         let face = view.key();
         let geom::Surface::Plane {
-            origin,
-            normal,
-            u_ref,
+            frame: carrier_frame,
         } = view.surface()
         else {
             continue;
         };
-        let normal = plane_outward_normal(view.record(), *normal).vec();
+        let (origin, normal, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
+        let normal = plane_outward_normal(view.record(), normal).vec();
         let frame = InPlane {
-            origin: *origin,
-            u: *u_ref,
-            v: normal.cross(*u_ref),
+            origin,
+            u: u_ref,
+            v: normal.cross(u_ref),
             n: normal,
         };
         let Some((box_u, box_v)) = footprint(body, face, &frame) else {
@@ -4712,7 +4717,7 @@ fn planar_faces<T: Decide>(
                      tier-1-valid body every face is in a shell a solid owns"
                 )
             }),
-            origin: *origin,
+            origin,
             normal,
             u_ref: frame.u,
             v_ref: frame.v,
@@ -5247,7 +5252,7 @@ impl<T: Decide> MovedWall<T> {
                 // once exactly when its two ends' sides differ, at the
                 // root of its own half-turn.
                 let (a, b) = conic.along(m);
-                let sc = (conic.frame().origin - line.origin).dot(m);
+                let sc = (conic.frame().origin() - line.origin).dot(m);
                 let phi = b.atan2(a);
                 let root = (-sc / (a.powi(2) + b.powi(2)).sqrt())
                     .max(-T::one())
@@ -5348,22 +5353,28 @@ impl<T: Decide> MovedWall<T> {
             }
         }
         // Ordered by decided comparisons, a selection rather than a
-        // `sort_by`: two crossings the band cannot order are a tie and
-        // keep their walk order, which moves an end by less than the band.
+        // `sort_by`: each pass takes the least of what is left through the
+        // decided argmin, free of ties and in-band readings
+        // ([`FreeOf::Band`]). Two crossings the band cannot order keep
+        // their walk order, which moves an end by less than the band; a
+        // poisoned reading stops the count ([`Undecided::of`]).
         for i in 0..crossings.len() {
-            let mut least = i;
-            for j in i + 1..crossings.len() {
-                if matches!(
-                    decide(
-                        "shell_moved_wall_order",
-                        Margin::of(crossings[least] - crossings[j]),
-                        band
-                    ),
-                    Ok(Sign::Positive)
-                ) {
-                    least = j;
-                }
-            }
+            let cmp = |&a: &usize, &b: &usize| {
+                decide(
+                    "shell_moved_wall_order",
+                    Margin::of(crossings[a] - crossings[b]),
+                    band,
+                )
+                .map_err(Undecided::of)
+            };
+            let least = argmin_decided(i..crossings.len(), cmp, FreeOf::Band)
+                .map_err(|unpicked| {
+                    unpicked.refusal(
+                        || unreachable!("free of ties and in-band readings, an argmin picks"),
+                        || unreachable!("one height's difference ranks in no cycle"),
+                    )
+                })?
+                .unwrap_or_else(|| unreachable!("a pass over a non-empty rest has a candidate"));
             crossings.swap(i, least);
         }
         // Parity over closed loops: every vertex has one side, so each
@@ -5383,10 +5394,11 @@ fn moved_walls<T: Decide>(
     let mut out = Vec::new();
     for view in cavity.face_views() {
         let face = view.key();
-        let geom::Surface::Plane { origin, normal, .. } = view.surface() else {
+        let geom::Surface::Plane { frame, .. } = view.surface() else {
             continue;
         };
-        let (origin, normal) = (*origin, *normal);
+        let (origin, normal) = (frame.origin(), frame.axis());
+        let (origin, normal) = (origin, normal);
         let mut edges = Vec::new();
         let mut vertices = Vec::new();
         let mut points = Vec::new();
@@ -5435,18 +5447,18 @@ fn moved_walls<T: Decide>(
                                 from: (t0, v0),
                                 to: (t1, v1),
                             },
-                            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                                EdgeArc::Arc(ArcPiece::along(
-                                    curve.carrier(),
-                                    geom::carrier_speed::speed_range(curve.carrier()).1,
-                                    cover
-                                        .as_ref()
-                                        .and_then(|c| c.as_ref().ok())
-                                        .map(geom::cover::Cover::ball),
-                                    (t0, t1),
-                                    edge.he_plus == he,
-                                ))
-                            }
+                            geom::Curve3::Spiric { .. }
+                            | geom::Curve3::Nurbs(_)
+                            | geom::Curve3::Periodic(_) => EdgeArc::Arc(ArcPiece::along(
+                                curve.carrier(),
+                                geom::carrier_speed::speed_range(curve.carrier()).1,
+                                cover
+                                    .as_ref()
+                                    .and_then(|c| c.as_ref().ok())
+                                    .map(geom::cover::Cover::ball),
+                                (t0, t1),
+                                edge.he_plus == he,
+                            )),
                         }
                     }
                 };
@@ -6525,9 +6537,11 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let (big, small, d) = (2.0_f64, 1.0_f64, 0.5_f64);
         let oval = geom::Curve3::Spiric {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: big,
             minor_radius: small,
             offset: d,
@@ -6582,10 +6596,12 @@ mod tests {
     fn nesting_on_a_cylinder_is_read_in_its_chart() {
         let band = Band::linear(Tol::witness()).unwrap();
         let cylinder = geom::Surface::Cylinder {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         };
         let window = |u0: f64, u1: f64, z0: f64, z1: f64| -> Vec<geom_core::Point3<f64>> {
             let at = |u: f64, z: f64| geom_core::Point3::new(u.cos(), u.sin(), z);
@@ -6686,9 +6702,11 @@ mod tests {
         );
         let face = body.faces().nth(2).unwrap().0;
         let dead = body.add_surface(geom::Surface::Plane {
-            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
         });
         body.surfaces.remove(dead);
         body.get_face_mut(face).unwrap().surface = dead;

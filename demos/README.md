@@ -25,6 +25,8 @@ cd demos/tour
 cargo run --release -- ../out                  # build, narrate, export STL + STEP
 cargo run --release -- gallery ../out/gallery  # the same scenes as .pncad documents
 cargo run --release -- certified               # the certified cells: plate tolerance, chain
+cargo run --release --example embed_walk       # is every finished body embedded? one WALK line each
+cargo run --release --example edge_cover_soundness  # does every stored edge lie inside its cover's box?
 ```
 
 The first command builds every scene through the public API, narrates each
@@ -34,6 +36,13 @@ opens — *The document gallery*, below. The third narrates the two cells
 whose subject is the certified scalar rather than a scene (`tolerance.rs`,
 `chaintol.rs`); they take minutes where a scene takes seconds, so the walk
 leaves them to their own mode.
+The fourth walks the same stops and asks `topo::clearance::embedded` of
+every finished body, printing one `WALK` line per body and the total that
+hold; `tour/examples/embed_walk.rs` says what it asks, at which budgets,
+and how to capture a report two runs can diff.
+The fifth samples every stored edge of every body against its cover's
+box over its span, the box a face's clearance window is read off, and
+panics on an escape; `tour/examples/edge_cover_soundness.rs` says how.
 
 **None of them renders anything, and none needs the render guard's override
 sentence.** The pictures in this repository are produced and committed by
@@ -169,15 +178,11 @@ the centroid's arc length — which the kernel's certified volume must
 contain and the MESH must fall short of inside a **two-sided** band,
 since exact agreement would mean no real mesh was measured.
 
-One typed refusal remains as a named frontier: a **hollow** solid,
-whose cavity the writer reads as a void through the kernel's
-shell-role door and refuses, since it does not write `BREP_WITH_VOIDS`
-(`VoidShellUnsupported`;
-`work/export/step-export-refuses-every-hollow-body.md`). Four tour
-bodies are in it, each declared at the body with
-`SceneBody::step_at_frontier` and exported with a null `step`:
-`hollowring` (`ring`), `hollowtorus` (`tubewall`), `torusvessel` and
-`fivewall`.
+A **hollow** solid leaves as one `BREP_WITH_VOIDS`, its cavities the
+solid's voids, and the scenes that carry one — `hollowring` (`ring`),
+`hollowtorus` (`tubewall`), `torusvessel` and `fivewall` — import that
+text back (`step_round_trip`) and assert one solid with the same
+cavities and volume.
 
 ## Rendering the montages
 

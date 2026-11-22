@@ -1083,13 +1083,91 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     })
 }
 
+// --- a saved document's ε line -------------------------------------
+
+/// Whether `line` of a saved document is its ε line.
+fn is_epsilon_line(line: &str) -> bool {
+    line.trim_start().starts_with("\"epsilon\":")
+}
+
+/// The one ε line of a saved `text`.
+///
+/// # Panics
+///
+/// Unless `text` holds exactly one: a missing or duplicated ε line is
+/// damage, not sweep variance.
+fn the_epsilon_line(text: &str) -> &str {
+    let mut lines = text.lines().filter(|l| is_epsilon_line(l));
+    let (Some(line), None) = (lines.next(), lines.next()) else {
+        panic!(
+            "a saved document carries exactly one \"epsilon\" line, and this one carries {}",
+            text.lines().filter(|l| is_epsilon_line(l)).count()
+        );
+    };
+    line
+}
+
+/// **A saved `text` re-stamped to `tol`**: its one ε line replaced by
+/// the line `save` writes at `tol`, every other byte as it was.
+///
+/// A save records the ε it was written at and the load door refuses a
+/// file whose ε is not the process's ("one process, one ε", D4), while
+/// CI sweeps ε; so a committed document a row loads at every ε row is
+/// re-stamped first. The ε line is the only ε-dependent byte of a save
+/// (`viewer/tests/doc_io.rs` measures that), and the new line comes
+/// from `save` itself, through an empty document at `tol`: spelling a
+/// float as the serializer spells it is the serializer's job.
+///
+/// # Panics
+///
+/// Unless `text` holds exactly one ε line.
+#[must_use]
+pub fn restamped_at(text: &str, tol: geom_core::Tol) -> String {
+    let probe = crate::persist::save(&ProfileDoc::empty_derived("epsilon-probe", tol), tol)
+        .unwrap_or_else(|err| panic!("an empty document saves: {err}"));
+    let wanted = the_epsilon_line(&probe).trim_start();
+    the_epsilon_line(text);
+    text.split_inclusive('\n')
+        .map(|line| {
+            let content = line.trim_end_matches(['\n', '\r']);
+            if !is_epsilon_line(content) {
+                return line.to_owned();
+            }
+            let indent = content.len() - content.trim_start().len();
+            format!("{}{wanted}{}", &content[..indent], &line[content.len()..])
+        })
+        .collect()
+}
+
+/// **A saved `text` without its one ε line**, its other lines joined by
+/// line breaks: what two saves of one document at two ε rows share, for
+/// a row that compares a save against a committed one.
+///
+/// # Panics
+///
+/// Unless `text` holds exactly one ε line.
+#[must_use]
+pub fn sans_epsilon(text: &str) -> String {
+    the_epsilon_line(text);
+    text.lines()
+        .filter(|l| !is_epsilon_line(l))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 // --- the load door's nesting limit ----------------------------------
 
 /// **The deepest a body the load door reads may nest**, in JSON
-/// brackets: `persist::nesting`'s limit, lifted out of the crate so a
-/// row can hold it against the deepest body a save writes
-/// (`tests/expr_nesting_bound.rs`).
+/// brackets: `persist::nesting`'s limit, one level of a bounded value
+/// past the deepest body a save writes, lifted out of the crate so a
+/// row can nest a file past it (`tests/name_depth.rs`).
 pub const BODY_NESTING: usize = crate::persist::nesting::BODY_NESTING;
+
+/// **The deepest a body nests around an expression at its bound**, in
+/// the deepest place a save writes one: lifted out of the crate so a row
+/// can hold it against the deepest body a save writes
+/// (`tests/expr_nesting_bound.rs`).
+pub const EXPR_BODY_NESTING: usize = crate::persist::nesting::EXPR_BODY_NESTING;
 
 /// **The deepest a body nests around a metadata value at its bound**,
 /// which [`BODY_NESTING`] covers (`tests/meta_nesting_bound.rs`).
@@ -1230,7 +1308,7 @@ pub fn beside_past_the_bundle_rule(
 /// **A save's snapshot, read past the load door's validator**: the
 /// state a doctored save leaves, which [`crate::persist::load`]
 /// refuses; for rows that hold the save door's half of the shared
-/// validator. The edit log is parsed and dropped.
+/// validator.
 ///
 /// # Panics
 ///
@@ -1258,8 +1336,56 @@ pub struct FoldRowNames {
     pub spelled: crate::coincide::NamedCoincidence,
 }
 
+/// **Rows recorded while a call runs**, one collector at a time: what a
+/// suite reads of an evaluation's inner steps, recorded only where it
+/// collects.
+struct Collector<R> {
+    /// What it collects, for its panics.
+    what: &'static str,
+    rows: std::sync::Mutex<Option<Vec<R>>>,
+}
+
+impl<R> Collector<R> {
+    const fn new(what: &'static str) -> Self {
+        Self {
+            what,
+            rows: std::sync::Mutex::new(None),
+        }
+    }
+
+    fn slot(&self) -> std::sync::MutexGuard<'_, Option<Vec<R>>> {
+        self.rows
+            .lock()
+            .unwrap_or_else(|_| panic!("the {} collector", self.what))
+    }
+
+    /// `f`, with every row recorded while it runs, in order.
+    fn of<O>(&self, f: impl FnOnce() -> O) -> (O, Vec<R>) {
+        {
+            let mut slot = self.slot();
+            assert!(slot.is_none(), "one {} collector at a time", self.what);
+            *slot = Some(Vec::new());
+        }
+        let out = f();
+        let rows = self.slot().take().unwrap_or_default();
+        (out, rows)
+    }
+
+    /// Whether a call is collecting.
+    fn collecting(&self) -> bool {
+        self.slot().is_some()
+    }
+
+    /// Records one row where a call is collecting.
+    fn record(&self, row: R) {
+        if let Some(rows) = self.slot().as_mut() {
+            rows.push(row);
+        }
+    }
+}
+
 /// Where [`fold_rows_of`] collects, while it runs.
-static FOLD_ROWS: std::sync::Mutex<Option<Vec<FoldRowNames>>> = std::sync::Mutex::new(None);
+static FOLD_ROWS: Collector<FoldRowNames> = Collector::new("fold-row");
 
 /// **`f`, with every fold-step row a union spells while it runs**, in
 /// spelling order. One collector at a time: a nested call panics.
@@ -1268,18 +1394,57 @@ static FOLD_ROWS: std::sync::Mutex<Option<Vec<FoldRowNames>>> = std::sync::Mutex
 ///
 /// Where another call is collecting, or the collector was poisoned.
 pub fn fold_rows_of<R>(f: impl FnOnce() -> R) -> (R, Vec<FoldRowNames>) {
-    {
-        let mut slot = FOLD_ROWS.lock().expect("the fold-row collector");
-        assert!(slot.is_none(), "one fold-row collector at a time");
-        *slot = Some(Vec::new());
+    FOLD_ROWS.of(f)
+}
+
+/// Each subtract with a moved operand, by its node, and whether its names
+/// against the operands the placed door read are its names against them
+/// moved by hand ([`subtract_names_of`]).
+static SUBTRACT_NAMES: Collector<(crate::RecipeNodeId, bool)> = Collector::new("subtract-name");
+
+/// **`f`, with every subtract that moves an operand recording whether it
+/// names alike placed and moved by hand**, in evaluation order. One
+/// collector at a time: a nested call panics.
+///
+/// # Panics
+///
+/// Where another call is collecting, or the collector was poisoned.
+pub fn subtract_names_of<R>(f: impl FnOnce() -> R) -> (R, Vec<(crate::RecipeNodeId, bool)>) {
+    SUBTRACT_NAMES.of(f)
+}
+
+/// **Where [`subtract_names_of`] collects, a subtract's names again
+/// against each operand moved by hand**, as a caller moved it before the
+/// placed door: each `(where it stands, as held)` moved from its frame
+/// into `computing` through `FinishedBody::moved`, and `names_again`
+/// run over the two. A subtract that moves neither operand records
+/// nothing; one that does records whether the two tables are one.
+pub(crate) fn probe_subtract_names<T: topo::AtRestPolicy, D: std::fmt::Debug>(
+    node: crate::RecipeNodeId,
+    names: &D,
+    operands: [(&crate::eval::Framed<T>, &std::sync::Arc<T::Finished>); 2],
+    computing: &crate::eval::Frame<T>,
+    tol: geom_core::Tol,
+    names_again: impl FnOnce(&T::Finished, &T::Finished) -> Option<D>,
+) {
+    if !SUBTRACT_NAMES.collecting() {
+        return;
     }
-    let out = f();
-    let rows = FOLD_ROWS
-        .lock()
-        .expect("the fold-row collector")
-        .take()
-        .unwrap_or_default();
-    (out, rows)
+    let by_hand = |(framed, held): (&crate::eval::Framed<T>, &std::sync::Arc<T::Finished>)| {
+        let motion = computing.relative(framed.frame()).ok()??;
+        topo::FinishedBody::moved(&**held, &motion, tol).ok()
+    };
+    let [a, b] = operands;
+    let (moved_a, moved_b) = (by_hand(a), by_hand(b));
+    if moved_a.is_none() && moved_b.is_none() {
+        return;
+    }
+    let again = names_again(
+        moved_a.as_ref().unwrap_or(&**a.1),
+        moved_b.as_ref().unwrap_or(&**b.1),
+    );
+    let alike = again.is_some_and(|again| format!("{again:?}") == format!("{names:?}"));
+    SUBTRACT_NAMES.record((node, alike));
 }
 
 /// Records one fold-step row where [`fold_rows_of`] is collecting.
@@ -1287,13 +1452,14 @@ pub(crate) fn record_fold_row(
     named: &crate::coincide::NamedCoincidence,
     spelled: &crate::coincide::NamedCoincidence,
 ) {
-    let mut slot = FOLD_ROWS.lock().expect("the fold-row collector");
-    let Some(rows) = slot.as_mut() else { return };
+    if !FOLD_ROWS.collecting() {
+        return;
+    }
     let name = |cell: &crate::coincide::NamedCell| match cell {
         crate::coincide::NamedCell::Entity { name, .. } => name.clone(),
         other => panic!("a fold row's cell is an entity of the union: {other:?}"),
     };
-    rows.push(FoldRowNames {
+    FOLD_ROWS.record(FoldRowNames {
         cells: named.cells.iter().map(name).collect(),
         relation: named.relation,
         spelled: spelled.clone(),
@@ -1344,14 +1510,8 @@ pub fn assemble_world_copies_edits(
         .and_then(|var| doc.operation_of(var))
         .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
         .filter(|&at| {
-            let var = doc.output(at, 0);
-            !doc.ids().into_iter().any(|id| {
-                doc.node(id).is_some_and(|node| {
-                    node.operand_rows()
-                        .into_iter()
-                        .any(|(_, read)| Some(read) == var)
-                })
-            })
+            doc.output(at, 0)
+                .is_some_and(|var| doc.read_by_nothing_but_the_product(var))
         });
     // A product already the world's copies is kept as it is, so a
     // document written twice is the one document.

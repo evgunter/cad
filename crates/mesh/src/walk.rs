@@ -58,8 +58,7 @@
 //! is what made a tolerance look necessary. Taking the vertex's own
 //! value makes the quantity identically zero instead. How far the
 //! carrier's own azimuth was is a fact about the SOURCE and not about
-//! the mesh, and it is measured from the body by
-//! `topo::coherence`'s `MeridianClosure` rather than here.
+//! the mesh, and this walk does not measure it.
 //!
 //! Pole handling (chart singularities; the surface's `normal` is never
 //! sampled): a pole/apex is always an edge **endpoint**, the endpoint
@@ -102,55 +101,38 @@
 //!   equidistant; the branch nearest the polygon's first entry wins
 //!   (closure consistency).
 //! - **Pole-to-pole bands** (no rim in the loop — the sphere bands of
-//!   a ball): continuity gives no anchor at all, so the loop's 3-D
-//!   area vector disambiguates: it points into the face's azimuth
-//!   half (interior-left + the face's OUTWARD normal; verified
-//!   derivation in the PR log), and each meridian takes the branch
-//!   nearest `atan2(A·v_ref, A·u_ref)`.
+//!   a ball): continuity gives no anchor at all, so each meridian takes
+//!   the branch the loop's stored lift puts its image on
+//!   ([`band_columns`]): the joint at each pole stores the turn the face
+//!   takes there (`topo::pcurves`' singular turn), so the band's width
+//!   round the poles is the lift's, and no direction, area or sense is
+//!   read here. The lift places the BRANCH; that the band has extent at
+//!   all is [`require_two_columns`]' premise. The wrap strip walks one
+//!   edge both ways; its columns are [`wrap_strip`]'s, off the same lift.
+//!   So a rimless loop is meshed from its lift alone: one that stores
+//!   none (a body built through the Euler doors whose rows were never
+//!   minted) refuses `DomainUnread`, as on the trimmed lane.
 //!
-//!   `A` disambiguates the BRANCH; it says nothing about the extent,
-//!   which is [`require_two_columns`]' premise instead. The wrap strip
-//!   walks one edge both ways and has no area; its columns are
-//!   [`wrap_strip`]'s.
-//!
-//!   Only `A`'s DIRECTION is read, and that direction is the band's own
-//!   only because the fold is anchored on the loop rather than on the
-//!   world origin — see [`loop_area`], which carries that premise. A
-//!   fixed anchor makes the branch pick a function of where the body
-//!   was placed, and the result is a wrong half-sphere, not a refusal.
-//!
-//!   That derivation is stated on the face's outward side while
-//!   `u_ref` / `v_ref` are the chart's, so the area vector is read
-//!   against the frame turned to the outward side
-//!   (`OutwardNormal::from_chart`): a reversed face stores its loop the
-//!   other way round, so `A` flips, and against the frame unturned its
-//!   azimuth would be π off, selecting the complementary branch and
-//!   meshing the wrong half of the sphere. This is the direct analogue
-//!   of `geom_brep::props::curved`'s rimless-sphere `s_f`. The walk's
-//!   other read of the sense is the wrap strip's orientation
-//!   ([`wrap_strip`]), through `geom_brep::PolygonOrientation`.
 
 use std::collections::HashMap;
 
 use geom::SurfaceKind;
-use geom_brep::{OutwardNormal, PolygonOrientation};
 use geom_core::Band;
-use geom_core::{Point3, Vec3};
+use geom_core::Point3;
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 
 use crate::sizing::Eps;
 use crate::types::TessellateError;
 
 // The chart's closed forms and the boundary classification built on
-// them live in `topo` (`topo::chart`, `topo::chart_iso`), where the
-// body-side coherence examination runs the SAME expressions this walk
-// does rather than a second copy of them. What stays here is this
-// crate's own disposition of their answers: the typed refusal a
-// non-iso carrier becomes, the band the separation test is read at,
-// the walk's rotation and pole handling, and the emission itself.
+// them live in `topo` (`topo::chart`, `topo::chart_iso`). What stays
+// here is this crate's own disposition of their answers: the typed
+// refusal a non-iso carrier becomes, the band the separation test is
+// read at, the walk's rotation and pole handling, and the emission
+// itself.
 use geom_core::period::Period;
 pub(crate) use topo::chart::Chart;
-pub(crate) use topo::chart_iso::{TAU, TravKind};
+pub(crate) use topo::chart_iso::TravKind;
 
 /// One directed boundary traversal: an edge's chord ids in the loop's
 /// walking direction, plus its iso classification.
@@ -219,6 +201,7 @@ pub(crate) fn loop_half_edges(
 pub(crate) fn traversals(
     body: &Body<f64>,
     chart: &Chart,
+    rectangle: &crate::curved::Rectangle,
     chords: &HashMap<EdgeKey, Vec<u32>>,
     face: FaceKey,
     lk: LoopKey,
@@ -246,7 +229,7 @@ pub(crate) fn traversals(
         if !forward {
             ids.reverse();
         }
-        let kind = classify(chart, curve, ek)?;
+        let kind = side_of(chart, rectangle, half_edge, curve)?;
         out.push(Trav {
             edge: ek,
             half_edge,
@@ -258,32 +241,34 @@ pub(crate) fn traversals(
     Ok(out)
 }
 
-/// Rim-vs-meridian classification (module docs): line carriers are
-/// meridians; circle carriers split on axis alignment (structurally
-/// either parallel — a rim — or perpendicular — a meridian; 0.5 splits
-/// the two classes with maximal margin). The description is not read:
-/// a wrap edge classifies by its carrier like any other edge.
+/// **A traversal's kind, as the shape door decided it**: the family
+/// `geom_brep::props::require_iso_rectangle` certified for this
+/// half-edge (`rectangle`), read at its own coordinate
+/// ([`topo::chart_iso::traversal_kind`]). The walk decides no family;
+/// the door did, once, at the band, on the same carriers.
 ///
 /// A meridian's column u always comes from the mid-point chart
 /// inversion — **never** from the edge's description: a wrap edge sits
 /// wherever the construction cut the wall, so its column is wherever
 /// its carrier puts it (`u_of` carrying a cone's mirror-nappe
 /// correction).
-fn classify(
+///
+/// Both refusals are routing defects: the door answered every
+/// outer-loop half-edge, and certified a rim only on a circle.
+fn side_of(
     chart: &Chart,
+    rectangle: &crate::curved::Rectangle,
+    half_edge: topo::HalfEdgeKey,
     curve: &geom_brep::EdgeCurve<f64>,
-    _ek: EdgeKey,
 ) -> Result<TravKind, TessellateError> {
-    // The classification is `topo::chart_iso::classify_kind`'s; what
-    // is here is THIS crate's disposition of its `None`.
-    //
-    // RETIRED refusal (M5 PR 11): a conic/B-spline trim carrier routes
-    // the whole face to the pcurve-driven trimmed lane BEFORE this
-    // walk runs (`crate::trimmed::has_trim_carrier`), so an
-    // unclassifiable carrier here is the router's backstop, not a
-    // frontier — reaching one is a dispatch defect, surfaced typed.
-    topo::chart_iso::classify_kind(chart, curve).ok_or(TessellateError::MissingEntity {
-        what: "non-iso trim carrier reached the iso-rectangle walk (router defect)",
+    let family = rectangle
+        .side(half_edge)
+        .ok_or(TessellateError::MissingEntity {
+            what: "a half-edge the shape door did not certify reached the iso-rectangle walk \
+                   (router defect)",
+        })?;
+    topo::chart_iso::traversal_kind(chart, curve, family).ok_or(TessellateError::MissingEntity {
+        what: "a rim the shape door certified on a carrier with no row (router defect)",
     })
 }
 
@@ -317,6 +302,16 @@ pub(crate) const fn edge_key(a: u32, b: u32) -> (u32, u32) {
     if a < b { (a, b) } else { (b, a) }
 }
 
+/// A triangle's three sides, each as its [`edge_key`]: the one spelling
+/// of "the sides of a triangle" every census of side uses reads.
+pub(crate) const fn sides(t: [u32; 3]) -> [(u32, u32); 3] {
+    [
+        edge_key(t[0], t[1]),
+        edge_key(t[1], t[2]),
+        edge_key(t[2], t[0]),
+    ]
+}
+
 /// The edge incident to an IDENTIFIED vertex that this patch uses more
 /// than twice, if any — the emitted form of #678's class, re-derived
 /// over the emission rather than argued from the grid, for whichever
@@ -343,35 +338,46 @@ pub(crate) fn overused_identified_edge_in(
         return None;
     }
     let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
-    for t in triangles {
-        for k in 0..3 {
-            let (a, b) = (t[k], t[(k + 1) % 3]);
+    for &t in triangles {
+        for (a, b) in sides(t) {
             if identified.contains(&a) || identified.contains(&b) {
-                *uses.entry(edge_key(a, b)).or_insert(0) += 1;
+                *uses.entry((a, b)).or_insert(0) += 1;
             }
         }
     }
-    uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n))
+    uses.into_iter().filter(|&(_, n)| n > 2).min()
 }
 
 /// `raw` moved by whole turns near `prev`, where within a quarter turn
 /// of a whole number of turns from it; otherwise (`raw` about half a turn
 /// from `prev`) the copy of the two either side nearer `anchor` (module
-/// docs: the wire-band pole junction, meridians exactly π apart). Not
-/// [`Period::near`], which renames about one reference and breaks only an
-/// exact tie, to the upper copy: here a whole zone, a quarter turn either
-/// side of the tie, is placed by a second reference, `anchor`.
+/// docs: the wire-band pole junction, meridians exactly π apart). One
+/// [`Period::near`] about `prev` breaks only an exact tie, to the upper
+/// copy; here a whole zone, a quarter turn either side of the tie, is
+/// placed by a second reference, `anchor`, among `Period::near`'s copies.
+///
+/// Every copy is the period's own ([`Period::near`]), so no whole-period
+/// integer is read off a value (C4): the copy about `prev`, and in the
+/// tie zone the copies about half a turn either side of it, the one at or
+/// below `prev` and the one at or above. The zone's edge, a quarter turn
+/// off `prev`, is decided on that copy. Within an ulp of the edge, that is
+/// not the reading the integer off `(prev − raw)/τ` gave, so the answer
+/// there can move by a whole turn. And a `raw` no turn moves is returned
+/// as it is, so a signed zero keeps its sign
+/// (`unwrap_tie_reads_its_zone_edge_as_the_period_reads_it`).
 fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
-    let k = (prev - raw) / TAU;
-    if (k - k.round()).abs() < 0.25 {
-        raw + TAU * k.round()
+    // `u` is an azimuth, an angle by construction.
+    let turn = Period::<f64>::angle();
+    let near = turn.near(raw, prev);
+    if (near - prev).abs() < turn.half() / 2.0 {
+        near
     } else {
-        let c1 = raw + TAU * k.floor();
-        let c2 = raw + TAU * k.ceil();
-        if (c1 - anchor).abs() <= (c2 - anchor).abs() {
-            c1
+        let below = turn.near(raw, prev - turn.half());
+        let above = turn.near(raw, prev + turn.half());
+        if (below - anchor).abs() <= (above - anchor).abs() {
+            below
         } else {
-            c2
+            above
         }
     }
 }
@@ -385,8 +391,8 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// a length — the only unit the two are honestly comparable in. A
 /// scale-free radian constant necessarily mis-ranks features, because a
 /// fixed source-coordinate error subtends a larger angle on a smaller
-/// one (`topo::coherence` keeps the trace: 21 pm reads as 3.6e-9 rad
-/// on a 0.117-inch hole). At `lever == 0` the coordinate carries no length
+/// one (21 pm reads as 3.6e-9 rad on a 0.117-inch hole,
+/// `nist_ftc_09_asme1_rd.stp`). At `lever == 0` the coordinate carries no length
 /// at all, so every gap is noise — the correct limit, reached without a
 /// special case or a division. The comparison is
 /// [`Eps::dominates`](crate::sizing::Eps::dominates) — a strict `<`,
@@ -417,25 +423,15 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// true, so the band is now a backstop that no in-tree fixture needs;
 /// the row that witnesses it is synthetic.
 ///
-/// # Where the COHERENCE conditions are, which is not here
+/// # What this band does not measure
 ///
 /// A gap between two of a BODY's own accounts of one chart coordinate
 /// — a carrier's midpoint azimuth against its own endpoint vertex's,
 /// two sub-edges of one iso side against each other — is measured
-/// nowhere in this crate. It is a fact about the body, computable from
-/// the body alone with no mesh state and no δ, and it cannot move a
-/// mesh byte: `topo::coherence` states all three such conditions as a
-/// non-gating findings report, with the ledger and the two π-rad
-/// witnesses. A tessellator is not a lint for other people's data.
-///
-/// Both of those witnesses are a meridian ARC crossing a pole
-/// mid-edge, and both are now refused typed by
-/// `props::require_one_chart_branch` before this walk runs (issue
-/// 1571): the Euler-door body of `tests/mesh11_arc_branch.rs` and the
-/// imported half-cap of `step-import/tests/poleguard.rs`. The report
-/// still measures them — it has no door in front of it, by design —
-/// so what it says about them is now a second account of a body this
-/// lane already refused, not the only one.
+/// nowhere, in this crate or any other. It cannot move a mesh byte,
+/// and the examination that once measured it is retired: with each
+/// edge's family read exactly at the shape door, all it had left to
+/// report on a tier-3 body was the ε–2ε fringe.
 ///
 /// [`iso_side_starts`] is NOT a consumer either, and the distinction is
 /// narrow enough to be worth stating rather than leaving to the
@@ -497,30 +493,32 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// ## The premise that argument needs, and where it is established
 ///
 /// Both bullets say "meridian" and "rim" meaning ISO-CURVES of this
-/// chart. [`classify`] does not establish that: a `Line` carrier is a
-/// meridian unconditionally, and a `Circle` is a rim iff
-/// `|n · axis| > 0.5` — a cone of directions, not coaxiality. So the
-/// real premise is **every boundary edge is an iso-curve of this
-/// chart, traversed on ONE branch of it**, and it is verified at
-/// props: the two halves of it by
-/// `geom_brep::props::require_iso_rectangle` (the CARRIER, per edge,
-/// on every kind) and `require_one_chart_branch` (the traversed ARC),
-/// both cited by [`crate::curved`]'s door before this walk runs. What
-/// each kind would leak without them, which is what the door has to
-/// cover and the reason the second half needed its own predicate:
+/// chart. The walk does not decide that: it reads each edge's family
+/// from the shape door's answer ([`side_of`]), which certifies the
+/// carrier coaxial per edge rather than reading its kind. So the real
+/// premise is **every boundary edge is an iso-curve of this chart,
+/// traversed on ONE branch of it**, and it is verified at props: the
+/// two halves of it by `geom_brep::props::require_iso_rectangle` (the
+/// CARRIER, per edge, on every kind) and `require_one_chart_branch`
+/// (the traversed ARC), both asked by the route
+/// ([`crate::curved::iso_rectangle_shape`]) before this walk runs. What
+/// a reading by carrier kind and axis tilt alone would leak on each
+/// kind, which is what the door has to cover and the reason the second
+/// half needed its own predicate:
 ///
 /// - **cylinder, cone** — safe by geometry. A circle on either surface
 ///   whose axis is within 60° of the chart's IS coaxial.
-/// - **torus** — leaks harmlessly. A Villarceau circle classifies as a
-///   Rim whenever `minor/major < 0.866` and is not coaxial, but its
+/// - **torus** — would leak harmlessly. A Villarceau circle's axis is
+///   within 60° of the chart's whenever `minor/major < 0.866`, and it is
+///   not coaxial, but its
 ///   centre lies in the equatorial plane, so [`Chart::rim_v`] reads
 ///   `0.0` for every one of them and merging a pair lands on the value
 ///   they already shared.
 /// - **sphere** — the real leak. EVERY plane section of a sphere is a
-///   [`geom::Curve3::Circle`], and `trimmed::has_trim_carrier` diverts only
-///   `Ellipse` and `Nurbs`, so an obliquely-cut sphere face would
-///   arrive here carrying two non-iso circles. Two consecutive such
-///   arcs meeting off-axis get collapsed onto ONE coordinate.
+///   [`geom::Curve3::Circle`], so a test on carrier kinds would let an
+///   obliquely-cut sphere face arrive here carrying two non-iso
+///   circles. Two consecutive such arcs meeting off-axis get collapsed
+///   onto ONE coordinate.
 ///
 /// That last one is a severity FLIP, not a wash, and it is worth being
 /// explicit: per-edge, the two sub-arcs took two different wrong
@@ -540,8 +538,8 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// **CLOSED, by the two doors in front of this walk.** The case this
 /// qualification instanced is two consecutive same-kind traversals
 /// whose CARRIERS are not iso curves, and that is what
-/// `geom_brep::props::require_iso_rectangle` refuses per edge, on
-/// every kind, before `curved::tessellate_curved` walks a face: the
+/// `geom_brep::props::require_iso_rectangle` decides per edge, on
+/// every kind, before the route hands a face to this walk: the
 /// oblique section on `props_rim_axis_parallel`, a torus Villarceau
 /// circle on `props_rim_fit`. That door closed the instance and not
 /// the premise — a certified meridian CARRIER can still carry an arc
@@ -563,8 +561,8 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// right about one face. What follows for a reader here: this walk's
 /// premise is NOT "whatever props admits", it is the branch door by
 /// name, and a change to the flux lane's admission set does not move
-/// it. The cheap hardening once recorded here (a coaxiality test in
-/// `classify`) is still not taken: the doors decide both halves at
+/// it. There is no second test here: the walk reads the doors'
+/// per-edge answer ([`side_of`]), so each family is decided once, at
 /// props' band, on props' margins.
 ///
 /// # One test for every singularity — of the run-breaking DECISION
@@ -656,6 +654,105 @@ fn iso_side_starts(
     topo::chart_iso::iso_side_starts(&kinds, &separated)
 }
 
+/// **Whether loop `lk` pinches**: passes one point key at two distinct
+/// vertices ([`topo::loop_points`]) — on an at-rest body a slit's parted
+/// end, and a slit run the full height of a full turn pinches at both
+/// ends.
+///
+/// The walk below places a junction by inverting its position, so it
+/// cannot place two vertices at one position on two sides of a slit; the
+/// route sends a pinched face to the chart lane, which places each vertex
+/// by its own stored image (`tessellate::route_of`'s pinch fact), and the
+/// curved lane refuses one that reaches it otherwise
+/// (`curved::PINCHED_FACE_ROUTED_HERE`).
+pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey) -> Result<bool, TessellateError> {
+    topo::loop_points::loop_pinches(body, lk).map_err(|unresolved| TessellateError::MissingEntity {
+        what: match unresolved.entity() {
+            topo::EntityId::Solid(_) => "solid",
+            topo::EntityId::Shell(_) => "shell",
+            topo::EntityId::Face(_) => "face",
+            topo::EntityId::Loop(_) => "loop",
+            topo::EntityId::HalfEdge(_) => "half-edge",
+            topo::EntityId::Edge(_) => "edge",
+            topo::EntityId::Vertex(_) => "vertex",
+        },
+    })
+}
+
+/// **Whether a straight side of face `fk`'s outer loop holds a point
+/// between its ends**, on a cylinder or a cone: a side carried by more
+/// than one edge, or a cone's side through its apex.
+///
+/// It reads the loop and nothing else, before any chord exists. A line
+/// is a ruling of either surface, and a side is one ruling run, so two
+/// line traversals in a row continue one side exactly when the side runs
+/// on through the vertex between them: their other ends lie on opposite
+/// sides of it along the ruling, in the chart's `v`. Two rulings that
+/// meet at a cone's apex as a corner come from one side of it, and so
+/// does a ruling the loop walks out and back (a slit, a one-generator
+/// loop); neither holds a point.
+///
+/// The rectangle lane's theorem for a ruled face holds every triangle
+/// between two neighbouring rulings, and such a point is a boundary
+/// point off its grid, so the route sends such a face to the chart lane
+/// (`tessellate::route_of`'s `splits_a_straight_side` fact). The route
+/// asks this only of a face the doors certified a rectangle
+/// (`curved::iso_rectangle_shape`), so it decides nothing about shape and
+/// reads no band: a face that is no rectangle has been routed, or refused
+/// with the doors' cause, before it is asked.
+pub(crate) fn splits_a_straight_side(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &geom::Surface<f64>,
+) -> Result<bool, TessellateError> {
+    if !crate::chart_table::ruled(surface) {
+        return Ok(false);
+    }
+    let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
+        what: "curved chart",
+    })?;
+    let outer = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?
+        .outer;
+    // Each traversal's start, in `v`, and whether its carrier is a line.
+    let mut walk = Vec::new();
+    for (half_edge, ek, _) in loop_half_edges(body, outer, fk)? {
+        let start = body
+            .get_half_edge(half_edge)
+            .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
+            .start;
+        let point = body
+            .get_vertex(start)
+            .and_then(|v| body.get_point(v.point))
+            .ok_or(TessellateError::MissingEntity {
+                what: "vertex position",
+            })?;
+        let carrier = body
+            .get_edge(ek)
+            .and_then(|edge| body.get_curve_geom(edge.curve))
+            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
+            .certified()
+            .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?
+            .carrier();
+        walk.push((
+            chart.v_of(*point),
+            matches!(carrier, geom::Curve3::Line(..)),
+        ));
+    }
+    let m = walk.len();
+    let held = (0..m).any(|k| {
+        let (before, after) = ((k + m - 1) % m, (k + 1) % m);
+        let (v, line) = walk[k];
+        // Strictly on either side: a far end at the junction's own `v` (a
+        // line edge of no length along the ruling) continues no side
+        // through it.
+        let (a, b) = (walk[before].0, walk[after].0);
+        line && walk[before].1 && ((a < v && v < b) || (b < v && v < a))
+    });
+    Ok(held)
+}
+
 /// Which iso kinds a loop's traversals carry — the one structural
 /// summary of the classified list. Its four readers —
 /// [`require_a_meridian`], [`require_two_columns`], [`walk_anchor`] and
@@ -687,12 +784,10 @@ impl LoopKinds {
 ///
 /// The question asked is whether a meridian traversal EXISTS, on the
 /// traversal KINDS; no coordinate and no ε is read here. The kinds are
-/// `topo::chart_iso::classify_kind`'s, which splits circle carriers on
-/// `|axis · chart.axis| > 0.5` — a float — and that split is structural
-/// only because [`crate::curved`]'s shape door has certified every
-/// carrier as a rim or a meridian carrier before this walk is called.
-/// Called on a loop the door would have refused, the guard fires on a
-/// float-classified carrier
+/// the ones [`crate::curved`]'s shape door certified, each carrier a rim
+/// or a meridian at the band, before this walk is called. Handed a loop
+/// the door would have refused, with its sides stated as rims, the guard
+/// fires on the loop as stated
 /// (`curved::tests::the_lens_walk_refuses_for_want_of_a_meridian_behind_the_shape_door`).
 ///
 /// It runs ahead of the two D2-row-5 re-derivations in
@@ -826,36 +921,6 @@ fn closing_side(starts: &[bool]) -> usize {
     (0..starts.len()).rev().find(|&k| starts[k]).unwrap_or(0)
 }
 
-/// The 3-D vector area of the closed cycle `pts`,
-/// `Σᵢ (pᵢ − o) × (pᵢ₊₁ − o)`, with `o` the points' own bbox centre.
-///
-/// The fold wraps (`i + 1` mod `n`), so the cycle is closed by
-/// construction and the sum is anchor-independent over ℝ: an anchor's
-/// extra terms telescope to `o × Σᵢ(pᵢ₊₁ − pᵢ)`, and that displacement
-/// sum is zero around a cycle. The anchor is therefore a CONDITIONING
-/// choice and not a value one, and a position-derived anchor is the
-/// one that keeps every operand at the loop's own scale: a fixed
-/// anchor pays cancellation in proportion to the loop's distance from
-/// it, which the direction-only consumer in [`loop_polygon`] reads as
-/// a rotated — eventually reversed — area vector.
-///
-/// An empty cycle has no anchor and no area.
-fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
-    let Some(&first) = pts.first() else {
-        return Vec3::new(0.0, 0.0, 0.0);
-    };
-    let (lo, hi) = pts
-        .iter()
-        .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
-    let o = lo.mid(hi);
-    let mut area = Vec3::new(0.0, 0.0, 0.0);
-    for (i, p) in pts.iter().enumerate() {
-        let q = pts[(i + 1) % pts.len()];
-        area = area + (*p - o).cross(q - o);
-    }
-    area
-}
-
 /// **The wrap strip**: where a loop walks one wrap edge from pole to pole
 /// and back (the one-face ball), how the walk places its two sides.
 #[derive(Clone, Copy, Debug)]
@@ -879,24 +944,30 @@ struct WrapStrip {
 /// 3. the near tip, `travs[0]`'s start, where the walk opens; the other
 ///    tip is the far one.
 ///
-/// The far side stands one period from the near side, across the
-/// polygon's region from it, and `orientation` is the one the face's
-/// polygon has (`PolygonOrientation::of_face`), which is how `curved`
-/// reads the face's side off it. The region is on the left of a counter-clockwise
-/// polygon's sides, so a near side rising to the far point (the far `v`
-/// above the near) has the far side at the smaller `u` there, and at the
-/// larger in a clockwise one. No turn at a tip and no area is read.
+/// The far side stands one period from the near side, and the loop's lift
+/// (`topo::Body::loop_lift`) says which: the strip's two traversals are
+/// one edge's two halves, so they share a chart image, and the lift moves
+/// the far half's by the turn the face takes round the far tip, the joint's
+/// stored element there (`topo::pcurves`' singular turn: the walk leaves
+/// along the edge it arrived on, a whole turn on the face's side). The
+/// period is that move less the near half's. No height, side or area is
+/// read here. The loop's shape is the strip's, so a lift that does not
+/// move the far half one whole turn of the azimuth, and by nothing else,
+/// contradicts it.
 ///
 /// # Errors
 ///
 /// [`TessellateError::MissingEntity`] where a key on the loop's walk does
-/// not resolve.
+/// not resolve; [`lifted_rows`]' refusal (a loop with no lift); and
+/// [`TessellateError::WrapStripTurn`] where the strip's lift is not one
+/// whole turn.
 fn wrap_strip(
     body: &Body<f64>,
     travs: &[Trav],
     poles: &[(Point3<f64>, f64)],
     band: Band,
-    orientation: PolygonOrientation,
+    face: FaceKey,
+    lk: LoopKey,
 ) -> Result<Option<WrapStrip>, TessellateError> {
     let cycle: Vec<HalfEdgeKey> = travs.iter().map(|t| t.half_edge).collect();
     let image = topo::surface_boundary::chart_image(body, &cycle).ok_or(
@@ -920,19 +991,30 @@ fn wrap_strip(
     // the band of each other, D2 addendum row 5's state, which the
     // declared-vertex guard in `loop_polygon` re-derives; no strip is
     // read off it.
-    let (near, far, far_tip) = match travs[0].start {
+    let far_tip = match travs[0].start {
         _ if on_a == on_b => return Ok(None),
-        t if t == a => (on_a, on_b, b),
-        t if t == b => (on_b, on_a, a),
+        t if t == a => b,
+        t if t == b => a,
         _ => return Ok(None),
     };
-    let rising = poles[far].1 > poles[near].1;
+    // The face's domain as the trimmed lane reads it, so a loop with no
+    // lift refuses here as it does there.
+    let rows = lifted_rows(body, face, lk, band)?;
+    let row = |half_edge: HalfEdgeKey| rows.get(&half_edge).map(|row| row.deck);
+    let far_half = travs
+        .iter()
+        .find(|t| t.start == far_tip)
+        .map(|t| t.half_edge);
+    let refused = |turn| TessellateError::WrapStripTurn { face, turn };
+    let (Some(near), Some(far)) = (row(travs[0].half_edge), far_half.and_then(row)) else {
+        return Err(refused(None));
+    };
+    let turn = far.compose(near.inverse());
+    if turn.twin || turn.v != 0 || turn.u.abs() != 1 {
+        return Err(refused(Some(turn)));
+    }
     Ok(Some(WrapStrip {
-        period: if rising == orientation.interior_is_left() {
-            -TAU
-        } else {
-            TAU
-        },
+        period: f64::from(turn.u) * Period::<f64>::angle().length(),
         far: far_tip,
     }))
 }
@@ -986,6 +1068,111 @@ fn strip_columns(travs: &[Trav], strip: WrapStrip) -> Vec<f64> {
         .collect()
 }
 
+/// One row of a loop's lift as the walk reads it ([`lifted_rows`]).
+#[derive(Clone, Copy, Debug)]
+struct Lifted {
+    /// The deck transformation the lift moves the half-edge's image by.
+    deck: topo::Deck,
+    /// The first chart coordinate the moved image is entered at.
+    entry_u: f64,
+}
+
+/// **The lifted rows of the loop `lk`**, by half-edge: its lift read
+/// through the face's domain as [`crate::trimmed::face_domain`] reads it, so
+/// a loop with no lift refuses here as it does on the trimmed lane, and
+/// only the lift of `lk` itself, so every row is on the walked loop.
+///
+/// # Errors
+///
+/// [`crate::trimmed::face_domain`]'s refusal ([`TessellateError::DomainUnread`]:
+/// a loop with no lift, or one that does not close in the chart), and
+/// [`TessellateError::MissingEntity`] where the domain holds no lift of `lk`.
+fn lifted_rows(
+    body: &Body<f64>,
+    face: FaceKey,
+    lk: LoopKey,
+    band: Band,
+) -> Result<HashMap<HalfEdgeKey, Lifted>, TessellateError> {
+    let domain = crate::trimmed::face_domain(body, face, band)?;
+    let on_lk = |lift: &&topo::pcurves::Lift<f64>| {
+        lift.rows()
+            .first()
+            .and_then(|row| body.get_half_edge(row.half_edge))
+            .is_some_and(|h| h.parent_loop == lk)
+    };
+    let lift =
+        crate::trimmed::every_loop(&domain)
+            .find(on_lk)
+            .ok_or(TessellateError::MissingEntity {
+                what: "the walked loop's lift",
+            })?;
+    Ok(lift
+        .rows()
+        .iter()
+        .map(|row| {
+            let lifted = Lifted {
+                deck: row.lift,
+                entry_u: row.entry_exit_points().0.x,
+            };
+            (row.half_edge, lifted)
+        })
+        .collect())
+}
+
+/// A rimless pole-to-pole band's columns, traversal for traversal: each
+/// meridian's on the branch the loop's lift ([`lifted_rows`]) puts its
+/// image on. The joint at each pole stores the turn the face takes there,
+/// so the lifted images sit on the branches the face occupies, and the
+/// band's width round the poles is theirs. Each column is the traversal's
+/// own azimuth, `u_raw`, on the lifted image's branch: the image and
+/// `u_raw` read one meridian down two float paths, so they differ by
+/// rounding and whole turns alone, and a column more than a quarter turn
+/// from its image is that premise failing, refused rather than placed. An
+/// image the lift moved onto a sphere chart's twin,
+/// `(u, v) ↦ (u + π, π − v)`, is read back through it.
+///
+/// # Errors
+///
+/// [`lifted_rows`]' refusal, [`TessellateError::MissingEntity`] where the
+/// lift holds no row for a traversal, and
+/// [`TessellateError::LiftedColumnOff`] where a column stands more than a
+/// quarter turn from its image.
+///
+/// # Panics
+///
+/// On a rim traversal: the band is a rimless loop's.
+fn band_columns(
+    body: &Body<f64>,
+    travs: &[Trav],
+    face: FaceKey,
+    lk: LoopKey,
+    band: Band,
+) -> Result<Vec<f64>, TessellateError> {
+    let rows = lifted_rows(body, face, lk, band)?;
+    let turn = Period::<f64>::angle();
+    travs
+        .iter()
+        .map(|t| {
+            let TravKind::Meridian { u_raw } = t.kind else {
+                unreachable!("a pole-to-pole band's loop has no rim")
+            };
+            let row = rows
+                .get(&t.half_edge)
+                .ok_or(TessellateError::MissingEntity { what: "lifted row" })?;
+            let at = if row.deck.twin {
+                row.entry_u - turn.half()
+            } else {
+                row.entry_u
+            };
+            let column = turn.near(u_raw, at);
+            if (column - at).abs() > turn.half() / 2.0 {
+                return Err(TessellateError::LiftedColumnOff { face, edge: t.edge });
+            }
+            Ok(column)
+        })
+        .collect()
+}
+
 /// Walks a curved face's loop into its UV polygon (module docs: the
 /// classification, unwrapping, pole, and disambiguation rules).
 ///
@@ -1007,18 +1194,20 @@ fn strip_columns(travs: &[Trav], strip: WrapStrip) -> Vec<f64> {
 ///    computed. Ahead of the two D2-row-5 re-derivations, which
 ///    presuppose a walkable loop.
 /// 6. `band_u` — for a rimless pole-to-pole band only, every column
-///    precomputed: the wrap strip's from its period, any other band's
-///    from the loop's 3-D area vector.
+///    precomputed off the loop's lift: the wrap strip's from its period,
+///    any other band's from its lifted images ([`band_columns`]).
 /// 7. the emission loop — per traversal, take the run's coordinate (a
 ///    continuation repeats it bitwise, discarding its own) and unwrap
 ///    the other axis by continuity.
 /// 8. the closure assertion — a revert detector, not a runtime guard.
 // One parameter per input the walk reads: the body, its chart, the
-// shared mesh ids and points, the loop, and the two tolerances.
+// doors' rectangle, the shared mesh ids and points, the loop, and the
+// two tolerances.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn loop_polygon(
     body: &Body<f64>,
     chart: &Chart,
+    rectangle: &crate::curved::Rectangle,
     chords: &HashMap<EdgeKey, Vec<u32>>,
     positions: &[Point3<f64>],
     face: FaceKey,
@@ -1026,11 +1215,8 @@ pub(crate) fn loop_polygon(
     eps: Eps,
     band: Band,
 ) -> Result<Vec<UvPoint>, TessellateError> {
-    let mut travs = traversals(body, chart, chords, face, lk)?;
+    let mut travs = traversals(body, chart, rectangle, chords, face, lk)?;
     let kinds = LoopKinds::of(&travs);
-    let face_record = body
-        .get_face(face)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?;
     let surface = crate::tessellate::face_surface(body, face)?;
     let surface_kind = surface.kind();
     require_a_meridian(kinds, face, surface_kind)?;
@@ -1051,19 +1237,9 @@ pub(crate) fn loop_polygon(
         *first = true;
     }
     let no_rim = !kinds.rim;
-    // The face's orientation sense (module docs, the pole-to-pole
-    // band): the side of the band's area vector, and through
-    // `PolygonOrientation::of_face` the orientation of the wrap strip.
-    let sense = face_record.sense;
     let poles = chart.poles();
     let strip = if no_rim {
-        wrap_strip(
-            body,
-            &travs,
-            &poles,
-            band,
-            PolygonOrientation::of_face(sense),
-        )?
+        wrap_strip(body, &travs, &poles, band, face, lk)?
     } else {
         None
     };
@@ -1225,47 +1401,13 @@ pub(crate) fn loop_polygon(
     }
     // Pole-to-pole bands: precompute every column, the wrap strip's from
     // its first side and the period ([`wrap_strip`]), any other band's
-    // from the loop's 3-D area vector (module docs), which is reached
-    // only for a loop whose openings stand on two distinct edges
+    // from its lifted images ([`band_columns`]), which is reached only for
+    // a loop whose openings stand on two distinct edges
     // (`require_two_columns` above).
     let band_u: Option<Vec<f64>> = if let Some(strip) = strip {
         Some(strip_columns(&travs, strip))
     } else if no_rim {
-        let pts: Vec<Point3<f64>> = travs
-            .iter()
-            .flat_map(|t| t.ids[..t.ids.len() - 1].iter())
-            .map(|&id| positions[id as usize])
-            .collect();
-        // Only the DIRECTION of `area` is read below, and only a
-        // loop-local anchor makes that direction the loop's own rather
-        // than its placement's ([`loop_area`]).
-        let area = loop_area(&pts);
-        // `area` is the loop's 3-D vector area, so it lies on the face's
-        // OUTWARD side, and it is read against the chart's normals
-        // turned to that side. A rim-free loop that opens two columns
-        // runs pole to pole, so its chart is a sphere's or a spindle
-        // sheet's, and on both `u_ref` and `v_ref` are exactly the chart
-        // normals on the equator at azimuths 0 and π/2.
-        // Read against the frame unturned, a `sense: false` band's
-        // azimuth lands π off and the complementary half of the sphere
-        // is meshed. Nothing downstream re-derives this side from the
-        // polygon's orientation: `mid_az` only chooses a `2πk` branch.
-        let frame = chart.frame();
-        let outward = |normal: Vec3<f64>| OutwardNormal::from_chart(normal, sense).vec();
-        let mid_az = geom::Azimuth::of(
-            area.dot(outward(frame.v_ref())),
-            area.dot(outward(frame.u_ref)),
-        )
-        .near(0.0);
-        Some(
-            travs
-                .iter()
-                .map(|t| match t.kind {
-                    TravKind::Meridian { u_raw } => Period::<f64>::angle().near(u_raw, mid_az),
-                    TravKind::Rim { .. } => f64::NAN,
-                })
-                .collect(),
-        )
+        Some(band_columns(body, &travs, face, lk, band)?)
     } else {
         None
     };
@@ -1303,9 +1445,7 @@ pub(crate) fn loop_polygon(
                     // paths (two carrier circles' centres), so the
                     // difference the substitution discards is a
                     // statement about the INPUT and not about the mesh,
-                    // which is the same row either way. It is measured
-                    // where such statements belong, from the body:
-                    // `topo::coherence`'s `RimContinuation`.
+                    // which is the same row either way.
                     prev_v
                 };
                 let ju = if k == 0 {
@@ -1399,9 +1539,7 @@ pub(crate) fn loop_polygon(
                     // two paths are. `u_raw` is the twin discarded
                     // here, and how far it was is a statement about the
                     // INPUT and not about the mesh, which is the same
-                    // column either way. It is measured where such
-                    // statements belong, from the body:
-                    // `topo::coherence`'s `MeridianContinuation`.
+                    // column either way.
                     prev_u
                 };
                 if let Some(vp) = jpole {
@@ -1506,6 +1644,37 @@ pub(crate) fn loop_polygon(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use core::f64::consts::TAU;
+    use geom_core::Vec3;
+
+    /// **`unwrap_tie` at its zone's edge, as the period reads it.**
+    /// Where `raw`'s copy about `prev` stands exactly a quarter turn off
+    /// it, the copy is read by [`Period::near`] and the zone test is the
+    /// period's own. At `prev − π/2` it reads the tie zone and takes the
+    /// copy nearer `anchor`: 5.0124 for an anchor above, −1.2708 below.
+    /// At the review's draw (`raw` −13.837166941154068, `prev` 0.3,
+    /// `anchor` 2.3), the period's copy stands inside the quarter zone and
+    /// reads −1.2707963267948958. The fold this replaced read the integer
+    /// off `(prev − raw)/τ`, put that draw in the tie zone and took
+    /// 5.01238898038469, a whole turn away. And a signed zero keeps its
+    /// sign: `Period::near` returns `raw` itself where no turn moves it,
+    /// so −0.0 about 0.0 reads −0.0, where the fold's `raw + τ·0` read
+    /// +0.0.
+    #[test]
+    fn unwrap_tie_reads_its_zone_edge_as_the_period_reads_it() {
+        use core::f64::consts::FRAC_PI_2;
+        let edge = 0.3 - FRAC_PI_2;
+        assert_eq!(
+            unwrap_tie(edge, 0.3, 2.3).to_bits(),
+            5.012_388_980_384_689_5_f64.to_bits()
+        );
+        assert_eq!(unwrap_tie(edge, 0.3, -1.0).to_bits(), edge.to_bits());
+        assert_eq!(
+            unwrap_tie(-13.837_166_941_154_068, 0.3, 2.3).to_bits(),
+            (-1.270_796_326_794_895_8_f64).to_bits()
+        );
+        assert_eq!(unwrap_tie(-0.0, 0.0, 0.0).to_bits(), (-0.0_f64).to_bits());
+    }
     use geom::Surface;
     use topo::chart::ChartKind;
 
@@ -1518,36 +1687,26 @@ mod tests {
         );
         let surface = match kind {
             ChartKind::Cylinder { r } => Surface::Cylinder {
-                origin: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: r,
-                u_ref,
             },
             ChartKind::Cone { half_angle } => Surface::Cone {
-                apex: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 half_angle,
-                u_ref,
             },
             ChartKind::Sphere { r } => Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, axis, u_ref),
                 radius: r,
-                axis,
-                u_ref,
             },
             ChartKind::Torus { major, minor } => Surface::Torus {
-                center: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref,
             },
             ChartKind::Spindle { major, minor } => Surface::Spindle {
-                center: o,
-                axis,
+                frame: geom::Frame::new(o, axis, u_ref),
                 major_radius: major,
                 minor_radius: minor,
-                u_ref,
             },
         };
         Chart::of(&surface).unwrap()
@@ -1589,53 +1748,6 @@ mod tests {
     #[test]
     fn on_the_axis_every_gap_is_noise() {
         assert!(gap_is_noise(core::f64::consts::PI, 0.0, Eps::exactly(1e-9)));
-    }
-
-    /// **THE TWO SPELLINGS OF THE BAND AGREE, rung by rung.**
-    ///
-    /// The band has two spellings and cannot have one:
-    /// [`gap_is_noise`] here reads it through [`Eps::dominates`], the
-    /// newtype MESH-4 made `mesh`-local and gave no accessor, so its
-    /// value cannot cross a crate boundary as a number;
-    /// `topo::coherence::gap_is_noise` takes the run's ε as an `f64`
-    /// because a body-side examination has no `Eps` to read. Two
-    /// spellings of one comparison is exactly the shape that drifts,
-    /// and prose reconciling them is not a mechanism.
-    ///
-    /// This is the mechanism: every rung of this file's own ladder —
-    /// the spatial-vs-angular pair, the lever-arm scaling pair, the
-    /// zero-lever limit, both band edges, and a poisoned operand on
-    /// each side — run through BOTH spellings and compared. A change
-    /// to either that moves one and not the other reds here, whichever
-    /// crate it was made in.
-    #[test]
-    fn the_two_spellings_of_the_band_agree() {
-        const LADDER: [(f64, f64, f64); 10] = [
-            // `nist_ftc_09`'s residue at a real lever and an absurd one
-            (3.56e-9, 0.05, 3.38e-5),
-            (3.56e-9, 1e5, 3.38e-5),
-            // the same angle, a hundred times the arc
-            (1e-6, 1.0, 1e-5),
-            (1e-6, 100.0, 1e-5),
-            // the zero-lever limit, and the corner where a zero band
-            // meets it
-            (core::f64::consts::PI, 0.0, 1e-9),
-            (core::f64::consts::PI, 0.0, 0.0),
-            // both band edges: exactly on it, and just inside
-            (1.0, 1e-9, 1e-9),
-            (1.0, 1e-9, 1.000_001e-9),
-            // a poisoned operand on either side is never noise
-            (f64::NAN, 1.0, 1e-9),
-            (1.0, f64::NAN, 1e-9),
-        ];
-        for (gap, lever, band) in LADDER {
-            assert_eq!(
-                gap_is_noise(gap, lever, Eps::exactly(band)),
-                topo::coherence::gap_is_noise(gap, lever, band),
-                "the two spellings of the band disagree at \
-                 (gap {gap}, lever {lever}, eps {band})"
-            );
-        }
     }
 
     /// **[`Period::near`] lands within half a period of its anchor, for
@@ -1941,166 +2053,6 @@ mod tests {
         );
     }
 
-    /// A rimless pole-to-pole band's own point cycle: south pole, up
-    /// the meridian at azimuth `a0` in `n` steps, north pole, down the
-    /// meridian at azimuth `a1`. Sphere of radius `r` centred at `c`,
-    /// about the `+z` axis of [`z_chart`] — the shape `loop_polygon`
-    /// collects from `travs` before folding it.
-    fn band_cycle(r: f64, c: Point3<f64>, a0: f64, a1: f64, n: usize) -> Vec<Point3<f64>> {
-        let on = |a: f64, t: f64| {
-            Point3::new(
-                c.x + r * a.cos() * t.sin(),
-                c.y + r * a.sin() * t.sin(),
-                c.z + r * t.cos(),
-            )
-        };
-        let step = core::f64::consts::PI / (n as f64);
-        let mut pts = vec![Point3::new(c.x, c.y, c.z - r)];
-        pts.extend((1..n).map(|k| on(a0, core::f64::consts::PI - (k as f64) * step)));
-        pts.push(Point3::new(c.x, c.y, c.z + r));
-        pts.extend((1..n).map(|k| on(a1, (k as f64) * step)));
-        pts
-    }
-
-    /// The band's chart-frame azimuth, spelled as `loop_polygon`'s
-    /// pole-to-pole arm spells it. The frame's turn to the outward side
-    /// is omitted because it negates both dots bitwise: it cannot change
-    /// how well conditioned the fold that produced `area` was.
-    fn band_mid_az(chart: &Chart, pts: &[Point3<f64>]) -> f64 {
-        let area = loop_area(pts);
-        area.dot(chart.frame().v_ref())
-            .atan2(area.dot(chart.frame().u_ref))
-    }
-
-    /// A 1.3 mm band's own geometry, placed at seven distances from
-    /// the world origin. Non-symmetric, non-dyadic placement on
-    /// purpose: an axis-symmetric or dyadic offset cancels the fold's
-    /// terms pairwise-exactly and hides the defect.
-    fn placed_band(d: f64) -> Vec<Point3<f64>> {
-        band_cycle(
-            1.3e-3,
-            Point3::new(1.3 * d, -2.7 * d, 0.9 * d),
-            0.37,
-            2.27,
-            8,
-        )
-    }
-
-    /// **Issue 1362.** The band's area vector is read for its
-    /// DIRECTION only, so the direction must be the band's own and not
-    /// its placement's. The fold is over a closed cycle, so it is
-    /// anchor-independent over ℝ; in f64 the anchor is the whole
-    /// question, and a world-origin anchor pays cancellation growing
-    /// with the placement distance.
-    ///
-    /// Budget `1e-11·d` radians: the placement enters the POSITIONS
-    /// themselves, so the honest floor is the coordinate ulp against
-    /// the band's own size — `ulp(2.7·d)/1.3e-3 ≈ 4.6e-13·d` — and
-    /// agreement beyond that is not available from the inputs. The
-    /// budget sits ~20x above it; the local-anchor fold lands one to
-    /// two orders under it at every row, and the origin-anchored
-    /// spelling misses the FIRST row (`d = 1e2`, i.e. a band a few
-    /// hundred metres out) by 1.6e-6 rad against a 1e-9 budget, then
-    /// degrades to 3.4 rad — a direction pointing the other way.
-    #[test]
-    fn the_band_area_direction_is_the_bands_not_its_placements() {
-        let chart = z_chart(ChartKind::Sphere { r: 1.3e-3 });
-        let at_origin = band_mid_az(&chart, &placed_band(0.0));
-        for d in [1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8] {
-            let far = band_mid_az(&chart, &placed_band(d));
-            let drift = (far - at_origin).abs();
-            let budget = 1e-11 * d;
-            assert!(
-                drift < budget,
-                "placement {d:e}: azimuth {far} vs {at_origin} at the origin \
-                 (drift {drift:e} rad, budget {budget:e})"
-            );
-        }
-    }
-
-    /// The consumer, pinned end to end: `mid_az` exists only to pick
-    /// each meridian's `2πk` branch, so a placement that moves the
-    /// azimuth far enough moves the COLUMN — the mesh takes the
-    /// complementary half of the sphere. Both of this band's meridians
-    /// must take the same branch wherever the band sits.
-    ///
-    /// The rows are the same placements as the direction row. Under an
-    /// origin-anchored fold BOTH the `1e6` and `1e8` rows flip the
-    /// azimuth by 3.4 rad — over π, so a whole `2π` off in `u`. The row
-    /// aborts at the first failure and so only names `1e6` when it
-    /// fires; the drift is not monotone in the placement, because how
-    /// much of the true area survives the cancellation depends on the
-    /// bit patterns of the particular coordinates, not on their size
-    /// alone.
-    #[test]
-    fn a_far_placement_picks_the_same_meridian_branch() {
-        let chart = z_chart(ChartKind::Sphere { r: 1.3e-3 });
-        let at_origin = band_mid_az(&chart, &placed_band(0.0));
-        for d in [1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8] {
-            let far = band_mid_az(&chart, &placed_band(d));
-            for u_raw in [0.37, 2.27] {
-                let (near_col, far_col) = (
-                    Period::new(TAU).near(u_raw, at_origin),
-                    Period::new(TAU).near(u_raw, far),
-                );
-                assert!(
-                    (near_col - far_col).abs() < 1e-9,
-                    "placement {d:e}: meridian u_raw {u_raw} takes column \
-                     {far_col} there and {near_col} at the origin \
-                     ({} branches apart)",
-                    ((far_col - near_col) / TAU).round()
-                );
-            }
-        }
-    }
-
-    /// **The direction itself, against known geometry.** Every other
-    /// row here compares one fold against another fold, so all of them
-    /// would pass a `loop_area` that ignored its input and answered a
-    /// constant. This one pins the ANSWER: for a band bounded by
-    /// meridians at azimuths `a0` and `a1`, the cycle runs up `a0` and
-    /// down `a1`, so by the right-hand rule its vector area points
-    /// radially INWARD at the pair's bisector — chart-frame azimuth
-    /// `(a0 + a1)/2 − π`. Closed form, derived from the geometry and
-    /// not from the fold, checked over a spread of openings and at two
-    /// placements.
-    #[test]
-    fn the_area_direction_is_the_bands_inward_bisector() {
-        let chart = z_chart(ChartKind::Sphere { r: 1.0 });
-        for (a0, a1) in [
-            (0.37, 2.27),
-            (0.0, 1.0),
-            (-1.1, 0.4),
-            (2.0, 4.5),
-            (0.2, 3.0),
-        ] {
-            for d in [0.0, 1e3] {
-                let c = Point3::new(1.3 * d, -2.7 * d, 0.9 * d);
-                let got = band_mid_az(&chart, &band_cycle(1.0, c, a0, a1, 8));
-                let want = (a0 + a1) / 2.0 - core::f64::consts::PI;
-                // Compare modulo 2π: the azimuth is a branch, not a
-                // number, and `atan2` answers in (−π, π].
-                let err = (Period::new(TAU).near(got, want) - want).abs();
-                assert!(
-                    err < 1e-12,
-                    "meridians {a0} and {a1} at placement {d:e}: area azimuth \
-                     {got} is {err:e} rad off the inward bisector {want}"
-                );
-            }
-        }
-    }
-
-    /// An empty cycle has no anchor and no area. The guarded hazard is
-    /// the anchor, not the fold: deriving a bbox centre needs a first
-    /// point, so `loop_area` returns zero before reaching for one.
-    /// (The fold body's own `% pts.len()` is unreachable on an empty
-    /// slice — the loop never runs — so it is not what this row pins.)
-    #[test]
-    fn an_empty_cycle_has_no_area() {
-        let a = loop_area(&[]);
-        assert_eq!((a.x, a.y, a.z), (0.0, 0.0, 0.0));
-    }
-
     /// **Issue 896's guard, demonstrated firing** — the red-first half
     /// of the row, at the mechanism, because no minting door in this
     /// build can place the state in front of `tessellate` (the measured
@@ -2153,17 +2105,23 @@ mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
+        let routes = crate::tessellate::Routes::witness(&body);
         let chords =
-            crate::chords::compute_chords(&body, 0.05, &vids, &mut positions, &mut bounds).unwrap();
+            crate::chords::compute_chords(&body, 0.05, &routes, &vids, &mut positions, &mut bounds)
+                .unwrap();
         let (fk, _) = body
             .faces()
             .find(|&(k, _)| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))
             .expect("the revolve mints a sphere wall");
         let chart = Chart::of(body.face_surface(fk).unwrap()).unwrap();
+        let rectangle = routes
+            .rectangle(fk)
+            .expect("the doors certify the sphere band a rectangle");
         for (lk, _) in body.loops().filter(|(_, l)| l.face == fk) {
             let _ = loop_polygon(
                 &body,
                 &chart,
+                rectangle,
                 &chords.ids,
                 &positions,
                 fk,

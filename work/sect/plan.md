@@ -44,23 +44,27 @@ zip. PR 4364 merged 2026-10-09T21:06Z.
 
 ## Where it stands
 
-Handed back 2026-10-31 (the sitting's P0 and P1 rows are done):
+Handed back 2026-11-21 (`ready`). The 2026-11-20 sitting closed the P0
+(PR 7181, the coaxial union's ring re-homing), the closed edge on a wall's
+wrap edge (PR 7177), `RimSide`'s retirement into one reader (PRs 7187,
+7220), the endpoint-census red (PR 7218), and on the ball × cylinder
+latency row two levers: closed forms in `section_bounds` (PR 7173) and a
+certificate read by its support, with its decisions replayed (Ev's ruling
+PR 7182, built in PR 7193).
 
-- **Every torus pair has a section and passes the germ mint**: sphere ×
-  torus by its closed-form readings and the torus ring path (PRs 5924,
-  5974), cylinder × torus and torus × torus by their doors (PR 5972), and
-  every pose by its foot on the carried section (PR 6011, fork row 212),
-  read at 1e-6 again (PR 6153). Teapot wall 2 stops at SPIRICARM's volume
-  door. C5 now holds the ratified rule that an analytic pair decides
-  tangency once, on its pose (PR 5975).
-- **Reds closed**: the cs near-node march (PR 5961), the seam-region row's
-  15× cost (PR 6062), PR 6011's 1e-6 rows (PR 6153). Decided-twice rows
-  (PR 5994), the circle crossing (PR 6001), cylinder-face re-homing
-  (PR 6047), the march counter (PR 6056).
-- **Left**: the P2/P3/P4 rows in the slate. Elsewhere: the nightly
-  `full-suite` job outgrowing 180 minutes (GREEN P1), and the per-op
-  certificate cost of fitted chord edges (the cost rows that came back from SECTRUNG,
-  below).
+**Left at P1: the ball × cylinder latency** (release ball ∪ rod ≈2.0 s,
+target ~0.5 s). `a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build`
+is parked on the four rows its 2026-11-21 profile maps the time to, all
+P1 as its blockers:
+- `a-chords-locus-certificate-is-not-its-section-components-cut-to-its-span`
+  (design: weigh it first; ≈29 %);
+- `a-fitted-rows-first-projected-certificate-costs-a-quarter-of-a-ball-cylinder-boolean`
+  (≈23 %, measure first);
+- `check-twos-turn-reads-first-speed-meters-at-a-tenth-of-a-ball-cylinder-boolean`
+  (≈10 %);
+- QUAD's `a-ball-and-cylinder-results-volume-is-a-fifth-of-the-boolean` (≈22 %).
+The profile says no subset of owned rows reaches the target alone; the
+first two together come closest.
 
 ## The slate
 

@@ -246,15 +246,18 @@ impl<T: Decide> Ring<T> {
     /// data.
     fn of(s: &Surface<T>, band: Band) -> Option<Result<Self, TorusPoseRefusal>> {
         let Surface::Torus {
-            center,
-            axis,
+            frame: carrier_frame,
             major_radius,
             minor_radius,
-            u_ref,
         } = *s
         else {
             return None;
         };
+        let (center, axis, u_ref) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         let axis = axis.normalize();
         let finite = [
             center.x, center.y, center.z, axis.x, axis.y, axis.z, u_ref.x, u_ref.y, u_ref.z,
@@ -453,7 +456,16 @@ fn undecided_symmetry(diag: Indeterminate) -> TorusPoseRefusal {
 fn arm_refused(refusal: ArmRefusal) -> SectionError {
     match refusal {
         ArmRefusal::Pinch(p) => pinched(p),
-        ArmRefusal::Unordered(predicate) => SectionError::Unordered { predicate },
+        // An undecided side is the value's escalation, as a pinch's is
+        // ([`pinched`]); a side decided `Zero` is the crossing unordered.
+        ArmRefusal::Unordered {
+            undecided: Some(diag),
+            ..
+        } => SectionError::Escalated(diag),
+        ArmRefusal::Unordered {
+            predicate,
+            undecided: None,
+        } => SectionError::Unordered { predicate },
     }
 }
 
@@ -580,9 +592,10 @@ impl<T: Decide> SphereTorusPose<T> {
             (Surface::Torus { .. }, Surface::Sphere { .. }) => (b, a, false),
             _ => return None,
         };
-        let &Surface::Sphere { center, radius, .. } = sphere else {
+        let &Surface::Sphere { frame, radius, .. } = sphere else {
             return None;
         };
+        let center = frame.origin();
         let ring = Ring::of(torus, band)?;
         Some((|| {
             radius_guard("st_sphere_radius", SectionRadius::Sphere, radius, band)?;
@@ -679,6 +692,32 @@ impl<T: Decide> SphereTorusPose<T> {
     }
 }
 
+impl<T: Decide> SphereTorusPose<T> {
+    /// **The parallel the coaxial tangency touches along**, where the pose
+    /// is coaxial and its tube row decided `Zero`: the contact point of
+    /// the tube circle and the sphere's meridian in their half-plane
+    /// ([`geom_core::CirclesAt::foot`], external and internal alike),
+    /// swept about the axis. `None` for every other pose.
+    pub(crate) fn tangent_parallel(&self) -> Option<Curve3<T>> {
+        let StStance::Coaxial { tube, .. } = self.stance else {
+            return None;
+        };
+        if tube.0 != Sign::Zero {
+            return None;
+        }
+        let ring = self.ring;
+        let ca = (self.center - ring.center).dot(ring.axis);
+        let (c1, c2) = (
+            Point2::new(ring.big_r, T::zero()),
+            Point2::new(T::zero(), ca),
+        );
+        let p = Circles::new((c2 - c1).norm(), ring.r, self.radius)
+            .at(c1, c2)
+            .foot();
+        Some(ring.parallel(p.x, p.y))
+    }
+}
+
 /// **The sphere × torus gap in closed form**: the sphere's centre stands
 /// `ρ = s` from the torus axis and `h` along it, so the core circle's
 /// critical distances from it are the two meridian ones, `√((ρ ∓ R)² +
@@ -767,7 +806,7 @@ pub(super) fn sphere_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(ring.r),
+        lever: crate::uniform_curvature_arm(&pose.torus),
         pose: PairPose::SphereTorus(pose),
         decided,
         components: Components::Counted(components),
@@ -940,6 +979,21 @@ impl<T: Decide> CylinderTorusPose<T> {
     }
 }
 
+impl<T: Decide> CylinderTorusPose<T> {
+    /// **The parallel the coaxial tangency touches along**, where the pose
+    /// is coaxial and its wall row decided `Zero`: the cylinder's own
+    /// radius in the torus's equator plane, where the wall touches the
+    /// tube's inner or outer equator. `None` for every other pose.
+    pub(crate) fn tangent_parallel(&self) -> Option<Curve3<T>> {
+        match self.stance {
+            CtStance::Coaxial { wall, .. } if wall.0 == Sign::Zero => {
+                Some(self.ring.parallel(self.radius, T::zero()))
+            }
+            _ => None,
+        }
+    }
+}
+
 /// The cylinder × torus section over its decided pose.
 pub(super) fn cylinder_torus<T: Decide>(
     pose: CylinderTorusPose<T>,
@@ -1014,7 +1068,7 @@ pub(super) fn cylinder_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(ring.r),
+        lever: crate::uniform_curvature_arm(&pose.torus),
         pose: PairPose::CylinderTorus(pose),
         decided,
         components,
@@ -1263,12 +1317,44 @@ pub(super) fn torus_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: geom_core::Lever::curvature_radius(r1.r)
-            .min(geom_core::Lever::curvature_radius(r2.r)),
+        lever: crate::uniform_curvature_arm(&pose.first)
+            .min(crate::uniform_curvature_arm(&pose.second)),
         pose: PairPose::TorusTorus(pose),
         decided,
         components,
         nodes: Vec::new(),
         node_sets: Vec::new(),
     })
+}
+
+#[cfg(test)]
+mod unordered_rows {
+    use super::{SectionError, arm_refused};
+    use crate::pair_section::torus_arms::ordered_side_as;
+    use geom_core::Band;
+
+    /// **An unordered crossing reads by its side's margin**: decided
+    /// `Zero` it is the crossing unordered, in band; undecided it is the
+    /// value's escalation, carrying its diagnostics. Red if the undecided
+    /// side collapses back into `Unordered`, or a decided side reads as an
+    /// escalation.
+    #[test]
+    fn an_unordered_crossing_reads_by_its_sides_margin() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|_| unreachable!("a valid band"));
+        let read = |margin: f64| {
+            ordered_side_as("section_torus_square_fold_half", margin, band).map_err(arm_refused)
+        };
+        assert_eq!(read(1.0), Ok(true), "a side decided positive");
+        assert_eq!(read(-1.0), Ok(false), "a side decided negative");
+        assert!(
+            matches!(read(0.0), Err(SectionError::Unordered { predicate }) if predicate == "section_torus_square_fold_half"),
+            "a side decided zero is unordered: {:?}",
+            read(0.0)
+        );
+        assert!(
+            matches!(read(5e-9), Err(SectionError::Escalated(diag)) if diag.predicate == Some("section_torus_square_fold_half")),
+            "a side in band escalates on its margin: {:?}",
+            read(5e-9)
+        );
+    }
 }

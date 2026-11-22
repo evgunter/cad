@@ -74,12 +74,16 @@ mod curves_arc_window_adversarial;
 mod curves_boxes;
 #[path = "curves/compose.rs"]
 mod curves_compose;
+#[path = "curves/cover_box_against_the_whole_span_eval.rs"]
+mod curves_cover_box_against_the_whole_span_eval;
 #[path = "curves/curvo_oracle.rs"]
 mod curves_curvo_oracle;
 #[path = "curves/decoration_certified_coords.rs"]
 mod curves_decoration_certified_coords;
 #[path = "curves/derivative_at_is_ders1s.rs"]
 mod curves_derivative_at_is_ders1s;
+#[path = "curves/ders1_from.rs"]
+mod curves_ders1_from;
 #[path = "curves/directional_extent.rs"]
 mod curves_directional_extent;
 #[path = "curves/domain_door.rs"]

@@ -70,7 +70,7 @@ before asking:
 | caller | pre-gates? |
 |---|---|
 | `topo::validate`'s tier-3 dihedral check | **yes** — `s_plus.spline_chart().is_some() \|\| s_minus...`, with an O5 note recording the inheritance |
-| `topo::boolean::rim_wedge` | **yes** — the same `spline_chart()` gate |
+| `topo::rim_wedge` | **yes** — the same `spline_chart()` gate |
 | `topo::census` | no |
 | `topo::boolean::ops` | no |
 | `topo::splitting::finish` | no |

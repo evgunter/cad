@@ -10,7 +10,7 @@
 //! Intersected (the cap), and the brick minus the lens, the cut is glued
 //! away and the circle keeps one vertex with no identity of its own,
 //! which the table refuses typed until its edge-derived name is built
-//! (`work/seamrank/a-conventional-vertex-mints-no-edge-derived-name.md`).
+//! (`work/borders/a-conventional-vertex-mints-no-edge-derived-name.md`).
 //! The union and the lens minus the brick keep the cut as two edges
 //! between pieces of one face ([`CUT_LEFT`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -243,11 +243,13 @@ fn the_cap_states_its_meridian_crossings_as_meetings() {
         let on_face = |input, f, p: geom_core::Point3<f64>| {
             let b = body(input);
             match b.face_surface(f) {
-                Some(topo::Surface::Plane { origin, normal, .. }) => {
-                    (p - *origin).dot(*normal).abs() < 1e-9
+                Some(topo::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
+                    (p - origin).dot(normal).abs() < 1e-9
                 }
-                Some(topo::Surface::Sphere { center, radius, .. }) => {
-                    ((p - *center).norm() - radius).abs() < 1e-9
+                Some(topo::Surface::Sphere { frame, radius, .. }) => {
+                    let center = frame.origin();
+                    ((p - center).norm() - radius).abs() < 1e-9
                 }
                 _ => false,
             }

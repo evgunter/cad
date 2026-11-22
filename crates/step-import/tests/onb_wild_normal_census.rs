@@ -27,8 +27,8 @@ use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 use test_utils::seam_census::SeamClasses;
 
-/// THE CORPUS, written down: `wild.rs`'s nine imports-class fixtures
-/// plus the one refusal-class file that ships in the checkout. All ten
+/// THE CORPUS, written down: `wild.rs`'s eight imports-class fixtures
+/// plus two refusal-class files that ship in the checkout. All ten
 /// are committed (`git ls-files` finds every one, `nist/` and
 /// `stepcode/` included, each under its own licence file); the
 /// not-committed arm below is kept for a checkout that has none of
@@ -77,7 +77,8 @@ fn no_wild_face_sits_on_the_frame_seam() {
         };
         let mut c = SeamClasses::default();
         for (_, surface) in body.surfaces() {
-            if let Surface::Plane { normal, .. } = surface {
+            if let Surface::Plane { frame, .. } = surface {
+                let normal = frame.axis();
                 c.add((normal.x, normal.y, normal.z));
             }
         }
@@ -140,7 +141,8 @@ fn axis_tie_census_over_the_wild_corpus() {
         };
         let mut c = SeamClasses::default();
         for (_, surface) in body.surfaces() {
-            if let Surface::Plane { normal, .. } = surface {
+            if let Surface::Plane { frame, .. } = surface {
+                let normal = frame.axis();
                 c.add((normal.x, normal.y, normal.z));
             }
         }

@@ -682,16 +682,15 @@ fn both_kinds_mint_a_total_name_table_through_the_revolve_emitter() {
 // 5. Persistence and the edit door
 // ---------------------------------------------------------------
 
-/// **Both kinds round-trip through save/load/replay BIT-IDENTICALLY**
-/// — the D6.1 identity row's own shape, spelled here over the two new
-/// kinds (`m4_pr6_roundtrip.rs::save_load_replay_identity`).
+/// **Both kinds round-trip through save/load BIT-IDENTICALLY** — the
+/// D6.1 identity row's own shape, spelled here over the two new kinds
+/// (`m4_pr6_roundtrip.rs::save_load_replay_identity`).
 ///
 /// The corpus registration means that row already walks these two
 /// documents; this one is written out anyway because the roster is
 /// what makes that true, and a roster is exactly the thing a later
-/// curation can quietly change. It carries the same four claims:
-/// the snapshot survives `bit_eq`, the edit log survives, the REPLAYED
-/// state matches snapshot + edits, and re-saving the loaded state
+/// curation can quietly change. It carries the same two claims: the
+/// document survives `bit_eq`, and re-saving the loaded state
 /// reproduces the bytes exactly.
 ///
 /// There is no version to assert. Two new node kinds are ADDITIVE
@@ -702,33 +701,15 @@ fn both_kinds_mint_a_total_name_table_through_the_revolve_emitter() {
 #[test]
 fn both_kinds_round_trip_through_persistence() {
     for d in [tube_ring::document(), hollow_tube_elbow::document()] {
-        // Saved from EMPTY plus the corpus edit log, so the replay half
-        // has something to replay: handing `d.doc` and `d.edits`
-        // together would apply the edits onto the state they already
-        // produced and double the recipe (measured: four nodes back
-        // from a two-node document).
-        let empty = ProfileDoc::empty_derived("lib-tube-roundtrip", Tol::witness());
-        let mut expected = empty.clone();
-        for edit in &d.edits {
-            expected = editor_core::apply_replayed(&expected, edit, Tol::witness())
-                .expect("a corpus edit applies")
-                .doc;
-        }
-        let text = save(&empty, &d.edits, Tol::witness()).expect("saves");
+        let text = save(&d.doc, Tol::witness()).expect("saves");
         let back = load(&text, Tol::witness()).expect("loads");
         assert!(
-            back.snapshot.bit_eq(&empty),
-            "{}: snapshot round-trip not bit-identical",
-            d.name
-        );
-        assert_eq!(back.edits, d.edits, "{}: edit log round-trip", d.name);
-        assert!(
-            back.doc.bit_eq(&expected),
-            "{}: replayed document not bit-identical",
+            back.bit_eq(&d.doc),
+            "{}: document round-trip not bit-identical",
             d.name
         );
         assert_eq!(
-            save(&back.snapshot, &back.edits, Tol::witness()).expect("re-saves"),
+            save(&back, Tol::witness()).expect("re-saves"),
             text,
             "{}: save bytes not canonical",
             d.name
@@ -737,8 +718,8 @@ fn both_kinds_round_trip_through_persistence() {
         // otherwise every assertion above would hold vacuously over a
         // document this unit never touched.
         assert!(
-            back.doc.ids().iter().any(|&id| matches!(
-                back.doc.node(id),
+            back.ids().iter().any(|&id| matches!(
+                back.node(id),
                 Some(Node::Tube { .. } | Node::HollowTube { .. })
             )),
             "{}: the round-tripped recipe names neither tube kind",
@@ -751,34 +732,27 @@ fn both_kinds_round_trip_through_persistence() {
 /// additive-growth direction of the one door: a document whose recipe
 /// predates the tube vocabulary — the die tool's, a revolve placed in
 /// copies — saved in today's format and read back through the same
-/// load door a tube document goes through, with its log replayed.
+/// load door a tube document goes through.
 #[test]
 fn a_document_written_before_the_tube_vocabulary_still_loads() {
     let older = corpus::die_tool::document();
-    let empty = ProfileDoc::empty_derived("lib-tube-older", Tol::witness());
-    let mut expected = empty.clone();
-    for edit in &older.edits {
-        expected = editor_core::apply_replayed(&expected, edit, Tol::witness())
-            .expect("a corpus edit applies")
-            .doc;
-    }
-    let text = save(&empty, &older.edits, Tol::witness()).expect("the older document saves");
+    let text = save(&older.doc, Tol::witness()).expect("the older document saves");
     assert!(
         !text.contains("\"Tube\"") && !text.contains("\"HollowTube\""),
         "the fixture must predate the tube vocabulary to say anything here"
     );
     let loaded = load(&text, Tol::witness()).expect("an older document loads");
     assert!(
-        !loaded.doc.ids().is_empty() && !loaded.edits.is_empty(),
+        !loaded.ids().is_empty(),
         "a vacuous document would prove nothing about growth"
     );
     assert!(
-        loaded.doc.bit_eq(&expected),
-        "the older document replays to itself"
+        loaded.bit_eq(&older.doc),
+        "the older document loads to itself"
     );
     assert!(
-        loaded.doc.ids().iter().all(|&id| !matches!(
-            loaded.doc.node(id),
+        loaded.ids().iter().all(|&id| !matches!(
+            loaded.node(id),
             Some(Node::Tube { .. } | Node::HollowTube { .. })
         )),
         "the older document names a kind it cannot have"

@@ -141,7 +141,7 @@ fn extent_along<T: Real>(
     n: Vec3<T>,
 ) -> (T, T) {
     let (p, q) = conic.along(n);
-    window.extent((conic.frame().origin - origin).dot(n), p, q)
+    window.extent((conic.frame().origin() - origin).dot(n), p, q)
 }
 
 /// The carrier with every scalar entered as the [`Interval`] of its
@@ -324,9 +324,7 @@ pub fn spiric_arc_aabb<T: Bounds>(
     end1: Point3<T>,
 ) -> Option<Aabb> {
     let Curve3::Spiric {
-        center,
-        axis,
-        u_ref,
+        frame,
         major_radius,
         minor_radius,
         offset,
@@ -334,6 +332,7 @@ pub fn spiric_arc_aabb<T: Bounds>(
     else {
         return None;
     };
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let (f_lo, f_hi) = crate::curves::spiric_f_range(major_radius, minor_radius, offset);
     let (m, base, tip) = (
         axis.cross(u_ref),
@@ -380,7 +379,7 @@ pub fn conic_arc_aabb<T: Bounds>(
         Curve3::Circle(..) => circle_arc_aabb(carrier, theta0, theta1, end0, end1),
         Curve3::Ellipse(..) => ellipse_arc_aabb(carrier, theta0, theta1, end0, end1),
         Curve3::Spiric { .. } => spiric_arc_aabb(carrier, end0, end1),
-        Curve3::Line(_) | Curve3::Nurbs(_) => None,
+        Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
     }
 }
 

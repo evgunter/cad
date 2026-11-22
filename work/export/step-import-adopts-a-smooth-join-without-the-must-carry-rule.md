@@ -2,11 +2,14 @@
 id: step-import-adopts-a-smooth-join-without-the-must-carry-rule
 kind: issue
 title: the adoption ladder offers no conventional rung for an under-determined tangency between distinct surfaces, so a native body with one does not re-import
-status: open
+status: closed
 opened: 2026-10-09
 priority: P1
 cost: M
 refs: [split-tangent-chord-mints-tangency-without-the-must-carry-rule]
+branch: export/smooth-join
+pr: 7081
+closed: 2026-11-17
 ---
 
 ## Finding
@@ -68,3 +71,24 @@ adjacent chart, and how ε_in enters (D7: ε_in interprets, ε builds),
 is this program's call.
 
 - 2026-11-02 — moved from REIMPORT to EXPORT by `git mv` when REIMPORT merged into EXPORT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and REIMPORT had fallen far under it).
+
+## Resolution
+
+The ladder asks the rule: for an edge between two distinct analytic
+records, `adopt.rs`'s `must_carry_rung` reads `geom_brep::reask_pair`
+at the run's band, levered at the faces' `topo::wedge_reach`, and
+offers the pair it answers for an under-determined join, certified like
+every candidate; an in-band or mixed verdict ends the ladder's refusal
+as `RestJoinUndecided` / `RestJoinMixed`. The offer is the pair, not a
+chart image: the tree stores `OnPair` for an under-determined join
+between two records (`rest_locus` answers the pair for two keys, and
+the split's chord, the extrude strut and the revolve upgrade take
+`Conventional` to it through `describe_at_rest`). It replaces the
+plane-only coincidence rung, which offered the same pair by its own
+angle test. The measured producers above no longer reach the class on
+main (the rule levers at the faces' reach); `bored_ring` and
+`TAIL_TURBINE` at 1e-6 do, and are the rows.
+
+## Closed (2026-11-17)
+
+PR 7081 (`export/smooth-join`). The ladder asks `geom_brep::reask_pair` (the must-carry rule) for a smooth join between two distinct records and offers the native `OnPair`, which is certified like any candidate. The rung subsumed the plane-only coincidence rung, and that rung was removed (the suite is unchanged at every ε). The review demonstrated the rule's soundness with adversarial files and mutants.

@@ -455,7 +455,10 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
     let planes = |body: &Body<f64>| {
         body.faces()
             .filter_map(|(fk, _)| match body.face_surface(fk) {
-                Some(&geom::Surface::Plane { origin, normal, .. }) => Some((origin, normal)),
+                Some(&geom::Surface::Plane { frame, .. }) => {
+                    let (origin, normal) = (frame.origin(), frame.axis());
+                    Some((origin, normal))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -507,7 +510,7 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
 /// turns their outward normals inward, and the at-rest gate refuses
 /// exactly those walls. The guard waits on a finished fixture whose two
 /// sides carry different bits
-/// (`work/tangtail/the-rim-routings-sense-guard-has-no-finished-fixture.md`).
+/// (`work/tang/the-rim-routings-sense-guard-has-no-finished-fixture.md`).
 #[test]
 fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
     let (_, b) = kissing_pair();

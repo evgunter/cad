@@ -45,3 +45,17 @@ convention refusal with the escalations, and say which in the row's doc.
 
 Reproduce:
 `CAD_TOLERANCE_EPS=1e-6 CAD_FUZZ_SEED=0x296907b8296cc745 CAD_FUZZ_EFFORT=1 cargo nextest run -p geom-brep -E 'test(certified_torus_answers_hold_against_the_true_distance)'`.
+
+**Bisected (EXCH triage, 2026-11-20).** The panic arrived with PR 6777
+(`onecopy/torus-floor-ring-gate`, merge `bc788a7b82`, commit
+`6d722ba852`), which made `torus_walk` ask
+`TorusRefusal::require` before any pose and return its refusal as
+`DoorRefusal::Torus` (`crates/geom-brep/src/curve_face/ellipse_torus.rs`).
+The row's `door_answer` (`crates/geom-brep/src/curve_face/circle_roots.rs:413`)
+admits only `Escalated`. Seeds `0xd39ab19f812c05c4` and
+`0x171348f49f1a1806` panic on `bc788a7b82` and on main `706f643876`, and pass
+on `bc788a7b82^1`. The failure does not depend on `CAD_TOLERANCE_EPS`,
+because the row loops ε itself, and it fails at its inner ε 1e-6 under every
+env row. Two of seven fresh-seed runs failed. This row and SPLICE's
+`an-ellipse-torus-fuzz-seed-draws-a-torus-whose-ring-convention-is-in-band`
+are the same defect.

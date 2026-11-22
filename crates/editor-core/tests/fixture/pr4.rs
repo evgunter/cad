@@ -22,10 +22,11 @@ use geom_core::Tol;
 /// Scenario A's flip-vanish row: the vanished name is a rim-edge piece
 /// named by its ends, whose group went from two to one when the slab
 /// that cut it slid clear. The disjoint run's pair space is pruned
-/// (the AMENDED N5 semantics), but the slab's wall, which the piece's
-/// end vertex cites, is still classified against `a` and flips from
-/// inside to outside, so the row diagnoses to that `PredicateFlip`,
-/// which outranks the group-size rung. Engine-behavior tests
+/// (the AMENDED N5 semantics), so the union's two runs part at the
+/// candidates its box queries hand on before any choice turns: the
+/// slab's wall is still classified against `a`, but on a path the
+/// other run did not take, so no flip is recorded and the row
+/// diagnoses to the group-size rung. Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.

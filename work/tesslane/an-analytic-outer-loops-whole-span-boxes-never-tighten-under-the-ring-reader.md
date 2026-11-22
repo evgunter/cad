@@ -27,3 +27,15 @@ A per-span box for each of those forms: a sub-span's box that shrinks with the s
 - `Spiric`: `f`'s range over the sub-span of `cos t`, in place of its whole-period range.
 
 `work/tesslane/one-chord-rule-over-each-boundary-images-speed-bound.md` already owes "a box over a parameter span" per image form beside `Pcurve::eval`. That unit's boxes close this row if they are restriction-tight, so this row is evidence for it and may close with it.
+
+## A pose that reaches it (2026-11-14, TESSLANE unit 3)
+
+The donut `(2, 0.5)` about `y` less the slab `(−0.6, 0.6) × (−1, 1) ×
+(1.2, 2.8)` has spirics on its torus faces' outer loops; a stub
+`(−0.02, 0.02) × (−0.1, 0.1) × (2.3, 3)` turned 0.33 about `y` rings one
+of them, and in both unions and the donut ∖ stub `Body::face_lift`
+answers `Undecided { cause: Some(Indeterminate { margin ≈ 1.0e-8,
+predicate "ring_place_clear" }) }`, so the mesh refuses `DomainUnread`
+at every δ. The same stub turned 0.5, −0.5, 1.5 or 3.0 places and
+meshes. Pinned by
+`reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.

@@ -34,7 +34,7 @@
 //! concave edge (SELECT-DESIGN GS-Q2 reserves `Convex`/`Reflex`
 //! unbuilt), so the scene separates them through `query::rim_of`,
 //! which refuses a co-surface seed by name. That residue is a library
-//! finding (`work/wiretail/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam.md`).
+//! finding (`work/refs/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam.md`).
 //!
 //! **Every oracle here is closed-form, not bit-exact.** The radii are
 //! the ones a person picks, so the volumes are irrational and are held
@@ -300,12 +300,12 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     for &f in &rolled.band_faces {
         match *rolled.body.face_surface(f).expect("its surface") {
             Surface::Torus {
-                center,
-                axis,
+                frame,
                 major_radius,
                 minor_radius,
                 ..
             } => {
+                let (center, axis) = (frame.origin(), frame.axis());
                 assert!(
                     axis.x == 0.0 && axis.z == 0.0 && axis.y.abs() == 1.0,
                     "the band's axis is the snowman's, ±y; got {axis:?}"

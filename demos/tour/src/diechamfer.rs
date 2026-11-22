@@ -35,11 +35,11 @@
 //!
 //! `diecomposed` follows its box-edge fillet with a second call that
 //! replaces all 21 pip rims with torus bands. There is no such second
-//! call here: the chamfer's v1 door is **plane–plane only**, so a
-//! plane–sphere rim refuses `ChamferArmUnsupported` (VERBS-ARMS is
-//! where curved supports arrive). The chamfered die therefore keeps
-//! its pip rims sharp, and that difference is the door's scope
-//! statement standing where you can see it, not an omission.
+//! call here: the chamfer's arms are plane–plane and a cylinder meeting
+//! a plane square to its axis, so a pip's plane–sphere rim refuses
+//! `ChamferArmUnsupported`. The chamfered die therefore keeps its pip
+//! rims sharp, and that difference is the door's scope statement
+//! standing where you can see it, not an omission.
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
@@ -180,7 +180,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     assert_eq!(die.corner_faces.len(), 8, "one patch per corner");
     assert!(
         die.band_faces.is_empty(),
-        "a chamfer has no closed-chain band"
+        "the box edges close no rim, so no closed-rim band"
     );
     let die = die.body;
     let (df, de, dv) = (
@@ -264,8 +264,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                  twelve edges and eight corners retired and twelve strips and eight patches \
                  arrived. V = {:.6} m³, which is the source's {:.6} less exactly the \
                  box-edge material 6·L·d² − (16/3)·d³ = {:.6} m³: the chamfer never reaches \
-                 a pip. The pip rims stay SHARP because the chamfer's v1 door is \
-                 plane–plane — a plane–sphere rim refuses ChamferArmUnsupported, where \
+                 a pip. The pip rims stay SHARP because the chamfer has no arm over a \
+                 plane–sphere rim — it refuses ChamferArmUnsupported, where \
                  `diecomposed`'s second call rolls a torus band into it. \"The twelve box \
                  edges\" is said here with the kernel's own carrier-kind selector \
                  (`query::all_edges` filtered by `query::edge_carrier_matches`), the same \

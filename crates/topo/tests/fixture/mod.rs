@@ -71,19 +71,23 @@ pub struct Built<T: Real> {
 
 fn cylinder<T: Real>() -> Surface<T> {
     Surface::Cylinder {
-        origin: CYL_ORIGIN.map(T::from_f64),
-        axis: Vec3::new(T::zero(), T::zero(), T::one()),
+        frame: geom::Frame::new(
+            CYL_ORIGIN.map(T::from_f64),
+            Vec3::new(T::zero(), T::zero(), T::one()),
+            Vec3::new(T::one(), T::zero(), T::zero()),
+        ),
         radius: T::from_f64(CYL_RADIUS),
-        u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
     }
 }
 
 fn sphere<T: Real>() -> Surface<T> {
     Surface::Sphere {
-        center: Point3::new(T::zero(), T::zero(), T::zero()),
+        frame: geom::Frame::new(
+            Point3::new(T::zero(), T::zero(), T::zero()),
+            Vec3::new(T::zero(), T::zero(), T::one()),
+            Vec3::new(T::one(), T::zero(), T::zero()),
+        ),
         radius: T::from_f64(SPH_RADIUS),
-        axis: Vec3::new(T::zero(), T::zero(), T::one()),
-        u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
     }
 }
 
@@ -133,9 +137,7 @@ fn trace_branch() -> ssi::SsiBranch {
 /// different arc of the same locus and therefore the sharpest thing to
 /// attach to the first one's edge.
 fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> NurbsCurve3<f64> {
-    let Curve3::Nurbs(ref loop_carrier) = branch.carrier else {
-        panic!("a rung-3 carrier is a NURBS curve")
-    };
+    let loop_carrier = &*branch.net();
     // `fit_branch` interpolates on chord parameters, so the traced
     // carrier's domain is exactly [0, 1]. Checked rather than assumed.
     let (d0, d1) = loop_carrier.domain();
@@ -149,7 +151,7 @@ fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> NurbsCurve3<f64> {
             .expect("the carrier's sub-arc")
             .1
     } else {
-        (**loop_carrier).clone()
+        loop_carrier.clone()
     };
     if frac.1 < 1.0 {
         tail.split_at(frac.1).expect("the carrier's sub-arc").0

@@ -24,11 +24,9 @@ use geom_core::{Point3, Vec3};
 fn torus_about(center: Point3<f64>, axis: Vec3<f64>, major: f64, minor: f64) -> Surface<f64> {
     let axis = axis.normalize();
     Surface::Torus {
-        center,
-        axis,
+        frame: geom::Frame::new(center, axis, axis.orthonormal_basis().0),
         major_radius: major,
         minor_radius: minor,
-        u_ref: axis.orthonormal_basis().0,
     }
 }
 
@@ -475,7 +473,7 @@ fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
         let after = (w - fork).dot(weld_normal) > 0.0;
         [if after { OUT } else { IN }, if after { IN } else { OUT }]
     };
-    let mut cleared = certify(&s, false, band(), |_| Sheet::Not, windows)
+    let mut cleared = certify_section_pair(&s, false, band(), |_| Sheet::Not, windows)
         .expect("windows parted by the weld plane clear both loops");
     cleared.sort_by_key(|c| format!("{c:?}"));
     assert_eq!(
@@ -484,7 +482,7 @@ fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
         "one loop outside the stem's window, the other outside the arch's"
     );
     assert_eq!(
-        certify(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Loop),
         "windows reaching over a loop with no event refuse R-loop"
     );
@@ -505,11 +503,13 @@ fn a_tilt_within_the_band_routes_parallel_and_the_gap_reads_the_operands() {
     let eps = geom_core::Tol::witness().eps();
     let f = torus(p(0.0, 0.0, 0.0), 2.0, 0.5);
     let partner = |n: f64, t: f64| Surface::Torus {
-        center: p(3.2 + n * eps, 0.0, 0.0),
-        axis: Vec3::new(t.sin(), 0.0, t.cos()),
+        frame: geom::Frame::new(
+            p(3.2 + n * eps, 0.0, 0.0),
+            Vec3::new(t.sin(), 0.0, t.cos()),
+            Vec3::new(t.cos(), 0.0, -t.sin()),
+        ),
         major_radius: 1.0,
         minor_radius: 0.3,
-        u_ref: Vec3::new(t.cos(), 0.0, -t.sin()),
     };
     for t in [0.0, eps / 100.0] {
         assert_eq!(
@@ -535,7 +535,7 @@ fn an_evented_lily_pair_clears_only_by_its_witnesses() {
     let [stem, arch] = lily(3.9, 0.0);
     let s = classify(&stem, &arch);
     assert_eq!(
-        certify(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
+        certify_section_pair(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided),
         "evented, both witnesses inside both faces: R-undec"
     );
@@ -546,8 +546,8 @@ fn an_evented_lily_pair_clears_only_by_its_witnesses() {
         let after = (w - fork).dot(weld_normal) > 0.0;
         [if after { OUT } else { IN }, if after { IN } else { OUT }]
     };
-    let mut cleared =
-        certify(&s, true, band(), |_| Sheet::Not, windows).expect("each witness out of one window");
+    let mut cleared = certify_section_pair(&s, true, band(), |_| Sheet::Not, windows)
+        .expect("each witness out of one window");
     cleared.sort_by_key(|c| format!("{c:?}"));
     assert_eq!(cleared, [Cleared::Out(Side::F), Cleared::Out(Side::G)]);
 }

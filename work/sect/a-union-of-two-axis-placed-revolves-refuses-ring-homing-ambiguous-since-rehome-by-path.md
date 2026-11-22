@@ -2,11 +2,13 @@
 id: a-union-of-two-axis-placed-revolves-refuses-ring-homing-ambiguous-since-rehome-by-path
 kind: issue
 title: A union of a housing, a shaft and a collar on one axis refuses RingHomingAmbiguous since PR 6047 (rehome by path): coincidence_door's axis-edit row red
-status: open
+status: closed
 opened: 2026-11-02
 priority: P0
 cost: M
 refs: [a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord, a-chorded-ring-on-the-run-at-every-vertex-has-no-homing-reading]
+closed: 2026-11-20
+pr: 7181
 ---
 
 
@@ -57,3 +59,19 @@ The row is pinned at every ε to stop on this refusal
 
 The union evaluates again and its wall findings hold as the row states,
 and the pin is dropped.
+
+## Closed
+
+2026-11-20, by `sect/coaxial-rehome` (PR 7181). The refusing ring was
+a pierce ring at (0.5, 1, 0) on the shaft's half-wall, strictly inside
+the run y ∈ [0, 1.5]. It was not the TANG row's all-on-the-run ring.
+Every ruled path from it to every outer-loop reference ran through a run
+vertex, because the coaxial revolves' seam and section vertices share
+its azimuth and height. `chord_join::path_ring_side` now asks detours
+after the plain pairs (`ring_path::Carrier::detours`). Each detour turns
+at the azimuth or the height of a run edge's midpoint. The row is
+un-pinned and passes at all three ε. The fast reproducer is
+`wall_ring_rows::a_ring_vertex_aligned_with_run_vertices_reads_its_side`.
+The same gap on a sphere, a torus, a spline wall and in the island
+winding is filed as
+`a-path-reading-offers-no-detour-on-a-sphere-a-torus-a-spline-wall-or-to-an-island-chord`.

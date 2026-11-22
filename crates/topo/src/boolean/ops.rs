@@ -43,7 +43,7 @@
 //! When operand boundaries do not intersect, classification falls back
 //! to per-shell containment against the pristine other operand: the
 //! uncut-shell witness ([`super::shell_witness`]) probes the shell's
-//! points with [`super::solid_contain::point_in_solid`] (F8's ray design
+//! points with [`crate::solid_contain::point_in_solid`] (F8's ray design
 //! promoted to 3-D) until one lies off the other boundary.
 //!
 //! # The merge output stage (F7)
@@ -114,7 +114,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::SphereQuestion;
 use super::combine::{GraftMap, graft_solids_disjoint};
-use super::contain::{ContainError, FaceContainment, contfp};
 use super::edge_join::join_stage;
 use super::finish::setopfinish;
 use super::holdings::Holdings;
@@ -125,7 +124,6 @@ use super::section_cert::Sheet;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
-use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
 use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 use super::{BooleanDecision, LineWedgeFault};
@@ -138,11 +136,13 @@ use crate::body::Body;
 use crate::boxes;
 use crate::carve::{carve, single_solid};
 use crate::coincidence::{Backing, Cited, Cites};
+use crate::contain::{ContainError, FaceContainment, contfp};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::{PointKey, SurfaceKey};
 use crate::live::{BoundaryMember, linked, proven};
 use crate::merge_faces::{DescribeRefusal, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
+use crate::solid_contain::{SolidContainment, closed_sphere_group};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
 use geom_core::NonzeroSign;
@@ -746,7 +746,9 @@ where
 /// the tree only changes candidate GENERATION, so both strategies
 /// produce bit-identical results; the differential suite runs full
 /// ops through both and pins exactly that. Production wrappers pass
-/// [`SweepStrategy::Realized`].
+/// [`SweepStrategy::Realized`]. It is the placed door
+/// ([`boolean_placed`]) over two operands already in the computing
+/// frame, so the two are one implementation.
 ///
 /// # Panics
 ///
@@ -768,12 +770,170 @@ pub fn boolean_op_with<F: crate::FinishedBody>(
 where
     F::Scalar: Decide + Bounds,
 {
-    if op == BooleanOp::Subtract
-        && let Some(result) = super::nary::cut_by_material(a, b, inputs, strategy, tol)?
-    {
-        return Ok(result);
+    boolean_placed(op, (Placed::own(a), Placed::own(b)), inputs, strategy, tol)
+        .map(|(result, _)| result)
+        .map_err(|refusal| match refusal {
+            PlacedBooleanError::Boolean(error) => error,
+            PlacedBooleanError::Placed { .. } => {
+                unreachable!("an operand in the computing frame is taken unmoved")
+            }
+        })
+}
+
+/// **A finished operand where it stands** (`[placement.frame]`): its
+/// seat ([`crate::Seat`]: its body untouched and the motion into the
+/// operation's computing frame, `None` where it is in that frame), and
+/// the finished body the seat reads. The door that takes it is the one
+/// that moves it ([`Placed::taken`]), so a caller reads no operand into
+/// another's frame itself.
+///
+/// The placement is the seat's: a seat holds the body as construction
+/// data (`&Body`), which a reader needs and a move does not carry, so
+/// the finished body whose verdicts the move carries
+/// ([`crate::FinishedBody::moved`]) rides beside it, the seat reading
+/// that same body.
+#[derive(Debug)]
+pub struct Placed<'a, F: crate::FinishedBody> {
+    held: &'a F,
+    seat: crate::Seat<'a, F::Scalar>,
+}
+
+impl<F: crate::FinishedBody> Clone for Placed<'_, F> {
+    fn clone(&self) -> Self {
+        *self
     }
-    boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
+}
+
+impl<F: crate::FinishedBody> Copy for Placed<'_, F> {}
+
+impl<'a, F: crate::FinishedBody> Placed<'a, F> {
+    /// `held` in the computing frame already.
+    #[must_use]
+    pub fn own(held: &'a F) -> Self {
+        Self::new(held, None)
+    }
+
+    /// `held` under `motion` into the computing frame.
+    #[must_use]
+    pub fn at(held: &'a F, motion: geom_core::RigidMotion<F::Scalar>) -> Self {
+        Self::new(held, Some(motion))
+    }
+
+    /// `held` under `motion` into the computing frame, `None` where it is
+    /// in that frame.
+    #[must_use]
+    pub fn new(held: &'a F, motion: Option<geom_core::RigidMotion<F::Scalar>>) -> Self {
+        Self {
+            held,
+            seat: crate::Seat::from_motion(held, motion),
+        }
+    }
+
+    /// The finished body as it is held.
+    #[must_use]
+    pub fn body(&self) -> &'a F {
+        self.held
+    }
+
+    /// **The operand in the computing frame**: its body as it is held
+    /// where it is in that frame, else moved once through its seat's
+    /// motion ([`crate::FinishedBody::moved`]: its verdict carried, the
+    /// session box asked of the image).
+    ///
+    /// # Errors
+    ///
+    /// The move's refusal: the image reaches past the session box.
+    pub fn taken(&self, tol: Tol) -> Result<std::borrow::Cow<'a, F>, crate::NotFinished> {
+        match self.seat.motion() {
+            None => Ok(std::borrow::Cow::Borrowed(self.held)),
+            Some(motion) => self.held.moved(motion, tol).map(std::borrow::Cow::Owned),
+        }
+    }
+}
+
+impl<'a, F: crate::FinishedBody> From<&'a F> for Placed<'a, F> {
+    fn from(body: &'a F) -> Self {
+        Self::own(body)
+    }
+}
+
+/// **The two operands a placed pair Boolean read**, each in the computing frame ([`boolean_placed`]): an operand in that
+/// frame as it is held, else its image there. A namer that compares the
+/// result's geometry with an operand's reads it here, where the run
+/// read it.
+#[derive(Debug)]
+pub struct PairTaken<'p, F: crate::FinishedBody> {
+    /// `a` as the pair read it.
+    pub a: std::borrow::Cow<'p, F>,
+    /// `b` as the pair read it.
+    pub b: std::borrow::Cow<'p, F>,
+}
+
+/// **Why a placed Boolean did not run** ([`boolean_placed`]).
+#[derive(Debug)]
+pub enum PlacedBooleanError {
+    /// An operand's image in the computing frame reaches past the
+    /// session box ([`Placed::taken`]).
+    Placed {
+        /// Which operand.
+        operand: super::Operand,
+        /// The move's findings.
+        findings: crate::NotFinished,
+    },
+    /// The Boolean refused ([`boolean_op_with`]).
+    Boolean(BooleanError),
+}
+
+/// **The pair Boolean over two placed operands**: each taken into the
+/// computing frame by its placement ([`Placed::taken`], `a` first), then
+/// the shared pipeline over the two (module docs; a subtract whose tool
+/// is cut by material first, `nary::cut_by_material`), returned with the
+/// two it read ([`PairTaken`]). The moves are the
+/// door's, so an operand's data is read into another's frame here and
+/// nowhere in its caller; [`boolean_op_with`] is this door over two
+/// operands in the computing frame.
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
+///
+/// # Errors
+///
+/// [`PlacedBooleanError::Placed`]: an operand's image past the box;
+/// [`PlacedBooleanError::Boolean`]: as [`boolean_op_with`].
+pub fn boolean_placed<'p, F: crate::FinishedBody>(
+    op: BooleanOp,
+    (a, b): (Placed<'p, F>, Placed<'p, F>),
+    inputs: &BooleanInputs,
+    strategy: SweepStrategy,
+    tol: Tol,
+) -> Result<(BooleanResult<F::Scalar>, PairTaken<'p, F>), PlacedBooleanError>
+where
+    F::Scalar: Decide + Bounds,
+{
+    let taken = |placed: Placed<'p, F>, operand| {
+        placed
+            .taken(tol)
+            .map_err(|findings| PlacedBooleanError::Placed { operand, findings })
+    };
+    let read = PairTaken {
+        a: taken(a, super::Operand::A)?,
+        b: taken(b, super::Operand::B)?,
+    };
+    let (a, b) = (&*read.a, &*read.b);
+    let result = match op {
+        BooleanOp::Subtract => super::nary::cut_by_material(a, b, inputs, strategy, tol)
+            .map_err(PlacedBooleanError::Boolean)?,
+        BooleanOp::Union | BooleanOp::Intersect => None,
+    };
+    let result = match result {
+        Some(result) => result,
+        None => boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
+            .map_err(PlacedBooleanError::Boolean)?,
+    };
+    Ok((result, read))
 }
 
 /// [`boolean_op_with`], its coincidences `given` where they are a fold
@@ -1852,7 +2012,7 @@ fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
 /// its two carriers to within the band (a near-tangent pair's witness
 /// lies in band of a sphere's), so it is held in band
 /// ([`crate::held::Held::in_band`]) and placed with no on-plane decision
-/// ([`super::contain::placement_on_carrier`]). `None` is no verdict: a
+/// ([`crate::contain::placement_on_carrier`]). `None` is no verdict: a
 /// curved trim the door does not read, or the door's own refusal.
 ///
 /// # Errors
@@ -1868,7 +2028,7 @@ pub(crate) fn place_witness<T: Decide>(
     band: Band,
 ) -> Result<Option<FaceContainment>, BooleanError> {
     let held = crate::held::Held::in_band(p);
-    witness_reads(super::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at))
+    witness_reads(crate::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at))
 }
 
 /// [`place_witness`]'s reading of the door: a trim's verdict, or none; a
@@ -1879,15 +2039,15 @@ pub(crate) fn place_witness<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] on `OffCarrier`.
 fn witness_reads(
-    read: Result<super::contain::CurvedPlacement, ContainError>,
+    read: Result<crate::contain::CurvedPlacement, ContainError>,
 ) -> Result<Option<FaceContainment>, BooleanError> {
-    use super::contain::CurvedPlacement;
+    use crate::contain::CurvedPlacement;
     match read {
         Ok(CurvedPlacement::Trim(at)) => Ok(at),
         Ok(CurvedPlacement::OffCarrier) => Err(BooleanError::ClassificationInvariant {
             what: WITNESS_OFF_CARRIER,
         }),
-        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(ContainError::StaleFace(face)) => crate::contain::driver_face_stale(face),
         Err(_) => Ok(None),
     }
 }
@@ -1965,7 +2125,9 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     evented: bool,
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, SectionRefusal>, BooleanError> {
-    use super::section_cert::{Side, certify, classify_known, of_carried, of_pair_section};
+    use super::section_cert::{
+        Side, certify_section_pair, classify_known, of_carried, of_pair_section,
+    };
     use super::section_table::Uncarried;
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Ok(Err(SectionRefusal::LoneVertex));
@@ -2011,7 +2173,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         ),
     };
     let torn = core::cell::RefCell::new(None);
-    let verdict = certify(
+    let verdict = certify_section_pair(
         &section,
         evented,
         band,
@@ -2134,7 +2296,14 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     let mut out = Vec::new();
     for fa in a_rows {
         for &fb in &b_rows {
-            if !fa.bbox.overlaps(&fb.bbox) || !admit(fa, fb) {
+            // The box test prunes which face pairs the section
+            // certificate reads, and decides nothing: its outcome is
+            // marked, so two runs whose pruning differs part there.
+            if !geom_core::k_stats::mark_outcome(
+                "bool_walk_pairs_boxes",
+                fa.bbox.overlaps(&fb.bbox),
+            ) || !admit(fa, fb)
+            {
                 continue;
             }
             // The overlap is a world-axis one; a pair apart along a
@@ -2267,7 +2436,10 @@ struct Evidence<'r> {
 impl<'r> Evidence<'r> {
     /// What `red` holds for the certificates, its touches read once
     /// into `events` ([`event_pairs`]).
-    fn of<T: Real>(red: &'r BooleanReduction<T>, events: &'r BTreeSet<(FaceKey, FaceKey)>) -> Self {
+    fn of<T: crate::props::AtRestPolicy>(
+        red: &'r BooleanReduction<T>,
+        events: &'r BTreeSet<(FaceKey, FaceKey)>,
+    ) -> Self {
         Self {
             rest: &red.rest_contacts,
             settled: &red.coincident,
@@ -2608,7 +2780,9 @@ fn ball_against_plane<T: Decide>(
 /// the scaffolding's choice (the side each null edge's new vertex
 /// took), so every copy the vertex's null edges reach, transitively (a
 /// strut nested in another's segment hangs at its tip), is read with it.
-fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> BTreeSet<(FaceKey, FaceKey)> {
+fn event_pairs<T: crate::props::AtRestPolicy>(
+    red: &BooleanReduction<T>,
+) -> BTreeSet<(FaceKey, FaceKey)> {
     contact_face_pairs(&red.a, &red.b, &red.contacts, &red.null_edges)
 }
 
@@ -3699,7 +3873,7 @@ pub(super) enum DoorInBand {
 /// face's surface (`slit::holding`, after `carrier_on_surface` read
 /// `Placed::On`), on it to within the band with no margin carried here,
 /// so `q` is held in band ([`crate::held::Held::in_band`]) and placed
-/// with no on-plane decision ([`super::contain::placement_on_carrier`]).
+/// with no on-plane decision ([`crate::contain::placement_on_carrier`]).
 /// A reading definitely off a curved face's carrier (a planar face's
 /// placement never says so) contradicts that decision, a kernel defect
 /// ([`piece_reads`]).
@@ -3718,7 +3892,7 @@ pub(super) fn piece_reading<T: Decide>(
 ) -> Result<PieceRead, BooleanError> {
     let held = crate::held::Held::in_band(q);
     piece_reads(
-        super::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at),
+        crate::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at),
         door,
     )
 }
@@ -3729,10 +3903,10 @@ pub(super) fn piece_reading<T: Decide>(
 ///
 /// As [`piece_reading`].
 fn piece_reads(
-    read: Result<super::contain::CurvedPlacement, ContainError>,
+    read: Result<crate::contain::CurvedPlacement, ContainError>,
     door: DoorInBand,
 ) -> Result<PieceRead, BooleanError> {
-    use super::contain::CurvedPlacement;
+    use crate::contain::CurvedPlacement;
     match read {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => Ok(PieceRead::In),
         Ok(CurvedPlacement::Trim(Some(
@@ -3755,7 +3929,7 @@ fn piece_reads(
                 diag,
             },
         }),
-        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(ContainError::StaleFace(face)) => crate::contain::driver_face_stale(face),
         // Listed rather than wildcarded: a new door refusal is routed
         // here deliberately.
         Err(
@@ -3787,7 +3961,7 @@ const PIECE_OFF_CARRIER: &str = "a piece of an edge reads off the curved face's 
 ///
 /// [`BooleanError::JoinDesync`] where a ring tie's vertex does not
 /// resolve in its clone.
-pub(super) fn ledger<T: Decide>(
+pub(super) fn ledger<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     decls: &Glue<T>,
     scaffold: [&BTreeSet<FaceKey>; 2],
@@ -5908,9 +6082,10 @@ pub fn refused_face_kind(e: &BooleanError) -> Option<geom::SurfaceKind> {
 fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
     for view in body.face_views() {
         let face = view.key();
-        let geom::Surface::Cone { apex, axis, .. } = *view.surface() else {
+        let geom::Surface::Cone { frame, .. } = *view.surface() else {
             continue;
         };
+        let (apex, axis) = (frame.origin(), frame.axis());
         for (_, members, _) in view.boundary_by_loop() {
             let mut starts = BTreeSet::new();
             for member in members {
@@ -5994,8 +6169,8 @@ struct SphereRecut<T: Real> {
     representative: FaceKey,
     /// The sphere's center — the rotation's fixed point.
     center: Point3<T>,
-    /// Its radius (the alignment trilean's lever arm).
-    radius: T,
+    /// Its curvature arm (the alignment trilean's lever arm).
+    arm: geom_core::Lever<T>,
     /// The stored polar axis (rotation source direction).
     axis: Vec3<T>,
     /// The escape plane's normal, or the escape circle's axis (rotation
@@ -6134,15 +6309,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         for view in x.face_views() {
             let face = view.key();
             let x_surface = view.surface();
-            let &geom::Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } = x_surface
-            else {
+            let &geom::Surface::Sphere { frame, radius } = x_surface else {
                 continue;
             };
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             if seen.contains(&view.record().surface) {
                 continue;
             }
@@ -6191,11 +6361,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     )
                 };
                 match &y_row.surface {
-                    &geom::Surface::Plane {
-                        origin,
-                        normal,
-                        u_ref,
-                    } => {
+                    &geom::Surface::Plane { frame } => {
+                        let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                         let (side, s) =
                             match ball_against_plane(center, radius, origin, normal, band) {
                                 Ok(read) => read,
@@ -6313,10 +6480,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         }
                     }
                     &geom::Surface::Sphere {
-                        center: c2,
-                        radius: r2,
-                        ..
+                        frame, radius: r2, ..
                     } => {
+                        let c2 = frame.origin();
                         // Every face this sphere carries is a verified
                         // `Rest` against `yf` ([`Exempt::Rest`]): the
                         // carriers are one and every face of the pair
@@ -6515,7 +6681,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         "bool_sphere_escape_parallel",
                         Margin::levered(
                             align.cross(n).norm(),
-                            geom_core::Lever::curvature_radius(radius),
+                            geom_brep::uniform_curvature_arm(x_surface),
                         ),
                         band,
                     )
@@ -6562,7 +6728,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     operand: x_is,
                     representative,
                     center,
-                    radius,
+                    arm: geom_brep::uniform_curvature_arm(x_surface),
                     axis,
                     align,
                     u_ref,
@@ -6594,30 +6760,41 @@ fn sphere_pair_cut<T: Decide>(
     band: Band,
 ) -> Result<SphereCutIn<T>, BooleanError> {
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
-    let &geom::Surface::Sphere { center, radius, .. } = x else {
+    let &geom::Surface::Sphere {
+        frame: carrier_frame,
+        radius,
+        ..
+    } = x
+    else {
         return Err(corrupt(
             "extent scan: a sphere pair's cut on a face not on a sphere",
         ));
     };
+    let center = carrier_frame.origin();
     match geom_brep::sphere_sphere_section(x, y, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: foot,
-                    axis: normal,
-                    u_ref,
-                },
-            radius: rho,
-        }))) => Ok(SphereCutIn {
-            operand,
-            face: holder,
-            center,
-            radius,
-            foot,
-            rho,
-            normal,
-            u_ref,
-        }),
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame: carrier_frame_21,
+                ..
+            },
+        ))) => {
+            let (foot, normal, u_ref) = (
+                carrier_frame_21.origin(),
+                carrier_frame_21.axis(),
+                carrier_frame_21.u_ref(),
+            );
+            let rho = circle.radius();
+            Ok(SphereCutIn {
+                operand,
+                face: holder,
+                center,
+                radius,
+                foot,
+                rho,
+                normal,
+                u_ref,
+            })
+        }
         Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
             decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
             diag,
@@ -6646,9 +6823,12 @@ fn pair_seam<T: Decide>(
     };
     match geom_brep::sphere_sphere_section(a, b, band) {
         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { u_ref, .. },
+            frame,
             ..
-        }))) => Ok(u_ref),
+        }))) => {
+            let u_ref = frame.u_ref();
+            Ok(u_ref)
+        }
         Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
             decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
             diag,
@@ -6765,15 +6945,12 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
 pub(super) fn recut_lean<T: Decide>(
     axis: Vec3<T>,
     align: Vec3<T>,
-    radius: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
     crate::validate::decide_nonzero(
         "bool_sphere_recut_align",
-        Margin::levered(
-            axis.cross(align).norm(),
-            geom_core::Lever::curvature_radius(radius),
-        ),
+        Margin::levered(axis.cross(align).norm(), arm),
         band,
     )
     .map(|_| ())
@@ -6795,36 +6972,29 @@ fn recut_turn<T: Decide>(
     a: geom_core::UnitVec3<T>,
     b: geom_core::UnitVec3<T>,
     center: Point3<T>,
-    radius: T,
+    arm: geom_core::Lever<T>,
     band: Band,
     tol: Tol,
     operand: Operand,
     representative: FaceKey,
 ) -> Result<geom_core::RigidMotion<T>, BooleanError> {
-    geom_core::RigidMotion::least_turn(
-        a,
-        b,
-        center,
-        geom_core::Lever::curvature_radius(radius),
-        RECUT_TURN,
-        band,
-        tol,
-    )
-    .map_err(|e| match e {
-        geom_core::TurnError::IllConditioned { .. }
-        | geom_core::TurnError::ConditioningUndecided(_) => {
-            BooleanError::FallbackExtentUnsupported {
-                operand,
-                face: representative,
-                what: "a sphere group whose stored polar axis stands so near opposed to its \
+    geom_core::RigidMotion::least_turn(a, b, center, arm, RECUT_TURN, band, tol).map_err(
+        |e| match e {
+            geom_core::TurnError::IllConditioned { .. }
+            | geom_core::TurnError::ConditioningUndecided(_) => {
+                BooleanError::FallbackExtentUnsupported {
+                    operand,
+                    face: representative,
+                    what: "a sphere group whose stored polar axis stands so near opposed to its \
                        escape normal that the re-chart's turn, levered at the radius, passes \
                        the run's rounding reach: the turn is not determined at ε",
+                }
             }
-        }
-        _ => BooleanError::ClassificationInvariant {
-            what: "re-cut rotation does not mint a turn",
+            _ => BooleanError::ClassificationInvariant {
+                what: "re-cut rotation does not mint a turn",
+            },
         },
-    })
+    )
 }
 
 /// The decision name of a re-cut's turn ([`recut_turn`]).
@@ -6878,7 +7048,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .clone();
             let ball = carve(src, solid, &[shell])
                 .map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
-            recut_lean(r.axis, r.align, r.radius, band)?;
+            recut_lean(r.axis, r.align, r.arm, band)?;
             // The alignment turn and the seam spin, each MINTED as the
             // turn between two unit witnesses (`RigidMotion::least_turn`,
             // the quaternion of `(1 + a·b, a × b)`: algebraic, no
@@ -6898,18 +7068,8 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 geom_core::UnitVec3::new(v, RECUT_TURN, band)
                     .map_err(|_| corrupt("re-cut direction is not a unit direction"))
             };
-            let turn = |a, b| {
-                recut_turn(
-                    a,
-                    b,
-                    r.center,
-                    r.radius,
-                    band,
-                    tol,
-                    operand,
-                    r.representative,
-                )
-            };
+            let turn =
+                |a, b| recut_turn(a, b, r.center, r.arm, band, tol, operand, r.representative);
             let align = turn(unit(r.axis)?, unit(r.align)?)?;
             // The spin about `align` that turns the rotated seam to
             // `seam`; the sign that keeps the turn at most a quarter is
@@ -7029,7 +7189,7 @@ impl Recharts {
     /// The turn moves the shell's cells over its sphere, so no input
     /// cell finer than that sphere holds one, and every face of the
     /// input shell wears that sphere: a closed sphere group
-    /// ([`super::solid_contain::closed_sphere_group`]) is the whole
+    /// ([`crate::solid_contain::closed_sphere_group`]) is the whole
     /// shell.
     pub(crate) fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
         self.cells.get(&cell).map(|&at| self.shells[at].as_slice())
@@ -7053,7 +7213,7 @@ impl Recharts {
 ///
 /// A face an earlier cut split is read piece by piece: the later cut
 /// runs on the piece holding both its circle's crossings
-/// ([`super::sphere_region`]), and a circle whose crossings lie on an
+/// ([`crate::sphere_region`]), and a circle whose crossings lie on an
 /// earlier cut's meridian takes no cut of its own, the crossing layer
 /// meeting it there as it meets a seam.
 ///
@@ -7088,14 +7248,18 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let sign_as = |name, m: Margin<T>| decide(name, m, band).map_err(esc);
         let face = body.proven_face(cut.face);
         let sphere = face.record().surface;
-        let &geom::Surface::Sphere { axis, .. } = face.surface() else {
+        let &geom::Surface::Sphere { frame, .. } = face.surface() else {
             return Err(corrupt("cut-in: the face is not on a sphere"));
         };
+        let axis = frame.axis();
         let record = geom_brep::curve_pair::on_surface::Charted::record(sphere, face.surface());
         let axis = axis.normalize();
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
         let toward = |d: Vec3<T>| axis.cross(d);
+        // Re-read once, not a minimum (`scripts/gates/argmin-folds.tsv`,
+        // recompute): a foot on the axis takes the circle's own point
+        // instead, and no two candidates are compared.
         let mut k = toward(cut.foot - cut.center);
         if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
             k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
@@ -7174,23 +7338,23 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                              circle's crossings",
                         )
                     };
-                    let read = |e: super::solid_contain::PointInSolidError| match e {
-                        super::solid_contain::PointInSolidError::Escalated { diag, .. } => {
+                    let read = |e: crate::solid_contain::PointInSolidError| match e {
+                        crate::solid_contain::PointInSolidError::Escalated { diag, .. } => {
                             esc(diag)
                         }
                         _ => unread(),
                     };
-                    let region = super::sphere_region::sphere_face_region(body, piece)
+                    let region = crate::sphere_region::sphere_face_region(body, piece)
                         .map_err(read)?
                         .ok_or_else(unread)?;
                     // The region's own refusal: in band of an arc, or no
                     // ray of its walk settled, or an arc that bounds
                     // nothing — each a piece not read against the circle.
-                    let read_region = |e: super::region::RegionRefusal| match e {
-                        super::region::RegionRefusal::Escalated(diag) => esc(diag),
-                        super::region::RegionRefusal::RayExhausted { .. }
-                        | super::region::RegionRefusal::WoundPastPeriod
-                        | super::region::RegionRefusal::Unreadable(_) => unread(),
+                    let read_region = |e: crate::region::RegionRefusal| match e {
+                        crate::region::RegionRefusal::Escalated(diag) => esc(diag),
+                        crate::region::RegionRefusal::RayExhausted { .. }
+                        | crate::region::RegionRefusal::WoundPastPeriod
+                        | crate::region::RegionRefusal::Unreadable(_) => unread(),
                     };
                     let [lo, hi] = crossings;
                     match (
@@ -7255,9 +7419,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 };
                 let (t0, t1) = curve.params();
                 let carrier = curve.carrier();
-                let &geom::Curve3::Circle(geom::Circle { radius: cr, .. }) = carrier else {
+                let &geom::Curve3::Circle(conic_k) = carrier else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
+                let cr = conic_k.radius();
                 let uncertified = || {
                     refuse(
                         "a boundary arc of the sphere face meets the cut's meridian plane where \
@@ -7345,28 +7510,17 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         }
-        let mut below: Option<&Hit<T>> = None;
-        let mut over: Option<&Hit<T>> = None;
-        for hit in &hits {
+        // Two hits naming one vertex are one point of the boundary: each
+        // arc meeting the meridian there ends at that vertex, decided
+        // `Zero` from it, so the first stands for the others (and a tie
+        // between them is no tie of the order).
+        let mut at_vertex = BTreeSet::new();
+        hits.retain(|h| h.vertex.is_none_or(|v| at_vertex.insert(v)));
+        let (mut belows, mut overs): (Vec<usize>, Vec<usize>) = (Vec::new(), Vec::new());
+        for (k, hit) in hits.iter().enumerate() {
             match (above(hit.s, s1)?, above(hit.s, s2)?) {
-                (Sign::Negative, _) => {
-                    let nearer = match below {
-                        None => true,
-                        Some(b) => above(hit.s, b.s)? == Sign::Positive,
-                    };
-                    if nearer {
-                        below = Some(hit);
-                    }
-                }
-                (_, Sign::Positive) => {
-                    let nearer = match over {
-                        None => true,
-                        Some(o) => above(o.s, hit.s)? == Sign::Positive,
-                    };
-                    if nearer {
-                        over = Some(hit);
-                    }
-                }
+                (Sign::Negative, _) => belows.push(k),
+                (_, Sign::Positive) => overs.push(k),
                 _ => {
                     return Err(refuse(
                         "the sphere face's boundary meets the cut's meridian inside the section \
@@ -7375,6 +7529,47 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         }
+        // The boundary hit nearest the section circle on each side, through
+        // the decided argmin, free of nothing: two hits at one latitude
+        // (one point the face's boundary passes twice) are no nearer either
+        // way, and neither is chosen in their order.
+        let order = |x: &Hit<T>, y: &Hit<T>| {
+            decide(
+                "bool_sphere_cut_order",
+                Margin::of((x.s.1 * y.s.0 - x.s.0 * y.s.1) / r),
+                band,
+            )
+            .map_err(|diag| geom_core::ladder::Undecided::of(diag).map(|diag| Box::new(esc(diag))))
+        };
+        let next_hit = |set: Vec<usize>, below: bool| {
+            let cmp = |&a: &usize, &b: &usize| {
+                if below {
+                    order(&hits[b], &hits[a])
+                } else {
+                    order(&hits[a], &hits[b])
+                }
+            };
+            geom_core::ladder::argmin_decided(set, cmp, geom_core::ladder::FreeOf::Nothing).map_err(
+                |unpicked| {
+                    *unpicked.refusal(
+                        || {
+                            Box::new(refuse(
+                                "the cut's meridian meets the sphere face's boundary at two \
+                                 points of one latitude, so which one the cut runs to is not \
+                                 determined",
+                            ))
+                        },
+                        // One latitude against another along the
+                        // half-meridian, which ranks in no cycle.
+                        || unreachable!("cut-in: the boundary hits' latitudes rank in no cycle"),
+                    )
+                },
+            )
+        };
+        let (below, over) = (
+            next_hit(belows, true)?.map(|k| &hits[k]),
+            next_hit(overs, false)?.map(|k| &hits[k]),
+        );
         let (Some(below), Some(over)) = (below, over) else {
             return Err(refuse(
                 "the cut's meridian leaves the sphere face through no boundary",
@@ -7457,9 +7652,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let span = w.dot(u_arc.cross(to_hi)).abs().atan2(u_arc.dot(to_hi));
         let carrier = geom::Curve3::circle(cut.center, w, r, u_arc);
         let plane = body.add_surface(geom::Surface::Plane {
-            origin: cut.center,
-            normal: k,
-            u_ref: h,
+            frame: geom::Frame::new(cut.center, k, h),
         });
         let created = body.mef(
             crate::euler::MefSite::Chords {
@@ -8348,7 +8541,7 @@ mod tests {
             a,
             b,
             geom_core::Point3::new(zero, zero, zero),
-            d(1.0, 0.0),
+            geom_core::test_support::fixture_lever(d(1.0, 0.0)),
             band,
             geom_core::Tol::witness(),
             crate::boolean::Operand::A,
@@ -9696,15 +9889,19 @@ mod tests {
     /// `y` axis, which is their tangency ruling: `κ_rel = 1` across it.
     fn resting() -> (geom::Surface<f64>, geom::Surface<f64>, geom::Curve3<f64>) {
         let floor = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let cylinder = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let ruling = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
         (floor, cylinder, ruling)
@@ -9812,9 +10009,11 @@ mod tests {
             );
         }
         let split = geom::Surface::Plane {
-            origin: Point3::new(0.0, 5.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 5.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
         };
         for (order, got) in both_orders(&floor, &split, &ruling, (0.0, 1.0), 1.0)
             .into_iter()
@@ -9841,9 +10040,11 @@ mod tests {
         let (floor, _, ruling) = resting();
         let s = std::f64::consts::FRAC_1_SQRT_2;
         let tilted = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(s, 0.0, s),
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(s, 0.0, s),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
         };
         for (a, b) in [(&floor, &tilted), (&tilted, &floor)] {
             let got = seam_must_carry(a, b, &ruling, 0.0, 1.0, 1.0, band());
@@ -9862,17 +10063,17 @@ mod tests {
         let (big, r) = (2.0_f64, 1.0_f64);
         let (sin, cos) = (r / big, (1.0 - (r / big).powi(2)).sqrt());
         let torus = geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: big,
             minor_radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let normal = Vec3::new(sin, 0.0, -cos);
         let bitangent = geom::Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal,
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), normal, Vec3::new(0.0, 1.0, 0.0)),
         };
         let center = Point3::new(0.0, r, 0.0);
         let touch = Point3::new(big - r * sin, 0.0, r * cos);
@@ -10397,19 +10598,21 @@ mod tests {
                 top,
                 crate::construction::FaceSurface::New {
                     surface: geom::Surface::Sphere {
-                        center: Point3::new(0.0, 0.0, 0.0),
+                        frame: geom::Frame::new(
+                            Point3::new(0.0, 0.0, 0.0),
+                            geom_core::Vec3::new(0.0, 0.0, 1.0),
+                            geom_core::Vec3::new(1.0, 0.0, 0.0),
+                        ),
                         radius: 1.0,
-                        axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
-                        u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
                     },
                     sense: true,
                 },
             )
             .unwrap();
-        let &geom::Surface::Sphere { center, radius, .. } = capped.proven_face(top).surface()
-        else {
+        let &geom::Surface::Sphere { frame, radius, .. } = capped.proven_face(top).surface() else {
             panic!("the cap's carrier is the sphere");
         };
+        let center = frame.origin();
         let ball_box = boxes::centred_box(center, radius, pad);
         for (what, (x, y, z), reached) in [
             (
@@ -10453,9 +10656,9 @@ mod tests {
     #[test]
     fn extent_scan_refusals_name_the_faces_operand() {
         use crate::boolean::Operand;
-        use crate::boolean::contain::ContainError;
-        use crate::boolean::solid_contain::PointInSolidError;
+        use crate::contain::ContainError;
         use crate::entity::{FaceKey, LoopKey};
+        use crate::solid_contain::PointInSolidError;
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let (face, lk) = (FaceKey::from(key(7)), LoopKey::from(key(9)));
         for (sphere_is, face_is) in [(Operand::A, Operand::B), (Operand::B, Operand::A)] {
@@ -11362,7 +11565,7 @@ mod join_row_rows {
 mod witness_rows {
     use super::{WITNESS_OFF_CARRIER, witness_reads};
     use crate::boolean::BooleanError;
-    use crate::boolean::contain::{ContainError, CurvedPlacement, FaceContainment};
+    use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
 
     #[test]
     fn a_witness_off_a_curved_carrier_reads_as_the_invariant() {

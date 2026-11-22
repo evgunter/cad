@@ -10,7 +10,21 @@
 # Where a parameter sits against a span's ends is
 # `geom_brep::curve_pair::Span`'s reading (`place`, `place_param`,
 # `place_param_read`): an end by the raw chord to its point, the side by
-# the parameter at the span's SUP speed. A gap from an end metered at an
+# the parameter at the span's SUP speed. How far it stands from an end, in
+# metres, is `Span::end_gap` (and `end_gap_widened`, from an end moved
+# out by a step): the gap metered at a bound on the speed over the gap
+# itself, the inf (`GapMeter::Clear`, its Positive and Negative sound) or
+# the sup (`GapMeter::Within`, its Zero sound).
+#
+# THE BLIND SPOT, first: this gate still finds a site by the NAME of the
+# end. A reader that holds a `Span` has the door and no excuse; a reader
+# that holds none (the rows below: a loose circle's own turn, a surface
+# chart's domain, a vertex-to-vertex chord) is found only where its end
+# is named from the list below. An end under another name, or a gap
+# bound to a `let` first, slips it, and is held in review. One known
+# reader slips it that way today and is no row: `topo/src/ring_path.rs`
+# `span_readings`, class own-meter, which binds `t − lo` and `hi − t`
+# first and levers them by the crossing's slope (its doc says why). A gap from an end metered at an
 # INF speed under-reads arc length: its Positive ("clear of the end") is
 # sound, its Zero is not, since it spans up to `(sup/inf)·z` of arc. That
 # Zero read as "at the end" put a crossing 5e-7 m from a thin ellipse's
@@ -28,20 +42,20 @@
 #                 one reading
 #   inside-only   an INF meter whose Positive alone is accepted: a Zero
 #                 or a Negative refuses or escalates, never "at the end"
-#   witness       `pair_section::within_span`'s witness reading, metered
-#                 at the pointwise speed: a bound over `[t, hi]` is owed
-#                 (`work/onecopy/a-witnesses-gap-from-its-spans-last-end-is-metered-at-its-pointwise-speed.md`)
+#   chart-domain  a surface chart's coordinate against its domain, metered
+#                 at the chart's SUP arm: no carrier span, so no `Span`
+#   own-meter     a lane that levers the gap by a slope of its own (its
+#                 doc says why), not by the carrier's speed
 #
 # WHAT IS READ: `Margin::metered(`, `Margin::metered_sup(` and
-# `Margin::metered_inf(` whose first argument is `a − b` (parenthesised
-# or not) with EXACTLY ONE operand a span end's name: `t0`, `t1`, `lo`,
-# `hi`, `t_lo`, `t_hi`, `start`, `end`, `span.0`, `span.1`, `u0`, `u1`,
-# `v0`, `v1`, `w0`, `w1`, `tau` (a whole turn's end; a `self.` before
-# any). This is a hand-written list of names, so an end under a name it
-# does not hold slips it; the door that would make the gate read the
-# shape, not the names, is filed
-# (`work/onecopy/a-gap-from-a-span-end-has-no-door-of-its-own.md`). Both operands ends is an
-# extent, the turn rule's or certification's question, not a place. In
+# `Margin::metered_inf(` whose first argument, read to its own comma with
+# brackets balanced, is a difference at its own depth (`a − b`, outer
+# parentheses off) of which EXACTLY ONE side holds exactly one span end's
+# name: `t0`, `t1`, `lo`, `hi`, `t_lo`, `t_hi`, `start`, `end`, `span.0`,
+# `span.1`, `u0`, `u1`, `v0`, `v1`, `w0`, `w1`, `tau` (a whole turn's
+# end; a `self.` before any), at any depth, so `t − (t0 − δ)` reads. A
+# side holding two names (`t1 − t0`) is an extent, the turn rule's or
+# certification's question, not a place, as is a difference of two. In
 # every `crates/*/src/**/*.rs`, comments and literals out,
 # `#[cfg(test)]` modules out, test-only files out as `atan2-sites.sh`
 # reads them. BLIND SPOTS: a gap spelled `Margin::of((t − t0) * speed)`
@@ -63,10 +77,46 @@ gate() {
 import glob, os, re, sys
 
 table_path = sys.argv[1]
-CALL = re.compile(r"Margin::metered(?:_sup|_inf)?\(\s*\(?\s*([\w.]+)\s*-\s*([\w.]+)\s*\)?\s*,")
-END = re.compile(r"^(?:self\.)?(?:t0|t1|lo|hi|t_lo|t_hi|start|end|span\.0|span\.1|u0|u1|v0|v1|w0|w1|tau)$")
+CALL = re.compile(r"Margin::metered(?:_sup|_inf)?\(")
+END = re.compile(r"(?<![\w.])(?:self\.)?(?:t0|t1|lo|hi|t_lo|t_hi|start|end|span\.0|span\.1|u0|u1|v0|v1|w0|w1|tau)(?![\w(])")
+
+
+def first_argument(text, at):
+    """The call's first argument from `at` (just past its `(`), to the
+    comma at its own depth: brackets balanced, so a nested end reads."""
+    depth = 0
+    for i in range(at, len(text)):
+        c = text[i]
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if depth == 0:
+                return text[at:i]
+            depth -= 1
+        elif c == "," and depth == 0:
+            return text[at:i]
+    return text[at:]
+
+
+def operands(arg):
+    """`arg` split at its top-level binary minus, outer parentheses off;
+    `None` where it is no difference at its own depth."""
+    arg = arg.strip()
+    while arg.startswith("(") and first_argument(arg, 1) == arg[1:-1] and arg.endswith(")"):
+        arg = arg[1:-1].strip()
+    depth, prev = 0, ""
+    for i, c in enumerate(arg):
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+        elif c == "-" and depth == 0 and prev and prev not in "(,*/+-=<>" and arg[i + 1:i + 2] != ">":
+            return arg[:i], arg[i + 1:]
+        if not c.isspace():
+            prev = c
+    return None
 EXEMPT = {"crates/geom-brep/src/curve_pair/span.rs"}
-CLASSES = {"sup", "exact-rate", "inside-only", "witness"}
+CLASSES = {"sup", "exact-rate", "inside-only", "chart-domain", "own-meter"}
 TEST_NAME = re.compile(r"(?:_rows|_fuzz)\.rs$|^test_support")
 
 
@@ -159,7 +209,11 @@ for path in files:
         continue
     text = without_test_mods(code[path])
     for m in CALL.finditer(text):
-        if bool(END.match(m.group(1))) == bool(END.match(m.group(2))):
+        pair = operands(first_argument(text, m.end()))
+        # An operand names an end where it holds exactly one end's name;
+        # two (`t1 − t0`) make it an extent, which names no place.
+        names = [len(END.findall(side)) == 1 for side in pair] if pair else None
+        if names is None or names[0] == names[1]:
             continue
         fns = list(FN.finditer(text, 0, m.start()))
         key = (path, fns[-1].group(1) if fns else "-")

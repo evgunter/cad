@@ -144,16 +144,13 @@ class Body:
     def __init__(self, d, where):
         self.stl = _field(d, "stl", where)
         # `step` is the one manifest field whose VALUE is genuinely
-        # optional, and BOTH producers can leave it null -- for
-        # reasons that are not the same, so a consumer has to know
-        # which it is reading. The wild generator writes null for
-        # every cell, because a wild cell's STEP is an input fixture
-        # and not something this pipeline exported. The tour writes a
-        # stem for every body except one it has DECLARED past the STEP
-        # writer's named subset frontier (`SceneBody::step_at_frontier`
-        # pins the refusal and fails the tour if it ever changes or
-        # stops); an undeclared refusal still fails the tour rather
-        # than arriving here as a null. The key is always present, and
+        # optional, and only one producer leaves it null, so a
+        # consumer has to know which it is reading. The wild
+        # generator writes null for every cell, because a wild
+        # cell's STEP is an input fixture and not something this
+        # pipeline exported. The tour writes a stem for every body: a
+        # STEP refusal fails the tour rather than arriving here as a
+        # null. The key is always present, and
         # a consumer that imports STEP says where it reads this which
         # producer it is reading.
         self.step = _field(d, "step", where)

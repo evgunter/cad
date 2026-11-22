@@ -336,6 +336,11 @@ pub mod crossing;
 /// body, so beside [`solid_truth`].
 pub mod op_census;
 
+/// The refusals at ε 1e-12 the carrier frames cost (PR 7131), with
+/// their two causes: what a re-pinned row checks of its refusal, so
+/// beside [`op_census`].
+pub mod frame_cost;
+
 use geom::NurbsCurve3;
 use geom_core::{Affine3, Band, Mat3, Point2, Point3, RigidMotion, Tol, UnitVec3, Vec3};
 use profile::{Open, Profile, SketchPlane, Start};

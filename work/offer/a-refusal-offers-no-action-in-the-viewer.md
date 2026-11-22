@@ -5,7 +5,8 @@ title: viewer: a kernel refusal is shown as prose with no action the viewer can 
 status: open
 opened: 2026-09-17
 priority: P1
-cost: D
+cost: H
+design: true
 ---
 
 **Ev reported this** (in chat, 2026-09-17), from the same failed union

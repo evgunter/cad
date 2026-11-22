@@ -152,6 +152,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                "declaration in crates/topo/src/validate.rs; the carry "
                                "is the facade crate's row and owes the CUR3 property "
                                "row plus a Python word"),
+    "BuiltEntity": ("argued", "non-carriage with its falsifier, beside the "
+                    "declaration in crates/step-import/src/error.rs; the carry "
+                    "is the facade crate's row and owes the CUR3 property "
+                    "row plus a Python word"),
     "SingularityBand": ("argued", "non-carriage with its falsifier, beside the "
                         "declaration in crates/step-import/src/error.rs; the carry "
                         "is the facade crate's row and owes the CUR3 property "
@@ -275,12 +279,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Qualifier": ("argued", "NOT_CARRIED, the naming interior (crates/pncad/tests/all.rs)"),
     "RecipeEditRef": ("argued", "the telemetry half, deliberately interior, "
                                 "crates/pncad/src/select.rs"),
-    # `Unexaminable::Corrupt`'s payload, one rung under the
-    # chart-coherence vocabulary the prelude carries for
-    # `StepImport::Solid::coherence`. The `BandField` row's shape; the
-    # argument and its falsifier are written once, at the carry
-    # decision the pointer names, and this row does not restate them.
-    "StructureRead": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     # `CensusUnsupportedCause`'s shape: the argument sits beside the
     # declaration, and the carry is the façade crate's row.
     # `ValidationError::ChartSingularityNotAVertex`'s `lies`: where the

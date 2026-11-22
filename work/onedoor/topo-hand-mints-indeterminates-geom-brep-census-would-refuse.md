@@ -22,3 +22,13 @@ Found by `carrier-eq-and-plane-eq-take-no-body` (branch `onedoor/carrier-eq-home
 **Test-only (12), which the scanner reads as shipped** because their `#[cfg(test)]` (or `test-support`) gate sits on the `mod` line in the parent: `boolean/carrier_ladder_rows.rs`, `boolean/offer_rows.rs`, `boolean/section_unbuilt_rows.rs`, `boolean/standing_rows.rs`, `chord_join/ring_side_rows.rs`, `chord_join/section_end_rows.rs` (×3), `test_support_samples.rs` (×2), `tier3_tests.rs` (×2).
 
 **Proposal:** the same census for `topo`. That needs a module-gate exclusion (a file whose `mod` declaration is `cfg(test)` or feature-gated), and a pattern/construction distinction for the over-count. Each of the five shipped sites then mints through the `k_stats` door whose doc fits its cause: `gate_rejection` for an impossible sign, `straddle` for two bounds across the band. `invalid_margin.rs`'s own module docs already name both causes.
+
+## Two chart_region sites retired (CHARTTAIL, 2026-11-20, branch `charttail/decided-gates`)
+
+The CHARTTAIL change on `charttail/decided-gates` retires both
+`chart_region.rs` entries in the shipped list above. `definite_diag` is
+deleted, and its three callers go through `k_stats::decide_positive`.
+`chart_region_cyl_axis_sense` goes through `k_stats::decide_nonzero`.
+That leaves three of the five shipped mints: `bound_side.rs`,
+`invalid_margin.rs` and `validate.rs`. `chart_region.rs` spells no
+`Indeterminate` literal outside its test module.

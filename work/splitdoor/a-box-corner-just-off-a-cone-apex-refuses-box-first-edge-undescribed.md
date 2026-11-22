@@ -32,8 +32,8 @@ Reproduce: `r1_edge_through_and_near_the_apex` in
 Why the order matters. Box first, the box's edges near the apex are
 swept against the cone face before the vertex pair reads the corner.
 An edge whose end lies within the band of the apex reads its double
-root there only where `bool_line_cone_apex_spread` is in the band
-(`boolean::reduce::line_cone_roots`). Otherwise the line lane refuses
+root there only where `line_quadric_cone_apex_spread` is in the band
+(`geom_brep::curve_face::line_quadric::line_cone_roots`). Otherwise the line lane refuses
 `AtApex`, and the edge is left to a later rung, which may be the one
 refusing. Cone first, the apex vertex is placed against the box's
 faces first. Trace which rung answers `EdgeUndescribed`, and whether a

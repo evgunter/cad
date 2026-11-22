@@ -385,6 +385,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // this census, literal view
     },
     Entry {
+        path: "crates/test-utils/tests/torus_verdict_matches.rs",
+        disposition: Shared, // every crate's production code, code view
+    },
+    Entry {
         path: "crates/topo/src/boolean/join.rs",
         disposition: Shared, // the join's one face-to-surface walk, code view
     },
@@ -1063,7 +1067,7 @@ fn every_disposition_that_carries_a_reason_states_a_real_one() {
 ///   pattern's names read off brackets, an `impl` head's type), with no
 ///   keyword literal;
 /// - a reader in another language (the Python gates:
-///   `work/guard/the-python-gates-scope-readers-are-hand-rolled.md`).
+///   `work/ciw/the-python-gates-scope-readers-are-hand-rolled.md`).
 ///
 /// A site of those shapes found by review is listed with an anchor, the
 /// item that does the reading, and held to it.

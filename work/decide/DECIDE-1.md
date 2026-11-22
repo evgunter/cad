@@ -45,10 +45,10 @@ section and in the DECIDE log. `Vec::dot`, `powi` and
 - `work/shell/check-rigid-squares-a-column-by-multiplying-two-copies-of-it`
   — the one production self-dot at `Sym<Interval>` the census found,
   off every measured path.
-- `work/blind/self-dot-has-no-gate-the-interval-square-one-cannot-see-it`
+- `work/ciw/self-dot-has-no-gate-the-interval-square-one-cannot-see-it`
   — the interval-square gate cannot see `x.dot(x)`, so the static
   census is a one-shot nothing re-takes.
-- `work/helper/per-predicate-fold-over-decisionshape-has-four-spellings`
+- `work/fixture/per-predicate-fold-over-decisionshape-has-four-spellings`
   — R1's S1, the class behind this unit's own near-fifth copy.
 
 Review: one Opus STYLE review, MERGEABLE-AFTER-FIXES, 0 MAJOR / 5 MINOR

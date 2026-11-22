@@ -2,10 +2,11 @@
 id: ellipse-edge-parameters-overstate-the-endpoint-miss
 kind: issue
 title: step-import: an ellipse edge's parameters are a scaled angle, not the vertex's nearest point, so the endpoint residual overstates the vertex's distance by up to a/b
-status: open
+status: closed
 opened: 2026-10-20
 priority: P3
 cost: M
+closed: 2026-11-18
 ---
 
 
@@ -28,3 +29,5 @@ Give a vertex off the carrier its nearest-point parameter (a certified foot-poin
 Note (PR 5464, 2026-10-20): Ev ruled that the import door names the file for every defect ending a bad file reaches, stored or derived, and `recourse::Provenance` is gone. Past ε_in this refusal now ends in `DAMAGED_FILE_ENDING` ("the file is damaged"), so a sound file refused here is told it is damaged: the defect now also makes the message false, which raises its cost. The paragraph above describes the state before that PR. (ENCL implementer)
 
 - 2026-11-02 — moved from INTERP to IMPORTGATE by `git mv` when INTERP merged into IMPORTGATE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and INTERP had fallen far under it).
+
+- 2026-11-18 — Closed by PR 7128 (the build: every cache kernel-built from the interpreted description).

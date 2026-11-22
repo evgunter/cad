@@ -905,7 +905,7 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
     let tol = Tol::witness();
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
-    let doc = loaded.snapshot;
+    let doc = loaded;
     let (node, slot, expr) = ring_bump(&doc);
     let original = doc.slot_expansion(node, slot).expect("its slot");
     let bump = Edit { node, slot, expr };
@@ -942,7 +942,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let tol = Tol::witness();
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
-    let doc = loaded.snapshot;
+    let doc = loaded;
     let (node, slot, expr) = ring_bump(&doc);
     let bump = Edit { node, slot, expr };
     let mut session = crate::common::inline_without_door(doc, tol);
@@ -1096,7 +1096,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex_row() 
     let tol = Tol::witness();
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
-    let doc = loaded.snapshot;
+    let doc = loaded;
     let (node, slot, expr) = ring_bump(&doc);
     let bump = Edit { node, slot, expr };
     let mut session = crate::common::inline_without_door(doc, tol);

@@ -53,3 +53,21 @@ inversion refuses at the cap AND the section face.
 A closed-form or certified area for a spiric- or NURBS-bounded planar
 region (the latter a quadrature the props lanes may already own), with
 the same measure-first step over the corpora.
+
+## The spline half (sectarms/planar-spline-winding, 2026-11-13)
+
+The shared sum reads a spline edge by a term of its own from
+`geom_brep::props` (`segment_kind`: exact for a non-rational spline of
+degree up to 5, a certified enclosure refined to a sign for a rational
+one or a higher degree, as for a spiric), so the arm examines a planar
+loop of any carrier. What it still skips is a loop with a spiric or
+rational spline edge at a scalar that does not certify, or one whose
+enclosure reads nothing (`loop_winding::Unwound::Uncertified`).
+
+Measured, at the witness tolerance on the lane's box: topo's and
+geom-brep's whole suites, slow set included (6889 tests), with no row
+newly red; sweep's `spline_subtract_intersect_census`, 366 runs, none
+moved against the merge base. The corpus pass this row asks for (the
+tour, the wild corpus, every ε row) was not taken; hosted CI and the
+nightly hold it. The row that pins the refusal is `merge_faces`'
+`a_spline_carrying_cycle_winds_alike_for_every_reader`.

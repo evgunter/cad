@@ -41,7 +41,7 @@ the uncut row, or be named and carry a mark.
   ignored).
 
 The cut's limit itself is FLUSH's
-`work/flush/a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch.md`.
+`work/honejoin/a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch.md`.
 Once that closes, `uncut` is empty on every known pose. A reader's
 answer still owes the rows a meaning for the next limit.
 
