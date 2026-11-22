@@ -2,9 +2,11 @@
 id: main-red-predicate-name-coverage-step-import-decides-names-and-runs-no-roster
 kind: issue
 title: Main red (slow set): predicate_name_coverage finds step-import deciding predicate names with no roster, since PR 7091 (the interp layer)
-status: open
+status: closed
 opened: 2026-11-21
 priority: P1
+closed: 2026-11-22
+pr: 7371
 ---
 
 
