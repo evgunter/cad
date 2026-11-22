@@ -86,6 +86,8 @@ The doors that refuse:
 - the pick index's three doors, `NodePick::patch_names`,
   `NodePick::boundary_names` and `pick_face`
   (`HitTestError::EvaluationOfAnotherDocument`), below;
+- `range::admit` (`RangeRefusal::EvaluationOfAnotherDocument`), for the
+  caller's own build it reads standings from;
 - `stackup::sensitivities` and `stackup::stackup`
   (`BindingViolation::EvaluationOfAnotherDocument`), for the handed
   build of record, which DUAL-DESIGN DL3 binds by revision as well.

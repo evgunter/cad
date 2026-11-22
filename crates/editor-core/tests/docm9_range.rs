@@ -19,8 +19,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{BudgetKind, DriveConfig, RefusalReason};
 use editor_core::range::{
-    CertifiedRange, DifferenceKind, RangeField, RangeRefusal, RangeSearch, RangeSeed, Step, admit,
-    certified_range, derive,
+    CertifiedRange, DifferenceKind, RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed,
+    Step, Unsettled, admit, certified_range, derive,
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
@@ -45,12 +45,8 @@ fn param(n: &'static str) -> Formula {
 
 /// The search's budgets, both of them the caller's: how many times a
 /// side may be halved, and how many replays it may take.
-fn budget(max_depth: u32, max_leaves: usize) -> DriveConfig {
-    DriveConfig {
-        max_depth,
-        max_leaves,
-        ..DriveConfig::default()
-    }
+fn budget(max_depth: u32, max_replays: usize) -> RangeBudget {
+    RangeBudget::new(max_depth, max_replays)
 }
 
 fn declare(r: &mut Recorder, n: &'static str, value: f64) {
@@ -309,7 +305,7 @@ fn range_of(
     doc: &editor_core::ProfileDoc,
     p: &'static str,
     seed: RangeSeed,
-    config: &DriveConfig,
+    config: &RangeBudget,
 ) -> CertifiedRange {
     certified_range(
         doc,
@@ -408,7 +404,7 @@ fn a_depth_too_small_is_not_decided_and_never_a_bound() {
     let gap = hi.not_decided().expect("the starved side is undecided");
     assert_eq!(
         *gap.reason(),
-        RefusalReason::Budget(BudgetKind::Depth { max_depth: 1 })
+        Unsettled::Floor(RefusalReason::Budget(BudgetKind::Depth { max_depth: 1 }))
     );
     assert!(!gap.more_time_helps());
     assert!(
@@ -520,6 +516,77 @@ fn the_proof_is_inside_the_locally_valid_range() {
     );
 }
 
+/// The certifying vector of the plain `f64` build at absolute value
+/// `value`, built as the witness is (the derived document, the witness
+/// options), less the `canonical_order_*` verdicts.
+///
+/// Those are left out because the leaf protocol replays the witness's
+/// REPRESENTATION choices as recorded rather than deciding them afresh:
+/// a `canonical_order_*` verdict picks where a loop's statement starts,
+/// and a build at another value can record it differently and build the
+/// same shape (`CertifiedRange::proven_offsets`,
+/// `work/scalar/the-leaf-protocol-pins-representation-choices-the-witness-recorded`).
+fn decisions_at(doc: &ProfileDoc, value: f64) -> editor_core::VerdictVector {
+    let at = editor_core::apply(
+        doc,
+        &DocEdit::SetVarValue {
+            var: name("height").into(),
+            value: editor_core::FreeValue::Continuous(value),
+        },
+        tol(),
+    )
+    .expect("a value edit")
+    .doc;
+    let field = RangeField::Param(var(&at, "height"));
+    let derived = derive(&at, &field, RangeSeed::symmetric(1e-3), tol()).expect("admitted");
+    let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
+    let stop = editor_core::Stop::default();
+    let built: Evaluation<f64> = evaluate(
+        &derived.doc,
+        None,
+        &stop.cancel,
+        &editor_core::drive::witness_options(&analyzed, &stop),
+        tol(),
+    );
+    let mut vector = editor_core::drive::certifying_vector(&derived.doc, &built);
+    for row in &mut vector.rows {
+        row.verdicts
+            .retain(|v| !v.predicate.starts_with("canonical_order_"));
+    }
+    vector
+}
+
+/// **Every value inside the proof decides as the witness did**: the
+/// plain `f64` build's certifying vector, at the proof's two ends and at
+/// points across it, is the witness's, on both fixtures with a boundary
+/// either side (representation choices aside, [`decisions_at`]).
+#[test]
+fn every_value_inside_the_proof_decides_as_the_witness_did() {
+    for (label, doc, seed) in [
+        ("the notch", notch(NOMINAL), NOTCH_SEED),
+        (
+            "two boundaries",
+            two_sided(NOMINAL),
+            RangeSeed::symmetric(0.5),
+        ),
+    ] {
+        let (_, _, r) = settle(&doc, seed, &budget(24, 1500));
+        let witness = decisions_at(&doc, r.nominal());
+        let (lo, hi) = r.proven_interval();
+        assert!(
+            lo < r.nominal() && r.nominal() < hi,
+            "{label}: something is proven"
+        );
+        let inside = (0..=16).map(|i| lo + (hi - lo) * f64::from(i) / 16.0);
+        for value in inside.chain([lo, hi]) {
+            assert!(
+                decisions_at(&doc, value) == witness,
+                "{label}: the proof [{lo}, {hi}] covers {value}, whose build decides otherwise"
+            );
+        }
+    }
+}
+
 /// Validity is not monotone, and the search says so by stopping: the
 /// far branch builds and is NOT in the proof. A search around a value
 /// on that branch proves it.
@@ -552,7 +619,7 @@ fn the_first_boundary_stops_the_proof_and_a_search_on_the_island_proves_it() {
 
 // ---------------------------------------------------------- the search
 
-fn notch_search(config: &DriveConfig) -> RangeSearch {
+fn notch_search(config: &RangeBudget) -> RangeSearch {
     let doc = notch(NOMINAL);
     RangeSearch::new(
         &doc,
@@ -589,10 +656,7 @@ fn stopping_after_n_steps_keeps_what_was_proven() {
     assert_eq!(before.steps(), 0);
     for side in [before.lo(), before.hi()] {
         let gap = side.not_decided().expect("nothing is decided yet");
-        assert_eq!(
-            *gap.reason(),
-            RefusalReason::Budget(BudgetKind::Leaves { max_leaves: 0 })
-        );
+        assert_eq!(*gap.reason(), Unsettled::Unfinished { replays: 0 });
         assert!(gap.more_time_helps());
     }
 
@@ -616,7 +680,7 @@ fn stopping_after_n_steps_keeps_what_was_proven() {
     let gap = last.hi().not_decided().expect("the boundary is not closed");
     assert_eq!(
         *gap.reason(),
-        RefusalReason::Budget(BudgetKind::Leaves { max_leaves: 12 }),
+        Unsettled::Unfinished { replays: 12 },
         "unfinished ground is priced under the steps taken"
     );
     assert!(gap.more_time_helps());
@@ -681,6 +745,127 @@ fn the_same_steps_give_the_same_answer() {
     }
 }
 
+/// **Two boundaries, one each side**: [`notch`]'s bottom vertex
+/// `(0.5, h)`, which crosses at `h = 0`, and a top vertex
+/// `(0.5, 1.3 + 2h)`, which crosses the top edge at `h = −0.15`.
+fn two_sided(height: f64) -> ProfileDoc {
+    let mut r = Recorder::new();
+    declare(&mut r, "height", height);
+    let top = Formula::add(
+        len(1.3),
+        Formula::mul(param("height"), scl(2.0)).expect("a length times a scalar"),
+    )
+    .expect("a length plus a length");
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::polygon_expr([
+            [len(0.0), len(0.0)],
+            [len(0.5), param("height")],
+            [len(1.0), len(0.0)],
+            [len(1.0), len(1.0)],
+            [len(0.5), top],
+            [len(0.0), len(1.0)],
+        ])],
+        ids: Vec::new(),
+        on: None,
+    }));
+    r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: len(1.0),
+    });
+    r.doc
+}
+
+/// How many replays past the last move of its answer's ends a finished
+/// search may have taken: [`editor_core::range::STALL_LEVELS`]
+/// halvings, two replays each, at each of a side's two ends, on both
+/// sides.
+const SETTLE_SLACK: usize = 2 * editor_core::range::STALL_LEVELS as usize * 2 * 2;
+
+/// A side's ends: the proof's, and the point proven different.
+type Ends = (f64, Option<f64>);
+
+fn ends(r: &CertifiedRange) -> [Ends; 2] {
+    [r.lo(), r.hi()].map(|s| (s.proven_to(), s.different().map(|d| d.at())))
+}
+
+/// Steps a search to its end, and says how many replays it took and at
+/// which replay its ends last moved.
+fn settle(
+    doc: &ProfileDoc,
+    seed: RangeSeed,
+    budget: &RangeBudget,
+) -> (usize, usize, CertifiedRange) {
+    let stop = editor_core::Stop::default();
+    let mut search = RangeSearch::new(
+        doc,
+        &RangeField::Param(var(doc, "height")),
+        seed,
+        budget,
+        None,
+        &stop,
+        tol(),
+    )
+    .expect("the fixture is admitted and its witness builds");
+    let (mut last, mut moved) = (ends(&search.answer()), 0);
+    while search.step(&stop) == Step::Advanced {
+        let now = ends(&search.answer());
+        if now != last {
+            (last, moved) = (now, search.steps());
+        }
+    }
+    (search.steps(), moved, search.answer())
+}
+
+/// **The search finishes soon after its answer stops moving, at any
+/// depth**: on the notch at depth 48 and on two boundaries at the
+/// default depth, it reports [`Step::Finished`] well short of a cap ten
+/// times what it needs, within [`SETTLE_SLACK`] replays of the last
+/// move of either side's ends, and says more time will not help.
+#[test]
+fn the_search_finishes_soon_after_its_answer_stops_moving() {
+    for (label, doc, seed, depth) in [
+        ("the notch", notch(NOMINAL), NOTCH_SEED, 48),
+        (
+            "two boundaries",
+            two_sided(NOMINAL),
+            RangeSeed::symmetric(0.5),
+            editor_core::drive::DEFAULT_MAX_DEPTH,
+        ),
+    ] {
+        let cap = 1500;
+        let (steps, moved, answer) = settle(&doc, seed, &budget(depth, cap));
+        assert!(
+            steps < cap && steps <= moved + SETTLE_SLACK,
+            "{label} at depth {depth}: {steps} replays, its ends last moved at replay {moved}"
+        );
+        for side in [answer.lo(), answer.hi()] {
+            assert!(
+                side.not_decided().is_none_or(|gap| !gap.more_time_helps()),
+                "{label}: a finished search has nothing left to do: {side:?}"
+            );
+        }
+    }
+}
+
+/// **One side does not starve the other.** On two boundaries at a depth
+/// far past what either needs, a cap that the depth-24 search finishes
+/// under proves the high side at least as far as that search does: work
+/// is taken widest first, so the low side's deep refinement waits for
+/// the high side's shallow one.
+#[test]
+fn one_side_does_not_starve_the_other() {
+    let doc = two_sided(NOMINAL);
+    let seed = RangeSeed::symmetric(0.5);
+    let (steps, _, shallow) = settle(&doc, seed, &budget(24, 1500));
+    let (_, _, deep) = settle(&doc, seed, &budget(64, steps));
+    assert!(
+        deep.hi().proven_to() >= shallow.hi().proven_to() && deep.lo().proven_to() < 0.0,
+        "under {steps} replays at depth 64 the sides reached {:?}, at depth 24 {:?}",
+        deep.proven_offsets(),
+        shallow.proven_offsets()
+    );
+}
+
 /// How many halvings of the plate's seed [`plate_seed`] the row below
 /// allows: enough to reach a width that certifies with room to spare.
 const PLATE_DEPTH: u32 = 12;
@@ -726,7 +911,12 @@ fn the_directed_search_proves_ground_on_the_plate_the_level_drive_cannot() {
     // The level-by-level drive over the same seed, under the same cap.
     let derived = derive(&doc, &field, seed, tol()).expect("admitted");
     let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
-    let verdict = editor_core::drive::drive(&derived.doc, &analyzed, &config, &stop, tol())
+    let level = DriveConfig {
+        max_depth: PLATE_DEPTH,
+        max_leaves: PLATE_CAP,
+        ..DriveConfig::default()
+    };
+    let verdict = editor_core::drive::drive(&derived.doc, &analyzed, &level, &stop, tol())
         .expect("the plate builds");
     assert!(
         verdict.certified().is_empty(),

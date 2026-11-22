@@ -575,7 +575,9 @@ pyo3::create_exception!(
      (`unknown_slot`, `node` and `slot`); the slot is a count, which \
      selects between shapes and has no interval (`structural_slot`); or \
      the slot reads a variable defined by a formula, which has no \
-     interval of its own (`slot_is_defined`).\n\n\
+     interval of its own (`slot_is_defined`). A `built` evaluation of \
+     another document is `evaluation_of_another_document` at the \
+     kernel's door; this door raises ValueError for it first.\n\n\
      From the nominal build: a node does not build, so there is no \
      build to prove an interval the same as (`witness_does_not_build`, \
      `node` and `cause`), or the build was stopped (`stopped`).\n\n\

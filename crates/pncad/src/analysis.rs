@@ -91,8 +91,7 @@ pub use editor_core::{AssertionVerdict, UnevaluatedReason};
 /// parameter's or a slot's current value the document is PROVABLY the
 /// same build. [`RangeSearch`] is the stepped search — one replay per
 /// step, an answer readable after any of them — and [`certified_range`]
-/// runs it until it finishes; the budget is the two counts of a
-/// [`DriveConfig`], and no other field of it is read as a budget.
+/// runs it until it finishes, under the search's own [`RangeBudget`].
 ///
 /// The replays run at the certified scalar inside the search and the
 /// answer is plain numbers — offsets from the field's nominal, a point
@@ -102,16 +101,18 @@ pub use editor_core::{AssertionVerdict, UnevaluatedReason};
 /// holds under and is part of the answer.
 pub use editor_core::{
     Admission, CertifiedRange, DerivedRange, DifferenceKind, NotDecided, ProvenDifferent,
-    RangeField, RangeRefusal, RangeSearch, RangeSeed, RangeSide, SideEnd, certified_range,
+    RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed, RangeSide, SideEnd, Unsettled,
+    certified_range,
 };
 
 /// The range query's doors whose names only read beside it:
 /// [`admit`](range::admit) says whether a request can be searched at
 /// all with no geometry run, [`derive`](range::derive) is the document
 /// the search replays, and [`Step`](range::Step) is what one
-/// [`RangeSearch::step`] did.
+/// [`RangeSearch::step`] did, and [`STALL_LEVELS`](range::STALL_LEVELS)
+/// is the schedule's one constant.
 pub mod range {
-    pub use editor_core::range::{Step, admit, derive};
+    pub use editor_core::range::{STALL_LEVELS, Step, admit, derive};
 }
 
 /// **The E11.1 advisory estimator**: pure `f64` replay, as E11.1 says.

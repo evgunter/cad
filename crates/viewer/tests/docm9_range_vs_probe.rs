@@ -12,8 +12,7 @@ use std::collections::BTreeSet;
 
 use crate::common;
 
-use editor_core::drive::DriveConfig;
-use editor_core::range::{RangeField, RangeSeed, certified_range};
+use editor_core::range::{RangeBudget, RangeField, RangeSeed, certified_range};
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, Node,
     NodeResult, ProfileDoc, RecipeNodeId, VarName, evaluate,
@@ -117,11 +116,7 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
             lo: SEED_LO,
             hi: 0.5,
         },
-        &DriveConfig {
-            max_depth: 24,
-            max_leaves: 2048,
-            ..DriveConfig::default()
-        },
+        &RangeBudget::new(24, 2048),
         None,
         &pncad::document::Stop::default(),
         tol(),

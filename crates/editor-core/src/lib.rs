@@ -224,7 +224,8 @@ pub use program::{
 };
 pub use range::{
     Admission, CertifiedRange, DerivedRange, DifferenceKind, NotDecided, ProvenDifferent,
-    RangeField, RangeRefusal, RangeSearch, RangeSeed, RangeSide, SideEnd, certified_range,
+    RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed, RangeSide, SideEnd, Unsettled,
+    certified_range,
 };
 pub use refactor::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, NamedUncarried, NodeMap, RemapError,

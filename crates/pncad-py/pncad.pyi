@@ -1150,7 +1150,10 @@ class RangeRefusal(PncadError):
     such slot (`unknown_slot`, `node` and `slot`); the slot is a
     count, which selects between shapes and has no interval
     (`structural_slot`); or the slot reads a variable defined by a
-    formula, which has no interval of its own (`slot_is_defined`).
+    formula, which has no interval of its own (`slot_is_defined`). A
+    `built` evaluation of another document is
+    `evaluation_of_another_document` at the kernel's door; this door
+    raises ValueError for it first.
 
     From the nominal build: a node does not build, so there is no
     build to prove an interval the same as (`witness_does_not_build`,
@@ -3396,22 +3399,32 @@ class NotDecided:
         frontier."""
     @property
     def reason(self) -> str:
-        """Why the interval at the frontier is undecided: `"budget"`,
-        or the driver's own `"sliver_terminal"`, `"bifurcation"` or
-        `"infeasible"`."""
+        """Why the side is undecided at its frontier: `"unfinished"`
+        (the search still had work here when it stopped), `"stalled"`
+        (halvings past the proof's last move decided nothing), or the
+        driver's own reason for the frontier interval: `"budget"`,
+        `"sliver_terminal"`, `"bifurcation"` or `"infeasible"`."""
+    @property
+    def replays(self) -> Optional[int]:
+        """The replays the search had taken, for `"unfinished"`: budget
+        spent, not a cap."""
+    @property
+    def width(self) -> Optional[_Offset]:
+        """The width of the interval that last moved the proof, for
+        `"stalled"`."""
     @property
     def budget(self) -> Optional[str]:
-        """Which bound a `"budget"` ran out of — `"leaves"` (the
-        replays taken so far), `"depth"` (the halvings one side may
-        take) or `"resolution"` (the float grid) — and `None` for
-        another reason."""
+        """Which bound a `"budget"` ran out of — `"depth"` (the
+        halvings one side may take) or `"resolution"` (the float grid)
+        — and `None` for another reason."""
     @property
     def predicate(self) -> Optional[str]:
         """The predicate a `"sliver_terminal"` could not decide."""
     @property
     def more_time_helps(self) -> bool:
-        """Whether more replays can move the frontier. Only a spent
-        replay count answers yes."""
+        """Whether more replays can change this side's answer: only
+        `"unfinished"` answers yes. A larger `max_depth` can move a
+        `"depth"` floor; more replays cannot."""
 
 class RangeSide:
     """One side of a certified range.
@@ -3492,16 +3505,18 @@ class RangeSearch:
     Constructing one admits the request and builds the document once,
     at its nominal; `step` replays ONE interval; `answer` can be read
     after any step and is a function of the request and the number of
-    steps taken, so stopping keeps what was proven.
+    steps taken, so stopping keeps what was proven and a later `step`
+    continues it. The search works only where its answer can still
+    move, and takes the two sides level by level together.
 
     `seed` is the kernel's own (`RangeSeed.of`) where none is handed.
-    `max_replays` bounds how many intervals the search will ever
-    replay and `max_depth` how many times one side may be halved; both
-    default to the driver's, which is far more replays than a caller
-    should wait for, so the loop calling `step` is the budget that
-    matters. `resolver` is how a document that instantiates parts
+    `max_depth` is how many times one side may be halved, and defaults
+    to what the seed needs to reach a width a curved field certifies
+    at. `max_replays` bounds how many intervals the search will ever
+    replay and defaults to no bound: the loop calling `step` is the
+    budget. `resolver` is how a document that instantiates parts
     reaches them, as `evaluate` takes it. `cancel` stops the nominal
-    build and any later replay.
+    build; each `step` takes its own.
 
     Raises RangeRefusal: the request's own refusals before any
     geometry runs, then a nominal that does not build or was
@@ -3518,11 +3533,12 @@ class RangeSearch:
         resolver: Optional[Workspace] = None,
         cancel: Optional[CancelToken] = None,
     ) -> None: ...
-    def step(self) -> str:
+    def step(self, *, cancel: Optional[CancelToken] = None) -> str:
         """One replay. `"advanced"` when an interval was replayed,
-        `"finished"` when nothing was — every interval is decided or
-        at its floor, or `max_replays` is spent — and `"stopped"` when
-        the replay stopped short and decided nothing."""
+        `"finished"` when nothing was — the search has no work left
+        that could change its answer, or `max_replays` is spent — and
+        `"stopped"` when the replay stopped short (`cancel`) and
+        decided nothing; a later `step` continues the search."""
     @property
     def steps(self) -> int:
         """How many intervals have been replayed."""
@@ -3561,10 +3577,11 @@ def certified_range(
     it finishes, `max_replays` is spent, or `cancel` stops it.
 
     `max_replays` is required: a replay is a document evaluation at
-    the certified scalar, and the driver's own default admits far more
-    of them than a caller should wait for. A stop after the nominal
-    build keeps what was proven and is not a refusal. Raises
-    RangeRefusal as RangeSearch does."""
+    the certified scalar, and a field that certifies only near the
+    tolerance never finishes a wide seed, so no count this door could
+    choose is one a caller should wait for. `max_depth` defaults as on
+    RangeSearch. A stop after the nominal build keeps what was proven
+    and is not a refusal. Raises RangeRefusal as RangeSearch does."""
 
 DEFINITION_NODE_BOUND: Final[int]
 """The most expression nodes a variable's expansion through the

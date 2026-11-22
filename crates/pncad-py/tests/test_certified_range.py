@@ -171,8 +171,10 @@ class TestAnAnswerReadEarly(unittest.TestCase):
                 self.assertFalse(side.reached_seed_end)
                 self.assertIsNone(side.different)
                 self.assertEqual(side.not_decided.past.meters, 0.0)
-                self.assertEqual(side.not_decided.reason, "budget")
-                self.assertEqual(side.not_decided.budget, "leaves")
+                self.assertEqual(side.not_decided.reason, "unfinished")
+                self.assertEqual(side.not_decided.replays, 0)
+                self.assertIsNone(side.not_decided.budget)
+                self.assertIsNone(side.not_decided.width)
                 self.assertTrue(side.not_decided.more_time_helps)
 
     def test_one_step_decides_one_side_and_leaves_the_other_undecided(self):
@@ -289,15 +291,23 @@ class TestTheTypedRefusal(unittest.TestCase):
             "stopped",
         )
 
-    def test_a_cancel_after_the_build_stops_the_step_and_keeps_the_answer(self):
-        token = CancelToken()
-        search = RangeSearch(self.doc, DEPTH_FIELD, seed(), cancel=token)
+    def test_a_cancelled_step_keeps_the_answer_and_a_later_step_continues(self):
+        search = RangeSearch(self.doc, DEPTH_FIELD, seed())
         self.assertEqual(search.step(), "advanced")
         before = search.answer()
+        token = CancelToken()
         token.cancel()
-        self.assertEqual(search.step(), "stopped")
+        self.assertEqual(search.step(cancel=token), "stopped")
         self.assertEqual(search.steps, 1)
         self.assertEqual(search.answer(), before)
+        self.assertEqual(search.step(), "advanced", "one stop per step: the search resumes")
+        self.assertEqual(search.steps, 2)
+
+    def test_the_nominal_builds_cancel_does_not_reach_the_steps(self):
+        token = CancelToken()
+        search = RangeSearch(self.doc, DEPTH_FIELD, seed(), cancel=token)
+        token.cancel()
+        self.assertEqual(search.step(), "advanced")
 
 
 class TestAdmission(unittest.TestCase):

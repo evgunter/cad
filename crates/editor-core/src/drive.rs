@@ -1271,11 +1271,11 @@ pub(crate) fn does_not_build(
 /// The plain-form memo one drive's leaves share
 /// ([`DriveConfig::plain_memo`]): serving forms, or only counting the
 /// freezes with the dial off.
-pub(crate) fn drive_memo(config: &DriveConfig) -> Arc<sym::DriveMemo> {
-    Arc::new(if config.plain_memo {
-        sym::DriveMemo::new(config.symbolic.budget(), config.symbolic.rules)
+pub(crate) fn drive_memo(plain_memo: bool, symbolic: SymbolicDials) -> Arc<sym::DriveMemo> {
+    Arc::new(if plain_memo {
+        sym::DriveMemo::new(symbolic.budget(), symbolic.rules)
     } else {
-        sym::DriveMemo::counting_only(config.symbolic.budget(), config.symbolic.rules)
+        sym::DriveMemo::counting_only(symbolic.budget(), symbolic.rules)
     })
 }
 
@@ -1331,7 +1331,7 @@ pub fn drive(
     // alternative is an `Option` that every call site below would have
     // to open for a case that is already answered by `symbolic.enabled`
     // three lines down.
-    let memo = drive_memo(config);
+    let memo = drive_memo(config.plain_memo, config.symbolic);
 
     // A level-synchronous frontier, so the sequential and the parallel
     // schedule visit the same boxes in the same order and combine them
@@ -1559,9 +1559,10 @@ pub(crate) enum LeafVerdict {
 /// paper says nothing about whether the code computed it.
 // One parameter per named input the leaf replay needs: the document,
 // the box, the witness build and its vector, the tier's dials, the
-// drive's plain memo and the part resolver (`None` from [`drive`]). Nothing here is state to thread — every one is
-// read by the leaf and none is written — so a bundle would be a struct
-// that exists to satisfy a count.
+// drive's plain memo and the part resolver (`None` from [`drive`]).
+// Nothing here is state to thread — every one is read by the leaf and
+// none is written — so a bundle would be a struct that exists to
+// satisfy a count.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn classify(
     doc: &Doc<ProfileProgram>,

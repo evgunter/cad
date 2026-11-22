@@ -30,13 +30,16 @@
 //! interval are `Length`s. A seed written in another dimension is a
 //! `QuantityOpMismatch` at the door.
 //!
-//! # The budget is the caller's
+//! # The budget
 //!
 //! A replay is a document evaluation at the certified scalar, and how
 //! many a caller can afford is not something this door can know.
-//! [`RangeSearch`] is stepped, so its caller's loop IS the budget;
-//! the one-shot [`certified_range`] takes `max_replays` as a required
-//! keyword rather than choosing one.
+//! [`RangeSearch`] is stepped, so its caller's loop IS the replay
+//! budget, and each step takes its own cancel; the one-shot
+//! [`certified_range`] takes `max_replays` as a required keyword rather
+//! than choosing one. The depth defaults to what the seed needs
+//! (`RangeBudget::for_seed`), which costs nothing past a side's first
+//! proof.
 
 use std::sync::{Mutex, PoisonError};
 
@@ -48,8 +51,8 @@ use super::doc::{NodeId, Var, VarArg};
 use crate::errors::{ErrorClass, dimension_tag};
 use crate::py::typed_err;
 use crate::tags::{
-    budget_kind_tag, difference_kind_tag, range_refusal_tag, range_step_tag, refusal_reason_tag,
-    slot_id_tag,
+    budget_kind_tag, difference_kind_tag, range_refusal_tag, range_step_tag, slot_id_tag,
+    unsettled_tag,
 };
 use pncad::analysis as a;
 use pncad::document as d;
@@ -76,6 +79,7 @@ fn range_err(py: Python<'_>, refusal: &a::RangeRefusal) -> PyErr {
         | R::SlotIsDefined { .. }
         | R::Derivation(_)
         | R::MoreThanOneAxisVaries { .. }
+        | R::EvaluationOfAnotherDocument(_)
         | R::Drive(_) => (None, None),
     };
     let analyzed = match refusal {
@@ -88,6 +92,7 @@ fn range_err(py: Python<'_>, refusal: &a::RangeRefusal) -> PyErr {
         | R::SlotIsDefined { .. }
         | R::Derivation(_)
         | R::MoreThanOneAxisVaries { .. }
+        | R::EvaluationOfAnotherDocument(_)
         | R::Drive(_) => None,
     };
     let param = match refusal {
@@ -100,6 +105,7 @@ fn range_err(py: Python<'_>, refusal: &a::RangeRefusal) -> PyErr {
         | R::Derivation(_)
         | R::SeedIsNotTheAnalyzedAxis { .. }
         | R::MoreThanOneAxisVaries { .. }
+        | R::EvaluationOfAnotherDocument(_)
         | R::Drive(_) => py.None(),
     };
     let node = match refusal {
@@ -115,6 +121,7 @@ fn range_err(py: Python<'_>, refusal: &a::RangeRefusal) -> PyErr {
         | R::NotAContinuousParam { .. }
         | R::Derivation(_)
         | R::SeedIsNotTheAnalyzedAxis { .. }
+        | R::EvaluationOfAnotherDocument(_)
         | R::MoreThanOneAxisVaries { .. } => None,
     };
     let slot = match refusal {
@@ -127,6 +134,7 @@ fn range_err(py: Python<'_>, refusal: &a::RangeRefusal) -> PyErr {
         | R::Derivation(_)
         | R::SeedIsNotTheAnalyzedAxis { .. }
         | R::MoreThanOneAxisVaries { .. }
+        | R::EvaluationOfAnotherDocument(_)
         | R::Drive(_) => py.None(),
     };
     let cause = match refusal {
@@ -142,6 +150,7 @@ fn range_err(py: Python<'_>, refusal: &a::RangeRefusal) -> PyErr {
         | R::StructuralSlot { .. }
         | R::SlotIsDefined { .. }
         | R::SeedIsNotTheAnalyzedAxis { .. }
+        | R::EvaluationOfAnotherDocument(_)
         | R::MoreThanOneAxisVaries { .. } => py.None(),
     };
     let varying = match refusal {
@@ -154,6 +163,7 @@ fn range_err(py: Python<'_>, refusal: &a::RangeRefusal) -> PyErr {
         | R::SlotIsDefined { .. }
         | R::Derivation(_)
         | R::SeedIsNotTheAnalyzedAxis { .. }
+        | R::EvaluationOfAnotherDocument(_)
         | R::Drive(_) => None,
     };
     let built = || -> PyResult<[(&'static str, Py<PyAny>); 9]> {
@@ -561,25 +571,51 @@ impl NotDecided {
         quantity(py, self.inner.past(), self.dim)
     }
 
-    /// Why the interval at the frontier is undecided: `"budget"`, or
-    /// the driver's own `"sliver_terminal"`, `"bifurcation"` or
-    /// `"infeasible"`.
+    /// Why the side is undecided at its frontier: `"unfinished"` (the
+    /// search still had work here when it stopped), `"stalled"`
+    /// (halvings past the proof's last move decided nothing), or the
+    /// driver's own reason for the frontier interval: `"budget"`,
+    /// `"sliver_terminal"`, `"bifurcation"` or `"infeasible"`.
     #[getter]
     fn reason(&self) -> &'static str {
-        refusal_reason_tag(self.inner.reason())
+        unsettled_tag(self.inner.reason())
     }
 
-    /// Which bound a `"budget"` ran out of — `"leaves"` (the replays
-    /// taken so far), `"depth"` (the halvings one side may take) or
-    /// `"resolution"` (the `f64` grid) — and `None` for another reason.
+    /// The replays the search had taken, for `"unfinished"`: budget
+    /// spent, not a cap. `None` for another reason.
+    #[getter]
+    fn replays(&self) -> Option<usize> {
+        match self.inner.reason() {
+            a::Unsettled::Unfinished { replays } => Some(*replays),
+            a::Unsettled::Stalled { .. } | a::Unsettled::Floor(_) => None,
+        }
+    }
+
+    /// The width of the interval that last moved the proof, for
+    /// `"stalled"`, in the field's dimension. `None` for another reason.
+    #[getter]
+    fn width(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        match self.inner.reason() {
+            a::Unsettled::Stalled { width } => quantity(py, *width, self.dim).map(Some),
+            a::Unsettled::Unfinished { .. } | a::Unsettled::Floor(_) => Ok(None),
+        }
+    }
+
+    /// Which bound a `"budget"` ran out of — `"depth"` (the halvings one
+    /// side may take) or `"resolution"` (the `f64` grid) — and `None`
+    /// for another reason.
     #[getter]
     fn budget(&self) -> Option<&'static str> {
         match self.inner.reason() {
-            a::RefusalReason::Budget(kind) => Some(budget_kind_tag(kind)),
-            a::RefusalReason::SliverTerminal { .. }
-            | a::RefusalReason::FlipCrossing { .. }
-            | a::RefusalReason::Bifurcation(_)
-            | a::RefusalReason::Infeasible => None,
+            a::Unsettled::Floor(a::RefusalReason::Budget(kind)) => Some(budget_kind_tag(kind)),
+            a::Unsettled::Floor(
+                a::RefusalReason::SliverTerminal { .. }
+                | a::RefusalReason::FlipCrossing { .. }
+                | a::RefusalReason::Bifurcation(_)
+                | a::RefusalReason::Infeasible,
+            )
+            | a::Unsettled::Unfinished { .. }
+            | a::Unsettled::Stalled { .. } => None,
         }
     }
 
@@ -588,17 +624,22 @@ impl NotDecided {
     #[getter]
     fn predicate(&self) -> Option<&'static str> {
         match self.inner.reason() {
-            a::RefusalReason::SliverTerminal { predicate } => Some(predicate),
-            a::RefusalReason::FlipCrossing { .. }
-            | a::RefusalReason::Bifurcation(_)
-            | a::RefusalReason::Infeasible
-            | a::RefusalReason::Budget(_) => None,
+            a::Unsettled::Floor(a::RefusalReason::SliverTerminal { predicate }) => Some(predicate),
+            a::Unsettled::Floor(
+                a::RefusalReason::FlipCrossing { .. }
+                | a::RefusalReason::Bifurcation(_)
+                | a::RefusalReason::Infeasible
+                | a::RefusalReason::Budget(_),
+            )
+            | a::Unsettled::Unfinished { .. }
+            | a::Unsettled::Stalled { .. } => None,
         }
     }
 
-    /// Whether more replays can move the frontier. Only a spent replay
-    /// count answers yes: a depth floor, the `f64` grid and a terminal
-    /// sliver are where refinement has stopped moving.
+    /// Whether more replays can change this side's answer: only
+    /// `"unfinished"` answers yes. A stall and a floor are where the
+    /// schedule stops; a larger `max_depth` can move a `"depth"`
+    /// floor, and more replays cannot.
     #[getter]
     fn more_time_helps(&self) -> bool {
         self.inner.more_time_helps()
@@ -818,35 +859,39 @@ impl CertifiedRange {
     }
 }
 
-/// The budget two counts state: every other dial is the driver's own
-/// default.
-fn budget(max_depth: Option<u32>, max_replays: Option<usize>) -> a::DriveConfig {
-    let base = a::DriveConfig::default();
-    a::DriveConfig {
-        max_depth: max_depth.unwrap_or(base.max_depth),
-        max_leaves: max_replays.unwrap_or(base.max_leaves),
-        ..base
+/// The search's budget for an admitted seed: the depth that seed needs
+/// (`RangeBudget::for_seed`) unless one is stated.
+fn budget(seed: a::RangeSeed, max_depth: Option<u32>, max_replays: usize) -> a::RangeBudget {
+    let sized = a::RangeBudget::for_seed(seed, Tol::witness(), max_replays);
+    a::RangeBudget {
+        max_depth: max_depth.unwrap_or(sized.max_depth),
+        ..sized
     }
+}
+
+/// A stop for one call: the token's, or one nothing cancels.
+fn stop_of(cancel: Option<&super::value::CancelToken>) -> d::Stop {
+    cancel.map_or_else(d::Stop::default, |c| d::Stop::canceled_by(&c.token()))
 }
 
 /// **The stepped search.** Constructing one admits the request and
 /// builds the document once, at its nominal; `step` replays ONE
 /// interval; `answer` can be read after any step, and is a function of
 /// the request and the number of steps taken — no clock is read, so
-/// stopping keeps what was proven.
+/// stopping keeps what was proven, and a later `step` continues it.
 ///
-/// The schedule refines toward the current value: each side of the
-/// seed is replayed whole, and an interval the replay could not decide
-/// is halved, the half nearer the current value first.
+/// The schedule refines toward the current value, works only where the
+/// answer can still move, and takes the two sides level by level
+/// together (`pncad::analysis::range`'s module docs).
 ///
 /// `seed` is the kernel's own (`RangeSeed.of`) where none is handed.
-/// `max_replays` bounds how many intervals the search will ever replay
-/// and `max_depth` how many times one side may be halved; both default
-/// to the driver's, which is far more replays than a caller should
-/// wait for, so the loop calling `step` is the budget that matters.
-/// `resolver` is how a document that instantiates parts reaches them,
-/// as `evaluate` takes it. `cancel` stops the nominal build and any
-/// later replay.
+/// `max_depth` is how many times one side may be halved; it defaults to
+/// what the seed needs to reach a width a curved field certifies at
+/// (`RangeBudget::for_seed`). `max_replays` bounds how many intervals
+/// the search will ever replay, and defaults to no bound: the loop
+/// calling `step` is the budget. `resolver` is how a document that
+/// instantiates parts reaches them, as `evaluate` takes it. `cancel`
+/// stops the nominal build; each `step` takes its own.
 ///
 /// Raises `RangeRefusal`: the request's own refusals before any
 /// geometry runs, then a nominal that does not build
@@ -861,22 +906,23 @@ pub(crate) struct RangeSearch {
     /// The document the search was asked about, which the answer's
     /// pinned parameters are read in.
     doc: d::ProfileDoc,
-    stop: d::Stop,
 }
 
 impl RangeSearch {
+    #[allow(clippy::too_many_arguments)]
     fn open(
         py: Python<'_>,
         doc: &super::doc::Doc,
         field: &RangeField,
         seed: Option<&RangeSeed>,
-        config: &a::DriveConfig,
+        max_depth: Option<u32>,
+        max_replays: usize,
         resolver: Option<&super::store::Workspace>,
-        cancel: Option<&super::value::CancelToken>,
+        stop: &d::Stop,
     ) -> PyResult<Self> {
         let recipe = &doc.inner;
         let request = admitted(py, recipe, field, seed, None)?;
-        let stop = cancel.map_or_else(d::Stop::default, |c| d::Stop::canceled_by(&c.token()));
+        let config = budget(request.seed, max_depth, max_replays);
         let resolver = super::doc::seam(resolver);
         let tol = Tol::witness();
         // The nominal build is a whole document evaluation, so the
@@ -886,9 +932,9 @@ impl RangeSearch {
                 recipe,
                 &request.field,
                 request.seed,
-                config,
+                &config,
                 resolver,
-                &stop,
+                stop,
                 tol,
             )
         });
@@ -898,19 +944,18 @@ impl RangeSearch {
                 dim: request.dim,
                 field: field.clone(),
                 doc: recipe.clone(),
-                stop,
             }),
             Err(refusal) => Err(range_err(py, &refusal)),
         }
     }
 
     /// One replay, with the interpreter released.
-    fn advance(&self, py: Python<'_>) -> a::range::Step {
+    fn advance(&self, py: Python<'_>, stop: &d::Stop) -> a::range::Step {
         py.detach(|| {
             self.inner
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .step(&self.stop)
+                .step(stop)
         })
     }
 
@@ -951,18 +996,27 @@ impl RangeSearch {
         resolver: Option<&super::store::Workspace>,
         cancel: Option<&super::value::CancelToken>,
     ) -> PyResult<Self> {
-        let config = budget(max_depth, max_replays);
-        Self::open(py, doc, field, seed, &config, resolver, cancel)
+        Self::open(
+            py,
+            doc,
+            field,
+            seed,
+            max_depth,
+            max_replays.unwrap_or(usize::MAX),
+            resolver,
+            &stop_of(cancel),
+        )
     }
 
     /// **One replay.** Answers `"advanced"` when an interval was
-    /// replayed, `"finished"` when nothing was — every interval is
-    /// decided or at its floor, or `max_replays` is spent — and
-    /// `"stopped"` when the replay stopped short (`cancel`, or the
+    /// replayed, `"finished"` when nothing was — the search has no work
+    /// left that could change its answer, or `max_replays` is spent —
+    /// and `"stopped"` when the replay stopped short (`cancel`, or the
     /// kernel's member budget) and decided nothing: the search stands
-    /// where it stood.
-    fn step(&self, py: Python<'_>) -> &'static str {
-        range_step_tag(&self.advance(py))
+    /// where it stood, and a later `step` continues it.
+    #[pyo3(signature = (*, cancel = None))]
+    fn step(&self, py: Python<'_>, cancel: Option<&super::value::CancelToken>) -> &'static str {
+        range_step_tag(&self.advance(py, &stop_of(cancel)))
     }
 
     /// How many intervals have been replayed.
@@ -992,10 +1046,12 @@ impl RangeSearch {
 /// it finishes, `max_replays` is spent, or `cancel` stops it.
 ///
 /// `max_replays` is required: a replay is a document evaluation at the
-/// certified scalar, and the driver's own default admits far more of
-/// them than a caller should wait for. A stop after the nominal build
-/// keeps what was proven and is not a refusal — the answer's
-/// `not_decided` says more time helps.
+/// certified scalar, and a field that certifies only near the
+/// tolerance never finishes a wide seed, so no count this door could
+/// choose is one a caller should wait for. `max_depth` defaults as on
+/// `RangeSearch`. A stop after the nominal build keeps what was proven
+/// and is not a refusal — the answer's `not_decided` says more time
+/// helps.
 ///
 /// Raises `RangeRefusal` as `RangeSearch` does.
 #[pyfunction]
@@ -1013,9 +1069,18 @@ fn certified_range(
     resolver: Option<&super::store::Workspace>,
     cancel: Option<&super::value::CancelToken>,
 ) -> PyResult<CertifiedRange> {
-    let config = budget(max_depth, Some(max_replays));
-    let search = RangeSearch::open(py, doc, field, seed, &config, resolver, cancel)?;
-    while search.advance(py) == a::range::Step::Advanced {}
+    let stop = stop_of(cancel);
+    let search = RangeSearch::open(
+        py,
+        doc,
+        field,
+        seed,
+        max_depth,
+        max_replays,
+        resolver,
+        &stop,
+    )?;
+    while search.advance(py, &stop) == a::range::Step::Advanced {}
     Ok(search.read())
 }
 

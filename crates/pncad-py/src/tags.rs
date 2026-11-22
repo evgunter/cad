@@ -124,7 +124,7 @@ use crate::errors::{BoundaryEdit, EvalReason, StlRefusal, UnmirroredSelect, Vali
 use pncad::analysis::range::Step as RangeStep;
 use pncad::analysis::{
     AnalysisPolicyError, BudgetKind, DifferenceKind, DriveRefusal, McRefusal, MeasureUnavailable,
-    ParamBoxError, RangeRefusal, RefusalReason, SeedError,
+    ParamBoxError, RangeRefusal, RefusalReason, SeedError, Unsettled,
 };
 use pncad::document::LabelFault;
 use pncad::document::{
@@ -814,7 +814,19 @@ pub fn range_refusal_tag(refusal: &RangeRefusal) -> &'static str {
         RangeRefusal::Derivation(_) => "derivation",
         RangeRefusal::SeedIsNotTheAnalyzedAxis { .. } => "seed_is_not_the_analyzed_axis",
         RangeRefusal::MoreThanOneAxisVaries { .. } => "more_than_one_axis_varies",
+        RangeRefusal::EvaluationOfAnotherDocument(_) => "evaluation_of_another_document",
         RangeRefusal::Drive(refusal) => drive_refusal_tag(refusal),
+    }
+}
+
+/// The stable tag for why a side of a range is not decided
+/// (`NotDecided.reason`): the search's own two, or the driver's reason
+/// at the frontier.
+pub fn unsettled_tag(reason: &Unsettled) -> &'static str {
+    match reason {
+        Unsettled::Unfinished { .. } => "unfinished",
+        Unsettled::Stalled { .. } => "stalled",
+        Unsettled::Floor(reason) => refusal_reason_tag(reason),
     }
 }
 

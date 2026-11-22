@@ -2331,17 +2331,13 @@ fn r1_clearance_answers_alike_in_either_order() {
 /// *Breaks if* the search's witness or its replays lose the resolver.
 #[test]
 fn a_part_instancing_document_is_admitted_to_the_range_search() {
-    use editor_core::drive::{DriveConfig, DriveRefusal};
-    use editor_core::range::{RangeField, RangeRefusal, RangeSearch, RangeSeed, Step};
+    use editor_core::drive::DriveRefusal;
+    use editor_core::range::{RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed, Step};
     let b = bolted("msolve14-range");
     let resolver = b.opts.resolver.clone().expect("the store resolves");
     let field = RangeField::Param(b.doc.var_named("s").expect("the spacing parameter"));
     let seed = RangeSeed::symmetric(narrow(1.0).1);
-    let config = DriveConfig {
-        max_depth: 8,
-        max_leaves: 20,
-        ..DriveConfig::default()
-    };
+    let config = RangeBudget::new(8, 20);
     let stop = editor_core::Stop::default();
     let search = |resolver| {
         RangeSearch::new(

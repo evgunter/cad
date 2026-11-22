@@ -680,6 +680,17 @@ fn picking_refusal_tags_are_stable() {
         }),
         "evaluation_of_another_document"
     );
+    assert_eq!(
+        crate::tags::range_refusal_tag(
+            &pncad::analysis::RangeRefusal::EvaluationOfAnotherDocument(
+                pncad::document::Mispaired {
+                    expected: pncad::document::DocumentId::derive("tag-expected"),
+                    found: pncad::document::DocumentId::derive("tag-found"),
+                }
+            )
+        ),
+        "evaluation_of_another_document"
+    );
 
     // The certified tie between faces, under the word the name-level
     // interrogation already answers with for "this denotes more than
@@ -5634,6 +5645,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "range_refusal_tag",
         values: &[
             "derivation",
+            "evaluation_of_another_document",
             "more_than_one_axis_varies",
             "not_a_continuous_param",
             "seed_is_not_the_analyzed_axis",
@@ -6253,6 +6265,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "unsettled_tag",
+        values: &["stalled", "unfinished"],
+        delegates: &["refusal_reason_tag"],
+    },
+    TagEntry {
         function: "update_error_tag",
         values: &["already_pinned", "no_such_reference"],
         delegates: &[],
@@ -6507,7 +6524,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty_profile", 3),
     ("escalated", 11),
     ("euler", 2),
-    ("evaluation_of_another_document", 5),
+    ("evaluation_of_another_document", 6),
     // `face` is also the face frame's operand slot (`operand_slot_tag`):
     // the seat that reads one face, the entity's own word.
     ("face", 4),

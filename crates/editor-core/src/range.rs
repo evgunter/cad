@@ -13,20 +13,67 @@
 //! # The search
 //!
 //! [`RangeSearch`] is a stepped value. [`RangeSearch::new`] admits the
-//! request and evaluates the witness once; [`RangeSearch::step`] replays
-//! ONE interval; [`RangeSearch::answer`] can be read after any step, and
-//! is a pure function of the inputs and the number of steps taken — no
-//! clock is read, so stopping keeps what was proven.
+//! request and evaluates the witness once; [`RangeSearch::step`] does
+//! ONE replay; [`RangeSearch::answer`] can be read after any step. The
+//! answer is a pure function of the inputs and the number of steps
+//! taken. No clock is read, and the one piece of state the replays
+//! share, the drive's plain-form memo, is transparent: it hands back the
+//! form a replay would have built (`geom_core::sym::DriveMemo`). So
+//! stopping keeps what was proven, and a later step continues it.
 //!
-//! The schedule refines TOWARD the current value:
+//! # The schedule
 //!
-//! 1. The seed is split at the current value, and each side is replayed
-//!    whole.
-//! 2. An interval the replay could not decide is halved and BOTH halves
-//!    are replayed, the one nearer the current value first.
-//! 3. The interval halved next is the undecided one nearest the current
-//!    value, on either side (a tie goes to the wider interval, then to
-//!    the low side).
+//! Each side of the current value is a row of intervals tiling it,
+//! nearest first; at the start, one per side, the side whole. A replay
+//! leaves an interval PROVEN (it certifies), DIFFERENT (decided
+//! definitely otherwise), or undecided; an undecided interval at the
+//! depth bound or the `f64` grid, or one the driver refused for good,
+//! is at its FLOOR. A side's answer is read off its FRONTIER, the first
+//! interval not proven, and its nearest DIFFERENT interval; the
+//! APPROACH is the interval just short of that difference.
+//!
+//! Nothing past the nearest difference can change the side's answer:
+//! the proof cannot pass it, and a difference found there is not the
+//! nearest. The search works only where the answer can still move:
+//!
+//! 1. An interval not yet replayed, short of the nearest difference, is
+//!    replayed.
+//! 2. The frontier is halved and both halves are replayed, the nearer
+//!    first. The near half extends the proof. The far half is how a
+//!    difference past undecided ground is seen.
+//! 3. The approach is halved and both halves are replayed, which moves
+//!    the difference nearer.
+//! 4. Neither end is halved more than [`STALL_LEVELS`] times past the
+//!    deepest interval whose replay last moved it (the proof's end for
+//!    the frontier, the difference for the approach). Halvings that
+//!    decide nothing at four successive widths are in ground undecided
+//!    at every width: a coincidence or failure zone, or the ε band at a
+//!    boundary. That end is then settled to within a sixteenth of the
+//!    width that last moved it ([`Unsettled::Stalled`]). The frontier
+//!    of a side that has proven nothing yet has no such bound, because
+//!    the first proof can sit many halvings down, and halves to
+//!    [`RangeBudget::max_depth`].
+//!
+//! 5. While a side has no difference proven and its frontier is
+//!    settled (at its floor, or stalled), the undecided intervals past
+//!    the frontier are halved, widest first, down to [`STALL_LEVELS`]
+//!    halvings of the side: a difference past undecided ground is looked
+//!    for down to a sixteenth of the side's width. That is how a
+//!    boundary the frontier's far halves only touch (one sitting on a
+//!    halving's cut point) is still seen past.
+//!
+//! Any other undecided interval, between the frontier and the approach,
+//! is left alone. It could move the answer only by holding a difference
+//! nearer than the one proven, and halving it is the tiling of
+//! undecided ground the rules above exist to stop. So the point proven
+//! different is the nearest the search PROVED, not the nearest that
+//! exists.
+//!
+//! Across the two sides the next work is the one on the WIDER interval,
+//! then the one nearer the current value, then the low side's. The two
+//! sides refine level by level together, and neither starves the
+//! other. The search has [`Step::Finished`] when neither side has work
+//! left, or the replay cap is spent.
 //!
 //! The far half is replayed and not skipped, because that is the only
 //! way a difference is ever PROVEN: a certified interval and one proven
@@ -36,11 +83,17 @@
 //! on its near side and a schedule that only grew the proven interval
 //! outward would stop at that ground without ever seeing past it.
 //!
-//! Proving width `w` on a side of width `W` therefore costs about
-//! `2·log2(W/w)` replays where a level-by-level subdivision of the seed
-//! costs `W/w` leaves, which is what makes a wide seed affordable.
+//! # What it costs
 //!
-//! # What it costs, measured
+//! The FIRST proof of width `w` on a side of width `W` costs about
+//! `2·log2(W/w)` replays, two a halving down the frontier, where a
+//! level-by-level subdivision of the seed costs `W/w` leaves. After it
+//! the proof grows by about the width that certifies for every two
+//! replays, so a field that certifies only near `ε` never finishes a
+//! wide seed: the caller's stop or the replay cap ends it. An end that
+//! stalls costs at most `2·STALL_LEVELS` replays past its last move,
+//! and looking past a settled frontier (the schedule, 5) at most
+//! `2^(STALL_LEVELS+1)` replays a side.
 //!
 //! A replay's cost is how far it gets before something is undecided,
 //! so it spans orders of magnitude on one document. Per replay, dev
@@ -53,7 +106,9 @@
 //! | `corpus::die` (57 nodes) | `pip_depth` | 0.2 s | 2.6 s | 115–132 s, none certified in 8 |
 //! | `corpus::die` | the cube's `Distance` slot | 0.4 s | 1.8–2.1 s | 26–42 s, none certified in 8 |
 //!
-//! Re-take them rather than trusting them
+//! These are a measurement of the leaf protocol on this hardware, so
+//! they move whenever the protocol or the symbolic tier does: re-take
+//! them after either changes
 //! (`docm9_range::the_per_replay_cost_on_the_corpus`, ignored, prints
 //! the rows).
 //!
@@ -68,17 +123,17 @@
 //!
 //! # The budget
 //!
-//! [`DriveConfig::max_leaves`] is the number of replays the search may
-//! take and [`DriveConfig::max_depth`] how many times one side may be
-//! halved; `symbolic` and `plain_memo` are the leaf protocol's own.
-//! `parallel` is not read: a step is one replay. A depth costs two
-//! replays a level here, so it is sized to the seed and not to a leaf
-//! count: reaching a width that certifies near `ε` from a side of
-//! width `W` takes `log2(W/ε)` halvings, more than
-//! [`crate::drive::DEFAULT_MAX_DEPTH`] for a side wider than `2²⁴ ε`,
-//! and the `f64` grid bounds it whatever the dial says. Ground the search has
-//! not replayed, or has replayed and not yet halved, is priced
-//! [`RefusalReason::Budget`] (E6) under the replays taken so far.
+//! [`RangeBudget`] is the search's own: `max_replays` replays in all,
+//! and `max_depth` halvings of one side; its leaf dials are the
+//! drive's. The depth bounds a side only until its first proof (the
+//! schedule, 4), so it is sized to reach the width a field certifies
+//! at: near `ε/4` on curved geometry, which a side of width `W` reaches
+//! in about `log2(4W/ε)` halvings. [`RangeBudget::for_seed`] sizes it
+//! for a seed. A deeper bound costs two replays a level on a side that
+//! never proves anything, and nothing on a side that does. The `f64`
+//! grid is no bound near the current value, where it is far finer than
+//! any depth. Ground the search still had work on when it stopped is
+//! [`Unsettled::Unfinished`], under the replays taken.
 //!
 //! # The one field, and where its widening lives
 //!
@@ -123,11 +178,13 @@ use crate::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use crate::distribution::Distribution;
 use crate::doc::{Doc, FreeVar};
 use crate::drive::{
-    BudgetKind, DriveConfig, DriveRefusal, FlipEvidence, LeafVerdict, RefusalReason, VerdictVector,
-    VerdictVectorKey, certifying_vector, classify, does_not_build, drive_memo, witness_build,
+    BudgetKind, DriveConfig, DriveRefusal, FlipEvidence, LeafVerdict, RefusalReason, SymbolicDials,
+    VerdictVector, VerdictVectorKey, certifying_vector, classify, does_not_build, drive_memo,
+    witness_build,
 };
 use crate::edit::{DocEdit, EditError, apply};
 use crate::eval::Evaluation;
+use crate::ident::Mispaired;
 use crate::node::{RecipeNodeId, SlotId};
 use crate::part::PartResolver;
 use crate::program::ProfileProgram;
@@ -187,6 +244,9 @@ impl RangeSeed {
 
     /// **The seed this module chooses for a field**: from zero to twice
     /// the current value, `±|nominal|`, and `±1` for a field at zero.
+    /// That `1` is in the kernel's units of the field's dimension,
+    /// whatever the dimension: a length's unit, and one radian for an
+    /// angle.
     ///
     /// No field of this kernel states an admissible domain — a slot
     /// states a dimension ([`SlotId::dimension`]) and a variable a
@@ -269,7 +329,30 @@ impl ProvenDifferent {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NotDecided {
     past: f64,
-    reason: RefusalReason,
+    reason: Unsettled,
+}
+
+/// **Why a side is not decided** at its frontier ([`NotDecided::reason`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Unsettled {
+    /// The schedule still had work on this side when the search
+    /// stopped: the caller stopped stepping, or
+    /// [`RangeBudget::max_replays`] was spent.
+    Unfinished {
+        /// The replays the search had taken: budget spent, not a cap.
+        replays: usize,
+    },
+    /// The frontier was halved [`STALL_LEVELS`] times past the interval
+    /// whose proof last moved it and nothing decided (module docs, the
+    /// schedule): ground undecided at every width the search tried.
+    Stalled {
+        /// The width of the interval that last moved the proof's end.
+        width: f64,
+    },
+    /// The driver refused the frontier interval for good: a terminal
+    /// sliver, or an interval at [`RangeBudget::max_depth`] or the
+    /// `f64` grid ([`BudgetKind::Depth`], [`BudgetKind::Resolution`]).
+    Floor(RefusalReason),
 }
 
 impl NotDecided {
@@ -279,23 +362,20 @@ impl NotDecided {
         self.past
     }
 
-    /// Why the interval at the frontier is undecided: the driver's
-    /// typed reason, or [`BudgetKind::Leaves`] under the replays taken
-    /// for ground the search has not finished with.
+    /// Why the side is undecided at its frontier.
     #[must_use]
-    pub fn reason(&self) -> &RefusalReason {
+    pub fn reason(&self) -> &Unsettled {
         &self.reason
     }
 
-    /// Whether more replays can move the frontier. Only a spent replay
-    /// count answers yes: a depth floor, the `f64` grid and a terminal
-    /// sliver are where refinement has stopped moving.
+    /// Whether more replays can change this side's answer: the schedule
+    /// still had work on it ([`Unsettled::Unfinished`]). A stall and a
+    /// floor are where the schedule stops; a deeper
+    /// [`RangeBudget::max_depth`] can move a depth floor, and more
+    /// replays cannot.
     #[must_use]
     pub fn more_time_helps(&self) -> bool {
-        matches!(
-            self.reason,
-            RefusalReason::Budget(BudgetKind::Leaves { .. })
-        )
+        matches!(self.reason, Unsettled::Unfinished { .. })
     }
 }
 
@@ -306,7 +386,8 @@ pub enum SideEnd {
     /// Never a claim about values outside the seed, which were not
     /// replayed.
     Seed,
-    /// The nearest point proven different.
+    /// The nearest point the search proved different (module docs, the
+    /// schedule: not necessarily the nearest that exists).
     Different(ProvenDifferent),
 }
 
@@ -431,30 +512,59 @@ impl CertifiedRange {
         &self.hi
     }
 
-    /// An offset read as an absolute field value, `nominal + offset` at
-    /// `f64`. A reader's convenience: the PROOF is over the offsets,
-    /// which the replayed axis carries exactly, and this sum rounds.
+    /// An offset read as an absolute field value, `nominal + offset`
+    /// rounded to nearest at `f64`. A reader's convenience: the PROOF is
+    /// over the offsets, which the replayed axis carries exactly, and
+    /// this sum can land a rounding past the offset it reads. An END of
+    /// the proof is read through [`Self::proven_interval`], which rounds
+    /// inward.
     #[must_use]
     pub fn absolute(&self, offset: f64) -> f64 {
         self.nominal + offset
     }
 
     /// The proven interval as offsets, derived from the two sides:
-    /// `(lo.proven_to(), hi.proven_to())`. Every value in it builds
-    /// exactly what the witness built, with [`Self::pinned`] at their
-    /// nominals. `(0, 0)` when nothing is proven
-    /// ([`Self::nothing_proven`]).
+    /// `(lo.proven_to(), hi.proven_to())`. `(0, 0)` when nothing is
+    /// proven ([`Self::nothing_proven`]).
+    ///
+    /// **What "proven" means** is the E6 leaf protocol's certificate,
+    /// with [`Self::pinned`] at their nominals: at every value in it the
+    /// same nodes stand as at the witness and every decision the witness
+    /// recorded goes the same way. The protocol replays the witness's
+    /// REPRESENTATION choices as recorded rather than deciding them
+    /// afresh (a `canonical_order_*` verdict, which picks where a loop
+    /// starts), so a plain `f64` build at a proven value can record
+    /// such a verdict differently from the witness, and build the same
+    /// shape stated from another start
+    /// (`work/scalar/the-leaf-protocol-pins-representation-choices-the-witness-recorded`).
     #[must_use]
     pub fn proven_offsets(&self) -> (f64, f64) {
         (self.lo.proven_to, self.hi.proven_to)
     }
 
-    /// The proven interval in absolute field values
-    /// ([`Self::absolute`] of [`Self::proven_offsets`]).
+    /// The proven interval in absolute field values, each end
+    /// [`Self::absolute`] of [`Self::proven_offsets`] stepped toward the
+    /// nominal where the sum rounded outward, so neither end lies
+    /// outside what was proven.
     #[must_use]
     pub fn proven_interval(&self) -> (f64, f64) {
         let (lo, hi) = self.proven_offsets();
-        (self.absolute(lo), self.absolute(hi))
+        (self.inward(lo), self.inward(hi))
+    }
+
+    /// `nominal + offset`, rounded toward the nominal: the exact sum's
+    /// rounding error (Knuth's two-sum) says which way it went.
+    fn inward(&self, offset: f64) -> f64 {
+        let sum = self.nominal + offset;
+        let back = sum - self.nominal;
+        let error = (self.nominal - (sum - back)) + (offset - back);
+        if offset > 0.0 && error < 0.0 {
+            sum.next_down()
+        } else if offset < 0.0 && error > 0.0 {
+            sum.next_up()
+        } else {
+            sum
+        }
     }
 
     /// Whether the proven interval is empty: neither side proved
@@ -539,6 +649,9 @@ pub enum RangeRefusal {
         /// How many axes of the derived box vary.
         varying: usize,
     },
+    /// The build handed to [`admit`] is an evaluation of another
+    /// document (ASSEMBLY A2a, the pairing doors).
+    EvaluationOfAnotherDocument(Mispaired),
     /// The witness does not build, or its build was stopped: the
     /// driver's refusal, verbatim.
     Drive(Box<DriveRefusal>),
@@ -603,6 +716,12 @@ impl core::fmt::Display for RangeRefusal {
                  derivation leaves one. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
+            Self::EvaluationOfAnotherDocument(m) => write!(
+                f,
+                "the build handed to the range's admission is of document {}, not of the \
+                 document {} asked about",
+                m.found, m.expected
+            ),
             Self::Drive(e) => write!(f, "{e}"),
         }
     }
@@ -648,8 +767,17 @@ pub struct Admission {
 /// does not declare continuous, a node or slot it does not carry, a
 /// structural slot, a slot reading a defined variable. `built` is the
 /// caller's finished `f64` build of this document, where it holds one:
-/// a node that is not usable there refuses as the witness build would
+/// a build of another document refuses
+/// ([`RangeRefusal::EvaluationOfAnotherDocument`]), and a node that is
+/// not usable there refuses as the witness build would
 /// ([`DriveRefusal::WitnessDoesNotBuild`]), without building it again.
+///
+/// The pairing is by identity, as at every pairing door: an earlier
+/// build of the same document, or one at another tolerance or through
+/// another resolver, is admitted. It answers what the caller's own build
+/// shows, which is what a consumer greys its control from, and the
+/// search does not trust it: [`RangeSearch::new`] builds its own witness
+/// and refuses on that.
 ///
 /// # Errors
 ///
@@ -672,6 +800,9 @@ pub fn admit(
         });
     }
     let (axis, nominal) = axis_of(doc, field)?;
+    if let Some(m) = built.and_then(|built| crate::ident::mispaired(doc.id(), built.document)) {
+        return Err(RangeRefusal::EvaluationOfAnotherDocument(m));
+    }
     if let Some(refusal) = built.and_then(|built| does_not_build(doc, built)) {
         return Err(RangeRefusal::Drive(Box::new(refusal)));
     }
@@ -816,24 +947,87 @@ pub fn certified_range(
     doc: &Doc<ProfileProgram>,
     field: &RangeField,
     seed: RangeSeed,
-    config: &DriveConfig,
+    budget: &RangeBudget,
     resolver: Option<Arc<dyn PartResolver>>,
     stop: &crate::Stop,
     tol: Tol,
 ) -> Result<CertifiedRange, RangeRefusal> {
-    let mut search = RangeSearch::new(doc, field, seed, config, resolver, stop, tol)?;
+    let mut search = RangeSearch::new(doc, field, seed, budget, resolver, stop, tol)?;
     while search.step(stop) == Step::Advanced {}
     Ok(search.answer())
+}
+
+/// How many halvings past the interval that last moved an end of a
+/// side's answer the search spends before it calls that end settled
+/// (module docs, the schedule).
+pub const STALL_LEVELS: u32 = 4;
+
+/// How far below `ε` [`RangeBudget::for_seed`] sizes the depth to
+/// reach: a curved field certifies near `ε/4` (module docs), and this
+/// leaves two halvings below that.
+const DEPTH_REACHES_BELOW_EPS: f64 = 16.0;
+
+/// **The search's budget.**
+///
+/// Not a [`DriveConfig`]: a step is one replay, so the drive's leaf
+/// count, its schedule switch and its depth bound per axis have no
+/// meaning here. The leaf protocol's own dials are the drive's, and
+/// mean what they mean there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RangeBudget {
+    /// How many intervals the search may replay in all.
+    pub max_replays: usize,
+    /// How many times one side may be halved. It bounds a side only
+    /// until its first proof (module docs, the budget).
+    pub max_depth: u32,
+    /// The leaf protocol's symbolic tier ([`DriveConfig::symbolic`]).
+    pub symbolic: SymbolicDials,
+    /// Whether the replays share one plain-form memo
+    /// ([`DriveConfig::plain_memo`]).
+    pub plain_memo: bool,
+}
+
+impl RangeBudget {
+    /// The two counts stated, the leaf dials the drive's defaults.
+    #[must_use]
+    pub fn new(max_depth: u32, max_replays: usize) -> Self {
+        let leaf = DriveConfig::default();
+        Self {
+            max_replays,
+            max_depth,
+            symbolic: leaf.symbolic,
+            plain_memo: leaf.plain_memo,
+        }
+    }
+
+    /// **The depth a seed needs**: enough halvings that the wider side
+    /// reaches `ε/16`, where a field on curved geometry has certified
+    /// if it is going to (module docs, the budget), and `max_replays`
+    /// as stated.
+    #[must_use]
+    pub fn for_seed(seed: RangeSeed, tol: Tol, max_replays: usize) -> Self {
+        let side = seed.hi.max(-seed.lo);
+        let levels = (side * DEPTH_REACHES_BELOW_EPS / tol.eps()).log2().ceil();
+        // A seed narrower than the target needs no halving; a non-finite
+        // one is refused at admission, and the clamp keeps the cast total.
+        let max_depth = if levels.is_finite() && levels > 0.0 {
+            levels.min(f64::from(u16::MAX)) as u32
+        } else {
+            0
+        };
+        Self::new(max_depth, max_replays)
+    }
 }
 
 /// What one [`RangeSearch::step`] did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[must_use]
 pub enum Step {
-    /// One interval was replayed; there may be more to do.
+    /// One interval was replayed, or halved and its near half
+    /// replayed; there may be more to do.
     Advanced,
-    /// Nothing was replayed: every interval is decided or at its floor,
-    /// or the replay count ([`DriveConfig::max_leaves`]) is spent.
+    /// Nothing was replayed: the schedule has no work left on either
+    /// side, or [`RangeBudget::max_replays`] is spent.
     Finished,
     /// The replay stopped short ([`crate::Stop`]) and decided nothing;
     /// the search stands where it stood.
@@ -845,14 +1039,15 @@ pub enum Step {
 enum Ground {
     /// Not replayed yet.
     Unreached,
-    /// Replayed, undecided, and still halvable.
-    Undecided,
+    /// Replayed and undecided: the two halves it splits into, nearer
+    /// first, cut when it was replayed.
+    Undecided(Box<[Cell; 2]>),
     /// Replayed and proven the witness's build.
     Proven,
     /// Replayed and proven not the witness's build.
     Different(Box<FlipEvidence>),
     /// Undecided for good: a terminal sliver, or an interval at the
-    /// depth floor or the `f64` grid.
+    /// depth bound or the `f64` grid.
     Floor(RefusalReason),
 }
 
@@ -874,64 +1069,200 @@ impl Cell {
     fn width(&self) -> f64 {
         (self.far - self.near).abs()
     }
+}
 
-    /// The two halves, nearer first, or the bound that forbids halving.
-    fn halves(&self, max_depth: u32) -> Result<(Self, Self), BudgetKind> {
-        if self.depth >= max_depth {
-            return Err(BudgetKind::Depth { max_depth });
+/// One piece of the schedule's work on a side.
+#[derive(Debug, Clone, PartialEq)]
+enum Work {
+    /// Replay the interval at this index.
+    Replay(usize),
+    /// Put these halves in place of the interval at this index and
+    /// replay the nearer.
+    Halve(usize, Box<[Cell; 2]>),
+}
+
+impl Work {
+    fn at(&self) -> usize {
+        match self {
+            Self::Replay(at) | Self::Halve(at, _) => *at,
         }
-        let (lo, hi) = self.span();
-        let mid = BoxAxis::Varying { lo, hi }.midpoint();
-        if !(lo < mid && mid < hi) {
-            return Err(BudgetKind::Resolution);
-        }
-        let half = |near, far| Self {
-            near,
-            far,
-            depth: self.depth + 1,
-            ground: Ground::Unreached,
-        };
-        Ok((half(self.near, mid), half(mid, self.far)))
     }
 }
 
-/// One side's answer, read off its intervals (nearest first, tiling the
-/// side). `steps` prices the ground the search has not finished with.
-fn side_answer(cells: &[Cell], steps: usize) -> RangeSide {
-    let proven = cells
-        .iter()
-        .take_while(|c| c.ground == Ground::Proven)
-        .count();
-    let proven_to = proven.checked_sub(1).map_or(0.0, |last| cells[last].far);
-    let Some(frontier) = cells.get(proven) else {
-        return RangeSide {
-            proven_to,
-            end: Some(SideEnd::Seed),
-            not_decided: None,
+/// One side of the search: its intervals, nearest first and tiling it,
+/// and where each end of its answer last moved.
+#[derive(Debug, Clone, PartialEq, Default)]
+struct Side {
+    cells: Vec<Cell>,
+    /// The depth and width of the deepest interval whose replay moved
+    /// the proof's end.
+    proof_moved: Option<(u32, f64)>,
+    /// The depth of the deepest interval whose replay moved the nearest
+    /// difference.
+    difference_moved: Option<u32>,
+}
+
+impl Side {
+    fn whole(far: f64) -> Self {
+        let cells = if far == 0.0 {
+            Vec::new()
+        } else {
+            vec![Cell {
+                near: 0.0,
+                far,
+                depth: 0,
+                ground: Ground::Unreached,
+            }]
         };
-    };
-    let end = cells[proven..].iter().find_map(|c| match &c.ground {
-        Ground::Different(evidence) => Some(SideEnd::Different(ProvenDifferent {
-            at: c.near,
-            evidence: evidence.clone(),
-        })),
-        _ => None,
-    });
-    let reason = match &frontier.ground {
-        Ground::Different(_) | Ground::Proven => None,
-        Ground::Floor(reason) => Some(reason.clone()),
-        Ground::Unreached | Ground::Undecided => Some(RefusalReason::Budget(BudgetKind::Leaves {
-            max_leaves: steps,
-        })),
-    };
-    RangeSide {
-        proven_to,
-        end,
-        not_decided: reason.map(|reason| NotDecided {
-            past: proven_to,
-            reason,
-        }),
+        Self {
+            cells,
+            ..Self::default()
+        }
     }
+
+    /// The first interval not proven: the frontier.
+    fn frontier(&self) -> usize {
+        self.cells
+            .iter()
+            .position(|c| c.ground != Ground::Proven)
+            .unwrap_or(self.cells.len())
+    }
+
+    /// The nearest interval proven different, or the row's length.
+    fn nearest_different(&self) -> usize {
+        self.cells
+            .iter()
+            .position(|c| matches!(c.ground, Ground::Different(_)))
+            .unwrap_or(self.cells.len())
+    }
+
+    fn proven_to(&self) -> f64 {
+        self.frontier()
+            .checked_sub(1)
+            .map_or(0.0, |last| self.cells[last].far)
+    }
+
+    fn different_at(&self) -> Option<f64> {
+        self.cells.get(self.nearest_different()).map(|c| c.near)
+    }
+
+    /// **The schedule's next work on this side** (module docs): an
+    /// unreplayed interval short of the nearest difference, or a halving
+    /// of the frontier or the approach while it has not stalled; the
+    /// widest first, then the nearest. `None` when this side's answer
+    /// cannot move.
+    fn work(&self) -> Option<Work> {
+        let frontier = self.frontier();
+        let different = self.nearest_different();
+        let approach = different
+            .checked_sub(1)
+            .filter(|_| different < self.cells.len());
+        let open = |at: usize, depth: u32| {
+            let proof = at == frontier
+                && self
+                    .proof_moved
+                    .is_none_or(|(moved, _)| depth < moved + STALL_LEVELS);
+            let difference = Some(at) == approach
+                && self
+                    .difference_moved
+                    .is_some_and(|moved| depth < moved + STALL_LEVELS);
+            proof || difference
+        };
+        // With no difference found and the frontier settled, undecided
+        // ground past it is looked into down to `STALL_LEVELS` halvings
+        // of the side.
+        let scouting = different == self.cells.len()
+            && self.cells.get(frontier).is_some_and(|c| match &c.ground {
+                Ground::Undecided(_) => !open(frontier, c.depth),
+                Ground::Floor(_) => true,
+                Ground::Unreached | Ground::Proven | Ground::Different(_) => false,
+            });
+        let scout = |at: usize, depth: u32| scouting && at > frontier && depth < STALL_LEVELS;
+        let mut best: Option<(Work, &Cell)> = None;
+        for (at, cell) in self.cells.iter().enumerate().take(different).skip(frontier) {
+            let work = match &cell.ground {
+                Ground::Unreached => Work::Replay(at),
+                Ground::Undecided(halves) if open(at, cell.depth) || scout(at, cell.depth) => {
+                    Work::Halve(at, halves.clone())
+                }
+                _ => continue,
+            };
+            if best.as_ref().is_none_or(|(_, b)| before(cell, b)) {
+                best = Some((work, cell));
+            }
+        }
+        best.map(|(work, _)| work)
+    }
+
+    /// Writes a replay's ground and records which end of the answer it
+    /// moved.
+    fn settle(&mut self, at: usize, ground: Ground) {
+        let (proven_to, different_at) = (self.proven_to(), self.different_at());
+        self.cells[at].ground = ground;
+        let (depth, width) = (self.cells[at].depth, self.cells[at].width());
+        if self.proven_to() != proven_to && self.proof_moved.is_none_or(|(d, _)| depth >= d) {
+            self.proof_moved = Some((depth, width));
+        }
+        if self.different_at() != different_at {
+            self.difference_moved = Some(self.difference_moved.map_or(depth, |d| d.max(depth)));
+        }
+    }
+
+    /// This side's answer. `replays` prices ground the schedule still
+    /// has work on.
+    fn answer(&self, replays: usize) -> RangeSide {
+        let proven_to = self.proven_to();
+        let Some(frontier) = self.cells.get(self.frontier()) else {
+            return RangeSide {
+                proven_to,
+                end: Some(SideEnd::Seed),
+                not_decided: None,
+            };
+        };
+        let end = self
+            .cells
+            .get(self.nearest_different())
+            .and_then(|c| match &c.ground {
+                Ground::Different(evidence) => Some(SideEnd::Different(ProvenDifferent {
+                    at: c.near,
+                    evidence: evidence.clone(),
+                })),
+                _ => None,
+            });
+        let reason = if self.work().is_some() {
+            Some(Unsettled::Unfinished { replays })
+        } else {
+            match &frontier.ground {
+                Ground::Different(_) | Ground::Proven => None,
+                Ground::Floor(reason) => Some(Unsettled::Floor(reason.clone())),
+                // An interval short of the nearest difference that is not
+                // replayed is work, so an unreached frontier with none
+                // left does not occur; it is priced as one that has.
+                Ground::Unreached => Some(Unsettled::Unfinished { replays }),
+                Ground::Undecided(_) => Some(Unsettled::Stalled {
+                    width: self
+                        .proof_moved
+                        .map_or(frontier.width(), |(_, width)| width),
+                }),
+            }
+        };
+        RangeSide {
+            proven_to,
+            end,
+            not_decided: reason.map(|reason| NotDecided {
+                past: proven_to,
+                reason,
+            }),
+        }
+    }
+}
+
+/// **The order work is taken in**, across and within sides: the wider
+/// interval first, so the two sides refine level by level together,
+/// then the one nearer the current value. A full tie keeps the earlier
+/// (the low side, across sides).
+fn before(a: &Cell, b: &Cell) -> bool {
+    a.width() > b.width() || (a.width() == b.width() && a.near.abs() < b.near.abs())
 }
 
 /// **The resumable search** (module docs).
@@ -941,16 +1272,15 @@ pub struct RangeSearch {
     seed: RangeSeed,
     derived: DerivedRange,
     root: ParamBox,
-    config: DriveConfig,
+    budget: RangeBudget,
     resolver: Option<Arc<dyn PartResolver>>,
     tol: Tol,
     witness: Evaluation<f64>,
     witness_vector: VerdictVector,
     witness_key: VerdictVectorKey,
     memo: Arc<geom_core::sym::DriveMemo>,
-    /// The low side's intervals, then the high side's; each nearest
-    /// first and tiling its side.
-    sides: [Vec<Cell>; 2],
+    /// The low side, then the high side.
+    sides: [Side; 2],
     steps: usize,
 }
 
@@ -959,7 +1289,8 @@ impl RangeSearch {
     /// No interval is replayed.
     ///
     /// `resolver` is how a document that instantiates parts reaches
-    /// them, at the witness and at every replay.
+    /// them, at the witness and at every replay. `stop` stops the
+    /// witness build; each [`Self::step`] takes its own.
     ///
     /// # Errors
     ///
@@ -970,7 +1301,7 @@ impl RangeSearch {
         doc: &Doc<ProfileProgram>,
         field: &RangeField,
         seed: RangeSeed,
-        config: &DriveConfig,
+        budget: &RangeBudget,
         resolver: Option<Arc<dyn PartResolver>>,
         stop: &crate::Stop,
         tol: Tol,
@@ -997,30 +1328,18 @@ impl RangeSearch {
         let witness = witness_build(&derived.doc, &analyzed, resolver.as_ref(), stop, tol)
             .map_err(|e| RangeRefusal::Drive(Box::new(e)))?;
         let witness_vector = certifying_vector(&derived.doc, &witness);
-        let side = |far: f64| {
-            if far == 0.0 {
-                Vec::new()
-            } else {
-                vec![Cell {
-                    near: 0.0,
-                    far,
-                    depth: 0,
-                    ground: Ground::Unreached,
-                }]
-            }
-        };
         Ok(Self {
             field: field.clone(),
             seed,
             root: ParamBox::of(&analyzed),
-            config: config.clone(),
+            budget: *budget,
             resolver,
             tol,
             witness_key: witness_vector.key(),
             witness_vector,
             witness,
-            memo: drive_memo(config),
-            sides: [side(seed.lo), side(seed.hi)],
+            memo: drive_memo(budget.plain_memo, budget.symbolic),
+            sides: [Side::whole(seed.lo), Side::whole(seed.hi)],
             steps: 0,
             derived,
         })
@@ -1042,36 +1361,31 @@ impl RangeSearch {
             seed: self.seed,
             pinned: self.derived.pinned.clone(),
             steps: self.steps,
-            lo: side_answer(&self.sides[0], self.steps),
-            hi: side_answer(&self.sides[1], self.steps),
+            lo: self.sides[0].answer(self.steps),
+            hi: self.sides[1].answer(self.steps),
         }
     }
 
-    /// **One replay** (module docs, the schedule): the unreached
-    /// interval nearest the current value, after halving the nearest
-    /// undecided one when none is waiting.
+    /// **One replay** (module docs, the schedule). A stopped replay
+    /// leaves the search as it stood, a halving included.
     pub fn step(&mut self, stop: &crate::Stop) -> Step {
-        if self.steps >= self.config.max_leaves {
+        if self.steps >= self.budget.max_replays {
             return Step::Finished;
         }
-        let (side, at) = match self.nearest(|g| *g == Ground::Unreached) {
-            Some(found) => found,
-            None => {
-                let Some((side, at)) = self.nearest(|g| *g == Ground::Undecided) else {
-                    return Step::Finished;
-                };
-                // `Undecided` is only ever written for an interval that
-                // halves (`Self::replay`), and neither bound moves.
-                let Ok((near, far)) = self.sides[side][at].halves(self.config.max_depth) else {
-                    unreachable!("an undecided interval was checked to halve when it was replayed")
-                };
-                self.sides[side].splice(at..=at, [near, far]);
-                (side, at)
-            }
+        let Some((side, work)) = next(&self.sides) else {
+            return Step::Finished;
         };
-        match self.replay(&self.sides[side][at], stop) {
+        let at = work.at();
+        let cell = match &work {
+            Work::Replay(_) => &self.sides[side].cells[at],
+            Work::Halve(_, halves) => &halves[0],
+        };
+        match self.replay(cell, stop) {
             Ok(ground) => {
-                self.sides[side][at].ground = ground;
+                if let Work::Halve(_, halves) = work {
+                    self.sides[side].cells.splice(at..=at, *halves);
+                }
+                self.sides[side].settle(at, ground);
                 self.steps += 1;
                 Step::Advanced
             }
@@ -1079,34 +1393,13 @@ impl RangeSearch {
         }
     }
 
-    /// The interval whose ground satisfies `wanted` nearest the current
-    /// value: least `|near|`, then the wider, then the low side.
-    fn nearest(&self, wanted: impl Fn(&Ground) -> bool) -> Option<(usize, usize)> {
-        let mut best: Option<(usize, usize)> = None;
-        for (side, cells) in self.sides.iter().enumerate() {
-            // Within a side the first match is the nearest.
-            let Some(at) = cells.iter().position(|c| wanted(&c.ground)) else {
-                continue;
-            };
-            let c = &cells[at];
-            let better = best.is_none_or(|(s, a)| {
-                let b = &self.sides[s][a];
-                c.near.abs() < b.near.abs()
-                    || (c.near.abs() == b.near.abs() && c.width() > b.width())
-            });
-            if better {
-                best = Some((side, at));
-            }
-        }
-        best
-    }
-
     /// Replays one interval under the E6 leaf protocol and reads what
     /// it decided.
     fn replay(&self, cell: &Cell, stop: &crate::Stop) -> Result<Ground, crate::Stopped> {
         let (lo, hi) = cell.span();
+        let axis = BoxAxis::Varying { lo, hi };
         let mut axes = self.root.axes().clone();
-        axes.insert(self.derived.axis, BoxAxis::Varying { lo, hi });
+        axes.insert(self.derived.axis, axis);
         let box_ = ParamBox::from_axes_in(axes, self.root.order());
         let (verdict, _) = classify(
             &self.derived.doc,
@@ -1114,7 +1407,7 @@ impl RangeSearch {
             &self.witness,
             &self.witness_vector,
             self.witness_key,
-            self.config.symbolic,
+            self.budget.symbolic,
             &self.memo,
             self.resolver.as_ref(),
             stop,
@@ -1126,12 +1419,51 @@ impl RangeSearch {
                 Ground::Different(flipped)
             }
             LeafVerdict::Refused(reason) => Ground::Floor(reason),
-            LeafVerdict::Bisect => match cell.halves(self.config.max_depth) {
-                Ok(_) => Ground::Undecided,
-                Err(kind) => Ground::Floor(RefusalReason::Budget(kind)),
-            },
+            LeafVerdict::Bisect => halves(cell, axis, self.budget.max_depth),
         })
     }
+}
+
+/// The schedule's next work, across both sides ([`before`]), with the
+/// side it is on.
+fn next(sides: &[Side; 2]) -> Option<(usize, Work)> {
+    let mut best: Option<(usize, Work)> = None;
+    for (side, row) in sides.iter().enumerate() {
+        let Some(work) = row.work() else {
+            continue;
+        };
+        let better = best
+            .as_ref()
+            .is_none_or(|(s, w)| before(&row.cells[work.at()], &sides[*s].cells[w.at()]));
+        if better {
+            best = Some((side, work));
+        }
+    }
+    best
+}
+
+/// What an undecided interval becomes: its halves, nearer first, or the
+/// floor that forbids halving it.
+fn halves(cell: &Cell, axis: BoxAxis, max_depth: u32) -> Ground {
+    if cell.depth >= max_depth {
+        return Ground::Floor(RefusalReason::Budget(BudgetKind::Depth { max_depth }));
+    }
+    let Some([(lo, mid), (_, hi)]) = axis.halves() else {
+        return Ground::Floor(RefusalReason::Budget(BudgetKind::Resolution));
+    };
+    let half = |near, far| Cell {
+        near,
+        far,
+        depth: cell.depth + 1,
+        ground: Ground::Unreached,
+    };
+    // The low side's near end is its upper one.
+    let pair = if cell.near <= cell.far {
+        [half(lo, mid), half(mid, hi)]
+    } else {
+        [half(hi, mid), half(mid, lo)]
+    };
+    Ground::Undecided(Box::new(pair))
 }
 
 // A search is stepped off the thread that made it.
@@ -1140,9 +1472,8 @@ const _: fn() = || {
     sendable::<RangeSearch>();
 };
 
-/// **The answer as a function of a side's intervals**, over lists no
-/// fixture is needed to reach: a standing change in the evidence, a
-/// proven interval beyond an undecided one, a floor at the frontier.
+/// **The answer and the schedule as functions of a side's intervals**,
+/// over rows no fixture is needed to reach.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -1180,8 +1511,34 @@ mod tests {
         }
     }
 
+    fn at_depth(depth: u32, near: f64, far: f64, ground: Ground) -> Cell {
+        Cell {
+            depth,
+            ..cell(near, far, ground)
+        }
+    }
+
+    /// An undecided interval, with the halves it would split into.
+    fn undecided(depth: u32, near: f64, far: f64) -> Cell {
+        let c = at_depth(depth, near, far, Ground::Unreached);
+        let (lo, hi) = c.span();
+        let ground = halves(&c, BoxAxis::Varying { lo, hi }, 64);
+        Cell { ground, ..c }
+    }
+
     fn depth_floor() -> Ground {
         Ground::Floor(RefusalReason::Budget(BudgetKind::Depth { max_depth: 3 }))
+    }
+
+    fn row(cells: Vec<Cell>) -> Side {
+        Side {
+            cells,
+            ..Side::default()
+        }
+    }
+
+    fn different() -> Ground {
+        Ground::Different(evidence(RunStatus::Ok, RunStatus::Ok))
     }
 
     /// **`kind()` is the evidence's standings**, both ways: a standing
@@ -1211,78 +1568,97 @@ mod tests {
                 DifferenceKind::BuildsDifferently,
             ),
         ] {
-            let cells = [
+            let side = row(vec![
                 cell(0.0, 0.5, Ground::Proven),
-                cell(0.5, 1.0, Ground::Different(evidence(old, new))),
-            ];
-            let side = side_answer(&cells, 2);
-            let different = side.different().expect("a difference is proven");
+                cell(0.5, 0.75, depth_floor()),
+                cell(0.75, 1.0, Ground::Different(evidence(old, new))),
+            ]);
+            let different = side
+                .answer(3)
+                .different()
+                .cloned()
+                .expect("a difference is proven");
             assert_eq!(different.kind(), expect, "{old:?} -> {new:?}");
-            assert_eq!(different.at(), 0.5);
-            assert_eq!(side.proven_to(), 0.5);
-            assert!(
-                side.not_decided().is_none(),
-                "the proof runs up to the difference"
-            );
+            assert_eq!(different.at(), 0.75);
         }
     }
 
-    /// **A difference beyond undecided ground is still reported**, at
-    /// the NEAREST such interval's near edge, with the ground between
-    /// stated undecided under the frontier's own reason.
+    /// **A difference beyond undecided ground is reported**, at the
+    /// NEAREST such interval's near edge, with the ground between stated
+    /// undecided under the frontier's own reason once no work is left.
     #[test]
     fn a_difference_past_undecided_ground_is_reported_at_its_near_edge() {
-        let cells = [
+        let mut side = row(vec![
             cell(0.0, 1.0, Ground::Proven),
             cell(1.0, 1.5, depth_floor()),
-            cell(1.5, 2.0, Ground::Undecided),
-            cell(
-                2.0,
-                4.0,
-                Ground::Different(evidence(RunStatus::Ok, RunStatus::Ok)),
-            ),
+            at_depth(1, 1.5, 2.0, depth_floor()),
+            cell(2.0, 4.0, different()),
             cell(
                 4.0,
                 8.0,
                 Ground::Different(evidence(RunStatus::Ok, RunStatus::Failed)),
             ),
-        ];
-        let side = side_answer(&cells, 9);
-        assert_eq!(side.proven_to(), 1.0);
-        let different = side.different().expect("the far interval is a difference");
+        ]);
+        side.difference_moved = Some(0);
+        let answer = side.answer(9);
+        assert_eq!(answer.proven_to(), 1.0);
+        let different = answer
+            .different()
+            .expect("the far interval is a difference");
         assert_eq!(different.at(), 2.0);
         assert_eq!(different.kind(), DifferenceKind::BuildsDifferently);
-        let gap = side.not_decided().expect("undecided ground lies between");
+        let gap = answer.not_decided().expect("undecided ground lies between");
         assert_eq!(gap.past(), 1.0);
         assert_eq!(
             *gap.reason(),
-            RefusalReason::Budget(BudgetKind::Depth { max_depth: 3 })
+            Unsettled::Floor(RefusalReason::Budget(BudgetKind::Depth { max_depth: 3 }))
         );
-        assert!(!gap.more_time_helps(), "the frontier is at its floor");
+        assert!(!gap.more_time_helps(), "nothing is left to do on this side");
+    }
+
+    /// **A floor at the frontier does not settle a side the schedule
+    /// still has work on**: undecided ground short of the difference
+    /// that can still move it prices as more time.
+    #[test]
+    fn a_floor_at_the_frontier_with_work_beyond_it_is_unfinished() {
+        for beyond in [Ground::Unreached, undecided(1, 1.5, 2.0).ground] {
+            let mut side = row(vec![
+                cell(0.0, 1.0, Ground::Proven),
+                cell(1.0, 1.5, depth_floor()),
+                at_depth(1, 1.5, 2.0, beyond),
+                cell(2.0, 4.0, different()),
+            ]);
+            side.difference_moved = Some(0);
+            let gap = side
+                .answer(7)
+                .not_decided()
+                .cloned()
+                .expect("undecided ground");
+            assert_eq!(gap.reason, Unsettled::Unfinished { replays: 7 });
+            assert!(gap.more_time_helps());
+        }
     }
 
     /// **A proven interval beyond an undecided one does not extend the
-    /// proof**, and unfinished ground is priced under the steps taken.
+    /// proof**, and ground the schedule still has work on is priced as
+    /// the replays taken.
     #[test]
-    fn the_proof_is_contiguous_and_unfinished_ground_is_priced_as_budget() {
-        for unfinished in [Ground::Unreached, Ground::Undecided] {
-            let cells = [
+    fn the_proof_is_contiguous_and_unfinished_ground_is_priced_by_the_replays_taken() {
+        for unfinished in [Ground::Unreached, undecided(0, -1.0, -2.0).ground] {
+            let side = row(vec![
                 cell(0.0, -1.0, Ground::Proven),
                 cell(-1.0, -2.0, unfinished),
                 cell(-2.0, -3.0, Ground::Proven),
-            ];
-            let side = side_answer(&cells, 5);
-            assert_eq!(side.proven_to(), -1.0);
+            ]);
+            let answer = side.answer(5);
+            assert_eq!(answer.proven_to(), -1.0);
             assert!(
-                side.end().is_none(),
+                answer.end().is_none(),
                 "neither the seed's end nor a difference"
             );
-            let gap = side.not_decided().expect("the frontier is undecided");
+            let gap = answer.not_decided().expect("the frontier is undecided");
             assert_eq!(gap.past(), -1.0);
-            assert_eq!(
-                *gap.reason(),
-                RefusalReason::Budget(BudgetKind::Leaves { max_leaves: 5 })
-            );
+            assert_eq!(*gap.reason(), Unsettled::Unfinished { replays: 5 });
             assert!(gap.more_time_helps());
         }
     }
@@ -1291,32 +1667,249 @@ mod tests {
     /// with no width.
     #[test]
     fn a_side_proven_throughout_reaches_the_seeds_end() {
-        let cells = [
+        let side = row(vec![
             cell(0.0, 1.0, Ground::Proven),
             cell(1.0, 2.0, Ground::Proven),
-        ];
-        let side = side_answer(&cells, 3);
+        ])
+        .answer(3);
         assert!(side.reached_seed_end());
         assert_eq!(side.proven_to(), 2.0);
         assert!(side.not_decided().is_none());
-        let empty = side_answer(&[], 0);
+        let empty = Side::whole(0.0).answer(0);
         assert!(empty.reached_seed_end());
         assert_eq!(empty.proven_to(), 0.0);
     }
 
     /// Halving stops at the depth bound and at the `f64` grid, each
-    /// under its own name.
+    /// under its own name, and puts the nearer half first on each side.
     #[test]
-    fn an_interval_halves_until_its_depth_or_the_grid() {
-        let c = cell(0.0, -1.0, Ground::Undecided);
-        let (near, far) = c.halves(1).expect("depth 0 halves under a bound of 1");
+    fn an_interval_halves_nearer_first_until_its_depth_or_the_grid() {
+        let low = undecided(0, 0.0, -1.0);
+        let Ground::Undecided(pair) = &low.ground else {
+            panic!("depth 0 halves: {:?}", low.ground)
+        };
+        let [near, far] = &**pair;
         assert_eq!(
             (near.near, near.far, far.near, far.far),
             (0.0, -0.5, -0.5, -1.0)
         );
         assert_eq!(near.depth, 1);
-        assert_eq!(near.halves(1), Err(BudgetKind::Depth { max_depth: 1 }));
-        let tiny = cell(1.0, 1.0 + f64::EPSILON, Ground::Undecided);
-        assert_eq!(tiny.halves(64), Err(BudgetKind::Resolution));
+        let axis = BoxAxis::Varying { lo: -0.5, hi: 0.0 };
+        assert_eq!(
+            halves(near, axis, 1),
+            Ground::Floor(RefusalReason::Budget(BudgetKind::Depth { max_depth: 1 }))
+        );
+        let next = 1.0 + f64::EPSILON;
+        let tiny = cell(1.0, next, Ground::Unreached);
+        assert_eq!(
+            halves(&tiny, BoxAxis::Varying { lo: 1.0, hi: next }, 64),
+            Ground::Floor(RefusalReason::Budget(BudgetKind::Resolution))
+        );
+    }
+
+    /// **Nothing past the nearest difference is worked on**, and an
+    /// undecided interval between the frontier and the approach is left
+    /// alone: neither can move the answer's ends.
+    #[test]
+    fn the_schedule_works_only_where_the_answer_can_move() {
+        let mut side = row(vec![
+            cell(0.0, 1.0, Ground::Proven),
+            at_depth(2, 1.0, 1.25, depth_floor()),
+            undecided(2, 1.25, 1.5),
+            undecided(1, 1.5, 2.0),
+            cell(2.0, 4.0, different()),
+            cell(4.0, 6.0, Ground::Unreached),
+            undecided(0, 6.0, 8.0),
+        ]);
+        side.difference_moved = Some(0);
+        assert_eq!(
+            side.work().map(|w| w.at()),
+            Some(3),
+            "only the approach moves"
+        );
+        side.cells[3].ground = depth_floor();
+        assert_eq!(
+            side.work(),
+            None,
+            "the ground at 1.25 cannot move either end"
+        );
+    }
+
+    /// **An end stalls [`STALL_LEVELS`] halvings past the interval that
+    /// last moved it**, and a frontier with no proof behind it halves to
+    /// the depth bound.
+    #[test]
+    fn an_end_stalls_four_halvings_past_its_last_move() {
+        let deep = STALL_LEVELS + 2;
+        let mut side = row(vec![
+            cell(0.0, 0.5, Ground::Proven),
+            undecided(deep, 0.5, 0.75),
+        ]);
+        assert!(side.work().is_some(), "no proof yet bounds the frontier");
+        side.proof_moved = Some((2, 0.5));
+        assert_eq!(
+            side.work(),
+            None,
+            "halving at depth {deep} is past the stall"
+        );
+        let answer = side.answer(11);
+        assert_eq!(
+            answer.not_decided().map(NotDecided::reason),
+            Some(&Unsettled::Stalled { width: 0.5 })
+        );
+        side.proof_moved = Some((3, 0.5));
+        assert!(
+            side.work().is_some(),
+            "{deep} is short of 3 + {STALL_LEVELS}"
+        );
+
+        let mut approach = row(vec![
+            cell(0.0, 0.5, depth_floor()),
+            undecided(deep, 0.5, 0.75),
+            cell(0.75, 1.0, different()),
+        ]);
+        approach.difference_moved = Some(2);
+        assert_eq!(approach.work(), None, "both ends have stalled");
+        approach.difference_moved = Some(3);
+        assert_eq!(
+            approach.work().map(|w| w.at()),
+            Some(1),
+            "the approach moves"
+        );
+    }
+
+    /// **Past a settled frontier with no difference proven, undecided
+    /// ground is looked into**, down to [`STALL_LEVELS`] halvings of the
+    /// side and no further; not while the frontier still has work, and
+    /// not once a difference is proven.
+    #[test]
+    fn a_settled_frontier_with_no_difference_looks_past_itself() {
+        let mut side = row(vec![
+            cell(0.0, 0.5, Ground::Proven),
+            at_depth(9, 0.5, 0.5 + 2f64.powi(-10), depth_floor()),
+            undecided(STALL_LEVELS - 1, 0.5 + 2f64.powi(-10), 0.75),
+            undecided(1, 0.75, 1.0),
+        ]);
+        side.proof_moved = Some((9, 0.5));
+        assert_eq!(
+            side.work().map(|w| w.at()),
+            Some(3),
+            "the widest past the frontier"
+        );
+        side.cells[3] = undecided(STALL_LEVELS, 0.75, 1.0);
+        assert_eq!(
+            side.work().map(|w| w.at()),
+            Some(2),
+            "{STALL_LEVELS} halvings down is the last"
+        );
+        side.cells[2] = undecided(STALL_LEVELS, 0.5 + 2f64.powi(-10), 0.75);
+        assert_eq!(side.work(), None, "and no deeper");
+        let mut open = side.clone();
+        open.cells[1] = undecided(9, 0.5, 0.5 + 2f64.powi(-10));
+        open.cells[2] = undecided(1, 0.5 + 2f64.powi(-10), 0.75);
+        assert_eq!(
+            open.work().map(|w| w.at()),
+            Some(1),
+            "the frontier has work, so it goes alone"
+        );
+        side.cells[2] = undecided(1, 0.5 + 2f64.powi(-10), 0.75);
+        side.cells.push(cell(1.0, 2.0, different()));
+        side.difference_moved = Some(1);
+        assert_eq!(
+            side.work().map(|w| w.at()),
+            Some(3),
+            "a difference is proven: only its approach"
+        );
+    }
+
+    /// **The order across sides**: the wider interval first, then the
+    /// nearer, then the low side.
+    #[test]
+    fn the_wider_interval_goes_first_then_the_nearer_then_the_low_side() {
+        let wide_far = row(vec![
+            cell(0.0, -0.5, Ground::Proven),
+            undecided(1, -0.5, -1.0),
+        ]);
+        let narrow_near = row(vec![undecided(2, 0.0, 0.25)]);
+        let side = |sides: [Side; 2]| next(&sides).map(|(side, _)| side);
+        assert_eq!(
+            side([wide_far.clone(), narrow_near.clone()]),
+            Some(0),
+            "the wider"
+        );
+        assert_eq!(
+            side([narrow_near.clone(), wide_far.clone()]),
+            Some(1),
+            "the wider"
+        );
+        let near = row(vec![undecided(1, 0.0, 0.5)]);
+        let far = row(vec![
+            cell(0.0, -0.5, Ground::Proven),
+            undecided(1, -0.5, -1.0),
+        ]);
+        assert_eq!(
+            side([far.clone(), near.clone()]),
+            Some(1),
+            "the nearer, at one width"
+        );
+        assert_eq!(
+            side([near.clone(), far]),
+            Some(0),
+            "the nearer, at one width"
+        );
+        let mirror = row(vec![undecided(1, 0.0, -0.5)]);
+        assert_eq!(side([mirror, near]), Some(0), "a full tie goes low");
+    }
+
+    /// **The proven interval's absolute ends round toward the nominal**,
+    /// so neither lies outside the offsets proven: `1 + 0.1` rounds up at
+    /// `f64`, past the proven end, and is stepped back.
+    #[test]
+    fn the_absolute_ends_round_inward() {
+        let side = |to: f64| RangeSide {
+            proven_to: to,
+            end: Some(SideEnd::Seed),
+            not_decided: None,
+        };
+        let range = |nominal: f64, lo: f64, hi: f64| CertifiedRange {
+            field: RangeField::Param(VarId::new(1, 0)),
+            nominal,
+            seed: RangeSeed { lo, hi },
+            pinned: Vec::new(),
+            steps: 2,
+            lo: side(lo),
+            hi: side(hi),
+        };
+        assert!(
+            exact_offset(1.0 + 0.1, 1.0) > 0.1,
+            "the nearest sum lies past the proven end"
+        );
+        let (_, hi) = range(1.0, -0.1, 0.1).proven_interval();
+        assert_eq!(hi, (1.0f64 + 0.1).next_down());
+        for (nominal, offset) in [
+            (1.0f64, 0.1f64),
+            (3.0, -0.7),
+            (1e6, 1e-7),
+            (-2.5, 0.3),
+            (0.1, -0.2),
+        ] {
+            let r = range(nominal, offset.min(0.0), offset.max(0.0));
+            let (lo, hi) = r.proven_interval();
+            for end in [lo, hi] {
+                let off = exact_offset(end, nominal);
+                assert!(
+                    r.seed.lo <= off && off <= r.seed.hi,
+                    "{nominal} + {offset}: the end {end} lies {off} from the nominal"
+                );
+            }
+        }
+    }
+
+    /// `value − nominal` exactly, where it is representable (the cases
+    /// above are chosen so).
+    fn exact_offset(value: f64, nominal: f64) -> f64 {
+        let d = value - nominal;
+        assert_eq!(d + nominal, value, "the difference is exact");
+        d
     }
 }

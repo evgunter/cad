@@ -1503,6 +1503,16 @@ BOUND_AS = {
     # `RangeSearch.step` returns.
     "admit": "admit_range",
     "Step": "RangeSearch.step",
+    # The search's budget crosses as `RangeSearch`'s two keywords,
+    # `max_depth` and `max_replays`, with the leaf dials the kernel's
+    # defaults; `max_depth`'s default is `RangeBudget::for_seed`.
+    "RangeBudget": "RangeSearch",
+    # Why a side is undecided crosses as the word on `NotDecided.reason`,
+    # with `replays` and `width` its two payloads.
+    "Unsettled": "NotDecided.reason",
+    # The schedule's one constant is a fact about the search's cost, read
+    # in the module docs; nothing a caller passes or reads names it.
+    "STALL_LEVELS": "RangeSearch",
     # How a side ends: `SideEnd::Seed` is `reached_seed_end`, and
     # `SideEnd::Different` is the `ProvenDifferent` on `different`. A
     # side that has not ended has neither, which is `end() == None`.
@@ -4198,6 +4208,7 @@ MEMBERS_BOUND_AS = {
     "RangeRefusal::Derivation": "RangeRefusal.variant",
     "RangeRefusal::SeedIsNotTheAnalyzedAxis": "RangeRefusal.variant",
     "RangeRefusal::MoreThanOneAxisVaries": "RangeRefusal.variant",
+    "RangeRefusal::EvaluationOfAnotherDocument": "RangeRefusal.variant",
     "RangeRefusal::Drive": "RangeRefusal.variant",
     # --- an arm or a field that crosses as a DOOR ------------------
     # An analyzed axis's DIMENSION, which is the parameter's own — the
