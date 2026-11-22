@@ -30,3 +30,13 @@ cone's two nappe sheets spanning every height (the heights' span is the
 torus's alone). Build that arm, pinned against a traced section.
 
 Moved from SECTTAIL to SECT on 2026-11-02, by `git mv`, when SECTTAIL merged back into SECT: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so SECT and the three tracks cut from it (SECTTAIL, SECTRUNG, SECTSITE) came in under one budget.
+
+## 2026-11-22 — the general march takes the pose (PR 7395)
+
+`pair_section::cone_torus` reads a parallel axis as the general cone ×
+torus pose: past a clear apex and a transverse gap its components are
+the march's (`Components::Marched`, `ssi::cone_torus_ssi`), and
+`section_cert.rs` reads them through the section value. The pair no
+longer refuses R-reach. What this row still names is a closed-form
+count by the parallel-tori mirror construction, which would spare the
+march; nothing refuses for want of it.
