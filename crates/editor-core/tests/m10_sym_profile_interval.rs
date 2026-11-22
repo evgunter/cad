@@ -591,12 +591,24 @@ const PLATE_MAX_TERMS: usize = 38;
 /// decisions hold: under `SymRules::without_canonical_root` every recorded
 /// decision answers as on main (`sym11_exact_channel_rows`'
 /// `PAST_THE_CEILING`).
+///
+/// **Then moved with a conic's speeds read as magnitudes**: a circle's
+/// `speed_lo` is its radius floored at zero and its `speed_hi` and
+/// `speed_at` the radius's magnitude, and an ellipse's `speed_hi` is
+/// `max(larger, −smaller)`, so a bound stays sound over a size that
+/// straddles zero. Over the plate's symbolic radii each builds an `Abs`
+/// or a `Max` form: 14 more forms over the same calls and frozen counts
+/// (`Plain/Decision` 33086 → 33088, `Plain/Assertion` 12222 → 12224,
+/// `Early/Assertion` 12672 → 12674, `Door/Decision` 12358 → 12366),
+/// with their digests; `Early/Decision` does not move. Measured by the
+/// op tally (only `Abs` +2 and `Max` +12 move) and by reading the speeds
+/// as before, which gives back every count above.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 33086 frozen 36 digest 407898919d7b27c5149424e9ae1e1603\n\
-     Plain/Assertion calls 1047 forms 12222 frozen 0 digest 19890dfe5402031cb310bd9f2a6ac16d\n\
+     Plain/Decision calls 979 forms 33088 frozen 36 digest 2e82fe8fa43fb62fa0d4e6e57e62412f\n\
+     Plain/Assertion calls 1047 forms 12224 frozen 0 digest 60d5dc286b65a810dedda6cba84213dc\n\
      Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
-     Early/Assertion calls 1047 forms 12672 frozen 0 digest 37c36445974ccfe414ca9058f7d94032\n\
-     Door/Decision calls 550 forms 12358 frozen 0 digest 78cd10530faa7f908c9d6f8c7eef962a";
+     Early/Assertion calls 1047 forms 12674 frozen 0 digest 39cefb42a8a949bb6fc643ee9c474a35\n\
+     Door/Decision calls 550 forms 12366 frozen 0 digest 75aa7cd508fc1005ee274141b4e539c1";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

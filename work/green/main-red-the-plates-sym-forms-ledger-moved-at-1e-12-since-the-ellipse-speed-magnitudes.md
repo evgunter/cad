@@ -29,3 +29,12 @@ Whether the plate's walks owe the extra forms (then the 1e-12 pin moves, with th
 ## Measured (GREEN U3, `green/editor-1e-12`, 2026-11-21)
 
 The scheduled nightly 44870651337 (main `f5ef8f2b`) has this row red at every ε, not only 1e-12; at the default ε it is SCALAR's `main-red-the-plates-sym-walk-ledger-reads-2-to-8-more-forms` (P2), with the same five lines this row quotes. One pin serves every ε (`the_forms_the_plates_walks_build_are_pinned` reads no ε), so the two rows are one move. PR 7131 (`onehome/carrier-frames`, merged `9bc9d651` 11-21) re-pinned `PLATE_LEDGER` after that nightly, writing its move from 39703 (the old pin), not from the 39705 main then read.
+
+### Read on hosted runners (2026-11-22)
+
+Throwaway probe branches (`green/editor-1e-12-bisect-*`) ran the row at the default ε, 1e-6 and 1e-12, with an ignored probe row printing the profile's per-op tally (`SymProfile::ops`: built, frozen, terms out).
+
+- **One move at every ε.** On PR 7183's first parent `45119994` the plate reads the old pin at all three ε; on its merge `6d58cebd` it reads `39705 / 14594 / 28232 / 15164 / 15364` at all three. On main `1aa4a931` it reads `33088 / 12224 / 22928 / 12674 / 12366` at all three, against the pin `33086 / 12222 / 22928 / 12672 / 12358`.
+- **Which forms.** Across PR 7183 the op tally moves in two ops only: `Abs` 1535 → 1537 and `Max` 3332 → 3344, 14 forms, the four walks' +2, +2, +2, +8. Those are the ops PR 7183's conic speed readers add (`Circle::speed_lo` = `radius.max(0)`, `speed_hi` and `speed_at` = `radius.abs()`; `Ellipse::speed_lo` floored at zero, `speed_hi` = `larger.max(-smaller)`, in `crates/geom/src/curves/conic.rs`).
+- **The revert probe.** On main with those five readers read as before PR 7183 (`radius`, `semi_axes_by_size().1` and `.0`), every count returns to the pin, and so do four of the five digests; `Plain/Decision` keeps its count and reads digest `36e6ee47…` against the pin's `40789891…`, so something besides PR 7183 reorders that walk's forms, with no count moving.
+- **Verdict: owed.** The readers are the PR's ratified design (GERM's log, the fork's part 1: `speed_lo` floored at 0 and `speed_hi` Interval-sound), so a bound stays sound over an enclosure of a size that straddles zero. Over the plate's symbolic radii each builds one more `Abs` or `Max` form; no call, no frozen count and no decision moves. Re-pinned at main's reading, with the cause in `PLATE_LEDGER`'s doc.

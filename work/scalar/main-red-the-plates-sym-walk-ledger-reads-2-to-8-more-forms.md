@@ -34,3 +34,7 @@ branch reads the identical ledger, so the move is main's.
 Predecessor: `work/scalar/main-red-the-plates-sym-walk-ledger-reads-12-more-forms.md`
 (closed, PR 6663), the same row's earlier drift with other numbers.
 Not yet bisected.
+
+## Bisected and re-pinned (GREEN U3, 2026-11-22)
+
+(GREEN, branch `green/editor-1e-12`) The same move as `work/green/main-red-the-plates-sym-forms-ledger-moved-at-1e-12-since-the-ellipse-speed-magnitudes.md`: one pin serves every ε, and the five lines here are the ones that row quotes at 1e-12. It bisects to PR 7183 (`germ/ellipse-speed-magnitudes`, `6d58cebd`), and the 14 forms are the `Abs` and `Max` the PR's conic speed readers build over the plate's symbolic radii. The evidence is on the GREEN row; GREEN's PR re-pins `PLATE_LEDGER` at main's reading, which greens this row at the default ε too.
