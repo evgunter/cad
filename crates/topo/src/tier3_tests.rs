@@ -4142,3 +4142,24 @@ fn tier_three_and_tier_two_record_every_decision_as_a_check() {
         assert!(choices.is_empty(), "{what} recorded choices: {choices:?}");
     }
 }
+
+/// **A re-cite that refuses leaves a finished body as it was**: its
+/// records, and what each cites ([`crate::FinishedBody::try_recite`],
+/// the kernel's alone). Red on a re-cite that takes the records before
+/// its map can refuse: the body came back holding none.
+#[test]
+fn a_refused_recite_leaves_a_finished_body_its_records() {
+    use crate::FinishedBody;
+    let tol = geom_core::Tol::witness();
+    let mut kiss = crate::validate::unconfirmed::kiss_holding_a_false_record(tol);
+    let held = kiss.records().clone();
+    assert!(!held.is_empty(), "the fixture holds records");
+    let refused: Result<(), &str> = FinishedBody::try_recite(
+        &mut kiss,
+        crate::finish::KernelOnly(()),
+        |_| Err("no"),
+        |_| "uncited",
+    );
+    assert_eq!(refused, Err("no"));
+    assert_eq!(kiss.records(), &held, "the refusal changed nothing");
+}

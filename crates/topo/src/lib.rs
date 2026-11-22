@@ -339,6 +339,9 @@ pub mod test_support {
 
     use crate::body::Body;
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub use crate::validate::unconfirmed;
+
     /// The at-rest window's reasons for an incidence refusal, one per
     /// read (`validate::incidence_reasons`): a test outside this crate
     /// reads them rather than copying their words.

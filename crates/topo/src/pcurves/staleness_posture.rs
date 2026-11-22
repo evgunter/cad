@@ -189,6 +189,16 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
              image is a parameter-space fact), then grafted",
         ),
         (
+            "graft_finished",
+            Transfers,
+            "an arrival grafted into a `⊔`'s aggregate — see `graft_placed`",
+        ),
+        (
+            "graft_leaf",
+            Transfers,
+            "an arrival grafted into a `⊔`'s aggregate — see `graft_placed`",
+        ),
+        (
             "graft_disjoint_all_keyed",
             Transfers,
             "remaps each row onto the transplanted half-edge's fresh key and DROPS any \

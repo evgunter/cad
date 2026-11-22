@@ -19412,22 +19412,38 @@ mod door_roster {
 }
 
 /// **A finished body holding a record no gate confirmed**, for the rows
-/// that pin a door's gate reading the records its carry lands
-/// (`splitting::tests`, `shell::tests`). No public door can stage one: a
-/// finished operand never holds a record its own gate did not confirm,
-/// so this writes one into a finished body's fields, which only this
-/// module can reach.
-#[cfg(test)]
+/// that pin a door's gate reading the records its carry lands. No door
+/// stages one: a finished operand holds no record its own gate did not
+/// confirm, and a `⊔` takes its records off its arrivals. So this
+/// writes one into a finished body's fields, which only this module can
+/// reach, and is compiled for tests alone (the `test-support` feature
+/// for the crates above this one).
+#[cfg(any(test, feature = "test-support"))]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-pub(crate) mod unconfirmed {
+pub mod unconfirmed {
     use super::*;
     use crate::test_support_fixtures::brick;
     use crate::{BooleanResult, Cell, Cited, Cites, Contact, union};
 
+    /// `finished` holding `extra` beside its own records, unread.
+    #[must_use]
+    pub fn holding<T: crate::props::AtRestPolicy>(
+        finished: &AtRestBody<T>,
+        extra: crate::ContactRecords,
+    ) -> AtRestBody<T> {
+        let mut records = finished.records.clone();
+        records.extend(extra.rows().iter().cloned());
+        AtRestBody {
+            records,
+            ..finished.clone()
+        }
+    }
+
     /// Two cubes kissing at (1, 1, 1), finished, holding the kiss and a
     /// record of the first cube's `x = 0` face on the second's `x = 2`
     /// face, which do not meet.
-    pub(crate) fn kiss_holding_a_false_record(tol: Tol) -> AtRestBody<f64> {
+    #[must_use]
+    pub fn kiss_holding_a_false_record(tol: Tol) -> AtRestBody<f64> {
         let at_rest = |b| crate::finish(b, tol).unwrap();
         let a = at_rest(crate::Built::of(brick::<f64>(
             (0.0, 1.0),
@@ -19474,7 +19490,8 @@ pub(crate) mod unconfirmed {
     }
 
     /// Whether `findings` are the one false record, refused.
-    pub(crate) fn the_false_record_alone(findings: &crate::NotFinished) -> bool {
+    #[must_use]
+    pub fn the_false_record_alone(findings: &crate::NotFinished) -> bool {
         matches!(
             findings.as_slice(),
             [ValidationError::ContactContradicted { .. }]

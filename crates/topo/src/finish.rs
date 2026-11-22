@@ -75,6 +75,13 @@ impl<T: Real> Built<T> {
 /// the gate is this door's deciding operation (`[assertions]`): it
 /// records each touch between two arrivals and reports the rest; a
 /// record an arrival carried in that it does not confirm refuses.
+///
+/// No constructor takes records:
+///
+/// ```compile_fail,E0061
+/// let body: topo::Body<f64> = topo::Body::new();
+/// let _ = topo::Assembled::<f64>::new(body, topo::ContactRecords::default());
+/// ```
 #[derive(Clone, Debug)]
 pub struct Assembled<T: Real> {
     pub(crate) body: Body<T>,
@@ -249,6 +256,10 @@ pub struct Censused<T: AtRestPolicy> {
 /// **A call only this crate can make**: the argument of a trait method
 /// that is the kernel's alone ([`FinishedBody::try_recite`]). Its field
 /// is private, so no other crate builds one.
+///
+/// ```compile_fail
+/// let _ = topo::KernelOnly(());
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct KernelOnly(pub(crate) ());
 

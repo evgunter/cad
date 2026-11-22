@@ -155,3 +155,26 @@ The eager graft census is the one new cost: 10.2 s over 2,679 calls.
   is on the `⊔`'s body, not on either pick).
 - `a-boolean-over-an-instance-drops-its-parts-census-findings`:
   remains whole (findings, not records).
+
+## Review fix pass (2026-11-22, `embed/records`)
+
+Both reviews of PR 7124 found three public ways a finished body could
+hold a record its gate had not confirmed. As the code stands after the
+fix pass:
+
+- The gate runs the census's confirmation direction alone over the
+  records it is handed (`census::confirm_only`) and refuses on any
+  finding: stale, contradicted, in the band, outside a lane. No finding
+  list is filtered by variant.
+- A `⊔`'s gate takes arrivals, never a record list:
+  `Assembled::graft_finished` / `graft_leaf` graft an arrival and carry
+  the records it holds; `Assembled::of_solids` is an import's solids
+  with none. The gate confirms what the arrivals carried in before its
+  census decides between them, and a record that does not confirm
+  refuses.
+- `FinishedBody::try_recite` takes a `KernelOnly`, which no other crate
+  can build, and a refusal leaves the body as it was.
+- `Bar` is gone: nothing read it. `From<Body> for Built` is gone: every
+  finish spells what it hands (`Built::of(body)` is a body with no
+  record).
+
