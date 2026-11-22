@@ -157,6 +157,16 @@ fn lost(wall: Wall) -> &'static str {
 /// A box on the parameter, a tenth wide.
 const HALF: f64 = 0.05;
 
+/// The width `wall`'s volume reads at over that box today, rounded up:
+/// a reading wider than this has lost something.
+fn ceiling(wall: Wall) -> f64 {
+    match wall {
+        Wall::Cylinder => 1.0959,
+        Wall::Torus => 26.768,
+        Wall::Sphere => 1.0e-12,
+    }
+}
+
 /// **A curved wall over a box wider than the band finishes its volume
 /// role walk at the symbolic box scalar, and the volume it reads holds
 /// every member's**: a seamless cylinder and a torus of boxed radius, a
@@ -165,7 +175,9 @@ const HALF: f64 = 0.05;
 ///
 /// Each fixture is one the closed form run again refuses, which the row
 /// reads first (`closed_form_reads`), so it cannot pass on a body the
-/// change does not touch.
+/// change does not touch. The volume is also held to the width it reads
+/// at today ([`ceiling`]), since holding every member gets easier as an
+/// enclosure widens.
 ///
 /// Red where `walked_closed_form` answers `None` at every scalar (the
 /// closed form run again over the lifted geometry): the walk refuses
@@ -202,6 +214,11 @@ fn a_boxed_curved_wall_reads_a_volume_that_holds_every_members() {
             let (role, (lo, hi)) = volume_role_reading(&body, tol)
                 .unwrap_or_else(|e| panic!("{wall:?} over the box: the walk refuses: {e:?}"));
             assert_eq!(role, Some(topo::ShellRole::Outer), "{wall:?} over the box");
+            assert!(
+                hi - lo <= ceiling(wall),
+                "{wall:?}: the box's volume [{lo}, {hi}] is wider than {}",
+                ceiling(wall)
+            );
             for (member, &(m_lo, m_hi)) in members.iter().enumerate() {
                 assert!(
                     lo <= m_lo && m_hi <= hi,
@@ -263,6 +280,34 @@ fn the_walks_sums_are_the_closed_form_run_again_where_both_read() {
                 .iter()
                 .all(|read| read.walked.is_none() && read.lifted.is_ok()),
             "{wall:?}: `f64` rounds, so its faces are read by the closed form run again"
+        );
+    }
+}
+
+/// **At a scalar that rounds, the certified volume is the closed form
+/// run again at the interval scalar**, not the walk's rounded sums: a
+/// torus and a sphere at `f64`, every face of each curved and in closed
+/// form, read a volume as wide as the same body's at the interval
+/// scalar, whose width is that arithmetic's rounding.
+///
+/// Red where `walked_closed_form` reads the walk at every scalar: the
+/// `f64` volume is then the walk's one rounded sum, an ulp wide.
+#[test]
+fn a_rounding_scalars_volume_is_the_closed_form_run_again() {
+    let tol = Tol::witness();
+    for wall in [Wall::Torus, Wall::Sphere] {
+        let n = nominal(wall);
+        let width = |(_, (lo, hi)): (Option<topo::ShellRole>, (f64, f64))| hi - lo;
+        let rounded = width(volume_role_reading(&fixture::<f64>(wall, n, tol).0, tol).unwrap());
+        let (body, _) = fixture::<Interval>(wall, Interval::from_f64(n), tol);
+        let enclosed = width(volume_role_reading(&body, tol).unwrap());
+        assert!(
+            enclosed > 0.0,
+            "{wall:?}: the interval scalar's volume is a point"
+        );
+        assert!(
+            rounded >= 0.5 * enclosed,
+            "{wall:?}: the f64 volume is {rounded:e} wide, the interval scalar's {enclosed:e}"
         );
     }
 }
@@ -330,15 +375,37 @@ fn false_premise<T: CertifiedPolicy + CertifiedBounds>(
     }
 }
 
-/// **A face whose premise is false at a member is refused at every
-/// scalar, the premise named**: a wall whose radius is not its rims'
-/// (`props_rim_fit`), rims whose centres stand off the axis
-/// (`props_cylinder_circle_off_axis`) and a ruling off the wall
-/// (`props_meridian_on_surface`), each by a thousandth, at `f64`, at the
-/// interval scalar and at the symbolic box scalar. The first two are
-/// read over a box on the radius; the ruling at an exact parameter,
-/// since a ruled wall's true premise is not yet read over a box
-/// (the module's last paragraph).
+/// A refusal's kind and the premise it names.
+fn refusal_of<V: core::fmt::Debug>(read: &Result<V, topo::MassPropsError>) -> (String, String) {
+    let Err(refusal) = read else {
+        return ("reads".into(), format!("{read:?}"));
+    };
+    let text = format!("{refusal:?}");
+    let kind = ["Escalated", "OffSurface", "NotIsoRectangle"]
+        .into_iter()
+        .find(|kind| text.contains(kind))
+        .unwrap_or("other");
+    let named = text.split('"').find(|part| part.starts_with("props_"));
+    (kind.into(), named.unwrap_or("none").into())
+}
+
+/// **A face whose premise is false at every member is refused at every
+/// scalar, the premise named, with the refusal's kind as it is today**:
+/// a wall whose radius is not its rims' (`props_rim_fit`), rims whose
+/// centres stand off the axis (`props_cylinder_circle_off_axis`) and a
+/// ruling off the wall (`props_meridian_on_surface`), each by a
+/// thousandth.
+///
+/// At an exact parameter (`f64`, the interval scalar, the symbolic
+/// scalar) the refusal is definite, `OffSurface`. Over a box on the
+/// radius a tenth wide it is `Escalated`: the margin reads on the value
+/// channel as wide as the box, and a form that is a nonzero constant
+/// proves no sign. The wall off its rims is read there at the interval
+/// scalar and at the symbolic one; the rims off the axis at the symbolic
+/// one only, since the interval scalar refuses the true `props_rim_fit`
+/// first. The ruling is read at an exact parameter only, since a ruled
+/// wall's true premise is not yet read over a box (the module's last
+/// paragraph).
 ///
 /// `props_rim_center_on_axis` has no row of its own: it measures the
 /// rim centre's distance from the axis, the quantity
@@ -346,46 +413,66 @@ fn false_premise<T: CertifiedPolicy + CertifiedBounds>(
 /// false on it alone.
 ///
 /// Red, for each premise, where `cylinder_boundary` does not ask it
-/// (its `require_zero` taken out): the body reads a volume.
+/// (its `require_zero` taken out): the body reads a volume; and where a
+/// refusal's kind moves at any scalar or box.
 #[test]
 fn a_false_premise_is_refused_at_every_scalar() {
     let tol = Tol::witness();
-    let refused = |what: &str, named: &str, read: Result<_, topo::MassPropsError>| {
-        let Err(refusal) = read else {
-            panic!("{what}: a body false on {named} reads a volume: {read:?}");
-        };
-        assert!(
-            format!("{refusal:?}").contains(named),
-            "{what}: refused, but not at {named}: {refusal:?}"
+    let refused = |what: &str, named: &str, kind: &str, read| {
+        assert_eq!(
+            refusal_of(&read),
+            (kind.to_owned(), named.to_owned()),
+            "{what}, false on {named}: {read:?}"
         );
     };
-    for named in [
-        "props_rim_fit",
-        "props_cylinder_circle_off_axis",
-        "props_meridian_on_surface",
+    // Each premise with its kind over the box at the interval scalar and
+    // at the symbolic one, where it is read there.
+    for (named, at_interval, at_symbolic) in [
+        ("props_rim_fit", Some("Escalated"), Some("Escalated")),
+        ("props_cylinder_circle_off_axis", None, Some("Escalated")),
+        ("props_meridian_on_surface", None, None),
     ] {
         let (body, hits) = false_premise::<f64>(named, R, tol);
         assert!(hits > 0, "{named}: the table restated nothing");
-        refused("f64", named, volume_role_reading(&body, tol));
+        refused("f64", named, "OffSurface", volume_role_reading(&body, tol));
         let (body, _) = false_premise::<Interval>(named, Interval::from_f64(R), tol);
         refused(
-            "the interval scalar",
+            "the interval scalar, exact",
             named,
+            "OffSurface",
             volume_role_reading(&body, tol),
         );
         boxed(|param| {
-            let r = if named == "props_meridian_on_surface" {
-                param("exact", R, R)
-            } else {
-                param("boxed", R - HALF, R + HALF)
-            };
-            let (body, _) = false_premise::<Boxed>(named, r, tol);
+            let (body, _) = false_premise::<Boxed>(named, param("exact", R, R), tol);
             refused(
-                "the symbolic scalar",
+                "the symbolic scalar, exact",
                 named,
+                "OffSurface",
                 volume_role_reading(&body, tol),
             );
         });
+        if let Some(kind) = at_interval {
+            let r = Interval::from_bounds(R - HALF, R + HALF);
+            let (body, _) = false_premise::<Interval>(named, r, tol);
+            refused(
+                "the interval scalar over the box",
+                named,
+                kind,
+                volume_role_reading(&body, tol),
+            );
+        }
+        if let Some(kind) = at_symbolic {
+            boxed(|param| {
+                let (body, _) =
+                    false_premise::<Boxed>(named, param("boxed", R - HALF, R + HALF), tol);
+                refused(
+                    "the symbolic scalar over the box",
+                    named,
+                    kind,
+                    volume_role_reading(&body, tol),
+                );
+            });
+        }
     }
 }
 
