@@ -533,3 +533,12 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - Hosted nightly 44989234943 on the branch: build 98.3 min against 113-118, and all five ε legs ran.
   - The lane closed both build-job rows on that one night, and filed the CPU-bound margin as P2.
   - FULL review (Opus) dispatched; one of its claims is whether one night closes the shutdown row.
+- 2026-11-22 — PR 7383's review is in (Opus): APPROVE-WITH-FIXES, one MAJOR.
+  - MAJOR: the review_curved re-bless's filter never reads `v=` against `want=`, so a wrong-volume body with t3p=false passes as known. Three pre-existing filters in that file share the hole (monotone in the wrong direction).
+  - The tipped-rod P1 is upheld by probe:
+    - no body has both a wide pad and a t3′ failure;
+    - every failure is an honest in-band `CensusEscalated { Indeterminate }`;
+    - every volume is inside its claim.
+  - Also found: 7112's first parent named wrongly; the topo row never bisected; the coarse class wider than ONEHOME's row; a pinned stop hiding the parallel pose's SOUND check.
+  - Fix pass sent with all taken but S6.
+  - Class, logged: a re-bless filter keyed on a verdict line's prefix inherits whatever that verdict does not check.
