@@ -3218,3 +3218,170 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }
+
+// ------------------------------------------------------ thin plane faces
+
+/// `topo::clearance::embedded`'s verdict on `body`, every face, at the
+/// default depth and budget.
+fn embedded_verdict<T: Scalar + geom_core::Certifies>(
+    body: &Body<T>,
+) -> topo::clearance::Embedding {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: BUDGET,
+    };
+    topo::clearance::embedded(&side, band(), budgets).verdict
+}
+
+/// An embedding verdict's class: `Embedded`, `Crosses`, or the
+/// refusal's arm and the kind of cell it shares, or its kind.
+fn embedding_class(verdict: &topo::clearance::Embedding) -> String {
+    use topo::clearance::Embedding;
+    match verdict {
+        Embedding::Embedded => "Embedded".to_owned(),
+        Embedding::Crosses(_) => "Crosses".to_owned(),
+        Embedding::Refused(refusal) => class::<()>(&BoundVerdict::Refused(refusal.clone())),
+    }
+}
+
+/// A pose of a body row: the plain sketch plane, a rigid turn about a
+/// generic axis, and another turn a hundred units from the origin.
+fn thin_pose(k: usize) -> SketchPlane<f64> {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let Some((ax, th, off)) = [
+        None,
+        Some(((1.0, 2.0, 3.0), 0.7, (0.0, 0.0, 0.0))),
+        Some(((-0.4, 0.1, 0.9), 2.3, (100.0, 0.0, 0.0))),
+    ][k] else {
+        return SketchPlane::xy();
+    };
+    let a = Vec3::new(ax.0, ax.1, ax.2) * (1.0 / (ax.0 * ax.0 + ax.1 * ax.1 + ax.2 * ax.2).sqrt());
+    let (c, s) = (f64::cos(th), f64::sin(th));
+    let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+    let m = Mat3::from_cols(
+        col(Vec3::new(1.0, 0.0, 0.0)),
+        col(Vec3::new(0.0, 1.0, 0.0)),
+        col(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(m, Vec3::new(off.0, off.1, off.2)),
+        tol(),
+    ))
+}
+
+const POSES: [&str; 3] = ["plain", "turned", "a hundred units out"];
+
+/// The box `[0, w] × [0, h]` on `place`, extruded `d` along its normal.
+fn block<T: Scalar>(place: &SketchPlane<f64>, (w, h, d): (f64, f64, f64)) -> Body<T> {
+    let profile = Profile::new(
+        plane_at::<T>(place),
+        lifted(&quad([(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)])),
+    )
+    .validate(tol())
+    .expect("the rectangle validates");
+    Body::clone(
+        &extrude(&profile, to_offset(d), tol())
+            .expect("the box extrudes")
+            .body,
+    )
+}
+
+/// The plain sketch plane moved by `(x, y, 0)`.
+fn shifted(x: f64, y: f64) -> SketchPlane<f64> {
+    use geom_core::{Affine3, Vec3};
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::translation(Vec3::new(x, y, 0.0)),
+        tol(),
+    ))
+}
+
+/// Each body `(what, w × h × d)` reads `Embedded` at `f64` and at
+/// `Interval` in every pose.
+fn thin_boxes_embedded(boxes: &[(&str, (f64, f64, f64))]) {
+    for &(what, dims) in boxes {
+        for (k, pose) in POSES.iter().enumerate() {
+            let place = thin_pose(k);
+            let float = embedded_verdict(&block::<f64>(&place, dims));
+            let interval = embedded_verdict(&block::<Interval>(&place, dims));
+            println!(
+                "[thin] {what}, {pose}: f64 {float:?} | Interval {}",
+                embedding_class(&interval)
+            );
+            assert_eq!(
+                embedding_class(&float),
+                "Embedded",
+                "{what}, {pose}: embedded at f64: {float:?}"
+            );
+            assert_eq!(
+                embedding_class(&interval),
+                "Embedded",
+                "{what}, {pose}: embedded at Interval: {interval:?}"
+            );
+        }
+    }
+}
+
+/// **A thin slab is embedded**, a unit square `t` thick at `2Kε` and at
+/// `20Kε`: its four thin faces meet in pairs at edges `t` long, where
+/// the metric split cuts a cell's length a few dozen times before its
+/// width, and each pair is read at the thin faces' ends; its square
+/// faces meet the thin ones along their long sides, read across the
+/// strip between them. Plain, turned about a generic axis, and turned a
+/// hundred units out. Red on a planar arm that reads a cell holding a
+/// thin face's whole end as `Local`: the slab refuses `Departure` at an
+/// edge there.
+#[test]
+fn a_thin_slab_is_embedded_across_its_ends_in_every_pose() {
+    let k_eps = band().escalate();
+    thin_boxes_embedded(&[
+        ("a slab 2Kε thick", (1.0, 2.0 * k_eps, 1.0)),
+        ("a slab 20Kε thick", (1.0, 20.0 * k_eps, 1.0)),
+    ]);
+}
+
+/// **A needle is embedded**, a unit length `t` square at `20Kε` and at
+/// `1000Kε`: its four long faces meet along edges a unit long, each
+/// piece of which is read across the strip of the face beside it, and
+/// its ends as a slab's are. Plain, turned, and a hundred units out. Red
+/// on a planar arm that reads two lines with no common end as `Local`:
+/// every piece of a long edge then splits until it is `t` long, and the
+/// needle spends the pair budget.
+#[test]
+fn a_needle_is_embedded_along_its_sides_in_every_pose() {
+    let k_eps = band().escalate();
+    thin_boxes_embedded(&[
+        ("a needle 20Kε square", (20.0 * k_eps, 20.0 * k_eps, 1.0)),
+        ("a needle 1000Kε square", (1e3 * k_eps, 1e3 * k_eps, 1.0)),
+    ]);
+}
+
+/// **Two thin slabs through each other cross**: a slab `20Kε` thick
+/// along `y` and one along `x`, grafted as two solids, pass through each
+/// other in a column `20Kε` square, at both scalars. Their faces share
+/// nothing, so the crossing is found by distance beside cells read
+/// across the strips and ends of their thin faces. Red if the strips'
+/// reading hides it.
+#[test]
+fn two_thin_slabs_through_each_other_cross() {
+    fn crossed<T: Scalar>(t: f64) -> Body<T> {
+        let mut along = block::<T>(&SketchPlane::xy(), (1.0, t, 1.0));
+        let across = block::<T>(&shifted(0.5 - 0.5 * t, -0.5), (t, 1.0, 1.0));
+        topo::graft_disjoint(&mut along, &across).expect("the slab grafts");
+        along
+    }
+    let t = 20.0 * band().escalate();
+    let float = embedded_verdict(&crossed::<f64>(t));
+    let interval = embedded_verdict(&crossed::<Interval>(t));
+    println!("[thin] crossed slabs: f64 {float:?} | Interval {interval:?}");
+    for (scalar, verdict) in [("f64", &float), ("Interval", &interval)] {
+        assert_eq!(
+            embedding_class(verdict),
+            "Crosses",
+            "{scalar}: the slabs cross: {verdict:?}"
+        );
+    }
+}
