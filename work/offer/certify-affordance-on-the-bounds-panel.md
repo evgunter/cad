@@ -187,3 +187,15 @@ The sampling probe goes. `range?` was never meant to sample, and nothing is to b
   - "holding names at their current values".
 - **Admission.** One kernel admission door, which runs no geometry, greys `range?` with the refusal's own words.
 - **What is deleted.** The sampling probe: `viewer::bounds`'s probe and `BoundsProbe`, `Session::probe_bounds`, `SessionOp::ProbeBounds` as a sampler, and `crates/viewer/tests/docm9_range_vs_probe.rs`. `work/offer/the-bounds-probe-runs-inline-on-the-frame` therefore has nothing left to fix.
+
+## What the kernel unit hands this one (2026-11-22)
+
+From `the-certified-range-refines-away-from-the-current-value`; the surface is `editor_core::range`, and its module docs are the reference.
+
+- **The search**: `RangeSearch::new(doc, field, seed, config, resolver, stop, tol)`, `step(&Stop) -> Step`, `answer()`. One step is one replay; `Step::Stopped` leaves the answer where it stood, so a cancel token on the step's `Stop` is the stop control.
+- **Admission**: `admit(doc, field, seed, built)` runs no geometry. Handed the session's own finished `f64` build as `built`, it also refuses a document that does not build now, in the witness's words.
+- **The seed**: `RangeSeed::of(doc, field)` is `±|current value|`, and `±1` at zero. No field of the kernel states an admissible domain, so there is no domain to read; the answer states the seed (`CertifiedRange::seed`) for "checked to …".
+- **The budget is this unit's to choose, and `DriveConfig::default()` is wrong for it.** `max_depth` is halvings of one side, at two replays a level. A width that certifies sits near `ε` on curved geometry, so a side of width `W` needs about `log2(W/ε)` halvings: about 30 for the corpus plate's `hole_r` under the chosen seed, more than the default 24, at which that field proves nothing and reports "more time will not help". The `f64` grid bounds the depth anyway (`BudgetKind::Resolution`), so a depth of 64 costs nothing extra. `max_leaves` is the replay cap.
+- **The readings**: `RangeSide::proven_to`, `reached_seed_end`, `different()` (`at`, `kind()`: `StandingChange { node }` or `BuildsDifferently`), `not_decided()` (`past`, `more_time_helps()`); `CertifiedRange::nothing_proven`, `pinned`.
+- **What a replay costs** is in `range.rs`'s module docs and on `work/scalar/a-replay-that-nearly-certifies-costs-fifty-times-one-that-stops-early`: seconds while the interval is wide, 20 s to 2 min near a width that certifies. The first proof on the plate arrives after about 47 replays from a seed of `±1e-6`, and later from the chosen one.
+- `crates/viewer/tests/docm9_range_vs_probe.rs` and `viewer::bounds`'s module docs were kept compiling and true on the new answer type, nothing more.
