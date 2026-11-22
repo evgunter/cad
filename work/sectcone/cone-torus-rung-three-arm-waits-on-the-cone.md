@@ -2,12 +2,11 @@
 id: cone-torus-rung-three-arm-waits-on-the-cone
 kind: issue
 title: Cone × torus routes to rung 3 and refuses: the torus half is built, the cone's meters conversion is not
-status: parked
+status: open
 opened: 2026-10-27
 priority: P0
 cost: M
 refs: [torus-certificate-runs-root-free-through-its-quartic]
-blocked_on: [the-cone-has-no-implicit-enclosure-or-metres-conversion]
 ---
 
 Filed by SECT's `sect-toruscert` lane (branch `sect/torus-certificate`),
