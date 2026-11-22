@@ -128,7 +128,6 @@ fn roots_along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> Vec<f64>
 struct Trace {
     points: Vec<Point3<f64>>,
     cluster: Vec<usize>,
-    clusters: usize,
     apex_only: Vec<bool>,
 }
 
@@ -193,16 +192,17 @@ fn traced(
         }
     }
     let mut label = vec![usize::MAX; points.len()];
-    let mut cluster = vec![0; points.len()];
     let mut clusters = 0;
-    for i in 0..points.len() {
-        let r = find(&mut parent, i);
-        if label[r] == usize::MAX {
-            label[r] = clusters;
-            clusters += 1;
-        }
-        cluster[i] = label[r];
-    }
+    let cluster: Vec<usize> = (0..points.len())
+        .map(|i| {
+            let r = find(&mut parent, i);
+            if label[r] == usize::MAX {
+                label[r] = clusters;
+                clusters += 1;
+            }
+            label[r]
+        })
+        .collect();
     let mut apex_only = vec![true; clusters];
     for (i, x) in points.iter().enumerate() {
         if (*x - apex).norm() > link {
@@ -212,7 +212,6 @@ fn traced(
     Trace {
         points,
         cluster,
-        clusters,
         apex_only,
     }
 }
@@ -682,7 +681,7 @@ fn a_tilted_cone_sharing_asymptotes_cuts_its_unbounded_branches_open() {
     );
     for c in section.counted().unwrap() {
         if c.shape == ComponentShape::Loop {
-            assert_eq!(c.winds[0], true, "the loop winds about the unit cone");
+            assert!(c.winds[0], "the loop winds about the unit cone");
         } else {
             assert!(c.cut_ends.is_some(), "an unbounded branch has two cut ends");
         }
