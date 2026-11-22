@@ -206,7 +206,7 @@ fn gestures_on(
             "mirror",
             SessionOp::AddMirror {
                 body: copy.into(),
-                plane: plus_x_wall(session, 0.0),
+                plane: viewer::session::ToolPlane::Face(plus_x_wall(session, 0.0)),
             },
             true,
         ),
@@ -1887,7 +1887,7 @@ fn a_feature_on_a_mirror_of_the_copy_survives_the_repoint_and_its_delete() {
     assert_eq!(plane.node, copy, "the wall is picked on the copy");
     let out = session.perform(SessionOp::AddMirror {
         body: copy.into(),
-        plane,
+        plane: viewer::session::ToolPlane::Face(plane),
     });
     assert!(out.refusal.is_none(), "mirror: {:?}", out.refusal);
     session.pump();

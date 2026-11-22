@@ -520,11 +520,14 @@ fn quoted(s: &str, context: &'static str) -> Result<String, StepExportError> {
     Ok(out)
 }
 
-/// Lookup-only id caches for entities shared across the walk (vertices
-/// and edges are referenced by every adjacent face). Hash maps are
+/// Lookup-only id caches for entities shared across the walk: vertices
+/// and edges are referenced by every adjacent face, and a surface by
+/// every face that wears it, so one surface entity is written per
+/// surface key (`[import]`, "Records follow the file"). Hash maps are
 /// never iterated — output order is the traversal's (D9).
 #[derive(Default)]
 struct SharedIds {
     vertex_points: HashMap<topo::VertexKey, u64>,
     edge_curves: HashMap<EdgeKey, u64>,
+    surfaces: HashMap<topo::SurfaceKey, u64>,
 }

@@ -199,8 +199,10 @@ fn reassembly_oracle_generic_cube() {
     let reference = {
         let band = geom_core::Band::linear(tol).unwrap();
         let mut b = operand.clone();
-        let (mut sides, mut on) = super::classify::classify_vertices(&b, &plane, band).unwrap();
-        super::classify::insert_crossings(&mut b, &plane, &mut sides, &mut on, tol).unwrap();
+        let (mut sides, mut on, on_plane) =
+            super::classify::classify_vertices(&b, &plane, band).unwrap();
+        super::classify::insert_crossings(&mut b, &plane, (&mut sides, &mut on, &on_plane), tol)
+            .unwrap();
         b
     };
     assert_eq!(

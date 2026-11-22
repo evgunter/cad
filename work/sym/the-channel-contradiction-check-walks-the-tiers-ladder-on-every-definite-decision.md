@@ -2,11 +2,12 @@
 id: the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision
 kind: issue
 title: The check that the two channels do not contradict walks the tier's first attempt on every definite decision, and on a curved body's ray decisions that is 75 to 150 ms each
-status: dispatched
+status: review
 opened: 2026-11-15
 priority: P1
 cost: H
 branch: boxfinish/decide-path-check
+pr: 7394
 ---
 
 

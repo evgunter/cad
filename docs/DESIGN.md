@@ -421,11 +421,15 @@ curve pairs.
   branches on it; keys are *body-lineage-scoped* (key identity across
   same-history builds is what lets an interval replay share topology
   with the f64 build). The certified-lane pattern is **f64 structure +
-  `T` payload**: candidate generation (`ssi::jet`/`march`/`system`, the
-  analytic composite's implicit form) is `f64`-only and untrusted, and
-  the certificate is derived and carried at `T` (`SsiCertificate<T>`,
-  `FittedLane`) — so a WIDENED analytic operand refuses typed
-  rather than picking a representative surface out of the family.
+  `T` payload**: candidate generation (`ssi::jet`/`march`/`system`)
+  is `f64`-only and untrusted, and the certificate is derived and
+  carried at `T` (`SsiCertificate<T>`, `FittedLane`). The analytic
+  composite's coefficients are enclosures built at the lane scalar, so
+  a WIDENED analytic operand is certified as the family it is rather
+  than represented by a surface picked out of it. The one reading that
+  still holds an analytic operand as `f64` structure is the chart
+  tube's partner form (`ssi::certify::chart_partner_form`), which
+  refuses a widened partner typed (`CHART_TUBE_PARTNER_INEXACT`).
 - **What a lane scalar takes from `f64` is a choice, never a claim,
   and the same across the box.** This holds of every scalar that is
   not `f64`, a `Dual` and a `Sym` as much as an `Interval`: at a
@@ -910,13 +914,15 @@ tiers".
   with, K·ε ([tolerance.recourse]). Pieces of a solid's boundary that
   do not meet (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
-  itself, the local reading (how the faces leave their shared edge or
-  vertex, or a face's own turning) passes by more than the band. That
-  reading is the edge's wedge as tier 3 reads it, one reading for
-  both: an angle metered at the reach of the faces it governs
+  itself, the question reads from the verdict what tier 3 decided
+  there (an edge's class and turn, an end, a pole or apex vertex) and
+  decides none of it. Over each cell it reads the rate at which the
+  two faces part, the faces' rates summed, levered at how far the
+  narrower of them runs from what they share, measured across it
   ([tolerance.epsilon]), never at a cell of the question's own
-  subdivision. A cell holds none of a face only where it lies off
-  the face. A
+  subdivision, and that passes by more than the band. Where tier 3
+  holds no fact, that reading is the only one. A cell holds none of a
+  face only where it lies off the face. A
   reading inside the band refuses as ambiguous, never as Holds or
   Violated. An exact
   value `x` enters the question as `[x, x]`; a stored bracket enters as
@@ -1151,13 +1157,17 @@ EdgeDescription =
 
 *From:* [pure-model], [unrepresentable].
 
-Plane / cylinder / cone / sphere / ring torus / spindle sheet are
-first-class variants alongside NURBS (as in Parasolid), not converted to
-NURBS. A spindle sheet is one sheet of a spindle or horn torus, the
-lemon or the apple, with a signed major radius choosing which. Most
+Plane / cylinder / cone / sphere / spheroid / ring torus / spindle
+sheet are first-class variants alongside NURBS (as in Parasolid), not
+converted to NURBS. A spindle sheet is one sheet of a spindle or horn
+torus, the lemon or the apple, with a signed major radius choosing
+which. A spheroid is a sphere stretched along one axis, with an
+equatorial and a polar radius that differ past the band; it is what a
+revolve mints from an ellipse arc centred on its axis with a principal
+direction along it, and a sphere stays its own kind. Most
 mechanical geometry is analytic; analytic×analytic intersections have
-closed forms, while NURBS×NURBS is a numerical marching problem. An
-eighth variant, `Approx`, is the certified approximating class
+closed forms, while NURBS×NURBS is a numerical marching problem. A
+further variant, `Approx`, is the certified approximating class
 (OFFSET-DESIGN O2): a fitted NURBS carrying the intensional description
 of what it approximates plus a certificate bounding the distance,
 re-derived per face and never trusted from storage.
@@ -1174,8 +1184,11 @@ net) the kind fixes the rule, not the points: a boundary iso of the net whose co
 points are all one stored point is a chart singularity at that point, decided on the
 stored values. A constructor that decides such a side collapsed at its band builds it
 exactly one point; a side that is tiny but not one point is a regular chart with a
-short edge. The `Nurbs` variant is the universal fallback: any exotic surface
-is at minimum representable. Same design for curves (line / circle /
+short edge. A swept locus earns a kind where it is a quadric or one of
+the torus's sheets, so that a line meets it in a closed form and a
+plane cuts it in a curve kind that exists. The `Nurbs` variant is the universal fallback: any exotic surface
+is at minimum representable, and a wall swept from a profile segment
+with no kind of its own is the exact rational `Nurbs` surface, never an `Approx`. Same design for curves (line / circle /
 ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
 
@@ -1232,11 +1245,12 @@ structure) or refuses typed, naming the lane that would recover it. Pipeline:
    touch by value.
 
 **Records follow the file.** A surface entity the file states is one
-surface record, worn by every face of one shell that cites it; two
-entities are two records unless healing's reported one-record act joins
-them (step 3); each face is certified against its record; and the writer
-emits one surface entity per surface record. No comparison of printed
-values decides which record a face wears.
+surface record, worn by every face of one shell that cites it, and a
+record a normalization mints (a knot split's sub-patch) is a record of
+its own; two entities are two records unless healing's reported
+one-record act joins them (step 3); each face is certified against its
+record; and the writer emits one surface entity per surface record. No
+comparison of printed values decides which record a face wears.
 
 **Adoption tolerance ≠ kernel tolerance.** Adoption takes a per-import
 *input tolerance* ε_in — defaulted from the STEP file's declared
@@ -1336,7 +1350,11 @@ suits the slot.
   the profile's own axes (an extrude's signed depth, above or below the
   profile's plane, and its slant) or a point and a heading (a revolve's axis line). A
   profile drawn on a `Frame` may read traces in its plane
-  ("Constructing a coincidence").
+  ("Constructing a coincidence"). A profile drawn on a face's chart
+  may also hold that face's boundary loops as loops of its own: the
+  outline, or the hole through a named edge. Such a loop stores names
+  and no number, and is the face's boundary as it is at each
+  evaluation, as a shell's open face is.
 - *Spaces:* `Space`, a coordinate system ([placement.spaces]). A
   space holds nothing and contains nothing: no pose, no number, no
   member list, and no origin, axis or plane that a reader takes as a
@@ -1372,8 +1390,8 @@ A name is also the mark that a value is wanted for itself.
 body's geometry (a face's plane, a carrier's axis or centre, a
 vertex's point, a face's flag along one of its edges); moved from another pose by a slide along, or a spin
 about, a direction or axis the definition reads; by a construction
-over other poses; as a pose of a copy; or as an output of an
-operation. So no pose is free and none is defined from nothing. A
+over other poses; as a pose of a copy; as the frame a placement
+places ([placement.datums]); or as an output of an operation. So no pose is free and none is defined from nothing. A
 construction reads poses as it reads any variable, only those of the
 space it is built in, and is in that space; relating two spaces is a
 placement's alone ([placement.spaces]).
@@ -1495,12 +1513,15 @@ value of it, and each of its outputs is a **family** of that kind (a
 `Bodies` is the family of `Body`), one member per value, keyed by the
 tuple of the indices it reaches, outer first. Membership is derived
 from reads, as dependency is: no node holds a template, and there is
-no pattern operation. A variable defined by reading `k` is, to a
+no pattern operation. A profile's program repeats part of
+itself with `each k { … }`, which takes the index whole as `union`
+takes a `Bodies` (`docs/PATHS-DESIGN.md` §2, *Composition*). A variable defined by reading `k` is, to a
 reader that reaches the same `k`, its member at the same value, and to
 every other reader the whole family: `xs[i, j]` reads one member, and
 `union`, `intersect` and `assemble` take a `Bodies`: a family, or its
-members spelled as reads; a subtract's tool is one `Body`, so cutting by a family is
-`subtract(a, union(holes))`.
+members spelled as reads; so does a subtract's tool, so
+`subtract(a, holes)` cuts `a` by every member, and `subtract(a, holes[k])`
+cuts it member by member.
 Lockstep is one index read twice. An index enters a placement as a value, a slide or a
 spin that is a `Length` or `Angle` expression over it, or through a
 mate whose target is a member of another family
@@ -1651,10 +1672,10 @@ never mated twice.
 
 **Mates.** `[placement.mates]` Each mate equates two poses of one
 kind, modulo that kind's symmetry: a pose read off the source's
-geometry with a pose read off a body in the target space that does
-not read this placement. A mate reads only bodies' geometry, never a
-space and never a frame standing for a part's coordinates, and no
-space has roles a mate can read. A mate states a physical relation; a
+geometry with a pose that something placed or built in the target space
+defines and that does not read this placement. A mate reads only
+such poses, never a space and never a frame standing for a part's
+coordinates, and no space has roles a mate can read. A mate states a physical relation; a
 placement whose source touches nothing has none, and its values state
 the whole motion. A mate holds no number of its own, and its sense is
 a construction (`Flip`) on one side (a flag's `Flip` keeps its side:
@@ -1729,13 +1750,26 @@ two tilts `0`, and the slides and spin the author chooses). A
 placement is the only reader of a source's own coordinates, and reads
 them only through the freedoms its mates leave.
 
+**Datums.** `[placement.datums]` A placement's source is a body or
+nothing. With nothing, it is a **datum**: what it places is a bare
+frame, its one output, and the rules of spaces, bundles and values
+hold of it as written.
+Its mates' near sides are that frame's own roles (its xy plane, its z
+axis, its origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
+as a finer pose is read off any frame ([variables.poses]). An offset
+from a face is the mate's far side slid along its normal, as for a
+body ([placement.mates]); a datum has no number of its own beyond its
+values. A datum is a recipe object the author places, like a body:
+its output is shared unnamed, and a face read in place needs none.
+
 **The world** `[placement.world]` is a space like any other, the one
 every document holds and cannot delete: it sets the coordinates. Its
 axes chart the values of placements into it, and it is nothing else.
-It has no datum plane, origin or axis as a recipe object: a viewer
+It has no datum plane, origin or axis of its own: a viewer
 may draw its axes or a grid as a display aid, and a gesture that drops
 a part on the floor writes values; neither is a recipe object, and no
-mate or construction reads the world. Export and the viewer's drawing compose a body into
+mate or construction reads the world. An author may place a datum into
+it, as into any space ([placement.datums]). Export and the viewer's drawing compose a body into
 the coordinates of a space it reaches, the world's or any other shown
 space's, through one door that nothing else calls, and what they
 produce never re-enters the model. The **product** is the body the
@@ -1917,10 +1951,10 @@ crossings lie in band of each other, a pair, and a ray that meets a
 corner or a wedge reads nothing. The volume's sign is certified by its
 enclosure alone, never held against the band, so how thin a result is
 gets judged by its pairs alone. The door's
-finished-body gate decides this on the result alone and refuses it as
-the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
-the geometry), never silently; a definite finding there is a kernel
-defect (`ResultInvalid`).
+finished-body gate decides this on the result alone and refuses it,
+never silently, with the list of what it found (`ResultInvalid`): each
+finding carries its own family's text and recourse
+([topology.tiers]).
 
 ### Assertions `[assertions]`
 
@@ -2351,7 +2385,7 @@ Each layer depends only on the layers below it.
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
 | `geom` | Analytic + NURBS types, evaluators, closest-point and the other one-carrier readings ([one-way.readings]): a point's foot on a curve (`Curve3::foot`) and whether it lies on the carrier (`Curve3::on_carrier`), and a carrier's rate bounds (`carrier_speed`). Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
 | `geom-brep` | The B-rep geometry layer: [edges]'s `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, the curve-pair meeting reader (the point-on-span reading, composing `geom`'s one-carrier readings with the span's reading of its ends; one total curve-kind-pair table) and the machinery under it (the half-angle ladder and its subdivision, `half_angle`; the depressed quartic's sign ladder, `quartic`), the carrier-pair pose, the curve×face table (`curve_face`) and every door it routes to (D3), certified mass properties, offset surfaces |
-| `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
+| `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation, which reads how two of its segments meet, and how a ray crosses one, through `geom-brep`'s curve-pair reading |
 | `topo` | Arenas, entities, Euler operators and body surgery, the validation tiers; the readings of a body and the constructions over one, each with one home at the crate root (`crates/topo/README.md` `[topo.homes]`); the operations over them, plane splitting (`splitting/`) and the boolean (`boolean/`), each a leaf directory that exports only its door and imports neither the other; the census and contact records; shell/offset surgery; the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |
 | `verbs` | The kernel verb vocabulary seat (VERB-SEAT-DESIGN §2): one payload type per run door reifying an operation's parameters as data, the closed `VerbKind` vocabulary they project onto, run dispatch, and the parameter→field flow; a layer guard keeps serde, `Expr`, `StableName` and recipe ids out |
