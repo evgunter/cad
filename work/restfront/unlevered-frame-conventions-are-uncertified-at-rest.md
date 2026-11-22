@@ -12,14 +12,25 @@ refs: [3238]
 
 ## What
 
+**Narrowed (2026-11-22, PR 7323).** Every analytic surface's frame,
+the plane's and the cone's included, and every circle's, ellipse's and
+spiric's frame is now a `geom::Frame`. That is a `RigidMotion`, unit
+and square by its type (fork 274 decision 1), so check 1 reads no
+frame: there is nothing at rest for it to certify there. The plane's
+unit `normal` and `u_ref ⊥ normal`, and the cone's frame, are no
+longer open here. Of this row's conventions, one remains: **a line's
+unit `dir`**. A line's `dir` is still a bare `Vec3`, and making it a
+`UnitVec3` is `onehome/carrier-frames-a-lines-dir-is-a-unitvec3`.
+
+The rest of this row is the record as filed. Its first paragraph
+described check 1 before PR 7323.
+
 ATREST-13 made check 1 read every analytic frame: a zero `normal`,
 `axis`, `u_ref` or `dir` is `PoisonedSurfaceDatum` /
-`PoisonedCurveDatum`, and the `axis`/`u_ref` frame of a cylinder,
-sphere, torus, circle, ellipse or spiric must be unit and orthogonal to
-within the run's ε of locus movement at the kind's radius
-(`geom::Surface::representability_margins`,
-`geom::Curve3::representability_margins`, `geom::surfaces::frame_margins`).
-The frame conventions it does NOT certify, each for a stated reason:
+`PoisonedCurveDatum`. The `axis`/`u_ref` frame of a cylinder, sphere,
+torus, circle, ellipse or spiric had to be unit and orthogonal to
+within the run's ε of locus movement at the kind's radius. It did NOT
+certify these frame conventions, each for a stated reason:
 
 - **a line's unit `dir`** and **a plane's unit `normal` / `u_ref`**:
   each spans the same locus at any length, so a non-unit one is not a

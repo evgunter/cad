@@ -1334,70 +1334,53 @@ impl<T: Real> RigidMotion<T> {
 
 impl<T: Real> RigidMotion<T> {
     /// **How far this motion's stored axes may be from the rotation they
-    /// hold**, at this scalar: `(axis, seam)`, where `axis` bounds
-    /// `‖w − ŵ‖` and `seam` bounds `‖u − û‖`, `ŵ` and `û` the rotation's
-    /// own axes (a carrier frame's `axis` and `u_ref`). A reader that
-    /// levers a frame charges these in place of reading the frame's
-    /// convention off its entries (fork 274 decision 1: a frame is held
-    /// as the claim it is).
+    /// hold**: `(axis, seam)`, bounds on `‖w − ŵ‖` and `‖u − û‖`, `ŵ` and
+    /// `û` the rotation's own axes (a carrier frame's `axis` and `u_ref`).
+    /// A reader that levers a frame charges these rather than reading the
+    /// frame's convention off its entries (fork 274 decision 1).
     ///
-    /// **At an enclosure scalar** ([`crate::Witness::Exact`]) both are zero. Every
-    /// frame there encloses, for each point of its inputs' box, an exact
-    /// rotation, because every way one is minted does:
-    /// - read across from `f64` ([`RigidMotion::map_scalar`]), it is the
-    ///   enclosure of the stored entries' polar factor, the rotation
-    ///   nearest them ([`Real::enclose_rotation`]);
-    /// - minted at the scalar (a stated frame squared,
-    ///   [`RigidMotion::squared`]; a turn, an aim, a least turn), each
-    ///   entry is the interval
-    ///   evaluation of a formula that yields a rotation in exact
-    ///   arithmetic on exact inputs, so it encloses that rotation for
-    ///   every input the box holds;
-    /// - composed, inverted, permuted or negated
-    ///   ([`RigidMotion::compose`], [`RigidMotion::carried_by`],
-    ///   [`RigidMotion::inverse`], [`RigidMotion::reversed`], the turn
-    ///   helpers), it encloses the product,
-    ///   transpose or signed permutation of rotations, each a rotation.
+    /// **Zero at an enclosure scalar** ([`crate::Witness::Exact`]): every
+    /// mint there encloses a rotation for each point of its inputs' box.
+    /// Read across from `f64` it is the enclosure of the polar factor
+    /// ([`Real::enclose_rotation`]); minted at the scalar it is a formula
+    /// that yields a rotation in exact arithmetic ([`RigidMotion::squared`],
+    /// a turn, an aim, a least turn); and composed, inverted or permuted
+    /// it is a product, transpose or signed permutation of such. No
+    /// production door mints one from raw entries
+    /// ([`RigidMotion::check_rigid`] is `f64` only, and the doors that
+    /// admit stated entries are test builds only).
     ///
-    /// No production door mints a frame at an enclosure scalar from raw
-    /// entries: [`RigidMotion::check_rigid`] is `f64` only, and the two
-    /// doors that admit stated entries as they are
-    /// (`geom::Frame::admitted`, this type's suite door) are test builds
-    /// only. So the exact rotation lies inside the stored brackets, and
-    /// a point evaluated through them encloses the true one: there is
-    /// nothing between the entries and the claim to charge.
+    /// **Measured at a point scalar**, since composition adds rounding at
+    /// every turn and no constant bounds it. With `A = w·w`, `U = u·u`,
+    /// `c = w·u` and `θ = |c|/√A`, `u⊥` the part of `u` square to `ŵ`:
+    /// - `‖w − ŵ‖ = |√A − 1| = |A − 1|/(1 + √A)`;
+    /// - `‖u − û‖ ≤ θ + |‖u⊥‖ − 1| = θ + |U − θ² − 1|/(1 + ‖u⊥‖)`.
     ///
-    /// **At a point scalar** (`f64`, and a dual or form over it) the
-    /// entries hold the rotation to their rounding, and composition
-    /// adds to it ([`RigidMotion::compose`] turns each axis by the outer
-    /// matrix), so the defect is measured, not bounded by a constant.
-    /// With `A = axis·axis`, `U = u_ref·u_ref` and
-    /// `θ = |axis·u_ref|/√A`, and since `|x − 1| ≤ |x² − 1|` for
-    /// `x ≥ 0`:
-    /// - `‖axis − n̂‖ = |√A − 1| ≤ |A − 1|`;
-    /// - `‖u_ref − ê₁‖ ≤ θ + |U − θ² − 1| ≤ θ + |U − 1| + θ²`.
-    ///
-    /// The invariants are read with their running bounds
-    /// ([`crate::running`]: `|A − 1|` and `|U − 1|` pivoted on the
-    /// largest component, `axis·u_ref` term by term), so the measure is
-    /// exact apart from rounding, as `check_rigid`'s margins are, and a
-    /// frame whose entries are exactly orthonormal (an axis-aligned one)
-    /// is charged nothing. `1/√A ≤ 1 + |A − 1|` while `|A − 1| ≤ ½`, and
-    /// the last few operations, on values already this small, are
-    /// covered by a relative `8u`.
+    /// `A − 1`, `U − 1` and `c` are read exactly ([`exact_sum_of_products`]),
+    /// so the measure is the frame's own distance to within a relative
+    /// short chain: each denominator taken at its least
+    /// (`A ≥ 1 − |A − 1|`, `‖u⊥‖² ≥ 1 − |U − 1| − θ²`, clamped at zero, so
+    /// the bounds hold at any defect, a seam past `|A − 1| = 1` reading
+    /// infinite), and the dozen operations after, on non-negative terms,
+    /// charged as a short chain ([`crate::rounding_charge`]).
     #[must_use]
     pub fn rounding(self) -> (T, T) {
-        use crate::running::{dot, exact_vec, unit_defect};
         if T::WITNESS == crate::real::Witness::Exact {
             return (T::zero(), T::zero());
         }
         let (axis, u_ref) = (self.w.get(), self.u.get());
-        let a = unit_defect(axis).magnitude();
-        let u = unit_defect(u_ref).magnitude();
-        let c = dot(exact_vec(axis), exact_vec(u_ref)).magnitude();
-        let slack = T::one() + T::from_f64(8.0 * crate::UNIT_ROUNDOFF);
-        let theta = c * (T::one() + a);
-        (a * slack, (theta + u + theta.powi(2)) * slack)
+        let one = T::one();
+        let terms = |x: Vec3<T>, y: Vec3<T>| [(x.x, y.x), (x.y, y.y), (x.z, y.z)];
+        let a = exact_sum_of_products(&terms(axis, axis), -one).abs();
+        let u = exact_sum_of_products(&terms(u_ref, u_ref), -one).abs();
+        let c = exact_sum_of_products(&terms(axis, u_ref), T::zero()).abs();
+        let root = |x: T| x.max(T::zero()).sqrt();
+        let theta = c / root(one - a);
+        let off = |x: T| x + crate::rounding_charge(x);
+        let axis_off = a / (one + root(one - a));
+        let theta2 = theta.powi(2);
+        let seam_off = theta + (u + theta2) / (one + root(one - u - theta2));
+        (off(axis_off), off(seam_off))
     }
 
     /// **This frame at another scalar**, one of the two reads the module
@@ -1480,6 +1463,48 @@ impl<T: Real> RigidMotion<T> {
             }
         }
     }
+}
+
+/// **`|Σ xᵢ·yᵢ + k|`, bounded above**, read exactly apart from a
+/// double-double accumulation, at a point scalar whose value channel is
+/// binary64 ([`RigidMotion::rounding`]'s one reader): each product split
+/// error-free by Dekker's two-product (Veltkamp's split by `2²⁷ + 1`, no
+/// fused multiply), each sum by Knuth's two-sum, the pair `(hi, lo)`
+/// kept. The pair's own error, at most `4u²` of the terms' magnitude sum,
+/// is charged on top, and a product under the split's floor (`10⁻²⁸⁸`,
+/// past which the split loses bits) is charged its whole size.
+fn exact_sum_of_products<T: Real>(terms: &[(T, T); 3], k: T) -> T {
+    let split = |x: T| {
+        let c = T::from_f64(134_217_729.0) * x;
+        let hi = c - (c - x);
+        (hi, x - hi)
+    };
+    let two_product = |x: T, y: T| {
+        let p = x * y;
+        let ((xh, xl), (yh, yl)) = (split(x), split(y));
+        (p, ((xh * yh - p) + xh * yl + xl * yh) + xl * yl)
+    };
+    let two_sum = |x: T, y: T| {
+        let s = x + y;
+        let yy = s - x;
+        (s, (x - (s - yy)) + (y - yy))
+    };
+    let (mut hi, mut lo) = (k, T::zero());
+    let mut size = k.abs();
+    let mut floor = T::zero();
+    for &(x, y) in terms {
+        let (p, e) = two_product(x, y);
+        size = size + p.abs();
+        floor = floor + (x * y).abs().min(T::from_f64(1e-288));
+        let (s, f) = two_sum(hi, p);
+        hi = s;
+        lo = lo + f + e;
+    }
+    let (s, f) = two_sum(hi, lo);
+    let value = s + f;
+    let u = T::from_f64(crate::UNIT_ROUNDOFF);
+    let charge = T::from_f64(4.0) * u.powi(2) * size + floor;
+    value.abs() + charge
 }
 
 impl RigidMotion<f64> {

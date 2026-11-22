@@ -250,11 +250,10 @@ pub enum Segment<T: Real> {
 /// one reading at the run's band, the miss `‖o + ℓ·d − p‖` (`o` the
 /// start or centre, `p` the vertex, `ℓ` the chord or radius), and it is
 /// what "unit" means: `(|d| − 1)·ℓ ≤ ‖o + ℓ·d − p‖` by the triangle
-/// inequality, so an accepted direction is a unit by check 1's measure
-/// at arm ℓ (`geom::convention::frame_margins`) and turns by at most
-/// `ε/ℓ`; it is stored as written. Check 1 length-reads no plane or
-/// line, so a director stored as a plane's normal is a unit only at its
-/// chord's lever. A table that
+/// inequality, so an accepted direction is a unit to within `ε` at arm
+/// ℓ and turns by at most `ε/ℓ`; it is stored as written. No at-rest
+/// check reads a stored direction's length, so a director stored as a
+/// plane's normal is a unit only at its chord's lever. A table that
 /// carries none has them decided once, at validate, from its vertices
 /// ([`ValidatedSegment::directions`]).
 #[derive(Clone, Copy, Debug)]

@@ -391,3 +391,36 @@ pub mod twins {
         }
     }
 }
+
+/// **How far a motion's `f64` axes are from the rotation they hold**,
+/// read exactly: `(‖w − ŵ‖, θ + |‖u⊥‖ − 1|)`, the two quantities
+/// [`RigidMotion::rounding`] bounds, with `A = w·w`, `U = u·u`,
+/// `c = w·u` and `θ = |c|/√A`. `A − 1`, `U − 1` and `c` are exact
+/// ([`crate::exact::Expansion`]); the rest is evaluated once from them,
+/// so each answer is within a few ulps of its own size (an absolute
+/// `10⁻³⁰` on a unit frame's defect), which a row compares with a slop of
+/// that order.
+#[must_use]
+pub fn rotation_distance(m: &RigidMotion<f64>) -> (f64, f64) {
+    use crate::exact::Expansion;
+    let dot = |x: crate::Vec3<f64>, y: crate::Vec3<f64>| {
+        let mut e = Expansion::product(x.x, y.x);
+        e.add_expansion(&Expansion::product(x.y, y.y));
+        e.add_expansion(&Expansion::product(x.z, y.z));
+        e
+    };
+    let value = |e: &Expansion| e.components().iter().sum::<f64>();
+    let less_one = |mut e: Expansion| {
+        e.add(-1.0);
+        value(&e)
+    };
+    let (w, u) = (m.w().get(), m.u().get());
+    let a = less_one(dot(w, w));
+    let uu = less_one(dot(u, u));
+    let theta = value(&dot(w, u)).abs() / (1.0 + a).sqrt();
+    let perp = uu - theta.powi(2);
+    (
+        a.abs() / (1.0 + (1.0 + a).sqrt()),
+        theta + perp.abs() / (1.0 + (1.0 + perp).sqrt()),
+    )
+}

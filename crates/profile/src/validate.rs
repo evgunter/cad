@@ -938,12 +938,11 @@ pub struct ValidatedSegment<T: Real> {
     /// `‖o + ℓ·d − p‖` (`o` the start or centre, `p` the vertex, `ℓ` the
     /// chord or radius), and that is what "unit" means here: the miss
     /// bounds both the direction's turn and its stretch, since
-    /// `(|d| − 1)·ℓ ≤ ‖o + ℓ·d − p‖` by the triangle inequality, which is
-    /// check 1's measure for a unit datum at arm ℓ
-    /// (`geom::convention::frame_margins`). So a radial accepted here is
-    /// one check 1 accepts as a `u_ref` at that radius. What it does not
-    /// promise: check 1 length-reads no plane or line, so a director
-    /// stored as a plane's normal is a unit only at its chord's lever.
+    /// `(|d| − 1)·ℓ ≤ ‖o + ℓ·d − p‖` by the triangle inequality, so an
+    /// accepted direction is a unit to within `ε` at arm ℓ. What it does
+    /// not promise: no at-rest check reads a stored direction's length,
+    /// so a director stored as a plane's normal is a unit only at its
+    /// chord's lever.
     /// An accepted direction is stored as written, never normalised or
     /// re-minted.
     pub directions: SegmentDirections<T>,

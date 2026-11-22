@@ -79,10 +79,9 @@ fn reasons(errors: &[ValidationError]) -> String {
             ValidationError::UnrepresentableCurveDatum {
                 kind: geom::CurveKind::Ellipse,
                 datum,
-                measure,
                 end,
                 ..
-            } => format!("{datum:?} {measure:?} {end:?}"),
+            } => format!("{datum:?} {end:?}"),
             other => variant(&format!("{other:?}"), 1),
         })
         .collect::<Vec<_>>()

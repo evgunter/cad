@@ -183,7 +183,7 @@ pub use azimuth::{
 pub use chart_point::{
     ChannelRead, ChartAngle, ChartArm, ChartChannels, ChartInverse, ChartPoint, NoClosedInverse,
 };
-pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame};
+pub use convention::{ConventionEnd, RepresentabilityMargin, SquareFrame};
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
     CarrierEscalation, CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3,

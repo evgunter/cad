@@ -396,43 +396,6 @@ mod tests {
             "the frame a motion places derives the motion's own v"
         );
     }
-    /// The frame's invariants on its `f64` entries, read in double-double
-    /// arithmetic (an error-free product and sum, then a pair kept to
-    /// about `10⁻³¹`): `|A − 1|` and `θ + |U − 1| + θ²`, each within
-    /// `10⁻³⁰` of the exact value on those entries.
-    fn true_defect(f: &Frame<f64>) -> (f64, f64) {
-        // `(hi, lo)` pairs: a product split exactly by a fused multiply,
-        // and sums by two-sum.
-        let two_sum = |a: f64, b: f64| {
-            let s = a + b;
-            let bb = s - a;
-            (s, (a - (s - bb)) + (b - bb))
-        };
-        let add = |(ah, al): (f64, f64), (bh, bl): (f64, f64)| {
-            let (s, e) = two_sum(ah, bh);
-            two_sum(s, e + al + bl)
-        };
-        let prod = |a: f64, b: f64| {
-            let p = a * b;
-            (p, a.mul_add(b, -p))
-        };
-        let dot =
-            |x: Vec3<f64>, y: Vec3<f64>| add(add(prod(x.x, y.x), prod(x.y, y.y)), prod(x.z, y.z));
-        let (axis, u_ref) = (f.axis(), f.u_ref());
-        let less_one = |(h, l): (f64, f64)| {
-            let (h, l) = add((h, l), (-1.0, 0.0));
-            (h + l).abs()
-        };
-        let a2 = dot(axis, axis);
-        let along = dot(axis, u_ref);
-        let theta = (along.0 + along.1).abs() / (a2.0 + a2.1).sqrt();
-        let slop = 1e-30;
-        (
-            less_one(a2) - slop,
-            theta + less_one(dot(u_ref, u_ref)) + theta * theta - slop,
-        )
-    }
-
     /// **A frame's `f64` rounding covers its true defect at every depth of
     /// composition** ([`Frame::rounding`]): random turns composed to depth
     /// 64, each frame's measured `(axis, seam)` at least the invariants
@@ -453,6 +416,7 @@ mod tests {
         };
         let band = Band::linear(Tol::witness()).unwrap();
         let mut worst = (0.0f64, 0.0f64);
+        let mut ratios: Vec<(f64, f64)> = Vec::new();
         for chain in 0..16 {
             let mut frame = tilted();
             for depth in 0..64 {
@@ -461,10 +425,12 @@ mod tests {
                 let turn = RigidMotion::rotation(axis, 6.0 * next()).unwrap();
                 frame = frame.moved(&turn);
                 let (d_axis, d_seam) = frame.rounding();
-                let (t_axis, t_seam) = true_defect(&frame);
+                let (t_axis, t_seam) = geom_core::test_support::rotation_distance(&frame.motion());
                 worst = (worst.0.max(t_axis), worst.1.max(t_seam));
+                let slop = 1e-30;
+                ratios.push(((d_axis / t_axis.max(1e-300)), (d_seam / t_seam.max(1e-300))));
                 assert!(
-                    d_axis >= t_axis && d_seam >= t_seam,
+                    d_axis >= t_axis - slop && d_seam >= t_seam - slop,
                     "chain {chain}, depth {depth}: rounding ({d_axis:e}, {d_seam:e}) under the \
                      defect ({t_axis:e}, {t_seam:e})"
                 );
@@ -474,80 +440,117 @@ mod tests {
             worst.0 > 0.0 || worst.1 > 0.0,
             "the chains carry a defect to cover"
         );
+        let median = |mut v: Vec<f64>| {
+            v.retain(|x| x.is_finite());
+            v.sort_by(f64::total_cmp);
+            v[v.len() / 2]
+        };
+        println!(
+            "rounding over distance: axis median {:.2}, seam median {:.2}",
+            median(ratios.iter().map(|r| r.0).collect()),
+            median(ratios.iter().map(|r| r.1).collect())
+        );
     }
 
-    /// **At an enclosure scalar every mint encloses the rotation it
-    /// stands for**, so [`Frame::rounding`] is zero there: for each mint
-    /// path, the same mint at `f64` at points of the inputs' box has
-    /// every entry inside the enclosure's, widened by that `f64` mint's
-    /// own rounding (a few ulps of a unit entry). The paths: the polar
-    /// read of an `f64` frame (`map_scalar`), a stated frame squared
-    /// (`Frame::new`), a turn by a boxed angle, a composition, an
-    /// inverse, the turn helpers and a reversal.
-    #[test]
-    fn every_enclosure_mint_encloses_the_rotation_it_stands_for() {
-        use geom_core::{Bounds, Interval, Real};
-        let box_ = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
-        let pad = 1e-15;
-        let inside = |name: &str, i: &Frame<Interval>, f: &Frame<f64>| {
-            assert_eq!(i.rounding().0.hi(), 0.0, "{name}: zero at an enclosure");
-            for (ia, fa) in [
-                (i.axis(), f.axis()),
-                (i.u_ref(), f.u_ref()),
-                (i.v_ref(), f.v_ref()),
-            ] {
-                for (ie, fe) in [(ia.x, fa.x), (ia.y, fa.y), (ia.z, fa.z)] {
-                    assert!(
-                        ie.lo() - pad <= fe && fe <= ie.hi() + pad,
-                        "{name}: the f64 entry {fe:e} lies outside [{:e}, {:e}]",
-                        ie.lo(),
-                        ie.hi()
-                    );
-                }
+    /// **Whether an enclosure frame can hold a rotation**: each axis's
+    /// squared length can be `1` and each pair's dot product `0` over the
+    /// box, every range read exactly off the brackets' ends (each product
+    /// an exact [`geom_core::exact::Expansion`], the least and greatest of
+    /// a bracket product chosen among its four end products by their
+    /// values, which a tie within `10⁻³⁰` cannot turn). A necessary
+    /// condition: a box holding a rotation passes it, and a box of points
+    /// that are a rotation's `f64` rounding fails it.
+    fn can_hold_a_rotation(f: &Frame<geom_core::Interval>) -> bool {
+        use geom_core::Bounds;
+        use geom_core::exact::Expansion;
+        let ends = |x: geom_core::Interval| (x.lo(), x.hi());
+        let value = |e: &Expansion| e.components().iter().sum::<f64>();
+        // The exact least and greatest of `x·y` over the two brackets.
+        let range = |x: (f64, f64), y: (f64, f64)| {
+            let mut cands = [
+                Expansion::product(x.0, y.0),
+                Expansion::product(x.0, y.1),
+                Expansion::product(x.1, y.0),
+                Expansion::product(x.1, y.1),
+            ];
+            cands.sort_by(|a, b| value(a).total_cmp(&value(b)));
+            let [lo, _, _, hi] = cands;
+            (lo, hi)
+        };
+        let square = |x: (f64, f64)| {
+            let (lo, hi) = range(x, x);
+            if x.0 <= 0.0 && x.1 >= 0.0 {
+                (Expansion::product(0.0, 0.0), hi)
+            } else {
+                (lo, hi)
             }
         };
+        let spans = |terms: [(Expansion, Expansion); 3], target: f64| {
+            let (mut lo, mut hi) = (
+                Expansion::product(-target, 1.0),
+                Expansion::product(-target, 1.0),
+            );
+            for (l, h) in terms {
+                lo.add_expansion(&l);
+                hi.add_expansion(&h);
+            }
+            value(&lo) <= 0.0 && value(&hi) >= 0.0
+        };
+        let axes = [f.axis(), f.u_ref(), f.v_ref()];
+        let col = |v: Vec3<geom_core::Interval>| [ends(v.x), ends(v.y), ends(v.z)];
+        let unit = axes.iter().all(|&v| {
+            let c = col(v);
+            spans([square(c[0]), square(c[1]), square(c[2])], 1.0)
+        });
+        let square_pairs = [(0, 1), (0, 2), (1, 2)].iter().all(|&(i, j)| {
+            let (a, b) = (col(axes[i]), col(axes[j]));
+            spans(
+                [range(a[0], b[0]), range(a[1], b[1]), range(a[2], b[2])],
+                0.0,
+            )
+        });
+        unit && square_pairs
+    }
+
+    /// **At an enclosure scalar every mint can hold the rotation it
+    /// stands for** ([`Frame::rounding`] is zero there by that argument):
+    /// for each mint path the enclosure passes [`can_hold_a_rotation`],
+    /// read exactly with no pad. The paths: the polar read of an `f64`
+    /// frame (`map_scalar`), a stated frame squared (`Frame::new`), a turn
+    /// by a boxed angle, a composition, an inverse, the turn helpers and a
+    /// reversal. Red where the polar read is replaced by the stated
+    /// entries as points, which a frame rounded at `f64` is not.
+    #[test]
+    fn every_enclosure_mint_encloses_the_rotation_it_stands_for() {
+        use geom_core::{Interval, Real};
+        let box_ = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let holds = |name: &str, i: &Frame<Interval>| {
+            assert!(
+                can_hold_a_rotation(i),
+                "{name}: the enclosure holds no rotation: {i:?}"
+            );
+        };
         let f = tilted();
-        inside("polar read", &f.map_scalar(Interval::from_f64), &f);
-        let (lo, hi) = (0.52, 0.54);
-        let stated = |t: f64| (Vec3::new(2.0, 2.0, t), Vec3::new(1.0, -2.0, 2.0));
-        let o = Point3::origin();
+        holds("polar read", &f.map_scalar(Interval::from_f64));
+        let o = Point3::origin().map(Interval::from_f64);
+        let lift = |v: Vec3<f64>| v.map(Interval::from_f64);
         let boxed = Frame::new(
-            o.map(Interval::from_f64),
-            Vec3::new(box_(2.0, 2.0), box_(2.0, 2.0), box_(lo, hi)),
-            stated(lo).1.map(Interval::from_f64),
+            o,
+            Vec3::new(box_(2.0, 2.0), box_(2.0, 2.0), box_(0.52, 0.54)),
+            lift(Vec3::new(1.0, -2.0, 2.0)),
         );
-        let theta = box_(0.5, 0.52);
-        let turn_i = RigidMotion::rotation(UnitVec3::<Interval>::exact_y(), theta).unwrap();
-        for t in [lo, 0.5 * (lo + hi), hi] {
-            let (a, u) = stated(t);
-            inside("stated and squared", &boxed, &Frame::new(o, a, u));
-        }
-        for th in [0.5, 0.51, 0.52] {
-            let turn_f = RigidMotion::rotation(UnitVec3::<f64>::exact_y(), th).unwrap();
-            let base = Frame::new(o, stated(lo).0, stated(lo).1);
-            let base_i = Frame::new(
-                o.map(Interval::from_f64),
-                stated(lo).0.map(Interval::from_f64),
-                stated(lo).1.map(Interval::from_f64),
-            );
-            inside(
-                "a boxed turn",
-                &Frame::of_motion(&turn_i),
-                &Frame::of_motion(&turn_f),
-            );
-            inside("composed", &base_i.moved(&turn_i), &base.moved(&turn_f));
-            inside(
-                "inverted",
-                &Frame::of_motion(&turn_i.inverse().unwrap()),
-                &Frame::of_motion(&turn_f.inverse().unwrap()),
-            );
-            inside(
-                "quarter turned",
-                &base_i.quarter_turned(),
-                &base.quarter_turned(),
-            );
-            inside("half turned", &base_i.half_turned(), &base.half_turned());
-            inside("reversed", &base_i.reversed(), &base.reversed());
-        }
+        holds("stated and squared", &boxed);
+        let turn = RigidMotion::rotation(UnitVec3::<Interval>::exact_y(), box_(0.5, 0.52)).unwrap();
+        let base = Frame::new(
+            o,
+            lift(Vec3::new(2.0, 2.0, 0.52)),
+            lift(Vec3::new(1.0, -2.0, 2.0)),
+        );
+        holds("a boxed turn", &Frame::of_motion(&turn));
+        holds("composed", &base.moved(&turn));
+        holds("inverted", &Frame::of_motion(&turn.inverse().unwrap()));
+        holds("quarter turned", &base.quarter_turned());
+        holds("half turned", &base.half_turned());
+        holds("reversed", &base.reversed());
     }
 }

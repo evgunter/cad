@@ -3188,17 +3188,18 @@ pub enum EnvelopeStatement {
     /// **The frame.** Every arm above is a lemma about an orthonormal
     /// frame (`axis` and `u_ref` unit, `u_ref ⊥ axis`), as every meter
     /// in this lane is ([`chart_stretch_sup`]'s arms, `azimuth_lever`).
-    /// Nothing at rest makes the stored chart's frame one: the cone
-    /// carries no frame margins, and where
-    /// `Surface::representability_margins` does carry them it meters
-    /// them at the radius, while an axis's defect moves a point by the
-    /// defect times its HEIGHT. So check 4 applies the lemma, and
+    /// The stored chart's frame is a [`geom::Frame`], held as the claim
+    /// that it is one; at a point scalar its stored axes stand off the
+    /// rotation they hold by their rounding ([`geom::Frame::rounding`]),
+    /// zero at an enclosure scalar, and an axis's defect moves a point
+    /// by the defect times its HEIGHT. So check 4 applies the lemma, and
     /// derives `P_d`, on the chart's Gram–Schmidt twin `Ŝ` (`n̂ =
     /// axis/‖axis‖`, `ê₁` the normalised part of `u_ref` normal to it,
     /// `ê₂ = n̂ × ê₁`), and adds **frame**: `sup |S − Ŝ|` over the
     /// stored image's chart box. The two maps share every scalar, so
-    /// the radial direction differs by at most `‖u_ref − ê₁‖ + ‖v_ref −
-    /// ê₂‖` and the axis by `‖axis − n̂‖`, each levered by what
+    /// the radial direction differs by at most `√(‖u_ref − ê₁‖² +
+    /// ‖v_ref − ê₂‖²)` and the axis by `‖axis − n̂‖`, the two distances
+    /// [`geom::Frame::rounding`] bounds, each levered by what
     /// multiplies it in the map: the radius, the torus's `R + r` and
     /// `r`, and on a cylinder's axis and both of a cone's channels the
     /// image's own `sup |v|`. On the sphere and the torus's tube the
@@ -6777,9 +6778,10 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
 /// `sup |S(u, v) − Ŝ(u, v)|` over an image whose `|v|` stays within
 /// `v_reach`, `Ŝ` the chart's orthonormal twin ([`orthonormal_chart`]).
 /// Both maps share the chart's scalars and differ only in their frame:
-/// the radial direction moves by at most `‖u_ref − ê₁‖ + ‖v_ref − ê₂‖`
-/// at any azimuth (`ρ(u) − ρ̂(u)` is that pair's difference under
-/// `cos u`, `sin u`), and the axis by `‖axis − n̂‖`. Each is levered by
+/// the radial direction moves by at most
+/// `√(‖u_ref − ê₁‖² + ‖v_ref − ê₂‖²)` at any azimuth (`ρ(u) − ρ̂(u)` is
+/// that pair's difference under the unit pair `cos u`, `sin u`), and the
+/// axis by `‖axis − n̂‖`. Each is levered by
 /// what multiplies it in the chart's own map: the radius, or the
 /// slant `v` on a cylinder's axis and a cone's two channels — the
 /// actual axial reach, not the radius.
@@ -6797,10 +6799,14 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
 fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
     // `‖axis − n̂‖` and `‖u_ref − ê₁‖` ([`geom::Frame::rounding`]): zero at
     // an enclosure scalar, measured at a point scalar.
+    // The radial direction's miss is `cos u·Δu + sin u·Δv`, at most
+    // `√(|Δu|² + |Δv|²)` (Cauchy–Schwarz on the unit pair `(cos u, sin u)`),
+    // `Δv` bounded by `‖axis − n̂‖·√U + ‖u_ref − ê₁‖`.
     let defect = |frame: &geom::Frame<T>| {
         let (d_axis, d_u) = frame.rounding();
         let u2 = frame.u_ref().dot(frame.u_ref());
-        (d_axis, d_u + d_u + d_axis * u2.sqrt())
+        let d_v = d_u + d_axis * u2.sqrt();
+        (d_axis, harmonic_sup_scalar(d_u, d_v))
     };
     match *surface {
         Surface::Cylinder { frame, radius, .. } => {

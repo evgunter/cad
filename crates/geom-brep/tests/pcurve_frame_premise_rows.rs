@@ -98,69 +98,41 @@ fn a_rounded_unit_axis_at_a_far_placement_is_never_under_its_residual() {
     assert!(minted > 0, "at least the f64 mint images the ruling");
 }
 
-/// Double-double helpers for [`a_composed_frames_rounding_is_charged_at_a_large_radius`]'s
-/// oracle: an error-free product and sum, a pair kept to about `10⁻³¹`
-/// of its size.
-fn dd_sum(a: f64, b: f64) -> (f64, f64) {
-    let s = a + b;
-    let bb = s - a;
-    (s, (a - (s - bb)) + (b - bb))
-}
-
-fn dd_add((ah, al): (f64, f64), (bh, bl): (f64, f64)) -> (f64, f64) {
-    let (s, e) = dd_sum(ah, bh);
-    dd_sum(s, e + al + bl)
-}
-
-fn dd_mul(a: f64, b: f64) -> (f64, f64) {
-    let p = a * b;
-    (p, a.mul_add(b, -p))
-}
-
-/// `o + Σ cᵢ·vᵢ` per component in double-double, each `cᵢ` an `f64`.
-fn dd_point(o: Point3<f64>, terms: &[(f64, Vec3<f64>)]) -> [(f64, f64); 3] {
-    let mut out = [(o.x, 0.0), (o.y, 0.0), (o.z, 0.0)];
+/// `o + Σ cᵢ·vᵢ`, each coordinate exact ([`geom_core::exact::Expansion`]),
+/// the [`a_composed_frames_rounding_is_charged_at_a_large_radius`] oracle's
+/// point.
+fn exact_point(o: Point3<f64>, terms: &[(f64, Vec3<f64>)]) -> [geom_core::exact::Expansion; 3] {
+    use geom_core::exact::Expansion;
+    let mut out = [o.x, o.y, o.z].map(|x| Expansion::product(x, 1.0));
     for &(c, v) in terms {
         for (k, x) in [v.x, v.y, v.z].into_iter().enumerate() {
-            out[k] = dd_add(out[k], dd_mul(c, x));
+            out[k].add_expansion(&Expansion::product(c, x));
         }
     }
     out
 }
 
-fn dd_distance(p: [(f64, f64); 3], q: [(f64, f64); 3]) -> f64 {
+/// The distance between two exact points, rounded once per coordinate.
+fn exact_distance(
+    p: &[geom_core::exact::Expansion; 3],
+    q: &[geom_core::exact::Expansion; 3],
+) -> f64 {
     let d = |k: usize| {
-        let (h, l) = dd_add(p[k], (-q[k].0, -q[k].1));
-        h + l
+        let mut e = p[k].clone();
+        e.add_expansion(&q[k].negated());
+        e.components().iter().sum::<f64>()
     };
     (d(0).powi(2) + d(1).powi(2) + d(2).powi(2)).sqrt()
-}
-
-/// The defect of a frame's `f64` entries, `max(|A − 1|, |U − 1|, |axis·u_ref|)`,
-/// in double-double: what its rounding must cover.
-fn dd_defect(f: &geom::Frame<f64>) -> f64 {
-    let dot = |x: Vec3<f64>, y: Vec3<f64>| {
-        dd_add(dd_add(dd_mul(x.x, y.x), dd_mul(x.y, y.y)), dd_mul(x.z, y.z))
-    };
-    let less_one = |(h, l): (f64, f64)| {
-        let (h, l) = dd_add((h, l), (-1.0, 0.0));
-        (h + l).abs()
-    };
-    let (a, u) = (f.axis(), f.u_ref());
-    let c = dot(a, u);
-    less_one(dot(a, a))
-        .max(less_one(dot(u, u)))
-        .max((c.0 + c.1).abs())
 }
 
 /// **A composed frame's rounding is charged at a large radius** (check 4's
 /// `EnvelopeTerm::Frame`, read off [`geom::Frame::rounding`]). Composition
 /// adds rounding at every turn, so a cylinder whose frame is 256 random
-/// turns composed stores axes a measurable defect `d` off the rotation
-/// they hold (read in double-double). At a radius that levers it to a
+/// turns composed stores axes a measurable distance `d` off the rotation
+/// they hold ([`geom_core::test_support::rotation_distance`]). At a radius that levers it to a
 /// tenth of the band's zero, the rim drawn on the frame's squared twin
 /// images on the chart, and check 4's envelope covers the residual,
-/// measured in double-double with `f64` trigonometry (each `cos` and `sin`
+/// measured exactly but for `f64` trigonometry (each `cos` and `sin`
 /// within an ulp, `2u·R` a point; [`SLACK_ULPS`] of the radius covers
 /// both points). Red where the frame's `f64` rounding is read as zero:
 /// the envelope then falls under the stored chart's slip off its twin.
@@ -188,7 +160,8 @@ fn a_composed_frames_rounding_is_charged_at_a_large_radius() {
         motion = turn.compose(motion).unwrap();
     }
     let frame = geom::Frame::of_motion(&motion);
-    let defect = dd_defect(&frame);
+    let (to_axis, to_seam) = geom_core::test_support::rotation_distance(&motion);
+    let defect = to_axis.max(to_seam);
     assert!(
         defect > 2e-15,
         "256 turns carry a defect to charge: {defect:e}"
@@ -205,7 +178,7 @@ fn a_composed_frames_rounding_is_charged_at_a_large_radius() {
     let envelope = cache.certificate().envelope;
     let on = |f: &geom::Frame<f64>, u: f64, v: f64| {
         let (s, c) = u.sin_cos();
-        dd_point(
+        exact_point(
             f.origin(),
             &[
                 (radius * c, f.u_ref()),
@@ -218,7 +191,7 @@ fn a_composed_frames_rounding_is_charged_at_a_large_radius() {
     for i in 0..=4096 {
         let t = t0 + (t1 - t0) * f64::from(i) / 4096.0;
         let q = image.eval(t);
-        residual = residual.max(dd_distance(on(&frame, q.x, q.y), on(&twin, t, 0.0)));
+        residual = residual.max(exact_distance(&on(&frame, q.x, q.y), &on(&twin, t, 0.0)));
     }
     let slack = SLACK_ULPS * 0.5 * f64::EPSILON * radius;
     println!(

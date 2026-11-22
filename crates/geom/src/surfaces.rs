@@ -1027,14 +1027,9 @@ impl<T: Real> Surface<T> {
     ///   enclose a rotation (the polar read), so a length or a tilt read
     ///   off them reads only their width; at `f64` its rounding is
     ///   charged where it is levered (`Frame::rounding`);
-    /// - `Plane`, `Nurbs`, `Approx`: none — a plane's frame moves no
-    ///   locus a datum can lever (a non-unit `normal` or `u_ref` spans
-    ///   the same plane, and a `u_ref` off `⊥ normal` tilts the chart
-    ///   by an amount that grows with distance from `origin`, which no
-    ///   datum bounds), and a spline's datum is its net
-    ///   ([`NurbsSurface::net_state`]). The `Cone`'s frame is not
-    ///   margined either, for the same reason as the plane's tilt: it
-    ///   moves the half-angle, a deviation that grows along the slant.
+    /// - `Plane`, `Nurbs`, `Approx`: no scalar margin — a plane stores
+    ///   no scalar datum, and a spline's datum is its net
+    ///   ([`NurbsSurface::net_state`]).
     ///
     /// **This is the one place in code these bounds are computed for
     /// the at-rest check**, and it is not the only place they are
@@ -1052,10 +1047,7 @@ impl<T: Real> Surface<T> {
     /// the crate docs' conventional-and-unchecked rule — and a margin
     /// of a poisoned datum is poison. The variants are destructured
     /// without `..`, so a field a variant gains is a compile error
-    /// here rather than a convention this door silently omits. The
-    /// scalar conventions come first, so a consumer reading the first
-    /// failing margin names a non-positive radius before the frame it
-    /// levers.
+    /// here rather than a convention this door silently omits.
     pub fn representability_margins(&self) -> Vec<RepresentabilityMargin<T>> {
         use crate::convention::lower;
         match self {
@@ -1069,7 +1061,6 @@ impl<T: Real> Surface<T> {
                 lower(SurfaceDatum::HalfAngle, *half_angle),
                 RepresentabilityMargin {
                     datum: SurfaceDatum::HalfAngle,
-                    measure: crate::ConventionMeasure::Value,
                     end: ConventionEnd::Upper,
                     margin: T::pi() * T::from_f64(0.5) - *half_angle,
                 },

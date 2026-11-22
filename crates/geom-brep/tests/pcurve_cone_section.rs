@@ -899,12 +899,10 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
 }
 
 /// How many `u` of a flat cone's section `size` its image's envelope may
-/// read: four times the 16 `u` (`RESOLUTION_ULPS`) that
+/// read: three times the 16 `u` (`RESOLUTION_ULPS`) that
 /// `flat_cone_tilted_ellipse.rs` allows the carrier itself off the cut,
-/// on the same `size`, `max(larger semi-axis, |centre|, |apex|)`. Three
-/// times, until the chart's frame rounding was measured with its running
-/// bounds ([`geom::Frame::rounding`]) rather than read in plain `f64`.
-const FLAT_IMAGE_ULPS: f64 = 64.0;
+/// on the same `size`, `max(larger semi-axis, |centre|, |apex|)`.
+const FLAT_IMAGE_ULPS: f64 = 48.0;
 
 /// **A flat cone's section images and certifies at its own resolution**
 /// (`work/pcert/focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor`,
@@ -918,14 +916,14 @@ const FLAT_IMAGE_ULPS: f64 = 64.0;
 ///
 /// The ceiling binds at every pose: the band's zero is 700 `u` of the
 /// largest `size` here and more of the others, so the ceiling, not the
-/// band, decides. Today's envelopes read 54, 53 and 53 `u`, the chart's
-/// frame rounding charged (37, 27 and 31 before it was). What reds the
-/// row:
+/// band, decides. Today's envelopes read 38, 34 and 33 `u`, the chart's
+/// frame rounding charged ([`geom::Frame::rounding`]; 37, 27 and 31 while
+/// it was read uncharged). What reds the row:
 /// - the arm's old `K = c² − sin²α`, at every pose;
 /// - the arm's old centre `apex − (c·a − sin²α·n)·δ/K`, at every pose
 ///   (465 `u` at `f = 0.8`, a refusal at the others);
 /// - the section's centre moved 30 `u` of its larger semi-axis along it,
-///   which reads 95, 102 and 71 `u`.
+///   which reads 79, 83 and 50 `u`.
 #[test]
 fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
     let band = geom_core::Band::new(1e-12, 1e-11).unwrap();

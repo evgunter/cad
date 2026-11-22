@@ -13,18 +13,15 @@ use geom_core::{Real, Vec3};
 
 use crate::SurfaceDatum;
 
-/// One representability margin: the datum it bounds, which quantity of
-/// the datum it measures, which end of that quantity's convention, and
-/// the margin itself — strictly positive exactly when the datum is
-/// inside that end. `D` is [`SurfaceDatum`] for a surface and
+/// One representability margin: the datum it bounds, which end of its
+/// value's convention, and the margin itself — strictly positive
+/// exactly when the datum is inside that end. `D` is [`SurfaceDatum`] for a surface and
 /// [`crate::CurveDatum`] for a carrier.
 #[derive(Clone, Copy, Debug)]
 pub struct RepresentabilityMargin<T, D = SurfaceDatum> {
     /// The datum the margin bounds.
     pub datum: D,
-    /// Which quantity of the datum the margin measures.
-    pub measure: ConventionMeasure,
-    /// Which end of that quantity's convention the margin measures.
+    /// Which end of the datum's convention the margin measures.
     pub end: ConventionEnd,
     /// The margin itself, at the datum's scalar.
     pub margin: T,
@@ -66,17 +63,6 @@ pub struct SquareFrame<T: Real> {
     pub width: T,
 }
 
-/// Which quantity of a datum a convention constrains — the refusal's
-/// way of saying WHAT is wrong before it says which way.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-// Every value, for `topo`'s samples (this crate's `test-support`
-// feature, test builds only).
-#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
-pub enum ConventionMeasure {
-    /// The scalar datum itself: a radius, a semi-axis, a half-angle.
-    Value,
-}
-
 /// Which end of a datum's convention a margin measures — the refusal's
 /// way of saying TOO SMALL (a radius of zero, a cone closed to a line)
 /// from TOO LARGE (a cone opened to a plane).
@@ -97,7 +83,6 @@ pub enum ConventionEnd {
 pub(crate) fn lower<T, D>(datum: D, margin: T) -> RepresentabilityMargin<T, D> {
     RepresentabilityMargin {
         datum,
-        measure: ConventionMeasure::Value,
         end: ConventionEnd::Lower,
         margin,
     }
