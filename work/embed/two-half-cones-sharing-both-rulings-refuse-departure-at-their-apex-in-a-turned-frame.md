@@ -116,7 +116,7 @@ f64. On main `ae076e050` with PR 7115, 23 hold. The slender cone's
 refuses `Budget(Depth { max_cell_depth: 40 })` at 3,095 / 486 / 3,575,
 which is none of A to D, and it refuses identically with main's own
 `injective.rs`. Its exit is not traced. (With main's own code 17 of
-the 24 hold; the other six refuse on the unplaced apex.) At ten
+the 24 hold; why each of the other six refuses there is not traced.) At ten
 thousand units the revolve itself refuses every case,
 `OutsideSessionBox`.
 
