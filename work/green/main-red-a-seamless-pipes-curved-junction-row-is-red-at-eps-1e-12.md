@@ -8,6 +8,7 @@ priority: P0
 cost: E
 pr: 7402
 branch: green/seamless-pipe
+refs: [pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted]
 ---
 
 
@@ -50,7 +51,11 @@ at 1e-12, which no row held. Measured per frame and pose on main
 
 **The nightlies.** The 11-21 nightly (44870651337, `f5ef8f2b`) has the
 row green in its 1e-12 shard 3. The 11-22 nightly (44989179403,
-`787aed5f`) failed its build job and ran no suite, so it shows nothing.
+`787aed5f`) failed its build job and ran no suite. The dispatch
+44989234943 (on `green/nightly-build` at `1942290ead`, main `4d3402ecb1`'s
+kernel) did read 1e-12 with the slow set, and both pipe rows are red
+there at `hi: 2.193467629756736e-12`. U12 is attributing that run's
+other new 1e-12 reds.
 
 **The merge.** Bisected first-parent with a probe that spawns the row
 at 1e-12 inside the gate's default-ε job: green at `afa8184dcf`,
@@ -58,18 +63,24 @@ at 1e-12 inside the gate's default-ε job: green at `afa8184dcf`,
 `9bc9d6517b`, `adb7ec1291`, `55e8566eeb` and `fc75e13cdd`. **The merge
 is `9bc9d6517b`, PR 7131 (`onehome/carrier-frames`).**
 
-**What it is: a sound refusal in PR 7131's accepted cost class.** A
+**What it is: a sound refusal, past the cost PR 7131 counted.** A
 `Stalled` refusal is undecided, not a wrong answer. Under PR 7131's
-mutant patch at 1e-12, F1X alone builds both poses, A alone narrows
-them (1.619e-12 and 1.079e-12) without building them, and F1F moves
-neither. So the cause is **bracket**
-(`geom_core::test_support::at_the_frame_cost_band`), the same as
-`verbs_tubewall_r1_probes`' stall on `ssi_hull_sup`. Ev accepted that
-cost on PR 7131 (2026-11-20). The PR measured it with the `ci` profile,
-which leaves out the slow set, so neither row was on its list.
+mutant patch at 1e-12, F1X alone builds both poses and F1F moves
+neither. Mutant A also narrows them (1.619e-12 and 1.079e-12), out of
+their windows, so it reds the pin as well. The cause is **bracket**
+(`geom_core::test_support::at_the_frame_cost_band`), and A also
+narrows it. What Ev accepted on PR 7131 was a counted cost, *"about
+11–12 rows … at margins of 1.02–1.32e-12"*. That count was taken on
+the `ci` profile, with no slow row at 1e-12. These two rows are not in
+it, and 2.193e-12 is past its range. So they are pinned against
+ONEHOME's P1 row `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted`.
 
-**Greened by re-blessing.** `pipe_at_interval` pins the two refusals at
-ε ≤ 1e-12 by type, predicate and margin band, `(2.1e-12, 2.3e-12]` and
-`(1.35e-12, 1.5e-12]`. A worse margin, another refusal, or a build
-there is red. Both rows keep every other check at every pose, including
-the `f64` verdict and its across-pair certificates at the pinned poses.
+**Greened by a pin.** The test file's `FRAME_COST` table, keyed by the
+frame's axis and the floor height, pins the two refusals at
+ε ≤ 1e-12. The windows live there. A build, another refusal or a
+margin outside the window is red. Both rows keep every other check at
+every pose, including the `f64` verdict and its across-pair
+certificates at the pinned poses. At 1e-12 the closed-form row skips
+the pinned poses, with a printed line, so the kilometre-out pose's
+convergence at `Interval` goes unread there until the ONEHOME row
+closes.
