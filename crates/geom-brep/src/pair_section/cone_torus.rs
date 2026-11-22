@@ -175,13 +175,10 @@ impl<T: Decide> ConeTorusPose<T> {
         b: &Surface<T>,
         band: Band,
     ) -> Option<Result<Self, ConeTorusRefusal>> {
-        let (cone, torus, cone_first) = match (a, b) {
-            (Surface::Cone { .. }, Surface::Torus { .. }) => (a, b, true),
-            (Surface::Torus { .. }, Surface::Cone { .. }) => (b, a, false),
+        let (cone, torus, cone_first, half_angle) = match (a, b) {
+            (&Surface::Cone { half_angle, .. }, Surface::Torus { .. }) => (a, b, true, half_angle),
+            (Surface::Torus { .. }, &Surface::Cone { half_angle, .. }) => (b, a, false, half_angle),
             _ => return None,
-        };
-        let &Surface::Cone { half_angle, .. } = cone else {
-            return None;
         };
         let cone_axis = cone.axis_line()?.unit();
         let ring = Ring::of(torus, band)?;
@@ -398,9 +395,7 @@ fn apex_on_torus<T: Decide>(
 /// [`SectionError::RoutesToGeneralRung`] where the apex lies on the
 /// torus: a node or a touch, which no march here ends a branch at or
 /// accounts.
-pub(super) fn cone_torus<T: Decide>(
-    pose: ConeTorusPose<T>,
-) -> Result<PairSection<T>, SectionError> {
+pub fn cone_torus<T: Decide>(pose: ConeTorusPose<T>) -> Result<PairSection<T>, SectionError> {
     let components = match pose.stance {
         KtStance::Coaxial { .. } => {
             return Err(SectionError::WrongLane {
