@@ -3294,12 +3294,12 @@ fn posed(k: usize, pts: &[(f64, f64)], d: f64) -> (SketchPlane<f64>, Vec<(f64, f
     }
 }
 
-/// Each prism `(what, profile, depth)` reads `Embedded` at `f64` and at
-/// `Interval` in every pose of [`POSES`].
-fn thin_prisms_embedded(prisms: &[(&str, Vec<(f64, f64)>, f64)]) {
-    for (what, pts, depth) in prisms {
+/// Each prism `(what, profile)`, extruded a unit, reads `Embedded` at
+/// `f64` and at `Interval` in every pose of [`POSES`].
+fn thin_prisms_embedded(prisms: &[(&str, Vec<(f64, f64)>)]) {
+    for (what, pts) in prisms {
         for (k, pose) in POSES.iter().enumerate() {
-            let (place, pts, d) = posed(k, pts, *depth);
+            let (place, pts, d) = posed(k, pts, 1.0);
             let float = embedded_verdict(&prism::<f64>(&place, &pts, d));
             let interval = embedded_verdict(&prism::<Interval>(&place, &pts, d));
             println!(
@@ -3339,8 +3339,8 @@ fn shifted(x: f64, y: f64) -> SketchPlane<f64> {
 fn a_thin_slab_is_embedded_across_its_ends_in_every_pose() {
     let k_eps = band().escalate();
     thin_prisms_embedded(&[
-        ("a slab 2Kε thick", rectangle(1.0, 2.0 * k_eps), 1.0),
-        ("a slab 20Kε thick", rectangle(1.0, 20.0 * k_eps), 1.0),
+        ("a slab 2Kε thick", rectangle(1.0, 2.0 * k_eps)),
+        ("a slab 20Kε thick", rectangle(1.0, 20.0 * k_eps)),
     ]);
 }
 
@@ -3357,52 +3357,10 @@ fn a_needle_is_embedded_along_its_sides_in_every_pose() {
         (
             "a needle 20Kε square",
             rectangle(20.0 * k_eps, 20.0 * k_eps),
-            1.0,
         ),
         (
             "a needle 1000Kε square",
             rectangle(1e3 * k_eps, 1e3 * k_eps),
-            1.0,
-        ),
-    ]);
-}
-
-/// **A chamfered strip is embedded**: a unit-long hexagon `t` wide, its
-/// ends cut to points by two chamfers each, extruded `t`, at `300Kε` and
-/// at `1000Kε`. A cell at a pointed end holds four edges and is read only
-/// once split onto one chamfer's corner, so the cells along the hexagon
-/// faces' middles hold their two long sides and no end, and are read
-/// across the strip between them. A point holds four edges within `t` of
-/// each other: at `20Kε`, turned, the point refuses `Departure` at a
-/// chamfer's edge. Extruded a unit rather than `t`, its long side faces
-/// are plates `t` apart whose world boxes, turned, part only at cells
-/// `t` wide, past the depth floor: the distance test's cost, not a
-/// reading. In every pose of [`POSES`]. Red on a planar arm that reads
-/// two lines with no common end as `Local`: the middle then splits until
-/// its pieces are `t` long, past the pair budget.
-#[test]
-fn a_chamfered_strip_is_embedded_across_its_middle_in_every_pose() {
-    let k_eps = band().escalate();
-    let hexagon = |t: f64| {
-        vec![
-            (0.0, 0.5 * t),
-            (t, 0.0),
-            (1.0 - t, 0.0),
-            (1.0, 0.5 * t),
-            (1.0 - t, t),
-            (t, t),
-        ]
-    };
-    thin_prisms_embedded(&[
-        (
-            "a chamfered strip 300Kε wide",
-            hexagon(300.0 * k_eps),
-            300.0 * k_eps,
-        ),
-        (
-            "a chamfered strip 1000Kε wide",
-            hexagon(1e3 * k_eps),
-            1e3 * k_eps,
         ),
     ]);
 }

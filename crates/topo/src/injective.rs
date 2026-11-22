@@ -2676,19 +2676,6 @@ fn present_plane<'a>(
         let (r, s) = (b.edges.get(e)?, b.edges.get(f)?);
         r.ends.iter().find(|v| s.ends.contains(v)).copied()
     };
-    // Each reading decides its own convexity, so where one refuses, for
-    // any reason, the next may be tried: the first presented, or the
-    // last refusal.
-    let first = |readings: &mut dyn Iterator<Item = Result<Presentation<'a>, Unpresented>>| {
-        let mut last = Err(Unpresented::Local);
-        for got in readings {
-            if got.is_ok() {
-                return got;
-            }
-            last = got;
-        }
-        last
-    };
     match *edges.as_slice() {
         [e] => along(e, None),
         [e1, e2] => {
@@ -2702,6 +2689,8 @@ fn present_plane<'a>(
                 // A wedge whose tip is clear of the cell is a strip there:
                 // its corner's frame, its sides at a small angle, holds the
                 // cell only in coordinates as wide as the angle is small.
+                // Each reading decides its own convexity, so the strip is
+                // read wherever the corner refuses, for any reason.
                 Some(vtx) => corner(e1, e2, vtx, None).or_else(|why| {
                     let clear =
                         !piece.local.vertices.contains(&vtx) && !near_vertices.contains(&vtx);
@@ -2720,14 +2709,24 @@ fn present_plane<'a>(
                 .filter_map(|(m, n1, n2)| Some((m, (n1, meet(m, n1)?), (n2, meet(m, n2)?))));
             let mut ends: Vec<_> = ends.collect();
             ends.sort_by_key(|&(_, (_, v1), (_, v2))| !(held(v1) && held(v2)));
+            // Of a sliver triangle whose short side's ends are not both
+            // in the cell, only the first such edge is read.
             let Some(&(m, (n1, v1), (n2, v2))) = ends.first() else {
                 return Err(Unpresented::Local);
             };
-            let mut readings = [((n1, v1), (n2, v2)), ((n2, v2), (n1, v1))]
-                .into_iter()
-                .filter(|&(_, (cap, _))| !near_edges.contains(&cap))
-                .map(|((n, v), cap)| corner(n, m, v, Some(cap)));
-            first(&mut readings)
+            // Each corner decides its own convexity, so where the first
+            // refuses, for any reason, the other is read.
+            let mut last = Err(Unpresented::Local);
+            for ((n, v), cap) in [((n1, v1), (n2, v2)), ((n2, v2), (n1, v1))] {
+                if near_edges.contains(&cap.0) {
+                    continue;
+                }
+                match corner(n, m, v, Some(cap)) {
+                    Ok(read) => return Ok(read),
+                    refused => last = refused,
+                }
+            }
+            last
         }
         _ => Err(Unpresented::Local),
     }
@@ -8521,12 +8520,15 @@ mod presentation_rows {
         (Local::of(b, ball, band()), ball)
     }
 
+    /// A cell of a chart, `u × v`.
+    type Cell = ((f64, f64), (f64, f64));
+
     /// [`certify_pair`] of `f` and `g`, faces of the plane `z = 0` in the
     /// cells `cf` and `cg`, each cell's local boundary read by
     /// [`Local::of`] from its own ball, sharing `near`.
     fn certify_in_balls(
-        (mut f, cf): (Boundary, ((f64, f64), (f64, f64))),
-        (mut g, cg): (Boundary, ((f64, f64), (f64, f64))),
+        (mut f, cf): (Boundary, Cell),
+        (mut g, cg): (Boundary, Cell),
         near: Near,
     ) -> (Outcome, [Local; 2]) {
         let plane = segments(&[]).0;

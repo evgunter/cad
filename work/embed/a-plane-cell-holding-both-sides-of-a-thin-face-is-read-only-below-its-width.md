@@ -200,3 +200,17 @@ alone needs two thin faces along one edge, neither with a single-edge
 end in reach. No census test is one, and I did not build one (a
 chamfered hexagon's long side faces still have single-edge ends).
 
+**After the review's fix pass** (the merged head, on
+`embed/strip-measure`), 42 of the 61 pass:
+- `missed_ray_side`'s three slabs (10ε = Kε thick) now hold. The cap's
+  lean over the base no longer picks up the reach's slack per chart
+  coordinate.
+- The ∩ of `contact9_side_codes::a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`,
+  a wedge whose two faces share a 1 mm edge and part at 5e-8 rad (so
+  stay within ε of each other for about 20 mm), reads `Embedded`. The
+  verdict door read `Crosses` at the 4.78e-10 station pair; before this
+  unit the gate refused it on the pair budget. The departure that
+  certifies it multiplies the faces' 5e-8 rad parting by the cell's
+  reach, the margin PR 7095 re-meters.
+- The test still fails, on its − (`Departure` at an edge).
+
