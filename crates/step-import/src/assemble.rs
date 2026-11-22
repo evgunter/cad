@@ -1153,9 +1153,11 @@ mod tests {
         const SWALLOWED: f64 = 9_007_199_254_740_992.0;
 
         let tol = Tol::witness();
+        let no_records = BTreeMap::new();
         let solid_at = |x: f64| Shell {
             id: 1,
             faces: &[],
+            surfaces: &no_records,
             edges: BTreeMap::from([(
                 SELF_LOOP,
                 crate::build::Edge {
