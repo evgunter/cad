@@ -119,6 +119,9 @@ from pncad import (
     Workspace,
     StationMove,
     InterferenceFinding,
+    FaceSite,
+    Quieting,
+    QuietingRef,
     CarriedCoincidence,
     CarriedInterference,
     canonical_bytes,
@@ -678,6 +681,20 @@ at_rest: list[CheckFinding] = [f for f in findings if f.check == CheckId.AtRest]
 census: Var | None = at_rest[0].census
 quieted_by: NodeId | None = at_rest[0].quiet
 overlap: InterferenceFinding | None = at_rest[0].evidence.interference
+# What an assertion recourse determines, as data: the pair of faces a
+# quieting `gap` is written over, and the claim an unproven coincidence
+# carries, with the edits that author it.
+gap_over: tuple[FaceSite, FaceSite] | None = overlap.quieting if overlap is not None else None
+claim: Quieting | None = findings[0].evidence.quieting
+if claim is not None:
+    claim_measure: str = claim.measure
+    claim_refs: tuple[QuietingRef, QuietingRef] = claim.references
+    claim_cell: tuple[Var, str | None, str | None] = (
+        claim_refs[0].read,
+        claim_refs[0].name,
+        claim_refs[0].pose,
+    )
+    claim_edits: list[DocEdit] = claim.edits(doc)
 carried_overlap: CarriedInterference | None = at_rest[0].evidence.carried_interference
 carried_glue: CarriedCoincidence | None = at_rest[0].evidence.carried_coincidence
 could_not_look: AtRestEvidence | None = at_rest[0].evidence.at_rest

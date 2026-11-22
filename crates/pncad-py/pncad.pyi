@@ -6522,6 +6522,54 @@ class CarriedInterference:
     @property
     def via(self) -> list[NodeId]: ...
 
+class QuietingRef:
+    """One reference of a `Quieting`'s measure, as the measure reads it:
+    the entity `name` names in the body `read` reads, read as that cell
+    or as the pose `pose` read off it; or, with no `name`, the variable
+    `read` itself (the plane a split cuts with)."""
+
+    @property
+    def read(self) -> Var:
+        """The variable read: the body the entity is selected in, or the
+        variable the measure reads as it is."""
+
+    @property
+    def name(self) -> Optional[str]:
+        """The entity's name in that body's table, as opaque text; `None`
+        for a variable read as it is."""
+
+    @property
+    def pose(self) -> Optional[str]:
+        """The pose read off the cell, `axis` or `point`; `None` for the
+        cell itself."""
+
+class Quieting:
+    """The assertion that would quiet an unproven coincidence:
+    `measure(references) = 0`, a `gap` or a `distance` over the row's
+    two cells as that measure reads them. The kernel mints it by the
+    rule that decides which holding assertion quiets the row, so the row
+    is quiet once `edits` are applied. `str()` is the claim in words."""
+
+    @property
+    def measure(self) -> str:
+        """The measure related to zero: `gap` or `distance`."""
+
+    @property
+    def references(self) -> tuple[QuietingRef, QuietingRef]:
+        """The measure's two references, in its order: a `gap`'s outer
+        then inner."""
+
+    def edits(self, doc: Doc) -> list[DocEdit]:
+        """The edits that author it in `doc`, in order: the measure's
+        insert, which mints each reference's selection and pose, then
+        the assertion's, `= 0` over the measure's output. Apply each
+        with `Doc.apply`; the last one's node is the assertion the
+        quieted finding names. `doc` is untouched, and the edits are
+        spelled for `doc` as it stands. A refusal of the insert door
+        raises `EditError`."""
+
+    def __eq__(self, other: object) -> bool: ...
+
 class CarriedCoincidence:
     """A coincidence a document BELOW this one leaves unproven, with the
     route it arrived by: an `unproven_coincidence` finding's
@@ -6626,11 +6674,12 @@ class InterferenceFinding:
     @property
     def loud(self) -> bool: ...
     @property
-    def quietable(self) -> bool:
-        """Whether an assertion the quieting rule accepts could quiet it,
-        as the rule itself answers: some holding `gap` assertion over two
-        of its bounding faces would quiet it. One no assertion could
-        quiet refuses at no severity."""
+    def quieting(self) -> tuple[FaceSite, FaceSite] | None:
+        """The two faces a `gap` that would quiet it is written over,
+        outer then inner, as the quieting rule itself answers: a holding
+        `gap(outer, inner)` related to a negative bound by `<=` or `=`
+        quiets it, and the bound is the author's. `None` where no
+        assertion could quiet it, which refuses at no severity."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the
@@ -7039,6 +7088,13 @@ class CheckEvidence:
     def coincidence(self) -> Optional[Coincidence]: ...
     @property
     def restated(self) -> Optional[list[Coincidence]]: ...
+    @property
+    def quieting(self) -> Optional[Quieting]:
+        """The assertion that would quiet an unproven coincidence, on
+        `unproven_coincidence` alone, and `None` where no assertion says
+        the row: then the finding names the construction alone and
+        `enforce_checks` refuses it at no severity."""
+
     @property
     def interference(self) -> Optional[InterferenceFinding]: ...
     @property

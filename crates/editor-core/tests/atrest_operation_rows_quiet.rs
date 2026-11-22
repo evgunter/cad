@@ -779,7 +779,7 @@ const QUARTER: f64 = std::f64::consts::FRAC_PI_2;
 /// would refuse at `Error` has one that does.
 ///
 /// *Breaks if* a refusing finding has no holding `Gap = 0` over its
-/// cells: `quietable` reading admission rather than the rule.
+/// cells: the assertion minted by admission rather than by the rule.
 #[test]
 fn a_refusing_finding_has_a_gap_zero_that_holds() {
     for (r1, r2) in [(0.5, 0.5), (0.5, 0.3)] {
@@ -949,7 +949,7 @@ fn row_over(
 /// pose as the cell it was read off, or a pose of the wrong kind quiets.
 #[test]
 fn a_coincidence_of_poses_is_quiet_under_its_distance() {
-    use editor_core::test_support::{quiet_row, row_quietable};
+    use editor_core::test_support::{quiet_row, quieting};
     use geom::SurfaceKind as S;
     let ring = |doc, major: f64, minor: f64| {
         revolved(
@@ -1045,11 +1045,25 @@ fn a_coincidence_of_poses_is_quiet_under_its_distance() {
             }
             let row = row_over(&doc, site, relation, cells);
             let what = format!("{poses}, off by {off}");
+            let offered = quieting(&doc, &ev, &row, Tol::witness());
             assert_eq!(
-                row_quietable(&doc, &ev, &row, Tol::witness()),
+                offered.is_some(),
                 on_axis,
                 "{what}: whether a Distance = 0 over its poses could hold"
             );
+            // The law, on a row no document reaches: the offered
+            // assertion, authored, quiets it.
+            if let Some(offered) = &offered {
+                let (doc, assertion) =
+                    crate::a_check_carries_the_assertion_that_quiets_it::authored(
+                        &what, &doc, offered,
+                    );
+                assert_eq!(
+                    quiet_row(&doc, &run(&doc), &row, Tol::witness()),
+                    Some(assertion),
+                    "{what}: the offered assertion quiets the row: {offered:?}"
+                );
+            }
             let [a, b] = refs;
             let distance = MeasurePrimitive::Distance { a: 0, b: 1 };
             for (refs, order) in [
@@ -1326,7 +1340,7 @@ fn gap_zero_var(
 /// it) should not be said by it: red if it quiets.
 #[test]
 fn r2_probe_meeting_axes_do_not_say_coaxial() {
-    use editor_core::test_support::{quiet_row, row_quietable};
+    use editor_core::test_support::{quiet_row, quieting};
     use geom::SurfaceKind as S;
     let ring = |doc, major: f64, minor: f64| {
         revolved(
@@ -1363,7 +1377,7 @@ fn r2_probe_meeting_axes_do_not_say_coaxial() {
         Relation::Coaxial,
         [torus_a.clone(), torus_b.clone()],
     );
-    let quietable = row_quietable(&doc, &ev, &row, Tol::witness());
+    let offered = quieting(&doc, &ev, &row, Tol::witness());
     let (doc, assertion) = measured_by(
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },
@@ -1378,7 +1392,7 @@ fn r2_probe_meeting_axes_do_not_say_coaxial() {
     let verdict = ev.value(assertion).map(|v| v.payload.clone());
     let quiet = quiet_row(&doc, &ev, &row, Tol::witness());
     assert!(
-        quiet.is_none(),
-        "axes at right angles quiet a Coaxial row: quietable {quietable}, verdict {verdict:?}"
+        quiet.is_none() && offered.is_none(),
+        "axes at right angles quiet a Coaxial row: offered {offered:?}, verdict {verdict:?}"
     );
 }

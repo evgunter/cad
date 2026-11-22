@@ -443,6 +443,20 @@ impl CheckEvidence {
         }
     }
 
+    /// The assertion that would quiet an unproven coincidence, on
+    /// `unproven_coincidence` alone, and `None` where no assertion says
+    /// the row: then the finding names the construction alone and
+    /// `enforce_checks` refuses it at no severity.
+    #[getter]
+    fn quieting(&self) -> Option<Quieting> {
+        match &self.0 {
+            d::CheckEvidence::UnprovenCoincidence { quieting, .. } => quieting
+                .clone()
+                .map(|claim| Quieting(claim, Arc::clone(&self.1))),
+            _ => None,
+        }
+    }
+
     /// What an unproven coincidence decided between its cells, on
     /// `unproven_coincidence` alone: `same_oriented`, `same_opposite`,
     /// `on_carrier`, `common_foot`, `tangent`, `cusp`,
@@ -712,6 +726,126 @@ impl CheckFinding {
             self.finding.check,
             check_evidence_tag(&self.finding.evidence)
         )
+    }
+}
+
+/// One reference of a `Quieting`'s measure, as the measure reads it:
+/// the entity `name` names in the body `read` reads, read as that cell
+/// or as the pose `pose` read off it; or, with no `name`, the variable
+/// `read` itself (the plane a split cuts with).
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct QuietingRef {
+    read: Var,
+    name: Option<String>,
+    pose: Option<&'static str>,
+}
+
+#[pymethods]
+impl QuietingRef {
+    /// The variable read: the body the entity is selected in, or the
+    /// variable the measure reads as it is.
+    #[getter]
+    fn read(&self) -> Var {
+        self.read
+    }
+
+    /// The entity's name in that body's table, as opaque text; `None`
+    /// for a variable read as it is.
+    #[getter]
+    fn name(&self) -> Option<String> {
+        self.name.clone()
+    }
+
+    /// The pose read off the cell, `axis` or `point`; `None` for the
+    /// cell itself.
+    #[getter]
+    fn pose(&self) -> Option<&'static str> {
+        self.pose
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "QuietingRef(read=Var({}), name={:?}, pose={:?})",
+            self.read.0.full(),
+            self.name,
+            self.pose
+        )
+    }
+}
+
+/// The assertion that would quiet an unproven coincidence:
+/// `measure(references) = 0`, a `gap` or a `distance` over the row's
+/// two cells as that measure reads them. The kernel mints it by the
+/// rule that decides which holding assertion quiets the row, so the
+/// row is quiet once `edits` are applied.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Quieting(d::Quieting, Arc<d::ProfileDoc>);
+
+#[pymethods]
+impl Quieting {
+    /// The measure related to zero: `gap` or `distance`.
+    #[getter]
+    fn measure(&self) -> &'static str {
+        self.0.measure.verb().verb()
+    }
+
+    /// The measure's two references, in its order: a `gap`'s outer then
+    /// inner.
+    #[getter]
+    fn references(&self, py: Python<'_>) -> PyResult<(QuietingRef, QuietingRef)> {
+        let reference = |r: &d::QuietingRef| {
+            Ok::<_, PyErr>(match r {
+                d::QuietingRef::Read(var) => QuietingRef {
+                    read: Var::of(&self.1, *var),
+                    name: None,
+                    pose: None,
+                },
+                d::QuietingRef::Entity { read, name, pose } => QuietingRef {
+                    read: Var::of(&self.1, *read),
+                    name: Some(super::doc::name_text(py, name)?),
+                    pose: pose.map(|pose| match pose {
+                        d::CellPose::Axis => "axis",
+                        d::CellPose::Point => "point",
+                    }),
+                },
+            })
+        };
+        let [a, b] = &self.0.references;
+        Ok((reference(a)?, reference(b)?))
+    }
+
+    /// The edits that author it in `doc`, in order: the measure's
+    /// insert, which mints each reference's selection and pose, then
+    /// the assertion's, `= 0` over the measure's output. Apply each
+    /// with `Doc.apply`; the last one's node is the assertion the
+    /// quieted finding names. `doc` is untouched, and the edits are
+    /// spelled for `doc` as it stands.
+    fn edits(&self, py: Python<'_>, doc: &super::doc::Doc) -> PyResult<Vec<super::doc::DocEdit>> {
+        let authored = self
+            .0
+            .edits(&doc.inner, geom_core::Tol::witness())
+            .map_err(|err| super::doc::edit_err(py, &err))?;
+        Ok(authored
+            .edits
+            .into_iter()
+            .map(|inner| super::doc::DocEdit { inner })
+            .collect())
+    }
+
+    /// The claim in words, each cell by its name as the document the
+    /// checks ran over speaks it.
+    fn __str__(&self) -> String {
+        self.0.said(d::Speaker::of(&*self.1))
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1.id() == other.1.id()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Quieting({})", self.0.said(d::Speaker::TAG))
     }
 }
 
@@ -1062,6 +1196,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ChecksConfig>()?;
     m.add_class::<CheckEvidence>()?;
     m.add_class::<CheckFinding>()?;
+    m.add_class::<Quieting>()?;
+    m.add_class::<QuietingRef>()?;
     m.add_class::<CarriedCoincidence>()?;
     m.add_class::<ChecksReport>()?;
     m.add_function(wrap_pyfunction!(run_checks, m)?)?;

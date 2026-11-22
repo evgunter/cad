@@ -624,6 +624,56 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
             [f for f in off.findings if f.check == CheckId.UnprovenCoincidence], []
         )
 
+    def test_a_finding_carries_the_assertion_that_quiets_it(self):
+        """The glue's finding carries its claim, a `gap` over its two
+        cells `= 0`; the claim's edits applied, the same row is quiet
+        under the assertion they author. A finding with no claim offers
+        none. Red if the value is dropped at the seam, its references
+        are not the row's cells, or its edits author another claim."""
+        doc = Doc()
+        lower = slab(doc, 0.0, 1.0)
+        upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5, on=lower)
+        glued = doc.insert(Node.union([lower, upper]))
+        cfg = ChecksConfig(
+            connectedness=Severity.Off,
+            at_rest=Severity.Off,
+            unproven_coincidence=Advisory.Warn,
+            unused=Advisory.Off,
+        )
+
+        def glue(report):
+            (finding,) = [
+                f for f in report.findings if f.evidence.site == "plane_ladder"
+            ]
+            return finding
+
+        finding = glue(run_checks(doc, evaluate(doc), cfg))
+        self.assertIsNone(finding.quiet)
+        claim = finding.evidence.quieting
+        self.assertIsNotNone(claim)
+        self.assertEqual(claim.measure, "gap")
+        self.assertEqual(
+            [(r.read, r.name, r.pose) for r in claim.references],
+            [(read, name, None) for read, name in finding.evidence.coincidence.cells],
+        )
+        self.assertIn(f"assert {claim}", str(finding))
+
+        minted = [doc.apply(edit) for edit in claim.edits(doc)]
+        self.assertEqual(len(minted), 2, "a measure, then the assertion")
+        quieted = glue(run_checks(doc, evaluate(doc), cfg))
+        self.assertEqual(quieted.node, glued)
+        self.assertEqual(quieted.quiet, minted[-1])
+        self.assertIn("quiet:", str(quieted))
+        # An arm with no claim answers `None`, as every payload does.
+        unused = run_checks(doc, evaluate(doc), ChecksConfig(unused=Advisory.Warn))
+        self.assertTrue(
+            all(
+                f.evidence.quieting is None
+                for f in unused.findings
+                if f.check != CheckId.UnprovenCoincidence
+            )
+        )
+
     def test_a_parts_unproven_rest_is_reported_through_its_instance(self):
         """The resting part, instanced: the instantiating document
         reports each of the part's five unproven rows once, the part's

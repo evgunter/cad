@@ -1645,16 +1645,16 @@ pub fn quiet_row(
     crate::checks::at_rest::quiet_row(doc, evaluation, row, tol)
 }
 
-/// Whether an assertion could quiet `row` in `evaluation`
-/// (`checks::at_rest::row_quietable`), asked as [`quiet_row`] asks.
+/// The assertion that would quiet `row` in `evaluation`
+/// (`checks::at_rest::quieting`), minted as [`quiet_row`] matches.
 #[must_use]
-pub fn row_quietable(
+pub fn quieting(
     doc: &ProfileDoc,
     evaluation: &crate::Evaluation<f64>,
     row: &crate::coincide::NamedCoincidence,
     tol: geom_core::Tol,
-) -> bool {
-    crate::checks::at_rest::row_quietable(doc, evaluation, row, tol)
+) -> Option<crate::Quieting> {
+    crate::checks::at_rest::quieting(doc, evaluation, row, tol)
 }
 
 /// **A dual evaluation bound to a build of record built here**: the

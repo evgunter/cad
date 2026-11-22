@@ -470,7 +470,7 @@ pub(crate) struct InterferenceFinding {
     unlocalized: Option<&'static str>,
     quiet_by: Option<NodeId>,
     quiet_at: Vec<(Var, u32)>,
-    quietable: bool,
+    quieting: Option<(FaceSite, FaceSite)>,
 }
 
 impl InterferenceFinding {
@@ -495,20 +495,16 @@ impl InterferenceFinding {
         finding: &d::InterferenceFinding,
     ) -> PyResult<Self> {
         let copy = |c: &d::CopyRef| (var(c.var), c.member);
+        let face = |site: &d::FaceSite| {
+            Ok::<_, PyErr>(FaceSite {
+                copy: var(site.copy.var),
+                member: site.copy.member,
+                face: name_text(py, &site.face)?,
+            })
+        };
         let (faces, unlocalized) = match &finding.overlap {
             d::Overlap::Bounded { faces } => (
-                Some(
-                    faces
-                        .iter()
-                        .map(|site| {
-                            Ok(FaceSite {
-                                copy: var(site.copy.var),
-                                member: site.copy.member,
-                                face: name_text(py, &site.face)?,
-                            })
-                        })
-                        .collect::<PyResult<Vec<_>>>()?,
-                ),
+                Some(faces.iter().map(face).collect::<PyResult<Vec<_>>>()?),
                 None,
             ),
             d::Overlap::Unlocalized(why) => (None, Some(unlocalized_tag(why))),
@@ -524,7 +520,11 @@ impl InterferenceFinding {
                 .iter()
                 .map(|&(k, at)| (var(k), at))
                 .collect(),
-            quietable: finding.quietable,
+            quieting: finding
+                .quieting
+                .as_ref()
+                .map(|pair| Ok::<_, PyErr>((face(&pair.outer)?, face(&pair.inner)?)))
+                .transpose()?,
         })
     }
 }
@@ -591,13 +591,14 @@ impl InterferenceFinding {
         self.quiet_by.is_none()
     }
 
-    /// Whether an assertion the quieting rule accepts could quiet it, as
-    /// the rule itself answers: some holding `gap` assertion over two of
-    /// its bounding faces would quiet it. One no assertion could quiet
-    /// refuses at no severity.
+    /// The two faces a `gap` that would quiet it is written over, outer
+    /// then inner, as the quieting rule itself answers: a holding
+    /// `gap(outer, inner)` related to a negative bound by `<=` or `=`
+    /// quiets it, and the bound is the author's. `None` where no
+    /// assertion could quiet it, which refuses at no severity.
     #[getter]
-    fn quietable(&self) -> bool {
-        self.quietable
+    fn quieting(&self) -> Option<(FaceSite, FaceSite)> {
+        self.quieting.clone()
     }
 
     fn __repr__(&self) -> String {
