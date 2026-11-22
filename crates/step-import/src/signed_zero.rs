@@ -80,10 +80,9 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
     use geom::Curve3;
     match c {
         Curve3::Line(geom::Line { origin, dir }) => {
-            // A sign of zero folded keeps the direction unit; the stored
-            // one is kept should the fold ever not be.
-            let folded = geom_core::UnitVec3::stated(plus_zero(dir.get())).unwrap_or(dir);
-            Curve3::line(plus_zero_point(origin), folded)
+            // A sign of zero folded moves no value: the direction is
+            // carried within its kind, each `−0` entry read `+0`.
+            Curve3::line(plus_zero_point(origin), dir.map_scalar(fold_signed_zero))
         }
         // A conic's frame is carried with each `−0` entry folded: the
         // stored rotation within one kind, never squared again.
