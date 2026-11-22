@@ -329,7 +329,9 @@ pub fn constraint_said(at: usize, constraint: &Constraint) -> String {
 /// placement.
 fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<ConstraintRow> {
     match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => constraints
+        Node::Place { constraints, .. }
+        | Node::InstantiatePart { constraints, .. }
+        | Node::Datum { constraints, .. } => constraints
             .iter()
             .enumerate()
             .map(|(at, constraint)| ConstraintRow {

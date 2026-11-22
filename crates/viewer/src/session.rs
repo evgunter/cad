@@ -2367,6 +2367,7 @@ impl DocSession {
                 ids,
             } => self.edit_profile(node, &base, loops, ids),
             op @ (SessionOp::AddProfile { .. }
+            | SessionOp::AddDatum { .. }
             | SessionOp::SketchOnFace { .. }
             | SessionOp::DrawOnFace { .. }
             | SessionOp::AddExtrude { .. }
@@ -2425,6 +2426,12 @@ impl DocSession {
     fn creation_door(&self, op: SessionOp) -> Result<Creating, Refusal> {
         match op {
             SessionOp::AddProfile { loops } => self.add_profile(loops),
+            SessionOp::AddDatum { space, .. } => Ok(creating(move |run| {
+                run.insert(Node::datum(
+                    Operand::Var(space),
+                    pncad::document::stand().bundle(),
+                ))
+            })),
             SessionOp::SketchOnFace {
                 face,
                 loops,
@@ -6184,6 +6191,10 @@ pub(crate) fn held_placement(
                 target,
                 constraints,
                 ..
+            }
+            | Node::Datum {
+                target,
+                constraints,
             },
         ) => Some(PlacementBase {
             target,

@@ -428,6 +428,23 @@ fn toggled(side: Operand) -> Operand {
     }
 }
 
+/// **A datum's own side of a mate of `kind`** (D10 `[placement.datums]`):
+/// its frame's xy plane, z axis or origin, or the frame itself; `None`
+/// for a direction, which its frame offers no role of.
+fn datum_side(datum: RecipeNodeId, kind: VarKind) -> Option<RoleRead<Operand>> {
+    let own = Operand::Output {
+        node: datum,
+        port: 0,
+    };
+    Some(match kind {
+        VarKind::Plane => RoleRead::through(own, pose::PoseRole::Xy),
+        VarKind::Axis => RoleRead::through(own, pose::PoseRole::Z),
+        VarKind::Point => RoleRead::through(own, pose::PoseRole::Origin),
+        VarKind::Frame => RoleRead::plain(own),
+        _ => return None,
+    })
+}
+
 /// [`toggled`] of a side read through a role: the pose read through it,
 /// flipped.
 fn toggled_read(side: RoleRead<Operand>) -> RoleRead<Operand> {
@@ -608,11 +625,11 @@ struct LoadedMate {
 
 impl MateRow {
     /// A fresh row of `kind`, at its default sense, no seat picked.
-    fn fresh(kind: VarKind) -> Self {
+    fn fresh(kind: VarKind, datum: bool) -> Self {
         Self {
             kind,
             unread: false,
-            flip: opens_turned(kind),
+            flip: !datum && opens_turned(kind),
             on: MateSideDraft::default(),
             to: MateSideDraft::default(),
             struck: false,
@@ -793,6 +810,10 @@ struct PlaceDraft {
     /// back at once on every other answer of the offer.
     held_back: Option<SetAside>,
     offer: Offer,
+    /// Whether the door is a datum's: its rows' `on` is its own frame,
+    /// and a fresh row opens flush, its frame's `z` along the far side's
+    /// sense rather than turned to face it.
+    datum: bool,
 }
 
 impl PlaceDraft {
@@ -1014,6 +1035,12 @@ pub enum MateToolError {
         /// The row, 0-based.
         row: usize,
     },
+    /// A datum's mate of a kind its frame offers no role of (a
+    /// direction).
+    DatumKind {
+        /// The row, 0-based.
+        row: usize,
+    },
 }
 
 impl core::fmt::Display for MateToolError {
@@ -1087,6 +1114,12 @@ impl core::fmt::Display for MateToolError {
                 "mate {}'s kind does not resolve; strike it out or pick it again",
                 row + 1
             ),
+            Self::DatumKind { row } => write!(
+                f,
+                "mate {} is a direction, and a datum's mate reads its plane, its axis, its \
+                 origin or its frame",
+                row + 1
+            ),
         }
     }
 }
@@ -1117,7 +1150,8 @@ impl MateToolError {
             | Self::KindNotOffered { .. }
             | Self::NoSense { .. }
             | Self::Unwritable { .. }
-            | Self::KindUnread { .. }) => unspoken,
+            | Self::KindUnread { .. }
+            | Self::DatumKind { .. }) => unspoken,
         }
     }
 }
@@ -1405,7 +1439,9 @@ fn door_on(
                 node: doc.spoken(node),
             });
         }
-        Some(Node::Place { .. } | Node::InstantiatePart { .. }) => return edit(node),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. } | Node::Datum { .. }) => {
+            return edit(node);
+        }
         Some(Node::Split { .. }) if gated && body.is_none() => {
             return refused(MateToolEvent::HalfUnchosen {
                 split: doc.spoken(node),
@@ -1785,7 +1821,9 @@ impl MateTool {
     ///
     /// [`MateToolError::NotAPlacement`] for a node that is none.
     pub fn edit(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Result<Self, MateToolError> {
-        let Some(Node::Place { .. } | Node::InstantiatePart { .. }) = doc.node(placement) else {
+        let Some(Node::Place { .. } | Node::InstantiatePart { .. } | Node::Datum { .. }) =
+            doc.node(placement)
+        else {
             return Err(MateToolError::NotAPlacement {
                 node: doc.spoken(placement),
             });
@@ -1819,6 +1857,7 @@ impl MateTool {
                 struck_values: Vec::new(),
                 held_back: None,
                 offer: Offer::Quiet,
+                datum: matches!(doc.node(placement), Some(Node::Datum { .. })),
             }),
             ..Self::new()
         }
@@ -2231,8 +2270,15 @@ impl MateTool {
         None
     }
 
-    /// Whether `pick` is on the draft's copy.
+    /// Whether `pick` is on the draft's copy. A datum has no copy: its
+    /// `on` is its own frame, so every pick is a far side.
     fn is_on_copy(&self, doc: &Doc<ProfileProgram>, pick: &MatePick) -> bool {
+        if self
+            .door()
+            .is_some_and(|door| matches!(doc.node(door.placement), Some(Node::Datum { .. })))
+        {
+            return false;
+        }
         let Ok(opens) = door_picked(doc, pick, Purpose::Siding) else {
             return false;
         };
@@ -2319,7 +2365,7 @@ impl MateTool {
                     return false;
                 };
                 if draft.rows.is_empty() {
-                    draft.rows.push(MateRow::fresh(kind));
+                    draft.rows.push(MateRow::fresh(kind, draft.datum));
                     draft.active = 0;
                 }
                 let row = &mut draft.rows[draft.active];
@@ -2330,7 +2376,7 @@ impl MateTool {
                 *drafted.seat_mut(seat) = Some(held);
             }
             Change::AddMate(kind) => {
-                draft.rows.push(MateRow::fresh(kind));
+                draft.rows.push(MateRow::fresh(kind, draft.datum));
                 draft.active = draft.rows.len() - 1;
             }
             Change::AddWritten(mate) => {
@@ -2347,7 +2393,7 @@ impl MateTool {
                 if row.kind == kind {
                     return false;
                 }
-                let mut fresh = MateRow::fresh(kind);
+                let mut fresh = MateRow::fresh(kind, draft.datum);
                 for side in [MateSide::On, MateSide::To] {
                     for pick in row.side(side).picks() {
                         let seat = MateSeat::filled_by(kind, pick.pick().entity());
@@ -2893,8 +2939,8 @@ impl MateTool {
     fn row_mate(
         doc: &Doc<ProfileProgram>,
         ev: &Evaluation<f64>,
-        at: usize,
-        row: &MateRow,
+        (at, row): (usize, &MateRow),
+        placement: RecipeNodeId,
     ) -> Result<ProposedMate, MateToolError> {
         let sided = |side: MateSide| -> Result<(RoleRead<Operand>, Vec<SitedRef>), MateToolError> {
             let drafted = row.side(side);
@@ -2906,6 +2952,11 @@ impl MateTool {
                     _ => written.clone(),
                 };
                 return Ok((read, Vec::new()));
+            }
+            if side == MateSide::On && matches!(doc.node(placement), Some(Node::Datum { .. })) {
+                return datum_side(placement, row.kind)
+                    .map(|own| (own, Vec::new()))
+                    .ok_or(MateToolError::DatumKind { row: at });
             }
             let flip = side == MateSide::To && row.flip;
             let mut reads = Vec::new();
@@ -2990,6 +3041,7 @@ impl MateTool {
                 struck_values,
                 held_back: _,
                 offer: _,
+                datum: _,
             } = draft;
             DraftInputs {
                 door: door.clone(),
@@ -3029,7 +3081,7 @@ impl MateTool {
         }
         let mut mates = live
             .iter()
-            .map(|&(at, row)| Self::row_mate(doc, ev, at, row))
+            .map(|&(at, row)| Self::row_mate(doc, ev, (at, row), draft.door.placement))
             .collect::<Result<Vec<_>, _>>()?;
         // A loaded value struck for reading another space is no longer
         // loaded: its freedom is measured afresh.

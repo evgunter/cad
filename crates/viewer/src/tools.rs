@@ -281,6 +281,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::CancelFreeMove
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::AddDatum { .. }
         | SessionOp::SketchOnFace { .. }
         | SessionOp::DrawOnFace { .. }
         | SessionOp::EditProfile { .. }
@@ -840,6 +841,29 @@ impl Tools {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// **A datum made** ([`SessionOp::AddDatum`], committed): the
+    /// placement editor opens on it with one mate row of the kind its
+    /// button names, so every pick fills that row's far side (create,
+    /// then edit).
+    pub fn datum_made(
+        &mut self,
+        op: &SessionOp,
+        made: Option<RecipeNodeId>,
+        doc: &Doc<ProfileProgram>,
+    ) {
+        let op = match op {
+            SessionOp::CreateLabelled { creation, .. } => creation.op(),
+            op => op,
+        };
+        let (SessionOp::AddDatum { kind, .. }, Some(datum)) = (op, made) else {
+            return;
+        };
+        if let Ok(mut tool) = MateTool::edit(doc, datum) {
+            tool.add_mate(*kind);
+            self.open_mate(tool);
         }
     }
 

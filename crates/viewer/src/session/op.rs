@@ -613,6 +613,17 @@ pub enum SessionOp {
         /// The loop programs, in description order.
         loops: Vec<LoopProgram<Formula>>,
     },
+    /// **A datum** (D10 `[placement.datums]`): a bare frame inserted into
+    /// `space` at its origin, every value zero, which the placement
+    /// editor then places (create, then edit), opened with one mate row
+    /// of `kind`. A plane or an axis is read off it through a role.
+    AddDatum {
+        /// The space it is placed into: the selected body's, or the world.
+        space: VarId,
+        /// The kind of the editor's first mate row: a plane, an axis or
+        /// a frame. The datum is a frame whatever it is.
+        kind: pncad::document::VarKind,
+    },
     /// **"Sketch on this face"** (spec §5): `loops` drawn as a profile
     /// on its own plane, extruded `distance` up its own `z`, the
     /// extrude's copy placed against the picked face — a `Plane` mate
@@ -1320,6 +1331,7 @@ impl SessionOp {
     pub fn creates_a_node(&self) -> bool {
         match self {
             Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::SketchOnFace { .. }
             | Self::DrawOnFace { .. }
             | Self::AddExtrude { .. }
@@ -1447,6 +1459,7 @@ impl SessionOp {
             | Self::SetBundle { .. }
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::SketchOnFace { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
@@ -1677,6 +1690,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::SketchOnFace { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
@@ -1811,6 +1825,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::SketchOnFace { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
@@ -1849,6 +1864,7 @@ impl SessionOp {
             op => matches!(
                 op,
                 Self::AddProfile { .. }
+                    | Self::AddDatum { .. }
                     | Self::DrawOnFace { .. }
                     | Self::AddExtrude { .. }
                     | Self::AddRevolve { .. }
@@ -1910,6 +1926,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::SketchOnFace { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }

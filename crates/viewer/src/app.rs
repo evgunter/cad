@@ -1535,6 +1535,10 @@ impl ViewerApp {
                 self.tools
                     .answered(&accepted_op, made, committed, self.session.committed_doc());
             }
+            if committed {
+                self.tools
+                    .datum_made(&accepted_op, made, self.session.committed_doc());
+            }
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),

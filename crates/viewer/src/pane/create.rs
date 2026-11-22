@@ -332,6 +332,14 @@ pub(crate) const EXTRUDE: &str = "Extrude";
 /// The button that inserts an empty profile.
 pub(crate) const NEW_PROFILE: &str = "New profile";
 
+/// The buttons that insert a datum, each with the kind of the placement
+/// editor's first mate row.
+pub(crate) const NEW_DATUMS: [(&str, pncad::document::VarKind); 3] = [
+    ("New plane", pncad::document::VarKind::Plane),
+    ("New axis", pncad::document::VarKind::Axis),
+    ("New frame", pncad::document::VarKind::Frame),
+];
+
 /// What the revolve button says, before the selected profile's name.
 pub(crate) const REVOLVE: &str = "Revolve";
 
@@ -373,10 +381,12 @@ const SPLIT_PICKS: &str = "pick a face: its body is split along its plane — pi
 /// The kind nouns of the nodes the forms with no [`ToolKind`] create —
 /// `node_kind_noun`'s words, which a proposed label counts by.
 /// `creation_nouns` (below) holds the profile's, the extrude's, the
-/// revolve's and the part chooser's to the node their op mints.
+/// revolve's, the datum's and the part chooser's to the node their op
+/// mints.
 const PROFILE_NOUN: &str = "Profile";
 const EXTRUDE_NOUN: &str = "Extrude";
 const REVOLVE_NOUN: &str = "Revolve";
+const DATUM_NOUN: &str = "Datum";
 
 pub(crate) const INSTANCE_NOUN: &str = "InstantiatePart";
 
@@ -566,6 +576,7 @@ impl ViewerBehavior<'_> {
         ui.collapsing(ADD_FEATURE, |ui| {
             self.new_profile_ui(ui);
             self.profile_on_face_ui(ui);
+            self.new_datum_ui(ui);
         });
         // The combining tools sit in their own section:
         // everything above makes a body out of nothing, everything
@@ -1163,6 +1174,30 @@ impl ViewerBehavior<'_> {
         if ui.button(NEW_PROFILE).clicked() {
             self.push_labelled(PROFILE_NOUN, SessionOp::AddProfile { loops: Vec::new() });
         }
+    }
+
+    /// **New plane, New axis, New frame**: three buttons, each inserting
+    /// a datum ([`SessionOp::AddDatum`]) into the selected body's space,
+    /// or the world with nothing selected, at its origin, and opening the
+    /// placement editor on it with one mate row of its kind (create,
+    /// then edit). Each is a frame; a plane or an axis is read off it
+    /// through its role.
+    pub(crate) fn new_datum_ui(&mut self, ui: &mut egui::Ui) {
+        let space = {
+            let doc = self.session.committed_doc();
+            self.session
+                .selection()
+                .seat_node()
+                .and_then(|node| doc.node_space(node))
+                .unwrap_or(pncad::document::VarId::WORLD)
+        };
+        ui.horizontal(|ui| {
+            for (button, kind) in NEW_DATUMS {
+                if ui.button(button).clicked() {
+                    self.push_labelled(DATUM_NOUN, SessionOp::AddDatum { space, kind });
+                }
+            }
+        });
     }
 
     /// **The profile-on-a-face form** ([`SessionOp::DrawOnFace`]): the
@@ -2534,7 +2569,7 @@ mod creation_nouns {
     };
     use pncad::geom_core::Tol;
 
-    use super::{EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN, REVOLVE_NOUN};
+    use super::{DATUM_NOUN, EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN, REVOLVE_NOUN};
     use crate::session::{DocSession, SessionOp};
     use crate::test_support::{len, square_profile};
 
@@ -2569,6 +2604,11 @@ mod creation_nouns {
             loops: vec![crate::test_support::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
         };
         assert_eq!(minted_noun(&mut session, add_profile), PROFILE_NOUN);
+        let datum = SessionOp::AddDatum {
+            space: pncad::document::VarId::WORLD,
+            kind: pncad::document::VarKind::Plane,
+        };
+        assert_eq!(minted_noun(&mut session, datum), DATUM_NOUN);
     }
 
     /// The part chooser's noun is the kind of the node `AddInstance`

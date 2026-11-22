@@ -802,6 +802,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::SetBundle { .. }
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::AddDatum { .. }
         | SessionOp::SketchOnFace { .. }
         | SessionOp::DrawOnFace { .. }
         | SessionOp::EditProfile { .. }
