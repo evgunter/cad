@@ -1,7 +1,7 @@
 ---
 id: a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64
 kind: issue
-title: A circle square to a cylinder's axis is stored with a rounding residue in its axial channel where the frame is turned, at f64, so the injectivity check reads a fillet strip's end arc as a curve and its corner by the ruling run on past the vertex
+title: A circle square to a cylinder's axis is stored with a rounding residue in its axial channel where the outline is built off the axes, at f64, so the injectivity check reads a fillet strip's end arc as a curve and its corner by the ruling run on past the vertex (traced on one test)
 status: open
 opened: 2026-11-22
 priority: P0
@@ -76,22 +76,28 @@ continuation as well. The pair refuses
 `Uncertified { Departure }`, plane against cylinder across the straight
 foot, at depth 40.
 
-**Count**, of the 24 census tests of the tangent-joint row, with the
-gate asking and that row's change in: five refuse here.
-- `band_closed_mixed_chain_shapes::rounded_polygons_fillet_whole`
-  (`1v1 × 26v1`, edge `48v1`; traced)
-- `band_closed_mixed_chain_shapes::turned_rounded_outlines_fillet_whole`
-  (`1v1 × 30v1`, edge `60v1`)
-- `band_closed_mixed_chain_shapes::adversarial_outlines_build_where_their_bands_fit_and_refuse_where_they_overlap`
-  (`1v1 × 82v1`, edge `176v1`)
-- `band_mixed_rim_shared_supports::a_hole_beside_a_corner_reaching_a_links_strip_refuses_at_its_depth`
-  (`1v1 × 33v1`, edge `69v1`)
-- `blend_recourse_followability::the_foot_inside_a_face_recourse_names_a_request_that_builds`
-  (`1v1 × 23v1`, edge `47v1`)
+**Count.** One test is traced to the stored use
+(`band_closed_mixed_chain_shapes::rounded_polygons_fillet_whole`,
+`1v1 × 26v1`, edge `48v1`). A rigid move does not make it: the stored
+images move with the body. The body has to be built off the axes; a
+`2 × 1.2` rounded plate drawn turned 30° refuses this way and is
+pinned (`self_intersection_proves_injectivity::a_support_face_c1_through_a_vertex_is_embedded_at_its_tangent_joints`).
 
-One is traced to the stored use; the other four are the same pair
-shape (plane against cylinder across a line, after the arc pair
-holds) on outlines that run off the axes, and are not traced.
+Candidates, not traced: with the gate asking and the tangent joint
+read, 11 `f64` tests of the two tangent-joint rows' 66 refuse plane
+against cylinder across a line, every one an outline off the axes
+(`turned_rounded_outlines_fillet_whole`,
+`adversarial_outlines_build_where_their_bands_fit…`,
+`a_hole_beside_a_corner_reaching_a_links_strip…`,
+`the_foot_inside_a_face_recourse…`,
+`every_edge_of_a_rounded_pocket_fillets_at_its_closed_form`,
+`a_mixed_corner_at_a_non_right_plan_angle…`,
+`a_feature_entering_the_patch_at_a_non_right_plan_angle…`,
+`a_turned_and_moved_mixed_corner_reads_as_it_does_in_place`,
+`a_hole_over_a_wide_arcs_band…`,
+`an_s_run_of_a_convex_and_a_reflex_arc_builds`,
+`arcs_of_a_half_turn_or_more_build`). That they share the cause is a
+guess from the pair's shape.
 
 ## What is needed
 

@@ -3285,48 +3285,51 @@ fn rounded_plate<T: Scalar>() -> Option<topo::AtRestBody<T>> {
     rounded("the rounded plate", &body, &every_edge(&body), 0.1)
 }
 
-/// The four-arc barrel (`band_closed_mixed_chain_shapes`), every edge
-/// filleted at `0.05`: each cap is bounded by four arcs of two radii,
-/// each tangent to the next, and no line.
-fn barrel<T: Scalar>() -> Option<topo::AtRestBody<T>> {
-    use crate::band_closed_mixed_chain_shapes::{arcs, every_edge, prism};
-    use core::f64::consts::PI;
-    let (a, c, r1) = (0.6_f64, 0.4_f64, 0.3_f64);
-    let r2 = a.hypot(c) + r1;
-    let t0 = c.atan2(a);
-    let o = arcs(&[
-        ((a, 0.0), r1, -t0, 2.0 * t0),
-        ((0.0, -c), r2, t0, PI - 2.0 * t0),
-        ((-a, 0.0), r1, PI - t0, 2.0 * t0),
-        ((0.0, c), r2, PI + t0, PI - 2.0 * t0),
-    ]);
-    let body = prism::<T>(&o, 0.0, 0.5);
-    rounded("the barrel", &body, &every_edge(&body), 0.05)
+/// [`rounded_plate`] with its outline drawn turned 30° about the
+/// origin: the same body in another pose, built there and not moved.
+fn rounded_plate_drawn_turned<T: Scalar>() -> Option<topo::AtRestBody<T>> {
+    use crate::band_closed_mixed_chain_shapes::{every_edge, prism, rect, rotated};
+    let outline = rotated(&rect(1.0, 0.6, [0.3; 4]), core::f64::consts::FRAC_PI_6);
+    let body = prism::<T>(&outline, 0.0, 0.5);
+    rounded("the plate drawn turned", &body, &every_edge(&body), 0.1)
 }
 
 /// **A support face whose boundary is C¹ through a vertex is embedded
 /// against the band faces that meet it there**: a fillet band's corner
 /// patch is a torus whose foot on the support plane is an arc, tangent
-/// at each end to a strip's straight foot (or, on the barrel, to the
-/// next patch's arc), and tangent to the plane along it, so neither
-/// carrier parts the pair and the plane's cell at the joint is read by
-/// no edge alone. The arc and the next edge are read as one run through
-/// the vertex (`topo::injective`'s `present_corner`), from either edge,
-/// under a graph separator run on along both.
+/// at each end to a strip's straight foot, and tangent to the plane
+/// along it, so neither carrier parts the pair and the plane's cell at
+/// the joint is read by no edge alone. The arc and the line are read as
+/// one run through the vertex (`topo::injective`'s `present_corner`),
+/// from either edge, under a graph separator run on along both.
 ///
-/// Three bodies: the face outside the arc's circle (the inset corner),
-/// inside it (the rounded plate), and an arc into an arc of another
-/// radius (the barrel). Each as built, turned about a generic axis and
-/// placed a hundred units out. Red if the run is withdrawn (every one
-/// then refuses `Uncertified Departure plane x torus across an edge`),
-/// if it is read from the arc's side only (the inset corner then
-/// refuses plane x cylinder), or if its other edge must be straight
-/// (the barrel).
+/// Two bodies: the face outside the arc's circle (the inset corner) and
+/// inside it (the rounded plate). Each as built, turned about a generic
+/// axis and placed a hundred units out: a rigid move keeps the stored
+/// images, so those poses vary the carriers and not how the body was
+/// drawn. Red if the run is withdrawn (each then refuses `Uncertified
+/// Departure plane x torus across an edge`) or is read from the arc's
+/// side only (plane x cylinder).
+///
+/// **The plate drawn turned 30°** is not embedded: built off the axes,
+/// a strip's section arc is stored a rounding off a parallel, and the
+/// strip's own corner is read by its ruling run on past the vertex
+/// (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`).
+/// Pinned as what it reads, a finding: refused, and never across a
+/// plane and a torus's arc.
 #[test]
 fn a_support_face_c1_through_a_vertex_is_embedded_at_its_tangent_joints() {
     door_reads::<f64>("the inset corner", inset_filleted(), "Embedded");
     door_reads::<f64>("the rounded plate", rounded_plate(), "Embedded");
-    door_reads::<f64>("the barrel", barrel(), "Embedded");
+    let turned = rounded_plate_drawn_turned::<f64>().expect("f64 fillets");
+    let class = door_class::<f64>(&turned);
+    println!("[tangent] the plate drawn turned: {class}");
+    assert!(
+        (class.starts_with("Uncertified Departure cylinder x plane across an edge")
+            || class.starts_with("Refused Budget"))
+            && !class.contains("plane x torus across an edge"),
+        "the plate drawn turned: {class}"
+    );
 }
 
 /// **The same bodies at `Interval`**, the scalar the shell gate and the
@@ -3347,7 +3350,6 @@ fn a_support_face_c1_through_a_vertex_at_interval() {
     for (what, body) in [
         ("the inset corner", inset_filleted::<Interval>()),
         ("the rounded plate", rounded_plate::<Interval>()),
-        ("the barrel", barrel::<Interval>()),
     ] {
         let Some(body) = body else {
             continue;

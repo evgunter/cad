@@ -733,7 +733,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        194,
+        184,
         79,
         "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `present_chart` (26), \
@@ -764,13 +764,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          same parameters its curve already carries, the read behind \
          `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, `narrowed`, \
          `leaving`, `leaves_line`, `copy_misses`) and `run_on`'s, behind `along`'s and \
-         the placement asks, are sound. The run through a corner's vertex reads 17 more, none \
+         the placement asks, are sound. The run through a corner's vertex reads 7 more, none \
          asking, each a refusal when not met: `line_onward` (3) the other edge's far \
          coordinate against the columns' far end, one-sided so a bracket that holds nothing \
          refuses, and its share of the columns, taken at its upper end and refused unless \
-         finite; `curve_onward` (10) the other edge's span, refused unless finite and \
-         ordered, its pieces' parameters, and its column coordinate against the far end, \
-         one-sided the same way; `graph_read` (2) the hull of the other edge's reach into \
+         finite; `graph_read` (2) the hull of the other edge's reach into \
          `R`, refused unless bounded; `graph_of` (2) the run's vertex's parameter, the span's \
          end, which a piece `edge_piece` returns finite is then compared against, a piece \
          past it or no number answering nothing. The rest read the window's carrier and the face's boundary, which \

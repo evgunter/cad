@@ -405,7 +405,7 @@ fn membership(
 }
 
 /// The outline turned by `a` about the origin.
-fn rotated(o: &Outline, a: f64) -> Outline {
+pub(crate) fn rotated(o: &Outline, a: f64) -> Outline {
     let (s, c) = a.sin_cos();
     outline_from(
         o.chain
@@ -416,7 +416,7 @@ fn rotated(o: &Outline, a: f64) -> Outline {
 }
 
 /// Tangent arcs only: `(centre, radius, start angle, sweep)`, CCW.
-pub(crate) fn arcs(list: &[(P, f64, f64, f64)]) -> Outline {
+fn arcs(list: &[(P, f64, f64, f64)]) -> Outline {
     outline_from(
         list.iter()
             .map(|&(c, r, a0, sw)| ((c.0 + r * a0.cos(), c.1 + r * a0.sin()), (sw / 4.0).tan()))
