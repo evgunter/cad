@@ -2,10 +2,12 @@
 id: a-sphere-face-whose-extent-stops-ulps-short-of-its-pole-never-places-the-pole
 kind: issue
 title: A sphere face whose stored extent stops ulps short of its pole never places the pole, so a cell at the pole reads Local at every depth and six valid f64 cavities run out of pairs
-status: open
+status: dispatched
 opened: 2026-11-18
 priority: P0
 cost: M
+pr: 7115
+branch: embed/pole
 ---
 
 Traced by lane `embed/cavity-trace` (2026-11-18) for
