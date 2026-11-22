@@ -905,6 +905,10 @@ enum Zero {
     Corner((Side, Along), (Side, Along)),
     /// Only the corner point of two adjacent sides, a shared vertex.
     Point(Side, Side, VertexKey),
+    /// One side on a straight run of the face's own boundary through a
+    /// vertex, the only cell of the run the pair shares
+    /// ([`present_plane`]); read only where [`sign_on`] admits it.
+    Through(Side, Along),
     /// A curve across the rectangle, the face on this side's side of it
     /// ([`present_curved`]).
     Curve(Side, Box<Curved>),
@@ -2345,8 +2349,23 @@ fn partial_zero(
 }
 
 /// The planar presentation: the plane's chart through an affine map in
-/// which one line edge is `y = 0` and the face `y ≥ 0`, or two line edges
-/// at a convex corner are the positive axes.
+/// which one straight run of the boundary is `y = 0` and the face
+/// `y ≥ 0`, or two line edges at a convex corner are the positive axes.
+///
+/// **A run** is one line edge, or two at a corner that is straight: each
+/// edge's far end lies on the other's line as the point `0` (no band is
+/// asked: a lean enclosed by anything wider is not shown zero), and the
+/// two leave the vertex opposite ways. The two are then on one line for
+/// every member, as a split leaves an edge, and the face beside them is
+/// that line's half-plane wherever on it each edge's end at the vertex
+/// falls. A body stores the two as two lines, each from its own origin,
+/// so nothing but their chart points says they are one. What the pair shares of the run places the
+/// zero: both edges, the side lies on them; one, the side runs on past
+/// the shared cell ([`Zero::Past`]); the vertex alone, the side is the
+/// face's own run through it ([`Zero::Through`]).
+///
+/// A corner straight only within the band, or kinked inside it, is
+/// neither a run nor a convex corner, and is refused.
 fn present_plane<'a>(
     piece: &Piece<'a>,
     near_edges: &[usize],
@@ -2418,56 +2437,65 @@ fn present_plane<'a>(
         );
         Ok(if u.plus { (p, q) } else { (q, p) })
     };
+    // The half-plane on the face's side of a straight run of its
+    // boundary, `p` to `q` in the loop's order: the run is `y = 0` and
+    // the face `y ≥ 0`. `zero` is asked for the side's zero, given the
+    // cell's reach along the run.
+    let half_plane = |p: Point2<Interval>,
+                      q: Point2<Interval>,
+                      zero: &dyn Fn((f64, f64)) -> Zero|
+     -> Result<Presentation<'a>, Unpresented> {
+        let a = [q.x - p.x, q.y - p.y];
+        let bv = toward_face(a, orientation);
+        let len2 = a[0].powi(2) + a[1].powi(2);
+        let d = [cell_u - p.x, cell_v - p.y];
+        let x = (d[0] * a[0] + d[1] * a[1]) / len2;
+        let y = (d[0] * bv[0] + d[1] * bv[1]) / len2;
+        // Wholly on the run's non-face side holds none of the face:
+        // every vertex off the run and every other edge is clear of the
+        // cell's ball, so the plane's disk inside the ball meets the
+        // boundary only in a whole chord of this run, and the disk's
+        // half off the face side is all outside the face. The cell lies
+        // in that half. A `len2` holding zero leaves `y` uncertified,
+        // and a zero-length run bounds no half.
+        if y.is_certified() && y.hi() <= 0.0 {
+            return Ok(Presentation::Vacuous);
+        }
+        let len = len2.sqrt();
+        let inside = (x * len).min((at(1.0) - x) * len);
+        if interval_sign_as(inside, SELF_INTERSECTION_SPAN, band) != Some(Sign::Positive) {
+            return Err(Unpresented::Local);
+        }
+        Ok(Presentation::Of(Box::new(Presented {
+            surface: piece.surface,
+            map: Map::Affine {
+                o: [p.x, p.y],
+                a,
+                b: bv,
+            },
+            x: (x.lo(), x.hi()),
+            y: (0.0, y.hi()),
+            zero: zero((x.lo(), x.hi())),
+            corner: false,
+            cache: Cache::default(),
+        })))
+    };
     match edges.as_slice() {
         [e] => {
             if !piece.local.vertices.is_empty() {
                 return Err(Unpresented::Local);
             }
             let ((p, ta), (q, tb)) = segment(*e)?;
-            let a = [q.x - p.x, q.y - p.y];
-            let bv = toward_face(a, orientation);
-            let len2 = a[0].powi(2) + a[1].powi(2);
-            let d = [cell_u - p.x, cell_v - p.y];
-            let x = (d[0] * a[0] + d[1] * a[1]) / len2;
-            let y = (d[0] * bv[0] + d[1] * bv[1]) / len2;
-            // Wholly on the edge's non-face side holds none of the face:
-            // every vertex and every other edge is clear of the cell's
-            // ball, so the plane's disk inside the ball meets the
-            // boundary only in a whole chord of this edge, and the
-            // disk's half off the face side is all outside the face. The
-            // cell lies in that half. A `len2` holding zero leaves `y`
-            // uncertified, and a zero-length edge bounds no half.
-            if y.is_certified() && y.hi() <= 0.0 {
-                return Ok(Presentation::Vacuous);
-            }
-            let len = len2.sqrt();
-            let inside = (x * len).min((at(1.0) - x) * len);
-            if interval_sign_as(inside, SELF_INTERSECTION_SPAN, band) != Some(Sign::Positive) {
-                return Err(Unpresented::Local);
-            }
-            let zero = if near_edges.contains(e) {
-                Zero::Side(
-                    Side::YLo,
-                    Along::over(piece.surface, b, *e, true, || {
-                        segment_params(ta, tb, (x.lo(), x.hi()))
-                    }),
-                )
-            } else {
-                Zero::None
-            };
-            Ok(Presentation::Of(Box::new(Presented {
-                surface: piece.surface,
-                map: Map::Affine {
-                    o: [p.x, p.y],
-                    a,
-                    b: bv,
-                },
-                x: (x.lo(), x.hi()),
-                y: (0.0, y.hi()),
-                zero,
-                corner: false,
-                cache: Cache::default(),
-            })))
+            half_plane(p, q, &|x| {
+                if near_edges.contains(e) {
+                    Zero::Side(
+                        Side::YLo,
+                        Along::over(piece.surface, b, *e, true, || segment_params(ta, tb, x)),
+                    )
+                } else {
+                    Zero::None
+                }
+            })
         }
         [e1, e2] => {
             let (Some(r1), Some(r2)) = (b.edges.get(*e1), b.edges.get(*e2)) else {
@@ -2514,6 +2542,34 @@ fn present_plane<'a>(
             let lean = |n: [Interval; 2], w: [Interval; 2]| {
                 (n[0] * w[0] + n[1] * w[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt()
             };
+            // A straight corner: one run through the vertex, from the
+            // edge that ends there to the one that starts there.
+            let straight = exactly(lean(n1, bv), 0.0)
+                && exactly(lean(n2, a), 0.0)
+                && (a[0] * bv[0] + a[1] * bv[1]).hi() < 0.0
+                && (start1 == vtx) != (start2 == vtx);
+            if straight {
+                let (p, q) = if start2 == vtx {
+                    (far1, far2)
+                } else {
+                    (far2, far1)
+                };
+                let (z1, z2) = (near_edges.contains(e1), near_edges.contains(e2));
+                let on_run = || Along {
+                    on_edges: true,
+                    ..Along::of(piece.surface, b, &[*e1, *e2])
+                };
+                let past = |e: usize| Along::of(piece.surface, b, &[e]);
+                return half_plane(p, q, &|_| match (z1, z2) {
+                    (true, true) => Zero::Side(Side::YLo, on_run()),
+                    (true, false) => Zero::Past(Side::YLo, past(*e1)),
+                    (false, true) => Zero::Past(Side::YLo, past(*e2)),
+                    (false, false) if near_vertices.contains(&vtx) => {
+                        Zero::Through(Side::YLo, on_run())
+                    }
+                    (false, false) => Zero::None,
+                });
+            }
             if interval_sign_as(lean(n1, bv), SELF_INTERSECTION_CORNER, band)
                 != Some(Sign::Positive)
                 || interval_sign_as(lean(n2, a), SELF_INTERSECTION_CORNER, band)
@@ -5702,6 +5758,13 @@ fn sign_on(
             }
             departs(*s)
         }
+        Zero::Through(s, a) => {
+            // Whole: a plane, never the graph, which holds no whole line.
+            if !(through_read(against) && on.is_some_and(|on| on.holds(a, true))) {
+                return None;
+            }
+            departs(*s)
+        }
         Zero::Point(s, t, v) => {
             let zero = match on {
                 Some(on) => on.holds(&Along::at(*v), false),
@@ -5747,9 +5810,35 @@ fn past_read(p: &Presented<'_>, against: Option<&Presented<'_>>) -> bool {
     let exact = against.is_some_and(|q| match &q.zero {
         Zero::None | Zero::Side(..) | Zero::Corner(..) | Zero::Point(..) => true,
         Zero::Curve(_, c) => c.past.is_none(),
-        Zero::Past(..) => false,
+        Zero::Past(..) | Zero::Through(..) => false,
     });
     exact && geom_brep::is_analytic(p.surface)
+}
+
+/// **Whether a side on the face's own run through a shared vertex is
+/// read** ([`Zero::Through`]): under a plane holding the run's whole
+/// line, `against` a presentation whose zero set under that plane meets
+/// the line at the vertex alone. Never in the carrier arm, where
+/// `against` is `None`.
+///
+/// The side is the run's line `L`, of which the pair shares the vertex
+/// `V` only. Where both faces are zero, a point lies on `L` and on the
+/// partner's zero set, which is:
+/// - **nothing, or `V`** (a corner point): the point is `V`, and a line
+///   holds it once;
+/// - **the partner's own run through `V`**, a line `L'` the plane holds
+///   too. The plane's normal is the two directions' cross product
+///   ([`planes_through`]), and a sign is decided only where it is not
+///   zero, so `L` and `L'` are two lines of one plane that are not
+///   parallel: they meet once, at `V`.
+///
+/// A partner whose zero is a side, a corner or a curve lies on edges,
+/// which this pair does not share, and is not read.
+fn through_read(against: Option<&Presented<'_>>) -> bool {
+    against.is_some_and(|q| match &q.zero {
+        Zero::None | Zero::Point(..) | Zero::Through(..) => true,
+        Zero::Side(..) | Zero::Past(..) | Zero::Corner(..) | Zero::Curve(..) => false,
+    })
 }
 
 /// The carrier of a face as a separator.
@@ -5869,7 +5958,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         _ => false,
     };
     let corner = qx.corner || qy.corner;
-    if planes_through(x, near, qx, qy).into_iter().any(opposite) {
+    if planes_through(x, y, near, qx, qy).into_iter().any(opposite) {
         return Outcome::Certified { corner };
     }
     if graph_of(x, y, near, qx, qy, band).is_some_and(opposite) {
@@ -5960,6 +6049,7 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
 /// lines a plane was built through is not listed.
 fn planes_through(
     x: &Piece<'_>,
+    y: &Piece<'_>,
     near: &Near,
     px: &Presented<'_>,
     py: &Presented<'_>,
@@ -6014,10 +6104,43 @@ fn planes_through(
             _ => None,
         })
         .collect();
+    // A face's own run through the shared vertex: a point of its line,
+    // the line's direction, and the run's edges.
+    type Run<'r> = ((Point3<Interval>, Vec3<Interval>), Vec<&'r Rim>);
+    fn run<'r>(p: &Presented<'_>, b: &'r Boundary) -> Option<Run<'r>> {
+        let Zero::Through(_, a) = &p.zero else {
+            return None;
+        };
+        let rims = a
+            .edges
+            .iter()
+            .map(|k| b.edges.iter().find(|r| r.key == *k))
+            .collect::<Option<Vec<&Rim>>>()?;
+        match rims.first()?.arc.as_ref()? {
+            (line @ Curve3::Line(geom::Line { dir, .. }), (t0, _)) => {
+                Some(((line.eval(*t0), *dir), rims))
+            }
+            _ => None,
+        }
+    }
     let plane = || {
         let lines = lines?;
         let q0 = pmid(anchor(x, near)?);
         let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
+        match (run(px, b), run(py, y.boundary)) {
+            (Some(((q, d), r)), Some(((_, e), s))) => {
+                return Some((
+                    Psi::Linear { n: d.cross(e), q },
+                    through(&[r, s].concat()),
+                ));
+            }
+            (Some(((q, d), r)), None) | (None, Some(((q, d), r))) => {
+                let m = lift(bisector(hx, hy, unit(vmid(d))?)?);
+                let n = m - d * (m.dot(d) / d.dot(d));
+                return Some((Psi::Linear { n, q }, through(&r)));
+            }
+            (None, None) => {}
+        }
         match (lines.as_slice(), rims.as_slice()) {
             ([], []) => {
                 let v = *near.vertices.first()?;
@@ -7772,6 +7895,378 @@ mod presentation_rows {
             assert!(
                 read(&corner(forward, sense)) == "refused locally",
                 "{what}: the reflex corner is not presented as its wedge"
+            );
+        }
+    }
+
+    /// A plane through the origin, `frame`'s, with its chart's second
+    /// axis `v`.
+    fn plane_through_origin(normal: [f64; 3], u: [f64; 3]) -> Surface<Interval> {
+        let v3 = |[x, y, z]: [f64; 3]| Vec3::new(iv0(x), iv0(y), iv0(z));
+        Surface::Plane {
+            frame: geom::Frame::new(origin(), v3(normal), v3(u)),
+        }
+    }
+
+    /// A line edge of a face's loop: on the line through `o` along `d`
+    /// over `span`, from `ends[0]` to `ends[1]`, run forward where `plus`.
+    fn line_rim(
+        key: u64,
+        o: [f64; 3],
+        d: [f64; 3],
+        span: (f64, f64),
+        ends: [u64; 2],
+        plus: bool,
+    ) -> Rim {
+        Rim {
+            stated: None,
+            key: edge(key),
+            arc: Some((
+                Curve3::line(
+                    Point3::new(iv0(o[0]), iv0(o[1]), iv0(o[2])),
+                    Vec3::new(iv0(d[0]), iv0(d[1]), iv0(d[2])),
+                ),
+                (iv0(span.0), iv0(span.1)),
+            )),
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        }
+    }
+
+    /// A face whose boundary near vertex 1, at the origin, is `rims`.
+    fn at_vertex_1(rims: Vec<Rim>) -> Boundary {
+        Boundary {
+            sense: true,
+            edges: rims,
+            vertices: BTreeMap::from([(vertex(1), origin())]),
+            extent: None,
+        }
+    }
+
+    /// **A straight run through vertex 1**: the edges `keys` on the one
+    /// line through the origin along `d`, over `(-4, 0)` and `(0, 4)`,
+    /// both run forward, the face on their left.
+    fn run_through_vertex_1(d: [f64; 3], keys: [u64; 2]) -> Boundary {
+        at_vertex_1(vec![
+            line_rim(keys[0], [0.0; 3], d, (-4.0, 0.0), [keys[0] + 10, 1], true),
+            line_rim(keys[1], [0.0; 3], d, (0.0, 4.0), [1, keys[1] + 10], true),
+        ])
+    }
+
+    /// **A convex corner at vertex 1**: the edges `keys` from the origin
+    /// along the chart's second axis `v`, run backward, and along its
+    /// first `u`, run forward: the quadrant between them.
+    fn corner_at_vertex_1(u: [f64; 3], v: [f64; 3], keys: [u64; 2]) -> Boundary {
+        at_vertex_1(vec![
+            line_rim(keys[0], [0.0; 3], v, (0.0, 4.0), [1, keys[0] + 10], false),
+            line_rim(keys[1], [0.0; 3], u, (0.0, 4.0), [1, keys[1] + 10], true),
+        ])
+    }
+
+    /// The cell `(-½, ½)²` about vertex 1 of a face with two edges.
+    fn about_vertex_1<'a>(
+        surface: &'a Surface<Interval>,
+        boundary: &'a Boundary,
+        local: &'a Local,
+        v: (f64, f64),
+    ) -> Piece<'a> {
+        Piece {
+            face: FaceKey::default(),
+            surface,
+            whole: false,
+            boundary,
+            u: (-0.5, 0.5),
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        }
+    }
+
+    fn two_edges_and_vertex_1() -> Local {
+        Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        }
+    }
+
+    /// **`present_plane`, a straight corner**: two line edges exactly on
+    /// one line through the vertex between them present the half-plane on
+    /// the face's side, and what the pair shares of the run places the
+    /// zero. The second row is the corner as a Boolean stores it: the
+    /// second edge on its own line, from its far end, run backward. Red if the corner is read by its leans (both are
+    /// zero, and the cell is refused at every depth), or if a side past
+    /// the shared cell, or one through the vertex alone, is presented as
+    /// a side on shared edges.
+    #[test]
+    fn a_planes_straight_run_through_a_vertex_presents_its_half_plane() {
+        let floor = plane_through_origin([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+        let local = two_edges_and_vertex_1();
+        let x = [1.0, 0.0, 0.0];
+        let split = at_vertex_1(vec![
+            line_rim(2, [0.0; 3], x, (-4.0, 0.0), [12, 1], true),
+            line_rim(3, [4.0, 0.0, 0.0], [-1.0, 0.0, 0.0], (0.0, 4.0), [13, 1], false),
+        ]);
+        for b in [run_through_vertex_1(x, [2, 3]), split] {
+            a_run_is_presented(&floor, &b, &local);
+        }
+    }
+
+    fn a_run_is_presented(floor: &Surface<Interval>, b: &Boundary, local: &Local) {
+        let across = about_vertex_1(floor, b, local, (-0.5, 0.5));
+        let zero = |edges: &[usize], vertices: &[VertexKey]| {
+            match present_plane(&across, edges, vertices, band()) {
+                Ok(Presentation::Of(q)) => {
+                    assert_eq!(q.y, (0.0, 0.0625), "clipped to the run's line");
+                    assert_eq!(q.x, (0.4375, 0.5625), "the cell's reach along the run");
+                    q.zero.clone()
+                }
+                _ => panic!("the run is presented"),
+            }
+        };
+        let run = [edge(2), edge(3)];
+        assert!(
+            matches!(zero(&[0, 1], &[vertex(1)]), Zero::Side(Side::YLo, a)
+                if a.edges == run && a.whole && a.on_edges && a.params.is_none()),
+            "both edges shared: the side lies on them"
+        );
+        for (shared, key) in [(0, 2), (1, 3)] {
+            assert!(
+                matches!(zero(&[shared], &[vertex(1)]), Zero::Past(Side::YLo, a)
+                    if a.edges == [edge(key)] && a.whole),
+                "edge {key} shared: the side runs on past it"
+            );
+        }
+        assert!(
+            matches!(zero(&[], &[vertex(1)]), Zero::Through(Side::YLo, a)
+                if a.edges == run && a.whole && a.on_edges),
+            "the vertex alone shared: the face's own run through it"
+        );
+        assert!(
+            matches!(zero(&[], &[]), Zero::None),
+            "nothing shared in reach: no zero"
+        );
+        assert!(
+            matches!(
+                present_plane(
+                    &about_vertex_1(floor, b, local, (-0.5, -0.1)),
+                    &[],
+                    &[vertex(1)],
+                    band()
+                ),
+                Ok(Presentation::Vacuous)
+            ),
+            "a cell wholly past the run holds none of the face"
+        );
+    }
+
+    /// **Two line edges are a run only where each lies on the other's
+    /// line as the point 0**, leaving the vertex opposite ways, one into
+    /// it and one out. Each row moves one of those
+    /// and is refused, as it was: red if the run stops reading it. Two
+    /// rows are the band's edge: a
+    /// corner kinked by less than the band (its lean decides `Zero`) and
+    /// one kinked inside it (its lean is undecided) are neither a run nor
+    /// a convex corner.
+    #[test]
+    fn two_lines_not_exactly_one_line_are_not_a_run() {
+        let floor = plane_through_origin([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+        let local = two_edges_and_vertex_1();
+        let x = [1.0, 0.0, 0.0];
+        let first = |plus| line_rim(2, [0.0; 3], x, (-4.0, 0.0), [12, 1], plus);
+        let rows = [
+            (
+                "kinked by 0.9 ε at its far end: the lean decides Zero",
+                line_rim(3, [0.0; 3], [1.0, 0.225e-9, 0.0], (0.0, 4.0), [1, 13], true),
+            ),
+            (
+                "kinked by 3 ε at its far end: the lean is undecided",
+                line_rim(3, [0.0; 3], [1.0, 0.75e-9, 0.0], (0.0, 4.0), [1, 13], true),
+            ),
+            (
+                "run the other way",
+                line_rim(3, [0.0; 3], x, (0.0, 4.0), [1, 13], false),
+            ),
+            (
+                "its far end on the first edge's side",
+                line_rim(3, [0.0; 3], x, (-3.0, 0.0), [13, 1], true),
+            ),
+        ];
+        for (what, second) in rows {
+            let b = at_vertex_1(vec![first(true), second]);
+            assert_eq!(
+                read(present_plane(
+                    &about_vertex_1(&floor, &b, &local, (-0.5, 0.5)),
+                    &[],
+                    &[vertex(1)],
+                    band()
+                )),
+                Read::Local,
+                "{what}"
+            );
+        }
+        // A line held as a bracket is not shown on itself.
+        let mut wide = run_through_vertex_1(x, [2, 3]);
+        for r in &mut wide.edges {
+            let Some((Curve3::Line(l), _)) = r.arc.as_mut() else {
+                panic!("a line");
+            };
+            l.origin.y = Interval::from_bounds(-1e-16, 1e-16);
+        }
+        assert_eq!(
+            read(present_plane(
+                &about_vertex_1(&floor, &wide, &local, (-0.5, 0.5)),
+                &[],
+                &[vertex(1)],
+                band()
+            )),
+            Read::Local,
+            "a bracketed origin"
+        );
+    }
+
+    /// **A run through a vertex the pair shares alone departs under the
+    /// plane that holds it.** `F` is the half `z ≤ 0` of the plane
+    /// `x = 0`, its edge the `y` axis split at the origin. Against it:
+    /// - the half `z ≥ 0` of `y = 0`, its edge the `x` axis split there
+    ///   (two walls of a flush union meet so): certified, under the plane
+    ///   of the two runs, `z = 0`;
+    /// - the quadrant `x, z ≥ 0` of `y = 0`: certified, under a plane
+    ///   through `F`'s run;
+    /// - three partners that cross `F` along `x = y = 0, z < 0`: the half
+    ///   `x ≥ 0` of `y = 0`, whose run is that line; the half of `y = 0`
+    ///   below the line `x + z = 0`; the quadrant `x ≥ 0, z ≤ 0`. None is
+    ///   certified, at this cell or any smaller.
+    ///
+    /// Red if a run's side is read as zero under a plane that does not
+    /// hold its line, or its sign is read without the partner's.
+    #[test]
+    fn a_run_through_a_vertex_shared_alone_departs_under_the_plane_holding_it() {
+        let local = two_edges_and_vertex_1();
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+        };
+        let wall = plane_through_origin([-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+        let f = run_through_vertex_1([0.0, 1.0, 0.0], [2, 3]);
+        let certified = |s: &Surface<Interval>, b: &Boundary| {
+            let x = about_vertex_1(&wall, &f, &local, (-0.5, 0.5));
+            let y = about_vertex_1(s, b, &local, (-0.5, 0.5));
+            let outcome = [
+                departure(&x, &y, &near, band(), true),
+                departure(&y, &x, &near, band(), true),
+            ]
+            .map(|o| match o {
+                Outcome::Certified { corner: false } => true,
+                Outcome::Split { .. } => false,
+                other => panic!("certified or split: {other:?}"),
+            });
+            assert_eq!(outcome[0], outcome[1], "either face first");
+            outcome[0]
+        };
+        let x = [1.0, 0.0, 0.0];
+        let (up, down) = ([0.0, 0.0, 1.0], [0.0, 0.0, -1.0]);
+        let above = plane_through_origin([0.0, -1.0, 0.0], x);
+        assert!(
+            certified(&above, &run_through_vertex_1(x, [4, 5])),
+            "two runs crossing at the vertex, each face on its side of their plane"
+        );
+        assert!(
+            certified(&above, &corner_at_vertex_1(x, up, [4, 5])),
+            "a corner at the vertex, across the run from the face"
+        );
+        let beside = plane_through_origin([0.0, 1.0, 0.0], up);
+        assert!(
+            !certified(&beside, &run_through_vertex_1(up, [4, 5])),
+            "a partner whose run lies in the face's plane, along the face"
+        );
+        let r = core::f64::consts::FRAC_1_SQRT_2;
+        let slant = [r, 0.0, -r];
+        let below = plane_through_origin([0.0, 1.0, 0.0], slant);
+        assert!(
+            !certified(&below, &run_through_vertex_1(slant, [4, 5])),
+            "a partner crossing the face below a slanted run"
+        );
+        let under = plane_through_origin([0.0, 1.0, 0.0], x);
+        assert!(
+            !certified(&under, &corner_at_vertex_1(x, down, [4, 5])),
+            "a corner at the vertex whose quadrant holds the face's line"
+        );
+    }
+
+    /// **A side on the face's own run is zero only under a plane holding
+    /// the run's whole line, against a partner whose zero meets the line
+    /// at the vertex alone** ([`through_read`]). Red if it is read in the
+    /// carrier arm, under a separator that holds the edges but not their
+    /// line, or against a partner whose zero lies on edges.
+    #[test]
+    fn a_run_through_a_vertex_is_zero_only_under_its_own_plane() {
+        let local = two_edges_and_vertex_1();
+        let wall = plane_through_origin([-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+        let f = run_through_vertex_1([0.0, 1.0, 0.0], [2, 3]);
+        let above = plane_through_origin([0.0, -1.0, 0.0], [1.0, 0.0, 0.0]);
+        let g = run_through_vertex_1([1.0, 0.0, 0.0], [4, 5]);
+        let present = |s, b, edges: &[usize]| {
+            match present_plane(
+                &about_vertex_1(s, b, &local, (-0.5, 0.5)),
+                edges,
+                &[vertex(1)],
+                band(),
+            ) {
+                Ok(Presentation::Of(q)) => q,
+                _ => panic!("presented"),
+            }
+        };
+        let (p, q) = (present(&wall, &f, &[]), present(&above, &g, &[]));
+        let psi = Psi::Linear {
+            n: Vec3::new(iv0(0.0), iv0(0.0), iv0(-1.0)),
+            q: origin(),
+        };
+        let on = |whole| On {
+            edges: [2, 3, 4, 5].map(edge).to_vec(),
+            vertices: vec![vertex(1)],
+            whole,
+        };
+        let sign = |on: Option<&On>, against: Option<&Presented<'_>>| {
+            sign_on(&psi, on, &p, against, band())
+        };
+        assert_eq!(
+            sign(Some(&on(true)), Some(&q)),
+            Some(Sign::Positive),
+            "under the two runs' plane, against the other run"
+        );
+        assert_eq!(sign(None, Some(&q)), None, "no cells listed: the carrier arm");
+        assert_eq!(
+            sign(Some(&on(true)), None),
+            None,
+            "no partner to meet the line at the vertex alone"
+        );
+        assert_eq!(
+            sign(Some(&on(false)), Some(&q)),
+            None,
+            "a separator that holds the edges, not their line"
+        );
+        let missing = On {
+            edges: vec![edge(2)],
+            ..on(true)
+        };
+        assert_eq!(
+            sign(Some(&missing), Some(&q)),
+            None,
+            "a plane that lists one edge of the run"
+        );
+        for (edges, what) in [(&[0usize, 1][..], "a side"), (&[0][..], "a past side")] {
+            let on_edges = present(&above, &g, edges);
+            assert!(matches!(on_edges.zero, Zero::Side(..) | Zero::Past(..)));
+            assert_eq!(
+                sign(Some(&on(true)), Some(&on_edges)),
+                None,
+                "against {what} on edges"
             );
         }
     }
@@ -10662,7 +11157,7 @@ mod presentation_rows {
             edges: vec![(0, 0)],
             vertices: Vec::new(),
         };
-        let planes = planes_through(&x, &near, &px, &py);
+        let planes = planes_through(&x, &y, &near, &px, &py);
         let [(psi @ Psi::Linear { n, q }, on)] = planes.as_slice() else {
             panic!("one plane through the line: {planes:?}");
         };
@@ -10749,7 +11244,7 @@ mod presentation_rows {
             edges: vec![(0, 0)],
             vertices: vec![vertex(9)],
         };
-        let planes = planes_through(&x, &near, &px, &py);
+        let planes = planes_through(&x, &y, &near, &px, &py);
         let [(psi, on)] = planes.as_slice() else {
             panic!("one plane through the line: {planes:?}");
         };
