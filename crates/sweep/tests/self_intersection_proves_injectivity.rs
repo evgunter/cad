@@ -1850,7 +1850,7 @@ fn a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
     assert!(
         matches!(
             report.verdict,
-            BoundVerdict::Refused(EngineRefusal::Budget(_))
+            BoundVerdict::Refused(EngineRefusal::Budget { .. })
         ),
         "the drum runs out of depth: {:?} {:?}",
         report.verdict,
