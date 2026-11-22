@@ -106,11 +106,11 @@ use crate::validate::decide;
 /// on the separator at the run's tolerance"; anything else fails the
 /// arm.
 pub(crate) const SELF_INTERSECTION_ON_SHARED: &str = "self_intersection_on_shared";
-/// The funnel site of a separator's sign over a presented face, metres:
-/// where a side is shared, the sine of the angle at which the face
-/// leaves the separator across it, levered at the reach of the faces the
-/// pair shares that cell between ([`arm_of`]); where none is, the
-/// separator's value.
+/// The funnel site of a separator's sign over a presented face, metres.
+/// It carries two quantities: where a side is shared, the sine of the
+/// angle at which the face leaves the separator across it, levered at
+/// the reach of the faces the pair shares that cell between
+/// ([`arm_of`]); where none is, the separator's value, a distance.
 pub(crate) const SELF_INTERSECTION_DEPARTURE: &str = "self_intersection_departure";
 /// The funnel site of the graph arm's monotone edge: the edge's advance
 /// along the projection's first axis over its piece, metres.
@@ -712,23 +712,26 @@ fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
 }
 
 fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
-    match decide(row, Margin::of(x), band) {
+    definite(row, Margin::of(x), band)
+}
+
+/// A margin's definite sign at `row`, or `None` where it is zero, in
+/// band or does not certify.
+fn definite(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<Sign> {
+    match decide(row, margin, band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         _ => None,
     }
 }
 
-/// The sign of a sine levered at `arm`, decided at the departure's site,
-/// or `None`.
+/// The definite sign of a sine levered at `arm`, decided at the
+/// departure's site, or `None`.
 fn levered_sign(sine: Interval, arm: Lever<Interval>, band: Band) -> Option<Sign> {
-    match decide(
+    definite(
         SELF_INTERSECTION_DEPARTURE,
         Margin::levered(sine, arm),
         band,
-    ) {
-        Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
-        _ => None,
-    }
+    )
 }
 
 fn is_zero(x: Interval, band: Band) -> bool {
@@ -844,8 +847,13 @@ pub(crate) fn whole_turn(lo: f64, hi: f64) -> bool {
 
 /// **How many pieces a curve's span is first cut into**, to find the
 /// pieces whose image can reach a box ([`edge_piece`]) or a cell's
-/// columns ([`present_curved`]): one count, which only coarsens or
-/// refines the search and decides nothing.
+/// columns ([`present_curved`]). In those searches it only coarsens or
+/// refines. It is also the width two margins are levered at:
+/// [`monotone_run`] decides each piece's advance over the piece's own
+/// parameter width, and [`leaves_line`] a piece's rise over its width
+/// under its own halving, so a longer edge or a different count moves
+/// what those two decide
+/// (`work/embed/five-more-injectivity-margins-are-levered-at-a-cell-of-the-sweep.md`).
 const PIECES: usize = 64;
 
 /// **A few ulps of `x`**, never less than a few of 1: the one slack for
@@ -998,7 +1006,9 @@ impl Along {
 
     /// The vertex a collapsed side is ([`Self::at`]): the side lies on no
     /// edge. Read off what the side was built from, the chart's own
-    /// singular vertex, never off a width or a derivative.
+    /// singular vertex, never off a width or a derivative. An invariant
+    /// of construction, not of the type: [`Self::at`] is the one place
+    /// outside a test that sets `vertex`, and it sets no edge.
     fn collapsed(&self) -> Option<VertexKey> {
         self.vertex.filter(|_| self.edges.is_empty())
     }
@@ -5527,18 +5537,42 @@ impl On {
 /// shares the cell between ([`arm_of`]): an angle metered where it
 /// displaces the geometry it governs, never at the rectangle's own
 /// extent, so a rectangle however thin is read. Two faces each ε off
-/// over their reach `r` meet at an angle uncertain by about `ε/r`, and
-/// a sine that clears the band at `r` is one that such an error cannot
-/// turn. With the other face's carrier as `ψ` and the zero side on the
-/// shared edge, `Φ_a` is the face's direction across the edge, and the
-/// sine is tier 3's wedge check's own, `|n₁ × n₂| / (|n₁||n₂|)`
+/// over their run `r` AWAY from the edge meet at an angle uncertain by
+/// about `ε/r`, and a sine that clears the band at `r` is one that such
+/// an error cannot turn. **The arm read is longer than that run in two
+/// ways, both the permissive side**:
+/// - it is measured from the edge's middle, so a face's run ALONG the
+///   edge counts: two strips that part by less than ε across their whole
+///   width are signed apart where they are long enough
+///   (`work/honeone/the-wedge-reach-counts-a-faces-run-along-its-edge.md`);
+/// - it is the reach alone, where tier 3's wedge check folds the faces'
+///   curvature arms in, so beside a face whose radius is far below its
+///   reach a sine is signed here that check 4 classes smooth
+///   (`work/embed/the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms.md`).
+///
+/// With the other face's carrier as `ψ` and the zero side on the shared
+/// edge, `Φ_a` is the face's direction across the edge, and the sine is
+/// tier 3's wedge check's own, `|n₁ × n₂| / (|n₁||n₂|)`
 /// (`n₁·(n₂ × t̂) = t̂·(n₁ × n₂)`, `t̂` the edge's direction), enclosed
 /// over the cell's stretch of the edge. Across a curve read as a graph
 /// it is that sine times the cosine of the curve's lean off the other
 /// axis: an under-reading. No `arm` decides nothing.
 ///
+/// What is decided is the ENCLOSURE of that quotient, which is not held
+/// to `[−1, 1]`: where the norms' enclosures are wide (a rectangle
+/// beside a pole, a tangent seam at `Interval`) its far end runs past
+/// one, to any size. Only the end nearer zero can decide, so a wide
+/// enclosure never signs more than a narrow one would.
+///
+/// In the carrier arm a side is "zero" where `ψ` along it reads within
+/// the band's zero ([`is_zero`]), not exactly zero. So over a strip
+/// thinner than that zero over the sine, the sign proved is the
+/// departure's, the side `ψ` grows to across the strip, and not a sign
+/// of `ψ`'s values on it.
+///
 /// **Two sides, one of them collapsed** (a pole, an apex: the side's
-/// whole image is one vertex, [`Along::collapsed`], by key). Say the
+/// whole image is one vertex, [`Along::collapsed`], read off how the
+/// side was built). The `Zero::Corner` arm below rests on this bound. Say the
 /// regular side is `x = x₀` and the collapsed one `y = y₀`, so
 /// `Φ_x(·, y₀) = 0`. Then over the rectangle
 /// `Φ_x(x, y) = ∫ Φ_xy(x, η) dη` from `y₀` to `y`, so
@@ -5655,6 +5689,9 @@ fn sign_on(
             if !(zero_on(*s, a, true) && zero_on(*t, b, true)) {
                 return None;
             }
+            // The sine's limit at a collapsed side (the bound is in this
+            // function's docs, "Two sides, one of them collapsed"); two
+            // regular sides, or two collapsed ones, are not read by it.
             if a.collapsed().is_some() == b.collapsed().is_some() {
                 return None;
             }
@@ -5802,7 +5839,6 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     }
     let px = present(x, &ex, &near.vertices, band);
     let py = present(y, &ey, &near.vertices, band);
-    let arm = arm_of(x, y, near);
     for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
         if let Err(Unpresented::Collapsed(v)) = p {
             return Outcome::Refuse(EngineRefusal::CollapsedChart {
@@ -5815,6 +5851,8 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     if matches!(px, Ok(Presentation::Vacuous)) || matches!(py, Ok(Presentation::Vacuous)) {
         return Outcome::Certified { corner: false };
     }
+    // Read once a sign may be asked: the returns above never use it.
+    let arm = arm_of(x, y, near);
     // One face's carrier, the other departing it. Not between two faces
     // of one face: the face is its own carrier.
     if two {
@@ -5870,6 +5908,16 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// The least is the safe one of several: a shorter arm levers a smaller
 /// margin. `None` where a near edge is null scaffolding or a vertex does
 /// not resolve: a reading with no arm decides nothing.
+///
+/// The arm is the pair's, by what it is NEAR, not by what a presentation
+/// reads: a pair near an edge that is presented against one of that
+/// edge's vertices alone is still levered at the edge's reach, not at
+/// [`crate::wedge_reach::reach_from_vertex`]. A reader that re-presents
+/// a pair against less than it is near owes that choice here.
+///
+/// Read per cell pair, a pass over both faces' vertices each time, and
+/// not kept per face pair and edge: the tour's walk takes no longer with
+/// it (107.8 s without, 102.5 s with, summed over 85 stops).
 fn arm_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval>> {
     // One face against itself reads its boundary once.
     let other = (x.face != y.face).then_some(y.boundary);
@@ -6363,13 +6411,6 @@ pub(crate) fn monotone(
     )
 }
 
-/// A one-metre arm for rows that state a presentation by hand and so
-/// have no faces to read a reach from.
-#[cfg(test)]
-fn metre_arm() -> Option<Lever<Interval>> {
-    Some(geom_core::test_support::fixture_lever(at(1.0)))
-}
-
 #[cfg(test)]
 mod rows {
     use super::covered;
@@ -6490,6 +6531,12 @@ mod presentation_rows {
 
     fn iv0(x: f64) -> Interval {
         Interval::from_bounds(x, x)
+    }
+
+    /// A one-metre arm for rows that state a presentation by hand and so
+    /// have no faces to read a reach from.
+    fn metre_arm() -> Option<Lever<Interval>> {
+        Some(geom_core::test_support::fixture_lever(at(1.0)))
     }
 
     fn p2((u, v): (f64, f64)) -> Point2<Interval> {
@@ -11705,9 +11752,10 @@ mod presentation_rows {
             vertices: line.ends.to_vec(),
             whole: true,
         };
-        assert!(
-            sign_on(&plane, Some(&on), &p, None, metre_arm(), band()).is_some(),
-            "the parallel's plane is signed on the line"
+        assert_eq!(
+            sign_on(&plane, Some(&on), &p, None, metre_arm(), band()),
+            Some(Sign::Positive),
+            "the side of the parallel's plane the face leaves the line to"
         );
         assert_eq!(
             sign_on(&plane, Some(&on), &p, None, None, band()),
@@ -13113,5 +13161,438 @@ mod margin_rows {
             "one face against itself",
         );
         assert_eq!(read((2, &y), &[0, 2], &[]), None, "a null edge");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod margin_reach_rows {
+    //! Where the departure's arm is longer than the run it stands for,
+    //! pinned as the code reads it today, and the arm felt in a decision.
+    use super::*;
+    use geom_core::test_support::fixture_lever;
+
+    fn iv0(x: f64) -> Interval {
+        Interval::from_bounds(x, x)
+    }
+
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).unwrap()
+    }
+
+    fn key<K: From<slotmap::KeyData>>(n: u64) -> K {
+        slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
+    }
+
+    fn v3(v: [f64; 3]) -> Vec3<Interval> {
+        Vec3::new(iv0(v[0]), iv0(v[1]), iv0(v[2]))
+    }
+
+    fn p3(v: [f64; 3]) -> Point3<Interval> {
+        Point3::new(iv0(v[0]), iv0(v[1]), iv0(v[2]))
+    }
+
+    fn along(e: u64) -> Along {
+        Along {
+            edges: vec![key(e)],
+            vertex: None,
+            whole: true,
+            params: None,
+            on_edges: true,
+        }
+    }
+
+    fn on(edges: &[u64]) -> On {
+        On {
+            edges: edges.iter().map(|&e| key(e)).collect(),
+            vertices: Vec::new(),
+            whole: true,
+        }
+    }
+
+    /// A line edge from `a` to `b`, used once, forward.
+    fn line(k: u64, ends: [u64; 2], a: [f64; 3], b: [f64; 3]) -> Rim {
+        Rim {
+            key: key(k),
+            arc: Some((
+                Curve3::line(p3(a), v3([b[0] - a[0], b[1] - a[1], b[2] - a[2]])),
+                (iv0(0.0), iv0(1.0)),
+            )),
+            stated: None,
+            ends: ends.map(key),
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        }
+    }
+
+    fn boundary(edges: Vec<Rim>, vertices: &[(u64, [f64; 3])]) -> Boundary {
+        Boundary {
+            sense: true,
+            edges,
+            vertices: vertices.iter().map(|&(k, p)| (key(k), p3(p))).collect(),
+            extent: None,
+        }
+    }
+
+    fn piece<'a>(
+        face: u64,
+        surface: &'a Surface<Interval>,
+        boundary: &'a Boundary,
+        local: &'a Local,
+        (u, v): ((f64, f64), (f64, f64)),
+    ) -> Piece<'a> {
+        Piece {
+            face: key(face),
+            surface,
+            whole: false,
+            boundary,
+            u,
+            v,
+            local,
+            ball: Ball::holding(p3([0.0; 3]), p3([0.0; 3])),
+        }
+    }
+
+    /// The plane through the `x` axis whose normal is `(0, −sin φ, cos φ)`:
+    /// the floor `z = 0` folded up by `φ` about that axis.
+    fn folded(phi: f64) -> Surface<Interval> {
+        Surface::Plane {
+            frame: geom::Frame::new(
+                p3([0.0; 3]),
+                v3([0.0, -phi.sin(), phi.cos()]),
+                v3([1.0, 0.0, 0.0]),
+            ),
+        }
+    }
+
+    fn floor() -> Surface<Interval> {
+        folded(0.0)
+    }
+
+    /// **The arm counts a strip's run along its edge**
+    /// (`work/honeone/the-wedge-reach-counts-a-faces-run-along-its-edge.md`,
+    /// which owes the fix). Two plane strips 4 along their shared edge
+    /// and 0.05 across, folded by nine tenths of the band's zero over
+    /// that width, so their far edges part by less than the zero
+    /// everywhere. The reach, read from the edge's middle, is 2.0006, the
+    /// strips' run along the edge; the sine times it is well past the
+    /// band, and the strip's whole width is signed apart.
+    ///
+    /// This row pins what the code reads, not what it should: a reach
+    /// read as the faces' run away from the edge is 0.05, and at it the
+    /// strip decides nothing. Red when the reach's site moves.
+    #[test]
+    fn the_arm_counts_a_strips_run_along_its_edge() {
+        let phi: f64 = 0.9 * band().zero() / 0.05;
+        let (o, e) = ([0.0; 3], [4.0, 0.0, 0.0]);
+        let strip = |far: f64, up: f64, ks: [u64; 2]| {
+            boundary(
+                vec![line(1, [1, 2], o, e)],
+                &[
+                    (1, o),
+                    (2, e),
+                    (ks[0], [4.0, far, up]),
+                    (ks[1], [0.0, far, up]),
+                ],
+            )
+        };
+        let (x, y) = (
+            strip(0.05, 0.0, [3, 4]),
+            strip(0.05 * phi.cos(), 0.05 * phi.sin(), [5, 6]),
+        );
+        let s = floor();
+        let local = Local::default();
+        let cell = ((0.0, 1.0), (0.0, 1.0));
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let arm = arm_of(
+            &piece(1, &s, &x, &local, cell),
+            &piece(2, &s, &y, &local, cell),
+            &near,
+        )
+        .expect("an arm");
+        assert!(
+            (arm.length().hi() - 4.002_5_f64.sqrt()).abs() < 1e-9,
+            "the reach is the strips' run along the edge: {:?}",
+            arm.length()
+        );
+        assert!(
+            0.05 * phi.sin() < band().zero(),
+            "the strips never part by the band's zero"
+        );
+        let psi = Psi::Linear {
+            n: v3([0.0, -phi.sin(), phi.cos()]),
+            q: p3(o),
+        };
+        let read = |arm: Lever<Interval>| {
+            let p = Presented {
+                surface: &s,
+                map: Map::Chart,
+                x: (0.0, 4.0),
+                y: (0.0, 0.05),
+                zero: Zero::Side(Side::YLo, along(1)),
+                corner: false,
+                cache: Cache::default(),
+            };
+            sign_on(&psi, Some(&on(&[1])), &p, None, Some(arm), band())
+        };
+        assert_eq!(
+            read(arm),
+            Some(Sign::Negative),
+            "signed apart at the run along the edge"
+        );
+        assert_eq!(
+            read(fixture_lever(iv0(0.05))),
+            None,
+            "undecided at the strips' run away from it"
+        );
+    }
+
+    /// **The reach alone signs an edge tier 3's wedge check classes
+    /// smooth**
+    /// (`work/embed/the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms.md`).
+    /// A cylinder of radius `1e-3` and a plane through its ruling that it
+    /// leaves at the sine `s`, both levered at one metre:
+    /// - at `s` fifty times the band's escalation both read a corner;
+    /// - at `s` five hundred times the band's zero, check 4's folded arm
+    ///   (the radius) leaves it in band, and the carrier arm signs it;
+    /// - at `s` fifty times the band's escalation over a thousand, check
+    ///   4 reads the smooth class, and the carrier arm still signs it.
+    ///
+    /// This row pins the difference as it is. Red when the two read one
+    /// arm.
+    #[test]
+    fn the_reach_alone_signs_an_edge_check_4_classes_smooth() {
+        let r = 1e-3;
+        let read = |s: f64| {
+            let cyl = Surface::Cylinder {
+                frame: geom::Frame::new(p3([0.0; 3]), v3([0.0, 0.0, 1.0]), v3([1.0, 0.0, 0.0])),
+                radius: iv0(r),
+            };
+            let n = v3([-(1.0 - s * s).sqrt(), s, 0.0]);
+            let plane = Surface::Plane {
+                frame: geom::Frame::new(p3([r, 0.0, 0.0]), n, v3([0.0, 0.0, 1.0])),
+            };
+            let check4 = match geom_brep::classify_dihedral(
+                &cyl,
+                &plane,
+                p3([r, 0.0, 0.5]),
+                fixture_lever(iv0(1.0)),
+                band(),
+            ) {
+                Ok(geom_brep::Dihedral::Corner(_)) => "corner",
+                Ok(geom_brep::Dihedral::Tangent(_)) => "smooth",
+                Err(_) => "in band",
+            };
+            let p = Presented {
+                surface: &cyl,
+                map: Map::Chart,
+                x: (0.0, 0.0),
+                y: (0.0, 1.0),
+                zero: Zero::Side(Side::XLo, along(1)),
+                corner: false,
+                cache: Cache::default(),
+            };
+            let psi = Psi::Carrier(Implicit::Plane {
+                o: p3([r, 0.0, 0.0]),
+                n,
+            });
+            let engine = sign_on(&psi, None, &p, None, Some(fixture_lever(iv0(1.0))), band());
+            (check4, engine.is_some())
+        };
+        let (zero, escalate) = (band().zero(), band().escalate());
+        assert_eq!(
+            read(50.0 * escalate / r),
+            ("corner", true),
+            "a plain corner"
+        );
+        assert_eq!(
+            read(0.5 * (zero + escalate) / r),
+            ("in band", true),
+            "check 4 in band at the radius, the engine definite at the reach"
+        );
+        assert_eq!(
+            read(0.05 * zero / r),
+            ("smooth", true),
+            "check 4 smooth at the radius, the engine definite at the reach"
+        );
+    }
+
+    /// **A fold between two faces certifies by its sine times the least
+    /// reach, and not by any other arm.** The floor's square beside its
+    /// edge on the `x` axis, against a face folded up about that axis by
+    /// `φ`. The pair is near that edge (reach 3, the folded face's far
+    /// vertex) and a second edge (reach 1.58, the least), and the folded
+    /// face runs farther than the floor (the floor's own reach from the
+    /// first edge is 1.118).
+    /// - `sin φ` times 1.58 at 1.2 times the band: certified;
+    /// - at 0.7 times the band: not certified.
+    ///
+    /// Red if the arm that reaches the decision is doubled, is the first
+    /// edge's or the greatest (0.7 becomes 1.33 or 1.4 and certifies), or
+    /// is one face's (1.2 becomes 0.85 and does not).
+    #[test]
+    fn a_fold_certifies_by_its_sine_at_the_least_reach() {
+        let least = 2.5_f64.sqrt();
+        let certified = |times: f64| {
+            let phi = (times * band().escalate() / least).asin();
+            let o = [0.0; 3];
+            // The two shared edges: the fold's, and a short one whose
+            // middle is (0.5, 1.5, 0) on the floor.
+            let edges = || {
+                vec![
+                    line(1, [1, 2], o, [1.0, 0.0, 0.0]),
+                    line(2, [7, 8], [0.4, 1.5, 0.0], [0.6, 1.5, 0.0]),
+                ]
+            };
+            let x = boundary(
+                edges(),
+                &[
+                    (1, o),
+                    (2, [1.0, 0.0, 0.0]),
+                    (3, [1.0, 1.0, 0.0]),
+                    (4, [0.0, 1.0, 0.0]),
+                ],
+            );
+            let y = boundary(
+                edges(),
+                &[
+                    (1, o),
+                    (2, [1.0, 0.0, 0.0]),
+                    (5, [0.5, 3.0 * phi.cos(), 3.0 * phi.sin()]),
+                ],
+            );
+            let (sx, sy) = (floor(), folded(phi));
+            let here = Local {
+                edges: vec![0],
+                vertices: Vec::new(),
+            };
+            let away = Local::default();
+            let near = Near {
+                edges: vec![(0, 0), (1, 1)],
+                vertices: Vec::new(),
+            };
+            let cell = ((0.4, 0.6), (0.0, 0.1));
+            let arm = arm_of(
+                &piece(1, &sx, &x, &here, cell),
+                &piece(2, &sy, &y, &away, cell),
+                &near,
+            )
+            .expect("an arm");
+            assert!(
+                (arm.length().hi() - least).abs() < 1e-9,
+                "the least reach: {:?}",
+                arm.length()
+            );
+            let got = certify_pair(
+                &piece(1, &sx, &x, &here, cell),
+                &piece(2, &sy, &y, &away, cell),
+                &near,
+                band(),
+            );
+            matches!(got, Outcome::Certified { .. })
+        };
+        assert!(certified(1.2), "above the band at the least reach");
+        assert!(!certified(0.7), "inside the band at the least reach");
+    }
+
+    /// **A sine that changes sign over the rectangle decides nothing.** A
+    /// cylinder beside its ruling at `u = 0`, half a radian wide, against
+    /// a plane through that ruling it has already crossed a tenth of a
+    /// radian in: the sine runs from `−0.1` to `0.39` across the
+    /// rectangle. Red if the enclosure is read at its middle.
+    #[test]
+    fn a_sine_that_changes_sign_over_the_rectangle_decides_nothing() {
+        let cyl = Surface::Cylinder {
+            frame: geom::Frame::new(p3([0.0; 3]), v3([0.0, 0.0, 1.0]), v3([1.0, 0.0, 0.0])),
+            radius: iv0(1.0),
+        };
+        let a: f64 = 0.1;
+        // The plane through the ruling at (1, 0, ·) whose trace in the
+        // cross-section is tangent to the circle at the angle `a`.
+        let psi = Psi::Linear {
+            n: v3([-a.cos(), -a.sin(), 0.0]),
+            q: p3([1.0, 0.0, 0.0]),
+        };
+        let read = |width: f64| {
+            let p = Presented {
+                surface: &cyl,
+                map: Map::Chart,
+                x: (0.0, width),
+                y: (0.0, 1.0),
+                zero: Zero::Side(Side::XLo, along(1)),
+                corner: false,
+                cache: Cache::default(),
+            };
+            sign_on(
+                &psi,
+                Some(&on(&[1])),
+                &p,
+                None,
+                Some(fixture_lever(iv0(1.0))),
+                band(),
+            )
+        };
+        assert_eq!(
+            read(0.5),
+            None,
+            "the sine changes sign across the rectangle"
+        );
+        assert!(read(0.05).is_some(), "the control: before the crossing");
+    }
+
+    /// **A zero arm and an arm that does not certify decide nothing.**
+    /// Two faces each bounded by a closed edge on the one vertex they
+    /// share have no other vertex to read a reach from: the arm is zero.
+    /// Red if a zero or uncertified arm is replaced by a default.
+    #[test]
+    fn a_zero_arm_and_an_uncertified_arm_decide_nothing() {
+        let o = [0.0; 3];
+        let rim = || boundary(Vec::new(), &[(1, o)]);
+        let (x, y) = (rim(), rim());
+        let s = floor();
+        let local = Local::default();
+        let cell = ((0.0, 1.0), (0.0, 1.0));
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![key(1)],
+        };
+        let arm = arm_of(
+            &piece(1, &s, &x, &local, cell),
+            &piece(2, &s, &y, &local, cell),
+            &near,
+        )
+        .expect("an arm, of no length");
+        assert_eq!(arm.length().hi(), 0.0, "two rims on one vertex");
+        let psi = Psi::Linear {
+            n: v3([0.0, 1.0, 0.0]),
+            q: p3(o),
+        };
+        let read = |arm: Lever<Interval>| {
+            let p = Presented {
+                surface: &s,
+                map: Map::Chart,
+                x: (0.0, 1.0),
+                y: (0.0, 1.0),
+                zero: Zero::Side(Side::YLo, along(1)),
+                corner: false,
+                cache: Cache::default(),
+            };
+            sign_on(&psi, Some(&on(&[1])), &p, None, Some(arm), band())
+        };
+        assert!(read(fixture_lever(iv0(1.0))).is_some(), "the control");
+        assert_eq!(read(arm), None, "a zero arm");
+        assert_eq!(
+            read(fixture_lever(crate::test_support_fixtures::trv(1.0))),
+            None,
+            "an arm that does not certify"
+        );
     }
 }

@@ -16,10 +16,14 @@ From EMBED's lane `embed/remeter` (2026-11-22), filed on this slate
 because the ground is check 4 (`crates/topo/src/validate.rs`,
 `crates/topo/src/edge_wedge.rs`, `geom_brep::edge_wedge_over_as`).
 
-`docs/DESIGN.md` `[topology.tiers]` says of the embedding question's
-local reading: "That reading is the edge's wedge as tier 3 reads it,
-one reading for both". After `embed/remeter` the two are one lever
-source and, at first order, one number, read from two call sites:
+`docs/DESIGN.md` `[topology.tiers]` says the embedding question
+"reads tier 3's facts from its verdict, never re-deciding one over a
+cell", and of its local reading: "That reading is the edge's wedge as
+tier 3 reads it, one reading for both". **The engine does re-decide
+the wedge, in every cell pair near the edge.** It did before
+`embed/remeter` too, at a cell's own span; after it the two are one
+lever source and, at first order, one number, read from two call
+sites:
 
 - **Check 4** reads `sin θ · arm` at the interior stations of the
   edge's certification schedule (`geom_brep::interior_stations`), the
@@ -38,7 +42,9 @@ between stations, or an enclosure too wide to tell, and the question
 refuses. So a body can pass tier 3 and then refuse to finish on the
 margin tier 3 was asked for.
 
-They also differ in the arm
+They also differ in the arm, and through it in class: beside a face
+whose radius is far below its reach the engine signs a definite crease
+where check 4 reads the smooth class at the same point
 (`work/embed/the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms.md`).
 
 ## What is needed

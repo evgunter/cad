@@ -16,7 +16,7 @@ The gate counts 59 references. 4 are not sites, and 8 of the rest are always zer
 
 Each conversion moves a reading and wants its own differential.
 
-## Geometry in the function (44)
+## Geometry in the function (43)
 
 The function holds a carrier, a surface, a cover, a `Reach` or extent ball, a pose of carriers, or a body with the face, edge or vertex.
 
@@ -57,14 +57,14 @@ topo:
 - `separating::planar_axis` — `ExtentBall::box_diagonal`. `body` and `face`; the box is a closure's `(lo, hi)`, its caller's.
 - `solid_contain::selection_reach` (zero) — `ExtentBall::point`. `body` and the faces; the fold's seed.
 - `splitting::containment::extent_from` (2, one zero) — `ExtentBall::point`. `covers: &[Cover<T>]`, read in the same fold beside `verts`.
-- `wedge_reach::WedgeReach::reach` — `points_lever_from`. The carrier, the span and the two face keys.
 
-## Points or scalars only (11)
+## Points or scalars only (12)
 
 - `geom_brep::ssi::point_arm` — `within_curvature`. `kappa: T` and an extent `Lever`.
 - `sweep::blend::battery::corner_independence` — `curvature_radius`. Three normals and `radius: T`.
 - `topo::bound_side::BoundSupport::lever` — `ExtentBall::point`. `BoundSupport::Chord { base, far }`, two stored points.
 - `topo::bound_side` `read_down` — `curvature_radius`. `FaceDatum.lever: Option<T>` and `FaceBend`'s radius, two stored scalars; `FaceBend::at(surface, sense, p)` reads the surface where the bend is built.
+- `topo::wedge_reach::reach_from_vertex` — `points_lever_from`. A pivot and points, both the caller's: a pass-through. `WedgeReach::reach` held this site with the carrier, the span and the two face keys until EMBED's `embed/remeter` (PR 7329) moved it here, so that the embedding question reads the same recipe at its lifted scalar (`reach_over`) and two faces' reach from a vertex.
 - `topo::link::second_order::reach` — `ExtentBall::point`. `point(apex + d).lever_from(apex)` is `|d|`.
 - `topo::splitting::containment::polygon_walk` (2, one zero) — `ExtentBall::point`. The loop's points and `q`.
 - `topo::splitting::join::crossing_reach` (2, one zero) — `ExtentBall::point`. The crossings and `from`.

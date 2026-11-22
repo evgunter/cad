@@ -40,11 +40,13 @@ branch, whose corner reading this shape never reaches.
   so `present_curved` returns `Local`, and every smaller cell along that
   side is the same.
 
-This is the curved sibling of the line case `present_plane_corner`'s
-sliver concession answers (`chute`'s annulus cells touching their line
-from its far side within rounding). The sliver concession is frozen
-(`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`),
-so this row does not adopt it. What a fix needs: a reading of a cell
+This is the curved sibling of the line case `present_plane_corner`
+reads (`chute`'s annulus cells touching their line from its far side
+within rounding). That case is no longer conceded: the sliver is
+retired (`embed/remeter`, PR 7329), and such a cell is presented as a
+rectangle with no width, or rounding's, and read at the faces' reach
+(`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`,
+"Landed"). What a fix needs: a reading of a cell
 that the curve passes outside of, by an amount the band decides, as a
 cell the curve does not bound (its face's part of the cell is all on one
 side, or none of it), which is the sliver row's question for a curve.

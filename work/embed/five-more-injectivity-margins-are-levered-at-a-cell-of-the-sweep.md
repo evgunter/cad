@@ -1,7 +1,7 @@
 ---
 id: five-more-injectivity-margins-are-levered-at-a-cell-of-the-sweep
 kind: issue
-title: Five more margins of the injectivity check multiply an angle or a sign by a cell's own extent, as the departure did: the column, the corner's turn, the graph's advance, the cusp and the monotone arm
+title: Five more margins of the injectivity check multiply an angle or a sign by an extent of the engine's own subdivision, as the departure did: three by a cell's (the graph's advance, the cusp, the monotone arm), two by a piece of an edge's span (the column, a corner's turn)
 status: open
 opened: 2026-11-22
 priority: P1
@@ -17,22 +17,32 @@ re-metered the departure reading: an angle is metered at the reach of
 the faces it governs, never at a cell of the question's own subdivision
 (`docs/DESIGN.md` `[topology.tiers]`). The lane read every funnel
 decision in `crates/topo/src/injective.rs` (`decide(`,
-`interval_sign_as(`, `is_zero(`; 26 sites) for the same shape and
-re-metered none but the departure. Five sites have it:
+`interval_sign_as(`, `is_zero(`, `levered_sign(`; 21 call sites) for
+the same shape and re-metered none but the departure. Five sites have
+it, in two kinds (corrected after PR 7329's review, which read
+`monotone_run` and `leaves_line` at their pieces):
 
-| site | function | what it decides | what it multiplies by |
-|---|---|---|---|
-| `self_intersection_column` | `monotone_run` | a curved edge's chart curve advances one way along a chart axis over each piece | the piece's parameter width and the cell's chart speed |
-| `self_intersection_corner_departs` | `leaves_graph` | a corner's other edge leaves the curve read through the vertex toward its face side | the columns' parameter span and the rectangle's chart speed |
-| `self_intersection_corner_departs` | `leaves_line` | the other edge leaves the line it meets at the vertex | the piece's width and the chart speed |
-| `self_intersection_graph` | `graph_of` | the shared edge advances along the projection's first axis | the piece's parameter span |
-| `self_intersection_cusp` | `cusp` | the two faces' outward normals are opposed (wedge 0 or 2π), decided `Zero` | the cell ball's reach |
-| `self_intersection_monotone` | `monotone` | the least eigenvalue of `sym(L·J)` is positive | the cell's spans, as `J`'s columns |
+| site | function | what it decides | what it multiplies by | whose extent |
+|---|---|---|---|---|
+| `self_intersection_graph` | `graph_of` | the shared edge advances along the projection's first axis | the parameter span of the edge's piece in the cell pair | the cell's |
+| `self_intersection_corner_departs` | `leaves_graph` | a corner's other edge leaves the curve read through the vertex toward its face side | the parameter span of the curve over the cell's columns, and the rectangle's chart speed | the cell's |
+| `self_intersection_cusp` | `cusp` | the two faces' outward normals are opposed (wedge 0 or 2π), decided `Zero` | the cell ball's reach | the cell's |
+| `self_intersection_monotone` | `monotone` | the least eigenvalue of `sym(L·J)` is positive | the cell's spans, as `J`'s columns | the cell's |
+| `self_intersection_column` | `monotone_run` | a curved edge's chart curve advances one way along a chart axis over each piece | the parameter width of one of the 64 pieces the edge's span is cut into (`PIECES`, `pieces_of`), and the cell's chart speed | a 64th of the edge's span |
+| `self_intersection_corner_departs` | `leaves_line` | the other edge leaves the line it meets at the vertex | the width of the piece of that edge's span it is read over, halved by `leaves_line` itself up to 24 times (`LEAVES`), and the chart speed | a piece of the edge's span, under its own halving |
 
-A cell thinner than the band cannot pass any of the first four or the
-last, whatever the geometry does, and a smaller cell makes it worse.
-The cusp is the reverse: once the cell's ball is small enough, any two
-normals read `Zero`.
+**The four levered at a cell.** A cell thinner than the band cannot
+pass `_graph`, `leaves_graph` or `_monotone`, whatever the geometry
+does, and a smaller cell makes it worse. The cusp is the reverse: once
+the cell's ball is small enough, any two normals read `Zero`.
+
+**The two levered at a piece of an edge.** `monotone_run` and
+`leaves_line` do not get worse as the sweep's cells shrink: their
+width is a fixed 64th of the edge's span, or `leaves_line`'s own
+halving of it. They are still not metered at the reach of what they
+govern: a short edge, or a different `PIECES`, moves what they decide,
+and the cell's chart speed is the only thing of the cell's in them.
+(The count's own doc said it "decides nothing"; corrected by PR 7329.)
 
 **Whether a margin is owed at all**, by Ev's test on PR 7095 ("the
 margin is needed for things that must tolerate the geometry being ε
