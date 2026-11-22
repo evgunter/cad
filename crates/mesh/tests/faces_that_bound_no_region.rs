@@ -113,9 +113,11 @@ fn lamina_of(
 fn a_planar_lamina_bounds_no_region_and_refuses() {
     let tol = Tol::witness();
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: z_axis(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            z_axis(),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     let unit = Curve3::circle(
         Point3::new(0.0, 0.0, 0.0),
@@ -222,9 +224,11 @@ fn a_spline_rim_only_cap_refuses_at_the_domain_door() {
         arc(&rim, 0.0, TAU),
         FaceSurface::New {
             surface: Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: -z_axis(),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    -z_axis(),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
             },
             sense: true,
         },

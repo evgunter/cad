@@ -68,10 +68,8 @@ fn on(surface: &geom::Surface<f64>) -> (Charted<f64>, Ruled<f64>) {
 
 fn cylinder(edges: Vec<Edge<f64>>) -> RuledFaceRegion<f64> {
     let (charted, surface) = on(&geom::Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::origin(), z_axis(), x_axis()),
         radius: 1.0,
-        u_ref: x_axis(),
     });
     RuledFaceRegion {
         charted,
@@ -243,10 +241,8 @@ fn a_wall_under_a_tilted_section_reads_its_region() {
 
 fn cone(edges: Vec<Edge<f64>>, scale: f64) -> RuledFaceRegion<f64> {
     let (charted, surface) = on(&geom::Surface::Cone {
-        apex: Point3::origin(),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::origin(), z_axis(), x_axis()),
         half_angle: ALPHA,
-        u_ref: x_axis(),
     });
     RuledFaceRegion {
         charted,
@@ -761,10 +757,8 @@ fn cone_window(
 /// The cone of [`on_cone`], apex at the origin about `+z`.
 fn cone_z() -> geom::Surface<f64> {
     geom::Surface::Cone {
-        apex: Point3::origin(),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::origin(), z_axis(), Vec3::new(1.0, 0.0, 0.0)),
         half_angle: ALPHA,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -782,10 +776,8 @@ fn cone_z() -> geom::Surface<f64> {
 fn a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
     let (us, zs) = ((0.4, 2.9), (0.0, 1.5));
     let cylinder = geom::Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: z_axis(),
+        frame: geom::Frame::new(Point3::origin(), z_axis(), Vec3::new(1.0, 0.0, 0.0)),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let cylinders: Vec<_> = charts(&cylinder)
         .iter()
@@ -860,7 +852,8 @@ fn a_query_beside_a_cones_apex_plane_reads_the_charts_nappe() {
 /// edge at 60 stations (480 queries). A query counts where any frame
 /// answers otherwise than the first. With the legs started at
 /// `surface.eval(uv)`, the chart's round trip of the foot, 141 do; started
-/// at the foot, 35. What is left is the rulings, whose origin is their
+/// at the foot, 35; with the curve × face pose reading a graze past a leg's
+/// span by its reach (PR 7226), 24. What is left is the rulings, whose origin is their
 /// locus, and the frame a curve carries in its section
 /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
 #[test]
@@ -912,4 +905,4 @@ fn cone_edge_queries(us: (f64, f64), offsets: &[f64]) -> Vec<(String, Point3<f64
 }
 
 /// [`a_cones_circle_legs_read_no_chart_frame_at_the_escalation`]'s count.
-const KEPT_CONE: usize = 35;
+const KEPT_CONE: usize = 24;

@@ -139,21 +139,22 @@ fn volume_check_is_gated_on_otherwise_clean_reports() {
     let (fk, face) = body.faces().next().unwrap();
     let sk = face.surface;
     let Some(Surface::Plane {
-        origin,
-        normal,
-        u_ref,
+        frame: carrier_frame,
     }) = body.get_surface(sk).cloned()
     else {
         panic!("cube face must be planar");
     };
+    let (origin, normal, u_ref) = (
+        carrier_frame.origin(),
+        carrier_frame.axis(),
+        carrier_frame.u_ref(),
+    );
     // Lifts RechartStrandsDescriptions: the plane definitely off its vertices is the row's other tier-3 error.
     body.set_face_surface_unvouched_for_tests(
         fk,
         FaceSurface::New {
             surface: Surface::Plane {
-                origin: origin + normal * 0.05,
-                normal,
-                u_ref,
+                frame: geom::Frame::new(origin + normal * 0.05, normal, u_ref),
             },
             sense: true,
         },

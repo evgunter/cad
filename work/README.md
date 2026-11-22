@@ -205,7 +205,11 @@ the board. The bands (Ev, in chat, 2026-09-20):
   wrong answer; something the GUI cannot author at all; a GUI defect
   Ev reported as making the tool hard or impossible to use. The
   standing goal this serves is **authoring arbitrary geometry through
-  the UI**, and most of what remains for it is kernel-side.
+  the UI**, and most of what remains for it is kernel-side. Also PR CI
+  slower than its alarm: the nightly's `PR CI latency (alarm)` job
+  (`ci-latency` in `.github/workflows/nightly.yml`) fails when the
+  median PR run over the last day, queue included, exceeds its
+  `MAX_MEDIAN_MIN`, and the work that brings it back under is P0.
 - **P1 — high.** Architecture that entrenches as things are built on
   it: two implementations of one underlying logic, a special case that
   should be handled uniformly, and the rest of that class. Also verb

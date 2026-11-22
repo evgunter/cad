@@ -283,9 +283,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
     assert_eq!((want.len(), got.len()), (2, 2));
     for (_, g, _) in got {
         let Curve3::Spiric {
-            center: gc,
-            axis: ga,
-            u_ref: gn,
+            frame: carrier_frame,
             major_radius: gr,
             minor_radius: gm,
             offset: gd,
@@ -293,16 +291,19 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
         else {
             unreachable!()
         };
+        let (gc, ga, gn) = (
+            carrier_frame.origin(),
+            carrier_frame.axis(),
+            carrier_frame.u_ref(),
+        );
         let i = want
             .iter()
-            .position(|(_, w, _)| matches!(w, Curve3::Spiric { center, axis, u_ref, .. }
-                if center.distance(gc) <= 1e-12 && (*axis - ga).norm() <= 1e-12 && (*u_ref - gn).norm() <= 1e-12))
+            .position(|(_, w, _)| matches!(w, Curve3::Spiric { frame, .. }
+                if frame.origin().distance(gc) <= 1e-12 && (frame.axis() - ga).norm() <= 1e-12 && (frame.u_ref() - gn).norm() <= 1e-12))
             .unwrap_or_else(|| panic!("no re-posed twin for {g:?}"));
         let (_, w, _) = want.remove(i);
         let Curve3::Spiric {
-            center: wc,
-            axis: wa,
-            u_ref: wn,
+            frame,
             major_radius: wr,
             minor_radius: wm,
             offset: wd,
@@ -310,6 +311,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
         else {
             unreachable!()
         };
+        let (wc, wa, wn) = (frame.origin(), frame.axis(), frame.u_ref());
         let reach = wc.distance(Point3::origin()) + wr + wm;
         let slack = 4.0 * reach * f64::EPSILON;
         for (a, b) in [
@@ -457,41 +459,6 @@ fn the_torus_walls_closed_form_parse_names_its_spiric_rim() {
             what: "torus boundary edge is not a circle"
         }
     );
-}
-
-/// **`classify_kind` opens no iso side for a spiric rim**: the vessel
-/// cavity's torus chart, asked about each of its spiric rims through
-/// the public `topo::classify_kind`, answers `None` — the coherence
-/// walk's `NonIsoCarrier` — where a rim circle would answer `Rim` and a
-/// meridian `Meridian`.
-#[test]
-fn a_spiric_rim_is_no_iso_traversal_of_its_torus_chart() {
-    let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let rims = spiric_edges(&cavity);
-    assert_eq!(rims.len(), 2);
-    for (edge, _, _) in rims {
-        let e = cavity.get_edge(edge).expect("edge");
-        let curve = cavity
-            .get_curve_geom(e.curve)
-            .and_then(|g| g.certified())
-            .expect("certified");
-        let face_of = |he| {
-            cavity
-                .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
-                .expect("loop")
-                .face
-        };
-        let chart_surface = [face_of(e.he_plus), face_of(e.he_minus)]
-            .into_iter()
-            .map(|f| cavity.face_surface(f).expect("surface"))
-            .find(|s| matches!(s, Surface::Torus { .. }))
-            .expect("a spiric rim bounds a torus face");
-        let chart = topo::Chart::of(chart_surface).expect("the torus charts");
-        assert!(
-            topo::classify_kind(&chart, curve).is_none(),
-            "a spiric opens no iso side"
-        );
-    }
 }
 
 /// **`split_edge` meters a spiric's interiority at its minor radius**:

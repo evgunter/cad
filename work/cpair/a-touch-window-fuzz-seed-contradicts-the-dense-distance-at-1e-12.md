@@ -138,3 +138,21 @@ drew two more seeds, and both are red on main too:
   reproduces on `c8c00a2a33`.
 - `CAD_FUZZ_SEED=0x917ed9c53b80de98` (`CAD_FUZZ_EFFORT=10`), in the
   review of PR 7277: red on main.
+
+## 2026-11-21 — a third seed (GERM U3a, PR 7226's CI)
+
+The slow-set run of `each_window_reading_holds_on_a_dense_distance` on
+PR 7226 drew `CAD_FUZZ_SEED=0x1b1bbf1c5dca1efb CAD_FUZZ_EFFORT=1`:
+`ε 0.000000000001: 1 readings contradicted`, draw 54, a circle of
+radius ≈548.6 whose `Recedes` reading on
+`(5.121e-10, 5.139e-10)` contradicts the dense distance. It reproduces
+locally with `crates/geom/src/curves/conic.rs` (the one shared file
+the PR changes on that path) put back to main's, and the PR does not
+touch `curve_pair/pose/window/`: the same defect, a new seed.
+
+A second draw on the next run: `CAD_FUZZ_SEED=0xb5c0e6c80ba9b4dc`, draw
+48, an ellipse of semi-axes ≈634 and ≈1640 whose `Recedes` reading on
+`(1.6457e-10, 1.6461e-10)` contradicts the dense distance; it too
+reproduces with main's `conic.rs`. Over twelve fixed seeds the row reds
+on none, with either `conic.rs`: the rate is low and the PR does not
+move it.
