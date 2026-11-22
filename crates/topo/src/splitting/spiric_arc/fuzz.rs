@@ -6,6 +6,9 @@
 // carrier it evaluates, and the band and arithmetic it decides in.
 test_utils::gated_to![
     "crates/topo/src/splitting/spiric_arc.rs",
+    "crates/topo/src/splitting/containment.rs",
+    "crates/geom-brep/src/curve_face/spiric_plane.rs",
+    "crates/geom-brep/src/curve_face/pose.rs",
     "crates/geom-core/src/bisect.rs",
     "crates/geom/src/curves.rs",
     "crates/geom-core/src/predicate.rs",
@@ -71,10 +74,12 @@ fn torus(rng: &mut Rng) -> Torus {
             _ => rng.range(0.05, 0.95),
         };
     let ring = big - r;
+    // The two-oval convention, `0 < |o| < R − r`: by the axis, by the
+    // inner equator, and between.
     let frac = match rng.below(5) {
-        0 => 0.0,
+        0 => 10f64.powf(rng.range(-6.0, -2.0)),
         1 => 1.0 - 10f64.powf(rng.range(-6.0, -2.0)),
-        _ => rng.unit() * 0.999,
+        _ => 0.001 + rng.unit() * 0.998,
     };
     let o = if rng.below(2) == 0 {
         frac * ring
@@ -144,11 +149,13 @@ fn the_rate_bounds_hold_over_every_admitted_regime() {
                 pb: k.point(vb),
                 depth: 0,
             };
-            let b = k.bounds(&p);
-            let speed = b.reach / b.h;
+            let h = 0.5 * (vb - va).abs();
+            let speed = k.bounds(&p).reach / h;
+            let (_, accel) =
+                geom::spiric_window_rate_bounds((t.big, t.r, t.o), geom::mid_param(va, vb), h);
             for i in 0..=400 {
                 let v = va + (vb - va) * f64::from(i) / 400.0;
-                let a = c.deriv2(v).norm() / b.accel;
+                let a = c.deriv2(v).norm() / accel;
                 let s = c.deriv(v).norm() / speed;
                 worst_a = worst_a.max(a);
                 worst_s = worst_s.max(s);
@@ -205,11 +212,10 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
         );
         let v0 = rng.range(-4.0, 4.0);
         let w = rng.range(0.05, core::f64::consts::TAU - 0.05);
-        let span = if rng.below(2) == 0 {
-            (v0, v0 + w)
-        } else {
-            (v0 + w, v0)
-        };
+        // An edge's span ascends; the draw that once reversed it stays,
+        // so the stream after it does not move.
+        let _ = rng.below(2);
+        let span = (v0, v0 + w);
         let cs = Case { t, fr, c };
         let cf: geom::Curve3<f64> = carrier(cs.t, cs.c, cs.fr);
         let k = SpiricArc::new(
@@ -301,10 +307,15 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
                 }
             }
             let d = lift_v((dx, dy));
-            let side = normal_t::<T>(normal).cross(d);
-            match k.crossings(lift(q), d, side, band) {
-                None => abandoned += 1,
-                Some(cnt) => {
+            match k.crossings(
+                crate::geometry::SurfaceKey::default(),
+                false,
+                normal_t::<T>(normal),
+                (lift(q), d),
+                band,
+            ) {
+                Ok(None) | Err(_) => abandoned += 1,
+                Ok(Some(cnt)) => {
                     if cnt != arc_cross || ((cnt + chord) % 2 == 1) != truth_inside {
                         wrong.push(format!(
                             "{lane} case {case} {:?} span {:?} q={q:?} dir={ang}: row {cnt}, polyline {arc_cross}",
