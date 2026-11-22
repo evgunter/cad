@@ -1952,6 +1952,64 @@ fn a_walls_ruling_and_a_faces_run_through_one_vertex_hold() {
     }
 }
 
+/// **A ring revolved a milliradian short of a full turn**: the
+/// rectangle `[0.5, 1] × [0, 1]` revolved `τ − 10⁻³` about `y`. Each
+/// wall starts at one end face and stops at the other, the two a
+/// millimetre apart at the outer wall, so a cell at a wall's end has the
+/// wall's start, an edge and two vertices it shares with the first end
+/// face, in reach of its ball at every depth and a turn away in its
+/// chart.
+fn near_full_ring<T: Scalar>() -> topo::AtRestBody<T> {
+    let lp = profile::test_support::bulge_loop(
+        [(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)]
+            .iter()
+            .map(|&(x, y)| (Point2::new(x, y).map(T::from_f64), T::zero()))
+            .collect(),
+    );
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
+        .validate(tol())
+        .unwrap();
+    sweep::test_support::finished(
+        "the ring",
+        revolve(
+            &profile,
+            axis_y(),
+            Revolution::Partial(T::from_f64(TAU - 1e-3)),
+            tol(),
+        )
+        .unwrap()
+        .body
+        .into_body(),
+        tol(),
+    )
+}
+
+/// **A ring a milliradian short of a full turn holds across its gap**,
+/// at both scalars, as built, turned about a generic axis and a hundred
+/// units off, and is embedded at the verdict door. A wall's cell at its
+/// end holds no point of the cell it shares with the first end face:
+/// its zero names none of the rectangle, and the separator's value over
+/// the whole rectangle signs it. Red if a shared vertex in reach that
+/// the rectangle's clips do not place refuses the cell: every smaller
+/// cell at the wall's end reaches it again, and the pair ends at the
+/// depth budget, `Uncertified { Departure }` across the wall's first
+/// ruling.
+#[test]
+fn a_ring_a_milliradian_short_of_a_full_turn_holds_across_its_gap() {
+    use topo::clearance::Embedding;
+
+    for (pose, m) in turned_and_far() {
+        let float = posed(near_full_ring::<f64>(), m.as_ref());
+        let twin = posed(near_full_ring::<Interval>(), m.as_ref());
+        assert_eq!(
+            embedding(&float),
+            Embedding::Embedded,
+            "{pose}: the verdict door"
+        );
+        holds_at_both(&format!("the near-full ring, {pose}"), float, twin);
+    }
+}
+
 /// **A flap through a wall at a vertex in the middle of its ruling never
 /// holds.** From the vertex `(1, 0, 0.5)` of [`half_rod_on_a_block`],
 /// where the wall's ruling is split, hangs a triangle to
