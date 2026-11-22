@@ -4438,7 +4438,7 @@ mod properties_pane_tests {
             | ToolKind::Part
             | ToolKind::Mirror => COMBINE_BODIES,
             ToolKind::Blend => BLEND_EDGES,
-            ToolKind::Clearance => REQUIREMENTS,
+            ToolKind::Assertion => REQUIREMENTS,
         }
     }
 

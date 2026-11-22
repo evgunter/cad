@@ -25,7 +25,7 @@ use pncad::quantity::UnitDef;
 use pncad::trace::TraceMarks;
 
 use crate::blend::BlendKindChoice;
-use crate::combine::{ClearanceBoundChoice, PatternOutputChoice};
+use crate::combine::{AssertionMeasure, BoundChoice, PatternOutputChoice};
 use crate::forms::{PatternLayoutChoice, ShapeKind};
 use crate::props::{self, Notation, SlotRow};
 use crate::seats::SeatError;
@@ -136,8 +136,10 @@ pub(crate) struct Drafts {
     /// The blend form's kind choice — which of the two doors the
     /// commit button calls.
     pub(crate) blend_kind: BlendKindChoice,
-    /// The clearance form's choice of which side it bounds.
-    pub(crate) clearance_bound: ClearanceBoundChoice,
+    /// The assertion form's choice of measure.
+    pub(crate) assertion_measure: AssertionMeasure,
+    /// The assertion form's choice of how it bounds the measure.
+    pub(crate) assertion_bound: BoundChoice,
     /// **The path editor opened on a committed profile** — its
     /// program as written, held for the edit door
     /// ([`Drafts::profile_edit`] loads it). `None` while no profile is
@@ -1116,7 +1118,8 @@ impl Default for Drafts {
             // form wants is the one that selects something new.
             part_instance: 1,
             blend_kind: BlendKindChoice::Fillet,
-            clearance_bound: ClearanceBoundChoice::AtLeast,
+            assertion_measure: AssertionMeasure::default(),
+            assertion_bound: BoundChoice::default(),
             profile_edit: None,
             dropped: Vec::new(),
             label_text: None,
