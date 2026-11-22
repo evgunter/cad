@@ -7832,6 +7832,111 @@ mod presentation_rows {
         assert!(zero_of(&s, &b, &[clip(Side::XHi, 0), left], &[0, 2], &[]).is_err());
     }
 
+    /// Two rulings of one line `u = 0` joined at vertex 5, a third edge
+    /// off it, and a null edge at the vertex.
+    fn joined_rulings() -> Boundary {
+        Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 5], Axis::U, 0.0, (0.0, 0.0), (0.0, 0.35)),
+                rim(2, [2, 5], Axis::U, 0.0, (0.0, 0.5), (0.0, 0.35)),
+                rim(3, [2, 3], Axis::V, 0.5, (0.0, 0.5), (1.0, 0.5)),
+                Rim {
+                    arc: None,
+                    ..rim(4, [5, 5], Axis::U, 0.0, (0.0, 0.35), (0.0, 0.35))
+                },
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(0.0, 1.0), (0.0, 0.5)]),
+        }
+    }
+
+    fn clip_of(side: Side, edges: &[usize]) -> Clip {
+        Clip {
+            side,
+            at: iv0(0.0),
+            edges: edges.to_vec(),
+            collapsed: None,
+        }
+    }
+
+    /// **A shared vertex on one clip's side, where the pair shares no
+    /// edge in reach, is that side through the vertex**
+    /// ([`Zero::Through`]): between two edges of the clip's line, or at
+    /// the one edge that ends there, named by one edge at the vertex. Red
+    /// if a vertex is a zero only at a corner of two clips.
+    ///
+    /// Not where a shared edge is in reach (the rectangle may hold more
+    /// of the shared cell than the vertex), where two clips hold the
+    /// vertex and make no corner, on a collapsed side, or where the edge
+    /// at the vertex does not have the side's chart line as its own.
+    #[test]
+    fn zero_of_reads_a_shared_vertex_on_one_clips_side_through_it() {
+        let (s, b) = (cylinder(), joined_rulings());
+        let v = vertex(5);
+        let through = |clips: &[Clip], near: &[usize]| zero_of(&s, &b, clips, near, &[v]);
+        let k = b.edges[0].key;
+        for (what, edges) in [("mid-side", &[0, 1][..]), ("at its edge's end", &[0][..])] {
+            assert!(
+                matches!(
+                    through(&[clip_of(Side::XLo, edges)], &[]),
+                    Ok(Zero::Through(Side::XLo, a)) if a.edges == [k] && a.whole && a.vertex.is_none()
+                ),
+                "{what}"
+            );
+        }
+        assert!(
+            matches!(
+                through(&[clip_of(Side::XLo, &[0, 1]), clip_of(Side::YHi, &[2])], &[]),
+                Ok(Zero::Through(Side::XLo, _))
+            ),
+            "a clip on the other axis that does not hold the vertex"
+        );
+        assert!(
+            through(&[clip_of(Side::XLo, &[0, 1])], &[2]).is_err(),
+            "a shared edge in reach"
+        );
+        assert!(
+            through(&[clip_of(Side::XLo, &[0]), clip_of(Side::XHi, &[1])], &[]).is_err(),
+            "two clips of one axis"
+        );
+        let collapsed = Clip {
+            collapsed: Some(vertex(9)),
+            ..clip_of(Side::XLo, &[0, 1])
+        };
+        assert!(through(&[collapsed], &[]).is_err(), "a collapsed side");
+        assert!(
+            through(&[clip_of(Side::XLo, &[3])], &[]).is_err(),
+            "an edge with no line or circle of its own"
+        );
+    }
+
+    /// **A clip one of whose edges is shared in reach has no zero of its
+    /// own, and is the side past the shared cell** ([`partial_zero`]),
+    /// with or without a shared vertex in reach. Red if a clip that
+    /// touches the shared cell is read as holding none of it
+    /// ([`Zero::None`]).
+    #[test]
+    fn a_clip_holding_a_shared_edge_beside_an_unshared_one_is_the_side_past_it() {
+        let (s, b) = (cylinder(), joined_rulings());
+        let clips = [clip_of(Side::XLo, &[0, 1])];
+        let k = b.edges[1].key;
+        for (what, vertices) in [("no vertex in reach", &[][..]), ("its vertex", &[vertex(5)][..])] {
+            assert!(zero_of(&s, &b, &clips, &[1], vertices).is_err(), "{what}");
+            assert!(
+                matches!(
+                    partial_zero(&s, &b, &clips, &[1], vertices),
+                    Some((Side::XLo, a)) if a.edges == [k] && a.whole
+                ),
+                "{what}"
+            );
+        }
+        assert!(
+            matches!(zero_of(&s, &b, &clips, &[2], &[]), Ok(Zero::None)),
+            "a shared edge on no clip leaves the clips no zero"
+        );
+    }
+
     /// **`present_plane`**: one line edge presents the half plane on its
     /// face side, its side zero where the edge is shared; a cell wholly
     /// past the line holds none of the face.
