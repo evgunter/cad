@@ -203,7 +203,10 @@ holds at `Interval` (579 pairs). Unchanged: the vertex-alone pairs of
 needs a shared edge near), the pole lane's 90 delta cases on PR 7115's
 head `ee1958ede` (verdict classes identical, case B not closed), and a
 plane through a meridian to a sphere's pole (held before, identical
-receipts). TOUR_WALK
+receipts). The tour walk on main `7669fcfdd` holds 78 of 85 stops, this
+change 81: `diepips`, `diecomposed` and `diechamfer` move from
+`Departure` on the pip pair `8v3`/`39v3` to `Embedded`, every other stop
+identical.
 
 The residue is filed as
 `the-apex-census-rows-that-still-refuse-read-cells-short-of-or-off-the-apex`.
