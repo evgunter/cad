@@ -5,6 +5,9 @@ title: The region reads a spiric edge by its leg across the edge's plane: the (S
 status: open
 design: true
 opened: 2026-11-21
+priority: P1
+cost: M
+rides_with: co-surface-direction-table-and-spiric-plane-door
 ---
 
 

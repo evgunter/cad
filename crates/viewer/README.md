@@ -2117,6 +2117,20 @@ is its preview.
 Six seated tools hold no value field; what they used to type is a row
 of the node they insert, or a pick.
 
+**A creation tool's commit waiting on a pick is withheld and names
+the pick.** The seated tools', the blend tool's and the
+profile-on-a-face form's commits are drawn by one row
+(`pane::create`'s `withheld_commit_row`), which takes the op as the
+tool's door forms it and reads the fault off it: a pick not held — a
+`seats::SeatError`, its role named the way the panel line names it —
+or, on the assertion form, a band over a measure's value. While one
+stands the commit is disabled and the fault is said under it and on
+its hover (`no mirror plane picked yet: pick a face`). A panel line says an open
+pick `role: none picked` (`seats::open_pick`), and a pick that leaves
+the document is said by `seats::pick_gone`. The mate tool, the
+add-variable form and the selection's own buttons (re-point,
+`Select all edges`) gate their controls apart.
+
 - **Blend.** The form asks for the edges and fillet or chamfer. The
   insert writes the size at `blend::default_size`: a millimetre,
   written in the working unit at one significant figure (`1 mm`,
@@ -2234,7 +2248,7 @@ has no spelling. The operation choice is the kernel's own
 **The operation is tool state, because it decides what a pick does.**
 Under union and intersect every pick appends a member, in pick order,
 and the panel lists them as `member 1`, `member 2`, …; the commit
-button commits whatever is held from one member on, and refuses typed
+button commits whatever is held from one member on, and is withheld
 (`SeatError::Empty` naming `Seat::Member`) while none is. Under subtract
 the tool holds two role-typed seats on the `seats` rule — the body kept
 (`from`), then the body removed (`tool`), a further pick replacing the
