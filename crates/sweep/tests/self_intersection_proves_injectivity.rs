@@ -3303,7 +3303,7 @@ fn a_notched_rod_holds_across_its_reflex_corners_in_every_pose() {
         // At the session box's corner, below ε 1e-10, the moved rod's
         // wall reads its volume undecided (`props_cylinder_circle_off_axis`)
         // and the body does not finish: `work/nearpoint/a-cylinder-wall-near-the-session-boxs-corner-does-not-finish-at-the-tightest-eps.md`.
-        if what.contains("corner") && tol().eps() < 1e-10 {
+        if what.contains("corner") && tol().eps() < 1e-10 && std::env::var_os("REVIEW_NOSKIP").is_none() {
             println!(
                 "SKIPPED at ε {:e}: the notched rod {what} does not finish",
                 tol().eps()

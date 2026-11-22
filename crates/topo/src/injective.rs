@@ -5397,18 +5397,33 @@ impl Psi {
     ///   makes the two equal, and `(m − t·γ′)·v` names it per component.
     fn rate(&self, p: Point3<Interval>, v: Vec3<Interval>) -> Interval {
         let radial = |w: Vec3<Interval>| w * (at(1.0) / w.norm());
+        // REVIEW PROBE: `REVIEW_MUT=<n>` selects one mutant; unset is the PR's code.
+        let mu = review_mutant();
         match *self {
-            Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n.dot(v),
+            Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => match mu {
+                9 => -n.dot(v),
+                12 => n.dot(v) * at(0.5),
+                _ => n.dot(v),
+            },
             Self::Carrier(Implicit::Cylinder { o, axis, .. }) => {
                 let line = geom::Line {
                     origin: o,
                     dir: axis,
                 };
-                radial(line.offset(p)).dot(square_to(axis, v))
+                match mu {
+                    6 => line.offset(p).dot(square_to(axis, v)),
+                    13 => at(0.0),
+                    _ => radial(line.offset(p)).dot(square_to(axis, v)),
+                }
             }
             Self::Carrier(Implicit::Sphere { c, .. }) => {
                 let w = p - c;
-                w.dot(v) / w.norm()
+                match mu {
+                    7 => w.dot(v),
+                    8 => -(w.dot(v) / w.norm()),
+                    16 => radial(w).dot(v),
+                    _ => w.dot(v) / w.norm(),
+                }
             }
             Self::Carrier(Implicit::Cone {
                 apex,
@@ -5421,10 +5436,25 @@ impl Psi {
                     origin: apex,
                     dir: axis,
                 };
-                radial(line.offset(p)).dot(square_to(axis, v)) * cos
-                    - axis.dot(v) / axis.norm() * (nappe * sin)
+                let r = if mu == 11 {
+                    line.offset(p).dot(square_to(axis, v))
+                } else {
+                    radial(line.offset(p)).dot(square_to(axis, v))
+                };
+                let ax = axis.dot(v) / axis.norm();
+                match mu {
+                    2 => r * cos - ax * (-nappe * sin),
+                    3 => r * sin - ax * (nappe * cos),
+                    4 => r * cos + ax * (nappe * sin),
+                    15 => r * cos - axis.dot(v) * (nappe * sin),
+                    _ => r * cos - ax * (nappe * sin),
+                }
             }
-            Self::Graph { m, t, slope, .. } => m.dot(v) - t.dot(v) * slope,
+            Self::Graph { m, t, slope, .. } => match mu {
+                10 => m.dot(v) + t.dot(v) * slope,
+                14 => (m - t * slope).dot(v),
+                _ => m.dot(v) - t.dot(v) * slope,
+            },
         }
     }
 
@@ -5470,7 +5500,22 @@ impl Psi {
 /// with `v`'s. An axis enclosure holding zero makes `|axis|²` hold zero,
 /// and the quotient is unbounded or not a number: no sign is read off it.
 fn square_to(axis: Vec3<Interval>, v: Vec3<Interval>) -> Vec3<Interval> {
-    v - axis * (axis.dot(v) / axis.norm_squared())
+    match review_mutant() {
+        1 => v,
+        5 => v - axis * (axis.dot(v) / axis.norm()),
+        _ => v - axis * (axis.dot(v) / axis.norm_squared()),
+    }
+}
+
+/// REVIEW PROBE: the mutant `REVIEW_MUT` names, 0 where unset.
+fn review_mutant() -> u32 {
+    static M: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *M.get_or_init(|| {
+        std::env::var("REVIEW_MUT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0)
+    })
 }
 
 /// `ψ∘Φ` over `x × y` in its centred form: its value at the middle, and
@@ -13268,6 +13313,123 @@ mod rate_rows {
                     "{what} at {q:?}: |grad| {} against {norm:?}",
                     grad.norm()
                 );
+            }
+        }
+    }
+}
+
+/// Reviewer probes, second pass (PR 7327 @ 3e75111d3): containment of the
+/// re-spelled arms over boxes.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_iso_end_probes_2 {
+    use super::*;
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64) * 2.0 - 1.0
+        }
+        fn vec(&mut self, s: f64) -> Vec3<f64> {
+            Vec3::new(self.next() * s, self.next() * s, self.next() * s)
+        }
+    }
+    fn vbox(v: Vec3<f64>, h: f64) -> Vec3<Interval> {
+        let s = |x: f64| Interval::from_bounds(x - h, x + h);
+        Vec3::new(s(v.x), s(v.y), s(v.z))
+    }
+
+    /// The graph arm over boxes of `m`, `t`, `v` and a slope enclosure
+    /// holds `(m − s·t)·v` for every sampled member.
+    #[test]
+    fn the_graph_arms_rate_over_boxes_holds_every_member() {
+        let mut g = Lcg(23);
+        for _ in 0..300 {
+            let (m, t, v) = (g.vec(1.0), g.vec(1.0), g.vec(1.0));
+            let (a, b) = (g.next() * 2.0, g.next() * 2.0);
+            let (s0, s1) = (a.min(b), a.max(b));
+            for h in [0.0, 1e-6, 1e-2, 0.3] {
+                let psi = Psi::Graph {
+                    m: vbox(m, h),
+                    t: vbox(t, h),
+                    slope: Interval::from_bounds(s0, s1),
+                    piece: (0.0, 1.0),
+                };
+                let rate = psi.rate(Point3::origin(), vbox(v, h));
+                let norm = psi.gradient_norm();
+                for _ in 0..20 {
+                    let (mm, tm, vm) = (m + g.vec(h), t + g.vec(h), v + g.vec(h));
+                    let s = s0 + (s1 - s0) * (g.next() * 0.5 + 0.5);
+                    let grad = mm - tm * s;
+                    let want = grad.dot(vm);
+                    assert!(
+                        rate.lo() - 1e-12 <= want && want <= rate.hi() + 1e-12,
+                        "h {h}: rate {rate:?} misses {want}"
+                    );
+                    assert!(
+                        norm.lo() - 1e-12 <= grad.norm() && grad.norm() <= norm.hi() + 1e-12,
+                        "h {h}: norm {norm:?} misses {}",
+                        grad.norm()
+                    );
+                }
+            }
+        }
+    }
+
+    /// The sphere and cone arms over wide boxes, a wide axis and a wide
+    /// direction hold every sampled member's analytic rate.
+    #[test]
+    fn the_sphere_and_cone_arms_over_wide_boxes_hold_every_member() {
+        let mut g = Lcg(29);
+        let iv0 = |x: f64| Interval::from_bounds(x, x);
+        for _ in 0..300 {
+            let c = g.vec(3.0);
+            let q = c + g.vec(2.0);
+            let v = g.vec(1.0);
+            let d = Vec3::new(0.36, -0.48, 0.8);
+            for (hq, ha, hv) in [(0.0, 0.0, 0.0), (1e-3, 1e-9, 1e-3), (0.2, 1e-3, 0.2)] {
+                let p = {
+                    let b = vbox(q, hq);
+                    Point3::new(b.x, b.y, b.z)
+                };
+                let cp = Point3::new(iv0(c.x), iv0(c.y), iv0(c.z));
+                let sphere = Psi::Carrier(Implicit::Sphere { c: cp, r: iv0(0.5) });
+                let rs = sphere.rate(p, vbox(v, hv));
+                for nappe in [1.0, -1.0] {
+                    for scale in [1.0, 1.0 + 5e-11, 1.7] {
+                        let cone = Psi::Carrier(Implicit::Cone {
+                            apex: cp,
+                            axis: vbox(d * scale, ha),
+                            cos: iv0(0.8),
+                            sin: iv0(0.6),
+                            nappe: iv0(nappe),
+                        });
+                        let rc = cone.rate(p, vbox(v, hv));
+                        for _ in 0..10 {
+                            let (qm, vm) = (q + g.vec(hq), v + g.vec(hv));
+                            let am = d * scale + g.vec(ha);
+                            let w = qm - c;
+                            let ws = w.dot(vm) / w.norm();
+                            assert!(
+                                rs.lo() - 1e-12 <= ws && ws <= rs.hi() + 1e-12,
+                                "sphere: {rs:?} misses {ws}"
+                            );
+                            let ah = am * (1.0 / am.norm());
+                            let off = w - ah * w.dot(ah);
+                            if off.norm() < 1e-3 {
+                                continue;
+                            }
+                            let want = off.dot(vm) / off.norm() * 0.8 - nappe * 0.6 * ah.dot(vm);
+                            assert!(
+                                rc.lo() - 1e-9 <= want && want <= rc.hi() + 1e-9,
+                                "cone nappe {nappe} scale {scale} box {hq}: {rc:?} misses {want}"
+                            );
+                        }
+                    }
+                }
             }
         }
     }
