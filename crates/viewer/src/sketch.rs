@@ -502,15 +502,18 @@ impl HeldStep {
         Ok(step)
     }
 
-    /// **`step` written over this step** — what a row's fields write
-    /// back. Every argument at a role this step also has keeps its
-    /// formula where the view did not move it: a literal whose value is
-    /// `step`'s, or an expression whose `reading` is (a driven field is
-    /// locked, so its number is the reading; with no reading, it is
-    /// kept). The view is a function of the formula, so a number it did
-    /// not move IS the argument as written. Every other argument is a
-    /// literal of `step`'s number, in the unit its field showed it in:
-    /// the unit the literal it replaces is written in, else the one
+    /// **`step` written over this step** — what a row's fields and its
+    /// controls write back. Every argument at a role this step also has
+    /// keeps its formula where the view did not move it, a literal whose
+    /// value is `step`'s, and every expression keeps its formula
+    /// whatever the view says: a driven field does not drag, and the
+    /// one write over an expression is an entry typed into its field
+    /// (`ProfileEdit::write_entry`), so a control that re-makes the step
+    /// (an arc re-moded fresh) never writes over what an expression
+    /// drives. The view is a function of the formula, so a number it
+    /// did not move IS the argument as written. Every other argument is
+    /// a literal of `step`'s number, in the unit its field showed it
+    /// in: the unit the literal it replaces is written in, else the one
     /// `noted` names for its role, else `notation`'s.
     ///
     /// # Errors
@@ -519,7 +522,6 @@ impl HeldStep {
     pub fn written(
         &self,
         step: Step<f64>,
-        reading: &dyn Fn(StepArg) -> Option<f64>,
         notation: Notation,
         noted: &dyn Fn(StepArg) -> Option<UnitDef>,
     ) -> Result<Self, RecordedProgramError> {
@@ -536,18 +538,16 @@ impl HeldStep {
         };
         let mut now = Self::fresh(step, notation, &shown)?.node();
         for slot in now.slots() {
-            let (SlotId::Profile { arg, .. }, Some(old)) = (slot, was.expr(slot)) else {
+            let (SlotId::Profile { .. }, Some(old)) = (slot, was.expr(slot)) else {
                 continue;
             };
             let Some(new) = now.expr_mut(slot) else {
                 unreachable!("`Node::slots` is the domain of `Node::expr_mut`")
             };
-            let number = new.literal_value().map(f64::to_bits);
-            let unmoved = match old.literal_value() {
-                Some(value) => number == Some(value.to_bits()),
-                None => reading(arg).is_none_or(|value| number == Some(value.to_bits())),
-            };
-            if unmoved {
+            let kept = old
+                .literal_value()
+                .is_none_or(|value| new.literal_value().map(f64::to_bits) == Some(value.to_bits()));
+            if kept {
                 *new = old.clone();
             }
         }

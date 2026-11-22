@@ -1592,19 +1592,17 @@ impl ViewerApp {
         // refused text in the field it was typed into so acting on the
         // refusal does not cost it, and — for an unknown variable
         // name — prefill the add-variable affordance with the name it
-        // offers to create (dimension deliberately left unpicked). An
-        // expression edit that was NOT refused this way releases the
-        // field back to the document, which is now what the user
-        // asked for.
+        // offers to create (dimension deliberately left unpicked). Any
+        // other entry at a field — a number or a text, landed or refused
+        // for any reason but its parse — releases the field back to the
+        // document, which now says what became of what the user asked
+        // for.
         match frame::retype_draft(&performed, refusal.as_ref()) {
             Some((node, slot, text)) => {
                 self.drafts.expr_target = Some((node, slot));
                 self.drafts.expr_text = text;
             }
-            None if performed
-                .iter()
-                .any(|op| matches!(op, SessionOp::SetSlotExpression { .. })) =>
-            {
+            None if performed.iter().any(|op| op.field_entry().is_some()) => {
                 self.drafts.expr_target = None;
                 self.drafts.expr_text.clear();
             }
@@ -10726,20 +10724,14 @@ mod properties_pane_tests {
             crate::sketch::fresh_arc(mode)
         }
 
-        /// **An arc whose target `w` drives, remoded to a via arc, is
-        /// refused as driven and keeps the driver**: the remode would
-        /// write the driven target's number.
+        /// **An arc whose target `w` drives, remoded to a via arc,
+        /// keeps the driver**: the remode makes the arc fresh, with a
+        /// target number of its own, and that is no write over the
+        /// expression — only an entry typed into its field is.
         #[test]
-        fn a_driven_arc_target_remoded_to_via_is_refused_and_keeps_its_driver() {
+        fn a_driven_arc_target_remoded_to_via_keeps_its_driver() {
             let (refused, src) = arc_plate(pncad::profile::ArcMode::Via);
-            assert!(
-                matches!(
-                    refused,
-                    Some(crate::session::Refusal::DrivenByExpression { slot, .. })
-                        if slot == outline(1, StepArg::TargetX)
-                ),
-                "the remode is refused as writing the driven target: {refused:?}"
-            );
+            assert!(refused.is_none(), "the remode lands: {refused:?}");
             assert_eq!(src.as_deref(), Some("w"));
         }
 
@@ -11316,34 +11308,31 @@ mod properties_pane_tests {
             assert_eq!(driven.app.session.history().len(), states);
         }
 
-        /// **A number typed over a formula is refused as the slot row
-        /// refuses it**, and moves nothing: `w/7` lands over the
-        /// anchor's literal, and `0.5` typed over it is said as the
-        /// driven affordance, leaving the draft and the document as they
-        /// were. Every frame the field hands its text over on still
-        /// draws the rest of the door (its discard control).
+        /// **A number typed over a formula replaces it**, as the slot
+        /// row's typed number does: `w/7` lands over the anchor's
+        /// literal, and `0.005` typed over it lands as a literal, one
+        /// history state. Every frame the field hands its text over on
+        /// still draws the rest of the door (its discard control).
         #[test]
-        fn a_number_typed_over_a_formula_is_refused_and_moves_nothing() {
+        fn a_number_typed_over_a_formula_replaces_it() {
             let mut driven = with_w();
             type_into_x(&mut driven, 0, "w/7");
-            let before = driven.app.session.committed_doc().clone();
             let states = driven.app.session.history().len();
-            let held = edit(&mut driven).programs().expect("lowers");
-            let frames = type_into_x(&mut driven, 0, "0.5");
+            let frames = type_into_x(&mut driven, 0, "0.005");
+            let row = driven.row(profile(), outline(0, StepArg::PointX));
+            assert!(!row.driver.is_driven(), "a literal now: {row:?}");
             assert_eq!(
-                edit(&mut driven).programs().expect("lowers"),
-                held,
-                "the held formula stands"
+                row.value
+                    .ok()
+                    .and_then(|value| value.one())
+                    .map(|v| v.as_f64()),
+                Some(0.005),
+                "of the number typed"
             );
-            let status = driven
-                .app
-                .status
-                .as_ref()
-                .map(|said| said.text().to_owned())
-                .unwrap_or_default();
-            assert!(
-                status.contains("driven by an expression over w"),
-                "the refusal is said: {status:?}"
+            assert_eq!(
+                driven.app.session.history().len(),
+                states + 1,
+                "one history state"
             );
             for (at, frame) in frames.iter().enumerate() {
                 assert!(
@@ -11351,8 +11340,6 @@ mod properties_pane_tests {
                     "frame {at} after Enter still draws the door's discard: {frame:?}"
                 );
             }
-            assert!(driven.app.session.committed_doc().bit_eq(&before));
-            assert_eq!(driven.app.session.history().len(), states);
         }
 
         /// **An unknown name at a held field makes the slot door's
@@ -11421,8 +11408,13 @@ mod properties_pane_tests {
                 crate::props::Notation::CANONICAL,
             )
             .expect("the leg is held");
-            held.write_text((0, 2), StepArg::TargetX, "q/2", &landed)
-                .expect("held");
+            held.write_entry(
+                (0, 2),
+                StepArg::TargetX,
+                &crate::drafts::HeldEntry::Text("q/2".to_owned()),
+                &landed,
+            )
+            .expect("held");
             let var = landed.var_named("q").expect("q");
             let out = driven.app.session.perform(SessionOp::DeleteVar { var });
             assert!(out.refusal.is_none(), "{:?}", out.refusal);

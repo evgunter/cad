@@ -244,8 +244,8 @@ fn reads_a_variable(expr: &Formula) -> bool {
     !ids.is_empty() || !names.is_empty()
 }
 
-/// Refuse a numeric edit to a driven slot, with the affordance, or
-/// say the slot is not there.
+/// Refuse a drag or a range probe over a driven slot, with the
+/// affordance, or say the slot is not there.
 ///
 /// Over a document rather than over the session, so a begin's target
 /// check can run inside [`g1::Slot::begin`]'s closure, where the
@@ -266,10 +266,10 @@ fn guard_driven(
     driven_refusal(node, &row, notation)
 }
 
-/// **A number written over `row`, where an expression drives it**,
-/// refused with the affordance: the driven-slot rule, for a slot the
-/// document holds ([`guard_driven`]) and for an argument a profile
-/// editor's draft holds as a formula.
+/// **A drag or a range probe over `row`, where an expression drives
+/// it**, refused with the affordance: the driven-slot rule, for a slot
+/// the document holds ([`guard_driven`]) and for the control that asks
+/// it ahead of the click.
 pub(crate) fn driven_refusal(
     node: RecipeNodeId,
     row: &SlotRow,
@@ -302,7 +302,8 @@ pub(crate) fn parse_text(doc: &Doc<ProfileProgram>, text: &str) -> Result<Formul
 /// **A profile editor's program with every unmoved argument of every
 /// kept step carried from the committed program** — the variable the
 /// document holds, so its identity and its distribution survive the
-/// reshaping; what moved is written as the program holds it.
+/// reshaping; what moved is written as the program holds it, over an
+/// expression as over a literal ([`SessionOp::SetSlot`]'s rule).
 ///
 /// A step is the committed one when `ids` keeps its id; the argument
 /// is the same one when it has the same
@@ -310,26 +311,15 @@ pub(crate) fn parse_text(doc: &Doc<ProfileProgram>, text: &str) -> Result<Formul
 /// the committed variable or is written as the committed argument is
 /// written ([`sketch::written_as`]: the bits and the unit).
 ///
-/// # Errors
-///
-/// [`Refusal::DrivenByExpression`], with the affordance, for an
-/// argument of a kept step that an expression drives and that the
-/// editor's program does not hold unmoved: a number written over a
-/// computation, exactly as the slot field refuses it. A step the
-/// program drops takes its arguments with it, driven or not — that is
-/// not a write over them.
-///
 /// An id that is not the committed program's, or `ids` of the wrong
 /// shape, carries nothing here: the edit door refuses those typed
 /// ([`pncad::document::EditError::StepIdsRefused`]).
 fn carry_unmoved(
     doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
     current: &ProfileProgram,
     loops: Vec<LoopProgram<Formula>>,
     ids: &[Vec<Option<StepId>>],
-    notation: Notation,
-) -> Result<Vec<LoopProgram<Formula>>, Refusal> {
+) -> Vec<LoopProgram<Formula>> {
     let was: std::collections::HashMap<StepId, (u32, u32)> = current
         .ids
         .iter()
@@ -386,18 +376,16 @@ fn carry_unmoved(
         let reader = Formula::var(committed, arg.dimension());
         let written =
             Formula::from(doc.written(&pncad::document::Expr::var(committed, arg.dimension())));
-        match new.expr_mut(moved) {
-            Some(held) if held.bit_eq(&reader) || sketch::written_as(held, &written) => {
-                *held = reader;
-            }
-            _ if doc.is_typed_value(committed) => {}
-            _ => guard_driven(doc, node, slot, notation)?,
+        if let Some(held) = new.expr_mut(moved)
+            && (held.bit_eq(&reader) || sketch::written_as(held, &written))
+        {
+            *held = reader;
         }
     }
     let Node::Profile(program) = new else {
         unreachable!("the carried program was built as a profile node")
     };
-    Ok(program.loops)
+    program.loops
 }
 
 /// A position in a profile program as the slot vocabulary spells it.
@@ -2637,10 +2625,13 @@ impl DocSession {
             .map_err(Refusal::from)
     }
 
+    /// **A number written at a slot**: the slot reads a literal of it,
+    /// whatever it read before. A number over an expression replaces the
+    /// expression, as the same number typed with its unit as text does
+    /// ([`Self::set_slot_expression`]); only a drag over one is refused
+    /// ([`Self::begin_gesture`]). The literal is written in the unit the
+    /// slot is written in, the one its field showed the number in.
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
-        if let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation) {
-            return OpOutcome::refused(refusal);
-        }
         let unit = props::slot_unit(self.committed_doc(), node, slot);
         match props::slot_typed_edit(node, slot, value, unit) {
             Ok(edit) => {
@@ -3696,7 +3687,7 @@ impl DocSession {
                 node: doc.spoken(node),
             });
         }
-        let loops = carry_unmoved(doc, node, current, loops, &ids, self.notation)?;
+        let loops = carry_unmoved(doc, current, loops, &ids);
         // The carried loops read each unmoved argument's variable, so
         // they are compared with the program re-authored.
         let authored = ProfileProgram {

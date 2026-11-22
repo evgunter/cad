@@ -60,8 +60,8 @@ one opens an empty name field instead, because a variable two slots
 share has a name. Typing a name and pressing **Name** or Enter names the
 variable and makes the slot read it, as one undo step. **keep
 separate** keeps the typed value distinct. A slot reading a shared
-variable is driven by it: a value typed there is refused, naming the
-variable, and the slot's expression text makes it its own again. A
+variable is driven by it: a drag there is refused, naming the
+variable, and a value typed there makes it its own again. A
 slot whose variable has no name has a **name…** button that opens an
 empty field; nothing is stored until you type a name and press
 **Name** or Enter.

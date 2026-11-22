@@ -14,7 +14,7 @@ use pncad::profile::{Step, TipState, Verb};
 use pncad::quantity::{AngleUnit, LengthUnit};
 
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior};
-use crate::drafts::{Change, ProfileEdit, RowEdit};
+use crate::drafts::{Change, HeldEntry, ProfileEdit, RowEdit};
 use crate::forms::ShapeKind;
 use crate::frame;
 use crate::pane::properties::slot_showing;
@@ -163,11 +163,11 @@ pub(crate) trait SlotDoors {
 /// ([`held_field`]).
 #[derive(Clone, Debug)]
 enum HeldAct {
-    /// The held number moves to this canonical value.
+    /// A drag: the held number moves to this canonical value.
     Hold(f64),
-    /// A number typed over an argument an expression drives.
-    OverExpression,
-    /// Text: an expression for the draft to parse.
+    /// A number typed into the field.
+    Number(SlotValue),
+    /// Text typed into the field.
     Text(String),
     /// A gesture's press, release or Escape: nothing is opened to land.
     Rest,
@@ -180,29 +180,31 @@ enum HeldAct {
 /// field. Nothing it does reaches the document: the draft holds it.
 ///
 /// - **A literal** shows and holds `held` (canonical) in the unit it is
-///   written in; a drag or a typed number writes `held` every frame it
-///   moves, which is what makes the draft's preview follow the drag.
-/// - **An argument an expression drives is locked**: the field shows
-///   the expression's reading, a drag moves nothing, and a number typed
-///   over it is refused as the slot row refuses it
-///   ([`crate::session::driven_refusal`]), onto `notices`.
-/// - **Text is an expression**, answered for the draft to parse
-///   ([`ProfileEdit::write_text`]). `refused` is text the draft refused
-///   here, shown in place of the field's own until the draft moves.
+///   written in; a drag writes `held` every frame it moves, which is
+///   what makes the draft's preview follow the drag.
+/// - **An argument an expression drives does not drag**: the field
+///   shows the expression's reading, and a drag moves nothing.
+/// - **An entry is answered for the draft to write**
+///   ([`ProfileEdit::write_entry`]), over a literal or an expression
+///   alike, as the slot row's entry is: text for it to parse, a number
+///   as the literal it types, in the unit the field showed it in.
+///   `refused` is text the draft refused here, shown in place of the
+///   field's own until the draft moves.
 fn held_field(
     ui: &mut egui::Ui,
-    (node, notation): (RecipeNodeId, Notation),
+    notation: Notation,
     (row, name): (&SlotRow, &str),
     held: &mut f64,
     refused: Option<&str>,
     notices: &mut Vec<frame::Message>,
-) -> Option<String> {
+) -> Option<HeldEntry> {
     let mut showing = slot_showing(row, refused, notation);
     showing.name = Some(name.to_owned());
     let driven = row.driver.is_driven();
     if !driven {
         showing.number = props::shown_value(showing.writing.unit, *held);
     }
+    let (slot, unit) = (row.slot, showing.writing.unit);
     let mut acts = Vec::new();
     value_field_ops(
         ui,
@@ -218,13 +220,7 @@ fn held_field(
             HeldAct::Rest,
         ),
         FieldVocabulary {
-            number: move |value: SlotValue| {
-                if driven {
-                    HeldAct::OverExpression
-                } else {
-                    HeldAct::Hold(value.as_f64())
-                }
-            },
+            number: HeldAct::Number,
             text: HeldAct::Text,
         },
         &mut acts,
@@ -234,12 +230,13 @@ fn held_field(
     for act in acts {
         match act {
             HeldAct::Hold(value) => *held = value,
-            HeldAct::OverExpression => {
-                if let Err(refusal) = crate::session::driven_refusal(node, row, notation) {
-                    notices.push(frame::refusal_message(&refusal));
-                }
-            }
-            HeldAct::Text(text) => typed = Some(text),
+            HeldAct::Number(value) => match props::typed_formula(slot, value, unit) {
+                Ok(literal) => typed = Some(HeldEntry::Literal(literal)),
+                Err(error) => notices.push(frame::refusal_message(
+                    &crate::session::Refusal::Dimension(error),
+                )),
+            },
+            HeldAct::Text(text) => typed = Some(HeldEntry::Text(text)),
             HeldAct::Rest => {}
         }
     }
@@ -254,7 +251,6 @@ fn held_field(
 /// into the draft.
 struct HeldArgs<'d, 'o> {
     slots: Option<&'d mut (dyn SlotDoors + 'o)>,
-    node: RecipeNodeId,
     notation: Notation,
     theme: Theme,
     /// Per held row, each argument's row as the draft holds it.
@@ -269,8 +265,8 @@ struct HeldArgs<'d, 'o> {
     /// The committed slot fields drawn in the row being drawn, with
     /// their names.
     drawn: Vec<(usize, SlotRow, String)>,
-    /// Per field typed into: its row, its argument and the text.
-    typed: Vec<(usize, StepArg, String)>,
+    /// Per field typed into: its row, its argument and the entry.
+    typed: Vec<(usize, StepArg, HeldEntry)>,
     /// What the fields said.
     notices: Vec<frame::Message>,
 }
@@ -292,15 +288,15 @@ impl ArgDoors for HeldArgs<'_, '_> {
             .as_ref()
             .filter(|(at, each, _, _)| *at == row && *each == arg)
             .map(|(_, _, text, _)| text.as_str());
-        if let Some(text) = held_field(
+        if let Some(entry) = held_field(
             ui,
-            (self.node, self.notation),
+            self.notation,
             (&held, name),
             value,
             refused,
             &mut self.notices,
         ) {
-            self.typed.push((row, arg, text));
+            self.typed.push((row, arg, entry));
         }
         if let Some(committed) = of(&self.committed) {
             self.drawn.push((row, committed, name.to_owned()));
@@ -384,8 +380,8 @@ pub(crate) struct FieldNews {
 /// written back over the step ([`ProfileEdit::write_step`]); a step
 /// with no view (one that lowers against the pen) is shown as written,
 /// with its row's controls. Every argument is drawn as the draft holds
-/// it ([`HeldArgs`]), text typed into it written into the draft as an
-/// expression ([`ProfileEdit::write_text`]); an argument of a kept step
+/// it ([`HeldArgs`]), what is typed into it written into the draft over
+/// what it held ([`ProfileEdit::write_entry`]); an argument of a kept step
 /// also has its committed slot's doors, through `slots` (`None` draws
 /// none). A moved argument of a kept step is written in the unit its
 /// slot is written in, so the number a slot field shows is the number
@@ -483,7 +479,6 @@ pub(crate) fn edit_door_ui(
         });
         let mut args = HeldArgs {
             slots: slots.as_deref_mut(),
-            node,
             notation,
             theme,
             rows: held_rows,
@@ -534,24 +529,27 @@ pub(crate) fn edit_door_ui(
     let noted = |slot: SlotId| committed.iter().find(|row| row.slot == slot)?.unit;
     let mut faults = Vec::new();
     for (at, step) in written {
-        match edit.write_step(at, step, landed, notation, &noted) {
+        match edit.write_step(at, step, notation, &noted) {
             Ok(()) => edit.changed(),
             Err(fault) => faults.push(fault),
         }
     }
-    for (at, arg, text) in typed {
-        match edit.write_text(at, arg, &text, landed) {
-            Ok(()) => {
+    for (at, arg, entry) in typed {
+        match (edit.write_entry(at, arg, &entry, landed), entry) {
+            (Ok(()), _) => {
                 news.standing = None;
                 edit.changed();
             }
-            Err(refusal @ crate::session::Refusal::NoSuchSlot { .. }) => {
-                news.notices.push(frame::refusal_message(&refusal));
-            }
             // Held in its field, said under it from the next frame.
-            Err(refusal) => {
+            (Err(refusal), HeldEntry::Text(text))
+                if !matches!(refusal, crate::session::Refusal::NoSuchSlot { .. }) =>
+            {
                 news.standing = Some((ProfileEdit::held_slot(at, arg), text));
                 news.refused = Some(refusal);
+            }
+            (Err(refusal), _) => {
+                news.standing = None;
+                news.notices.push(frame::refusal_message(&refusal));
             }
         }
     }
@@ -2895,8 +2893,13 @@ mod tests {
         let edit = drafts
             .profile_edit(session.committed_doc(), profile)
             .expect("held");
-        edit.write_text((0, 0), StepArg::PointX, "2 mm * 2", session.doc())
-            .expect("the draft holds the formula");
+        edit.write_entry(
+            (0, 0),
+            StepArg::PointX,
+            &crate::drafts::HeldEntry::Text("2 mm * 2".to_owned()),
+            session.doc(),
+        )
+        .expect("the draft holds the formula");
         let mut handed = Handed::default();
         crate::pane::headless::painted(|ui| {
             let _ = super::edit_door_ui(
@@ -2948,7 +2951,12 @@ mod tests {
             .profile_edit(session.committed_doc(), profile)
             .expect("held");
         let before = edit.programs().expect("lowers");
-        let out = edit.write_text((0, 0), StepArg::Radius, "2 mm", session.doc());
+        let out = edit.write_entry(
+            (0, 0),
+            StepArg::Radius,
+            &crate::drafts::HeldEntry::Text("2 mm".to_owned()),
+            session.doc(),
+        );
         assert!(
             matches!(out, Err(Refusal::NoSuchSlot { .. })),
             "refused as a slot the row lacks: {out:?}"

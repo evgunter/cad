@@ -72,11 +72,14 @@
 //!
 //! # The expression-driven refusal
 //!
-//! Setting a number into a slot that is DRIVEN — by a document
-//! variable or by arithmetic — is refused, with an affordance
-//! (the ratified micro-decision). [`SlotDriver`] is how a slot says
-//! which it is, using only public expression API: a bare literal is a
-//! leaf with no variable references, and anything else is driven.
+//! Dragging a slot that is DRIVEN — by a document variable or by
+//! arithmetic — is refused, with an affordance (G4's micro-decision,
+//! which names a drag); a range probe of one is refused the same way.
+//! A number TYPED there is not refused: it replaces the expression, as
+//! the same number typed with its unit as text does. [`SlotDriver`] is
+//! how a slot says which it is, using only public expression API: a
+//! bare literal is a leaf with no variable references, and anything
+//! else is driven.
 //!
 //! **What the affordance offers, measured against this substrate.**
 //! The typed expression API has a text door in BOTH directions —
@@ -1251,8 +1254,8 @@ pub fn field_edit(text: &str) -> FieldEdit {
 /// SOURCE rather than a number (a slot driven by an expression, a slot
 /// whose value did not evaluate) echoes that source, and the same
 /// comparison answers for it; a number typed over it is no echo of
-/// anything and takes its door, which is what makes a driven slot's
-/// refusal reachable.
+/// anything and takes its door, which is what lets a number replace a
+/// driven slot's expression.
 ///
 /// Whitespace is not part of what a field says: the parser trims
 /// before reading ([`field_edit`]), so this does too.
@@ -1484,14 +1487,33 @@ pub fn slot_typed_edit(
     value: SlotValue,
     unit: Option<UnitDef>,
 ) -> Result<DocEdit<ProfileProgram>, pncad::document::DimensionError> {
-    let expr = match (value, unit) {
+    Ok(slot_formula_edit(
+        node,
+        slot,
+        typed_formula(slot, value, unit)?,
+    ))
+}
+
+/// **The literal a number typed at `slot` writes**, remembering `unit`
+/// — what [`slot_typed_edit`] puts in a slot the document holds and a
+/// profile editor's held field puts in its draft, so a typed number
+/// means one formula at both.
+///
+/// # Errors
+///
+/// [`slot_typed_edit`]'s.
+pub fn typed_formula(
+    slot: SlotId,
+    value: SlotValue,
+    unit: Option<UnitDef>,
+) -> Result<Formula, pncad::document::DimensionError> {
+    Ok(match (value, unit) {
         (SlotValue::Count(count), _) => Formula::count(count),
         (SlotValue::Continuous(v), None) => Formula::literal(v, slot.expr_dimension())?,
         (SlotValue::Continuous(v), Some(unit)) => {
             Formula::literal_with_unit(v, slot.expr_dimension(), unit)?
         }
-    };
-    Ok(slot_formula_edit(node, slot, expr))
+    })
 }
 
 /// **The edit that makes `slot` on `node` read `var`** — the slot-write
