@@ -215,11 +215,6 @@ impl Seat {
 /// held FACE plays, as [`Seat`] names a held node's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FaceRole {
-    /// The face whose plane a mirror reflects across.
-    MirrorPlane,
-    /// The plane a split cuts along: a face, or a plane the document
-    /// defines.
-    SplitPlane,
     /// An assertion's first seat, held as a face — the
     /// seat [`Seat::AssertedFirst`] holds as a body, and named as it is.
     AssertedFirst,
@@ -231,10 +226,28 @@ impl FaceRole {
     /// The role's name, for sentences.
     pub fn name(self) -> &'static str {
         match self {
-            Self::MirrorPlane => "mirror plane",
-            Self::SplitPlane => "split plane",
             Self::AssertedFirst => "first seat",
             Self::AssertedSecond => "second seat",
+        }
+    }
+}
+
+/// **What a plane a tool holds beside its body seat is for** — a
+/// face or a plane variable, read as a plane.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlaneRole {
+    /// The plane a mirror reflects across.
+    Mirror,
+    /// The plane a split cuts along.
+    Split,
+}
+
+impl PlaneRole {
+    /// The role's name, for sentences.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Mirror => "mirror plane",
+            Self::Split => "split plane",
         }
     }
 }
@@ -247,12 +260,12 @@ pub enum SeatError {
         /// Which one.
         seat: Seat,
     },
-    /// A face pick the commit needs is still empty — a tool's held
-    /// face beside its seats, named by the role the panel line gives
-    /// it.
-    NoFace {
-        /// The face's role.
-        role: FaceRole,
+    /// The plane the commit reads is not held yet — a split's or a
+    /// mirror's, held beside its body seat as a face or as a plane
+    /// variable, named by the role the panel line gives it.
+    NoPlane {
+        /// The plane's role.
+        role: PlaneRole,
     },
     /// A seat holds a split picked in the tree, and which of its two
     /// halves it reads is not chosen yet.
@@ -266,7 +279,7 @@ impl core::fmt::Display for SeatError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Empty { seat } => write!(f, "no {} picked yet", seat.name()),
-            Self::NoFace { role } => write!(f, "no {} picked yet", role.name()),
+            Self::NoPlane { role } => write!(f, "no {} picked yet: pick a face", role.name()),
             Self::HalfUnchosen { seat } => {
                 write!(
                     f,
