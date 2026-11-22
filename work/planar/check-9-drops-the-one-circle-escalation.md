@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-08
 priority: P3
 cost: M
+parent: check-9-reads-ring-against-outer-through-the-plane-instance
 ---
 
 
@@ -38,3 +39,9 @@ pairs which today read through arm 5, so it moves check 9's verdicts and
 belongs to check 9's owner. It was not contained in CONTACT-10.
 
 Moved from RESTWORD to RESTFRONT on 2026-11-20, by `git mv`, when RESTWORD merged into RESTFRONT: RESTWORD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one RESTFRONT carries.
+
+## Claimed by PLANAR (2026-11-22)
+
+Moved from RESTFRONT by `git mv` when PROFILE cut Ev's plane ruling (PR 7290)
+into PLANAR's units (`work/planar/plan.md`). Its fix is part of
+`check-9-reads-ring-against-outer-through-the-plane-instance` (`parent:`), which closes it; build nothing for it on its own.

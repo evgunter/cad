@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-18
 priority: P3
 cost: M
+parent: a-pose-proves-two-spans-apart-from-their-covers
 ---
 
 ## What
@@ -95,3 +96,9 @@ so these bodies build. Its refusals near the band therefore wait on
 this row. The question for CPAIR: does span-restricted posing (this
 row's "shape to give") belong in the reader, so a caller handing
 `meet` two spans gets a verdict about the spans and not the carriers?
+
+## Claimed by PLANAR (2026-11-22)
+
+Moved from CPAIR by `git mv` when PROFILE cut Ev's plane ruling (PR 7290)
+into PLANAR's units (`work/planar/plan.md`). Its fix is part of
+`a-pose-proves-two-spans-apart-from-their-covers` (`parent:`), which closes it; build nothing for it on its own.

@@ -2,11 +2,12 @@
 id: check-9-arm-5-is-a-second-copy-of-seg-planar-edge-pair-intersector
 kind: issue
 title: tier 3 check 9's arm 5 is a second copy of profile::seg's planar edge-pair intersector, with at least four drifts, and the circle-pair margins have a third spelling in arc_fillet
-status: open
+status: parked
 opened: 2026-09-25
 priority: P1
 cost: H
 refs: [3217]
+blocked_on: [check-9-reads-ring-against-outer-through-the-plane-instance, profile-validation-reads-its-pairs-through-the-plane-instance]
 ---
 
 
@@ -124,6 +125,17 @@ readers and check 9's arms 4 and 5 are deleted once a differential of
 pair-contact rows and reach fuzz. Not part of it: profile's joint pass;
 the two fillet constructions' placement (LB4 and their own rows).
 
+## Cut (2026-11-22)
+
+Ev approved the plane clause (PR 7290). The build is PLANAR's
+(`work/planar/plan.md`), so this row moved there and is parked on the
+two units that delete the copies: check 9's arms 4 and 5 go in
+`check-9-reads-ring-against-outer-through-the-plane-instance`, and
+`seg`'s pair reader in
+`profile-validation-reads-its-pairs-through-the-plane-instance`. It
+closes when both land. The circle-pair margins' third spelling in
+`arc_fillet` is out of the ruling (LB4 and its own rows).
+
 ## The ellipse's pair rows ride this build (2026-11-22)
 
 The ovoid's cut (PR 7289, `work/ovoid/an-ovoid-cannot-be-authored.md`
@@ -135,8 +147,8 @@ rows: the table already routes them (`curve_pair`'s `Arm::LineConic`,
 traced by this build's designers. OVOID's
 `profile-validation-reads-an-ellipse-arcs-pairs-on-the-planar-reader`
 and SPLINEWALL's `a-profile-segment-is-a-rational-spline-and-the-nurbs-legs-lower-to-it`
-are parked on this row; when the build is cut, re-park them on the
-unit that moves profile's pair pass onto the reader. The plane
+are parked on the unit that moves profile's pair pass onto the reader,
+`profile-validation-reads-its-pairs-through-the-plane-instance`. The plane
 instance's in-plane arms should cover the conic arms too, so the
 designers' three measured defects on `meet` (an in-band carrier
 clearance escalating whatever the spans, a tangent touch read as an

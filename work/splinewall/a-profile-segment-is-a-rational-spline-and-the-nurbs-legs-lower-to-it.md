@@ -7,7 +7,7 @@ opened: 2026-11-22
 priority: P1
 cost: H
 parent: an-ovoid-cannot-be-authored
-blocked_on: [a-profile-segment-is-an-ellipse-arc, check-9-arm-5-is-a-second-copy-of-seg-planar-edge-pair-intersector]
+blocked_on: [a-profile-segment-is-an-ellipse-arc, profile-validation-reads-its-pairs-through-the-plane-instance]
 ---
 
 

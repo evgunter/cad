@@ -4018,6 +4018,11 @@ fn rides_carried<T: crate::props::AtRestPolicy>(
                     what: "a cylinder pair's pose read past its cylinder reading",
                 });
             }
+            P::ConeCylinder(_) | P::ConeCone(_) => {
+                return Err(BooleanError::JoinDesync {
+                    what: "the section table holds a cone pair, which its glue door never reads",
+                });
+            }
         },
     })
 }
