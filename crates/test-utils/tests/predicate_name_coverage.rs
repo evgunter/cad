@@ -52,10 +52,15 @@ use test_utils::source::{
 
 /// The crates that decide names and run no roster yet, each with the
 /// row that gives it one. A reference only such a crate spells as a
-/// `const` is held by its entry. Empty today: every deciding crate runs
-/// a roster, and a closed type's table is a declared carrier
-/// (`NameCarrier::Table`) its crate's roster reads, not a hold.
-const KNOWN_MISSING: &[(&str, &str)] = &[];
+/// `const` is held by its entry, and an entry that no longer needs to be
+/// listed is red in
+/// [`every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided`].
+/// A closed type's table is a declared carrier (`NameCarrier::Table`) its
+/// crate's roster reads, not a hold.
+const KNOWN_MISSING: &[(&str, &str)] = &[(
+    "step-import",
+    "work/importgate/step-import-runs-no-recourse-roster-over-its-band-funnels.md",
+)];
 
 /// A crate as this row reads it.
 struct Crate {
