@@ -1027,24 +1027,11 @@ fn a_boss_is_authored_on_a_picked_face() {
         body: 0,
     };
     let footprint = [0.006, 0.003, 0.004];
-    let profile = session_insert(
+    let (_, boss) = common::drawn_boss(
         &mut session,
-        SessionOp::DrawOnFace {
-            face: picked,
-            traced: Vec::new(),
-            chains: vec![common::rectangle_chain(
-                [0.0, 0.0],
-                footprint[0],
-                footprint[1],
-            )],
-        },
-    );
-    let boss = session_insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(footprint[2]),
-        },
+        picked,
+        common::rectangle_chain([0.0, 0.0], footprint[0], footprint[1]),
+        footprint[2],
     );
     let union = session_insert(
         &mut session,

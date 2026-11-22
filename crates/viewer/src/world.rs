@@ -686,8 +686,10 @@ fn built_on(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BuiltOn {
 /// copies are reached, the answer is the one minted first. The original
 /// is the body at the end of that copy's copies ([`original_of`]).
 ///
-/// A profile is asked of the bodies made from it, since what it is
-/// sketched on is read by what places it ([`copy_downstream_of`]).
+/// A profile reads no body as a body — one on its own plane stands
+/// where what places it puts it, and one drawn on a face reads that face
+/// as a frame alone — so a profile is asked of the bodies made from it
+/// ([`copy_downstream_of`]).
 /// `None` for a placement itself, and for a node built on no copy.
 pub fn built_on_copy(
     doc: &Doc<ProfileProgram>,

@@ -60,27 +60,24 @@ fn top_of(cube: RecipeNodeId) -> FaceSelection {
     }
 }
 
-/// The boss's footprint drawn on `face`.
+/// The boss's footprint, in its chart's first quadrant.
+fn footprint() -> pncad::trace::Chain {
+    common::rectangle_chain([0.0, 0.0], BOSS[0], BOSS[1])
+}
+
+/// [`footprint`] drawn on `face`.
 fn footprint_on(face: FaceSelection) -> SessionOp {
     SessionOp::DrawOnFace {
         face,
         traced: Vec::new(),
-        chains: vec![common::rectangle_chain([0.0, 0.0], BOSS[0], BOSS[1])],
+        chains: vec![footprint()],
     }
 }
 
-/// [`footprint_on`] `face`, then extruded [`BOSS`]'s height off it:
-/// the profile and the boss.
+/// [`footprint`] drawn on `face`, then extruded [`BOSS`]'s height off it
+/// ([`common::drawn_boss`]): the profile and the boss.
 fn boss_on(session: &mut DocSession, face: FaceSelection) -> (RecipeNodeId, RecipeNodeId) {
-    let profile = common::session_insert(session, footprint_on(face));
-    let boss = common::session_insert(
-        session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(BOSS[2]),
-        },
-    );
-    (profile, boss)
+    common::drawn_boss(session, face, footprint(), BOSS[2])
 }
 
 /// `body` and `boss` combined: the union.
@@ -91,6 +88,34 @@ fn combined(session: &mut DocSession, body: Operand, boss: RecipeNodeId) -> Reci
             spec: BooleanSpec::Union(vec![body.into(), boss.into()]),
         },
     )
+}
+
+/// **Drawing on a face, extruding and combining writes no placement**
+/// (Ev, PR 6353): the boss drawn on the box's top, picked on the box
+/// itself, extruded and combined with the box, leaves the world holding
+/// the box's one placement; the union offers, as its own step, to
+/// re-point that placement onto it.
+#[test]
+fn a_boss_drawn_extruded_and_combined_writes_no_placement() {
+    let tol = Tol::witness();
+    let (doc, cube) = boxed(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let placed = common::world(session.committed_doc());
+    let (_, boss) = boss_on(&mut session, top_of(cube));
+    let union = combined(&mut session, Operand::from(cube), boss);
+    let doc = session.committed_doc();
+    assert_eq!(placed, [cube], "the box is placed once");
+    assert_eq!(common::world(doc), placed, "no placement is written");
+    assert_eq!(
+        viewer::world::repoint_offer(doc, union, tol).map(|offer| offer
+            .rows
+            .iter()
+            .map(|row| row.body)
+            .collect::<Vec<_>>()),
+        doc.output(cube, 0).map(|cube| vec![cube]),
+        "the union offers to re-point the box's placement onto it"
+    );
 }
 
 /// **The face is read through the body the ray met, not through the
@@ -229,14 +254,18 @@ fn a_face_on_a_splits_lower_half_is_drawn_on_that_half() {
     );
 }
 
-/// **A boss drawn on a face of the box lands on it, turned by the
-/// orientation nearest where it stands**, through the session's own
-/// doors: for each face `faces` names (a label, a ray's start and its
-/// direction), the profile's chart has its `z` along the face's
-/// outward normal by the orientation of greatest trace that puts it
-/// there (a tie keeping the author's `+x`), its origin on the face over
-/// the box's own; so the extruded boss spans the box the chart carries
-/// its footprint to, and the box combined with it holds both whole.
+/// **A boss drawn on a face of the box stands on that face's chart,
+/// turned by the orientation nearest where it stands**, through the
+/// session's own doors: for each face `faces` names (a label, a ray's
+/// start and its direction), the extruded boss spans exactly the box the
+/// expected chart carries its first-quadrant footprint to — `z` along
+/// the face's outward normal, `x` the orientation of greatest trace that
+/// puts it there (a tie keeping the author's `+x`), the origin on the
+/// face's plane over the box's own — and the box combined with it holds
+/// both whole. The box's origin is a corner of every face, so where the
+/// chart's first quadrant lies over the face (the top) the boss stands
+/// on it, and elsewhere it stands outward beside the face, meeting the
+/// box along an edge; the volume says only that they share none.
 /// Answers what went wrong, face by face.
 fn bosses_land(faces: &[(&str, [f64; 3], [f64; 3])]) -> Vec<String> {
     let tol = Tol::witness();
@@ -330,15 +359,15 @@ fn bosses_land(faces: &[(&str, [f64; 3], [f64; 3])]) -> Vec<String> {
     bad
 }
 
-/// **A boss drawn on each of the box's six faces lands on it**
+/// **A boss drawn on each of the box's six faces stands on its chart**
 /// ([`bosses_land`]): the door draws on the face's chart at the
 /// orientation nearest where it stands, with the two slides that plane
-/// leaves, so every face takes the boss, turned by that orientation and
-/// over the box's origin.
+/// leaves, so on every face the boss spans the box that chart carries
+/// its footprint to.
 ///
 /// *Breaks if* the chart's slide is the one the face's plane fixes, its
-/// orientation is other than the nearest, or the boss stands anywhere
-/// but over the box's origin on the face, outward.
+/// orientation is other than the nearest, or its origin is anywhere but
+/// on the face's plane over the box's origin, or the boss rises inward.
 #[test]
 fn a_boss_drawn_on_each_of_the_six_faces_lands() {
     let bad = bosses_land(&[
@@ -352,7 +381,7 @@ fn a_boss_drawn_on_each_of_the_six_faces_lands() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
-/// **A boss drawn on a side lands on it** — the fast set's twin of
+/// **A boss drawn on a side stands on its chart** — the one-face twin of
 /// [`a_boss_drawn_on_each_of_the_six_faces_lands`] through the same
 /// doors, on a side, where the identity's slides would not span and the
 /// identity would leave the boss looking along `+z`.
