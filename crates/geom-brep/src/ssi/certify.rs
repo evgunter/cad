@@ -4657,13 +4657,12 @@ mod one_reader_rows {
     }
 
     /// **A search reads a cone as the double cone**: a ruling through
-    /// the apex runs from `z = −1` on the mirror nappe to `z = ½` on the
+    /// the apex runs from `z = −1` on the mirror nappe to `z = 1` on the
     /// opening one. Read against the carrier it lies on the cone, the
-    /// part at the apex read by `√|f|`; read against the face its middle
-    /// lies on (the mirror nappe), its opening half is far from that
-    /// nappe and the bound does not clear.
+    /// part at the apex read by `√|f|`; read against a face, its middle
+    /// sits at the apex and names no nappe, so the reading refuses.
     ///
-    /// Red against: a carrier reading that keeps the face's nappe.
+    /// Red against: a carrier reading that asks the face's nappe.
     #[test]
     fn a_search_reads_a_cone_as_the_double_cone() {
         let band = Band::new(1e-6, 1e-5).unwrap();
@@ -4673,7 +4672,7 @@ mod one_reader_rows {
             half_angle,
         };
         let on = |z: f64| Point3::new(z * half_angle.tan(), 0.0, z);
-        let ruling = segment(on(-1.0), on(0.5));
+        let ruling = segment(on(-1.0), on(1.0));
         let carrier =
             limb2_offset_sup(&ruling, (0.0, 1.0), &cone, Limb2Locus::Carrier, band).unwrap();
         let Offset::Bound(bound) = carrier.offset else {
@@ -4682,8 +4681,8 @@ mod one_reader_rows {
         assert!(bound <= band.zero(), "the ruling's bound {bound:e} clears");
         let face = limb2_offset_sup(&ruling, (0.0, 1.0), &cone, Limb2Locus::Face, band);
         assert!(
-            !matches!(&face, Ok(r) if matches!(r.offset, Offset::Bound(b) if b <= band.zero())),
-            "the mirror nappe alone does not hold the ruling: {face:?}"
+            face.is_err(),
+            "a face's nappe is not named at the apex: {face:?}"
         );
     }
 

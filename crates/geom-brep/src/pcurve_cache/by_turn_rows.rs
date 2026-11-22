@@ -403,8 +403,9 @@ fn the_rounds_start_at_eight_parts_a_span() {
     let band = Band::new(0.25 * eight, 2.5 * eight).unwrap();
     let (_, composed) = limb2(&c, &s, band);
     assert!(composed > 1, "the rounds read after the first reading");
-    let key =
-        limb2_memo::Key::of(&c, (0.0, 1.0), &s, band).with(Parts::Each(projected::INCIDENCE_CUTS));
+    let key = limb2_memo::Key::of(&c, (0.0, 1.0), &s, band)
+        .on(None)
+        .with(Parts::Each(projected::INCIDENCE_CUTS));
     let computed = core::cell::Cell::new(false);
     let round = limb2_memo::read(&key, &[], || {
         computed.set(true);
