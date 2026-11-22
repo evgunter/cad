@@ -78,6 +78,20 @@ fn a_new_plane_is_a_datum_its_editor_mates_flush_on_a_picked_face() {
         1,
         "the datum is mated on the face"
     );
+    session.pump();
+    let rows = session.tree_rows();
+    let row = rows
+        .iter()
+        .find(|row| row.id == datum)
+        .expect("the datum has a tree row");
+    assert_eq!(
+        row.constraints.iter().filter(|c| c.is_mate).count(),
+        1,
+        "the datum's row lists its mate, which the edit placement button edits"
+    );
+    let outcome = session.perform(SessionOp::DeleteNode { node: datum });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(session.doc().node(datum).is_none(), "the datum deletes");
 }
 
 /// **A datum is drawn as a display aid in its space**: its xy plane's
