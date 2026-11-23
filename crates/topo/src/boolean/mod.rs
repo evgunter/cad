@@ -996,7 +996,7 @@ pub struct ReductionContacts {
     pub ee: Vec<Cited<EeContact>>,
     /// Faces of A and B tangent along a line through both interiors,
     /// each citing the glue door's tangency decision
-    /// ([`verify_tangency`]). Written at the door, whatever the op: the
+    /// ([`verify_distinct`]). Written at the door, whatever the op: the
     /// carry keeps a row where both faces survive.
     pub ff: Vec<Cited<FfContact>>,
     /// Pieces of line edges of A lying in planar faces of B, each citing
@@ -7846,7 +7846,7 @@ fn piece_classes<T: Real>(
 /// ([`Glued`]): a `Rest` or continuation pair on the margin it was
 /// decided one on ([`one_carrier_row`]), a tangency on the touch's
 /// margin along the locus the witness lane certified
-/// ([`verify_tangency`], routed along a rim by [`route_rim`]). No pair is
+/// ([`verify_distinct`], routed along a rim by [`route_rim`]). No pair is
 /// read again. Where a tangent line runs through both faces' interiors
 /// ([`locus_through_both_faces`]) the touch is a face–face row too.
 ///
@@ -8208,7 +8208,7 @@ pub(crate) struct TangentCert {
 /// **The closed-form tangent line of two faces' carriers** (DEV-1,
 /// [`geom_brep::tangent_locus`]: plane × cylinder along a ruling,
 /// parallel cylinders) and both faces' extents along it: the one witness
-/// a glued tangency ([`verify_tangency`]) and a
+/// a glued tangency ([`verify_distinct`]) and a
 /// face–face record on two carriers at rest ([`tangent_pair_at_rest`])
 /// are verified along.
 pub(crate) struct TangentLine<T: Real> {

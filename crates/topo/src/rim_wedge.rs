@@ -1162,7 +1162,7 @@ fn rim_of<T: Real>(carrier: &geom::Curve3<T>) -> Option<Rim<T>> {
 /// **Whether every edge `face` has on `rim` is a convex crease of
 /// `face`'s own body**: the operand's material wedge there below π
 /// ([`geom_brep::Convexity::Convex`], decided at every station of the
-/// edge's own fold, [`crate::edge_wedge`], under
+/// edge's own fold, [`crate::edge_wedge()`], under
 /// [`geom_brep::DIHEDRAL_SIGN`]). The junction's certificate that a face
 /// leaving the rim along this face's backward direction lies outside
 /// this operand's material (`boolean::junction_of`).
