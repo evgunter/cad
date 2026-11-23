@@ -738,8 +738,6 @@ which is what actually moves the number.
 | splitting/join.rs (`ruling_pairs`) | split_join_ruling_side | a crossing's distance from one section ruling less its distance from the other (m): which ruling it lies on, Zero where the rulings meet (a cone's apex) | m | OK (CLEAVE) |
 | splitting/join.rs (`ruling_pairs`) | split_join_ruling_germ | a germ's sine from one section ruling less its sine from the other, levered by the face's farthest crossing from the apex (m): which ruling an apex crossing leaves along | m | OK (SPLITDOOR) |
 | splitting/join.rs (`conic_pairs`) | split_join_conic_heading | the sine `(n_plane × n_out)·Ĉ′` between the section's heading into the face and the conic's unit tangent, levered by the wall's `curvature_lever_arm` (the cylinder's or sphere's radius) (m): how far the section runs from tangent to the wall, and so which way along the conic enters the face | m | OK (CLEAVE) |
-| splitting/finish.rs (`line_clears_conic`) | split_nest_line_conic | a conic carrier's centre offset from a line less its amplitude across it, `|m·(c − p)| − √((m·a)² + (m·b)²)` (m) | m | OK (CLEAVE) |
-| splitting/finish.rs (`conics_clear`) | split_nest_conic_conic | in one conic's unit coordinates, `1 − |c′| − σ` or `|c′| − σ − 1` with `σ` the largest singular value of the other's semi-axis matrix, levered by the first's smaller semi-axis (m) | m | OK (CLEAVE) |
 | splitting/rules.rs (`apply_rule_a`; the coplanar read through `geom_brep::normal_alignment`) | split_sector_extent / coplanar / enters arm | extent; sin×extent, each face over its own face extent (D4 ¶1's parallelism arm). At a smooth edge in the plane the two faces read one tilt over two arms, so one can decide zero and the other past the band: `rules::wall_graze` refuses that as two decided readings that disagree (`SectorReading::SmoothEdgeDisagrees`), carrying both | m | OK |
 | splitting/rules.rs:179 | tangent_sector_osculation | κ(1/m) × face-extent²/2 | m | FLAG F11 |
 | chord_join.rs:1114 | split_tangent_chord_forward | dimensionless param diff × ‖dir‖ | m | OK (metered door; a line's ‖dir‖ is its exact speed and so an `InfSpeed`) |
@@ -759,7 +757,7 @@ which is what actually moves the number.
 | ring_path.rs (`spline_crossings`) | split_ring_path_spline_piece | a path piece's length, shrunk toward zero by the path's resolution (its points' spread, and its conic arcs' far-carrier charge through `carrier_resolution`) (`charge`, `path_resolution`); for a spline wall's iso piece, an upper bound on it, its parameter span metered at the iso curve's greatest speed (`Margin::metered_sup`), uncharged; zero, the piece crosses no spline arc | m | OK (SECT; SECTARMS) |
 | ring_path.rs (`spline_crossings`) | split_ring_path_spline_across | `‖τ̂ₚ × τ̂ₐ‖` (the sine between a path piece and a spline loop arc where the curve-pair table finds them meeting), levered at the piece's length (an iso piece's chord) and charged the path's resolution (its points' spread, and its conic arcs' far-carrier charge through `carrier_resolution`) over it | m | OK (SECT) |
 | ring_path/spline_wall.rs (`SplineWall::paths`) | split_ring_path_wall_foot | the distance between a path's end and the wall's point at its foot's chart parameters, `‖S(u, v) − p‖`; zero, the foot is the end | m | OK (SECTARMS) |
-| ring_path/spline_wall.rs (`SplineWall::paths`) | split_ring_path_wall_arrival | the chord of the iso piece a wall path arrives along, shrunk toward zero by the reading's resolution (the ends' and the wall's net's spread about the path's start; `ring_path::resolution`) (`charge`, `resolution`); zero, the path is not asked | m | OK (SECTARMS) |
+| ring_path/spline_wall.rs (`SplineWall::paths`) | split_ring_path_wall_arrival | the extent from below of the iso piece a wall path arrives along (`geom_brep::edge_extent_inf`: how far apart two of its points stand at least), shrunk toward zero by the reading's resolution (the ends' and the wall's net's spread about the path's start; `ring_path::resolution`) (`charge`, `resolution`); zero, the path is not asked | m | OK (SECTARMS) |
 | chord_join.rs (`carried_chord_spec`) | chord_carried_at_seat | a carried chord end's distance from its seated component's start, `‖p − C(t₀)‖` | m | OK (SECT) |
 | chord_join.rs (`carried_chord_spec`) | chord_carried_leave | a boolean germ's unit direction against the component's tangent at the chord's start, `dir·Ĉ′(t₁)` (the cosine between them), levered at the section's scale (`CarriedSection::lever`, the cylinder's radius) | m | OK (SECT) |
 | chord_join.rs (`carried_chord_spec`) | chord_carried_forward | the parameter travel from the chord's start to its end the way it leaves, metered by the carrier's speed at the start; only its sign is consumed | m | OK (SECT) |
@@ -1224,9 +1222,9 @@ Flagged, NOT fixed here (dispositions):
 
 - **F17** (added by M10-5, the clearance engine; the support compare
   by CLEAR's DIRSUPPORT unit) `topo/src/clearance.rs`
-  `clearance_margin`, `self_intersection_gap` and
-  `clearance_support_gap`: the compares the E7 inner subdivision
-  makes on a pair decided by DISTANCE. SELFX added the injectivity
+  `clearance_margin`, `self_intersection_gap`,
+  `clearance_support_gap` and `clearance_depth_gap`: the compares the
+  E7 inner subdivision makes on a pair decided by DISTANCE. SELFX added the injectivity
   question's local certificates beside them, each its own row in the
   `injective.rs` block above; this entry is about the distance test,
   which decides every pair that does not touch. Both comparands are `d − c`, the interval enclosure of the
@@ -1267,6 +1265,17 @@ Flagged, NOT fixed here (dispositions):
   `n` only chooses which bound is decided; it is a raw `f64` read of the
   cells' centre normals and centres, and the choice among three
   directions decides nothing.
+  A fourth compare, `clearance_depth_gap` (`parted_in_depth`), is asked
+  at a face pair's root, before the supports, under either bound. Its
+  comparand is `G − c`: `G` a gap between the two faces' depths about an
+  axis, a centre or a core circle one of them proposes, less both
+  faces' pads, as the census's depth gap reads it
+  (`census::depth_gap::gaps_in_depth`, the comparand of
+  `census_backstop_depth_gap`). `G` is METRES and bounds the two faces'
+  separation from below, so **the site is not flagged** and it is read
+  as `L` is: only `Sign::Positive`, which discharges the root whole. It
+  has its own name because its population is a face pair's depth
+  margins, not a cell pair's support margins.
 
 - **F18** (added by M10-8's fix pass, found by scoping the recorder's
   name) `editor-core/src/expr.rs` `refuse_non_finite`: the ruled

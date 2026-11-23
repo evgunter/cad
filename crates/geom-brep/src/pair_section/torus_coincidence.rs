@@ -27,9 +27,7 @@
 //! ([`TorusCoincidence::Apart`]'s `upper`).
 
 use geom_core::k_stats::decide_reported;
-use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
-};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use super::{PairSide, line_tilt};
 use crate::ladder::{IdentityLadder, data_beneath_sum, read_identity};
@@ -42,7 +40,7 @@ pub struct TorusData<T: Real> {
     /// The centre.
     pub center: Point3<T>,
     /// The unit axis of revolution.
-    pub axis: Vec3<T>,
+    pub axis: geom_core::UnitVec3<T>,
     /// The major radius.
     pub major_radius: T,
     /// The minor radius.
@@ -109,10 +107,10 @@ impl<T: geom_core::spline::SpanLocate> TorusDisplacement<T> {
         };
         let arm = spine(a).max(spine(b));
         let apart = a.center - b.center;
-        let sine = a.axis.cross(b.axis).norm();
+        let sine = a.axis.get().cross(b.axis.get()).norm();
         let core = apart.norm()
             + (a.major_radius - b.major_radius).abs()
-            + Margin::levered(line_tilt(a.axis, b.axis).max(sine), arm).value();
+            + Margin::levered(line_tilt(a.axis.get(), b.axis.get()).max(sine), arm).value();
         let tube = (a.minor_radius - b.minor_radius).abs();
         Self {
             data: [
