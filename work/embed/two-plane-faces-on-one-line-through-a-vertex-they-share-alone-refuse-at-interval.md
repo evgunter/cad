@@ -62,3 +62,13 @@ that the `Interval` body reads the `f64` body's verdict class.
   built and moved, holding turned).
 - Cheapest reproducer: that test's body, `injective(&body, Some(planes), BUDGET)`
   at `Interval`.
+
+## On the landing branch (2026-11-23)
+
+On `origin/embed/wave3-land` at `8d34076a9e` the body of this row holds
+at `Interval` as built and moved as well as turned: the whole-body
+`Interval` assertion of
+`self_intersection_proves_injectivity::a_wall_holds_against_a_face_at_a_vertex_mid_ruling`
+is `Holds` in every pose there. **Not traced** which of the units in
+that branch reads the plane pair; this row closes when that branch
+lands, if the row's own two verdicts are re-read then.

@@ -341,6 +341,75 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     );
 }
 
+/// The embedding ask on the `∩` of
+/// [`a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`]
+/// runs out of its pairs: a sliver 10 m long and 1 mm wide whose top
+/// (a piece of the block's `z = 0`) and bottom (the wedge's tilted
+/// face) share its 1 mm tip edge and part at 5e-8 rad, so they are
+/// within ε of each other for about 20 mm from it and 500ε apart at
+/// the far end.
+///
+/// **Pinned at its refusal and at the pair it names**: `Budget(Pairs)`
+/// on the top against one of the two long side walls, a face 10 m long
+/// and at most 500ε tall, with no crossing found. That wall is a face
+/// thinner than any cell reaches at this depth, which no presentation
+/// reads (EMBED's
+/// `a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`).
+/// Traced by PR 7329's review and not visible to this row: every
+/// departure the ask does read is decided (295 reads on that head, at
+/// arms of 5.03 and 10.05 m), so the margin is not what refuses. The
+/// count of pairs certified is not pinned: it moves with the walk's
+/// order (295 on PR 7329's own head, 273 with `embed/first-finding`).
+/// Once those faces are presented, the departure across the tip edge
+/// is the faces' 5e-8 rad at their lever, which is
+/// `the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict`'s
+/// to say. Red the day the ask answers, or stops on another pair.
+#[test]
+fn the_sector_slivers_meet_runs_out_of_pairs_with_its_millimetre_faces_unread() {
+    let tol = Tol::witness();
+    let dip = DIP * tol.eps();
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        tol,
+    );
+    let e = [[10.0, 1.0, -dip], [0.2e-3, 1e-3, 0.0], [0.0, 0.0, 1e-3]];
+    let corner = Vec3::new(5.0, 5.0, 0.0);
+    let point = move |u, v, w| at(e, u, v, w) + corner;
+    let wedge = common::finished("wedge", common::mapped_cube(point, tol), tol);
+    let meet = body_of(intersect(&block, &wedge, tol), "tilted wedge: ∩");
+    let side = topo::clearance::Side {
+        body: &meet,
+        faces: meet.faces().map(|(k, _)| k).collect(),
+    };
+    let report = topo::clearance::embedded(
+        &side,
+        Band::linear(tol).unwrap(),
+        topo::clearance::Budgets {
+            max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: 65_536,
+        },
+    );
+    let topo::clearance::Embedding::Refused(topo::clearance::EngineRefusal::Budget {
+        stop: topo::clearance::CellBudget::Pairs { .. },
+        a,
+        b,
+    }) = report.verdict
+    else {
+        panic!("the sector's sliver runs out of its pairs: {report:?}");
+    };
+    let top = face_with_normal(&meet, [0.0, 0.0, 1.0]);
+    let wall = |k: FaceKey| {
+        matches!(face_carrier_desc(&meet, k), Some(CarrierDesc::Plane(geom_brep::PlaneDesc { normal, .. }))
+            if normal.z == 0.0 && normal.y.abs() > 0.9)
+    };
+    assert!(
+        (a == top && wall(b)) || (b == top && wall(a)),
+        "the pair is the top against a long side wall: {report:?}"
+    );
+    assert_eq!(report.receipt.violated, 0, "no crossing: {report:?}");
+}
+
 /// The plane arm's lever, on a 10 m wedge resting at the origin on a
 /// block's top (20 m square), its bottom tilted so the far end stands
 /// `5·K·ε` below: `0.5·Kε` at a one-metre arm, in band there, and

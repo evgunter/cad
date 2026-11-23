@@ -405,7 +405,7 @@ fn membership(
 }
 
 /// The outline turned by `a` about the origin.
-fn rotated(o: &Outline, a: f64) -> Outline {
+pub(crate) fn rotated(o: &Outline, a: f64) -> Outline {
     let (s, c) = a.sin_cos();
     outline_from(
         o.chain

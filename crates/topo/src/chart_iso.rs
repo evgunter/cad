@@ -74,7 +74,7 @@ pub fn traversal_kind(
         }),
         geom_brep::IsoFamily::V => match *curve.carrier() {
             Curve3::Circle(circle) => Some(TravKind::Rim {
-                v_raw: chart.rim_v(circle.frame.origin(), circle.radius()),
+                v_raw: chart.rim_v(circle.frame().origin(), circle.radius()),
             }),
             _ => None,
         },

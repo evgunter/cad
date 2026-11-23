@@ -518,7 +518,7 @@ fn offset_planes_by(
 /// carrier translates rigidly with its one plane, which is re-minted
 /// with the same in-plane frame, so the stored image is still exact —
 /// and a spline carrier has no image to derive afresh, so deriving it
-/// refuses `RechartFalsifies { Unimplemented }`. The top split by a
+/// refuses `DescriptionUncertified { Unimplemented }`. The top split by a
 /// straight and by a bowed spline chord; every chart at zero, then the
 /// top alone moved by 1/64.
 #[test]

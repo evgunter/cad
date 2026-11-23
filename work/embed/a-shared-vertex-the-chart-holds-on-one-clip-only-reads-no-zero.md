@@ -91,6 +91,15 @@ on the cell's sheet, so the vertex is a corner. **Not built**; see
 - Checked: the printed clips and the vertex's edges, in all 21 sweep
   tests; the fix is not.
 
+## Two halves of one cylinder across a seam ruling (EMBED lane `embed/iso-end`, 2026-11-22)
+
+In these 2 the refusing pair is two faces of one cylinder carrier sharing a ruling that ends in the cell. Each face has one clip, its edge stopping at the shared vertex inside the cell's side, so both exit at `sides_are_the_faces`. Neither carrier signs the other, since they are the same carrier.
+
+Measured on `embed/iso-end-measure2` (`origin/embed/gate-measure` @ `ebb2e6f8e` plus `embed/iso-end`'s diff), where each refusal is the same pair, test by test, as on the trace run that named the exits (`embed/iso-end-measure` @ `030c75763`, `CV_TRACE`).
+
+- `editor-core::all emit_union_seam_rank::crossings_of_an_arc_cut_twice_name_apart_by_sense_in_every_member_order`
+- `editor-core::all emit_union_seam_rank::crossings_of_seams_with_no_start_name_apart_by_sense_in_every_member_order`
+
 ## What landed and what moved (EMBED, lane embed/clip-vertex, 2026-11-22)
 
 **What `zero_of` reads now.** A presentation's zero is the points of
@@ -100,9 +109,10 @@ zero and never forbids one:
 - a lone loose vertex on one clip, on no corner, with no shared edge in
   reach: that clip's side, through the vertex (`Zero::Through`).
   `sign_on` reads it only under a plane that holds the side's whole
-  line or circle (`planes_through`: through a ruling, or a circle's own
-  plane), against a partner whose zero is none or a corner point at
-  that vertex (`through_read`);
+  line (`planes_through`: through a ruling), against a partner whose
+  zero is none or the corner point at that vertex (`through_read`). It
+  is read on a line edge only: a vertex on a circle's side names no
+  zero;
 - a loose vertex beside a wholly shared side leaves that side the zero;
   of several loose vertices the one at a corner of two clips is the
   point; anything else names no zero (`Zero::None`), read by the
@@ -181,3 +191,43 @@ Measured on the same run, each with its trace (`CVT`, `CVS` rows):
   no zero and the separator's value does not sign it
   (`a_turned_l_plates_run_builds_at_interval`: `planes = (Some, None)`).
   Not traced further.
+
+## After the review (EMBED, lane embed/clip-vertex, 2026-11-23)
+
+- **The circle's own plane is removed.** On the 55 census tests no ask
+  is certified by it (switched off, every count is the same), and the
+  tour's verdicts are the same without it. It signed the wall in the
+  two shapes above and the partner then failed. What would bring it
+  back is a body whose partner is strictly across a rim circle's plane
+  at a vertex in the middle of the rim: a corner standing on a rim
+  point with both its edges leaving the rim's plane, or the seam-clip
+  case once a seam's line is a clip.
+  `injective::presentation_rows::a_wall_and_a_corner_at_a_vertex_mid_line_certify_under_the_lines_plane`
+  pins that such a pair is split today.
+- **What "holds" is true of** (on the landing branch `8d34076a9e`).
+  The wall row holds at both scalars, pair and whole body, on a dyadic
+  build and on one off the grid (radius 0.7, block
+  `[0.13, 0.7] × [-0.61, 0] × [0.3, 1.7]`), each as built, turned about
+  a generic axis and a hundred units off, and mirrored across an axis
+  plane. Before the cover read a joint's two stored ends as one line
+  (PR 7322) the off-grid build's lower pair refused at `f64` and held
+  at `Interval`: the ruling's two edges store the vertex's height as
+  `0.3` and `0.30000000000000004`, and a cell across that ulp was not
+  covered (`sides_are_the_faces`, 41 failures in the trace), so the
+  wall never reached `zero_of`. Mirrored across a generic plane the
+  block holds at `f64` and refuses at `Interval`, and the ring refuses
+  at both, upstream of this reading
+  (PCERT's `a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64`, its third sighting: the mirrored rim rows store a rounding in the axial channel).
+- **The one corner among several loose vertices is signed only where it
+  is the first shared vertex** (review, by inspection): the
+  vertex-alone plane and `anchor` take `near.vertices.first()`, and a
+  corner point is zero only under a plane that lists its vertex. Not
+  fixed and not pinned by a row; the reading is named and unsigned for
+  the other order.
+- **A flap tangent to the wall at the vertex only** (the right verdict
+  is `Holds`) reads `Budget` at both scalars (the review's probe). No
+  first-order separator parts a tangent pair.
+- **Two circles through one vertex** are both cells with no zero now
+  (a circle's side is not read), and are split as before. No test row
+  of their own; `a_cylinder_through_a_hole_tangent_to_its_wall` is the
+  census body.

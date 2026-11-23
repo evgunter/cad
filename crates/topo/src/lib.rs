@@ -177,6 +177,7 @@ mod finish;
 pub(crate) mod fixtures;
 pub(crate) mod fuse;
 pub mod geometry;
+pub(crate) mod glue;
 pub(crate) mod injective;
 pub(crate) mod region;
 mod rim_wedge;
@@ -338,6 +339,21 @@ pub mod test_support {
     use geom_core::Real;
 
     use crate::body::Body;
+
+    /// **Whether each pose of a sphere face holds `point` in the extent
+    /// it grants**: one entry per pose about an off-axis circle of the
+    /// face, `None` where that pose grants none. `None` overall where the
+    /// face does not lift. The containment pins of the posed extent read
+    /// it.
+    #[must_use]
+    pub fn posed_extents_holding(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        point: [f64; 3],
+        band: geom_core::Band,
+    ) -> Option<Vec<Option<bool>>> {
+        crate::clearance::posed_extents_holding(body, face, point, band)
+    }
 
     /// The at-rest window's reasons for an incidence refusal, one per
     /// read (`validate::incidence_reasons`): a test outside this crate
@@ -1534,7 +1550,7 @@ pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, LoopRole, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-pub use euler::{BadArgument, EulerOpError, RechartDoor};
+pub use euler::{BadArgument, EdgeSubject, EulerOpError, RechartDoor};
 pub use link::{CurvedUnread, Link, LinkRefusal, Material, Round, TouchUnread};
 pub use live::FaceView;
 pub use sweep_trace::SweepPairs;

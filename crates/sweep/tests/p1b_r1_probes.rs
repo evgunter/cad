@@ -536,11 +536,12 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     assert!(
         matches!(
             err,
-            topo::EulerOpError::Certification {
+            topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::ResidualExceeded {
                     check: geom_brep::CertCheck::MappedSource,
                     ..
-                }
+                },
+                ..
             }
         ),
         "(a) the meter names it, on a chart image over a cylinder: {err:?}"
@@ -596,11 +597,12 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     assert!(
         matches!(
             err,
-            topo::EulerOpError::Certification {
+            topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::ResidualExceeded {
                     check: geom_brep::CertCheck::MappedSource,
                     ..
-                }
+                },
+                ..
             }
         ),
         "(b) the meter names it, on a rotation-family payload over a line: {err:?}"
@@ -703,11 +705,12 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
     assert!(
         matches!(
             err,
-            topo::EulerOpError::Certification {
+            topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::ResidualExceeded {
                     check: geom_brep::CertCheck::MappedSource,
                     ..
-                }
+                },
+                ..
             }
         ),
         "and it is refused BY THE REINSTATED METER, named — not by some \

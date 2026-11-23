@@ -320,13 +320,12 @@ fn hull_verdict(
 /// [`SectionError::Unaccounted`], naming the side.
 fn door_on<T: Decide>(
     net: &NurbsSurface<T>,
-    band: Band,
     partner: &str,
     clear: impl Fn(Point3<T>) -> Option<Sign>,
 ) -> Result<(), SectionError> {
     let control = net.control();
     for side in crate::ssi::boundary::SIDES {
-        let Some(row) = crate::chart_singularity::spline_collapsed_row(net, side, band) else {
+        let Some(row) = crate::chart_singularity::spline_collapsed_row(net, side) else {
             continue;
         };
         let signs: Vec<_> = row
@@ -388,7 +387,7 @@ impl<T: Decide> SplineImplicitPose<T> {
     ///
     /// [`SectionError::Unaccounted`], naming the side.
     fn door(&self, band: Band) -> Result<(), SectionError> {
-        door_on(&self.net, band, "plane", |p| {
+        door_on(&self.net, "plane", |p| {
             decide("section_nurbs_plane_pole", Margin::of(self.height(p)), band).ok()
         })
     }
