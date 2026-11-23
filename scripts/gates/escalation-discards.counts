@@ -19,6 +19,11 @@ crates/geom-brep/src/ssi/boundary.rs 1
 # profile seg: a poisoned straightness reading falls through to the
 # carrier's checks after it, which read the same segment.
 crates/profile/src/seg.rs 1
+# boolean ops: the interior-loop recut, where `apply_cut_ins` refuses a
+# cut it cannot make (an escalation returns as itself): the pipeline goes
+# on and the guard's refusal is raised on the built body, the op's one
+# reading of the loop; no candidate is passed over for another.
+crates/topo/src/boolean/ops.rs 1
 # census: the detector's posture: a pair whose interiors do not decide is
 # neither overlap nor apart, and the census reports what decided.
 crates/topo/src/census.rs 1

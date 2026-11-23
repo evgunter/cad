@@ -21,7 +21,7 @@
 //! the built body as it would have. A decision of the cut-in's own that
 //! its band cannot read escalates as itself.
 
-use geom_core::{Band, Decide, NonzeroSign};
+use geom_core::{Band, Decide};
 
 use super::super::section_cert::Refusal as SectionRefusal;
 use super::{PairVerdict, SphereCutIn};
@@ -90,23 +90,7 @@ fn cut_in<T: Decide>(
     let center = frame.origin();
     Ok(match y {
         &geom::Surface::Plane { frame: plane } => {
-            let normal = plane.axis();
-            match super::ball_against_plane(center, radius, plane.origin(), normal, band) {
-                Ok((NonzeroSign::Positive, s)) => {
-                    let (foot, rho) = super::plane_section(center, radius, normal, s);
-                    Some(SphereCutIn {
-                        operand,
-                        face,
-                        center,
-                        radius,
-                        foot,
-                        rho,
-                        normal,
-                        u_ref: plane.u_ref(),
-                    })
-                }
-                Ok((NonzeroSign::Negative, _)) | Err(_) => None,
-            }
+            super::plane_cut_of_sphere((operand, face), center, radius, plane, band)
         }
         geom::Surface::Sphere { .. } => Some(super::sphere_pair_cut((operand, face), x, y, band)?),
         _ => None,
