@@ -2,10 +2,11 @@
 id: torus-tangency-shell-floor-does-not-scale-with-k
 kind: issue
 title: the_clamp_floor_clears_the_torus_tangency_shell asserts a fixed floor against a shell that grows as K^(1/3) — red at CAD_AMBIGUITY_K=30 on main
-status: open
+status: closed
 opened: 2026-09-11
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -150,3 +151,9 @@ fixed floor clears it by five orders, so it scales with K as the band
 does. Closing the row is VACUITY's call once that branch merges.
 
 Moved from VACUITY to CIW on 2026-11-20, by `git mv`, when VACUITY merged into CIW: VACUITY held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+2026-11-22, CIW triage (stale). Dissolved as the row's last section predicted. Main has `the_clamp_floor_clears_the_shell_about_the_top_circle` (`crates/sweep/tests/bool3_torus_doors.rs:572`).
+It pins the shell to the residual band and its ε-exponent as linear (`:587-600`), so the floor scales as the band does.
+The fixed-floor-versus-K^(1/3) row the title names no longer exists.

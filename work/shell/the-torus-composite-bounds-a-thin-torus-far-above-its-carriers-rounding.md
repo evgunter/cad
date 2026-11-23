@@ -56,3 +56,5 @@ composite change; neither is designed.
   refuses limb 2 as `KernelLimit` with a bound of 8.6e-11 m over 113 m,
   against a carrier enclosure width of 3.9e-12 m (b / w ≈ 22); it builds
   at the default ε and at 1e-6.
+
+**Evidence from `tesslane/one-slit-band` (2026-11-23).** A plate section `[0.3, 1] × [0, 1]` with its corner rounded at r = 5e-4, revolved a full turn about `y` (`sweep::revolve`, `Revolution::Full`; the torus (0.3005, 5e-4), R/r ≈ 600), refuses at ε = 1e-12 with `Op { Certification { AnalyticRung3(KernelLimit { operand: Torus, bound: 1.81e-12, width: 1.89e-15, extent: 0.849 }) } }` (b/w ≈ 960). The same section builds at r ≥ 1e-3 for hole 0.3, and at r ≥ 1e-2 for hole 0.9. It builds at ε = 1e-9 and 1e-6. `crates/mesh/tests/the_one_slit_band.rs`'s revolved row says so when it skips at 1e-12.

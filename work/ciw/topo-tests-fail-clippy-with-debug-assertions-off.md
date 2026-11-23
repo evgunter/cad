@@ -2,10 +2,11 @@
 id: topo-tests-fail-clippy-with-debug-assertions-off
 kind: issue
 title: crates/topo/tests/loop_reparenting_pcurve_rows.rs fails clippy -D warnings with debug assertions off (8 dead-code errors); CI lints only the debug-assertions-on config
-status: open
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -32,3 +33,7 @@ the lint job also run clippy with debug assertions off, for the crates
 the release job tests.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+2026-11-22, CIW triage (stale). crates/topo/tests/loop_reparenting_pcurve_rows.rs has no `cfg` attribute of any kind at origin/main (`grep cfg` is empty; its helpers at :48-302 are used by ungated rows). The mechanism the row describes, helpers used only under `#[cfg(debug_assertions)]`, cannot occur there. The checkout is shallow (to 11-15), so the removing commit was not found. Even if it were live, the row's second option (clippy with debug assertions off in the lint job) would be CLOSE-LATENCY.

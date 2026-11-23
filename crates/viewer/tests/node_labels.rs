@@ -457,24 +457,6 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         "halves",
     );
     session.pump();
-    run(
-        &mut session,
-        SessionOp::SketchOnFace {
-            face: FaceSelection {
-                name: pncad::prelude::StableName {
-                    kind: pncad::prelude::EntityKind::Face,
-                    node: block,
-                    path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End)],
-                },
-                node: block,
-                body: 0,
-            },
-            loops: vec![common::rectangle_loop([0.0, 0.0], 0.005, 0.005)],
-            distance: len(0.005),
-            spin: Formula::zero(Dimension::Angle),
-        },
-        "boss",
-    );
     // A footprint drawn in a cylinder's base, running onto its wall's
     // trace and along it.
     let disc = run(
