@@ -134,7 +134,7 @@ fn a_revolve_lands_unplaced_whatever_its_axis_reads() {
     };
     assert_eq!(outcome.made, Some(revolve));
     assert_eq!(
-        viewer::frame::outcome_notices(&outcome).count(),
+        viewer::frame::outcome_notices(&outcome, pncad::document::Speaker::TAG).count(),
         0,
         "the ordinary answer carries no notice"
     );
@@ -1097,7 +1097,8 @@ fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
     let doc = session.committed_doc().clone();
     let mut tool = PatternTool::new();
     tool.pick_at(&doc, revolve, Some(0));
-    let line = viewer::seats::seat_line(tool.seats(), pncad::document::Speaker::of(&doc));
+    let line =
+        viewer::seats::seat_line(tool.seats(), pncad::document::Speaker::of(&doc)).to_string();
     assert!(
         !line.contains("half"),
         "a revolve is said as a split half: {line}"

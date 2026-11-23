@@ -16,7 +16,7 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
-    ProfileProgram, RecipeNodeId, Said, Sentence, SlotId, SlotKind, Speaker, SpokenNode,
+    ProfileProgram, RecipeNodeId, Said, Say, Sentence, SlotId, SlotKind, Speaker, SpokenNode,
     SpokenSpace, SpokenVar, VarId, VarKind, VarName, say,
 };
 use std::path::{Path, PathBuf};
@@ -1070,13 +1070,13 @@ impl Refusal {
     /// Writes each arm through its payload's OWN words wherever the
     /// payload has them — the same rule the feature tree's badges
     /// follow: the layer that raised the failure names it. A payload
-    /// that is said (`EditError`, `MateFault`, `RangeRefusal`) is
-    /// written as a sentence by `by`, and a staged one (`PersistError`
-    /// inside [`DocIoError`], `WorkspaceError`) as its labelled
-    /// sentence, so their mentions stay mentions. A payload with words
-    /// alone (`DimensionError`, `ParseError`, an OS read error, and the
-    /// viewer's own faults, filed to be said) is spelled before the
-    /// sentence is written.
+    /// that is said (`EditError`, `MateFault`, `RangeRefusal`, and the
+    /// viewer's own faults) is written as a sentence by `by`, and a
+    /// staged one (`PersistError` inside [`DocIoError`],
+    /// `WorkspaceError`) as its labelled sentence, so their mentions
+    /// stay mentions. A payload with words alone (`DimensionError`,
+    /// `ParseError`, `EvalError`, an OS read error) is spelled before
+    /// the sentence is written.
     ///
     /// One exception, stated rather than hidden: the affordance arm's
     /// wording is this layer's own sentence, so it is
@@ -1161,14 +1161,8 @@ impl Refusal {
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
-            Self::StepClear(fault) => {
-                let text = pncad::geom_brep::recourse::read_at(fault, at).to_string();
-                say!(out, text)
-            }
-            Self::Frame(fault) => {
-                let text = fault.to_string();
-                say!(out, text)
-            }
+            Self::StepClear(fault) => fault.said_at(out, by, at),
+            Self::Frame(fault) => out.say(&**fault, by),
             Self::Edit(error) => say!(out, "the edit was refused: ", Said(&**error, by)),
             Self::Dimension(error) => {
                 let text = error.to_string();
@@ -1196,14 +1190,8 @@ impl Refusal {
             Self::NothingToDo { direction } => {
                 say!(out, format_args!("nothing to {}", direction.verb()))
             }
-            Self::Display(fault) => {
-                let text = fault.to_string();
-                say!(out, text)
-            }
-            Self::SlotUnit(fault) => {
-                let text = fault.to_string();
-                say!(out, text)
-            }
+            Self::Display(fault) => out.say(fault, by),
+            Self::SlotUnit(fault) => out.say(fault, by),
             Self::Range(refusal) => say!(out, Said(&**refusal, by)),
             Self::NoDocumentDirectory => say!(
                 out,
@@ -1321,10 +1309,7 @@ impl Refusal {
                 " sets a freedom its mates leave, and a freedom is always set; \
                  edit its number instead"
             ),
-            Self::Draft(error) => {
-                let text = error.to_string();
-                say!(out, text)
-            }
+            Self::Draft(error) => out.say(&**error, by),
             Self::PlacementFails { fault: Some(fault) } => say!(
                 out,
                 "the copy would not stand: ",
@@ -1441,8 +1426,9 @@ pub enum GestureFrameFault {
     },
 }
 
-impl core::fmt::Display for GestureFrameFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// Words alone: it names no node.
+impl Say for GestureFrameFault {
+    fn say(&self, f: &mut Sentence, _by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::NoHeading { field } => write!(
                 f,
@@ -1450,6 +1436,12 @@ impl core::fmt::Display for GestureFrameFault {
                  face for its normal or a round edge or face for its axis"
             ),
         }
+    }
+}
+
+impl core::fmt::Display for GestureFrameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 

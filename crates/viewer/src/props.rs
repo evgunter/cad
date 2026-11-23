@@ -2091,23 +2091,25 @@ pub enum SlotUnitFault {
     },
 }
 
-impl core::fmt::Display for SlotUnitFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// Each node as the fault kept it, mentioned in the speaker's document.
+impl pncad::document::Say for SlotUnitFault {
+    fn say(
+        &self,
+        f: &mut pncad::document::Sentence,
+        by: pncad::document::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
-            Self::NoExpression { node, slot } => {
-                write!(
-                    f,
-                    "{node} carries no expression in its {} slot",
-                    slot.label(),
-                    node = crate::tree::spelled(node)
-                )
-            }
-            Self::NotALiteral { node, slot } => write!(
+            Self::NoExpression { node, slot } => pncad::document::say!(
                 f,
-                "the {} slot on {node} is computed, so it has no written unit to change — set \
-                 an expression to change what it says",
-                slot.label(),
-                node = crate::tree::spelled(node)
+                by.mention(node),
+                format_args!(" carries no expression in its {} slot", slot.label())
+            ),
+            Self::NotALiteral { node, slot } => pncad::document::say!(
+                f,
+                format_args!("the {} slot on ", slot.label()),
+                by.mention(node),
+                " is computed, so it has no written unit to change — set an expression to \
+                 change what it says"
             ),
             Self::Dimension { slot, source } => {
                 write!(
@@ -2117,6 +2119,13 @@ impl core::fmt::Display for SlotUnitFault {
                 )
             }
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for SlotUnitFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        pncad::document::display_said(self, pncad::document::Speaker::TAG, f)
     }
 }
 

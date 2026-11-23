@@ -99,8 +99,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::layout::SavedFrame;
 use pncad::document::{
-    Doc, Evaluation, Frame, OperandSlot, ProfileProgram, RecipeNodeId, SpokenNode, SpokenSpace,
-    VarId, VarKind,
+    Doc, Evaluation, Frame, OperandSlot, ProfileProgram, RecipeNodeId, Said, Say, Sentence,
+    Speaker, SpokenNode, SpokenSpace, VarId, VarKind, say,
 };
 use pncad::geom_core::Affine3;
 
@@ -269,76 +269,75 @@ pub enum AdmissionFault {
     },
 }
 
-impl core::fmt::Display for AdmissionFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// Each node as the fault kept it, mentioned in the speaker's document.
+impl Say for AdmissionFault {
+    fn say(&self, f: &mut Sentence, by: Speaker<'_>) -> core::fmt::Result {
+        let space = |space| Said(space, by);
         match self {
-            Self::NoSuchNode { node } => {
-                write!(
-                    f,
-                    "{node} is not in the document",
-                    node = crate::tree::spelled(node)
-                )
+            Self::NoSuchNode { node } => say!(f, by.mention(node), " is not in the document"),
+            Self::NotABody { node } => say!(
+                f,
+                by.mention(node),
+                " builds no body, so the picture draws nothing of it"
+            ),
+            Self::NotASpace { space: held } => {
+                say!(f, space(&**held), " is not a space of the document")
             }
-            Self::NotABody { node } => {
-                write!(
-                    f,
-                    "{node} builds no body, so the picture draws nothing of it",
-                    node = crate::tree::spelled(node)
-                )
-            }
-            Self::NotASpace { space } => {
-                write!(
-                    f,
-                    "{space} is not a space of the document",
-                    space = pncad::document::Said(&space, pncad::document::Speaker::TAG).sentence()
-                )
-            }
-            Self::NotDrawn { node } => write!(
+            Self::NotDrawn { node } => say!(
                 f,
-                "{node} is not drawn: an operation reads it as a body, so it has no picture of \
-                 its own to move",
-                node = crate::tree::spelled(node)
+                by.mention(node),
+                " is not drawn: an operation reads it as a body, so it has no picture of its \
+                 own to move"
             ),
-            Self::InTheWorld { node } => write!(
+            Self::InTheWorld { node } => say!(
                 f,
-                "{node} is in the world, the product's space, so the free-move probe \
-                 refuses. Free-move moves another shown space",
-                node = crate::tree::spelled(node)
+                by.mention(node),
+                " is in the world, the product's space, so the free-move probe refuses. \
+                 Free-move moves another shown space"
             ),
-            Self::NotEvaluated { node } => write!(
+            Self::NotEvaluated { node } => say!(
                 f,
-                "{node} has no picture yet: no evaluation of the current document has \
-                 landed",
-                node = crate::tree::spelled(node)
+                by.mention(node),
+                " has no picture yet: no evaluation of the current document has landed"
             ),
-            Self::NoSpace { node } => write!(
+            Self::NoSpace { node } => say!(
                 f,
-                "{node} has no picture: it did not evaluate, so there is nothing of it to \
-                 move",
-                node = crate::tree::spelled(node)
+                by.mention(node),
+                " has no picture: it did not evaluate, so there is nothing of it to move"
             ),
-            Self::MovedSpace { node, into } => write!(
+            Self::MovedSpace { node, into } => say!(
                 f,
-                "{node} is now in {into}, not the space the free-move was drawn for, so \
-                 that free-move is gone. A free-move of {node} moves the space it is in now",
-                node = crate::tree::spelled(node),
-                into = pncad::document::Said(&into, pncad::document::Speaker::TAG).sentence()
+                by.mention(node),
+                " is now in ",
+                space(&**into),
+                ", not the space the free-move was drawn for, so that free-move is gone. A \
+                 free-move of ",
+                by.mention(node),
+                " moves the space it is in now"
             ),
-            Self::NoSuchSpace { node, space } => write!(
+            Self::NoSuchSpace { node, space: held } => say!(
                 f,
-                "{node} was free-moved in {space}, which is not in the document, so that \
-                 free-move is gone",
-                space = pncad::document::Said(&space, pncad::document::Speaker::TAG).sentence(),
-                node = crate::tree::spelled(node)
+                by.mention(node),
+                " was free-moved in ",
+                space(&**held),
+                ", which is not in the document, so that free-move is gone"
             ),
-            Self::NotShown { node, space } => write!(
+            Self::NotShown { node, space: held } => say!(
                 f,
-                "{node}'s free-move moves {space}, which is not shown — every body in it is \
-                 read by an operation and drawn there — so there is no picture of it to move",
-                space = pncad::document::Said(&space, pncad::document::Speaker::TAG).sentence(),
-                node = crate::tree::spelled(node)
+                by.mention(node),
+                "'s free-move moves ",
+                space(&**held),
+                ", which is not shown — every body in it is read by an operation and drawn \
+                 there — so there is no picture of it to move"
             ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for AdmissionFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -459,10 +458,12 @@ pub enum DisplayFault {
     WrongFreeMove,
 }
 
-impl core::fmt::Display for DisplayFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// The admission fault's sentence, its nodes said by the speaker; every
+/// other arm is words.
+impl Say for DisplayFault {
+    fn say(&self, f: &mut Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Admission(fault) => write!(f, "{fault}"),
+            Self::Admission(fault) => fault.say(f, by),
             Self::NonRigidFrame { determinant } => write!(
                 f,
                 "the free-move frame is not a finite rigid motion (determinant {determinant}); \
@@ -472,6 +473,13 @@ impl core::fmt::Display for DisplayFault {
             Self::FreeMoveInFlight => write!(f, "finish the free-move first"),
             Self::WrongFreeMove => write!(f, "that is not the free-move in progress"),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for DisplayFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 

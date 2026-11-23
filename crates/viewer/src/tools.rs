@@ -37,7 +37,9 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId, Said, Say, Speaker};
+use pncad::document::{
+    Doc, Evaluation, ProfileProgram, RecipeNodeId, Said, Say, Sentence, Speaker,
+};
 use pncad::select::SplitHalf;
 
 use crate::blend::{BlendEvent, BlendTool};
@@ -132,8 +134,8 @@ impl ToolKind {
 
     /// **This tool's panel refusing its commit**, as the value
     /// [`crate::frame::tool_news`] takes.
-    pub fn refuses(self, why: &impl core::fmt::Display) -> PanelRefusal {
-        PanelRefusal::new(Panel::Tool(self), why)
+    pub fn refuses(self, why: impl Into<Sentence>) -> PanelRefusal {
+        PanelRefusal::new(Panel::Tool(self), why.into())
     }
 
     /// **The words on the button that opens this tool**: its name,
@@ -422,8 +424,8 @@ impl FormKind {
 
     /// **This form's button refusing**, as the value
     /// [`crate::frame::tool_news`] takes.
-    pub fn refuses(self, why: &impl core::fmt::Display) -> PanelRefusal {
-        PanelRefusal::new(Panel::Form(self), why)
+    pub fn refuses(self, why: impl Into<Sentence>) -> PanelRefusal {
+        PanelRefusal::new(Panel::Form(self), why.into())
     }
 }
 
@@ -452,7 +454,7 @@ impl Panel {
 /// **What the type pins**: the sentence opens with a panel's name, and
 /// the door it reaches answers [`crate::frame::Subject::Document`] and
 /// [`crate::frame::Retold::Again`]. **What it does not**: the words
-/// after the name — `refuses` takes any `Display`, so whether they are
+/// after the name — `refuses` takes any sentence, so whether they are
 /// the panel's own refusal is the call site's.
 ///
 /// **Not a [`ToolNotice`]**, and not merged with one: a panel's refusal
@@ -462,22 +464,25 @@ impl Panel {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PanelRefusal {
     panel: Panel,
-    why: String,
+    why: Sentence,
 }
 
 impl PanelRefusal {
-    fn new(panel: Panel, why: &impl core::fmt::Display) -> Self {
-        Self {
-            panel,
-            why: why.to_string(),
-        }
+    fn new(panel: Panel, why: Sentence) -> Self {
+        Self { panel, why }
+    }
+
+    /// **Its sentence**: the panel's name, then why, its mentions kept.
+    #[must_use]
+    pub fn said(&self) -> Sentence {
+        let Self { panel, why } = self;
+        pncad::document::sentence!(format_args!("{}: ", panel.name()), why)
     }
 }
 
 impl core::fmt::Display for PanelRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self { panel, why } = self;
-        f.write_str(&compose(&panel.name(), why))
+        write!(f, "{}", self.said())
     }
 }
 

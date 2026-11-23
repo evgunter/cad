@@ -556,7 +556,7 @@ impl ViewerBehavior<'_> {
                 match crate::drafts::label_typed(&typed) {
                     Ok(label) => self.ops.push(SessionOp::SetLabel { node, label }),
                     Err(fault) => self.notices.push(crate::frame::tool_news(
-                        &crate::tools::FormKind::Label.refuses(&fault),
+                        &crate::tools::FormKind::Label.refuses(fault.to_string()),
                     )),
                 }
             }

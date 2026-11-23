@@ -330,7 +330,7 @@ fn an_interferences_lead_seats_its_pair_and_the_persons_bound_quiets_it() {
 
     let tool = AssertionTool::led(pair);
     let by = Speaker::of(session.committed_doc());
-    let line = tool.line(by);
+    let line = tool.line(by).to_string();
     for reference in &pair.references {
         let name = reference
             .name()

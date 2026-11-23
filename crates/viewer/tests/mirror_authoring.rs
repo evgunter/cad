@@ -816,7 +816,8 @@ fn a_deleted_copy_drops_the_plane_in_the_words_the_line_said() {
     let line = tools
         .mirror()
         .expect("open")
-        .line(viewer::frame::landed_speaker(session.landed_pair()));
+        .line(viewer::frame::landed_speaker(session.landed_pair()))
+        .to_string();
     let plane = line
         .split_once("mirror plane: ")
         .map(|(_, plane)| plane.to_owned())
@@ -960,7 +961,8 @@ fn a_click_on_a_copy_seats_the_copy_and_says_the_plane_on_it() {
     let line = tools
         .mirror()
         .expect("open")
-        .line(viewer::frame::landed_speaker(session.landed_pair()));
+        .line(viewer::frame::landed_speaker(session.landed_pair()))
+        .to_string();
     let plane = line
         .strip_prefix(&format!("mirrored body: {copy}; mirror plane: "))
         .unwrap_or_else(|| panic!("the body seat says the copy: {line:?}"));

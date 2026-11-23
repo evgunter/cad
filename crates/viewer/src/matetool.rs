@@ -116,7 +116,8 @@ use pncad::document::say;
 use pncad::document::{
     Constraint, ConstraintId, ConstraintKind, Dimension, Doc, Evaluation, Formula, Mate, MateRef,
     MateSide, Node, Operand, Orientation, Placed, ProfileProgram, RecipeNodeId, Said, Say,
-    SitedRef, SlideAxes, SlotKind, Speaker, SpokenNode, Value, VarId, VarKind, member_of, pose,
+    Sentence, SitedRef, SlideAxes, SlotKind, Speaker, SpokenNode, Value, VarId, VarKind, member_of,
+    pose,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -1412,8 +1413,9 @@ pub enum MateToolError {
     },
 }
 
-impl core::fmt::Display for MateToolError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// Each node as the tool kept it, mentioned in the speaker's document.
+impl Say for MateToolError {
+    fn say(&self, f: &mut Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::NoDoor => write!(f, "pick the body or the copy to place first"),
             Self::SeatEmpty { row, side, seat } => write!(
@@ -1444,24 +1446,20 @@ impl core::fmt::Display for MateToolError {
                     said_entities(&reads(*kind)),
                 )
             }
-            Self::PickGone { side, node } => write!(
+            Self::PickGone { side, node } => say!(
                 f,
-                "the {} pick is on {node}, which the document no longer holds",
-                side.name(),
-                node = crate::tree::spelled(node)
+                format_args!("the {} pick is on ", side.name()),
+                by.mention(node),
+                ", which the document no longer holds"
             ),
-            Self::MemberUnread { side, node } => write!(
+            Self::MemberUnread { side, node } => say!(
                 f,
-                "the {} pick is on {node}, a family, and a side reads one body: pick on one \
-                 drawn member of it, once the document has landed",
-                side.name(),
-                node = crate::tree::spelled(node)
+                format_args!("the {} pick is on ", side.name()),
+                by.mention(node),
+                ", a family, and a side reads one body: pick on one drawn member of it, once \
+                 the document has landed"
             ),
-            Self::NotAPlacement { node } => write!(
-                f,
-                "{node} is no placement",
-                node = crate::tree::spelled(node)
-            ),
+            Self::NotAPlacement { node } => say!(f, by.mention(node), " is no placement"),
             Self::NotAMate { mate } => write!(
                 f,
                 "constraint {} of node {} is no mate of its bundle",
@@ -1496,6 +1494,13 @@ impl core::fmt::Display for MateToolError {
                 row + 1
             ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for MateToolError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3266,19 +3271,25 @@ impl MateTool {
     /// tools' line (`seats::picks_line`), each seat a role, a side as
     /// the bundle wrote it said so.
     #[must_use]
-    pub fn line(&self, row: usize, by: Speaker<'_>) -> String {
+    pub fn line(&self, row: usize, by: Speaker<'_>) -> Sentence {
         let Some(mate) = self.rows().get(row) else {
-            return crate::seats::picks_line(core::iter::empty::<(String, Option<String>)>());
+            return crate::seats::picks_line(core::iter::empty::<(String, Option<Sentence>)>());
         };
         let mut roles = Vec::new();
         for side in [MateSide::On, MateSide::To] {
             let drafted = mate.side(side);
             if let MateSideDraft::Datum(_, said) = drafted {
-                roles.push((side.name().to_owned(), Some(crate::tree::spelled(said))));
+                roles.push((
+                    side.name().to_owned(),
+                    Some(pncad::document::sentence!(by.mention(said))),
+                ));
                 continue;
             }
             if side == MateSide::On && self.draft.as_ref().is_some_and(|d| d.datum) {
-                roles.push((side.name().to_owned(), Some(datum_side_said(mate.kind))));
+                roles.push((
+                    side.name().to_owned(),
+                    Some(datum_side_said(mate.kind).into()),
+                ));
                 continue;
             }
             for &seat in MateSeat::of(mate.kind) {
@@ -3288,8 +3299,8 @@ impl MateTool {
                 };
                 let said = drafted
                     .pick(seat)
-                    .map(|pick| Said(pick, by).sentence().to_string())
-                    .or_else(|| drafted.is_written().then(|| "as written".to_owned()));
+                    .map(|pick| Said(pick, by).sentence())
+                    .or_else(|| drafted.is_written().then(|| "as written".into()));
                 roles.push((role, said));
             }
         }

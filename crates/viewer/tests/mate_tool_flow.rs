@@ -282,7 +282,9 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_top.clone());
     tool.pick(session.doc(), shelf_bottom.clone());
-    let held_line = tool.line(0, viewer::frame::landed_speaker(session.landed_pair()));
+    let held_line = tool
+        .line(0, viewer::frame::landed_speaker(session.landed_pair()))
+        .to_string();
 
     // The SECOND pick's instance is deleted out from under the tool.
     session.perform(SessionOp::DeleteNode {
@@ -1115,7 +1117,9 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
         "InstantiatePart {}",
         test_utils::refusal::tag(bench.post_b.0.digest())
     );
-    let panel = tool.line(0, viewer::frame::landed_speaker(session.landed_pair()));
+    let panel = tool
+        .line(0, viewer::frame::landed_speaker(session.landed_pair()))
+        .to_string();
     assert!(
         panel.contains(&spoken) && !panel.contains("\"post\""),
         "the panel says the node by the landed label: {panel}"

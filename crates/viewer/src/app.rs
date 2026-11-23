@@ -1122,8 +1122,12 @@ impl ViewerApp {
         // a free-moved space takes effect when its solve lands), said as
         // an operation's withdrawals are.
         let withdrawn = self.session.take_landed_withdrawals();
-        self.notices
-            .extend(withdrawn.iter().flat_map(frame::withdrawal_notices));
+        let by = pncad::document::Speaker::of(self.session.committed_doc());
+        self.notices.extend(
+            withdrawn
+                .iter()
+                .flat_map(|report| frame::withdrawal_notices(report, by)),
+        );
         self.survive_tools();
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
@@ -1585,7 +1589,10 @@ impl ViewerApp {
             // ONE call: `frame::outcome_notices` destructures the
             // outcome, so a new field reds there rather than going
             // unsaid here.
-            notices.extend(frame::outcome_notices(&outcome));
+            notices.extend(frame::outcome_notices(
+                &outcome,
+                pncad::document::Speaker::of(self.session.committed_doc()),
+            ));
             // The profile editor's draft waits on the edit it formed.
             if matches!(accepted_op, SessionOp::EditProfile { .. }) {
                 let doc = outcome
@@ -1654,7 +1661,10 @@ impl ViewerApp {
                 let selected = self
                     .session
                     .perform(SessionOp::Select(crate::session::Selection::Node(node)));
-                notices.extend(frame::outcome_notices(&selected));
+                notices.extend(frame::outcome_notices(
+                    &selected,
+                    pncad::document::Speaker::of(self.session.committed_doc()),
+                ));
                 if let Some(next) = selected.refusal {
                     refusal = Refusal::preferred(refusal, next);
                 }

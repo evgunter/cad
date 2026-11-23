@@ -1920,7 +1920,7 @@ mod picked_name {
         let mut mate = crate::matetool::MateTool::new();
         mate.pick(&doc, cap_on(place));
         mate.pick(&doc, cap_on(second));
-        let plane = mirror.line(by);
+        let plane = mirror.line(by).to_string();
         assert!(
             plane.ends_with(&format!("mirror plane: {}", cap(place))),
             "the mirror says the cap on the copy clicked: {plane}"

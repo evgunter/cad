@@ -65,7 +65,7 @@ fn free_move(session: &mut DocSession, node: RecipeNodeId, frame: Frame) {
 
 /// The notices an outcome's layout puts on the line.
 fn said(outcome: &OpOutcome) -> Vec<String> {
-    outcome_notices(outcome)
+    outcome_notices(outcome, pncad::document::Speaker::TAG)
         .map(|message| message.text().to_string())
         .filter(|text| text.starts_with("layout: "))
         .collect()

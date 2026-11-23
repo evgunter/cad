@@ -128,7 +128,8 @@ fn face_of(doc: &Doc<ProfileProgram>, shell: RecipeNodeId) -> pncad::document::V
 /// the one operation that produced it.
 fn line_after(outcome: &OpOutcome, op: SessionOp) -> String {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let notices: Vec<frame::Message> = frame::outcome_notices(outcome).collect();
+    let notices: Vec<frame::Message> =
+        frame::outcome_notices(outcome, pncad::document::Speaker::TAG).collect();
     match frame::frame_status_untargeted(&notices, &[op], None) {
         RankedVerdict::Show(line) => line.text().to_owned(),
         other => panic!("an accepted edit with maintenance shows its rows, got {other:?}"),
@@ -206,7 +207,8 @@ fn every_maintenance_row_rides_beside_a_refusal() {
             took: pncad::document::Took::Node,
         },
     ];
-    let notices: Vec<frame::Message> = frame::maintenance_notices(&rows).collect();
+    let notices: Vec<frame::Message> =
+        frame::maintenance_notices(&rows, pncad::document::Speaker::TAG).collect();
     assert_eq!(notices.len(), rows.len(), "every arm here is worded");
     assert_eq!(
         notices
@@ -312,7 +314,7 @@ fn assert_quiet(outcome: &OpOutcome, op: SessionOp) {
     );
     assert_eq!(
         frame::frame_status_untargeted(
-            &frame::outcome_notices(outcome).collect::<Vec<_>>(),
+            &frame::outcome_notices(outcome, pncad::document::Speaker::TAG).collect::<Vec<_>>(),
             &[op],
             None
         ),
@@ -547,7 +549,7 @@ fn an_edit_that_renumbers_nothing_leaves_the_line_to_its_verdict() {
     );
     assert_eq!(
         frame::frame_status_untargeted(
-            &frame::outcome_notices(&outcome).collect::<Vec<_>>(),
+            &frame::outcome_notices(&outcome, pncad::document::Speaker::TAG).collect::<Vec<_>>(),
             &[op],
             None
         ),

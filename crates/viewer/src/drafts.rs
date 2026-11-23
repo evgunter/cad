@@ -287,6 +287,24 @@ impl Pending {
 
 pncad::geom_brep::ended_by_write!(Pending);
 
+/// The door's refusal with its nodes said by the speaker; a shape fault
+/// is words.
+impl pncad::document::Say for Pending {
+    fn say(
+        &self,
+        f: &mut pncad::document::Sentence,
+        by: pncad::document::Speaker<'_>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::Door(refusal) => {
+                f.append(refusal.said(by, None));
+                Ok(())
+            }
+            Self::Shape(error) => write!(f, "{error}"),
+        }
+    }
+}
+
 /// **What one entry at a held field writes** ([`ProfileEdit::write_entry`]):
 /// the field's two doors, as the slot row's are.
 #[derive(Clone, Debug)]
@@ -1525,7 +1543,8 @@ impl Drafts {
                         None
                     }
                     Err(error) => Some(crate::frame::tool_news(
-                        &crate::tools::ToolKind::Mate.refuses(&error),
+                        &crate::tools::ToolKind::Mate
+                            .refuses(pncad::document::spoken_by(&error, doc)),
                     )),
                 }
             }
@@ -1951,19 +1970,35 @@ impl From<DimensionError> for CommitFault {
     }
 }
 
-impl std::fmt::Display for CommitFault {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+/// A refusal's nodes as mentions said by the speaker; every other arm
+/// is words.
+impl pncad::document::Say for CommitFault {
+    fn say(
+        &self,
+        f: &mut pncad::document::Sentence,
+        by: pncad::document::Speaker<'_>,
+    ) -> std::fmt::Result {
         match self {
-            Self::Seat(error) => error.fmt(f),
-            Self::Dimension(error) => error.fmt(f),
-            Self::Program(error) => error.fmt(f),
-            Self::Traced(error) => error.fmt(f),
-            Self::Refused(refusal) => refusal.fmt(f),
-            Self::Spacing(fault) => fault.fmt(f),
+            Self::Seat(error) => write!(f, "{error}"),
+            Self::Dimension(error) => write!(f, "{error}"),
+            Self::Program(error) => write!(f, "{error}"),
+            Self::Traced(error) => write!(f, "{error}"),
+            Self::Refused(refusal) => {
+                f.append(refusal.said(by, None));
+                Ok(())
+            }
+            Self::Spacing(fault) => write!(f, "{fault}"),
             Self::BandOverValue => f.write_str(
                 "a band bounds a clearance; bound a value from one side, or at one value",
             ),
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl std::fmt::Display for CommitFault {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        pncad::document::display_said(self, pncad::document::Speaker::TAG, f)
     }
 }
 

@@ -2937,7 +2937,7 @@ fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
     boolean.set_operation(BooleanOp::Subtract);
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(3)));
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(4)));
-    let line = boolean.line(Speaker::of(&doc));
+    let line = boolean.line(Speaker::of(&doc)).to_string();
     let events = boolean.reconcile(&doc);
     assert_eq!(events.len(), 2, "neither node is in the empty document");
     for event in &events {
@@ -3879,9 +3879,11 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
     tool.choose_half(0, SplitHalf::Below);
     assert!(matches!(tool.read(), Ok(read) if read == below));
     assert!(
-        seat_line(tool.seats(), Speaker::of(&doc)).ends_with("below half"),
-        "{}",
         seat_line(tool.seats(), Speaker::of(&doc))
+            .to_string()
+            .ends_with("below half"),
+        "{}",
+        seat_line(tool.seats(), Speaker::of(&doc)).to_string()
     );
 }
 
@@ -4420,7 +4422,7 @@ fn the_boolean_tool_unions_a_splits_two_halves_picked_in_the_viewport() {
         BooleanSpec::Union(vec![port(SplitHalf::Above), port(SplitHalf::Below)]),
         "the ray from above met the upper half, the ray from below the lower"
     );
-    let line = tool.line(Speaker::of(&doc));
+    let line = tool.line(Speaker::of(&doc)).to_string();
     assert!(
         line.contains("above half") && line.contains("below half"),
         "the panel names both halves: {line}"
@@ -4470,7 +4472,7 @@ fn a_boolean_reads_the_pattern_member_picked_in_the_viewport() {
         BooleanSpec::Union(vec![member(pattern, 0), inner.into()]),
         "the member the ray met, by its index"
     );
-    let line = tool.line(Speaker::of(&doc));
+    let line = tool.line(Speaker::of(&doc)).to_string();
     assert!(line.contains("[0]"), "the panel spells the index: {line}");
     let union = session_insert(&mut session, tool.op().expect("committable"));
     assert_volume(&mut session, union, one + small, tol);
@@ -4513,7 +4515,7 @@ fn a_family_picked_in_the_tree_is_read_whole_until_a_member_is_chosen() {
         BooleanSpec::Union(vec![pattern.into()]),
         "the family whole"
     );
-    let line = tool.line(Speaker::of(&doc));
+    let line = tool.line(Speaker::of(&doc)).to_string();
     assert!(line.contains("every member"), "{line}");
     let members = viewer::world::members_of(&doc, pattern).expect("a family of two");
     assert_eq!(members, [vec![0], vec![1]], "one index, its two values");
@@ -4522,7 +4524,7 @@ fn a_family_picked_in_the_tree_is_read_whole_until_a_member_is_chosen() {
         tool.spec().expect("chosen"),
         BooleanSpec::Union(vec![member(pattern, 1)])
     );
-    assert!(tool.line(Speaker::of(&doc)).contains("[1]"));
+    assert!(tool.line(Speaker::of(&doc)).to_string().contains("[1]"));
     tool.choose_member(0, members[0].clone());
     assert_eq!(
         tool.spec().expect("re-chosen"),
@@ -4640,7 +4642,7 @@ fn a_split_of_a_family_reads_one_half_of_one_member_chosen_in_either_order() {
     let mut half_first = boolean_fed(&doc, BooleanOp::Union, vec![Selection::Node(split)]);
     assert_eq!(half_first.awaiting_half(), vec![0], "the split waits");
     assert_eq!(half_first.family_picks(), vec![(0, split)], "a family");
-    let line = half_first.line(Speaker::of(&doc));
+    let line = half_first.line(Speaker::of(&doc)).to_string();
     assert!(
         line.contains("every member, half not chosen"),
         "both said: {line}"
@@ -4664,6 +4666,7 @@ fn a_split_of_a_family_reads_one_half_of_one_member_chosen_in_either_order() {
     assert!(
         half_first
             .line(Speaker::of(&doc))
+            .to_string()
             .contains("[1], above half"),
         "{}",
         half_first.line(Speaker::of(&doc))

@@ -25,7 +25,7 @@ use pncad::document::AuthoredNode;
 use pncad::document::say;
 use pncad::document::{
     Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, Operand, ProfileProgram, RecipeNodeId,
-    Said, Say, Speaker, SpokenNode, held_by,
+    Said, Say, Sentence, Speaker, SpokenNode, held_by,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::select::SplitHalf;
@@ -147,7 +147,7 @@ impl BooleanTool {
     /// `member 2`, … in pick order — the same composition
     /// ([`crate::seats::picks_line`]), each pick said by `by` as a seat
     /// says one ([`crate::seats::pick_said`]).
-    pub fn line(&self, by: Speaker<'_>) -> String {
+    pub fn line(&self, by: Speaker<'_>) -> Sentence {
         match &self.held {
             BooleanPicks::Members(members) => {
                 picks_line(members.iter().enumerate().map(|(i, (node, port))| {
@@ -540,11 +540,11 @@ impl PlaneSeats {
     /// copy seats), the plane on the copy it was clicked on, or as the
     /// variable it is. A node `by` does not hold is said as the tool
     /// kept it.
-    fn line(&self, by: Speaker<'_>) -> String {
+    fn line(&self, by: Speaker<'_>) -> Sentence {
         let body = self.seats.said(by, 0);
         let plane = self.plane.as_ref().map(|plane| match plane {
-            HeldPlane::Face(held) => Said(held, by).sentence().to_string(),
-            HeldPlane::Defined { var, .. } => crate::tree::spelled_var(var),
+            HeldPlane::Face(held) => Said(held, by).sentence(),
+            HeldPlane::Defined { var, .. } => pncad::document::sentence!(by.var(var)),
         });
         picks_line([(self.seat.name(), body), (self.role.name(), plane)])
     }
@@ -704,7 +704,7 @@ impl<E: PlaneEdit> PlaneTool<E> {
     }
 
     /// **The panel's held-picks line** ([`PlaneSeats`]).
-    pub fn line(&self, by: Speaker<'_>) -> String {
+    pub fn line(&self, by: Speaker<'_>) -> Sentence {
         self.held.line(by)
     }
 
@@ -1104,10 +1104,10 @@ impl AssertionTool {
 
     /// **The panel's held-picks line**: each seat said by `by` — a body
     /// as a seat says its node, a face as the chrome says a held pick.
-    pub fn line(&self, by: Speaker<'_>) -> String {
+    pub fn line(&self, by: Speaker<'_>) -> Sentence {
         let said = |i: usize| match &self.picks[i] {
             Some(AssertedPick::Body(node)) => Some(pick_said(by, node, &Port::ALONE)),
-            Some(AssertedPick::Face(held)) => Some(Said(held, by).sentence().to_string()),
+            Some(AssertedPick::Face(held)) => Some(Said(held, by).sentence()),
             Some(AssertedPick::Minted(reference)) => Some(minted_said(reference, by)),
             None => None,
         };
@@ -1141,10 +1141,10 @@ impl AssertionTool {
 
 /// A minted seat as the panel says it: its cell by its name, or the
 /// variable as `by` reads it.
-fn minted_said(reference: &pncad::document::QuietingRef, by: Speaker<'_>) -> String {
+fn minted_said(reference: &pncad::document::QuietingRef, by: Speaker<'_>) -> Sentence {
     match reference.name() {
-        Some(name) => pncad::document::sentence!(by.name(name)).to_string(),
-        None => by.read(reference.read()).to_string(),
+        Some(name) => pncad::document::sentence!(by.name(name)),
+        None => by.read(reference.read()),
     }
 }
 
@@ -1675,9 +1675,13 @@ pub enum StepClearFault {
 }
 
 impl StepClearFault {
-    fn write(
+    /// **Its sentence**, each node said by `by`, the tessellator's
+    /// refusal ended at the door `at` reads it (`recourse::Ended`), or
+    /// alone where `at` is `None`.
+    pub(crate) fn said_at(
         &self,
-        f: &mut core::fmt::Formatter<'_>,
+        f: &mut Sentence,
+        by: Speaker<'_>,
         at: Option<pncad::geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
         match self {
@@ -1689,37 +1693,53 @@ impl StepClearFault {
                 "the picture is older than the document — wait for the latest edit to evaluate, \
                  so the copy's step is measured off the body as it now is",
             ),
-            Self::NoValue { standing, held } => write!(
+            Self::NoValue { standing, held } => say!(
                 f,
-                "there is no body to copy: {}",
-                Said(standing, Speaker::held(held)).sentence()
+                "there is no body to copy: ",
+                Said(standing, Speaker::held(held))
             ),
-            Self::NotOneBody { input } => write!(
+            Self::NotOneBody { input } => say!(
                 f,
-                "{input}'s value is several bodies; a step clears ONE — project the one you \
-                 mean first",
-                input = crate::tree::spelled(input)
+                by.mention(input),
+                "'s value is several bodies; a step clears ONE — project the one you mean first"
             ),
-            Self::EmptyHalf { input, half } => write!(
+            Self::EmptyHalf { input, half } => say!(
                 f,
-                "{input}'s {} half holds no material: its plane misses the body on that side",
-                half.name(),
-                input = crate::tree::spelled(input)
-            ),
-            Self::Unmeasured { input, error } => write!(
-                f,
-                "{input}'s body could not be measured for the copy's step: {}",
-                pncad::geom_brep::recourse::read_at(error, at),
-                input = crate::tree::spelled(input)
-            ),
-            Self::NoExtent { input } => {
-                write!(
-                    f,
-                    "{input}'s body has no width to step a copy by",
-                    input = crate::tree::spelled(input)
+                by.mention(input),
+                format_args!(
+                    "'s {} half holds no material: its plane misses the body on that side",
+                    half.name()
                 )
-            }
+            ),
+            Self::Unmeasured { input, error } => say!(
+                f,
+                by.mention(input),
+                "'s body could not be measured for the copy's step: ",
+                format_args!("{}", pncad::geom_brep::recourse::read_at(error, at))
+            ),
+            Self::NoExtent { input } => say!(
+                f,
+                by.mention(input),
+                "'s body has no width to step a copy by"
+            ),
         }
+    }
+
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        let mut said = Sentence::new();
+        let _ = self.said_at(&mut said, Speaker::TAG, at);
+        write!(f, "{said}")
+    }
+}
+
+/// Its sentence read at no door.
+impl Say for StepClearFault {
+    fn say(&self, f: &mut Sentence, by: Speaker<'_>) -> core::fmt::Result {
+        self.said_at(f, by, None)
     }
 }
 

@@ -889,24 +889,37 @@ pub enum HeldRefusal {
     },
 }
 
-impl core::fmt::Display for HeldRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// Each node as the refusal kept it, mentioned in the speaker's
+/// document.
+impl pncad::document::Say for HeldRefusal {
+    fn say(
+        &self,
+        f: &mut pncad::document::Sentence,
+        by: pncad::document::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
-            Self::NotAProfile { node } => write!(
-                f,
-                "{node} is not a profile",
-                node = crate::tree::spelled(node)
-            ),
+            Self::NotAProfile { node } => {
+                pncad::document::say!(f, by.mention(node), " is not a profile")
+            }
             Self::Unwritten { node, slots } => {
                 let labels: Vec<String> = slots.iter().map(|slot| slot.label()).collect();
-                write!(
+                pncad::document::say!(
                     f,
-                    "{node} lists {} and carries no expression for it",
-                    labels.join(", "),
-                    node = crate::tree::spelled(node)
+                    by.mention(node),
+                    format_args!(
+                        " lists {} and carries no expression for it",
+                        labels.join(", ")
+                    )
                 )
             }
         }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for HeldRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        pncad::document::display_said(self, pncad::document::Speaker::TAG, f)
     }
 }
 

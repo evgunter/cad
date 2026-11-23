@@ -5,7 +5,8 @@
 
 use eframe::egui;
 use pncad::document::{
-    DimensionError, DocumentId, Formula, Said, Speaker, TracePassage, TraceSense,
+    DimensionError, Doc, DocumentId, Formula, ProfileProgram, Said, Sentence, Speaker,
+    TracePassage, TraceSense,
 };
 use pncad::quantity::WrittenLength;
 use pncad::select::SplitHalf;
@@ -101,9 +102,11 @@ pub(crate) fn seats_row(
     ui: &mut egui::Ui,
     seats: &Seats,
     by: Speaker<'_>,
+    on_screen: &Doc<ProfileProgram>,
     theme: &Theme,
+    ops: &mut Vec<SessionOp>,
 ) -> Option<(usize, SplitHalf)> {
-    crate::widgets::message_toned(ui, seat_line(seats, by), theme, Tone::Advisory);
+    picks_row(ui, &seat_line(seats, by), on_screen, theme, ops);
     half_rows(
         ui,
         (0..2)
@@ -111,6 +114,21 @@ pub(crate) fn seats_row(
             .map(|i| (i, seats.role(i).name().to_owned())),
         theme,
     )
+}
+
+/// **A tool's held-picks line, drawn**: `line` in the advisory voice
+/// every tool panel says its picks in, each node it names a link where
+/// `on_screen` holds it; the node a click on one selects is pushed onto
+/// `ops`.
+pub(crate) fn picks_row(
+    ui: &mut egui::Ui,
+    line: &Sentence,
+    on_screen: &Doc<ProfileProgram>,
+    theme: &Theme,
+    ops: &mut Vec<SessionOp>,
+) {
+    let followed = crate::widgets::sentence(ui, line, on_screen, Some((theme, Tone::Advisory)));
+    ops.extend(followed.map(SessionOp::Select));
 }
 
 /// **One row per pick still waiting for its half**, each offering the
@@ -247,9 +265,11 @@ pub(crate) fn mate_picks_row(
     tool: &MateTool,
     row: usize,
     by: Speaker<'_>,
+    on_screen: &Doc<ProfileProgram>,
     theme: &Theme,
+    ops: &mut Vec<SessionOp>,
 ) {
-    crate::widgets::message_toned(ui, tool.line(row, by), theme, Tone::Advisory);
+    picks_row(ui, &tool.line(row, by), on_screen, theme, ops);
 }
 
 /// **A text field that buffers what is typed until it loses focus**:
@@ -516,7 +536,13 @@ pub(crate) const REQUIREMENTS: &str = "Requirements";
 ///
 /// A free function over the `Ui` so a headless drive can reach it
 /// (`crate::pane::headless`).
-fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Option<DocumentId> {
+fn part_listing(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    chooser: &PartChooser,
+    on_screen: &Doc<ProfileProgram>,
+    ops: &mut Vec<SessionOp>,
+) -> Option<DocumentId> {
     if let Some(dir) = chooser.dir() {
         crate::widgets::message_toned(
             ui,
@@ -549,7 +575,10 @@ fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Opti
         // The refusing layer's own sentence — the store's or the
         // directory rule's — never one composed here.
         Err(refusal) => {
-            crate::widgets::message_toned(ui, crate::shown(refusal), theme, chooser.tone());
+            let said = crate::shown_said(refusal, Speaker::of(on_screen));
+            let followed =
+                crate::widgets::sentence(ui, &said, on_screen, Some((theme, chooser.tone())));
+            ops.extend(followed.map(SessionOp::Select));
         }
     }
     chosen
@@ -759,11 +788,12 @@ impl ViewerBehavior<'_> {
             Some(_) => "add an assertion: pick a face in the picture for each of its two seats",
         };
         crate::widgets::message(ui, ToolKind::Assertion.says(&prompt));
-        crate::widgets::message_toned(
+        picks_row(
             ui,
-            tool.line(frame::landed_speaker(self.session.landed_pair())),
+            &tool.line(frame::landed_speaker(self.session.landed_pair())),
+            self.session.doc(),
             &self.theme,
-            Tone::Advisory,
+            self.ops,
         );
         assertion_claim_rows(ui, self.drafts);
         let (measure, bound) = (self.drafts.assertion_measure, self.drafts.assertion_bound);
@@ -899,10 +929,10 @@ impl ViewerBehavior<'_> {
                     Ok(by) => edited.set_offset(at, by),
                     Err(error) => self
                         .notices
-                        .push(frame::tool_news(&ToolKind::Mate.refuses(&error))),
+                        .push(frame::tool_news(&ToolKind::Mate.refuses(error.to_string()))),
                 }
             }
-            mate_picks_row(ui, &tool, at, by, &self.theme);
+            mate_picks_row(ui, &tool, at, by, self.session.doc(), &self.theme, self.ops);
             if let Some(&(_, space)) = off_target
                 .iter()
                 .find(|(reading, _)| *reading == crate::matetool::Reading::Mate(at))
@@ -998,9 +1028,9 @@ impl ViewerBehavior<'_> {
                         if let Some(typed) = typed {
                             match crate::matetool::typed_value(doc, row.coord.clone(), &typed) {
                                 Ok(by) => edited.type_value(row.coord.clone(), by),
-                                Err(error) => self
-                                    .notices
-                                    .push(frame::tool_news(&ToolKind::Mate.refuses(&error))),
+                                Err(error) => self.notices.push(frame::tool_news(
+                                    &ToolKind::Mate.refuses(error.to_string()),
+                                )),
                             }
                         }
                     });
@@ -1029,7 +1059,11 @@ impl ViewerBehavior<'_> {
                     || error.clone(),
                     |landed| error.clone().respoken(landed.doc),
                 );
-                crate::widgets::message(ui, ToolKind::Mate.refuses(&error).to_string());
+                let said = ToolKind::Mate
+                    .refuses(pncad::document::spoken_by(&error, doc))
+                    .said();
+                let followed = crate::widgets::sentence(ui, &said, self.session.doc(), None);
+                self.ops.extend(followed.map(SessionOp::Select));
             }
             None => {}
         }
@@ -1295,7 +1329,7 @@ impl ViewerBehavior<'_> {
         if let Some(chooser) = self.part_chooser.take() {
             part_window(ui).show(ui.ctx(), |ui| {
                 self.creation_label_row(ui, INSTANCE_NOUN);
-                chosen = part_listing(ui, &self.theme, &chooser);
+                chosen = part_listing(ui, &self.theme, &chooser, self.session.doc(), self.ops);
                 ui.horizontal(|ui| {
                     if ui
                         .button("Rescan")
@@ -1410,7 +1444,9 @@ impl ViewerBehavior<'_> {
                 Ok(op) => self.push_labelled(PROFILE_NOUN, op),
                 Err(error) => {
                     self.notices
-                        .push(frame::tool_news(&FormKind::ProfileOnFace.refuses(&error)));
+                        .push(frame::tool_news(&FormKind::ProfileOnFace.refuses(
+                            pncad::document::spoken_by(&error, self.session.committed_doc()),
+                        )));
                 }
             }
         }
@@ -1580,7 +1616,8 @@ impl ViewerBehavior<'_> {
             self.push_labelled(noun, op);
         }
         if let Some((form, error)) = refused {
-            self.notices.push(frame::tool_news(&form.refuses(&error)));
+            self.notices
+                .push(frame::tool_news(&form.refuses(error.to_string())));
         }
     }
 
@@ -1617,11 +1654,12 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Boolean.says(&boolean_prompt(tool.operation())),
         );
-        crate::widgets::message_toned(
+        picks_row(
             ui,
-            tool.line(frame::landed_speaker(self.session.landed_pair())),
+            &tool.line(frame::landed_speaker(self.session.landed_pair())),
+            self.session.doc(),
             &self.theme,
-            Tone::Advisory,
+            self.ops,
         );
         if let Some((pick, half)) = half_rows(ui, boolean_waiting(&tool), &self.theme) {
             self.tools.choose_half(pick, half);
@@ -1649,11 +1687,12 @@ impl ViewerBehavior<'_> {
             return self.tool_door(ui, ToolKind::Split);
         };
         crate::widgets::message(ui, ToolKind::Split.says(&SPLIT_PICKS));
-        crate::widgets::message_toned(
+        picks_row(
             ui,
-            tool.line(frame::landed_speaker(self.session.landed_pair())),
+            &tool.line(frame::landed_speaker(self.session.landed_pair())),
+            self.session.doc(),
             &self.theme,
-            Tone::Advisory,
+            self.ops,
         );
         let waiting = tool
             .seats()
@@ -1678,11 +1717,12 @@ impl ViewerBehavior<'_> {
                 &"pick a face: its body mirrors across it — pick another face to mirror across that one; the body becomes its symmetric part, the body and its image fused",
             ),
         );
-        crate::widgets::message_toned(
+        picks_row(
             ui,
-            tool.line(frame::landed_speaker(self.session.landed_pair())),
+            &tool.line(frame::landed_speaker(self.session.landed_pair())),
+            self.session.doc(),
             &self.theme,
-            Tone::Advisory,
+            self.ops,
         );
         let waiting = tool
             .seats()
@@ -1744,7 +1784,9 @@ impl ViewerBehavior<'_> {
             ui,
             tool.seats(),
             frame::landed_speaker(self.session.landed_pair()),
+            self.session.doc(),
             &self.theme,
+            self.ops,
         ) {
             self.tools.choose_half(seat, half);
         }
@@ -1807,7 +1849,9 @@ impl ViewerBehavior<'_> {
             ui,
             tool.seats(),
             frame::landed_speaker(self.session.landed_pair()),
+            self.session.doc(),
             &self.theme,
+            self.ops,
         ) {
             self.tools.choose_half(seat, half);
         }
@@ -2021,15 +2065,15 @@ impl ViewerBehavior<'_> {
                     // that does not is committed as it is and said.
                     (_, Err(op)) => {
                         self.notices.push(frame::tool_news(
-                            &FormKind::Label.refuses(&"this form creates no node to label"),
+                            &FormKind::Label.refuses("this form creates no node to label"),
                         ));
                         self.ops.push(*op);
                     }
                 }
             }
-            Err(fault) => self
-                .notices
-                .push(frame::tool_news(&FormKind::Label.refuses(&fault))),
+            Err(fault) => self.notices.push(frame::tool_news(
+                &FormKind::Label.refuses(fault.to_string()),
+            )),
         }
     }
 
@@ -2084,7 +2128,11 @@ impl ViewerBehavior<'_> {
             match work.and_then(|work| work(self.drafts, *self.notation)) {
                 Ok(op) => self.push_tool_op(noun, op),
                 Err(error) => {
-                    self.notices.push(frame::tool_news(&kind.refuses(&error)));
+                    self.notices
+                        .push(frame::tool_news(&kind.refuses(pncad::document::spoken_by(
+                            &error,
+                            self.session.committed_doc(),
+                        ))));
                 }
             }
         }
@@ -2154,7 +2202,6 @@ mod tests {
 
     use super::{Picked, clear_picks_button, mate_picks_row, part_selector_rows, seats_row};
     use crate::combine::BooleanTool;
-    use crate::frame::Tone;
     use crate::matetool::MateTool;
     use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
     use crate::session::FaceSelection;
@@ -2191,8 +2238,11 @@ mod tests {
         );
         // The speaker the panel is drawn with.
         let by = crate::frame::landed_speaker(Some((&doc, &evaluation)));
-        let painted =
-            |tool: &MateTool| painted_text(|ui| mate_picks_row(ui, tool, 0, by, &Theme::DEFAULT));
+        let painted = |tool: &MateTool| {
+            painted_text(|ui| {
+                mate_picks_row(ui, tool, 0, by, &doc, &Theme::DEFAULT, &mut Vec::new());
+            })
+        };
         assert_eq!(painted(&MateTool::new()), "none picked");
         // The editor on the copy: a pick on it is `on`, a pick on any
         // other body `to`.
@@ -2233,11 +2283,12 @@ mod tests {
         let mut tool = BooleanTool::new();
         let painted = |tool: &BooleanTool| {
             painted_text(|ui| {
-                crate::widgets::message_toned(
+                super::picks_row(
                     ui,
-                    tool.line(Speaker::of(&doc)),
+                    &tool.line(Speaker::of(&doc)),
+                    &doc,
                     &Theme::DEFAULT,
-                    Tone::Advisory,
+                    &mut Vec::new(),
                 );
             })
         };
@@ -2291,7 +2342,14 @@ mod tests {
         tool.pick(&doc, split);
         let mut chosen = None;
         let drawn = painted_after_clicking(crate::tree::split_half_label(SplitHalf::Below), |ui| {
-            if let Some(choice) = seats_row(ui, tool.seats(), Speaker::of(&doc), &Theme::DEFAULT) {
+            if let Some(choice) = seats_row(
+                ui,
+                tool.seats(),
+                Speaker::of(&doc),
+                &doc,
+                &Theme::DEFAULT,
+                &mut Vec::new(),
+            ) {
                 chosen = Some(choice);
             }
         });
@@ -2318,7 +2376,9 @@ mod tests {
             let mut tool = BooleanTool::new();
             tool.pick(&doc, row);
             assert!(
-                tool.line(Speaker::of(&doc)).contains("every member"),
+                tool.line(Speaker::of(&doc))
+                    .to_string()
+                    .contains("every member"),
                 "{}",
                 tool.line(Speaker::of(&doc))
             );
@@ -2578,7 +2638,9 @@ mod tone_tests {
     ) -> (Vec<Landed>, Voices) {
         let chooser = PartChooser::opened(PartCensus::taken(dir.map(PathBuf::from), offered));
         landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            part_listing(ui, theme, &chooser);
+            let doc =
+                pncad::document::Doc::empty_derived("chooser", pncad::geom_core::Tol::witness());
+            part_listing(ui, theme, &chooser, &doc, &mut Vec::new());
         })
     }
 

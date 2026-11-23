@@ -136,7 +136,9 @@ fn b_the_line_names_the_datums_sides() {
     let mut tool = MateTool::edit(session.doc(), datum).expect("opens");
     tool.add_mate(VarKind::Axis);
     tool.pick_datum(session.doc(), base);
-    let line = tool.line(0, pncad::document::Speaker::of(session.doc()));
+    let line = tool
+        .line(0, pncad::document::Speaker::of(session.doc()))
+        .to_string();
     assert!(line.contains("the datum's z axis"), "{line}");
     let said = viewer::tree::spelled(&session.doc().spoken(base));
     assert!(line.contains(&said), "{line} names {said}");

@@ -7,7 +7,8 @@
 
 use eframe::egui;
 use pncad::document::{
-    Formula, LoopProgram, ProfileProgram, RecipeNodeId, SlotId, StepArg, StepId,
+    Doc, Formula, LoopProgram, ProfileProgram, RecipeNodeId, Said, Sentence, SlotId, Speaker,
+    StepArg, StepId,
 };
 use pncad::geom_core::{Tell, Tol};
 use pncad::profile::{Step, TipState, Verb};
@@ -53,12 +54,17 @@ impl ViewerBehavior<'_> {
         let session = self.session;
         let doc = session.committed_doc();
         if let Err(refusal) = self.drafts.profile_edit(doc, node) {
-            crate::widgets::message_toned(
-                ui,
-                format!("the profile editor cannot hold this profile: {refusal}"),
-                &self.theme,
-                frame::Tone::Actionable,
+            let said = pncad::document::sentence!(
+                "the profile editor cannot hold this profile: ",
+                Said(&refusal, Speaker::of(doc))
             );
+            let followed = crate::widgets::sentence(
+                ui,
+                &said,
+                session.doc(),
+                Some((&self.theme, frame::Tone::Actionable)),
+            );
+            self.ops.extend(followed.map(SessionOp::Select));
             return false;
         }
         self.profile_drawn.edit = true;
@@ -104,6 +110,7 @@ impl ViewerBehavior<'_> {
         if let Some(op) = formed {
             self.ops.push(op);
         }
+        self.ops.extend(news.followed.take().map(SessionOp::Select));
         self.notices.append(&mut news.notices);
         match news.standing {
             Some((slot, text)) => {
@@ -283,7 +290,11 @@ struct HeldArgs<'d, 'o> {
     /// The refused text standing in a field of this loop: its row, its
     /// argument, the text, and why it is refused now (`None` once the
     /// document admits it — a variable it names declared since).
-    standing: Option<(usize, StepArg, String, Option<String>)>,
+    standing: Option<(usize, StepArg, String, Option<Sentence>)>,
+    /// The document on screen, whose nodes a `why` links to.
+    on_screen: &'d Doc<ProfileProgram>,
+    /// The node a mention clicked in a `why` selects.
+    followed: Option<crate::session::Selection>,
     /// The committed slot fields drawn in the row being drawn, with
     /// their names.
     drawn: Vec<(usize, SlotRow, String)>,
@@ -344,7 +355,13 @@ impl ArgDoors for HeldArgs<'_, '_> {
 
     fn under(&mut self, ui: &mut egui::Ui, row: usize) {
         if let Some((_, _, _, Some(why))) = self.standing.as_ref().filter(|(at, ..)| *at == row) {
-            crate::widgets::message_toned(ui, why.clone(), &self.theme, frame::Tone::Actionable);
+            let followed = crate::widgets::sentence(
+                ui,
+                why,
+                self.on_screen,
+                Some((&self.theme, frame::Tone::Actionable)),
+            );
+            self.followed = self.followed.take().or(followed);
         }
         let rows: Vec<(SlotRow, String)> = self
             .drawn
@@ -376,6 +393,8 @@ pub(crate) struct FieldNews {
     pub(crate) refused: Option<crate::session::Refusal>,
     /// What the fields said this frame.
     pub(crate) notices: Vec<frame::Message>,
+    /// The node a mention clicked in a line under a field selects.
+    pub(crate) followed: Option<crate::session::Selection>,
 }
 
 /// **The edit door's body, over its draft**: one step list
@@ -428,9 +447,9 @@ pub(crate) fn edit_door_ui(
     for change in edit.take_deferred() {
         match edit.apply(change, notation) {
             Ok(()) => edit.changed(),
-            Err(fault) => news
-                .notices
-                .push(frame::tool_news(&FormKind::EditProfile.refuses(&fault))),
+            Err(fault) => news.notices.push(frame::tool_news(
+                &FormKind::EditProfile.refuses(fault.to_string()),
+            )),
         }
     }
     ui.label(format!(
@@ -498,7 +517,7 @@ pub(crate) fn edit_door_ui(
             (at.0 == index).then(|| {
                 let why = ProfileEdit::judge_text(at, arg, text, landed)
                     .err()
-                    .map(|refusal| crate::shown(&refusal));
+                    .map(|refusal| crate::shown_said(&refusal, Speaker::of(landed)));
                 (at.1, arg, text.clone(), why)
             })
         });
@@ -510,6 +529,8 @@ pub(crate) fn edit_door_ui(
             rows: held_rows,
             committed,
             standing,
+            on_screen: landed,
+            followed: None,
             drawn: Vec::new(),
             typed: Vec::new(),
             notices: Vec::new(),
@@ -533,6 +554,7 @@ pub(crate) fn edit_door_ui(
                 .map(|(row, arg, text)| ((index, row), arg, text)),
         );
         news.notices.append(&mut args.notices);
+        news.followed = news.followed.take().or(args.followed.take());
         for (at, (was, now)) in shown.iter().zip(&list).enumerate() {
             if let (StepRow::Step(was), StepRow::Step(now)) = (was, now)
                 && !sketch::same_step(was, now)
@@ -624,7 +646,7 @@ pub(crate) fn edit_door_ui(
     news.notices.extend(
         faults
             .iter()
-            .map(|fault| frame::tool_news(&FormKind::EditProfile.refuses(fault))),
+            .map(|fault| frame::tool_news(&FormKind::EditProfile.refuses(fault.to_string()))),
     );
     if edit.runs_from_the_pen() {
         crate::widgets::message_toned(ui, PEN_UNDRAWN, &theme, frame::Tone::Advisory);
@@ -638,8 +660,16 @@ pub(crate) fn edit_door_ui(
         crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
     }
     if let Some(refusal) = edit.pending() {
-        let sentence = format!("{PENDING} {refusal}");
-        crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
+        let said = pncad::document::sentence!(
+            format_args!("{PENDING} "),
+            Said(refusal, Speaker::of(landed))
+        );
+        news.followed = news.followed.take().or(crate::widgets::sentence(
+            ui,
+            &said,
+            landed,
+            Some((&theme, frame::Tone::Actionable)),
+        ));
     }
     if discard_control(ui, edit.differs_from_base() && formed.is_none()) {
         edit.revert();
@@ -2225,7 +2255,7 @@ mod tests {
             !anonymous.is_empty(),
             "the reshaping retires the variables it rewrote"
         );
-        let line: Vec<String> = crate::frame::outcome_notices(&out)
+        let line: Vec<String> = crate::frame::outcome_notices(&out, pncad::document::Speaker::TAG)
             .map(|notice| notice.text().to_owned())
             .collect();
         assert_eq!(

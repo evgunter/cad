@@ -713,7 +713,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
         ),
         (
             frame::tool_news(
-                &viewer::tools::ToolKind::Blend.refuses(&"the held edges are on another body"),
+                &viewer::tools::ToolKind::Blend.refuses("the held edges are on another body"),
             ),
             "what a tool has to say",
         ),
@@ -1241,7 +1241,7 @@ fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
     let mixed = [
         cursor("the picking paths disagree"),
         frame::tool_news(
-            &viewer::tools::ToolKind::Blend.refuses(&"the held edges are on another body"),
+            &viewer::tools::ToolKind::Blend.refuses("the held edges are on another body"),
         ),
     ];
     let RankedVerdict::Show(shown) = frame::frame_status_untargeted(&mixed, &acted, None) else {
@@ -3540,7 +3540,8 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 
     // What the chrome does with it: the edit's notices, through the one
     // door the frame loop calls.
-    let notices: Vec<frame::Message> = frame::withdrawal_notices(report).collect();
+    let notices: Vec<frame::Message> =
+        frame::withdrawal_notices(report, pncad::document::Speaker::TAG).collect();
     assert_eq!(
         notices.len(),
         1,
@@ -3594,7 +3595,10 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         .expect("the premise: a copy in the world refuses a free move");
     let notices: Vec<frame::Message> = notices
         .into_iter()
-        .chain(frame::outcome_notices(&refused))
+        .chain(frame::outcome_notices(
+            &refused,
+            pncad::document::Speaker::TAG,
+        ))
         .collect();
     let RankedVerdict::Show(line) =
         frame::frame_status_untargeted(&notices, &[mate, drag], Some(refusal))
@@ -3665,7 +3669,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
         None,
     );
     let panel =
-        frame::tool_news(&ToolKind::Mate.refuses(&"no landed evaluation to derive frames from"));
+        frame::tool_news(&ToolKind::Mate.refuses("no landed evaluation to derive frames from"));
     let notices = [declined, dropped, panel];
     let acted = [SessionOp::Select(Selection::None)];
 
@@ -3995,10 +3999,10 @@ fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
     assert_eq!(forms.len(), FormKind::ALL.len(), "every form has a row");
     let cases = forms
         .into_iter()
-        .map(|(form, text)| (format!("{form:?}"), form.refuses(&why), text))
+        .map(|(form, text)| (format!("{form:?}"), form.refuses(why), text))
         .chain([(
             "a seated tool".to_owned(),
-            ToolKind::Split.refuses(&why),
+            ToolKind::Split.refuses(why),
             "split tool: the distance is not a number",
         )]);
     for (what, refusal, text) in cases {
@@ -4040,12 +4044,12 @@ fn every_withdrawal_kind_rides_beside_a_refusal() {
     let notices: Vec<frame::Message> = frame::Withdrawal::all(&report)
         .map(|withdrawal| {
             assert_eq!(
-                withdrawal.notice().retold(),
+                withdrawal.notice(pncad::document::Speaker::TAG).retold(),
                 frame::Retold::Never,
                 "{:?}",
                 withdrawal.kind
             );
-            withdrawal.notice()
+            withdrawal.notice(pncad::document::Speaker::TAG)
         })
         .collect();
     assert_eq!(notices.len(), 4, "one notice per kind");

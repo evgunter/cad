@@ -230,7 +230,7 @@ use std::path::Path;
 use pncad::document::{
     CheckEvidence, CheckFinding, ChecksReport, Doc, DocumentId, Evaluation, FindingSubject,
     Maintenance, NamedCell, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId, Run,
-    Said, Sentence, SlotId, Speaker,
+    Said, Say, Sentence, SlotId, Speaker,
 };
 use pncad::prelude::EntityKind;
 use pncad::quantity::LengthUnit;
@@ -1456,13 +1456,15 @@ impl<'a> Withdrawal<'a> {
     /// later drag refused as having none in flight. None of
     /// those says that an edit took the placement, the hide or the drag,
     /// or which fault took it; only this sentence does.
-    pub fn notice(&self) -> Message {
+    ///
+    /// Each node its causes name is a mention said by `by`.
+    pub fn notice(&self, by: Speaker<'_>) -> Message {
         let retold = match self.kind {
             WithdrawalKind::Superseded => Retold::Never,
             WithdrawalKind::DroppedHide | WithdrawalKind::DroppedShow => Retold::Never,
             WithdrawalKind::KilledGesture => Retold::Never,
         };
-        Message::new(Subject::Document, self.to_string(), retold)
+        Message::new(Subject::Document, Said(self, by).sentence(), retold)
     }
 }
 
@@ -1489,7 +1491,13 @@ impl<'a> Withdrawal<'a> {
 /// owes: `committed` and `previewed` are the act itself, `minted` and
 /// `made` are ids a form reads back, and `refusal` is ranked by [`frame_status`]
 /// on its own, ahead of these.
-pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '_ {
+///
+/// Each node a notice names is a mention said by `by`, the document the
+/// outcome left.
+pub fn outcome_notices<'a>(
+    outcome: &'a OpOutcome,
+    by: Speaker<'a>,
+) -> impl Iterator<Item = Message> + 'a {
     let OpOutcome {
         committed: _,
         previewed: _,
@@ -1501,8 +1509,8 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         layout,
     } = outcome;
     Withdrawal::all(withdrawn)
-        .map(|withdrawal| withdrawal.notice())
-        .chain(maintenance_notices(maintenance))
+        .map(move |withdrawal| withdrawal.notice(by))
+        .chain(maintenance_notices(maintenance, by))
         .chain(layout_notices(layout))
 }
 
@@ -1537,28 +1545,31 @@ pub fn layout_notices(report: &LayoutReport) -> impl Iterator<Item = Message> + 
 /// notice per placement whose values the edit dropped
 /// ([`Maintenance::values_dropped`]) — an edit that drops four values
 /// is one thing to say, not four.
-pub fn maintenance_notices(rows: &[Maintenance]) -> impl Iterator<Item = Message> + '_ {
-    rows.iter().filter_map(maintenance_notice).chain(
-        // Nothing evaluates differently in a way that names it: the
-        // copy simply stops reading the values.
-        Maintenance::values_dropped(rows).map(|said| {
-            Message::new(
-                Subject::Document,
-                (pncad::document::Said(&said, pncad::document::Speaker::TAG).sentence())
-                    .to_string(),
-                Retold::Never,
-            )
-        }),
-    )
+///
+/// Each node a row names is a mention said by `by`.
+pub fn maintenance_notices<'a>(
+    rows: &'a [Maintenance],
+    by: Speaker<'a>,
+) -> impl Iterator<Item = Message> + 'a {
+    rows.iter()
+        .filter_map(move |row| maintenance_notice(row, by))
+        .chain(
+            // Nothing evaluates differently in a way that names it: the
+            // copy simply stops reading the values.
+            Maintenance::values_dropped(rows).map(move |said| {
+                Message::new(Subject::Document, Said(&said, by).sentence(), Retold::Never)
+            }),
+        )
 }
 
 /// **What a landing's prune withdrew, as notices** — the same notices
 /// [`outcome_notices`] words an operation's [`OpOutcome::withdrawn`]
 /// into ([`crate::session::DocSession::take_landed_withdrawals`]).
-pub fn withdrawal_notices(
-    report: &crate::display::PruneReport,
-) -> impl Iterator<Item = Message> + '_ {
-    Withdrawal::all(report).map(|withdrawal| withdrawal.notice())
+pub fn withdrawal_notices<'a>(
+    report: &'a crate::display::PruneReport,
+    by: Speaker<'a>,
+) -> impl Iterator<Item = Message> + 'a {
+    Withdrawal::all(report).map(move |withdrawal| withdrawal.notice(by))
 }
 
 /// **One maintenance row as a notice**, or `None` for a row the line
@@ -1591,7 +1602,7 @@ pub fn withdrawal_notices(
 ///   strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
-fn maintenance_notice(row: &Maintenance) -> Option<Message> {
+fn maintenance_notice(row: &Maintenance, by: Speaker<'_>) -> Option<Message> {
     let retold = match row {
         Maintenance::Strand { .. } | Maintenance::StrandedSelection { .. } => Retold::Never,
         // The reading node's own row refuses `UnresolvedRead` at the
@@ -1618,14 +1629,18 @@ fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         Maintenance::AnonymousVarRemoved { .. } if row.is_silent_retirement() => return None,
         Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
     };
-    Some(Message::new(Subject::Document, row.to_string(), retold))
+    Some(Message::new(
+        Subject::Document,
+        Said(row, by).sentence(),
+        retold,
+    ))
 }
 
 /// **Destructured rather than field-read**, so a field added to
 /// [`Withdrawal`] is E0027 here rather than joining a value whose
 /// whole job is to word itself and going unworded.
-impl core::fmt::Display for Withdrawal<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Say for Withdrawal<'_> {
+    fn say(&self, f: &mut Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let &Self {
             kind: which,
             withdrawn,
@@ -1682,9 +1697,16 @@ impl core::fmt::Display for Withdrawal<'_> {
             if position > 0 {
                 f.write_str(LIST_SEPARATOR)?;
             }
-            write!(f, "{}", entry.cause)?;
+            f.say(&entry.cause, by)?;
         }
         Ok(())
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for Withdrawal<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -2353,10 +2375,10 @@ pub fn tool_status(before: Option<ToolKind>, now: Option<ToolKind>) -> StatusUpd
 /// use viewer::frame::tool_news;
 /// use viewer::tools::ToolKind;
 ///
-/// tool_news(&ToolKind::Mate.refuses(&"no landed evaluation to derive frames from"));
+/// tool_news(&ToolKind::Mate.refuses("no landed evaluation to derive frames from"));
 /// ```
 pub fn tool_news(refusal: &PanelRefusal) -> Message {
-    Message::new(Subject::Document, refusal.to_string(), Retold::Again)
+    Message::new(Subject::Document, refusal.said(), Retold::Again)
 }
 
 /// **What the chrome badges about the at-rest check**, and `None`
@@ -3986,7 +4008,7 @@ mod tests {
         );
         let message = Withdrawal::superseded(&[pinned(7)])
             .expect("a supersession is news")
-            .notice();
+            .notice(pncad::document::Speaker::TAG);
         assert_eq!(
             message.subject(),
             Subject::Document,
@@ -4067,7 +4089,9 @@ mod tests {
         // Both facts can arrive on one frame, and they are ranked
         // together as two notices rather than merged into one claim.
         let notices = [
-            Withdrawal::superseded(&[pinned(7)]).expect("news").notice(),
+            Withdrawal::superseded(&[pinned(7)])
+                .expect("news")
+                .notice(pncad::document::Speaker::TAG),
             Message::new(Subject::Document, notice.clone(), Retold::Again),
         ];
         let RankedVerdict::Show(shown) =
@@ -4173,7 +4197,7 @@ mod tests {
         assert_eq!(
             Withdrawal::killed_gesture(Some(&killed))
                 .expect("news")
-                .notice()
+                .notice(pncad::document::Speaker::TAG)
                 .subject(),
             Subject::Document,
             "a killed gesture is about the document that ended it, so the \
@@ -4224,7 +4248,12 @@ mod tests {
         // user reads off one line, so two kinds rendering alike would
         // make the fan-out complete and useless.
         let mut sentences: Vec<String> = Withdrawal::all(&report)
-            .map(|withdrawal| withdrawal.notice().text().to_string())
+            .map(|withdrawal| {
+                withdrawal
+                    .notice(pncad::document::Speaker::TAG)
+                    .text()
+                    .to_string()
+            })
             .collect();
         assert_eq!(sentences.len(), WithdrawalKind::ALL.len());
         sentences.sort();

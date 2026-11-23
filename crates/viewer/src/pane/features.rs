@@ -529,17 +529,23 @@ impl ViewerBehavior<'_> {
         if clicks.edit {
             match crate::matetool::MateTool::edit(self.session.committed_doc(), row.id) {
                 Ok(tool) => self.tools.open_mate(tool),
-                Err(error) => self.notices.push(frame::tool_news(
-                    &crate::tools::ToolKind::Mate.refuses(&error),
-                )),
+                Err(error) => {
+                    self.notices
+                        .push(frame::tool_news(&crate::tools::ToolKind::Mate.refuses(
+                            pncad::document::spoken_by(&error, self.session.committed_doc()),
+                        )))
+                }
             }
         }
         if let Some(mate) = clicks.remove {
             match crate::matetool::MateTool::edit_striking(self.session.committed_doc(), mate) {
                 Ok(tool) => self.tools.open_mate(tool),
-                Err(error) => self.notices.push(frame::tool_news(
-                    &crate::tools::ToolKind::Mate.refuses(&error),
-                )),
+                Err(error) => {
+                    self.notices
+                        .push(frame::tool_news(&crate::tools::ToolKind::Mate.refuses(
+                            pncad::document::spoken_by(&error, self.session.committed_doc()),
+                        )))
+                }
             }
         }
         clicks

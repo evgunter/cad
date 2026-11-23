@@ -118,8 +118,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BodyRead, Doc, Formula, HeldNodes, Node, Operand, ProfileProgram, RecipeNodeId, Speaker,
-    SpokenNode,
+    BodyRead, Doc, Formula, HeldNodes, Node, Operand, ProfileProgram, RecipeNodeId, Sentence,
+    Speaker, SpokenNode,
 };
 use pncad::select::SplitHalf;
 
@@ -597,9 +597,8 @@ pub(crate) fn member_said(at: &[i64]) -> String {
 /// does not hold as the tool kept it (`kept`, its last label), the
 /// member it reads (`[1]`, or every member), and the half it reads or
 /// still waits for.
-pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: &Port) -> String {
+pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: &Port) -> Sentence {
     let held = HeldNodes::of_nodes(by.document(), [kept.clone()]);
-    let node_said = pncad::document::sentence!(by.or_held(&held).node(kept.id())).to_string();
     let member = match &port.members {
         Members::One(at) => member_said(at),
         Members::Every => ", every member".to_owned(),
@@ -610,7 +609,7 @@ pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: &Port) -> Stri
         Output::HalfPending => ", half not chosen".to_owned(),
         Output::Alone | Output::Port(_) => String::new(),
     };
-    format!("{node_said}{member}{half}")
+    pncad::document::sentence!(by.or_held(&held).node(kept.id()), member, half)
 }
 
 impl Seats {
@@ -709,7 +708,7 @@ impl Seats {
     /// **Seat `i`'s pick as the panel says it** ([`pick_said`]) by
     /// `by`, a node `by` does not hold by the label the seat kept: the
     /// item [`seat_line`] composes; `None` for an open seat.
-    pub(crate) fn said(&self, by: Speaker<'_>, i: usize) -> Option<String> {
+    pub(crate) fn said(&self, by: Speaker<'_>, i: usize) -> Option<Sentence> {
         let kept = self.held[i].as_ref()?;
         Some(pick_said(by, kept, &self.ports[i]))
     }
@@ -956,7 +955,7 @@ pub(crate) fn respeak_each(held: &mut [Option<SpokenNode>], doc: &Doc<ProfilePro
 /// ([`crate::frame::landed_speaker`]), a node it no longer holds by the
 /// label the seat kept — the label the drop notice says — so the panel
 /// and the notice about the same pick call it one thing.
-pub fn seat_line(seats: &Seats, by: Speaker<'_>) -> String {
+pub fn seat_line(seats: &Seats, by: Speaker<'_>) -> Sentence {
     picks_line((0..seats.arity()).map(|i| (seats.roles[i].name(), seats.said(by, i))))
 }
 
@@ -997,18 +996,17 @@ pub(crate) fn open_pick(role: impl core::fmt::Display) -> String {
 }
 
 pub(crate) fn picks_line<R: core::fmt::Display>(
-    picks: impl IntoIterator<Item = (R, Option<String>)>,
-) -> String {
+    picks: impl IntoIterator<Item = (R, Option<Sentence>)>,
+) -> Sentence {
     let picks: Vec<_> = picks.into_iter().collect();
     if picks.iter().all(|(_, held)| held.is_none()) {
-        return NONE_PICKED.to_owned();
+        return Sentence::from(NONE_PICKED);
     }
-    picks
-        .iter()
-        .map(|(role, held)| match held {
-            Some(held) => format!("{role}: {held}"),
-            None => open_pick(role),
-        })
-        .collect::<Vec<_>>()
-        .join("; ")
+    Sentence::joined(
+        picks.into_iter().map(|(role, held)| match held {
+            Some(held) => pncad::document::sentence!(format_args!("{role}: "), held),
+            None => Sentence::from(open_pick(role)),
+        }),
+        "; ",
+    )
 }
