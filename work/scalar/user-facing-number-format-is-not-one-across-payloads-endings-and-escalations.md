@@ -35,3 +35,10 @@ More `{:e}` sites print user-facing numbers outside `Readable`:
 - `crates/step-import/src/error.rs`: `{residual:e} m` (the ambient-tolerance refusal) and `{margin:e} m` (the ε_in ambiguity refusal).
 
 PR 5157 moved the geom-brep payloads onto `MarginDiag::readable`. A margin of `0` therefore now prints "0 m" there, while these sites still print "0e0". (ENCL orchestrator)
+
+## 2026-11-22: two more sites beside the told offer (PR 7267's review)
+
+The told-quantity type (PR 7159) now spells a sized ending's offer as an offered bound (`geom-core` README, "A number told to a person"). Two sites still sit outside it:
+
+- `predicate.rs` `impl Display for IndeterminatePayload` (the bullet above) prints `{margin:e}` in the same sentence as the told offer. The margin is not told as a computed number on the rule's grid, so a sentence can quote the margin at seventeen digits and its offer at four.
+- `crates/step-import/src/interpret.rs` (about line 364) writes its own "tighten the tolerance below {} m" through `Readable(below)`, the exact spelling, and not through the offered role. Its offer is therefore not on the grid, and not cut to the side that works when typed. That file is EXCH/EXPORT/IMPORTGATE ground, so the fix is coordinated there.
