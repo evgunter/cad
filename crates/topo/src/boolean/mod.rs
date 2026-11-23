@@ -4078,11 +4078,15 @@ pub enum BooleanError {
     },
     /// **A germ pair whose plane cuts a torus face in a general spiric
     /// quartic**: a plane neither through the torus's axis, nor square to
-    /// it, nor parallel to it short of its inner equator. The C5 table
-    /// routes that section to its general rung, which is unbuilt, and no
-    /// carrier holds the curve, so the pair is refused at its frame.
-    /// `loops` is the section certificate's own classification of the
-    /// section, and `section` the table's refusal.
+    /// it, nor parallel to it short of its inner equator, on a pair the
+    /// operation's section table holds no section of. The C5 table routes
+    /// that section to its general rung, which the section value marches
+    /// ([`geom_brep::PlaneTorusPose`]); the value reads the pose over the
+    /// torus's ball and the join's frame at the face's reach, so where
+    /// the value read the closed form's pose the table holds nothing and
+    /// the frame refuses the pair: two readings of one pose straddling
+    /// the band about a tilt. `loops` is the section certificate's own
+    /// classification of the section, and `section` the table's refusal.
     ///
     /// A limit: a section not built (row 2).
     GermSectionSpiric {

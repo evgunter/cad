@@ -290,9 +290,12 @@ fn a_torus_crossing_the_rim_builds_every_op() {
         };
         let pi = core::f64::consts::PI;
         let (drum, torus) = (pi / 8.0, 2.0 * pi * pi * big * small * small);
+        // A marched edge stands within the band of the section, so each
+        // volume moves by at most the cut's area (under 1 m² here) times
+        // that: 10 ε holds it.
         let close = |got: f64, want: f64, what: &str| {
             assert!(
-                (got - want).abs() < 1e-9 * (drum + torus),
+                (got - want).abs() < 10.0 * Tol::witness().eps(),
                 "{label}: {what} {got} against {want}"
             );
         };

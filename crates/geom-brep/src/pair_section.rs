@@ -72,9 +72,10 @@
 //!
 //! # The pairs it serves
 //!
-//! Cylinder × sphere, the four torus pairs (a ring torus against a
-//! sphere, a cylinder or another ring torus, [`torus`], and against a
-//! cone off its axis, [`cone_torus`]), two cylinders ([`cylinders`]),
+//! Cylinder × sphere, the five torus pairs (a ring torus against a
+//! sphere, a cylinder or another ring torus, [`torus`], against a cone
+//! off its axis, [`cone_torus`], and against a plane tilted from its
+//! axis, [`plane_torus`]), two cylinders ([`cylinders`]),
 //! which have no bounded side and are read over the operation's region,
 //! and the closed-form conic pairs ([`conic_pairs`]): plane × sphere and
 //! sphere × sphere, read over a sphere's ball, and plane × cylinder, read
@@ -85,13 +86,15 @@
 //! reads and the boolean's join carries). Each
 //! analytic pair's pose
 //! ([`CylinderSpherePose`], [`SphereTorusPose`], [`CylinderTorusPose`],
-//! [`TorusTorusPose`], [`ConeTorusPose`], [`CylinderCylinderPose`]) is
+//! [`TorusTorusPose`], [`ConeTorusPose`], [`PlaneTorusPose`],
+//! [`CylinderCylinderPose`]) is
 //! decided once, and
 //! every reader of the pair
 //! reads it: the C5 table's pose question ([`crate::route_pose`]), the
 //! ℝ³ march ([`crate::ssi::cylinder_sphere_ssi`],
 //! [`crate::ssi::sphere_torus_ssi`], [`crate::ssi::cylinder_torus_ssi`],
-//! [`crate::ssi::torus_torus_ssi`], [`crate::ssi::cone_torus_ssi`]), and
+//! [`crate::ssi::torus_torus_ssi`], [`crate::ssi::cone_torus_ssi`],
+//! [`crate::ssi::plane_torus_ssi`]), and
 //! through this value the
 //! Boolean's section table and the section certificate. A torus pair's
 //! tangency is its critical gap's ([`gap`]), the one place it is
@@ -1625,8 +1628,9 @@ pub fn spline_pair_section<T: Decide>(
 /// cone against a cylinder or a cone: classified, but carried by no march
 /// yet ([`uncarried`]), so no reader that carries what it reads asks it.
 /// A cone against a torus is among them, though its coaxial pose is read
-/// elsewhere ([`ConeTorusPose`]), so a reader of a served pair still
-/// meets `Elsewhere` there.
+/// elsewhere ([`ConeTorusPose`]), as is a plane against a torus,
+/// though its axis-aligned poses are ([`PlaneTorusPose`]), so a reader
+/// of a served pair still meets `Elsewhere` there.
 #[must_use]
 pub fn serves(a: SurfaceKind, b: SurfaceKind) -> bool {
     match arm(a, b) {
