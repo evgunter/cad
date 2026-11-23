@@ -961,8 +961,8 @@ pub fn decide_reported<T: Decide, A: MarginTerms>(
 ///
 /// **Standing rule (the debt lane is tracked as issue #214): no new
 /// `decide_flagged` site ships without a ledger row in
-/// `docs/predicate-dimension-audit.md`.** Two assertions in
-/// `flagged_census.rs` carry it over `crates/*/src`. Fixtures
+/// `docs/predicate-dimension-audit.md`.** An assertion in
+/// `flagged_census.rs` carries it over `crates/*/src`. Fixtures
 /// and demos are outside the scan and cite a prose reason rather than a
 /// row.
 ///
