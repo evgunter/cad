@@ -8144,6 +8144,23 @@ mod presentation_rows {
                 "a slit of {angle} rad"
             );
         }
+        // A spike 1.5 band-zeros of angle, in a cell one band-zero across:
+        // small enough that each piece's rectangle fits inside its edge,
+        // so only the ray's own decision refuses it (its sine over the
+        // edge's length is 3 band-zeros: in the band).
+        let zero = band().zero();
+        let spike = sector_at_vertex_1(PZ, PX, [1.0, 1.5 * zero, 0.0], (1, 2));
+        let tiny = (-zero, zero);
+        assert_eq!(
+            read(present_plane(
+                &cell_of(&spike, &local, tiny, tiny),
+                &[],
+                &[vertex(1)],
+                band()
+            )),
+            Read::Local,
+            "a spike in the band, in a cell that holds it"
+        );
         for (d2, what) in [
             ([-1.0, -0.225e-9, 0.0], "convex by 0.9 ε at the far end"),
             ([-1.0, 0.225e-9, 0.0], "reflex by 0.9 ε"),
