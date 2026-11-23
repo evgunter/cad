@@ -615,7 +615,7 @@ fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
     .expect("exact atoms are total");
 
     assert_eq!(straight.len(), 12, "the box edges the subtraction kept");
-    assert_eq!(rims.len(), 2, "the pip rim is two arcs, not one circle");
+    assert_eq!(rims.len(), 1, "the pip rim is one circle");
 
     // The geometric UNION: run it twice and concatenate (§2).
     let mut materialized = [straight, rims].concat();
@@ -625,10 +625,10 @@ fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
     let mut authored = corpus::die_composed::selection(&doc.doc, cube, ball, pipped);
     authored.sort();
     authored.dedup();
-    assert_eq!(authored.len(), 14, "the document's own count");
+    assert_eq!(authored.len(), 13, "the document's own count");
     assert_eq!(
         materialized, authored,
-        "P10's two filters must name exactly the authored fourteen",
+        "P10's two filters must name exactly the authored thirteen",
     );
 
     // ...and the structural route agrees, so all three descriptions do.

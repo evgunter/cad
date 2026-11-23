@@ -271,6 +271,13 @@ fn a_section_tilted_within_the_band_meshes_to_its_pinned_bytes() {
 /// other decision the same in order and sign — and they were all a memo
 /// hit recorded, so a hit on those five now records nothing. The mesh is
 /// byte-identical on all nine bodies.
+///
+/// **One move, on the bodies a full revolve's curved wall makes.** The
+/// ball, the cone and the three balls less a slab are built with each
+/// curved wall one face reaching the axis by its wrap edge, where they
+/// were two half-bands: fewer faces and edges, so their K streams and
+/// bytes are re-pinned on that branch (PR 7414); every other row is
+/// main's unchanged.
 #[test]
 fn a_body_that_meshes_records_mains_k_stream() {
     const MAIN: [(&str, u64, u64, u64); 9] = [
@@ -288,15 +295,15 @@ fn a_body_that_meshes_records_mains_k_stream() {
         ),
         (
             "ball",
-            0x5aaf_8fe2_c8bd_5999,
+            0xd989_c8c2_2884_6a96,
             0xcbf2_9ce4_8422_2325,
-            0x8403_8e18_2870_7107,
+            0x82de_47f9_12c6_3b20,
         ),
         (
             "cone",
-            0x84b3_064b_95c6_8ad5,
+            0x1d69_ab23_9d29_0d1c,
             0xcbf2_9ce4_8422_2325,
-            0xee15_493c_99b8_730d,
+            0x66cc_0536_ee55_6c4c,
         ),
         (
             "donut",
@@ -306,9 +313,9 @@ fn a_body_that_meshes_records_mains_k_stream() {
         ),
         (
             "ball less a slab turned 0.3",
-            0x5dae_4d58_bce4_166f,
+            0x1587_ba3b_91f0_f3a5,
             0xcbf2_9ce4_8422_2325,
-            0xc7c8_23ba_ac8c_455f,
+            0x64f4_4265_6ecd_b1f0,
         ),
         (
             "pipe cut on a tilt",
@@ -318,15 +325,15 @@ fn a_body_that_meshes_records_mains_k_stream() {
         ),
         (
             "ball less a slab at 0.3 turned 2e-9",
-            0x5dae_4d58_bce4_166f,
+            0x1587_ba3b_91f0_f3a5,
             0xcbf2_9ce4_8422_2325,
-            0x8f44_f884_2b54_c898,
+            0xe74d_fd3b_9aee_4a4f,
         ),
         (
             "ball less a slab at 0.6 turned 8e-9",
-            0x5dae_4d58_bce4_166f,
+            0x1587_ba3b_91f0_f3a5,
             0xcbf2_9ce4_8422_2325,
-            0xbb9a_30df_a7b3_36b0,
+            0xda7f_9b6b_d4b3_4a4a,
         ),
     ];
     let corpus = k_corpus();

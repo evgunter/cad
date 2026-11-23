@@ -2901,9 +2901,12 @@ fn pin_in_bore_cannot_be_looked_at(cd: &crate::corpus::CorpusDoc) {
     );
     assert_eq!(
         tally,
+        // A full revolve's walls are one face each, so the touches at
+        // the half-bands' second seam are gone: four undecided pairs and
+        // four unrecorded contacts fewer than when they were two.
         [
-            ("CensusUndecidable".to_owned(), 15),
-            ("UnrecordedContact".to_owned(), 11)
+            ("CensusUndecidable".to_owned(), 11),
+            ("UnrecordedContact".to_owned(), 7)
         ]
         .into_iter()
         .collect(),

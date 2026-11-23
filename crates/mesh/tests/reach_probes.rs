@@ -649,11 +649,11 @@ fn a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row() {
 /// **A cone face through its apex meshes on the cone row.** The funnel
 /// (apex at the origin, rim of radius 1 at `y = 1`) split by the tilted
 /// plane of [`a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row`]:
-/// below the cut each half face's loop runs up one ruling from the apex,
-/// along the section ellipse, and down the other ruling back to it, so its
-/// polygon meets the apex row at two azimuths and keeps the apex there
-/// twice (`crate::chart_table`'s singular-row rule). Both halves mesh at
-/// every δ, and the mesh is the body's ([`geometry`]).
+/// below the cut the one cone face's loop runs up its seam ruling from
+/// the apex, round the section ellipse, and down the same ruling back to
+/// it, so its polygon meets the apex row at the seam's azimuth a whole
+/// turn apart (`crate::chart_table`'s singular-row rule). Both halves
+/// mesh at every δ, and the mesh is the body's ([`geometry`]).
 #[test]
 fn a_cone_face_through_its_apex_meshes_on_the_cone_row() {
     let plane = topo::test_support::split_plane(
@@ -681,20 +681,22 @@ fn a_cone_face_through_its_apex_meshes_on_the_cone_row() {
             .iter()
             .filter(|l| !l.contains(&CurveKind::Circle))
             .count();
+        // The wall is one face, its seam ruling walked out and back: to
+        // the apex below the cut, to the rim above it.
         assert!(
-            loops.len() == 2
+            loops.len() == 1
                 && loops.iter().all(|l| {
                     l.contains(&CurveKind::Ellipse)
                         && l.iter().filter(|c| **c == CurveKind::Line).count() == rulings
                 })
-                && apex_loops == if side == "below" { 2 } else { 0 },
-            "{what}: two half faces, each an ellipse and two rulings, through the apex \
+                && apex_loops == if side == "below" { 1 } else { 0 },
+            "{what}: one face, an ellipse and its seam ruling both ways, through the apex \
              below the cut and to the rim above it: {loops:?}"
         );
         assert_eq!(
             nappes(half),
-            vec![1.0; 2],
-            "{what}: both faces on the v > 0 nappe"
+            vec![1.0],
+            "{what}: the face on the v > 0 nappe"
         );
         assert_at_every(&what, half, &[2e-2, 1.5e-2, 5e-3, 1e-3, 2e-4], &Got::Meshed);
     }

@@ -191,32 +191,10 @@ pub(crate) fn split_at_meridian(body: &mut Body<f64>, key: FaceKey, dir: Vec3<f6
     .unwrap();
 }
 
-/// Splits a full revolve's one-face ball into two lunes along the
-/// meridian opposite its wrap edge: the ball a half-turn pair of
-/// meridians bounds, which the seam-region rows cut further.
+/// Splits a full revolve's one-face ball into its two lunes
+/// ([`sweep::test_support::two_lunes`]).
 pub(crate) fn two_lunes(body: &mut Body<f64>, tol: Tol) {
-    let [whole] = sphere_faces(body)[..] else {
-        panic!("a full revolve's ball is one sphere face");
-    };
-    let (center, _, pole) = sphere_of(body, whole);
-    let sphere = face(body, whole).surface;
-    let (_, hes) = topo::props::loop_edges(body, face(body, whole).outer).unwrap();
-    let wrap = body.get_half_edge(hes[0]).unwrap().edge;
-    let c = body
-        .get_curve_geom(body.get_edge(wrap).unwrap().curve)
-        .unwrap()
-        .certified()
-        .unwrap();
-    let (t0, t1) = c.params();
-    let mid = c.carrier().eval(0.5 * (t0 + t1)) - center;
-    let off = mid - pole * mid.dot(pole);
-    let mut spec = c.restated_spec();
-    split_at_meridian(body, whole, -off / off.norm(), tol);
-    assert_eq!(sphere_faces(body).len(), 2, "the ball is two lunes");
-    // Between two lunes the meridian is no longer a wrap edge.
-    spec.description = geom_brep::EdgeDescriptionSpec::chart(sphere);
-    body.set_edge_curve(wrap, spec, tol)
-        .expect("the meridian restates as a chart edge between the lunes");
+    sweep::test_support::two_lunes(body, tol);
 }
 
 // Splits of the review of PR 5516 (R2), lifted into rows.

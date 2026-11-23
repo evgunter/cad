@@ -1701,11 +1701,11 @@ fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
             "{label}: loud and unquietable: {finding:?}"
         );
         // Each copy's faces lie on the other's, and the intersection keeps
-        // the first copy's (Eq. 15.3): the overlap is named by those four,
-        // the two discs and the two half-bands.
+        // the first copy's (Eq. 15.3): the overlap is named by those three,
+        // the two discs and the wall.
         assert!(
-            faces.len() == 4 && faces.iter().all(|f| f.copy == finding.a),
-            "{label}: the first copy's four faces name the overlap: {faces:?}"
+            faces.len() == 3 && faces.iter().all(|f| f.copy == finding.a),
+            "{label}: the first copy's three faces name the overlap: {faces:?}"
         );
         let count = |f: fn(&topo::ValidationError) -> bool| {
             finding.evidence.iter().filter(|&e| f(e)).count()
@@ -1714,7 +1714,8 @@ fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
         let undecided = count(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. }));
         assert_eq!(
             (same_side, undecided, finding.evidence.len()),
-            (1, 8, 9),
+            // Half the rim pairs of two half-band walls per copy.
+            (1, 4, 5),
             "{label}: one decided pair, and the rim pairs riding it: {:?}",
             finding.evidence
         );

@@ -550,6 +550,73 @@ pub fn try_revolved_about_y_at<T: Decide + topo::AtRestPolicy>(
     crate::revolve(&profile, axis, rev, tol).map(|r| r.body.into_body())
 }
 
+/// **A full revolve's one-face ball cut into its two lunes**, in place:
+/// a meridian from pole to pole along the azimuth opposite the face's
+/// wrap edge (`mef`), and the wrap edge, now between the two lunes,
+/// restated as a plain chart edge. The ball a half-turn pair of
+/// meridians bounds: the rows whose subject is two faces of one sphere
+/// (seam siblings, a lune flipped alone, a seam region) stand on it.
+///
+/// # Panics
+///
+/// Where `body` is not one sphere face whose loop walks one meridian
+/// pole to pole and back.
+pub fn two_lunes(body: &mut Body<f64>, tol: Tol) {
+    use topo::construction::{Construct, FaceSurface, MefSite};
+    let spheres: Vec<FaceKey> = body
+        .faces()
+        .filter(|(f, _)| matches!(body.face_surface(*f), Some(geom::Surface::Sphere { .. })))
+        .map(|(k, _)| k)
+        .collect();
+    let [whole] = spheres[..] else {
+        panic!("a full revolve's ball is one sphere face, got {spheres:?}");
+    };
+    let Some(&geom::Surface::Sphere { frame, radius, .. }) = body.face_surface(whole) else {
+        unreachable!("filtered on the sphere just above")
+    };
+    let (centre, pole) = (frame.origin(), frame.axis().normalize());
+    let face = body.get_face(whole).unwrap();
+    let surface = face.surface;
+    let (_, hes) = topo::props::loop_edges(body, face.outer).unwrap();
+    let wrap = body.get_half_edge(hes[0]).unwrap().edge;
+    let c = body
+        .get_curve_geom(body.get_edge(wrap).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap();
+    let (t0, t1) = c.params();
+    let mid = c.carrier().eval(0.5 * (t0 + t1)) - centre;
+    let off = mid - pole * mid.dot(pole);
+    let dir = -off / off.norm();
+    let mut spec = c.restated_spec();
+    let at_point = |q: Point3<f64>| {
+        *hes.iter()
+            .find(|&&h| {
+                let v = body.get_half_edge(h).unwrap().start;
+                (*body.get_point(body.get_vertex(v).unwrap().point).unwrap() - q).norm() < 1e-9
+            })
+            .expect("a pole vertex on the loop")
+    };
+    let (he1, he2) = (
+        at_point(centre + pole * radius),
+        at_point(centre - pole * radius),
+    );
+    let circle = geom::Curve3::circle(centre, pole.cross(dir), radius, pole);
+    body.mef(
+        MefSite::Chords { he1, he2 },
+        geom_brep::EdgeCurveSpec::arc_of_circle(circle, 0.0, core::f64::consts::PI)
+            .unwrap()
+            .at_rest_in_chart(surface, false),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .expect("the opposite meridian halves the ball");
+    // Between two lunes the meridian is no longer a wrap edge.
+    spec.description = geom_brep::EdgeDescriptionSpec::chart(surface);
+    body.set_edge_curve(wrap, spec, tol)
+        .expect("the meridian restates as a chart edge between the lunes");
+}
+
 /// **The dome**: a sphere zone of radius `r` from the equator up 45°,
 /// on a flat base annulus, bored on-axis at `r/2` so the profile stays
 /// ANNULAR — which is what makes the full revolve mint one wall per

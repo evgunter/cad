@@ -4671,8 +4671,8 @@ pub(super) mod tests {
     }
 
     /// **The tilted pair's faces meet their poles as polygon sides, and
-    /// the runs between the poles sit where the region is.** Each ball's
-    /// half-band remnant passes both chart poles at loop vertices
+    /// the runs between the poles sit where the region is.** A ball's
+    /// one-face remnant passes both chart poles at loop vertices
     /// (`y`-poled balls, seam meridians pole to pole), so its polygon
     /// carries two pole sides ([`super::flat_points`]) and the run
     /// between them sits where the loop's lift puts it, through the
@@ -4745,8 +4745,8 @@ pub(super) mod tests {
             }
         }
         assert!(
-            with_poles >= 2,
-            "both balls' remnants pass both poles: {with_poles}"
+            with_poles >= 1,
+            "a ball's one-face remnant passes both poles: {with_poles}"
         );
     }
 
